@@ -25,6 +25,7 @@ Source6:       dcorch-sysinv-api-proxy.service
 Source7:       dcorch-snmp.service
 Source8:       dcorch-cinder-api-proxy.service
 Source9:       dcorch-neutron-api-proxy.service
+Source10:      dcorch-identity-api-proxy.service
 
 BuildArch:     noarch
 
@@ -123,6 +124,8 @@ install -p -D -m 644 %{SOURCE6} %{buildroot}%{_unitdir}/dcorch-sysinv-api-proxy.
 install -p -D -m 644 %{SOURCE7} %{buildroot}%{_unitdir}/dcorch-snmp.service
 install -p -D -m 644 %{SOURCE8} %{buildroot}%{_unitdir}/dcorch-cinder-api-proxy.service
 install -p -D -m 644 %{SOURCE9} %{buildroot}%{_unitdir}/dcorch-neutron-api-proxy.service
+install -p -D -m 644 %{SOURCE10} %{buildroot}%{_unitdir}/dcorch-identity-api-proxy.service
+
 # install default config files
 cd %{_builddir}/%{pypi_name}-%{version} && oslo-config-generator --config-file ./dcorch/config-generator.conf --output-file %{_builddir}/%{pypi_name}-%{version}/etc/dcorch/dcorch.conf.sample
 install -p -D -m 640 %{_builddir}/%{pypi_name}-%{version}/etc/dcorch/dcorch.conf.sample %{buildroot}%{_sysconfdir}/dcorch/dcorch.conf
@@ -158,6 +161,7 @@ install -p -D -m 640 %{_builddir}/%{pypi_name}-%{version}/etc/dcorch/dcorch.conf
 %{_unitdir}/dcorch-sysinv-api-proxy.service
 %{_unitdir}/dcorch-cinder-api-proxy.service
 %{_unitdir}/dcorch-neutron-api-proxy.service
+%{_unitdir}/dcorch-identity-api-proxy.service
 %{_bindir}/dcorch-manage
 %{_bindir}/dcorch-snmp
 %{_unitdir}/dcorch-snmp.service
