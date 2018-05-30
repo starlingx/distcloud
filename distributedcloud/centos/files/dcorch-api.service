@@ -1,0 +1,13 @@
+[Unit]
+Description=DC Manager API Service
+After=syslog.target network.target mysqld.service
+
+[Service]
+Type=simple
+# TODO(Bart): what user to use?
+User=root
+ExecStart=/usr/bin/dcorch-api --config-file /etc/dcorch/dcorch.conf
+Restart=on-failure
+
+[Install]
+WantedBy=multi-user.target

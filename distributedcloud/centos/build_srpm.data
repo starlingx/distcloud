@@ -1,0 +1,6 @@
+TAR_NAME="distributedcloud"
+SRC_DIR="$CGCS_BASE/git/distributedcloud"
+COPY_LIST="$FILES_BASE/*"
+
+TIS_BASE_SRCREV=ea7caa8567120384a0b6a7abbb567fcc7d22188b
+TIS_PATCH_VER=7
