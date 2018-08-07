@@ -169,4 +169,10 @@ install -p -D -m 640 %{_builddir}/%{pypi_name}-%{version}/etc/dcorch/dcorch.conf
 %dir %attr(0755,root,root) %{_localstatedir}/run/dcorch
 %dir %attr(0755,root,root) %{_localstatedir}/cache/dcorch
 %dir %attr(0755,root,root) %{_sysconfdir}/dcorch
-%config(noreplace) %attr(-, root, root) %{_sysconfdir}/dcorch/dcorch.conf
+%config(noreplace) %attr(-, dcorch, dcorch) %{_sysconfdir}/dcorch/dcorch.conf
+%pre dcorch
+getent group dcorch >/dev/null || groupadd -r --gid 173 dcorch
+getent passwd dcorch >/dev/null || \
+useradd --uid 173 -r -g dcorch -d /var/lib/dcorch -s /sbin/nologin \
+-c "dcorch Daemons" dcorch
+exit 0
