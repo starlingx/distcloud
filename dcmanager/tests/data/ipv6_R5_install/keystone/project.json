@@ -1,0 +1,9 @@
+{
+  "project_0": ["<<keystone.domain.root>>", "<<keystone.domain.root>>", "{}", "", false, "<<keystone.domain.root>>", "NULL", true],
+  "project_1": ["default", "Default", "{}", "The default domain", true, "<<keystone.domain.root>>", "NULL", true],
+  "project_2": ["8803689162424f60a71e4642e9dc2b9e", "admin", "{}", "admin tenant", true, "default", "default", false],
+  "project_3": ["f3b78df9bbd74d6b8bbf8c5f08427ca7", "services", "{}", "Tenant for the openstack services", true, "default", "default", false],
+  "project_4": ["2423d6c7853145a798e6491ca9de6e2b", "heat", "{}", "", true, "<<keystone.domain.root>>", "NULL", true],
+  "project_5": ["9008c3fc102040cd8149b5c0d8aa06a3", "tenant1", "{}", "tenant1", true, "default", "default", false],
+  "project_6": ["6ecc44a6b24e4c398dc749f1386b2ced", "tenant2", "{}", "tenant2", true, "default", "default", false]
+}

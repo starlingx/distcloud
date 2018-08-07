@@ -1,0 +1,6 @@
+{
+  "networks_0": ["2018-04-11 15:32:43.431455", "NULL", "NULL", 1, "ef1b76d8-ba94-4b6f-a631-0ebc54b26635", "mgmt", 9216, 10000, true, 133, 1],
+  "networks_1": ["2018-04-11 15:32:43.660784", "NULL", "NULL", 2, "52ab3edf-e136-4441-94d4-137775e44f86", "pxeboot", 9216, "NULL", true, "NULL", 2],
+  "networks_2": ["2018-04-11 15:32:43.907972", "NULL", "NULL", 3, "ba666757-954b-4a9b-9cbc-b40dd81dee31", "oam", 1500, "NULL", false, "NULL", 3],
+  "networks_3": ["2018-04-11 15:32:44.050673", "NULL", "NULL", 4, "d277b894-aacd-44d0-af42-927efa197561", "multicast", 9216, "NULL", false, "NULL", 4]
+}

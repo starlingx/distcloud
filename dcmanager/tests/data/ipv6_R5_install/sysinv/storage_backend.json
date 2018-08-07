@@ -1,0 +1,4 @@
+{
+  "storage_backend_0": ["2018-04-11 15:32:39.960802", "2018-04-11 15:32:44.720892", "NULL", 1, "a631812f-baf1-48e4-8328-1cf4a8418572", "file", "configured", "NULL", 1, "glance", "{}", "file-store"],
+  "storage_backend_1": ["2018-04-11 15:55:23.672523", "2018-04-11 15:58:28.002419", "NULL", 2, "7c9b8b2d-33e8-40e5-bd55-173254120bb3", "lvm", "configured", "NULL", 1, "cinder", "{}", "lvm-store"]
+}

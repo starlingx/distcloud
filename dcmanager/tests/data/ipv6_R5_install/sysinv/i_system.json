@@ -1,0 +1,3 @@
+{
+  "i_system_0": ["2018-04-11 15:32:39.919912", "2018-05-16 21:04:53.427686", "NULL", 1, "51ecfab9-400e-41c9-b679-2c6ba37f1099", "Distributed-Cloud-Lab", "System_Controller: setup by lab_setup.sh", "{"https_enabled": false, "vswitch_type": "avs", "region_config": false, "sdn_enabled": false, "shared_services": "[]"}", "NULL", "Ottawa-PheonixLab-Aisle_3-Rack_A", 72, "18.03", "Standard", "duplex", "UTC", "standard", "RegionOne", "services", "systemcontroller"]
+}

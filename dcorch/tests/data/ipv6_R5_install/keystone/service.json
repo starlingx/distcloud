@@ -1,0 +1,20 @@
+{
+  "service_0": ["5fa3efb666204693a0d0ab05fb03140c", "identity", true, "{"description": "OpenStack Identity Service", "name": "keystone"}"],
+  "service_1": ["b3dd49c87dfd40d08d19d2895d2bc9c6", "platform", true, "{"description": "SysInvService", "name": "sysinv"}"],
+  "service_2": ["9754bb0a6cba4ae4b62c1a4e825964a5", "dcmanager", true, "{"description": "DCManagerService", "name": "dcmanager"}"],
+  "service_3": ["c931b77a92bc4208909d9205d85391a0", "dcorch", true, "{"description": "DcOrchService", "name": "dcorch"}"],
+  "service_4": ["7d48ddb964034eb588e557b976d11cdf", "image", true, "{"description": "OpenStack Image Service", "name": "glance"}"],
+  "service_5": ["a15edc66a6394e18bda9f9256e7b470c", "alarming", true, "{"description": "OpenStack Alarming Service", "name": "aodh"}"],
+  "service_6": ["995cc229e9af44ec81c1c76073f4c733", "placement", true, "{"description": "Openstack Placement Service", "name": "placement"}"],
+  "service_7": ["c4ae85afaf7b465190d927e11da3eb38", "compute", true, "{"description": "Openstack Compute Service", "name": "nova"}"],
+  "service_8": ["ea41162395844d30af3e59efa3e6323e", "cloudformation", true, "{"description": "Openstack Cloudformation Service", "name": "heat-cfn"}"],
+  "service_9": ["6cfd11045b1e4c0badcb56f18428ab5b", "network", true, "{"description": "Neutron Networking Service", "name": "neutron"}"],
+  "service_10": ["c3677835d8024fa894929ea67b1e9fa0", "patching", true, "{"description": "Patching Service", "name": "patching"}"],
+  "service_11": ["86328b93a3c84d63a1be7f7368138bdf", "metering", true, "{"description": "Openstack Metering Service", "name": "ceilometer"}"],
+  "service_12": ["aa803a6f0ab84b68ad13a759b1b29525", "nfv", true, "{"description": "Virtual Infrastructure Manager", "name": "vim"}"],
+  "service_13": ["d6f2ef7609f44c9aa0b40b15f9f93139", "event", true, "{"description": "OpenStack Event Service", "name": "panko"}"],
+  "service_14": ["0efe25ad76f244e1bca9f6975cfe8b83", "orchestration", true, "{"description": "Openstack Orchestration Service", "name": "heat"}"],
+  "service_15": ["c5834d3740504a69bf427385319b51a0", "volumev3", true, "{"description": "Cinder Service v3", "name": "cinderv3"}"],
+  "service_16": ["8a5873d1ee914ccbae3c070d578d0d0d", "volumev2", true, "{"description": "Cinder Service v2", "name": "cinderv2"}"],
+  "service_17": ["567f8aafa7844256b03e86655fa2bd3e", "volume", true, "{"description": "Cinder Service", "name": "cinder"}"]
+}

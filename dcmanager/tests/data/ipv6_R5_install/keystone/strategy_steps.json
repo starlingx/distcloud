@@ -1,0 +1,6 @@
+{
+  "strategy_steps_0": [id, subcloud_id, stage, state, details, started_at, finished_at, reserved_1, reserved_2, created_at, updated_at, deleted_at, deleted],
+  "strategy_steps_1": [id, subcloud_id, stage, state, details, started_at, finished_at, reserved_1, reserved_2, created_at, updated_at, deleted_at, deleted],
+  "strategy_steps_2": [id, subcloud_id, stage, state, details, started_at, finished_at, reserved_1, reserved_2, created_at, updated_at, deleted_at, deleted],
+  "strategy_steps_3": [id, subcloud_id, stage, state, details, started_at, finished_at, reserved_1, reserved_2, created_at, updated_at, deleted_at, deleted]
+}

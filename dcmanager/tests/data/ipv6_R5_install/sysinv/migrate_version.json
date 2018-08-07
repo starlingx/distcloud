@@ -1,0 +1,3 @@
+{
+  "migrate_version_0": ["sysinv", "/usr/lib64/python2.7/site-packages/sysinv/db/sqlalchemy/migrate_repo", 67]
+}

@@ -1,0 +1,7 @@
+{
+  "region_0": ["SystemController", "", "NULL", "{}"],
+  "region_1": ["RegionOne", "", "NULL", "{}"],
+  "region_2": ["subcloud-1", "", "NULL", "{}"],
+  "region_3": ["subcloud-4", "", "NULL", "{}"],
+  "region_4": ["subcloud-5", "", "NULL", "{}"]
+}

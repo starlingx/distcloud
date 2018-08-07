@@ -1,0 +1,17 @@
+{
+  "subcloud_status_0": [32, 7, "volume", "in-sync", "NULL", "NULL", "2018-05-15 14:45:48.96137", "2018-05-18 18:20:39.773185", "NULL", 0],
+  "subcloud_status_1": [34, 7, "network", "in-sync", "NULL", "NULL", "2018-05-15 14:45:48.965798", "2018-05-18 18:20:40.20996", "NULL", 0],
+  "subcloud_status_2": [33, 7, "compute", "in-sync", "NULL", "NULL", "2018-05-15 14:45:48.96369", "2018-05-18 18:20:40.647117", "NULL", 0],
+  "subcloud_status_3": [31, 7, "platform", "in-sync", "NULL", "NULL", "2018-05-15 14:45:48.959", "2018-05-18 18:20:40.647643", "NULL", 0],
+  "subcloud_status_4": [27, 6, "volume", "in-sync", "NULL", "NULL", "2018-05-15 14:45:12.516212", "2018-05-18 18:20:53.848545", "NULL", 0],
+  "subcloud_status_5": [29, 6, "network", "in-sync", "NULL", "NULL", "2018-05-15 14:45:12.520688", "2018-05-18 18:20:54.318122", "NULL", 0],
+  "subcloud_status_6": [26, 6, "platform", "in-sync", "NULL", "NULL", "2018-05-15 14:45:12.512624", "2018-05-18 18:20:54.800959", "NULL", 0],
+  "subcloud_status_7": [28, 6, "compute", "in-sync", "NULL", "NULL", "2018-05-15 14:45:12.518589", "2018-05-18 18:20:54.801511", "NULL", 0],
+  "subcloud_status_8": [35, 7, "patching", "in-sync", "NULL", "NULL", "2018-05-15 14:45:48.968028", "2018-05-18 18:24:52.93953", "NULL", 0],
+  "subcloud_status_9": [30, 6, "patching", "in-sync", "NULL", "NULL", "2018-05-15 14:45:12.522906", "2018-05-18 18:24:53.403192", "NULL", 0],
+  "subcloud_status_10": [2, 1, "volume", "in-sync", "NULL", "NULL", "2018-04-11 17:01:48.55157", "2018-05-24 00:17:37.344778", "NULL", 0],
+  "subcloud_status_11": [4, 1, "network", "in-sync", "NULL", "NULL", "2018-04-11 17:01:48.555564", "2018-05-24 00:17:37.799951", "NULL", 0],
+  "subcloud_status_12": [1, 1, "platform", "in-sync", "NULL", "NULL", "2018-04-11 17:01:48.548357", "2018-05-24 00:17:38.353609", "NULL", 0],
+  "subcloud_status_13": [3, 1, "compute", "in-sync", "NULL", "NULL", "2018-04-11 17:01:48.553623", "2018-05-24 00:17:38.354505", "NULL", 0],
+  "subcloud_status_14": [5, 1, "patching", "in-sync", "NULL", "NULL", "2018-04-11 17:01:48.557433", "2018-05-24 00:17:42.564325", "NULL", 0]
+}

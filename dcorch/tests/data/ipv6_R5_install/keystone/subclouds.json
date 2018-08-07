@@ -1,0 +1,5 @@
+{
+  "subclouds_0": [id, name, description, location, software_version, management_state, availability_status, management_subnet, management_gateway_ip, management_start_ip, management_end_ip, systemcontroller_gateway_ip, audit_fail_count, reserved_1, reserved_2, created_at, updated_at, deleted_at, deleted],
+  "subclouds_1": [id, name, description, location, software_version, management_state, availability_status, management_subnet, management_gateway_ip, management_start_ip, management_end_ip, systemcontroller_gateway_ip, audit_fail_count, reserved_1, reserved_2, created_at, updated_at, deleted_at, deleted],
+  "subclouds_2": [id, name, description, location, software_version, management_state, availability_status, management_subnet, management_gateway_ip, management_start_ip, management_end_ip, systemcontroller_gateway_ip, audit_fail_count, reserved_1, reserved_2, created_at, updated_at, deleted_at, deleted]
+}

@@ -1,0 +1,3 @@
+{
+  "i_alarm_0": ["2018-04-16 16:33:33.569314", "NULL", "NULL", 115, "a19c245b-44b9-41de-9142-96d66003bb55", "500.101", "set", "host", "host=controller", "2018-04-16 16:33:33.568539", "critical", "Developer patch certificate is enabled", "security-service-or-mechanism-violation", "unspecified-reason", "Reinstall system to disable certificate and remove untrusted patches", false, false, false, false]
+}

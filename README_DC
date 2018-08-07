@@ -1,0 +1,58 @@
+# These are instructions for building and installing Distributed Cloud
+
+# Packages and configure script are now included in the load
+
+# Run configure script (on target - requires root privileges)
+
+configure_dc.sh
+
+# To use DC Manager CLI (these are just examples)
+
+source /etc/nova/openrc
+# Add subclouds (description and location are optional)
+dcmanager subcloud add --name=subcloud1 \
+    --description="subcloud1 description" \
+    --location="subcloud 1 location" \
+    --management-subnet=192.168.101.0/24 \
+    --management-start-ip=192.168.101.2 \
+    --management-end-ip=192.168.101.50 \
+    --management-gateway-ip=192.168.101.1 \
+    --systemcontroller-gateway-ip=192.168.204.101
+dcmanager subcloud add --name=subcloud2 \
+    --management-subnet=192.168.102.0/24 \
+    --management-start-ip=192.168.102.2 \
+    --management-end-ip=192.168.102.50 \
+    --management-gateway-ip=192.168.102.1 \
+    --systemcontroller-gateway-ip=192.168.204.101
+# List all subclouds
+dcmanager subcloud list
+# Show a single subcloud
+dcmanager subcloud show 1
+dcmanager subcloud show subcloud2
+# Update subcloud description or location
+dcmanager subcloud update 1 \
+    --description="new subcloud1 description" \
+    --location="new subcloud1 location"
+# Generate config for a subcloud (additional items are optional)
+dcmanager subcloud generate-config 1 \
+    --management-interface-port=enp0s8 \
+    --management-interface-mtu=1500 \
+    --oam-subnet=10.10.10.0/24 \
+    --oam-gateway-ip=10.10.10.1 \
+    --oam-floating-ip=10.10.10.12 \
+    --oam-unit-0-ip=10.10.10.13 \
+    --oam-unit-1-ip=10.10.10.14 \
+    --oam-interface-port=enp0s3 \
+    --oam-interface-mtu=1500
+dcmanager subcloud generate-config 2
+# Unlock a subcloud
+dcmanager subcloud unlock 1
+# Lock a subcloud
+dcmanager subcloud lock 1
+# Delete a subcloud (must be locked)
+dcmanager subcloud delete 1
+
+# To use DC Orchestrator API directly
+
+run "openstack token issue", then copy the token.  Then to add a subcloud it's something like this:
+curl -H "Content-Type: application/json" -H "X-Auth-Token: gAAAAABZ3pT6ZLUaMJfTjAius1zFjcYq25JyiI-eHJe_m5B4NheiN_T94wbG-NrFAAbYNKkOb90MdQ5fnTMjGi1QqZyJ9Rkyg2ZvnaI3Sj8Cw6cSl7goyG0rzseP9b1qADmvX66aqZx79pQQUE0EcC2YDPh-mwgYRoerjuNQ_DGYeWOfZxa06kk "  -X POST -d '{"subcloud":"subcloud2"}' http://127.0.0.1:8118/v1.0/d9f1bcfd50b447de993ec90614e9bdc8/subclouds

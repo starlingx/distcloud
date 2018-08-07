@@ -1,0 +1,6 @@
+{
+  "trust_0": ["8955b2c1a40749b49f2bf21cc4b0acb4", "500b2ba0791e44a780d4dad3c5a1ff31", "4abaa160c36846328a482217de0112af", "9008c3fc102040cd8149b5c0d8aa06a3", true, "2018-04-12 17:24:22.199655", "NULL", "NULL", "{"redelegation_count": 0, "roles": [{"id": "9fe2ff9ee4384b1894a90878d3e92bab"}]}"],
+  "trust_1": ["6562be68284e4cc6a8832714569e180b", "500b2ba0791e44a780d4dad3c5a1ff31", "4abaa160c36846328a482217de0112af", "9008c3fc102040cd8149b5c0d8aa06a3", true, "2018-04-12 19:03:55.461547", "NULL", "NULL", "{"redelegation_count": 0, "roles": [{"id": "9fe2ff9ee4384b1894a90878d3e92bab"}]}"],
+  "trust_2": ["e6c80f658ebb4ace9020c31865c0245b", "500b2ba0791e44a780d4dad3c5a1ff31", "4abaa160c36846328a482217de0112af", "9008c3fc102040cd8149b5c0d8aa06a3", true, "2018-04-12 19:15:48.126469", "NULL", "NULL", "{"redelegation_count": 0, "roles": [{"id": "9fe2ff9ee4384b1894a90878d3e92bab"}]}"],
+  "trust_3": ["0e67dc152a514c15827da1dbeb4c84cf", "500b2ba0791e44a780d4dad3c5a1ff31", "4abaa160c36846328a482217de0112af", "9008c3fc102040cd8149b5c0d8aa06a3", true, "2018-04-13 19:26:04.180508", "NULL", "NULL", "{"redelegation_count": 0, "roles": [{"id": "9fe2ff9ee4384b1894a90878d3e92bab"}]}"]
+}

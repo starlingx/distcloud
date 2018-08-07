@@ -1,0 +1,3 @@
+{
+  "migrate_version_0": ["dcmanager", "/usr/lib/python2.7/site-packages/dcmanager/db/sqlalchemy/migrate_repo", 1]
+}

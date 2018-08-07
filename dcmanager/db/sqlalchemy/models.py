@@ -1,0 +1,169 @@
+# Copyright (c) 2015 Ericsson AB
+# All Rights Reserved.
+#
+#    Licensed under the Apache License, Version 2.0 (the "License"); you may
+#    not use this file except in compliance with the License. You may obtain
+#    a copy of the License at
+#
+#         http://www.apache.org/licenses/LICENSE-2.0
+#
+#    Unless required by applicable law or agreed to in writing, software
+#    distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+#    WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
+#    License for the specific language governing permissions and limitations
+#    under the License.
+#
+# Copyright (c) 2017 Wind River Systems, Inc.
+#
+# The right to copy, distribute, modify, or otherwise make use
+# of this software may be licensed only pursuant to the terms
+# of an applicable Wind River license agreement.
+#
+"""
+SQLAlchemy models for dcmanager data.
+"""
+
+from oslo_db.sqlalchemy import models
+
+from sqlalchemy.orm import backref, relationship
+from sqlalchemy.orm import session as orm_session
+from sqlalchemy import (Column, Integer, String, Boolean, DateTime)
+from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy import ForeignKey
+
+# from dcmanager.common import consts
+
+BASE = declarative_base()
+
+
+def get_session():
+    from dcmanager.db.sqlalchemy import api as db_api
+
+    return db_api.get_session()
+
+
+class DCManagerBase(models.ModelBase,
+                    models.SoftDeleteMixin,
+                    models.TimestampMixin):
+    """Base class for DC Manager Models."""
+
+    # __table_args__ = {'mysql_engine': 'InnoDB'}
+
+    def expire(self, session=None, attrs=None):
+        if not session:
+            session = orm_session.Session.object_session(self)
+            if not session:
+                session = get_session()
+        session.expire(self, attrs)
+
+    def refresh(self, session=None, attrs=None):
+        """Refresh this object."""
+        if not session:
+            session = orm_session.Session.object_session(self)
+            if not session:
+                session = get_session()
+        session.refresh(self, attrs)
+
+    def delete(self, session=None):
+        """Delete this object."""
+        if not session:
+            session = orm_session.Session.object_session(self)
+            if not session:
+                session = get_session()
+        session.begin()
+        session.delete(self)
+        session.commit()
+
+
+class Subcloud(BASE, DCManagerBase):
+    """Represents a subcloud"""
+
+    __tablename__ = 'subclouds'
+
+    id = Column(Integer, primary_key=True, nullable=False)
+    name = Column(String(255), unique=True)
+    description = Column(String(255))
+    location = Column(String(255))
+    software_version = Column(String(255))
+    management_state = Column(String(255))
+    availability_status = Column(String(255))
+    management_subnet = Column(String(255))
+    management_gateway_ip = Column(String(255))
+    management_start_ip = Column(String(255), unique=True)
+    management_end_ip = Column(String(255), unique=True)
+    systemcontroller_gateway_ip = Column(String(255))
+    audit_fail_count = Column(Integer)
+
+
+class SubcloudStatus(BASE, DCManagerBase):
+    """Represents the status of an endpoint in a subcloud"""
+
+    __tablename__ = "subcloud_status"
+
+    id = Column(Integer, primary_key=True, nullable=False)
+    subcloud_id = Column(Integer,
+                         ForeignKey('subclouds.id', ondelete='CASCADE'))
+    endpoint_type = Column(String(255))
+    sync_status = Column(String(255))
+
+
+class SwUpdateStrategy(BASE, DCManagerBase):
+    """Represents a software update for subclouds"""
+
+    __tablename__ = "sw_update_strategy"
+
+    id = Column(Integer, primary_key=True, nullable=False)
+    type = Column(String(255), unique=True)
+    subcloud_apply_type = Column(String(255))
+    max_parallel_subclouds = Column(Integer)
+    stop_on_failure = Column(Boolean)
+    state = Column(String(255))
+
+
+class SwUpdateOpts(BASE, DCManagerBase):
+    """Represents software update options for a subcloud"""
+
+    __tablename__ = "sw_update_opts"
+
+    id = Column(Integer, primary_key=True, nullable=False)
+    subcloud_id = Column(Integer,
+                         ForeignKey('subclouds.id', ondelete='CASCADE'))
+
+    storage_apply_type = Column(String(255))
+    compute_apply_type = Column(String(255))
+    max_parallel_computes = Column(Integer)
+    alarm_restriction_type = Column(String(255))
+    default_instance_action = Column(String(255))
+
+
+class SwUpdateOptsDefault(BASE, DCManagerBase):
+    """Represents default software update options for subclouds"""
+
+    __tablename__ = "sw_update_opts_default"
+
+    id = Column(Integer, primary_key=True, nullable=False)
+
+    subcloud_id = Column(Integer)
+    storage_apply_type = Column(String(255))
+    compute_apply_type = Column(String(255))
+    max_parallel_computes = Column(Integer)
+    alarm_restriction_type = Column(String(255))
+    default_instance_action = Column(String(255))
+
+
+class StrategyStep(BASE, DCManagerBase):
+    """Represents a step for patching or upgrading subclouds"""
+
+    __tablename__ = "strategy_steps"
+
+    id = Column(Integer, primary_key=True, nullable=False)
+    subcloud_id = Column(Integer,
+                         ForeignKey('subclouds.id', ondelete='CASCADE'),
+                         unique=True)
+    stage = Column(Integer)
+    state = Column(String(255))
+    details = Column(String(255))
+    started_at = Column(DateTime)
+    finished_at = Column(DateTime)
+    subcloud = relationship('Subcloud', backref=backref("strategy_steps",
+                                                        cascade="all,delete"))

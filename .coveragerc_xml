@@ -1,0 +1,11 @@
+[run]
+branch = True
+parallel = True
+source =
+    distributedcloud
+
+[report]
+ignore_errors = True
+omit = 
+    */tests/*
+

@@ -1,0 +1,12 @@
+[run]
+branch = True
+parallel = True
+source =
+    dcmanager
+    dcorch
+
+[report]
+ignore_errors = True
+omit = 
+    */tests/*
+

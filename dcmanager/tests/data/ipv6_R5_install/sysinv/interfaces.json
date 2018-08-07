@@ -1,0 +1,20 @@
+{
+  "interfaces_0": ["2018-04-11 15:33:38.540065", "NULL", "NULL", 2, "2fc56a3e-2e1a-4830-b8fd-a508b5f558a4", 1, "ethernet", "enp3s0f3", "NULL", "NULL", "NULL", "NULL"],
+  "interfaces_1": ["2018-04-11 15:33:38.588309", "NULL", "NULL", 3, "96dd1a3b-a3b6-459a-8f4a-14f63e77430e", 1, "ethernet", "ens785f0", "NULL", "NULL", "NULL", "NULL"],
+  "interfaces_2": ["2018-04-11 15:33:38.63678", "NULL", "NULL", 4, "a471bb81-c7ea-492f-a82f-9bdab34164e2", 1, "ethernet", "ens785f1", "NULL", "NULL", "NULL", "NULL"],
+  "interfaces_3": ["2018-04-11 15:33:38.685778", "NULL", "NULL", 5, "421b0159-211a-42ba-b09a-69b8e6415947", 1, "ethernet", "ens785f2", "NULL", "NULL", "NULL", "NULL"],
+  "interfaces_4": ["2018-04-11 15:33:38.734062", "NULL", "NULL", 6, "03cbcf8a-5c78-490e-9b12-f38e66429ff4", 1, "ethernet", "ens785f3", "NULL", "NULL", "NULL", "NULL"],
+  "interfaces_5": ["2018-04-11 15:33:38.830606", "NULL", "NULL", 8, "496fb63d-d649-41cf-b445-d74de1931ab8", 1, "ethernet", "ens801f1", "NULL", "NULL", "NULL", "NULL"],
+  "interfaces_6": ["2018-04-11 15:33:38.782463", "2018-04-11 15:34:00.614247", "NULL", 7, "e0057166-5d4c-4673-8c5a-0fd940be6875", 1, "ethernet", "ens801f0", "pxeboot", 0, "NULL", "NULL"],
+  "interfaces_7": ["2018-04-11 15:34:01.126331", "NULL", "NULL", 9, "6935a406-570b-457d-8400-aad4f13d2a18", 1, "vlan", "ens801f0.133", "mgmt", 0, "NULL", "NULL"],
+  "interfaces_8": ["2018-04-11 15:33:38.471122", "2018-04-11 15:34:02.197169", "NULL", 1, "b78b4c99-197b-4078-be85-9273eed33c56", 1, "ethernet", "eno1", "oam", 0, "NULL", "NULL"],
+  "interfaces_9": ["2018-04-11 17:11:14.92829", "NULL", "NULL", 11, "c09bba5d-69ed-47b4-9553-b598f0b2280d", 2, "ethernet", "enp3s0f3", "NULL", "NULL", "NULL", "NULL"],
+  "interfaces_10": ["2018-04-11 17:11:14.988133", "NULL", "NULL", 12, "a276f617-fe32-4b2d-8099-1db845b10904", 2, "ethernet", "ens785f0", "NULL", "NULL", "NULL", "NULL"],
+  "interfaces_11": ["2018-04-11 17:11:15.048478", "NULL", "NULL", 13, "c9951c01-f4e8-4d51-8c7e-fe1d80eeffb2", 2, "ethernet", "ens785f1", "NULL", "NULL", "NULL", "NULL"],
+  "interfaces_12": ["2018-04-11 17:11:15.106918", "NULL", "NULL", 14, "9069e9c5-47d1-43b1-a252-dd1d912e07a9", 2, "ethernet", "ens785f2", "NULL", "NULL", "NULL", "NULL"],
+  "interfaces_13": ["2018-04-11 17:11:15.165828", "NULL", "NULL", 15, "a84358ca-5ac0-4667-8521-9cb38590023f", 2, "ethernet", "ens785f3", "NULL", "NULL", "NULL", "NULL"],
+  "interfaces_14": ["2018-04-11 17:11:15.224274", "NULL", "NULL", 16, "44f27af2-a8fa-4e5a-acf6-66020dcefb5c", 2, "ethernet", "pxeboot0", "pxeboot", "NULL", "NULL", "NULL"],
+  "interfaces_15": ["2018-04-11 17:11:15.270051", "NULL", "NULL", 17, "bbb9e208-1f0a-4193-8233-f9a1cbb23437", 2, "vlan", "mgmt0", "mgmt", "NULL", "NULL", "NULL"],
+  "interfaces_16": ["2018-04-11 17:11:15.476387", "NULL", "NULL", 18, "2cb578f6-e693-449f-9c1e-1d038e8d3694", 2, "ethernet", "ens801f1", "NULL", "NULL", "NULL", "NULL"],
+  "interfaces_17": ["2018-04-11 17:11:14.858777", "2018-04-11 17:36:11.31691", "NULL", 10, "11c0cc6f-ab99-47cb-8396-1bf0e8448a7a", 2, "ethernet", "oam0", "oam", 0, "NULL", "NULL"]
+}

@@ -1,0 +1,5 @@
+{
+  "subclouds_0": [6, "subcloud-4", "wcp85 subcloud", "Ottawa-PheonixLab-Aisle_3-Rack_C", "18.03", "managed", "online", "fd01:3::0/64", "fd01:3::1", "fd01:3::2", "fd01:3::f", "fd01:1::1", 0, "NULL", "NULL", "2018-05-15 14:45:12.508708", "2018-05-24 10:48:18.090931", "NULL", 0],
+  "subclouds_1": [1, "subcloud-1", "wcp80 subcloud", "Ottawa-PheonixLab-Aisle_3-Rack_B", "18.03", "managed", "online", "fd01:2::0/64", "fd01:2::1", "fd01:2::2", "fd01:2::f", "fd01:1::1", 0, "NULL", "NULL", "2018-04-11 17:01:48.54467", "2018-05-24 00:17:34.74161", "NULL", 0],
+  "subclouds_2": [7, "subcloud-5", "wcp87 subcloud", "Ottawa-PheonixLab-Aisle_4-Rack_B", "18.03", "managed", "online", "fd01:4::0/64", "fd01:4::1", "fd01:4::2", "fd01:4::f", "fd01:1::1", 0, "NULL", "NULL", "2018-05-15 14:45:48.95625", "2018-05-24 10:48:17.907767", "NULL", 0]
+}

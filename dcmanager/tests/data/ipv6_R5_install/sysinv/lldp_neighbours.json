@@ -1,0 +1,6 @@
+{
+  "lldp_neighbours_0": ["2018-04-17 15:29:20.259636", "NULL", "NULL", 5, "75144a26-7909-406b-998d-178fffe4d67d", 1, 1, "e8:ba:70:1e:f7:80,Gi1/0/19"],
+  "lldp_neighbours_1": ["2018-04-17 17:44:28.200456", "NULL", "NULL", 6, "35f9f127-d51c-407b-ae85-fe27b8792621", 2, 9, "e8:ba:70:1e:f7:80,Gi1/0/20"],
+  "lldp_neighbours_2": ["2018-05-18 17:54:58.480967", "NULL", "NULL", 10, "9f20939f-a95f-42dc-ab19-8a122e9973e1", 1, 7, "54:ab:3a:05:7f:5e,yow-cgcs-wildcat-90, mgmt0+infra0"],
+  "lldp_neighbours_3": ["2018-05-18 17:55:30.142751", "NULL", "NULL", 12, "1f7ade25-9566-4efe-a3e7-5bcdad5a79de", 2, 15, "54:ab:3a:05:7f:5e,yow-cgcs-wildcat-91, mgmt0+infra0"]
+}
