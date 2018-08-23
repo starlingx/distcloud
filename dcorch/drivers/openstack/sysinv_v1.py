@@ -451,20 +451,6 @@ class SysinvClient(base.DriverBase):
 
         return remotelogging
 
-    def get_alarm_summary(self):
-        """Get this regions alarm summary
-
-        """
-        try:
-            LOG.info("get_alarm_summary region %s" %
-                     self.region_name)
-            alarms = self.client.ialarm.summary()
-            return alarms
-        except Exception as e:
-            LOG.error("get_alarm_summary exception=%s" % e)
-            pass
-        return {}
-
     def get_firewallrules(self):
         """Get the firewallrules for this region
 

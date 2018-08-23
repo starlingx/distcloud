@@ -29,6 +29,7 @@ from dcorch.drivers.openstack.keystone_v3 import KeystoneClient
 from dcorch.drivers.openstack.neutron_v2 import NeutronClient
 from dcorch.drivers.openstack.nova_v2 import NovaClient
 from dcorch.drivers.openstack.sysinv_v1 import SysinvClient
+from dcorch.drivers.openstack.fm import FmClient
 
 # Gap, in seconds, to determine whether the given token is about to expire
 STALE_TOKEN_DURATION = 60
@@ -71,6 +72,8 @@ class OpenStackDriver(object):
                 region_name]['cinder']
             self.neutron_client = OpenStackDriver.os_clients_dict[
                 region_name]['neutron']
+            self.fm_client = OpenStackDriver.os_clients_dict[
+                region_name]['fm']
         else:
             # Create new objects and cache them
             LOG.info("Creating fresh OS Clients objects %s" % region_name)
@@ -120,6 +123,17 @@ class OpenStackDriver(object):
                     'cinder'] = self.cinder_client
             except Exception as exception:
                 LOG.error('cinder_client region %s error: %s' %
+                          (region_name, exception.message))
+
+            try:
+                self.fm_client = FmClient(
+                    region_name,
+                    self.keystone_client.session,
+                    endpoint_type=consts.KS_ENDPOINT_DEFAULT)
+                OpenStackDriver.os_clients_dict[region_name][
+                    'fm'] = self.fm_client
+            except Exception as exception:
+                LOG.error('fm_client region %s error: %s' %
                           (region_name, exception.message))
 
     @classmethod
