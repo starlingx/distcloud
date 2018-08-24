@@ -435,6 +435,7 @@ class PatchOrchThread(threading.Thread):
                 elif sw_update_strategy.stop_on_failure:
                     # We have been told to stop on failures
                     stop_after_stage = strategy_step.stage
+                    current_stage = strategy_step.stage
                     break
                 continue
             # We have found the first step that isn't complete or failed.
