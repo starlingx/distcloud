@@ -13,7 +13,7 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 #
-# Copyright (c) 2017 Wind River Systems, Inc.
+# Copyright (c) 2017-2018 Wind River Systems, Inc.
 #
 # The right to copy, distribute, modify, or otherwise make use
 # of this software may be licensed only pursuant to the terms
@@ -354,7 +354,8 @@ class SubcloudsController(object):
             ('glance', 'glance'),
             ('neutron', 'neutron'),
             ('heat_admin', 'heat-domain'),
-            ('gnocchi', 'gnocchi')
+            ('gnocchi', 'gnocchi'),
+            ('fm', 'fm')
         ]
 
         user_list = list()
