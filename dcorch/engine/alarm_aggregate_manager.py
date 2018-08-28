@@ -21,8 +21,8 @@ from dcorch.common import exceptions
 from dcorch.common.i18n import _
 from dcorch.common import manager
 from dcorch.db import api as db_api
-from dcorch.drivers.openstack import sdk_platform
 from dcorch.drivers.openstack import sdk
+from dcorch.drivers.openstack import sdk_platform
 
 from oslo_config import cfg
 from oslo_log import log as logging

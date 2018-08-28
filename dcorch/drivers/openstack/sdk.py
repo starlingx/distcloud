@@ -25,11 +25,11 @@ from dcorch.common import consts
 from dcorch.common import exceptions
 
 from dcorch.drivers.openstack.cinder_v2 import CinderClient
+from dcorch.drivers.openstack.fm import FmClient
 from dcorch.drivers.openstack.keystone_v3 import KeystoneClient
 from dcorch.drivers.openstack.neutron_v2 import NeutronClient
 from dcorch.drivers.openstack.nova_v2 import NovaClient
 from dcorch.drivers.openstack.sysinv_v1 import SysinvClient
-from dcorch.drivers.openstack.fm import FmClient
 
 # Gap, in seconds, to determine whether the given token is about to expire
 STALE_TOKEN_DURATION = 60

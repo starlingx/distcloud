@@ -200,14 +200,20 @@ class SysinvClient(base.DriverBase):
             return None
         ptp = ptps[0]
 
-        LOG.debug("get_ptp uuid=%s enabled=%s" % (ptp.uuid, ptp.enabled))
+        LOG.debug("get_ptp uuid=%s enabled=%s mode=%s "
+                  "transport=%s mechanism=%s" %
+                  (ptp.uuid, ptp.enabled, ptp.mode,
+                   ptp.transport, ptp.mechanism))
 
         return ptp
 
-    def update_ptp(self, enabled):
+    def update_ptp(self, enabled, mode, transport, mechanism):
         """Update the ptp configuration for this region
 
            :param: enabled
+           :param: mode
+           :param: transport
+           :param: mechanism
            :return: Nothing
         """
         try:
@@ -216,15 +222,23 @@ class SysinvClient(base.DriverBase):
                 LOG.warn("ptp not found %s" % self.region_name)
                 return ptp
 
-            if ptp.enabled != (enabled == "True"):
-                patch = make_sysinv_patch({'enabled': enabled})
+            if ptp.enabled != (enabled == "True") or \
+               ptp.mode != mode or \
+               ptp.transport != transport or \
+               ptp.mechanism != mechanism:
+                patch = make_sysinv_patch({'enabled': enabled},
+                                          {'mode': mode},
+                                          {'transport': transport},
+                                          {'mechanism': mechanism})
                 LOG.info("region={} ptp update uuid={} patch={}".format(
                          self.region_name, ptp.uuid, patch))
                 ptp = self.client.ptp.update(ptp.uuid, patch)
             else:
                 LOG.info("update_ptp no changes, skip ptp region={} "
-                         "update uuid={} enabled={}".format(
-                             self.region_name, ptp.uuid, enabled))
+                         "update uuid={} enabled={} mode={} "
+                         "transport={} mechanism={}".format(
+                             self.region_name, ptp.uuid,
+                             enabled, mode, transport, mechanism))
         except Exception as e:
             LOG.error("update_ptp exception={}".format(e))
             raise exceptions.SyncRequestFailedRetry()
