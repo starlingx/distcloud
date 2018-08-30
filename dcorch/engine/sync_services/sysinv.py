@@ -213,10 +213,13 @@ class SysinvSyncThread(SyncThread):
                  .format(rsrc.id, subcloud_rsrc_id, enabled, ntpservers),
                  extra=self.log_extra)
 
-    def update_ptp(self, enabled):
+    def update_ptp(self, enabled, mode, transport, mechanism):
         try:
             s_os_client = sdk.OpenStackDriver(self.region_name)
-            ptp = s_os_client.sysinv_client.update_ptp(enabled)
+            ptp = s_os_client.sysinv_client.update_ptp(enabled,
+                                                       mode,
+                                                       transport,
+                                                       mechanism)
             return ptp
         except (exceptions.ConnectionRefused, exceptions.NotAuthorized,
                 exceptions.TimeOut):
@@ -244,16 +247,37 @@ class SysinvSyncThread(SyncThread):
         payload = ptp_dict.get('payload')
 
         enabled = None
+        mode = None
+        transport = None
+        mechanism = None
         if type(payload) is list:
             for ipayload in payload:
                 if ipayload.get('path') == '/enabled':
                     enabled = ipayload.get('value')
                     LOG.debug("sync_ptp enabled %s" % enabled,
                               extra=self.log_extra)
+                if ipayload.get('path') == '/mode':
+                    mode = ipayload.get('value')
+                    LOG.debug("sync_ptp mode %s" % mode,
+                              extra=self.log_extra)
+                if ipayload.get('path') == '/transport':
+                    transport = ipayload.get('value')
+                    LOG.debug("sync_ptp transport %s" % transport,
+                              extra=self.log_extra)
+                if ipayload.get('path') == '/mechanism':
+                    enabled = ipayload.get('value')
+                    LOG.debug("sync_ptp mechanism %s" % mechanism,
+                              extra=self.log_extra)
+                if all([enabled, mode, transport, mechanism]):
                     break
         else:
             enabled = payload.get('enabled')
-            LOG.debug("sync_ptp enabled %s" % enabled, extra=self.log_extra)
+            mode = payload.get('mode')
+            transport = payload.get('transport')
+            mechanism = payload.get('mechanism')
+            LOG.debug("sync_ptp enabled %s mode %s transport %s mechanism %s" %
+                      enabled, mode, transport, mechanism,
+                      extra=self.log_extra)
 
         if enabled is None:
             LOG.info("sync_ptp No status update found in resource_info"
@@ -261,7 +285,7 @@ class SysinvSyncThread(SyncThread):
                      extra=self.log_extra)
             return
 
-        ptp = self.update_ptp(enabled)
+        ptp = self.update_ptp(enabled, mode, transport, mechanism)
 
         # Ensure subcloud resource is persisted to the DB for later
         subcloud_rsrc_id = self.persist_db_subcloud_resource(
