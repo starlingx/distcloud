@@ -630,7 +630,7 @@ class PatchOrchThread(threading.Thread):
 
         # First need to retrieve the Subcloud's Keystone session
         try:
-            sc_ks_client = self.get_ks_client(strategy_step.subcloud_name)
+            sc_ks_client = self.get_ks_client(strategy_step.subcloud.name)
         except (keystone_exceptions.EndpointNotFound, IndexError) as e:
             message = ("Identity endpoint for subcloud: %s not found. %s" %
                        (strategy_step.subcloud.name, e))
@@ -1341,7 +1341,7 @@ class PatchOrchThread(threading.Thread):
 
         # First need to retrieve the Subcloud's Keystone session
         try:
-            sc_ks_client = self.get_ks_client(strategy_step.subcloud_name)
+            sc_ks_client = self.get_ks_client(strategy_step.subcloud.name)
         except (keystone_exceptions.EndpointNotFound, IndexError) as e:
             message = ("Identity endpoint for subcloud: %s not found. %s" %
                        (strategy_step.subcloud.name, e))
