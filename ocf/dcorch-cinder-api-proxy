@@ -1,0 +1,327 @@
+#!/bin/sh
+# OpenStack DC Orchestrator Cinder Api Proxy Service (dcorch-cinder-api-proxy)
+#
+# Description:
+#   Manages an OpenStack DC Orchestrator Cinder Api Proxy Service (dcorch-cinder-api-proxy)
+#   process as an HA resource
+#
+# Copyright (c) 2017 Wind River Systems, Inc.
+#
+# SPDX-License-Identifier: Apache-2.0
+#
+#
+# See usage() function below for more details ...
+#
+# OCF instance parameters:
+#   OCF_RESKEY_binary
+#   OCF_RESKEY_config
+#   OCF_RESKEY_user
+#   OCF_RESKEY_pid
+#   OCF_RESKEY_additional_parameters
+#######################################################################
+# Initialization:
+
+: ${OCF_FUNCTIONS_DIR=${OCF_ROOT}/lib/heartbeat}
+. ${OCF_FUNCTIONS_DIR}/ocf-shellfuncs
+
+#######################################################################
+
+# Fill in some defaults if no values are specified
+
+OCF_RESKEY_binary_default="/usr/bin/dcorch-api-proxy"
+OCF_RESKEY_config_default="/etc/dcorch/dcorch.conf"
+OCF_RESKEY_user_default="root"
+OCF_RESKEY_pid_default="$HA_RSCTMP/$OCF_RESOURCE_INSTANCE.pid"
+
+: ${OCF_RESKEY_binary=${OCF_RESKEY_binary_default}}
+: ${OCF_RESKEY_config=${OCF_RESKEY_config_default}}
+: ${OCF_RESKEY_user=${OCF_RESKEY_user_default}}
+: ${OCF_RESKEY_pid=${OCF_RESKEY_pid_default}}
+
+#######################################################################
+
+usage() {
+    cat <<UEND
+        usage: $0 (start|stop|validate-all|meta-data|status|monitor)
+
+        $0 manages an OpenStack DC Orchestrator Cinder API Proxy service (dcorch-cinder-api-proxy) process as an HA resource
+
+        The 'start' operation starts the dcorch-cinder-api-proxy service.
+        The 'stop' operation stops the dcorch-cinder-api-proxy service.
+        The 'validate-all' operation reports whether the parameters are valid
+        The 'meta-data' operation reports this RA's meta-data information
+        The 'status' operation reports whether the dcorch-cinder-api-proxy service is running
+        The 'monitor' operation reports whether the dcorch-cinder-api-proxy service seems to be working
+
+UEND
+}
+
+meta_data() {
+    cat <<END
+<?xml version="1.0"?>
+<!DOCTYPE resource-agent SYSTEM "ra-api-1.dtd">
+<resource-agent name="dcorch-cinder-api-proxy">
+<version>1.0</version>
+
+<longdesc lang="en">
+Resource agent for the DC Orchestrator Cinder API proxy service (dcorch-cinder-api-proxy)
+</longdesc>
+<shortdesc lang="en">Manages the OpenStack DC Orchestrator Cinder Api Proxy Service (dcorch-cinder-api-proxy)</shortdesc>
+<parameters>
+
+<parameter name="binary" unique="0" required="0">
+<longdesc lang="en">
+Location of the DC Orchestrator Cinder API proxy server binary (dcorch-cinder-api-proxy)
+</longdesc>
+<shortdesc lang="en">DC Orchestrator Cinder API proxy server binary (dcorch-cinder-api-proxy)</shortdesc>
+<content type="string" default="${OCF_RESKEY_binary_default}" />
+</parameter>
+
+<parameter name="config" unique="0" required="0">
+<longdesc lang="en">
+Location of the DC Orchestrator Cinder API proxy (dcorch-cinder-api-proxy) configuration file
+</longdesc>
+<shortdesc lang="en">DC Orchestrator Cinder API proxy (dcorch-cinder-api-proxy registry) config file</shortdesc>
+<content type="string" default="${OCF_RESKEY_config_default}" />
+</parameter>
+
+<parameter name="user" unique="0" required="0">
+<longdesc lang="en">
+User running DC Orchestrator Cinder API proxy (dcorch-cinder-api-proxy)
+</longdesc>
+<shortdesc lang="en">DC Orchestrator Cinder API proxy (dcorch-cinder-api-proxy) user</shortdesc>
+<content type="string" default="${OCF_RESKEY_user_default}" />
+</parameter>
+
+<parameter name="pid" unique="0" required="0">
+<longdesc lang="en">
+The pid file to use for this DC Orchestrator Cinder API proxy (dcorch-cinder-api-proxy) instance
+</longdesc>
+<shortdesc lang="en">DC Orchestrator Cinder API proxy (dcorch-cinder-api-proxy) pid file</shortdesc>
+<content type="string" default="${OCF_RESKEY_pid_default}" />
+</parameter>
+
+<parameter name="additional_parameters" unique="0" required="0">
+<longdesc lang="en">
+Additional parameters to pass on to the OpenStack Cinder API (dcorch-cinder-api-proxy)
+</longdesc>
+<shortdesc lang="en">Additional parameters for dcorch-cinder-api-proxy</shortdesc>
+<content type="string" />
+</parameter>
+
+</parameters>
+
+<actions>
+<action name="start" timeout="20" />
+<action name="stop" timeout="20" />
+<action name="status" timeout="20" />
+<action name="monitor" timeout="10" interval="5" />
+<action name="validate-all" timeout="5" />
+<action name="meta-data" timeout="5" />
+</actions>
+</resource-agent>
+END
+}
+
+#######################################################################
+# Functions invoked by resource manager actions
+
+dcorch_cinder_api_proxy_validate() {
+    local rc
+
+    check_binary $OCF_RESKEY_binary
+    check_binary curl
+    check_binary tr
+    check_binary grep
+    check_binary cut
+    check_binary head
+
+    # A config file on shared storage that is not available
+    # during probes is OK.
+    if [ ! -f $OCF_RESKEY_config ]; then
+        if ! ocf_is_probe; then
+            ocf_log err "Config $OCF_RESKEY_config doesn't exist"
+            return $OCF_ERR_INSTALLED
+        fi
+        ocf_log_warn "Config $OCF_RESKEY_config not available during a probe"
+    fi
+
+    getent passwd $OCF_RESKEY_user >/dev/null 2>&1
+    rc=$?
+    if [ $rc -ne 0 ]; then
+        ocf_log err "User $OCF_RESKEY_user doesn't exist"
+        return $OCF_ERR_INSTALLED
+    fi
+
+    true
+}
+
+dcorch_cinder_api_proxy_status() {
+    local pid
+    local rc
+
+    if [ ! -f $OCF_RESKEY_pid ]; then
+        ocf_log info "DC Orchestrator Cinder API proxy (dcorch-cinder-api-proxy) is not running"
+        return $OCF_NOT_RUNNING
+    else
+        pid=`cat $OCF_RESKEY_pid`
+    fi
+
+    ocf_run -warn kill -s 0 $pid
+    rc=$?
+    if [ $rc -eq 0 ]; then
+        return $OCF_SUCCESS
+    else
+        ocf_log info "Old PID file found, but DC Orchestrator Cinder API proxy (dcorch-cinder-api-proxy) is not running"
+        rm -f $OCF_RESKEY_pid
+        return $OCF_NOT_RUNNING
+    fi
+}
+
+dcorch_cinder_api_proxy_monitor() {
+    local rc
+
+    dcorch_cinder_api_proxy_status
+    rc=$?
+
+    # If status returned anything but success, return that immediately
+    if [ $rc -ne $OCF_SUCCESS ]; then
+        return $rc
+    fi
+
+    # Further verify the service availibility.
+
+    ocf_log debug "DC Orchestrator Cinder API proxy (dcorch-cinder-api-proxy) monitor succeeded"
+    return $OCF_SUCCESS
+}
+
+dcorch_cinder_api_proxy_start() {
+    local rc
+
+    dcorch_cinder_api_proxy_status
+    rc=$?
+    if [ $rc -eq $OCF_SUCCESS ]; then
+        ocf_log info "DC Orchestrator Cinder API proxy (dcorch-cinder-api-proxy) already running"
+        return $OCF_SUCCESS
+    fi
+
+    # Change the working dir to /, to be sure it's accesible
+    cd /
+
+    # run the actual dcorch-cinder-api-proxy daemon. Don't use ocf_run as we're sending the tool's output
+    # straight to /dev/null anyway and using ocf_run would break stdout-redirection here.
+    su ${OCF_RESKEY_user} -s /bin/sh -c "${OCF_RESKEY_binary} --config-file=$OCF_RESKEY_config --type volume \
+       $OCF_RESKEY_additional_parameters"' >> /dev/null 2>&1 & echo $!' > $OCF_RESKEY_pid
+
+    # Spin waiting for the server to come up.
+    # Let the CRM/LRM time us out if required
+    while true; do
+    dcorch_cinder_api_proxy_monitor
+    rc=$?
+    [ $rc -eq $OCF_SUCCESS ] && break
+    if [ $rc -ne $OCF_NOT_RUNNING ]; then
+        ocf_log err "DC Orchestrator Cinder API proxy (dcorch-cinder-api-proxy) start failed"
+        exit $OCF_ERR_GENERIC
+    fi
+    sleep 1
+    done
+
+    ocf_log info "DC Orchestrator Cinder API proxy (dcorch-cinder-api-proxy) started"
+    return $OCF_SUCCESS
+}
+
+dcorch_cinder_api_proxy_confirm_stop() {
+    local my_bin
+    local my_processes
+
+    my_binary=`which ${OCF_RESKEY_binary}`
+    my_type="volume"
+    my_processes=`pgrep -f "^(python|/usr/bin/python|/usr/bin/python2) ${my_binary} .*--type ${my_type}([^\w-]|$)"`
+
+    if [ -n "${my_processes}" ]
+    then
+        ocf_log info "About to SIGKILL the following: ${my_processes}"
+        # replace the new line with with a space in the process list
+        kill -9 `echo "${my_processes}" | tr '\n' ' '`
+    fi
+}
+
+dcorch_cinder_api_proxy_stop() {
+    local rc
+    local pid
+
+    dcorch_cinder_api_proxy_status
+    rc=$?
+    if [ $rc -eq $OCF_NOT_RUNNING ]; then
+        ocf_log info "DC Orchestrator Cinder API proxy (dcorch-cinder-api-proxy) already stopped"
+        dcorch_cinder_api_proxy_confirm_stop
+        return $OCF_SUCCESS
+    fi
+
+    # Try SIGTERM
+    pid=`cat $OCF_RESKEY_pid`
+    ocf_run kill -s TERM $pid
+    rc=$?
+    if [ $rc -ne 0 ]; then
+        ocf_log err "DC Orchestrator Cinder API proxy (dcorch-cinder-api-proxy) couldn't be stopped"
+        dcorch_cinder_api_proxy_confirm_stop
+        exit $OCF_ERR_GENERIC
+    fi
+
+    # stop waiting
+    shutdown_timeout=15
+    if [ -n "$OCF_RESKEY_CRM_meta_timeout" ]; then
+        shutdown_timeout=$((($OCF_RESKEY_CRM_meta_timeout/1000)-5))
+    fi
+    count=0
+    while [ $count -lt $shutdown_timeout ]; do
+        dcorch_cinder_api_proxy_status
+        rc=$?
+        if [ $rc -eq $OCF_NOT_RUNNING ]; then
+            break
+        fi
+        count=`expr $count + 1`
+        sleep 1
+        ocf_log debug "DC Orchestrator Cinder API proxy (dcorch-cinder-api-proxy) still hasn't stopped yet. Waiting ..."
+    done
+
+    dcorch_cinder_api_proxy_status
+    rc=$?
+    if [ $rc -ne $OCF_NOT_RUNNING ]; then
+        # SIGTERM didn't help either, try SIGKILL
+        ocf_log info "DC Orchestrator Cinder API proxy (dcorch-cinder-api-proxy) failed to stop after ${shutdown_timeout}s \
+          using SIGTERM. Trying SIGKILL ..."
+        ocf_run kill -s KILL $pid
+    fi
+    dcorch_cinder_api_proxy_confirm_stop
+
+    ocf_log info "DC Orchestrator Cinder API proxy (dcorch-cinder-api-proxy) stopped"
+
+    rm -f $OCF_RESKEY_pid
+
+    return $OCF_SUCCESS
+}
+
+#######################################################################
+
+case "$1" in
+  meta-data)    meta_data
+                exit $OCF_SUCCESS;;
+  usage|help)   usage
+                exit $OCF_SUCCESS;;
+esac
+
+# Anything except meta-data and help must pass validation
+dcorch_cinder_api_proxy_validate || exit $?
+
+# What kind of method was invoked?
+case "$1" in
+  start)        dcorch_cinder_api_proxy_start;;
+  stop)         dcorch_cinder_api_proxy_stop;;
+  status)       dcorch_cinder_api_proxy_status;;
+  monitor)      dcorch_cinder_api_proxy_monitor;;
+  validate-all) ;;
+  *)            usage
+                exit $OCF_ERR_UNIMPLEMENTED;;
+esac
+
