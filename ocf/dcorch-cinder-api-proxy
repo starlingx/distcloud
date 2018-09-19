@@ -30,7 +30,7 @@
 
 OCF_RESKEY_binary_default="/usr/bin/dcorch-api-proxy"
 OCF_RESKEY_config_default="/etc/dcorch/dcorch.conf"
-OCF_RESKEY_user_default="root"
+OCF_RESKEY_user_default="dcorch"
 OCF_RESKEY_pid_default="$HA_RSCTMP/$OCF_RESOURCE_INSTANCE.pid"
 
 : ${OCF_RESKEY_binary=${OCF_RESKEY_binary_default}}
