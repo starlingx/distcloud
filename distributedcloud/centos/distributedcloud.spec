@@ -76,6 +76,7 @@ Distributed Cloud Manager
 %package dcorch
 Summary: DC Orchestrator
 # TODO(John): should we add Requires lines?
+Requires: openstack-ras 
 
 %description dcorch
 Distributed Cloud Orchestrator
@@ -126,6 +127,10 @@ install -p -D -m 644 %{SOURCE8} %{buildroot}%{_unitdir}/dcorch-cinder-api-proxy.
 install -p -D -m 644 %{SOURCE9} %{buildroot}%{_unitdir}/dcorch-neutron-api-proxy.service
 install -p -D -m 644 %{SOURCE10} %{buildroot}%{_unitdir}/dcorch-identity-api-proxy.service
 
+# install ocf scripts
+install -d -m 755 ${RPM_BUILD_ROOT}/usr/lib/ocf/resource.d/openstack
+install -p -D -m 755 ocf/* ${RPM_BUILD_ROOT}/usr/lib/ocf/resource.d/openstack/
+
 # install default config files
 cd %{_builddir}/%{pypi_name}-%{version} && oslo-config-generator --config-file ./dcorch/config-generator.conf --output-file %{_builddir}/%{pypi_name}-%{version}/etc/dcorch/dcorch.conf.sample
 install -p -D -m 640 %{_builddir}/%{pypi_name}-%{version}/etc/dcorch/dcorch.conf.sample %{buildroot}%{_sysconfdir}/dcorch/dcorch.conf
@@ -170,6 +175,10 @@ install -p -D -m 640 %{_builddir}/%{pypi_name}-%{version}/etc/dcorch/dcorch.conf
 %dir %attr(0755,root,root) %{_localstatedir}/cache/dcorch
 %dir %attr(0755,root,root) %{_sysconfdir}/dcorch
 %config(noreplace) %attr(-, dcorch, dcorch) %{_sysconfdir}/dcorch/dcorch.conf
+%dir %attr(0755,root,root) /usr/lib/ocf/resource.d/openstack
+%defattr(-,root,root,-)
+/usr/lib/ocf/resource.d/openstack/*
+
 %pre dcorch
 getent group dcorch >/dev/null || groupadd -r --gid 173 dcorch
 getent passwd dcorch >/dev/null || \
