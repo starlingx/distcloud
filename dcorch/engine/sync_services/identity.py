@@ -147,7 +147,7 @@ class IdentitySyncThread(SyncThread):
         # project on subcloud-X will be different to the ID for the
         # project on Central Region.
         # These fields are optional anyways since a subsequent role
-        # assigment will give the same scoping
+        # assignment will give the same scoping
         #
         # If these do need to be synced in the future then
         # procure the project / domain list for this subcloud first
