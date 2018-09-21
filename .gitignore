@@ -46,6 +46,9 @@ output/*/index.html
 # Sphinx
 doc/build
 
+# Release Notes documentation
+releasenotes/build
+
 # pbr generates these
 AUTHORS
 ChangeLog
