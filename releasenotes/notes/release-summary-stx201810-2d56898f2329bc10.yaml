@@ -1,0 +1,5 @@
+---
+prelude: >
+    The StarlingX Distributed Cloud  project is a new repository that supports
+    an edge computing solution by providing central management and orchestration
+    for a geographically distributed network of StarlingX systems.
