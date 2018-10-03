@@ -173,7 +173,7 @@ class SysinvClient(base.DriverBase):
                not self._same_ntpservers(intp.ntpservers, ntpservers):
                 if ntpservers == "":
                     ntpservers = "NC"
-                patch = make_sysinv_patch({'enabled': enabled,
+                patch = make_sysinv_patch({'enabled': str(enabled),
                                            'ntpservers': ntpservers,
                                            'action': 'apply'})
                 LOG.info("region={} ntp update uuid={} patch={}".format(
@@ -226,10 +226,10 @@ class SysinvClient(base.DriverBase):
                ptp.mode != mode or \
                ptp.transport != transport or \
                ptp.mechanism != mechanism:
-                patch = make_sysinv_patch({'enabled': enabled},
-                                          {'mode': mode},
-                                          {'transport': transport},
-                                          {'mechanism': mechanism})
+                patch = make_sysinv_patch({'enabled': str(enabled),
+                                           'mode': mode,
+                                           'transport': transport,
+                                           'mechanism': mechanism})
                 LOG.info("region={} ptp update uuid={} patch={}".format(
                          self.region_name, ptp.uuid, patch))
                 ptp = self.client.ptp.update(ptp.uuid, patch)

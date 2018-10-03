@@ -185,7 +185,7 @@ class SysinvSyncThread(SyncThread):
                     enabled = ipayload.get('value')
                     LOG.debug("sync_ntp enabled %s" % enabled,
                               extra=self.log_extra)
-                if ipayload.get('path') == '/ntpservers':
+                elif ipayload.get('path') == '/ntpservers':
                     ntpservers = ipayload.get('value')
                     LOG.debug("sync_ntp ntpservers = {}".format(ntpservers),
                               extra=self.log_extra)
@@ -256,16 +256,16 @@ class SysinvSyncThread(SyncThread):
                     enabled = ipayload.get('value')
                     LOG.debug("sync_ptp enabled %s" % enabled,
                               extra=self.log_extra)
-                if ipayload.get('path') == '/mode':
+                elif ipayload.get('path') == '/mode':
                     mode = ipayload.get('value')
                     LOG.debug("sync_ptp mode %s" % mode,
                               extra=self.log_extra)
-                if ipayload.get('path') == '/transport':
+                elif ipayload.get('path') == '/transport':
                     transport = ipayload.get('value')
                     LOG.debug("sync_ptp transport %s" % transport,
                               extra=self.log_extra)
-                if ipayload.get('path') == '/mechanism':
-                    enabled = ipayload.get('value')
+                elif ipayload.get('path') == '/mechanism':
+                    mechanism = ipayload.get('value')
                     LOG.debug("sync_ptp mechanism %s" % mechanism,
                               extra=self.log_extra)
                 if all([enabled, mode, transport, mechanism]):
@@ -275,11 +275,11 @@ class SysinvSyncThread(SyncThread):
             mode = payload.get('mode')
             transport = payload.get('transport')
             mechanism = payload.get('mechanism')
-            LOG.debug("sync_ptp enabled %s mode %s transport %s mechanism %s" %
-                      enabled, mode, transport, mechanism,
+            LOG.debug("sync_ptp enabled {} mode {} transport {} mechanism {}"
+                      .format(enabled, mode, transport, mechanism),
                       extra=self.log_extra)
 
-        if enabled is None:
+        if not any([enabled, mode, transport, mechanism]):
             LOG.info("sync_ptp No status update found in resource_info"
                      "{}".format(request.orch_job.resource_info),
                      extra=self.log_extra)
