@@ -12,3 +12,6 @@
       jobs:
         - build-openstack-releasenotes
         - openstack-tox-linters
+    post:
+      jobs:
+        - publish-stx-tox
