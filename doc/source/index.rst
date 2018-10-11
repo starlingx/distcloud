@@ -7,6 +7,22 @@ StarlingX Distributed Cloud
    :maxdepth: 2
    :caption: Contents:
 
+Release Notes
+-------------
+
+.. toctree::
+   :maxdepth: 1
+
+   Release Notes <https://docs.starlingx.io/releasenotes/stx-distcloud>
+
+API Reference
+-------------
+
+.. toctree::
+   :maxdepth: 1
+
+   API Reference <https://docs.starlingx.io/api-ref/stx-distcloud>
+
 Links
 =====
 
