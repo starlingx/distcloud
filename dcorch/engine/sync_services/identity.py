@@ -479,10 +479,10 @@ class IdentitySyncThread(SyncThread):
         original_role_ref = RoleReferenceWrapper(id=role_id)
 
         # Delete the role in the subcloud
-        self.sc_ks_client.projects.delete(original_role_ref)
+        self.sc_ks_client.roles.delete(original_role_ref)
         # Master Resource can be deleted only when all subcloud resources
         # are deleted along with corresponding orch_job and orch_requests.
-        LOG.info("Keystone project {}:{} [{}] deleted"
+        LOG.info("Keystone role {}:{} [{}] deleted"
                  .format(rsrc.id, role_subcloud_rsrc.id,
                          role_subcloud_rsrc.subcloud_resource_id),
                  extra=self.log_extra)
