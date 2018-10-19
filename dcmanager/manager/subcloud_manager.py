@@ -310,6 +310,7 @@ class SubcloudManager(manager.Manager):
 
         # Get the subcloud details from the database
         subcloud = db_api.subcloud_get(context, subcloud_id)
+        original_management_state = subcloud.management_state
 
         # Semantic checking
         if management_state:
@@ -357,7 +358,14 @@ class SubcloudManager(manager.Manager):
             except Exception as e:
                 LOG.exception(e)
                 LOG.warn('Problem informing dcorch of subcloud '
-                         'state change, subcloud: %s' % subcloud.name)
+                         'state change, resume to original state, subcloud: %s'
+                         % subcloud.name)
+                management_state = original_management_state
+                subcloud = \
+                    db_api.subcloud_update(context, subcloud_id,
+                                           management_state=management_state,
+                                           description=description,
+                                           location=location)
 
             if management_state == consts.MANAGEMENT_UNMANAGED:
 

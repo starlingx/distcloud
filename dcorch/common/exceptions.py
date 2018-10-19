@@ -170,6 +170,10 @@ class SubcloudNotFound(NotFound):
     message = _("Subcloud %(region_name)s not found")
 
 
+class ThreadNotFound(NotFound):
+    message = _("Thread %(thread_name)s of %(region_name)s not found")
+
+
 class OrchJobNotFound(NotFound):
     message = _("OrchJob  %(orch_job)s not found")
 

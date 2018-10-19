@@ -74,6 +74,10 @@ class SysinvClient(base.DriverBase):
             token = session.get_token()
             client = cgts_client.Client(
                 api_version,
+                username=session.auth._username,
+                password=session.auth._password,
+                tenant_name=session.auth._project_name,
+                auth_url=session.auth.auth_url,
                 endpoint=endpoint,
                 token=token)
         except exceptions.ServiceUnavailable:
@@ -710,7 +714,7 @@ class SysinvClient(base.DriverBase):
 
         return iuser
 
-    def create_fernet_repo(self, key_list):
+    def post_fernet_repo(self, key_list=None):
         """Add the fernet keys for this region
 
            :param: key list payload
@@ -721,26 +725,26 @@ class SysinvClient(base.DriverBase):
         # [{"id": 0, "key": "GgDAOfmyr19u0hXdm5r_zMgaMLjglVFpp5qn_N4GBJQ="},
         # {"id": 1, "key": "7WfL_z54p67gWAkOmQhLA9P0ZygsbbJcKgff0uh28O8="},
         # {"id": 2, "key": ""5gsUQeOZ2FzZP58DN32u8pRKRgAludrjmrZFJSOHOw0="}]
-        LOG.info("create_fernet_repo driver region={} "
+        LOG.info("post_fernet_repo driver region={} "
                  "fernet_repo_list={}".format(self.region_name, key_list))
         try:
             self.client.fernet.create(key_list)
         except Exception as e:
-            LOG.error("create_fernet_repo exception={}".format(e))
+            LOG.error("post_fernet_repo exception={}".format(e))
             raise exceptions.SyncRequestFailedRetry()
 
-    def update_fernet_repo(self, key_list):
+    def put_fernet_repo(self, key_list):
         """Update the fernet keys for this region
 
            :param: key list payload
            :return: Nothing
         """
-        LOG.info("update_fernet_repo driver region={} "
+        LOG.info("put_fernet_repo driver region={} "
                  "fernet_repo_list={}".format(self.region_name, key_list))
         try:
             self.client.fernet.put(key_list)
         except Exception as e:
-            LOG.error("update_fernet_repo exception={}".format(e))
+            LOG.error("put_fernet_repo exception={}".format(e))
             raise exceptions.SyncRequestFailedRetry()
 
     def get_fernet_keys(self):
