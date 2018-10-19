@@ -106,6 +106,11 @@ class SubCloudEngine(object):
         self.shutdown()
         self.subcloud.delete()
 
+    def initial_sync(self):
+        # initial synchronization of the subcloud
+        for thread in self.sync_threads:
+            thread.initial_sync()
+
     def run_sync_audit(self):
         # run periodic sync audit on all threads in this subcloud
         if self.is_enabled():

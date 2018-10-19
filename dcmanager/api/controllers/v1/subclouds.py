@@ -381,7 +381,9 @@ class SubcloudsController(object):
             ('vim', 'vim'),
             ('mtce', 'mtce'),
             ('fm', 'fm'),
-            ('barbican', 'barbican')
+            ('barbican', 'barbican'),
+            ('smapi', 'smapi'),
+            ('dcdbsync', 'dcdbsync')
         ]
 
         user_list = list()

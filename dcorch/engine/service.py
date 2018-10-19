@@ -191,11 +191,26 @@ class EngineService(service.Service):
         # keep equivalent functionality for now
         if (management_state == dcm_consts.MANAGEMENT_MANAGED) and \
                 (availability_status == dcm_consts.AVAILABILITY_ONLINE):
-            self.fkm.distribute_keys(ctxt, subcloud_name)
-            self.aam.enable_snmp(ctxt, subcloud_name)
-            self.gsm.enable_subcloud(ctxt, subcloud_name)
+            # Initial identity sync. It's synchronous so that identity
+            # get synced before fernet token keys are synced. This is
+            # necessary since we want to revoke all existing tokens on
+            # this subcloud after its services user IDs and project
+            # IDs are changed. Otherwise subcloud services will fail
+            # authentication since they keep on using their existing tokens
+            # issued before these IDs change, until these tokens expires.
+            try:
+                self.gsm.initial_sync(ctxt, subcloud_name)
+                self.fkm.distribute_keys(ctxt, subcloud_name)
+                self.aam.enable_snmp(ctxt, subcloud_name)
+                self.gsm.enable_subcloud(ctxt, subcloud_name)
+            except Exception as ex:
+                LOG.warning('Update subcloud state failed for %s: %s',
+                            subcloud_name, six.text_type(ex))
+                raise
         else:
             self.gsm.disable_subcloud(ctxt, subcloud_name)
+            if (management_state == dcm_consts.MANAGEMENT_UNMANAGED):
+                self.fkm.reset_keys(subcloud_name)
 
     @request_context
     # todo: add authentication since ctxt not actually needed later

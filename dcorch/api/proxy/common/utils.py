@@ -13,9 +13,17 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from dcorch.common import consts
-from oslo_log import log as logging
+import base64
+from cryptography import fernet
+import msgpack
+import six
 from six.moves.urllib.parse import urlparse
+
+from keystoneauth1 import exceptions as keystone_exceptions
+from oslo_log import log as logging
+
+from dcorch.common import consts
+from dcorch.drivers.openstack import sdk_platform as sdk
 
 LOG = logging.getLogger(__name__)
 
@@ -108,3 +116,84 @@ def set_request_forward_environ(req, remote_host, remote_port):
     if ('REMOTE_ADDR' in req.environ and 'HTTP_X_FORWARDED_FOR' not in
             req.environ):
         req.environ['HTTP_X_FORWARDED_FOR'] = req.environ['REMOTE_ADDR']
+
+
+def _get_fernet_keys():
+    """Get fernet keys from sysinv."""
+    os_client = sdk.OpenStackDriver(consts.CLOUD_0)
+    try:
+        key_list = os_client.sysinv_client.get_fernet_keys()
+        return [str(getattr(key, 'key')) for key in key_list]
+    except (keystone_exceptions.connection.ConnectTimeout,
+            keystone_exceptions.ConnectFailure) as e:
+        LOG.info("get_fernet_keys: cloud {} is not reachable [{}]"
+                 .format(consts.CLOUD_0, str(e)))
+        os_client.delete_region_clients(consts.CLOUD_0)
+        return None
+    except (AttributeError, TypeError) as e:
+        LOG.info("get_fernet_keys error {}".format(e))
+        os_client.delete_region_clients(consts.CLOUD_0, clear_token=True)
+        return None
+    except Exception as e:
+        LOG.exception(e)
+        return None
+
+
+def _restore_padding(token):
+    """Restore padding based on token size.
+
+    :param token: token to restore padding on
+    :returns: token with correct padding
+    """
+
+    # Re-inflate the padding
+    mod_returned = len(token) % 4
+    if mod_returned:
+        missing_padding = 4 - mod_returned
+        token += b'=' * missing_padding
+    return token
+
+
+def _unpack_token(fernet_token, fernet_keys):
+    """Attempt to unpack a token using the supplied Fernet keys.
+
+    :param fernet_token: token to unpack
+    :type fernet_token: string
+    :param fernet_keys: a list consisting of keys in the repository
+    :type fernet_keys: list
+    :returns: the token payload
+    """
+
+    # create a list of fernet instances
+    fernet_instances = [fernet.Fernet(key) for key in fernet_keys]
+    # create a encryption/decryption object from the fernet keys
+    crypt = fernet.MultiFernet(fernet_instances)
+
+    # attempt to decode the token
+    token = _restore_padding(six.binary_type(fernet_token))
+    serialized_payload = crypt.decrypt(token)
+    payload = msgpack.unpackb(serialized_payload)
+
+    # present token values
+    return payload
+
+
+def retrieve_token_audit_id(fernet_token):
+    """Attempt to retrieve the audit id from the fernet token.
+
+    :param fernet_token:
+    :param keys_repository:
+    :return: audit id in base64 encoded (without paddings)
+    """
+
+    audit_id = None
+    fernet_keys = _get_fernet_keys()
+    LOG.info("fernet_keys: {}".format(fernet_keys))
+
+    if fernet_keys:
+        unpacked_token = _unpack_token(fernet_token, fernet_keys)
+        if unpacked_token:
+            audit_id = unpacked_token[-1][0]
+            audit_id = base64.urlsafe_b64encode(audit_id).rstrip('=')
+
+    return audit_id
