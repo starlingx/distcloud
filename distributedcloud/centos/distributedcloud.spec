@@ -34,6 +34,8 @@ BuildRequires: python-cryptography
 BuildRequires: python2-devel
 BuildRequires: python-eventlet
 BuildRequires: python-setuptools
+BuildRequires: python2-pip
+BuildRequires: python2-wheel
 BuildRequires: python-jsonschema >= 2.0.0
 BuildRequires: python-keyring
 BuildRequires: python-keystonemiddleware
@@ -91,6 +93,7 @@ rm -rf {test-,}requirements.txt tools/{pip,test}-requires
 %build
 export PBR_VERSION=%{version}
 %{__python2} setup.py build
+%py2_build_wheel
 # Generate sample config and add the current directory to PYTHONPATH so
 # oslo-config-generator doesn't skip heat's entry points.
 PYTHONPATH=. oslo-config-generator --config-file=./dcmanager/config-generator.conf
@@ -101,6 +104,8 @@ PYTHONPATH=. oslo-config-generator --config-file=./dcorch/config-generator.conf
 export PBR_VERSION=%{version}
 %{__python2} setup.py install -O1 --skip-build --root %{buildroot} \
                                   --single-version-externally-managed
+mkdir -p $RPM_BUILD_ROOT/wheels
+install -m 644 dist/*.whl $RPM_BUILD_ROOT/wheels/
 mkdir -p %{buildroot}/var/log/dcmanager
 mkdir -p %{buildroot}/var/cache/dcmanager
 mkdir -p %{buildroot}/var/run/dcmanager
@@ -185,3 +190,12 @@ getent passwd dcorch >/dev/null || \
 useradd --uid 173 -r -g dcorch -d /var/lib/dcorch -s /sbin/nologin \
 -c "dcorch Daemons" dcorch
 exit 0
+
+%package wheels
+Summary: %{name} wheels
+
+%description wheels
+Contains python wheels for %{name}
+
+%files wheels
+/wheels/*
