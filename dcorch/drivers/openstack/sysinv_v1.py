@@ -708,3 +708,50 @@ class SysinvClient(base.DriverBase):
             raise exceptions.SyncRequestFailedRetry()
 
         return iuser
+
+    def create_fernet_repo(self, key_list):
+        """Add the fernet keys for this region
+
+           :param: key list payload
+           :return: Nothing
+        """
+
+        # Example key_list:
+        # [{"id": 0, "key": "GgDAOfmyr19u0hXdm5r_zMgaMLjglVFpp5qn_N4GBJQ="},
+        # {"id": 1, "key": "7WfL_z54p67gWAkOmQhLA9P0ZygsbbJcKgff0uh28O8="},
+        # {"id": 2, "key": ""5gsUQeOZ2FzZP58DN32u8pRKRgAludrjmrZFJSOHOw0="}]
+        LOG.info("create_fernet_repo driver region={} "
+                 "fernet_repo_list={}".format(self.region_name, key_list))
+        try:
+            self.client.fernet.create(key_list)
+        except Exception as e:
+            LOG.error("create_fernet_repo exception={}".format(e))
+            raise exceptions.SyncRequestFailedRetry()
+
+    def update_fernet_repo(self, key_list):
+        """Update the fernet keys for this region
+
+           :param: key list payload
+           :return: Nothing
+        """
+        LOG.info("update_fernet_repo driver region={} "
+                 "fernet_repo_list={}".format(self.region_name, key_list))
+        try:
+            self.client.fernet.put(key_list)
+        except Exception as e:
+            LOG.error("update_fernet_repo exception={}".format(e))
+            raise exceptions.SyncRequestFailedRetry()
+
+    def get_fernet_keys(self):
+        """Retrieve the fernet keys for this region
+
+           :return: a list of fernet keys
+        """
+
+        try:
+            keys = self.client.fernet.list()
+        except Exception as e:
+            LOG.error("get_fernet_keys exception={}".format(e))
+            raise exceptions.SyncRequestFailedRetry()
+
+        return keys

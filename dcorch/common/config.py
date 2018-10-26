@@ -197,6 +197,12 @@ snmp_server_opts = [
                help='interval of periodic updates in seconds')
 ]
 
+fernet_opts = [
+    cfg.IntOpt('key_rotation_interval',
+               default=168,
+               help='Hours between running fernet key rotation tasks.')
+]
+
 scheduler_opt_group = cfg.OptGroup('scheduler',
                                    title='Scheduler options for periodic job')
 # The group stores DC Orchestrator global limit for all the projects.
@@ -212,6 +218,9 @@ cache_opt_group = cfg.OptGroup(name='cache',
 snmp_opt_group = cfg.OptGroup(name='snmp',
                               title='SNMP Options')
 
+fernet_opt_group = cfg.OptGroup(name='fernet',
+                                title='Fernet Options')
+
 
 def list_opts():
     yield default_quota_group.name, nova_quotas
@@ -221,6 +230,7 @@ def list_opts():
     yield scheduler_opt_group.name, scheduler_opts
     yield pecan_group.name, pecan_opts
     yield snmp_opt_group.name, snmp_server_opts
+    yield fernet_opt_group.name, fernet_opts
     yield None, global_opts
     yield None, common_opts
 

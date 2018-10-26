@@ -25,6 +25,7 @@ from dcorch.common import exceptions
 from dcorch.common.i18n import _
 from dcorch.common import messaging as rpc_messaging
 from dcorch.engine.alarm_aggregate_manager import AlarmAggregateManager
+from dcorch.engine.fernet_key_manager import FernetKeyManager
 from dcorch.engine.generic_sync_manager import GenericSyncManager
 from dcorch.engine.quota_manager import QuotaManager
 from dcorch.engine import scheduler
@@ -77,6 +78,7 @@ class EngineService(service.Service):
         self.qm = None
         self.gsm = None
         self.aam = None
+        self.fkm = None
 
     def init_tgm(self):
         self.TG = scheduler.ThreadGroupManager()
@@ -92,12 +94,16 @@ class EngineService(service.Service):
     def init_aam(self):
         self.aam = AlarmAggregateManager()
 
+    def init_fkm(self):
+        self.fkm = FernetKeyManager(self.gsm)
+
     def start(self):
         self.engine_id = uuidutils.generate_uuid()
         self.init_tgm()
         self.init_qm()
         self.init_gsm()
         self.init_aam()
+        self.init_fkm()
         target = oslo_messaging.Target(version=self.rpc_api_version,
                                        server=self.host,
                                        topic=self.topic)
@@ -118,6 +124,11 @@ class EngineService(service.Service):
             self.TG.add_timer(self.periodic_interval,
                               self.periodic_sync_audit,
                               initial_delay=self.periodic_interval / 2)
+            self.TG.add_timer(CONF.fernet.key_rotation_interval *
+                              consts.SECONDS_IN_HOUR,
+                              self.periodic_key_rotation,
+                              initial_delay=(CONF.fernet.key_rotation_interval
+                                             * consts.SECONDS_IN_HOUR))
 
     def service_registry_report(self):
         ctx = context.get_admin_context()
@@ -182,6 +193,7 @@ class EngineService(service.Service):
         # keep equivalent functionality for now
         if (management_state == dcm_consts.MANAGEMENT_MANAGED) and \
                 (availability_status == dcm_consts.AVAILABILITY_ONLINE):
+            self.fkm.distribute_keys(ctxt, subcloud_name)
             self.aam.enable_snmp(ctxt, subcloud_name)
             self.gsm.enable_subcloud(ctxt, subcloud_name)
         else:
@@ -233,3 +245,8 @@ class EngineService(service.Service):
         # Terminate the engine process
         LOG.info("All threads were gone, terminating engine")
         super(EngineService, self).stop()
+
+    def periodic_key_rotation(self):
+        """Periodic key rotation."""
+        LOG.info("Periodic key rotation started at: %s", time.strftime("%c"))
+        return self.fkm.rotate_fernet_keys()

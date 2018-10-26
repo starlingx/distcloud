@@ -22,7 +22,8 @@ from oslo_serialization import jsonutils
 from dcorch.common import consts
 from dcorch.common import exceptions
 from dcorch.drivers.openstack import sdk_platform as sdk
-
+from dcorch.engine.fernet_key_manager import FERNET_REPO_MASTER_ID
+from dcorch.engine.fernet_key_manager import FernetKeyManager
 from dcorch.engine.sync_thread import AUDIT_RESOURCE_MISSING
 from dcorch.engine.sync_thread import SyncThread
 
@@ -37,13 +38,15 @@ class SysinvSyncThread(SyncThread):
                                consts.RESOURCE_TYPE_SYSINV_PTP,
                                consts.RESOURCE_TYPE_SYSINV_REMOTE_LOGGING,
                                consts.RESOURCE_TYPE_SYSINV_USER,
+                               consts.RESOURCE_TYPE_SYSINV_FERNET_REPO
                                ]
 
     SYSINV_ADD_DELETE_RESOURCES = [consts.RESOURCE_TYPE_SYSINV_SNMP_COMM,
                                    consts.RESOURCE_TYPE_SYSINV_SNMP_TRAPDEST]
 
     SYSINV_CREATE_RESOURCES = [consts.RESOURCE_TYPE_SYSINV_FIREWALL_RULES,
-                               consts.RESOURCE_TYPE_SYSINV_CERTIFICATE]
+                               consts.RESOURCE_TYPE_SYSINV_CERTIFICATE,
+                               consts.RESOURCE_TYPE_SYSINV_FERNET_REPO]
 
     FIREWALL_SIG_NULL = 'NoCustomFirewallRules'
     CERTIFICATE_SIG_NULL = 'NoCertificate'
@@ -68,6 +71,8 @@ class SysinvSyncThread(SyncThread):
             consts.RESOURCE_TYPE_SYSINV_CERTIFICATE:
                 self.sync_certificate,
             consts.RESOURCE_TYPE_SYSINV_USER: self.sync_user,
+            consts.RESOURCE_TYPE_SYSINV_FERNET_REPO:
+                self.sync_fernet_resources
         }
         self.region_name = self.subcloud_engine.subcloud.region_name
         self.log_extra = {"instance": "{}/{}: ".format(
@@ -83,6 +88,7 @@ class SysinvSyncThread(SyncThread):
             consts.RESOURCE_TYPE_SYSINV_SNMP_COMM,
             consts.RESOURCE_TYPE_SYSINV_SNMP_TRAPDEST,
             consts.RESOURCE_TYPE_SYSINV_USER,
+            consts.RESOURCE_TYPE_SYSINV_FERNET_REPO,
         ]
 
         # initialize the master clients
@@ -764,6 +770,90 @@ class SysinvSyncThread(SyncThread):
                  .format(rsrc.id, subcloud_rsrc_id, passwd_hash),
                  extra=self.log_extra)
 
+    def sync_fernet_resources(self, request, rsrc):
+        switcher = {
+            consts.OPERATION_TYPE_PUT: self.update_fernet_repo,
+            consts.OPERATION_TYPE_PATCH: self.update_fernet_repo,
+            consts.OPERATION_TYPE_CREATE: self.create_fernet_repo,
+        }
+
+        func = switcher[request.orch_job.operation_type]
+        try:
+            func(request, rsrc)
+        except (keystone_exceptions.connection.ConnectTimeout,
+                keystone_exceptions.ConnectFailure) as e:
+            LOG.info("sync_fernet_resources: subcloud {} is not reachable [{}]"
+                     .format(self.subcloud_engine.subcloud.region_name,
+                             str(e)), extra=self.log_extra)
+            raise exceptions.SyncRequestTimeout
+        except Exception as e:
+            LOG.exception(e)
+            raise exceptions.SyncRequestFailedRetry
+
+    def create_fernet_repo(self, request, rsrc):
+        LOG.info("create_fernet_repo region {} resource_info={}".format(
+            self.subcloud_engine.subcloud.region_name,
+            request.orch_job.resource_info),
+            extra=self.log_extra)
+        resource_info = jsonutils.loads(request.orch_job.resource_info)
+
+        s_os_client = sdk.OpenStackDriver(self.region_name)
+        try:
+            s_os_client.sysinv_client.create_fernet_repo(
+                FernetKeyManager.from_resource_info(resource_info))
+            # Ensure subcloud resource is persisted to the DB for later
+            subcloud_rsrc_id = self.persist_db_subcloud_resource(
+                rsrc.id, rsrc.master_id)
+        except (exceptions.ConnectionRefused, exceptions.NotAuthorized,
+                exceptions.TimeOut):
+            LOG.info("create_fernet_repo Timeout,{}:{}".format(
+                rsrc.id, subcloud_rsrc_id))
+            s_os_client.delete_region_clients(self.region_name,
+                                              clear_token=True)
+            raise exceptions.SyncRequestTimeout
+        except (AttributeError, TypeError) as e:
+            LOG.info("create_fernet_repo error {}".format(e),
+                     extra=self.log_extra)
+            s_os_client.delete_region_clients(self.region_name,
+                                              clear_token=True)
+            raise exceptions.SyncRequestFailedRetry
+
+        LOG.info("fernet_repo {} {} {} created".format(rsrc.id,
+                 subcloud_rsrc_id, resource_info),
+                 extra=self.log_extra)
+
+    def update_fernet_repo(self, request, rsrc):
+        LOG.info("update_fernet_repo region {} resource_info={}".format(
+            self.subcloud_engine.subcloud.region_name,
+            request.orch_job.resource_info),
+            extra=self.log_extra)
+        resource_info = jsonutils.loads(request.orch_job.resource_info)
+
+        s_os_client = sdk.OpenStackDriver(self.region_name)
+        try:
+            s_os_client.sysinv_client.update_fernet_repo(
+                FernetKeyManager.from_resource_info(resource_info))
+            # Ensure subcloud resource is persisted to the DB for later
+            subcloud_rsrc_id = self.persist_db_subcloud_resource(
+                rsrc.id, rsrc.master_id)
+        except (exceptions.ConnectionRefused, exceptions.NotAuthorized,
+                exceptions.TimeOut):
+            LOG.info("update_fernet_repo Timeout,{}:{}".format(
+                rsrc.id, subcloud_rsrc_id))
+            s_os_client.delete_region_clients(self.region_name,
+                                              clear_token=True)
+            raise exceptions.SyncRequestTimeout
+        except (AttributeError, TypeError) as e:
+            LOG.info("update_fernet_repo error {}".format(e),
+                     extra=self.log_extra)
+            s_os_client.delete_region_clients(self.region_name,
+                                              clear_token=True)
+            raise exceptions.SyncRequestFailedRetry
+
+        LOG.info("fernet_repo {} {} {} update".format(rsrc.id,
+                 subcloud_rsrc_id, resource_info),
+                 extra=self.log_extra)
+
     # SysInv Audit Related
     def get_master_resources(self, resource_type):
         os_client = sdk.OpenStackDriver(consts.CLOUD_0)
@@ -785,6 +875,8 @@ class SysinvSyncThread(SyncThread):
             return self.get_certificates_resources(os_client)
         elif resource_type == consts.RESOURCE_TYPE_SYSINV_USER:
             return [self.get_user_resource(os_client)]
+        elif resource_type == consts.RESOURCE_TYPE_SYSINV_FERNET_REPO:
+            return [self.get_fernet_resources(os_client)]
         else:
             LOG.error("Wrong resource type {}".format(resource_type),
                       extra=self.log_extra)
@@ -810,6 +902,8 @@ class SysinvSyncThread(SyncThread):
             return self.get_certificates_resources(os_client)
         elif resource_type == consts.RESOURCE_TYPE_SYSINV_USER:
             return [self.get_user_resource(os_client)]
+        elif resource_type == consts.RESOURCE_TYPE_SYSINV_FERNET_REPO:
+            return [self.get_fernet_resources(os_client)]
         else:
             LOG.error("Wrong resource type {}".format(resource_type),
                       extra=self.log_extra)
@@ -1004,6 +1098,27 @@ class SysinvSyncThread(SyncThread):
             LOG.exception(e)
             return None
 
+    def get_fernet_resources(self, os_client):
+        try:
+            keys = os_client.sysinv_client.get_fernet_keys()
+            return FernetKeyManager.to_resource_info(keys)
+        except (keystone_exceptions.connection.ConnectTimeout,
+                keystone_exceptions.ConnectFailure) as e:
+            LOG.info("get_fernet_resource: subcloud {} is not reachable [{}]"
+                     .format(self.subcloud_engine.subcloud.region_name,
+                             str(e)), extra=self.log_extra)
+            os_client.delete_region_clients(self.region_name)
+            # None will force skip of audit
+            return None
+        except (AttributeError, TypeError) as e:
+            LOG.info("get_fernet_resource error {}".format(e),
+                     extra=self.log_extra)
+            os_client.delete_region_clients(self.region_name, clear_token=True)
+            return None
+        except Exception as e:
+            LOG.exception(e)
+            return None
+
     def get_resource_id(self, resource_type, resource):
         if resource_type == consts.RESOURCE_TYPE_SYSINV_SNMP_COMM:
             LOG.debug("get_resource_id for community {}".format(resource))
@@ -1047,6 +1162,10 @@ class SysinvSyncThread(SyncThread):
             else:
                 LOG.error("no get_resource_id for certificate")
                 return self.CERTIFICATE_SIG_NULL
+        elif resource_type == consts.RESOURCE_TYPE_SYSINV_FERNET_REPO:
+            LOG.info("get_resource_id {} resource={}".format(
+                resource_type, resource))
+            return FERNET_REPO_MASTER_ID
         else:
             if hasattr(resource, 'uuid'):
                 LOG.info("get_resource_id {} uuid={}".format(
@@ -1155,6 +1274,15 @@ class SysinvSyncThread(SyncThread):
             same_user = False
         return same_user
 
+    def same_fernet_key(self, i1, i2):
+        LOG.info("same_fernet_repo i1={}, i2={}".format(i1, i2),
+                 extra=self.log_extra)
+        same_fernet = True
+        if (FernetKeyManager.get_resource_hash(i1) !=
+                FernetKeyManager.get_resource_hash(i2)):
+            same_fernet = False
+        return same_fernet
+
     def same_resource(self, resource_type, m_resource, sc_resource):
         if resource_type == consts.RESOURCE_TYPE_SYSINV_DNS:
             return self.same_dns(m_resource, sc_resource)
@@ -1172,8 +1300,10 @@ class SysinvSyncThread(SyncThread):
             return self.same_firewallrules(m_resource, sc_resource)
         elif resource_type == consts.RESOURCE_TYPE_SYSINV_CERTIFICATE:
             return self.same_certificate(m_resource, sc_resource)
-        if resource_type == consts.RESOURCE_TYPE_SYSINV_USER:
+        elif resource_type == consts.RESOURCE_TYPE_SYSINV_USER:
             return self.same_user(m_resource, sc_resource)
+        elif resource_type == consts.RESOURCE_TYPE_SYSINV_FERNET_REPO:
+            return self.same_fernet_key(m_resource, sc_resource)
         else:
             LOG.warn("same_resource() unexpected resource_type {}".format(
                 resource_type),
@@ -1279,6 +1409,10 @@ class SysinvSyncThread(SyncThread):
                 resource_type, dumps),
                 extra=self.log_extra)
             return dumps
+        elif resource_type == consts.RESOURCE_TYPE_SYSINV_FERNET_REPO:
+            LOG.info("get_resource_info resource_type={} resource={}".format(
+                resource_type, resource), extra=self.log_extra)
+            return jsonutils.dumps(resource)
         else:
             LOG.warn("get_resource_info unsupported resource {}".format(
                 resource_type),
