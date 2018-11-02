@@ -66,8 +66,11 @@ def set_current_test_data(cfg):
 
 
 def print_divider(width, txt):
-    width_new = (int(width) - len(txt)) / 2
-    print '%s%s%s' % ('_' * width_new, txt, '_' * width_new)
+    width_new = (int(width) - len(txt)) // 2
+    width_dash = '_' * width_new
+    print('%(width_dash)s%(txt)s%(width_dash)s', {'width_dash': width_dash,
+                                                  'txt': txt,
+                                                  'width_dash': width_dash})
 
 
 def get_divider_size():
@@ -80,29 +83,28 @@ def get_divider_size():
 
 # Get all repository information
 data_dir = get_data_repo()
-print 'Using %s as data directory' % data_dir
+print('Using %(data_dir)s as data directory', {'data_dir': data_dir})
 
 cfgs = get_cfgs()
 cfgs_usable = filter_cfgs(cfgs)
-print 'Required repo databases: %s' % os.environ.get('REQUIRED_REPOS')
-print "Test data folder(s) found: %s" % cfgs
+repo = os.environ.get('REQUIRED_REPOS')
+print('Required repo databases: %(repo)s', {'repo': repo})
+print("Test data folder(s) found: %(cfgs)s", {'cfgs': cfgs})
 if len(cfgs_usable) == 0:
-    print 'No usable data sets found'
+    print('No usable data sets found')
     exit
 
-print 'Usable data folder(s): %s' % cfgs_usable
+print('Usable data folder(s): %(cfgs_usable)s', {'cfgs_usable': cfgs_usable})
 if os.environ.get('SINGLE_REPO') == 'True':
     cfgs_usable = [cfgs_usable[0]]
-    print 'Restricting to single data set: %s' % cfgs_usable[0]
-print ''
+    print('Restricting to single data set: %(cfgs)s', {'cfgs': cfgs_usable})
 
 # Loop through all configurations and run unit tests with each
 columns = get_divider_size()
 for cfg in cfgs_usable:
     print_divider(columns, cfg)
-    print 'Running unit tests with test data: %s' % cfg
+    print('Running unit tests with test data: %(cfg)s', {'cfg': cfg})
     set_current_test_data(cfg)
     setuptools.setup(
         setup_requires=['pbr>=1.8.0'],
         pbr=True)
-    print ''

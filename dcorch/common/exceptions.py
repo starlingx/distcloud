@@ -19,6 +19,7 @@ DC Orchestrator base exception handling.
 """
 import six
 
+from oslo_utils import encodeutils
 from oslo_utils import excutils
 
 from dcorch.common.i18n import _
@@ -47,7 +48,7 @@ class OrchestratorException(Exception):
 
     if six.PY2:
         def __unicode__(self):
-            return unicode(self.msg)
+            return encodeutils.exception_to_unicode(self.msg)
 
     def use_fatal_exceptions(self):
         return False
