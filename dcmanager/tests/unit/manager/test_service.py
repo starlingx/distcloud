@@ -19,6 +19,9 @@
 
 import mock
 
+import sys
+sys.modules['fm_core'] = mock.Mock()
+
 from dcmanager.manager import scheduler
 from dcmanager.manager import service
 from dcmanager.tests import base

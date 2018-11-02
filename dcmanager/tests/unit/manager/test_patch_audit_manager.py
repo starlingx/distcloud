@@ -21,6 +21,9 @@ import mock
 
 from oslo_config import cfg
 
+import sys
+sys.modules['fm_core'] = mock.Mock()
+
 from dcmanager.common import consts
 from dcmanager.manager import patch_audit_manager
 from dcmanager.manager import subcloud_manager

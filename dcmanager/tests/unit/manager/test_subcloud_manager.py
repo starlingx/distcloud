@@ -22,6 +22,9 @@ import mock
 from oslo_config import cfg
 from oslo_utils import timeutils
 
+import sys
+sys.modules['fm_core'] = mock.Mock()
+
 from dcorch.rpc import client as dcorch_rpc_client
 
 from dcmanager.common import consts

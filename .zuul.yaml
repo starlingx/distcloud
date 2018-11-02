@@ -8,14 +8,29 @@
         - build-openstack-releasenotes
         - openstack-tox-linters
         - openstack-tox-pep8
+        - stx-distcloud-tox-py27
     gate:
       jobs:
         - build-openstack-api-ref
         - build-openstack-releasenotes
         - openstack-tox-linters
         - openstack-tox-pep8
+        - stx-distcloud-tox-py27
     post:
       jobs:
         - publish-stx-api-ref
         - publish-stx-tox
         - publish-stx-releasenotes
+
+- job:
+    name: stx-distcloud-tox-py27
+    parent: tox
+    description: Run py27 for distcloud
+    required-projects:
+      - openstack/stx-fault
+      - openstack/stx-nfv
+      - openstack/stx-update
+      - openstack/stx-config
+    vars:
+      tox_envlist: py27
+      tox_extra_args: -c tox.ini
