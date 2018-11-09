@@ -22,6 +22,7 @@ from oslo_serialization import jsonutils
 
 from dcorch.common import consts
 from dcorch.common import exceptions
+from dcorch.drivers.openstack import sdk
 from dcorch.engine import quota_manager
 from dcorch.engine.sync_thread import SyncThread
 from dcorch.objects import resource
@@ -417,14 +418,31 @@ class NetworkSyncThread(SyncThread):
         self.post_security_group_rule(request, rsrc)
 
     def same_security_group(self, qc1, qc2):
+        # Fetch the tenant name from the project. Tenant ids are different
+        # between regions.
+        qc1_tenant_name = sdk.OpenStackDriver().get_project_by_id(
+            qc1['tenant_id']).name
+        qc2_tenant_name = sdk.OpenStackDriver(
+            self.subcloud_engine.subcloud.region_name).get_project_by_id(
+            qc2['tenant_id']).name
+
         return (qc1['description'] == qc2['description'] and
-                qc1['tenant_id'] == qc2['tenant_id'] and
+                qc1_tenant_name == qc2_tenant_name and
                 qc1['name'] == qc2['name'])
 
     def same_security_group_rule(self, qc1, qc2):
         # Ignore id, created_at, updated_at, and revision_number
+
+        # Fetch the tenant name from the project. Tenant id are different
+        # between regions.
+        qc1_tenant_name = sdk.OpenStackDriver().get_project_by_id(
+            qc1['tenant_id']).name
+        qc2_tenant_name = sdk.OpenStackDriver(
+            self.subcloud_engine.subcloud.region_name).get_project_by_id(
+            qc2['tenant_id']).name
+
         return (qc1['description'] == qc2['description'] and
-                qc1['tenant_id'] == qc2['tenant_id'] and
+                qc1_tenant_name == qc2_tenant_name and
                 qc1['project_id'] == qc2['project_id'] and
                 qc1['direction'] == qc2['direction'] and
                 qc1['protocol'] == qc2['protocol'] and
