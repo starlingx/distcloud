@@ -4,9 +4,9 @@ parallel = True
 source =
     dcmanager
     dcorch
+omit = 
+    */tests/*
 
 [report]
 ignore_errors = True
-omit = 
-    */tests/*
 
