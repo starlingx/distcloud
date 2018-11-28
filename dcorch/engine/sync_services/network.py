@@ -420,6 +420,8 @@ class NetworkSyncThread(SyncThread):
     def same_security_group(self, qc1, qc2):
         # Fetch the tenant name from the project. Tenant ids are different
         # between regions.
+        # TODO(kbujold): This solution only works if we have one domain within
+        # keystone.
         qc1_tenant_name = sdk.OpenStackDriver().get_project_by_id(
             qc1['tenant_id']).name
         qc2_tenant_name = sdk.OpenStackDriver(
