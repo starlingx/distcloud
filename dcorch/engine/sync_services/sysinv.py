@@ -210,7 +210,7 @@ class SysinvSyncThread(SyncThread):
                      extra=self.log_extra)
             return
 
-        intp = self.update_ntp(enabled, ntpservers)
+        intp = self.update_ntp(str(enabled), ntpservers)
 
         # Ensure subcloud resource is persisted to the DB for later
         subcloud_rsrc_id = self.persist_db_subcloud_resource(
@@ -291,7 +291,7 @@ class SysinvSyncThread(SyncThread):
                      extra=self.log_extra)
             return
 
-        ptp = self.update_ptp(enabled, mode, transport, mechanism)
+        ptp = self.update_ptp(str(enabled), mode, transport, mechanism)
 
         # Ensure subcloud resource is persisted to the DB for later
         subcloud_rsrc_id = self.persist_db_subcloud_resource(

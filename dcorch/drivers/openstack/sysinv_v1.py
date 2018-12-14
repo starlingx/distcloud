@@ -170,11 +170,11 @@ class SysinvClient(base.DriverBase):
                 return intp
             if ntpservers == "NC":
                 ntpservers = ""
-            if intp.enabled != (enabled == "True") or \
+            if str(intp.enabled) != enabled or \
                not self._same_ntpservers(intp.ntpservers, ntpservers):
                 if ntpservers == "":
                     ntpservers = "NC"
-                patch = make_sysinv_patch({'enabled': str(enabled),
+                patch = make_sysinv_patch({'enabled': enabled,
                                            'ntpservers': ntpservers,
                                            'action': 'apply'})
                 LOG.info("region={} ntp update uuid={} patch={}".format(
@@ -223,11 +223,11 @@ class SysinvClient(base.DriverBase):
                 LOG.warn("ptp not found %s" % self.region_name)
                 return ptp
 
-            if ptp.enabled != (enabled == "True") or \
+            if str(ptp.enabled) != enabled or \
                ptp.mode != mode or \
                ptp.transport != transport or \
                ptp.mechanism != mechanism:
-                patch = make_sysinv_patch({'enabled': str(enabled),
+                patch = make_sysinv_patch({'enabled': enabled,
                                            'mode': mode,
                                            'transport': transport,
                                            'mechanism': mechanism})
