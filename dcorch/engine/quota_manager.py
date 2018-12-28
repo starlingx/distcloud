@@ -15,8 +15,8 @@
 
 import collections
 import copy
-from Queue import Queue
 import re
+from six.moves.queue import Queue
 import threading
 import time
 

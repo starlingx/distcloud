@@ -15,7 +15,7 @@
 
 from dcorch.common import consts
 from oslo_log import log as logging
-from urlparse import urlparse
+from six.moves.urllib.parse import urlparse
 
 LOG = logging.getLogger(__name__)
 
