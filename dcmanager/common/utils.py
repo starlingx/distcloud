@@ -21,6 +21,7 @@
 #
 
 import itertools
+import six.moves
 
 from dcmanager.common import consts
 from dcmanager.common import exceptions
@@ -35,7 +36,7 @@ def get_import_path(cls):
 # Returns a iterator of tuples containing batch_size number of objects in each
 def get_batch_projects(batch_size, project_list, fillvalue=None):
     args = [iter(project_list)] * batch_size
-    return itertools.izip_longest(fillvalue=fillvalue, *args)
+    return six.moves.zip_longest(fillvalue=fillvalue, *args)
 
 
 # to do validate the quota limits

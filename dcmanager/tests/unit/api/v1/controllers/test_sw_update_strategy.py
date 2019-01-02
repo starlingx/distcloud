@@ -22,6 +22,7 @@
 
 import copy
 import mock
+import six
 import webtest
 
 from dcmanager.api.controllers.v1 import sw_update_strategy
@@ -75,18 +76,18 @@ class TestSwUpdateStrategy(testroot.DCManagerApiTest):
     def test_post_sw_update_bad_type(self, mock_db_api, mock_rpc_client):
         data = copy.copy(FAKE_SW_UPDATE_DATA)
         data["type"] = "bad type"
-        self.assertRaisesRegexp(webtest.app.AppError, "400 *",
-                                self.app.post_json, FAKE_URL,
-                                headers=FAKE_HEADERS, params=data)
+        six.assertRaisesRegex(self, webtest.app.AppError, "400 *",
+                              self.app.post_json, FAKE_URL,
+                              headers=FAKE_HEADERS, params=data)
 
     @mock.patch.object(rpc_client, 'ManagerClient')
     @mock.patch.object(sw_update_strategy, 'db_api')
     def test_post_sw_update_bad_apply_type(self, mock_db_api, mock_rpc_client):
         data = copy.copy(FAKE_SW_UPDATE_DATA)
         data["subcloud-apply-type"] = "bad type"
-        self.assertRaisesRegexp(webtest.app.AppError, "400 *",
-                                self.app.post_json, FAKE_URL,
-                                headers=FAKE_HEADERS, params=data)
+        six.assertRaisesRegex(self, webtest.app.AppError, "400 *",
+                              self.app.post_json, FAKE_URL,
+                              headers=FAKE_HEADERS, params=data)
 
     @mock.patch.object(rpc_client, 'ManagerClient')
     @mock.patch.object(sw_update_strategy, 'db_api')
@@ -94,24 +95,24 @@ class TestSwUpdateStrategy(testroot.DCManagerApiTest):
             self, mock_db_api, mock_rpc_client):
         data = copy.copy(FAKE_SW_UPDATE_DATA)
         data["max-parallel-subclouds"] = "not an integer"
-        self.assertRaisesRegexp(webtest.app.AppError, "400 *",
-                                self.app.post_json, FAKE_URL,
-                                headers=FAKE_HEADERS, params=data)
+        six.assertRaisesRegex(self, webtest.app.AppError, "400 *",
+                              self.app.post_json, FAKE_URL,
+                              headers=FAKE_HEADERS, params=data)
 
     @mock.patch.object(rpc_client, 'ManagerClient')
     def test_post_no_body(self, mock_rpc_client):
         data = {}
-        self.assertRaisesRegexp(webtest.app.AppError, "400 *",
-                                self.app.post_json, FAKE_URL,
-                                headers=FAKE_HEADERS, params=data)
+        six.assertRaisesRegex(self, webtest.app.AppError, "400 *",
+                              self.app.post_json, FAKE_URL,
+                              headers=FAKE_HEADERS, params=data)
 
     @mock.patch.object(rpc_client, 'ManagerClient')
     def test_post_no_type(self, mock_rpc_client):
         data = copy.copy(FAKE_SW_UPDATE_DATA)
         del data['type']
-        self.assertRaisesRegexp(webtest.app.AppError, "400 *",
-                                self.app.post_json, FAKE_URL,
-                                headers=FAKE_HEADERS, params=data)
+        six.assertRaisesRegex(self, webtest.app.AppError, "400 *",
+                              self.app.post_json, FAKE_URL,
+                              headers=FAKE_HEADERS, params=data)
 
     @mock.patch.object(rpc_client, 'ManagerClient')
     @mock.patch.object(sw_update_strategy, 'db_api')
@@ -140,9 +141,9 @@ class TestSwUpdateStrategy(testroot.DCManagerApiTest):
     def test_post_sw_update_bad_action(self, mock_db_api, mock_rpc_client):
         data = copy.copy(FAKE_SW_UPDATE_APPLY_DATA)
         data["action"] = "bad action"
-        self.assertRaisesRegexp(webtest.app.AppError, "400 *",
-                                self.app.post_json, FAKE_URL,
-                                headers=FAKE_HEADERS, params=data)
+        six.assertRaisesRegex(self, webtest.app.AppError, "400 *",
+                              self.app.post_json, FAKE_URL,
+                              headers=FAKE_HEADERS, params=data)
 
     @mock.patch.object(rpc_client, 'ManagerClient')
     @mock.patch.object(sw_update_strategy, 'db_api')

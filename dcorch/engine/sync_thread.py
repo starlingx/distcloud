@@ -220,7 +220,7 @@ class SyncThread(object):
                                            sync_request.orch_job.resource_id)
         handler = self.sync_handler_map[rsrc.resource_type]
         LOG.info("Invoking {} for {} [{}]".format(
-            handler.func_name, rsrc.resource_type,
+            handler.__name__, rsrc.resource_type,
             sync_request.orch_job.operation_type), extra=self.log_extra)
         handler(sync_request, rsrc)
 

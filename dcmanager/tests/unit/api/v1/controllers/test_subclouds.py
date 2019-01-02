@@ -22,6 +22,7 @@
 
 import copy
 import mock
+import six
 import webtest
 
 from dcmanager.api.controllers.v1 import subclouds
@@ -96,9 +97,9 @@ class TestSubclouds(testroot.DCManagerApiTest):
                                                   '192.168.204.2',
                                                   '192.168.204.100')
         mock_get_management_address_pool.return_value = management_address_pool
-        self.assertRaisesRegexp(webtest.app.AppError, "400 *",
-                                self.app.post_json, FAKE_URL,
-                                headers=FAKE_HEADERS, params=data)
+        six.assertRaisesRegex(self, webtest.app.AppError, "400 *",
+                              self.app.post_json, FAKE_URL,
+                              headers=FAKE_HEADERS, params=data)
 
     @mock.patch.object(subclouds.SubcloudsController,
                        '_get_management_address_pool')
@@ -111,18 +112,18 @@ class TestSubclouds(testroot.DCManagerApiTest):
                                                   '192.168.204.2',
                                                   '192.168.204.254')
         mock_get_management_address_pool.return_value = management_address_pool
-        self.assertRaisesRegexp(webtest.app.AppError, "400 *",
-                                self.app.post_json, FAKE_URL,
-                                headers=FAKE_HEADERS, params=data)
+        six.assertRaisesRegex(self, webtest.app.AppError, "400 *",
+                              self.app.post_json, FAKE_URL,
+                              headers=FAKE_HEADERS, params=data)
 
     @mock.patch.object(rpc_client, 'ManagerClient')
     @mock.patch.object(subclouds, 'db_api')
     def test_post_subcloud_bad_subnet(self, mock_db_api, mock_rpc_client):
         data = copy.copy(FAKE_SUBCLOUD_DATA)
         data["management-subnet"] = "192.168.101.0/32"
-        self.assertRaisesRegexp(webtest.app.AppError, "400 *",
-                                self.app.post_json, FAKE_URL,
-                                headers=FAKE_HEADERS, params=data)
+        six.assertRaisesRegex(self, webtest.app.AppError, "400 *",
+                              self.app.post_json, FAKE_URL,
+                              headers=FAKE_HEADERS, params=data)
 
     @mock.patch.object(rpc_client, 'ManagerClient')
     @mock.patch.object(subclouds, 'db_api')
@@ -131,9 +132,9 @@ class TestSubclouds(testroot.DCManagerApiTest):
         data["management-subnet"] = "192.168.101.0/24"
         data["management-start-ip"] = "192.168.100.2"
         data["management-end-ip"] = "192.168.100.50"
-        self.assertRaisesRegexp(webtest.app.AppError, "400 *",
-                                self.app.post_json, FAKE_URL,
-                                headers=FAKE_HEADERS, params=data)
+        six.assertRaisesRegex(self, webtest.app.AppError, "400 *",
+                              self.app.post_json, FAKE_URL,
+                              headers=FAKE_HEADERS, params=data)
 
     @mock.patch.object(rpc_client, 'ManagerClient')
     @mock.patch.object(subclouds, 'db_api')
@@ -141,9 +142,9 @@ class TestSubclouds(testroot.DCManagerApiTest):
         data = copy.copy(FAKE_SUBCLOUD_DATA)
         data["management-start-ip"] = "192.168.101.2"
         data["management-end-ip"] = "192.168.100.100"
-        self.assertRaisesRegexp(webtest.app.AppError, "400 *",
-                                self.app.post_json, FAKE_URL,
-                                headers=FAKE_HEADERS, params=data)
+        six.assertRaisesRegex(self, webtest.app.AppError, "400 *",
+                              self.app.post_json, FAKE_URL,
+                              headers=FAKE_HEADERS, params=data)
 
     @mock.patch.object(rpc_client, 'ManagerClient')
     @mock.patch.object(subclouds, 'db_api')
@@ -151,9 +152,9 @@ class TestSubclouds(testroot.DCManagerApiTest):
         data = copy.copy(FAKE_SUBCLOUD_DATA)
         data["management-start-ip"] = "192.168.101.2"
         data["management-end-ip"] = "192.168.101.4"
-        self.assertRaisesRegexp(webtest.app.AppError, "400 *",
-                                self.app.post_json, FAKE_URL,
-                                headers=FAKE_HEADERS, params=data)
+        six.assertRaisesRegex(self, webtest.app.AppError, "400 *",
+                              self.app.post_json, FAKE_URL,
+                              headers=FAKE_HEADERS, params=data)
 
     @mock.patch.object(rpc_client, 'ManagerClient')
     @mock.patch.object(subclouds, 'db_api')
@@ -161,31 +162,31 @@ class TestSubclouds(testroot.DCManagerApiTest):
         data = copy.copy(FAKE_SUBCLOUD_DATA)
         data["management-start-ip"] = "192.168.101.20"
         data["management-end-ip"] = "192.168.101.4"
-        self.assertRaisesRegexp(webtest.app.AppError, "400 *",
-                                self.app.post_json, FAKE_URL,
-                                headers=FAKE_HEADERS, params=data)
+        six.assertRaisesRegex(self, webtest.app.AppError, "400 *",
+                              self.app.post_json, FAKE_URL,
+                              headers=FAKE_HEADERS, params=data)
 
     @mock.patch.object(rpc_client, 'ManagerClient')
     def test_post_subcloud_wrong_url(self, mock_rpc_client):
         data = FAKE_SUBCLOUD_DATA
-        self.assertRaisesRegexp(webtest.app.AppError, "404 *",
-                                self.app.post_json, WRONG_URL,
-                                headers=FAKE_HEADERS, params=data)
+        six.assertRaisesRegex(self, webtest.app.AppError, "404 *",
+                              self.app.post_json, WRONG_URL,
+                              headers=FAKE_HEADERS, params=data)
 
     @mock.patch.object(rpc_client, 'ManagerClient')
     def test_post_no_body(self, mock_rpc_client):
         data = {}
-        self.assertRaisesRegexp(webtest.app.AppError, "400 *",
-                                self.app.post_json, FAKE_URL,
-                                headers=FAKE_HEADERS, params=data)
+        six.assertRaisesRegex(self, webtest.app.AppError, "400 *",
+                              self.app.post_json, FAKE_URL,
+                              headers=FAKE_HEADERS, params=data)
 
     @mock.patch.object(rpc_client, 'ManagerClient')
     def test_post_no_name(self, mock_rpc_client):
         data = dict(FAKE_SUBCLOUD_DATA)
         del data['name']
-        self.assertRaisesRegexp(webtest.app.AppError, "400 *",
-                                self.app.post_json, FAKE_URL,
-                                headers=FAKE_HEADERS, params=data)
+        six.assertRaisesRegex(self, webtest.app.AppError, "400 *",
+                              self.app.post_json, FAKE_URL,
+                              headers=FAKE_HEADERS, params=data)
 
     @mock.patch.object(subclouds.SubcloudsController,
                        '_create_subcloud_config_file')
@@ -212,9 +213,9 @@ class TestSubclouds(testroot.DCManagerApiTest):
     @mock.patch.object(rpc_client, 'ManagerClient')
     def test_delete_wrong_request(self, mock_rpc_client):
         delete_url = WRONG_URL + '/' + FAKE_ID
-        self.assertRaisesRegex(webtest.app.AppError, "404 *",
-                               self.app.delete_json, delete_url,
-                               headers=FAKE_HEADERS)
+        six.assertRaisesRegex(self, webtest.app.AppError, "404 *",
+                              self.app.delete_json, delete_url,
+                              headers=FAKE_HEADERS)
 
     @mock.patch.object(rpc_client, 'ManagerClient')
     @mock.patch.object(subclouds, 'db_api')
@@ -227,9 +228,9 @@ class TestSubclouds(testroot.DCManagerApiTest):
     @mock.patch.object(subclouds, 'db_api')
     def test_get_wrong_request(self, mock_db_api, mock_rpc_client):
         get_url = WRONG_URL + '/' + FAKE_ID
-        self.assertRaisesRegex(webtest.app.AppError, "404 *",
-                               self.app.get, get_url,
-                               headers=FAKE_HEADERS)
+        six.assertRaisesRegex(self, webtest.app.AppError, "404 *",
+                              self.app.get, get_url,
+                              headers=FAKE_HEADERS)
 
     @mock.patch.object(rpc_client, 'ManagerClient')
     @mock.patch.object(subclouds, 'db_api')
@@ -258,14 +259,14 @@ class TestSubclouds(testroot.DCManagerApiTest):
     @mock.patch.object(rpc_client, 'ManagerClient')
     def test_patch_subcloud_no_body(self, mock_rpc_client):
         data = {}
-        self.assertRaisesRegexp(webtest.app.AppError, "400 *",
-                                self.app.patch_json, FAKE_URL + '/' + FAKE_ID,
-                                headers=FAKE_HEADERS, params=data)
+        six.assertRaisesRegex(self, webtest.app.AppError, "400 *",
+                              self.app.patch_json, FAKE_URL + '/' + FAKE_ID,
+                              headers=FAKE_HEADERS, params=data)
 
     @mock.patch.object(rpc_client, 'ManagerClient')
     @mock.patch.object(subclouds, 'db_api')
     def test_patch_subcloud_bad_status(self, mock_db_api, mock_rpc_client):
         data = {'management-state': 'bad-status'}
-        self.assertRaisesRegex(webtest.app.AppError, "400 *",
-                               self.app.patch_json, FAKE_URL + '/' + FAKE_ID,
-                               headers=FAKE_HEADERS, params=data)
+        six.assertRaisesRegex(self, webtest.app.AppError, "400 *",
+                              self.app.patch_json, FAKE_URL + '/' + FAKE_ID,
+                              headers=FAKE_HEADERS, params=data)
