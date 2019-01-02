@@ -176,7 +176,7 @@ class PatchAPIController(Middleware):
 
     def patch_upload_dir_req(self, request, response):
         files = []
-        for key, path in request.GET.iteritems():
+        for key, path in request.GET.items():
             LOG.info("upload-dir: Retrieving patches from %s" % path)
             for f in glob.glob(path + '/*.patch'):
                 if os.path.isfile(f):

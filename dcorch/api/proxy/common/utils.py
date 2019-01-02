@@ -71,7 +71,7 @@ def get_routing_match_value(environ, key):
         return match[key]
     else:
         LOG.info("(%s) is not available in routing match arguments.", key)
-        for k, v in match.iteritems():
+        for k, v in match.items():
             LOG.info("Match key:(%s), value:(%s)", k, v)
         return None
 

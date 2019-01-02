@@ -36,7 +36,7 @@ API_VERSION = '1'
 
 def make_sysinv_patch(update_dict):
     patch = []
-    for k, v in update_dict.iteritems():
+    for k, v in update_dict.items():
         key = k
         if not k.startswith('/'):
             key = '/' + key
@@ -265,7 +265,7 @@ class SysinvClient(base.DriverBase):
         #     {"ip_address": "10.10.10.12", "community": "cgcs"}
         itrapdest = None
         trapdest_create_dict = {}
-        for k, v in trapdest_dict.iteritems():
+        for k, v in trapdest_dict.items():
             if k in SNMP_TRAPDEST_CREATION_ATTRIBUTES:
                 trapdest_create_dict[str(k)] = v
 
@@ -329,7 +329,7 @@ class SysinvClient(base.DriverBase):
         # Example community_dict: {"community": "cgcs"}
         icommunity = None
         community_create_dict = {}
-        for k, v in community_dict.iteritems():
+        for k, v in community_dict.items():
             if k in SNMP_COMMUNITY_CREATION_ATTRIBUTES:
                 community_create_dict[str(k)] = v
 
@@ -399,7 +399,7 @@ class SysinvClient(base.DriverBase):
     def create_remote_logging_patch_from_dict(self, values):
         patch = {}
         action_found = False
-        for k, v in values.iteritems():
+        for k, v in values.items():
             if k in self.REMOTELOGGING_PATCH_ATTRS:
                 if k == 'action':
                     action_found = True

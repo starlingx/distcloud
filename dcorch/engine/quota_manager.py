@@ -251,7 +251,7 @@ class QuotaManager(manager.Manager):
                                                              project_id)
         except exceptions.ProjectQuotaNotFound:
             limits_from_db = {}
-        for current_resource in CONF.dc_orch_global_limit.iteritems():
+        for current_resource in CONF.dc_orch_global_limit.items():
             resource = re.sub('quota_', '', current_resource[0])
             # If resource limit in DB, then use it or else use limit
             # from conf file
@@ -481,7 +481,7 @@ class QuotaManager(manager.Manager):
         # endpoint types, so we need to figure out which ones we want.
         desired_fields = consts.ENDPOINT_QUOTA_MAPPING[endpoint_type]
         usage_dict = {}
-        for k, v in total_project_usages.iteritems():
+        for k, v in total_project_usages.items():
             if k in desired_fields:
                 usage_dict[k] = v
         return usage_dict

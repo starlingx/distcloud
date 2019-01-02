@@ -161,7 +161,7 @@ class EndpointCache(object):
 
         return: List of regions
         """
-        return self.endpoint_map.keys()
+        return list(self.endpoint_map.keys())
 
     def get_session_from_token(self, token, project_id):
         """Get session based on token to communicate with openstack services.

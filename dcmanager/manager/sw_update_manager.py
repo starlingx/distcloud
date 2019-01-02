@@ -707,7 +707,7 @@ class PatchOrchThread(threading.Thread):
         # removed to match the applied patches in RegionOne. Check the
         # repostate, which indicates whether it is applied or removed in
         # the repo.
-        subcloud_patch_ids = subcloud_patches.keys()
+        subcloud_patch_ids = list(subcloud_patches.keys())
         for patch_id in subcloud_patch_ids:
             if subcloud_patches[patch_id]['repostate'] == \
                     patching_v1.PATCH_STATE_APPLIED:
@@ -1386,7 +1386,7 @@ class PatchOrchThread(threading.Thread):
         # which should be deleted. We check the patchstate here because
         # patches cannot be deleted or committed if they are in a partial
         # state (e.g. Partial-Apply or Partial-Remove).
-        subcloud_patch_ids = subcloud_patches.keys()
+        subcloud_patch_ids = list(subcloud_patches.keys())
         for patch_id in subcloud_patch_ids:
             if subcloud_patches[patch_id]['patchstate'] == \
                     patching_v1.PATCH_STATE_AVAILABLE:

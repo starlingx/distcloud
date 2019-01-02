@@ -97,7 +97,7 @@ class Controller(object):
 
     def handle_delayed_notifications(self):
         curr_time = datetime.datetime.utcnow()
-        for system, notify_time in self.system_throttle_timers.iteritems():
+        for system, notify_time in self.system_throttle_timers.items():
             if notify_time is not None:
                 if curr_time > notify_time:
                     self.send_notification(system)

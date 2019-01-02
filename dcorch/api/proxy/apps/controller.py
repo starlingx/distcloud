@@ -157,7 +157,7 @@ class APIController(Middleware):
                  environ['REQUEST_METHOD'], length)
         LOG.info("Request URL: (%s)\n", self.get_request_header(environ))
         LOG.info("Request header: \n")
-        for k, v in req.headers.iteritems():
+        for k, v in req.headers.items():
             LOG.info("  %s: %s\n", k, v)
         self.print_environ(environ)
         self.print_request_body(req.body)
@@ -485,7 +485,7 @@ class IdentityAPIController(APIController):
         else:
             if operation_type == consts.OPERATION_TYPE_POST:
                 # Retrieve the ID from the response
-                resource = json.loads(response.body).items()[0][1]
+                resource = list(json.loads(response.body).items())[0][1]
                 resource_id = resource['id']
             else:
                 resource_id = self.get_resource_id_from_link(request_header)

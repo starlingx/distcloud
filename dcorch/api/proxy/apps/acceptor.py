@@ -74,8 +74,8 @@ class Acceptor(Router):
         api_controller = ComputeAPIController(app, conf)
         orch_controller = OrchAPIController(app, conf)
 
-        for key, value in proxy_consts.COMPUTE_PATH_MAP.iteritems():
-            for k, v in value.iteritems():
+        for key, value in proxy_consts.COMPUTE_PATH_MAP.items():
+            for k, v in value.items():
                 self._add_resource(mapper, api_controller, v, k,
                                    CONF.type, key)
 
@@ -87,14 +87,14 @@ class Acceptor(Router):
     def add_platform_routes(self, app, conf, mapper):
         api_controller = SysinvAPIController(app, conf)
 
-        for key, value in proxy_consts.SYSINV_PATH_MAP.iteritems():
+        for key, value in proxy_consts.SYSINV_PATH_MAP.items():
             self._add_resource(mapper, api_controller, value, key, CONF.type)
 
     def add_volume_routes(self, app, conf, mapper):
         api_controller = CinderAPIController(app, conf)
 
-        for key, value in proxy_consts.CINDER_PATH_MAP.iteritems():
-            for k, v in value.iteritems():
+        for key, value in proxy_consts.CINDER_PATH_MAP.items():
+            for k, v in value.items():
                 self._add_resource(mapper, api_controller, v, k,
                                    CONF.type, key)
 
@@ -102,7 +102,7 @@ class Acceptor(Router):
         api_controller = NeutronAPIController(app, conf)
         orch_controller = OrchAPIController(app, conf)
 
-        for key, value in proxy_consts.NEUTRON_PATH_MAP.iteritems():
+        for key, value in proxy_consts.NEUTRON_PATH_MAP.items():
             self._add_resource(mapper, api_controller, value, key, CONF.type)
 
         self._add_resource(mapper, orch_controller,
@@ -113,11 +113,11 @@ class Acceptor(Router):
     def add_patch_routes(self, app, conf, mapper):
         api_controller = PatchAPIController(app, conf)
 
-        for key, value in proxy_consts.PATCH_PATH_MAP.iteritems():
+        for key, value in proxy_consts.PATCH_PATH_MAP.items():
             self._add_resource(mapper, api_controller, value, key, CONF.type)
 
     def add_identity_routes(self, app, conf, mapper):
         api_controller = IdentityAPIController(app, conf)
 
-        for key, value in proxy_consts.IDENTITY_PATH_MAP.iteritems():
+        for key, value in proxy_consts.IDENTITY_PATH_MAP.items():
             self._add_resource(mapper, api_controller, value, key, CONF.type)

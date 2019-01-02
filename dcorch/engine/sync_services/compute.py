@@ -292,7 +292,7 @@ class ComputeSyncThread(SyncThread):
             consts.ACTION_EXTRASPECS_POST: self.set_extra_specs,
             consts.ACTION_EXTRASPECS_DELETE: self.unset_extra_specs,
         }
-        action = action_dict.keys()[0]
+        action = list(action_dict.keys())[0]
         if action not in switcher.keys():
             LOG.error("Unsupported flavor action {}".format(action),
                       extra=self.log_extra)
@@ -343,10 +343,10 @@ class ComputeSyncThread(SyncThread):
                     metadata[metadatum] = None
 
             try:
-                flavor.unset_keys(metadata.keys())
+                flavor.unset_keys(list(metadata.keys()))
             except novaclient_exceptions.NotFound:
                 LOG.info("Extra-spec {} not found {}:{}"
-                         .format(metadata.keys(), rsrc, action_dict),
+                         .format(list(metadata.keys()), rsrc, action_dict),
                          extra=self.log_extra)
 
     def get_flavor_resources(self, nc):
@@ -449,9 +449,9 @@ class ComputeSyncThread(SyncThread):
         # Extra-spec needs to be audited. Extra-spec details are
         # filled in m_resources and sc_resources during query.
         metadata = {}
-        for m_key, m_value in m_flavor.attach_es.iteritems():
+        for m_key, m_value in m_flavor.attach_es.items():
             found = False
-            for sc_key, sc_value in sc_es_attachment.iteritems():
+            for sc_key, sc_value in sc_es_attachment.items():
                 if m_key == sc_key and m_value == sc_value:
                     found = True
                     sc_es_attachment.pop(sc_key)
@@ -466,7 +466,7 @@ class ComputeSyncThread(SyncThread):
             num_of_audit_jobs += 1
 
         keys_to_delete = ""
-        for sc_key, sc_value in sc_es_attachment.iteritems():
+        for sc_key, sc_value in sc_es_attachment.items():
             keys_to_delete += sc_key + ";"
         if keys_to_delete:
             action_dict = {consts.ACTION_EXTRASPECS_DELETE: keys_to_delete}
