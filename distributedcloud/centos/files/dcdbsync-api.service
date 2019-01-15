@@ -1,0 +1,12 @@
+[Unit]
+Description=DC DBsync Agent API Service
+After=syslog.target network.target postgresql.service
+
+[Service]
+Type=simple
+User=root
+ExecStart=/usr/bin/dcdbsync-api --config-file /etc/dcdbsync/dcdbsync.conf
+Restart=on-failure
+
+[Install]
+WantedBy=multi-user.target
