@@ -1,11 +1,9 @@
+===========================
 stx-distcloud Documentation
 ===========================
 
-StarlingX Distributed Cloud
-
-.. toctree::
-   :maxdepth: 2
-   :caption: Contents:
+The StarlingX stx-distcloud project provides management for distributed
+cloud operations.
 
 Release Notes
 -------------
@@ -24,7 +22,7 @@ API Reference
    API Reference <https://docs.starlingx.io/api-ref/stx-distcloud>
 
 Links
-=====
+-----
 
 * Source: `stx-distcloud`_
 * Code Review: `Gerrit`_
@@ -33,9 +31,3 @@ Links
 .. _stx-distcloud: https://git.starlingx.io/cgit/stx-distcloud/
 .. _Gerrit: https://review.openstack.org/#/q/project:openstack/stx-distcloud
 .. _Storyboard: https://storyboard.openstack.org/#!/project/openstack/stx-distcloud
-
-Indices and Tables
-==================
-
-* :ref:`search`
-* :ref:`genindex`
