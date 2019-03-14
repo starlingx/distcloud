@@ -20,12 +20,9 @@ Source1:       dcmanager-api.service
 Source2:       dcmanager-manager.service
 Source3:       dcorch-api.service
 Source4:       dcorch-engine.service
-Source5:       dcorch-nova-api-proxy.service
-Source6:       dcorch-sysinv-api-proxy.service
-Source7:       dcorch-snmp.service
-Source8:       dcorch-cinder-api-proxy.service
-Source9:       dcorch-neutron-api-proxy.service
-Source10:      dcorch-identity-api-proxy.service
+Source5:       dcorch-sysinv-api-proxy.service
+Source6:       dcorch-snmp.service
+Source7:       dcorch-identity-api-proxy.service
 
 BuildArch:     noarch
 
@@ -125,12 +122,9 @@ mkdir -p %{buildroot}/etc/dcorch/
 # install systemd unit files
 install -p -D -m 644 %{SOURCE3} %{buildroot}%{_unitdir}/dcorch-api.service
 install -p -D -m 644 %{SOURCE4} %{buildroot}%{_unitdir}/dcorch-engine.service
-install -p -D -m 644 %{SOURCE5} %{buildroot}%{_unitdir}/dcorch-nova-api-proxy.service
-install -p -D -m 644 %{SOURCE6} %{buildroot}%{_unitdir}/dcorch-sysinv-api-proxy.service
-install -p -D -m 644 %{SOURCE7} %{buildroot}%{_unitdir}/dcorch-snmp.service
-install -p -D -m 644 %{SOURCE8} %{buildroot}%{_unitdir}/dcorch-cinder-api-proxy.service
-install -p -D -m 644 %{SOURCE9} %{buildroot}%{_unitdir}/dcorch-neutron-api-proxy.service
-install -p -D -m 644 %{SOURCE10} %{buildroot}%{_unitdir}/dcorch-identity-api-proxy.service
+install -p -D -m 644 %{SOURCE5} %{buildroot}%{_unitdir}/dcorch-sysinv-api-proxy.service
+install -p -D -m 644 %{SOURCE6} %{buildroot}%{_unitdir}/dcorch-snmp.service
+install -p -D -m 644 %{SOURCE7} %{buildroot}%{_unitdir}/dcorch-identity-api-proxy.service
 
 # install ocf scripts
 install -d -m 755 ${RPM_BUILD_ROOT}/usr/lib/ocf/resource.d/openstack
@@ -167,10 +161,7 @@ install -p -D -m 640 %{_builddir}/%{pypi_name}-%{version}/etc/dcorch/dcorch.conf
 %{_bindir}/dcorch-engine
 %{_unitdir}/dcorch-engine.service
 %{_bindir}/dcorch-api-proxy
-%{_unitdir}/dcorch-nova-api-proxy.service
 %{_unitdir}/dcorch-sysinv-api-proxy.service
-%{_unitdir}/dcorch-cinder-api-proxy.service
-%{_unitdir}/dcorch-neutron-api-proxy.service
 %{_unitdir}/dcorch-identity-api-proxy.service
 %{_bindir}/dcorch-manage
 %{_bindir}/dcorch-snmp
