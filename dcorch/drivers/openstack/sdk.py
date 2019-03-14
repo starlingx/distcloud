@@ -24,11 +24,8 @@ from oslo_utils import timeutils
 from dcorch.common import consts
 from dcorch.common import exceptions
 
-from dcorch.drivers.openstack.cinder_v2 import CinderClient
 from dcorch.drivers.openstack.fm import FmClient
 from dcorch.drivers.openstack.keystone_v3 import KeystoneClient
-from dcorch.drivers.openstack.neutron_v2 import NeutronClient
-from dcorch.drivers.openstack.nova_v2 import NovaClient
 from dcorch.drivers.openstack.sysinv_v1 import SysinvClient
 
 # Gap, in seconds, to determine whether the given token is about to expire
@@ -66,12 +63,6 @@ class OpenStackDriver(object):
             LOG.info('Using cached OS client objects %s' % region_name)
             self.sysinv_client = OpenStackDriver.os_clients_dict[
                 region_name]['sysinv']
-            self.nova_client = OpenStackDriver.os_clients_dict[
-                region_name]['nova']
-            self.cinder_client = OpenStackDriver.os_clients_dict[
-                region_name]['cinder']
-            self.neutron_client = OpenStackDriver.os_clients_dict[
-                region_name]['neutron']
             self.fm_client = OpenStackDriver.os_clients_dict[
                 region_name]['fm']
         else:
@@ -87,42 +78,6 @@ class OpenStackDriver(object):
                     'sysinv'] = self.sysinv_client
             except Exception as exception:
                 LOG.error('sysinv_client region %s error: %s' %
-                          (region_name, exception.message))
-
-            try:
-                self.neutron_client = NeutronClient(
-                    region_name,
-                    self.disabled_quotas,
-                    self.keystone_client.session,
-                    endpoint_type=consts.KS_ENDPOINT_DEFAULT)
-                OpenStackDriver.os_clients_dict[region_name][
-                    'neutron'] = self.neutron_client
-            except Exception as exception:
-                LOG.error('neutron_client region %s error: %s' %
-                          (region_name, exception.message))
-
-            try:
-                self.nova_client = NovaClient(
-                    region_name,
-                    self.keystone_client.session,
-                    endpoint_type=consts.KS_ENDPOINT_DEFAULT,
-                    disabled_quotas=self.disabled_quotas)
-                OpenStackDriver.os_clients_dict[region_name][
-                    'nova'] = self.nova_client
-            except Exception as exception:
-                LOG.error('nova_client region %s error: %s' %
-                          (region_name, exception.message))
-
-            try:
-                self.cinder_client = CinderClient(
-                    region_name,
-                    self.disabled_quotas,
-                    self.keystone_client.session,
-                    endpoint_type=consts.KS_ENDPOINT_DEFAULT)
-                OpenStackDriver.os_clients_dict[region_name][
-                    'cinder'] = self.cinder_client
-            except Exception as exception:
-                LOG.error('cinder_client region %s error: %s' %
                           (region_name, exception.message))
 
             try:

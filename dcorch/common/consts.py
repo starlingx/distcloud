@@ -136,9 +136,6 @@ ENDPOINT_TYPE_PATCHING = "patching"
 ENDPOINT_TYPE_IDENTITY = "identity"
 
 ENDPOINT_TYPES_LIST = [ENDPOINT_TYPE_PLATFORM,
-                       ENDPOINT_TYPE_VOLUME,
-                       ENDPOINT_TYPE_COMPUTE,
-                       ENDPOINT_TYPE_NETWORK,
                        ENDPOINT_TYPE_PATCHING,
                        ENDPOINT_TYPE_IDENTITY]
 

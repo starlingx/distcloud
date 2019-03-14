@@ -206,6 +206,14 @@ class SubcloudsController(object):
             'management-interface-mtu', DEFAULT_STR)
         management_interface_ports = payload.get(
             'management-interface-port', DEFAULT_STR)
+        cluster_vlan = payload.get(
+            'cluster-vlan', DEFAULT_STR)
+        cluster_interface_mtu = payload.get(
+            'cluster-interface-mtu', DEFAULT_STR)
+        cluster_interface_ports = payload.get(
+            'cluster-interface-port', management_interface_ports)
+        cluster_cidr = payload.get(
+            'cluster-subnet', IPNetwork("192.168.206.0/24"))
         oam_cidr = payload.get(
             'oam-subnet', DEFAULT_STR)
         oam_gateway = payload.get(
@@ -251,6 +259,36 @@ class SubcloudsController(object):
                 oam_ip_floating_address=oam_ip_floating_address,
                 oam_ip_unit_0_address=oam_ip_unit_0_address,
                 oam_ip_unit_1_address=oam_ip_unit_1_address,
+            )
+
+        subcloud_config += (
+            "[CLUSTER_NETWORK]\n"
+            "CIDR = {cluster_cidr}\n"
+            "DYNAMIC_ALLOCATION = Y\n"
+        ).format(
+            cluster_cidr=cluster_cidr
+        )
+
+        if cluster_vlan != DEFAULT_STR:
+            subcloud_config += (
+                "VLAN={cluster_vlan}\n"
+            ).format(
+                cluster_vlan=cluster_vlan
+            )
+
+        if management_interface_ports == cluster_interface_ports:
+            subcloud_config += (
+                "LOGICAL_INTERFACE = LOGICAL_INTERFACE_1\n")
+        else:
+            subcloud_config += (
+                "LOGICAL_INTERFACE = LOGICAL_INTERFACE_3\n"
+                "[LOGICAL_INTERFACE_3]\n"
+                "LAG_INTERFACE = N\n"
+                "INTERFACE_MTU = {cluster_interface_mtu}\n"
+                "INTERFACE_PORTS = {cluster_interface_ports}\n"
+            ).format(
+                cluster_interface_mtu=cluster_interface_mtu,
+                cluster_interface_ports=cluster_interface_ports,
             )
 
         MIN_MANAGEMENT_SUBNET_SIZE = 8
@@ -340,21 +378,10 @@ class SubcloudsController(object):
         # First entry is openstack user name, second entry is the user stored
         # in keyring. Not sure why heat_admin uses a different keystone name.
         SUBCLOUD_USERS = [
-            ('nova', 'nova'),
-            ('placement', 'placement'),
             ('sysinv', 'sysinv'),
             ('patching', 'patching'),
-            ('heat', 'heat'),
-            ('ceilometer', 'ceilometer'),
             ('vim', 'vim'),
-            ('aodh', 'aodh'),
-            ('panko', 'panko'),
             ('mtce', 'mtce'),
-            ('cinder', 'cinder'),
-            ('glance', 'glance'),
-            ('neutron', 'neutron'),
-            ('heat_admin', 'heat-domain'),
-            ('gnocchi', 'gnocchi'),
             ('fm', 'fm'),
             ('barbican', 'barbican')
         ]

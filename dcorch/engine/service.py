@@ -120,8 +120,6 @@ class EngineService(service.Service):
         if self.periodic_enable:
             LOG.info("Adding periodic tasks for the engine to perform")
             self.TG.add_timer(self.periodic_interval,
-                              self.periodic_balance_all, None, self.engine_id)
-            self.TG.add_timer(self.periodic_interval,
                               self.periodic_sync_audit,
                               initial_delay=self.periodic_interval / 2)
             self.TG.add_timer(CONF.fernet.key_rotation_interval *
