@@ -136,8 +136,8 @@ class SwUpdateOptionsController(object):
                     sw_update_opts_ref = db_api.sw_update_opts_default_update(
                         context,
                         payload['storage-apply-type'],
-                        payload['compute-apply-type'],
-                        payload['max-parallel-computes'],
+                        payload['worker-apply-type'],
+                        payload['max-parallel-workers'],
                         payload['alarm-restriction-type'],
                         payload['default-instance-action'])
                 except Exception as e:
@@ -149,8 +149,8 @@ class SwUpdateOptionsController(object):
                     sw_update_opts_ref = db_api.sw_update_opts_default_create(
                         context,
                         payload['storage-apply-type'],
-                        payload['compute-apply-type'],
-                        payload['max-parallel-computes'],
+                        payload['worker-apply-type'],
+                        payload['max-parallel-workers'],
                         payload['alarm-restriction-type'],
                         payload['default-instance-action'])
                 except Exception as e:
@@ -186,8 +186,8 @@ class SwUpdateOptionsController(object):
                     context,
                     subcloud.id,
                     payload['storage-apply-type'],
-                    payload['compute-apply-type'],
-                    payload['max-parallel-computes'],
+                    payload['worker-apply-type'],
+                    payload['max-parallel-workers'],
                     payload['alarm-restriction-type'],
                     payload['default-instance-action'])
 
@@ -197,8 +197,8 @@ class SwUpdateOptionsController(object):
                     context,
                     subcloud.id,
                     payload['storage-apply-type'],
-                    payload['compute-apply-type'],
-                    payload['max-parallel-computes'],
+                    payload['worker-apply-type'],
+                    payload['max-parallel-workers'],
                     payload['alarm-restriction-type'],
                     payload['default-instance-action'])
 

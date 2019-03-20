@@ -963,9 +963,9 @@ class PatchOrchThread(threading.Thread):
                 subcloud_strategy = vim_client.create_strategy(
                     strategy_name=vim.STRATEGY_NAME_SW_PATCH,
                     storage_apply_type=opts_dict['storage-apply-type'],
-                    compute_apply_type=opts_dict['compute-apply-type'],
-                    max_parallel_compute_hosts=opts_dict[
-                        'max-parallel-computes'],
+                    worker_apply_type=opts_dict['worker-apply-type'],
+                    max_parallel_worker_hosts=opts_dict[
+                        'max-parallel-workers'],
                     default_instance_action=opts_dict[
                         'default-instance-action'],
                     alarm_restrictions=opts_dict['alarm-restriction-type'])

@@ -130,8 +130,8 @@ class SwUpdateOpts(BASE, DCManagerBase):
                          ForeignKey('subclouds.id', ondelete='CASCADE'))
 
     storage_apply_type = Column(String(255))
-    compute_apply_type = Column(String(255))
-    max_parallel_computes = Column(Integer)
+    worker_apply_type = Column(String(255))
+    max_parallel_workers = Column(Integer)
     alarm_restriction_type = Column(String(255))
     default_instance_action = Column(String(255))
 
@@ -145,8 +145,8 @@ class SwUpdateOptsDefault(BASE, DCManagerBase):
 
     subcloud_id = Column(Integer)
     storage_apply_type = Column(String(255))
-    compute_apply_type = Column(String(255))
-    max_parallel_computes = Column(Integer)
+    worker_apply_type = Column(String(255))
+    max_parallel_workers = Column(Integer)
     alarm_restriction_type = Column(String(255))
     default_instance_action = Column(String(255))
 

@@ -398,16 +398,16 @@ def sw_update_opts_get_all_plus_subcloud_info(context):
 
 @require_admin_context
 def sw_update_opts_create(context, subcloud_id, storage_apply_type,
-                          compute_apply_type,
-                          max_parallel_computes,
+                          worker_apply_type,
+                          max_parallel_workers,
                           alarm_restriction_type,
                           default_instance_action):
     with write_session() as session:
         sw_update_opts_ref = models.SwUpdateOpts()
         sw_update_opts_ref.subcloud_id = subcloud_id
         sw_update_opts_ref.storage_apply_type = storage_apply_type
-        sw_update_opts_ref.compute_apply_type = compute_apply_type
-        sw_update_opts_ref.max_parallel_computes = max_parallel_computes
+        sw_update_opts_ref.worker_apply_type = worker_apply_type
+        sw_update_opts_ref.max_parallel_workers = max_parallel_workers
         sw_update_opts_ref.alarm_restriction_type = alarm_restriction_type
         sw_update_opts_ref.default_instance_action = default_instance_action
         session.add(sw_update_opts_ref)
@@ -416,17 +416,17 @@ def sw_update_opts_create(context, subcloud_id, storage_apply_type,
 
 @require_admin_context
 def sw_update_opts_update(context, subcloud_id, storage_apply_type=None,
-                          compute_apply_type=None, max_parallel_computes=None,
+                          worker_apply_type=None, max_parallel_workers=None,
                           alarm_restriction_type=None,
                           default_instance_action=None):
     with write_session() as session:
         sw_update_opts_ref = sw_update_opts_get(context, subcloud_id)
         if storage_apply_type is not None:
             sw_update_opts_ref.storage_apply_type = storage_apply_type
-        if compute_apply_type is not None:
-            sw_update_opts_ref.compute_apply_type = compute_apply_type
-        if max_parallel_computes is not None:
-            sw_update_opts_ref.max_parallel_computes = max_parallel_computes
+        if worker_apply_type is not None:
+            sw_update_opts_ref.worker_apply_type = worker_apply_type
+        if max_parallel_workers is not None:
+            sw_update_opts_ref.max_parallel_workers = max_parallel_workers
         if alarm_restriction_type is not None:
             sw_update_opts_ref.alarm_restriction_type = alarm_restriction_type
         if default_instance_action is not None:
@@ -458,17 +458,17 @@ def sw_update_opts_default_get(context):
 
 @require_admin_context
 def sw_update_opts_default_create(context, storage_apply_type,
-                                  compute_apply_type,
-                                  max_parallel_computes,
+                                  worker_apply_type,
+                                  max_parallel_workers,
                                   alarm_restriction_type,
                                   default_instance_action):
     with write_session() as session:
         sw_update_opts_default_ref = models.SwUpdateOptsDefault()
         sw_update_opts_default_ref.subcloud_id = 0
         sw_update_opts_default_ref.storage_apply_type = storage_apply_type
-        sw_update_opts_default_ref.compute_apply_type = compute_apply_type
-        sw_update_opts_default_ref.max_parallel_computes = \
-            max_parallel_computes
+        sw_update_opts_default_ref.worker_apply_type = worker_apply_type
+        sw_update_opts_default_ref.max_parallel_workers = \
+            max_parallel_workers
         sw_update_opts_default_ref.alarm_restriction_type = \
             alarm_restriction_type
         sw_update_opts_default_ref.default_instance_action = \
@@ -479,19 +479,19 @@ def sw_update_opts_default_create(context, storage_apply_type,
 
 @require_admin_context
 def sw_update_opts_default_update(context, storage_apply_type=None,
-                                  compute_apply_type=None,
-                                  max_parallel_computes=None,
+                                  worker_apply_type=None,
+                                  max_parallel_workers=None,
                                   alarm_restriction_type=None,
                                   default_instance_action=None):
     with write_session() as session:
         sw_update_opts_default_ref = sw_update_opts_default_get(context)
         if storage_apply_type is not None:
             sw_update_opts_default_ref.storage_apply_type = storage_apply_type
-        if compute_apply_type is not None:
-            sw_update_opts_default_ref.compute_apply_type = compute_apply_type
-        if max_parallel_computes is not None:
-            sw_update_opts_default_ref.max_parallel_computes = \
-                max_parallel_computes
+        if worker_apply_type is not None:
+            sw_update_opts_default_ref.worker_apply_type = worker_apply_type
+        if max_parallel_workers is not None:
+            sw_update_opts_default_ref.max_parallel_workers = \
+                max_parallel_workers
         if alarm_restriction_type is not None:
             sw_update_opts_default_ref.alarm_restriction_type = \
                 alarm_restriction_type

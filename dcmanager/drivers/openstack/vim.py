@@ -45,8 +45,8 @@ ALARM_RESTRICTIONS_RELAXED = 'relaxed'
 SW_UPDATE_OPTS_CONST_DEFAULT = {
     "name": consts.SW_UPDATE_DEFAULT_TITLE,
     "storage-apply-type": APPLY_TYPE_PARALLEL,
-    "compute-apply-type": APPLY_TYPE_PARALLEL,
-    "max-parallel-computes": 10,
+    "worker-apply-type": APPLY_TYPE_PARALLEL,
+    "max-parallel-workers": 10,
     "default-instance-action": INSTANCE_ACTION_MIGRATE,
     "alarm-restriction-type": ALARM_RESTRICTIONS_RELAXED,
     "created-at": None,
@@ -83,7 +83,7 @@ class VimClient(base.DriverBase):
             raise
 
     def create_strategy(self, strategy_name, storage_apply_type,
-                        compute_apply_type, max_parallel_compute_hosts,
+                        worker_apply_type, max_parallel_worker_hosts,
                         default_instance_action, alarm_restrictions):
         """Create orchestration strategy"""
 
@@ -94,8 +94,8 @@ class VimClient(base.DriverBase):
             controller_apply_type=APPLY_TYPE_SERIAL,
             storage_apply_type=storage_apply_type,
             swift_apply_type=APPLY_TYPE_IGNORE,
-            compute_apply_type=compute_apply_type,
-            max_parallel_compute_hosts=max_parallel_compute_hosts,
+            worker_apply_type=worker_apply_type,
+            max_parallel_worker_hosts=max_parallel_worker_hosts,
             default_instance_action=default_instance_action,
             alarm_restrictions=alarm_restrictions)
         if not strategy:

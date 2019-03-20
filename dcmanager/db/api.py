@@ -289,8 +289,8 @@ def sw_update_opts_w_name_db_model_to_dict(sw_update_opts, subcloud_name):
               "name": subcloud_name,
               "subcloud-id": sw_update_opts.subcloud_id,
               "storage-apply-type": sw_update_opts.storage_apply_type,
-              "compute-apply-type": sw_update_opts.compute_apply_type,
-              "max-parallel-computes": sw_update_opts.max_parallel_computes,
+              "worker-apply-type": sw_update_opts.worker_apply_type,
+              "max-parallel-workers": sw_update_opts.max_parallel_workers,
               "alarm-restriction-type": sw_update_opts.alarm_restriction_type,
               "default-instance-action":
                   sw_update_opts.default_instance_action,
@@ -300,13 +300,13 @@ def sw_update_opts_w_name_db_model_to_dict(sw_update_opts, subcloud_name):
 
 
 def sw_update_opts_create(context, subcloud_id, storage_apply_type,
-                          compute_apply_type, max_parallel_computes,
+                          worker_apply_type, max_parallel_workers,
                           alarm_restriction_type, default_instance_action):
     """Create sw update options."""
     return IMPL.sw_update_opts_create(context, subcloud_id,
                                       storage_apply_type,
-                                      compute_apply_type,
-                                      max_parallel_computes,
+                                      worker_apply_type,
+                                      max_parallel_workers,
                                       alarm_restriction_type,
                                       default_instance_action)
 
@@ -323,16 +323,16 @@ def sw_update_opts_get_all_plus_subcloud_info(context):
 
 def sw_update_opts_update(context, subcloud_id,
                           storage_apply_type=None,
-                          compute_apply_type=None,
-                          max_parallel_computes=None,
+                          worker_apply_type=None,
+                          max_parallel_workers=None,
                           alarm_restriction_type=None,
                           default_instance_action=None):
 
     """Update sw update options or raise if it does not exist."""
     return IMPL.sw_update_opts_update(context, subcloud_id,
                                       storage_apply_type,
-                                      compute_apply_type,
-                                      max_parallel_computes,
+                                      worker_apply_type,
+                                      max_parallel_workers,
                                       alarm_restriction_type,
                                       default_instance_action)
 
@@ -344,14 +344,14 @@ def sw_update_opts_destroy(context, subcloud_id):
 
 ###################
 def sw_update_opts_default_create(context, storage_apply_type,
-                                  compute_apply_type, max_parallel_computes,
+                                  worker_apply_type, max_parallel_workers,
                                   alarm_restriction_type,
                                   default_instance_action):
     """Create default sw update options."""
     return IMPL.sw_update_opts_default_create(context,
                                               storage_apply_type,
-                                              compute_apply_type,
-                                              max_parallel_computes,
+                                              worker_apply_type,
+                                              max_parallel_workers,
                                               alarm_restriction_type,
                                               default_instance_action)
 
@@ -363,16 +363,16 @@ def sw_update_opts_default_get(context):
 
 def sw_update_opts_default_update(context,
                                   storage_apply_type=None,
-                                  compute_apply_type=None,
-                                  max_parallel_computes=None,
+                                  worker_apply_type=None,
+                                  max_parallel_workers=None,
                                   alarm_restriction_type=None,
                                   default_instance_action=None):
 
     """Update default sw update options."""
     return IMPL.sw_update_opts_default_update(context,
                                               storage_apply_type,
-                                              compute_apply_type,
-                                              max_parallel_computes,
+                                              worker_apply_type,
+                                              max_parallel_workers,
                                               alarm_restriction_type,
                                               default_instance_action)
 
