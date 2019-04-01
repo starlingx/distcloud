@@ -13,11 +13,9 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 #
-# Copyright (c) 2017-2018 Wind River Systems, Inc.
+# Copyright (c) 2017-2019 Wind River Systems, Inc.
 #
-# The right to copy, distribute, modify, or otherwise make use
-# of this software may be licensed only pursuant to the terms
-# of an applicable Wind River license agreement.
+# SPDX-License-Identifier: Apache-2.0
 #
 
 import keyring
@@ -32,10 +30,10 @@ import pecan
 from pecan import expose
 from pecan import request
 
-from configutilities.common import crypt
-from configutilities.common.exceptions import ValidateFail
-from configutilities.common.utils import validate_address_str
-from configutilities.common.utils import validate_network_str
+from controllerconfig.common import crypt
+from controllerconfig.common.exceptions import ValidateFail
+from controllerconfig.utils import validate_address_str
+from controllerconfig.utils import validate_network_str
 
 from dcorch.drivers.openstack.keystone_v3 import KeystoneClient
 
