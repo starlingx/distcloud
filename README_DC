@@ -8,7 +8,7 @@ configure_dc.sh
 
 # To use DC Manager CLI (these are just examples)
 
-source /etc/nova/openrc
+source /etc/platform/openrc
 # Add subclouds (description and location are optional)
 dcmanager subcloud add --name=subcloud1 \
     --description="subcloud1 description" \
