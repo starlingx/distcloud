@@ -343,6 +343,7 @@ class ComputeAPIController(APIController):
         resource_tag = self._get_resource_tag_from_header(request_header,
                                                           operation_type,
                                                           resource_type)
+
         handler = self._resource_handler[resource_tag]
         operation_type, resource_id, resource_info = handler(
             environ=environ,
@@ -454,7 +455,7 @@ class IdentityAPIController(APIController):
         return response
 
     def _generate_assignment_rid(self, url, environ):
-        resource_id = ''
+        resource_id = None
         # for role assignment or revocation, the URL is of format:
         # /v3/projects/{project_id}/users/{user_id}/roles/{role_id}
         # We need to extract all ID parameters from the URL
@@ -466,6 +467,23 @@ class IdentityAPIController(APIController):
             LOG.error("Malformed Role Assignment or Revocation URL: %s", url)
         else:
             resource_id = "{}_{}_{}".format(proj_id, user_id, role_id)
+        return resource_id
+
+    def _retrieve_token_revoke_event_rid(self, url, environ):
+        resource_id = None
+        # for token revocation event, we need to retrieve the audit_id
+        # from the token being revoked.
+        revoked_token = environ.get('HTTP_X_SUBJECT_TOKEN', None)
+
+        if not revoked_token:
+            LOG.error("Malformed Token Revocation URL: %s", url)
+        else:
+            try:
+                resource_id = proxy_utils.\
+                    retrieve_token_audit_id(revoked_token)
+            except Exception as e:
+                LOG.error("Failed to retrieve token audit id: %s" % e)
+
         return resource_id
 
     def _enqueue_work(self, environ, request_body, response):
@@ -482,6 +500,26 @@ class IdentityAPIController(APIController):
                 consts.RESOURCE_TYPE_IDENTITY_PROJECT_ROLE_ASSIGNMENTS):
             resource_id = self._generate_assignment_rid(request_header,
                                                         environ)
+            # grant a role to a user (PUT) creates a project role assignment
+            if operation_type == consts.OPERATION_TYPE_PUT:
+                operation_type = consts.OPERATION_TYPE_POST
+        elif (resource_type ==
+                consts.RESOURCE_TYPE_IDENTITY_TOKEN_REVOKE_EVENTS):
+            resource_id = self._retrieve_token_revoke_event_rid(request_header,
+                                                                environ)
+            # delete (revoke) a token (DELETE) creates a token revoke event.
+            if operation_type == consts.OPERATION_TYPE_DELETE and resource_id:
+                operation_type = consts.OPERATION_TYPE_POST
+                resource_info = {'token_revoke_event':
+                                 {'audit_id': resource_id}}
+        elif (resource_type ==
+                consts.RESOURCE_TYPE_IDENTITY_USERS_PASSWORD):
+            resource_id = self.get_resource_id_from_link(request_header.
+                                                         strip('/password'))
+            # user change password (POST) is an update to the user
+            if operation_type == consts.OPERATION_TYPE_POST:
+                operation_type = consts.OPERATION_TYPE_PATCH
+                resource_type = consts.RESOURCE_TYPE_IDENTITY_USERS
         else:
             if operation_type == consts.OPERATION_TYPE_POST:
                 # Retrieve the ID from the response
@@ -490,20 +528,25 @@ class IdentityAPIController(APIController):
             else:
                 resource_id = self.get_resource_id_from_link(request_header)
 
-        if (operation_type != consts.OPERATION_TYPE_DELETE and request_body):
+        if (operation_type != consts.OPERATION_TYPE_DELETE and
+                request_body and (not resource_info)):
             resource_info = json.loads(request_body)
 
         LOG.info("%s: Resource id: (%s), type: (%s), info: (%s)",
                  operation_type, resource_id, resource_type, resource_info)
-        try:
-            utils.enqueue_work(self.ctxt,
-                               self.ENDPOINT_TYPE,
-                               resource_type,
-                               resource_id,
-                               operation_type,
-                               json.dumps(resource_info))
-        except exception.ResourceNotFound as e:
-            raise webob.exc.HTTPNotFound(explanation=e.format_message())
+
+        if resource_id:
+            try:
+                utils.enqueue_work(self.ctxt,
+                                   self.ENDPOINT_TYPE,
+                                   resource_type,
+                                   resource_id,
+                                   operation_type,
+                                   json.dumps(resource_info))
+            except exception.ResourceNotFound as e:
+                raise webob.exc.HTTPNotFound(explanation=e.format_message())
+        else:
+            LOG.warning("Empty resource id for resource: %s", operation_type)
 
 
 class CinderAPIController(APIController):

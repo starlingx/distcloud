@@ -356,7 +356,9 @@ class SubcloudsController(object):
             ('heat_admin', 'heat-domain'),
             ('gnocchi', 'gnocchi'),
             ('fm', 'fm'),
-            ('barbican', 'barbican')
+            ('barbican', 'barbican'),
+            ('smapi', 'smapi'),
+            ('dcdbsync', 'dcdbsync')
         ]
 
         user_list = list()

@@ -27,7 +27,6 @@ from dcorch.common.i18n import _
 from dcorch.common import manager
 from dcorch.common import utils
 from dcorch.drivers.openstack import sdk_platform as sdk
-from dcorch.objects import subcloud as subcloud_obj
 
 
 FERNET_REPO_MASTER_ID = "keys"
@@ -117,9 +116,26 @@ class FernetKeyManager(manager.Manager):
         self._schedule_work(consts.OPERATION_TYPE_PUT)
 
     def distribute_keys(self, ctxt, subcloud_name):
-        subclouds = subcloud_obj.SubcloudList.get_all(ctxt)
-        for sc in subclouds:
-            if sc.region_name == subcloud_name:
-                subcloud = sc
-                self._schedule_work(consts.OPERATION_TYPE_CREATE, subcloud)
-                break
+        keys = self._get_master_keys()
+        if not keys:
+            LOG.info(_("No fernet keys returned from %s") % consts.CLOUD_0)
+            return
+        resource_info = FernetKeyManager.to_resource_info(keys)
+        key_list = FernetKeyManager.from_resource_info(resource_info)
+        self.update_fernet_repo(subcloud_name, key_list)
+
+    def reset_keys(self, subcloud_name):
+        self.update_fernet_repo(subcloud_name)
+
+    @staticmethod
+    def update_fernet_repo(subcloud_name, key_list=None):
+        try:
+            os_client = sdk.OpenStackDriver(subcloud_name)
+            os_client.sysinv_client.post_fernet_repo(key_list)
+        except (exceptions.ConnectionRefused, exceptions.NotAuthorized,
+                exceptions.TimeOut):
+            LOG.info(_("Update the fernet repo on %s timeout") %
+                     subcloud_name)
+        except Exception as e:
+            error_msg = "subcloud: {}, {}".format(subcloud_name, e.message)
+            LOG.info(_("Fail to update fernet repo %s") % error_msg)

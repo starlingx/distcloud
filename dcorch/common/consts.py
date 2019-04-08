@@ -122,6 +122,8 @@ RESOURCE_TYPE_IDENTITY_USERS_PASSWORD = "users_password"
 RESOURCE_TYPE_IDENTITY_ROLES = "roles"
 RESOURCE_TYPE_IDENTITY_PROJECTS = "projects"
 RESOURCE_TYPE_IDENTITY_PROJECT_ROLE_ASSIGNMENTS = "project_role_assignments"
+RESOURCE_TYPE_IDENTITY_TOKEN_REVOKE_EVENTS = "revoke_events"
+RESOURCE_TYPE_IDENTITY_TOKEN_REVOKE_EVENTS_FOR_USER = "revoke_events_for_user"
 
 KEYPAIR_ID_DELIM = "/"
 
@@ -150,6 +152,10 @@ ENDPOINT_QUOTA_MAPPING = {
 
 KS_ENDPOINT_INTERNAL = "internal"
 KS_ENDPOINT_DEFAULT = KS_ENDPOINT_INTERNAL
+
+# DB sync agent endpoint
+DBS_ENDPOINT_INTERNAL = "internal"
+DBS_ENDPOINT_DEFAULT = DBS_ENDPOINT_INTERNAL
 
 # Do we need separate patch/put operations or could we just use
 # create/update/delete and have the sync code know which HTTP

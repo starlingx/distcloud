@@ -799,7 +799,7 @@ class SysinvSyncThread(SyncThread):
 
         s_os_client = sdk.OpenStackDriver(self.region_name)
         try:
-            s_os_client.sysinv_client.create_fernet_repo(
+            s_os_client.sysinv_client.post_fernet_repo(
                 FernetKeyManager.from_resource_info(resource_info))
             # Ensure subcloud resource is persisted to the DB for later
             subcloud_rsrc_id = self.persist_db_subcloud_resource(
@@ -831,7 +831,7 @@ class SysinvSyncThread(SyncThread):
 
         s_os_client = sdk.OpenStackDriver(self.region_name)
         try:
-            s_os_client.sysinv_client.update_fernet_repo(
+            s_os_client.sysinv_client.put_fernet_repo(
                 FernetKeyManager.from_resource_info(resource_info))
             # Ensure subcloud resource is persisted to the DB for later
             subcloud_rsrc_id = self.persist_db_subcloud_resource(
@@ -1309,7 +1309,7 @@ class SysinvSyncThread(SyncThread):
                 resource_type),
                 extra=self.log_extra)
 
-    def audit_discrepancy(self, resource_type, m_resource, sc_resources):
+    def audit_discrepancy(self, resource_type, m_resource):
         # Return true to try the audit_action
         if resource_type in self.SYSINV_ADD_DELETE_RESOURCES:
             # It could be that the details are different
@@ -1329,7 +1329,7 @@ class SysinvSyncThread(SyncThread):
                  extra=self.log_extra)
         return False
 
-    def audit_action(self, resource_type, finding, resource):
+    def audit_action(self, resource_type, finding, resource, sc_source=None):
         if resource_type in self.SYSINV_MODIFY_RESOURCES:
             LOG.info("audit_action: {}/{}"
                      .format(finding, resource_type),

@@ -13,7 +13,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-
 from oslo_log import log as logging
 
 from dcorch.common import exceptions
@@ -82,6 +81,14 @@ class GenericSyncManager(object):
             LOG.info('updating subcloud %(sc)s version to %(ver)s' %
                      {'sc': subcloud_name, 'ver': sw_version})
             subcloud_engine.set_version(sw_version)
+        except KeyError:
+            raise exceptions.SubcloudNotFound(region_name=subcloud_name)
+
+    def initial_sync(self, context, subcloud_name):
+        try:
+            subcloud_engine = self.subcloud_engines[subcloud_name]
+            LOG.info('Initial sync subcloud %(sc)s' % {'sc': subcloud_name})
+            subcloud_engine.initial_sync()
         except KeyError:
             raise exceptions.SubcloudNotFound(region_name=subcloud_name)
 
