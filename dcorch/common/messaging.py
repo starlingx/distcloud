@@ -21,12 +21,6 @@ from dcorch.common import context
 TRANSPORT = None
 NOTIFIER = None
 
-_ALIASES = {
-    'dcorch-engine.openstack.common.rpc.impl_kombu': 'rabbit',
-    'dcorch-engine.openstack.common.rpc.impl_qpid': 'qpid',
-    'dcorch-engine.openstack.common.rpc.impl_zmq': 'zmq',
-}
-
 
 class RequestContextSerializer(oslo_messaging.Serializer):
     def __init__(self, base):
@@ -71,7 +65,7 @@ def setup(url=None, optional=False):
         exmods = ['dcorch-engine.common.exception']
         try:
             TRANSPORT = oslo_messaging.get_transport(
-                cfg.CONF, url, allowed_remote_exmods=exmods, aliases=_ALIASES)
+                cfg.CONF, url, allowed_remote_exmods=exmods)
         except oslo_messaging.InvalidTransportURL as e:
             TRANSPORT = None
             if not optional or e.url:
