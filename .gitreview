@@ -1,5 +1,5 @@
 [gerrit]
-host=review.openstack.org
+host=review.opendev.org
 port=29418
-project=openstack/stx-distcloud.git
+project=starlingx/distcloud.git
 defaultbranch=r/2018.10
