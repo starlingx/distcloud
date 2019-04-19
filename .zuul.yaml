@@ -27,10 +27,10 @@
     parent: tox
     description: Run py27 for distcloud
     required-projects:
-      - openstack/stx-fault
-      - openstack/stx-nfv
-      - openstack/stx-update
-      - openstack/stx-config
+      - starlingx/fault
+      - starlingx/nfv
+      - starlingx/update
+      - starlingx/config
     vars:
       tox_envlist: py27
       tox_extra_args: -c tox.ini
