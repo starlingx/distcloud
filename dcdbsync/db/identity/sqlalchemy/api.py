@@ -307,12 +307,12 @@ def user_update(context, user_id, payload):
                     password['local_user_id'] = \
                         updated_local_users[0]['id']
                     insert(conn, table, password)
-        # Need to update the actor_id in assignment table
-        # if the user id is updated
+        # Need to update the actor_id in assignment and system_assignment
+        # tables if the user id is updated
         if user_id != new_user_id:
-            table = 'assignment'
             assignment = {'actor_id': new_user_id}
-            update(conn, table, 'actor_id', user_id, assignment)
+            update(conn, 'assignment', 'actor_id', user_id, assignment)
+            update(conn, 'system_assignment', 'actor_id', user_id, assignment)
 
     return user_get(context, new_user_id)
 
@@ -435,16 +435,40 @@ def role_update(context, role_id, payload):
         table = 'role'
         new_role_id = role_id
         if table in payload:
+            prior_roles = []
+            implied_roles = []
             role = payload[table]
-            update(conn, table, 'id', role_id, role)
             new_role_id = role.get('id')
+            if role_id != new_role_id:
+                # implied_role table has foreign key references to role table.
+                # The foreign key references are on DELETE CASCADE only. To
+                # avoid foreign key constraints violation, save these records
+                # from implied_role table, delete them, update role table,
+                # update and insert them back after role table is updated.
+                prior_roles = query(conn, 'implied_role', 'prior_role_id',
+                                    role_id)
+                delete(conn, 'implied_role', 'prior_role_id', role_id)
+                implied_roles = query(conn, 'implied_role', 'implied_role_id',
+                                      role_id)
+                delete(conn, 'implied_role', 'implied_role_id', role_id)
+            # Update role table
+            update(conn, table, 'id', role_id, role)
+            # Update saved records from implied_role table and insert them back
+            if prior_roles:
+                for prior_role in prior_roles:
+                    prior_role['prior_role_id'] = new_role_id
+                insert(conn, 'implied_role', prior_roles)
+            if implied_roles:
+                for implied_role in implied_roles:
+                    implied_role['implied_role_id'] = new_role_id
+                insert(conn, 'implied_role', implied_roles)
 
-        # Need to update the role_id in assignment table
+        # Need to update the role_id in assignment and system_assignment tables
         # if the role id is updated
         if role_id != new_role_id:
-            table = 'assignment'
             assignment = {'role_id': new_role_id}
-            update(conn, table, 'role_id', role_id, assignment)
+            update(conn, 'assignment', 'role_id', role_id, assignment)
+            update(conn, 'system_assignment', 'role_id', role_id, assignment)
 
     return role_get(context, new_role_id)
 

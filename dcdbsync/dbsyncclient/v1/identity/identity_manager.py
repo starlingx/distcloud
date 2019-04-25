@@ -27,14 +27,13 @@ from dcdbsync.dbsyncclient import exceptions
 class Password(base.Resource):
     resource_name = 'password'
 
-    def __init__(self, manager, id, local_user_id, password, self_service,
+    def __init__(self, manager, id, local_user_id, self_service,
                  password_hash, created_at, created_at_int, expires_at,
                  expires_at_int):
         self.manager = manager
         self.id = id
         # Foreign key to local_user.id
         self.local_user_id = local_user_id
-        self.password = password
         self.self_service = self_service
         self.password_hash = password_hash
         self.created_at = created_at
@@ -124,7 +123,6 @@ class identity_manager(base.ResourceManager):
                     self,
                     id=object['id'],
                     local_user_id=object['local_user_id'],
-                    password=object['password'],
                     self_service=object['self_service'],
                     password_hash=object['password_hash'],
                     created_at=object['created_at'],

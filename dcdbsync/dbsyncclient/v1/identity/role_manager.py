@@ -26,12 +26,13 @@ from dcdbsync.dbsyncclient import exceptions
 class Role(base.Resource):
     resource_name = 'role'
 
-    def __init__(self, manager, id, domain_id, name, extra={}):
+    def __init__(self, manager, id, domain_id, name, description, extra={}):
         self.manager = manager
         self.id = id
         self.domain_id = domain_id
         self.name = name
         self.extra = extra
+        self.description = description
 
     def info(self):
         resource_info = dict()
@@ -78,6 +79,7 @@ class role_manager(base.ResourceManager):
                 id=json_object['id'],
                 domain_id=json_object['domain_id'],
                 name=json_object['name'],
+                description=json_object['description'],
                 extra=json_object['extra'])
 
             roles.append(role)

@@ -40,7 +40,7 @@ LOG = logging.getLogger(__name__)
 
 class RevokeEventsController(object):
     VERSION_ALIASES = {
-        'Pike': '1.0',
+        'Stein': '1.0',
     }
 
     def __init__(self):
