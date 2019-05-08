@@ -22,6 +22,7 @@ from dcdbsync.dbsyncclient import exceptions as dbsync_exceptions
 from dcorch.common import consts
 from dcorch.common import exceptions
 from dcorch.engine.sync_thread import SyncThread
+from dcorch.objects import resource
 
 from keystoneauth1 import exceptions as keystone_exceptions
 from keystoneclient import client as keystoneclient
@@ -1404,6 +1405,7 @@ class IdentitySyncThread(SyncThread):
         return (m.id == sc.id and
                 m.domain_id == sc.domain_id and
                 m.name == sc.name and
+                m.description == sc.description and
                 m.extra == sc.extra)
 
     def _has_same_role_ids(self, m, sc):
@@ -1629,7 +1631,19 @@ class IdentitySyncThread(SyncThread):
             if self.has_same_ids(resource_type, m_r, sc_r):
                 LOG.info("Mapping resource {} to existing subcloud resource {}"
                          .format(m_r, sc_r), extra=self.log_extra)
-                self.persist_db_subcloud_resource(m_rsrc_db.id,
+                # If the resource is not even in master cloud resource DB,
+                # create it first.
+                rsrc = m_rsrc_db
+                if not rsrc:
+                    master_id = self.get_resource_id(resource_type, m_r)
+                    rsrc = resource.Resource(
+                        self.ctxt, resource_type=resource_type,
+                        master_id=master_id)
+                    rsrc.create()
+                    LOG.info("Resource created in DB {}/{}/{}".format(
+                        rsrc.id, resource_type, master_id))
+
+                self.persist_db_subcloud_resource(rsrc.id,
                                                   self.get_resource_id(
                                                       resource_type,
                                                       sc_r))

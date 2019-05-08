@@ -564,6 +564,14 @@ class SyncThread(object):
                 LOG.info("{} not found in DB, will create it"
                          .format(master_id),
                          extra=self.log_extra)
+                # Check and see if there are any subcloud resources that
+                # match the master resource, and if so set up mappings.
+                # This returns true if it finds a match.
+                # This is for the case where the resource is not even in dcorch
+                # resource DB (ie, resource has not been tracked by dcorch yet)
+                if self.map_subcloud_resource(resource_type, m_r,
+                                              m_rsrc_db, sc_resources):
+                    continue
                 missing_resource = True
 
             if missing_resource:

@@ -354,7 +354,19 @@ class NetworkSyncThread(SyncThread):
                     LOG.info(
                         "Mapping resource {} to existing subcloud resource {}"
                         .format(m_r, sc_r), extra=self.log_extra)
-                    self.persist_db_subcloud_resource(m_rsrc_db.id,
+                    # If the resource is not even in master cloud resource DB,
+                    # create it first.
+                    rsrc = m_rsrc_db
+                    if not rsrc:
+                        master_id = self.get_resource_id(resource_type, m_r)
+                        rsrc = resource.Resource(
+                            self.ctxt, resource_type=resource_type,
+                            master_id=master_id)
+                        rsrc.create()
+                        LOG.info("Resource created in DB {}/{}/{}".format(
+                            rsrc.id, resource_type, master_id))
+
+                    self.persist_db_subcloud_resource(rsrc.id,
                                                       sc_r['id'])
                     return True
         return False
