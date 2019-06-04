@@ -9,7 +9,9 @@ PIP_PACKAGES="
         eventlet \
         pecan \
         SQLAlchemy \
-        pycrypto \
+        cryptography \
+        cgtsclient \
+        sysinv \
         psycopg2 \
         oslo.concurrency \
         oslo.config \
