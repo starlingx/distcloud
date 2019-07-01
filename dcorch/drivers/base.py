@@ -10,9 +10,9 @@
 # License for the specific language governing permissions and limitations
 # under the License.
 
-'''
+"""
 Base class for all drivers.
-'''
+"""
 
 import abc
 import six
@@ -25,31 +25,31 @@ LOG = logging.getLogger(__name__)
 class DriverBase(object):
 
     six.add_metaclass(abc.ABCMeta)
-    '''Base class for all drivers.'''
+    """Base class for all drivers."""
 
     def __init__(self, context):
         self.context = context
 
     @abc.abstractmethod
     def get_resource_usages(self, project_id):
-        '''Collects resource usages for a given project
+        """Collects resource usages for a given project
 
         :params: project_id
         :return: dictionary of corresponding resources with its usage
-        '''
+        """
 
     @abc.abstractmethod
     def update_quota_limits(self, project_id, new_quota):
-        '''Updates quota limits for a given project
+        """Updates quota limits for a given project
 
         :params: project_id, dictionary with the quota limits to update
         :return: Nothing
-        '''
+        """
 
     @abc.abstractmethod
     def delete_quota_limits(self, project_id):
-        '''Delete quota limits for a given project
+        """Delete quota limits for a given project
 
         :params: project_id
         :return: Nothing
-        '''
+        """

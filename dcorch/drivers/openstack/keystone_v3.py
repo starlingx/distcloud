@@ -26,7 +26,7 @@ importutils.import_module('keystonemiddleware.auth_token')
 
 
 class KeystoneClient(base.DriverBase):
-    '''Keystone V3 driver.'''
+    """Keystone V3 driver."""
 
     def __init__(self, region_name=None, auth_url=None):
         try:
