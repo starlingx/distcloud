@@ -62,10 +62,12 @@ class SysinvClient(base.DriverBase):
     def get_management_interface(self, hostname):
         """Get the management interface for a host."""
         interfaces = self.sysinv_client.iinterface.list(hostname)
-
         for interface in interfaces:
-            if interface.networktype == sysinv_constants.NETWORK_TYPE_MGMT:
-                return interface
+            interface_networks = self.sysinv_client.interface_network.\
+                list_by_interface(interface.uuid)
+            for if_net in interface_networks:
+                if if_net.network_type == sysinv_constants.NETWORK_TYPE_MGMT:
+                    return interface
 
         # This can happen if the host is still being installed and has not
         # yet created its management interface.
