@@ -28,6 +28,6 @@ Links
 * Code Review: `Gerrit`_
 * Bugs: `Storyboard`_
 
-.. _stx-distcloud: https://git.starlingx.io/cgit/stx-distcloud/
-.. _Gerrit: https://review.openstack.org/#/q/project:openstack/stx-distcloud
-.. _Storyboard: https://storyboard.openstack.org/#!/project/openstack/stx-distcloud
+.. _stx-distcloud: https://opendev.org/starlingx/distcloud
+.. _Gerrit: https://review.opendev.org/#/q/project:starlingx/distcloud
+.. _Storyboard: https://storyboard.openstack.org/#!/project/starlingx/distcloud
