@@ -29,9 +29,15 @@ from ddt import file_data
 
 
 class FakeInterface(object):
-    def __init__(self, ifname, networktype):
+    def __init__(self, ifname, uuid):
         self.ifname = ifname
-        self.networktype = networktype
+        self.uuid = uuid
+
+
+class FakeInterfaceNetwork(object):
+    def __init__(self, network_type, interface):
+        self.network_type = network_type
+        self.interface = interface
 
 
 class FakeNetwork(object):
@@ -75,13 +81,16 @@ class TestSysinvClient(base.DCManagerTestCase):
 
     @mock.patch.object(sysinv_v1.SysinvClient, '__init__')
     def test_get_management_interface(self, mock_sysinvclient_init):
-        interface = FakeInterface('interface', 'mgmt')
+        interface = FakeInterface('interface', 'uuid')
+        interface_network = FakeInterfaceNetwork('mgmt', 'interface')
         mock_sysinvclient_init.return_value = None
         sysinv_client = sysinv_v1.SysinvClient(consts.DEFAULT_REGION_NAME,
                                                None)
         sysinv_client.sysinv_client = mock.MagicMock()
         sysinv_client.sysinv_client.iinterface.list = mock.MagicMock()
         sysinv_client.sysinv_client.iinterface.list.return_value = [interface]
+        sysinv_client.sysinv_client.interface_network.list_by_interface.\
+            return_value = [interface_network]
         management_interface = sysinv_client.get_management_interface(
             'hostname')
         self.assertEqual(interface, management_interface)
