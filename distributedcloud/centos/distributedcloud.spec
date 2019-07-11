@@ -157,6 +157,8 @@ install -p -D -m 644 %{SOURCE11} %{buildroot}%{_tmpfilesdir}
 cd %{_builddir}/%{pypi_name}-%{version} && oslo-config-generator --config-file ./dcdbsync/config-generator.conf --output-file %{_builddir}/%{pypi_name}-%{version}%{_sysconfdir}/dcdbsync/dcdbsync.conf.sample
 install -p -D -m 640 %{_builddir}/%{pypi_name}-%{version}%{_sysconfdir}/dcdbsync/dcdbsync.conf.sample %{buildroot}%{_sysconfdir}/dcdbsync/dcdbsync.conf
 
+# install ansible overrides dir
+install -d -m 755 ${RPM_BUILD_ROOT}/opt/dc/ansible
 
 %files dcmanager
 %license LICENSE
@@ -174,6 +176,7 @@ install -p -D -m 640 %{_builddir}/%{pypi_name}-%{version}%{_sysconfdir}/dcdbsync
 %dir %attr(0755,root,root) %{_sysconfdir}/dcmanager
 %config(noreplace) %attr(-, root, root) %{_sysconfdir}/dcmanager/dcmanager.conf
 %dir %attr(0755,root,root) /usr/lib/ocf/resource.d/openstack
+%dir %attr(0755,root,root) /opt/dc/ansible
 %defattr(-,root,root,-)
 /usr/lib/ocf/resource.d/openstack/dcmanager-*
 
