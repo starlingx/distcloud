@@ -30,7 +30,6 @@ import pecan
 from pecan import expose
 from pecan import request
 
-from controllerconfig.common import crypt
 from controllerconfig.common.exceptions import ValidateFail
 from controllerconfig.utils import validate_address_str
 from controllerconfig.utils import validate_network_str
@@ -45,8 +44,6 @@ from dcmanager.db import api as db_api
 from dcmanager.drivers.openstack.sysinv_v1 import SysinvClient
 from dcmanager.rpc import client as rpc_client
 
-from Crypto.Hash import MD5
-import json
 
 CONF = cfg.CONF
 LOG = logging.getLogger(__name__)
@@ -82,6 +79,9 @@ class SubcloudsController(object):
                                   management_start_ip_str,
                                   management_end_ip_str,
                                   management_gateway_ip_str,
+                                  external_oam_subnet_str,
+                                  external_oam_gateway_address_str,
+                                  external_oam_floating_address_str,
                                   systemcontroller_gateway_ip_str):
         """Check whether subcloud config is valid."""
 
@@ -113,7 +113,7 @@ class SubcloudsController(object):
                 existing_networks=subcloud_subnets)
         except ValidateFail as e:
             LOG.exception(e)
-            pecan.abort(400, _("management-subnet invalid: %s") % e)
+            pecan.abort(400, _("management_subnet invalid: %s") % e)
 
         # Parse/validate the start/end addresses
         management_start_ip = None
@@ -122,7 +122,7 @@ class SubcloudsController(object):
                 management_start_ip_str, management_subnet)
         except ValidateFail as e:
             LOG.exception(e)
-            pecan.abort(400, _("management-start-ip invalid: %s") % e)
+            pecan.abort(400, _("management_start_address invalid: %s") % e)
 
         management_end_ip = None
         try:
@@ -130,12 +130,13 @@ class SubcloudsController(object):
                 management_end_ip_str, management_subnet)
         except ValidateFail as e:
             LOG.exception(e)
-            pecan.abort(400, _("management-end-ip invalid: %s") % e)
+            pecan.abort(400, _("management_end_address invalid: %s") % e)
 
         if not management_start_ip < management_end_ip:
             pecan.abort(
                 400,
-                _("management-start-ip  not less than management-end-ip"))
+                _("management_start_address  not less than "
+                  "management_end_address"))
 
         if not len(IPRange(management_start_ip, management_end_ip)) >= \
                 MIN_MANAGEMENT_ADDRESSES:
@@ -150,7 +151,7 @@ class SubcloudsController(object):
                 management_gateway_ip_str, management_subnet)
         except ValidateFail as e:
             LOG.exception(e)
-            pecan.abort(400, _("management-gateway-ip invalid: %s") % e)
+            pecan.abort(400, _("management_gateway_address invalid: %s") % e)
 
         # Ensure subcloud management gateway is not within the actual subcloud
         # management subnet address pool for consistency with the
@@ -161,7 +162,7 @@ class SubcloudsController(object):
         subcloud_mgmt_gw_ip = IPAddress(management_gateway_ip_str)
         if ((subcloud_mgmt_gw_ip >= subcloud_mgmt_address_start) and
                 (subcloud_mgmt_gw_ip <= subcloud_mgmt_address_end)):
-            pecan.abort(400, _("management-gateway-ip invalid, "
+            pecan.abort(400, _("management_gateway_address invalid, "
                                "is within management pool: %(start)s - "
                                "%(end)s") %
                         {'start': subcloud_mgmt_address_start,
@@ -179,7 +180,8 @@ class SubcloudsController(object):
                 systemcontroller_gateway_ip_str, systemcontroller_subnet)
         except ValidateFail as e:
             LOG.exception(e)
-            pecan.abort(400, _("systemcontroller-gateway-ip invalid: %s") % e)
+            pecan.abort(400,
+                        _("systemcontroller_gateway_address invalid: %s") % e)
         # Ensure systemcontroller gateway is not within the actual
         # management subnet address pool to prevent address collision.
         mgmt_address_start = IPAddress(management_address_pool.ranges[0][0])
@@ -187,188 +189,37 @@ class SubcloudsController(object):
         systemcontroller_gw_ip = IPAddress(systemcontroller_gateway_ip_str)
         if ((systemcontroller_gw_ip >= mgmt_address_start) and
                 (systemcontroller_gw_ip <= mgmt_address_end)):
-            pecan.abort(400, _("systemcontroller-gateway-ip invalid, "
+            pecan.abort(400, _("systemcontroller_gateway_address invalid, "
                                "is within management pool: %(start)s - "
                                "%(end)s") %
                         {'start': mgmt_address_start, 'end': mgmt_address_end})
 
-    def _create_subcloud_config_file(self, context, subcloud, payload):
-        """Creates the subcloud config file for a subcloud."""
-        DEFAULT_STR = '<EDIT>'
+        # Parse/validate the oam subnet
+        MIN_OAM_SUBNET_SIZE = 3
+        oam_subnet = None
+        try:
+            oam_subnet = validate_network_str(
+                external_oam_subnet_str,
+                minimum_size=MIN_OAM_SUBNET_SIZE,
+                existing_networks=subcloud_subnets)
+        except ValidateFail as e:
+            LOG.exception(e)
+            pecan.abort(400, _("external_oam_subnet invalid: %s") % e)
 
-        pxe_cidr = payload.get(
-            'pxe-subnet', DEFAULT_STR)
-        management_vlan = payload.get(
-            'management-vlan', DEFAULT_STR)
-        management_interface_mtu = payload.get(
-            'management-interface-mtu', DEFAULT_STR)
-        management_interface_ports = payload.get(
-            'management-interface-port', DEFAULT_STR)
-        cluster_vlan = payload.get(
-            'cluster-vlan', DEFAULT_STR)
-        cluster_interface_mtu = payload.get(
-            'cluster-interface-mtu', DEFAULT_STR)
-        cluster_interface_ports = payload.get(
-            'cluster-interface-port', management_interface_ports)
-        cluster_cidr = payload.get(
-            'cluster-subnet', IPNetwork("192.168.206.0/24"))
-        oam_cidr = payload.get(
-            'oam-subnet', DEFAULT_STR)
-        oam_gateway = payload.get(
-            'oam-gateway-ip', DEFAULT_STR)
-        oam_ip_floating_address = payload.get(
-            'oam-floating-ip', DEFAULT_STR)
-        oam_ip_unit_0_address = payload.get(
-            'oam-unit-0-ip', DEFAULT_STR)
-        oam_ip_unit_1_address = payload.get(
-            'oam-unit-1-ip', DEFAULT_STR)
-        oam_interface_mtu = payload.get(
-            'oam-interface-mtu', DEFAULT_STR)
-        oam_interface_ports = payload.get(
-            'oam-interface-port', DEFAULT_STR)
-        system_mode = payload.get(
-            'system-mode', DEFAULT_STR)
+        # Parse/validate the addresses
+        try:
+            validate_address_str(
+                external_oam_gateway_address_str, oam_subnet)
+        except ValidateFail as e:
+            LOG.exception(e)
+            pecan.abort(400, _("oam_gateway_address invalid: %s") % e)
 
-        management_address_pool = self._get_management_address_pool(context)
-        systemcontroller_subnet = "%s/%d" % (
-            management_address_pool.network,
-            management_address_pool.prefix)
-        sc_mgmt_floating_ip = management_address_pool.floating_address
-
-        subcloud_config = ""
-        if system_mode in [SYSTEM_MODE_SIMPLEX, SYSTEM_MODE_DUPLEX,
-                           SYSTEM_MODE_DUPLEX_DIRECT]:
-            subcloud_config += (
-                "[SYSTEM]\n"
-                "SYSTEM_MODE={}\n".format(system_mode))
-
-        if system_mode == SYSTEM_MODE_SIMPLEX:
-            subcloud_oamip_config = (
-                "IP_ADDRESS = {oam_ip_floating_address}\n"
-            ).format(
-                oam_ip_floating_address=oam_ip_floating_address,
-            )
-        else:
-            subcloud_oamip_config = (
-                "IP_FLOATING_ADDRESS = {oam_ip_floating_address}\n"
-                "IP_UNIT_0_ADDRESS = {oam_ip_unit_0_address}\n"
-                "IP_UNIT_1_ADDRESS = {oam_ip_unit_1_address}\n"
-            ).format(
-                oam_ip_floating_address=oam_ip_floating_address,
-                oam_ip_unit_0_address=oam_ip_unit_0_address,
-                oam_ip_unit_1_address=oam_ip_unit_1_address,
-            )
-
-        subcloud_config += (
-            "[CLUSTER_NETWORK]\n"
-            "CIDR = {cluster_cidr}\n"
-            "DYNAMIC_ALLOCATION = Y\n"
-        ).format(
-            cluster_cidr=cluster_cidr
-        )
-
-        if cluster_vlan != DEFAULT_STR:
-            subcloud_config += (
-                "VLAN={cluster_vlan}\n"
-            ).format(
-                cluster_vlan=cluster_vlan
-            )
-
-        if management_interface_ports == cluster_interface_ports:
-            subcloud_config += (
-                "LOGICAL_INTERFACE = LOGICAL_INTERFACE_1\n")
-        else:
-            subcloud_config += (
-                "LOGICAL_INTERFACE = LOGICAL_INTERFACE_3\n"
-                "[LOGICAL_INTERFACE_3]\n"
-                "LAG_INTERFACE = N\n"
-                "INTERFACE_MTU = {cluster_interface_mtu}\n"
-                "INTERFACE_PORTS = {cluster_interface_ports}\n"
-            ).format(
-                cluster_interface_mtu=cluster_interface_mtu,
-                cluster_interface_ports=cluster_interface_ports,
-            )
-
-        MIN_MANAGEMENT_SUBNET_SIZE = 8
-        tmp_management_subnet = validate_network_str(
-            subcloud.management_subnet,
-            minimum_size=MIN_MANAGEMENT_SUBNET_SIZE)
-
-        is_ipv6_mgmt = (tmp_management_subnet.version == 6)
-
-        # If ipv6 then we need pxe subnet and management_vlan.
-        # If user specified pxe boot subnet, then management vlan is required
-        # and vice versa
-        if is_ipv6_mgmt or (pxe_cidr != DEFAULT_STR) or \
-                (management_vlan != DEFAULT_STR):
-            subcloud_config += (
-                "[REGION2_PXEBOOT_NETWORK]\n"
-                "PXEBOOT_CIDR = {pxe_cidr}\n"
-                "[MGMT_NETWORK]\n"
-                "VLAN = {management_vlan}\n"
-            ).format(
-                pxe_cidr=pxe_cidr,
-                management_vlan=management_vlan,
-            )
-        else:
-            subcloud_config += "[MGMT_NETWORK]\n"
-
-        subcloud_config += (
-            "CIDR = {management_cidr}\n"
-            "GATEWAY = {management_gateway}\n"
-            "IP_START_ADDRESS = {management_ip_start_address}\n"
-            "IP_END_ADDRESS = {management_ip_end_address}\n"
-            "DYNAMIC_ALLOCATION = Y\n"
-            "LOGICAL_INTERFACE = LOGICAL_INTERFACE_1\n"
-            "[LOGICAL_INTERFACE_1]\n"
-            "LAG_INTERFACE = N\n"
-            "INTERFACE_MTU = {management_interface_mtu}\n"
-            "INTERFACE_PORTS = {management_interface_ports}\n"
-            "[OAM_NETWORK]\n"
-            "CIDR = {oam_cidr}\n"
-            "GATEWAY = {oam_gateway}\n" +
-            subcloud_oamip_config +
-            "LOGICAL_INTERFACE = LOGICAL_INTERFACE_2\n"
-            "[LOGICAL_INTERFACE_2]\n"
-            "LAG_INTERFACE = N\n"
-            "INTERFACE_MTU = {oam_interface_mtu}\n"
-            "INTERFACE_PORTS = {oam_interface_ports}\n"
-            "[SHARED_SERVICES]\n"
-            "SYSTEM_CONTROLLER_SUBNET = {systemcontroller_subnet}\n"
-            "SYSTEM_CONTROLLER_FLOATING_ADDRESS = {sc_mgmt_floating_ip}\n"
-            "REGION_NAME = SystemController\n"
-            "ADMIN_PROJECT_NAME = admin\n"
-            "ADMIN_USER_NAME = admin\n"
-            "ADMIN_PASSWORD = {admin_password}\n"
-            "KEYSTONE_ADMINURL = {keystone_adminurl}\n"
-            "KEYSTONE_SERVICE_NAME = keystone\n"
-            "KEYSTONE_SERVICE_TYPE = identity\n"
-            "GLANCE_SERVICE_NAME = glance\n"
-            "GLANCE_SERVICE_TYPE = image\n"
-            "GLANCE_CACHED = True\n"
-            "[REGION_2_SERVICES]\n"
-            "REGION_NAME = {region_2_name}\n"
-            "[VERSION]\n"
-            "RELEASE = {release}\n"
-        ).format(
-            management_cidr=subcloud.management_subnet,
-            management_gateway=subcloud.management_gateway_ip,
-            management_ip_start_address=subcloud.management_start_ip,
-            management_ip_end_address=subcloud.management_end_ip,
-            management_interface_mtu=management_interface_mtu,
-            management_interface_ports=management_interface_ports,
-            oam_cidr=oam_cidr,
-            oam_gateway=oam_gateway,
-            oam_interface_mtu=oam_interface_mtu,
-            oam_interface_ports=oam_interface_ports,
-            systemcontroller_subnet=systemcontroller_subnet,
-            sc_mgmt_floating_ip=sc_mgmt_floating_ip,
-            admin_password=cfg.CONF.cache.admin_password,
-            keystone_adminurl=cfg.CONF.cache.auth_uri,
-            region_2_name=subcloud.name,
-            release=subcloud.software_version,
-        )
-        return subcloud_config
+        try:
+            validate_address_str(
+                external_oam_floating_address_str, oam_subnet)
+        except ValidateFail as e:
+            LOG.exception(e)
+            pecan.abort(400, _("oam_floating_address invalid: %s") % e)
 
     def _get_subcloud_users(self):
         """Get the subcloud users and passwords from keyring"""
@@ -410,7 +261,7 @@ class SubcloudsController(object):
         return sysinv_client.get_management_address_pool()
 
     @index.when(method='GET', template='json')
-    def get(self, subcloud_ref=None, qualifier=None):
+    def get(self, subcloud_ref=None):
         """Get details about subcloud.
 
         :param subcloud_ref: ID or name of subcloud
@@ -497,81 +348,86 @@ class SubcloudsController(object):
 
             subcloud_id = subcloud.id
 
-            if qualifier:
-                # Configuration for this subcloud requested.
-                # Encrypt before sending.
-                if qualifier == 'config':
-                    result = dict()
-                    user_list = self._get_subcloud_users()
+            # Data for this subcloud requested
+            # Build up and append a dictionary of the endpoints
+            # sync status to the result.
+            for subcloud, subcloud_status in db_api. \
+                    subcloud_get_with_status(context, subcloud_id):
+                subcloud_dict = db_api.subcloud_db_model_to_dict(
+                    subcloud)
+                # may be empty subcloud_status entry, account for this
+                if subcloud_status:
+                    subcloud_status_list.append(
+                        db_api.subcloud_endpoint_status_db_model_to_dict(
+                            subcloud_status))
+            endpoint_sync_dict = {consts.ENDPOINT_SYNC_STATUS:
+                                  subcloud_status_list}
+            subcloud_dict.update(endpoint_sync_dict)
 
-                    # Use a hash of the subcloud name + management subnet
-                    # as the encryption key
-                    hashstring = subcloud.name + subcloud.management_subnet
-                    h = MD5.new()
-                    h.update(hashstring)
-                    encryption_key = h.hexdigest()
-                    user_list_string = json.dumps(user_list)
-                    user_list_encrypted = crypt.urlsafe_encrypt(
-                        encryption_key,
-                        user_list_string)
-                    result['users'] = user_list_encrypted
-                    return result
-                else:
-                    pecan.abort(400, _('Invalid request'))
-            else:
-                # Data for this subcloud requested
-                # Build up and append a dictionary of the endpoints
-                # sync status to the result.
-                for subcloud, subcloud_status in db_api. \
-                        subcloud_get_with_status(context, subcloud_id):
-                    subcloud_dict = db_api.subcloud_db_model_to_dict(
-                        subcloud)
-                    # may be empty subcloud_status entry, account for this
-                    if subcloud_status:
-                        subcloud_status_list.append(
-                            db_api.subcloud_endpoint_status_db_model_to_dict(
-                                subcloud_status))
-                endpoint_sync_dict = {consts.ENDPOINT_SYNC_STATUS:
-                                      subcloud_status_list}
-                subcloud_dict.update(endpoint_sync_dict)
-
-                return subcloud_dict
+            return subcloud_dict
 
     @index.when(method='POST', template='json')
-    def post(self, subcloud_ref=None, qualifier=None):
-        """Create a new subcloud.
+    def post(self, subcloud_ref=None):
+        """Create and deploy a new subcloud.
 
         :param subcloud_ref: ID of or name subcloud (only used when generating
                              config)
-        :param qualifier: if 'config', returns the config INI file for the
-                          subcloud
         """
 
         context = restcomm.extract_context_from_environ()
 
         if subcloud_ref is None:
             payload = eval(request.body)
+
             if not payload:
                 pecan.abort(400, _('Body required'))
             name = payload.get('name')
             if not name:
                 pecan.abort(400, _('name required'))
-            management_subnet = payload.get('management-subnet')
+            system_mode = payload.get('system_mode')
+            if not system_mode:
+                pecan.abort(400, _('system_mode required'))
+
+            management_subnet = payload.get('management_subnet')
             if not management_subnet:
-                pecan.abort(400, _('management-subnet required'))
-            management_start_ip = payload.get('management-start-ip')
+                pecan.abort(400, _('management_subnet required'))
+
+            management_start_ip = payload.get('management_start_address')
             if not management_start_ip:
-                pecan.abort(400, _('management-start-ip required'))
-            management_end_ip = payload.get('management-end-ip')
+                pecan.abort(400, _('management_start_address required'))
+
+            management_end_ip = payload.get('management_end_address')
             if not management_end_ip:
-                pecan.abort(400, _('management-end-ip required'))
-            management_gateway_ip = payload.get('management-gateway-ip')
+                pecan.abort(400, _('management_end_address required'))
+
+            management_gateway_ip = payload.get('management_gateway_address')
             if not management_gateway_ip:
-                pecan.abort(400, _('management-gateway-ip required'))
+                pecan.abort(400, _('management_gateway_address required'))
+
             systemcontroller_gateway_ip = \
-                payload.get('systemcontroller-gateway-ip')
+                payload.get('systemcontroller_gateway_address')
             if not systemcontroller_gateway_ip:
-                pecan.abort(400, _('systemcontroller-gateway-ip required'))
+                pecan.abort(400,
+                            _('systemcontroller_gateway_address required'))
+
+            external_oam_subnet = payload.get('external_oam_subnet')
+            if not external_oam_subnet:
+                pecan.abort(400, _('external_oam_subnet required'))
+
+            external_oam_gateway_ip = \
+                payload.get('external_oam_gateway_address')
+            if not external_oam_gateway_ip:
+                pecan.abort(400, _('external_oam_gateway_address required'))
+
+            external_oam_floating_ip = \
+                payload.get('external_oam_floating_address')
+            if not external_oam_floating_ip:
+                pecan.abort(400, _('external_oam_floating_address required'))
+
+            subcloud_password = \
+                payload.get('subcloud_password')
+            if not subcloud_password:
+                pecan.abort(400, _('subcloud_password required'))
 
             self._validate_subcloud_config(context,
                                            name,
@@ -579,6 +435,9 @@ class SubcloudsController(object):
                                            management_start_ip,
                                            management_end_ip,
                                            management_gateway_ip,
+                                           external_oam_subnet,
+                                           external_oam_gateway_ip,
+                                           external_oam_floating_ip,
                                            systemcontroller_gateway_ip)
 
             try:
@@ -590,34 +449,6 @@ class SubcloudsController(object):
             except Exception as e:
                 LOG.exception(e)
                 pecan.abort(500, _('Unable to create subcloud'))
-        elif qualifier:
-            if qualifier == 'config':
-                subcloud = None
-
-                if subcloud_ref.isdigit():
-                    # Look up subcloud as an ID
-                    try:
-                        subcloud = db_api.subcloud_get(context, subcloud_ref)
-                    except exceptions.SubcloudNotFound:
-                        pecan.abort(404, _('Subcloud not found'))
-                else:
-                    # Look up subcloud by name
-                    try:
-                        subcloud = db_api.subcloud_get_by_name(context,
-                                                               subcloud_ref)
-                    except exceptions.SubcloudNameNotFound:
-                        pecan.abort(404, _('Subcloud not found'))
-
-                payload = dict()
-                if request.body:
-                    payload = eval(request.body)
-                config_file = self._create_subcloud_config_file(
-                    context, subcloud, payload)
-                result = dict()
-                result['config'] = config_file
-                return result
-            else:
-                pecan.abort(400, _('Invalid request'))
         else:
             pecan.abort(400, _('Invalid request'))
 

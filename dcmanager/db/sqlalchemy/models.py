@@ -87,6 +87,7 @@ class Subcloud(BASE, DCManagerBase):
     software_version = Column(String(255))
     management_state = Column(String(255))
     availability_status = Column(String(255))
+    deploy_status = Column(String(255))
     management_subnet = Column(String(255))
     management_gateway_ip = Column(String(255))
     management_start_ip = Column(String(255), unique=True)

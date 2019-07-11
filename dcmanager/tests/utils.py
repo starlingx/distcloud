@@ -116,18 +116,22 @@ def create_subcloud_dict(data_list):
             'software-version': data_list[4],
             'management-state': data_list[5],
             'availability-status': data_list[6],
-            'management-subnet': data_list[7],
-            'management-gateway-ip': data_list[8],
-            'management-start-ip': data_list[9],
-            'management-end-ip': data_list[10],
-            'systemcontroller-gateway-ip': data_list[11],
+            'management_subnet': data_list[7],
+            'management_gateway_address': data_list[8],
+            'management_start_address': data_list[9],
+            'management_end_address': data_list[10],
+            'systemcontroller_gateway_address': data_list[11],
             'audit-fail-count': data_list[12],
             'reserved-1': data_list[13],
             'reserved-2': data_list[14],
             'created-at': data_list[15],
             'updated-at': data_list[16],
             'deleted-at': data_list[17],
-            'deleted': data_list[18]}
+            'deleted': data_list[18],
+            'external_oam_subnet': data_list[19],
+            'external_oam_gateway_address': data_list[20],
+            'external_oam_floating_address': data_list[21],
+            'subcloud_password': data_list[22]}
 
 
 def create_route_dict(data_list):

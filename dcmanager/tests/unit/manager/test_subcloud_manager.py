@@ -41,11 +41,15 @@ FAKE_ID = '1'
 FAKE_SUBCLOUD_DATA = {"name": "subcloud1",
                       "description": "subcloud1 description",
                       "location": "subcloud1 location",
-                      "management-subnet": "192.168.101.0/24",
-                      "management-start-ip": "192.168.101.3",
-                      "management-end-ip": "192.168.101.4",
-                      "management-gateway-ip": "192.168.101.1",
-                      "systemcontroller-gateway-ip": "192.168.204.101"}
+                      "system_mode": "duplex",
+                      "management_subnet": "192.168.101.0/24",
+                      "management_start_address": "192.168.101.3",
+                      "management_end_address": "192.168.101.4",
+                      "management_gateway_address": "192.168.101.1",
+                      "systemcontroller_gateway_address": "192.168.204.101",
+                      "external_oam_subnet": "10.10.10.0/24",
+                      "external_oam_gateway_address": "10.10.10.1",
+                      "external_oam_floating_address": "10.10.10.12"}
 
 
 class Controller(object):
@@ -72,11 +76,17 @@ class Subcloud(object):
         else:
             self.availability_status = consts.AVAILABILITY_OFFLINE
 
-        self.management_subnet = data['management-subnet']
-        self.management_gateway_ip = data['management-gateway-ip']
-        self.management_start_ip = data['management-start-ip']
-        self.management_end_ip = data['management-end-ip']
-        self.systemcontroller_gateway_ip = data['systemcontroller-gateway-ip']
+        self.management_subnet = data['management_subnet']
+        self.management_gateway_ip = data['management_gateway_address']
+        self.management_start_ip = data['management_start_address']
+        self.management_end_ip = data['management_end_address']
+        self.external_oam_subnet = data['external_oam_subnet']
+        self.external_oam_gateway_address = \
+            data['external_oam_gateway_address']
+        self.external_oam_floating_address = \
+            data['external_oam_floating_address']
+        self.systemcontroller_gateway_ip = \
+            data['systemcontroller_gateway_address']
         self.created_at = timeutils.utcnow()
         self.updated_at = timeutils.utcnow()
 
@@ -106,7 +116,15 @@ class TestSubcloudManager(base.DCManagerTestCase):
     @mock.patch.object(subcloud_manager, 'SysinvClient')
     @mock.patch.object(subcloud_manager.SubcloudManager,
                        '_create_addn_hosts_dc')
-    def test_add_subcloud(self, value,
+    @mock.patch.object(subcloud_manager.SubcloudManager,
+                       '_update_subcloud_inventory')
+    @mock.patch.object(subcloud_manager.SubcloudManager,
+                       '_write_subcloud_ansible_config')
+    @mock.patch.object(subcloud_manager,
+                       'keyring')
+    def test_add_subcloud(self, value, mock_keyring,
+                          mock_write_subcloud_ansible_config,
+                          mock_update_subcloud_inventory,
                           mock_create_addn_hosts, mock_sysinv_client,
                           mock_db_api, mock_keystone_client, mock_context,
                           mock_dcorch_rpc_client):
@@ -119,6 +137,7 @@ class TestSubcloudManager(base.DCManagerTestCase):
 
         mock_sysinv_client().get_controller_hosts.return_value = controllers
         mock_keystone_client().services_list = services
+        mock_keyring.get_password.return_value = "testpassword"
 
         sm = subcloud_manager.SubcloudManager()
         sm.add_subcloud(self.ctxt, payload=value)
@@ -127,6 +146,10 @@ class TestSubcloudManager(base.DCManagerTestCase):
         mock_sysinv_client().create_route.assert_called()
         mock_dcorch_rpc_client().add_subcloud.assert_called_once()
         mock_create_addn_hosts.assert_called_once()
+        mock_update_subcloud_inventory.assert_called_once()
+        mock_write_subcloud_ansible_config.assert_called_once()
+        mock_db_api.subcloud_update.assert_called()
+        mock_keyring.get_password.assert_called()
 
     @file_data(utils.get_data_filepath('dcmanager', 'subclouds'))
     @mock.patch.object(dcorch_rpc_client, 'EngineClient')

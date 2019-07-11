@@ -12,7 +12,7 @@
 # License for the specific language governing permissions and limitations
 # under the License.
 #
-# Copyright (c) 2017 Wind River Systems, Inc.
+# Copyright (c) 2017-2019 Wind River Systems, Inc.
 #
 # The right to copy, distribute, modify, or otherwise make use
 # of this software may be licensed only pursuant to the terms
@@ -88,3 +88,9 @@ STRATEGY_STATE_ABORTED = "aborted"
 STRATEGY_STATE_FAILED = "failed"
 
 SW_UPDATE_DEFAULT_TITLE = "all clouds default"
+
+# Subcloud deploy status states
+DEPLOY_STATE_NONE = 'not-deployed'
+DEPLOY_STATE_DEPLOYING = 'deploying'
+DEPLOY_STATE_DONE = 'complete'
+DEPLOY_STATE_FAILED = 'failed'

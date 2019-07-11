@@ -13,16 +13,20 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-# Copyright (c) 2017-2018 Wind River Systems, Inc.
+# Copyright (c) 2017-2019 Wind River Systems, Inc.
 #
 # The right to copy, distribute, modify, or otherwise make use
 # of this software may be licensed only pursuant to the terms
 # of an applicable Wind River license agreement.
 #
 
+import datetime
 import filecmp
+import keyring
 import netaddr
 import os
+import subprocess
+import threading
 
 from oslo_log import log as logging
 from oslo_messaging import RemoteError
@@ -50,6 +54,24 @@ LOG = logging.getLogger(__name__)
 # Name of our distributed cloud addn_hosts file for dnsmasq
 # to read.  This file is referenced in dnsmasq.conf
 ADDN_HOSTS_DC = 'dnsmasq.addn_hosts_dc'
+
+# Subcloud configuration paths
+ANSIBLE_OVERRIDES_PATH = '/opt/dc/ansible'
+ANSIBLE_SUBCLOUD_INVENTORY_FILE = 'subclouds.yml'
+ANSIBLE_SUBCLOUD_PLAYBOOK = \
+    '/usr/share/ansible/stx-ansible/playbooks/bootstrap/bootstrap.yml'
+
+DC_LOG_DIR = '/var/log/dcmanager/'
+
+USERS_TO_REPLICATE = [
+    'sysinv',
+    'patching',
+    'vim',
+    'mtce',
+    'fm',
+    'barbican']
+
+SERVICES_USER = 'services'
 
 
 class SubcloudManager(manager.Manager):
@@ -92,11 +114,12 @@ class SubcloudManager(manager.Manager):
                 payload.get('description'),
                 payload.get('location'),
                 software_version,
-                payload['management-subnet'],
-                payload['management-gateway-ip'],
-                payload['management-start-ip'],
-                payload['management-end-ip'],
-                payload['systemcontroller-gateway-ip'])
+                payload['management_subnet'],
+                payload['management_gateway_address'],
+                payload['management_start_address'],
+                payload['management_end_address'],
+                payload['systemcontroller_gateway_address'],
+                consts.DEPLOY_STATE_NONE)
         except Exception as e:
             LOG.exception(e)
             raise e
@@ -111,7 +134,7 @@ class SubcloudManager(manager.Manager):
             # Create a new route to this subcloud on the management interface
             # on both controllers.
             m_ks_client = KeystoneClient()
-            subcloud_subnet = netaddr.IPNetwork(payload['management-subnet'])
+            subcloud_subnet = netaddr.IPNetwork(payload['management_subnet'])
             session = m_ks_client.endpoint_cache.get_session_from_token(
                 context.auth_token, context.project)
             sysinv_client = SysinvClient(consts.DEFAULT_REGION_NAME, session)
@@ -124,7 +147,7 @@ class SubcloudManager(manager.Manager):
                         management_interface.uuid,
                         str(subcloud_subnet.ip),
                         subcloud_subnet.prefixlen,
-                        payload['systemcontroller-gateway-ip'],
+                        payload['systemcontroller_gateway_address'],
                         1)
 
             # Create identity endpoints to this subcloud on the
@@ -145,7 +168,7 @@ class SubcloudManager(manager.Manager):
                     resource='subcloud',
                     msg='No Identity service found on SystemController')
 
-            identity_endpoint_ip = payload['management-start-ip']
+            identity_endpoint_ip = payload['management_start_address']
 
             if netaddr.IPAddress(identity_endpoint_ip).version == 6:
                 identity_endpoint_url = \
@@ -168,6 +191,51 @@ class SubcloudManager(manager.Manager):
             # Regenerate the addn_hosts_dc file
             self._create_addn_hosts_dc(context)
 
+            # Add the admin and service user passwords to the payload so they
+            # get copied to the override file
+            payload['ansible_become_pass'] = payload['subcloud_password']
+            payload['ansible_ssh_pass'] = payload['subcloud_password']
+            payload['admin_password'] = keyring.get_password('CGCS', 'admin')
+            del payload['subcloud_password']
+
+            payload['users'] = dict()
+            for user in USERS_TO_REPLICATE:
+                payload['users'][user] = \
+                    keyring.get_password(user, SERVICES_USER)
+
+            # Update the ansible inventory with the new subcloud
+            self._update_subcloud_inventory(payload)
+
+            # Write this subclouds overrides to file
+            self._write_subcloud_ansible_config(context, payload)
+
+            # Update the subcloud to deploying
+            try:
+                db_api.subcloud_update(
+                    context, subcloud.id,
+                    deploy_status=consts.DEPLOY_STATE_DEPLOYING)
+            except Exception as e:
+                LOG.exception(e)
+                raise e
+
+            apply_command = [
+                "ansible-playbook", ANSIBLE_SUBCLOUD_PLAYBOOK, "-i",
+                ANSIBLE_OVERRIDES_PATH + '/' +
+                ANSIBLE_SUBCLOUD_INVENTORY_FILE,
+                "--limit", subcloud.name
+            ]
+
+            # Add the overrides dir and region_name so the playbook knows
+            # which overrides to load
+            apply_command += [
+                "-e", str("override_files_dir='%s' region_name=%s") % (
+                    ANSIBLE_OVERRIDES_PATH, subcloud.name)]
+
+            apply_thread = threading.Thread(
+                target=self.run_bootstrap,
+                args=(apply_command, subcloud, context))
+            apply_thread.start()
+
             return db_api.subcloud_db_model_to_dict(subcloud)
 
         except Exception as e:
@@ -177,6 +245,34 @@ class SubcloudManager(manager.Manager):
             self._delete_subcloud_routes(context, subcloud)
             db_api.subcloud_destroy(context, subcloud.id)
             raise e
+
+    @staticmethod
+    def run_bootstrap(apply_command, subcloud, context):
+        # Run the ansible boostrap-subcloud playbook
+        with open(DC_LOG_DIR + subcloud.name + '_' +
+                  str(datetime.datetime.now().strftime('%Y-%m-%d-%H-%M-%S')) +
+                  '.log', "w") as f_out_log:
+            try:
+                subprocess.check_call(apply_command,
+                                      stdout=f_out_log,
+                                      stderr=f_out_log)
+            except subprocess.CalledProcessError as ex:
+                msg = "Failed to run the subcloud bootstrap playbook" \
+                      " for subcloud %s, check individual log at " \
+                      "%s for detailed output." % (
+                          subcloud.name,
+                          DC_LOG_DIR + subcloud.name)
+                ex.cmd = 'ansible-playbook'
+                LOG.error(msg)
+                db_api.subcloud_update(
+                    context, subcloud.id,
+                    deploy_status=consts.DEPLOY_STATE_FAILED)
+                return
+            LOG.info("Successfully deployed subcloud %s" %
+                     subcloud.name)
+            db_api.subcloud_update(
+                context, subcloud.id,
+                deploy_status=consts.DEPLOY_STATE_DONE)
 
     def _create_addn_hosts_dc(self, context):
         """Generate the addn_hosts_dc file for hostname/ip translation"""
@@ -200,6 +296,58 @@ class SubcloudManager(manager.Manager):
             os.rename(addn_hosts_dc_temp, addn_hosts_dc)
             # restart dnsmasq so it can re-read our addn_hosts file.
             os.system("pkill -HUP dnsmasq")
+
+    def _update_subcloud_inventory(self, new_subcloud):
+        """Update the inventory file for usage with the specified subcloud"""
+
+        inventory_file = os.path.join(ANSIBLE_OVERRIDES_PATH,
+                                      ANSIBLE_SUBCLOUD_INVENTORY_FILE)
+        exists = False
+        if os.path.isfile(inventory_file):
+            exists = True
+
+        with open(inventory_file, 'a') as f_out_inventory:
+            if not exists:
+                f_out_inventory.write(
+                    '---\n'
+                    'all:\n'
+                    '  vars:\n'
+                    '    ansible_ssh_user: sysadmin\n'
+                    '  hosts:\n',
+                )
+
+            f_out_inventory.write(
+                '    ' + new_subcloud['name'] + ':\n'
+                '      ansible_host: ' +
+                new_subcloud['bootstrap-address'] + '\n'
+            )
+
+    def _write_subcloud_ansible_config(self, context, payload):
+        """Create the override file for usage with the specified subcloud"""
+
+        overrides_file = os.path.join(ANSIBLE_OVERRIDES_PATH,
+                                      payload['name'] + '.yml')
+
+        m_ks_client = KeystoneClient()
+        session = m_ks_client.endpoint_cache.get_session_from_token(
+            context.auth_token, context.project)
+        sysinv_client = SysinvClient(consts.DEFAULT_REGION_NAME, session)
+
+        pool = sysinv_client.get_management_address_pool()
+        floating_ip = pool.floating_address
+        subnet = "%s/%d" % (pool.network, pool.prefix)
+
+        with open(overrides_file, 'w') as f_out_overrides_file:
+            f_out_overrides_file.write(
+                '---'
+                '\nregion_config: yes'
+                '\ndistributed_cloud_role: subcloud'
+                '\nsystem_controller_subnet: ' + subnet +
+                '\nsystem_controller_floating_address: ' + floating_ip + '\n'
+            )
+
+            for k, v in payload.items():
+                f_out_overrides_file.write("%s: %s\n" % (k, v))
 
     def _delete_subcloud_routes(self, context, subcloud):
         """Delete the routes to this subcloud"""

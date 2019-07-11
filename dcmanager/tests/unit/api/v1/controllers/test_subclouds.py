@@ -41,12 +41,17 @@ FAKE_HEADERS = {'X-Tenant-Id': FAKE_TENANT, 'X_ROLE': 'admin',
 FAKE_SUBCLOUD_DATA = {"name": "subcloud1",
                       "description": "subcloud1 description",
                       "location": "subcloud1 location",
-                      "management-subnet": "192.168.101.0/24",
-                      "management-start-ip": "192.168.101.2",
-                      "management-end-ip": "192.168.101.50",
-                      "management-gateway-ip": "192.168.101.1",
-                      "systemcontroller-gateway-ip": "192.168.204.101",
-                      "availability-status": "disabled"}
+                      "system_mode": "duplex",
+                      "management_subnet": "192.168.101.0/24",
+                      "management_start_address": "192.168.101.2",
+                      "management_end_address": "192.168.101.50",
+                      "management_gateway_address": "192.168.101.1",
+                      "systemcontroller_gateway_address": "192.168.204.101",
+                      "external_oam_subnet": "10.10.10.0/24",
+                      "external_oam_gateway_address": "10.10.10.1",
+                      "external_oam_floating_address": "10.10.10.12",
+                      "availability-status": "disabled",
+                      "subcloud_password": "testpass"}
 
 
 class FakeAddressPool(object):
@@ -92,7 +97,7 @@ class TestSubclouds(testroot.DCManagerApiTest):
     def test_post_subcloud_bad_gateway(self, mock_db_api, mock_rpc_client,
                                        mock_get_management_address_pool):
         data = copy.copy(FAKE_SUBCLOUD_DATA)
-        data["systemcontroller-gateway-ip"] = "192.168.205.101"
+        data["systemcontroller_gateway_address"] = "192.168.205.101"
         management_address_pool = FakeAddressPool('192.168.204.0', 24,
                                                   '192.168.204.2',
                                                   '192.168.204.100')
@@ -120,7 +125,7 @@ class TestSubclouds(testroot.DCManagerApiTest):
     @mock.patch.object(subclouds, 'db_api')
     def test_post_subcloud_bad_subnet(self, mock_db_api, mock_rpc_client):
         data = copy.copy(FAKE_SUBCLOUD_DATA)
-        data["management-subnet"] = "192.168.101.0/32"
+        data["management_subnet"] = "192.168.101.0/32"
         six.assertRaisesRegex(self, webtest.app.AppError, "400 *",
                               self.app.post_json, FAKE_URL,
                               headers=FAKE_HEADERS, params=data)
@@ -129,9 +134,9 @@ class TestSubclouds(testroot.DCManagerApiTest):
     @mock.patch.object(subclouds, 'db_api')
     def test_post_subcloud_bad_start_ip(self, mock_db_api, mock_rpc_client):
         data = copy.copy(FAKE_SUBCLOUD_DATA)
-        data["management-subnet"] = "192.168.101.0/24"
-        data["management-start-ip"] = "192.168.100.2"
-        data["management-end-ip"] = "192.168.100.50"
+        data["management_subnet"] = "192.168.101.0/24"
+        data["management_start_address"] = "192.168.100.2"
+        data["management_end_address"] = "192.168.100.50"
         six.assertRaisesRegex(self, webtest.app.AppError, "400 *",
                               self.app.post_json, FAKE_URL,
                               headers=FAKE_HEADERS, params=data)
@@ -140,8 +145,8 @@ class TestSubclouds(testroot.DCManagerApiTest):
     @mock.patch.object(subclouds, 'db_api')
     def test_post_subcloud_bad_end_ip(self, mock_db_api, mock_rpc_client):
         data = copy.copy(FAKE_SUBCLOUD_DATA)
-        data["management-start-ip"] = "192.168.101.2"
-        data["management-end-ip"] = "192.168.100.100"
+        data["management_start_address"] = "192.168.101.2"
+        data["management_end_address"] = "192.168.100.100"
         six.assertRaisesRegex(self, webtest.app.AppError, "400 *",
                               self.app.post_json, FAKE_URL,
                               headers=FAKE_HEADERS, params=data)
@@ -150,8 +155,8 @@ class TestSubclouds(testroot.DCManagerApiTest):
     @mock.patch.object(subclouds, 'db_api')
     def test_post_subcloud_short_ip_range(self, mock_db_api, mock_rpc_client):
         data = copy.copy(FAKE_SUBCLOUD_DATA)
-        data["management-start-ip"] = "192.168.101.2"
-        data["management-end-ip"] = "192.168.101.4"
+        data["management_start_address"] = "192.168.101.2"
+        data["management_end_address"] = "192.168.101.4"
         six.assertRaisesRegex(self, webtest.app.AppError, "400 *",
                               self.app.post_json, FAKE_URL,
                               headers=FAKE_HEADERS, params=data)
@@ -160,8 +165,8 @@ class TestSubclouds(testroot.DCManagerApiTest):
     @mock.patch.object(subclouds, 'db_api')
     def test_post_subcloud_invert_ip_range(self, mock_db_api, mock_rpc_client):
         data = copy.copy(FAKE_SUBCLOUD_DATA)
-        data["management-start-ip"] = "192.168.101.20"
-        data["management-end-ip"] = "192.168.101.4"
+        data["management_start_address"] = "192.168.101.20"
+        data["management_end_address"] = "192.168.101.4"
         six.assertRaisesRegex(self, webtest.app.AppError, "400 *",
                               self.app.post_json, FAKE_URL,
                               headers=FAKE_HEADERS, params=data)
@@ -187,18 +192,6 @@ class TestSubclouds(testroot.DCManagerApiTest):
         six.assertRaisesRegex(self, webtest.app.AppError, "400 *",
                               self.app.post_json, FAKE_URL,
                               headers=FAKE_HEADERS, params=data)
-
-    @mock.patch.object(subclouds.SubcloudsController,
-                       '_create_subcloud_config_file')
-    @mock.patch.object(rpc_client, 'ManagerClient')
-    @mock.patch.object(subclouds, 'db_api')
-    def test_post_subcloud_config(self, mock_db_api, mock_rpc_client,
-                                  mock_create_config):
-        mock_create_config.return_value = "Some\n long multiline config data"
-        post_url = FAKE_URL + '/' + FAKE_ID + '/config'
-        self.app.post(post_url, headers=FAKE_HEADERS)
-        self.assertEqual(1, mock_db_api.subcloud_get.call_count)
-        self.assertEqual(1, mock_create_config.call_count)
 
     @mock.patch.object(rpc_client, 'ManagerClient')
     @mock.patch.object(subclouds, 'db_api')

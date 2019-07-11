@@ -13,7 +13,7 @@
 # License for the specific language governing permissions and limitations
 # under the License.
 #
-# Copyright (c) 2017 Wind River Systems, Inc.
+# Copyright (c) 2017-2019 Wind River Systems, Inc.
 #
 # The right to copy, distribute, modify, or otherwise make use
 # of this software may be licensed only pursuant to the terms
@@ -205,7 +205,7 @@ def subcloud_get_all_with_status(context):
 def subcloud_create(context, name, description, location, software_version,
                     management_subnet, management_gateway_ip,
                     management_start_ip, management_end_ip,
-                    systemcontroller_gateway_ip):
+                    systemcontroller_gateway_ip, deploy_status):
     with write_session() as session:
         subcloud_ref = models.Subcloud()
         subcloud_ref.name = name
@@ -219,6 +219,7 @@ def subcloud_create(context, name, description, location, software_version,
         subcloud_ref.management_start_ip = management_start_ip
         subcloud_ref.management_end_ip = management_end_ip
         subcloud_ref.systemcontroller_gateway_ip = systemcontroller_gateway_ip
+        subcloud_ref.deploy_status = deploy_status
         subcloud_ref.audit_fail_count = 0
         session.add(subcloud_ref)
         return subcloud_ref
@@ -227,7 +228,8 @@ def subcloud_create(context, name, description, location, software_version,
 @require_admin_context
 def subcloud_update(context, subcloud_id, management_state=None,
                     availability_status=None, software_version=None,
-                    description=None, location=None, audit_fail_count=None):
+                    description=None, location=None, audit_fail_count=None,
+                    deploy_status=None):
     with write_session() as session:
         subcloud_ref = subcloud_get(context, subcloud_id)
         if management_state is not None:
@@ -242,6 +244,8 @@ def subcloud_update(context, subcloud_id, management_state=None,
             subcloud_ref.location = location
         if audit_fail_count is not None:
             subcloud_ref.audit_fail_count = audit_fail_count
+        if deploy_status is not None:
+            subcloud_ref.deploy_status = deploy_status
         subcloud_ref.save(session)
         return subcloud_ref
 

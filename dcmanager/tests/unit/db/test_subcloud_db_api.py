@@ -85,6 +85,7 @@ class DBAPISubcloudTest(base.DCManagerTestCase):
             'management_start_ip': "192.168.101.2",
             'management_end_ip': "192.168.101.50",
             'systemcontroller_gateway_ip': "192.168.204.101",
+            'deploy_status': "not-deployed",
         }
         values.update(kwargs)
         return db_api.subcloud_create(ctxt, **values)
@@ -96,11 +97,13 @@ class DBAPISubcloudTest(base.DCManagerTestCase):
             'description': data['description'],
             'location': data['location'],
             'software_version': data['software-version'],
-            'management_subnet': data['management-subnet'],
-            'management_gateway_ip': data['management-gateway-ip'],
-            'management_start_ip': data['management-start-ip'],
-            'management_end_ip': data['management-end-ip'],
-            'systemcontroller_gateway_ip': data['systemcontroller-gateway-ip'],
+            'management_subnet': data['management_subnet'],
+            'management_gateway_ip': data['management_gateway_address'],
+            'management_start_ip': data['management_start_address'],
+            'management_end_ip': data['management_end_address'],
+            'systemcontroller_gateway_ip': data[
+                'systemcontroller_gateway_address'],
+            'deploy_status': "not-deployed",
         }
         return db_api.subcloud_create(ctxt, **values)
 
