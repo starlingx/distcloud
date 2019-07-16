@@ -1,0 +1,12 @@
+[Unit]
+Description=DC DBsync Agent API Service For Containerized Openstack
+After=syslog.target network.target postgresql.service
+
+[Service]
+Type=simple
+User=root
+ExecStart=/usr/bin/dcdbsync-api --config-file /etc/dcdbsync/dcdbsync_openstack.conf
+Restart=on-failure
+
+[Install]
+WantedBy=multi-user.target
