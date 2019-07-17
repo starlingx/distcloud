@@ -16,11 +16,20 @@
 import threading
 
 from dcmanager.common import consts as dcm_consts
-from dcorch.engine.sync_thread import SyncThread
+from dcorch.common import consts as dco_consts
+from dcorch.engine.sync_services.identity import IdentitySyncThread
+from dcorch.engine.sync_services.sysinv import SysinvSyncThread
 from dcorch.objects.subcloud import Subcloud
 from oslo_log import log as logging
 
 LOG = logging.getLogger(__name__)
+
+# sync thread endpoint type and subclass mappings
+syncthread_subclass_map = {
+    dco_consts.ENDPOINT_TYPE_PLATFORM: SysinvSyncThread,
+    dco_consts.ENDPOINT_TYPE_IDENTITY: IdentitySyncThread,
+    dco_consts.ENDPOINT_TYPE_IDENTITY_OS: IdentitySyncThread
+}
 
 
 class SubCloudEngine(object):
@@ -37,10 +46,18 @@ class SubCloudEngine(object):
         if subcloud is not None:
             self.subcloud = subcloud
         else:
+            capabilities = {}
+            endpoint_type_list = dco_consts.ENDPOINT_TYPES_LIST[:]
+            # patching is handled by dcmanager
+            endpoint_type_list.remove(dco_consts.ENDPOINT_TYPE_PATCHING)
+            capabilities.update({'endpoint_types': endpoint_type_list})
             self.subcloud = Subcloud(
-                context, region_name=name, software_version=version)
+                context, region_name=name, software_version=version,
+                capabilities=capabilities)
             self.subcloud.create()
         self.lock = threading.Lock()     # protects the status
+        self.capabilities_lock = threading.Lock()  # protects capabilities
+        self.sync_threads_lock = threading.Lock()  # protects sync_threads
         self.sync_threads = []           # the individual SyncThread objects
 
     def set_version(self, version):
@@ -50,10 +67,15 @@ class SubCloudEngine(object):
 
     def spawn_sync_threads(self):
         # spawn the threads that actually handle syncing this subcloud
-        for subclass in SyncThread.__subclasses__():
-            thread = subclass(self)
-            self.sync_threads.append(thread)
-            thread.start()
+
+        capabilities = self.subcloud.capabilities
+        # start sync threads
+        endpoint_type_list = capabilities.get('endpoint_types', None)
+        if endpoint_type_list:
+            for endpoint_type in endpoint_type_list:
+                thread = syncthread_subclass_map[endpoint_type](self)
+                self.sync_threads.append(thread)
+                thread.start()
 
     def is_managed(self):
         # is this subcloud managed
@@ -68,6 +90,10 @@ class SubCloudEngine(object):
         status = self.subcloud.availability_status
         self.lock.release()
         return status == dcm_consts.AVAILABILITY_ONLINE
+
+    def is_ready(self):
+        # is this subcloud ready for synchronization
+        return self.is_managed() and self.is_enabled()
 
     def enable(self):
         # set subcloud availability to online
@@ -116,3 +142,62 @@ class SubCloudEngine(object):
         if self.is_enabled():
             for thread in self.sync_threads:
                 thread.run_sync_audit()
+
+    def add_sync_endpoint_type(self, endpoint_type_list):
+        # add the endpoint types into subcloud capabilities
+        with self.capabilities_lock:
+            capabilities = self.subcloud.capabilities
+            c_endpoint_type_list = capabilities.get('endpoint_types', [])
+
+            if endpoint_type_list:
+                for endpoint_type in endpoint_type_list:
+                    if endpoint_type not in c_endpoint_type_list:
+                        c_endpoint_type_list.append(endpoint_type)
+                if capabilities.get('endpoint_types') is None:
+                    # assign back if 'endpoint_types' is not in capabilities
+                    capabilities['endpoint_types'] = c_endpoint_type_list
+                self.subcloud.save()
+
+        # Start threads for the endpoint types
+        if endpoint_type_list:
+            with self.sync_threads_lock:
+                for endpoint_type in endpoint_type_list:
+                    # skip creation if a thread of this endpoint type already
+                    # exists
+                    endpoint_thread_exist = False
+                    for exist_thread in self.sync_threads:
+                        if endpoint_type == exist_thread.endpoint_type:
+                            endpoint_thread_exist = True
+                            break
+                    if endpoint_thread_exist:
+                        continue
+
+                    thread = syncthread_subclass_map[endpoint_type](
+                        self, endpoint_type=endpoint_type)
+
+                    self.sync_threads.append(thread)
+                    thread.start()
+                    if self.is_ready():
+                        thread.enable()
+                        thread.initial_sync()
+
+    def remove_sync_endpoint_type(self, endpoint_type_list):
+        # Stop threads for endpoint types to be removed
+        if endpoint_type_list:
+            with self.sync_threads_lock:
+                for endpoint_type in endpoint_type_list:
+                    for thread in self.sync_threads:
+                        if thread.endpoint_type == endpoint_type:
+                            self.sync_threads.remove(thread)
+                            thread.shutdown()
+
+        # remove the endpoint types from subcloud capabilities
+        with self.capabilities_lock:
+            capabilities = self.subcloud.capabilities
+            c_endpoint_type_list = capabilities.get('endpoint_types', [])
+
+            if endpoint_type_list and c_endpoint_type_list:
+                for endpoint_type in endpoint_type_list:
+                    if endpoint_type in c_endpoint_type_list:
+                        c_endpoint_type_list.remove(endpoint_type)
+                self.subcloud.save()

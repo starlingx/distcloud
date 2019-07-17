@@ -215,6 +215,10 @@ pecan_group = cfg.OptGroup(name='pecan',
 cache_opt_group = cfg.OptGroup(name='cache',
                                title='OpenStack Credentials')
 
+openstack_cache_opt_group = cfg.OptGroup(name='openstack_cache',
+                                         title='Containerized OpenStack'
+                                               ' Credentials')
+
 snmp_opt_group = cfg.OptGroup(name='snmp',
                               title='SNMP Options')
 
@@ -227,6 +231,7 @@ def list_opts():
     yield default_quota_group.name, neutron_quotas
     yield default_quota_group.name, cinder_quotas
     yield cache_opt_group.name, cache_opts
+    yield openstack_cache_opt_group.name, cache_opts
     yield scheduler_opt_group.name, scheduler_opts
     yield pecan_group.name, pecan_opts
     yield snmp_opt_group.name, snmp_server_opts

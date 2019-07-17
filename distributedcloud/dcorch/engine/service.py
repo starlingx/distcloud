@@ -176,6 +176,7 @@ class EngineService(service.Service):
 
     @request_context
     def add_subcloud(self, ctxt, subcloud_name, sw_version):
+
         self.gsm.add_subcloud(ctxt, subcloud_name, sw_version)
 
     @request_context
@@ -211,6 +212,30 @@ class EngineService(service.Service):
             self.gsm.disable_subcloud(ctxt, subcloud_name)
             if (management_state == dcm_consts.MANAGEMENT_UNMANAGED):
                 self.fkm.reset_keys(subcloud_name)
+
+    @request_context
+    def add_subcloud_sync_endpoint_type(self, ctxt, subcloud_name,
+                                        endpoint_type_list=None):
+        try:
+            self.gsm.add_subcloud_sync_endpoint_type(
+                ctxt, subcloud_name,
+                endpoint_type_list=endpoint_type_list)
+        except Exception as ex:
+            LOG.warning('Add subcloud endpoint type failed for %s: %s',
+                        subcloud_name, six.text_type(ex))
+            raise
+
+    @request_context
+    def remove_subcloud_sync_endpoint_type(self, ctxt, subcloud_name,
+                                           endpoint_type_list=None):
+        try:
+            self.gsm.remove_subcloud_sync_endpoint_type(
+                ctxt, subcloud_name,
+                endpoint_type_list=endpoint_type_list)
+        except Exception as ex:
+            LOG.warning('Remove subcloud endpoint type failed for %s: %s',
+                        subcloud_name, six.text_type(ex))
+            raise
 
     @request_context
     # todo: add authentication since ctxt not actually needed later
