@@ -27,6 +27,8 @@
 import sys
 
 import eventlet
+eventlet.monkey_patch(os=False)
+
 from oslo_config import cfg
 from oslo_log import log as logging
 from oslo_service import systemd
@@ -43,7 +45,6 @@ from dcorch.common import messaging as dcorch_messaging
 CONF = cfg.CONF
 config.register_options()
 LOG = logging.getLogger('dcmanager.api')
-eventlet.monkey_patch(os=False)
 
 
 def main():

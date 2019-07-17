@@ -92,6 +92,7 @@ class Subcloud(BASE, DCManagerBase):
     management_gateway_ip = Column(String(255))
     management_start_ip = Column(String(255), unique=True)
     management_end_ip = Column(String(255), unique=True)
+    openstack_installed = Column(Boolean, nullable=False, default=False)
     systemcontroller_gateway_ip = Column(String(255))
     audit_fail_count = Column(Integer)
 

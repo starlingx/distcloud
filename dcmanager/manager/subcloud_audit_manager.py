@@ -22,7 +22,7 @@
 
 from oslo_log import log as logging
 
-
+from dcorch.common import consts as dcorch_consts
 from dcorch.drivers.openstack.keystone_v3 import KeystoneClient
 from dcorch.rpc import client as dcorch_rpc_client
 
@@ -38,6 +38,7 @@ from keystoneauth1 import exceptions as keystone_exceptions
 
 from fm_api import constants as fm_const
 from fm_api import fm_api
+from sysinv.common import constants as sysinv_constants
 
 LOG = logging.getLogger(__name__)
 
@@ -79,6 +80,7 @@ class SubcloudAuditManager(manager.Manager):
             management_state = subcloud.management_state
             avail_status_current = subcloud.availability_status
             audit_fail_count = subcloud.audit_fail_count
+            openstack_installed = subcloud.openstack_installed
 
             # Set defaults to None and disabled so we will still set disabled
             # status if we encounter an error.
@@ -106,6 +108,7 @@ class SubcloudAuditManager(manager.Manager):
                 LOG.exception(e)
 
             if sysinv_client:
+                # get a list of service groups in the subcloud
                 try:
                     svc_groups = sysinv_client.get_service_groups()
                 except Exception as e:
@@ -257,3 +260,61 @@ class SubcloudAuditManager(manager.Manager):
                     LOG.info('Ignoring SubcloudNotFound when attempting '
                              'audit_fail_count update: %s' % subcloud_name)
                     continue
+
+            if sysinv_client:
+                # get a list of installed apps in the subcloud
+                try:
+                    apps = sysinv_client.get_applications()
+                except Exception as e:
+                    apps = None
+                    LOG.warn('Cannot retrieve installed apps for '
+                             'subcloud:%s, %s' % (subcloud_name, e))
+
+            if apps:
+                openstack_installed_current = False
+                for app in apps:
+                    if app.name == sysinv_constants.HELM_APP_OPENSTACK\
+                            and app.active:
+                        # audit find openstack app is installed and active in
+                        # the subcloud
+                        openstack_installed_current = True
+                        break
+
+                dcm_update_func = None
+                dco_update_func = None
+                if openstack_installed_current and not openstack_installed:
+                    dcm_update_func = db_api.subcloud_status_create
+                    dco_update_func = self.dcorch_rpc_client.\
+                        add_subcloud_sync_endpoint_type
+                elif not openstack_installed_current and openstack_installed:
+                    dcm_update_func = db_api.subcloud_status_delete
+                    dco_update_func = self.dcorch_rpc_client.\
+                        remove_subcloud_sync_endpoint_type
+
+                if dcm_update_func and dco_update_func:
+                    endpoint_type_list = dcorch_consts.ENDPOINT_TYPES_LIST_OS
+                    try:
+                        # Notify dcorch to add/remove sync endpoint type list
+                        dco_update_func(self.context, subcloud_name,
+                                        endpoint_type_list)
+                        LOG.info('Notifying dcorch, subcloud: %s new sync'
+                                 ' endpoint: %s' % (subcloud_name,
+                                                    endpoint_type_list))
+                        # Update subcloud status table by adding/removing
+                        # openstack sync endpoint types.
+                        for endpoint_type in endpoint_type_list:
+                            dcm_update_func(self.context, subcloud_id,
+                                            endpoint_type)
+                        # Update openstack_installed of subcloud table
+                        db_api.subcloud_update(
+                            self.context, subcloud_id,
+                            openstack_installed=openstack_installed_current)
+                    except exceptions.SubcloudNotFound:
+                        LOG.info('Ignoring SubcloudNotFound when attempting'
+                                 ' openstack_installed update: %s'
+                                 % subcloud_name)
+                    except Exception as e:
+                        LOG.exception(e)
+                        LOG.warn('Problem informing dcorch of subcloud '
+                                 'sync endpoint type change, subcloud: %s'
+                                 % subcloud_name)

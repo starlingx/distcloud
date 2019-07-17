@@ -120,7 +120,8 @@ class SubcloudManager(manager.Manager):
                 payload['management_start_address'],
                 payload['management_end_address'],
                 payload['systemcontroller_gateway_address'],
-                consts.DEPLOY_STATE_NONE)
+                consts.DEPLOY_STATE_NONE,
+                False)
         except Exception as e:
             LOG.exception(e)
             raise e

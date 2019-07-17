@@ -205,7 +205,8 @@ def subcloud_get_all_with_status(context):
 def subcloud_create(context, name, description, location, software_version,
                     management_subnet, management_gateway_ip,
                     management_start_ip, management_end_ip,
-                    systemcontroller_gateway_ip, deploy_status):
+                    systemcontroller_gateway_ip, deploy_status,
+                    openstack_installed):
     with write_session() as session:
         subcloud_ref = models.Subcloud()
         subcloud_ref.name = name
@@ -221,6 +222,7 @@ def subcloud_create(context, name, description, location, software_version,
         subcloud_ref.systemcontroller_gateway_ip = systemcontroller_gateway_ip
         subcloud_ref.deploy_status = deploy_status
         subcloud_ref.audit_fail_count = 0
+        subcloud_ref.openstack_installed = openstack_installed
         session.add(subcloud_ref)
         return subcloud_ref
 
@@ -229,7 +231,7 @@ def subcloud_create(context, name, description, location, software_version,
 def subcloud_update(context, subcloud_id, management_state=None,
                     availability_status=None, software_version=None,
                     description=None, location=None, audit_fail_count=None,
-                    deploy_status=None):
+                    deploy_status=None, openstack_installed=None):
     with write_session() as session:
         subcloud_ref = subcloud_get(context, subcloud_id)
         if management_state is not None:
@@ -246,6 +248,8 @@ def subcloud_update(context, subcloud_id, management_state=None,
             subcloud_ref.audit_fail_count = audit_fail_count
         if deploy_status is not None:
             subcloud_ref.deploy_status = deploy_status
+        if openstack_installed is not None:
+            subcloud_ref.openstack_installed = openstack_installed
         subcloud_ref.save(session)
         return subcloud_ref
 
@@ -302,6 +306,14 @@ def subcloud_status_create(context, subcloud_id, endpoint_type):
         subcloud_status_ref.sync_status = consts.SYNC_STATUS_UNKNOWN
         session.add(subcloud_status_ref)
         return subcloud_status_ref
+
+
+@require_admin_context
+def subcloud_status_delete(context, subcloud_id, endpoint_type):
+    with write_session() as session:
+        subcloud_status_ref = subcloud_status_get(context, subcloud_id,
+                                                  endpoint_type)
+        session.delete(subcloud_status_ref)
 
 
 @require_admin_context
