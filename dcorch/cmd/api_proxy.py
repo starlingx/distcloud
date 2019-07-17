@@ -44,6 +44,9 @@ proxy_opts = [
     cfg.IntOpt('bind_port',
                default=28774,
                help='listen port for api proxy'),
+    cfg.StrOpt('sync_endpoint',
+               default=None,
+               help='The endpoint type for the enqueued sync work'),
 ]
 
 proxy_cli_opts = [
@@ -68,13 +71,13 @@ def main():
     messaging.setup()
     dcmanager_messaging.setup()
 
-    application = app.load_paste_app()
-
     if CONF.type not in consts.ENDPOINT_TYPES_LIST:
         LOG.error("Unsupported endpoint type: (%s)", CONF.type)
         sys.exit(1)
 
     CONF.register_opts(proxy_opts, CONF.type)
+
+    application = app.load_paste_app()
 
     host, port = utils.get_host_port_options(CONF)
     workers = CONF.api_workers

@@ -64,6 +64,24 @@ def get_remote_host_port_options(cfg):
         return None, None
 
 
+def get_sync_endpoint(cfg):
+    if cfg.type == consts.ENDPOINT_TYPE_COMPUTE:
+        return cfg.compute.sync_endpoint
+    elif cfg.type == consts.ENDPOINT_TYPE_PLATFORM:
+        return cfg.platform.sync_endpoint
+    elif cfg.type == consts.ENDPOINT_TYPE_NETWORK:
+        return cfg.network.sync_endpoint
+    elif cfg.type == consts.ENDPOINT_TYPE_PATCHING:
+        return cfg.patching.sync_endpoint
+    elif cfg.type == consts.ENDPOINT_TYPE_VOLUME:
+        return cfg.volume.sync_endpoint
+    elif cfg.type == consts.ENDPOINT_TYPE_IDENTITY:
+        return cfg.identity.sync_endpoint
+    else:
+        LOG.error("Type: %s is undefined! Ignoring", cfg.type)
+        return None
+
+
 def get_url_path_components(url):
     result = urlparse(url)
     return result.path.split('/')

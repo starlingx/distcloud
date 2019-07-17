@@ -55,6 +55,7 @@ class APIController(Middleware):
         self._default_dispatcher = APIDispatcher(app)
         self.rpc_client = rpc_client.EngineClient()
         self.response_hander_map = {}
+        self.sync_endpoint = proxy_utils.get_sync_endpoint(CONF)
 
     @staticmethod
     def get_status_code(response):
@@ -443,6 +444,8 @@ class IdentityAPIController(APIController):
         self.response_hander_map = {
             self.ENDPOINT_TYPE: self._process_response
         }
+        if self.sync_endpoint is None:
+            self.sync_endpoint = self.ENDPOINT_TYPE
 
     def _process_response(self, environ, request_body, response):
         if self.get_status_code(response) in self.OK_STATUS_CODE:
@@ -534,7 +537,7 @@ class IdentityAPIController(APIController):
         if resource_id:
             try:
                 utils.enqueue_work(self.ctxt,
-                                   self.ENDPOINT_TYPE,
+                                   self.sync_endpoint,
                                    resource_type,
                                    resource_id,
                                    operation_type,
