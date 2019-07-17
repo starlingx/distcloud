@@ -23,7 +23,6 @@ Implementation of SQLAlchemy backend.
 """
 
 import sys
-import threading
 
 from oslo_db.sqlalchemy import enginefacade
 from oslo_log import log as logging
@@ -36,8 +35,27 @@ from dcdbsync.common.i18n import _
 
 LOG = logging.getLogger(__name__)
 
+_main_context_manager = None
 
-_CONTEXT = threading.local()
+
+def _get_main_context_manager():
+    global _main_context_manager
+
+    if not _main_context_manager:
+        _main_context_manager = enginefacade.transaction_context()
+
+    return _main_context_manager
+
+
+_CONTEXT = None
+
+
+def _get_context():
+    global _CONTEXT
+    if _CONTEXT is None:
+        import threading
+        _CONTEXT = threading.local()
+    return _CONTEXT
 
 
 class TableRegistry(object):
@@ -59,11 +77,13 @@ registry = TableRegistry()
 
 
 def get_read_connection():
-    return enginefacade.reader.connection.using(_CONTEXT)
+    reader = _get_main_context_manager().reader
+    return reader.connection.using(_get_context())
 
 
 def get_write_connection():
-    return enginefacade.writer.connection.using(_CONTEXT)
+    writer = _get_main_context_manager().writer
+    return writer.connection.using(_get_context())
 
 
 def row2dict(table, row):
@@ -369,9 +389,50 @@ def project_update(context, project_id, payload):
         table = 'project'
         new_project_id = project_id
         if table in payload:
+            domain_ref_projects = []
+            parent_ref_projects = []
+            domain_ref_users = []
             project = payload[table]
-            update(conn, table, 'id', project_id, project)
             new_project_id = project.get('id')
+            if project_id != new_project_id:
+                domain_ref_projects = query(conn, 'project', 'domain_id',
+                                            project_id)
+                delete(conn, 'project', 'domain_id', project_id)
+                parent_ref_projects = query(conn, 'project', 'parent_id',
+                                            project_id)
+                delete(conn, 'project', 'parent_id', project_id)
+                # For user table: CONSTRAINT `user_ibfk_1`
+                # FOREIGN KEY(`domain_id`) REFERENCES `project`(`id`)
+                domain_ref_users = query(conn, 'user', 'domain_id',
+                                         project_id)
+                domain_ref_local_users = query(conn, 'local_user',
+                                               'domain_id', project_id)
+                delete(conn, 'user', 'domain_id', project_id)
+
+            # Update project table
+            update(conn, table, 'id', project_id, project)
+
+            # Update saved records from project table and insert them back
+            if domain_ref_projects:
+                for domain_ref_project in domain_ref_projects:
+                    domain_ref_project['domain_id'] = new_project_id
+                    if domain_ref_project['parent_id'] == project_id:
+                        domain_ref_project['parent_id'] = new_project_id
+                insert(conn, 'project', domain_ref_projects)
+            if parent_ref_projects:
+                for parent_ref_project in parent_ref_projects:
+                    parent_ref_project['parent_id'] = new_project_id
+                    if parent_ref_project['domain_id'] == project_id:
+                        parent_ref_project['domain_id'] = new_project_id
+                insert(conn, 'project', parent_ref_projects)
+            if domain_ref_users:
+                for domain_ref_user in domain_ref_users:
+                    domain_ref_user['domain_id'] = new_project_id
+                insert(conn, 'user', domain_ref_users)
+            if domain_ref_local_users:
+                for domain_ref_local_user in domain_ref_local_users:
+                    domain_ref_local_user['domain_id'] = new_project_id
+                insert(conn, 'local_user', domain_ref_local_users)
 
         # Need to update the target_id in assignment table
         # if the project id is updated
@@ -556,7 +617,7 @@ def revoke_event_delete_by_audit(context, audit_id):
 
 @require_admin_context
 def revoke_event_delete_by_user(context, user_id, issued_before):
+    result = revoke_event_get_by_user(context, user_id, issued_before)
+    event_id = result['revocation_event']['id']
     with get_write_connection() as conn:
-        result = revoke_event_get_by_user(context, user_id, issued_before)
-        event_id = result['revocation_event']['id']
         delete(conn, 'revocation_event', 'id', event_id)
