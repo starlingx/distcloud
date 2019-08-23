@@ -195,13 +195,14 @@ class SubcloudManager(manager.Manager):
             # get copied to the override file
             payload['ansible_become_pass'] = payload['subcloud_password']
             payload['ansible_ssh_pass'] = payload['subcloud_password']
-            payload['admin_password'] = keyring.get_password('CGCS', 'admin')
+            payload['admin_password'] = str(keyring.get_password('CGCS',
+                                                                 'admin'))
             del payload['subcloud_password']
 
             payload['users'] = dict()
             for user in USERS_TO_REPLICATE:
                 payload['users'][user] = \
-                    keyring.get_password(user, SERVICES_USER)
+                    str(keyring.get_password(user, SERVICES_USER))
 
             # Update the ansible inventory with the new subcloud
             self._update_subcloud_inventory(payload)
