@@ -30,7 +30,7 @@ wallclock = time.time
 
 
 class ThreadGroupManager(object):
-    '''Thread group manager.'''
+    """Thread group manager."""
 
     def __init__(self):
         super(ThreadGroupManager, self).__init__()
@@ -38,15 +38,15 @@ class ThreadGroupManager(object):
         self.group = threadgroup.ThreadGroup()
 
     def start(self, func, *args, **kwargs):
-        '''Run the given method in a sub-thread.'''
+        """Run the given method in a sub-thread."""
 
         return self.group.add_thread(func, *args, **kwargs)
 
     def add_timer(self, interval, func, *args, **kwargs):
-        '''Define a periodic task to be run in the thread group.
+        """Define a periodic task to be run in the thread group.
 
         The task will be executed in a separate green thread.
-        '''
+        """
 
         self.group.add_timer(interval, func, *args, **kwargs)
 
@@ -54,7 +54,7 @@ class ThreadGroupManager(object):
         self.group.stop_timers()
 
     def stop(self, graceful=False):
-        '''Stop any active threads belong to this threadgroup.'''
+        """Stop any active threads belong to this threadgroup."""
         # Try to stop all threads gracefully
         self.group.stop(graceful)
         self.group.wait()
@@ -74,10 +74,10 @@ class ThreadGroupManager(object):
 
 
 def reschedule(action, sleep_time=1):
-    '''Eventlet Sleep for the specified number of seconds.
+    """Eventlet Sleep for the specified number of seconds.
 
     :param sleep_time: seconds to sleep; if None, no sleep;
-    '''
+    """
 
     if sleep_time is not None:
         LOG.debug('Action %s sleep for %s seconds' % (
@@ -86,6 +86,6 @@ def reschedule(action, sleep_time=1):
 
 
 def sleep(sleep_time):
-    '''Interface for sleeping.'''
+    """Interface for sleeping."""
 
     eventlet.sleep(sleep_time)

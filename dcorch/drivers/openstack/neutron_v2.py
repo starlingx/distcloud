@@ -24,7 +24,7 @@ API_VERSION = '2.0'
 
 
 class NeutronClient(base.DriverBase):
-    '''Neutron V2 driver.'''
+    """Neutron V2 driver."""
     def __init__(self, region, disabled_quotas, session, endpoint_type):
         try:
             self.neutron = client.Client(
@@ -42,11 +42,11 @@ class NeutronClient(base.DriverBase):
             raise
 
     def get_resource_usages(self, project_id):
-        '''Calcualte resources usage and return the dict
+        """Calcualte resources usage and return the dict
 
         :param: project_id
         :return: resource usage dict
-        '''
+        """
         if not self.no_network:
             try:
                 usages = defaultdict(dict)
@@ -95,10 +95,10 @@ class NeutronClient(base.DriverBase):
                     raise
 
     def get_quota_limits(self, project_id):
-        '''Get the limits
+        """Get the limits
 
         TODO: support the rest of the limits
-        '''
+        """
         try:
             resource_limit = {}
             if not self.no_network:
@@ -109,7 +109,7 @@ class NeutronClient(base.DriverBase):
             raise
 
     def update_quota_limits(self, project_id, new_quota):
-        '''Update the limits'''
+        """Update the limits"""
         try:
             if not self.no_network:
                 return self.neutron.update_quota(project_id,
@@ -118,7 +118,7 @@ class NeutronClient(base.DriverBase):
             raise
 
     def delete_quota_limits(self, project_id):
-        '''Delete/Reset the limits'''
+        """Delete/Reset the limits"""
         try:
             if not self.no_network:
                 return self.neutron.delete_quota(project_id)

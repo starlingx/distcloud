@@ -17,9 +17,9 @@
 # of an applicable Wind River license agreement.
 #
 
-'''
+"""
 Client side of the DC Manager RPC API.
-'''
+"""
 
 from oslo_log import log as logging
 

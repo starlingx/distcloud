@@ -19,11 +19,11 @@
 # of this software may be licensed only pursuant to the terms
 # of an applicable Wind River license agreement.
 #
-'''
+"""
 Interface for database access.
 
 SQLAlchemy is currently the only supported backend.
-'''
+"""
 
 from oslo_config import cfg
 from oslo_db import api

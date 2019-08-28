@@ -28,11 +28,11 @@ ALLOWED_WITHOUT_AUTH = '/'
 
 
 class RequestContext(base_context.RequestContext):
-    '''Stores information about the security context.
+    """Stores information about the security context.
 
     The context encapsulates information related to the user accessing the
     the system, as well as additional request information.
-    '''
+    """
 
     def __init__(self, auth_token=None, user=None, project=None,
                  domain=None, user_domain=None, project_domain=None,
@@ -43,7 +43,7 @@ class RequestContext(base_context.RequestContext):
                  auth_token_info=None, region_name=None, roles=None,
                  password=None, **kwargs):
 
-        '''Initializer of request context.'''
+        # Initializer of request context.
         # We still have 'tenant' param because oslo_context still use it.
         super(RequestContext, self).__init__(
             auth_token=auth_token, user=user, tenant=project,
@@ -123,7 +123,7 @@ def get_admin_context(show_deleted=False):
 
 
 def get_service_context(**args):
-    '''An abstraction layer for getting service context.'''
+    """An abstraction layer for getting service context."""
 
     pass
 

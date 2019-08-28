@@ -10,9 +10,9 @@
 # License for the specific language governing permissions and limitations
 # under the License.
 
-'''
+"""
 Base class for all drivers.
-'''
+"""
 
 import abc
 import six
@@ -25,7 +25,7 @@ LOG = logging.getLogger(__name__)
 class DriverBase(object):
 
     six.add_metaclass(abc.ABCMeta)
-    '''Base class for all drivers.'''
+    """Base class for all drivers."""
 
     def __init__(self, context):
         self.context = context

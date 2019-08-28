@@ -23,7 +23,7 @@ API_VERSION = '2'
 
 
 class CinderClient(base.DriverBase):
-    '''Cinder V2 driver.'''
+    """Cinder V2 driver."""
 
     def __init__(self, region, disabled_quotas, session, endpoint_type):
         try:

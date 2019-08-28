@@ -18,11 +18,11 @@
 # SPDX-License-Identifier: Apache-2.0
 #
 
-'''
+"""
 Interface for database access.
 
 SQLAlchemy is currently the only supported backend.
-'''
+"""
 
 from oslo_config import cfg
 from oslo_db import api
