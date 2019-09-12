@@ -1309,7 +1309,7 @@ class SysinvSyncThread(SyncThread):
                 resource_type),
                 extra=self.log_extra)
 
-    def audit_discrepancy(self, resource_type, m_resource):
+    def audit_discrepancy(self, resource_type, m_resource, sc_resources):
         # Return true to try the audit_action
         if resource_type in self.SYSINV_ADD_DELETE_RESOURCES:
             # It could be that the details are different
