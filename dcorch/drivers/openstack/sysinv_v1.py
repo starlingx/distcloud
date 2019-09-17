@@ -11,9 +11,7 @@
 # under the License.
 
 import hashlib
-import os
 import six
-import tsconfig.tsconfig as tsc
 
 from cgtsclient import client as cgts_client
 from cgtsclient.exc import HTTPConflict
@@ -469,76 +467,6 @@ class SysinvClient(base.DriverBase):
             raise exceptions.SyncRequestFailedRetry()
 
         return remotelogging
-
-    def get_firewallrules(self):
-        """Get the firewallrules for this region
-
-           :return: firewallrules
-        """
-        try:
-            firewallruless = self.client.firewallrules.list()
-            firewallrules = firewallruless[0]
-        except Exception as e:
-            LOG.error("get_firewallrules region={} "
-                      "exception={}".format(self.region_name, e))
-            raise exceptions.SyncRequestFailedRetry()
-
-        if not firewallrules:
-            LOG.info("firewallrules is None for region: {}".format(
-                self.region_name))
-
-        else:
-            LOG.info("get_firewallrules uuid=%s firewall_sig=%s" %
-                     (firewallrules.uuid, firewallrules.firewall_sig))
-
-        return firewallrules
-
-    def _validate_firewallrules(self, firewall_sig, firewallrules):
-        firewallrules_sig = hashlib.md5(firewallrules).hexdigest()
-
-        if firewallrules_sig == firewall_sig:
-            return True
-
-        LOG.info("_validate_firewallrules region={} sig={} mismatch "
-                 "reference firewall_sig={}".format(
-                     self.region_name, firewallrules_sig, firewall_sig))
-        return False
-
-    def update_firewallrules(self,
-                             firewall_sig,
-                             firewallrules=None):
-        """Update the firewallrules for this region
-
-           :param: firewall_sig
-           :param: firewallrules
-           :return: ifirewallrules
-        """
-
-        if not firewallrules:
-            # firewallrules not provided, obtain from SystemController
-            firewall_rules_file = os.path.join(
-                tsc.CONFIG_PATH,
-                sysinv_constants.FIREWALL_RULES_FILE)
-
-            with open(firewall_rules_file, 'r') as content_file:
-                firewallrules = content_file.read()
-
-            LOG.info("update_firewallrules from shared file={}".format(
-                firewallrules))
-
-        if not self._validate_firewallrules(firewall_sig, firewallrules):
-            raise exceptions.SyncRequestFailedRetry()
-
-        try:
-            ifirewallrules = self.client.firewallrules.import_firewall_rules(
-                firewallrules)
-            LOG.info("region={} firewallrules uuid={} firewall_sig={}".format(
-                self.region_name, ifirewallrules.get('uuid'), firewall_sig))
-        except Exception as e:
-            LOG.error("update_firewallrules exception={}".format(e))
-            raise exceptions.SyncRequestFailedRetry()
-
-        return ifirewallrules
 
     def get_certificates(self):
         """Get the certificates for this region

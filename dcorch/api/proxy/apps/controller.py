@@ -394,13 +394,9 @@ class SysinvAPIController(APIController):
         request_header = self.get_request_header(environ)
         operation_type = proxy_utils.get_operation_type(environ)
         resource_type = self._get_resource_type_from_environ(environ)
-        # Firewall rule and certificate need special processing
+        # certificate need special processing
         p_resource_info = 'suppressed'
-        if resource_type == consts.RESOURCE_TYPE_SYSINV_FIREWALL_RULES:
-            resource_info['payload'] = request_body
-            resource = json.loads(response.body)[resource_type]
-            resource_id = resource['firewall_sig']
-        elif resource_type == consts.RESOURCE_TYPE_SYSINV_CERTIFICATE:
+        if resource_type == consts.RESOURCE_TYPE_SYSINV_CERTIFICATE:
             resource_info['payload'] = request_body
             resource_info['content_type'] = environ.get('CONTENT_TYPE')
             resource = json.loads(response.body)[resource_type]

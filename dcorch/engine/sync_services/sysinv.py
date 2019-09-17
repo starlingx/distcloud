@@ -44,11 +44,9 @@ class SysinvSyncThread(SyncThread):
     SYSINV_ADD_DELETE_RESOURCES = [consts.RESOURCE_TYPE_SYSINV_SNMP_COMM,
                                    consts.RESOURCE_TYPE_SYSINV_SNMP_TRAPDEST]
 
-    SYSINV_CREATE_RESOURCES = [consts.RESOURCE_TYPE_SYSINV_FIREWALL_RULES,
-                               consts.RESOURCE_TYPE_SYSINV_CERTIFICATE,
+    SYSINV_CREATE_RESOURCES = [consts.RESOURCE_TYPE_SYSINV_CERTIFICATE,
                                consts.RESOURCE_TYPE_SYSINV_FERNET_REPO]
 
-    FIREWALL_SIG_NULL = 'NoCustomFirewallRules'
     CERTIFICATE_SIG_NULL = 'NoCertificate'
     RESOURCE_UUID_NULL = 'NoResourceUUID'
 
@@ -66,8 +64,6 @@ class SysinvSyncThread(SyncThread):
                 self.sync_snmp_trapdest,
             consts.RESOURCE_TYPE_SYSINV_REMOTE_LOGGING:
                 self.sync_remotelogging,
-            consts.RESOURCE_TYPE_SYSINV_FIREWALL_RULES:
-                self.sync_firewallrules,
             consts.RESOURCE_TYPE_SYSINV_CERTIFICATE:
                 self.sync_certificate,
             consts.RESOURCE_TYPE_SYSINV_USER: self.sync_user,
@@ -81,7 +77,6 @@ class SysinvSyncThread(SyncThread):
         self.audit_resources = [
             consts.RESOURCE_TYPE_SYSINV_CERTIFICATE,
             consts.RESOURCE_TYPE_SYSINV_DNS,
-            consts.RESOURCE_TYPE_SYSINV_FIREWALL_RULES,
             consts.RESOURCE_TYPE_SYSINV_NTP,
             consts.RESOURCE_TYPE_SYSINV_PTP,
             consts.RESOURCE_TYPE_SYSINV_REMOTE_LOGGING,
@@ -531,78 +526,6 @@ class SysinvSyncThread(SyncThread):
                  iremotelogging.uuid),
                  extra=self.log_extra)
 
-    def update_firewallrules(self, firewall_sig, firewallrules=None):
-
-        s_os_client = sdk.OpenStackDriver(self.region_name)
-        try:
-            ifirewallrules = s_os_client.sysinv_client.update_firewallrules(
-                firewall_sig, firewallrules=firewallrules)
-            return ifirewallrules
-        except (exceptions.ConnectionRefused, exceptions.NotAuthorized,
-                exceptions.TimeOut):
-            LOG.info("update_firewallrules exception Timeout",
-                     extra=self.log_extra)
-            s_os_client.delete_region_clients(self.region_name)
-            raise exceptions.SyncRequestTimeout
-        except (AttributeError, TypeError) as e:
-            LOG.info("update_firewallrules error {} region_name".format(e),
-                     extra=self.log_extra)
-            s_os_client.delete_region_clients(self.region_name,
-                                              clear_token=True)
-            raise exceptions.SyncRequestFailedRetry
-        except Exception as e:
-            LOG.exception(e)
-            raise exceptions.SyncRequestFailedRetry
-
-    def sync_firewallrules(self, request, rsrc):
-        # The system is not created with default firewallrules
-        LOG.info("sync_firewallrules resource_info={}".format(
-                 request.orch_job.resource_info),
-                 extra=self.log_extra)
-        firewallrules_dict = jsonutils.loads(request.orch_job.resource_info)
-        payload = firewallrules_dict.get('payload')
-        # payload is the contents of the POST operation
-
-        if not payload:
-            LOG.info("sync_firewallrules No payload found in resource_info"
-                     "{}".format(request.orch_job.resource_info),
-                     extra=self.log_extra)
-            return
-
-        if isinstance(payload, dict):
-            firewall_sig = payload.get('firewall_sig')
-        else:
-            firewall_sig = rsrc.master_id
-            LOG.info("firewall_sig from master_id={}".format(firewall_sig))
-
-        ifirewallrules = None
-        if firewall_sig:
-            ifirewallrules = self.update_firewallrules(firewall_sig)
-        else:
-            firewall_sig = rsrc.master_id
-            if firewall_sig and firewall_sig != self.FIREWALL_SIG_NULL:
-                ifirewallrules = self.update_firewallrules(
-                    firewall_sig,
-                    firewallrules=payload)
-            else:
-                LOG.info("skipping firewall_sig={}".format(firewall_sig))
-
-        ifirewallrules_sig = None
-        try:
-            ifirewallrules_sig = \
-                ifirewallrules.get('firewallrules').get('firewall_sig')
-        except Exception as e:
-            LOG.warn("No ifirewallrules={} unknown e={}".format(
-                ifirewallrules, e))
-
-        # Ensure subcloud resource is persisted to the DB for later
-        subcloud_rsrc_id = self.persist_db_subcloud_resource(
-            rsrc.id, firewall_sig)
-
-        LOG.info("firewallrules {} {} [{}/{}] updated".format(rsrc.id,
-                 subcloud_rsrc_id, ifirewallrules_sig, firewall_sig),
-                 extra=self.log_extra)
-
     def update_certificate(self, signature, certificate=None, data=None):
 
         s_os_client = sdk.OpenStackDriver(self.region_name)
@@ -869,8 +792,6 @@ class SysinvSyncThread(SyncThread):
             return self.get_snmp_trapdest_resources(os_client)
         elif resource_type == consts.RESOURCE_TYPE_SYSINV_REMOTE_LOGGING:
             return [self.get_remotelogging_resource(os_client)]
-        elif resource_type == consts.RESOURCE_TYPE_SYSINV_FIREWALL_RULES:
-            return [self.get_firewallrules_resource(os_client)]
         elif resource_type == consts.RESOURCE_TYPE_SYSINV_CERTIFICATE:
             return self.get_certificates_resources(os_client)
         elif resource_type == consts.RESOURCE_TYPE_SYSINV_USER:
@@ -896,8 +817,6 @@ class SysinvSyncThread(SyncThread):
             return self.get_snmp_trapdest_resources(os_client)
         elif resource_type == consts.RESOURCE_TYPE_SYSINV_REMOTE_LOGGING:
             return [self.get_remotelogging_resource(os_client)]
-        elif resource_type == consts.RESOURCE_TYPE_SYSINV_FIREWALL_RULES:
-            return [self.get_firewallrules_resource(os_client)]
         elif resource_type == consts.RESOURCE_TYPE_SYSINV_CERTIFICATE:
             return self.get_certificates_resources(os_client)
         elif resource_type == consts.RESOURCE_TYPE_SYSINV_USER:
@@ -1036,27 +955,6 @@ class SysinvSyncThread(SyncThread):
             LOG.exception(e)
             return None
 
-    def get_firewallrules_resource(self, os_client):
-        try:
-            ifirewallrules = os_client.sysinv_client.get_firewallrules()
-            return ifirewallrules
-        except (keystone_exceptions.connection.ConnectTimeout,
-                keystone_exceptions.ConnectFailure) as e:
-            LOG.info("get_firewallrules: subcloud {} is not reachable [{}]"
-                     .format(self.subcloud_engine.subcloud.region_name,
-                             str(e)), extra=self.log_extra)
-            # None will force skip of audit
-            os_client.delete_region_clients(self.region_name)
-            return None
-        except (AttributeError, TypeError) as e:
-            LOG.info("get_firewallrules_resource error {}".format(e),
-                     extra=self.log_extra)
-            os_client.delete_region_clients(self.region_name, clear_token=True)
-            return None
-        except Exception as e:
-            LOG.exception(e)
-            return None
-
     def get_certificates_resources(self, os_client):
         try:
             return os_client.sysinv_client.get_certificates()
@@ -1130,21 +1028,6 @@ class SysinvSyncThread(SyncThread):
                           "community".format(resource),
                           extra=self.log_extra)
                 return resource.ip_address
-        elif resource_type == consts.RESOURCE_TYPE_SYSINV_FIREWALL_RULES:
-            if hasattr(resource, 'firewall_sig'):
-                LOG.info("get_resource_id firewall_sig={}".format(
-                    resource.firewall_sig))
-                if resource.firewall_sig is None:
-                    return self.FIREWALL_SIG_NULL  # master_id cannot be None
-                return resource.firewall_sig
-            elif hasattr(resource, 'master_id'):
-                LOG.info("get_resource_id master_id firewall_sig={}".format(
-                    resource.master_id))
-                if resource.master_id is None:
-                    return self.FIREWALL_SIG_NULL  # master_id cannot be None
-                return resource.master_id
-            else:
-                LOG.error("no get_resource_id for firewall")
         elif resource_type == consts.RESOURCE_TYPE_SYSINV_CERTIFICATE:
             if hasattr(resource, 'signature'):
                 LOG.info("get_resource_id signature={}".format(
@@ -1234,19 +1117,6 @@ class SysinvSyncThread(SyncThread):
                 i1.transport == i2.transport and
                 i1.port == i2.port)
 
-    def same_firewallrules(self, i1, i2):
-        LOG.debug("same_firewallrules i1={}, i2={}".format(i1, i2),
-                  extra=self.log_extra)
-        same = True
-        if i1.firewall_sig and (i1.firewall_sig != i2.firewall_sig):
-            if i1.firewall_sig == self.FIREWALL_SIG_NULL:
-                return True
-            LOG.info("same_firewallrules differ i1={}, i2={}".format(i1, i2),
-                     extra=self.log_extra)
-            same = False
-
-        return same
-
     def same_certificate(self, i1, i2):
         LOG.debug("same_certificate i1={}, i2={}".format(i1, i2),
                   extra=self.log_extra)
@@ -1296,8 +1166,6 @@ class SysinvSyncThread(SyncThread):
             return self.same_snmp_trapdest(m_resource, sc_resource)
         elif resource_type == consts.RESOURCE_TYPE_SYSINV_REMOTE_LOGGING:
             return self.same_remotelogging(m_resource, sc_resource)
-        elif resource_type == consts.RESOURCE_TYPE_SYSINV_FIREWALL_RULES:
-            return self.same_firewallrules(m_resource, sc_resource)
         elif resource_type == consts.RESOURCE_TYPE_SYSINV_CERTIFICATE:
             return self.same_certificate(m_resource, sc_resource)
         elif resource_type == consts.RESOURCE_TYPE_SYSINV_USER:
@@ -1363,10 +1231,7 @@ class SysinvSyncThread(SyncThread):
             resource_id = self.get_resource_id(resource_type, resource)
             if finding == AUDIT_RESOURCE_MISSING:
                 # default action is create for a 'missing' resource
-                if resource_id == self.FIREWALL_SIG_NULL:
-                    LOG.info("No custom firewall resource to sync")
-                    return num_of_audit_jobs
-                elif resource_id == self.CERTIFICATE_SIG_NULL:
+                if resource_id == self.CERTIFICATE_SIG_NULL:
                     LOG.info("No certificate resource to sync")
                     return num_of_audit_jobs
                 elif resource_id == self.RESOURCE_UUID_NULL:
@@ -1396,7 +1261,6 @@ class SysinvSyncThread(SyncThread):
                              consts.RESOURCE_TYPE_SYSINV_SNMP_COMM,
                              consts.RESOURCE_TYPE_SYSINV_SNMP_TRAPDEST,
                              consts.RESOURCE_TYPE_SYSINV_REMOTE_LOGGING,
-                             consts.RESOURCE_TYPE_SYSINV_FIREWALL_RULES,
                              consts.RESOURCE_TYPE_SYSINV_CERTIFICATE,
                              consts.RESOURCE_TYPE_SYSINV_USER,
                              ]
