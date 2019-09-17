@@ -22,6 +22,7 @@
 
 import datetime
 import filecmp
+import json
 import keyring
 import netaddr
 import os
@@ -348,7 +349,7 @@ class SubcloudManager(manager.Manager):
             )
 
             for k, v in payload.items():
-                f_out_overrides_file.write("%s: %s\n" % (k, v))
+                f_out_overrides_file.write("%s: %s\n" % (k, json.dumps(v)))
 
     def _delete_subcloud_routes(self, context, subcloud):
         """Delete the routes to this subcloud"""
