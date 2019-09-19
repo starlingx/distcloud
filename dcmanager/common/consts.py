@@ -91,6 +91,8 @@ SW_UPDATE_DEFAULT_TITLE = "all clouds default"
 
 # Subcloud deploy status states
 DEPLOY_STATE_NONE = 'not-deployed'
+DEPLOY_STATE_BOOTSTRAPPING = 'bootstrapping'
+DEPLOY_STATE_BOOTSTRAP_FAILED = 'bootstrap-failed'
 DEPLOY_STATE_DEPLOYING = 'deploying'
+DEPLOY_STATE_DEPLOY_FAILED = 'deploy-failed'
 DEPLOY_STATE_DONE = 'complete'
-DEPLOY_STATE_FAILED = 'failed'

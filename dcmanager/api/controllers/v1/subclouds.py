@@ -25,6 +25,7 @@ from netaddr import IPRange
 from oslo_config import cfg
 from oslo_log import log as logging
 from oslo_messaging import RemoteError
+import yaml
 
 import pecan
 from pecan import expose
@@ -377,7 +378,7 @@ class SubcloudsController(object):
         context = restcomm.extract_context_from_environ()
 
         if subcloud_ref is None:
-            payload = eval(request.body)
+            payload = yaml.safe_load(request.body)
 
             if not payload:
                 pecan.abort(400, _('Body required'))

@@ -60,7 +60,7 @@ ADDN_HOSTS_DC = 'dnsmasq.addn_hosts_dc'
 ANSIBLE_OVERRIDES_PATH = '/opt/dc/ansible'
 ANSIBLE_SUBCLOUD_INVENTORY_FILE = 'subclouds.yml'
 ANSIBLE_SUBCLOUD_PLAYBOOK = \
-    '/usr/share/ansible/stx-ansible/playbooks/bootstrap/bootstrap.yml'
+    '/usr/share/ansible/stx-ansible/playbooks/bootstrap.yml'
 
 DC_LOG_DIR = '/var/log/dcmanager/'
 
@@ -198,6 +198,15 @@ class SubcloudManager(manager.Manager):
             payload['ansible_ssh_pass'] = payload['subcloud_password']
             payload['admin_password'] = str(keyring.get_password('CGCS',
                                                                  'admin'))
+
+            if "deploy_playbook" in payload:
+                payload['deploy_values']['ansible_become_pass'] = \
+                    payload['subcloud_password']
+                payload['deploy_values']['ansible_ssh_pass'] = \
+                    payload['subcloud_password']
+                payload['deploy_values']['admin_password'] = \
+                    str(keyring.get_password('CGCS', 'admin'))
+
             del payload['subcloud_password']
 
             payload['users'] = dict()
@@ -211,11 +220,14 @@ class SubcloudManager(manager.Manager):
             # Write this subclouds overrides to file
             self._write_subcloud_ansible_config(context, payload)
 
-            # Update the subcloud to deploying
+            if "deploy_playbook" in payload:
+                self._write_deploy_files(payload)
+
+            # Update the subcloud to bootstrapping
             try:
                 db_api.subcloud_update(
                     context, subcloud.id,
-                    deploy_status=consts.DEPLOY_STATE_DEPLOYING)
+                    deploy_status=consts.DEPLOY_STATE_BOOTSTRAPPING)
             except Exception as e:
                 LOG.exception(e)
                 raise e
@@ -233,9 +245,22 @@ class SubcloudManager(manager.Manager):
                 "-e", str("override_files_dir='%s' region_name=%s") % (
                     ANSIBLE_OVERRIDES_PATH, subcloud.name)]
 
+            deploy_command = None
+            if "deploy_playbook" in payload:
+                deploy_command = [
+                    "ansible-playbook", ANSIBLE_OVERRIDES_PATH + '/' +
+                    payload['name'] + "_deploy.yml",
+                    "-e", "@%s" % ANSIBLE_OVERRIDES_PATH + "/" +
+                          payload['name'] + "_deploy_values.yml",
+                    "-i",
+                    ANSIBLE_OVERRIDES_PATH + '/' +
+                    ANSIBLE_SUBCLOUD_INVENTORY_FILE,
+                    "--limit", subcloud.name
+                ]
+
             apply_thread = threading.Thread(
-                target=self.run_bootstrap,
-                args=(apply_command, subcloud, context))
+                target=self.run_deploy,
+                args=(apply_command, deploy_command, subcloud, context))
             apply_thread.start()
 
             return db_api.subcloud_db_model_to_dict(subcloud)
@@ -249,11 +274,13 @@ class SubcloudManager(manager.Manager):
             raise e
 
     @staticmethod
-    def run_bootstrap(apply_command, subcloud, context):
+    def run_deploy(apply_command, deploy_command, subcloud, context):
         # Run the ansible boostrap-subcloud playbook
-        with open(DC_LOG_DIR + subcloud.name + '_' +
-                  str(datetime.datetime.now().strftime('%Y-%m-%d-%H-%M-%S')) +
-                  '.log', "w") as f_out_log:
+        log_file = \
+            DC_LOG_DIR + subcloud.name + '_bootstrap_' + \
+            str(datetime.datetime.now().strftime('%Y-%m-%d-%H-%M-%S')) \
+            + '.log'
+        with open(log_file, "w") as f_out_log:
             try:
                 subprocess.check_call(apply_command,
                                       stdout=f_out_log,
@@ -263,18 +290,48 @@ class SubcloudManager(manager.Manager):
                       " for subcloud %s, check individual log at " \
                       "%s for detailed output." % (
                           subcloud.name,
-                          DC_LOG_DIR + subcloud.name)
+                          log_file)
                 ex.cmd = 'ansible-playbook'
                 LOG.error(msg)
                 db_api.subcloud_update(
                     context, subcloud.id,
-                    deploy_status=consts.DEPLOY_STATE_FAILED)
+                    deploy_status=consts.DEPLOY_STATE_BOOTSTRAP_FAILED)
                 return
-            LOG.info("Successfully deployed subcloud %s" %
+            LOG.info("Successfully bootstrapped subcloud %s" %
                      subcloud.name)
+
+        if deploy_command:
+            # Run the custom deploy playbook
             db_api.subcloud_update(
                 context, subcloud.id,
-                deploy_status=consts.DEPLOY_STATE_DONE)
+                deploy_status=consts.DEPLOY_STATE_DEPLOYING)
+            log_file = \
+                DC_LOG_DIR + subcloud.name + '_deploy_' + \
+                str(datetime.datetime.now().strftime('%Y-%m-%d-%H-%M-%S')) \
+                + '.log'
+            with open(log_file, "w") as f_out_log:
+                try:
+                    subprocess.check_call(deploy_command,
+                                          stdout=f_out_log,
+                                          stderr=f_out_log)
+                except subprocess.CalledProcessError as ex:
+                    msg = "Failed to run the subcloud deploy playbook" \
+                          " for subcloud %s, check individual log at " \
+                          "%s for detailed output." % (
+                              subcloud.name,
+                              log_file)
+                    ex.cmd = 'deploy-playbook'
+                    LOG.error(msg)
+                    db_api.subcloud_update(
+                        context, subcloud.id,
+                        deploy_status=consts.DEPLOY_STATE_DEPLOY_FAILED)
+                    return
+                LOG.info("Successfully deployed subcloud %s" %
+                         subcloud.name)
+
+        db_api.subcloud_update(
+            context, subcloud.id,
+            deploy_status=consts.DEPLOY_STATE_DONE)
 
     def _create_addn_hosts_dc(self, context):
         """Generate the addn_hosts_dc file for hostname/ip translation"""
@@ -349,7 +406,21 @@ class SubcloudManager(manager.Manager):
             )
 
             for k, v in payload.items():
-                f_out_overrides_file.write("%s: %s\n" % (k, json.dumps(v)))
+                if k not in ['deploy_playbook', 'deploy_values']:
+                    f_out_overrides_file.write("%s: %s\n" % (k, json.dumps(v)))
+
+    def _write_deploy_files(self, payload):
+        """Create the deploy playbook and value files for the subcloud"""
+
+        deploy_playbook_file = os.path.join(
+            ANSIBLE_OVERRIDES_PATH, payload['name'] + '_deploy.yml')
+        deploy_values_file = os.path.join(
+            ANSIBLE_OVERRIDES_PATH, payload['name'] + '_deploy_values.yml')
+
+        with open(deploy_playbook_file, 'w') as f_out_deploy_playbook_file:
+            json.dump(payload['deploy_playbook'], f_out_deploy_playbook_file)
+        with open(deploy_values_file, 'w') as f_out_deploy_values_file:
+            json.dump(payload['deploy_values'], f_out_deploy_values_file)
 
     def _delete_subcloud_routes(self, context, subcloud):
         """Delete the routes to this subcloud"""
