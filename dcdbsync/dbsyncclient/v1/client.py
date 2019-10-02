@@ -36,6 +36,8 @@ import six
 
 
 _DEFAULT_DBSYNC_AGENT_URL = "http://localhost:8219/v1.0"
+# default HTTP request timeout in seconds
+_DEFAULT_REQUEST_TIMEOUT = 15
 
 
 class Client(object):
@@ -90,7 +92,8 @@ class Client(object):
             project_id,
             user_id,
             cacert=cacert,
-            insecure=insecure
+            insecure=insecure,
+            request_timeout=_DEFAULT_REQUEST_TIMEOUT,
         )
 
         # Create all managers

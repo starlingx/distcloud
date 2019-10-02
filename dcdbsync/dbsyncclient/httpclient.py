@@ -45,12 +45,13 @@ def log_request(func):
 
 class HTTPClient(object):
     def __init__(self, base_url, token=None, project_id=None, user_id=None,
-                 cacert=None, insecure=False):
+                 cacert=None, insecure=False, request_timeout=None):
         self.base_url = base_url
         self.token = token
         self.project_id = project_id
         self.user_id = user_id
         self.ssl_options = {}
+        self.request_timeout = request_timeout
 
         if self.base_url.startswith('https'):
             if cacert and not os.path.exists(cacert):
@@ -70,7 +71,8 @@ class HTTPClient(object):
 
         try:
             url = self.base_url + url
-            return requests.get(url, **options)
+            timeout = self.request_timeout
+            return requests.get(url, timeout=timeout, **options)
         except requests.exceptions.Timeout:
             msg = 'Request to %s timed out' % url
             raise exceptions.ConnectTimeout(msg)
@@ -87,7 +89,8 @@ class HTTPClient(object):
 
         try:
             url = self.base_url + url
-            return requests.post(url, body, **options)
+            timeout = self.request_timeout
+            return requests.post(url, body, timeout=timeout, **options)
         except requests.exceptions.Timeout:
             msg = 'Request to %s timed out' % url
             raise exceptions.ConnectTimeout(msg)
@@ -104,7 +107,8 @@ class HTTPClient(object):
 
         try:
             url = self.base_url + url
-            return requests.put(url, body, **options)
+            timeout = self.request_timeout
+            return requests.put(url, body, timeout=timeout, **options)
         except requests.exceptions.Timeout:
             msg = 'Request to %s timed out' % url
             raise exceptions.ConnectTimeout(msg)
@@ -121,7 +125,8 @@ class HTTPClient(object):
 
         try:
             url = self.base_url + url
-            return requests.patch(url, body, **options)
+            timeout = self.request_timeout
+            return requests.patch(url, body, timeout=timeout, **options)
         except requests.exceptions.Timeout:
             msg = 'Request to %s timed out' % url
             raise exceptions.ConnectTimeout(msg)
@@ -138,7 +143,8 @@ class HTTPClient(object):
 
         try:
             url = self.base_url + url
-            return requests.delete(url, **options)
+            timeout = self.request_timeout
+            return requests.delete(url, timeout=timeout, **options)
         except requests.exceptions.Timeout:
             msg = 'Request to %s timed out' % url
             raise exceptions.ConnectTimeout(msg)
