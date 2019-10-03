@@ -20,6 +20,8 @@
 import sys
 
 import eventlet
+eventlet.monkey_patch(os=False)
+
 from oslo_config import cfg
 from oslo_log import log as logging
 from oslo_service import systemd
@@ -58,7 +60,6 @@ config.register_options()
 CONF.register_cli_opts(proxy_cli_opts)
 
 LOG = logging.getLogger('dcorch.api.proxy')
-eventlet.monkey_patch(os=False)
 
 
 def main():
