@@ -121,7 +121,7 @@ class Client(object):
 
 def authenticate(dbsync_agent_url=None, username=None,
                  api_key=None, project_name=None, auth_url=None,
-                 project_id=None, endpoint_type='publicURL',
+                 project_id=None, endpoint_type='internalURL',
                  service_type='dcorch-dbsync', auth_token=None, user_id=None,
                  session=None, cacert=None, insecure=False, **kwargs):
     """Get token, project_id, user_id and Endpoint."""
