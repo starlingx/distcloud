@@ -86,6 +86,7 @@ class DBAPISubcloudTest(base.DCManagerTestCase):
             'management_end_ip': "192.168.101.50",
             'systemcontroller_gateway_ip': "192.168.204.101",
             'deploy_status': "not-deployed",
+            'openstack_installed': False,
         }
         values.update(kwargs)
         return db_api.subcloud_create(ctxt, **values)
@@ -104,6 +105,7 @@ class DBAPISubcloudTest(base.DCManagerTestCase):
             'systemcontroller_gateway_ip': data[
                 'systemcontroller_gateway_address'],
             'deploy_status': "not-deployed",
+            'openstack_installed': False,
         }
         return db_api.subcloud_create(ctxt, **values)
 

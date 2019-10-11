@@ -124,3 +124,9 @@ class SysinvClient(base.DriverBase):
     def get_loads(self):
         """Get a list of loads."""
         return self.sysinv_client.load.list()
+
+    def get_applications(self):
+        """Get a list of containerized applications"""
+
+        # Get a list of containerized applications the system knows of
+        return self.sysinv_client.app.list()
