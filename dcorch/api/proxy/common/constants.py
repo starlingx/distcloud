@@ -1,4 +1,4 @@
-# Copyright 2017 Wind River
+# Copyright 2017-2019 Wind River
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -14,6 +14,8 @@
 # limitations under the License.
 
 from dcorch.common import consts
+
+VERSION_ROOT = '/{version:.*?}'
 
 # Compute
 FLAVOR_RESOURCE_TAG = 'flavors'

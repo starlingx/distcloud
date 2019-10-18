@@ -152,39 +152,50 @@ class SubcloudManager(manager.Manager):
                         payload['systemcontroller_gateway_address'],
                         1)
 
-            # Create identity endpoints to this subcloud on the
+            # Create endpoints to this subcloud on the
             # management-start-ip of the subcloud which will be allocated
             # as the floating Management IP of the Subcloud if the
-            # Address Pool is not shared. Incase the endpoint entry
-            # is incorrect, or the management IP of the subcloud is changed
+            # Address Pool is not shared. Incase the endpoint entries
+            # are incorrect, or the management IP of the subcloud is changed
             # in the future, it will not go managed or will show up as
             # out of sync. To fix this use Openstack endpoint commands
-            # on the SystemController to change the subcloud endpoint
-            ks_service_id = None
+            # on the SystemController to change the subcloud endpoints.
+            # The non-identity endpoints are added to facilitate horizon access
+            # from the System Controller to the subcloud.
+            endpoint_config = []
+            endpoint_ip = payload['management_start_address']
+            if netaddr.IPAddress(endpoint_ip).version == 6:
+                endpoint_ip = '[' + endpoint_ip + ']'
+
             for service in m_ks_client.services_list:
+                if service.type == dcorch_consts.ENDPOINT_TYPE_PLATFORM:
+                    endpoint_url = "http://{}:6385/v1".format(endpoint_ip)
+                    endpoint_config.append((service.id, endpoint_url))
                 if service.type == dcorch_consts.ENDPOINT_TYPE_IDENTITY:
-                    ks_service_id = service.id
-                    break
-            else:
+                    endpoint_url = "http://{}:5000/v3".format(endpoint_ip)
+                    endpoint_config.append((service.id, endpoint_url))
+                if service.type == dcorch_consts.ENDPOINT_TYPE_PATCHING:
+                    endpoint_url = "http://{}:5491".format(endpoint_ip)
+                    endpoint_config.append((service.id, endpoint_url))
+                if service.type == dcorch_consts.ENDPOINT_TYPE_FM:
+                    endpoint_url = "http://{}:18002".format(endpoint_ip)
+                    endpoint_config.append((service.id, endpoint_url))
+                if service.type == dcorch_consts.ENDPOINT_TYPE_NFV:
+                    endpoint_url = "http://{}:4545".format(endpoint_ip)
+                    endpoint_config.append((service.id, endpoint_url))
+
+            if len(endpoint_config) < 5:
                 raise exceptions.BadRequest(
                     resource='subcloud',
-                    msg='No Identity service found on SystemController')
+                    msg='Missing service in SystemController')
 
-            identity_endpoint_ip = payload['management_start_address']
-
-            if netaddr.IPAddress(identity_endpoint_ip).version == 6:
-                identity_endpoint_url = \
-                    "http://[{}]:5000/v3".format(identity_endpoint_ip)
-            else:
-                identity_endpoint_url = \
-                    "http://{}:5000/v3".format(identity_endpoint_ip)
-
-            for iface in ['internal', 'admin']:
-                m_ks_client.keystone_client.endpoints.create(
-                    ks_service_id,
-                    identity_endpoint_url,
-                    interface=iface,
-                    region=subcloud.name)
+            for endpoint in endpoint_config:
+                for iface in ['internal', 'admin']:
+                    m_ks_client.keystone_client.endpoints.create(
+                        endpoint[0],
+                        endpoint[1],
+                        interface=iface,
+                        region=subcloud.name)
 
             # Inform orchestrator that subcloud has been added
             self.dcorch_rpc_client.add_subcloud(

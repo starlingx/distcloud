@@ -12,7 +12,7 @@
 # License for the specific language governing permissions and limitations
 # under the License.
 #
-# Copyright (c) 2017-2018 Wind River Systems, Inc.
+# Copyright (c) 2017-2019 Wind River Systems, Inc.
 #
 # The right to copy, distribute, modify, or otherwise make use
 # of this software may be licensed only pursuant to the terms
@@ -135,6 +135,8 @@ ENDPOINT_TYPE_COMPUTE = "compute"
 ENDPOINT_TYPE_NETWORK = "network"
 ENDPOINT_TYPE_PATCHING = "patching"
 ENDPOINT_TYPE_IDENTITY = "identity"
+ENDPOINT_TYPE_FM = "faultmanagement"
+ENDPOINT_TYPE_NFV = "nfv"
 
 ENDPOINT_TYPES_LIST = [ENDPOINT_TYPE_PLATFORM,
                        ENDPOINT_TYPE_PATCHING,

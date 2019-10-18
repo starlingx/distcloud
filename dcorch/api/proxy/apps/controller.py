@@ -1,4 +1,4 @@
-# Copyright 2017 Wind River
+# Copyright 2017-2019 Wind River
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -18,8 +18,10 @@ import webob.dec
 import webob.exc
 
 from dcorch.api.proxy.apps.dispatcher import APIDispatcher
+from dcorch.api.proxy.apps.proxy import Proxy
 from dcorch.api.proxy.common import constants as proxy_consts
 from dcorch.api.proxy.common.service import Middleware
+from dcorch.api.proxy.common.service import Request as ProxyRequest
 from dcorch.api.proxy.common import utils as proxy_utils
 from dcorch.common import consts
 import dcorch.common.context as k_context
@@ -689,3 +691,20 @@ class OrchAPIController(APIController):
         if self.get_status_code(response) in self.OK_STATUS_CODE:
             response = self._update_response(environ, request_body, response)
         return response
+
+
+class VersionController(Middleware):
+    def __init__(self, app, conf):
+        self._default_dispatcher = Proxy()
+        self._remote_host, self._remote_port = \
+            proxy_utils.get_remote_host_port_options(CONF)
+        super(VersionController, self).__init__(app)
+
+    @webob.dec.wsgify(RequestClass=ProxyRequest)
+    def __call__(self, req):
+        LOG.debug("VersionController forward the version request to remote "
+                  "host: (%s), port: (%d)" % (self._remote_host,
+                                              self._remote_port))
+        proxy_utils.set_request_forward_environ(req, self._remote_host,
+                                                self._remote_port)
+        return self._default_dispatcher

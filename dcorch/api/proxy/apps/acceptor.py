@@ -1,4 +1,4 @@
-# Copyright 2017 Wind River
+# Copyright 2017-2019 Wind River
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -21,6 +21,7 @@ from dcorch.api.proxy.apps.controller import IdentityAPIController
 from dcorch.api.proxy.apps.controller import NeutronAPIController
 from dcorch.api.proxy.apps.controller import OrchAPIController
 from dcorch.api.proxy.apps.controller import SysinvAPIController
+from dcorch.api.proxy.apps.controller import VersionController
 from dcorch.api.proxy.apps.dispatcher import APIDispatcher
 from dcorch.api.proxy.apps.patch import PatchAPIController
 from dcorch.api.proxy.apps.router import Router
@@ -121,3 +122,13 @@ class Acceptor(Router):
 
         for key, value in proxy_consts.IDENTITY_PATH_MAP.items():
             self._add_resource(mapper, api_controller, value, key, CONF.type)
+
+
+class VersionAcceptor(Router):
+    def __init__(self, app, conf):
+        self._conf = conf
+        mapper = routes.Mapper()
+        api_controller = VersionController(app, conf)
+        mapper.connect(proxy_consts.VERSION_ROOT, controller=api_controller,
+                       conditions=dict(method=['GET']))
+        super(VersionAcceptor, self).__init__(app, conf, mapper, None)

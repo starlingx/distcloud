@@ -130,7 +130,11 @@ class TestSubcloudManager(base.DCManagerTestCase):
                           mock_dcorch_rpc_client):
         value = utils.create_subcloud_dict(value)
         controllers = [Controller('controller-0'), Controller('controller-1')]
-        services = [Service('identity', '1234')]
+        services = [Service('identity', '1234'),
+                    Service('faultmanagement', '1234'),
+                    Service('patching', '1234'),
+                    Service('platform', '1234'),
+                    Service('nfv', '1234')]
         mock_context.get_admin_context.return_value = self.ctxt
         mock_db_api.subcloud_get_by_name.side_effect = \
             exceptions.SubcloudNameNotFound()
