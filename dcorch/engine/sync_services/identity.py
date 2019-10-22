@@ -816,48 +816,44 @@ class IdentitySyncThread(SyncThread):
         user_id = resource_tags[1]
         role_id = resource_tags[2]
 
-        project_name = self.m_ks_client.projects.get(project_id).name
-        user_name = self.m_ks_client.users.get(user_id).name
-        role_name = self.m_ks_client.roles.get(role_id).name
-
         # Ensure that we have already synced the project, user and role
         # prior to syncing the assignment
         sc_role = None
         sc_role_list = self.sc_ks_client.roles.list()
         for role in sc_role_list:
-            if role.name == role_name:
+            if role.id == role_id:
                 sc_role = role
                 break
         if not sc_role:
             LOG.error("Unable to assign role to user on project reference {}:"
                       "{}, cannot find equivalent Keystone Role in subcloud."
-                      .format(rsrc, role_name),
+                      .format(rsrc, role_id),
                       extra=self.log_extra)
             raise exceptions.SyncRequestFailed
 
         sc_proj = None
         sc_proj_list = self.sc_ks_client.projects.list()
         for proj in sc_proj_list:
-            if proj.name == project_name:
+            if proj.id == project_id:
                 sc_proj = proj
                 break
         if not sc_proj:
             LOG.error("Unable to assign role to user on project reference {}:"
                       "{}, cannot find equivalent Keystone Project in subcloud"
-                      .format(rsrc, project_name),
+                      .format(rsrc, project_id),
                       extra=self.log_extra)
             raise exceptions.SyncRequestFailed
 
         sc_user = None
         sc_user_list = self.sc_ks_client.users.list()
         for user in sc_user_list:
-            if user.name == user_name:
+            if user.id == user_id:
                 sc_user = user
                 break
         if not sc_user:
             LOG.error("Unable to assign role to user on project reference {}:"
                       "{}, cannot find equivalent Keystone User in subcloud."
-                      .format(rsrc, user_name),
+                      .format(rsrc, user_id),
                       extra=self.log_extra)
             raise exceptions.SyncRequestFailed
 
@@ -1420,7 +1416,14 @@ class IdentitySyncThread(SyncThread):
         LOG.debug("same_assignment master={}, subcloud={}".format(m, sc),
                   extra=self.log_extra)
         # For an assignment to be the same, all 3 of its role, project and
-        # user information must match up
+        # user information must match up.
+        # Compare by names here is fine, since this comparison gets called
+        # only if the mapped subcloud assignment is found by id in subcloud
+        # resources just retrieved. In another word, the ids are guaranteed
+        # to be the same by the time same_resource() is called in
+        # audit_find_missing(). same_resource() in audit_find_missing() is
+        # actually redundant for assignment but it's the generic algorithm
+        # for all types of resources.
         return((m.user.name == sc.user.name and
                 m.user.domain_id == sc.user.domain_id) and
                (m.role.name == sc.role.name and
@@ -1429,9 +1432,10 @@ class IdentitySyncThread(SyncThread):
                 m.project.domain_id == sc.project.domain_id))
 
     def _has_same_assignment_ids(self, m, sc):
-        # For assignment the triple(user, project, role) is the unique id.
-        # The two resources have same id only when all of them are identical.
-        return self._same_assignment_resource(m, sc)
+        # For assignment the unique id is projectID_userID_roleID.
+        # The two resources have same id only when all of the three IDs are
+        # identical.
+        return m.id == sc.id
 
     def _same_revoke_event_resource(self, m, sc):
         LOG.debug("same_revoke_event master={}, subcloud={}".format(m, sc),

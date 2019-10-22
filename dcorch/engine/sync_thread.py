@@ -543,7 +543,6 @@ class SyncThread(object):
                             extra=self.log_extra)
                         # Subcloud resource is present in DB, but the check
                         # for same_resource() was negative. Either the resource
-
                         # disappeared from subcloud or the resource details
                         # are different from that of master cloud. Let the
                         # resource implementation decide on the audit action.
