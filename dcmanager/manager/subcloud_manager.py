@@ -393,17 +393,24 @@ class SubcloudManager(manager.Manager):
             context.auth_token, context.project)
         sysinv_client = SysinvClient(consts.DEFAULT_REGION_NAME, session)
 
-        pool = sysinv_client.get_management_address_pool()
-        floating_ip = pool.floating_address
-        subnet = "%s/%d" % (pool.network, pool.prefix)
+        mgmt_pool = sysinv_client.get_management_address_pool()
+        mgmt_floating_ip = mgmt_pool.floating_address
+        mgmt_subnet = "%s/%d" % (mgmt_pool.network, mgmt_pool.prefix)
+
+        oam_pool = sysinv_client.get_oam_address_pool()
+        oam_floating_ip = oam_pool.floating_address
+        oam_subnet = "%s/%d" % (oam_pool.network, oam_pool.prefix)
 
         with open(overrides_file, 'w') as f_out_overrides_file:
             f_out_overrides_file.write(
                 '---'
                 '\nregion_config: yes'
                 '\ndistributed_cloud_role: subcloud'
-                '\nsystem_controller_subnet: ' + subnet +
-                '\nsystem_controller_floating_address: ' + floating_ip + '\n'
+                '\nsystem_controller_subnet: ' + mgmt_subnet +
+                '\nsystem_controller_floating_address: ' + mgmt_floating_ip +
+                '\nsystem_controller_oam_subnet: ' + oam_subnet +
+                '\nsystem_controller_oam_floating_address: ' + oam_floating_ip
+                + '\n'
             )
 
             for k, v in payload.items():
