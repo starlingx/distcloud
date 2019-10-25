@@ -131,4 +131,4 @@ class VersionAcceptor(Router):
         api_controller = VersionController(app, conf)
         mapper.connect(proxy_consts.VERSION_ROOT, controller=api_controller,
                        conditions=dict(method=['GET']))
-        super(VersionAcceptor, self).__init__(app, conf, mapper, None)
+        super(VersionAcceptor, self).__init__(app, conf, mapper, app)

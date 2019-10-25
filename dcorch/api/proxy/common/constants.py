@@ -15,7 +15,9 @@
 
 from dcorch.common import consts
 
-VERSION_ROOT = '/{version:.*?}'
+# Version could be any of the following: /, /v1, /v1/
+# but must deny regular paths such as /v1/isystems
+VERSION_ROOT = '/{version:[^/]*?(\/$)?}'
 
 # Compute
 FLAVOR_RESOURCE_TAG = 'flavors'
