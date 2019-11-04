@@ -6,14 +6,20 @@
       - stx-release-notes-jobs
     check:
       jobs:
-        - openstack-tox-linters
-        - openstack-tox-pep8
-        - stx-distcloud-tox-py27
+        - openstack-tox-linters:
+            voting: false
+        - stx-distcloud-tox-pep8:
+            voting: false
+        - stx-distcloud-tox-py27:
+            voting: false
     gate:
       jobs:
-        - openstack-tox-linters
-        - openstack-tox-pep8
-        - stx-distcloud-tox-py27
+        - openstack-tox-linters:
+            voting: false
+        - stx-distcloud-tox-pep8:
+            voting: false
+        - stx-distcloud-tox-py27:
+            voting: false
 
 - job:
     name: stx-distcloud-tox-py27
@@ -26,4 +32,17 @@
       - starlingx/config
     vars:
       tox_envlist: py27
-      tox_extra_args: -c tox.ini
+      tox_extra_args: -c distributedcloud/tox.ini
+
+- job:
+    name: stx-distcloud-tox-pep8
+    parent: tox
+    description: Run pep8 for distcloud
+    required-projects:
+      - starlingx/fault
+      - starlingx/nfv
+      - starlingx/update
+      - starlingx/config
+    vars:
+      tox_envlist: pep8
+      tox_extra_args: -c distributedcloud/tox.ini
