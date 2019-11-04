@@ -6,20 +6,14 @@
       - stx-release-notes-jobs
     check:
       jobs:
-        - openstack-tox-linters:
-            voting: false
-        - stx-distcloud-tox-pep8:
-            voting: false
-        - stx-distcloud-tox-py27:
-            voting: false
+        - openstack-tox-linters
+        - stx-distcloud-tox-pep8
+        - stx-distcloud-tox-py27
     gate:
       jobs:
-        - openstack-tox-linters:
-            voting: false
-        - stx-distcloud-tox-pep8:
-            voting: false
-        - stx-distcloud-tox-py27:
-            voting: false
+        - openstack-tox-linters
+        - stx-distcloud-tox-pep8
+        - stx-distcloud-tox-py27
 
 - job:
     name: stx-distcloud-tox-py27
