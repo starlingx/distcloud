@@ -150,6 +150,11 @@ class EndpointNotReachable(OrchestratorException):
     message = _("The specified resource endpoint is not reachable")
 
 
+class EndpointNotSupported(OrchestratorException):
+    message = _("The specified resource endpoint %(endpoint)s is not"
+                " supported")
+
+
 class SyncRequestFailed(OrchestratorException):
     message = _("The sync operation failed")
 

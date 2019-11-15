@@ -34,6 +34,7 @@ class Subcloud(base.OrchestratorObject, base.VersionedObjectDictCompat):
         'software_version': fields.StringField(),
         'management_state': fields.StringField(nullable=True),
         'availability_status': fields.StringField(),
+        'capabilities': fields.DictOfListOfStringsField(),
     }
 
     def create(self):

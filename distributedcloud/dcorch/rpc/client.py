@@ -98,6 +98,22 @@ class EngineClient(object):
                           management_state=management_state,
                           availability_status=availability_status))
 
+    def add_subcloud_sync_endpoint_type(self, ctxt, subcloud_name,
+                                        endpoint_type_list):
+        return self.call(
+            ctxt,
+            self.make_msg('add_subcloud_sync_endpoint_type',
+                          subcloud_name=subcloud_name,
+                          endpoint_type_list=endpoint_type_list))
+
+    def remove_subcloud_sync_endpoint_type(self, ctxt, subcloud_name,
+                                           endpoint_type_list):
+        return self.call(
+            ctxt,
+            self.make_msg('remove_subcloud_sync_endpoint_type',
+                          subcloud_name=subcloud_name,
+                          endpoint_type_list=endpoint_type_list))
+
     def update_subcloud_version(self, ctxt, subcloud_name, sw_version):
         return self.call(
             ctxt,

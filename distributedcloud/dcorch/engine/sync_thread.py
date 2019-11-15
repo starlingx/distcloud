@@ -60,9 +60,9 @@ class SyncThread(object):
 
     MAX_RETRY = 2
 
-    def __init__(self, subcloud_engine):
+    def __init__(self, subcloud_engine, endpoint_type=None):
         super(SyncThread, self).__init__()
-        self.endpoint_type = None               # endpoint type in keystone
+        self.endpoint_type = endpoint_type      # endpoint type
         self.subcloud_engine = subcloud_engine  # engine that owns this obj
         self.thread = None                      # thread running sync()
         self.audit_thread = None
@@ -118,13 +118,23 @@ class SyncThread(object):
         # The specific SyncThread subclasses may extend this.
         loader = loading.get_plugin_loader(
             cfg.CONF.keystone_authtoken.auth_type)
+
+        config = None
+        if self.endpoint_type in consts.ENDPOINT_TYPES_LIST:
+            config = cfg.CONF.cache
+        elif self.endpoint_type in consts.ENDPOINT_TYPES_LIST_OS:
+            config = cfg.CONF.openstack_cache
+        else:
+            raise exceptions.EndpointNotSupported(
+                endpoint=self.endpoint_type)
+
         auth = loader.load_from_options(
-            auth_url=cfg.CONF.cache.auth_uri,
-            username=cfg.CONF.cache.admin_username,
-            password=cfg.CONF.cache.admin_password,
-            project_name=cfg.CONF.cache.admin_tenant,
-            project_domain_name=cfg.CONF.cache.admin_project_domain_name,
-            user_domain_name=cfg.CONF.cache.admin_user_domain_name)
+            auth_url=config.auth_uri,
+            username=config.admin_username,
+            password=config.admin_password,
+            project_name=config.admin_tenant,
+            project_domain_name=config.admin_project_domain_name,
+            user_domain_name=config.admin_user_domain_name)
         self.admin_session = session.Session(
             auth=auth, timeout=60, additional_headers=consts.USER_HEADER)
         # keystone client
@@ -148,7 +158,7 @@ class SyncThread(object):
                 name='keystone', type='identity')
             sc_auth_url = self.ks_client.endpoints.list(
                 service=identity_service[0].id,
-                interface=consts.KS_ENDPOINT_INTERNAL,
+                interface=consts.KS_ENDPOINT_ADMIN,
                 region=self.subcloud_engine.subcloud.region_name)
             try:
                 LOG.info("Found sc_auth_url: {}".format(sc_auth_url))
@@ -161,13 +171,20 @@ class SyncThread(object):
 
             loader = loading.get_plugin_loader(
                 cfg.CONF.keystone_authtoken.auth_type)
+
+            config = None
+            if self.endpoint_type in consts.ENDPOINT_TYPES_LIST:
+                config = cfg.CONF.cache
+            elif self.endpoint_type in consts.ENDPOINT_TYPES_LIST_OS:
+                config = cfg.CONF.openstack_cache
+
             sc_auth = loader.load_from_options(
                 auth_url=sc_auth_url,
-                username=cfg.CONF.cache.admin_username,
-                password=cfg.CONF.cache.admin_password,
-                project_name=cfg.CONF.cache.admin_tenant,
-                project_domain_name=cfg.CONF.cache.admin_project_domain_name,
-                user_domain_name=cfg.CONF.cache.admin_user_domain_name)
+                username=config.admin_username,
+                password=config.admin_password,
+                project_name=config.admin_tenant,
+                project_domain_name=config.admin_project_domain_name,
+                user_domain_name=config.admin_user_domain_name)
 
             self.sc_admin_session = session.Session(
                 auth=sc_auth, timeout=60,
@@ -616,6 +633,19 @@ class SyncThread(object):
                                  .format(subcloud_rsrc.subcloud_resource_id),
                                  extra=self.log_extra)
                         continue
+
+                    # check if the resource exists in subcloud, no need to
+                    # schedule work if it doesn't exist in subcloud.
+                    # This is a precautionary action in case the resource
+                    # has already be deleted in the subcloud which can happen
+                    # for example, user deletes the resource from master right
+                    # after an audit (not through api-proxy), then user deletes
+                    # that resource manually in the subcloud before the
+                    # next audit.
+                    if not self.resource_exists_in_subcloud(subcloud_rsrc,
+                                                            sc_resources):
+                        continue
+
                     LOG.info("Resource ({}) and subcloud resource ({}) "
                              "not in sync with master cloud"
                              .format(db_resource.master_id,
@@ -749,3 +779,8 @@ class SyncThread(object):
 
     def get_resource_info(self, resource_type, resource, operation_type=None):
         return ""
+
+    # check if the subcloud resource (from dcorch subcloud_resource table)
+    # exists in subcloud resources.
+    def resource_exists_in_subcloud(self, subcloud_rsrc, sc_resources):
+        return True

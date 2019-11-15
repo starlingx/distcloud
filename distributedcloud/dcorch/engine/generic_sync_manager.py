@@ -75,6 +75,31 @@ class GenericSyncManager(object):
         except KeyError:
             raise exceptions.SubcloudNotFound(region_name=subcloud_name)
 
+    def add_subcloud_sync_endpoint_type(self, context, subcloud_name,
+                                        endpoint_type_list=None):
+        try:
+            subcloud_engine = self.subcloud_engines[subcloud_name]
+        except KeyError:
+            raise exceptions.SubcloudNotFound(region_name=subcloud_name)
+
+        LOG.info('adding sync endpoint type for subcloud %(sc)s' %
+                 {'sc': subcloud_name})
+        try:
+            subcloud_engine.add_sync_endpoint_type(endpoint_type_list)
+        except Exception:
+            subcloud_engine.remove_sync_endpoint_type(endpoint_type_list)
+            raise
+
+    def remove_subcloud_sync_endpoint_type(self, context, subcloud_name,
+                                           endpoint_type_list=None):
+        try:
+            subcloud_engine = self.subcloud_engines[subcloud_name]
+            LOG.info('removing sync endpoint type for subcloud %(sc)s' %
+                     {'sc': subcloud_name})
+            subcloud_engine.remove_sync_endpoint_type(endpoint_type_list)
+        except KeyError:
+            raise exceptions.SubcloudNotFound(region_name=subcloud_name)
+
     def update_subcloud_version(self, context, subcloud_name, sw_version):
         try:
             subcloud_engine = self.subcloud_engines[subcloud_name]

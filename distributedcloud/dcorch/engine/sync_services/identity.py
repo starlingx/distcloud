@@ -37,9 +37,11 @@ LOG = logging.getLogger(__name__)
 class IdentitySyncThread(SyncThread):
     """Manages tasks related to resource management for keystone."""
 
-    def __init__(self, subcloud_engine):
-        super(IdentitySyncThread, self).__init__(subcloud_engine)
-        self.endpoint_type = consts.ENDPOINT_TYPE_IDENTITY
+    def __init__(self, subcloud_engine, endpoint_type=None):
+        super(IdentitySyncThread, self).__init__(subcloud_engine,
+                                                 endpoint_type=endpoint_type)
+        if not self.endpoint_type:
+            self.endpoint_type = consts.ENDPOINT_TYPE_IDENTITY
         self.sync_handler_map = {
             consts.RESOURCE_TYPE_IDENTITY_USERS:
                 self.sync_identity_resource,
@@ -92,7 +94,7 @@ class IdentitySyncThread(SyncThread):
         if (not self.sc_ks_client and self.sc_admin_session):
             self.sc_ks_client = keystoneclient.Client(
                 session=self.sc_admin_session,
-                endpoint_type=consts.KS_ENDPOINT_INTERNAL,
+                endpoint_type=consts.KS_ENDPOINT_ADMIN,
                 region_name=self.subcloud_engine.subcloud.region_name)
         # create a dbsync client for the subcloud
         if (not self.sc_dbs_client and self.sc_admin_session):
@@ -845,7 +847,7 @@ class IdentitySyncThread(SyncThread):
             raise exceptions.SyncRequestFailed
 
         sc_user = None
-        sc_user_list = self.sc_ks_client.users.list()
+        sc_user_list = self._get_all_users(self.sc_ks_client)
         for user in sc_user_list:
             if user.id == user_id:
                 sc_user = user
@@ -1111,6 +1113,14 @@ class IdentitySyncThread(SyncThread):
                       extra=self.log_extra)
             return None
 
+    def _get_all_users(self, client):
+        domains = client.domains.list()
+        users = []
+        for domain in domains:
+            domain_users = client.users.list(domain=domain)
+            users = users + domain_users
+        return users
+
     def _get_users_resource(self, client):
         try:
             services = []
@@ -1132,7 +1142,7 @@ class IdentitySyncThread(SyncThread):
                         filtered_users.append(user)
             # get users from keystone API
             else:
-                users = client.users.list()
+                users = self._get_all_users(client)
                 for user in users:
                     user_name = user.name
                     if all(user_name != service.name for service in services)\
@@ -1333,12 +1343,7 @@ class IdentitySyncThread(SyncThread):
         same_local_user = (m.local_user.domain_id ==
                            sc.local_user.domain_id and
                            m.local_user.name == sc.local_user.name and
-                           # Foreign key to user.id
-                           m.local_user.user_id == sc.local_user.user_id and
-                           m.local_user.failed_auth_count ==
-                           sc.local_user.failed_auth_count and
-                           m.local_user.failed_auth_at ==
-                           sc.local_user.failed_auth_at)
+                           m.local_user.user_id == sc.local_user.user_id)
         if not same_local_user:
             return False
 
@@ -1653,3 +1658,17 @@ class IdentitySyncThread(SyncThread):
                                                       sc_r))
                 return True
         return False
+
+    # check if the subcloud resource (from dcorch subcloud_resource table)
+    # exists in subcloud resources.
+    def resource_exists_in_subcloud(self, subcloud_rsrc, sc_resources):
+        exist = False
+        for sc_r in sc_resources:
+            if subcloud_rsrc.subcloud_resource_id == sc_r.id:
+                LOG.debug("Resource {} exists in subcloud {}"
+                          .format(subcloud_rsrc.subcloud_resource_id,
+                                  self.subcloud_engine.subcloud.region_name),
+                          extra=self.log_extra)
+                exist = True
+                break
+        return exist
