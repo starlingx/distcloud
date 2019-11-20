@@ -514,12 +514,6 @@ class SysinvClient(base.DriverBase):
         LOG.info("update_certificate signature {} data {}".format(
             signature, data))
         if not certificate:
-            tpmconfigs = self.client.tpmconfig.list()
-            if tpmconfigs:
-                LOG.info("region={} no certificates available, "
-                         "tpm configured".format(self.region_name))
-                return
-
             if data:
                 data['passphrase'] = None
                 mode = data.get('mode', sysinv_constants.CERT_MODE_SSL)
@@ -527,11 +521,10 @@ class SysinvClient(base.DriverBase):
                     certificate_files = [sysinv_constants.SSL_CERT_CA_FILE]
                 elif mode == sysinv_constants.CERT_MODE_SSL:
                     certificate_files = [sysinv_constants.SSL_PEM_FILE]
-                elif mode == sysinv_constants.CERT_MODE_MURANO_CA:
-                    certificate_files = [sysinv_constants.MURANO_CERT_CA_FILE]
-                elif mode == sysinv_constants.CERT_MODE_MURANO:
-                    certificate_files = [sysinv_constants.MURANO_CERT_KEY_FILE,
-                                         sysinv_constants.MURANO_CERT_FILE]
+                elif mode == sysinv_constants.CERT_MODE_DOCKER_REGISTRY:
+                    certificate_files = \
+                        [sysinv_constants.DOCKER_REGISTRY_KEY_FILE,
+                         sysinv_constants.DOCKER_REGISTRY_CERT_FILE]
                 else:
                     LOG.warn("update_certificate mode {} not supported".format(
                         mode))
@@ -545,14 +538,11 @@ class SysinvClient(base.DriverBase):
                 data['mode'] = sysinv_constants.CERT_MODE_SSL
                 certificate_files = [sysinv_constants.SSL_PEM_FILE]
             elif signature and signature.startswith(
-                    sysinv_constants.CERT_MODE_MURANO_CA):
-                data['mode'] = sysinv_constants.CERT_MODE_MURANO_CA
-                certificate_files = [sysinv_constants.MURANO_CERT_CA_FILE]
-            elif signature and signature.startswith(
-                    sysinv_constants.CERT_MODE_MURANO + '_'):
-                data['mode'] = sysinv_constants.CERT_MODE_MURANO
-                certificate_files = [sysinv_constants.MURANO_CERT_KEY_FILE,
-                                     sysinv_constants.MURANO_CERT_FILE]
+                    sysinv_constants.CERT_MODE_DOCKER_REGISTRY):
+                data['mode'] = sysinv_constants.CERT_MODE_DOCKER_REGISTRY
+                certificate_files = \
+                    [sysinv_constants.DOCKER_REGISTRY_KEY_FILE,
+                     sysinv_constants.DOCKER_REGISTRY_CERT_FILE]
             else:
                 LOG.warn("update_certificate signature {} "
                          "not supported".format(signature))
