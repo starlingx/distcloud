@@ -61,7 +61,7 @@ class EndpointCache(object):
             auth=auth, additional_headers=consts.USER_HEADER)
         self.keystone_client = keystone_client.Client(
             session=self.admin_session,
-            region_name=consts.VIRTUAL_MASTER_CLOUD)
+            region_name=consts.CLOUD_0)
 
         # if Endpoint cache is intended for a subcloud then
         # we need to retrieve the subcloud token and session.
