@@ -24,6 +24,7 @@ from dcorch.common import context
 from dcorch.common import exceptions
 from dcorch.common.i18n import _
 from dcorch.common import messaging as rpc_messaging
+from dcorch.db import api as db_api
 from dcorch.engine.alarm_aggregate_manager import AlarmAggregateManager
 from dcorch.engine.fernet_key_manager import FernetKeyManager
 from dcorch.engine.generic_sync_manager import GenericSyncManager
@@ -209,8 +210,24 @@ class EngineService(service.Service):
                             subcloud_name, six.text_type(ex))
                 raise
         else:
+            subcloud = db_api.subcloud_get(context.get_admin_context(),
+                                           subcloud_name)
+
+            reset_fernet_keys = False
+            # disable_subcloud unmanages the subcloud so we need this check
+            # here instead of later. We need to prevent reset of fernet keys
+            # when the subcloud goes online for the first time. Fernet keys
+            # should be reset only when the user unmanages the subcloud.
+            # Resetting fernet keys before that can result in failures with
+            # keystone operations while the keys are being reset. Without this
+            # check, the initial state of "unmanaged" will also trigger a
+            # fernet key reset unintentionally.
+            if subcloud['management_state'] == dcm_consts.MANAGEMENT_MANAGED\
+                and management_state == dcm_consts.MANAGEMENT_UNMANAGED:
+                reset_fernet_keys = True
+
             self.gsm.disable_subcloud(ctxt, subcloud_name)
-            if (management_state == dcm_consts.MANAGEMENT_UNMANAGED):
+            if reset_fernet_keys:
                 self.fkm.reset_keys(subcloud_name)
 
     @request_context
