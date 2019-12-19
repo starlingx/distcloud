@@ -21,12 +21,12 @@
 #
 
 import datetime
+from eventlet.green import subprocess
 import filecmp
 import json
 import keyring
 import netaddr
 import os
-import subprocess
 import threading
 
 from oslo_log import log as logging

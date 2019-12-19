@@ -13,8 +13,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from eventlet.green import subprocess
 import os
-import subprocess
 
 from oslo_config import cfg
 from oslo_log import log as logging
