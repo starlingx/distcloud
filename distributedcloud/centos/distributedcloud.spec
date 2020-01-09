@@ -31,41 +31,40 @@ Source12:      dcdbsync.conf
 
 BuildArch:     noarch
 
-BuildRequires: python-crypto
-BuildRequires: python-cryptography
-BuildRequires: python2-devel
-BuildRequires: python-eventlet
-BuildRequires: python-setuptools
-BuildRequires: python2-pip
-BuildRequires: python2-wheel
-BuildRequires: python-jsonschema >= 2.0.0
-BuildRequires: python-keyring
-BuildRequires: python-keystonemiddleware
-BuildRequires: python-keystoneauth1 >= 3.1.0
-BuildRequires: python-netaddr
-BuildRequires: python-oslo-concurrency
-BuildRequires: python-oslo-config
-BuildRequires: python-oslo-context
-BuildRequires: python-oslo-db
-BuildRequires: python-oslo-i18n
-BuildRequires: python-oslo-log
-BuildRequires: python-oslo-messaging
-BuildRequires: python-oslo-middleware
-BuildRequires: python-oslo-policy
-BuildRequires: python-oslo-rootwrap
-BuildRequires: python-oslo-serialization
-BuildRequires: python-oslo-service
-BuildRequires: python-oslo-utils
-BuildRequires: python-oslo-versionedobjects
-BuildRequires: python-pbr >= 1.8
-BuildRequires: python-pecan >= 1.0.0
-BuildRequires: python-routes >= 1.12.3
-BuildRequires: python-sphinx
-BuildRequires: python-sphinxcontrib-httpdomain
-BuildRequires: pyOpenSSL
+BuildRequires: python3-crypto
+BuildRequires: python3-cryptography
+BuildRequires: python3-devel
+BuildRequires: python3-eventlet
+BuildRequires: python3-setuptools
+BuildRequires: python3-pip
+BuildRequires: python3-wheel
+BuildRequires: python3-jsonschema
+BuildRequires: python3-keyring
+BuildRequires: python3-keystonemiddleware
+BuildRequires: python3-keystoneauth1
+BuildRequires: python3-netaddr
+BuildRequires: python3-oslo-concurrency
+BuildRequires: python3-oslo-config
+BuildRequires: python3-oslo-context
+BuildRequires: python3-oslo-db
+BuildRequires: python3-oslo-i18n
+BuildRequires: python3-oslo-log
+BuildRequires: python3-oslo-messaging
+BuildRequires: python3-oslo-middleware
+BuildRequires: python3-oslo-policy
+BuildRequires: python3-oslo-rootwrap
+BuildRequires: python3-oslo-serialization
+BuildRequires: python3-oslo-service
+BuildRequires: python3-oslo-utils
+BuildRequires: python3-oslo-versionedobjects
+BuildRequires: python3-pbr
+BuildRequires: python3-pecan
+BuildRequires: python3-routes
+BuildRequires: python3-sphinx
+BuildRequires: python3-pyOpenSSL
 BuildRequires: systemd
 # Required to compile translation files
-BuildRequires: python-babel
+BuildRequires: python3-babel
 
 %description
 Distributed Cloud provides configuration and management of distributed clouds
@@ -100,8 +99,8 @@ rm -rf {test-,}requirements.txt tools/{pip,test}-requires
 
 %build
 export PBR_VERSION=%{version}
-%{__python2} setup.py build
-%py2_build_wheel
+%{__python3} setup.py build
+%py3_build_wheel
 # Generate sample config and add the current directory to PYTHONPATH so
 # oslo-config-generator doesn't skip heat's entry points.
 PYTHONPATH=. oslo-config-generator --config-file=./dcmanager/config-generator.conf
@@ -111,7 +110,7 @@ PYTHONPATH=. oslo-config-generator --config-file=./dcdbsync/config-generator.con
 
 %install
 export PBR_VERSION=%{version}
-%{__python2} setup.py install -O1 --skip-build --root %{buildroot} \
+%{__python3} setup.py install -O1 --skip-build --root %{buildroot} \
                                   --single-version-externally-managed
 install -d $RPM_BUILD_ROOT/wheels
 install -m 644 dist/*.whl $RPM_BUILD_ROOT/wheels/
@@ -165,9 +164,9 @@ install -d -m 600 ${RPM_BUILD_ROOT}/opt/dc/ansible
 
 %files dcmanager
 %license LICENSE
-%{python2_sitelib}/dcmanager*
-%{python2_sitelib}/distributedcloud-*.egg-info
-%exclude %{python2_sitelib}/dcmanager/tests
+%{python3_sitelib}/dcmanager*
+%{python3_sitelib}/distributedcloud-*.egg-info
+%exclude %{python3_sitelib}/dcmanager/tests
 %{_bindir}/dcmanager-api
 %{_unitdir}/dcmanager-api.service
 %{_bindir}/dcmanager-manager
@@ -186,9 +185,9 @@ install -d -m 600 ${RPM_BUILD_ROOT}/opt/dc/ansible
 
 %files dcorch
 %license LICENSE
-%{python2_sitelib}/dcorch*
-%{python2_sitelib}/distributedcloud-*.egg-info
-%exclude %{python2_sitelib}/dcorch/tests
+%{python3_sitelib}/dcorch*
+%{python3_sitelib}/distributedcloud-*.egg-info
+%exclude %{python3_sitelib}/dcorch/tests
 %{_bindir}/dcorch-api
 %{_unitdir}/dcorch-api.service
 %{_bindir}/dcorch-engine
@@ -211,9 +210,9 @@ install -d -m 600 ${RPM_BUILD_ROOT}/opt/dc/ansible
 
 %files dcdbsync
 %license LICENSE
-%{python2_sitelib}/dcdbsync*
-%{python2_sitelib}/distributedcloud-*.egg-info
-%exclude %{python2_sitelib}/dcdbsync/tests
+%{python3_sitelib}/dcdbsync*
+%{python3_sitelib}/distributedcloud-*.egg-info
+%exclude %{python3_sitelib}/dcdbsync/tests
 %{_bindir}/dcdbsync-api
 %{_unitdir}/dcdbsync-api.service
 %{_unitdir}/dcdbsync-openstack-api.service
