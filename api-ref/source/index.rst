@@ -1,12 +1,14 @@
-===========================
-stx-distcloud API Reference
-===========================
+===============================
+Distributed Cloud API Reference
+===============================
 
-Use the StarlingX stx-distcloud API to manage distributed cloud operations.
+Use the StarlingX Distributed Cloud API to manage distributed cloud
+operations.
 
-stx-distcloud API content can be searched using the :ref:`search page <search>`.
+Search Distributed Cloud API content using the :ref:`search page <search>`.
 
-API Reference
+-------------
+API reference
 -------------
 
 .. toctree::

@@ -1,6 +1,6 @@
-===========================
-stx-distcloud Release Notes
-===========================
+=========================================
+StarlingX Distributed Cloud Release Notes
+=========================================
 
 .. toctree::
    :maxdepth: 2
