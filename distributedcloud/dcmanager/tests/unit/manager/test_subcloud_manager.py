@@ -50,6 +50,22 @@ FAKE_SUBCLOUD_DATA = {"name": "subcloud1",
                       "external_oam_subnet": "10.10.10.0/24",
                       "external_oam_gateway_address": "10.10.10.1",
                       "external_oam_floating_address": "10.10.10.12"}
+FAKE_SUBCLOUD_INSTALL_VALUES = {
+    'image': 'image: http://128.224.115.21/iso/bootimage.iso',
+    'software_version': '20.01',
+    'bootstrap_interface': 'enp0s3',
+    'bootstrap_address': '128.118.101.5',
+    'bootstrap_address_prefix': 23,
+    'bmc_address': '128.224.64.180',
+    'bmc_username': 'root',
+    'nexthop_gateway': '128.224.150.1',
+    'network_address': '128.224.144.0',
+    'network_mask': '255.255.254.0',
+    'install_type': 3,
+    'console_type': 'tty0',
+    'rootfs_device': '/dev/disk/by-path/pci-0000:5c:00.0-scsi-0:1:0:0',
+    'boot_device': ' /dev/disk/by-path/pci-0000:5c:00.0-scsi-0:1:0:0'
+}
 
 
 class Controller(object):
@@ -152,7 +168,6 @@ class TestSubcloudManager(base.DCManagerTestCase):
         mock_create_addn_hosts.assert_called_once()
         mock_update_subcloud_inventory.assert_called_once()
         mock_write_subcloud_ansible_config.assert_called_once()
-        mock_db_api.subcloud_update.assert_called()
         mock_keyring.get_password.assert_called()
 
     @file_data(utils.get_data_filepath('dcmanager', 'subclouds'))

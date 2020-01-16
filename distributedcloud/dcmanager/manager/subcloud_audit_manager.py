@@ -93,6 +93,13 @@ class SubcloudAuditManager(manager.Manager):
                 break
 
         for subcloud in db_api.subcloud_get_all(self.context):
+            if (subcloud.deploy_status not in
+                    [consts.DEPLOY_STATE_DONE,
+                     consts.DEPLOY_STATE_DEPLOYING,
+                     consts.DEPLOY_STATE_DEPLOY_FAILED]):
+                LOG.info("Skip subcloud %s audit, deploy_status: %s" %
+                         (subcloud.name, subcloud.deploy_status))
+                continue
             # Create a new greenthread for each subcloud to allow the audits
             # to be done in parallel. If there are not enough greenthreads
             # in the pool, this will block until one becomes available.

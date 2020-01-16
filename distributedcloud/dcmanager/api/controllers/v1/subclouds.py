@@ -13,12 +13,13 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 #
-# Copyright (c) 2017-2019 Wind River Systems, Inc.
+# Copyright (c) 2017-2020 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
 
 import keyring
+from netaddr import AddrFormatError
 from netaddr import IPAddress
 from netaddr import IPNetwork
 from netaddr import IPRange
@@ -41,6 +42,7 @@ from dcmanager.api.controllers import restcomm
 from dcmanager.common import consts
 from dcmanager.common import exceptions
 from dcmanager.common.i18n import _
+from dcmanager.common import install_consts
 from dcmanager.db import api as db_api
 from dcmanager.drivers.openstack.sysinv_v1 import SysinvClient
 from dcmanager.rpc import client as rpc_client
@@ -221,6 +223,73 @@ class SubcloudsController(object):
         except ValidateFail as e:
             LOG.exception(e)
             pecan.abort(400, _("oam_floating_address invalid: %s") % e)
+
+    @staticmethod
+    def _validate_install_values(payload):
+        install_values = payload.get('install_values')
+        bmc_password = payload.get('bmc_password')
+        if not bmc_password:
+            pecan.abort(400, _('subcloud bmc_password required'))
+        payload['install_values'].update({'bmc_password': bmc_password})
+
+        for k in install_consts.MANDATORY_INSTALL_VALUES:
+            if k not in install_values:
+                pecan.abort(400, _('Mandatory install value %s not present')
+                            % k)
+
+        if (install_values['install_type'] not in
+                range(install_consts.SUPPORTED_INSTALL_TYPES)):
+            pecan.abort(400, _("install_type invalid: %s") %
+                        install_values['install_type'])
+
+        try:
+            ip_version = (IPAddress(install_values['bootstrap_address']).
+                          version)
+        except AddrFormatError as e:
+            LOG.exception(e)
+            pecan.abort(400, _("bootstrap_address invalid: %s") % e)
+
+        try:
+            bmc_address = IPAddress(install_values['bmc_address'])
+        except AddrFormatError as e:
+            LOG.exception(e)
+            pecan.abort(400, _("bmc_address invalid: %s") % e)
+
+        if bmc_address.version != ip_version:
+            pecan.abort(400, _("bmc_address and bootstrap_address "
+                               "must be the same IP version"))
+
+        if 'nexthop_gateway' in install_values:
+            try:
+                gateway_ip = IPAddress(install_values['nexthop_gateway'])
+            except AddrFormatError:
+                LOG.exception(e)
+                pecan.abort(400, _("nexthop_gateway address invalid: %s") % e)
+            if gateway_ip.version != ip_version:
+                pecan.abort(400, _("nexthop_gateway and bootstrap_address "
+                                   "must be the same IP version"))
+
+        if ('network_address' in install_values and
+                'nexthop_gateway' not in install_values):
+            pecan.abort(400, _("nexthop_gateway is required when "
+                               "network_address is present"))
+
+        if 'nexthop_gateway' and 'network_address' in install_values:
+            if 'network_mask' not in install_values:
+                pecan.abort(400, _("The network mask is required when network "
+                                   "address is present"))
+
+            network_str = (install_values['network_address'] + '/' +
+                           str(install_values['network_mask']))
+            try:
+                network = validate_network_str(network_str, 1)
+            except ValidateFail as e:
+                LOG.exception(e)
+                pecan.abort(400, _("network address invalid: %s") % e)
+
+            if network.version != ip_version:
+                pecan.abort(400, _("network address and bootstrap address "
+                                   "must be the same IP version"))
 
     def _get_subcloud_users(self):
         """Get the subcloud users and passwords from keyring"""
@@ -425,10 +494,10 @@ class SubcloudsController(object):
             if not external_oam_floating_ip:
                 pecan.abort(400, _('external_oam_floating_address required'))
 
-            subcloud_password = \
-                payload.get('subcloud_password')
-            if not subcloud_password:
-                pecan.abort(400, _('subcloud_password required'))
+            sysadmin_password = \
+                payload.get('sysadmin_password')
+            if not sysadmin_password:
+                pecan.abort(400, _('subcloud sysadmin_password required'))
 
             self._validate_subcloud_config(context,
                                            name,
@@ -440,6 +509,9 @@ class SubcloudsController(object):
                                            external_oam_gateway_ip,
                                            external_oam_floating_ip,
                                            systemcontroller_gateway_ip)
+
+            if 'install_values' in payload:
+                self._validate_install_values(payload)
 
             try:
                 # Ask dcmanager-manager to add the subcloud.

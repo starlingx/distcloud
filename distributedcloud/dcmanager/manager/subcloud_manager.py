@@ -13,7 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-# Copyright (c) 2017-2019 Wind River Systems, Inc.
+# Copyright (c) 2017-2020 Wind River Systems, Inc.
 #
 # The right to copy, distribute, modify, or otherwise make use
 # of this software may be licensed only pursuant to the terms
@@ -46,6 +46,7 @@ from dcmanager.common.i18n import _
 from dcmanager.common import manager
 from dcmanager.db import api as db_api
 from dcmanager.drivers.openstack.sysinv_v1 import SysinvClient
+from dcmanager.manager.subcloud_install import SubcloudInstall
 
 from fm_api import constants as fm_const
 from fm_api import fm_api
@@ -61,7 +62,8 @@ ANSIBLE_OVERRIDES_PATH = '/opt/dc/ansible'
 ANSIBLE_SUBCLOUD_INVENTORY_FILE = 'subclouds.yml'
 ANSIBLE_SUBCLOUD_PLAYBOOK = \
     '/usr/share/ansible/stx-ansible/playbooks/bootstrap.yml'
-
+ANSIBLE_SUBCLOUD_INSTALL_PLAYBOOK = \
+    '/usr/share/ansible/stx-ansible/playbooks/install.yml'
 DC_LOG_DIR = '/var/log/dcmanager/'
 
 USERS_TO_REPLICATE = [
@@ -215,20 +217,24 @@ class SubcloudManager(manager.Manager):
 
             # Add the admin and service user passwords to the payload so they
             # get copied to the override file
-            payload['ansible_become_pass'] = payload['subcloud_password']
-            payload['ansible_ssh_pass'] = payload['subcloud_password']
+            payload['ansible_become_pass'] = payload['sysadmin_password']
+            payload['ansible_ssh_pass'] = payload['sysadmin_password']
             payload['admin_password'] = str(keyring.get_password('CGCS',
                                                                  'admin'))
 
+            if "install_values" in payload:
+                payload['install_values']['ansible_ssh_pass'] = \
+                    payload['sysadmin_password']
+
             if "deploy_playbook" in payload:
                 payload['deploy_values']['ansible_become_pass'] = \
-                    payload['subcloud_password']
+                    payload['sysadmin_password']
                 payload['deploy_values']['ansible_ssh_pass'] = \
-                    payload['subcloud_password']
+                    payload['sysadmin_password']
                 payload['deploy_values']['admin_password'] = \
                     str(keyring.get_password('CGCS', 'admin'))
 
-            del payload['subcloud_password']
+            del payload['sysadmin_password']
 
             payload['users'] = dict()
             for user in USERS_TO_REPLICATE:
@@ -244,14 +250,16 @@ class SubcloudManager(manager.Manager):
             if "deploy_playbook" in payload:
                 self._write_deploy_files(payload)
 
-            # Update the subcloud to bootstrapping
-            try:
-                db_api.subcloud_update(
-                    context, subcloud.id,
-                    deploy_status=consts.DEPLOY_STATE_BOOTSTRAPPING)
-            except Exception as e:
-                LOG.exception(e)
-                raise e
+            install_command = None
+            if "install_values" in payload:
+                install_command = [
+                    "ansible-playbook", ANSIBLE_SUBCLOUD_INSTALL_PLAYBOOK,
+                    "-i", ANSIBLE_OVERRIDES_PATH + '/' +
+                    ANSIBLE_SUBCLOUD_INVENTORY_FILE,
+                    "--limit", subcloud.name,
+                    "-e", "@%s" % ANSIBLE_OVERRIDES_PATH + "/" +
+                          payload['name'] + '/' + "install_values.yml"
+                ]
 
             apply_command = [
                 "ansible-playbook", ANSIBLE_SUBCLOUD_PLAYBOOK, "-i",
@@ -281,7 +289,8 @@ class SubcloudManager(manager.Manager):
 
             apply_thread = threading.Thread(
                 target=self.run_deploy,
-                args=(apply_command, deploy_command, subcloud, context))
+                args=(install_command, apply_command, deploy_command, subcloud,
+                      payload, context))
             apply_thread.start()
 
             return db_api.subcloud_db_model_to_dict(subcloud)
@@ -295,7 +304,50 @@ class SubcloudManager(manager.Manager):
             raise e
 
     @staticmethod
-    def run_deploy(apply_command, deploy_command, subcloud, context):
+    def run_deploy(install_command, apply_command, deploy_command, subcloud,
+                   payload, context):
+
+        if install_command:
+            db_api.subcloud_update(
+                context, subcloud.id,
+                deploy_status=consts.DEPLOY_STATE_PRE_INSTALL)
+            try:
+                install = SubcloudInstall(context, subcloud.name)
+                install.prep(ANSIBLE_OVERRIDES_PATH, payload['install_values'])
+            except Exception as e:
+                LOG.exception(e)
+                db_api.subcloud_update(
+                    context, subcloud.id,
+                    deploy_status=consts.DEPLOY_STATE_PRE_INSTALL_FAILED)
+                LOG.error(e.message)
+                install.cleanup()
+                return
+
+            # Run the remote install playbook
+            db_api.subcloud_update(
+                context, subcloud.id,
+                deploy_status=consts.DEPLOY_STATE_INSTALLING)
+            try:
+                install.install(DC_LOG_DIR, install_command)
+            except Exception as e:
+                db_api.subcloud_update(
+                    context, subcloud.id,
+                    deploy_status=consts.DEPLOY_STATE_INSTALL_FAILED)
+                LOG.error(e.message)
+                install.cleanup()
+                return
+            install.cleanup()
+            LOG.info("Successfully installed subcloud %s" % subcloud.name)
+
+        # Update the subcloud to bootstrapping
+        try:
+            db_api.subcloud_update(
+                context, subcloud.id,
+                deploy_status=consts.DEPLOY_STATE_BOOTSTRAPPING)
+        except Exception as e:
+            LOG.exception(e)
+            raise e
+
         # Run the ansible boostrap-subcloud playbook
         log_file = \
             DC_LOG_DIR + subcloud.name + '_bootstrap_' + \
@@ -434,7 +486,8 @@ class SubcloudManager(manager.Manager):
             )
 
             for k, v in payload.items():
-                if k not in ['deploy_playbook', 'deploy_values']:
+                if k not in ['deploy_playbook', 'deploy_values',
+                             'install_values']:
                     f_out_overrides_file.write("%s: %s\n" % (k, json.dumps(v)))
 
     def _write_deploy_files(self, payload):

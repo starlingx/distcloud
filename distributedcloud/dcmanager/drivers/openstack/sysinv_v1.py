@@ -143,3 +143,25 @@ class SysinvClient(base.DriverBase):
 
         # Get a list of containerized applications the system knows of
         return self.sysinv_client.app.list()
+
+    def get_system(self):
+        """Get the system."""
+        systems = self.sysinv_client.isystem.list()
+        return systems[0]
+
+    def get_service_parameters(self, name, value):
+        """Get service parameters for a given name."""
+        opts = []
+        opt = dict()
+        opt['field'] = name
+        opt['value'] = value
+        opt['op'] = 'eq'
+        opt['type'] = ''
+        opts.append(opt)
+        parameters = self.sysinv_client.service_parameter.list(q=opts)
+        return parameters
+
+    def get_registry_image_tags(self, image_name):
+        """Get the image tags for an image from the local registry"""
+        image_tags = self.sysinv_client.registry_image.tags(image_name)
+        return image_tags
