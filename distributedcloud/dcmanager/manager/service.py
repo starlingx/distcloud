@@ -117,9 +117,9 @@ class DCManagerService(service.Service):
         if self.periodic_enable:
             LOG.info("Adding periodic tasks for the manager to perform")
             self.TG.add_timer(cfg.CONF.scheduler.subcloud_audit_interval,
-                              self.subcloud_audit, None)
+                              self.subcloud_audit, initial_delay=10)
             self.TG.add_timer(cfg.CONF.scheduler.patch_audit_interval,
-                              self.patch_audit, None)
+                              self.patch_audit, initial_delay=60)
 
     def subcloud_audit(self):
         # Audit availability of all subclouds.

@@ -56,6 +56,10 @@ def main():
                                    consts.TOPIC_DC_MANAGER)
     launcher = service.launch(cfg.CONF,
                               srv, workers=cfg.CONF.workers)
+
+    LOG.info("Configuration:")
+    cfg.CONF.log_opt_values(LOG, logging.INFO)
+
     # the following periodic tasks are intended serve as HA checking
     # srv.create_periodic_tasks()
     launcher.wait()

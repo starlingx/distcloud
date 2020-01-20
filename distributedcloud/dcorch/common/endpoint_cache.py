@@ -58,7 +58,8 @@ class EndpointCache(object):
             project_domain_name=cfg.CONF.cache.admin_project_domain_name,
         )
         self.admin_session = session.Session(
-            auth=auth, additional_headers=consts.USER_HEADER)
+            auth=auth, additional_headers=consts.USER_HEADER,
+            timeout=cfg.CONF.keystone_authtoken.http_connect_timeout)
         self.keystone_client = keystone_client.Client(
             session=self.admin_session,
             region_name=consts.CLOUD_0)
@@ -95,7 +96,8 @@ class EndpointCache(object):
                 project_domain_name=cfg.CONF.cache.admin_project_domain_name,
             )
             self.admin_session = session.Session(
-                auth=sc_auth, additional_headers=consts.USER_HEADER)
+                auth=sc_auth, additional_headers=consts.USER_HEADER,
+                timeout=cfg.CONF.keystone_authtoken.http_connect_timeout)
             self.keystone_client = keystone_client.Client(
                 session=self.admin_session,
                 region_name=region_name)

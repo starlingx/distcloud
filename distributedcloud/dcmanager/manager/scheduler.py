@@ -32,10 +32,10 @@ wallclock = time.time
 class ThreadGroupManager(object):
     """Thread group manager."""
 
-    def __init__(self):
+    def __init__(self, *args, **kwargs):
         super(ThreadGroupManager, self).__init__()
         self.threads = {}
-        self.group = threadgroup.ThreadGroup()
+        self.group = threadgroup.ThreadGroup(*args, **kwargs)
 
     def start(self, func, *args, **kwargs):
         """Run the given method in a sub-thread."""
