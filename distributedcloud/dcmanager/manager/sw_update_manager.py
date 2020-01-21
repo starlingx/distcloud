@@ -1078,7 +1078,7 @@ class PatchOrchThread(threading.Thread):
 
         try:
             ks_client = self.get_ks_client(region)
-        except (keystone_exceptions.EndpointNotFound, IndexError) as e:
+        except (keystone_exceptions.EndpointNotFound, IndexError):
             message = ("Identity endpoint for subcloud: %s not found." %
                        region)
             LOG.error(message)

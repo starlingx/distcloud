@@ -80,7 +80,7 @@ class VolumeSyncThread(SyncThread):
             func_name = request.orch_job.operation_type + \
                 "_" + rsrc.resource_type
             getattr(self, func_name)(request, rsrc)
-        except keystone_exceptions.EndpointNotFound as e:
+        except keystone_exceptions.EndpointNotFound:
             # Cinder is optional in the subcloud, so this isn't considered
             # an error.
             LOG.info("sync_volume_resource: {} does not have a volume "
@@ -247,7 +247,7 @@ class VolumeSyncThread(SyncThread):
                      .format(self.subcloud_engine.subcloud.region_name,
                              str(e)), extra=self.log_extra)
             return None
-        except keystone_exceptions.EndpointNotFound as e:
+        except keystone_exceptions.EndpointNotFound:
             LOG.info("get_quota_class: subcloud {} does not have a volume "
                      "endpoint in keystone"
                      .format(self.subcloud_engine.subcloud.region_name),

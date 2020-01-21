@@ -265,7 +265,7 @@ class SubcloudsController(object):
         if 'nexthop_gateway' in install_values:
             try:
                 gateway_ip = IPAddress(install_values['nexthop_gateway'])
-            except AddrFormatError:
+            except AddrFormatError as e:
                 LOG.exception(e)
                 pecan.abort(400, _("nexthop_gateway address invalid: %s") % e)
             if gateway_ip.version != ip_version:
