@@ -178,7 +178,7 @@ class SubcloudInstall(object):
     def get_image_tag(self, image_name):
         tags = self.sysinv_client.get_registry_image_tags(image_name)
         if not tags:
-            msg = ("Error: Image % not found in the local registry." %
+            msg = ("Error: Image %s not found in the local registry." %
                    image_name)
             LOG.error(msg)
             raise exceptions.NotFound()

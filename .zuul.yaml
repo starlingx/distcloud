@@ -9,11 +9,13 @@
         - openstack-tox-linters
         - stx-distcloud-tox-pep8
         - stx-distcloud-tox-py27
+        - stx-distcloud-tox-pylint
     gate:
       jobs:
         - openstack-tox-linters
         - stx-distcloud-tox-pep8
         - stx-distcloud-tox-py27
+        - stx-distcloud-tox-pylint
     post:
       jobs:
         - stx-distcloud-upload-git-mirror
@@ -29,6 +31,19 @@
       - starlingx/config
     vars:
       tox_envlist: py27
+      tox_extra_args: -c distributedcloud/tox.ini
+
+- job:
+    name: stx-distcloud-tox-pylint
+    parent: tox
+    description: Run pylint for distcloud
+    required-projects:
+      - starlingx/fault
+      - starlingx/nfv
+      - starlingx/update
+      - starlingx/config
+    vars:
+      tox_envlist: pylint
       tox_extra_args: -c distributedcloud/tox.ini
 
 - job:

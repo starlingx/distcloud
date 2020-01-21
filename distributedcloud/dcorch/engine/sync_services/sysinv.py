@@ -852,7 +852,7 @@ class SysinvSyncThread(SyncThread):
                     resource_type, resource.uuid))
                 return resource.uuid
             else:
-                LOG.info("get_resource_id {} NO uuid resource_type={}".format(
+                LOG.info("get_resource_id NO uuid resource_type={}".format(
                     resource_type))
                 return self.RESOURCE_UUID_NULL  # master_id cannot be None
 
@@ -969,8 +969,8 @@ class SysinvSyncThread(SyncThread):
             # The resource differs, signal to perform the audit_action
             return True
 
-        LOG.info("audit_discrepancy default action".format(resource_type),
-                 extra=self.log_extra)
+        LOG.info("audit_discrepancy resource_type {} default action".format(
+            resource_type), extra=self.log_extra)
         return False
 
     def audit_action(self, resource_type, finding, resource, sc_source=None):

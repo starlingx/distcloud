@@ -35,6 +35,7 @@ from dcmanager.common import consts
 from dcmanager.common import exceptions
 from dcmanager.db import api as db_api
 from dcmanager.drivers.openstack import vim
+from dcorch.common import consts as dcorch_consts
 
 LOG = logging.getLogger(__name__)
 
@@ -56,9 +57,9 @@ def get_batch_projects(batch_size, project_list, fillvalue=None):
 def validate_quota_limits(payload):
     for resource in payload:
         # Check valid resource name
-        if resource not in itertools.chain(consts.CINDER_QUOTA_FIELDS,
-                                           consts.NOVA_QUOTA_FIELDS,
-                                           consts.NEUTRON_QUOTA_FIELDS):
+        if resource not in itertools.chain(dcorch_consts.CINDER_QUOTA_FIELDS,
+                                           dcorch_consts.NOVA_QUOTA_FIELDS,
+                                           dcorch_consts.NEUTRON_QUOTA_FIELDS):
             raise exceptions.InvalidInputError
         # Check valid quota limit value in case for put/post
         if isinstance(payload, dict) and (not isinstance(

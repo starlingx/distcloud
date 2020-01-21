@@ -188,7 +188,7 @@ class SysinvClient(base.DriverBase):
                      self.region_name, trapdest_ip_address))
             self.client.itrapdest.delete(trapdest_ip_address)
         except HTTPNotFound:
-            LOG.info("snmp_trapdest_delete NotFound %s for region: {}".format(
+            LOG.info("snmp_trapdest_delete NotFound {} for region: {}".format(
                      trapdest_ip_address, self.region_name))
             raise exceptions.TrapDestNotFound(region_name=self.region_name,
                                               ip_address=trapdest_ip_address)
@@ -252,7 +252,7 @@ class SysinvClient(base.DriverBase):
                      self.region_name, community))
             self.client.icommunity.delete(community)
         except HTTPNotFound:
-            LOG.info("snmp_community_delete NotFound %s for region: {}".format(
+            LOG.info("snmp_community_delete NotFound {} for region: {}".format(
                      community, self.region_name))
             raise exceptions.CommunityNotFound(region_name=self.region_name,
                                                community=community)

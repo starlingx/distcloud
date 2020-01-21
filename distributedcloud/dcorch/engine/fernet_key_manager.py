@@ -111,7 +111,7 @@ class FernetKeyManager(manager.Manager):
             except subprocess.CalledProcessError:
                 msg = _("Failed to rotate the keys")
                 LOG.exception(msg)
-                raise exceptions.InternalError(msg)
+                raise exceptions.InternalError(message=msg)
 
         self._schedule_work(consts.OPERATION_TYPE_PUT)
 

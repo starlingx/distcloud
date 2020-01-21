@@ -60,7 +60,8 @@ class Middleware(Application):
         """
 
         def _factory(app):
-            return cls(app, global_config, **local_config)
+            # https://bugs.launchpad.net/starlingx/+bug/1865085
+            return cls(app, global_config, **local_config)  # pylint: disable=too-many-function-args
         return _factory
 
     def __init__(self, application):

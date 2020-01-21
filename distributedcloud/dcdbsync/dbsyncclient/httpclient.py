@@ -81,7 +81,7 @@ class HTTPClient(object):
             raise exceptions.ConnectFailure(msg)
         except requests.exceptions.RequestException as e:
             msg = 'Unexpected exception for %s: %s' % (url, e)
-            raise exceptions.UnknownConnectionError(msg, e)
+            raise exceptions.UnknownConnectionError(msg)
 
     @log_request
     def post(self, url, body, headers=None):
@@ -99,7 +99,7 @@ class HTTPClient(object):
             raise exceptions.ConnectFailure(msg)
         except requests.exceptions.RequestException as e:
             msg = 'Unexpected exception for %s: %s' % (url, e)
-            raise exceptions.UnknownConnectionError(msg, e)
+            raise exceptions.UnknownConnectionError(msg)
 
     @log_request
     def put(self, url, body, headers=None):
@@ -117,7 +117,7 @@ class HTTPClient(object):
             raise exceptions.ConnectFailure(msg)
         except requests.exceptions.RequestException as e:
             msg = 'Unexpected exception for %s: %s' % (url, e)
-            raise exceptions.UnknownConnectionError(msg, e)
+            raise exceptions.UnknownConnectionError(msg)
 
     @log_request
     def patch(self, url, body, headers=None):
@@ -135,7 +135,7 @@ class HTTPClient(object):
             raise exceptions.ConnectFailure(msg)
         except requests.exceptions.RequestException as e:
             msg = 'Unexpected exception for %s: %s' % (url, e)
-            raise exceptions.UnknownConnectionError(msg, e)
+            raise exceptions.UnknownConnectionError(msg)
 
     @log_request
     def delete(self, url, headers=None):
@@ -153,7 +153,7 @@ class HTTPClient(object):
             raise exceptions.ConnectFailure(msg)
         except requests.exceptions.RequestException as e:
             msg = 'Unexpected exception for %s: %s' % (url, e)
-            raise exceptions.UnknownConnectionError(msg, e)
+            raise exceptions.UnknownConnectionError(msg)
 
     def _get_request_options(self, method, headers):
         headers = self._update_headers(headers)
