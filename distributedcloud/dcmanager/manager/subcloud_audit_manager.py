@@ -97,8 +97,8 @@ class SubcloudAuditManager(manager.Manager):
                     [consts.DEPLOY_STATE_DONE,
                      consts.DEPLOY_STATE_DEPLOYING,
                      consts.DEPLOY_STATE_DEPLOY_FAILED]):
-                LOG.info("Skip subcloud %s audit, deploy_status: %s" %
-                         (subcloud.name, subcloud.deploy_status))
+                LOG.debug("Skip subcloud %s audit, deploy_status: %s" %
+                          (subcloud.name, subcloud.deploy_status))
                 continue
             # Create a new greenthread for each subcloud to allow the audits
             # to be done in parallel. If there are not enough greenthreads

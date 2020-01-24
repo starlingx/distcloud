@@ -20,11 +20,11 @@
 
 import base64
 import datetime
+from eventlet.green import subprocess
 import json
 import netaddr
 import os
 import socket
-import subprocess
 
 from six.moves.urllib import error as urllib_error
 from six.moves.urllib import parse
@@ -315,10 +315,9 @@ class SubcloudInstall(object):
             with open(os.devnull, "w") as fnull:
                 subprocess.check_call(update_iso_cmd, stdout=fnull,
                                       stderr=fnull)
-        except subprocess.CalledProcessError as ex:
+        except subprocess.CalledProcessError:
             msg = "Failed to update iso %s, " % str(update_iso_cmd)
-            LOG.error(msg)
-            raise ex
+            raise Exception(msg)
         return output_iso_file
 
     def cleanup(self):
@@ -381,6 +380,7 @@ class SubcloudInstall(object):
         self.create_install_override_file(override_path, payload)
 
     def install(self, log_file_dir, install_command):
+        LOG.info("Start remote install %s", self.name)
         log_file = (log_file_dir + self.name + '_install_' +
                     str(datetime.datetime.now().strftime('%Y-%m-%d-%H-%M-%S'))
                     + '.log')
@@ -389,9 +389,8 @@ class SubcloudInstall(object):
                 subprocess.check_call(install_command,
                                       stdout=f_out_log,
                                       stderr=f_out_log)
-            except subprocess.CalledProcessError as e:
+            except subprocess.CalledProcessError:
                 msg = ("Failed to install the subcloud %s, check individual "
                        "log at %s for detailed output."
                        % (self.name, log_file))
-                LOG.error(msg)
-                raise e
+                raise Exception(msg)
