@@ -131,7 +131,7 @@ def create_subcloud_dict(data_list):
             'external_oam_subnet': data_list[19],
             'external_oam_gateway_address': data_list[20],
             'external_oam_floating_address': data_list[21],
-            'subcloud_password': data_list[22]}
+            'sysadmin_password': data_list[22]}
 
 
 def create_route_dict(data_list):

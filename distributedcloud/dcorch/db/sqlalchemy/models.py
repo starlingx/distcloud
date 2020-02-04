@@ -236,8 +236,7 @@ class SubcloudResource(BASE, OrchestratorBase):
 
     # Could get subcloud_name (or target_region) from subcloud.region_name
     # subcloud_name = Column('subcloud_name', String(255))
-    # Is this resource managed or unmanaged: e.g. ntp may not be managed
-    # by orchestrator for some subcloud
+    # Is this resource managed or unmanaged by orchestrator for some subcloud
     shared_config_state = Column('shared_config_state', String(255),
                                  default="managed")
     capabilities = Column(JSONEncodedDict)

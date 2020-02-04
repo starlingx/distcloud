@@ -21,7 +21,7 @@
 
 # -- Project information -----------------------------------------------------
 
-project = u'stx-distcloud'
+project = u'StarlingX Distributed Cloud'
 copyright = u'2018, StarlingX'
 author = u'StarlingX'
 

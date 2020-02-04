@@ -41,6 +41,9 @@ extensions = [
     'reno.sphinxext',
 ]
 
+# General information about the project.
+project = u'StarlingX Distributed Cloud'
+
 bug_project = '1027'
 bug_tag = 'stx.bug'
 

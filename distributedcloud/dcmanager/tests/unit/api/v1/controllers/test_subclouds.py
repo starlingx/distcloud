@@ -31,6 +31,7 @@ from dcmanager.rpc import client as rpc_client
 from dcmanager.tests.unit.api import test_root_controller as testroot
 from dcmanager.tests import utils
 
+
 FAKE_TENANT = utils.UUID1
 FAKE_ID = '1'
 FAKE_URL = '/v1.0/subclouds'
@@ -51,7 +52,25 @@ FAKE_SUBCLOUD_DATA = {"name": "subcloud1",
                       "external_oam_gateway_address": "10.10.10.1",
                       "external_oam_floating_address": "10.10.10.12",
                       "availability-status": "disabled",
-                      "subcloud_password": "testpass"}
+                      "sysadmin_password": "testpass"}
+
+FAKE_SUBCLOUD_INSTALL_VALUES = {
+    "image": "http://192.168.101.2:8080/iso/bootimage.iso",
+    "software_version": "20.01",
+    "bootstrap_interface": "eno1",
+    "bootstrap_address": "128.224.151.183",
+    "bootstrap_address_prefix": 23,
+    "bmc_address": "128.224.64.180",
+    "bmc_username": "root",
+    "nexthop_gateway": "128.224.150.1",
+    "network_address": "128.224.144.0",
+    "network_mask": "255.255.254.0",
+    "install_type": 3,
+    "console_type": "tty0",
+    "bootstrap_vlan": 128,
+    "rootfs_device": "/dev/disk/by-path/pci-0000:5c:00.0-scsi-0:1:0:0",
+    "boot_device": "/dev/disk/by-path/pci-0000:5c:00.0-scsi-0:1:0:0"
+}
 
 
 class FakeAddressPool(object):
@@ -88,6 +107,27 @@ class TestSubclouds(testroot.DCManagerApiTest):
         mock_rpc_client().add_subcloud.assert_called_once_with(
             mock.ANY,
             data)
+        self.assertEqual(response.status_int, 200)
+
+    @mock.patch.object(subclouds.SubcloudsController,
+                       '_get_management_address_pool')
+    @mock.patch.object(rpc_client, 'ManagerClient')
+    @mock.patch.object(subclouds, 'db_api')
+    def test_post_subcloud_with_install_values(
+            self, mock_db_api, mock_rpc_client,
+            mock_get_management_address_pool):
+        data = copy.copy(FAKE_SUBCLOUD_DATA)
+        install_data = copy.copy(FAKE_SUBCLOUD_INSTALL_VALUES)
+        data['bmc_password'] = 'bmc_password'
+        data.update({'install_values': install_data})
+        management_address_pool = FakeAddressPool('192.168.204.0', 24,
+                                                  '192.168.204.2',
+                                                  '192.168.204.100')
+        mock_get_management_address_pool.return_value = management_address_pool
+        mock_rpc_client().add_subcloud.return_value = True
+        response = self.app.post_json(FAKE_URL,
+                                      headers=FAKE_HEADERS,
+                                      params=data)
         self.assertEqual(response.status_int, 200)
 
     @mock.patch.object(subclouds.SubcloudsController,
@@ -176,6 +216,160 @@ class TestSubclouds(testroot.DCManagerApiTest):
         data = FAKE_SUBCLOUD_DATA
         six.assertRaisesRegex(self, webtest.app.AppError, "404 *",
                               self.app.post_json, WRONG_URL,
+                              headers=FAKE_HEADERS, params=data)
+
+    @mock.patch.object(subclouds.SubcloudsController,
+                       '_get_management_address_pool')
+    @mock.patch.object(rpc_client, 'ManagerClient')
+    @mock.patch.object(subclouds, 'db_api')
+    def test_post_subcloud_install_no_bmc_password(
+            self, mock_db_api, mock_rpc_client,
+            mock_get_management_address_pool):
+        data = copy.copy(FAKE_SUBCLOUD_DATA)
+        install_data = copy.copy(FAKE_SUBCLOUD_INSTALL_VALUES)
+        data.update({'install_values': install_data})
+        management_address_pool = FakeAddressPool('192.168.204.0', 24,
+                                                  '192.168.204.2',
+                                                  '192.168.204.100')
+        mock_get_management_address_pool.return_value = management_address_pool
+        six.assertRaisesRegex(self, webtest.app.AppError, "400 *",
+                              self.app.post_json, FAKE_URL,
+                              headers=FAKE_HEADERS, params=data)
+
+    @mock.patch.object(subclouds.SubcloudsController,
+                       '_get_management_address_pool')
+    @mock.patch.object(rpc_client, 'ManagerClient')
+    @mock.patch.object(subclouds, 'db_api')
+    def test_post_subcloud_install_missing_mandatory_values(
+            self, mock_db_api, mock_rpc_client,
+            mock_get_management_address_pool):
+        data = copy.copy(FAKE_SUBCLOUD_DATA)
+        install_data = copy.copy(FAKE_SUBCLOUD_INSTALL_VALUES)
+        del install_data['image']
+        data.update({'install_values': install_data})
+        management_address_pool = FakeAddressPool('192.168.204.0', 24,
+                                                  '192.168.204.2',
+                                                  '192.168.204.100')
+        mock_get_management_address_pool.return_value = management_address_pool
+        six.assertRaisesRegex(self, webtest.app.AppError, "400 *",
+                              self.app.post_json, FAKE_URL,
+                              headers=FAKE_HEADERS, params=data)
+
+    @mock.patch.object(subclouds.SubcloudsController,
+                       '_get_management_address_pool')
+    @mock.patch.object(rpc_client, 'ManagerClient')
+    @mock.patch.object(subclouds, 'db_api')
+    def test_post_subcloud_install_invalid_type(
+            self, mock_db_api, mock_rpc_client,
+            mock_get_management_address_pool):
+        data = copy.copy(FAKE_SUBCLOUD_DATA)
+        install_data = copy.copy(FAKE_SUBCLOUD_INSTALL_VALUES)
+        install_data['install_type'] = 10
+        data.update({'install_values': install_data})
+        management_address_pool = FakeAddressPool('192.168.204.0', 24,
+                                                  '192.168.204.2',
+                                                  '192.168.204.100')
+        mock_get_management_address_pool.return_value = management_address_pool
+        six.assertRaisesRegex(self, webtest.app.AppError, "400 *",
+                              self.app.post_json, FAKE_URL,
+                              headers=FAKE_HEADERS, params=data)
+
+    @mock.patch.object(subclouds.SubcloudsController,
+                       '_get_management_address_pool')
+    @mock.patch.object(rpc_client, 'ManagerClient')
+    @mock.patch.object(subclouds, 'db_api')
+    def test_post_subcloud_install_bad_bootstrap_ip(
+            self, mock_db_api, mock_rpc_client,
+            mock_get_management_address_pool):
+        data = copy.copy(FAKE_SUBCLOUD_DATA)
+        install_data = copy.copy(FAKE_SUBCLOUD_INSTALL_VALUES)
+        install_data['bootstrap_address'] = '192.168.1.256'
+        data.update({'install_values': install_data})
+        management_address_pool = FakeAddressPool('192.168.204.0', 24,
+                                                  '192.168.204.2',
+                                                  '192.168.204.100')
+        mock_get_management_address_pool.return_value = management_address_pool
+        six.assertRaisesRegex(self, webtest.app.AppError, "400 *",
+                              self.app.post_json, FAKE_URL,
+                              headers=FAKE_HEADERS, params=data)
+
+    @mock.patch.object(subclouds.SubcloudsController,
+                       '_get_management_address_pool')
+    @mock.patch.object(rpc_client, 'ManagerClient')
+    @mock.patch.object(subclouds, 'db_api')
+    def test_post_subcloud_install_bad_bmc_ip(
+            self, mock_db_api, mock_rpc_client,
+            mock_get_management_address_pool):
+        data = copy.copy(FAKE_SUBCLOUD_DATA)
+        install_data = copy.copy(FAKE_SUBCLOUD_INSTALL_VALUES)
+        install_data['bmc_address'] = '128.224.64.280'
+        data.update({'install_values': install_data})
+        management_address_pool = FakeAddressPool('192.168.204.0', 24,
+                                                  '192.168.204.2',
+                                                  '192.168.204.100')
+        mock_get_management_address_pool.return_value = management_address_pool
+        six.assertRaisesRegex(self, webtest.app.AppError, "400 *",
+                              self.app.post_json, FAKE_URL,
+                              headers=FAKE_HEADERS, params=data)
+
+    @mock.patch.object(subclouds.SubcloudsController,
+                       '_get_management_address_pool')
+    @mock.patch.object(rpc_client, 'ManagerClient')
+    @mock.patch.object(subclouds, 'db_api')
+    def test_post_subcloud_install_different_ip_version(
+            self, mock_db_api, mock_rpc_client,
+            mock_get_management_address_pool):
+        data = copy.copy(FAKE_SUBCLOUD_DATA)
+        install_data = copy.copy(FAKE_SUBCLOUD_INSTALL_VALUES)
+        install_data['nexthop_gateway'] = '192.168.1.2'
+        install_data['network_address'] = 'fd01:6::0'
+        install_data['bmc_address'] = 'fd01:6::7'
+        data.update({'install_values': install_data})
+        management_address_pool = FakeAddressPool('192.168.204.0', 24,
+                                                  '192.168.204.2',
+                                                  '192.168.204.100')
+        mock_get_management_address_pool.return_value = management_address_pool
+        six.assertRaisesRegex(self, webtest.app.AppError, "400 *",
+                              self.app.post_json, FAKE_URL,
+                              headers=FAKE_HEADERS, params=data)
+
+    @mock.patch.object(subclouds.SubcloudsController,
+                       '_get_management_address_pool')
+    @mock.patch.object(rpc_client, 'ManagerClient')
+    @mock.patch.object(subclouds, 'db_api')
+    def test_post_subcloud_install_missing_network_gateway(
+            self, mock_db_api, mock_rpc_client,
+            mock_get_management_address_pool):
+        data = copy.copy(FAKE_SUBCLOUD_DATA)
+        install_data = copy.copy(FAKE_SUBCLOUD_INSTALL_VALUES)
+        del install_data['nexthop_gateway']
+        data.update({'install_values': install_data})
+        management_address_pool = FakeAddressPool('192.168.204.0', 24,
+                                                  '192.168.204.2',
+                                                  '192.168.204.100')
+        mock_get_management_address_pool.return_value = management_address_pool
+        six.assertRaisesRegex(self, webtest.app.AppError, "400 *",
+                              self.app.post_json, FAKE_URL,
+                              headers=FAKE_HEADERS, params=data)
+
+    @mock.patch.object(subclouds.SubcloudsController,
+                       '_get_management_address_pool')
+    @mock.patch.object(rpc_client, 'ManagerClient')
+    @mock.patch.object(subclouds, 'db_api')
+    def test_post_subcloud_install_bad_network_address(
+            self, mock_db_api, mock_rpc_client,
+            mock_get_management_address_pool):
+        data = copy.copy(FAKE_SUBCLOUD_DATA)
+        install_data = copy.copy(FAKE_SUBCLOUD_INSTALL_VALUES)
+        install_data['network_address'] = 'fd01:6::0'
+        install_data['network_mask'] = '63'
+        data.update({'install_values': install_data})
+        management_address_pool = FakeAddressPool('192.168.204.0', 24,
+                                                  '192.168.204.2',
+                                                  '192.168.204.100')
+        mock_get_management_address_pool.return_value = management_address_pool
+        six.assertRaisesRegex(self, webtest.app.AppError, "400 *",
+                              self.app.post_json, FAKE_URL,
                               headers=FAKE_HEADERS, params=data)
 
     @mock.patch.object(rpc_client, 'ManagerClient')

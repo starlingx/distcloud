@@ -34,8 +34,6 @@ class SysinvSyncThread(SyncThread):
     """Manages tasks related to distributed cloud orchestration for sysinv."""
 
     SYSINV_MODIFY_RESOURCES = [consts.RESOURCE_TYPE_SYSINV_DNS,
-                               consts.RESOURCE_TYPE_SYSINV_NTP,
-                               consts.RESOURCE_TYPE_SYSINV_PTP,
                                consts.RESOURCE_TYPE_SYSINV_REMOTE_LOGGING,
                                consts.RESOURCE_TYPE_SYSINV_USER,
                                consts.RESOURCE_TYPE_SYSINV_FERNET_REPO
@@ -56,8 +54,6 @@ class SysinvSyncThread(SyncThread):
         self.endpoint_type = consts.ENDPOINT_TYPE_PLATFORM
         self.sync_handler_map = {
             consts.RESOURCE_TYPE_SYSINV_DNS: self.sync_dns,
-            consts.RESOURCE_TYPE_SYSINV_NTP: self.sync_ntp,
-            consts.RESOURCE_TYPE_SYSINV_PTP: self.sync_ptp,
             consts.RESOURCE_TYPE_SYSINV_SNMP_COMM:
                 self.sync_snmp_community,
             consts.RESOURCE_TYPE_SYSINV_SNMP_TRAPDEST:
@@ -77,8 +73,6 @@ class SysinvSyncThread(SyncThread):
         self.audit_resources = [
             consts.RESOURCE_TYPE_SYSINV_CERTIFICATE,
             consts.RESOURCE_TYPE_SYSINV_DNS,
-            consts.RESOURCE_TYPE_SYSINV_NTP,
-            consts.RESOURCE_TYPE_SYSINV_PTP,
             consts.RESOURCE_TYPE_SYSINV_REMOTE_LOGGING,
             consts.RESOURCE_TYPE_SYSINV_SNMP_COMM,
             consts.RESOURCE_TYPE_SYSINV_SNMP_TRAPDEST,
@@ -146,153 +140,6 @@ class SysinvSyncThread(SyncThread):
             rsrc.id, idns.uuid)
         LOG.info("DNS {}:{} [{}] updated"
                  .format(rsrc.id, subcloud_rsrc_id, nameservers),
-                 extra=self.log_extra)
-
-    def update_ntp(self, enabled, ntpservers):
-        try:
-            s_os_client = sdk.OpenStackDriver(self.region_name)
-            intp = s_os_client.sysinv_client.update_ntp(enabled, ntpservers)
-            return intp
-        except (exceptions.ConnectionRefused, exceptions.NotAuthorized,
-                exceptions.TimeOut):
-            LOG.info("update_ntp exception Timeout",
-                     extra=self.log_extra)
-            s_os_client.delete_region_clients(self.region_name)
-            raise exceptions.SyncRequestTimeout
-        except (AttributeError, TypeError) as e:
-            LOG.info("update_ntp error {} region_name".format(e),
-                     extra=self.log_extra)
-            s_os_client.delete_region_clients(self.region_name,
-                                              clear_token=True)
-            raise exceptions.SyncRequestFailedRetry
-        except Exception as e:
-            LOG.exception(e)
-            raise exceptions.SyncRequestFailedRetry
-
-    def sync_ntp(self, request, rsrc):
-        # The system is created with default ntp; thus there
-        # is a prepopulated ntp entry.
-        LOG.info("sync_ntp resource_info={}".format(
-                 request.orch_job.resource_info),
-                 extra=self.log_extra)
-        ntp_dict = jsonutils.loads(request.orch_job.resource_info)
-        payload = ntp_dict.get('payload')
-
-        enabled = None
-        ntpservers = None
-        if type(payload) is list:
-            for ipayload in payload:
-                if ipayload.get('path') == '/enabled':
-                    enabled = ipayload.get('value')
-                    LOG.debug("sync_ntp enabled %s" % enabled,
-                              extra=self.log_extra)
-                elif ipayload.get('path') == '/ntpservers':
-                    ntpservers = ipayload.get('value')
-                    LOG.debug("sync_ntp ntpservers = {}".format(ntpservers),
-                              extra=self.log_extra)
-                if enabled is not None and ntpservers is not None:
-                    break
-        else:
-            enabled = payload.get('enabled')
-            LOG.debug("sync_ntp enabled %s" % enabled, extra=self.log_extra)
-            ntpservers = payload.get('ntpservers')
-            LOG.debug("sync_ntp ntpservers from dict={}".format(ntpservers),
-                      extra=self.log_extra)
-
-        if enabled is None or ntpservers is None:
-            LOG.info("sync_ntp No ntp update found in resource_info"
-                     "{}".format(request.orch_job.resource_info),
-                     extra=self.log_extra)
-            return
-
-        intp = self.update_ntp(str(enabled), ntpservers)
-
-        # Ensure subcloud resource is persisted to the DB for later
-        subcloud_rsrc_id = self.persist_db_subcloud_resource(
-            rsrc.id, intp.uuid)
-        LOG.info("NTP {}:{} - {} [{}] updated"
-                 .format(rsrc.id, subcloud_rsrc_id, enabled, ntpservers),
-                 extra=self.log_extra)
-
-    def update_ptp(self, enabled, mode, transport, mechanism):
-        try:
-            s_os_client = sdk.OpenStackDriver(self.region_name)
-            ptp = s_os_client.sysinv_client.update_ptp(enabled,
-                                                       mode,
-                                                       transport,
-                                                       mechanism)
-            return ptp
-        except (exceptions.ConnectionRefused, exceptions.NotAuthorized,
-                exceptions.TimeOut):
-            LOG.info("update_ptp exception Timeout",
-                     extra=self.log_extra)
-            s_os_client.delete_region_clients(self.region_name)
-            raise exceptions.SyncRequestTimeout
-        except (AttributeError, TypeError) as e:
-            LOG.info("update_ptp error {} region_name".format(e),
-                     extra=self.log_extra)
-            s_os_client.delete_region_clients(self.region_name,
-                                              clear_token=True)
-            raise exceptions.SyncRequestFailedRetry
-        except Exception as e:
-            LOG.exception(e)
-            raise exceptions.SyncRequestFailedRetry
-
-    def sync_ptp(self, request, rsrc):
-        # The system is created with default ptp; thus there
-        # is a prepopulated ptp entry.
-        LOG.info("sync_ptp resource_info={}".format(
-                 request.orch_job.resource_info),
-                 extra=self.log_extra)
-        ptp_dict = jsonutils.loads(request.orch_job.resource_info)
-        payload = ptp_dict.get('payload')
-
-        enabled = None
-        mode = None
-        transport = None
-        mechanism = None
-        if type(payload) is list:
-            for ipayload in payload:
-                if ipayload.get('path') == '/enabled':
-                    enabled = ipayload.get('value')
-                    LOG.debug("sync_ptp enabled %s" % enabled,
-                              extra=self.log_extra)
-                elif ipayload.get('path') == '/mode':
-                    mode = ipayload.get('value')
-                    LOG.debug("sync_ptp mode %s" % mode,
-                              extra=self.log_extra)
-                elif ipayload.get('path') == '/transport':
-                    transport = ipayload.get('value')
-                    LOG.debug("sync_ptp transport %s" % transport,
-                              extra=self.log_extra)
-                elif ipayload.get('path') == '/mechanism':
-                    mechanism = ipayload.get('value')
-                    LOG.debug("sync_ptp mechanism %s" % mechanism,
-                              extra=self.log_extra)
-                if all([enabled, mode, transport, mechanism]):
-                    break
-        else:
-            enabled = payload.get('enabled')
-            mode = payload.get('mode')
-            transport = payload.get('transport')
-            mechanism = payload.get('mechanism')
-            LOG.debug("sync_ptp enabled {} mode {} transport {} mechanism {}"
-                      .format(enabled, mode, transport, mechanism),
-                      extra=self.log_extra)
-
-        if not any([enabled, mode, transport, mechanism]):
-            LOG.info("sync_ptp No status update found in resource_info"
-                     "{}".format(request.orch_job.resource_info),
-                     extra=self.log_extra)
-            return
-
-        ptp = self.update_ptp(str(enabled), mode, transport, mechanism)
-
-        # Ensure subcloud resource is persisted to the DB for later
-        subcloud_rsrc_id = self.persist_db_subcloud_resource(
-            rsrc.id, ptp.uuid)
-        LOG.info("PTP {}:{} - {} updated"
-                 .format(rsrc.id, subcloud_rsrc_id, enabled),
                  extra=self.log_extra)
 
     def sync_snmp_trapdest(self, request, rsrc):
@@ -782,10 +629,6 @@ class SysinvSyncThread(SyncThread):
         os_client = sdk.OpenStackDriver(consts.CLOUD_0)
         if resource_type == consts.RESOURCE_TYPE_SYSINV_DNS:
             return [self.get_dns_resource(os_client)]
-        elif resource_type == consts.RESOURCE_TYPE_SYSINV_NTP:
-            return [self.get_ntp_resource(os_client)]
-        elif resource_type == consts.RESOURCE_TYPE_SYSINV_PTP:
-            return [self.get_ptp_resource(os_client)]
         elif resource_type == consts.RESOURCE_TYPE_SYSINV_SNMP_COMM:
             return self.get_snmp_community_resources(os_client)
         elif resource_type == consts.RESOURCE_TYPE_SYSINV_SNMP_TRAPDEST:
@@ -807,10 +650,6 @@ class SysinvSyncThread(SyncThread):
         os_client = sdk.OpenStackDriver(self.region_name)
         if resource_type == consts.RESOURCE_TYPE_SYSINV_DNS:
             return [self.get_dns_resource(os_client)]
-        elif resource_type == consts.RESOURCE_TYPE_SYSINV_NTP:
-            return [self.get_ntp_resource(os_client)]
-        elif resource_type == consts.RESOURCE_TYPE_SYSINV_PTP:
-            return [self.get_ptp_resource(os_client)]
         elif resource_type == consts.RESOURCE_TYPE_SYSINV_SNMP_COMM:
             return self.get_snmp_community_resources(os_client)
         elif resource_type == consts.RESOURCE_TYPE_SYSINV_SNMP_TRAPDEST:
@@ -847,48 +686,6 @@ class SysinvSyncThread(SyncThread):
             return None
         except (AttributeError, TypeError) as e:
             LOG.info("get_dns_resources error {}".format(e),
-                     extra=self.log_extra)
-            os_client.delete_region_clients(self.region_name, clear_token=True)
-            return None
-        except Exception as e:
-            LOG.exception(e)
-            return None
-
-    def get_ntp_resource(self, os_client):
-        try:
-            intp = os_client.sysinv_client.get_ntp()
-            return intp
-        except (keystone_exceptions.connection.ConnectTimeout,
-                keystone_exceptions.ConnectFailure) as e:
-            LOG.info("get_ntp: subcloud {} is not reachable [{}]"
-                     .format(self.subcloud_engine.subcloud.region_name,
-                             str(e)), extra=self.log_extra)
-            # None will force skip of audit
-            os_client.delete_region_clients(self.region_name)
-            return None
-        except (AttributeError, TypeError) as e:
-            LOG.info("get_ntp_resources error {}".format(e),
-                     extra=self.log_extra)
-            os_client.delete_region_clients(self.region_name, clear_token=True)
-            return None
-        except Exception as e:
-            LOG.exception(e)
-            return None
-
-    def get_ptp_resource(self, os_client):
-        try:
-            ptp = os_client.sysinv_client.get_ptp()
-            return ptp
-        except (keystone_exceptions.connection.ConnectTimeout,
-                keystone_exceptions.ConnectFailure) as e:
-            LOG.info("get_ptp: subcloud {} is not reachable [{}]"
-                     .format(self.subcloud_engine.subcloud.region_name,
-                             str(e)), extra=self.log_extra)
-            # None will force skip of audit
-            os_client.delete_region_clients(self.region_name)
-            return None
-        except (AttributeError, TypeError) as e:
-            LOG.info("get_ptp_resources error {}".format(e),
                      extra=self.log_extra)
             os_client.delete_region_clients(self.region_name, clear_token=True)
             return None
@@ -1071,23 +868,6 @@ class SysinvSyncThread(SyncThread):
                 same_nameservers = False
         return same_nameservers
 
-    def same_ntp(self, i1, i2):
-        LOG.debug("same_ntp i1={}, i2={}".format(i1, i2),
-                  extra=self.log_extra)
-        same_ntpservers = True
-        if i1.ntpservers != i2.ntpservers:
-            if not i1.ntpservers and not i2.ntpservers:
-                # To catch equivalent ntpservers None vs ""
-                same_ntpservers = True
-            else:
-                same_ntpservers = False
-        return (i1.enabled == i2.enabled) and same_ntpservers
-
-    def same_ptp(self, i1, i2):
-        LOG.debug("same_ptp i1={}, i2={}".format(i1, i2),
-                  extra=self.log_extra)
-        return i1.enabled == i2.enabled
-
     def same_snmp_trapdest(self, i1, i2):
         LOG.debug("same_snmp_trapdest i1={}, i2={}".format(i1, i2),
                   extra=self.log_extra)
@@ -1156,10 +936,6 @@ class SysinvSyncThread(SyncThread):
     def same_resource(self, resource_type, m_resource, sc_resource):
         if resource_type == consts.RESOURCE_TYPE_SYSINV_DNS:
             return self.same_dns(m_resource, sc_resource)
-        elif resource_type == consts.RESOURCE_TYPE_SYSINV_NTP:
-            return self.same_ntp(m_resource, sc_resource)
-        elif resource_type == consts.RESOURCE_TYPE_SYSINV_PTP:
-            return self.same_ptp(m_resource, sc_resource)
         elif resource_type == consts.RESOURCE_TYPE_SYSINV_SNMP_COMM:
             return self.same_snmp_community(m_resource, sc_resource)
         elif resource_type == consts.RESOURCE_TYPE_SYSINV_SNMP_TRAPDEST:
@@ -1256,8 +1032,6 @@ class SysinvSyncThread(SyncThread):
     def get_resource_info(self, resource_type,
                           resource, operation_type=None):
         payload_resources = [consts.RESOURCE_TYPE_SYSINV_DNS,
-                             consts.RESOURCE_TYPE_SYSINV_NTP,
-                             consts.RESOURCE_TYPE_SYSINV_PTP,
                              consts.RESOURCE_TYPE_SYSINV_SNMP_COMM,
                              consts.RESOURCE_TYPE_SYSINV_SNMP_TRAPDEST,
                              consts.RESOURCE_TYPE_SYSINV_REMOTE_LOGGING,
