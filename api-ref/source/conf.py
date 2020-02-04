@@ -51,7 +51,7 @@ master_doc = 'index'
 
 # General information about the project.
 repository_name = 'openstack/stx-distcloud'
-project = u'stx-distcloud'
+project = u'StarlingX Distributed Cloud'
 bug_project = 'starlingx'
 bug_tag = 'stx.distcloud'
 
