@@ -17,10 +17,11 @@
 # see http://git.openstack.org/cgit/openstack/ironic/tree/ironic/cmd/api.py
 
 
-import sys
-
 import eventlet
 eventlet.monkey_patch(os=False)
+
+import os
+import sys
 
 from oslo_config import cfg
 from oslo_log import log as logging
@@ -90,6 +91,16 @@ def main():
     LOG.info("Server on http://%(host)s:%(port)s with %(workers)s",
              {'host': host, 'port': port, 'workers': workers})
     systemd.notify_once()
+
+    # create a temp directory under /scratch and set TMPDIR
+    # environment variable to this directory, so that the file created
+    # using tempfile will not use the default directory
+    if (CONF.type == consts.ENDPOINT_TYPE_PATCHING):
+        tempdir = os.path.join('/scratch', 'patch-api-proxy-tmpdir')
+        if not os.path.isdir(tempdir):
+            os.makedirs(tempdir)
+        os.environ['TMPDIR'] = tempdir
+
     service = wsgi.Server(CONF, CONF.prog, application, host, port)
 
     app.serve(service, CONF, workers)
