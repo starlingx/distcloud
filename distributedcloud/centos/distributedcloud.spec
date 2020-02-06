@@ -43,7 +43,7 @@ BuildRequires: python-keyring
 BuildRequires: python-keystonemiddleware
 BuildRequires: python-keystoneauth1 >= 3.1.0
 BuildRequires: python-netaddr
-BuildRequires: python-oslo-concurrency
+BuildRequires: python-oslo-concurrency >= 3.29.1
 BuildRequires: python-oslo-config
 BuildRequires: python-oslo-context
 BuildRequires: python-oslo-db
