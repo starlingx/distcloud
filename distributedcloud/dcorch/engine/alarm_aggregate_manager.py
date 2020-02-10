@@ -21,8 +21,11 @@ from dcorch.common import exceptions
 from dcorch.common.i18n import _
 from dcorch.common import manager
 from dcorch.db import api as db_api
-from dcorch.drivers.openstack import sdk
-from dcorch.drivers.openstack import sdk_platform
+
+from dcorch.drivers.openstack.fm import FmClient
+from dcorch.drivers.openstack.keystone_v3 import KeystoneClient
+from dcorch.drivers.openstack import sdk_platform as sdk
+from dcorch.drivers.openstack.sysinv_v1 import SysinvClient
 
 from oslo_config import cfg
 from oslo_log import log as logging
@@ -53,12 +56,17 @@ class AlarmAggregateManager(manager.Manager):
     def enable_snmp(self, ctxt, subcloud_name):
         LOG.info("Enabling fm-aggregation trap for region_name=%s" %
                  subcloud_name)
-        os_client = sdk_platform.OpenStackDriver(subcloud_name)
+
         payload = {"ip_address": CONF.snmp.snmp_ip,
                    "community": CONF.snmp.snmp_comm_str}
         try:
-            os_client.sysinv_client.snmp_trapdest_create(payload)
-            self.update_alarm_summary(self.context, subcloud_name)
+            ks_client = KeystoneClient(subcloud_name)
+            sysinv_client = SysinvClient(subcloud_name, ks_client.session)
+            fm_client = FmClient(subcloud_name, ks_client.session,
+                                 consts.KS_ENDPOINT_DEFAULT)
+            sysinv_client.snmp_trapdest_create(payload)
+            self.update_alarm_summary(self.context, subcloud_name,
+                                      fm_client=fm_client)
         except (exceptions.ConnectionRefused, exceptions.NotAuthorized,
                 exceptions.TimeOut):
             LOG.info("snmp_trapdest_create exception Timeout region_name=%s" %
@@ -77,11 +85,16 @@ class AlarmAggregateManager(manager.Manager):
                      subcloud_name)
             pass
 
-    def update_alarm_summary(self, cntx, region_name):
+    def update_alarm_summary(self, cntx, region_name, thread_name=None,
+                             fm_client=None):
         LOG.info("Updating alarm summary for %s" % region_name)
         try:
-            os_client = sdk.OpenStackDriver(region_name)
-            alarms = os_client.fm_client.get_alarm_summary()
+            if fm_client is not None:
+                alarms = fm_client.get_alarm_summary()
+            else:
+                os_client = sdk.OpenStackDriver(region_name=region_name,
+                                                thread_name=thread_name)
+                alarms = os_client.fm_client.get_alarm_summary()
             alarm_updates = {'critical_alarms': alarms[0].critical,
                              'major_alarms': alarms[0].major,
                              'minor_alarms': alarms[0].minor,
@@ -144,7 +157,8 @@ class PeriodicAlarmUpdate(threading.Thread):
                             dcm_consts.AVAILABILITY_ONLINE:
                         self.parent.\
                             update_alarm_summary(self.context,
-                                                 subcloud['region_name'])
+                                                 subcloud['region_name'],
+                                                 self.name)
             except Exception:
                 pass
             time.sleep(1.0)

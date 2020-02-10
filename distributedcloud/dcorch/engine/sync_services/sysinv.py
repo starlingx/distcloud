@@ -53,18 +53,20 @@ class SysinvSyncThread(SyncThread):
 
         self.endpoint_type = consts.ENDPOINT_TYPE_PLATFORM
         self.sync_handler_map = {
-            consts.RESOURCE_TYPE_SYSINV_DNS: self.sync_dns,
+            consts.RESOURCE_TYPE_SYSINV_DNS:
+                self.sync_platform_resource,
             consts.RESOURCE_TYPE_SYSINV_SNMP_COMM:
-                self.sync_snmp_community,
+                self.sync_platform_resource,
             consts.RESOURCE_TYPE_SYSINV_SNMP_TRAPDEST:
-                self.sync_snmp_trapdest,
+                self.sync_platform_resource,
             consts.RESOURCE_TYPE_SYSINV_REMOTE_LOGGING:
-                self.sync_remotelogging,
+                self.sync_platform_resource,
             consts.RESOURCE_TYPE_SYSINV_CERTIFICATE:
-                self.sync_certificate,
-            consts.RESOURCE_TYPE_SYSINV_USER: self.sync_user,
+                self.sync_platform_resource,
+            consts.RESOURCE_TYPE_SYSINV_USER:
+                self.sync_platform_resource,
             consts.RESOURCE_TYPE_SYSINV_FERNET_REPO:
-                self.sync_fernet_resources
+                self.sync_platform_resource
         }
         self.region_name = self.subcloud_engine.subcloud.region_name
         self.log_extra = {"instance": "{}/{}: ".format(
@@ -84,31 +86,49 @@ class SysinvSyncThread(SyncThread):
         super(SysinvSyncThread, self).initialize()
         LOG.info("SysinvSyncThread initialized", extra=self.log_extra)
 
-    def update_dns(self, nameservers):
+    def sync_platform_resource(self, request, rsrc):
         try:
-            s_os_client = sdk.OpenStackDriver(self.region_name)
-            idns = s_os_client.sysinv_client.update_dns(nameservers)
-            return idns
-        except (exceptions.ConnectionRefused, exceptions.NotAuthorized,
-                exceptions.TimeOut):
-            LOG.info("update_dns exception Timeout",
-                     extra=self.log_extra)
-            s_os_client.delete_region_clients(self.region_name)
+            s_os_client = sdk.OpenStackDriver(region_name=self.region_name,
+                                              thread_name=self.thread.name)
+            # invoke the sync method for the requested resource_type
+            # I.e. sync_idns
+            s_func_name = "sync_" + rsrc.resource_type
+            getattr(self, s_func_name)(s_os_client, request, rsrc)
+        except AttributeError:
+            LOG.error("{} not implemented for {}"
+                      .format(request.orch_job.operation_type,
+                              rsrc.resource_type))
+            raise exceptions.SyncRequestFailed
+        except (exceptions.ConnectionRefused, exceptions.TimeOut,
+                keystone_exceptions.connection.ConnectTimeout,
+                keystone_exceptions.ConnectFailure) as e:
+            LOG.info("{} {} region_name {} exception {}".format(
+                request.orch_job.operation_type, rsrc.resource_type,
+                self.region_name, str(e)), extra=self.log_extra)
             raise exceptions.SyncRequestTimeout
-        except (AttributeError, TypeError) as e:
-            LOG.info("update_dns error {} region_name".format(e),
-                     extra=self.log_extra)
-            s_os_client.delete_region_clients(self.region_name,
-                                              clear_token=True)
+        except exceptions.NotAuthorized:
+            LOG.info("{} {} region_name {} not authorized".format(
+                request.orch_job.operation_type, rsrc.resource_type,
+                self.region_name), extra=self.log_extra)
+            sdk.OpenStackDriver.delete_region_clients(self.region_name)
             raise exceptions.SyncRequestFailedRetry
         except Exception as e:
             LOG.exception(e)
             raise exceptions.SyncRequestFailedRetry
 
-    def sync_dns(self, request, rsrc):
+    def update_dns(self, s_os_client, nameservers):
+        try:
+            idns = s_os_client.sysinv_client.update_dns(nameservers)
+            return idns
+        except (AttributeError, TypeError) as e:
+            LOG.info("update_dns error {}".format(e),
+                     extra=self.log_extra)
+            raise exceptions.SyncRequestFailedRetry
+
+    def sync_idns(self, s_os_client, request, rsrc):
         # The system is created with default dns; thus there
         # is a prepopulated dns entry.
-        LOG.info("sync_dns resource_info={}".format(
+        LOG.info("sync_idns resource_info={}".format(
                  request.orch_job.resource_info),
                  extra=self.log_extra)
         dns_dict = jsonutils.loads(request.orch_job.resource_info)
@@ -119,21 +139,21 @@ class SysinvSyncThread(SyncThread):
             for ipayload in payload:
                 if ipayload.get('path') == '/nameservers':
                     nameservers = ipayload.get('value')
-                    LOG.debug("sync_dns nameservers = {}".format(nameservers),
+                    LOG.debug("sync_idns nameservers = {}".format(nameservers),
                               extra=self.log_extra)
                     break
         else:
             nameservers = payload.get('nameservers')
-            LOG.debug("sync_dns nameservers from dict={}".format(nameservers),
+            LOG.debug("sync_idns nameservers from dict={}".format(nameservers),
                       extra=self.log_extra)
 
         if nameservers is None:
-            LOG.info("sync_dns No nameservers update found in resource_info"
+            LOG.info("sync_idns No nameservers update found in resource_info"
                      "{}".format(request.orch_job.resource_info),
                      extra=self.log_extra)
             nameservers = ""
 
-        idns = self.update_dns(nameservers)
+        idns = self.update_dns(s_os_client, nameservers)
 
         # Ensure subcloud resource is persisted to the DB for later
         subcloud_rsrc_id = self.persist_db_subcloud_resource(
@@ -142,7 +162,7 @@ class SysinvSyncThread(SyncThread):
                  .format(rsrc.id, subcloud_rsrc_id, nameservers),
                  extra=self.log_extra)
 
-    def sync_snmp_trapdest(self, request, rsrc):
+    def sync_itrapdest(self, s_os_client, request, rsrc):
         switcher = {
             consts.OPERATION_TYPE_POST: self.snmp_trapdest_create,
             consts.OPERATION_TYPE_CREATE: self.snmp_trapdest_create,
@@ -151,18 +171,12 @@ class SysinvSyncThread(SyncThread):
 
         func = switcher[request.orch_job.operation_type]
         try:
-            func(request, rsrc)
-        except (keystone_exceptions.connection.ConnectTimeout,
-                keystone_exceptions.ConnectFailure) as e:
-            LOG.info("sync_snmp_trapdest: subcloud {} is not reachable [{}]"
-                     .format(self.subcloud_engine.subcloud.region_name,
-                             str(e)), extra=self.log_extra)
-            raise exceptions.SyncRequestTimeout
+            func(s_os_client, request, rsrc)
         except Exception as e:
             LOG.exception(e)
-            raise exceptions.SyncRequestFailedRetry
+            raise e
 
-    def snmp_trapdest_create(self, request, rsrc):
+    def snmp_trapdest_create(self, s_os_client, request, rsrc):
         LOG.info("snmp_trapdest_create region {} resource_info={}".format(
                  self.subcloud_engine.subcloud.region_name,
                  request.orch_job.resource_info),
@@ -172,23 +186,14 @@ class SysinvSyncThread(SyncThread):
         if not payload:
             payload = resource_info_dict
 
-        s_os_client = sdk.OpenStackDriver(self.region_name)
         try:
             itrapdest = s_os_client.sysinv_client.snmp_trapdest_create(
                 payload)
             itrapdest_id = itrapdest.uuid
             ip_address = itrapdest.ip_address
-        except (exceptions.ConnectionRefused, exceptions.NotAuthorized,
-                exceptions.TimeOut):
-            LOG.info("snmp_trapdest_create exception Timeout",
-                     extra=self.log_extra)
-            s_os_client.delete_region_clients(self.region_name)
-            raise exceptions.SyncRequestTimeout
         except (AttributeError, TypeError) as e:
             LOG.info("snmp_trapdest_create error {}".format(e),
                      extra=self.log_extra)
-            s_os_client.delete_region_clients(self.region_name,
-                                              clear_token=True)
             raise exceptions.SyncRequestFailedRetry
 
         # Now persist the subcloud resource to the DB for later
@@ -200,11 +205,11 @@ class SysinvSyncThread(SyncThread):
                  extra=self.log_extra)
         return itrapdest
 
-    def snmp_trapdest_delete(self, request, rsrc):
+    def snmp_trapdest_delete(self, s_os_client, request, rsrc):
         subcloud_rsrc = self.get_db_subcloud_resource(rsrc.id)
         if not subcloud_rsrc:
             return
-        s_os_client = sdk.OpenStackDriver(self.region_name)
+
         try:
             s_os_client.sysinv_client.snmp_trapdest_delete(
                 subcloud_rsrc.subcloud_resource_id)
@@ -212,17 +217,9 @@ class SysinvSyncThread(SyncThread):
             # SNMP trapdest already deleted in subcloud, carry on.
             LOG.info("SNMP trapdest not in subcloud, may be already deleted",
                      extra=self.log_extra)
-        except (exceptions.ConnectionRefused, exceptions.NotAuthorized,
-                exceptions.TimeOut):
-            LOG.info("snmp_trapdest_delete exception Timeout",
-                     extra=self.log_extra)
-            s_os_client.delete_region_clients(self.region_name)
-            raise exceptions.SyncRequestTimeout
         except (AttributeError, TypeError) as e:
             LOG.info("snmp_trapdest_delete error {}".format(e),
                      extra=self.log_extra)
-            s_os_client.delete_region_clients(self.region_name,
-                                              clear_token=True)
             raise exceptions.SyncRequestFailedRetry
 
         subcloud_rsrc.delete()
@@ -233,7 +230,7 @@ class SysinvSyncThread(SyncThread):
                  subcloud_rsrc.subcloud_resource_id),
                  extra=self.log_extra)
 
-    def sync_snmp_community(self, request, rsrc):
+    def sync_icommunity(self, s_os_client, request, rsrc):
         switcher = {
             consts.OPERATION_TYPE_POST: self.snmp_community_create,
             consts.OPERATION_TYPE_CREATE: self.snmp_community_create,
@@ -242,18 +239,12 @@ class SysinvSyncThread(SyncThread):
 
         func = switcher[request.orch_job.operation_type]
         try:
-            func(request, rsrc)
-        except (keystone_exceptions.connection.ConnectTimeout,
-                keystone_exceptions.ConnectFailure) as e:
-            LOG.info("sync_snmp_community: subcloud {} is not reachable [{}]"
-                     .format(self.subcloud_engine.subcloud.region_name,
-                             str(e)), extra=self.log_extra)
-            raise exceptions.SyncRequestTimeout
+            func(s_os_client, request, rsrc)
         except Exception as e:
             LOG.exception(e)
             raise exceptions.SyncRequestFailedRetry
 
-    def snmp_community_create(self, request, rsrc):
+    def snmp_community_create(self, s_os_client, request, rsrc):
         LOG.info("snmp_community_create region {} resource_info={}".format(
                  self.subcloud_engine.subcloud.region_name,
                  request.orch_job.resource_info),
@@ -263,23 +254,14 @@ class SysinvSyncThread(SyncThread):
         if not payload:
             payload = resource_info_dict
 
-        s_os_client = sdk.OpenStackDriver(self.region_name)
         try:
             icommunity = s_os_client.sysinv_client.snmp_community_create(
                 payload)
             icommunity_id = icommunity.uuid
             community = icommunity.community
-        except (exceptions.ConnectionRefused, exceptions.NotAuthorized,
-                exceptions.TimeOut):
-            LOG.info("snmp_community_create exception Timeout",
-                     extra=self.log_extra)
-            s_os_client.delete_region_clients(self.region_name)
-            raise exceptions.SyncRequestTimeout
         except (AttributeError, TypeError) as e:
             LOG.info("snmp_community_create error {}".format(e),
                      extra=self.log_extra)
-            s_os_client.delete_region_clients(self.region_name,
-                                              clear_token=True)
             raise exceptions.SyncRequestFailedRetry
 
         # Now persist the subcloud resource to the DB for later
@@ -291,11 +273,10 @@ class SysinvSyncThread(SyncThread):
                  extra=self.log_extra)
         return icommunity
 
-    def snmp_community_delete(self, request, rsrc):
+    def snmp_community_delete(self, s_os_client, request, rsrc):
         subcloud_rsrc = self.get_db_subcloud_resource(rsrc.id)
         if not subcloud_rsrc:
             return
-        s_os_client = sdk.OpenStackDriver(self.region_name)
         try:
             s_os_client.sysinv_client.snmp_community_delete(
                 subcloud_rsrc.subcloud_resource_id)
@@ -303,17 +284,9 @@ class SysinvSyncThread(SyncThread):
             # Community already deleted in subcloud, carry on.
             LOG.info("SNMP community not in subcloud, may be already deleted",
                      extra=self.log_extra)
-        except (exceptions.ConnectionRefused, exceptions.NotAuthorized,
-                exceptions.TimeOut):
-            LOG.info("snmp_community_delete exception Timeout",
-                     extra=self.log_extra)
-            s_os_client.delete_region_clients(self.region_name)
-            raise exceptions.SyncRequestTimeout
         except (AttributeError, TypeError) as e:
             LOG.info("snmp_community_delete error {}".format(e),
                      extra=self.log_extra)
-            s_os_client.delete_region_clients(self.region_name,
-                                              clear_token=True)
             raise exceptions.SyncRequestFailedRetry
 
         subcloud_rsrc.delete()
@@ -324,30 +297,18 @@ class SysinvSyncThread(SyncThread):
                  subcloud_rsrc.subcloud_resource_id),
                  extra=self.log_extra)
 
-    def update_remotelogging(self, values):
+    def update_remotelogging(self, s_os_client, values):
 
-        s_os_client = sdk.OpenStackDriver(self.region_name)
         try:
             iremotelogging = s_os_client.sysinv_client.update_remotelogging(
                 values)
             return iremotelogging
-        except (exceptions.ConnectionRefused, exceptions.NotAuthorized,
-                exceptions.TimeOut):
-            LOG.info("update_remotelogging exception Timeout",
-                     extra=self.log_extra)
-            s_os_client.delete_region_clients(self.region_name)
-            raise exceptions.SyncRequestTimeout
         except (AttributeError, TypeError) as e:
             LOG.info("update_remotelogging error {} region_name".format(e),
                      extra=self.log_extra)
-            s_os_client.delete_region_clients(self.region_name,
-                                              clear_token=True)
-            raise exceptions.SyncRequestFailedRetry
-        except Exception as e:
-            LOG.exception(e)
             raise exceptions.SyncRequestFailedRetry
 
-    def sync_remotelogging(self, request, rsrc):
+    def sync_remotelogging(self, s_os_client, request, rsrc):
         # The system is created with default remotelogging; thus there
         # is a prepopulated remotelogging entry.
         LOG.info("sync_remotelogging resource_info={}".format(
@@ -362,7 +323,7 @@ class SysinvSyncThread(SyncThread):
                      extra=self.log_extra)
             return
 
-        iremotelogging = self.update_remotelogging(payload)
+        iremotelogging = self.update_remotelogging(s_os_client, payload)
 
         # Ensure subcloud resource is persisted to the DB for later
         subcloud_rsrc_id = self.persist_db_subcloud_resource(
@@ -373,27 +334,16 @@ class SysinvSyncThread(SyncThread):
                  iremotelogging.uuid),
                  extra=self.log_extra)
 
-    def update_certificate(self, signature, certificate=None, data=None):
+    def update_certificate(self, s_os_client, signature,
+                           certificate=None, data=None):
 
-        s_os_client = sdk.OpenStackDriver(self.region_name)
         try:
             icertificate = s_os_client.sysinv_client.update_certificate(
                 signature, certificate=certificate, data=data)
             return icertificate
-        except (exceptions.ConnectionRefused, exceptions.NotAuthorized,
-                exceptions.TimeOut):
-            LOG.info("update_certificate exception Timeout",
-                     extra=self.log_extra)
-            s_os_client.delete_region_clients(self.region_name)
-            raise exceptions.SyncRequestTimeout
         except (AttributeError, TypeError) as e:
             LOG.info("update_certificate error {} region_name".format(e),
                      extra=self.log_extra)
-            s_os_client.delete_region_clients(self.region_name,
-                                              clear_token=True)
-            raise exceptions.SyncRequestFailedRetry
-        except Exception as e:
-            LOG.exception(e)
             raise exceptions.SyncRequestFailedRetry
 
     @staticmethod
@@ -427,7 +377,7 @@ class SysinvSyncThread(SyncThread):
             metadata))
         return certificate, metadata
 
-    def sync_certificate(self, request, rsrc):
+    def sync_certificates(self, s_os_client, request, rsrc):
         LOG.info("sync_certificate resource_info={}".format(
                  request.orch_job.resource_info),
                  extra=self.log_extra)
@@ -454,6 +404,7 @@ class SysinvSyncThread(SyncThread):
         signature = rsrc.master_id
         if signature and signature != self.CERTIFICATE_SIG_NULL:
             icertificate = self.update_certificate(
+                s_os_client,
                 signature,
                 certificate=certificate,
                 data=metadata)
@@ -471,34 +422,23 @@ class SysinvSyncThread(SyncThread):
                  subcloud_rsrc_id, isignature, signature),
                  extra=self.log_extra)
 
-    def update_user(self, passwd_hash, root_sig, passwd_expiry_days):
+    def update_user(self, s_os_client, passwd_hash,
+                    root_sig, passwd_expiry_days):
         LOG.info("update_user={} {} {}".format(
                  passwd_hash, root_sig, passwd_expiry_days),
                  extra=self.log_extra)
 
         try:
-            s_os_client = sdk.OpenStackDriver(self.region_name)
             iuser = s_os_client.sysinv_client.update_user(passwd_hash,
                                                           root_sig,
                                                           passwd_expiry_days)
             return iuser
-        except (exceptions.ConnectionRefused, exceptions.NotAuthorized,
-                exceptions.TimeOut):
-            LOG.info("update_user exception Timeout",
-                     extra=self.log_extra)
-            s_os_client.delete_region_clients(self.region_name)
-            raise exceptions.SyncRequestTimeout
         except (AttributeError, TypeError) as e:
             LOG.info("update_user error {} region_name".format(e),
                      extra=self.log_extra)
-            s_os_client.delete_region_clients(self.region_name,
-                                              clear_token=True)
-            raise exceptions.SyncRequestFailedRetry
-        except Exception as e:
-            LOG.exception(e)
             raise exceptions.SyncRequestFailedRetry
 
-    def sync_user(self, request, rsrc):
+    def sync_iuser(self, s_os_client, request, rsrc):
         # The system is populated with user entry for wrsroot.
         LOG.info("sync_user resource_info={}".format(
                  request.orch_job.resource_info),
@@ -531,7 +471,8 @@ class SysinvSyncThread(SyncThread):
                      extra=self.log_extra)
             return
 
-        iuser = self.update_user(passwd_hash, root_sig, passwd_expiry_days)
+        iuser = self.update_user(s_os_client, passwd_hash, root_sig,
+                                 passwd_expiry_days)
 
         # Ensure subcloud resource is persisted to the DB for later
         subcloud_rsrc_id = self.persist_db_subcloud_resource(
@@ -540,7 +481,7 @@ class SysinvSyncThread(SyncThread):
                  .format(rsrc.id, subcloud_rsrc_id, passwd_hash),
                  extra=self.log_extra)
 
-    def sync_fernet_resources(self, request, rsrc):
+    def sync_fernet_repo(self, s_os_client, request, rsrc):
         switcher = {
             consts.OPERATION_TYPE_PUT: self.update_fernet_repo,
             consts.OPERATION_TYPE_PATCH: self.update_fernet_repo,
@@ -549,7 +490,7 @@ class SysinvSyncThread(SyncThread):
 
         func = switcher[request.orch_job.operation_type]
         try:
-            func(request, rsrc)
+            func(s_os_client, request, rsrc)
         except (keystone_exceptions.connection.ConnectTimeout,
                 keystone_exceptions.ConnectFailure) as e:
             LOG.info("sync_fernet_resources: subcloud {} is not reachable [{}]"
@@ -560,64 +501,44 @@ class SysinvSyncThread(SyncThread):
             LOG.exception(e)
             raise exceptions.SyncRequestFailedRetry
 
-    def create_fernet_repo(self, request, rsrc):
+    def create_fernet_repo(self, s_os_client, request, rsrc):
         LOG.info("create_fernet_repo region {} resource_info={}".format(
             self.subcloud_engine.subcloud.region_name,
             request.orch_job.resource_info),
             extra=self.log_extra)
         resource_info = jsonutils.loads(request.orch_job.resource_info)
 
-        s_os_client = sdk.OpenStackDriver(self.region_name)
         try:
             s_os_client.sysinv_client.post_fernet_repo(
                 FernetKeyManager.from_resource_info(resource_info))
             # Ensure subcloud resource is persisted to the DB for later
             subcloud_rsrc_id = self.persist_db_subcloud_resource(
                 rsrc.id, rsrc.master_id)
-        except (exceptions.ConnectionRefused, exceptions.NotAuthorized,
-                exceptions.TimeOut):
-            LOG.info("create_fernet_repo Timeout,{}:{}".format(
-                rsrc.id, subcloud_rsrc_id))
-            s_os_client.delete_region_clients(self.region_name,
-                                              clear_token=True)
-            raise exceptions.SyncRequestTimeout
         except (AttributeError, TypeError) as e:
             LOG.info("create_fernet_repo error {}".format(e),
                      extra=self.log_extra)
-            s_os_client.delete_region_clients(self.region_name,
-                                              clear_token=True)
             raise exceptions.SyncRequestFailedRetry
 
         LOG.info("fernet_repo {} {} {} created".format(rsrc.id,
                  subcloud_rsrc_id, resource_info),
                  extra=self.log_extra)
 
-    def update_fernet_repo(self, request, rsrc):
+    def update_fernet_repo(self, s_os_client, request, rsrc):
         LOG.info("update_fernet_repo region {} resource_info={}".format(
             self.subcloud_engine.subcloud.region_name,
             request.orch_job.resource_info),
             extra=self.log_extra)
         resource_info = jsonutils.loads(request.orch_job.resource_info)
 
-        s_os_client = sdk.OpenStackDriver(self.region_name)
         try:
             s_os_client.sysinv_client.put_fernet_repo(
                 FernetKeyManager.from_resource_info(resource_info))
             # Ensure subcloud resource is persisted to the DB for later
             subcloud_rsrc_id = self.persist_db_subcloud_resource(
                 rsrc.id, rsrc.master_id)
-        except (exceptions.ConnectionRefused, exceptions.NotAuthorized,
-                exceptions.TimeOut):
-            LOG.info("update_fernet_repo Timeout,{}:{}".format(
-                rsrc.id, subcloud_rsrc_id))
-            s_os_client.delete_region_clients(self.region_name,
-                                              clear_token=True)
-            raise exceptions.SyncRequestTimeout
         except (AttributeError, TypeError) as e:
             LOG.info("update_fernet_repo error {}".format(e),
                      extra=self.log_extra)
-            s_os_client.delete_region_clients(self.region_name,
-                                              clear_token=True)
             raise exceptions.SyncRequestFailedRetry
 
         LOG.info("fernet_repo {} {} {} update".format(rsrc.id,
@@ -626,193 +547,104 @@ class SysinvSyncThread(SyncThread):
 
     # SysInv Audit Related
     def get_master_resources(self, resource_type):
-        os_client = sdk.OpenStackDriver(consts.CLOUD_0)
-        if resource_type == consts.RESOURCE_TYPE_SYSINV_DNS:
-            return [self.get_dns_resource(os_client)]
-        elif resource_type == consts.RESOURCE_TYPE_SYSINV_SNMP_COMM:
-            return self.get_snmp_community_resources(os_client)
-        elif resource_type == consts.RESOURCE_TYPE_SYSINV_SNMP_TRAPDEST:
-            return self.get_snmp_trapdest_resources(os_client)
-        elif resource_type == consts.RESOURCE_TYPE_SYSINV_REMOTE_LOGGING:
-            return [self.get_remotelogging_resource(os_client)]
-        elif resource_type == consts.RESOURCE_TYPE_SYSINV_CERTIFICATE:
-            return self.get_certificates_resources(os_client)
-        elif resource_type == consts.RESOURCE_TYPE_SYSINV_USER:
-            return [self.get_user_resource(os_client)]
-        elif resource_type == consts.RESOURCE_TYPE_SYSINV_FERNET_REPO:
-            return [self.get_fernet_resources(os_client)]
-        else:
-            LOG.error("Wrong resource type {}".format(resource_type),
-                      extra=self.log_extra)
+        try:
+            os_client = sdk.OpenStackDriver(region_name=consts.CLOUD_0,
+                                            thread_name=self.audit_thread.name)
+            if resource_type == consts.RESOURCE_TYPE_SYSINV_DNS:
+                return [self.get_dns_resource(os_client)]
+            elif resource_type == consts.RESOURCE_TYPE_SYSINV_SNMP_COMM:
+                return self.get_snmp_community_resources(os_client)
+            elif resource_type == consts.RESOURCE_TYPE_SYSINV_SNMP_TRAPDEST:
+                return self.get_snmp_trapdest_resources(os_client)
+            elif resource_type == consts.RESOURCE_TYPE_SYSINV_REMOTE_LOGGING:
+                return [self.get_remotelogging_resource(os_client)]
+            elif resource_type == consts.RESOURCE_TYPE_SYSINV_CERTIFICATE:
+                return self.get_certificates_resources(os_client)
+            elif resource_type == consts.RESOURCE_TYPE_SYSINV_USER:
+                return [self.get_user_resource(os_client)]
+            elif resource_type == consts.RESOURCE_TYPE_SYSINV_FERNET_REPO:
+                return [self.get_fernet_resources(os_client)]
+            else:
+                LOG.error("Wrong resource type {}".format(resource_type),
+                          extra=self.log_extra)
+                return None
+        except Exception as e:
+            LOG.exception(e)
             return None
 
     def get_subcloud_resources(self, resource_type):
-        os_client = sdk.OpenStackDriver(self.region_name)
-        if resource_type == consts.RESOURCE_TYPE_SYSINV_DNS:
-            return [self.get_dns_resource(os_client)]
-        elif resource_type == consts.RESOURCE_TYPE_SYSINV_SNMP_COMM:
-            return self.get_snmp_community_resources(os_client)
-        elif resource_type == consts.RESOURCE_TYPE_SYSINV_SNMP_TRAPDEST:
-            return self.get_snmp_trapdest_resources(os_client)
-        elif resource_type == consts.RESOURCE_TYPE_SYSINV_REMOTE_LOGGING:
-            return [self.get_remotelogging_resource(os_client)]
-        elif resource_type == consts.RESOURCE_TYPE_SYSINV_CERTIFICATE:
-            return self.get_certificates_resources(os_client)
-        elif resource_type == consts.RESOURCE_TYPE_SYSINV_USER:
-            return [self.get_user_resource(os_client)]
-        elif resource_type == consts.RESOURCE_TYPE_SYSINV_FERNET_REPO:
-            return [self.get_fernet_resources(os_client)]
-        else:
-            LOG.error("Wrong resource type {}".format(resource_type),
-                      extra=self.log_extra)
+        try:
+            os_client = sdk.OpenStackDriver(region_name=self.region_name,
+                                            thread_name=self.audit_thread.name)
+            if resource_type == consts.RESOURCE_TYPE_SYSINV_DNS:
+                return [self.get_dns_resource(os_client)]
+            elif resource_type == consts.RESOURCE_TYPE_SYSINV_SNMP_COMM:
+                return self.get_snmp_community_resources(os_client)
+            elif resource_type == consts.RESOURCE_TYPE_SYSINV_SNMP_TRAPDEST:
+                return self.get_snmp_trapdest_resources(os_client)
+            elif resource_type == consts.RESOURCE_TYPE_SYSINV_REMOTE_LOGGING:
+                return [self.get_remotelogging_resource(os_client)]
+            elif resource_type == consts.RESOURCE_TYPE_SYSINV_CERTIFICATE:
+                return self.get_certificates_resources(os_client)
+            elif resource_type == consts.RESOURCE_TYPE_SYSINV_USER:
+                return [self.get_user_resource(os_client)]
+            elif resource_type == consts.RESOURCE_TYPE_SYSINV_FERNET_REPO:
+                return [self.get_fernet_resources(os_client)]
+            else:
+                LOG.error("Wrong resource type {}".format(resource_type),
+                          extra=self.log_extra)
+                return None
+        except (exceptions.ConnectionRefused, exceptions.TimeOut,
+                keystone_exceptions.connection.ConnectTimeout,
+                keystone_exceptions.ConnectFailure) as e:
+            LOG.info("get subcloud_resources {}: subcloud {} is not reachable"
+                     "[{}]".format(resource_type,
+                                   self.subcloud_engine.subcloud.region_name,
+                                   str(e)), extra=self.log_extra)
+            # None will force skip of audit
             return None
+        except exceptions.NotAuthorized as e:
+            LOG.info("get subcloud_resources {}: subcloud {} not authorized"
+                     "[{}]".format(resource_type,
+                                   self.subcloud_engine.subcloud.region_name,
+                                   str(e)), extra=self.log_extra)
+            sdk.OpenStackDriver.delete_region_clients(self.region_name)
+            return None
+        except (AttributeError, TypeError) as e:
+            LOG.info("get subcloud_resources {} error {}".format(
+                resource_type, e), extra=self.log_extra)
+            return None
+        except Exception as e:
+            LOG.exception(e)
+            return None
+
+    def post_audit(self):
+        sdk.OpenStackDriver.delete_region_clients_for_thread(
+            self.region_name, self.audit_thread.name)
+        sdk.OpenStackDriver.delete_region_clients_for_thread(
+            consts.CLOUD_0, self.audit_thread.name)
 
     def get_dns_resource(self, os_client):
-        try:
-            idns = os_client.sysinv_client.get_dns()
-            return idns
-        except (keystone_exceptions.connection.ConnectTimeout,
-                keystone_exceptions.ConnectFailure) as e:
-            LOG.info("get_dns: subcloud {} is not reachable [{}]"
-                     .format(self.subcloud_engine.subcloud.region_name,
-                             str(e)), extra=self.log_extra)
-            # TODO(knasim-wrs): This is a bad design to delete the
-            # client here as the parent may be passing in a shared
-            # client. Return error here and let parent
-            # (get_master_resources or get_subcloud_resources) clean
-            # it up.
-            os_client.delete_region_clients(self.region_name)
-            # None will force skip of audit
-            return None
-        except (AttributeError, TypeError) as e:
-            LOG.info("get_dns_resources error {}".format(e),
-                     extra=self.log_extra)
-            os_client.delete_region_clients(self.region_name, clear_token=True)
-            return None
-        except Exception as e:
-            LOG.exception(e)
-            return None
+        return os_client.sysinv_client.get_dns()
 
     def get_snmp_trapdest_resources(self, os_client):
-        try:
-            itrapdests = os_client.sysinv_client.snmp_trapdest_list()
-            return itrapdests
-        except (keystone_exceptions.connection.ConnectTimeout,
-                keystone_exceptions.ConnectFailure) as e:
-            LOG.info("snmp_trapdest_list: subcloud {} is not reachable [{}]"
-                     .format(self.subcloud_engine.subcloud.region_name,
-                             str(e)), extra=self.log_extra)
-            return None
-        except (AttributeError, TypeError) as e:
-            LOG.info("get_snmp_trapdest_resources error {}".format(e),
-                     extra=self.log_extra)
-            os_client.delete_region_clients(self.region_name, clear_token=True)
-            return None
-        except Exception as e:
-            LOG.exception(e)
-            return None
+        return os_client.sysinv_client.snmp_trapdest_list()
 
     def get_snmp_community_resources(self, os_client):
-        try:
-            icommunitys = os_client.sysinv_client.snmp_community_list()
-            return icommunitys
-        except (keystone_exceptions.connection.ConnectTimeout,
-                keystone_exceptions.ConnectFailure) as e:
-            LOG.info("snmp_community_list: subcloud {} is not reachable [{}]"
-                     .format(self.subcloud_engine.subcloud.region_name,
-                             str(e)), extra=self.log_extra)
-            return None
-        except (AttributeError, TypeError) as e:
-            LOG.info("get_snmp_community_resources error {}".format(e),
-                     extra=self.log_extra)
-            os_client.delete_region_clients(self.region_name, clear_token=True)
-            return None
-        except Exception as e:
-            LOG.exception(e)
-            return None
+        return os_client.sysinv_client.snmp_community_list()
 
     def get_remotelogging_resource(self, os_client):
-        try:
-            iremotelogging = os_client.sysinv_client.get_remotelogging()
-            return iremotelogging
-        except (keystone_exceptions.connection.ConnectTimeout,
-                keystone_exceptions.ConnectFailure) as e:
-            LOG.info("get_remotelogging: subcloud {} is not reachable [{}]"
-                     .format(self.subcloud_engine.subcloud.region_name,
-                             str(e)), extra=self.log_extra)
-            # None will force skip of audit
-            os_client.delete_region_clients(self.region_name)
-            return None
-        except (AttributeError, TypeError) as e:
-            LOG.info("get_remotelogging_resource error {}".format(e),
-                     extra=self.log_extra)
-            os_client.delete_region_clients(self.region_name, clear_token=True)
-            return None
-        except Exception as e:
-            LOG.exception(e)
-            return None
+        return os_client.sysinv_client.get_remotelogging()
 
     def get_certificates_resources(self, os_client):
-        try:
-            return os_client.sysinv_client.get_certificates()
-        except (keystone_exceptions.connection.ConnectTimeout,
-                keystone_exceptions.ConnectFailure) as e:
-            LOG.info("get_certificates: subcloud {} is not reachable [{}]"
-                     .format(self.subcloud_engine.subcloud.region_name,
-                             str(e)), extra=self.log_extra)
-            # None will force skip of audit
-            os_client.delete_region_clients(self.region_name)
-            return None
-        except (AttributeError, TypeError) as e:
-            LOG.info("get_certificates_resources error {}".format(e),
-                     extra=self.log_extra)
-            os_client.delete_region_clients(self.region_name, clear_token=True)
-            return None
-        except Exception as e:
-            LOG.exception(e)
-            return None
+        return os_client.sysinv_client.get_certificates()
 
     def get_user_resource(self, os_client):
-        try:
-            iuser = os_client.sysinv_client.get_user()
-            return iuser
-        except (keystone_exceptions.connection.ConnectTimeout,
-                keystone_exceptions.ConnectFailure) as e:
-            LOG.info("get_user: subcloud {} is not reachable [{}]"
-                     .format(self.subcloud_engine.subcloud.region_name,
-                             str(e)), extra=self.log_extra)
-            # None will force skip of audit
-            os_client.delete_region_clients(self.region_name)
-            return None
-        except (AttributeError, TypeError) as e:
-            LOG.info("get_user_resources error {}".format(e),
-                     extra=self.log_extra)
-            os_client.delete_region_clients(self.region_name, clear_token=True)
-            return None
-        except Exception as e:
-            LOG.exception(e)
-            return None
+        return os_client.sysinv_client.get_user()
 
     def get_fernet_resources(self, os_client):
-        try:
-            keys = os_client.sysinv_client.get_fernet_keys()
-            return FernetKeyManager.to_resource_info(keys)
-        except (keystone_exceptions.connection.ConnectTimeout,
-                keystone_exceptions.ConnectFailure) as e:
-            LOG.info("get_fernet_resource: subcloud {} is not reachable [{}]"
-                     .format(self.subcloud_engine.subcloud.region_name,
-                             str(e)), extra=self.log_extra)
-            os_client.delete_region_clients(self.region_name)
-            # None will force skip of audit
-            return None
-        except (AttributeError, TypeError) as e:
-            LOG.info("get_fernet_resource error {}".format(e),
-                     extra=self.log_extra)
-            os_client.delete_region_clients(self.region_name, clear_token=True)
-            return None
-        except Exception as e:
-            LOG.exception(e)
-            return None
+        keys = os_client.sysinv_client.get_fernet_keys()
+        return FernetKeyManager.to_resource_info(keys)
 
     def get_resource_id(self, resource_type, resource):
         if resource_type == consts.RESOURCE_TYPE_SYSINV_SNMP_COMM:
@@ -852,7 +684,7 @@ class SysinvSyncThread(SyncThread):
                     resource_type, resource.uuid))
                 return resource.uuid
             else:
-                LOG.info("get_resource_id {} NO uuid resource_type={}".format(
+                LOG.info("get_resource_id NO uuid resource_type={}".format(
                     resource_type))
                 return self.RESOURCE_UUID_NULL  # master_id cannot be None
 

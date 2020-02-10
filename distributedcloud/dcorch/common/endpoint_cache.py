@@ -14,6 +14,7 @@
 #    under the License.
 
 import collections
+import threading
 
 from keystoneauth1 import loading
 from keystoneauth1 import session
@@ -29,6 +30,10 @@ LOG = logging.getLogger(__name__)
 
 
 class EndpointCache(object):
+
+    plugin_loader = None
+    plugin_lock = threading.Lock()
+
     def __init__(self, region_name=None, auth_url=None):
         self.endpoint_map = collections.defaultdict(dict)
         self.admin_session = None
@@ -46,10 +51,12 @@ class EndpointCache(object):
         self._update_endpoints()
 
     def _initialize_keystone_client(self, region_name=None, auth_url=None):
-        loader = loading.get_plugin_loader(
-            cfg.CONF.keystone_authtoken.auth_type)
+        with EndpointCache.plugin_lock:
+            if EndpointCache.plugin_loader is None:
+                EndpointCache.plugin_loader = loading.get_plugin_loader(
+                    cfg.CONF.keystone_authtoken.auth_type)
 
-        auth = loader.load_from_options(
+        auth = EndpointCache.plugin_loader.load_from_options(
             auth_url=self.external_auth_url,
             username=cfg.CONF.cache.admin_username,
             user_domain_name=cfg.CONF.cache.admin_user_domain_name,
@@ -83,11 +90,10 @@ class EndpointCache(object):
             except IndexError:
                 LOG.error("Cannot find identity auth_url for %s", region_name)
                 raise
-            sc_loader = loading.get_plugin_loader(
-                cfg.CONF.keystone_authtoken.auth_type)
+
             # We assume that the Admin user names and passwords are the same
             # on this subcloud since this is an audited resource
-            sc_auth = sc_loader.load_from_options(
+            sc_auth = EndpointCache.plugin_loader.load_from_options(
                 auth_url=sc_auth_url,
                 username=cfg.CONF.cache.admin_username,
                 user_domain_name=cfg.CONF.cache.admin_user_domain_name,
