@@ -143,9 +143,14 @@ class PatchAuditManager(manager.Manager):
 
             try:
                 sc_ks_client = KeystoneClient(subcloud.name)
-            except (keystone_exceptions.EndpointNotFound, IndexError) as e:
-                LOG.warn("Identity endpoint for online subcloud %s not found."
-                         " %s" % (subcloud.name, e))
+            except (keystone_exceptions.EndpointNotFound,
+                    keystone_exceptions.ConnectFailure,
+                    keystone_exceptions.ConnectTimeout,
+                    IndexError):
+                # Since it takes some time to detect that a subcloud has gone
+                # offline, these errors are expected from time to time.
+                LOG.info("Identity endpoint for online subcloud %s not found."
+                         % subcloud.name)
                 continue
 
             try:

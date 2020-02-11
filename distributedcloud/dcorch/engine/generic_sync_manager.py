@@ -12,6 +12,9 @@
 # implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+#
+# Copyright (c) 2020 Wind River Systems, Inc.
+#
 
 from oslo_log import log as logging
 
@@ -58,6 +61,38 @@ class GenericSyncManager(object):
         # Someone has enqueued a sync job.  Wake the subcloud engines.
         for subcloud_engine in self.subcloud_engines.values():
             subcloud_engine.wake(endpoint_type)
+
+    def subcloud_state_matches(self, subcloud_name,
+                               management_state=None,
+                               availability_status=None,
+                               initial_sync_state=None):
+        try:
+            subcloud_engine = self.subcloud_engines[subcloud_name]
+            return subcloud_engine.state_matches(
+                management_state=management_state,
+                availability_status=availability_status,
+                initial_sync_state=initial_sync_state)
+        except KeyError:
+            raise exceptions.SubcloudNotFound(region_name=subcloud_name)
+
+    def update_subcloud_state(self, subcloud_name,
+                              management_state=None,
+                              availability_status=None,
+                              initial_sync_state=None):
+        try:
+            subcloud_engine = self.subcloud_engines[subcloud_name]
+            LOG.info('updating state for subcloud %(sc)s - '
+                     'management_state: %(mgmt)s '
+                     'availability_status: %(avail)s '
+                     'initial_sync_state: %(iss)s' %
+                     {'sc': subcloud_name, 'mgmt': management_state,
+                      'avail': availability_status, 'iss': initial_sync_state})
+            subcloud_engine.update_state(
+                management_state=management_state,
+                availability_status=availability_status,
+                initial_sync_state=initial_sync_state)
+        except KeyError:
+            raise exceptions.SubcloudNotFound(region_name=subcloud_name)
 
     def enable_subcloud(self, context, subcloud_name):
         try:
