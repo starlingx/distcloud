@@ -45,7 +45,7 @@ RVMC_NAME_PREFIX = 'rvmc'
 RVMC_IMAGE_NAME = 'docker.io/starlingx/rvmc'
 SUBCLOUD_ISO_PATH = '/opt/platform/iso'
 SUBCLOUD_ISO_DOWNLOAD_PATH = '/www/pages/iso'
-UPDATE_ISO_COMMAND = '/usr/local/bin/update-iso.sh'
+GEN_ISO_COMMAND = '/usr/local/bin/gen-bootloader-iso.sh'
 NETWORK_SCRIPTS = '/etc/sysconfig/network-scripts'
 NETWORK_INTERFACE_PREFIX = 'ifcfg'
 NETWORK_ROUTE_PREFIX = 'route'
@@ -58,14 +58,19 @@ OPTIONAL_INSTALL_VALUES = [
     'console_type',
     'bootstrap_vlan',
     'rootfs_device',
-    'boot_device'
+    'boot_device',
+    'no_check_certificate'
 ]
 
-UPDATE_ISO_OPTIONS = {
-    'install_type': '-d',
-    'console_type': '-p',
-    'rootfs_device': '-p',
-    'boot_device': '-p'
+GEN_ISO_OPTIONS = {
+    'bootstrap_interface': '--boot-interface',
+    'bootstrap_address': '--boot-ip',
+    'bootstrap_address_prefix': '--boot-netmask',
+    'nexthop_gateway': "--boot-gateway",
+    'install_type': '--default-boot',
+    'rootfs_device': '--param',
+    'boot_device': '--param',
+    'no_check_certificate': '--param'
 }
 
 BMC_OPTIONS = {
@@ -85,7 +90,8 @@ class SubcloudInstall(object):
         self.sysinv_client = SysinvClient(consts.DEFAULT_REGION_NAME, session)
         self.name = subcloud_name
         self.input_iso = None
-        self.output_iso = None
+        self.www_root = None
+        self.https_enabled = None
 
     @staticmethod
     def config_device(ks_cfg, interface, vlan=False):
@@ -134,26 +140,35 @@ class SubcloudInstall(object):
             ks_cfg.write(route_args)
         ks_cfg.write("EOF\n\n")
 
+    @staticmethod
+    def format_address(ip_address):
+        try:
+            address = netaddr.IPAddress(ip_address)
+            if address.version == 6:
+                return "[%s]" % address
+            else:
+                return str(address)
+        except netaddr.AddrFormatError as e:
+            LOG.error("Failed to format the address: %s", ip_address)
+            raise e
+
     def get_oam_address(self):
         oam_pool = self.sysinv_client.get_oam_address_pool()
-        try:
-            oam_address = netaddr.IPAddress(oam_pool.floating_address)
-            if oam_address.version == 6:
-                return "[%s]" % oam_address
-            else:
-                return str(oam_address)
-        except netaddr.AddrFormatError:
-            return oam_pool.floating_address
+        return self.format_address(oam_pool.floating_address)
+
+    def get_https_enabled(self):
+        if self.https_enabled is None:
+            system = self.sysinv_client.get_system()
+            self.https_enabled = system.capabilities.get('https_enabled',
+                                                         False)
+        return self.https_enabled
 
     def get_image_base_url(self):
-        system = self.sysinv_client.get_system()
-
         # get the protocol
-        https_enabled = system.capabilities.get('https_enabled', False)
-        protocol = 'https' if https_enabled else 'http'
+        protocol = 'https' if self.get_https_enabled() else 'http'
 
         # get the configured http or https port
-        value = 'https_port' if https_enabled else 'http_port'
+        value = 'https_port' if self.get_https_enabled() else 'http_port'
         http_parameters = self.sysinv_client.get_service_parameters('name',
                                                                     value)
         port = getattr(http_parameters[0], 'value')
@@ -253,10 +268,10 @@ class SubcloudInstall(object):
             raise e
 
     def update_iso(self, override_path, values):
-        output_iso_dir = os.path.join(SUBCLOUD_ISO_PATH,
-                                      str(values['software_version']))
-        if not os.path.isdir(output_iso_dir):
-            os.mkdir(output_iso_dir, 0o755)
+        self.www_root = os.path.join(SUBCLOUD_ISO_PATH,
+                                     str(values['software_version']))
+        if not os.path.isdir(self.www_root):
+            os.mkdir(self.www_root, 0o755)
 
         try:
             if parse.urlparse(values['image']).scheme:
@@ -283,31 +298,41 @@ class SubcloudInstall(object):
                 resource=self.name,
                 msg=msg)
 
-        output_iso_file = os.path.join(output_iso_dir,
-                                       self.name + 'bootimage.iso')
-        if os.path.exists(output_iso_file):
-            os.remove(output_iso_file)
-
         update_iso_cmd = [
-            UPDATE_ISO_COMMAND,
-            "-i", self.input_iso,
-            "-o", output_iso_file
+            GEN_ISO_COMMAND,
+            "--input", self.input_iso,
+            "--www-root", self.www_root,
+            "--id", self.name,
+            "--boot-hostname", self.name,
+            "--timeout", BOOT_MENU_TIMEOUT,
+
         ]
-        for k in UPDATE_ISO_OPTIONS.keys():
+        for k in GEN_ISO_OPTIONS.keys():
             if k in values:
-                if k == 'install_type':
-                    update_iso_cmd += [UPDATE_ISO_OPTIONS[k],
-                                       str(values[k])]
-                else:
-                    update_iso_cmd += [UPDATE_ISO_OPTIONS[k],
+                if k == 'bootstrap_address' or k == 'nexthop_gateway':
+                    update_iso_cmd += [GEN_ISO_OPTIONS[k],
+                                       self.format_address(values[k])]
+                elif (k == 'no_check_certificate' and str(values[k]) == 'True'
+                      and self.get_https_enabled()):
+                    update_iso_cmd += [GEN_ISO_OPTIONS[k],
+                                       'inst.noverifyssl=True']
+                elif k == 'rootfs_device' or k == 'boot_device':
+                    update_iso_cmd += [GEN_ISO_OPTIONS[k],
                                        (k + '=' + values[k])]
+                else:
+                    update_iso_cmd += [GEN_ISO_OPTIONS[k],
+                                       str(values[k])]
 
         # create ks-addon.cfg
         addon_cfg = os.path.join(override_path, 'ks-addon.cfg')
         self.create_ks_conf_file(addon_cfg, values)
 
-        update_iso_cmd += ['-t', BOOT_MENU_TIMEOUT]
-        update_iso_cmd += ['-a', addon_cfg]
+        update_iso_cmd += ['--addon', addon_cfg]
+
+        # get the base URL
+        base_url = os.path.join(self.get_image_base_url(), 'iso',
+                                str(values['software_version']))
+        update_iso_cmd += ['--base-url', base_url]
 
         str_cmd = ' '.join(update_iso_cmd)
         LOG.debug("update_iso_cmd:(%s)", str_cmd)
@@ -318,22 +343,33 @@ class SubcloudInstall(object):
         except subprocess.CalledProcessError:
             msg = "Failed to update iso %s, " % str(update_iso_cmd)
             raise Exception(msg)
-        return output_iso_file
 
     def cleanup(self):
         if (self.input_iso is not None and
                 os.path.exists(self.input_iso)):
             os.remove(self.input_iso)
-        if (self.output_iso is not None and
-                os.path.exists(self.output_iso)):
-            os.remove(self.output_iso)
+
+        if (self.www_root is not None and
+                os.path.isdir(self.www_root)):
+            cleanup_cmd = [
+                GEN_ISO_COMMAND,
+                "--id", self.name,
+                "--www-root", self.www_root,
+                "--delete"
+            ]
+            try:
+                with open(os.devnull, "w") as fnull:
+                    subprocess.check_call(cleanup_cmd, stdout=fnull,
+                                          stderr=fnull)
+            except subprocess.CalledProcessError:
+                LOG.error("Failed to delete boot files.")
 
     def prep(self, override_path, payload):
         """Update the iso image and create the config files for the subcloud"""
         LOG.info("Prepare for %s remote install" % (self.name))
         iso_values = {}
         for k in install_consts.MANDATORY_INSTALL_VALUES:
-            if k in UPDATE_ISO_OPTIONS.keys():
+            if k in GEN_ISO_OPTIONS.keys():
                 iso_values[k] = payload.get(k)
             if k not in BMC_OPTIONS:
                 iso_values[k] = payload.get(k)
@@ -347,7 +383,7 @@ class SubcloudInstall(object):
             os.mkdir(override_path, 0o755)
 
         # update the default iso image based on the install values
-        self.output_iso = self.update_iso(override_path, iso_values)
+        self.update_iso(override_path, iso_values)
         software_version = str(payload['software_version'])
 
         # remove the iso values from the payload
@@ -357,8 +393,8 @@ class SubcloudInstall(object):
 
         # get the boot image url for bmc
         payload['image'] = os.path.join(self.get_image_base_url(), 'iso',
-                                        software_version,
-                                        os.path.basename(self.output_iso))
+                                        software_version, 'nodes',
+                                        self.name, 'bootimage.iso')
         # encode the bmc_password
         encoded_password = base64.b64encode(
             payload['bmc_password'].encode("utf-8"))
