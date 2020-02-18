@@ -21,6 +21,7 @@
 #
 
 from keystoneauth1 import exceptions as keystone_exceptions
+from oslo_config import cfg
 from oslo_log import log as logging
 
 from fm_api import constants as fm_const
@@ -40,7 +41,13 @@ from dcmanager.db import api as db_api
 from dcmanager.drivers.openstack.sysinv_v1 import SysinvClient
 from dcmanager.manager import scheduler
 
+CONF = cfg.CONF
 LOG = logging.getLogger(__name__)
+
+# We will update the state of each subcloud in the dcorch about once per hour.
+# Calculate how many iterations that will be.
+SUBCLOUD_STATE_UPDATE_ITERATIONS = \
+    dcorch_consts.SECONDS_IN_HOUR / CONF.scheduler.subcloud_audit_interval
 
 
 class SubcloudAuditManager(manager.Manager):
@@ -60,6 +67,8 @@ class SubcloudAuditManager(manager.Manager):
             thread_pool_size=100)
         # Track workers created for each subcloud.
         self.subcloud_workers = dict()
+        # Number of audits since last subcloud state update
+        self.audit_count = 0
 
     def periodic_subcloud_audit(self):
         """Audit availability of subclouds."""
@@ -76,6 +85,13 @@ class SubcloudAuditManager(manager.Manager):
 
         # We will be running in our own green thread here.
         LOG.info('Triggered subcloud audit.')
+        self.audit_count += 1
+
+        # Determine whether to trigger a state update to each subcloud
+        if self.audit_count >= SUBCLOUD_STATE_UPDATE_ITERATIONS:
+            update_subcloud_state = True
+        else:
+            update_subcloud_state = False
 
         # Determine whether OpenStack is installed in central cloud
         ks_client = KeystoneClient()
@@ -106,6 +122,7 @@ class SubcloudAuditManager(manager.Manager):
             self.subcloud_workers[subcloud.name] = \
                 self.thread_group_manager.start(self._audit_subcloud,
                                                 subcloud.name,
+                                                update_subcloud_state,
                                                 openstack_installed)
 
         # Wait for all greenthreads to complete
@@ -117,7 +134,8 @@ class SubcloudAuditManager(manager.Manager):
         self.subcloud_workers = dict()
         LOG.info('All subcloud audits have completed.')
 
-    def _audit_subcloud(self, subcloud_name, audit_openstack):
+    def _audit_subcloud(self, subcloud_name, update_subcloud_state,
+                        audit_openstack):
         """Audit a single subcloud."""
 
         # Retrieve the subcloud
@@ -322,6 +340,16 @@ class SubcloudAuditManager(manager.Manager):
                          'audit_fail_count update: %s' % subcloud_name)
                 return
 
+        elif update_subcloud_state:
+            # Nothing has changed, but we want to send a state update for this
+            # subcloud as an audit. Get the most up-to-date data.
+            subcloud = db_api.subcloud_get_by_name(self.context, subcloud_name)
+            self.dcorch_rpc_client. \
+                update_subcloud_states(self.context,
+                                       subcloud_name,
+                                       subcloud.management_state,
+                                       subcloud.availability_status)
+
         if audit_openstack and sysinv_client:
             # get a list of installed apps in the subcloud
             try:
@@ -345,6 +373,8 @@ class SubcloudAuditManager(manager.Manager):
             dco_update_func = None
             if openstack_installed_current and not openstack_installed:
                 dcm_update_func = db_api.subcloud_status_create
+                # TODO(andy.ning): This RPC will block for the duration of the
+                #  initial sync. It needs to be made non-blocking.
                 dco_update_func = self.dcorch_rpc_client.\
                     add_subcloud_sync_endpoint_type
             elif not openstack_installed_current and openstack_installed:

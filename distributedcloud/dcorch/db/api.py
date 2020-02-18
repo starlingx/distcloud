@@ -12,6 +12,9 @@
 #    WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
 #    License for the specific language governing permissions and limitations
 #    under the License.
+#
+# Copyright (c) 2020 Wind River Systems, Inc.
+#
 """
 Interface for database access.
 
@@ -139,10 +142,12 @@ def subcloud_get(context, region_id):
 
 def subcloud_get_all(context, region_name=None,
                      management_state=None,
-                     availability_status=None):
+                     availability_status=None,
+                     initial_sync_state=None):
     return IMPL.subcloud_get_all(context, region_name=region_name,
                                  management_state=management_state,
-                                 availability_status=availability_status)
+                                 availability_status=availability_status,
+                                 initial_sync_state=initial_sync_state)
 
 
 def subcloud_create(context, region_name, values):

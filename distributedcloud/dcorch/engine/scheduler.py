@@ -9,6 +9,9 @@
 # WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
 # License for the specific language governing permissions and limitations
 # under the License.
+#
+# Copyright (c) 2020 Wind River Systems, Inc.
+#
 
 import time
 
@@ -26,10 +29,10 @@ wallclock = time.time
 class ThreadGroupManager(object):
     """Thread group manager."""
 
-    def __init__(self):
+    def __init__(self, *args, **kwargs):
         super(ThreadGroupManager, self).__init__()
         self.threads = {}
-        self.group = threadgroup.ThreadGroup()
+        self.group = threadgroup.ThreadGroup(*args, **kwargs)
 
         # Create dummy service task, because when there is nothing queued
         # on self.tg the process exits

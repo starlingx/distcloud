@@ -12,7 +12,7 @@
 # License for the specific language governing permissions and limitations
 # under the License.
 #
-# Copyright (c) 2017-2019 Wind River Systems, Inc.
+# Copyright (c) 2017-2020 Wind River Systems, Inc.
 #
 # The right to copy, distribute, modify, or otherwise make use
 # of this software may be licensed only pursuant to the terms
@@ -188,3 +188,10 @@ ALARM_DEGRADED_STATUS = "degraded"
 ALARM_CRITICAL_STATUS = "critical"
 
 SECONDS_IN_HOUR = 3600
+
+# Subcloud initial sync state
+INITIAL_SYNC_STATE_NONE = "none"
+INITIAL_SYNC_STATE_REQUESTED = "requested"
+INITIAL_SYNC_STATE_IN_PROGRESS = "in-progress"
+INITIAL_SYNC_STATE_COMPLETED = "completed"
+INITIAL_SYNC_STATE_FAILED = "failed"

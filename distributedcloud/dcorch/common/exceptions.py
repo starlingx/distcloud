@@ -13,6 +13,9 @@
 #    WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
 #    License for the specific language governing permissions and limitations
 #    under the License.
+#
+# Copyright (c) 2020 Wind River Systems, Inc.
+#
 
 """
 DC Orchestrator base exception handling.
@@ -135,6 +138,10 @@ class InvalidInputError(OrchestratorException):
 # msg needs to be constructed when raised.
 class InvalidParameterValue(Invalid):
     message = _("%(err)s")
+
+
+class SubcloudAlreadyExists(Conflict):
+    message = _("Subcloud with region_name=%(region_name)s already exists")
 
 
 class SubcloudResourceAlreadyExists(Conflict):
