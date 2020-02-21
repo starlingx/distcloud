@@ -43,6 +43,7 @@ from dcmanager.common import consts
 from dcmanager.common import exceptions
 from dcmanager.common.i18n import _
 from dcmanager.common import install_consts
+from dcmanager.common import utils
 from dcmanager.db import api as db_api
 from dcmanager.drivers.openstack.sysinv_v1 import SysinvClient
 from dcmanager.rpc import client as rpc_client
@@ -54,6 +55,8 @@ LOG = logging.getLogger(__name__)
 SYSTEM_MODE_DUPLEX = "duplex"
 SYSTEM_MODE_SIMPLEX = "simplex"
 SYSTEM_MODE_DUPLEX_DIRECT = "duplex-direct"
+
+LOCK_NAME = 'SubcloudsController'
 
 
 class SubcloudsController(object):
@@ -436,6 +439,7 @@ class SubcloudsController(object):
 
             return subcloud_dict
 
+    @utils.synchronized(LOCK_NAME)
     @index.when(method='POST', template='json')
     def post(self, subcloud_ref=None):
         """Create and deploy a new subcloud.
@@ -525,6 +529,7 @@ class SubcloudsController(object):
         else:
             pecan.abort(400, _('Invalid request'))
 
+    @utils.synchronized(LOCK_NAME)
     @index.when(method='PATCH', template='json')
     def patch(self, subcloud_ref=None):
         """Update a subcloud.
@@ -585,6 +590,7 @@ class SubcloudsController(object):
             LOG.exception(e)
             pecan.abort(500, _('Unable to update subcloud'))
 
+    @utils.synchronized(LOCK_NAME)
     @index.when(method='delete', template='json')
     def delete(self, subcloud_ref):
         """Delete a subcloud.

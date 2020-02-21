@@ -44,6 +44,7 @@ from dcmanager.common import context
 from dcmanager.common import exceptions
 from dcmanager.common.i18n import _
 from dcmanager.common import manager
+from dcmanager.common import utils
 from dcmanager.db import api as db_api
 from dcmanager.drivers.openstack.sysinv_v1 import SysinvClient
 from dcmanager.manager.subcloud_install import SubcloudInstall
@@ -75,6 +76,23 @@ USERS_TO_REPLICATE = [
     'barbican']
 
 SERVICES_USER = 'services'
+
+
+def sync_update_subcloud_endpoint_status(func):
+    """Synchronized lock decorator for _update_subcloud_endpoint_status. """
+
+    def _get_lock_and_call(*args, **kwargs):
+        """Get a single fair lock per subcloud based on subcloud name. """
+
+        # subcloud name is the 3rd argument to
+        # _update_subcloud_endpoint_status()
+        @utils.synchronized(args[2], external=False, fair=True)
+        def _call_func(*args, **kwargs):
+            return func(*args, **kwargs)
+
+        return _call_func(*args, **kwargs)
+
+    return _get_lock_and_call
 
 
 class SubcloudManager(manager.Manager):
@@ -680,15 +698,16 @@ class SubcloudManager(manager.Manager):
 
         return db_api.subcloud_db_model_to_dict(subcloud)
 
-    def _update_endpoint_status_for_subcloud(self, context, subcloud_id,
-                                             endpoint_type, sync_status,
-                                             alarmable):
-        """Update subcloud endpoint status
+    def _update_online_managed_subcloud(self, context, subcloud_id,
+                                        endpoint_type, sync_status,
+                                        alarmable):
+        """Update online/managed subcloud endpoint status
 
         :param context: request context object
         :param subcloud_id: id of subcloud to update
         :param endpoint_type: endpoint type to update
         :param sync_status: sync status to set
+        :param alarmable: controls raising an alarm if applicable
         """
 
         subcloud_status_list = []
@@ -828,6 +847,57 @@ class SubcloudManager(manager.Manager):
         else:
             LOG.error("Subcloud not found:%s" % subcloud_id)
 
+    @sync_update_subcloud_endpoint_status
+    def _update_subcloud_endpoint_status(
+            self, context,
+            subcloud_name,
+            endpoint_type=None,
+            sync_status=consts.SYNC_STATUS_OUT_OF_SYNC,
+            alarmable=True):
+        """Update subcloud endpoint status
+
+        :param context: request context object
+        :param subcloud_name: name of subcloud to update
+        :param endpoint_type: endpoint type to update
+        :param sync_status: sync status to set
+        :param alarmable: controls raising an alarm if applicable
+        """
+
+        if not subcloud_name:
+            raise exceptions.BadRequest(
+                resource='subcloud',
+                msg='Subcloud name not provided')
+
+        try:
+            subcloud = db_api.subcloud_get_by_name(context, subcloud_name)
+        except Exception as e:
+            LOG.exception(e)
+            raise e
+
+        # Only allow updating the sync status if managed and online.
+        # This means if a subcloud is going offline or unmanaged, then
+        # the sync status update must be done first.
+        if (((subcloud.availability_status ==
+              consts.AVAILABILITY_ONLINE)
+            and (subcloud.management_state ==
+                 consts.MANAGEMENT_MANAGED))
+                or (sync_status != consts.SYNC_STATUS_IN_SYNC)):
+
+            # update a single subcloud
+            try:
+                self._update_online_managed_subcloud(context,
+                                                     subcloud.id,
+                                                     endpoint_type,
+                                                     sync_status,
+                                                     alarmable)
+            except Exception as e:
+                LOG.exception(e)
+                raise e
+        else:
+            LOG.info("Ignoring unmanaged/offline subcloud sync_status "
+                     "update for subcloud:%s endpoint:%s sync:%s" %
+                     (subcloud_name, endpoint_type, sync_status))
+
     def update_subcloud_endpoint_status(
             self, context,
             subcloud_name=None,
@@ -840,61 +910,15 @@ class SubcloudManager(manager.Manager):
         :param subcloud_name: name of subcloud to update
         :param endpoint_type: endpoint type to update
         :param sync_status: sync status to set
+        :param alarmable: controls raising an alarm if applicable
         """
 
-        subcloud = None
-
         if subcloud_name:
-            try:
-                subcloud = db_api.subcloud_get_by_name(context, subcloud_name)
-            except Exception as e:
-                LOG.exception(e)
-                raise e
-
-            # Only allow updating the sync status if managed and online.
-            # This means if a subcloud is going offline or unmanaged, then
-            # the sync status update must be done first.
-            if (((subcloud.availability_status ==
-                  consts.AVAILABILITY_ONLINE)
-                and (subcloud.management_state ==
-                     consts.MANAGEMENT_MANAGED))
-                    or (sync_status != consts.SYNC_STATUS_IN_SYNC)):
-
-                # update a single subcloud
-                try:
-                    self._update_endpoint_status_for_subcloud(context,
-                                                              subcloud.id,
-                                                              endpoint_type,
-                                                              sync_status,
-                                                              alarmable)
-                except Exception as e:
-                    LOG.exception(e)
-                    raise e
-            else:
-                LOG.info("Ignoring unmanaged/offline subcloud sync_status "
-                         "update for subcloud:%s endpoint:%s sync:%s" %
-                         (subcloud_name, endpoint_type, sync_status))
-
+            self._update_subcloud_endpoint_status(
+                context, subcloud_name, endpoint_type, sync_status, alarmable)
         else:
             # update all subclouds
             for subcloud in db_api.subcloud_get_all(context):
-                if (((subcloud.availability_status ==
-                      consts.AVAILABILITY_ONLINE)
-                    and (subcloud.management_state ==
-                         consts.MANAGEMENT_MANAGED))
-                        or (sync_status != consts.SYNC_STATUS_IN_SYNC)):
-
-                    try:
-                        self._update_endpoint_status_for_subcloud(
-                            context,
-                            subcloud.id,
-                            endpoint_type,
-                            sync_status,
-                            alarmable)
-                    except Exception as e:
-                        LOG.exception(e)
-                        raise e
-                else:
-                    LOG.info("Ignoring unmanaged/offline subcloud sync_status "
-                             "update for subcloud:%s endpoint:%s sync:%s" %
-                             (subcloud.name, endpoint_type, sync_status))
+                self._update_subcloud_endpoint_status(
+                    context, subcloud.name, endpoint_type, sync_status,
+                    alarmable)

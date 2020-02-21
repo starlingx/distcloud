@@ -118,7 +118,7 @@ class TestDCManagerService(base.DCManagerTestCase):
         self.service_obj.init_tgm()
         self.service_obj.init_managers()
         self.service_obj.delete_subcloud(
-            self.context, subcloud_id='1')
+            self.context, subcloud_id=1)
         mock_subcloud_manager().delete_subcloud.\
             assert_called_once_with(self.context, mock.ANY)
 
@@ -129,7 +129,7 @@ class TestDCManagerService(base.DCManagerTestCase):
         self.service_obj.init_tgm()
         self.service_obj.init_managers()
         self.service_obj.update_subcloud(
-            self.context, subcloud_id='1', management_state='testmgmtstatus')
+            self.context, subcloud_id=1, management_state='testmgmtstatus')
         mock_subcloud_manager().update_subcloud.\
             assert_called_once_with(self.context, mock.ANY, mock.ANY, mock.ANY,
                                     mock.ANY)
