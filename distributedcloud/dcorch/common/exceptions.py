@@ -226,3 +226,8 @@ class CommunityAlreadyExists(Conflict):
 
 class CommunityNotFound(NotFound):
     message = _("Community %(community)s not found in region=%(region_name)s")
+
+
+class CertificateNotFound(NotFound):
+    message = _("Certificate in region=%(region_name)s with signature "
+                "%(signature)s not found")

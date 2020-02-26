@@ -91,7 +91,8 @@ COMMUNITY_STRING_PATHS = [
 ]
 
 CERTIFICATE_PATHS = [
-    '/v1/certificate/certificate_install'
+    '/v1/certificate/certificate_install',
+    '/v1/certificate/{uuid}'
 ]
 
 USER_PATHS = [
@@ -315,7 +316,7 @@ ROUTE_METHOD_MAP = {
         consts.RESOURCE_TYPE_SYSINV_DNS: ['PATCH', 'PUT'],
         consts.RESOURCE_TYPE_SYSINV_SNMP_TRAPDEST: ['POST', 'DELETE'],
         consts.RESOURCE_TYPE_SYSINV_SNMP_COMM: ['POST', 'DELETE'],
-        consts.RESOURCE_TYPE_SYSINV_CERTIFICATE: ['POST'],
+        consts.RESOURCE_TYPE_SYSINV_CERTIFICATE: ['POST', 'DELETE'],
         consts.RESOURCE_TYPE_SYSINV_USER: ['PATCH', 'PUT'],
     },
     consts.ENDPOINT_TYPE_NETWORK: {

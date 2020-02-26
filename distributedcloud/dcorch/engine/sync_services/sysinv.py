@@ -24,6 +24,7 @@ from dcorch.common import exceptions
 from dcorch.drivers.openstack import sdk_platform as sdk
 from dcorch.engine.fernet_key_manager import FERNET_REPO_MASTER_ID
 from dcorch.engine.fernet_key_manager import FernetKeyManager
+from dcorch.engine.sync_thread import AUDIT_RESOURCE_EXTRA
 from dcorch.engine.sync_thread import AUDIT_RESOURCE_MISSING
 from dcorch.engine.sync_thread import SyncThread
 
@@ -336,15 +337,15 @@ class SysinvSyncThread(SyncThread):
             metadata))
         return certificate, metadata
 
-    def sync_certificates(self, s_os_client, request, rsrc):
-        LOG.info("sync_certificate resource_info={}".format(
+    def create_certificate(self, s_os_client, request, rsrc):
+        LOG.info("create_certificate resource_info={}".format(
                  request.orch_job.resource_info),
                  extra=self.log_extra)
         certificate_dict = jsonutils.loads(request.orch_job.resource_info)
         payload = certificate_dict.get('payload')
 
         if not payload:
-            LOG.info("sync_certificate No payload found in resource_info"
+            LOG.info("create_certificate No payload found in resource_info"
                      "{}".format(request.orch_job.resource_info),
                      extra=self.log_extra)
             return
@@ -359,7 +360,7 @@ class SysinvSyncThread(SyncThread):
         certificate, metadata = self._decode_certificate_payload(
             certificate_dict)
 
-        isignature = None
+        icertificate = None
         signature = rsrc.master_id
         if signature and signature != self.CERTIFICATE_SIG_NULL:
             icertificate = self.update_certificate(
@@ -367,9 +368,6 @@ class SysinvSyncThread(SyncThread):
                 signature,
                 certificate=certificate,
                 data=metadata)
-            cert_body = icertificate.get('certificates')
-            if cert_body:
-                isignature = cert_body.get('signature')
         else:
             LOG.info("skipping signature={}".format(signature))
 
@@ -377,9 +375,68 @@ class SysinvSyncThread(SyncThread):
         subcloud_rsrc_id = self.persist_db_subcloud_resource(
             rsrc.id, signature)
 
-        LOG.info("certificate {} {} [{}/{}] updated".format(rsrc.id,
-                 subcloud_rsrc_id, isignature, signature),
+        cert_bodys = icertificate.get('certificates')
+        sub_certs_updated = [str(cert_body.get('signature'))
+                             for cert_body in cert_bodys]
+
+        LOG.info("certificate {} {} [{}] updated with subcloud certificates:"
+                 " {}".format(rsrc.id, subcloud_rsrc_id, signature,
+                              sub_certs_updated),
                  extra=self.log_extra)
+
+    def delete_certificate(self, s_os_client, request, rsrc):
+        subcloud_rsrc = self.get_db_subcloud_resource(rsrc.id)
+        if not subcloud_rsrc:
+            return
+
+        try:
+            certificates = s_os_client.sysinv_client.get_certificates()
+            cert_to_delete = None
+            for certificate in certificates:
+                if certificate.signature == subcloud_rsrc.subcloud_resource_id:
+                    cert_to_delete = certificate
+                    break
+            if not cert_to_delete:
+                raise exceptions.CertificateNotFound(
+                    region_name=self.subcloud_engine.subcloud.region_name,
+                    signature=subcloud_rsrc.subcloud_resource_id)
+            s_os_client.sysinv_client.delete_certificate(cert_to_delete)
+        except exceptions.CertificateNotFound:
+            # Certificate already deleted in subcloud, carry on.
+            LOG.info("Certificate not in subcloud, may be already deleted",
+                     extra=self.log_extra)
+        except (AttributeError, TypeError) as e:
+            LOG.info("delete_certificate error {}".format(e),
+                     extra=self.log_extra)
+            raise exceptions.SyncRequestFailedRetry
+
+        subcloud_rsrc.delete()
+        # Master Resource can be deleted only when all subcloud resources
+        # are deleted along with corresponding orch_job and orch_requests.
+        LOG.info("Certificate {}:{} [{}] deleted".format(
+                 rsrc.id, subcloud_rsrc.id,
+                 subcloud_rsrc.subcloud_resource_id),
+                 extra=self.log_extra)
+
+    def sync_certificates(self, s_os_client, request, rsrc):
+        switcher = {
+            consts.OPERATION_TYPE_POST: self.create_certificate,
+            consts.OPERATION_TYPE_CREATE: self.create_certificate,
+            consts.OPERATION_TYPE_DELETE: self.delete_certificate,
+        }
+
+        func = switcher[request.orch_job.operation_type]
+        try:
+            func(s_os_client, request, rsrc)
+        except (keystone_exceptions.connection.ConnectTimeout,
+                keystone_exceptions.ConnectFailure) as e:
+            LOG.info("sync_certificates: subcloud {} is not reachable [{}]"
+                     .format(self.subcloud_engine.subcloud.region_name,
+                             str(e)), extra=self.log_extra)
+            raise exceptions.SyncRequestTimeout
+        except Exception as e:
+            LOG.exception(e)
+            raise exceptions.SyncRequestFailedRetry
 
     def update_user(self, s_os_client, passwd_hash,
                     root_sig, passwd_expiry_days):
@@ -774,15 +831,15 @@ class SysinvSyncThread(SyncThread):
             # resource can be either from dcorch DB or
             # fetched by OpenStack query
             resource_id = self.get_resource_id(resource_type, resource)
+            if resource_id == self.CERTIFICATE_SIG_NULL:
+                LOG.info("No certificate resource to sync")
+                return num_of_audit_jobs
+            elif resource_id == self.RESOURCE_UUID_NULL:
+                LOG.info("No resource to sync")
+                return num_of_audit_jobs
+
             if finding == AUDIT_RESOURCE_MISSING:
                 # default action is create for a 'missing' resource
-                if resource_id == self.CERTIFICATE_SIG_NULL:
-                    LOG.info("No certificate resource to sync")
-                    return num_of_audit_jobs
-                elif resource_id == self.RESOURCE_UUID_NULL:
-                    LOG.info("No resource to sync")
-                    return num_of_audit_jobs
-
                 self.schedule_work(
                     self.endpoint_type, resource_type,
                     resource_id,
@@ -790,6 +847,12 @@ class SysinvSyncThread(SyncThread):
                     self.get_resource_info(
                         resource_type, resource,
                         consts.OPERATION_TYPE_CREATE))
+                num_of_audit_jobs += 1
+            elif finding == AUDIT_RESOURCE_EXTRA:
+                # default action is delete for a 'extra' resource
+                self.schedule_work(self.endpoint_type, resource_type,
+                                   resource_id,
+                                   consts.OPERATION_TYPE_DELETE)
                 num_of_audit_jobs += 1
             return num_of_audit_jobs
         else:  # use default audit_action

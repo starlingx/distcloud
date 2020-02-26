@@ -370,6 +370,21 @@ class SysinvClient(base.DriverBase):
 
         return icertificate
 
+    def delete_certificate(self, certificate):
+        """Delete the certificate for this region
+
+           :param: a CA certificate to delete
+        """
+        try:
+            LOG.info(" delete_certificate region {} certificate: {}".format(
+                     self.region_name, certificate.signature))
+            self.client.certificate.certificate_uninstall(certificate.uuid)
+        except HTTPNotFound:
+            LOG.info("delete_certificate NotFound {} for region: {}".format(
+                     certificate.signature, self.region_name))
+            raise exceptions.CertificateNotFound(
+                region_name=self.region_name, signature=certificate.signature)
+
     def get_user(self):
         """Get the user password info for this region
 
