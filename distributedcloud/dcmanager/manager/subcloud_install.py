@@ -153,8 +153,8 @@ class SubcloudInstall(object):
             raise e
 
     def get_oam_address(self):
-        oam_pool = self.sysinv_client.get_oam_address_pool()
-        return self.format_address(oam_pool.floating_address)
+        oam_addresses = self.sysinv_client.get_oam_addresses()
+        return self.format_address(oam_addresses.oam_floating_ip)
 
     def get_https_enabled(self):
         if self.https_enabled is None:

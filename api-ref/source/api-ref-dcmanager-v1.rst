@@ -261,7 +261,7 @@ serviceUnavailable (503)
    }
 
 ******************************************************
-Shows detailed information about a specific subcloud
+Shows information about a specific subcloud
 ******************************************************
 
 .. rest_method:: GET /v1.0/subclouds/​{subcloud}​
@@ -346,6 +346,98 @@ internalServerError (500), serviceUnavailable (503)
      "management-end-ip": "192.168.204.100",
      "id": 1,
      "name": "subcloud6"
+   }
+
+This operation does not accept a request body.
+
+******************************************************
+Shows additional information about a specific subcloud
+******************************************************
+
+.. rest_method:: GET /v1.0/subclouds/<200b>{subcloud}<200b>/detail
+
+**Normal response codes**
+
+200
+
+**Error response codes**
+
+itemNotFound (404), badRequest (400), unauthorized (401), forbidden
+(403), badMethod (405), HTTPUnprocessableEntity (422),
+internalServerError (500), serviceUnavailable (503)
+
+**Request parameters**
+
+.. csv-table::
+      :header: "Parameter", "Style", "Type", "Description"
+   :widths: 20, 20, 20, 60
+
+   "subcloud", "URI", "xsd:string", "The subcloud reference, name or id."
+
+**Response parameters**
+
+.. csv-table::
+      :header: "Parameter", "Style", "Type", "Description"
+   :widths: 20, 20, 20, 60
+
+   "id (Optional)", "plain", "xsd:int", "The unique identifier for this object."
+   "created_at (Optional)", "plain", "xsd:dateTime", "The time when the object was created."
+   "updated_at (Optional)", "plain", "xsd:dateTime", "The time when the object was last updated."
+   "name (Optional)", "plain", "xsd:string", "The name provisioned for the subcloud."
+   "management (Optional)", "plain", "xsd:string", "Management state of the subcloud."
+   "availability (Optional)", "plain", "xsd:string", "Availability status of the subcloud."
+   "management-subnet (Optional)", "plain", "xsd:string", "Management subnet for subcloud in CIDR format."
+   "management-start-ip (Optional)", "plain", "xsd:string", "Start of management IP address range for subcloud."
+   "management-end-ip (Optional)", "plain", "xsd:string", "End of management IP address range for subcloud."
+   "systemcontroller-gateway-ip (Optional)", "plain", "xsd:string", "Systemcontroller gateway IP Address."
+   "endpoint_sync_status (Optional)", "plain", "xsd:list", "The list of endpoint sync statuses."
+   "platform_sync_status (Optional)", "plain", "xsd:string", "The platform sync status of the subcloud."
+   "volume_sync_status (Optional)", "plain", "xsd:string", "The volume sync status of the subcloud."
+   "compute_sync_status (Optional)", "plain", "xsd:string", "The compute sync status of the subcloud."
+   "network_sync_status (Optional)", "plain", "xsd:string", "The network sync status of the subcloud."
+   "patching_sync_status (Optional)", "plain", "xsd:string", "The patching sync status of the subcloud."
+   "oam_floating_ip (Optional)", "plain", "xsd:string", "OAM Floating IP of the subcloud."
+
+::
+
+   {
+     "description": "test subcloud",
+     "management-start-ip": "192.168.204.50",
+     "created-at": "2018-02-25 19:06:35.208505",
+     "updated-at": "2018-02-25 21:35:59.771779",
+     "software-version": "18.01",
+     "management-state": "unmanaged",
+     "availability-status": "offline",
+     "management-subnet": "192.168.204.0/24",
+     "systemcontroller-gateway-ip": "192.168.204.101",
+     "location": "ottawa",
+     "endpoint_sync_status": [
+       {
+         "sync_status": "in-sync",
+         "endpoint_type": "compute"
+       },
+       {
+         "sync_status": "in-sync",
+         "endpoint_type": "network"
+       },
+       {
+         "sync_status": "in-sync",
+         "endpoint_type": "patching"
+       },
+       {
+         "sync_status": "in-sync",
+         "endpoint_type": "platform"
+       },
+       {
+         "sync_status": "in-sync",
+         "endpoint_type": "volume"
+       }
+     ],
+     "management-gateway-ip": "192.168.204.1",
+     "management-end-ip": "192.168.204.100",
+     "id": 1,
+     "name": "subcloud6",
+     "oam_floating_ip" "10.10.10.12"
    }
 
 This operation does not accept a request body.
@@ -448,65 +540,6 @@ Deletes a specific subcloud
    "subcloud", "URI", "xsd:string", "The subcloud reference, name or id."
 
 This operation does not accept a request body.
-
-****************************************************
-Generates the configuration of a specific subcloud
-****************************************************
-
-.. rest_method:: POST /v1.0/subclouds/​{subcloud}​/config
-
-**Normal response codes**
-
-200
-
-**Error response codes**
-
-badRequest (400), unauthorized (401), forbidden (403), badMethod (405),
-HTTPUnprocessableEntity (422), internalServerError (500),
-serviceUnavailable (503)
-
-**Request parameters**
-
-.. csv-table::
-   :header: "Parameter", "Style", "Type", "Description"
-   :widths: 20, 20, 20, 60
-
-   "subcloud", "URI", "xsd:string", "The subcloud reference, name or id."
-   "pxe-subnet (Optional)", "plain", "xsd:string", "PXE boot boot subnet for subcloud in CIDR format."
-   "management-vlan (Optional)", "plain", "xsd:string", "VLAN for subcloud management network."
-   "management-interface-port (Optional)", "plain", "xsd:string", "Subcloud management interface port."
-   "management-interface-mtu (Optional)", "plain", "xsd:string", "Subcloud management interface mtu."
-   "oam-subnet (Optional)", "plain", "xsd:string", "OAM subnet for subcloud in CIDR format."
-   "oam-gateway-ip (Optional)", "plain", "xsd:string", "OAM gateway IP for subcloud."
-   "oam-floating-ip (Optional)", "plain", "xsd:string", "OAM floating IP address for subcloud."
-   "oam-unit-0-ip (Optional)", "plain", "xsd:string", "OAM unit 0 IP address for subcloud."
-   "oam-unit-1-ip (Optional)", "plain", "xsd:string", "OAM unit 1 IP address for subcloud."
-   "oam-interface-port (Optional)", "plain", "xsd:string", "Subcloud OAM interface port."
-   "oam-interface-mtu (Optional)", "plain", "xsd:string", "Subcloud OAM interface mtu."
-   "system-mode (Optional)", "plain", "xsd:string", "System mode, ``simplex, duplex, or duplex-direct``."
-
-::
-
-   {
-     "oam-gateway-ip": "10.10.20.1",
-     "oam-interface-mtu": "1500",
-     "oam-subnet": "10.10.20.0/24",
-     "management-interface-port": "enp0s3",
-     "system-mode": "duplex",
-     "management-interface-mtu": "1500",
-     "oam-unit-1-ip": "10.10.20.4",
-     "oam-interface-port": "enp0s8",
-     "management-vlan": "10",
-     "pxe-subnet": "192.168.205.0/24",
-     "oam-unit-0-ip": "10.10.20.3",
-     "oam-floating-ip": "10.10.20.2"
-   }
-
-::
-
-   {
-     "config": "[SYSTEM]\nSYSTEM_MODE=duplex\n[REGION2_PXEBOOT_NETWORK]\nPXEBOOT_CIDR = 192.168.205.0/24\n[MGMT_NETWORK]\nVLAN = 10\nCIDR = 192.168.204.0/24\nGATEWAY = 192.168.204.1\nIP_START_ADDRESS = 192.168.204.50\nIP_END_ADDRESS = 192.168.204.100\nDYNAMIC_ALLOCATION = Y\nLOGICAL_INTERFACE = LOGICAL_INTERFACE_1\n[LOGICAL_INTERFACE_1]\nLAG_INTERFACE = N\nINTERFACE_MTU = 1500\nINTERFACE_PORTS = enp0s3\n[OAM_NETWORK]\nCIDR = 10.10.20.0/24\nGATEWAY = 10.10.20.1\nIP_FLOATING_ADDRESS = 10.10.20.2\nIP_UNIT_0_ADDRESS = 10.10.20.3\nIP_UNIT_1_ADDRESS = 10.10.20.4\nLOGICAL_INTERFACE = LOGICAL_INTERFACE_2\n[LOGICAL_INTERFACE_2]\nLAG_INTERFACE = N\nINTERFACE_MTU = 1500\nINTERFACE_PORTS = enp0s8\n[SHARED_SERVICES]\nSYSTEM_CONTROLLER_SUBNET = 192.168.204.0/24\nSYSTEM_CONTROLLER_FLOATING_ADDRESS = 192.168.204.2\nREGION_NAME = RegionOne\nADMIN_PROJECT_NAME = admin\nADMIN_USER_NAME = admin\nADMIN_PASSWORD = Li69nux*\nKEYSTONE_ADMINURL = http://192.168.204.2:5000/v3\nKEYSTONE_SERVICE_NAME = keystone\nKEYSTONE_SERVICE_TYPE = identity\nGLANCE_SERVICE_NAME = glance\nGLANCE_SERVICE_TYPE = image\nGLANCE_CACHED = True\n[REGION_2_SERVICES]\nREGION_NAME = subcloud6\n[VERSION]\nRELEASE = 18.01\n"
-   }
 
 ----------------
 Subcloud Alarms

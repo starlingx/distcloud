@@ -37,6 +37,7 @@ from controllerconfig.utils import validate_address_str
 from controllerconfig.utils import validate_network_str
 
 from dcorch.drivers.openstack.keystone_v3 import KeystoneClient
+from keystoneauth1 import exceptions as keystone_exceptions
 
 from dcmanager.api.controllers import restcomm
 from dcmanager.common import consts
@@ -47,7 +48,6 @@ from dcmanager.common import utils
 from dcmanager.db import api as db_api
 from dcmanager.drivers.openstack.sysinv_v1 import SysinvClient
 from dcmanager.rpc import client as rpc_client
-
 
 CONF = cfg.CONF
 LOG = logging.getLogger(__name__)
@@ -333,8 +333,37 @@ class SubcloudsController(object):
         sysinv_client = SysinvClient(consts.DEFAULT_REGION_NAME, session)
         return sysinv_client.get_management_address_pool()
 
+    @staticmethod
+    def get_ks_client(region_name=None):
+        """This will get a new keystone client (and new token)"""
+        try:
+            return KeystoneClient(region_name)
+        except Exception:
+            LOG.warn('Failure initializing KeystoneClient '
+                     'for region %s' % region_name)
+            raise
+
+    def _get_oam_addresses(self, context, subcloud_name):
+        """Get the subclouds oam addresses"""
+
+        # First need to retrieve the Subcloud's Keystone session
+        try:
+            sc_ks_client = self.get_ks_client(subcloud_name)
+            sysinv_client = SysinvClient(subcloud_name,
+                                         sc_ks_client.session)
+            return sysinv_client.get_oam_addresses()
+        except (keystone_exceptions.EndpointNotFound, IndexError) as e:
+            message = ("Identity endpoint for subcloud: %s not found. %s" %
+                       (subcloud_name, e))
+            LOG.error(message)
+        except exceptions.OAMAddressesNotFound:
+            message = ("OAM addresses for subcloud: %s not found." %
+                       (subcloud_name))
+            LOG.error(message)
+        return None
+
     @index.when(method='GET', template='json')
-    def get(self, subcloud_ref=None):
+    def get(self, subcloud_ref=None, detail=None):
         """Get details about subcloud.
 
         :param subcloud_ref: ID or name of subcloud
@@ -436,6 +465,17 @@ class SubcloudsController(object):
             endpoint_sync_dict = {consts.ENDPOINT_SYNC_STATUS:
                                   subcloud_status_list}
             subcloud_dict.update(endpoint_sync_dict)
+
+            if detail is not None:
+                oam_addresses = self._get_oam_addresses(context,
+                                                        subcloud_ref)
+                if oam_addresses is not None:
+                    oam_floating_ip = oam_addresses.oam_floating_ip
+                else:
+                    oam_floating_ip = "unavailable"
+                floating_ip_dict = {"oam_floating_ip":
+                                    oam_floating_ip}
+                subcloud_dict.update(floating_ip_dict)
 
             return subcloud_dict
 

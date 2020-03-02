@@ -87,18 +87,14 @@ class SysinvClient(base.DriverBase):
 
         return self.sysinv_client.address_pool.get(address_pool_uuid)
 
-    def get_oam_address_pool(self):
+    def get_oam_addresses(self):
         """Get the oam address pool for a host."""
-        networks = self.sysinv_client.network.list()
-        for network in networks:
-            if network.type == sysinv_constants.NETWORK_TYPE_OAM:
-                address_pool_uuid = network.pool_uuid
-                break
+        iextoam_object = self.sysinv_client.iextoam.list()
+        if iextoam_object is not None and len(iextoam_object) != 0:
+            return iextoam_object[0]
         else:
-            LOG.error("OAM address pool not found")
-            raise exceptions.InternalError()
-
-        return self.sysinv_client.address_pool.get(address_pool_uuid)
+            LOG.error("OAM address not found")
+            raise exceptions.OAMAddressesNotFound()
 
     def create_route(self, interface_uuid, network, prefix, gateway, metric):
         """Create a static route on an interface."""

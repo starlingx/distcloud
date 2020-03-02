@@ -487,9 +487,9 @@ class SubcloudManager(manager.Manager):
         mgmt_floating_ip = mgmt_pool.floating_address
         mgmt_subnet = "%s/%d" % (mgmt_pool.network, mgmt_pool.prefix)
 
-        oam_pool = sysinv_client.get_oam_address_pool()
-        oam_floating_ip = oam_pool.floating_address
-        oam_subnet = "%s/%d" % (oam_pool.network, oam_pool.prefix)
+        oam_addresses = sysinv_client.get_oam_addresses()
+        oam_floating_ip = oam_addresses.oam_floating_ip
+        oam_subnet = oam_addresses.oam_subnet
 
         with open(overrides_file, 'w') as f_out_overrides_file:
             f_out_overrides_file.write(

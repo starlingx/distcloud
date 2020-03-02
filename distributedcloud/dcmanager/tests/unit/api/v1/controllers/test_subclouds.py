@@ -23,6 +23,7 @@
 import copy
 import mock
 import six
+from six.moves import http_client
 import webtest
 
 from dcmanager.api.controllers.v1 import subclouds
@@ -30,7 +31,6 @@ from dcmanager.common import consts
 from dcmanager.rpc import client as rpc_client
 from dcmanager.tests.unit.api import test_root_controller as testroot
 from dcmanager.tests import utils
-
 
 FAKE_TENANT = utils.UUID1
 FAKE_ID = '1'
@@ -82,6 +82,20 @@ class FakeAddressPool(object):
         range.append(pool_end)
         self.ranges = list()
         self.ranges.append(range)
+
+
+class FakeOAMAddressPool(object):
+    def __init__(self, oam_subnet, oam_start_ip,
+                 oam_end_ip, oam_c1_ip,
+                 oam_c0_ip, oam_gateway_ip,
+                 oam_floating_ip):
+        self.oam_start_ip = oam_start_ip
+        self.oam_end_ip = oam_end_ip
+        self.oam_c1_ip = oam_c1_ip
+        self.oam_c0_ip = oam_c0_ip
+        self.oam_subnet = oam_subnet
+        self.oam_gateway_ip = oam_gateway_ip
+        self.oam_floating_ip = oam_floating_ip
 
 
 class TestSubclouds(testroot.DCManagerApiTest):
@@ -404,12 +418,57 @@ class TestSubclouds(testroot.DCManagerApiTest):
                               self.app.delete_json, delete_url,
                               headers=FAKE_HEADERS)
 
+    @mock.patch.object(subclouds.SubcloudsController,
+                       '_get_oam_addresses')
     @mock.patch.object(rpc_client, 'ManagerClient')
     @mock.patch.object(subclouds, 'db_api')
-    def test_get_subcloud(self, mock_db_api, mock_rpc_client):
+    def test_get_subcloud(self,
+                          mock_db_api,
+                          mock_rpc_client,
+                          mock_get_oam_addresses):
         get_url = FAKE_URL + '/' + FAKE_ID
-        self.app.get(get_url, headers=FAKE_HEADERS)
+        response = self.app.get(get_url, headers=FAKE_HEADERS)
+        self.assertEqual(response.content_type, 'application/json')
+        self.assertEqual(response.status_code, http_client.OK)
+        self.assertEqual(response.json.get('oam_floating_ip', None), None)
         self.assertEqual(1, mock_db_api.subcloud_get_with_status.call_count)
+
+    @mock.patch.object(subclouds.SubcloudsController,
+                       '_get_oam_addresses')
+    @mock.patch.object(rpc_client, 'ManagerClient')
+    @mock.patch.object(subclouds, 'db_api')
+    def test_get_subcloud_with_additional_detail(self,
+                                                 mock_db_api,
+                                                 mock_rpc_client,
+                                                 mock_get_oam_addresses):
+        get_url = FAKE_URL + '/' + FAKE_ID + '/detail'
+        oam_addresses = FakeOAMAddressPool('10.10.10.254',
+                                           '10.10.10.1',
+                                           '10.10.10.254',
+                                           '10.10.10.4',
+                                           '10.10.10.3',
+                                           '10.10.10.1',
+                                           '10.10.10.2')
+        mock_get_oam_addresses.return_value = oam_addresses
+        response = self.app.get(get_url, headers=FAKE_HEADERS)
+        self.assertEqual(response.content_type, 'application/json')
+        self.assertEqual(response.status_code, http_client.OK)
+        self.assertEqual('10.10.10.2', response.json['oam_floating_ip'])
+
+    @mock.patch.object(subclouds.SubcloudsController,
+                       '_get_oam_addresses')
+    @mock.patch.object(rpc_client, 'ManagerClient')
+    @mock.patch.object(subclouds, 'db_api')
+    def test_subcloud_oam_ip_unavailable(self,
+                                         mock_db_api,
+                                         mock_rpc_client,
+                                         mock_get_oam_addresses):
+        get_url = FAKE_URL + '/' + FAKE_ID + '/detail'
+        mock_get_oam_addresses.return_value = None
+        response = self.app.get(get_url, headers=FAKE_HEADERS)
+        self.assertEqual(response.content_type, 'application/json')
+        self.assertEqual(response.status_code, http_client.OK)
+        self.assertEqual('unavailable', response.json['oam_floating_ip'])
 
     @mock.patch.object(rpc_client, 'ManagerClient')
     @mock.patch.object(subclouds, 'db_api')

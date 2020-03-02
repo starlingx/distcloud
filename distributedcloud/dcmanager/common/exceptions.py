@@ -136,6 +136,10 @@ class InternalError(DCManagerException):
     message = _("Error when performing operation")
 
 
+class OAMAddressesNotFound(NotFound):
+    message = _("OAM Addresses Not Found")
+
+
 class InvalidInputError(DCManagerException):
     message = _("An invalid value was provided")
 
