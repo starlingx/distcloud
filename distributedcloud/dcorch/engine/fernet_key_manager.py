@@ -26,8 +26,8 @@ from dcorch.common import exceptions
 from dcorch.common.i18n import _
 from dcorch.common import manager
 from dcorch.common import utils
-from dcorch.drivers.openstack import sdk_platform as sdk
-
+from dcorch.drivers.openstack.keystone_v3 import KeystoneClient
+from dcorch.drivers.openstack.sysinv_v1 import SysinvClient
 
 FERNET_REPO_MASTER_ID = "keys"
 KEY_ROTATE_CMD = "/usr/bin/keystone-fernet-keys-rotate-active"
@@ -89,8 +89,12 @@ class FernetKeyManager(manager.Manager):
         """get the keys from the local fernet key repo"""
         keys = []
         try:
-            os_client = sdk.OpenStackDriver(consts.CLOUD_0)
-            keys = os_client.sysinv_client.get_fernet_keys()
+            # No cached client is required as it is called during the initial
+            # sync and after weekly key rotation
+            ks_client = KeystoneClient(consts.CLOUD_0)
+            sysinv_client = SysinvClient(consts.CLOUD_0,
+                                         ks_client.session)
+            keys = sysinv_client.get_fernet_keys()
         except (exceptions.ConnectionRefused, exceptions.NotAuthorized,
                 exceptions.TimeOut):
             LOG.info(_("Retrieving the fernet keys from %s timeout") %
@@ -130,8 +134,11 @@ class FernetKeyManager(manager.Manager):
     @staticmethod
     def update_fernet_repo(subcloud_name, key_list=None):
         try:
-            os_client = sdk.OpenStackDriver(subcloud_name)
-            os_client.sysinv_client.post_fernet_repo(key_list)
+            # No cached client is required as it is only called during the
+            # initial sync
+            ks_client = KeystoneClient(subcloud_name)
+            sysinv_client = SysinvClient(subcloud_name, ks_client.session)
+            sysinv_client.post_fernet_repo(key_list)
         except (exceptions.ConnectionRefused, exceptions.NotAuthorized,
                 exceptions.TimeOut):
             LOG.info(_("Update the fernet repo on %s timeout") %

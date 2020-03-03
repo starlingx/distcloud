@@ -138,7 +138,8 @@ def set_request_forward_environ(req, remote_host, remote_port):
 
 def _get_fernet_keys():
     """Get fernet keys from sysinv."""
-    os_client = sdk.OpenStackDriver(consts.CLOUD_0)
+    os_client = sdk.OpenStackDriver(region_name=consts.CLOUD_0,
+                                    thread_name='proxy')
     try:
         key_list = os_client.sysinv_client.get_fernet_keys()
         return [str(getattr(key, 'key')) for key in key_list]
@@ -146,11 +147,12 @@ def _get_fernet_keys():
             keystone_exceptions.ConnectFailure) as e:
         LOG.info("get_fernet_keys: cloud {} is not reachable [{}]"
                  .format(consts.CLOUD_0, str(e)))
-        os_client.delete_region_clients(consts.CLOUD_0)
+        sdk.OpenStackDriver.delete_region_clients(consts.CLOUD_0)
         return None
     except (AttributeError, TypeError) as e:
         LOG.info("get_fernet_keys error {}".format(e))
-        os_client.delete_region_clients(consts.CLOUD_0, clear_token=True)
+        sdk.OpenStackDriver.delete_region_clients(consts.CLOUD_0,
+                                                  clear_token=True)
         return None
     except Exception as e:
         LOG.exception(e)

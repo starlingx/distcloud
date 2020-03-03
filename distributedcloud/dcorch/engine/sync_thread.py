@@ -140,12 +140,12 @@ class SyncThread(object):
         # keystone client
         self.ks_client = keystoneclient.Client(
             session=self.admin_session,
-            region_name=consts.VIRTUAL_MASTER_CLOUD)
+            region_name=consts.CLOUD_0)
         # dcdbsync client
         self.dbs_client = dbsyncclient.Client(
             endpoint_type=consts.DBS_ENDPOINT_INTERNAL,
             session=self.admin_session,
-            region_name=consts.VIRTUAL_MASTER_CLOUD)
+            region_name=consts.CLOUD_0)
 
     def initialize_sc_clients(self):
         # base implementation of initializing the subcloud specific
@@ -485,6 +485,11 @@ class SyncThread(object):
 
         LOG.debug("{}: done sync audit".format(self.audit_thread.name),
                   extra=self.log_extra)
+        self.post_audit()
+
+    def post_audit(self):
+        # The specific SyncThread subclasses may perform post audit actions
+        return
 
     def audit_find_missing(self, resource_type, m_resources,
                            db_resources, sc_resources,
