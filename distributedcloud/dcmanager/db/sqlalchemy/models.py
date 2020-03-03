@@ -75,6 +75,18 @@ class DCManagerBase(models.ModelBase,
         session.commit()
 
 
+class SubcloudGroup(BASE, DCManagerBase):
+    """Represents a subcloud group"""
+
+    __tablename__ = 'subcloud_group'
+
+    id = Column(Integer, primary_key=True, autoincrement=True, nullable=False)
+    name = Column(String(255), unique=True)
+    description = Column(String(255))
+    update_apply_type = Column(String(255))
+    max_parallel_subclouds = Column(Integer)
+
+
 class Subcloud(BASE, DCManagerBase):
     """Represents a subcloud"""
 
@@ -95,6 +107,11 @@ class Subcloud(BASE, DCManagerBase):
     openstack_installed = Column(Boolean, nullable=False, default=False)
     systemcontroller_gateway_ip = Column(String(255))
     audit_fail_count = Column(Integer)
+    # multiple subclouds can be in a particular group
+    group_id = Column(Integer,
+                      ForeignKey('subcloud_group.id'))
+    group = relationship(SubcloudGroup,
+                         backref=backref('subcloud'))
 
 
 class SubcloudStatus(BASE, DCManagerBase):

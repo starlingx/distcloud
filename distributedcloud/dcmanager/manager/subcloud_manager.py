@@ -130,6 +130,9 @@ class SubcloudManager(manager.Manager):
         # controller.
         software_version = SW_VERSION
         try:
+            # if group_id has been omitted from payload, use 'Default'.
+            group_id = payload.get('group_id',
+                                   consts.DEFAULT_SUBCLOUD_GROUP_ID)
             subcloud = db_api.subcloud_create(
                 context,
                 payload['name'],
@@ -142,7 +145,8 @@ class SubcloudManager(manager.Manager):
                 payload['management_end_address'],
                 payload['systemcontroller_gateway_address'],
                 consts.DEPLOY_STATE_NONE,
-                False)
+                False,
+                group_id)
         except Exception as e:
             LOG.exception(e)
             raise e
@@ -660,8 +664,13 @@ class SubcloudManager(manager.Manager):
                      "subcloud %s" % subcloud.name)
             LOG.exception(e)
 
-    def update_subcloud(self, context, subcloud_id, management_state=None,
-                        description=None, location=None):
+    def update_subcloud(self,
+                        context,
+                        subcloud_id,
+                        management_state=None,
+                        description=None,
+                        location=None,
+                        group_id=None):
         """Update subcloud and notify orchestrators.
 
         :param context: request context object
@@ -669,6 +678,7 @@ class SubcloudManager(manager.Manager):
         :param management_state: new management state
         :param description: new description
         :param location: new location
+        :param group_id: new subcloud group id
         """
 
         LOG.info("Updating subcloud %s." % subcloud_id)
@@ -699,10 +709,12 @@ class SubcloudManager(manager.Manager):
                 LOG.error("Invalid management_state %s" % management_state)
                 raise exceptions.InternalError()
 
-        subcloud = db_api.subcloud_update(context, subcloud_id,
+        subcloud = db_api.subcloud_update(context,
+                                          subcloud_id,
                                           management_state=management_state,
                                           description=description,
-                                          location=location)
+                                          location=location,
+                                          group_id=group_id)
 
         # Inform orchestrators that subcloud has been updated
         if management_state:

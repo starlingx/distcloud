@@ -67,7 +67,8 @@ def subcloud_db_model_to_dict(subcloud):
               "systemcontroller-gateway-ip":
                   subcloud.systemcontroller_gateway_ip,
               "created-at": subcloud.created_at,
-              "updated-at": subcloud.updated_at}
+              "updated-at": subcloud.updated_at,
+              "group_id": subcloud.group_id}
     return result
 
 
@@ -75,14 +76,14 @@ def subcloud_create(context, name, description, location, software_version,
                     management_subnet, management_gateway_ip,
                     management_start_ip, management_end_ip,
                     systemcontroller_gateway_ip, deploy_status,
-                    openstack_installed):
+                    openstack_installed, group_id):
     """Create a subcloud."""
     return IMPL.subcloud_create(context, name, description, location,
                                 software_version,
                                 management_subnet, management_gateway_ip,
                                 management_start_ip, management_end_ip,
                                 systemcontroller_gateway_ip, deploy_status,
-                                openstack_installed)
+                                openstack_installed, group_id)
 
 
 def subcloud_get(context, subcloud_id):
@@ -113,12 +114,13 @@ def subcloud_get_all_with_status(context):
 def subcloud_update(context, subcloud_id, management_state=None,
                     availability_status=None, software_version=None,
                     description=None, location=None, audit_fail_count=None,
-                    deploy_status=None, openstack_installed=None):
+                    deploy_status=None, openstack_installed=None,
+                    group_id=None):
     """Update a subcloud or raise if it does not exist."""
     return IMPL.subcloud_update(context, subcloud_id, management_state,
                                 availability_status, software_version,
                                 description, location, audit_fail_count,
-                                deploy_status, openstack_installed)
+                                deploy_status, openstack_installed, group_id)
 
 
 def subcloud_destroy(context, subcloud_id):
@@ -194,6 +196,67 @@ def subcloud_status_destroy_all(context, subcloud_id):
     """
 
     return IMPL.subcloud_status_destroy_all(context, subcloud_id)
+
+
+###################
+# subcloud_group
+
+def subcloud_group_db_model_to_dict(subcloud_group):
+    """Convert subcloud_group db model to dictionary."""
+    result = {"id": subcloud_group.id,
+              "name": subcloud_group.name,
+              "description": subcloud_group.description,
+              "update_apply_type": subcloud_group.update_apply_type,
+              "max_parallel_subclouds": subcloud_group.max_parallel_subclouds,
+              "created-at": subcloud_group.created_at,
+              "updated-at": subcloud_group.updated_at}
+    return result
+
+
+def subcloud_group_create(context, name, description, update_apply_type,
+                          max_parallel_subclouds):
+    """Create a subcloud_group."""
+    return IMPL.subcloud_group_create(context,
+                                      name,
+                                      description,
+                                      update_apply_type,
+                                      max_parallel_subclouds)
+
+
+def subcloud_group_get(context, group_id):
+    """Retrieve a subcloud_group or raise if it does not exist."""
+    return IMPL.subcloud_group_get(context, group_id)
+
+
+def subcloud_group_get_by_name(context, name):
+    """Retrieve a subcloud_group b name or raise if it does not exist."""
+    return IMPL.subcloud_group_get_by_name(context, name)
+
+
+def subcloud_group_get_all(context):
+    """Retrieve all subcloud groups."""
+    return IMPL.subcloud_group_get_all(context)
+
+
+def subcloud_get_for_group(context, group_id):
+    """Retrieve a subcloud_group or raise if it does not exist."""
+    return IMPL.subcloud_get_for_group(context, group_id)
+
+
+def subcloud_group_update(context, group_id, name, description,
+                          update_apply_type, max_parallel_subclouds):
+    """Update the subcloud group or raise if it does not exist."""
+    return IMPL.subcloud_group_update(context,
+                                      group_id,
+                                      name,
+                                      description,
+                                      update_apply_type,
+                                      max_parallel_subclouds)
+
+
+def subcloud_group_destroy(context, group_id):
+    """Destroy the subcloud group or raise if it does not exist."""
+    return IMPL.subcloud_group_destroy(context, group_id)
 
 
 ###################

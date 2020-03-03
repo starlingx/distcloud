@@ -72,12 +72,13 @@ class ManagerClient(object):
                                              subcloud_id=subcloud_id))
 
     def update_subcloud(self, ctxt, subcloud_id, management_state=None,
-                        description=None, location=None):
+                        description=None, location=None, group_id=None):
         return self.call(ctxt, self.make_msg('update_subcloud',
                                              subcloud_id=subcloud_id,
                                              management_state=management_state,
                                              description=description,
-                                             location=location))
+                                             location=location,
+                                             group_id=group_id))
 
     def update_subcloud_endpoint_status(self, ctxt, subcloud_name=None,
                                         endpoint_type=None,

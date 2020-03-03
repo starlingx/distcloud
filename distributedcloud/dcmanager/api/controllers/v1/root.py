@@ -22,6 +22,7 @@
 
 
 from dcmanager.api.controllers.v1 import alarm_manager
+from dcmanager.api.controllers.v1 import subcloud_group
 from dcmanager.api.controllers.v1 import subclouds
 from dcmanager.api.controllers.v1 import sw_update_options
 from dcmanager.api.controllers.v1 import sw_update_strategy
@@ -46,6 +47,8 @@ class Controller(object):
                 sw_update_strategy.SwUpdateStrategyController
             sub_controllers["sw-update-options"] = \
                 sw_update_options.SwUpdateOptionsController
+            sub_controllers["subcloud-groups"] = \
+                subcloud_group.SubcloudGroupsController
 
         for name, ctrl in sub_controllers.items():
             setattr(self, name, ctrl)
