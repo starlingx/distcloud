@@ -11,7 +11,6 @@
 # under the License.
 
 import hashlib
-import six
 
 from cgtsclient import client as cgts_client
 from cgtsclient.exc import HTTPConflict
@@ -49,10 +48,6 @@ def make_sysinv_patch(update_dict):
 
 class SysinvClient(base.DriverBase):
     """Sysinv V1 driver."""
-
-    # TODO(John): This could go into cgtsclient/v1/remotelogging.py
-    REMOTELOGGING_PATCH_ATTRS = ['ip_address', 'enabled', 'transport', 'port',
-                                 'action']
 
     def __init__(self, region_name, session):
         self._expired = False
@@ -259,97 +254,6 @@ class SysinvClient(base.DriverBase):
         except Exception as e:
             LOG.error("snmp_community_delete exception={}".format(e))
             raise exceptions.SyncRequestFailedRetry()
-
-    def get_remotelogging(self):
-        """Get the remotelogging for this region
-
-           :return: remotelogging
-        """
-        try:
-            remoteloggings = self.client.remotelogging.list()
-            remotelogging = remoteloggings[0]
-        except Exception as e:
-            LOG.error("get_remotelogging exception={}".format(e))
-            raise exceptions.SyncRequestFailedRetry()
-
-        if not remotelogging:
-            LOG.info("remotelogging is None for region: %s" % self.region_name)
-
-        else:
-            LOG.debug("get_remotelogging uuid=%s ip_address=%s" %
-                      (remotelogging.uuid, remotelogging.ip_address))
-
-        return remotelogging
-
-    def create_remote_logging_patch_from_dict(self, values):
-        patch = {}
-        action_found = False
-        for k, v in values.items():
-            if k in self.REMOTELOGGING_PATCH_ATTRS:
-                if k == 'action':
-                    action_found = True
-                elif k == 'enabled' and not isinstance(v, six.string_types):
-                    # api requires a string for enabled
-                    if not v:
-                        patch[k] = 'false'
-                    else:
-                        patch[k] = 'true'
-                elif k == 'ip_address' and not v:
-                    # api requires a non None/empty value
-                    continue
-                else:
-                    patch[k] = v
-
-        if not action_found:
-            patch['action'] = 'apply'
-
-        patch = make_sysinv_patch(patch)
-        LOG.debug("create_remote_logging_patch_from_dict=%s" % patch)
-        return patch
-
-    @staticmethod
-    def ip_address_in_patch(patch):
-        for p in patch:
-            if p['path'] == '/ip_address':
-                if p['value']:
-                    return True
-        LOG.info("No valid ip_address_in_patch: %s" % patch)
-        return False
-
-    def update_remotelogging(self, values):
-        """Update the remotelogging values for this region
-
-           :param: values  dictionary or payload
-           :return: remotelogging
-        """
-        try:
-            remotelogging = self.get_remotelogging()
-            if not remotelogging:
-                LOG.warn("remotelogging not found %s" % self.region_name)
-                return remotelogging
-
-            if isinstance(values, dict):
-                patch = self.create_remote_logging_patch_from_dict(values)
-            else:
-                patch = values
-
-            if (not self.ip_address_in_patch(patch) and
-               not remotelogging.ip_address):
-                # This region does not have an ip_address set yet
-                LOG.info("region={} remotelogging ip_address not set "
-                         "uuid={} patch={}. Skip patch operation.".format(
-                             self.region_name, remotelogging.uuid, patch))
-                return remotelogging
-
-            LOG.info("region={} remotelogging update uuid={} patch={}".format(
-                     self.region_name, remotelogging.uuid, patch))
-            remotelogging = self.client.remotelogging.update(
-                remotelogging.uuid, patch)
-        except Exception as e:
-            LOG.error("update_remotelogging exception={}".format(e))
-            raise exceptions.SyncRequestFailedRetry()
-
-        return remotelogging
 
     def get_certificates(self):
         """Get the certificates for this region

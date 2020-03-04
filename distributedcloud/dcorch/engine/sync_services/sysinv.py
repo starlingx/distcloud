@@ -34,7 +34,6 @@ class SysinvSyncThread(SyncThread):
     """Manages tasks related to distributed cloud orchestration for sysinv."""
 
     SYSINV_MODIFY_RESOURCES = [consts.RESOURCE_TYPE_SYSINV_DNS,
-                               consts.RESOURCE_TYPE_SYSINV_REMOTE_LOGGING,
                                consts.RESOURCE_TYPE_SYSINV_USER,
                                consts.RESOURCE_TYPE_SYSINV_FERNET_REPO
                                ]
@@ -59,8 +58,6 @@ class SysinvSyncThread(SyncThread):
                 self.sync_platform_resource,
             consts.RESOURCE_TYPE_SYSINV_SNMP_TRAPDEST:
                 self.sync_platform_resource,
-            consts.RESOURCE_TYPE_SYSINV_REMOTE_LOGGING:
-                self.sync_platform_resource,
             consts.RESOURCE_TYPE_SYSINV_CERTIFICATE:
                 self.sync_platform_resource,
             consts.RESOURCE_TYPE_SYSINV_USER:
@@ -75,7 +72,6 @@ class SysinvSyncThread(SyncThread):
         self.audit_resources = [
             consts.RESOURCE_TYPE_SYSINV_CERTIFICATE,
             consts.RESOURCE_TYPE_SYSINV_DNS,
-            consts.RESOURCE_TYPE_SYSINV_REMOTE_LOGGING,
             consts.RESOURCE_TYPE_SYSINV_SNMP_COMM,
             consts.RESOURCE_TYPE_SYSINV_SNMP_TRAPDEST,
             consts.RESOURCE_TYPE_SYSINV_USER,
@@ -295,43 +291,6 @@ class SysinvSyncThread(SyncThread):
         LOG.info("SNMP community {}:{} [{}] deleted".format(
                  rsrc.id, subcloud_rsrc.id,
                  subcloud_rsrc.subcloud_resource_id),
-                 extra=self.log_extra)
-
-    def update_remotelogging(self, s_os_client, values):
-
-        try:
-            iremotelogging = s_os_client.sysinv_client.update_remotelogging(
-                values)
-            return iremotelogging
-        except (AttributeError, TypeError) as e:
-            LOG.info("update_remotelogging error {} region_name".format(e),
-                     extra=self.log_extra)
-            raise exceptions.SyncRequestFailedRetry
-
-    def sync_remotelogging(self, s_os_client, request, rsrc):
-        # The system is created with default remotelogging; thus there
-        # is a prepopulated remotelogging entry.
-        LOG.info("sync_remotelogging resource_info={}".format(
-                 request.orch_job.resource_info),
-                 extra=self.log_extra)
-        remotelogging_dict = jsonutils.loads(request.orch_job.resource_info)
-        payload = remotelogging_dict.get('payload')
-
-        if not payload:
-            LOG.info("sync_remotelogging No payload found in resource_info"
-                     "{}".format(request.orch_job.resource_info),
-                     extra=self.log_extra)
-            return
-
-        iremotelogging = self.update_remotelogging(s_os_client, payload)
-
-        # Ensure subcloud resource is persisted to the DB for later
-        subcloud_rsrc_id = self.persist_db_subcloud_resource(
-            rsrc.id, iremotelogging.uuid)
-
-        LOG.info("remotelogging {}:{} [{}/{}] updated".format(rsrc.id,
-                 subcloud_rsrc_id, iremotelogging.ip_address,
-                 iremotelogging.uuid),
                  extra=self.log_extra)
 
     def update_certificate(self, s_os_client, signature,
@@ -556,8 +515,6 @@ class SysinvSyncThread(SyncThread):
                 return self.get_snmp_community_resources(os_client)
             elif resource_type == consts.RESOURCE_TYPE_SYSINV_SNMP_TRAPDEST:
                 return self.get_snmp_trapdest_resources(os_client)
-            elif resource_type == consts.RESOURCE_TYPE_SYSINV_REMOTE_LOGGING:
-                return [self.get_remotelogging_resource(os_client)]
             elif resource_type == consts.RESOURCE_TYPE_SYSINV_CERTIFICATE:
                 return self.get_certificates_resources(os_client)
             elif resource_type == consts.RESOURCE_TYPE_SYSINV_USER:
@@ -582,8 +539,6 @@ class SysinvSyncThread(SyncThread):
                 return self.get_snmp_community_resources(os_client)
             elif resource_type == consts.RESOURCE_TYPE_SYSINV_SNMP_TRAPDEST:
                 return self.get_snmp_trapdest_resources(os_client)
-            elif resource_type == consts.RESOURCE_TYPE_SYSINV_REMOTE_LOGGING:
-                return [self.get_remotelogging_resource(os_client)]
             elif resource_type == consts.RESOURCE_TYPE_SYSINV_CERTIFICATE:
                 return self.get_certificates_resources(os_client)
             elif resource_type == consts.RESOURCE_TYPE_SYSINV_USER:
@@ -632,9 +587,6 @@ class SysinvSyncThread(SyncThread):
 
     def get_snmp_community_resources(self, os_client):
         return os_client.sysinv_client.snmp_community_list()
-
-    def get_remotelogging_resource(self, os_client):
-        return os_client.sysinv_client.get_remotelogging()
 
     def get_certificates_resources(self, os_client):
         return os_client.sysinv_client.get_certificates()
@@ -716,19 +668,6 @@ class SysinvSyncThread(SyncThread):
             return False
         return True
 
-    def same_remotelogging(self, i1, i2):
-        LOG.debug("same_remotelogging i1={}, i2={}".format(i1, i2),
-                  extra=self.log_extra)
-
-        same_ip_address = True
-        if i1.ip_address and (i1.ip_address != i2.ip_address):
-            same_ip_address = False
-
-        return (same_ip_address and
-                i1.enabled == i2.enabled and
-                i1.transport == i2.transport and
-                i1.port == i2.port)
-
     def same_certificate(self, i1, i2):
         LOG.debug("same_certificate i1={}, i2={}".format(i1, i2),
                   extra=self.log_extra)
@@ -772,8 +711,6 @@ class SysinvSyncThread(SyncThread):
             return self.same_snmp_community(m_resource, sc_resource)
         elif resource_type == consts.RESOURCE_TYPE_SYSINV_SNMP_TRAPDEST:
             return self.same_snmp_trapdest(m_resource, sc_resource)
-        elif resource_type == consts.RESOURCE_TYPE_SYSINV_REMOTE_LOGGING:
-            return self.same_remotelogging(m_resource, sc_resource)
         elif resource_type == consts.RESOURCE_TYPE_SYSINV_CERTIFICATE:
             return self.same_certificate(m_resource, sc_resource)
         elif resource_type == consts.RESOURCE_TYPE_SYSINV_USER:
@@ -866,7 +803,6 @@ class SysinvSyncThread(SyncThread):
         payload_resources = [consts.RESOURCE_TYPE_SYSINV_DNS,
                              consts.RESOURCE_TYPE_SYSINV_SNMP_COMM,
                              consts.RESOURCE_TYPE_SYSINV_SNMP_TRAPDEST,
-                             consts.RESOURCE_TYPE_SYSINV_REMOTE_LOGGING,
                              consts.RESOURCE_TYPE_SYSINV_CERTIFICATE,
                              consts.RESOURCE_TYPE_SYSINV_USER,
                              ]
