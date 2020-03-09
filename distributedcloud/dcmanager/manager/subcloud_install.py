@@ -49,7 +49,7 @@ GEN_ISO_COMMAND = '/usr/local/bin/gen-bootloader-iso.sh'
 NETWORK_SCRIPTS = '/etc/sysconfig/network-scripts'
 NETWORK_INTERFACE_PREFIX = 'ifcfg'
 NETWORK_ROUTE_PREFIX = 'route'
-
+LOCAL_REGISTRY_PREFIX = 'registry.local:9001/'
 
 OPTIONAL_INSTALL_VALUES = [
     'nexthop_gateway',
@@ -70,6 +70,7 @@ GEN_ISO_OPTIONS = {
     'install_type': '--default-boot',
     'rootfs_device': '--param',
     'boot_device': '--param',
+    'bootstrap_vlan': '--param',
     'no_check_certificate': '--param'
 }
 
@@ -199,8 +200,8 @@ class SubcloudInstall(object):
     def create_install_override_file(self, override_path, payload):
 
         LOG.debug("create install override file")
-        rvmc_image = RVMC_IMAGE_NAME + ':' + self.get_image_tag(
-            RVMC_IMAGE_NAME)
+        rvmc_image = LOCAL_REGISTRY_PREFIX + RVMC_IMAGE_NAME + ':' +\
+            self.get_image_tag(RVMC_IMAGE_NAME)
         install_override_file = os.path.join(override_path,
                                              'install_values.yml')
         rvmc_name = "%s-%s" % (RVMC_NAME_PREFIX, self.name)
@@ -319,6 +320,17 @@ class SubcloudInstall(object):
                 elif k == 'rootfs_device' or k == 'boot_device':
                     update_iso_cmd += [GEN_ISO_OPTIONS[k],
                                        (k + '=' + values[k])]
+                elif k == 'bootstrap_vlan':
+                    vlan_inteface = "%s.%s:%s" % \
+                                    (values['bootstrap_interface'],
+                                     values['bootstrap_vlan'],
+                                     values['bootstrap_interface'])
+                    update_iso_cmd += [GEN_ISO_OPTIONS[k],
+                                       ('vlan' + '=' + vlan_inteface)]
+                elif k == 'bootstrap_interface' and 'bootstrap_vlan' in values:
+                    boot_interface = "%s.%s" % (values['bootstrap_interface'],
+                                                values['bootstrap_vlan'])
+                    update_iso_cmd += [GEN_ISO_OPTIONS[k], boot_interface]
                 else:
                     update_iso_cmd += [GEN_ISO_OPTIONS[k],
                                        str(values[k])]
@@ -334,7 +346,7 @@ class SubcloudInstall(object):
                                 str(values['software_version']))
         update_iso_cmd += ['--base-url', base_url]
 
-        str_cmd = ' '.join(update_iso_cmd)
+        str_cmd = ' '.join(x for x in update_iso_cmd)
         LOG.debug("update_iso_cmd:(%s)", str_cmd)
         try:
             with open(os.devnull, "w") as fnull:
