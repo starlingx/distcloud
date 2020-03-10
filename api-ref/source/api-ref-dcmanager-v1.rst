@@ -354,7 +354,7 @@ This operation does not accept a request body.
 Shows additional information about a specific subcloud
 ******************************************************
 
-.. rest_method:: GET /v1.0/subclouds/<200b>{subcloud}<200b>/detail
+.. rest_method:: GET /v1.0/subclouds/​{subcloud}​/detail
 
 **Normal response codes**
 
