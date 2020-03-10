@@ -310,7 +310,8 @@ class PatchOrchThread(threading.Thread):
         # Used to protect strategy when an atomic read/update is required.
         self.strategy_lock = threading.Lock()
         # Keeps track of greenthreads we create to do work.
-        self.thread_group_manager = scheduler.ThreadGroupManager()
+        self.thread_group_manager = scheduler.ThreadGroupManager(
+            thread_pool_size=100)
         # Track worker created for each subcloud.
         self.subcloud_workers = dict()
 
