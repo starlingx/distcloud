@@ -163,6 +163,8 @@ class TestSubcloudManager(base.DCManagerTestCase):
         self.assertEqual(self.ctx, sm.context)
 
     @file_data(utils.get_data_filepath('dcmanager', 'subclouds'))
+    @mock.patch.object(subcloud_manager.SubcloudManager,
+                       '_delete_subcloud_inventory')
     @mock.patch.object(dcorch_rpc_client, 'EngineClient')
     @mock.patch.object(subcloud_manager, 'context')
     @mock.patch.object(subcloud_manager, 'KeystoneClient')
@@ -171,7 +173,7 @@ class TestSubcloudManager(base.DCManagerTestCase):
     @mock.patch.object(subcloud_manager.SubcloudManager,
                        '_create_addn_hosts_dc')
     @mock.patch.object(subcloud_manager.SubcloudManager,
-                       '_update_subcloud_inventory')
+                       '_create_subcloud_inventory')
     @mock.patch.object(subcloud_manager.SubcloudManager,
                        '_write_subcloud_ansible_config')
     @mock.patch.object(subcloud_manager,
@@ -180,10 +182,11 @@ class TestSubcloudManager(base.DCManagerTestCase):
                        'start')
     def test_add_subcloud(self, value, mock_thread_start, mock_keyring,
                           mock_write_subcloud_ansible_config,
-                          mock_update_subcloud_inventory,
+                          mock_create_subcloud_inventory,
                           mock_create_addn_hosts, mock_sysinv_client,
                           mock_db_api, mock_keystone_client, mock_context,
-                          mock_dcorch_rpc_client):
+                          mock_dcorch_rpc_client,
+                          mock_delete_subcloud_inventory):
 
         values = utils.create_subcloud_dict(value)
         controllers = FAKE_CONTROLLERS
@@ -203,7 +206,7 @@ class TestSubcloudManager(base.DCManagerTestCase):
         mock_sysinv_client().create_route.assert_called()
         mock_dcorch_rpc_client().add_subcloud.assert_called_once()
         mock_create_addn_hosts.assert_called_once()
-        mock_update_subcloud_inventory.assert_called_once()
+        mock_create_subcloud_inventory.assert_called_once()
         mock_write_subcloud_ansible_config.assert_called_once()
         mock_keyring.get_password.assert_called()
         mock_thread_start.assert_called_once()
