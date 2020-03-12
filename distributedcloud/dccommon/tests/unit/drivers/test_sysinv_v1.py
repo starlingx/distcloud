@@ -10,7 +10,7 @@
 # License for the specific language governing permissions and limitations
 # under the License.
 #
-# Copyright (c) 2017 Wind River Systems, Inc.
+# Copyright (c) 2017-2020 Wind River Systems, Inc.
 #
 # The right to copy, distribute, modify, or otherwise make use
 # of this software may be licensed only pursuant to the terms
@@ -19,10 +19,11 @@
 
 import mock
 
+from dccommon.drivers.openstack import sysinv_v1
+from dccommon.tests import base
+from dccommon.tests import utils
 from dcmanager.common import consts
-from dcmanager.drivers.openstack import sysinv_v1
-from dcmanager.tests import base
-from dcmanager.tests import utils
+from dcmanager.tests import utils as dcmanager_utils
 
 from ddt import ddt
 from ddt import file_data
@@ -61,7 +62,7 @@ class FakeRoute(object):
 
 
 @ddt
-class TestSysinvClient(base.DCManagerTestCase):
+class TestSysinvClient(base.DCCommonTestCase):
     def setUp(self):
         super(TestSysinvClient, self).setUp()
         self.ctx = utils.dummy_context()
@@ -110,7 +111,7 @@ class TestSysinvClient(base.DCManagerTestCase):
         management_pool = sysinv_client.get_management_address_pool()
         self.assertEqual(pool, management_pool)
 
-    @file_data(utils.get_data_filepath('sysinv', 'routes'))
+    @file_data(dcmanager_utils.get_data_filepath('sysinv', 'routes'))
     @mock.patch.object(sysinv_v1.SysinvClient, '__init__')
     def test_create_route(self, value, mock_sysinvclient_init):
         fake_route = utils.create_route_dict(value)
@@ -129,7 +130,7 @@ class TestSysinvClient(base.DCManagerTestCase):
             network=fake_route['network'], prefix=fake_route['prefix'],
             gateway=fake_route['gateway'], metric=fake_route['metric'])
 
-    @file_data(utils.get_data_filepath('sysinv', 'routes'))
+    @file_data(dcmanager_utils.get_data_filepath('sysinv', 'routes'))
     @mock.patch.object(sysinv_v1.SysinvClient, '__init__')
     def test_delete_route(self, value, mock_sysinvclient_init):
         # fake_route = utils.create_route_dict(value)

@@ -12,7 +12,7 @@
 # License for the specific language governing permissions and limitations
 # under the License.
 #
-# Copyright (c) 2017 Wind River Systems, Inc.
+# Copyright (c) 2017-2020 Wind River Systems, Inc.
 #
 # The right to copy, distribute, modify, or otherwise make use
 # of this software may be licensed only pursuant to the terms
@@ -23,9 +23,10 @@ from oslo_log import log
 
 from nfv_client.openstack import sw_update
 
-from dcmanager.common import consts
-from dcmanager.common import exceptions
-from dcmanager.drivers import base
+from dccommon import consts
+from dccommon.drivers import base
+from dccommon import exceptions
+
 
 LOG = log.getLogger(__name__)
 

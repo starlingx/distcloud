@@ -12,6 +12,13 @@
 #    WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
 #    License for the specific language governing permissions and limitations
 #    under the License.
+#
+# Copyright (c) 2018-2020 Wind River Systems, Inc.
+#
+# The right to copy, distribute, modify, or otherwise make use
+# of this software may be licensed only pursuant to the terms
+# of an applicable Wind River license agreement.
+#
 
 import collections
 import threading
@@ -24,7 +31,7 @@ from keystoneclient.v3 import client as keystone_client
 from oslo_config import cfg
 from oslo_log import log as logging
 
-from dcorch.common import consts
+from dccommon import consts
 
 LOG = logging.getLogger(__name__)
 

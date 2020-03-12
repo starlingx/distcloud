@@ -207,27 +207,3 @@ class OrchRequestAlreadyExists(Conflict):
 
 class ObjectActionError(OrchestratorException):
     msg_fmt = _('Object action %(action)s failed because: %(reason)s')
-
-
-class TrapDestAlreadyExists(Conflict):
-    message = _("TrapDest in region=%(region_name)s ip_address=%(ip_address)s "
-                "community=%(community)s already exists")
-
-
-class TrapDestNotFound(NotFound):
-    message = _("Trapdest in region=%(region_name)s with ip_address "
-                "%(ip_address)s not found")
-
-
-class CommunityAlreadyExists(Conflict):
-    message = _("Community %(community)s in region=%(region_name)s "
-                "already exists")
-
-
-class CommunityNotFound(NotFound):
-    message = _("Community %(community)s not found in region=%(region_name)s")
-
-
-class CertificateNotFound(NotFound):
-    message = _("Certificate in region=%(region_name)s with signature "
-                "%(signature)s not found")

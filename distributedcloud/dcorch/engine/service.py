@@ -21,6 +21,7 @@ from oslo_config import cfg
 from oslo_log import log as logging
 import oslo_messaging
 
+from dccommon import consts as dccommon_consts
 from dcmanager.common import consts as dcm_consts
 from dcorch.common import consts
 from dcorch.common import context
@@ -134,10 +135,10 @@ class EngineService(service.Service):
                               self.periodic_sync_audit,
                               initial_delay=self.periodic_interval / 2)
             self.TG.add_timer(CONF.fernet.key_rotation_interval *
-                              consts.SECONDS_IN_HOUR,
+                              dccommon_consts.SECONDS_IN_HOUR,
                               self.periodic_key_rotation,
                               initial_delay=(CONF.fernet.key_rotation_interval
-                                             * consts.SECONDS_IN_HOUR))
+                                             * dccommon_consts.SECONDS_IN_HOUR))
 
     def service_registry_report(self):
         ctx = context.get_admin_context()

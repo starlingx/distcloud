@@ -1,4 +1,4 @@
-# Copyright 2017-2018 Wind River
+# Copyright 2017-2020 Wind River
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -19,9 +19,12 @@ from requests_toolbelt import MultipartDecoder
 from oslo_log import log as logging
 from oslo_serialization import jsonutils
 
+from dccommon import consts as dccommon_consts
+from dccommon.drivers.openstack import sdk_platform as sdk
+from dccommon import exceptions as dccommon_exceptions
 from dcorch.common import consts
 from dcorch.common import exceptions
-from dcorch.drivers.openstack import sdk_platform as sdk
+
 from dcorch.engine.fernet_key_manager import FERNET_REPO_MASTER_ID
 from dcorch.engine.fernet_key_manager import FernetKeyManager
 from dcorch.engine.sync_thread import AUDIT_RESOURCE_EXTRA
@@ -210,7 +213,7 @@ class SysinvSyncThread(SyncThread):
         try:
             s_os_client.sysinv_client.snmp_trapdest_delete(
                 subcloud_rsrc.subcloud_resource_id)
-        except exceptions.TrapDestNotFound:
+        except dccommon_exceptions.TrapDestNotFound:
             # SNMP trapdest already deleted in subcloud, carry on.
             LOG.info("SNMP trapdest not in subcloud, may be already deleted",
                      extra=self.log_extra)
@@ -277,7 +280,7 @@ class SysinvSyncThread(SyncThread):
         try:
             s_os_client.sysinv_client.snmp_community_delete(
                 subcloud_rsrc.subcloud_resource_id)
-        except exceptions.CommunityNotFound:
+        except dccommon_exceptions.CommunityNotFound:
             # Community already deleted in subcloud, carry on.
             LOG.info("SNMP community not in subcloud, may be already deleted",
                      extra=self.log_extra)
@@ -397,11 +400,11 @@ class SysinvSyncThread(SyncThread):
                     cert_to_delete = certificate
                     break
             if not cert_to_delete:
-                raise exceptions.CertificateNotFound(
+                raise dccommon_exceptions.CertificateNotFound(
                     region_name=self.subcloud_engine.subcloud.region_name,
                     signature=subcloud_rsrc.subcloud_resource_id)
             s_os_client.sysinv_client.delete_certificate(cert_to_delete)
-        except exceptions.CertificateNotFound:
+        except dccommon_exceptions.CertificateNotFound:
             # Certificate already deleted in subcloud, carry on.
             LOG.info("Certificate not in subcloud, may be already deleted",
                      extra=self.log_extra)
@@ -564,8 +567,9 @@ class SysinvSyncThread(SyncThread):
     # SysInv Audit Related
     def get_master_resources(self, resource_type):
         try:
-            os_client = sdk.OpenStackDriver(region_name=consts.CLOUD_0,
-                                            thread_name=self.audit_thread.name)
+            os_client = sdk.OpenStackDriver(
+                region_name=dccommon_consts.CLOUD_0,
+                thread_name=self.audit_thread.name)
             if resource_type == consts.RESOURCE_TYPE_SYSINV_DNS:
                 return [self.get_dns_resource(os_client)]
             elif resource_type == consts.RESOURCE_TYPE_SYSINV_SNMP_COMM:
@@ -631,10 +635,11 @@ class SysinvSyncThread(SyncThread):
             return None
 
     def post_audit(self):
+        super(SysinvSyncThread, self).post_audit()
         sdk.OpenStackDriver.delete_region_clients_for_thread(
             self.region_name, self.audit_thread.name)
         sdk.OpenStackDriver.delete_region_clients_for_thread(
-            consts.CLOUD_0, self.audit_thread.name)
+            dccommon_consts.CLOUD_0, self.audit_thread.name)
 
     def get_dns_resource(self, os_client):
         return os_client.sysinv_client.get_dns()

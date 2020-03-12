@@ -87,8 +87,6 @@ STRATEGY_STATE_COMPLETE = "complete"
 STRATEGY_STATE_ABORTED = "aborted"
 STRATEGY_STATE_FAILED = "failed"
 
-SW_UPDATE_DEFAULT_TITLE = "all clouds default"
-
 # Subcloud deploy status states
 DEPLOY_STATE_NONE = 'not-deployed'
 DEPLOY_STATE_PRE_INSTALL = 'pre-install'

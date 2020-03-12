@@ -27,6 +27,7 @@ import pecan
 from pecan import expose
 from pecan import request
 
+from dccommon import consts as dccommon_consts
 from dcmanager.api.controllers import restcomm
 from dcmanager.common import consts
 from dcmanager.common import exceptions
@@ -128,7 +129,7 @@ class SwUpdateOptionsController(object):
         if subcloud_ref == consts.DEFAULT_REGION_NAME:
 
             # update default options
-            subcloud_name = consts.SW_UPDATE_DEFAULT_TITLE
+            subcloud_name = dccommon_consts.SW_UPDATE_DEFAULT_TITLE
 
             if db_api.sw_update_opts_default_get(context):
                 # entry already in db, update it.

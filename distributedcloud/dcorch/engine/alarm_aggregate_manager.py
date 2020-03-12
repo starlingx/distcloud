@@ -14,6 +14,8 @@
 # limitations under the License.
 
 import datetime
+from dccommon import consts as dccommon_consts
+from dccommon import exceptions as dccommon_exceptions
 from dcmanager.common import consts as dcm_consts
 from dcorch.common import consts
 from dcorch.common import context
@@ -22,10 +24,10 @@ from dcorch.common.i18n import _
 from dcorch.common import manager
 from dcorch.db import api as db_api
 
-from dcorch.drivers.openstack.fm import FmClient
-from dcorch.drivers.openstack.keystone_v3 import KeystoneClient
-from dcorch.drivers.openstack import sdk_platform as sdk
-from dcorch.drivers.openstack.sysinv_v1 import SysinvClient
+from dccommon.drivers.openstack.fm import FmClient
+from dccommon.drivers.openstack.keystone_v3 import KeystoneClient
+from dccommon.drivers.openstack import sdk_platform as sdk
+from dccommon.drivers.openstack.sysinv_v1 import SysinvClient
 
 from oslo_config import cfg
 from oslo_log import log as logging
@@ -63,7 +65,7 @@ class AlarmAggregateManager(manager.Manager):
             ks_client = KeystoneClient(subcloud_name)
             sysinv_client = SysinvClient(subcloud_name, ks_client.session)
             fm_client = FmClient(subcloud_name, ks_client.session,
-                                 consts.KS_ENDPOINT_DEFAULT)
+                                 dccommon_consts.KS_ENDPOINT_DEFAULT)
             sysinv_client.snmp_trapdest_create(payload)
             self.update_alarm_summary(self.context, subcloud_name,
                                       fm_client=fm_client)
@@ -76,7 +78,7 @@ class AlarmAggregateManager(manager.Manager):
             LOG.info("snmp_trapdest_create AttributeError region_name=%s" %
                      subcloud_name)
             pass
-        except exceptions.TrapDestAlreadyExists:
+        except dccommon_exceptions.TrapDestAlreadyExists:
             LOG.info("snmp_trapdest_create TrapDestAlreadyExists "
                      "region_name=%s payload %s" % (subcloud_name, payload))
             pass

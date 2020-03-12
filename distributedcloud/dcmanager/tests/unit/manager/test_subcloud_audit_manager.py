@@ -23,11 +23,11 @@ import mock
 import sys
 sys.modules['fm_core'] = mock.Mock()
 
+from dccommon import consts as dccommon_consts
 from dcmanager.common import consts
 from dcmanager.db.sqlalchemy import api as db_api
 from dcmanager.manager import subcloud_audit_manager
 from dcmanager.manager import subcloud_manager
-from dcorch.common import consts as dcorch_consts
 
 from dcmanager.tests import base
 
@@ -198,8 +198,8 @@ class TestAuditManager(base.DCManagerTestCase):
         self.addCleanup(p.stop)
 
         # Mock the KeystoneClient
-        p = mock.patch.object(subcloud_audit_manager, 'KeystoneClient')
-        self.mock_keystone_client = p.start()
+        p = mock.patch.object(subcloud_audit_manager, 'OpenStackDriver')
+        self.mock_openstack_driver = p.start()
         self.addCleanup(p.stop)
 
         # Mock the context
@@ -401,7 +401,7 @@ class TestAuditManager(base.DCManagerTestCase):
         # Verify the openstack endpoints were added
         self.fake_dcorch_api.add_subcloud_sync_endpoint_type.\
             assert_called_with(mock.ANY, 'subcloud1',
-                               dcorch_consts.ENDPOINT_TYPES_LIST_OS)
+                               dccommon_consts.ENDPOINT_TYPES_LIST_OS)
 
         # Verify the subcloud openstack_installed was updated
         updated_subcloud = db_api.subcloud_get_by_name(self.ctx, 'subcloud1')

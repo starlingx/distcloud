@@ -12,7 +12,7 @@
 # License for the specific language governing permissions and limitations
 # under the License.
 #
-# Copyright (c) 2017 Wind River Systems, Inc.
+# Copyright (c) 2017-2020 Wind River Systems, Inc.
 #
 # The right to copy, distribute, modify, or otherwise make use
 # of this software may be licensed only pursuant to the terms
@@ -23,7 +23,7 @@ from oslo_log import log
 import requests
 from requests_toolbelt import MultipartEncoder
 
-from dcmanager.drivers import base
+from dccommon.drivers import base
 
 LOG = log.getLogger(__name__)
 

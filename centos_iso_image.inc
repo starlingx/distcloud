@@ -1,4 +1,5 @@
 # distributedcloud
+distributedcloud-dccommon
 distributedcloud-dcmanager
 distributedcloud-dcorch
 distributedcloud-dcdbsync

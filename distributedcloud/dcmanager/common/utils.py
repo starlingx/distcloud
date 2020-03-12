@@ -13,7 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-# Copyright (c) 2017 Wind River Systems, Inc.
+# Copyright (c) 2017-2020 Wind River Systems, Inc.
 #
 # The right to copy, distribute, modify, or otherwise make use
 # of this software may be licensed only pursuant to the terms
@@ -31,10 +31,10 @@ from oslo_concurrency import lockutils
 from oslo_config import cfg
 from oslo_log import log as logging
 
-from dcmanager.common import consts
+from dccommon import consts as dccommon_consts
+from dccommon.drivers.openstack import vim
 from dcmanager.common import exceptions
 from dcmanager.db import api as db_api
-from dcmanager.drivers.openstack import vim
 from dcorch.common import consts as dcorch_consts
 
 LOG = logging.getLogger(__name__)
@@ -103,7 +103,7 @@ def get_sw_update_opts(context,
                     subcloud_id=subcloud_id)
 
         return db_api.sw_update_opts_w_name_db_model_to_dict(
-            sw_update_opts_ref, consts.SW_UPDATE_DEFAULT_TITLE)
+            sw_update_opts_ref, dccommon_consts.SW_UPDATE_DEFAULT_TITLE)
 
 
 def ensure_lock_path():

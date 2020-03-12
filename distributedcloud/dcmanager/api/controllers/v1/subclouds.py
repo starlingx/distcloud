@@ -36,7 +36,10 @@ from controllerconfig.common.exceptions import ValidateFail
 from controllerconfig.utils import validate_address_str
 from controllerconfig.utils import validate_network_str
 
-from dcorch.drivers.openstack.keystone_v3 import KeystoneClient
+from dccommon.drivers.openstack.keystone_v3 import KeystoneClient
+from dccommon.drivers.openstack.sysinv_v1 import SysinvClient
+from dccommon import exceptions as dccommon_exceptions
+
 from keystoneauth1 import exceptions as keystone_exceptions
 
 from dcmanager.api.controllers import restcomm
@@ -46,7 +49,7 @@ from dcmanager.common.i18n import _
 from dcmanager.common import install_consts
 from dcmanager.common import utils
 from dcmanager.db import api as db_api
-from dcmanager.drivers.openstack.sysinv_v1 import SysinvClient
+
 from dcmanager.rpc import client as rpc_client
 
 CONF = cfg.CONF
@@ -356,7 +359,7 @@ class SubcloudsController(object):
             message = ("Identity endpoint for subcloud: %s not found. %s" %
                        (subcloud_name, e))
             LOG.error(message)
-        except exceptions.OAMAddressesNotFound:
+        except dccommon_exceptions.OAMAddressesNotFound:
             message = ("OAM addresses for subcloud: %s not found." %
                        (subcloud_name))
             LOG.error(message)

@@ -21,6 +21,7 @@ from novaclient import utils as novaclient_utils
 from oslo_log import log as logging
 from oslo_serialization import jsonutils
 
+from dccommon import consts as dccommon_consts
 from dcorch.common import consts
 from dcorch.common import exceptions
 from dcorch.common import utils
@@ -60,7 +61,7 @@ class ComputeSyncThread(SyncThread):
         if (not self.sc_nova_client and self.sc_admin_session):
             self.sc_nova_client = novaclient.Client(
                 '2.38', session=self.sc_admin_session,
-                endpoint_type=consts.KS_ENDPOINT_INTERNAL,
+                endpoint_type=dccommon_consts.KS_ENDPOINT_INTERNAL,
                 region_name=self.subcloud_engine.subcloud.region_name)
 
     def initialize(self):
@@ -72,8 +73,8 @@ class ComputeSyncThread(SyncThread):
         # todo: update version to 2.53 once on pike
         self.m_nova_client = novaclient.Client(
             '2.38', session=self.admin_session,
-            endpoint_type=consts.KS_ENDPOINT_INTERNAL,
-            region_name=consts.VIRTUAL_MASTER_CLOUD)
+            endpoint_type=dccommon_consts.KS_ENDPOINT_INTERNAL,
+            region_name=dccommon_consts.VIRTUAL_MASTER_CLOUD)
 
         self.initialize_sc_clients()
         LOG.info("session and clients initialized", extra=self.log_extra)

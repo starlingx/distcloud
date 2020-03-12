@@ -70,6 +70,13 @@ BuildRequires: python-babel
 %description
 Distributed Cloud provides configuration and management of distributed clouds
 
+# DC Common
+%package dccommon
+Summary: DC common module
+
+%description dccommon
+Distributed Cloud Common Module
+
 # DC Manager
 %package dcmanager
 Summary: DC Manager
@@ -162,6 +169,12 @@ install -p -D -m 640 %{_builddir}/%{pypi_name}-%{version}%{_sysconfdir}/dcdbsync
 
 # install ansible overrides dir
 install -d -m 600 ${RPM_BUILD_ROOT}/opt/dc/ansible
+
+%files dccommon
+%license LICENSE
+%{python2_sitelib}/dccommon*
+%{python2_sitelib}/distributedcloud-*.egg-info
+%exclude %{python2_sitelib}/dccommon/tests
 
 %files dcmanager
 %license LICENSE
