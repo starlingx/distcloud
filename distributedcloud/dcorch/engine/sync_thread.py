@@ -456,8 +456,8 @@ class SyncThread(object):
 
                 if sc_resources is None or m_resources is None:
                     return
-                LOG.info("Audit {}: {} vs {}".format(
-                    resource_type, m_resources, sc_resources),
+                LOG.info("Audit {}".format(
+                    resource_type),
                     extra=self.log_extra)
                 LOG.debug("Auditing {}: master={} db={} sc={}".format(
                     resource_type, m_resources, db_resources, sc_resources),
@@ -550,9 +550,9 @@ class SyncThread(object):
                         if sc_id == db_sc_resource.subcloud_resource_id:
                             if self.same_resource(resource_type,
                                                   m_r_updated, sc_r):
-                                LOG.info("Resource type {} {} is in-sync"
-                                         .format(resource_type, master_id),
-                                         extra=self.log_extra)
+                                LOG.debug("Resource type {} {} is in-sync"
+                                          .format(resource_type, master_id),
+                                          extra=self.log_extra)
                                 num_of_audit_jobs += self.audit_dependants(
                                     resource_type, m_r, sc_r)
                                 sc_rsrc_present = True

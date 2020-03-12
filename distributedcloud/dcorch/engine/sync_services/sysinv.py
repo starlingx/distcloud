@@ -611,13 +611,13 @@ class SysinvSyncThread(SyncThread):
                 return resource.ip_address
         elif resource_type == consts.RESOURCE_TYPE_SYSINV_CERTIFICATE:
             if hasattr(resource, 'signature'):
-                LOG.info("get_resource_id signature={}".format(
+                LOG.debug("get_resource_id signature={}".format(
                     resource.signature))
                 if resource.signature is None:
                     return self.CERTIFICATE_SIG_NULL
                 return resource.signature
             elif hasattr(resource, 'master_id'):
-                LOG.info("get_resource_id master_id signature={}".format(
+                LOG.debug("get_resource_id master_id signature={}".format(
                     resource.master_id))
                 if resource.master_id is None:
                     # master_id cannot be None
@@ -627,16 +627,16 @@ class SysinvSyncThread(SyncThread):
                 LOG.error("no get_resource_id for certificate")
                 return self.CERTIFICATE_SIG_NULL
         elif resource_type == consts.RESOURCE_TYPE_SYSINV_FERNET_REPO:
-            LOG.info("get_resource_id {} resource={}".format(
+            LOG.debug("get_resource_id {} resource={}".format(
                 resource_type, resource))
             return FERNET_REPO_MASTER_ID
         else:
             if hasattr(resource, 'uuid'):
-                LOG.info("get_resource_id {} uuid={}".format(
+                LOG.debug("get_resource_id {} uuid={}".format(
                     resource_type, resource.uuid))
                 return resource.uuid
             else:
-                LOG.info("get_resource_id NO uuid resource_type={}".format(
+                LOG.debug("get_resource_id NO uuid resource_type={}".format(
                     resource_type))
                 return self.RESOURCE_UUID_NULL  # master_id cannot be None
 
@@ -696,8 +696,8 @@ class SysinvSyncThread(SyncThread):
         return same_user
 
     def same_fernet_key(self, i1, i2):
-        LOG.info("same_fernet_repo i1={}, i2={}".format(i1, i2),
-                 extra=self.log_extra)
+        LOG.debug("same_fernet_repo i1={}, i2={}".format(i1, i2),
+                  extra=self.log_extra)
         same_fernet = True
         if (FernetKeyManager.get_resource_hash(i1) !=
                 FernetKeyManager.get_resource_hash(i2)):
