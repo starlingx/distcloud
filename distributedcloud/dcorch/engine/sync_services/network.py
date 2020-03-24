@@ -20,6 +20,7 @@ from neutronclient.neutron import client as neutronclient
 from oslo_log import log as logging
 from oslo_serialization import jsonutils
 
+from dccommon import consts as dccommon_consts
 from dcorch.common import consts
 from dcorch.common import exceptions
 from dcorch.drivers.openstack import sdk
@@ -61,7 +62,7 @@ class NetworkSyncThread(SyncThread):
         if (not self.sc_neutron_client and self.sc_admin_session):
             self.sc_neutron_client = neutronclient.Client(
                 "2.0", session=self.sc_admin_session,
-                endpoint_type=consts.KS_ENDPOINT_INTERNAL,
+                endpoint_type=dccommon_consts.KS_ENDPOINT_INTERNAL,
                 region_name=self.subcloud_engine.subcloud.region_name)
 
     def initialize(self):
@@ -72,8 +73,8 @@ class NetworkSyncThread(SyncThread):
         super(NetworkSyncThread, self).initialize()
         self.m_neutron_client = neutronclient.Client(
             "2.0", session=self.admin_session,
-            endpoint_type=consts.KS_ENDPOINT_INTERNAL,
-            region_name=consts.VIRTUAL_MASTER_CLOUD)
+            endpoint_type=dccommon_consts.KS_ENDPOINT_INTERNAL,
+            region_name=dccommon_consts.VIRTUAL_MASTER_CLOUD)
 
         self.initialize_sc_clients()
         LOG.info("session and clients initialized", extra=self.log_extra)

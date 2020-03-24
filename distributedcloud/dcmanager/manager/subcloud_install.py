@@ -30,11 +30,11 @@ from six.moves.urllib import error as urllib_error
 from six.moves.urllib import parse
 from six.moves.urllib import request
 
+from dccommon.drivers.openstack.keystone_v3 import KeystoneClient
+from dccommon.drivers.openstack.sysinv_v1 import SysinvClient
 from dcmanager.common import consts
 from dcmanager.common import exceptions
 from dcmanager.common import install_consts
-from dcmanager.drivers.openstack.sysinv_v1 import SysinvClient
-from dcorch.drivers.openstack.keystone_v3 import KeystoneClient
 
 from oslo_log import log as logging
 

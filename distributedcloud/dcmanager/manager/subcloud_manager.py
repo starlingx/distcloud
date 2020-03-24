@@ -35,8 +35,10 @@ from oslo_messaging import RemoteError
 from tsconfig.tsconfig import CONFIG_PATH
 from tsconfig.tsconfig import SW_VERSION
 
+from dccommon.drivers.openstack.keystone_v3 import KeystoneClient
+from dccommon.drivers.openstack.sysinv_v1 import SysinvClient
+
 from dcorch.common import consts as dcorch_consts
-from dcorch.drivers.openstack.keystone_v3 import KeystoneClient
 from dcorch.rpc import client as dcorch_rpc_client
 
 from dcmanager.common import consts
@@ -46,7 +48,6 @@ from dcmanager.common.i18n import _
 from dcmanager.common import manager
 from dcmanager.common import utils
 from dcmanager.db import api as db_api
-from dcmanager.drivers.openstack.sysinv_v1 import SysinvClient
 from dcmanager.manager.subcloud_install import SubcloudInstall
 
 from fm_api import constants as fm_const

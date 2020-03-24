@@ -13,7 +13,7 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 #
-# Copyright (c) 2017 Wind River Systems, Inc.
+# Copyright (c) 2017-2020 Wind River Systems, Inc.
 #
 # The right to copy, distribute, modify, or otherwise make use
 # of this software may be licensed only pursuant to the terms
@@ -22,13 +22,16 @@
 
 from mock import patch
 
-from dcmanager.tests import base
-from dcmanager.tests import utils
+from oslo_config import cfg
+
+from dccommon import endpoint_cache
+from dccommon.tests import base
+from dccommon.tests import utils
+from dcmanager.tests import utils as dcmanager_utils
 
 from ddt import ddt
 from ddt import file_data
 
-from dcorch.common import endpoint_cache
 
 FAKE_REGION = 'fake_region'
 FAKE_SERVICE = 'fake_service'
@@ -45,11 +48,15 @@ FAKE_NEUTRON_URL_1 = 'fake_url_neutron_1'
 
 
 @ddt
-class EndpointCacheTest(base.DCManagerTestCase):
+class EndpointCacheTest(base.DCCommonTestCase):
     def setUp(self):
         super(EndpointCacheTest, self).setUp()
+        auth_uri_opts = [
+            cfg.StrOpt('auth_uri',
+                       default="fake_auth_uri")]
+        cfg.CONF.register_opts(auth_uri_opts, 'cache')
 
-    @file_data(utils.get_data_filepath('keystone', 'endpoint'))
+    @file_data(dcmanager_utils.get_data_filepath('keystone', 'endpoint'))
     @patch.object(endpoint_cache.EndpointCache, '_initialize_keystone_client')
     @patch.object(endpoint_cache.EndpointCache, '_get_endpoint_from_keystone')
     def test_get_endpoint(self, value, mock_method, mock_init):
@@ -62,7 +69,7 @@ class EndpointCacheTest(base.DCManagerTestCase):
                                             endpoint_dict['service_id']),
                          endpoint_dict['url'])
 
-    @file_data(utils.get_data_filepath('keystone', 'endpoint'))
+    @file_data(dcmanager_utils.get_data_filepath('keystone', 'endpoint'))
     @patch.object(endpoint_cache.EndpointCache, '_initialize_keystone_client')
     @patch.object(endpoint_cache.EndpointCache, '_get_endpoint_from_keystone')
     def test_get_endpoint_not_found(self, value, mock_method, mock_init):
@@ -76,7 +83,7 @@ class EndpointCacheTest(base.DCManagerTestCase):
         self.assertEqual(cache.get_endpoint(endpoint_dict['region_id'],
                                             'another_fake_service'), '')
 
-    @file_data(utils.get_data_filepath('keystone', 'endpoint'))
+    @file_data(dcmanager_utils.get_data_filepath('keystone', 'endpoint'))
     @patch.object(endpoint_cache.EndpointCache, '_initialize_keystone_client')
     @patch.object(endpoint_cache.EndpointCache, '_get_endpoint_from_keystone')
     def test_get_endpoint_retry(self, value, mock_method, mock_init):
@@ -89,7 +96,7 @@ class EndpointCacheTest(base.DCManagerTestCase):
                                             endpoint_dict['service_id']),
                          'another_fake_url')
 
-    @file_data(utils.get_data_filepath('keystone', 'endpoint'))
+    @file_data(dcmanager_utils.get_data_filepath('keystone', 'endpoint'))
     @patch.object(endpoint_cache.EndpointCache, '_initialize_keystone_client')
     @patch.object(endpoint_cache.EndpointCache, '_get_endpoint_from_keystone')
     def test_update_endpoint(self, value, mock_method, mock_init):

@@ -12,14 +12,20 @@
 #   License for the specific language governing permissions and limitations
 #   under the License.
 #
+# Copyright (c) 2017-2020 Wind River Systems, Inc.
+#
+# The right to copy, distribute, modify, or otherwise make use
+# of this software may be licensed only pursuant to the terms
+# of an applicable Wind River license agreement.
+#
 
 from keystoneauth1 import exceptions as keystone_exceptions
 from keystoneclient.v3.contrib import endpoint_filter
 from oslo_utils import importutils
 
-from dcorch.common.endpoint_cache import EndpointCache
-from dcorch.common import exceptions
-from dcorch.drivers import base
+from dccommon.drivers import base
+from dccommon.endpoint_cache import EndpointCache
+from dccommon import exceptions
 
 # Ensure keystonemiddleware options are imported
 importutils.import_module('keystonemiddleware.auth_token')

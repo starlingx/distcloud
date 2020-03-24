@@ -13,7 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-# Copyright (c) 2017 Wind River Systems, Inc.
+# Copyright (c) 2017-2020 Wind River Systems, Inc.
 #
 # The right to copy, distribute, modify, or otherwise make use
 # of this software may be licensed only pursuant to the terms
@@ -24,18 +24,18 @@ from keystoneauth1 import exceptions as keystone_exceptions
 from oslo_config import cfg
 from oslo_log import log as logging
 
+from dccommon.drivers.openstack import patching_v1
+from dccommon.drivers.openstack.patching_v1 import PatchingClient
+from dccommon.drivers.openstack.sdk_platform import OpenStackDriver
+from dccommon.drivers.openstack.sysinv_v1 import SysinvClient
+
 from dcorch.common import consts as dcorch_consts
-from dcorch.drivers.openstack.keystone_v3 import KeystoneClient
 
 from dcmanager.common import consts
 from dcmanager.common import context
 from dcmanager.common.i18n import _
 from dcmanager.common import manager
 from dcmanager.db import api as db_api
-
-from dcmanager.drivers.openstack import patching_v1
-from dcmanager.drivers.openstack.patching_v1 import PatchingClient
-from dcmanager.drivers.openstack.sysinv_v1 import SysinvClient
 
 
 LOG = logging.getLogger(__name__)
@@ -105,7 +105,9 @@ class PatchAuditManager(manager.Manager):
         LOG.info('Triggered patch audit.')
 
         try:
-            ks_client = KeystoneClient()
+            m_os_ks_client = OpenStackDriver(
+                region_name=consts.DEFAULT_REGION_NAME,
+                region_clients=None).keystone_client
         except Exception:
             LOG.warn('Failure initializing KeystoneClient, exiting audit.')
             return
@@ -113,7 +115,7 @@ class PatchAuditManager(manager.Manager):
         # First query RegionOne to determine what patches should be applied
         # to the system.
         patching_client = PatchingClient(
-            consts.DEFAULT_REGION_NAME, ks_client.session)
+            consts.DEFAULT_REGION_NAME, m_os_ks_client.session)
         regionone_patches = patching_client.query()
         LOG.debug("regionone_patches: %s" % regionone_patches)
 
@@ -142,7 +144,8 @@ class PatchAuditManager(manager.Manager):
                 continue
 
             try:
-                sc_ks_client = KeystoneClient(subcloud.name)
+                sc_os_client = OpenStackDriver(region_name=subcloud.name,
+                                               region_clients=None)
             except (keystone_exceptions.EndpointNotFound,
                     keystone_exceptions.ConnectFailure,
                     keystone_exceptions.ConnectTimeout,
@@ -154,16 +157,16 @@ class PatchAuditManager(manager.Manager):
                 continue
 
             try:
-                patching_client = PatchingClient(subcloud.name,
-                                                 sc_ks_client.session)
+                patching_client = PatchingClient(
+                    subcloud.name, sc_os_client.keystone_client.session)
             except keystone_exceptions.EndpointNotFound:
                 LOG.warn("Patching endpoint for online subcloud %s not found."
                          % subcloud.name)
                 continue
 
             try:
-                sysinv_client = SysinvClient(subcloud.name,
-                                             sc_ks_client.session)
+                sysinv_client = SysinvClient(
+                    subcloud.name, sc_os_client.keystone_client.session)
             except keystone_exceptions.EndpointNotFound:
                 LOG.warn("Sysinv endpoint for online subcloud %s not found."
                          % subcloud.name)

@@ -13,7 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-# Copyright (c) 2017 Wind River Systems, Inc.
+# Copyright (c) 2017-2020 Wind River Systems, Inc.
 #
 # The right to copy, distribute, modify, or otherwise make use
 # of this software may be licensed only pursuant to the terms
@@ -28,8 +28,12 @@ import time
 from keystoneauth1 import exceptions as keystone_exceptions
 from oslo_log import log as logging
 
+from dccommon.drivers.openstack import patching_v1
+from dccommon.drivers.openstack.patching_v1 import PatchingClient
+from dccommon.drivers.openstack.sdk_platform import OpenStackDriver
+from dccommon.drivers.openstack.sysinv_v1 import SysinvClient
+from dccommon.drivers.openstack import vim
 from dcorch.common import consts as dcorch_consts
-from dcorch.drivers.openstack.keystone_v3 import KeystoneClient
 
 from dcmanager.common import consts
 from dcmanager.common import context
@@ -38,10 +42,6 @@ from dcmanager.common.i18n import _
 from dcmanager.common import manager
 from dcmanager.common import utils
 from dcmanager.db import api as db_api
-from dcmanager.drivers.openstack import patching_v1
-from dcmanager.drivers.openstack.patching_v1 import PatchingClient
-from dcmanager.drivers.openstack.sysinv_v1 import SysinvClient
-from dcmanager.drivers.openstack import vim
 from dcmanager.manager.patch_audit_manager import PatchAuditManager
 from dcmanager.manager import scheduler
 
@@ -329,10 +329,13 @@ class PatchOrchThread(threading.Thread):
         LOG.info("PatchOrchThread Stopped")
 
     @staticmethod
-    def get_ks_client(region_name=None):
-        """This will get a new keystone client (and new token)"""
+    def get_ks_client(region_name=consts.DEFAULT_REGION_NAME):
+        """This will get a cached keystone client (and token)"""
         try:
-            return KeystoneClient(region_name)
+            os_client = OpenStackDriver(
+                region_name=region_name,
+                region_clients=None)
+            return os_client.keystone_client
         except Exception:
             LOG.warn('Failure initializing KeystoneClient')
             raise

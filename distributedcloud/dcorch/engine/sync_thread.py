@@ -1,4 +1,4 @@
-# Copyright 2017 Wind River
+# Copyright 2017-2020 Wind River
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -13,11 +13,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import collections
 import threading
 
+from oslo_concurrency import lockutils
 from oslo_config import cfg
 from oslo_log import log as logging
 
+from dccommon import consts as dccommon_consts
 from dcdbsync.dbsyncclient import client as dbsyncclient
 from dcmanager.common import consts as dcmanager_consts
 from dcmanager.rpc import client as dcmanager_rpc_client
@@ -54,11 +57,15 @@ STATE_COMPLETED = 'completed'
 AUDIT_RESOURCE_MISSING = 'missing'
 AUDIT_RESOURCE_EXTRA = 'extra_resource'
 
+AUDIT_LOCK_NAME = 'dcorch-audit'
+
 
 class SyncThread(object):
     """Manages tasks related to resource management."""
 
     MAX_RETRY = 2
+    # used by the audit to cache the master resources
+    master_resources_dict = collections.defaultdict(dict)
 
     def __init__(self, subcloud_engine, endpoint_type=None):
         super(SyncThread, self).__init__()
@@ -71,7 +78,7 @@ class SyncThread(object):
         self.condition = threading.Condition()  # used to wake up the thread
         self.ctxt = context.get_admin_context()
         self.sync_handler_map = {}
-        self.master_region_name = consts.CLOUD_0
+        self.master_region_name = dccommon_consts.CLOUD_0
         self.audit_resources = []
 
         self.log_extra = {
@@ -122,7 +129,7 @@ class SyncThread(object):
         config = None
         if self.endpoint_type in consts.ENDPOINT_TYPES_LIST:
             config = cfg.CONF.cache
-        elif self.endpoint_type in consts.ENDPOINT_TYPES_LIST_OS:
+        elif self.endpoint_type in dccommon_consts.ENDPOINT_TYPES_LIST_OS:
             config = cfg.CONF.openstack_cache
         else:
             raise exceptions.EndpointNotSupported(
@@ -136,16 +143,18 @@ class SyncThread(object):
             project_domain_name=config.admin_project_domain_name,
             user_domain_name=config.admin_user_domain_name)
         self.admin_session = session.Session(
-            auth=auth, timeout=60, additional_headers=consts.USER_HEADER)
+            auth=auth, timeout=60,
+            additional_headers=dccommon_consts.USER_HEADER)
+
         # keystone client
         self.ks_client = keystoneclient.Client(
             session=self.admin_session,
-            region_name=consts.CLOUD_0)
+            region_name=dccommon_consts.CLOUD_0)
         # dcdbsync client
         self.dbs_client = dbsyncclient.Client(
             endpoint_type=consts.DBS_ENDPOINT_INTERNAL,
             session=self.admin_session,
-            region_name=consts.CLOUD_0)
+            region_name=dccommon_consts.CLOUD_0)
 
     def initialize_sc_clients(self):
         # base implementation of initializing the subcloud specific
@@ -158,7 +167,7 @@ class SyncThread(object):
                 name='keystone', type='identity')
             sc_auth_url = self.ks_client.endpoints.list(
                 service=identity_service[0].id,
-                interface=consts.KS_ENDPOINT_ADMIN,
+                interface=dccommon_consts.KS_ENDPOINT_ADMIN,
                 region=self.subcloud_engine.subcloud.region_name)
             try:
                 LOG.info("Found sc_auth_url: {}".format(sc_auth_url))
@@ -175,7 +184,7 @@ class SyncThread(object):
             config = None
             if self.endpoint_type in consts.ENDPOINT_TYPES_LIST:
                 config = cfg.CONF.cache
-            elif self.endpoint_type in consts.ENDPOINT_TYPES_LIST_OS:
+            elif self.endpoint_type in dccommon_consts.ENDPOINT_TYPES_LIST_OS:
                 config = cfg.CONF.openstack_cache
 
             sc_auth = loader.load_from_options(
@@ -188,7 +197,7 @@ class SyncThread(object):
 
             self.sc_admin_session = session.Session(
                 auth=sc_auth, timeout=60,
-                additional_headers=consts.USER_HEADER)
+                additional_headers=dccommon_consts.USER_HEADER)
 
     def initial_sync(self):
         # Return True to indicate initial sync success
@@ -487,9 +496,12 @@ class SyncThread(object):
                   extra=self.log_extra)
         self.post_audit()
 
+    @lockutils.synchronized(AUDIT_LOCK_NAME)
     def post_audit(self):
-        # The specific SyncThread subclasses may perform post audit actions
-        return
+        # reset the cached master resources
+        SyncThread.master_resources_dict = collections.defaultdict(dict)
+        # The specific SyncThread subclasses may perform additional post
+        # audit actions
 
     def audit_find_missing(self, resource_type, m_resources,
                            db_resources, sc_resources,
@@ -706,11 +718,18 @@ class SyncThread(object):
         if sc_resources is None:
             return m_resources, db_resources, sc_resources
         db_resources = self.get_db_master_resources(resource_type)
-        # todo: master resources will be read by multiple threads
-        # depending on the number of subclouds. Could do some kind of
-        # caching for performance improvement.
-        m_resources = self.get_master_resources(resource_type)
+        m_resources = self.get_cached_master_resources(resource_type)
         return m_resources, db_resources, sc_resources
+
+    @lockutils.synchronized(AUDIT_LOCK_NAME)
+    def get_cached_master_resources(self, resource_type):
+        if resource_type in SyncThread.master_resources_dict:
+            m_resources = SyncThread.master_resources_dict[resource_type]
+        else:
+            m_resources = self.get_master_resources(resource_type)
+            if m_resources is not None:
+                SyncThread.master_resources_dict[resource_type] = m_resources
+        return m_resources
 
     def get_subcloud_resources(self, resource_type):
         return None

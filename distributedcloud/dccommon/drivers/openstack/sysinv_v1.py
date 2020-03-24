@@ -1,3 +1,5 @@
+# Copyright 2016 Ericsson AB
+
 # Licensed under the Apache License, Version 2.0 (the "License"); you may
 # not use this file except in compliance with the License. You may obtain
 # a copy of the License at
@@ -9,10 +11,16 @@
 # WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
 # License for the specific language governing permissions and limitations
 # under the License.
+#
+# Copyright (c) 2017-2020 Wind River Systems, Inc.
+#
+# The right to copy, distribute, modify, or otherwise make use
+# of this software may be licensed only pursuant to the terms
+# of an applicable Wind River license agreement.
+#
 
 import hashlib
 
-from cgtsclient import client as cgts_client
 from cgtsclient.exc import HTTPConflict
 from cgtsclient.exc import HTTPNotFound
 from cgtsclient.v1.icommunity import CREATION_ATTRIBUTES \
@@ -20,14 +28,14 @@ from cgtsclient.v1.icommunity import CREATION_ATTRIBUTES \
 from cgtsclient.v1.itrapdest import CREATION_ATTRIBUTES \
     as SNMP_TRAPDEST_CREATION_ATTRIBUTES
 from oslo_log import log
+
 from sysinv.common import constants as sysinv_constants
 
-from dcorch.common import consts
-from dcorch.common import exceptions
-from dcorch.drivers import base
+from dccommon.drivers import base
+from dccommon import exceptions
+
 
 LOG = log.getLogger(__name__)
-
 API_VERSION = '1'
 
 
@@ -49,43 +57,141 @@ def make_sysinv_patch(update_dict):
 class SysinvClient(base.DriverBase):
     """Sysinv V1 driver."""
 
-    def __init__(self, region_name, session):
-        self._expired = False
-        self.api_version = API_VERSION
-        self.region_name = region_name
-        self.session = session
-
-        self.client = self.update_client(
-            self.api_version, self.region_name, self.session)
-
-    def update_client(self, api_version, region_name, session):
+    def __init__(self, region, session):
         try:
-            endpoint = self.session.get_endpoint(
-                service_type=consts.ENDPOINT_TYPE_PLATFORM,
-                interface=consts.KS_ENDPOINT_INTERNAL,
-                region_name=region_name)
+            # TOX cannot import cgts_client and all the dependencies therefore
+            # the client is being lazy loaded since TOX doesn't actually
+            # require the cgtsclient module.
+            from cgtsclient import client
+
+            # The sysinv client doesn't support a session, so we need to
+            # get an endpoint and token.
+            endpoint = session.get_endpoint(service_type='platform',
+                                            region_name=region,
+                                            interface='internal')
             token = session.get_token()
-            client = cgts_client.Client(
-                api_version,
-                username=session.auth._username,
-                password=session.auth._password,
-                tenant_name=session.auth._project_name,
-                auth_url=session.auth.auth_url,
-                endpoint=endpoint,
-                token=token)
+
+            self.sysinv_client = client.Client(API_VERSION,
+                                               endpoint=endpoint,
+                                               token=token)
+            self.region_name = region
         except exceptions.ServiceUnavailable:
             raise
 
-        self._expired = False
+    def get_controller_hosts(self):
+        """Get a list of controller hosts."""
+        return self.sysinv_client.ihost.list_personality(
+            sysinv_constants.CONTROLLER)
 
-        return client
+    def get_management_interface(self, hostname):
+        """Get the management interface for a host."""
+        interfaces = self.sysinv_client.iinterface.list(hostname)
+        for interface in interfaces:
+            interface_networks = self.sysinv_client.interface_network.\
+                list_by_interface(interface.uuid)
+            for if_net in interface_networks:
+                if if_net.network_type == sysinv_constants.NETWORK_TYPE_MGMT:
+                    return interface
+
+        # This can happen if the host is still being installed and has not
+        # yet created its management interface.
+        LOG.warning("Management interface on host %s not found" % hostname)
+        return None
+
+    def get_management_address_pool(self):
+        """Get the management address pool for a host."""
+        networks = self.sysinv_client.network.list()
+        for network in networks:
+            if network.type == sysinv_constants.NETWORK_TYPE_MGMT:
+                address_pool_uuid = network.pool_uuid
+                break
+        else:
+            LOG.error("Management address pool not found")
+            raise exceptions.InternalError()
+
+        return self.sysinv_client.address_pool.get(address_pool_uuid)
+
+    def get_oam_addresses(self):
+        """Get the oam address pool for a host."""
+        iextoam_object = self.sysinv_client.iextoam.list()
+        if iextoam_object is not None and len(iextoam_object) != 0:
+            return iextoam_object[0]
+        else:
+            LOG.error("OAM address not found")
+            raise exceptions.OAMAddressesNotFound()
+
+    def create_route(self, interface_uuid, network, prefix, gateway, metric):
+        """Create a static route on an interface."""
+
+        LOG.info("Creating route: interface: %s dest: %s/%s "
+                 "gateway: %s metric %s" % (interface_uuid, network,
+                                            prefix, gateway, metric))
+        self.sysinv_client.route.create(interface_uuid=interface_uuid,
+                                        network=network,
+                                        prefix=prefix,
+                                        gateway=gateway,
+                                        metric=metric)
+
+    def delete_route(self, interface_uuid, network, prefix, gateway, metric):
+        """Delete a static route."""
+
+        # Get the routes for this interface
+        routes = self.sysinv_client.route.list_by_interface(interface_uuid)
+        for route in routes:
+            if (route.network == network and route.prefix == prefix and
+                    route.gateway == gateway and route.metric == metric):
+                LOG.info("Deleting route: interface: %s dest: %s/%s "
+                         "gateway: %s metric %s" % (interface_uuid, network,
+                                                    prefix, gateway, metric))
+                self.sysinv_client.route.delete(route.uuid)
+                return
+
+        LOG.warning("Route not found: interface: %s dest: %s/%s gateway: %s "
+                    "metric %s" % (interface_uuid, network, prefix, gateway,
+                                   metric))
+
+    def get_service_groups(self):
+        """Get a list of service groups."""
+        return self.sysinv_client.sm_servicegroup.list()
+
+    def get_loads(self):
+        """Get a list of loads."""
+        return self.sysinv_client.load.list()
+
+    def get_applications(self):
+        """Get a list of containerized applications"""
+
+        # Get a list of containerized applications the system knows of
+        return self.sysinv_client.app.list()
+
+    def get_system(self):
+        """Get the system."""
+        systems = self.sysinv_client.isystem.list()
+        return systems[0]
+
+    def get_service_parameters(self, name, value):
+        """Get service parameters for a given name."""
+        opts = []
+        opt = dict()
+        opt['field'] = name
+        opt['value'] = value
+        opt['op'] = 'eq'
+        opt['type'] = ''
+        opts.append(opt)
+        parameters = self.sysinv_client.service_parameter.list(q=opts)
+        return parameters
+
+    def get_registry_image_tags(self, image_name):
+        """Get the image tags for an image from the local registry"""
+        image_tags = self.sysinv_client.registry_image.tags(image_name)
+        return image_tags
 
     def get_dns(self):
         """Get the dns nameservers for this region
 
            :return: dns
         """
-        idnss = self.client.idns.list()
+        idnss = self.sysinv_client.idns.list()
         if not idnss:
             LOG.info("dns is None for region: %s" % self.region_name)
             return None
@@ -115,14 +221,14 @@ class SysinvClient(base.DriverBase):
                                            'action': 'apply'})
                 LOG.info("region={} dns update uuid={} patch={}".format(
                          self.region_name, idns.uuid, patch))
-                idns = self.client.idns.update(idns.uuid, patch)
+                idns = self.sysinv_client.idns.update(idns.uuid, patch)
             else:
                 LOG.info("update_dns no changes, skip dns region={} "
                          "update uuid={} nameservers={}".format(
                              self.region_name, idns.uuid, nameservers))
         except Exception as e:
             LOG.error("update_dns exception={}".format(e))
-            raise exceptions.SyncRequestFailedRetry()
+            raise e
 
         return idns
 
@@ -131,7 +237,7 @@ class SysinvClient(base.DriverBase):
 
            :return: itrapdests list of itrapdest
         """
-        itrapdests = self.client.itrapdest.list()
+        itrapdests = self.sysinv_client.itrapdest.list()
         return itrapdests
 
     def snmp_trapdest_create(self, trapdest_dict):
@@ -153,7 +259,8 @@ class SysinvClient(base.DriverBase):
                  "trapdest_create_dict={}".format(
                      self.region_name, trapdest_create_dict))
         try:
-            itrapdest = self.client.itrapdest.create(**trapdest_create_dict)
+            itrapdest = self.sysinv_client.itrapdest.create(
+                **trapdest_create_dict)
         except HTTPConflict:
             LOG.info("snmp_trapdest_create exists region={}"
                      "trapdest_dict={}".format(
@@ -169,7 +276,7 @@ class SysinvClient(base.DriverBase):
                     break
         except Exception as e:
             LOG.error("snmp_trapdest_create exception={}".format(e))
-            raise exceptions.SyncRequestFailedRetry()
+            raise e
 
         return itrapdest
 
@@ -181,7 +288,7 @@ class SysinvClient(base.DriverBase):
         try:
             LOG.info("snmp_trapdest_delete region {} ip_address: {}".format(
                      self.region_name, trapdest_ip_address))
-            self.client.itrapdest.delete(trapdest_ip_address)
+            self.sysinv_client.itrapdest.delete(trapdest_ip_address)
         except HTTPNotFound:
             LOG.info("snmp_trapdest_delete NotFound {} for region: {}".format(
                      trapdest_ip_address, self.region_name))
@@ -189,14 +296,14 @@ class SysinvClient(base.DriverBase):
                                               ip_address=trapdest_ip_address)
         except Exception as e:
             LOG.error("snmp_trapdest_delete exception={}".format(e))
-            raise exceptions.SyncRequestFailedRetry()
+            raise e
 
     def snmp_community_list(self):
         """Get the community list for this region
 
            :return: icommunitys list of icommunity
         """
-        icommunitys = self.client.icommunity.list()
+        icommunitys = self.sysinv_client.icommunity.list()
         return icommunitys
 
     def snmp_community_create(self, community_dict):
@@ -217,7 +324,8 @@ class SysinvClient(base.DriverBase):
                  "community_create_dict={}".format(
                      self.region_name, community_create_dict))
         try:
-            icommunity = self.client.icommunity.create(**community_create_dict)
+            icommunity = self.sysinv_client.icommunity.create(
+                **community_create_dict)
         except HTTPConflict:
             LOG.info("snmp_community_create exists region={}"
                      "community_dict={}".format(
@@ -233,7 +341,7 @@ class SysinvClient(base.DriverBase):
                     break
         except Exception as e:
             LOG.error("snmp_community_create exception={}".format(e))
-            raise exceptions.SyncRequestFailedRetry()
+            raise e
 
         return icommunity
 
@@ -245,7 +353,7 @@ class SysinvClient(base.DriverBase):
         try:
             LOG.info("snmp_community_delete region {} community: {}".format(
                      self.region_name, community))
-            self.client.icommunity.delete(community)
+            self.sysinv_client.icommunity.delete(community)
         except HTTPNotFound:
             LOG.info("snmp_community_delete NotFound {} for region: {}".format(
                      community, self.region_name))
@@ -253,7 +361,7 @@ class SysinvClient(base.DriverBase):
                                                community=community)
         except Exception as e:
             LOG.error("snmp_community_delete exception={}".format(e))
-            raise exceptions.SyncRequestFailedRetry()
+            raise e
 
     def get_certificates(self):
         """Get the certificates for this region
@@ -262,11 +370,11 @@ class SysinvClient(base.DriverBase):
         """
 
         try:
-            certificates = self.client.certificate.list()
+            certificates = self.sysinv_client.certificate.list()
         except Exception as e:
             LOG.error("get_certificates region={} "
                       "exception={}".format(self.region_name, e))
-            raise exceptions.SyncRequestFailedRetry()
+            raise e
 
         if not certificates:
             LOG.info("No certificates in region: {}".format(
@@ -347,10 +455,10 @@ class SysinvClient(base.DriverBase):
                 (signature.startswith(sysinv_constants.CERT_MODE_SSL) or
                     (signature.startswith(sysinv_constants.CERT_MODE_TPM)))):
             # ensure https is enabled
-            isystem = self.client.isystem.list()[0]
+            isystem = self.sysinv_client.isystem.list()[0]
             https_enabled = isystem.capabilities.get('https_enabled', False)
             if not https_enabled:
-                isystem = self.client.isystem.update(
+                isystem = self.sysinv_client.isystem.update(
                     isystem.uuid,
                     [{"path": "/https_enabled",
                       "value": "true",
@@ -359,14 +467,14 @@ class SysinvClient(base.DriverBase):
                          self.region_name, isystem.uuid))
 
         try:
-            icertificate = self.client.certificate.certificate_install(
+            icertificate = self.sysinv_client.certificate.certificate_install(
                 certificate, data)
             LOG.info("update_certificate region={} signature={}".format(
                 self.region_name,
                 signature))
         except Exception as e:
             LOG.error("update_certificate exception={}".format(e))
-            raise exceptions.SyncRequestFailedRetry()
+            raise e
 
         return icertificate
 
@@ -378,7 +486,8 @@ class SysinvClient(base.DriverBase):
         try:
             LOG.info(" delete_certificate region {} certificate: {}".format(
                      self.region_name, certificate.signature))
-            self.client.certificate.certificate_uninstall(certificate.uuid)
+            self.sysinv_client.certificate.certificate_uninstall(
+                certificate.uuid)
         except HTTPNotFound:
             LOG.info("delete_certificate NotFound {} for region: {}".format(
                      certificate.signature, self.region_name))
@@ -390,7 +499,7 @@ class SysinvClient(base.DriverBase):
 
            :return: iuser
         """
-        iusers = self.client.iuser.list()
+        iusers = self.sysinv_client.iuser.list()
         if not iusers:
             LOG.info("user is None for region: %s" % self.region_name)
             return None
@@ -423,14 +532,14 @@ class SysinvClient(base.DriverBase):
                      })
                 LOG.info("region={} user update uuid={} patch={}".format(
                          self.region_name, iuser.uuid, patch))
-                iuser = self.client.iuser.update(iuser.uuid, patch)
+                iuser = self.sysinv_client.iuser.update(iuser.uuid, patch)
             else:
                 LOG.info("update_user no changes, skip user region={} "
                          "update uuid={} passwd_hash={}".format(
                              self.region_name, iuser.uuid, passwd_hash))
         except Exception as e:
             LOG.error("update_user exception={}".format(e))
-            raise exceptions.SyncRequestFailedRetry()
+            raise e
 
         return iuser
 
@@ -448,10 +557,10 @@ class SysinvClient(base.DriverBase):
         LOG.info("post_fernet_repo driver region={} "
                  "fernet_repo_list={}".format(self.region_name, key_list))
         try:
-            self.client.fernet.create(key_list)
+            self.sysinv_client.fernet.create(key_list)
         except Exception as e:
             LOG.error("post_fernet_repo exception={}".format(e))
-            raise exceptions.SyncRequestFailedRetry()
+            raise e
 
     def put_fernet_repo(self, key_list):
         """Update the fernet keys for this region
@@ -462,10 +571,10 @@ class SysinvClient(base.DriverBase):
         LOG.info("put_fernet_repo driver region={} "
                  "fernet_repo_list={}".format(self.region_name, key_list))
         try:
-            self.client.fernet.put(key_list)
+            self.sysinv_client.fernet.put(key_list)
         except Exception as e:
             LOG.error("put_fernet_repo exception={}".format(e))
-            raise exceptions.SyncRequestFailedRetry()
+            raise e
 
     def get_fernet_keys(self):
         """Retrieve the fernet keys for this region
@@ -474,9 +583,9 @@ class SysinvClient(base.DriverBase):
         """
 
         try:
-            keys = self.client.fernet.list()
+            keys = self.sysinv_client.fernet.list()
         except Exception as e:
             LOG.error("get_fernet_keys exception={}".format(e))
-            raise exceptions.SyncRequestFailedRetry()
+            raise e
 
         return keys

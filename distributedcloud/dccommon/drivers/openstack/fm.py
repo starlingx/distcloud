@@ -10,16 +10,22 @@
 # License for the specific language governing permissions and limitations
 # under the License.
 #
-# Copyright (c) 2018 Wind River Systems, Inc.
 #
-
+# Copyright (c) 2018-2020 Wind River Systems, Inc.
+#
+# The right to copy, distribute, modify, or otherwise make use
+# of this software may be licensed only pursuant to the terms
+# of an applicable Wind River license agreement.
+#
 
 from oslo_log import log
 
 import fmclient
 
-from dcorch.common import exceptions
-from dcorch.drivers import base
+from dccommon import consts as dccommon_consts
+from dccommon.drivers import base
+from dccommon import exceptions
+
 
 LOG = log.getLogger(__name__)
 API_VERSION = '1'
@@ -28,7 +34,8 @@ API_VERSION = '1'
 class FmClient(base.DriverBase):
     """Fault Management driver."""
 
-    def __init__(self, region, session, endpoint_type):
+    def __init__(self, region, session,
+                 endpoint_type=dccommon_consts.KS_ENDPOINT_DEFAULT):
         self.region_name = region
         try:
             self.fm = fmclient.Client(API_VERSION,

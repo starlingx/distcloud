@@ -20,14 +20,16 @@ from oslo_config import cfg
 from oslo_log import log as logging
 from oslo_serialization import jsonutils
 
+from dccommon import consts as dccommon_consts
+from dccommon.drivers.openstack.keystone_v3 import KeystoneClient
+from dccommon.drivers.openstack.sysinv_v1 import SysinvClient
 from dcorch.common import consts
 from dcorch.common import context
 from dcorch.common import exceptions
 from dcorch.common.i18n import _
 from dcorch.common import manager
 from dcorch.common import utils
-from dcorch.drivers.openstack.keystone_v3 import KeystoneClient
-from dcorch.drivers.openstack.sysinv_v1 import SysinvClient
+
 
 FERNET_REPO_MASTER_ID = "keys"
 KEY_ROTATE_CMD = "/usr/bin/keystone-fernet-keys-rotate-active"
@@ -67,7 +69,8 @@ class FernetKeyManager(manager.Manager):
     def _schedule_work(self, operation_type, subcloud=None):
         keys = self._get_master_keys()
         if not keys:
-            LOG.info(_("No fernet keys returned from %s") % consts.CLOUD_0)
+            LOG.info(_("No fernet keys returned from %s") %
+                     dccommon_consts.CLOUD_0)
             return
         try:
             resource_info = FernetKeyManager.to_resource_info(keys)
@@ -91,14 +94,14 @@ class FernetKeyManager(manager.Manager):
         try:
             # No cached client is required as it is called during the initial
             # sync and after weekly key rotation
-            ks_client = KeystoneClient(consts.CLOUD_0)
-            sysinv_client = SysinvClient(consts.CLOUD_0,
+            ks_client = KeystoneClient(dccommon_consts.CLOUD_0)
+            sysinv_client = SysinvClient(dccommon_consts.CLOUD_0,
                                          ks_client.session)
             keys = sysinv_client.get_fernet_keys()
         except (exceptions.ConnectionRefused, exceptions.NotAuthorized,
                 exceptions.TimeOut):
             LOG.info(_("Retrieving the fernet keys from %s timeout") %
-                     consts.CLOUD_0)
+                     dccommon_consts.CLOUD_0)
         except Exception as e:
             LOG.info(_("Fail to retrieve the master fernet keys: %s") %
                      e.message)
@@ -122,7 +125,8 @@ class FernetKeyManager(manager.Manager):
     def distribute_keys(self, ctxt, subcloud_name):
         keys = self._get_master_keys()
         if not keys:
-            LOG.info(_("No fernet keys returned from %s") % consts.CLOUD_0)
+            LOG.info(_("No fernet keys returned from %s") %
+                     dccommon_consts.CLOUD_0)
             return
         resource_info = FernetKeyManager.to_resource_info(keys)
         key_list = FernetKeyManager.from_resource_info(resource_info)

@@ -15,6 +15,7 @@
 
 import threading
 
+from dccommon import consts as dccommon_consts
 from dcmanager.common import consts as dcm_consts
 from dcorch.common import consts as dco_consts
 from dcorch.engine.sync_services.identity import IdentitySyncThread
@@ -28,7 +29,7 @@ LOG = logging.getLogger(__name__)
 syncthread_subclass_map = {
     dco_consts.ENDPOINT_TYPE_PLATFORM: SysinvSyncThread,
     dco_consts.ENDPOINT_TYPE_IDENTITY: IdentitySyncThread,
-    dco_consts.ENDPOINT_TYPE_IDENTITY_OS: IdentitySyncThread
+    dccommon_consts.ENDPOINT_TYPE_IDENTITY_OS: IdentitySyncThread
 }
 
 

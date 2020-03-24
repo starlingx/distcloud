@@ -15,7 +15,7 @@
 
 import collections
 import datetime
-from dcorch.common import consts
+from dccommon import consts as dccommon_consts
 from dcorch.common import context
 from dcorch.rpc import client as rpc_client
 from multiprocessing import Queue
@@ -57,7 +57,7 @@ class Controller(object):
         self.system_trap_tstamps[system] = collections.deque()
 
     def handle_trap(self, system, msg):
-        if system == consts.CLOUD_0:
+        if system == dccommon_consts.CLOUD_0:
             return
         if not (system in self.system_last_updates):
             self._add_system(system)

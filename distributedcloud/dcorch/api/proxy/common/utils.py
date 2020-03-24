@@ -22,8 +22,9 @@ from six.moves.urllib.parse import urlparse
 from keystoneauth1 import exceptions as keystone_exceptions
 from oslo_log import log as logging
 
+from dccommon import consts as dccommon_consts
+from dccommon.drivers.openstack import sdk_platform as sdk
 from dcorch.common import consts
-from dcorch.drivers.openstack import sdk_platform as sdk
 
 LOG = logging.getLogger(__name__)
 
@@ -138,7 +139,7 @@ def set_request_forward_environ(req, remote_host, remote_port):
 
 def _get_fernet_keys():
     """Get fernet keys from sysinv."""
-    os_client = sdk.OpenStackDriver(region_name=consts.CLOUD_0,
+    os_client = sdk.OpenStackDriver(region_name=dccommon_consts.CLOUD_0,
                                     thread_name='proxy')
     try:
         key_list = os_client.sysinv_client.get_fernet_keys()
@@ -146,12 +147,12 @@ def _get_fernet_keys():
     except (keystone_exceptions.connection.ConnectTimeout,
             keystone_exceptions.ConnectFailure) as e:
         LOG.info("get_fernet_keys: cloud {} is not reachable [{}]"
-                 .format(consts.CLOUD_0, str(e)))
-        sdk.OpenStackDriver.delete_region_clients(consts.CLOUD_0)
+                 .format(dccommon_consts.CLOUD_0, str(e)))
+        sdk.OpenStackDriver.delete_region_clients(dccommon_consts.CLOUD_0)
         return None
     except (AttributeError, TypeError) as e:
         LOG.info("get_fernet_keys error {}".format(e))
-        sdk.OpenStackDriver.delete_region_clients(consts.CLOUD_0,
+        sdk.OpenStackDriver.delete_region_clients(dccommon_consts.CLOUD_0,
                                                   clear_token=True)
         return None
     except Exception as e:

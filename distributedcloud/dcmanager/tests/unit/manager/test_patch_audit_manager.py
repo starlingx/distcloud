@@ -10,7 +10,7 @@
 # License for the specific language governing permissions and limitations
 # under the License.
 #
-# Copyright (c) 2017 Wind River Systems, Inc.
+# Copyright (c) 2017-2020 Wind River Systems, Inc.
 #
 # The right to copy, distribute, modify, or otherwise make use
 # of this software may be licensed only pursuant to the terms
@@ -188,10 +188,10 @@ class TestAuditManager(base.DCManagerTestCase):
         dcorch_messaging.setup("fake://", optional=True)
 
     @mock.patch.object(patch_audit_manager, 'PatchingClient')
-    @mock.patch.object(patch_audit_manager, 'KeystoneClient')
+    @mock.patch.object(patch_audit_manager, 'OpenStackDriver')
     @mock.patch.object(patch_audit_manager, 'context')
     def test_init(self, mock_context,
-                  mock_keystone_client,
+                  mock_openstack_driver,
                   mock_patching_client):
         mock_context.get_admin_context.return_value = self.ctxt
 
@@ -205,11 +205,11 @@ class TestAuditManager(base.DCManagerTestCase):
     @mock.patch.object(patch_audit_manager, 'SysinvClient')
     @mock.patch.object(patch_audit_manager, 'db_api')
     @mock.patch.object(patch_audit_manager, 'PatchingClient')
-    @mock.patch.object(patch_audit_manager, 'KeystoneClient')
+    @mock.patch.object(patch_audit_manager, 'OpenStackDriver')
     @mock.patch.object(patch_audit_manager, 'context')
     def test_periodic_patch_audit_in_sync(
             self, mock_context,
-            mock_keystone_client,
+            mock_openstack_driver,
             mock_patching_client,
             mock_db_api,
             mock_sysinv_client):
@@ -243,11 +243,11 @@ class TestAuditManager(base.DCManagerTestCase):
     @mock.patch.object(patch_audit_manager, 'SysinvClient')
     @mock.patch.object(patch_audit_manager, 'db_api')
     @mock.patch.object(patch_audit_manager, 'PatchingClient')
-    @mock.patch.object(patch_audit_manager, 'KeystoneClient')
+    @mock.patch.object(patch_audit_manager, 'OpenStackDriver')
     @mock.patch.object(patch_audit_manager, 'context')
     def test_periodic_patch_audit_out_of_sync(
             self, mock_context,
-            mock_keystone_client,
+            mock_openstack_driver,
             mock_patching_client,
             mock_db_api,
             mock_sysinv_client):
@@ -295,11 +295,11 @@ class TestAuditManager(base.DCManagerTestCase):
 
     @mock.patch.object(patch_audit_manager, 'db_api')
     @mock.patch.object(patch_audit_manager, 'PatchingClient')
-    @mock.patch.object(patch_audit_manager, 'KeystoneClient')
+    @mock.patch.object(patch_audit_manager, 'OpenStackDriver')
     @mock.patch.object(patch_audit_manager, 'context')
     def test_periodic_patch_audit_ignore_unmanaged_or_offline(
             self, mock_context,
-            mock_keystone_client,
+            mock_openstack_driver,
             mock_patching_client,
             mock_db_api):
         mock_context.get_admin_context.return_value = self.ctxt
@@ -321,11 +321,11 @@ class TestAuditManager(base.DCManagerTestCase):
     @mock.patch.object(patch_audit_manager, 'SysinvClient')
     @mock.patch.object(patch_audit_manager, 'db_api')
     @mock.patch.object(patch_audit_manager, 'PatchingClient')
-    @mock.patch.object(patch_audit_manager, 'KeystoneClient')
+    @mock.patch.object(patch_audit_manager, 'OpenStackDriver')
     @mock.patch.object(patch_audit_manager, 'context')
     def test_periodic_patch_audit_extra_patches(
             self, mock_context,
-            mock_keystone_client,
+            mock_openstack_driver,
             mock_patching_client,
             mock_db_api,
             mock_sysinv_client):

@@ -10,7 +10,7 @@
 # License for the specific language governing permissions and limitations
 # under the License.
 #
-# Copyright (c) 2017 Wind River Systems, Inc.
+# Copyright (c) 2017-2020 Wind River Systems, Inc.
 #
 # The right to copy, distribute, modify, or otherwise make use
 # of this software may be licensed only pursuant to the terms
@@ -19,10 +19,9 @@
 
 import mock
 
-from dcmanager.tests import base
-from dcmanager.tests import utils
-
-from dcorch.drivers.openstack import keystone_v3
+from dccommon.drivers.openstack import keystone_v3
+from dccommon.tests import base
+from dccommon.tests import utils
 
 FAKE_SERVICE = [
     'endpoint_volume',
@@ -50,7 +49,7 @@ class FakeEndpoint(object):
         self.region = region
 
 
-class TestKeystoneClient(base.DCManagerTestCase):
+class TestKeystoneClient(base.DCCommonTestCase):
     def setUp(self):
         super(TestKeystoneClient, self).setUp()
         self.ctx = utils.dummy_context()
