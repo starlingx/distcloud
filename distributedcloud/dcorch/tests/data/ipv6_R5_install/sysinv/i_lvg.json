@@ -1,6 +1,0 @@
-{
-  "i_lvg_0": ["2018-04-11 15:55:19.436718", "2018-05-18 17:48:57.833773", "NULL", 2, "91741b12-3140-4ffb-b678-bbb8c9d757b5", "provisioned", "cinder-volumes", "1fTfXH-Pn34-Wchy-7WdQ-jmJN-UICy-wjyZeC", "wz--n-", 0, 1, 0, 1, 153050152960, 36490, 365, "{"lvm_type": "thin"}", 1],
-  "i_lvg_1": ["2018-04-11 17:11:18.393977", "2018-05-24 10:46:16.224453", "NULL", 3, "5ea70574-e071-4894-a34d-91f8c0081288", "provisioned", "cgts-vg", "89aN2C-rq62-Fjew-UiUL-BoB6-wSsK-Hmj1kB", "wz--n-", 0, 10, 0, 1, 458588422144, 13667, 8905, "NULL", 2],
-  "i_lvg_2": ["2018-04-11 17:34:06.646536", "2018-05-24 10:46:16.232289", "NULL", 4, "f61e7962-cc87-4c39-94fd-3757f9fd64b3", "provisioned", "cinder-volumes", "1fTfXH-Pn34-Wchy-7WdQ-jmJN-UICy-wjyZeC", "wz--n-", 0, 1, 0, 1, 153050152960, 36490, 365, "{"lvm_type": "thin"}", 2],
-  "i_lvg_3": ["2018-04-11 15:33:41.331137", "2018-05-24 10:46:16.877725", "NULL", 1, "60f640c6-f6a8-496b-ae91-cc5bc21e19a3", "provisioned", "cgts-vg", "kTaIxy-yDi7-Vdqe-q3DQ-3Rau-OwKo-pphwnZ", "wz--n-", 0, 10, 0, 1, 458588422144, 13667, 8905, "NULL", 1]
-}

@@ -21,7 +21,6 @@
 #
 
 import eventlet
-import os
 import random
 import sqlalchemy
 import string
@@ -93,19 +92,6 @@ def wait_until_true(predicate, timeout=60, sleep=1, exception=None):
     with eventlet.timeout.Timeout(timeout, exception):
         while not predicate():
             eventlet.sleep(sleep)
-
-
-def get_current_cfg():
-    f_name = os.environ['CURRENT_CFG_FILE']
-    cfg = ''
-    with open(f_name) as f:
-        cfg = f.readline()
-    return cfg
-
-
-def get_data_filepath(db, table):
-    cfg = get_current_cfg()
-    return "%s/%s/%s.json" % (cfg, db, table)
 
 
 def create_subcloud_dict(data_list):

@@ -1,9 +1,0 @@
-{
-  "controller_fs_0": ["2018-04-11 15:32:44.637566", "2018-04-11 15:52:38.575025", "NULL", 1, "4783db43-a115-4dae-b0a4-fed50bd0cf9e", 1, "available", "backup", 50, "backup-lv", false],
-  "controller_fs_1": ["2018-04-11 15:32:44.648109", "2018-04-11 15:52:38.582984", "NULL", 2, "1ee5441a-4043-4e1d-a9af-82a9648311bb", 1, "available", "cgcs", 10, "cgcs-lv", true],
-  "controller_fs_2": ["2018-04-11 15:32:44.655808", "2018-04-11 15:52:38.590304", "NULL", 3, "a2de7f25-add1-4350-ad4b-0113432dfeeb", 1, "available", "database", 20, "pgsql-lv", true],
-  "controller_fs_3": ["2018-04-11 15:32:44.661658", "2018-04-11 15:52:38.597692", "NULL", 4, "502fcfb0-4bcf-491e-92ef-31c090015d27", 1, "available", "scratch", 8, "scratch-lv", false],
-  "controller_fs_4": ["2018-04-11 15:32:44.6679", "2018-04-11 15:52:38.604568", "NULL", 5, "fa7c1fdb-09ef-49fa-9d77-d1be4a565b0a", 1, "available", "img-conversions", 20, "img-conversions-lv", false],
-  "controller_fs_5": ["2018-04-11 15:32:44.673848", "2018-04-11 15:52:38.61143", "NULL", 6, "6bc6afad-06c2-4c3d-97e8-5bc4b4d44e94", 1, "available", "extension", 1, "extension-lv", true],
-  "controller_fs_6": ["2018-04-11 15:32:44.680109", "2018-04-11 15:52:38.61858", "NULL", 7, "9691abe5-6450-4fdb-8cad-c5fb9cf4da27", 1, "available", "patch-vault", 8, "patch-vault-lv", true]
-}

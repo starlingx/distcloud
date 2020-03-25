@@ -23,10 +23,6 @@ from dccommon.drivers.openstack import sysinv_v1
 from dccommon.tests import base
 from dccommon.tests import utils
 from dcmanager.common import consts
-from dcmanager.tests import utils as dcmanager_utils
-
-from ddt import ddt
-from ddt import file_data
 
 
 class FakeInterface(object):
@@ -61,7 +57,6 @@ class FakeRoute(object):
         self.metric = data['metric']
 
 
-@ddt
 class TestSysinvClient(base.DCCommonTestCase):
     def setUp(self):
         super(TestSysinvClient, self).setUp()
@@ -111,10 +106,9 @@ class TestSysinvClient(base.DCCommonTestCase):
         management_pool = sysinv_client.get_management_address_pool()
         self.assertEqual(pool, management_pool)
 
-    @file_data(dcmanager_utils.get_data_filepath('sysinv', 'routes'))
     @mock.patch.object(sysinv_v1.SysinvClient, '__init__')
-    def test_create_route(self, value, mock_sysinvclient_init):
-        fake_route = utils.create_route_dict(value)
+    def test_create_route(self, mock_sysinvclient_init):
+        fake_route = utils.create_route_dict(base.ROUTE_0)
         mock_sysinvclient_init.return_value = None
         sysinv_client = sysinv_v1.SysinvClient(consts.DEFAULT_REGION_NAME,
                                                None)
@@ -130,8 +124,6 @@ class TestSysinvClient(base.DCCommonTestCase):
             network=fake_route['network'], prefix=fake_route['prefix'],
             gateway=fake_route['gateway'], metric=fake_route['metric'])
 
-    @file_data(dcmanager_utils.get_data_filepath('sysinv', 'routes'))
     @mock.patch.object(sysinv_v1.SysinvClient, '__init__')
-    def test_delete_route(self, value, mock_sysinvclient_init):
-        # fake_route = utils.create_route_dict(value)
+    def test_delete_route(self, mock_sysinvclient_init):
         mock_sysinvclient_init.return_value = None

@@ -1,3 +1,0 @@
-{
-  "sw_update_strategy_0": [id, type, subcloud_apply_type, max_parallel_subclouds, stop_on_failure, state, reserved_1, reserved_2, created_at, updated_at, deleted_at, deleted]
-}

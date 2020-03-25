@@ -27,11 +27,6 @@ from oslo_config import cfg
 from dccommon import endpoint_cache
 from dccommon.tests import base
 from dccommon.tests import utils
-from dcmanager.tests import utils as dcmanager_utils
-
-from ddt import ddt
-from ddt import file_data
-
 
 FAKE_REGION = 'fake_region'
 FAKE_SERVICE = 'fake_service'
@@ -47,7 +42,6 @@ FAKE_CINDER_URL_2 = 'fake_url_cinder_2'
 FAKE_NEUTRON_URL_1 = 'fake_url_neutron_1'
 
 
-@ddt
 class EndpointCacheTest(base.DCCommonTestCase):
     def setUp(self):
         super(EndpointCacheTest, self).setUp()
@@ -56,11 +50,10 @@ class EndpointCacheTest(base.DCCommonTestCase):
                        default="fake_auth_uri")]
         cfg.CONF.register_opts(auth_uri_opts, 'cache')
 
-    @file_data(dcmanager_utils.get_data_filepath('keystone', 'endpoint'))
     @patch.object(endpoint_cache.EndpointCache, '_initialize_keystone_client')
     @patch.object(endpoint_cache.EndpointCache, '_get_endpoint_from_keystone')
-    def test_get_endpoint(self, value, mock_method, mock_init):
-        endpoint_dict = utils.create_endpoint_dict(value)
+    def test_get_endpoint(self, mock_method, mock_init):
+        endpoint_dict = utils.create_endpoint_dict(base.KEYSTONE_ENDPOINT_0)
         mock_method.return_value = {endpoint_dict['region_id']: {
             endpoint_dict['service_id']: endpoint_dict['url']}}
         mock_init.return_value = None
@@ -69,11 +62,10 @@ class EndpointCacheTest(base.DCCommonTestCase):
                                             endpoint_dict['service_id']),
                          endpoint_dict['url'])
 
-    @file_data(dcmanager_utils.get_data_filepath('keystone', 'endpoint'))
     @patch.object(endpoint_cache.EndpointCache, '_initialize_keystone_client')
     @patch.object(endpoint_cache.EndpointCache, '_get_endpoint_from_keystone')
-    def test_get_endpoint_not_found(self, value, mock_method, mock_init):
-        endpoint_dict = utils.create_endpoint_dict(value)
+    def test_get_endpoint_not_found(self, mock_method, mock_init):
+        endpoint_dict = utils.create_endpoint_dict(base.KEYSTONE_ENDPOINT_0)
         mock_method.return_value = {endpoint_dict['region_id']: {
             endpoint_dict['service_id']: endpoint_dict['url']}}
         mock_init.return_value = None
@@ -83,11 +75,10 @@ class EndpointCacheTest(base.DCCommonTestCase):
         self.assertEqual(cache.get_endpoint(endpoint_dict['region_id'],
                                             'another_fake_service'), '')
 
-    @file_data(dcmanager_utils.get_data_filepath('keystone', 'endpoint'))
     @patch.object(endpoint_cache.EndpointCache, '_initialize_keystone_client')
     @patch.object(endpoint_cache.EndpointCache, '_get_endpoint_from_keystone')
-    def test_get_endpoint_retry(self, value, mock_method, mock_init):
-        endpoint_dict = utils.create_endpoint_dict(value)
+    def test_get_endpoint_retry(self, mock_method, mock_init):
+        endpoint_dict = utils.create_endpoint_dict(base.KEYSTONE_ENDPOINT_0)
         mock_init.return_value = None
         cache = endpoint_cache.EndpointCache()
         mock_method.return_value = {'another_region': {
@@ -96,11 +87,10 @@ class EndpointCacheTest(base.DCCommonTestCase):
                                             endpoint_dict['service_id']),
                          'another_fake_url')
 
-    @file_data(dcmanager_utils.get_data_filepath('keystone', 'endpoint'))
     @patch.object(endpoint_cache.EndpointCache, '_initialize_keystone_client')
     @patch.object(endpoint_cache.EndpointCache, '_get_endpoint_from_keystone')
-    def test_update_endpoint(self, value, mock_method, mock_init):
-        endpoint_dict = utils.create_endpoint_dict(value)
+    def test_update_endpoint(self, mock_method, mock_init):
+        endpoint_dict = utils.create_endpoint_dict(base.KEYSTONE_ENDPOINT_0)
         mock_method.return_value = {endpoint_dict['region_id']: {
             endpoint_dict['service_id']: endpoint_dict['url']}}
         mock_init.return_value = None

@@ -36,9 +36,6 @@ from dcmanager.tests import utils
 from dcorch.common import consts as dcorch_consts
 from dcorch.rpc import client as dcorch_rpc_client
 
-from ddt import ddt
-from ddt import file_data
-
 
 class FakeDCOrchAPI(object):
     def __init__(self):
@@ -119,7 +116,6 @@ class Subcloud(object):
         self.updated_at = timeutils.utcnow()
 
 
-@ddt
 class TestSubcloudManager(base.DCManagerTestCase):
     def setUp(self):
         super(TestSubcloudManager, self).setUp()
@@ -162,7 +158,6 @@ class TestSubcloudManager(base.DCManagerTestCase):
         self.assertEqual('localhost', sm.host)
         self.assertEqual(self.ctx, sm.context)
 
-    @file_data(utils.get_data_filepath('dcmanager', 'subclouds'))
     @mock.patch.object(subcloud_manager.SubcloudManager,
                        '_delete_subcloud_inventory')
     @mock.patch.object(dcorch_rpc_client, 'EngineClient')
@@ -180,15 +175,14 @@ class TestSubcloudManager(base.DCManagerTestCase):
                        'keyring')
     @mock.patch.object(threading.Thread,
                        'start')
-    def test_add_subcloud(self, value, mock_thread_start, mock_keyring,
+    def test_add_subcloud(self, mock_thread_start, mock_keyring,
                           mock_write_subcloud_ansible_config,
                           mock_create_subcloud_inventory,
                           mock_create_addn_hosts, mock_sysinv_client,
                           mock_db_api, mock_keystone_client, mock_context,
                           mock_dcorch_rpc_client,
                           mock_delete_subcloud_inventory):
-
-        values = utils.create_subcloud_dict(value)
+        values = utils.create_subcloud_dict(base.SUBCLOUD_SAMPLE_DATA_0)
         controllers = FAKE_CONTROLLERS
         services = FAKE_SERVICES
         mock_context.get_admin_context.return_value = self.ctx
@@ -211,7 +205,6 @@ class TestSubcloudManager(base.DCManagerTestCase):
         mock_keyring.get_password.assert_called()
         mock_thread_start.assert_called_once()
 
-    @file_data(utils.get_data_filepath('dcmanager', 'subclouds'))
     @mock.patch.object(dcorch_rpc_client, 'EngineClient')
     @mock.patch.object(subcloud_manager, 'context')
     @mock.patch.object(subcloud_manager, 'db_api')
@@ -219,7 +212,7 @@ class TestSubcloudManager(base.DCManagerTestCase):
     @mock.patch.object(subcloud_manager, 'KeystoneClient')
     @mock.patch.object(subcloud_manager.SubcloudManager,
                        '_create_addn_hosts_dc')
-    def test_delete_subcloud(self, value, mock_create_addn_hosts,
+    def test_delete_subcloud(self, mock_create_addn_hosts,
                              mock_keystone_client,
                              mock_sysinv_client,
                              mock_db_api,
@@ -227,7 +220,7 @@ class TestSubcloudManager(base.DCManagerTestCase):
                              mock_dcorch_rpc_client):
         controllers = FAKE_CONTROLLERS
         mock_context.get_admin_context.return_value = self.ctx
-        data = utils.create_subcloud_dict(value)
+        data = utils.create_subcloud_dict(base.SUBCLOUD_SAMPLE_DATA_0)
         fake_subcloud = Subcloud(data, False)
         mock_db_api.subcloud_get.return_value = fake_subcloud
         mock_sysinv_client().get_controller_hosts.return_value = controllers
@@ -238,16 +231,15 @@ class TestSubcloudManager(base.DCManagerTestCase):
         mock_db_api.subcloud_destroy.assert_called_once()
         mock_create_addn_hosts.assert_called_once()
 
-    @file_data(utils.get_data_filepath('dcmanager', 'subclouds'))
     @mock.patch.object(dcorch_rpc_client, 'EngineClient')
     @mock.patch.object(subcloud_manager, 'context')
     @mock.patch.object(subcloud_manager, 'KeystoneClient')
     @mock.patch.object(subcloud_manager, 'db_api')
-    def test_update_subcloud(self, value, mock_db_api,
+    def test_update_subcloud(self, mock_db_api,
                              mock_endpoint, mock_context,
                              mock_dcorch_rpc_client):
         mock_context.get_admin_context.return_value = self.ctx
-        data = utils.create_subcloud_dict(value)
+        data = utils.create_subcloud_dict(base.SUBCLOUD_SAMPLE_DATA_0)
         subcloud_result = Subcloud(data, True)
         mock_db_api.subcloud_get.return_value = subcloud_result
         mock_db_api.subcloud_update.return_value = subcloud_result
