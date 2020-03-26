@@ -12,7 +12,7 @@
 # License for the specific language governing permissions and limitations
 # under the License.
 #
-# Copyright (c) 2017-2019 Wind River Systems, Inc.
+# Copyright (c) 2017-2020 Wind River Systems, Inc.
 #
 # The right to copy, distribute, modify, or otherwise make use
 # of this software may be licensed only pursuant to the terms
@@ -98,3 +98,9 @@ DEPLOY_STATE_BOOTSTRAP_FAILED = 'bootstrap-failed'
 DEPLOY_STATE_DEPLOYING = 'deploying'
 DEPLOY_STATE_DEPLOY_FAILED = 'deploy-failed'
 DEPLOY_STATE_DONE = 'complete'
+
+# Alarm aggregation
+ALARMS_DISABLED = "disabled"
+ALARM_OK_STATUS = "OK"
+ALARM_DEGRADED_STATUS = "degraded"
+ALARM_CRITICAL_STATUS = "critical"

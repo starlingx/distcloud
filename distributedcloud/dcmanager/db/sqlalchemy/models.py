@@ -13,7 +13,7 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 #
-# Copyright (c) 2017 Wind River Systems, Inc.
+# Copyright (c) 2017-2020 Wind River Systems, Inc.
 #
 # The right to copy, distribute, modify, or otherwise make use
 # of this software may be licensed only pursuant to the terms
@@ -169,3 +169,16 @@ class StrategyStep(BASE, DCManagerBase):
     finished_at = Column(DateTime)
     subcloud = relationship('Subcloud', backref=backref("strategy_steps",
                                                         cascade="all,delete"))
+
+
+class SubcloudAlarmSummary(BASE, DCManagerBase):
+    """Represents a Distributed Cloud subcloud alarm aggregate"""
+    __tablename__ = 'subcloud_alarms'
+    id = Column(Integer, primary_key=True, nullable=False, autoincrement=True)
+    uuid = Column(String(36), unique=True)
+    name = Column('name', String(255), unique=True)
+    critical_alarms = Column('critical_alarms', Integer)
+    major_alarms = Column('major_alarms', Integer)
+    minor_alarms = Column('minor_alarms', Integer)
+    warnings = Column('warnings', Integer)
+    cloud_status = Column('cloud_status', String(64))

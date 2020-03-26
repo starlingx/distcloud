@@ -21,13 +21,12 @@ Source2:       dcmanager-manager.service
 Source3:       dcorch-api.service
 Source4:       dcorch-engine.service
 Source5:       dcorch-sysinv-api-proxy.service
-Source6:       dcorch-snmp.service
-Source7:       dcorch-identity-api-proxy.service
-Source8:       dcdbsync-api.service
-Source9:       dcdbsync-openstack-api.service
-Source10:      dcmanager.conf
-Source11:      dcorch.conf
-Source12:      dcdbsync.conf
+Source6:       dcorch-identity-api-proxy.service
+Source7:       dcdbsync-api.service
+Source8:       dcdbsync-openstack-api.service
+Source9:       dcmanager.conf
+Source10:      dcorch.conf
+Source11:      dcdbsync.conf
 
 BuildArch:     noarch
 
@@ -129,7 +128,7 @@ install -d -m 755 %{buildroot}%{_sysconfdir}/dcmanager/
 # install systemd unit files
 install -p -D -m 644 %{SOURCE1} %{buildroot}%{_unitdir}/dcmanager-api.service
 install -p -D -m 644 %{SOURCE2} %{buildroot}%{_unitdir}/dcmanager-manager.service
-install -p -D -m 644 %{SOURCE10} %{buildroot}%{_tmpfilesdir}
+install -p -D -m 644 %{SOURCE9} %{buildroot}%{_tmpfilesdir}
 # install default config files
 cd %{_builddir}/%{pypi_name}-%{version} && oslo-config-generator --config-file ./dcmanager/config-generator.conf --output-file %{_builddir}/%{pypi_name}-%{version}%{_sysconfdir}/dcmanager/dcmanager.conf.sample
 install -p -D -m 640 %{_builddir}/%{pypi_name}-%{version}%{_sysconfdir}/dcmanager/dcmanager.conf.sample %{buildroot}%{_sysconfdir}/dcmanager/dcmanager.conf
@@ -142,9 +141,8 @@ install -d -m 755 %{buildroot}%{_sysconfdir}/dcorch/
 install -p -D -m 644 %{SOURCE3} %{buildroot}%{_unitdir}/dcorch-api.service
 install -p -D -m 644 %{SOURCE4} %{buildroot}%{_unitdir}/dcorch-engine.service
 install -p -D -m 644 %{SOURCE5} %{buildroot}%{_unitdir}/dcorch-sysinv-api-proxy.service
-install -p -D -m 644 %{SOURCE6} %{buildroot}%{_unitdir}/dcorch-snmp.service
-install -p -D -m 644 %{SOURCE7} %{buildroot}%{_unitdir}/dcorch-identity-api-proxy.service
-install -p -D -m 644 %{SOURCE11} %{buildroot}%{_tmpfilesdir}
+install -p -D -m 644 %{SOURCE6} %{buildroot}%{_unitdir}/dcorch-identity-api-proxy.service
+install -p -D -m 644 %{SOURCE10} %{buildroot}%{_tmpfilesdir}
 
 # install ocf scripts
 install -d -m 755 ${RPM_BUILD_ROOT}/usr/lib/ocf/resource.d/openstack
@@ -159,10 +157,10 @@ install -d -m 755 %{buildroot}/var/log/dcdbsync
 install -d -m 755 %{buildroot}/var/cache/dcdbsync
 install -d -m 755 %{buildroot}%{_sysconfdir}/dcdbsync/
 # install systemd unit files
-install -p -D -m 644 %{SOURCE8} %{buildroot}%{_unitdir}/dcdbsync-api.service
+install -p -D -m 644 %{SOURCE7} %{buildroot}%{_unitdir}/dcdbsync-api.service
 # install systemd unit files for optional second instance
-install -p -D -m 644 %{SOURCE9} %{buildroot}%{_unitdir}/dcdbsync-openstack-api.service
-install -p -D -m 644 %{SOURCE12} %{buildroot}%{_tmpfilesdir}
+install -p -D -m 644 %{SOURCE8} %{buildroot}%{_unitdir}/dcdbsync-openstack-api.service
+install -p -D -m 644 %{SOURCE11} %{buildroot}%{_tmpfilesdir}
 # install default config files
 cd %{_builddir}/%{pypi_name}-%{version} && oslo-config-generator --config-file ./dcdbsync/config-generator.conf --output-file %{_builddir}/%{pypi_name}-%{version}%{_sysconfdir}/dcdbsync/dcdbsync.conf.sample
 install -p -D -m 640 %{_builddir}/%{pypi_name}-%{version}%{_sysconfdir}/dcdbsync/dcdbsync.conf.sample %{buildroot}%{_sysconfdir}/dcdbsync/dcdbsync.conf
@@ -210,8 +208,6 @@ install -d -m 600 ${RPM_BUILD_ROOT}/opt/dc/ansible
 %{_unitdir}/dcorch-sysinv-api-proxy.service
 %{_unitdir}/dcorch-identity-api-proxy.service
 %{_bindir}/dcorch-manage
-%{_bindir}/dcorch-snmp
-%{_unitdir}/dcorch-snmp.service
 %{_tmpfilesdir}/dcorch.conf
 %dir %attr(0755,root,root) %{_localstatedir}/log/dcorch
 %dir %attr(0755,root,root) %{_localstatedir}/cache/dcorch

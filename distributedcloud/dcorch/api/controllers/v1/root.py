@@ -14,7 +14,6 @@
 #    under the License.
 
 
-from dcorch.api.controllers.v1 import alarm_manager
 from dcorch.api.controllers.v1 import subcloud_manager
 import pecan
 
@@ -31,8 +30,6 @@ class Controller(object):
         if minor_version == '0':
             sub_controllers["subclouds"] = subcloud_manager.\
                 SubcloudController
-            sub_controllers["alarms"] = alarm_manager.\
-                SubcloudAlarmController
         for name, ctrl in sub_controllers.items():
             setattr(self, name, ctrl)
 

@@ -30,7 +30,6 @@ import threading
 
 from oslo_db import exception as db_exc
 from oslo_db.sqlalchemy import enginefacade
-# from oslo_db.sqlalchemy import utils as db_utils
 
 from oslo_log import log as logging
 from oslo_utils import strutils
@@ -38,7 +37,6 @@ from oslo_utils import timeutils
 from oslo_utils import uuidutils
 
 from sqlalchemy import asc
-from sqlalchemy import desc
 from sqlalchemy.orm.exc import MultipleResultsFound
 from sqlalchemy.orm.exc import NoResultFound
 from sqlalchemy.orm import joinedload_all
@@ -893,65 +891,3 @@ def orch_request_delete_by_subcloud(context, region_name):
         session.query(models.OrchRequest). \
             filter_by(target_region_name=region_name). \
             delete()
-
-
-@require_context
-def _subcloud_alarms_get(context, region_id, session=None):
-    query = model_query(context, models.SubcloudAlarmSummary, session=session). \
-        filter_by(deleted=0)
-    query = add_identity_filter(query, region_id, use_region_name=True)
-
-    try:
-        return query.one()
-    except NoResultFound:
-        raise exception.SubcloudNotFound(region_name=region_id)
-    except MultipleResultsFound:
-        raise exception.InvalidParameterValue(
-            err="Multiple entries found for subcloud %s" % region_id)
-
-
-@require_context
-def subcloud_alarms_get(context, region_id):
-    return _subcloud_get(context, region_id)
-
-
-@require_context
-def subcloud_alarms_get_all(context, region_name=None):
-    query = model_query(context, models.SubcloudAlarmSummary). \
-        filter_by(deleted=0)
-
-    if region_name:
-        query = add_identity_filter(query, region_name, use_region_name=True)
-
-    return query.order_by(desc(models.SubcloudAlarmSummary.id)).all()
-
-
-@require_admin_context
-def subcloud_alarms_create(context, region_name, values):
-    with write_session() as session:
-        result = models.SubcloudAlarmSummary()
-        result.region_name = region_name
-        if not values.get('uuid'):
-            values['uuid'] = uuidutils.generate_uuid()
-        result.update(values)
-        try:
-            session.add(result)
-        except db_exc.DBDuplicateEntry:
-            raise exception.SubcloudAlreadyExists(region_name=region_name)
-        return result
-
-
-@require_admin_context
-def subcloud_alarms_update(context, region_name, values):
-    with write_session() as session:
-        result = _subcloud_alarms_get(context, region_name, session)
-        result.update(values)
-        result.save(session)
-        return result
-
-
-@require_admin_context
-def subcloud_alarms_delete(context, region_name):
-    with write_session() as session:
-        session.query(models.SubcloudAlarmSummary).\
-            filter_by(region_name=region_name).delete()

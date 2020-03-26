@@ -63,8 +63,6 @@ RPC_API_VERSION = "1.0"
 
 TOPIC_ORCH_ENGINE = "dcorch-engine"
 
-ALARMS_DISABLED = "disabled"
-
 # SyncRequest States
 ORCH_REQUEST_NONE = None
 ORCH_REQUEST_QUEUED = "queued"  # in database, not in thread
@@ -167,11 +165,6 @@ ACTION_ADDTENANTACCESS = "addTenantAccess"
 ACTION_REMOVETENANTACCESS = "removeTenantAccess"
 ACTION_EXTRASPECS_POST = "extra_specs"
 ACTION_EXTRASPECS_DELETE = "extra_specs_delete"
-
-# Alarm aggregation
-ALARM_OK_STATUS = "OK"
-ALARM_DEGRADED_STATUS = "degraded"
-ALARM_CRITICAL_STATUS = "critical"
 
 # Subcloud initial sync state
 INITIAL_SYNC_STATE_NONE = "none"

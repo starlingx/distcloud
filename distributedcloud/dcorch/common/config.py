@@ -179,24 +179,6 @@ common_opts = [
                help='endpoints for which audit is disabled')
 ]
 
-snmp_server_opts = [
-    cfg.StrOpt('snmp_ip', default='0.0.0.0',
-               help='ip to listen on'),
-    cfg.IntOpt('snmp_port',
-               default=162,
-               help='snmp trap port'),
-    cfg.StrOpt('snmp_comm_str', default='dcorchAlarmAggregator',
-               help='community string'),
-    cfg.StrOpt('snmp_sec_area', default='fm-aggregator',
-               help='security area'),
-    cfg.IntOpt('delay_time',
-               default=60,
-               help='min time between update requests per server'),
-    cfg.IntOpt('alarm_audit_interval_time',
-               default=787,
-               help='interval of periodic updates in seconds')
-]
-
 fernet_opts = [
     cfg.IntOpt('key_rotation_interval',
                default=168,
@@ -219,9 +201,6 @@ openstack_cache_opt_group = cfg.OptGroup(name='openstack_cache',
                                          title='Containerized OpenStack'
                                                ' Credentials')
 
-snmp_opt_group = cfg.OptGroup(name='snmp',
-                              title='SNMP Options')
-
 fernet_opt_group = cfg.OptGroup(name='fernet',
                                 title='Fernet Options')
 
@@ -234,7 +213,6 @@ def list_opts():
     yield openstack_cache_opt_group.name, cache_opts
     yield scheduler_opt_group.name, scheduler_opts
     yield pecan_group.name, pecan_opts
-    yield snmp_opt_group.name, snmp_server_opts
     yield fernet_opt_group.name, fernet_opts
     yield None, global_opts
     yield None, common_opts

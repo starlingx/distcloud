@@ -228,6 +228,15 @@ class SubcloudManager(manager.Manager):
                 context, subcloud.name, subcloud.software_version)
             dcorch_populated = True
 
+            # create entry into alarm summary table, will get real values later
+            alarm_updates = {'critical_alarms': -1,
+                             'major_alarms': -1,
+                             'minor_alarms': -1,
+                             'warnings': -1,
+                             'cloud_status': consts.ALARMS_DISABLED}
+            db_api.subcloud_alarms_create(context, subcloud.name,
+                                          alarm_updates)
+
             # Regenerate the addn_hosts_dc file
             self._create_addn_hosts_dc(context)
 
@@ -570,6 +579,13 @@ class SubcloudManager(manager.Manager):
             except RemoteError as e:
                 if "SubcloudNotFound" in e:
                     pass
+
+        # delete the associated alarm entry
+        try:
+            db_api.subcloud_alarms_delete(context, subcloud.name)
+        except RemoteError as e:
+            if "SubcloudNotFound" in e:
+                pass
 
         # We only delete subcloud endpoints, region and user information
         # in the Central Region. The subcloud is already unmanaged and powered

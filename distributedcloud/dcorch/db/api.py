@@ -294,24 +294,3 @@ def orch_request_destroy(context, orch_request_id):
 
 def orch_request_delete_by_subcloud(context, region_name):
     return IMPL.orch_request_delete_by_subcloud(context, region_name)
-
-
-# Alarm Resources
-def subcloud_alarms_get(context, region_id):
-    return IMPL.subcloud_alarms_get(context, region_id)
-
-
-def subcloud_alarms_get_all(context, region_name=None):
-    return IMPL.subcloud_alarms_get_all(context, region_name=region_name)
-
-
-def subcloud_alarms_create(context, region_name, values):
-    return IMPL.subcloud_alarms_create(context, region_name, values)
-
-
-def subcloud_alarms_update(context, region_name, values):
-    return IMPL.subcloud_alarms_update(context, region_name, values)
-
-
-def subcloud_alarms_delete(context, region_name):
-    return IMPL.subcloud_alarms_delete(context, region_name)

@@ -30,7 +30,6 @@ from sysinv.common import constants as sysinv_constants
 
 from dccommon import consts as dccommon_consts
 from dccommon.drivers.openstack.sdk_platform import OpenStackDriver
-from dccommon.drivers.openstack.sysinv_v1 import SysinvClient
 from dcorch.rpc import client as dcorch_rpc_client
 
 from dcmanager.common import consts
@@ -39,6 +38,7 @@ from dcmanager.common import exceptions
 from dcmanager.common.i18n import _
 from dcmanager.common import manager
 from dcmanager.db import api as db_api
+from dcmanager.manager import alarm_aggregation
 from dcmanager.manager import scheduler
 
 CONF = cfg.CONF
@@ -69,6 +69,7 @@ class SubcloudAuditManager(manager.Manager):
         self.subcloud_workers = dict()
         # Number of audits since last subcloud state update
         self.audit_count = 0
+        self.alarm_aggr = alarm_aggregation.AlarmAggregation(self.context)
 
     def periodic_subcloud_audit(self):
         """Audit availability of subclouds."""
@@ -95,9 +96,8 @@ class SubcloudAuditManager(manager.Manager):
 
         # Determine whether OpenStack is installed in central cloud
         os_client = OpenStackDriver(region_name=consts.DEFAULT_REGION_NAME,
-                                    region_clients=None)
-        sysinv_client = SysinvClient(consts.DEFAULT_REGION_NAME,
-                                     os_client.keystone_client.session)
+                                    thread_name='dcmanager')
+        sysinv_client = os_client.sysinv_client
         # This could be optimized in the future by attempting to get just the
         # one application. However, sysinv currently treats this as a failure
         # if the application is not installed and generates warning logs, so it
@@ -160,14 +160,15 @@ class SubcloudAuditManager(manager.Manager):
         # status if we encounter an error.
 
         sysinv_client = None
+        fm_client = None
         svc_groups = None
         avail_to_set = consts.AVAILABILITY_OFFLINE
 
         try:
             os_client = OpenStackDriver(region_name=subcloud_name,
-                                        region_clients=None)
-            sysinv_client = SysinvClient(subcloud_name,
-                                         os_client.keystone_client.session)
+                                        thread_name='dcmanager')
+            sysinv_client = os_client.sysinv_client
+            fm_client = os_client.fm_client
         except (keystone_exceptions.EndpointNotFound,
                 keystone_exceptions.ConnectFailure,
                 keystone_exceptions.ConnectTimeout,
@@ -351,7 +352,15 @@ class SubcloudAuditManager(manager.Manager):
                                        subcloud_name,
                                        subcloud.management_state,
                                        subcloud.availability_status)
+            self.audit_count = 0
 
+        # If subcloud is online, get alarm summary and store in db.
+        subcloud = db_api.subcloud_get_by_name(self.context, subcloud_name)
+        if (subcloud.availability_status == consts.AVAILABILITY_ONLINE) and \
+                fm_client:
+            self.alarm_aggr.update_alarm_summary(subcloud_name, fm_client)
+
+        # Audit openstack application in the subcloud
         if audit_openstack and sysinv_client:
             # get a list of installed apps in the subcloud
             try:

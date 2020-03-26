@@ -13,7 +13,7 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 #
-# Copyright (c) 2017-2019 Wind River Systems, Inc.
+# Copyright (c) 2017-2020 Wind River Systems, Inc.
 #
 # The right to copy, distribute, modify, or otherwise make use
 # of this software may be licensed only pursuant to the terms
@@ -403,3 +403,25 @@ def db_sync(engine, version=None):
 def db_version(engine):
     """Display the current database version."""
     return IMPL.db_version(engine)
+
+
+# Alarm Resources
+###################
+def subcloud_alarms_get(context, name):
+    return IMPL.subcloud_alarms_get(context, name)
+
+
+def subcloud_alarms_get_all(context, name=None):
+    return IMPL.subcloud_alarms_get_all(context, name=name)
+
+
+def subcloud_alarms_create(context, name, values):
+    return IMPL.subcloud_alarms_create(context, name, values)
+
+
+def subcloud_alarms_update(context, name, values):
+    return IMPL.subcloud_alarms_update(context, name, values)
+
+
+def subcloud_alarms_delete(context, name):
+    return IMPL.subcloud_alarms_delete(context, name)

@@ -19,7 +19,6 @@
 """Subcloud object."""
 from oslo_log import log as logging
 
-from dcorch.common import consts
 from dcorch.common import exceptions
 from dcorch.db import api as db_api
 from dcorch.objects import base
@@ -57,14 +56,6 @@ class Subcloud(base.OrchestratorObject, base.VersionedObjectDictCompat):
                 reason="cannot create a Subcloud object without a "
                        "region_name set")
         try:
-            # create entry into alarm summary table, we will get real values later
-            alarm_updates = {'critical_alarms': -1,
-                             'major_alarms': -1,
-                             'minor_alarms': -1,
-                             'warnings': -1,
-                             'cloud_status': consts.ALARMS_DISABLED}
-            db_api.subcloud_alarms_create(self._context, region_name,
-                                          alarm_updates)
             db_subcloud = db_api.subcloud_create(
                 self._context, region_name, updates)
             return self._from_db_object(self._context, self, db_subcloud)
@@ -98,12 +89,6 @@ class Subcloud(base.OrchestratorObject, base.VersionedObjectDictCompat):
             db_api.orch_request_delete_by_subcloud(self._context, self.region_name)
         except Exception as e:
             LOG.error("Failed to delete orchestration request for %s: %s"
-                      % (self.region_name, e))
-        # delete the associated alarm entry
-        try:
-            db_api.subcloud_alarms_delete(self._context, self.region_name)
-        except Exception as e:
-            LOG.error("Failed to delete alarm entry for %s: %s"
                       % (self.region_name, e))
         try:
             db_api.subcloud_delete(self._context, self.region_name)

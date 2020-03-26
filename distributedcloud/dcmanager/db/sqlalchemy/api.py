@@ -13,7 +13,7 @@
 # License for the specific language governing permissions and limitations
 # under the License.
 #
-# Copyright (c) 2017-2019 Wind River Systems, Inc.
+# Copyright (c) 2017-2020 Wind River Systems, Inc.
 #
 # The right to copy, distribute, modify, or otherwise make use
 # of this software may be licensed only pursuant to the terms
@@ -27,10 +27,16 @@ Implementation of SQLAlchemy backend.
 import sys
 import threading
 
+from oslo_db import exception as db_exc
 from oslo_db.sqlalchemy import enginefacade
 
 from oslo_log import log as logging
+from oslo_utils import strutils
+from oslo_utils import uuidutils
 
+from sqlalchemy import desc
+from sqlalchemy.orm.exc import MultipleResultsFound
+from sqlalchemy.orm.exc import NoResultFound
 from sqlalchemy.orm import joinedload_all
 
 from dcmanager.common import consts
@@ -616,3 +622,90 @@ def db_sync(engine, version=None):
 def db_version(engine):
     """Display the current database version."""
     return migration.db_version(engine)
+
+
+##########################
+def add_identity_filter(query, value,
+                        use_name=None):
+    """Adds an identity filter to a query.
+
+    Filters results by 'id', if supplied value is a valid integer.
+    then attempts to filter results by 'uuid';
+    otherwise filters by name
+
+    :param query: Initial query to add filter to.
+    :param value: Value for filtering results by.
+    :param use_name: Use name in filter
+
+    :return: Modified query.
+    """
+    if strutils.is_int_like(value):
+        return query.filter_by(id=value)
+    elif uuidutils.is_uuid_like(value):
+        return query.filter_by(uuid=value)
+    elif use_name:
+        return query.filter_by(name=value)
+    else:
+        return query.filter_by(name=value)
+
+
+@require_context
+def _subcloud_alarms_get(context, name):
+    query = model_query(context, models.SubcloudAlarmSummary). \
+        filter_by(deleted=0)
+    query = add_identity_filter(query, name, use_name=True)
+
+    try:
+        return query.one()
+    except NoResultFound:
+        raise exception.SubcloudNotFound(region_name=name)
+    except MultipleResultsFound:
+        raise exception.InvalidParameterValue(
+            err="Multiple entries found for subcloud %s" % name)
+
+
+@require_context
+def subcloud_alarms_get(context, name):
+    return _subcloud_alarms_get(context, name)
+
+
+@require_context
+def subcloud_alarms_get_all(context, name=None):
+    query = model_query(context, models.SubcloudAlarmSummary). \
+        filter_by(deleted=0)
+
+    if name:
+        query = add_identity_filter(query, name, use_name=True)
+
+    return query.order_by(desc(models.SubcloudAlarmSummary.id)).all()
+
+
+@require_admin_context
+def subcloud_alarms_create(context, name, values):
+    with write_session() as session:
+        result = models.SubcloudAlarmSummary()
+        result.name = name
+        if not values.get('uuid'):
+            values['uuid'] = uuidutils.generate_uuid()
+        result.update(values)
+        try:
+            session.add(result)
+        except db_exc.DBDuplicateEntry:
+            raise exception.SubcloudAlreadyExists(region_name=name)
+        return result
+
+
+@require_admin_context
+def subcloud_alarms_update(context, name, values):
+    with write_session() as session:
+        result = _subcloud_alarms_get(context, name)
+        result.update(values)
+        result.save(session)
+        return result
+
+
+@require_admin_context
+def subcloud_alarms_delete(context, name):
+    with write_session() as session:
+        session.query(models.SubcloudAlarmSummary).\
+            filter_by(name=name).delete()
