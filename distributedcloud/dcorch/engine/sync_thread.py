@@ -91,6 +91,7 @@ class SyncThread(object):
         self.admin_session = None
         self.ks_client = None
         self.dbs_client = None
+        self.initial_audit_in_progress = False
 
     def start(self):
         if self.status == STATUS_NEW:
@@ -206,6 +207,7 @@ class SyncThread(object):
     def enable(self):
         # Called when DC manager thinks this subcloud is good to go.
         self.initialize()
+        self.initial_audit_in_progress = True
         self.wake()
         self.run_sync_audit()
 
@@ -280,6 +282,11 @@ class SyncThread(object):
 
         self.sync_status = sync_status
         self.subcloud_managed = subcloud_managed
+
+        # If initial audit is in progress, do not send the endpoint
+        # status update to dcmanager
+        if self.initial_audit_in_progress:
+            return
 
         self.dcmanager_rpc_client.update_subcloud_endpoint_status(
             self.ctxt, self.subcloud_engine.subcloud.region_name,
@@ -495,6 +502,13 @@ class SyncThread(object):
         LOG.debug("{}: done sync audit".format(self.audit_thread.name),
                   extra=self.log_extra)
         self.post_audit()
+
+        # Once initial audit is complete, we wake up the sync thread
+        # so that it sends a proper sync status update (either in-sync or
+        # out-of-sync) to dcmanager for that endpoint type.
+        if self.initial_audit_in_progress:
+            self.initial_audit_in_progress = False
+            self.wake()
 
     @lockutils.synchronized(AUDIT_LOCK_NAME)
     def post_audit(self):
