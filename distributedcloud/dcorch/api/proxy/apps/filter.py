@@ -20,16 +20,16 @@ from oslo_config import cfg
 from oslo_log import log as logging
 from oslo_service.wsgi import Request
 
+from dccommon import consts as dccommon_consts
 from dcorch.api.proxy.apps.proxy import Proxy
 from dcorch.api.proxy.common.service import Middleware
 from dcorch.api.proxy.common import utils
-from dcorch.common import consts
 
 LOG = logging.getLogger(__name__)
 
 filter_opts = [
     cfg.StrOpt('user_header',
-               default=consts.TOPIC_ORCH_ENGINE,
+               default=dccommon_consts.USER_HEADER_VALUE,
                help='An application specific header'),
 ]
 

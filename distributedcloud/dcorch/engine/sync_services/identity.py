@@ -17,6 +17,7 @@
 import base64
 from collections import namedtuple
 
+from dccommon import consts as dccommon_consts
 from dcdbsync.dbsyncclient import client as dbsyncclient
 from dcdbsync.dbsyncclient import exceptions as dbsync_exceptions
 from dcorch.common import consts
@@ -94,7 +95,7 @@ class IdentitySyncThread(SyncThread):
         if (not self.sc_ks_client and self.sc_admin_session):
             self.sc_ks_client = keystoneclient.Client(
                 session=self.sc_admin_session,
-                endpoint_type=consts.KS_ENDPOINT_ADMIN,
+                endpoint_type=dccommon_consts.KS_ENDPOINT_ADMIN,
                 region_name=self.subcloud_engine.subcloud.region_name)
         # create a dbsync client for the subcloud
         if (not self.sc_dbs_client and self.sc_admin_session):
@@ -231,7 +232,7 @@ class IdentitySyncThread(SyncThread):
 
         if not m_users:
             LOG.error("No users returned from {}".
-                      format(consts.VIRTUAL_MASTER_CLOUD))
+                      format(dccommon_consts.VIRTUAL_MASTER_CLOUD))
             raise exceptions.SyncRequestFailed
 
         # get users from the subcloud
@@ -251,7 +252,7 @@ class IdentitySyncThread(SyncThread):
 
         if not m_projects:
             LOG.error("No projects returned from {}".
-                      format(consts.VIRTUAL_MASTER_CLOUD))
+                      format(dccommon_consts.VIRTUAL_MASTER_CLOUD))
             raise exceptions.SyncRequestFailed
 
         # get projects from the subcloud
@@ -1485,7 +1486,8 @@ class IdentitySyncThread(SyncThread):
                                                     self.m_ks_client)
         except dbsync_exceptions.Unauthorized as e:
             LOG.info("Get resource [{}] request failed for {}: {}."
-                     .format(resource_type, consts.VIRTUAL_MASTER_CLOUD,
+                     .format(resource_type,
+                             dccommon_consts.VIRTUAL_MASTER_CLOUD,
                              str(e)), extra=self.log_extra)
             # In case of token expires, re-authenticate and retry once
             self.reinitialize_m_clients()

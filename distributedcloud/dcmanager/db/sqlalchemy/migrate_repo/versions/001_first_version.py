@@ -13,14 +13,14 @@
 # License for the specific language governing permissions and limitations
 # under the License.
 #
-# Copyright (c) 2017 Wind River Systems, Inc.
+# Copyright (c) 2017-2020 Wind River Systems, Inc.
 #
 # The right to copy, distribute, modify, or otherwise make use
 # of this software may be licensed only pursuant to the terms
 # of an applicable Wind River license agreement.
 #
 
-from dcmanager.drivers.openstack import vim
+from dccommon.drivers.openstack import vim
 import sqlalchemy
 
 

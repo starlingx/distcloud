@@ -13,20 +13,34 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-# Copyright (c) 2017 Wind River Systems, Inc.
+# Copyright (c) 2017-2020 Wind River Systems, Inc.
 #
 # The right to copy, distribute, modify, or otherwise make use
 # of this software may be licensed only pursuant to the terms
 # of an applicable Wind River license agreement.
 #
 
+import grp
 import itertools
+import os
+import pwd
 import six.moves
+import tsconfig.tsconfig as tsc
 
-from dcmanager.common import consts
+from oslo_concurrency import lockutils
+from oslo_config import cfg
+from oslo_log import log as logging
+
+from dccommon import consts as dccommon_consts
+from dccommon.drivers.openstack import vim
 from dcmanager.common import exceptions
 from dcmanager.db import api as db_api
-from dcmanager.drivers.openstack import vim
+from dcorch.common import consts as dcorch_consts
+
+LOG = logging.getLogger(__name__)
+
+DC_MANAGER_USERNAME = "root"
+DC_MANAGER_GRPNAME = "root"
 
 
 def get_import_path(cls):
@@ -43,9 +57,9 @@ def get_batch_projects(batch_size, project_list, fillvalue=None):
 def validate_quota_limits(payload):
     for resource in payload:
         # Check valid resource name
-        if resource not in itertools.chain(consts.CINDER_QUOTA_FIELDS,
-                                           consts.NOVA_QUOTA_FIELDS,
-                                           consts.NEUTRON_QUOTA_FIELDS):
+        if resource not in itertools.chain(dcorch_consts.CINDER_QUOTA_FIELDS,
+                                           dcorch_consts.NOVA_QUOTA_FIELDS,
+                                           dcorch_consts.NEUTRON_QUOTA_FIELDS):
             raise exceptions.InvalidInputError
         # Check valid quota limit value in case for put/post
         if isinstance(payload, dict) and (not isinstance(
@@ -89,4 +103,46 @@ def get_sw_update_opts(context,
                     subcloud_id=subcloud_id)
 
         return db_api.sw_update_opts_w_name_db_model_to_dict(
-            sw_update_opts_ref, consts.SW_UPDATE_DEFAULT_TITLE)
+            sw_update_opts_ref, dccommon_consts.SW_UPDATE_DEFAULT_TITLE)
+
+
+def ensure_lock_path():
+    # Determine the oslo_concurrency lock path:
+    # 1) First, from the oslo_concurrency section of the config
+    #    a) If not set via an option default or config file, oslo_concurrency
+    #       sets it to the OSLO_LOCK_PATH env variable
+    # 2) Then if not set, set it to a specific directory under
+    #    tsc.VOLATILE_PATH
+
+    if cfg.CONF.oslo_concurrency.lock_path:
+        lock_path = cfg.CONF.oslo_concurrency.lock_path
+    else:
+        lock_path = os.path.join(tsc.VOLATILE_PATH, "dcmanager")
+
+    if not os.path.isdir(lock_path):
+        try:
+            uid = pwd.getpwnam(DC_MANAGER_USERNAME).pw_uid
+            gid = grp.getgrnam(DC_MANAGER_GRPNAME).gr_gid
+            os.makedirs(lock_path)
+            os.chown(lock_path, uid, gid)
+            LOG.info("Created directory=%s" % lock_path)
+
+        except OSError as e:
+            LOG.exception("makedir %s OSError=%s encountered" %
+                          (lock_path, e))
+            return None
+
+    return lock_path
+
+
+def synchronized(name, external=True, fair=False):
+    if external:
+        prefix = 'DCManager-'
+        lock_path = ensure_lock_path()
+    else:
+        prefix = None
+        lock_path = None
+
+    return lockutils.synchronized(name, lock_file_prefix=prefix,
+                                  external=external, lock_path=lock_path,
+                                  semaphores=None, delay=0.01, fair=fair)

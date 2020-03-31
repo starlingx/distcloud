@@ -21,14 +21,16 @@
 #
 
 from keystoneauth1 import exceptions as keystone_exceptions
+from oslo_config import cfg
 from oslo_log import log as logging
 
 from fm_api import constants as fm_const
 from fm_api import fm_api
 from sysinv.common import constants as sysinv_constants
 
-from dcorch.common import consts as dcorch_consts
-from dcorch.drivers.openstack.keystone_v3 import KeystoneClient
+from dccommon import consts as dccommon_consts
+from dccommon.drivers.openstack.sdk_platform import OpenStackDriver
+from dccommon.drivers.openstack.sysinv_v1 import SysinvClient
 from dcorch.rpc import client as dcorch_rpc_client
 
 from dcmanager.common import consts
@@ -37,10 +39,15 @@ from dcmanager.common import exceptions
 from dcmanager.common.i18n import _
 from dcmanager.common import manager
 from dcmanager.db import api as db_api
-from dcmanager.drivers.openstack.sysinv_v1 import SysinvClient
 from dcmanager.manager import scheduler
 
+CONF = cfg.CONF
 LOG = logging.getLogger(__name__)
+
+# We will update the state of each subcloud in the dcorch about once per hour.
+# Calculate how many iterations that will be.
+SUBCLOUD_STATE_UPDATE_ITERATIONS = \
+    dccommon_consts.SECONDS_IN_HOUR / CONF.scheduler.subcloud_audit_interval
 
 
 class SubcloudAuditManager(manager.Manager):
@@ -60,6 +67,8 @@ class SubcloudAuditManager(manager.Manager):
             thread_pool_size=100)
         # Track workers created for each subcloud.
         self.subcloud_workers = dict()
+        # Number of audits since last subcloud state update
+        self.audit_count = 0
 
     def periodic_subcloud_audit(self):
         """Audit availability of subclouds."""
@@ -76,11 +85,19 @@ class SubcloudAuditManager(manager.Manager):
 
         # We will be running in our own green thread here.
         LOG.info('Triggered subcloud audit.')
+        self.audit_count += 1
+
+        # Determine whether to trigger a state update to each subcloud
+        if self.audit_count >= SUBCLOUD_STATE_UPDATE_ITERATIONS:
+            update_subcloud_state = True
+        else:
+            update_subcloud_state = False
 
         # Determine whether OpenStack is installed in central cloud
-        ks_client = KeystoneClient()
+        os_client = OpenStackDriver(region_name=consts.DEFAULT_REGION_NAME,
+                                    region_clients=None)
         sysinv_client = SysinvClient(consts.DEFAULT_REGION_NAME,
-                                     ks_client.session)
+                                     os_client.keystone_client.session)
         # This could be optimized in the future by attempting to get just the
         # one application. However, sysinv currently treats this as a failure
         # if the application is not installed and generates warning logs, so it
@@ -106,6 +123,7 @@ class SubcloudAuditManager(manager.Manager):
             self.subcloud_workers[subcloud.name] = \
                 self.thread_group_manager.start(self._audit_subcloud,
                                                 subcloud.name,
+                                                update_subcloud_state,
                                                 openstack_installed)
 
         # Wait for all greenthreads to complete
@@ -117,7 +135,8 @@ class SubcloudAuditManager(manager.Manager):
         self.subcloud_workers = dict()
         LOG.info('All subcloud audits have completed.')
 
-    def _audit_subcloud(self, subcloud_name, audit_openstack):
+    def _audit_subcloud(self, subcloud_name, update_subcloud_state,
+                        audit_openstack):
         """Audit a single subcloud."""
 
         # Retrieve the subcloud
@@ -145,9 +164,10 @@ class SubcloudAuditManager(manager.Manager):
         avail_to_set = consts.AVAILABILITY_OFFLINE
 
         try:
-            ks_client = KeystoneClient(subcloud_name)
+            os_client = OpenStackDriver(region_name=subcloud_name,
+                                        region_clients=None)
             sysinv_client = SysinvClient(subcloud_name,
-                                         ks_client.session)
+                                         os_client.keystone_client.session)
         except (keystone_exceptions.EndpointNotFound,
                 keystone_exceptions.ConnectFailure,
                 keystone_exceptions.ConnectTimeout,
@@ -322,6 +342,16 @@ class SubcloudAuditManager(manager.Manager):
                          'audit_fail_count update: %s' % subcloud_name)
                 return
 
+        elif update_subcloud_state:
+            # Nothing has changed, but we want to send a state update for this
+            # subcloud as an audit. Get the most up-to-date data.
+            subcloud = db_api.subcloud_get_by_name(self.context, subcloud_name)
+            self.dcorch_rpc_client. \
+                update_subcloud_states(self.context,
+                                       subcloud_name,
+                                       subcloud.management_state,
+                                       subcloud.availability_status)
+
         if audit_openstack and sysinv_client:
             # get a list of installed apps in the subcloud
             try:
@@ -345,6 +375,8 @@ class SubcloudAuditManager(manager.Manager):
             dco_update_func = None
             if openstack_installed_current and not openstack_installed:
                 dcm_update_func = db_api.subcloud_status_create
+                # TODO(andy.ning): This RPC will block for the duration of the
+                #  initial sync. It needs to be made non-blocking.
                 dco_update_func = self.dcorch_rpc_client.\
                     add_subcloud_sync_endpoint_type
             elif not openstack_installed_current and openstack_installed:
@@ -353,7 +385,7 @@ class SubcloudAuditManager(manager.Manager):
                     remove_subcloud_sync_endpoint_type
 
             if dcm_update_func and dco_update_func:
-                endpoint_type_list = dcorch_consts.ENDPOINT_TYPES_LIST_OS
+                endpoint_type_list = dccommon_consts.ENDPOINT_TYPES_LIST_OS
                 try:
                     # Notify dcorch to add/remove sync endpoint type list
                     dco_update_func(self.context, subcloud_name,

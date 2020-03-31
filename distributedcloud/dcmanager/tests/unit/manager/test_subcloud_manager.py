@@ -19,64 +19,73 @@
 
 import mock
 
-from oslo_config import cfg
+from oslo_concurrency import lockutils
 from oslo_utils import timeutils
 
 import sys
 sys.modules['fm_core'] = mock.Mock()
 
-from dcorch.rpc import client as dcorch_rpc_client
+import threading
 
 from dcmanager.common import consts
 from dcmanager.common import exceptions
+from dcmanager.db.sqlalchemy import api as db_api
 from dcmanager.manager import subcloud_manager
 from dcmanager.tests import base
 from dcmanager.tests import utils
-
-from ddt import ddt
-from ddt import file_data
-
-CONF = cfg.CONF
-FAKE_ID = '1'
-FAKE_SUBCLOUD_DATA = {"name": "subcloud1",
-                      "description": "subcloud1 description",
-                      "location": "subcloud1 location",
-                      "system_mode": "duplex",
-                      "management_subnet": "192.168.101.0/24",
-                      "management_start_address": "192.168.101.3",
-                      "management_end_address": "192.168.101.4",
-                      "management_gateway_address": "192.168.101.1",
-                      "systemcontroller_gateway_address": "192.168.204.101",
-                      "external_oam_subnet": "10.10.10.0/24",
-                      "external_oam_gateway_address": "10.10.10.1",
-                      "external_oam_floating_address": "10.10.10.12"}
-FAKE_SUBCLOUD_INSTALL_VALUES = {
-    'image': 'image: http://128.224.115.21/iso/bootimage.iso',
-    'software_version': '20.01',
-    'bootstrap_interface': 'enp0s3',
-    'bootstrap_address': '128.118.101.5',
-    'bootstrap_address_prefix': 23,
-    'bmc_address': '128.224.64.180',
-    'bmc_username': 'root',
-    'nexthop_gateway': '128.224.150.1',
-    'network_address': '128.224.144.0',
-    'network_mask': '255.255.254.0',
-    'install_type': 3,
-    'console_type': 'tty0',
-    'rootfs_device': '/dev/disk/by-path/pci-0000:5c:00.0-scsi-0:1:0:0',
-    'boot_device': ' /dev/disk/by-path/pci-0000:5c:00.0-scsi-0:1:0:0'
-}
+from dcorch.common import consts as dcorch_consts
+from dcorch.rpc import client as dcorch_rpc_client
 
 
-class Controller(object):
+class FakeDCOrchAPI(object):
+    def __init__(self):
+        self.update_subcloud_states = mock.MagicMock()
+        self.add_subcloud_sync_endpoint_type = mock.MagicMock()
+
+
+class FakeService(object):
+    def __init__(self, type, id):
+        self.type = type
+        self.id = id
+
+
+FAKE_SERVICES = [
+    FakeService(
+        dcorch_consts.ENDPOINT_TYPE_PLATFORM,
+        1
+    ),
+    FakeService(
+        dcorch_consts.ENDPOINT_TYPE_IDENTITY,
+        2
+    ),
+    FakeService(
+        dcorch_consts.ENDPOINT_TYPE_PATCHING,
+        3
+    ),
+    FakeService(
+        dcorch_consts.ENDPOINT_TYPE_FM,
+        4
+    ),
+    FakeService(
+        dcorch_consts.ENDPOINT_TYPE_NFV,
+        5
+    ),
+]
+
+
+class FakeController(object):
     def __init__(self, hostname):
         self.hostname = hostname
 
 
-class Service(object):
-    def __init__(self, type, id):
-        self.type = type
-        self.id = id
+FAKE_CONTROLLERS = [
+    FakeController(
+        'controller-0'
+    ),
+    FakeController(
+        'controller-1'
+    ),
+]
 
 
 class Subcloud(object):
@@ -107,24 +116,50 @@ class Subcloud(object):
         self.updated_at = timeutils.utcnow()
 
 
-@ddt
 class TestSubcloudManager(base.DCManagerTestCase):
     def setUp(self):
         super(TestSubcloudManager, self).setUp()
-        self.ctxt = utils.dummy_context()
 
-    @mock.patch.object(dcorch_rpc_client, 'EngineClient')
-    @mock.patch.object(subcloud_manager, 'KeystoneClient')
-    @mock.patch.object(subcloud_manager, 'context')
-    def test_init(self, mock_context, mock_endpoint, mock_dcorch_rpc_client):
-        mock_context.get_admin_context.return_value = self.ctxt
-        am = subcloud_manager.SubcloudManager()
-        self.assertIsNotNone(am)
-        self.assertEqual('subcloud_manager', am.service_name)
-        self.assertEqual('localhost', am.host)
-        self.assertEqual(self.ctxt, am.context)
+        # Mock the DCOrch API
+        self.fake_dcorch_api = FakeDCOrchAPI()
+        p = mock.patch('dcorch.rpc.client.EngineClient')
+        self.mock_dcorch_api = p.start()
+        self.mock_dcorch_api.return_value = self.fake_dcorch_api
+        self.addCleanup(p.stop)
 
-    @file_data(utils.get_data_filepath('dcmanager', 'subclouds'))
+        # Mock the context
+        p = mock.patch.object(subcloud_manager, 'context')
+        self.mock_context = p.start()
+        self.mock_context.get_admin_context.return_value = self.ctx
+        self.addCleanup(p.stop)
+
+    @staticmethod
+    def create_subcloud_static(ctxt, **kwargs):
+        values = {
+            "name": "subcloud1",
+            "description": "subcloud1 description",
+            "location": "subcloud1 location",
+            'software_version': "18.03",
+            "management_subnet": "192.168.101.0/24",
+            "management_gateway_ip": "192.168.101.1",
+            "management_start_ip": "192.168.101.3",
+            "management_end_ip": "192.168.101.4",
+            "systemcontroller_gateway_ip": "192.168.204.101",
+            'deploy_status': "not-deployed",
+            'openstack_installed': False,
+        }
+        values.update(kwargs)
+        return db_api.subcloud_create(ctxt, **values)
+
+    def test_init(self):
+        sm = subcloud_manager.SubcloudManager()
+        self.assertIsNotNone(sm)
+        self.assertEqual('subcloud_manager', sm.service_name)
+        self.assertEqual('localhost', sm.host)
+        self.assertEqual(self.ctx, sm.context)
+
+    @mock.patch.object(subcloud_manager.SubcloudManager,
+                       '_delete_subcloud_inventory')
     @mock.patch.object(dcorch_rpc_client, 'EngineClient')
     @mock.patch.object(subcloud_manager, 'context')
     @mock.patch.object(subcloud_manager, 'KeystoneClient')
@@ -133,25 +168,24 @@ class TestSubcloudManager(base.DCManagerTestCase):
     @mock.patch.object(subcloud_manager.SubcloudManager,
                        '_create_addn_hosts_dc')
     @mock.patch.object(subcloud_manager.SubcloudManager,
-                       '_update_subcloud_inventory')
+                       '_create_subcloud_inventory')
     @mock.patch.object(subcloud_manager.SubcloudManager,
                        '_write_subcloud_ansible_config')
     @mock.patch.object(subcloud_manager,
                        'keyring')
-    def test_add_subcloud(self, value, mock_keyring,
+    @mock.patch.object(threading.Thread,
+                       'start')
+    def test_add_subcloud(self, mock_thread_start, mock_keyring,
                           mock_write_subcloud_ansible_config,
-                          mock_update_subcloud_inventory,
+                          mock_create_subcloud_inventory,
                           mock_create_addn_hosts, mock_sysinv_client,
                           mock_db_api, mock_keystone_client, mock_context,
-                          mock_dcorch_rpc_client):
-        value = utils.create_subcloud_dict(value)
-        controllers = [Controller('controller-0'), Controller('controller-1')]
-        services = [Service('identity', '1234'),
-                    Service('faultmanagement', '1234'),
-                    Service('patching', '1234'),
-                    Service('platform', '1234'),
-                    Service('nfv', '1234')]
-        mock_context.get_admin_context.return_value = self.ctxt
+                          mock_dcorch_rpc_client,
+                          mock_delete_subcloud_inventory):
+        values = utils.create_subcloud_dict(base.SUBCLOUD_SAMPLE_DATA_0)
+        controllers = FAKE_CONTROLLERS
+        services = FAKE_SERVICES
+        mock_context.get_admin_context.return_value = self.ctx
         mock_db_api.subcloud_get_by_name.side_effect = \
             exceptions.SubcloudNameNotFound()
 
@@ -160,17 +194,17 @@ class TestSubcloudManager(base.DCManagerTestCase):
         mock_keyring.get_password.return_value = "testpassword"
 
         sm = subcloud_manager.SubcloudManager()
-        sm.add_subcloud(self.ctxt, payload=value)
+        sm.add_subcloud(self.ctx, payload=values)
         mock_db_api.subcloud_create.assert_called_once()
         mock_db_api.subcloud_status_create.assert_called()
         mock_sysinv_client().create_route.assert_called()
         mock_dcorch_rpc_client().add_subcloud.assert_called_once()
         mock_create_addn_hosts.assert_called_once()
-        mock_update_subcloud_inventory.assert_called_once()
+        mock_create_subcloud_inventory.assert_called_once()
         mock_write_subcloud_ansible_config.assert_called_once()
         mock_keyring.get_password.assert_called()
+        mock_thread_start.assert_called_once()
 
-    @file_data(utils.get_data_filepath('dcmanager', 'subclouds'))
     @mock.patch.object(dcorch_rpc_client, 'EngineClient')
     @mock.patch.object(subcloud_manager, 'context')
     @mock.patch.object(subcloud_manager, 'db_api')
@@ -178,40 +212,39 @@ class TestSubcloudManager(base.DCManagerTestCase):
     @mock.patch.object(subcloud_manager, 'KeystoneClient')
     @mock.patch.object(subcloud_manager.SubcloudManager,
                        '_create_addn_hosts_dc')
-    def test_delete_subcloud(self, value, mock_create_addn_hosts,
+    def test_delete_subcloud(self, mock_create_addn_hosts,
                              mock_keystone_client,
                              mock_sysinv_client,
                              mock_db_api,
                              mock_context,
                              mock_dcorch_rpc_client):
-        controllers = [Controller('controller-0'), Controller('controller-1')]
-        mock_context.get_admin_context.return_value = self.ctxt
-        data = utils.create_subcloud_dict(value)
+        controllers = FAKE_CONTROLLERS
+        mock_context.get_admin_context.return_value = self.ctx
+        data = utils.create_subcloud_dict(base.SUBCLOUD_SAMPLE_DATA_0)
         fake_subcloud = Subcloud(data, False)
         mock_db_api.subcloud_get.return_value = fake_subcloud
         mock_sysinv_client().get_controller_hosts.return_value = controllers
         sm = subcloud_manager.SubcloudManager()
-        sm.delete_subcloud(self.ctxt, subcloud_id=data['id'])
+        sm.delete_subcloud(self.ctx, subcloud_id=data['id'])
         mock_sysinv_client().delete_route.assert_called()
         mock_keystone_client().delete_region.assert_called_once()
         mock_db_api.subcloud_destroy.assert_called_once()
         mock_create_addn_hosts.assert_called_once()
 
-    @file_data(utils.get_data_filepath('dcmanager', 'subclouds'))
     @mock.patch.object(dcorch_rpc_client, 'EngineClient')
     @mock.patch.object(subcloud_manager, 'context')
     @mock.patch.object(subcloud_manager, 'KeystoneClient')
     @mock.patch.object(subcloud_manager, 'db_api')
-    def test_update_subcloud(self, value, mock_db_api,
+    def test_update_subcloud(self, mock_db_api,
                              mock_endpoint, mock_context,
                              mock_dcorch_rpc_client):
-        mock_context.get_admin_context.return_value = self.ctxt
-        data = utils.create_subcloud_dict(value)
+        mock_context.get_admin_context.return_value = self.ctx
+        data = utils.create_subcloud_dict(base.SUBCLOUD_SAMPLE_DATA_0)
         subcloud_result = Subcloud(data, True)
         mock_db_api.subcloud_get.return_value = subcloud_result
         mock_db_api.subcloud_update.return_value = subcloud_result
         sm = subcloud_manager.SubcloudManager()
-        sm.update_subcloud(self.ctxt, data['id'],
+        sm.update_subcloud(self.ctx, data['id'],
                            management_state=consts.MANAGEMENT_MANAGED,
                            description="subcloud new description",
                            location="subcloud new location")
@@ -221,3 +254,142 @@ class TestSubcloudManager(base.DCManagerTestCase):
             management_state=consts.MANAGEMENT_MANAGED,
             description="subcloud new description",
             location="subcloud new location")
+
+    def test_update_subcloud_endpoint_status(self):
+        # create a subcloud
+        subcloud = self.create_subcloud_static(self.ctx, name='subcloud1')
+        self.assertIsNotNone(subcloud)
+        self.assertEqual(subcloud.management_state,
+                         consts.MANAGEMENT_UNMANAGED)
+        self.assertEqual(subcloud.availability_status,
+                         consts.AVAILABILITY_OFFLINE)
+
+        # create sync statuses for endpoints
+        for endpoint in [dcorch_consts.ENDPOINT_TYPE_PLATFORM,
+                         dcorch_consts.ENDPOINT_TYPE_IDENTITY,
+                         dcorch_consts.ENDPOINT_TYPE_PATCHING,
+                         dcorch_consts.ENDPOINT_TYPE_FM,
+                         dcorch_consts.ENDPOINT_TYPE_NFV]:
+            status = db_api.subcloud_status_create(
+                self.ctx, subcloud.id, endpoint)
+            self.assertIsNotNone(status)
+            self.assertEqual(status.sync_status, consts.SYNC_STATUS_UNKNOWN)
+
+        # Update/verify each status with the default sync state: out-of-sync
+        sm = subcloud_manager.SubcloudManager()
+        for endpoint in [dcorch_consts.ENDPOINT_TYPE_PLATFORM,
+                         dcorch_consts.ENDPOINT_TYPE_IDENTITY,
+                         dcorch_consts.ENDPOINT_TYPE_PATCHING,
+                         dcorch_consts.ENDPOINT_TYPE_FM,
+                         dcorch_consts.ENDPOINT_TYPE_NFV]:
+            # Update
+            sm.update_subcloud_endpoint_status(
+                self.ctx, subcloud_name=subcloud.name,
+                endpoint_type=endpoint)
+
+            # Verify
+            updated_subcloud_status = db_api.subcloud_status_get(
+                self.ctx, subcloud.id, endpoint)
+            self.assertIsNotNone(updated_subcloud_status)
+            self.assertEqual(updated_subcloud_status.sync_status,
+                             consts.SYNC_STATUS_OUT_OF_SYNC)
+
+        # Attempt to update each status to be in-sync for an offline/unmanaged
+        # subcloud. This is not allowed. Verify no change.
+        for endpoint in [dcorch_consts.ENDPOINT_TYPE_PLATFORM,
+                         dcorch_consts.ENDPOINT_TYPE_IDENTITY,
+                         dcorch_consts.ENDPOINT_TYPE_PATCHING,
+                         dcorch_consts.ENDPOINT_TYPE_FM,
+                         dcorch_consts.ENDPOINT_TYPE_NFV]:
+            sm.update_subcloud_endpoint_status(
+                self.ctx, subcloud_name=subcloud.name,
+                endpoint_type=endpoint,
+                sync_status=consts.SYNC_STATUS_IN_SYNC)
+
+            updated_subcloud_status = db_api.subcloud_status_get(
+                self.ctx, subcloud.id, endpoint)
+            self.assertIsNotNone(updated_subcloud_status)
+            # No change in status: Only online/managed clouds are updated
+            self.assertEqual(updated_subcloud_status.sync_status,
+                             consts.SYNC_STATUS_OUT_OF_SYNC)
+
+        # Set/verify the subcloud is online/unmanaged
+        db_api.subcloud_update(
+            self.ctx, subcloud.id,
+            availability_status=consts.AVAILABILITY_ONLINE)
+        subcloud = db_api.subcloud_get(self.ctx, subcloud.id)
+        self.assertIsNotNone(subcloud)
+        self.assertEqual(subcloud.management_state,
+                         consts.MANAGEMENT_UNMANAGED)
+        self.assertEqual(subcloud.availability_status,
+                         consts.AVAILABILITY_ONLINE)
+
+        # Attempt to update each status to be in-sync for an online/unmanaged
+        # subcloud. This is not allowed. Verify no change.
+        for endpoint in [dcorch_consts.ENDPOINT_TYPE_PLATFORM,
+                         dcorch_consts.ENDPOINT_TYPE_IDENTITY,
+                         dcorch_consts.ENDPOINT_TYPE_PATCHING,
+                         dcorch_consts.ENDPOINT_TYPE_FM,
+                         dcorch_consts.ENDPOINT_TYPE_NFV]:
+            sm.update_subcloud_endpoint_status(
+                self.ctx, subcloud_name=subcloud.name,
+                endpoint_type=endpoint,
+                sync_status=consts.SYNC_STATUS_IN_SYNC)
+
+            updated_subcloud_status = db_api.subcloud_status_get(
+                self.ctx, subcloud.id, endpoint)
+            self.assertIsNotNone(updated_subcloud_status)
+            # No change in status: Only online/managed clouds are updated
+            self.assertEqual(updated_subcloud_status.sync_status,
+                             consts.SYNC_STATUS_OUT_OF_SYNC)
+
+        # Set/verify the subcloud is online/managed
+        db_api.subcloud_update(
+            self.ctx, subcloud.id,
+            management_state=consts.MANAGEMENT_MANAGED)
+        subcloud = db_api.subcloud_get(self.ctx, subcloud.id)
+        self.assertIsNotNone(subcloud)
+        self.assertEqual(subcloud.management_state,
+                         consts.MANAGEMENT_MANAGED)
+        self.assertEqual(subcloud.availability_status,
+                         consts.AVAILABILITY_ONLINE)
+
+        # Attempt to update each status to be in-sync for an online/managed
+        # subcloud
+        for endpoint in [dcorch_consts.ENDPOINT_TYPE_PLATFORM,
+                         dcorch_consts.ENDPOINT_TYPE_IDENTITY,
+                         dcorch_consts.ENDPOINT_TYPE_PATCHING,
+                         dcorch_consts.ENDPOINT_TYPE_FM,
+                         dcorch_consts.ENDPOINT_TYPE_NFV]:
+            sm.update_subcloud_endpoint_status(
+                self.ctx, subcloud_name=subcloud.name,
+                endpoint_type=endpoint,
+                sync_status=consts.SYNC_STATUS_IN_SYNC)
+
+            updated_subcloud_status = db_api.subcloud_status_get(
+                self.ctx, subcloud.id, endpoint)
+            self.assertIsNotNone(updated_subcloud_status)
+            self.assertEqual(updated_subcloud_status.sync_status,
+                             consts.SYNC_STATUS_IN_SYNC)
+
+        # Change the sync status to 'out-of-sync' and verify fair lock access
+        # based on subcloud name for each update
+        with mock.patch.object(lockutils, 'internal_fair_lock') as mock_lock:
+            for endpoint in [dcorch_consts.ENDPOINT_TYPE_PLATFORM,
+                             dcorch_consts.ENDPOINT_TYPE_IDENTITY,
+                             dcorch_consts.ENDPOINT_TYPE_PATCHING,
+                             dcorch_consts.ENDPOINT_TYPE_FM,
+                             dcorch_consts.ENDPOINT_TYPE_NFV]:
+                sm.update_subcloud_endpoint_status(
+                    self.ctx, subcloud_name=subcloud.name,
+                    endpoint_type=endpoint,
+                    sync_status=consts.SYNC_STATUS_OUT_OF_SYNC)
+                # Verify lock was called
+                mock_lock.assert_called_with(subcloud.name)
+
+                # Verify status was updated
+                updated_subcloud_status = db_api.subcloud_status_get(
+                    self.ctx, subcloud.id, endpoint)
+                self.assertIsNotNone(updated_subcloud_status)
+                self.assertEqual(updated_subcloud_status.sync_status,
+                                 consts.SYNC_STATUS_OUT_OF_SYNC)

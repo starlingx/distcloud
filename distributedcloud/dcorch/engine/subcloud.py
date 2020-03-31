@@ -1,4 +1,4 @@
-# Copyright 2017 Wind River
+# Copyright 2017-2020 Wind River
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -15,6 +15,7 @@
 
 import threading
 
+from dccommon import consts as dccommon_consts
 from dcmanager.common import consts as dcm_consts
 from dcorch.common import consts as dco_consts
 from dcorch.engine.sync_services.identity import IdentitySyncThread
@@ -28,7 +29,7 @@ LOG = logging.getLogger(__name__)
 syncthread_subclass_map = {
     dco_consts.ENDPOINT_TYPE_PLATFORM: SysinvSyncThread,
     dco_consts.ENDPOINT_TYPE_IDENTITY: IdentitySyncThread,
-    dco_consts.ENDPOINT_TYPE_IDENTITY_OS: IdentitySyncThread
+    dccommon_consts.ENDPOINT_TYPE_IDENTITY_OS: IdentitySyncThread
 }
 
 
@@ -88,20 +89,52 @@ class SubCloudEngine(object):
         # is this subcloud enabled
         self.lock.acquire()
         status = self.subcloud.availability_status
+        initial_sync_state = self.subcloud.initial_sync_state
         self.lock.release()
-        return status == dcm_consts.AVAILABILITY_ONLINE
+        # We only enable syncing if the subcloud is online and the initial
+        # sync has completed.
+        if status == dcm_consts.AVAILABILITY_ONLINE and \
+                initial_sync_state == dco_consts.INITIAL_SYNC_STATE_COMPLETED:
+            return True
+        else:
+            return False
 
     def is_ready(self):
         # is this subcloud ready for synchronization
         return self.is_managed() and self.is_enabled()
 
-    def enable(self):
-        # set subcloud availability to online
+    def state_matches(self, management_state=None, availability_status=None,
+                      initial_sync_state=None):
+        # compare subcloud states
+        match = True
         self.lock.acquire()
-        self.subcloud.management_state = dcm_consts.MANAGEMENT_MANAGED
-        self.subcloud.availability_status = dcm_consts.AVAILABILITY_ONLINE
+        if management_state is not None:
+            if self.subcloud.management_state != management_state:
+                match = False
+        if match and availability_status is not None:
+            if self.subcloud.availability_status != availability_status:
+                match = False
+        if match and initial_sync_state is not None:
+            if self.subcloud.initial_sync_state != initial_sync_state:
+                match = False
+        self.lock.release()
+        return match
+
+    def update_state(self, management_state=None, availability_status=None,
+                     initial_sync_state=None):
+        # set subcloud states
+        self.lock.acquire()
+        if management_state is not None:
+            self.subcloud.management_state = management_state
+        if availability_status is not None:
+            self.subcloud.availability_status = availability_status
+        if initial_sync_state is not None:
+            self.subcloud.initial_sync_state = initial_sync_state
         self.subcloud.save()
         self.lock.release()
+
+    def enable(self):
+        # enable syncing for this subcloud
         for thread in self.sync_threads:
             thread.enable()
 
@@ -113,23 +146,18 @@ class SubCloudEngine(object):
                     thread.wake()
 
     def disable(self):
-        # set subcloud availability to offline
-        self.lock.acquire()
-        self.subcloud.management_state = dcm_consts.MANAGEMENT_UNMANAGED
-        self.subcloud.availability_status = dcm_consts.AVAILABILITY_OFFLINE
-        self.subcloud.save()
-        self.lock.release()
+        # nothing to do here at the moment
+        pass
 
-    def shutdown(self):
+    def delete(self):
+        # first update the state of the subcloud
+        self.update_state(management_state=dcm_consts.MANAGEMENT_UNMANAGED,
+                          availability_status=dcm_consts.AVAILABILITY_OFFLINE)
         # shutdown, optionally deleting queued work
-        self.disable()
         while self.sync_threads:
             thread = self.sync_threads.pop()
             thread.shutdown()
-
-    def delete(self):
         # delete this subcloud
-        self.shutdown()
         self.subcloud.delete()
 
     def initial_sync(self):

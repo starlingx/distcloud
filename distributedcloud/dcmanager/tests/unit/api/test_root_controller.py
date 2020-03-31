@@ -143,7 +143,7 @@ class TestRequestID(DCManagerApiTest):
 class TestKeystoneAuth(DCManagerApiTest):
 
     def setUp(self):
-        super(DCManagerApiTest, self).setUp()
+        super(TestKeystoneAuth, self).setUp()
 
         self.addCleanup(set_config, {}, overwrite=True)
 

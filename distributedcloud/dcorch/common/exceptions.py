@@ -13,6 +13,9 @@
 #    WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
 #    License for the specific language governing permissions and limitations
 #    under the License.
+#
+# Copyright (c) 2020 Wind River Systems, Inc.
+#
 
 """
 DC Orchestrator base exception handling.
@@ -137,6 +140,10 @@ class InvalidParameterValue(Invalid):
     message = _("%(err)s")
 
 
+class SubcloudAlreadyExists(Conflict):
+    message = _("Subcloud with region_name=%(region_name)s already exists")
+
+
 class SubcloudResourceAlreadyExists(Conflict):
     message = _("Subcloud resource with subcloud_id=%(subcloud_id)s "
                 "resource_id=%(resource_id)s already exists")
@@ -200,22 +207,3 @@ class OrchRequestAlreadyExists(Conflict):
 
 class ObjectActionError(OrchestratorException):
     msg_fmt = _('Object action %(action)s failed because: %(reason)s')
-
-
-class TrapDestAlreadyExists(Conflict):
-    message = _("TrapDest in region=%(region_name)s ip_address=%(ip_address)s "
-                "community=%(community)s already exists")
-
-
-class TrapDestNotFound(NotFound):
-    message = _("Trapdest in region=%(region_name)s with ip_address "
-                "%(ip_address)s not found")
-
-
-class CommunityAlreadyExists(Conflict):
-    message = _("Community %(community)s in region=%(region_name)s "
-                "already exists")
-
-
-class CommunityNotFound(NotFound):
-    message = _("Community %(community)s not found in region=%(region_name)s")

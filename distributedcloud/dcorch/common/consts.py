@@ -12,7 +12,7 @@
 # License for the specific language governing permissions and limitations
 # under the License.
 #
-# Copyright (c) 2017-2019 Wind River Systems, Inc.
+# Copyright (c) 2017-2020 Wind River Systems, Inc.
 #
 # The right to copy, distribute, modify, or otherwise make use
 # of this software may be licensed only pursuant to the terms
@@ -63,13 +63,7 @@ RPC_API_VERSION = "1.0"
 
 TOPIC_ORCH_ENGINE = "dcorch-engine"
 
-# Distributed Cloud constants
-CLOUD_0 = "RegionOne"
-VIRTUAL_MASTER_CLOUD = "SystemController"
-
 ALARMS_DISABLED = "disabled"
-
-USER_HEADER = {'User-Header': TOPIC_ORCH_ENGINE}
 
 # SyncRequest States
 ORCH_REQUEST_NONE = None
@@ -83,7 +77,6 @@ ORCH_REQUEST_ABORTED = "aborted"
 # SysInv Resources
 RESOURCE_TYPE_SYSINV_CERTIFICATE = "certificates"
 RESOURCE_TYPE_SYSINV_DNS = "idns"
-RESOURCE_TYPE_SYSINV_REMOTE_LOGGING = "remotelogging"
 RESOURCE_TYPE_SYSINV_SNMP_COMM = "icommunity"
 RESOURCE_TYPE_SYSINV_SNMP_TRAPDEST = "itrapdest"
 RESOURCE_TYPE_SYSINV_USER = "iuser"
@@ -135,24 +128,17 @@ ENDPOINT_TYPE_PATCHING = "patching"
 ENDPOINT_TYPE_IDENTITY = "identity"
 ENDPOINT_TYPE_FM = "faultmanagement"
 ENDPOINT_TYPE_NFV = "nfv"
-ENDPOINT_TYPE_IDENTITY_OS = "identity_openstack"
 
 # platform endpoint types
 ENDPOINT_TYPES_LIST = [ENDPOINT_TYPE_PLATFORM,
                        ENDPOINT_TYPE_PATCHING,
                        ENDPOINT_TYPE_IDENTITY]
-# openstack endpoint types
-ENDPOINT_TYPES_LIST_OS = [ENDPOINT_TYPE_IDENTITY_OS]
 
 ENDPOINT_QUOTA_MAPPING = {
     ENDPOINT_TYPE_COMPUTE: NOVA_QUOTA_FIELDS,
     ENDPOINT_TYPE_NETWORK: NEUTRON_QUOTA_FIELDS,
     ENDPOINT_TYPE_VOLUME: CINDER_QUOTA_FIELDS,
 }
-
-KS_ENDPOINT_ADMIN = "admin"
-KS_ENDPOINT_INTERNAL = "internal"
-KS_ENDPOINT_DEFAULT = KS_ENDPOINT_INTERNAL
 
 # DB sync agent endpoint
 DBS_ENDPOINT_INTERNAL = "internal"
@@ -187,4 +173,9 @@ ALARM_OK_STATUS = "OK"
 ALARM_DEGRADED_STATUS = "degraded"
 ALARM_CRITICAL_STATUS = "critical"
 
-SECONDS_IN_HOUR = 3600
+# Subcloud initial sync state
+INITIAL_SYNC_STATE_NONE = "none"
+INITIAL_SYNC_STATE_REQUESTED = "requested"
+INITIAL_SYNC_STATE_IN_PROGRESS = "in-progress"
+INITIAL_SYNC_STATE_COMPLETED = "completed"
+INITIAL_SYNC_STATE_FAILED = "failed"

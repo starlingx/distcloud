@@ -1,6 +1,0 @@
-{
-  "migrate_version_0": ["keystone_expand", "/usr/lib/python2.7/site-packages/keystone/common/sql/expand_repo", 24],
-  "migrate_version_1": ["keystone_data_migrate", "/usr/lib/python2.7/site-packages/keystone/common/sql/data_migration_repo", 24],
-  "migrate_version_2": ["keystone", "/usr/lib/python2.7/site-packages/keystone/common/sql/migrate_repo", 109],
-  "migrate_version_3": ["keystone_contract", "/usr/lib/python2.7/site-packages/keystone/common/sql/contract_repo", 24]
-}

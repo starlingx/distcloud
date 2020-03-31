@@ -19,6 +19,7 @@ from keystoneauth1 import exceptions as keystone_exceptions
 from oslo_log import log as logging
 from oslo_serialization import jsonutils
 
+from dccommon import consts as dccommon_consts
 from dcorch.common import consts
 from dcorch.common import exceptions
 from dcorch.engine import quota_manager
@@ -55,7 +56,7 @@ class VolumeSyncThread(SyncThread):
         if (not self.sc_cinder_client and self.sc_admin_session):
             self.sc_cinder_client = cinderclient.Client(
                 "3.0", session=self.sc_admin_session,
-                endpoint_type=consts.KS_ENDPOINT_INTERNAL,
+                endpoint_type=dccommon_consts.KS_ENDPOINT_INTERNAL,
                 region_name=self.subcloud_engine.subcloud.region_name)
 
     def initialize(self):
@@ -66,8 +67,8 @@ class VolumeSyncThread(SyncThread):
         super(VolumeSyncThread, self).initialize()
         self.m_cinder_client = cinderclient.Client(
             "3.0", session=self.admin_session,
-            endpoint_type=consts.KS_ENDPOINT_INTERNAL,
-            region_name=consts.VIRTUAL_MASTER_CLOUD)
+            endpoint_type=dccommon_consts.KS_ENDPOINT_INTERNAL,
+            region_name=dccommon_consts.VIRTUAL_MASTER_CLOUD)
 
         self.initialize_sc_clients()
         LOG.info("session and clients initialized", extra=self.log_extra)
@@ -80,7 +81,7 @@ class VolumeSyncThread(SyncThread):
             func_name = request.orch_job.operation_type + \
                 "_" + rsrc.resource_type
             getattr(self, func_name)(request, rsrc)
-        except keystone_exceptions.EndpointNotFound as e:
+        except keystone_exceptions.EndpointNotFound:
             # Cinder is optional in the subcloud, so this isn't considered
             # an error.
             LOG.info("sync_volume_resource: {} does not have a volume "
@@ -247,7 +248,7 @@ class VolumeSyncThread(SyncThread):
                      .format(self.subcloud_engine.subcloud.region_name,
                              str(e)), extra=self.log_extra)
             return None
-        except keystone_exceptions.EndpointNotFound as e:
+        except keystone_exceptions.EndpointNotFound:
             LOG.info("get_quota_class: subcloud {} does not have a volume "
                      "endpoint in keystone"
                      .format(self.subcloud_engine.subcloud.region_name),

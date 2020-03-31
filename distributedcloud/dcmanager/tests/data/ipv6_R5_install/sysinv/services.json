@@ -1,7 +1,0 @@
-{
-  "services_0": ["2018-04-11 15:32:39.970094", "NULL", "NULL", 1, "cinder", false, "NULL", "NULL"],
-  "services_1": ["2018-04-11 15:32:39.973401", "NULL", "NULL", 2, "murano", false, "NULL", "NULL"],
-  "services_2": ["2018-04-11 15:32:39.97584", "NULL", "NULL", 3, "magnum", false, "NULL", "NULL"],
-  "services_3": ["2018-04-11 15:32:39.978205", "NULL", "NULL", 4, "swift", false, "NULL", "NULL"],
-  "services_4": ["2018-04-11 15:32:39.980688", "NULL", "NULL", 5, "ironic", false, "NULL", "NULL"]
-}

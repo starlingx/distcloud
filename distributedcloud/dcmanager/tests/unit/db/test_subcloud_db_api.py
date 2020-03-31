@@ -34,9 +34,6 @@ from dcmanager.db.sqlalchemy import api as db_api
 from dcmanager.tests import base
 from dcmanager.tests import utils
 
-from ddt import ddt
-from ddt import file_data
-
 config.register_options()
 get_engine = api.get_engine
 
@@ -53,7 +50,6 @@ def set_sqlite_pragma(dbapi_connection, connection_record):
     cursor.close()
 
 
-@ddt
 class DBAPISubcloudTest(base.DCManagerTestCase):
     def setup_dummy_db(self):
         options.cfg.set_defaults(options.database_opts,
@@ -148,9 +144,8 @@ class DBAPISubcloudTest(base.DCManagerTestCase):
         self.addCleanup(self.reset_dummy_db)
         self.ctx = utils.dummy_context()
 
-    @file_data(utils.get_data_filepath('dcmanager', 'subclouds'))
-    def test_create_subcloud(self, value):
-        fake_subcloud = utils.create_subcloud_dict(value)
+    def test_create_subcloud(self):
+        fake_subcloud = utils.create_subcloud_dict(base.SUBCLOUD_SAMPLE_DATA_0)
         name = fake_subcloud['name']
         subcloud = self.create_subcloud(self.ctx, fake_subcloud)
         self.assertIsNotNone(subcloud)
@@ -159,13 +154,12 @@ class DBAPISubcloudTest(base.DCManagerTestCase):
         self.assertIsNotNone(new_subcloud)
         self.assertEqual(name, new_subcloud.name)
 
-    @file_data(utils.get_data_filepath('dcmanager', 'subclouds'))
-    def test_create_subcloud_duplicate_name(self, value):
-        fake_subcloud = utils.create_subcloud_dict(value)
-        # name = fake_subcloud['name']
+    def test_create_subcloud_duplicate_name(self):
+        fake_subcloud = utils.create_subcloud_dict(base.SUBCLOUD_SAMPLE_DATA_0)
         subcloud = self.create_subcloud(self.ctx, fake_subcloud)
         self.assertIsNotNone(subcloud)
-        fake_subcloud2 = utils.create_subcloud_dict(value)
+        fake_subcloud2 = utils.create_subcloud_dict(
+            base.SUBCLOUD_SAMPLE_DATA_0)
         fake_subcloud2['management-start-ip'] = "2.3.4.6"
         fake_subcloud2['management-end-ip'] = "2.3.4.7"
         self.assertRaises(db_exception.DBDuplicateEntry,
@@ -201,10 +195,8 @@ class DBAPISubcloudTest(base.DCManagerTestCase):
         self.assertEqual(name3, new_subclouds[2].name)
         self.assertEqual(3, new_subclouds[2].id)
 
-    @file_data(utils.get_data_filepath('dcmanager', 'subclouds'))
-    def test_update_subcloud(self, value):
-        fake_subcloud = utils.create_subcloud_dict(value)
-        # name = fake_subcloud['name']
+    def test_update_subcloud(self):
+        fake_subcloud = utils.create_subcloud_dict(base.SUBCLOUD_SAMPLE_DATA_0)
         subcloud = self.create_subcloud(self.ctx, fake_subcloud)
         self.assertIsNotNone(subcloud)
 
@@ -229,10 +221,8 @@ class DBAPISubcloudTest(base.DCManagerTestCase):
         self.assertEqual(software_version,
                          updated_subcloud.software_version)
 
-    @file_data(utils.get_data_filepath('dcmanager', 'subclouds'))
-    def test_delete_subcloud(self, value):
-        fake_subcloud = utils.create_subcloud_dict(value)
-        # name = fake_subcloud['name']
+    def test_delete_subcloud(self):
+        fake_subcloud = utils.create_subcloud_dict(base.SUBCLOUD_SAMPLE_DATA_0)
         subcloud = self.create_subcloud(self.ctx, fake_subcloud)
         self.assertIsNotNone(subcloud)
 
@@ -242,9 +232,8 @@ class DBAPISubcloudTest(base.DCManagerTestCase):
                           db_api.subcloud_get,
                           self.ctx, subcloud.id)
 
-    @file_data(utils.get_data_filepath('dcmanager', 'subclouds'))
-    def test_subcloud_get_by_name(self, value):
-        fake_subcloud = utils.create_subcloud_dict(value)
+    def test_subcloud_get_by_name(self):
+        fake_subcloud = utils.create_subcloud_dict(base.SUBCLOUD_SAMPLE_DATA_0)
         name = fake_subcloud['name']
         subcloud = self.create_subcloud(self.ctx, fake_subcloud)
         self.assertIsNotNone(subcloud)
@@ -259,10 +248,8 @@ class DBAPISubcloudTest(base.DCManagerTestCase):
                           db_api.subcloud_get_by_name,
                           self.ctx, name)
 
-    @file_data(utils.get_data_filepath('dcmanager', 'subclouds'))
-    def test_create_subcloud_status(self, value):
-        fake_subcloud = utils.create_subcloud_dict(value)
-        # name = fake_subcloud['name']
+    def test_create_subcloud_status(self):
+        fake_subcloud = utils.create_subcloud_dict(base.SUBCLOUD_SAMPLE_DATA_0)
         subcloud = self.create_subcloud(self.ctx, fake_subcloud)
         self.assertIsNotNone(subcloud)
 
@@ -279,10 +266,8 @@ class DBAPISubcloudTest(base.DCManagerTestCase):
         self.assertEqual(consts.SYNC_STATUS_UNKNOWN,
                          new_subcloud_status.sync_status)
 
-    @file_data(utils.get_data_filepath('dcmanager', 'subclouds'))
-    def test_create_multiple_subcloud_statuses(self, value):
-        fake_subcloud = utils.create_subcloud_dict(value)
-        # name = fake_subcloud['name']
+    def test_create_multiple_subcloud_statuses(self):
+        fake_subcloud = utils.create_subcloud_dict(base.SUBCLOUD_SAMPLE_DATA_0)
         subcloud = self.create_subcloud(self.ctx, fake_subcloud)
         self.assertIsNotNone(subcloud)
 
@@ -315,10 +300,8 @@ class DBAPISubcloudTest(base.DCManagerTestCase):
                          new_subcloud_statuses[2].endpoint_type)
         self.assertEqual(3, new_subcloud_statuses[2].id)
 
-    @file_data(utils.get_data_filepath('dcmanager', 'subclouds'))
-    def test_update_subcloud_status(self, value):
-        fake_subcloud = utils.create_subcloud_dict(value)
-        # name = fake_subcloud['name']
+    def test_update_subcloud_status(self):
+        fake_subcloud = utils.create_subcloud_dict(base.SUBCLOUD_SAMPLE_DATA_0)
         subcloud = self.create_subcloud(self.ctx, fake_subcloud)
         self.assertIsNotNone(subcloud)
 
@@ -341,10 +324,8 @@ class DBAPISubcloudTest(base.DCManagerTestCase):
         self.assertEqual(endpoint_type, updated_subcloud_status.endpoint_type)
         self.assertEqual(sync_status, updated_subcloud_status.sync_status)
 
-    @file_data(utils.get_data_filepath('dcmanager', 'subclouds'))
-    def test_delete_subcloud_status(self, value):
-        fake_subcloud = utils.create_subcloud_dict(value)
-        # name = fake_subcloud['name']
+    def test_delete_subcloud_status(self):
+        fake_subcloud = utils.create_subcloud_dict(base.SUBCLOUD_SAMPLE_DATA_0)
         subcloud = self.create_subcloud(self.ctx, fake_subcloud)
         self.assertIsNotNone(subcloud)
 
@@ -358,10 +339,8 @@ class DBAPISubcloudTest(base.DCManagerTestCase):
                           db_api.subcloud_status_get,
                           self.ctx, subcloud.id, endpoint_type)
 
-    @file_data(utils.get_data_filepath('dcmanager', 'subclouds'))
-    def test_cascade_delete_subcloud_status(self, value):
-        fake_subcloud = utils.create_subcloud_dict(value)
-        # name = fake_subcloud['name']
+    def test_cascade_delete_subcloud_status(self):
+        fake_subcloud = utils.create_subcloud_dict(base.SUBCLOUD_SAMPLE_DATA_0)
         subcloud = self.create_subcloud(self.ctx, fake_subcloud)
         self.assertIsNotNone(subcloud)
 
@@ -378,9 +357,8 @@ class DBAPISubcloudTest(base.DCManagerTestCase):
                           db_api.subcloud_status_get,
                           self.ctx, subcloud.id, endpoint_type)
 
-    @file_data(utils.get_data_filepath('dcmanager', 'subclouds'))
-    def test_subcloud_status_get_all_by_name(self, value):
-        fake_subcloud = utils.create_subcloud_dict(value)
+    def test_subcloud_status_get_all_by_name(self):
+        fake_subcloud = utils.create_subcloud_dict(base.SUBCLOUD_SAMPLE_DATA_0)
         name = fake_subcloud['name']
         subcloud = self.create_subcloud(self.ctx, fake_subcloud)
         self.assertIsNotNone(subcloud)
@@ -414,10 +392,8 @@ class DBAPISubcloudTest(base.DCManagerTestCase):
                          new_subcloud_statuses[2].endpoint_type)
         self.assertEqual(3, new_subcloud_statuses[2].id)
 
-    @file_data(utils.get_data_filepath('dcmanager', 'subclouds'))
-    def test_subcloud_status_get_all_by_non_existing_name(self, value):
-        fake_subcloud = utils.create_subcloud_dict(value)
-        # name = fake_subcloud['name']
+    def test_subcloud_status_get_all_by_non_existing_name(self):
+        fake_subcloud = utils.create_subcloud_dict(base.SUBCLOUD_SAMPLE_DATA_0)
         subcloud = self.create_subcloud(self.ctx, fake_subcloud)
         self.assertIsNotNone(subcloud)
 

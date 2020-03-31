@@ -35,8 +35,10 @@ from oslo_messaging import RemoteError
 from tsconfig.tsconfig import CONFIG_PATH
 from tsconfig.tsconfig import SW_VERSION
 
+from dccommon.drivers.openstack.keystone_v3 import KeystoneClient
+from dccommon.drivers.openstack.sysinv_v1 import SysinvClient
+
 from dcorch.common import consts as dcorch_consts
-from dcorch.drivers.openstack.keystone_v3 import KeystoneClient
 from dcorch.rpc import client as dcorch_rpc_client
 
 from dcmanager.common import consts
@@ -44,8 +46,8 @@ from dcmanager.common import context
 from dcmanager.common import exceptions
 from dcmanager.common.i18n import _
 from dcmanager.common import manager
+from dcmanager.common import utils
 from dcmanager.db import api as db_api
-from dcmanager.drivers.openstack.sysinv_v1 import SysinvClient
 from dcmanager.manager.subcloud_install import SubcloudInstall
 
 from fm_api import constants as fm_const
@@ -59,7 +61,7 @@ ADDN_HOSTS_DC = 'dnsmasq.addn_hosts_dc'
 
 # Subcloud configuration paths
 ANSIBLE_OVERRIDES_PATH = '/opt/dc/ansible'
-ANSIBLE_SUBCLOUD_INVENTORY_FILE = 'subclouds.yml'
+INVENTORY_FILE_POSTFIX = '_inventory.yml'
 ANSIBLE_SUBCLOUD_PLAYBOOK = \
     '/usr/share/ansible/stx-ansible/playbooks/bootstrap.yml'
 ANSIBLE_SUBCLOUD_INSTALL_PLAYBOOK = \
@@ -75,6 +77,23 @@ USERS_TO_REPLICATE = [
     'barbican']
 
 SERVICES_USER = 'services'
+
+
+def sync_update_subcloud_endpoint_status(func):
+    """Synchronized lock decorator for _update_subcloud_endpoint_status. """
+
+    def _get_lock_and_call(*args, **kwargs):
+        """Get a single fair lock per subcloud based on subcloud name. """
+
+        # subcloud name is the 3rd argument to
+        # _update_subcloud_endpoint_status()
+        @utils.synchronized(args[2], external=False, fair=True)
+        def _call_func(*args, **kwargs):
+            return func(*args, **kwargs)
+
+        return _call_func(*args, **kwargs)
+
+    return _get_lock_and_call
 
 
 class SubcloudManager(manager.Manager):
@@ -97,7 +116,7 @@ class SubcloudManager(manager.Manager):
         :param payload: subcloud configuration
         """
         LOG.info("Adding subcloud %s." % payload['name'])
-
+        dcorch_populated = False
         try:
             subcloud = db_api.subcloud_get_by_name(context, payload['name'])
         except exceptions.SubcloudNameNotFound:
@@ -135,6 +154,11 @@ class SubcloudManager(manager.Manager):
                                           endpoint)
 
         try:
+            # Ansible inventory filename for the specified subcloud
+            ansible_subcloud_inventory_file = os.path.join(
+                ANSIBLE_OVERRIDES_PATH,
+                subcloud.name + INVENTORY_FILE_POSTFIX)
+
             # Create a new route to this subcloud on the management interface
             # on both controllers.
             m_ks_client = KeystoneClient()
@@ -202,6 +226,7 @@ class SubcloudManager(manager.Manager):
             # Inform orchestrator that subcloud has been added
             self.dcorch_rpc_client.add_subcloud(
                 context, subcloud.name, subcloud.software_version)
+            dcorch_populated = True
 
             # Regenerate the addn_hosts_dc file
             self._create_addn_hosts_dc(context)
@@ -241,10 +266,13 @@ class SubcloudManager(manager.Manager):
                 payload['users'][user] = \
                     str(keyring.get_password(user, SERVICES_USER))
 
-            # Update the ansible inventory with the new subcloud
-            self._update_subcloud_inventory(payload)
+            # Create the ansible inventory for the new subcloud
+            self._create_subcloud_inventory(payload,
+                                            ansible_subcloud_inventory_file)
 
             # Write this subclouds overrides to file
+            # NOTE: This file should not be deleted if subcloud add fails
+            # as it is used for debugging
             self._write_subcloud_ansible_config(context, payload)
 
             if "deploy_playbook" in payload:
@@ -254,8 +282,7 @@ class SubcloudManager(manager.Manager):
             if "install_values" in payload:
                 install_command = [
                     "ansible-playbook", ANSIBLE_SUBCLOUD_INSTALL_PLAYBOOK,
-                    "-i", ANSIBLE_OVERRIDES_PATH + '/' +
-                    ANSIBLE_SUBCLOUD_INVENTORY_FILE,
+                    "-i", ansible_subcloud_inventory_file,
                     "--limit", subcloud.name,
                     "-e", "@%s" % ANSIBLE_OVERRIDES_PATH + "/" +
                           payload['name'] + '/' + "install_values.yml"
@@ -263,8 +290,7 @@ class SubcloudManager(manager.Manager):
 
             apply_command = [
                 "ansible-playbook", ANSIBLE_SUBCLOUD_PLAYBOOK, "-i",
-                ANSIBLE_OVERRIDES_PATH + '/' +
-                ANSIBLE_SUBCLOUD_INVENTORY_FILE,
+                ansible_subcloud_inventory_file,
                 "--limit", subcloud.name
             ]
 
@@ -282,8 +308,7 @@ class SubcloudManager(manager.Manager):
                     "-e", "@%s" % ANSIBLE_OVERRIDES_PATH + "/" +
                           payload['name'] + "_deploy_values.yml",
                     "-i",
-                    ANSIBLE_OVERRIDES_PATH + '/' +
-                    ANSIBLE_SUBCLOUD_INVENTORY_FILE,
+                    ansible_subcloud_inventory_file,
                     "--limit", subcloud.name
                 ]
 
@@ -299,8 +324,10 @@ class SubcloudManager(manager.Manager):
             LOG.exception(e)
             # If we failed to create the subcloud, clean up anything we may
             # have done.
-            self._delete_subcloud_routes(context, subcloud)
-            db_api.subcloud_destroy(context, subcloud.id)
+            self._remove_subcloud_details(context,
+                                          subcloud,
+                                          ansible_subcloud_inventory_file,
+                                          dcorch_populated)
             raise e
 
     @staticmethod
@@ -429,30 +456,34 @@ class SubcloudManager(manager.Manager):
             # restart dnsmasq so it can re-read our addn_hosts file.
             os.system("pkill -HUP dnsmasq")
 
-    def _update_subcloud_inventory(self, new_subcloud):
-        """Update the inventory file for usage with the specified subcloud"""
+    def _create_subcloud_inventory(self,
+                                   subcloud,
+                                   inventory_file):
+        """Create the inventory file for the specified subcloud"""
 
-        inventory_file = os.path.join(ANSIBLE_OVERRIDES_PATH,
-                                      ANSIBLE_SUBCLOUD_INVENTORY_FILE)
-        exists = False
+        # Delete the file if it already exists
         if os.path.isfile(inventory_file):
-            exists = True
+            os.remove(inventory_file)
 
-        with open(inventory_file, 'a') as f_out_inventory:
-            if not exists:
-                f_out_inventory.write(
-                    '---\n'
-                    'all:\n'
-                    '  vars:\n'
-                    '    ansible_ssh_user: sysadmin\n'
-                    '  hosts:\n',
-                )
-
+        with open(inventory_file, 'w') as f_out_inventory:
             f_out_inventory.write(
-                '    ' + new_subcloud['name'] + ':\n'
+                '---\n'
+                'all:\n'
+                '  vars:\n'
+                '    ansible_ssh_user: sysadmin\n'
+                '  hosts:\n'
+                '    ' + subcloud['name'] + ':\n'
                 '      ansible_host: ' +
-                new_subcloud['bootstrap-address'] + '\n'
+                subcloud['bootstrap-address'] + '\n'
             )
+
+    def _delete_subcloud_inventory(self,
+                                   inventory_file):
+        """Delete the inventory file for the specified subcloud"""
+
+        # Delete the file if it exists
+        if os.path.isfile(inventory_file):
+            os.remove(inventory_file)
 
     def _write_subcloud_ansible_config(self, context, payload):
         """Create the override file for usage with the specified subcloud"""
@@ -469,9 +500,9 @@ class SubcloudManager(manager.Manager):
         mgmt_floating_ip = mgmt_pool.floating_address
         mgmt_subnet = "%s/%d" % (mgmt_pool.network, mgmt_pool.prefix)
 
-        oam_pool = sysinv_client.get_oam_address_pool()
-        oam_floating_ip = oam_pool.floating_address
-        oam_subnet = "%s/%d" % (oam_pool.network, oam_pool.prefix)
+        oam_addresses = sysinv_client.get_oam_addresses()
+        oam_floating_ip = oam_addresses.oam_floating_ip
+        oam_subnet = oam_addresses.oam_subnet
 
         with open(overrides_file, 'w') as f_out_overrides_file:
             f_out_overrides_file.write(
@@ -507,14 +538,12 @@ class SubcloudManager(manager.Manager):
         """Delete the routes to this subcloud"""
 
         keystone_client = KeystoneClient()
-        # Delete subcloud's identity endpoints
-        keystone_client.delete_endpoints(subcloud.name)
+        session = keystone_client.endpoint_cache.get_session_from_token(
+            context.auth_token, context.project)
 
         # Delete the route to this subcloud on the management interface on
         # both controllers.
         management_subnet = netaddr.IPNetwork(subcloud.management_subnet)
-        session = keystone_client.endpoint_cache.get_session_from_token(
-            context.auth_token, context.project)
         sysinv_client = SysinvClient(consts.DEFAULT_REGION_NAME, session)
         controllers = sysinv_client.get_controller_hosts()
         for controller in controllers:
@@ -528,6 +557,45 @@ class SubcloudManager(manager.Manager):
                     str(netaddr.IPAddress(
                         subcloud.systemcontroller_gateway_ip)),
                     1)
+
+    def _remove_subcloud_details(self, context,
+                                 subcloud,
+                                 ansible_subcloud_inventory_file,
+                                 dcorch_populated=True):
+        """Remove subcloud details from database and inform orchestrators"""
+        # Inform orchestrators that subcloud has been deleted
+        if dcorch_populated:
+            try:
+                self.dcorch_rpc_client.del_subcloud(context, subcloud.name)
+            except RemoteError as e:
+                if "SubcloudNotFound" in e:
+                    pass
+
+        # We only delete subcloud endpoints, region and user information
+        # in the Central Region. The subcloud is already unmanaged and powered
+        # down so is not accessible. Therefore set up a session with the
+        # Central Region Keystone ONLY.
+        keystone_client = KeystoneClient()
+
+        # Delete keystone endpoints for subcloud
+        keystone_client.delete_endpoints(subcloud.name)
+        keystone_client.delete_region(subcloud.name)
+
+        # Delete the routes to this subcloud
+        self._delete_subcloud_routes(context, subcloud)
+
+        # Remove the subcloud from the database
+        try:
+            db_api.subcloud_destroy(context, subcloud.id)
+        except Exception as e:
+            LOG.exception(e)
+            raise e
+
+        # Delete the ansible inventory for the new subcloud
+        self._delete_subcloud_inventory(ansible_subcloud_inventory_file)
+
+        # Regenerate the addn_hosts_dc file
+        self._create_addn_hosts_dc(context)
 
     def delete_subcloud(self, context, subcloud_id):
         """Delete subcloud and notify orchestrators.
@@ -548,32 +616,14 @@ class SubcloudManager(manager.Manager):
                 consts.AVAILABILITY_ONLINE:
             raise exceptions.SubcloudNotOffline()
 
-        # Inform orchestrators that subcloud has been deleted
-        try:
-            self.dcorch_rpc_client.del_subcloud(context, subcloud.name)
-        except RemoteError as e:
-            if "SubcloudNotFound" in e:
-                pass
+        # Ansible inventory filename for the specified subcloud
+        ansible_subcloud_inventory_file = os.path.join(
+            ANSIBLE_OVERRIDES_PATH,
+            subcloud.name + INVENTORY_FILE_POSTFIX)
 
-        # We only delete subcloud endpoints, region and user information
-        # in the Central Region. The subcloud is already unmanaged and powered
-        # down so is not accessible. Therefore set up a session with the
-        # Central Region Keystone ONLY.
-        keystone_client = KeystoneClient()
-
-        # Delete keystone endpoints for subcloud
-        keystone_client.delete_endpoints(subcloud.name)
-        keystone_client.delete_region(subcloud.name)
-
-        # Delete the routes to this subcloud
-        self._delete_subcloud_routes(context, subcloud)
-
-        # Remove the subcloud from the database
-        try:
-            db_api.subcloud_destroy(context, subcloud_id)
-        except Exception as e:
-            LOG.exception(e)
-            raise e
+        self._remove_subcloud_details(context,
+                                      subcloud,
+                                      ansible_subcloud_inventory_file)
 
         # Clear the offline fault associated with this subcloud as we
         # are deleting it. Note that endpoint out-of-sync alarms should
@@ -593,9 +643,6 @@ class SubcloudManager(manager.Manager):
             LOG.info("Problem clearing offline fault for "
                      "subcloud %s" % subcloud.name)
             LOG.exception(e)
-
-        # Regenerate the addn_hosts_dc file
-        self._create_addn_hosts_dc(context)
 
     def update_subcloud(self, context, subcloud_id, management_state=None,
                         description=None, location=None):
@@ -680,15 +727,16 @@ class SubcloudManager(manager.Manager):
 
         return db_api.subcloud_db_model_to_dict(subcloud)
 
-    def _update_endpoint_status_for_subcloud(self, context, subcloud_id,
-                                             endpoint_type, sync_status,
-                                             alarmable):
-        """Update subcloud endpoint status
+    def _update_online_managed_subcloud(self, context, subcloud_id,
+                                        endpoint_type, sync_status,
+                                        alarmable):
+        """Update online/managed subcloud endpoint status
 
         :param context: request context object
         :param subcloud_id: id of subcloud to update
         :param endpoint_type: endpoint type to update
         :param sync_status: sync status to set
+        :param alarmable: controls raising an alarm if applicable
         """
 
         subcloud_status_list = []
@@ -828,6 +876,57 @@ class SubcloudManager(manager.Manager):
         else:
             LOG.error("Subcloud not found:%s" % subcloud_id)
 
+    @sync_update_subcloud_endpoint_status
+    def _update_subcloud_endpoint_status(
+            self, context,
+            subcloud_name,
+            endpoint_type=None,
+            sync_status=consts.SYNC_STATUS_OUT_OF_SYNC,
+            alarmable=True):
+        """Update subcloud endpoint status
+
+        :param context: request context object
+        :param subcloud_name: name of subcloud to update
+        :param endpoint_type: endpoint type to update
+        :param sync_status: sync status to set
+        :param alarmable: controls raising an alarm if applicable
+        """
+
+        if not subcloud_name:
+            raise exceptions.BadRequest(
+                resource='subcloud',
+                msg='Subcloud name not provided')
+
+        try:
+            subcloud = db_api.subcloud_get_by_name(context, subcloud_name)
+        except Exception as e:
+            LOG.exception(e)
+            raise e
+
+        # Only allow updating the sync status if managed and online.
+        # This means if a subcloud is going offline or unmanaged, then
+        # the sync status update must be done first.
+        if (((subcloud.availability_status ==
+              consts.AVAILABILITY_ONLINE)
+            and (subcloud.management_state ==
+                 consts.MANAGEMENT_MANAGED))
+                or (sync_status != consts.SYNC_STATUS_IN_SYNC)):
+
+            # update a single subcloud
+            try:
+                self._update_online_managed_subcloud(context,
+                                                     subcloud.id,
+                                                     endpoint_type,
+                                                     sync_status,
+                                                     alarmable)
+            except Exception as e:
+                LOG.exception(e)
+                raise e
+        else:
+            LOG.info("Ignoring unmanaged/offline subcloud sync_status "
+                     "update for subcloud:%s endpoint:%s sync:%s" %
+                     (subcloud_name, endpoint_type, sync_status))
+
     def update_subcloud_endpoint_status(
             self, context,
             subcloud_name=None,
@@ -840,61 +939,15 @@ class SubcloudManager(manager.Manager):
         :param subcloud_name: name of subcloud to update
         :param endpoint_type: endpoint type to update
         :param sync_status: sync status to set
+        :param alarmable: controls raising an alarm if applicable
         """
 
-        subcloud = None
-
         if subcloud_name:
-            try:
-                subcloud = db_api.subcloud_get_by_name(context, subcloud_name)
-            except Exception as e:
-                LOG.exception(e)
-                raise e
-
-            # Only allow updating the sync status if managed and online.
-            # This means if a subcloud is going offline or unmanaged, then
-            # the sync status update must be done first.
-            if (((subcloud.availability_status ==
-                  consts.AVAILABILITY_ONLINE)
-                and (subcloud.management_state ==
-                     consts.MANAGEMENT_MANAGED))
-                    or (sync_status != consts.SYNC_STATUS_IN_SYNC)):
-
-                # update a single subcloud
-                try:
-                    self._update_endpoint_status_for_subcloud(context,
-                                                              subcloud.id,
-                                                              endpoint_type,
-                                                              sync_status,
-                                                              alarmable)
-                except Exception as e:
-                    LOG.exception(e)
-                    raise e
-            else:
-                LOG.info("Ignoring unmanaged/offline subcloud sync_status "
-                         "update for subcloud:%s endpoint:%s sync:%s" %
-                         (subcloud_name, endpoint_type, sync_status))
-
+            self._update_subcloud_endpoint_status(
+                context, subcloud_name, endpoint_type, sync_status, alarmable)
         else:
             # update all subclouds
             for subcloud in db_api.subcloud_get_all(context):
-                if (((subcloud.availability_status ==
-                      consts.AVAILABILITY_ONLINE)
-                    and (subcloud.management_state ==
-                         consts.MANAGEMENT_MANAGED))
-                        or (sync_status != consts.SYNC_STATUS_IN_SYNC)):
-
-                    try:
-                        self._update_endpoint_status_for_subcloud(
-                            context,
-                            subcloud.id,
-                            endpoint_type,
-                            sync_status,
-                            alarmable)
-                    except Exception as e:
-                        LOG.exception(e)
-                        raise e
-                else:
-                    LOG.info("Ignoring unmanaged/offline subcloud sync_status "
-                             "update for subcloud:%s endpoint:%s sync:%s" %
-                             (subcloud.name, endpoint_type, sync_status))
+                self._update_subcloud_endpoint_status(
+                    context, subcloud.name, endpoint_type, sync_status,
+                    alarmable)

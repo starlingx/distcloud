@@ -10,7 +10,7 @@
 # License for the specific language governing permissions and limitations
 # under the License.
 #
-# Copyright (c) 2017 Wind River Systems, Inc.
+# Copyright (c) 2017-2020 Wind River Systems, Inc.
 #
 # The right to copy, distribute, modify, or otherwise make use
 # of this software may be licensed only pursuant to the terms
@@ -23,11 +23,11 @@ import mock
 import sys
 sys.modules['fm_core'] = mock.Mock()
 
+from dccommon import consts as dccommon_consts
 from dcmanager.common import consts
 from dcmanager.db.sqlalchemy import api as db_api
 from dcmanager.manager import subcloud_audit_manager
 from dcmanager.manager import subcloud_manager
-from dcorch.common import consts as dcorch_consts
 
 from dcmanager.tests import base
 
@@ -198,8 +198,8 @@ class TestAuditManager(base.DCManagerTestCase):
         self.addCleanup(p.stop)
 
         # Mock the KeystoneClient
-        p = mock.patch.object(subcloud_audit_manager, 'KeystoneClient')
-        self.mock_keystone_client = p.start()
+        p = mock.patch.object(subcloud_audit_manager, 'OpenStackDriver')
+        self.mock_openstack_driver = p.start()
         self.addCleanup(p.stop)
 
         # Mock the context
@@ -253,9 +253,77 @@ class TestAuditManager(base.DCManagerTestCase):
         self.fake_sysinv_client.get_application_results = []
 
         # Audit the subcloud
-        am._audit_subcloud(subcloud.name, audit_openstack=False)
+        am._audit_subcloud(subcloud.name, update_subcloud_state=False,
+                           audit_openstack=False)
 
         # Verify the subcloud was set to online
+        self.fake_dcorch_api.update_subcloud_states.assert_called_with(
+
+            mock.ANY, subcloud.name, consts.MANAGEMENT_UNMANAGED,
+            consts.AVAILABILITY_ONLINE)
+
+        # Verify the openstack endpoints were not added
+        self.fake_dcorch_api.add_subcloud_sync_endpoint_type.\
+            assert_not_called()
+
+        # Verify the subcloud openstack_installed was not updated
+        updated_subcloud = db_api.subcloud_get_by_name(self.ctx, 'subcloud1')
+        self.assertEqual(updated_subcloud.openstack_installed, False)
+
+    def test_audit_subcloud_online_no_change(self):
+
+        subcloud = self.create_subcloud_static(self.ctx, name='subcloud1')
+        self.assertIsNotNone(subcloud)
+
+        mock_sm = mock.Mock()
+        am = subcloud_audit_manager.SubcloudAuditManager(
+            subcloud_manager=mock_sm)
+
+        # No stx-openstack application
+        self.fake_sysinv_client.get_application_results = []
+
+        # Set the subcloud to online
+        db_api.subcloud_update(
+            self.ctx, subcloud.id,
+            availability_status=consts.AVAILABILITY_ONLINE)
+
+        # Audit the subcloud
+        am._audit_subcloud(subcloud.name, update_subcloud_state=False,
+                           audit_openstack=False)
+
+        # Verify the subcloud state was not updated
+        self.fake_dcorch_api.update_subcloud_states.assert_not_called()
+
+        # Verify the openstack endpoints were not added
+        self.fake_dcorch_api.add_subcloud_sync_endpoint_type.\
+            assert_not_called()
+
+        # Verify the subcloud openstack_installed was not updated
+        updated_subcloud = db_api.subcloud_get_by_name(self.ctx, 'subcloud1')
+        self.assertEqual(updated_subcloud.openstack_installed, False)
+
+    def test_audit_subcloud_online_no_change_force_update(self):
+
+        subcloud = self.create_subcloud_static(self.ctx, name='subcloud1')
+        self.assertIsNotNone(subcloud)
+
+        mock_sm = mock.Mock()
+        am = subcloud_audit_manager.SubcloudAuditManager(
+            subcloud_manager=mock_sm)
+
+        # No stx-openstack application
+        self.fake_sysinv_client.get_application_results = []
+
+        # Set the subcloud to online
+        db_api.subcloud_update(
+            self.ctx, subcloud.id,
+            availability_status=consts.AVAILABILITY_ONLINE)
+
+        # Audit the subcloud and force a state update
+        am._audit_subcloud(subcloud.name, update_subcloud_state=True,
+                           audit_openstack=False)
+
+        # Verify the subcloud state was updated even though no change
         self.fake_dcorch_api.update_subcloud_states.assert_called_with(
             mock.ANY, 'subcloud1', consts.MANAGEMENT_UNMANAGED,
             consts.AVAILABILITY_ONLINE)
@@ -288,7 +356,8 @@ class TestAuditManager(base.DCManagerTestCase):
         self.fake_sysinv_client.get_service_groups_result[3].state = 'inactive'
 
         # Audit the subcloud
-        am._audit_subcloud(subcloud.name, audit_openstack=False)
+        am._audit_subcloud(subcloud.name, update_subcloud_state=False,
+                           audit_openstack=False)
 
         # Verify the subcloud was not set to offline
         self.fake_dcorch_api.update_subcloud_states.assert_not_called()
@@ -298,7 +367,8 @@ class TestAuditManager(base.DCManagerTestCase):
         self.assertEqual(updated_subcloud.audit_fail_count, 1)
 
         # Audit the subcloud again
-        am._audit_subcloud(subcloud.name, audit_openstack=False)
+        am._audit_subcloud(subcloud.name, update_subcloud_state=False,
+                           audit_openstack=False)
 
         # Verify the subcloud was set to offline
         self.fake_dcorch_api.update_subcloud_states.assert_called_with(
@@ -320,7 +390,8 @@ class TestAuditManager(base.DCManagerTestCase):
             subcloud_manager=mock_sm)
 
         # Audit the subcloud
-        am._audit_subcloud(subcloud.name, audit_openstack=True)
+        am._audit_subcloud(subcloud.name, update_subcloud_state=False,
+                           audit_openstack=True)
 
         # Verify the subcloud was set to online
         self.fake_dcorch_api.update_subcloud_states.assert_called_with(
@@ -330,7 +401,7 @@ class TestAuditManager(base.DCManagerTestCase):
         # Verify the openstack endpoints were added
         self.fake_dcorch_api.add_subcloud_sync_endpoint_type.\
             assert_called_with(mock.ANY, 'subcloud1',
-                               dcorch_consts.ENDPOINT_TYPES_LIST_OS)
+                               dccommon_consts.ENDPOINT_TYPES_LIST_OS)
 
         # Verify the subcloud openstack_installed was updated
         updated_subcloud = db_api.subcloud_get_by_name(self.ctx, 'subcloud1')

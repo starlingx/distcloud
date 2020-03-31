@@ -1,0 +1,5 @@
+# oslo.messaging locked to pike version
+# https://bugs.launchpad.net/starlingx/+bug/1865054
+oslo.messaging==5.30.6 # Apache-2.0
+Pygments==2.5.2
+

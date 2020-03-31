@@ -23,9 +23,10 @@ import time
 from oslo_config import cfg
 from oslo_log import log as logging
 
+from dccommon import consts as dccommon_consts
+from dccommon import endpoint_cache
 from dcorch.common import consts
 from dcorch.common import context
-from dcorch.common import endpoint_cache
 from dcorch.common import exceptions
 from dcorch.common.i18n import _
 from dcorch.common import manager
@@ -114,7 +115,7 @@ class QuotaManager(manager.Manager):
     def get_projects_users_with_modified_quotas(self):
         # get the list of project/user tuples that have modified quotas
         project_user_list = set([])
-        os_client = sdk.OpenStackDriver(consts.VIRTUAL_MASTER_CLOUD)
+        os_client = sdk.OpenStackDriver(dccommon_consts.VIRTUAL_MASTER_CLOUD)
         try:
             quotas = os_client.nova_client.nova_client.quotas.list()
             project_user_quotas = quotas['project_user_quotas']
@@ -306,7 +307,7 @@ class QuotaManager(manager.Manager):
         # are managed by dcorch so delete them from all regions except
         # the master one.
         for region in regions_usage_dict_copy:
-            if region == consts.VIRTUAL_MASTER_CLOUD:
+            if region == dccommon_consts.VIRTUAL_MASTER_CLOUD:
                 continue
             for quota in consts.QUOTAS_FOR_MANAGED_RESOURCES:
                 regions_usage_dict_copy[region].pop(quota, None)
@@ -357,7 +358,7 @@ class QuotaManager(manager.Manager):
 
         # Remove the master region from the list.  Its quotas should already
         # be up to date for managed resources.
-        region_lists.remove(consts.VIRTUAL_MASTER_CLOUD)
+        region_lists.remove(dccommon_consts.VIRTUAL_MASTER_CLOUD)
 
         # (NOTE: knasim-wrs): The Master Cloud's Project ID and User ID
         # dont mean anything for the subcloud, so we need to first resolve
@@ -407,8 +408,9 @@ class QuotaManager(manager.Manager):
     def get_overall_tenant_quota_limits(self, project_id, user_id):
         # Return quota limits in the master cloud.  These are the overall
         # quota limits for the whole cloud.
-        return self.get_tenant_quota_limits_region(project_id, user_id,
-                                                   consts.VIRTUAL_MASTER_CLOUD)
+        return self.get_tenant_quota_limits_region(
+            project_id, user_id,
+            dccommon_consts.VIRTUAL_MASTER_CLOUD)
 
     def get_tenant_quota_usage_per_region(self, project_id, user_id):
         # Return quota usage dict with keys as region name & values as usages.

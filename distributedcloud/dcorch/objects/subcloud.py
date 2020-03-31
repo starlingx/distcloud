@@ -12,8 +12,12 @@
 # WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
 # License for the specific language governing permissions and limitations
 # under the License.
+#
+# Copyright (c) 2020 Wind River Systems, Inc.
+#
 
 """Subcloud object."""
+from oslo_log import log as logging
 
 from dcorch.common import consts
 from dcorch.common import exceptions
@@ -21,6 +25,8 @@ from dcorch.db import api as db_api
 from dcorch.objects import base
 from oslo_versionedobjects import base as ovo_base
 from oslo_versionedobjects import fields
+
+LOG = logging.getLogger(__name__)
 
 
 @base.OrchestratorObjectRegistry.register
@@ -35,6 +41,7 @@ class Subcloud(base.OrchestratorObject, base.VersionedObjectDictCompat):
         'management_state': fields.StringField(nullable=True),
         'availability_status': fields.StringField(),
         'capabilities': fields.DictOfListOfStringsField(),
+        'initial_sync_state': fields.StringField(),
     }
 
     def create(self):
@@ -49,17 +56,26 @@ class Subcloud(base.OrchestratorObject, base.VersionedObjectDictCompat):
                 action="create",
                 reason="cannot create a Subcloud object without a "
                        "region_name set")
-        # create entry into alarm summary table, we will get real values later
-        alarm_updates = {'critical_alarms': -1,
-                         'major_alarms': -1,
-                         'minor_alarms': -1,
-                         'warnings': -1,
-                         'cloud_status': consts.ALARMS_DISABLED}
-        db_api.subcloud_alarms_create(self._context, region_name,
-                                      alarm_updates)
-        db_subcloud = db_api.subcloud_create(
-            self._context, region_name, updates)
-        return self._from_db_object(self._context, self, db_subcloud)
+        try:
+            # create entry into alarm summary table, we will get real values later
+            alarm_updates = {'critical_alarms': -1,
+                             'major_alarms': -1,
+                             'minor_alarms': -1,
+                             'warnings': -1,
+                             'cloud_status': consts.ALARMS_DISABLED}
+            db_api.subcloud_alarms_create(self._context, region_name,
+                                          alarm_updates)
+            db_subcloud = db_api.subcloud_create(
+                self._context, region_name, updates)
+            return self._from_db_object(self._context, self, db_subcloud)
+        except Exception as e:
+            LOG.error("Failed to create subcloud %s: %s" % (self.region_name, e))
+            try:
+                db_api.subcloud_alarms_delete(self._context, self.region_name)
+            except Exception as e:
+                LOG.error("Failed to delete alarm entry for %s: %s"
+                          % (self.region_name, e))
+            raise e
 
     @classmethod
     def get_by_name(cls, context, subcloud_name):
@@ -78,10 +94,22 @@ class Subcloud(base.OrchestratorObject, base.VersionedObjectDictCompat):
     def delete(self):
         # TODO(cfriesen): fix up to use delete cascade
         # delete the associated sync requests
-        db_api.orch_request_delete_by_subcloud(self._context, self.region_name)
+        try:
+            db_api.orch_request_delete_by_subcloud(self._context, self.region_name)
+        except Exception as e:
+            LOG.error("Failed to delete orchestration request for %s: %s"
+                      % (self.region_name, e))
         # delete the associated alarm entry
-        db_api.subcloud_alarms_delete(self._context, self.region_name)
-        db_api.subcloud_delete(self._context, self.region_name)
+        try:
+            db_api.subcloud_alarms_delete(self._context, self.region_name)
+        except Exception as e:
+            LOG.error("Failed to delete alarm entry for %s: %s"
+                      % (self.region_name, e))
+        try:
+            db_api.subcloud_delete(self._context, self.region_name)
+        except Exception as e:
+            LOG.error("Failed to delete subcloud entry for %s: %s"
+                      % (self.region_name, e))
 
 
 @base.OrchestratorObjectRegistry.register

@@ -21,7 +21,6 @@
 #
 
 import eventlet
-import os
 import random
 import sqlalchemy
 import string
@@ -95,19 +94,6 @@ def wait_until_true(predicate, timeout=60, sleep=1, exception=None):
             eventlet.sleep(sleep)
 
 
-def get_current_cfg():
-    f_name = os.environ['CURRENT_CFG_FILE']
-    cfg = ''
-    with open(f_name) as f:
-        cfg = f.readline()
-    return cfg
-
-
-def get_data_filepath(db, table):
-    cfg = get_current_cfg()
-    return "%s/%s/%s.json" % (cfg, db, table)
-
-
 def create_subcloud_dict(data_list):
     return {'id': data_list[0],
             'name': data_list[1],
@@ -132,28 +118,3 @@ def create_subcloud_dict(data_list):
             'external_oam_gateway_address': data_list[20],
             'external_oam_floating_address': data_list[21],
             'sysadmin_password': data_list[22]}
-
-
-def create_route_dict(data_list):
-    return {'created-at': data_list[0],
-            'updated-at': data_list[1],
-            'deleted-at': data_list[2],
-            'id': data_list[3],
-            'uuid': data_list[4],
-            'family': data_list[5],
-            'network': data_list[6],
-            'prefix': data_list[7],
-            'gateway': data_list[8],
-            'metric': data_list[9],
-            'interface-id': data_list[10]}
-
-
-def create_endpoint_dict(data_list):
-    return {'id': data_list[0],
-            'legacy_endpoint_id': data_list[1],
-            'interface': data_list[2],
-            'service_id': data_list[3],
-            'url': data_list[4],
-            'extra': data_list[5],
-            'enabled': data_list[6],
-            'region_id': data_list[7]}

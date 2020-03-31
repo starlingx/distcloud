@@ -24,9 +24,10 @@ from oslo_utils import timeutils
 from dcorch.common import consts
 from dcorch.common import exceptions
 
-from dcorch.drivers.openstack.fm import FmClient
-from dcorch.drivers.openstack.keystone_v3 import KeystoneClient
-from dcorch.drivers.openstack.sysinv_v1 import SysinvClient
+from dccommon import consts as dccommon_consts
+from dccommon.drivers.openstack.fm import FmClient
+from dccommon.drivers.openstack.keystone_v3 import KeystoneClient
+from dccommon.drivers.openstack.sysinv_v1 import SysinvClient
 
 # Gap, in seconds, to determine whether the given token is about to expire
 STALE_TOKEN_DURATION = 60
@@ -40,7 +41,7 @@ class OpenStackDriver(object):
     _identity_tokens = {}
 
     @lockutils.synchronized('dcorch-openstackdriver')
-    def __init__(self, region_name=consts.VIRTUAL_MASTER_CLOUD,
+    def __init__(self, region_name=dccommon_consts.VIRTUAL_MASTER_CLOUD,
                  auth_url=None):
         # Check if objects are cached and try to use those
         self.region_name = region_name
@@ -84,7 +85,7 @@ class OpenStackDriver(object):
                 self.fm_client = FmClient(
                     region_name,
                     self.keystone_client.session,
-                    endpoint_type=consts.KS_ENDPOINT_DEFAULT)
+                    endpoint_type=dccommon_consts.KS_ENDPOINT_DEFAULT)
                 OpenStackDriver.os_clients_dict[region_name][
                     'fm'] = self.fm_client
             except Exception as exception:
@@ -239,8 +240,8 @@ class OpenStackDriver(object):
                 region_lists = \
                     KeystoneClient().endpoint_cache.get_all_regions()
             # nova, cinder, and neutron have no endpoints in consts.CLOUD_0
-            if consts.CLOUD_0 in region_lists:
-                region_lists.remove(consts.CLOUD_0)
+            if dccommon_consts.CLOUD_0 in region_lists:
+                region_lists.remove(dccommon_consts.CLOUD_0)
             return region_lists
         except Exception as exception:
             LOG.error('Error Occurred: %s', exception.message)

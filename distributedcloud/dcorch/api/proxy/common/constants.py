@@ -90,12 +90,9 @@ COMMUNITY_STRING_PATHS = [
     '/v1/icommunity/{community}'
 ]
 
-REMOTELOGGING_PATHS = [
-    '/v1/remotelogging/{uuid}'
-]
-
 CERTIFICATE_PATHS = [
-    '/v1/certificate/certificate_install'
+    '/v1/certificate/certificate_install',
+    '/v1/certificate/{uuid}'
 ]
 
 USER_PATHS = [
@@ -107,7 +104,6 @@ SYSINV_PATH_MAP = {
     consts.RESOURCE_TYPE_SYSINV_DNS: DNS_PATHS,
     consts.RESOURCE_TYPE_SYSINV_SNMP_TRAPDEST: TRAP_DEST_PATHS,
     consts.RESOURCE_TYPE_SYSINV_SNMP_COMM: COMMUNITY_STRING_PATHS,
-    consts.RESOURCE_TYPE_SYSINV_REMOTE_LOGGING: REMOTELOGGING_PATHS,
     consts.RESOURCE_TYPE_SYSINV_CERTIFICATE: CERTIFICATE_PATHS,
     consts.RESOURCE_TYPE_SYSINV_USER: USER_PATHS,
 }
@@ -320,8 +316,7 @@ ROUTE_METHOD_MAP = {
         consts.RESOURCE_TYPE_SYSINV_DNS: ['PATCH', 'PUT'],
         consts.RESOURCE_TYPE_SYSINV_SNMP_TRAPDEST: ['POST', 'DELETE'],
         consts.RESOURCE_TYPE_SYSINV_SNMP_COMM: ['POST', 'DELETE'],
-        consts.RESOURCE_TYPE_SYSINV_REMOTE_LOGGING: ['PATCH'],
-        consts.RESOURCE_TYPE_SYSINV_CERTIFICATE: ['POST'],
+        consts.RESOURCE_TYPE_SYSINV_CERTIFICATE: ['POST', 'DELETE'],
         consts.RESOURCE_TYPE_SYSINV_USER: ['PATCH', 'PUT'],
     },
     consts.ENDPOINT_TYPE_NETWORK: {

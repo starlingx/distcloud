@@ -43,7 +43,7 @@ BuildRequires: python3-keyring
 BuildRequires: python3-keystonemiddleware
 BuildRequires: python3-keystoneauth1
 BuildRequires: python3-netaddr
-BuildRequires: python3-oslo-concurrency
+BuildRequires: python3-oslo-concurrency >= 3.29.1
 BuildRequires: python3-oslo-config
 BuildRequires: python3-oslo-context
 BuildRequires: python3-oslo-db
@@ -68,6 +68,13 @@ BuildRequires: python3-babel
 
 %description
 Distributed Cloud provides configuration and management of distributed clouds
+
+# DC Common
+%package dccommon
+Summary: DC common module
+
+%description dccommon
+Distributed Cloud Common Module
 
 # DC Manager
 %package dcmanager
@@ -161,6 +168,12 @@ install -p -D -m 640 %{_builddir}/%{pypi_name}-%{version}%{_sysconfdir}/dcdbsync
 
 # install ansible overrides dir
 install -d -m 600 ${RPM_BUILD_ROOT}/opt/dc/ansible
+
+%files dccommon
+%license LICENSE
+%{python3_sitelib}/dccommon*
+%{python3_sitelib}/distributedcloud-*.egg-info
+%exclude %{python3_sitelib}/dccommon/tests
 
 %files dcmanager
 %license LICENSE

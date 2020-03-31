@@ -133,12 +133,10 @@ class DBAPISubcloudResourceTest(base.OrchestratorTestCase):
         resource = self.create_resource(self.ctx,
                                         consts.RESOURCE_TYPE_SYSINV_DNS)
         self.assertIsNotNone(resource)
-        # master_uuid = uuidutils.generate_uuid()
         master_id = resource.master_id
         values = {'master_id': master_id}
         db_api.resource_update(self.ctx,
                                consts.RESOURCE_TYPE_SYSINV_DNS,
-                               master_id,
                                values)
         gresource = db_api.resource_get_by_id(self.ctx, resource.id)
         self.assertEqual(master_id,

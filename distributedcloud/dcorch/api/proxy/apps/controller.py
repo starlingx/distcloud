@@ -400,10 +400,19 @@ class SysinvAPIController(APIController):
         # certificate need special processing
         p_resource_info = 'suppressed'
         if resource_type == consts.RESOURCE_TYPE_SYSINV_CERTIFICATE:
-            resource_info['payload'] = request_body
-            resource_info['content_type'] = environ.get('CONTENT_TYPE')
-            resource = json.loads(response.body)[resource_type]
-            resource_id = resource['signature']
+            if operation_type == consts.OPERATION_TYPE_DELETE:
+                resource_id = json.loads(response.body)['signature']
+                resource_ids = [resource_id]
+            else:
+                resource_info['payload'] = request_body
+                resource_info['content_type'] = environ.get('CONTENT_TYPE')
+                resource = json.loads(response.body)[resource_type]
+                # For ssl_ca cert, the resource in response is a list
+                if isinstance(resource, list):
+                    resource_ids = [str(res.get('signature'))
+                                    for res in resource]
+                else:
+                    resource_ids = [resource.get('signature')]
         else:
             if (operation_type == consts.OPERATION_TYPE_POST and
                     resource_type in self.RESOURCE_ID_MAP):
@@ -413,22 +422,23 @@ class SysinvAPIController(APIController):
                 resource_id = json.loads(request_body)[rid]
             else:
                 resource_id = self.get_resource_id_from_link(request_header)
-
+            resource_ids = [resource_id]
             if operation_type != consts.OPERATION_TYPE_DELETE:
                 resource_info['payload'] = json.loads(request_body)
             p_resource_info = resource_info
 
-        LOG.info("Resource id: (%s), type: (%s), info: (%s)",
-                 resource_id, resource_type, p_resource_info)
-        try:
-            utils.enqueue_work(self.ctxt,
-                               self.ENDPOINT_TYPE,
-                               resource_type,
-                               resource_id,
-                               operation_type,
-                               json.dumps(resource_info))
-        except exception.ResourceNotFound as e:
-            raise webob.exc.HTTPNotFound(explanation=e.format_message())
+        for resource_id in resource_ids:
+            LOG.info("Resource id: (%s), type: (%s), info: (%s)",
+                     resource_id, resource_type, p_resource_info)
+            try:
+                utils.enqueue_work(self.ctxt,
+                                   self.ENDPOINT_TYPE,
+                                   resource_type,
+                                   resource_id,
+                                   operation_type,
+                                   json.dumps(resource_info))
+            except exception.ResourceNotFound as e:
+                raise webob.exc.HTTPNotFound(explanation=e.format_message())
 
 
 class IdentityAPIController(APIController):

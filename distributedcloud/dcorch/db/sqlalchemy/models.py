@@ -1,4 +1,4 @@
-# Copyright (c) 2017-2018 Wind River Systems, Inc.
+# Copyright (c) 2017-2020 Wind River Systems, Inc.
 #
 # The right to copy, distribute, modify, or otherwise make use
 # of this software may be licensed only pursuant to the terms
@@ -182,6 +182,8 @@ class Subcloud(BASE, OrchestratorBase):
     availability_status = Column('availability_status', String(64),
                                  default=dcm_consts.AVAILABILITY_OFFLINE)
     capabilities = Column(JSONEncodedDict)
+    initial_sync_state = Column('initial_sync_state', String(64),
+                                default=consts.INITIAL_SYNC_STATE_NONE)
 
 
 class SubcloudAlarmSummary(BASE, OrchestratorBase):

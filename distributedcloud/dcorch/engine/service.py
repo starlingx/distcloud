@@ -9,6 +9,9 @@
 # WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
 # License for the specific language governing permissions and limitations
 # under the License.
+#
+# Copyright (c) 2020 Wind River Systems, Inc.
+#
 
 import six
 import time
@@ -18,16 +21,17 @@ from oslo_config import cfg
 from oslo_log import log as logging
 import oslo_messaging
 
+from dccommon import consts as dccommon_consts
 from dcmanager.common import consts as dcm_consts
 from dcorch.common import consts
 from dcorch.common import context
 from dcorch.common import exceptions
 from dcorch.common.i18n import _
 from dcorch.common import messaging as rpc_messaging
-from dcorch.db import api as db_api
 from dcorch.engine.alarm_aggregate_manager import AlarmAggregateManager
 from dcorch.engine.fernet_key_manager import FernetKeyManager
 from dcorch.engine.generic_sync_manager import GenericSyncManager
+from dcorch.engine.initial_sync_manager import InitialSyncManager
 from dcorch.engine.quota_manager import QuotaManager
 from dcorch.engine import scheduler
 from dcorch.objects import service as service_obj
@@ -80,6 +84,7 @@ class EngineService(service.Service):
         self.gsm = None
         self.aam = None
         self.fkm = None
+        self.ism = None
 
     def init_tgm(self):
         self.TG = scheduler.ThreadGroupManager()
@@ -98,6 +103,11 @@ class EngineService(service.Service):
     def init_fkm(self):
         self.fkm = FernetKeyManager(self.gsm)
 
+    def init_ism(self):
+        self.ism = InitialSyncManager(self.gsm, self.fkm, self.aam)
+        self.ism.init_actions()
+        self.TG.start(self.ism.initial_sync_thread)
+
     def start(self):
         self.engine_id = uuidutils.generate_uuid()
         self.init_tgm()
@@ -105,6 +115,7 @@ class EngineService(service.Service):
         self.init_gsm()
         self.init_aam()
         self.init_fkm()
+        self.init_ism()
         target = oslo_messaging.Target(version=self.rpc_api_version,
                                        server=self.host,
                                        topic=self.topic)
@@ -124,10 +135,10 @@ class EngineService(service.Service):
                               self.periodic_sync_audit,
                               initial_delay=self.periodic_interval / 2)
             self.TG.add_timer(CONF.fernet.key_rotation_interval *
-                              consts.SECONDS_IN_HOUR,
+                              dccommon_consts.SECONDS_IN_HOUR,
                               self.periodic_key_rotation,
                               initial_delay=(CONF.fernet.key_rotation_interval
-                                             * consts.SECONDS_IN_HOUR))
+                                             * dccommon_consts.SECONDS_IN_HOUR))
 
     def service_registry_report(self):
         ctx = context.get_admin_context()
@@ -190,45 +201,39 @@ class EngineService(service.Service):
     def update_subcloud_states(self, ctxt, subcloud_name,
                                management_state,
                                availability_status):
-        # keep equivalent functionality for now
+        """Handle subcloud state updates from dcmanager
+
+        These state updates must be processed quickly. Any work triggered by
+        these state updates must be done asynchronously, without delaying the
+        reply to the dcmanager. For example, it is not acceptable to
+        communicate with a subcloud while handling the state update.
+        """
+
+        # Check if state has changed before doing anything
+        if self.gsm.subcloud_state_matches(
+                subcloud_name,
+                management_state=management_state,
+                availability_status=availability_status):
+            # No change in state - nothing to do.
+            LOG.debug('Ignoring unchanged state update for %s' % subcloud_name)
+            return
+
+        # Check if the subcloud is ready to sync.
         if (management_state == dcm_consts.MANAGEMENT_MANAGED) and \
                 (availability_status == dcm_consts.AVAILABILITY_ONLINE):
-            # Initial identity sync. It's synchronous so that identity
-            # get synced before fernet token keys are synced. This is
-            # necessary since we want to revoke all existing tokens on
-            # this subcloud after its services user IDs and project
-            # IDs are changed. Otherwise subcloud services will fail
-            # authentication since they keep on using their existing tokens
-            # issued before these IDs change, until these tokens expires.
-            try:
-                self.gsm.initial_sync(ctxt, subcloud_name)
-                self.fkm.distribute_keys(ctxt, subcloud_name)
-                self.aam.enable_snmp(ctxt, subcloud_name)
-                self.gsm.enable_subcloud(ctxt, subcloud_name)
-            except Exception as ex:
-                LOG.warning('Update subcloud state failed for %s: %s',
-                            subcloud_name, six.text_type(ex))
-                raise
+            # Update the subcloud state and schedule an initial sync
+            self.gsm.update_subcloud_state(
+                subcloud_name,
+                management_state=management_state,
+                availability_status=availability_status,
+                initial_sync_state=consts.INITIAL_SYNC_STATE_REQUESTED)
         else:
-            subcloud = db_api.subcloud_get(context.get_admin_context(),
-                                           subcloud_name)
-
-            reset_fernet_keys = False
-            # disable_subcloud unmanages the subcloud so we need this check
-            # here instead of later. We need to prevent reset of fernet keys
-            # when the subcloud goes online for the first time. Fernet keys
-            # should be reset only when the user unmanages the subcloud.
-            # Resetting fernet keys before that can result in failures with
-            # keystone operations while the keys are being reset. Without this
-            # check, the initial state of "unmanaged" will also trigger a
-            # fernet key reset unintentionally.
-            if subcloud['management_state'] == dcm_consts.MANAGEMENT_MANAGED\
-                and management_state == dcm_consts.MANAGEMENT_UNMANAGED:
-                reset_fernet_keys = True
-
-            self.gsm.disable_subcloud(ctxt, subcloud_name)
-            if reset_fernet_keys:
-                self.fkm.reset_keys(subcloud_name)
+            # Update the subcloud state and cancel the initial sync
+            self.gsm.update_subcloud_state(
+                subcloud_name,
+                management_state=management_state,
+                availability_status=availability_status,
+                initial_sync_state=consts.INITIAL_SYNC_STATE_NONE)
 
     @request_context
     def add_subcloud_sync_endpoint_type(self, ctxt, subcloud_name,

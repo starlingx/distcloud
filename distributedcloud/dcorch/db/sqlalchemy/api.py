@@ -13,7 +13,7 @@
 # License for the specific language governing permissions and limitations
 # under the License.
 #
-# Copyright (c) 2017-2018 Wind River Systems, Inc.
+# Copyright (c) 2017-2020 Wind River Systems, Inc.
 #
 # The right to copy, distribute, modify, or otherwise make use
 # of this software may be licensed only pursuant to the terms
@@ -403,14 +403,15 @@ def add_filter_by_many_identities(query, model, values):
     :return: tuple (Modified query, filter field name).
     """
     if not values:
-        raise exception.InvalidIdentity(identity=values)
+        raise exception.Invalid()
     value = values[0]
     if strutils.is_int_like(value):
         return query.filter(getattr(model, 'id').in_(values)), 'id'
     elif uuidutils.is_uuid_like(value):
         return query.filter(getattr(model, 'uuid').in_(values)), 'uuid'
     else:
-        raise exception.InvalidIdentity(identity=value)
+        raise exception.InvalidParameterValue(
+            err="Invalid identity filter value %s" % value)
 
 
 @require_context
@@ -436,7 +437,8 @@ def subcloud_get(context, region_id):
 @require_context
 def subcloud_get_all(context, region_name=None,
                      management_state=None,
-                     availability_status=None):
+                     availability_status=None,
+                     initial_sync_state=None):
     query = model_query(context, models.Subcloud). \
         filter_by(deleted=0)
 
@@ -446,6 +448,8 @@ def subcloud_get_all(context, region_name=None,
         query = query.filter_by(management_state=management_state)
     if availability_status:
         query = query.filter_by(availability_status=availability_status)
+    if initial_sync_state:
+        query = query.filter_by(initial_sync_state=initial_sync_state)
 
     return query.all()
 
