@@ -10,7 +10,7 @@
 # License for the specific language governing permissions and limitations
 # under the License.
 #
-# Copyright (c) 2017 Wind River Systems, Inc.
+# Copyright (c) 2017-2020 Wind River Systems, Inc.
 #
 # The right to copy, distribute, modify, or otherwise make use
 # of this software may be licensed only pursuant to the terms
@@ -161,6 +161,8 @@ class TestSubcloudManager(base.DCManagerTestCase):
         self.assertEqual(self.ctx, sm.context)
 
     @mock.patch.object(subcloud_manager.SubcloudManager,
+                       '_create_intermediate_ca_cert')
+    @mock.patch.object(subcloud_manager.SubcloudManager,
                        '_delete_subcloud_inventory')
     @mock.patch.object(subcloud_manager, 'KeystoneClient')
     @mock.patch.object(subcloud_manager, 'db_api')
@@ -180,7 +182,8 @@ class TestSubcloudManager(base.DCManagerTestCase):
                           mock_create_subcloud_inventory,
                           mock_create_addn_hosts, mock_sysinv_client,
                           mock_db_api, mock_keystone_client,
-                          mock_delete_subcloud_inventory):
+                          mock_delete_subcloud_inventory,
+                          mock_create_intermediate_ca_cert):
         values = utils.create_subcloud_dict(base.SUBCLOUD_SAMPLE_DATA_0)
         controllers = FAKE_CONTROLLERS
         services = FAKE_SERVICES
@@ -202,7 +205,10 @@ class TestSubcloudManager(base.DCManagerTestCase):
         mock_write_subcloud_ansible_config.assert_called_once()
         mock_keyring.get_password.assert_called()
         mock_thread_start.assert_called_once()
+        mock_create_intermediate_ca_cert.assert_called_once()
 
+    @mock.patch.object(subcloud_manager.SubcloudManager,
+                       '_delete_subcloud_cert')
     @mock.patch.object(subcloud_manager, 'db_api')
     @mock.patch.object(subcloud_manager, 'SysinvClient')
     @mock.patch.object(subcloud_manager, 'KeystoneClient')
@@ -211,7 +217,8 @@ class TestSubcloudManager(base.DCManagerTestCase):
     def test_delete_subcloud(self, mock_create_addn_hosts,
                              mock_keystone_client,
                              mock_sysinv_client,
-                             mock_db_api):
+                             mock_db_api,
+                             mock_delete_subcloud_cert):
         controllers = FAKE_CONTROLLERS
         data = utils.create_subcloud_dict(base.SUBCLOUD_SAMPLE_DATA_0)
         fake_subcloud = Subcloud(data, False)
@@ -223,6 +230,7 @@ class TestSubcloudManager(base.DCManagerTestCase):
         mock_keystone_client().delete_region.assert_called_once()
         mock_db_api.subcloud_destroy.assert_called_once()
         mock_create_addn_hosts.assert_called_once()
+        mock_delete_subcloud_cert.assert_called_once()
 
     @mock.patch.object(subcloud_manager, 'db_api')
     def test_update_subcloud(self, mock_db_api):

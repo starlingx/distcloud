@@ -28,6 +28,7 @@ import keyring
 import netaddr
 import os
 import threading
+import time
 
 from oslo_log import log as logging
 from oslo_messaging import RemoteError
@@ -37,6 +38,7 @@ from tsconfig.tsconfig import SW_VERSION
 
 from dccommon.drivers.openstack.keystone_v3 import KeystoneClient
 from dccommon.drivers.openstack.sysinv_v1 import SysinvClient
+from dccommon import kubeoperator
 
 from dcorch.common import consts as dcorch_consts
 from dcorch.rpc import client as dcorch_rpc_client
@@ -47,6 +49,7 @@ from dcmanager.common import exceptions
 from dcmanager.common.i18n import _
 from dcmanager.common import manager
 from dcmanager.common import utils
+
 from dcmanager.db import api as db_api
 from dcmanager.manager.subcloud_install import SubcloudInstall
 
@@ -78,6 +81,10 @@ USERS_TO_REPLICATE = [
 
 SERVICES_USER = 'services'
 
+SC_INTERMEDIATE_CERT_DURATION = "87600h"
+SC_INTERMEDIATE_CERT_RENEW_BEFORE = "720h"
+CERT_NAMESPACE = "dc-cert"
+
 
 def sync_update_subcloud_endpoint_status(func):
     """Synchronized lock decorator for _update_subcloud_endpoint_status. """
@@ -107,6 +114,70 @@ class SubcloudManager(manager.Manager):
         self.context = context.get_admin_context()
         self.dcorch_rpc_client = dcorch_rpc_client.EngineClient()
         self.fm_api = fm_api.FaultAPIs()
+
+    @staticmethod
+    def _get_subcloud_cert_name(subcloud_name):
+        cert_name = "%s-adminep-ca-certificate" % subcloud_name
+        return cert_name
+
+    @staticmethod
+    def _get_subcloud_cert_secret_name(subcloud_name):
+        secret_name = "%s-adminep-ca-certificate" % subcloud_name
+        return secret_name
+
+    @staticmethod
+    def _create_intermediate_ca_cert(payload):
+        subcloud_name = payload["name"]
+        cert_name = SubcloudManager._get_subcloud_cert_name(subcloud_name)
+        secret_name = SubcloudManager._get_subcloud_cert_secret_name(
+            subcloud_name)
+
+        cert = {
+            "apiVersion": "cert-manager.io/v1alpha2",
+            "kind": "Certificate",
+            "metadata": {
+                "namespace": CERT_NAMESPACE,
+                "name": cert_name
+            },
+            "spec": {
+                "secretName": secret_name,
+                "duration": SC_INTERMEDIATE_CERT_DURATION,
+                "renewBefore": SC_INTERMEDIATE_CERT_RENEW_BEFORE,
+                "issuerRef": {
+                    "kind": "Issuer",
+                    "name": "dc-adminep-root-ca-issuer"
+                },
+                "commonName": cert_name,
+                "isCA": True,
+            },
+        }
+
+        kube = kubeoperator.KubeOperator()
+        kube.apply_cert_manager_certificate(CERT_NAMESPACE, cert_name, cert)
+
+        for count in range(1, 20):
+            secret = kube.kube_get_secret(secret_name, CERT_NAMESPACE)
+            if not hasattr(secret, 'data'):
+                time.sleep(1)
+                LOG.debug('Wait for %s ... %s' % (secret_name, count))
+                continue
+
+            data = secret.data
+            if 'ca.crt' not in data or \
+                    'tls.crt' not in data or 'tls.key' not in data:
+                # ca cert, certificate and key pair are needed and must exist
+                # for creating an intermediate ca. If not, certificate is not
+                # ready yet.
+                time.sleep(1)
+                LOG.debug('Wait for %s ... %s' % (secret_name, count))
+                continue
+
+            payload['dc_root_ca_cert'] = data['ca.crt']
+            payload['sc_ca_cert'] = data['tls.crt']
+            payload['sc_ca_key'] = data['tls.key']
+            return
+
+        raise Exception("Secret for certificate %s is not ready." % cert_name)
 
     def add_subcloud(self, context, payload):
         """Add subcloud and notify orchestrators.
@@ -294,6 +365,9 @@ class SubcloudManager(manager.Manager):
             # Create the ansible inventory for the new subcloud
             self._create_subcloud_inventory(payload,
                                             ansible_subcloud_inventory_file)
+
+            # create subcloud intermediate certificate and pass in keys
+            self._create_intermediate_ca_cert(payload)
 
             # Write this subclouds overrides to file
             # NOTE: This file should not be deleted if subcloud add fails
@@ -583,6 +657,18 @@ class SubcloudManager(manager.Manager):
                         subcloud.systemcontroller_gateway_ip)),
                     1)
 
+    @staticmethod
+    def _delete_subcloud_cert(subcloud_name):
+        cert_name = SubcloudManager._get_subcloud_cert_name(subcloud_name)
+        secret_name = SubcloudManager._get_subcloud_cert_secret_name(
+            subcloud_name)
+
+        kube = kubeoperator.KubeOperator()
+        kube.delete_cert_manager_certificate(CERT_NAMESPACE, cert_name)
+
+        kube.kube_delete_secret(secret_name, CERT_NAMESPACE)
+        LOG.info("cert %s and secret %s are deleted" % (cert_name, secret_name))
+
     def _remove_subcloud_details(self, context,
                                  subcloud,
                                  ansible_subcloud_inventory_file,
@@ -625,6 +711,9 @@ class SubcloudManager(manager.Manager):
 
         # Delete the ansible inventory for the new subcloud
         self._delete_subcloud_inventory(ansible_subcloud_inventory_file)
+
+        # Delete the subcloud intermediate certificate
+        SubcloudManager._delete_subcloud_cert(subcloud.name)
 
         # Regenerate the addn_hosts_dc file
         self._create_addn_hosts_dc(context)
