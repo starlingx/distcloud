@@ -56,7 +56,7 @@ class VolumeSyncThread(SyncThread):
         if (not self.sc_cinder_client and self.sc_admin_session):
             self.sc_cinder_client = cinderclient.Client(
                 "3.0", session=self.sc_admin_session,
-                endpoint_type=dccommon_consts.KS_ENDPOINT_INTERNAL,
+                endpoint_type=dccommon_consts.KS_ENDPOINT_ADMIN,
                 region_name=self.subcloud_engine.subcloud.region_name)
 
     def initialize(self):

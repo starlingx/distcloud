@@ -35,6 +35,7 @@ from oslo_messaging import RemoteError
 from tsconfig.tsconfig import CONFIG_PATH
 from tsconfig.tsconfig import SW_VERSION
 
+from dccommon import consts as dccommon_consts
 from dccommon.drivers.openstack.keystone_v3 import KeystoneClient
 from dccommon.drivers.openstack.sysinv_v1 import SysinvClient
 
@@ -225,7 +226,7 @@ class SubcloudManager(manager.Manager):
                 m_ks_client.keystone_client.endpoints.create(
                     endpoint[0],
                     endpoint[1],
-                    interface='admin',
+                    interface=dccommon_consts.KS_ENDPOINT_ADMIN,
                     region=subcloud.name)
 
             # Create an internal keystone endpoint as some parts of the

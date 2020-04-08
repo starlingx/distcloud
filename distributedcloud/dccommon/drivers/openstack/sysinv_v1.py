@@ -31,6 +31,7 @@ from oslo_log import log
 
 from sysinv.common import constants as sysinv_constants
 
+from dccommon import consts
 from dccommon.drivers import base
 from dccommon import exceptions
 
@@ -66,9 +67,10 @@ class SysinvClient(base.DriverBase):
 
             # The sysinv client doesn't support a session, so we need to
             # get an endpoint and token.
-            endpoint = session.get_endpoint(service_type='platform',
-                                            region_name=region,
-                                            interface='internal')
+            endpoint = session.get_endpoint(
+                service_type='platform',
+                region_name=region,
+                interface=consts.KS_ENDPOINT_ADMIN)
             token = session.get_token()
 
             self.sysinv_client = client.Client(API_VERSION,

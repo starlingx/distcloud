@@ -90,7 +90,7 @@ class EndpointCache(object):
                 name='keystone', type='identity')
             sc_auth_url = self.keystone_client.endpoints.list(
                 service=identity_service[0].id,
-                interface=consts.KS_ENDPOINT_INTERNAL,
+                interface=consts.KS_ENDPOINT_ADMIN,
                 region=region_name)
             try:
                 sc_auth_url = sc_auth_url[0].url
@@ -117,6 +117,11 @@ class EndpointCache(object):
             self.external_auth_url = sc_auth_url
 
     @staticmethod
+    def _is_central_cloud(region_id):
+        central_cloud_regions = [consts.CLOUD_0, consts.VIRTUAL_MASTER_CLOUD]
+        return region_id in central_cloud_regions
+
+    @staticmethod
     def _get_endpoint_from_keystone(self):
         service_id_name_map = {}
         for service in self.keystone_client.services.list():
@@ -126,9 +131,15 @@ class EndpointCache(object):
         region_service_endpoint_map = {}
         for endpoint in self.keystone_client.endpoints.list():
             endpoint_dict = endpoint.to_dict()
-            if endpoint_dict['interface'] != consts.KS_ENDPOINT_INTERNAL:
-                continue
             region_id = endpoint_dict['region']
+            # within central cloud, use internal endpoints
+            if EndpointCache._is_central_cloud(region_id) and \
+                    endpoint_dict['interface'] != consts.KS_ENDPOINT_INTERNAL:
+                continue
+            # Otherwise should always use admin endpoints
+            elif endpoint_dict['interface'] != consts.KS_ENDPOINT_ADMIN:
+                continue
+
             service_id = endpoint_dict['service_id']
             url = endpoint_dict['url']
             service_name = service_id_name_map[service_id]

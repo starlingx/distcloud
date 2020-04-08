@@ -101,7 +101,7 @@ class IdentitySyncThread(SyncThread):
         if (not self.sc_dbs_client and self.sc_admin_session):
             self.sc_dbs_client = dbsyncclient.Client(
                 session=self.sc_admin_session,
-                endpoint_type=consts.DBS_ENDPOINT_INTERNAL,
+                endpoint_type=consts.DBS_ENDPOINT_ADMIN,
                 region_name=self.subcloud_engine.subcloud.region_name)
 
     def reauthenticate_m_dbs_client(self):
