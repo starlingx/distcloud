@@ -104,13 +104,39 @@ class IdentitySyncThread(SyncThread):
                 endpoint_type=consts.DBS_ENDPOINT_INTERNAL,
                 region_name=self.subcloud_engine.subcloud.region_name)
 
-    def reinitialize_m_clients(self):
+    def reauthenticate_m_dbs_client(self):
         if self.m_dbs_client and self.admin_session:
             self.m_dbs_client.update(session=self.admin_session)
 
-    def reinitialize_sc_clients(self):
+    def reauthenticate_m_ks_client(self):
+        if self.sc_ks_client and self.sc_admin_session:
+            self.sc_ks_client.authenticate(
+                auth_url=self.admin_session.auth.auth_url,
+                username=self.admin_session.auth._username,
+                password=self.admin_session.auth._password,
+                project_name=self.admin_session.auth._project_name,
+                user_domain_name=self.admin_session.auth._user_domain_name,
+                project_domain_name=self.admin_session.auth._project_domain_name,
+            )
+
+    def reauthenticate_sc_clients(self):
+        self.reauthenticate_sc_dbs_client()
+        self.reauthenticate_sc_ks_client()
+
+    def reauthenticate_sc_dbs_client(self):
         if self.sc_dbs_client and self.sc_admin_session:
             self.sc_dbs_client.update(session=self.sc_admin_session)
+
+    def reauthenticate_sc_ks_client(self):
+        if self.sc_ks_client and self.sc_admin_session:
+            self.sc_ks_client.authenticate(
+                auth_url=self.sc_admin_session.auth.auth_url,
+                username=self.sc_admin_session.auth._username,
+                password=self.sc_admin_session.auth._password,
+                project_name=self.sc_admin_session.auth._project_name,
+                user_domain_name=self.sc_admin_session.auth._user_domain_name,
+                project_domain_name=self.sc_admin_session.auth._project_domain_name,
+            )
 
     def initialize(self):
         # Subcloud may be enabled a while after being added.
@@ -157,7 +183,7 @@ class IdentitySyncThread(SyncThread):
                                  .format(sc_user.id,
                                          self.subcloud_engine.subcloud.
                                          region_name, str(e)))
-                        self.reinitialize_sc_clients()
+                        self.reauthenticate_sc_dbs_client()
                         user_ref = sc_client.update_user(sc_user.id,
                                                          user_records)
 
@@ -168,7 +194,7 @@ class IdentitySyncThread(SyncThread):
                     # If admin user get synced, the client need to
                     # re-authenticate.
                     if sc_user.local_user.name == "admin":
-                        self.reinitialize_sc_clients()
+                        self.reauthenticate_sc_clients()
 
     def _initial_sync_projects(self, m_projects, sc_projects):
         # Particularly sync projects with same name but different ID.
@@ -197,7 +223,7 @@ class IdentitySyncThread(SyncThread):
                                  .format(sc_project.id,
                                          self.subcloud_engine.subcloud.
                                          region_name, str(e)))
-                        self.reinitialize_sc_clients()
+                        self.reauthenticate_sc_dbs_client()
                         project_ref = sc_client.update_project(sc_project.id,
                                                                project_records)
 
@@ -209,7 +235,7 @@ class IdentitySyncThread(SyncThread):
                     # If admin project get synced, the client need to
                     # re-authenticate.
                     if sc_project.name == "admin":
-                        self.reinitialize_sc_clients()
+                        self.reauthenticate_sc_clients()
 
     def initial_sync(self):
         # Service users and projects are created at deployment time. They exist
@@ -297,12 +323,13 @@ class IdentitySyncThread(SyncThread):
                       .format(self.subcloud_engine.subcloud.region_name,
                               str(e)), extra=self.log_extra)
             raise exceptions.SyncRequestTimeout
-        except dbsync_exceptions.Unauthorized as e:
+        except (dbsync_exceptions.Unauthorized,
+                keystone_exceptions.Unauthorized) as e:
             LOG.info("Request [{}] failed for {}: {}"
                      .format(request.orch_job.operation_type,
                              self.subcloud_engine.subcloud.region_name,
                              str(e)), extra=self.log_extra)
-            self.reinitialize_sc_clients()
+            self.reauthenticate_sc_clients()
             raise exceptions.SyncRequestFailedRetry
         except exceptions.SyncRequestFailed:
             raise
@@ -1472,62 +1499,86 @@ class IdentitySyncThread(SyncThread):
         # Retrieve master resources from DB or through Keystone.
         # users, projects, roles, and token revocation events use
         # dbsync client, other resources use keystone client.
-        try:
-            if resource_type == consts.RESOURCE_TYPE_IDENTITY_USERS or \
-                resource_type == consts.RESOURCE_TYPE_IDENTITY_PROJECTS or \
-                resource_type == consts.RESOURCE_TYPE_IDENTITY_ROLES or \
-                resource_type == \
-                consts.RESOURCE_TYPE_IDENTITY_TOKEN_REVOKE_EVENTS or \
-                resource_type == \
-                consts.RESOURCE_TYPE_IDENTITY_TOKEN_REVOKE_EVENTS_FOR_USER:
+        if self.is_resource_handled_by_dbs_client(resource_type):
+            try:
                 return self._get_resource_audit_handler(resource_type,
                                                         self.m_dbs_client)
-            return self._get_resource_audit_handler(resource_type,
-                                                    self.m_ks_client)
-        except dbsync_exceptions.Unauthorized as e:
-            LOG.info("Get resource [{}] request failed for {}: {}."
-                     .format(resource_type,
-                             dccommon_consts.VIRTUAL_MASTER_CLOUD,
-                             str(e)), extra=self.log_extra)
-            # In case of token expires, re-authenticate and retry once
-            self.reinitialize_m_clients()
-            return self._get_resource_audit_handler(resource_type,
-                                                    self.m_dbs_client)
-        except Exception as e:
-            LOG.exception(e)
-            return None
+            except dbsync_exceptions.Unauthorized as e:
+                LOG.info("Get master resource [{}] request failed for {}: {}."
+                         .format(resource_type,
+                                 dccommon_consts.VIRTUAL_MASTER_CLOUD,
+                                 str(e)), extra=self.log_extra)
+                # Token might be expired, re-authenticate dbsync client
+                self.reauthenticate_m_dbs_client()
+
+                # Retry with re-authenticated dbsync client
+                return self._get_resource_audit_handler(resource_type,
+                                                        self.m_dbs_client)
+            except Exception as e:
+                LOG.exception(e)
+                return None
+        else:
+            try:
+                return self._get_resource_audit_handler(resource_type,
+                                                        self.m_ks_client)
+            except keystone_exceptions.Unauthorized as e:
+                LOG.info("Get master resource [{}] request failed for {}: {}."
+                         .format(resource_type,
+                                 dccommon_consts.VIRTUAL_MASTER_CLOUD,
+                                 str(e)), extra=self.log_extra)
+                # Token might be expired, re-authenticate ks client
+                self.reauthenticate_m_ks_client()
+
+                # Retry with re-authenticated ks client
+                return self._get_resource_audit_handler(resource_type,
+                                                        self.m_ks_client)
+            except Exception as e:
+                LOG.exception(e)
+                return None
 
     def get_subcloud_resources(self, resource_type):
         self.initialize_sc_clients()
-        # Retrieve master resources from DB or through keystone.
+        # Retrieve subcloud resources from DB or through keystone.
         # users, projects, roles, and token revocation events use
         # dbsync client, other resources use keystone client.
-        try:
-            if resource_type == consts.RESOURCE_TYPE_IDENTITY_USERS or \
-                    resource_type == \
-                    consts.RESOURCE_TYPE_IDENTITY_PROJECTS or \
-                    resource_type == consts.RESOURCE_TYPE_IDENTITY_ROLES or \
-                    resource_type == \
-                    consts.RESOURCE_TYPE_IDENTITY_TOKEN_REVOKE_EVENTS or \
-                    resource_type == \
-                    consts.RESOURCE_TYPE_IDENTITY_TOKEN_REVOKE_EVENTS_FOR_USER:
+
+        if self.is_resource_handled_by_dbs_client(resource_type):
+            try:
                 return self._get_resource_audit_handler(resource_type,
                                                         self.sc_dbs_client)
-            return self._get_resource_audit_handler(resource_type,
-                                                    self.sc_ks_client)
+            except dbsync_exceptions.Unauthorized as e:
+                LOG.info("Get subcloud resource [{}] request failed for {}: {}."
+                         .format(resource_type,
+                                 self.subcloud_engine.subcloud.region_name,
+                                 str(e)), extra=self.log_extra)
 
-        except dbsync_exceptions.Unauthorized as e:
-            LOG.info("Get resource [{}] request failed for {}: {}."
-                     .format(resource_type,
-                             self.subcloud_engine.subcloud.region_name,
-                             str(e)), extra=self.log_extra)
-            # In case of token expires, re-authenticate and retry once
-            self.reinitialize_sc_clients()
-            return self._get_resource_audit_handler(resource_type,
-                                                    self.sc_dbs_client)
-        except Exception as e:
-            LOG.exception(e)
-            return None
+                # Token might be expired, re-authenticate dbsync client
+                self.reauthenticate_sc_dbs_client()
+
+                # Retry with re-authenticated dbsync client
+                return self._get_resource_audit_handler(resource_type,
+                                                        self.sc_dbs_client)
+            except Exception as e:
+                LOG.exception(e)
+                return None
+        else:
+            try:
+                return self._get_resource_audit_handler(resource_type,
+                                                        self.sc_ks_client)
+            except keystone_exceptions.Unauthorized as e:
+                LOG.info("Get subcloud resource [{}] request failed for {}: {}."
+                         .format(resource_type,
+                                 self.subcloud_engine.subcloud.region_name,
+                                 str(e)), extra=self.log_extra)
+                # Token might be expired, re-authenticate ks client
+                self.reauthenticate_sc_ks_client()
+
+                # Retry with re-authenticated ks client
+                return self._get_resource_audit_handler(resource_type,
+                                                        self.sc_ks_client)
+            except Exception as e:
+                LOG.exception(e)
+                return None
 
     def same_resource(self, resource_type, m_resource, sc_resource):
         if (resource_type ==
@@ -1674,3 +1725,15 @@ class IdentitySyncThread(SyncThread):
                 exist = True
                 break
         return exist
+
+    @staticmethod
+    def is_resource_handled_by_dbs_client(resource_type):
+        if resource_type in [
+                consts.RESOURCE_TYPE_IDENTITY_USERS,
+                consts.RESOURCE_TYPE_IDENTITY_PROJECTS,
+                consts.RESOURCE_TYPE_IDENTITY_ROLES,
+                consts.RESOURCE_TYPE_IDENTITY_TOKEN_REVOKE_EVENTS,
+                consts.RESOURCE_TYPE_IDENTITY_TOKEN_REVOKE_EVENTS_FOR_USER
+                ]:
+            return True
+        return False
