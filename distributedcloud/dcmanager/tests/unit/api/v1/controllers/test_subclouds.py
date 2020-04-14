@@ -499,7 +499,8 @@ class TestSubclouds(testroot.DCManagerApiTest):
             mock.ANY,
             management_state=consts.MANAGEMENT_UNMANAGED,
             description=None,
-            location=None)
+            location=None,
+            group_id=None)
         self.assertEqual(response.status_int, 200)
 
     @mock.patch.object(rpc_client, 'ManagerClient')

@@ -40,18 +40,37 @@ from sqlalchemy.engine import Engine
 from sqlalchemy import event
 
 SUBCLOUD_SAMPLE_DATA_0 = [
-    6, "subcloud-4", "demo subcloud", "Ottawa-Lab-Aisle_3-Rack_C",
-    "20.01", "managed", "online", "fd01:3::0/64", "fd01:3::1",
-    "fd01:3::2", "fd01:3::f", "fd01:1::1", 0, "NULL", "NULL",
-    "2018-05-15 14:45:12.508708", "2018-05-24 10:48:18.090931",
-    "NULL", 0, "10.10.10.0/24", "10.10.10.1", "10.10.10.12", "testpass"
+    6,  # id
+    "subcloud-4",  # name
+    "demo subcloud",   # description
+    "Ottawa-Lab-Aisle_3-Rack_C",  # location
+    "20.01",  # software-version
+    "managed",   # management-state
+    "online",  # availability-status
+    "fd01:3::0/64",  # management_subnet
+    "fd01:3::1",  # management_gateway_address
+    "fd01:3::2",  # management_start_address
+    "fd01:3::f",  # management_end_address
+    "fd01:1::1",  # systemcontroller_gateway_address
+    0,  # audit-fail-count
+    "NULL",  # reserved-1
+    "NULL",  # reserved-2
+    "2018-05-15 14:45:12.508708",  # created-at
+    "2018-05-24 10:48:18.090931",  # updated-at
+    "NULL",   # deleted-at
+    0,  # deleted
+    "10.10.10.0/24",  # external_oam_subnet
+    "10.10.10.1",  # external_oam_gateway_address
+    "10.10.10.12",  # external_oam_floating_address
+    "testpass",  # sysadmin_password
+    1  # group_id
 ]
 
 
 @event.listens_for(Engine, "connect")
 def set_sqlite_pragma(dbapi_connection, connection_record):
     cursor = dbapi_connection.cursor()
-    cursor.execute("PRAGMA foreign_keys=ON")
+    cursor.execute("PRAGMA foreign_keys=ON;")
     cursor.close()
 
 

@@ -244,6 +244,7 @@ class TestAuditManager(base.DCManagerTestCase):
             'systemcontroller_gateway_ip': "192.168.204.101",
             'deploy_status': "not-deployed",
             'openstack_installed': False,
+            'group_id': 1,
         }
         values.update(kwargs)
         return db_api.subcloud_create(ctxt, **values)

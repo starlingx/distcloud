@@ -34,13 +34,14 @@ from dcmanager.manager import subcloud_manager
 from dcmanager.tests import base
 from dcmanager.tests import utils
 from dcorch.common import consts as dcorch_consts
-from dcorch.rpc import client as dcorch_rpc_client
 
 
 class FakeDCOrchAPI(object):
     def __init__(self):
         self.update_subcloud_states = mock.MagicMock()
         self.add_subcloud_sync_endpoint_type = mock.MagicMock()
+        self.del_subcloud = mock.MagicMock()
+        self.add_subcloud = mock.MagicMock()
 
 
 class FakeService(object):
@@ -147,6 +148,7 @@ class TestSubcloudManager(base.DCManagerTestCase):
             "systemcontroller_gateway_ip": "192.168.204.101",
             'deploy_status': "not-deployed",
             'openstack_installed': False,
+            'group_id': 1,
         }
         values.update(kwargs)
         return db_api.subcloud_create(ctxt, **values)
@@ -160,8 +162,6 @@ class TestSubcloudManager(base.DCManagerTestCase):
 
     @mock.patch.object(subcloud_manager.SubcloudManager,
                        '_delete_subcloud_inventory')
-    @mock.patch.object(dcorch_rpc_client, 'EngineClient')
-    @mock.patch.object(subcloud_manager, 'context')
     @mock.patch.object(subcloud_manager, 'KeystoneClient')
     @mock.patch.object(subcloud_manager, 'db_api')
     @mock.patch.object(subcloud_manager, 'SysinvClient')
@@ -179,13 +179,11 @@ class TestSubcloudManager(base.DCManagerTestCase):
                           mock_write_subcloud_ansible_config,
                           mock_create_subcloud_inventory,
                           mock_create_addn_hosts, mock_sysinv_client,
-                          mock_db_api, mock_keystone_client, mock_context,
-                          mock_dcorch_rpc_client,
+                          mock_db_api, mock_keystone_client,
                           mock_delete_subcloud_inventory):
         values = utils.create_subcloud_dict(base.SUBCLOUD_SAMPLE_DATA_0)
         controllers = FAKE_CONTROLLERS
         services = FAKE_SERVICES
-        mock_context.get_admin_context.return_value = self.ctx
         mock_db_api.subcloud_get_by_name.side_effect = \
             exceptions.SubcloudNameNotFound()
 
@@ -198,15 +196,13 @@ class TestSubcloudManager(base.DCManagerTestCase):
         mock_db_api.subcloud_create.assert_called_once()
         mock_db_api.subcloud_status_create.assert_called()
         mock_sysinv_client().create_route.assert_called()
-        mock_dcorch_rpc_client().add_subcloud.assert_called_once()
+        self.fake_dcorch_api.add_subcloud.assert_called_once()
         mock_create_addn_hosts.assert_called_once()
         mock_create_subcloud_inventory.assert_called_once()
         mock_write_subcloud_ansible_config.assert_called_once()
         mock_keyring.get_password.assert_called()
         mock_thread_start.assert_called_once()
 
-    @mock.patch.object(dcorch_rpc_client, 'EngineClient')
-    @mock.patch.object(subcloud_manager, 'context')
     @mock.patch.object(subcloud_manager, 'db_api')
     @mock.patch.object(subcloud_manager, 'SysinvClient')
     @mock.patch.object(subcloud_manager, 'KeystoneClient')
@@ -215,11 +211,8 @@ class TestSubcloudManager(base.DCManagerTestCase):
     def test_delete_subcloud(self, mock_create_addn_hosts,
                              mock_keystone_client,
                              mock_sysinv_client,
-                             mock_db_api,
-                             mock_context,
-                             mock_dcorch_rpc_client):
+                             mock_db_api):
         controllers = FAKE_CONTROLLERS
-        mock_context.get_admin_context.return_value = self.ctx
         data = utils.create_subcloud_dict(base.SUBCLOUD_SAMPLE_DATA_0)
         fake_subcloud = Subcloud(data, False)
         mock_db_api.subcloud_get.return_value = fake_subcloud
@@ -231,20 +224,15 @@ class TestSubcloudManager(base.DCManagerTestCase):
         mock_db_api.subcloud_destroy.assert_called_once()
         mock_create_addn_hosts.assert_called_once()
 
-    @mock.patch.object(dcorch_rpc_client, 'EngineClient')
-    @mock.patch.object(subcloud_manager, 'context')
-    @mock.patch.object(subcloud_manager, 'KeystoneClient')
     @mock.patch.object(subcloud_manager, 'db_api')
-    def test_update_subcloud(self, mock_db_api,
-                             mock_endpoint, mock_context,
-                             mock_dcorch_rpc_client):
-        mock_context.get_admin_context.return_value = self.ctx
+    def test_update_subcloud(self, mock_db_api):
         data = utils.create_subcloud_dict(base.SUBCLOUD_SAMPLE_DATA_0)
         subcloud_result = Subcloud(data, True)
         mock_db_api.subcloud_get.return_value = subcloud_result
         mock_db_api.subcloud_update.return_value = subcloud_result
         sm = subcloud_manager.SubcloudManager()
-        sm.update_subcloud(self.ctx, data['id'],
+        sm.update_subcloud(self.ctx,
+                           data['id'],
                            management_state=consts.MANAGEMENT_MANAGED,
                            description="subcloud new description",
                            location="subcloud new location")
@@ -253,7 +241,29 @@ class TestSubcloudManager(base.DCManagerTestCase):
             data['id'],
             management_state=consts.MANAGEMENT_MANAGED,
             description="subcloud new description",
-            location="subcloud new location")
+            location="subcloud new location",
+            group_id=None)
+
+    @mock.patch.object(subcloud_manager, 'db_api')
+    def test_update_subcloud_group_id(self, mock_db_api):
+        data = utils.create_subcloud_dict(base.SUBCLOUD_SAMPLE_DATA_0)
+        subcloud_result = Subcloud(data, True)
+        mock_db_api.subcloud_get.return_value = subcloud_result
+        mock_db_api.subcloud_update.return_value = subcloud_result
+        sm = subcloud_manager.SubcloudManager()
+        sm.update_subcloud(self.ctx,
+                           data['id'],
+                           management_state=consts.MANAGEMENT_MANAGED,
+                           description="subcloud new description",
+                           location="subcloud new location",
+                           group_id=2)
+        mock_db_api.subcloud_update.assert_called_once_with(
+            mock.ANY,
+            data['id'],
+            management_state=consts.MANAGEMENT_MANAGED,
+            description="subcloud new description",
+            location="subcloud new location",
+            group_id=2)
 
     def test_update_subcloud_endpoint_status(self):
         # create a subcloud
