@@ -20,6 +20,8 @@ from oslo_config import cfg
 from oslo_log import log as logging
 
 from dcorch.common import config
+from dcorch.common import context
+from dcorch.common.i18n import _
 from dcorch.db import api
 from dcorch import version
 
@@ -40,6 +42,16 @@ def do_db_sync():
     api.db_sync(api.get_engine(), CONF.command.version)
 
 
+def do_db_clean():
+    """Purge deleted orch requests, related jobs and resources."""
+    age_in_days = CONF.command.age_in_days
+    if age_in_days < 0:
+        sys.exit(_("Must supply a non-negative value for age."))
+
+    ctxt = context.get_admin_context()
+    api.purge_deleted_records(ctxt, age_in_days)
+
+
 def add_command_parsers(subparsers):
     parser = subparsers.add_parser('db_version')
     parser.set_defaults(func=do_db_version)
@@ -48,6 +60,12 @@ def add_command_parsers(subparsers):
     parser.set_defaults(func=do_db_sync)
     parser.add_argument('version', nargs='?')
     parser.add_argument('current_version', nargs='?')
+
+    parser = subparsers.add_parser('db_clean')
+    parser.set_defaults(func=do_db_clean)
+    parser.add_argument('age_in_days', type=int,
+                        default=1)
+
 
 command_opt = cfg.SubCommandOpt('command',
                                 title='Commands',
