@@ -197,24 +197,27 @@ class SubcloudManager(manager.Manager):
             if netaddr.IPAddress(endpoint_ip).version == 6:
                 endpoint_ip = '[' + endpoint_ip + ']'
 
-            keystone_internal_endpoint = ()
             for service in m_ks_client.services_list:
                 if service.type == dcorch_consts.ENDPOINT_TYPE_PLATFORM:
-                    endpoint_url = "http://{}:6385/v1".format(endpoint_ip)
-                    endpoint_config.append((service.id, endpoint_url))
-                if service.type == dcorch_consts.ENDPOINT_TYPE_IDENTITY:
-                    endpoint_url = "http://{}:5000/v3".format(endpoint_ip)
-                    endpoint_config.append((service.id, endpoint_url))
-                    keystone_internal_endpoint += (service.id, endpoint_url)
-                if service.type == dcorch_consts.ENDPOINT_TYPE_PATCHING:
-                    endpoint_url = "http://{}:5491".format(endpoint_ip)
-                    endpoint_config.append((service.id, endpoint_url))
-                if service.type == dcorch_consts.ENDPOINT_TYPE_FM:
-                    endpoint_url = "http://{}:18002".format(endpoint_ip)
-                    endpoint_config.append((service.id, endpoint_url))
-                if service.type == dcorch_consts.ENDPOINT_TYPE_NFV:
-                    endpoint_url = "http://{}:4545".format(endpoint_ip)
-                    endpoint_config.append((service.id, endpoint_url))
+                    admin_endpoint_url = "https://{}:6386/v1".format(endpoint_ip)
+                    endpoint_config.append({"id": service.id,
+                                            "admin_endpoint_url": admin_endpoint_url})
+                elif service.type == dcorch_consts.ENDPOINT_TYPE_IDENTITY:
+                    admin_endpoint_url = "https://{}:5001/v3".format(endpoint_ip)
+                    endpoint_config.append({"id": service.id,
+                                            "admin_endpoint_url": admin_endpoint_url})
+                elif service.type == dcorch_consts.ENDPOINT_TYPE_PATCHING:
+                    admin_endpoint_url = "https://{}:5492".format(endpoint_ip)
+                    endpoint_config.append({"id": service.id,
+                                            "admin_endpoint_url": admin_endpoint_url})
+                elif service.type == dcorch_consts.ENDPOINT_TYPE_FM:
+                    admin_endpoint_url = "https://{}:18003".format(endpoint_ip)
+                    endpoint_config.append({"id": service.id,
+                                            "admin_endpoint_url": admin_endpoint_url})
+                elif service.type == dcorch_consts.ENDPOINT_TYPE_NFV:
+                    admin_endpoint_url = "https://{}:4546".format(endpoint_ip)
+                    endpoint_config.append({"id": service.id,
+                                            "admin_endpoint_url": admin_endpoint_url})
 
             if len(endpoint_config) < 5:
                 raise exceptions.BadRequest(
@@ -223,21 +226,10 @@ class SubcloudManager(manager.Manager):
 
             for endpoint in endpoint_config:
                 m_ks_client.keystone_client.endpoints.create(
-                    endpoint[0],
-                    endpoint[1],
+                    endpoint["id"],
+                    endpoint['admin_endpoint_url'],
                     interface=dccommon_consts.KS_ENDPOINT_ADMIN,
                     region=subcloud.name)
-
-            # Create an internal keystone endpoint as some parts of the
-            # Horizon such as the side panel are hard-wired to use the
-            # internal identity endpoint as opposed to the
-            # OPENSTACK_ENDPOINT_TYPE which is overwritten in StarlingX
-            # dashboard and set to 'admiURL' by default.
-            m_ks_client.keystone_client.endpoints.create(
-                keystone_internal_endpoint[0],
-                keystone_internal_endpoint[1],
-                interface='internal',
-                region=subcloud.name)
 
             # Inform orchestrator that subcloud has been added
             self.dcorch_rpc_client.add_subcloud(
