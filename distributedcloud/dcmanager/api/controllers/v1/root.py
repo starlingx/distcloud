@@ -22,6 +22,7 @@
 
 
 from dcmanager.api.controllers.v1 import alarm_manager
+from dcmanager.api.controllers.v1 import subcloud_deploy
 from dcmanager.api.controllers.v1 import subcloud_group
 from dcmanager.api.controllers.v1 import subclouds
 from dcmanager.api.controllers.v1 import sw_update_options
@@ -42,6 +43,8 @@ class Controller(object):
         sub_controllers = dict()
         if minor_version == '0':
             sub_controllers["subclouds"] = subclouds.SubcloudsController
+            sub_controllers["subcloud-deploy"] = subcloud_deploy.\
+                SubcloudDeployController
             sub_controllers["alarms"] = alarm_manager.SubcloudAlarmController
             sub_controllers["sw-update-strategy"] = \
                 sw_update_strategy.SwUpdateStrategyController

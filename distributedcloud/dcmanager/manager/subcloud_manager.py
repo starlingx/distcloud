@@ -60,7 +60,6 @@ LOG = logging.getLogger(__name__)
 ADDN_HOSTS_DC = 'dnsmasq.addn_hosts_dc'
 
 # Subcloud configuration paths
-ANSIBLE_OVERRIDES_PATH = '/opt/dc/ansible'
 INVENTORY_FILE_POSTFIX = '_inventory.yml'
 ANSIBLE_SUBCLOUD_PLAYBOOK = \
     '/usr/share/ansible/stx-ansible/playbooks/bootstrap.yml'
@@ -160,7 +159,7 @@ class SubcloudManager(manager.Manager):
         try:
             # Ansible inventory filename for the specified subcloud
             ansible_subcloud_inventory_file = os.path.join(
-                ANSIBLE_OVERRIDES_PATH,
+                consts.ANSIBLE_OVERRIDES_PATH,
                 subcloud.name + INVENTORY_FILE_POSTFIX)
 
             # Create a new route to this subcloud on the management interface
@@ -277,12 +276,19 @@ class SubcloudManager(manager.Manager):
                     payload['sysadmin_password']
 
             if "deploy_playbook" in payload:
+                payload['deploy_values'] = dict()
                 payload['deploy_values']['ansible_become_pass'] = \
                     payload['sysadmin_password']
                 payload['deploy_values']['ansible_ssh_pass'] = \
                     payload['sysadmin_password']
                 payload['deploy_values']['admin_password'] = \
                     str(keyring.get_password('CGCS', 'admin'))
+                payload['deploy_values']['deployment_config'] = \
+                    payload[consts.DEPLOY_CONFIG]
+                payload['deploy_values']['deployment_manager_chart'] = \
+                    payload[consts.DEPLOY_CHART]
+                payload['deploy_values']['deployment_manager_overrides'] = \
+                    payload[consts.DEPLOY_OVERRIDES]
 
             del payload['sysadmin_password']
 
@@ -309,7 +315,7 @@ class SubcloudManager(manager.Manager):
                     "ansible-playbook", ANSIBLE_SUBCLOUD_INSTALL_PLAYBOOK,
                     "-i", ansible_subcloud_inventory_file,
                     "--limit", subcloud.name,
-                    "-e", "@%s" % ANSIBLE_OVERRIDES_PATH + "/" +
+                    "-e", "@%s" % consts.ANSIBLE_OVERRIDES_PATH + "/" +
                           payload['name'] + '/' + "install_values.yml"
                 ]
 
@@ -323,17 +329,15 @@ class SubcloudManager(manager.Manager):
             # which overrides to load
             apply_command += [
                 "-e", str("override_files_dir='%s' region_name=%s") % (
-                    ANSIBLE_OVERRIDES_PATH, subcloud.name)]
+                    consts.ANSIBLE_OVERRIDES_PATH, subcloud.name)]
 
             deploy_command = None
             if "deploy_playbook" in payload:
                 deploy_command = [
-                    "ansible-playbook", ANSIBLE_OVERRIDES_PATH + '/' +
-                    payload['name'] + "_deploy.yml",
-                    "-e", "@%s" % ANSIBLE_OVERRIDES_PATH + "/" +
+                    "ansible-playbook", payload[consts.DEPLOY_PLAYBOOK],
+                    "-e", "@%s" % consts.ANSIBLE_OVERRIDES_PATH + "/" +
                           payload['name'] + "_deploy_values.yml",
-                    "-i",
-                    ansible_subcloud_inventory_file,
+                    "-i", ansible_subcloud_inventory_file,
                     "--limit", subcloud.name
                 ]
 
@@ -365,7 +369,8 @@ class SubcloudManager(manager.Manager):
                 deploy_status=consts.DEPLOY_STATE_PRE_INSTALL)
             try:
                 install = SubcloudInstall(context, subcloud.name)
-                install.prep(ANSIBLE_OVERRIDES_PATH, payload['install_values'])
+                install.prep(consts.ANSIBLE_OVERRIDES_PATH,
+                             payload['install_values'])
             except Exception as e:
                 LOG.exception(e)
                 db_api.subcloud_update(
@@ -513,7 +518,7 @@ class SubcloudManager(manager.Manager):
     def _write_subcloud_ansible_config(self, context, payload):
         """Create the override file for usage with the specified subcloud"""
 
-        overrides_file = os.path.join(ANSIBLE_OVERRIDES_PATH,
+        overrides_file = os.path.join(consts.ANSIBLE_OVERRIDES_PATH,
                                       payload['name'] + '.yml')
 
         m_ks_client = KeystoneClient()
@@ -543,19 +548,17 @@ class SubcloudManager(manager.Manager):
 
             for k, v in payload.items():
                 if k not in ['deploy_playbook', 'deploy_values',
-                             'install_values']:
+                             'deploy_config', 'deploy_chart',
+                             'deploy_overrides', 'install_values']:
                     f_out_overrides_file.write("%s: %s\n" % (k, json.dumps(v)))
 
     def _write_deploy_files(self, payload):
-        """Create the deploy playbook and value files for the subcloud"""
+        """Create the deploy value files for the subcloud"""
 
-        deploy_playbook_file = os.path.join(
-            ANSIBLE_OVERRIDES_PATH, payload['name'] + '_deploy.yml')
         deploy_values_file = os.path.join(
-            ANSIBLE_OVERRIDES_PATH, payload['name'] + '_deploy_values.yml')
+            consts.ANSIBLE_OVERRIDES_PATH, payload['name'] +
+            '_deploy_values.yml')
 
-        with open(deploy_playbook_file, 'w') as f_out_deploy_playbook_file:
-            json.dump(payload['deploy_playbook'], f_out_deploy_playbook_file)
         with open(deploy_values_file, 'w') as f_out_deploy_values_file:
             json.dump(payload['deploy_values'], f_out_deploy_values_file)
 
@@ -650,7 +653,7 @@ class SubcloudManager(manager.Manager):
 
         # Ansible inventory filename for the specified subcloud
         ansible_subcloud_inventory_file = os.path.join(
-            ANSIBLE_OVERRIDES_PATH,
+            consts.ANSIBLE_OVERRIDES_PATH,
             subcloud.name + INVENTORY_FILE_POSTFIX)
 
         self._remove_subcloud_details(context,

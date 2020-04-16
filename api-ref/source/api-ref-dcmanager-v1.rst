@@ -1,4 +1,4 @@
-﻿====================================================
+====================================================
 Dcmanager API v1
 ====================================================
 
@@ -190,6 +190,9 @@ Creates a subcloud
 
 .. rest_method:: POST /v1.0/subclouds
 
+Accepts Content-Type multipart/form-data.
+
+
 **Normal response codes**
 
 200
@@ -206,13 +209,12 @@ serviceUnavailable (503)
    :header: "Parameter", "Style", "Type", "Description"
    :widths: 20, 20, 20, 60
 
-   "name", "plain", "xsd:string", "The name for the subcloud. Must be a unique name."
-   "description (Optional)", "plain", "xsd:string", "The description of the subcloud."
-   "location (Optional)", "plain", "xsd:string", "The location of the subcloud."
-   "management-subnet", "plain", "xsd:string", "Management subnet for subcloud in CIDR format. Must be unique."
-   "management-start-ip", "plain", "xsd:string", "Start of management IP address range for subcloud."
-   "management-end-ip", "plain", "xsd:string", "End of management IP address range for subcloud."
-   "systemcontroller-gateway-ip", "plain", "xsd:string", "Systemcontroller gateway IP Address."
+   "bootstrap-address", "plain", "xsd:string", "An OAM IP address of the subcloud controller-0."
+   "sysadmin_password", "plain", "xsd:string", "The sysadmin password of the subcloud. Must be base64 encoded."
+   "bmc_password (optional)", "plain", "xsd:string", "The BMC password of the subcloud. Must be base64 encoded."
+   "bootstrap_values", "plain", "xsd:string", "The content of a file containing the bootstrap overrides such as subcloud name, management and OAM subnet."
+   "install_values (Optional)", "plain", "xsd:string", "The content of a file containing install variables such as subcloud bootstrap interface and BMC information."
+   "deploy_config (Optional)", "plain", "xsd:string", "The content of a file containing the resource definitions describing the desired subcloud configuration."
    "group_id", "plain", "xsd:int", "Id of the subcloud group. Defaults to 1"
 
 **Response parameters**
@@ -1493,5 +1495,97 @@ Delete per subcloud patch options
 
 This operation does not accept a request body.
 
+----------------
+Subcloud Deploy
+----------------
+
+These APIs allow for the display and upload of the deployment manager common
+files which include deploy playbook, deploy overrides, and deploy helm charts.
 
 
+**************************
+Show Subcloud Deploy Files
+**************************
+
+.. rest_method:: GET /v1.0/subcloud-deploy
+
+
+**Normal response codes**
+
+200
+
+**Error response codes**
+
+badRequest (400), unauthorized (401), forbidden
+(403), badMethod (405), HTTPUnprocessableEntity (422),
+internalServerError (500), serviceUnavailable (503)
+
+**Response parameters**
+
+.. csv-table::
+   :header: "Parameter", "Style", "Type", "Description"
+   :widths: 20, 20, 20, 60
+
+   "subcloud_deploy", "plain", "xsd:dict", "The dictionary of subcloud deploy files."
+   "deploy_chart", "plain", "xsd:string", "The file name of the deployment manager helm charts."
+   "deploy_playbook", "plain", "xsd:string", "The file name of the deployment manager playbook."
+   "deploy_overrides", "plain", "xsd:string", "The file name of the deployment manager overrides."
+
+::
+
+   {
+     "subcloud_deploy":
+       {
+         "deploy_chart": "deployment-manager.tgz",
+         "deploy_playbook": "deployment-manager-playbook.yaml",
+         "deploy_overrides": "deployment-manager-overrides-subcloud.yaml"
+       }
+   }
+
+This operation does not accept a request body.
+
+****************************
+Upload Subcloud Deploy Files
+****************************
+
+.. rest_method:: POST /v1.0/subcloud-deploy
+
+Accepts Content-Type multipart/form-data.
+
+**Normal response codes**
+
+200
+
+**Error response codes**
+
+badRequest (400), unauthorized (401), forbidden (403), badMethod (405),
+HTTPUnprocessableEntity (422), internalServerError (500),
+serviceUnavailable (503)
+
+**Request parameters**
+
+.. csv-table::
+   :header: "Parameter", "Style", "Type", "Description"
+   :widths: 20, 20, 20, 60
+
+   "deploy_chart", "plain", "xsd:string", "The content of a file containing the deployment manager helm charts."
+   "deploy_playbook", "plain", "xsd:string", "The content of a file containing the deployment manager playbook."
+   "deploy_overrides", "plain", "xsd:string", "The content of a file containing the deployment manager overrides."
+
+**Response parameters**
+
+.. csv-table::
+   :header: "Parameter", "Style", "Type", "Description"
+   :widths: 20, 20, 20, 60
+
+   "deploy_chart", "plain", "xsd:string", "The file name of the deployment manager helm charts."
+   "deploy_playbook", "plain", "xsd:string", "The file name of the deployment manager playbook."
+   "deploy_overrides", "plain", "xsd:string", "The file name of the deployment manager overrides."
+
+::
+
+   {
+     "deploy_chart": "deployment-manager.tgz",
+     "deploy_playbook": "deployment-manager-playbook.yaml",
+     "deploy_overrides": "deployment-manager-overrides-subcloud.yaml"
+   }

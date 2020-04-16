@@ -18,11 +18,13 @@
 # SPDX-License-Identifier: Apache-2.0
 #
 
+import base64
 import keyring
 from netaddr import AddrFormatError
 from netaddr import IPAddress
 from netaddr import IPNetwork
 from netaddr import IPRange
+import os
 from oslo_config import cfg
 from oslo_log import log as logging
 from oslo_messaging import RemoteError
@@ -38,6 +40,8 @@ from dccommon import exceptions as dccommon_exceptions
 
 from keystoneauth1 import exceptions as keystone_exceptions
 
+import tsconfig.tsconfig as tsc
+
 from dcmanager.api.controllers import restcomm
 from dcmanager.common import consts
 from dcmanager.common import exceptions
@@ -48,6 +52,7 @@ from dcmanager.db import api as db_api
 
 from dcmanager.rpc import client as rpc_client
 
+
 CONF = cfg.CONF
 LOG = logging.getLogger(__name__)
 # System mode
@@ -56,6 +61,18 @@ SYSTEM_MODE_SIMPLEX = "simplex"
 SYSTEM_MODE_DUPLEX_DIRECT = "duplex-direct"
 
 LOCK_NAME = 'SubcloudsController'
+
+BOOTSTRAP_VALUES = 'bootstrap_values'
+INSTALL_VALUES = 'install_values'
+
+SUBCLOUD_ADD_MANDATORY_FILE = [
+    BOOTSTRAP_VALUES,
+]
+
+SUBCLOUD_ADD_GET_FILE_CONTENTS = [
+    BOOTSTRAP_VALUES,
+    INSTALL_VALUES,
+]
 
 
 class SubcloudsController(object):
@@ -84,6 +101,57 @@ class SubcloudsController(object):
         except Exception as e:
             LOG.exception(e)
             pecan.abort(400, _("Invalid group_id"))
+
+    @staticmethod
+    def _get_common_deploy_files(payload):
+        for f in consts.DEPLOY_COMMON_FILE_OPTIONS:
+            dir_path = tsc.DEPLOY_PATH
+            filename = utils.get_filename_by_prefix(dir_path, f + '_')
+            if filename is None:
+                pecan.abort(400, _("Missing required deploy file for %s") % f)
+            payload.update({f: os.path.join(dir_path, filename)})
+
+    def _upload_deploy_config_file(self, request, payload):
+        if consts.DEPLOY_CONFIG in request.POST:
+            file_item = request.POST[consts.DEPLOY_CONFIG]
+            filename = getattr(file_item, 'filename', '')
+            if not filename:
+                pecan.abort(400, _("No %s file uploaded" %
+                                   consts.DEPLOY_CONFIG))
+            file_item.file.seek(0, os.SEEK_SET)
+            contents = file_item.file.read()
+            # the deploy config needs to upload to the override location
+            fn = os.path.join(consts.ANSIBLE_OVERRIDES_PATH, payload['name']
+                              + '_' + os.path.basename(filename))
+            try:
+                dst = os.open(fn, os.O_WRONLY | os.O_CREAT)
+                os.write(dst, contents)
+            except Exception:
+                msg = _("Failed to upload %s file" % consts.DEPLOY_CONFIG)
+                LOG.exception(msg)
+                pecan.abort(400, msg)
+            payload.update({consts.DEPLOY_CONFIG: fn})
+            self._get_common_deploy_files(payload)
+
+    @staticmethod
+    def _get_request_data(request):
+        payload = dict()
+        for f in SUBCLOUD_ADD_MANDATORY_FILE:
+            if f not in request.POST:
+                pecan.abort(400, _("Missing required file for %s") % f)
+
+        for f in SUBCLOUD_ADD_GET_FILE_CONTENTS:
+            if f in request.POST:
+                file_item = request.POST[f]
+                file_item.file.seek(0, os.SEEK_SET)
+                data = yaml.safe_load(file_item.file.read().decode('utf8'))
+                if f == BOOTSTRAP_VALUES:
+                    payload.update(data)
+                else:
+                    payload.update({f: data})
+                del request.POST[f]
+        payload.update(request.POST)
+        return payload
 
     def _validate_subcloud_config(self,
                                   context,
@@ -242,6 +310,13 @@ class SubcloudsController(object):
         bmc_password = payload.get('bmc_password')
         if not bmc_password:
             pecan.abort(400, _('subcloud bmc_password required'))
+        try:
+            bmc_password = base64.b64decode(bmc_password).decode('utf-8')
+        except Exception:
+            msg = _('Failed to decode subcloud bmc_password, verify'
+                    ' the password is base64 encoded')
+            LOG.exception(msg)
+            pecan.abort(400, msg)
         payload['install_values'].update({'bmc_password': bmc_password})
 
         for k in install_consts.MANDATORY_INSTALL_VALUES:
@@ -500,13 +575,16 @@ class SubcloudsController(object):
         context = restcomm.extract_context_from_environ()
 
         if subcloud_ref is None:
-            payload = yaml.safe_load(request.body)
+
+            payload = self._get_request_data(request)
 
             if not payload:
                 pecan.abort(400, _('Body required'))
+
             name = payload.get('name')
             if not name:
                 pecan.abort(400, _('name required'))
+
             system_mode = payload.get('system_mode')
             if not system_mode:
                 pecan.abort(400, _('system_mode required'))
@@ -551,6 +629,14 @@ class SubcloudsController(object):
                 payload.get('sysadmin_password')
             if not sysadmin_password:
                 pecan.abort(400, _('subcloud sysadmin_password required'))
+            try:
+                payload['sysadmin_password'] = base64.b64decode(
+                    sysadmin_password).decode('utf-8')
+            except Exception:
+                msg = _('Failed to decode subcloud sysadmin_password, '
+                        'verify the password is base64 encoded')
+                LOG.exception(msg)
+                pecan.abort(400, msg)
 
             # If a subcloud group is not passed, use the default
             group_id = payload.get('group_id',
@@ -570,6 +656,11 @@ class SubcloudsController(object):
 
             if 'install_values' in payload:
                 self._validate_install_values(payload)
+
+            # Upload the deploy config files if it is included in the request
+            # It has a dependency on the subcloud name, and it is called after
+            # the name has been validated
+            self._upload_deploy_config_file(request, payload)
 
             try:
                 # Ask dcmanager-manager to add the subcloud.

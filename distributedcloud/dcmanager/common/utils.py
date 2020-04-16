@@ -200,3 +200,10 @@ def synchronized(name, external=True, fair=False):
     return lockutils.synchronized(name, lock_file_prefix=prefix,
                                   external=external, lock_path=lock_path,
                                   semaphores=None, delay=0.01, fair=fair)
+
+
+def get_filename_by_prefix(dir_path, prefix):
+    for filename in os.listdir(dir_path):
+        if filename.startswith(prefix):
+            return filename
+    return None
