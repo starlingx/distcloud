@@ -51,6 +51,8 @@ class SysinvSyncThread(SyncThread):
     CERTIFICATE_SIG_NULL = 'NoCertificate'
     RESOURCE_UUID_NULL = 'NoResourceUUID'
 
+    AVOID_SYNC_CERTIFICATES = ["ssl"]
+
     def __init__(self, subcloud_engine):
         super(SysinvSyncThread, self).__init__(subcloud_engine)
 
@@ -353,6 +355,9 @@ class SysinvSyncThread(SyncThread):
                      extra=self.log_extra)
             return
 
+        if payload.get('certtype') in self.AVOID_SYNC_CERTIFICATES:
+            return
+
         if isinstance(payload, dict):
             signature = payload.get('signature')
             LOG.info("signature from dict={}".format(signature))
@@ -393,7 +398,7 @@ class SysinvSyncThread(SyncThread):
             return
 
         try:
-            certificates = s_os_client.sysinv_client.get_certificates()
+            certificates = self.get_certificates_resources(s_os_client)
             cert_to_delete = None
             for certificate in certificates:
                 if certificate.signature == subcloud_rsrc.subcloud_resource_id:
@@ -651,7 +656,13 @@ class SysinvSyncThread(SyncThread):
         return os_client.sysinv_client.snmp_community_list()
 
     def get_certificates_resources(self, os_client):
-        return os_client.sysinv_client.get_certificates()
+        certificate_list = os_client.sysinv_client.get_certificates()
+        # Filter SSL certificates to avoid sync
+        filtered_list = [certificate
+                         for certificate in certificate_list
+                         if certificate.certtype not in
+                         self.AVOID_SYNC_CERTIFICATES]
+        return filtered_list
 
     def get_user_resource(self, os_client):
         return os_client.sysinv_client.get_user()
