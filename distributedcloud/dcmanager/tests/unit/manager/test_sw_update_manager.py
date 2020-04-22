@@ -16,20 +16,23 @@
 # of this software may be licensed only pursuant to the terms
 # of an applicable Wind River license agreement.
 #
-
 import copy
 import mock
+from os import path as os_path
+import threading
 
 from oslo_config import cfg
 from oslo_utils import timeutils
 
-from dcorch.common import consts as dcorch_consts
-
 from dcmanager.common import consts
+from dcmanager.common import context
 from dcmanager.common import exceptions
+from dcmanager.manager import patch_orch_thread
 from dcmanager.manager import sw_update_manager
 from dcmanager.tests import base
 from dcmanager.tests import utils
+from dcorch.common import consts as dcorch_consts
+
 
 CONF = cfg.CONF
 FAKE_ID = '1'
@@ -336,26 +339,47 @@ class SwUpdateStrategy(object):
         self.updated_at = timeutils.utcnow()
 
 
+class FakeFwUpdateOrchThread(object):
+    def __init__(self):
+        # Mock methods that are called in normal execution of this thread
+        self.start = mock.MagicMock()
+
+
+class FakeSwUpgradeOrchThread(object):
+    def __init__(self):
+        # Mock methods that are called in normal execution of this thread
+        self.start = mock.MagicMock()
+
+
 class TestSwUpdateManager(base.DCManagerTestCase):
     def setUp(self):
         super(TestSwUpdateManager, self).setUp()
+        # Mock the context
         self.ctxt = utils.dummy_context()
+        p = mock.patch.object(context, 'get_admin_context')
+        self.mock_get_admin_context = p.start()
+        self.mock_get_admin_context.return_value = self.ctx
+        self.addCleanup(p.stop)
+
+        # Note: mock where an item is used, not where it comes from
+        self.fake_sw_upgrade_orch_thread = FakeSwUpgradeOrchThread()
+        p = mock.patch.object(sw_update_manager, 'SwUpgradeOrchThread')
+        self.mock_sw_upgrade_orch_thread = p.start()
+        self.mock_sw_upgrade_orch_thread.return_value = \
+            self.fake_sw_upgrade_orch_thread
+        self.addCleanup(p.stop)
 
     @mock.patch.object(sw_update_manager, 'PatchOrchThread')
-    @mock.patch.object(sw_update_manager, 'context')
-    def test_init(self, mock_context, mock_patch_orch_thread):
-        mock_context.get_admin_context.return_value = self.ctxt
+    def test_init(self, mock_patch_orch_thread):
         um = sw_update_manager.SwUpdateManager()
         self.assertIsNotNone(um)
         self.assertEqual('sw_update_manager', um.service_name)
         self.assertEqual('localhost', um.host)
 
     @mock.patch.object(sw_update_manager, 'PatchOrchThread')
-    @mock.patch.object(sw_update_manager, 'context')
     @mock.patch.object(sw_update_manager, 'db_api')
     def test_create_sw_update_strategy_no_subclouds(
-            self, mock_db_api, mock_context, mock_patch_orch_thread):
-        mock_context.get_admin_context.return_value = self.ctxt
+            self, mock_db_api, mock_patch_orch_thread):
         mock_db_api.sw_update_strategy_get.side_effect = \
             exceptions.NotFound()
         um = sw_update_manager.SwUpdateManager()
@@ -373,11 +397,9 @@ class TestSwUpdateManager(base.DCManagerTestCase):
             expected_calls)
 
     @mock.patch.object(sw_update_manager, 'PatchOrchThread')
-    @mock.patch.object(sw_update_manager, 'context')
     @mock.patch.object(sw_update_manager, 'db_api')
     def test_create_sw_update_strategy_parallel(
-            self, mock_db_api, mock_context, mock_patch_orch_thread):
-        mock_context.get_admin_context.return_value = self.ctxt
+            self, mock_db_api, mock_patch_orch_thread):
         mock_db_api.sw_update_strategy_get.side_effect = \
             exceptions.NotFound()
 
@@ -452,11 +474,9 @@ class TestSwUpdateManager(base.DCManagerTestCase):
             expected_calls)
 
     @mock.patch.object(sw_update_manager, 'PatchOrchThread')
-    @mock.patch.object(sw_update_manager, 'context')
     @mock.patch.object(sw_update_manager, 'db_api')
     def test_create_sw_update_strategy_serial(
-            self, mock_db_api, mock_context, mock_patch_orch_thread):
-        mock_context.get_admin_context.return_value = self.ctxt
+            self, mock_db_api, mock_patch_orch_thread):
         mock_db_api.sw_update_strategy_get.side_effect = \
             exceptions.NotFound()
 
@@ -533,11 +553,9 @@ class TestSwUpdateManager(base.DCManagerTestCase):
             expected_calls)
 
     @mock.patch.object(sw_update_manager, 'PatchOrchThread')
-    @mock.patch.object(sw_update_manager, 'context')
     @mock.patch.object(sw_update_manager, 'db_api')
     def test_create_sw_update_strategy_unknown_sync_status(
-            self, mock_db_api, mock_context, mock_patch_orch_thread):
-        mock_context.get_admin_context.return_value = self.ctxt
+            self, mock_db_api, mock_patch_orch_thread):
         mock_db_api.sw_update_strategy_get.side_effect = \
             exceptions.NotFound()
 
@@ -572,11 +590,9 @@ class TestSwUpdateManager(base.DCManagerTestCase):
                           self.ctxt, payload=FAKE_SW_UPDATE_DATA)
 
     @mock.patch.object(sw_update_manager, 'PatchOrchThread')
-    @mock.patch.object(sw_update_manager, 'context')
     @mock.patch.object(sw_update_manager, 'db_api')
-    def test_delete_sw_update_strategy(self, mock_db_api, mock_context,
+    def test_delete_sw_update_strategy(self, mock_db_api,
                                        mock_patch_orch_thread):
-        mock_context.get_admin_context.return_value = self.ctxt
         fake_sw_update_strategy = SwUpdateStrategy(FAKE_ID,
                                                    FAKE_SW_UPDATE_DATA)
         mock_db_api.sw_update_strategy_get.return_value = \
@@ -587,13 +603,11 @@ class TestSwUpdateManager(base.DCManagerTestCase):
             mock.ANY, state=consts.SW_UPDATE_STATE_DELETING)
 
     @mock.patch.object(sw_update_manager, 'PatchOrchThread')
-    @mock.patch.object(sw_update_manager, 'context')
     @mock.patch.object(sw_update_manager, 'db_api')
     def test_delete_sw_update_strategy_invalid_state(
-            self, mock_db_api, mock_context, mock_patch_orch_thread):
+            self, mock_db_api, mock_patch_orch_thread):
         data = copy.copy(FAKE_SW_UPDATE_DATA)
         data['state'] = consts.SW_UPDATE_STATE_APPLYING
-        mock_context.get_admin_context.return_value = self.ctxt
         fake_sw_update_strategy = SwUpdateStrategy(FAKE_ID,
                                                    data)
         mock_db_api.sw_update_strategy_get.return_value = \
@@ -604,11 +618,9 @@ class TestSwUpdateManager(base.DCManagerTestCase):
                           self.ctxt)
 
     @mock.patch.object(sw_update_manager, 'PatchOrchThread')
-    @mock.patch.object(sw_update_manager, 'context')
     @mock.patch.object(sw_update_manager, 'db_api')
-    def test_apply_sw_update_strategy(self, mock_db_api, mock_context,
+    def test_apply_sw_update_strategy(self, mock_db_api,
                                       mock_patch_orch_thread):
-        mock_context.get_admin_context.return_value = self.ctxt
         fake_sw_update_strategy = SwUpdateStrategy(FAKE_ID,
                                                    FAKE_SW_UPDATE_DATA)
         mock_db_api.sw_update_strategy_get.return_value = \
@@ -619,13 +631,11 @@ class TestSwUpdateManager(base.DCManagerTestCase):
             mock.ANY, state=consts.SW_UPDATE_STATE_APPLYING)
 
     @mock.patch.object(sw_update_manager, 'PatchOrchThread')
-    @mock.patch.object(sw_update_manager, 'context')
     @mock.patch.object(sw_update_manager, 'db_api')
     def test_apply_sw_update_strategy_invalid_state(
-            self, mock_db_api, mock_context, mock_patch_orch_thread):
+            self, mock_db_api, mock_patch_orch_thread):
         data = copy.copy(FAKE_SW_UPDATE_DATA)
         data['state'] = consts.SW_UPDATE_STATE_APPLYING
-        mock_context.get_admin_context.return_value = self.ctxt
         fake_sw_update_strategy = SwUpdateStrategy(FAKE_ID,
                                                    data)
         mock_db_api.sw_update_strategy_get.return_value = \
@@ -636,13 +646,11 @@ class TestSwUpdateManager(base.DCManagerTestCase):
                           self.ctxt)
 
     @mock.patch.object(sw_update_manager, 'PatchOrchThread')
-    @mock.patch.object(sw_update_manager, 'context')
     @mock.patch.object(sw_update_manager, 'db_api')
     def test_abort_sw_update_strategy(
-            self, mock_db_api, mock_context, mock_patch_orch_thread):
+            self, mock_db_api, mock_patch_orch_thread):
         data = copy.copy(FAKE_SW_UPDATE_DATA)
         data['state'] = consts.SW_UPDATE_STATE_APPLYING
-        mock_context.get_admin_context.return_value = self.ctxt
         fake_sw_update_strategy = SwUpdateStrategy(FAKE_ID,
                                                    data)
         mock_db_api.sw_update_strategy_get.return_value = \
@@ -653,13 +661,11 @@ class TestSwUpdateManager(base.DCManagerTestCase):
             mock.ANY, state=consts.SW_UPDATE_STATE_ABORT_REQUESTED)
 
     @mock.patch.object(sw_update_manager, 'PatchOrchThread')
-    @mock.patch.object(sw_update_manager, 'context')
     @mock.patch.object(sw_update_manager, 'db_api')
     def test_abort_sw_update_strategy_invalid_state(
-            self, mock_db_api, mock_context, mock_patch_orch_thread):
+            self, mock_db_api, mock_patch_orch_thread):
         data = copy.copy(FAKE_SW_UPDATE_DATA)
         data['state'] = consts.SW_UPDATE_STATE_COMPLETE
-        mock_context.get_admin_context.return_value = self.ctxt
         fake_sw_update_strategy = SwUpdateStrategy(FAKE_ID,
                                                    data)
         mock_db_api.sw_update_strategy_get.return_value = \
@@ -669,32 +675,31 @@ class TestSwUpdateManager(base.DCManagerTestCase):
                           um.apply_sw_update_strategy,
                           self.ctxt)
 
-    @mock.patch.object(sw_update_manager, 'SysinvClient')
-    @mock.patch.object(sw_update_manager, 'os')
-    @mock.patch.object(sw_update_manager, 'PatchingClient')
-    @mock.patch.object(sw_update_manager, 'threading')
-    @mock.patch.object(sw_update_manager, 'context')
-    @mock.patch.object(sw_update_manager, 'db_api')
+    @mock.patch.object(patch_orch_thread, 'SysinvClient')
+    @mock.patch.object(os_path, 'isfile')
+    @mock.patch.object(patch_orch_thread, 'PatchingClient')
+    @mock.patch.object(threading, 'Thread')
+    @mock.patch.object(patch_orch_thread, 'db_api')
     def test_update_subcloud_patches(
-            self, mock_db_api, mock_context, mock_threading,
-            mock_patching_client, mock_os, mock_sysinv_client):
+            self, mock_db_api, mock_threading,
+            mock_patching_client, mock_os_path_isfile, mock_sysinv_client):
 
-        mock_os.path.isfile.return_value = True
+        mock_patching_client.side_effect = FakePatchingClientOutOfSync
+        mock_os_path_isfile.return_value = True
         fake_subcloud = Subcloud(1, 'subcloud1',
                                  is_managed=True, is_online=True)
         data = copy.copy(FAKE_STRATEGY_STEP_DATA)
         data['state'] = consts.STRATEGY_STATE_UPDATING_PATCHES
         data['subcloud'] = fake_subcloud
         data['subcloud_name'] = 'subcloud1'
-        mock_context.get_admin_context.return_value = self.ctxt
         fake_strategy_step = StrategyStep(**data)
-        mock_patching_client.side_effect = FakePatchingClientOutOfSync
         mock_sysinv_client.side_effect = FakeSysinvClientOneLoad
         FakePatchingClientOutOfSync.apply = mock.Mock()
         FakePatchingClientOutOfSync.remove = mock.Mock()
         FakePatchingClientOutOfSync.upload = mock.Mock()
         sw_update_manager.PatchOrchThread.stopped = lambda x: False
-        pot = sw_update_manager.PatchOrchThread()
+        mock_strategy_lock = mock.Mock()
+        pot = sw_update_manager.PatchOrchThread(mock_strategy_lock)
         pot.get_ks_client = mock.Mock()
         pot.update_subcloud_patches(fake_strategy_step)
 
@@ -717,23 +722,21 @@ class TestSwUpdateManager(base.DCManagerTestCase):
             finished_at=mock.ANY,
         )
 
-    @mock.patch.object(sw_update_manager, 'SysinvClient')
-    @mock.patch.object(sw_update_manager, 'os')
-    @mock.patch.object(sw_update_manager, 'PatchingClient')
-    @mock.patch.object(sw_update_manager, 'threading')
-    @mock.patch.object(sw_update_manager, 'context')
-    @mock.patch.object(sw_update_manager, 'db_api')
+    @mock.patch.object(patch_orch_thread, 'SysinvClient')
+    @mock.patch.object(os_path, 'isfile')
+    @mock.patch.object(patch_orch_thread, 'PatchingClient')
+    @mock.patch.object(threading, 'Thread')
+    @mock.patch.object(patch_orch_thread, 'db_api')
     def test_update_subcloud_patches_bad_committed(
-            self, mock_db_api, mock_context, mock_threading,
-            mock_patching_client, mock_os, mock_sysinv_client):
+            self, mock_db_api, mock_threading,
+            mock_patching_client, mock_os_path_isfile, mock_sysinv_client):
 
-        mock_os.path.isfile.return_value = True
+        mock_os_path_isfile.return_value = True
         fake_subcloud = Subcloud(1, 'subcloud1',
                                  is_managed=True, is_online=True)
         data = copy.copy(FAKE_STRATEGY_STEP_DATA)
         data['state'] = consts.STRATEGY_STATE_UPDATING_PATCHES
         data['subcloud'] = fake_subcloud
-        mock_context.get_admin_context.return_value = self.ctxt
         fake_strategy_step = StrategyStep(**data)
         mock_patching_client.side_effect = FakePatchingClientSubcloudCommitted
         mock_sysinv_client.side_effect = FakeSysinvClientOneLoad
@@ -741,7 +744,8 @@ class TestSwUpdateManager(base.DCManagerTestCase):
         FakePatchingClientOutOfSync.remove = mock.Mock()
         FakePatchingClientOutOfSync.upload = mock.Mock()
         sw_update_manager.PatchOrchThread.stopped = lambda x: False
-        pot = sw_update_manager.PatchOrchThread()
+        mock_strategy_lock = mock.Mock()
+        pot = sw_update_manager.PatchOrchThread(mock_strategy_lock)
         pot.get_ks_client = mock.Mock()
         pot.update_subcloud_patches(fake_strategy_step)
 
@@ -754,23 +758,21 @@ class TestSwUpdateManager(base.DCManagerTestCase):
             finished_at=mock.ANY,
         )
 
-    @mock.patch.object(sw_update_manager, 'SysinvClient')
-    @mock.patch.object(sw_update_manager, 'os')
-    @mock.patch.object(sw_update_manager, 'PatchingClient')
-    @mock.patch.object(sw_update_manager, 'threading')
-    @mock.patch.object(sw_update_manager, 'context')
-    @mock.patch.object(sw_update_manager, 'db_api')
+    @mock.patch.object(patch_orch_thread, 'SysinvClient')
+    @mock.patch.object(os_path, 'isfile')
+    @mock.patch.object(patch_orch_thread, 'PatchingClient')
+    @mock.patch.object(threading, 'Thread')
+    @mock.patch.object(patch_orch_thread, 'db_api')
     def test_update_subcloud_patches_bad_state(
-            self, mock_db_api, mock_context, mock_threading,
-            mock_patching_client, mock_os, mock_sysinv_client):
+            self, mock_db_api, mock_threading,
+            mock_patching_client, mock_os_path_isfile, mock_sysinv_client):
 
-        mock_os.path.isfile.return_value = True
+        mock_os_path_isfile.return_value = True
         fake_subcloud = Subcloud(1, 'subcloud1',
                                  is_managed=True, is_online=True)
         data = copy.copy(FAKE_STRATEGY_STEP_DATA)
         data['state'] = consts.STRATEGY_STATE_UPDATING_PATCHES
         data['subcloud'] = fake_subcloud
-        mock_context.get_admin_context.return_value = self.ctxt
         fake_strategy_step = StrategyStep(**data)
         mock_patching_client.side_effect = FakePatchingClientSubcloudUnknown
         mock_sysinv_client.side_effect = FakeSysinvClientOneLoad
@@ -778,7 +780,8 @@ class TestSwUpdateManager(base.DCManagerTestCase):
         FakePatchingClientOutOfSync.remove = mock.Mock()
         FakePatchingClientOutOfSync.upload = mock.Mock()
         sw_update_manager.PatchOrchThread.stopped = lambda x: False
-        pot = sw_update_manager.PatchOrchThread()
+        mock_strategy_lock = mock.Mock()
+        pot = sw_update_manager.PatchOrchThread(mock_strategy_lock)
         pot.get_ks_client = mock.Mock()
         pot.update_subcloud_patches(fake_strategy_step)
 
@@ -791,28 +794,27 @@ class TestSwUpdateManager(base.DCManagerTestCase):
             finished_at=mock.ANY,
         )
 
-    @mock.patch.object(sw_update_manager, 'os')
-    @mock.patch.object(sw_update_manager, 'PatchingClient')
-    @mock.patch.object(sw_update_manager, 'threading')
-    @mock.patch.object(sw_update_manager, 'context')
-    @mock.patch.object(sw_update_manager, 'db_api')
+    @mock.patch.object(os_path, 'isfile')
+    @mock.patch.object(patch_orch_thread, 'PatchingClient')
+    @mock.patch.object(threading, 'Thread')
+    @mock.patch.object(patch_orch_thread, 'db_api')
     def test_finish(
-            self, mock_db_api, mock_context, mock_threading,
-            mock_patching_client, mock_os):
+            self, mock_db_api, mock_threading,
+            mock_patching_client, mock_os_path_isfile):
 
-        mock_os.path.isfile.return_value = True
+        mock_os_path_isfile.return_value = True
         fake_subcloud = Subcloud(1, 'subcloud1',
                                  is_managed=True, is_online=True)
         data = copy.copy(FAKE_STRATEGY_STEP_DATA)
         data['state'] = consts.STRATEGY_STATE_UPDATING_PATCHES
         data['subcloud'] = fake_subcloud
-        mock_context.get_admin_context.return_value = self.ctxt
         fake_strategy_step = StrategyStep(**data)
         mock_patching_client.side_effect = FakePatchingClientFinish
         FakePatchingClientFinish.delete = mock.Mock()
         FakePatchingClientFinish.commit = mock.Mock()
         sw_update_manager.PatchOrchThread.stopped = lambda x: False
-        pot = sw_update_manager.PatchOrchThread()
+        mock_strategy_lock = mock.Mock()
+        pot = sw_update_manager.PatchOrchThread(mock_strategy_lock)
         pot.get_ks_client = mock.Mock()
         pot.finish(fake_strategy_step)
 

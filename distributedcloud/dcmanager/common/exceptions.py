@@ -100,6 +100,14 @@ class InvalidConfigurationOption(DCManagerException):
                 "%(opt_value)s")
 
 
+class InvalidParameterValue(DCManagerException):
+    message = _("%(err)s")
+
+
+class SubcloudAlreadyExists(Conflict):
+    message = _("Subcloud with region_name=%(region_name)s already exists")
+
+
 class SubcloudNotFound(NotFound):
     message = _("Subcloud with id %(subcloud_id)s doesn't exist.")
 

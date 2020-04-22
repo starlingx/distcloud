@@ -54,7 +54,8 @@ SERVICE_GROUP_STATUS_ACTIVE = "active"
 AVAIL_FAIL_COUNT_TO_ALARM = 2
 AVAIL_FAIL_COUNT_MAX = 9999
 
-# Software update type
+# Software update strategy types
+SW_UPDATE_TYPE_FIRMWARE = "firmware"
 SW_UPDATE_TYPE_PATCH = "patch"
 SW_UPDATE_TYPE_UPGRADE = "upgrade"
 
@@ -93,6 +94,15 @@ STRATEGY_STATE_FINISHING = "finishing"
 STRATEGY_STATE_COMPLETE = "complete"
 STRATEGY_STATE_ABORTED = "aborted"
 STRATEGY_STATE_FAILED = "failed"
+
+STRATEGY_STATE_INSTALLING_LICENSE = "installing license"
+STRATEGY_STATE_IMPORTING_LOAD = "importing load"
+STRATEGY_STATE_STARTING = "starting"
+STRATEGY_STATE_LOCKING_CONTROLLER = "locking controller"
+STRATEGY_STATE_UPGRADING_SIMPLEX = "upgrading simplex"
+STRATEGY_STATE_MIGRATING_DATA = "migrating data"
+STRATEGY_STATE_UNLOCKING_CONTROLLER = "unlocking controller"
+STRATEGY_STATE_ACTIVATING = "activating"
 
 # Subcloud deploy status states
 DEPLOY_STATE_NONE = 'not-deployed'
