@@ -105,8 +105,10 @@ class SubcloudsController(object):
     @staticmethod
     def _get_common_deploy_files(payload):
         for f in consts.DEPLOY_COMMON_FILE_OPTIONS:
+            filename = None
             dir_path = tsc.DEPLOY_PATH
-            filename = utils.get_filename_by_prefix(dir_path, f + '_')
+            if os.path.isdir(dir_path):
+                filename = utils.get_filename_by_prefix(dir_path, f + '_')
             if filename is None:
                 pecan.abort(400, _("Missing required deploy file for %s") % f)
             payload.update({f: os.path.join(dir_path, filename)})
