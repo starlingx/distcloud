@@ -23,7 +23,7 @@ RPC_API_VERSION = "1.0"
 
 TOPIC_DC_MANAGER = "dcmanager"
 
-PATCH_VAULT_DIR = "/opt/patch-vault"
+PATCH_VAULT_DIR = "/opt/dc-vault/patches"
 
 # Well known region names
 SYSTEM_CONTROLLER_NAME = "SystemController"
