@@ -1,4 +1,4 @@
-# Copyright 2018 Wind River
+# Copyright 2018-2020 Wind River
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -157,7 +157,10 @@ class IdentitySyncThread(SyncThread):
                  extra=self.log_extra)
 
     def _initial_sync_users(self, m_users, sc_users):
-        # Particularly sync users with same name but different ID
+        # Particularly sync users with same name but different ID.  admin user
+        # is a special case as the id's will match (as this is forced during
+        # the subcloud deploy) but the details will not so we still need to
+        # sync it here.
         m_client = self.m_dbs_client.identity_manager
         sc_client = self.sc_dbs_client.identity_manager
 
@@ -165,7 +168,9 @@ class IdentitySyncThread(SyncThread):
             for sc_user in sc_users:
                 if (m_user.local_user.name == sc_user.local_user.name and
                         m_user.domain_id == sc_user.domain_id and
-                        m_user.id != sc_user.id):
+                        (m_user.id != sc_user.id or
+                         sc_user.local_user.name ==
+                         dccommon_consts.ADMIN_USER_NAME)):
                     user_records = m_client.user_detail(m_user.id)
                     if not user_records:
                         LOG.error("No data retrieved from master cloud for"
@@ -193,7 +198,8 @@ class IdentitySyncThread(SyncThread):
                         raise exceptions.SyncRequestFailed
                     # If admin user get synced, the client need to
                     # re-authenticate.
-                    if sc_user.local_user.name == "admin":
+                    if sc_user.local_user.name == \
+                       dccommon_consts.ADMIN_USER_NAME:
                         self.reauthenticate_sc_clients()
 
     def _initial_sync_projects(self, m_projects, sc_projects):
@@ -234,8 +240,46 @@ class IdentitySyncThread(SyncThread):
                         raise exceptions.SyncRequestFailed
                     # If admin project get synced, the client need to
                     # re-authenticate.
-                    if sc_project.name == "admin":
+                    if sc_project.name == dccommon_consts.ADMIN_PROJECT_NAME:
                         self.reauthenticate_sc_clients()
+
+    def _initial_sync_roles(self, m_roles, sc_roles):
+        # Particularly sync roles with same name but different ID
+        m_client = self.m_dbs_client.role_manager
+        sc_client = self.sc_dbs_client.role_manager
+
+        for m_role in m_roles:
+            for sc_role in sc_roles:
+                if (m_role.name == sc_role.name and
+                        m_role.domain_id == sc_role.domain_id and
+                        m_role.id != sc_role.id):
+                    role_record = m_client.role_detail(m_role.id)
+                    if not role_record:
+                        LOG.error("No data retrieved from master cloud for"
+                                  " role {} to update its equivalent in"
+                                  " subcloud.".format(m_role.id))
+                        raise exceptions.SyncRequestFailed
+                    # update the role by pushing down the DB records to
+                    # subcloud
+                    try:
+                        role_ref = sc_client.update_role(sc_role.id,
+                                                         role_record)
+                    # Retry once if unauthorized
+                    except dbsync_exceptions.Unauthorized as e:
+                        LOG.info("Update role {} request failed for {}: {}."
+                                 .format(sc_role.id,
+                                         self.subcloud_engine.subcloud.
+                                         region_name, str(e)))
+                        self.reauthenticate_sc_dbs_client()
+                        role_ref = sc_client.update_role(sc_role.id,
+                                                         role_record)
+
+                    if not role_ref:
+                        LOG.error("No role data returned when updating role {}"
+                                  " in subcloud {}."
+                                  .format(sc_role.id, self.subcloud_engine.
+                                          subcloud.region_name))
+                        raise exceptions.SyncRequestFailed
 
     def initial_sync(self):
         # Service users and projects are created at deployment time. They exist
@@ -291,6 +335,26 @@ class IdentitySyncThread(SyncThread):
             raise exceptions.SyncRequestFailed
 
         self._initial_sync_projects(m_projects, sc_projects)
+
+        # get roles from master cloud
+        m_roles = self.get_master_resources(
+            consts.RESOURCE_TYPE_IDENTITY_ROLES)
+
+        if not m_roles:
+            LOG.error("No roles returned from {}".
+                      format(dccommon_consts.VIRTUAL_MASTER_CLOUD))
+            raise exceptions.SyncRequestFailed
+
+        # get roles from the subcloud
+        sc_roles = self.get_subcloud_resources(
+            consts.RESOURCE_TYPE_IDENTITY_ROLES)
+
+        if not sc_roles:
+            LOG.error("No roles returned from subcloud {}".
+                      format(self.subcloud_engine.subcloud.region_name))
+            raise exceptions.SyncRequestFailed
+
+        self._initial_sync_roles(m_roles, sc_roles)
 
         # Return True if no exceptions
         return True
@@ -1387,7 +1451,6 @@ class IdentitySyncThread(SyncThread):
             # All are found
             else:
                 result = True
-
         return result
 
     def _has_same_identity_ids(self, m, sc):

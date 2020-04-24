@@ -36,3 +36,6 @@ SW_UPDATE_DEFAULT_TITLE = "all clouds default"
 
 USER_HEADER_VALUE = "distcloud"
 USER_HEADER = {'User-Header': USER_HEADER_VALUE}
+
+ADMIN_USER_NAME = "admin"
+ADMIN_PROJECT_NAME = "admin"
