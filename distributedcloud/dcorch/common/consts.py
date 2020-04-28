@@ -140,6 +140,7 @@ ENDPOINT_QUOTA_MAPPING = {
 
 # DB sync agent endpoint
 DBS_ENDPOINT_INTERNAL = "internal"
+DBS_ENDPOINT_ADMIN = "admin"
 DBS_ENDPOINT_DEFAULT = DBS_ENDPOINT_INTERNAL
 
 # Do we need separate patch/put operations or could we just use

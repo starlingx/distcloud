@@ -61,7 +61,7 @@ class ComputeSyncThread(SyncThread):
         if (not self.sc_nova_client and self.sc_admin_session):
             self.sc_nova_client = novaclient.Client(
                 '2.38', session=self.sc_admin_session,
-                endpoint_type=dccommon_consts.KS_ENDPOINT_INTERNAL,
+                endpoint_type=dccommon_consts.KS_ENDPOINT_ADMIN,
                 region_name=self.subcloud_engine.subcloud.region_name)
 
     def initialize(self):
