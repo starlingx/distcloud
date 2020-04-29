@@ -178,7 +178,6 @@ install -d -m 600 ${RPM_BUILD_ROOT}/opt/dc/ansible
 %files dcmanager
 %license LICENSE
 %{python2_sitelib}/dcmanager*
-%{python2_sitelib}/distributedcloud-*.egg-info
 %exclude %{python2_sitelib}/dcmanager/tests
 %{_bindir}/dcmanager-api
 %{_unitdir}/dcmanager-api.service
@@ -199,7 +198,6 @@ install -d -m 600 ${RPM_BUILD_ROOT}/opt/dc/ansible
 %files dcorch
 %license LICENSE
 %{python2_sitelib}/dcorch*
-%{python2_sitelib}/distributedcloud-*.egg-info
 %exclude %{python2_sitelib}/dcorch/tests
 %{_bindir}/dcorch-api
 %{_unitdir}/dcorch-api.service
@@ -222,7 +220,6 @@ install -d -m 600 ${RPM_BUILD_ROOT}/opt/dc/ansible
 %files dcdbsync
 %license LICENSE
 %{python2_sitelib}/dcdbsync*
-%{python2_sitelib}/distributedcloud-*.egg-info
 %exclude %{python2_sitelib}/dcdbsync/tests
 %{_bindir}/dcdbsync-api
 %{_unitdir}/dcdbsync-api.service
