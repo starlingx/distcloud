@@ -34,7 +34,6 @@ from oslo_log import log as logging
 from oslo_messaging import RemoteError
 
 from tsconfig.tsconfig import CONFIG_PATH
-from tsconfig.tsconfig import SW_VERSION
 
 from dccommon import consts as dccommon_consts
 from dccommon.drivers.openstack.keystone_v3 import KeystoneClient
@@ -187,40 +186,11 @@ class SubcloudManager(manager.Manager):
         :param payload: subcloud configuration
         """
         LOG.info("Adding subcloud %s." % payload['name'])
-        dcorch_populated = False
-        try:
-            subcloud = db_api.subcloud_get_by_name(context, payload['name'])
-        except exceptions.SubcloudNameNotFound:
-            pass
-        else:
-            raise exceptions.BadRequest(
-                resource='subcloud',
-                msg='Subcloud with that name already exists')
+        subcloud = db_api.subcloud_get_by_name(context, payload['name'])
 
-        # Subcloud is added with software version that matches system
-        # controller.
-        software_version = SW_VERSION
-        try:
-            # if group_id has been omitted from payload, use 'Default'.
-            group_id = payload.get('group_id',
-                                   consts.DEFAULT_SUBCLOUD_GROUP_ID)
-            subcloud = db_api.subcloud_create(
-                context,
-                payload['name'],
-                payload.get('description'),
-                payload.get('location'),
-                software_version,
-                payload['management_subnet'],
-                payload['management_gateway_address'],
-                payload['management_start_address'],
-                payload['management_end_address'],
-                payload['systemcontroller_gateway_address'],
-                consts.DEPLOY_STATE_NONE,
-                False,
-                group_id)
-        except Exception as e:
-            LOG.exception(e)
-            raise e
+        db_api.subcloud_update(
+            context, subcloud.id,
+            deploy_status=consts.DEPLOY_STATE_PRE_DEPLOY)
 
         # Populate the subcloud status table with all endpoints
         for endpoint in dcorch_consts.ENDPOINT_TYPES_LIST:
@@ -305,7 +275,6 @@ class SubcloudManager(manager.Manager):
             # Inform orchestrator that subcloud has been added
             self.dcorch_rpc_client.add_subcloud(
                 context, subcloud.name, subcloud.software_version)
-            dcorch_populated = True
 
             # create entry into alarm summary table, will get real values later
             alarm_updates = {'critical_alarms': -1,
@@ -416,15 +385,13 @@ class SubcloudManager(manager.Manager):
 
             return db_api.subcloud_db_model_to_dict(subcloud)
 
-        except Exception as e:
-            LOG.exception(e)
-            # If we failed to create the subcloud, clean up anything we may
-            # have done.
-            self._remove_subcloud_details(context,
-                                          subcloud,
-                                          ansible_subcloud_inventory_file,
-                                          dcorch_populated)
-            raise e
+        except Exception:
+            LOG.exception("Failed to create subcloud %s" % payload['name'])
+            # If we failed to create the subcloud, update the
+            # deployment status
+            db_api.subcloud_update(
+                context, subcloud.id,
+                deploy_status=consts.DEPLOY_STATE_DEPLOY_PREP_FAILED)
 
     @staticmethod
     def run_deploy(install_command, apply_command, deploy_command, subcloud,
@@ -667,16 +634,14 @@ class SubcloudManager(manager.Manager):
 
     def _remove_subcloud_details(self, context,
                                  subcloud,
-                                 ansible_subcloud_inventory_file,
-                                 dcorch_populated=True):
+                                 ansible_subcloud_inventory_file):
         """Remove subcloud details from database and inform orchestrators"""
         # Inform orchestrators that subcloud has been deleted
-        if dcorch_populated:
-            try:
-                self.dcorch_rpc_client.del_subcloud(context, subcloud.name)
-            except RemoteError as e:
-                if "SubcloudNotFound" in e:
-                    pass
+        try:
+            self.dcorch_rpc_client.del_subcloud(context, subcloud.name)
+        except RemoteError as e:
+            if "SubcloudNotFound" in e:
+                pass
 
         # delete the associated alarm entry
         try:

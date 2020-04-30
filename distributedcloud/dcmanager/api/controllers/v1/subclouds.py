@@ -448,6 +448,38 @@ class SubcloudsController(object):
             LOG.error(message)
         return None
 
+    def _add_subcloud_to_database(self, context, payload):
+        try:
+            db_api.subcloud_get_by_name(context, payload['name'])
+        except exceptions.SubcloudNameNotFound:
+            pass
+        else:
+            raise exceptions.BadRequest(
+                resource='subcloud',
+                msg='Subcloud with that name already exists')
+
+        # Subcloud is added with software version that matches system
+        # controller.
+        software_version = tsc.SW_VERSION
+        # if group_id has been omitted from payload, use 'Default'.
+        group_id = payload.get('group_id',
+                               consts.DEFAULT_SUBCLOUD_GROUP_ID)
+        subcloud = db_api.subcloud_create(
+            context,
+            payload['name'],
+            payload.get('description'),
+            payload.get('location'),
+            software_version,
+            payload['management_subnet'],
+            payload['management_gateway_address'],
+            payload['management_start_address'],
+            payload['management_end_address'],
+            payload['systemcontroller_gateway_address'],
+            consts.DEPLOY_STATE_NONE,
+            False,
+            group_id)
+        return subcloud
+
     @index.when(method='GET', template='json')
     def get(self, subcloud_ref=None, detail=None):
         """Get details about subcloud.
@@ -665,13 +697,16 @@ class SubcloudsController(object):
             self._upload_deploy_config_file(request, payload)
 
             try:
+                # Add the subcloud details to the database
+                subcloud = self._add_subcloud_to_database(context, payload)
                 # Ask dcmanager-manager to add the subcloud.
                 # It will do all the real work...
-                return self.rpc_client.add_subcloud(context, payload)
+                self.rpc_client.add_subcloud(context, payload)
+                return db_api.subcloud_db_model_to_dict(subcloud)
             except RemoteError as e:
                 pecan.abort(422, e.value)
-            except Exception as e:
-                LOG.exception(e)
+            except Exception:
+                LOG.exception("Unable to create subcloud %s" % name)
                 pecan.abort(500, _('Unable to create subcloud'))
         else:
             pecan.abort(400, _('Invalid request'))

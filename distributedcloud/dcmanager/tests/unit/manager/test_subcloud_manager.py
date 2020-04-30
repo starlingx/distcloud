@@ -28,7 +28,6 @@ sys.modules['fm_core'] = mock.Mock()
 import threading
 
 from dcmanager.common import consts
-from dcmanager.common import exceptions
 from dcmanager.db.sqlalchemy import api as db_api
 from dcmanager.manager import subcloud_manager
 from dcmanager.tests import base
@@ -87,6 +86,10 @@ FAKE_CONTROLLERS = [
         'controller-1'
     ),
 ]
+
+
+class FakeException(Exception):
+        pass
 
 
 class Subcloud(object):
@@ -160,6 +163,9 @@ class TestSubcloudManager(base.DCManagerTestCase):
         self.assertEqual('localhost', sm.host)
         self.assertEqual(self.ctx, sm.context)
 
+    def exception_dcorch_rpc(self):
+        raise FakeException
+
     @mock.patch.object(subcloud_manager.SubcloudManager,
                        '_create_intermediate_ca_cert')
     @mock.patch.object(subcloud_manager.SubcloudManager,
@@ -187,8 +193,6 @@ class TestSubcloudManager(base.DCManagerTestCase):
         values = utils.create_subcloud_dict(base.SUBCLOUD_SAMPLE_DATA_0)
         controllers = FAKE_CONTROLLERS
         services = FAKE_SERVICES
-        mock_db_api.subcloud_get_by_name.side_effect = \
-            exceptions.SubcloudNameNotFound()
 
         mock_sysinv_client().get_controller_hosts.return_value = controllers
         mock_keystone_client().services_list = services
@@ -196,7 +200,6 @@ class TestSubcloudManager(base.DCManagerTestCase):
 
         sm = subcloud_manager.SubcloudManager()
         sm.add_subcloud(self.ctx, payload=values)
-        mock_db_api.subcloud_create.assert_called_once()
         mock_db_api.subcloud_status_create.assert_called()
         mock_sysinv_client().create_route.assert_called()
         self.fake_dcorch_api.add_subcloud.assert_called_once()
@@ -206,6 +209,31 @@ class TestSubcloudManager(base.DCManagerTestCase):
         mock_keyring.get_password.assert_called()
         mock_thread_start.assert_called_once()
         mock_create_intermediate_ca_cert.assert_called_once()
+
+    @mock.patch.object(subcloud_manager, 'KeystoneClient')
+    @mock.patch.object(subcloud_manager, 'db_api')
+    @mock.patch.object(subcloud_manager, 'SysinvClient')
+    def test_add_subcloud_deploy_prep_failed(self,
+                                             mock_sysinv_client,
+                                             mock_db_api,
+                                             mock_keystone_client):
+        values = utils.create_subcloud_dict(base.SUBCLOUD_SAMPLE_DATA_0)
+        controllers = FAKE_CONTROLLERS
+        services = FAKE_SERVICES
+
+        self.fake_dcorch_api.add_subcloud.\
+            side_effect = self.exception_dcorch_rpc
+        mock_sysinv_client().get_controller_hosts.return_value = controllers
+        mock_keystone_client().services_list = services
+
+        sm = subcloud_manager.SubcloudManager()
+        sm.add_subcloud(self.ctx, payload=values)
+        mock_db_api.subcloud_status_create.assert_called()
+        mock_sysinv_client().create_route.assert_called()
+        mock_db_api.subcloud_update.\
+            assert_called_with(self.ctx,
+                               mock_db_api.subcloud_get_by_name().id,
+                               deploy_status=consts.DEPLOY_STATE_DEPLOY_PREP_FAILED)
 
     @mock.patch.object(subcloud_manager.SubcloudManager,
                        '_delete_subcloud_cert')

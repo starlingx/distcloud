@@ -96,6 +96,8 @@ STRATEGY_STATE_FAILED = "failed"
 
 # Subcloud deploy status states
 DEPLOY_STATE_NONE = 'not-deployed'
+DEPLOY_STATE_PRE_DEPLOY = 'pre-deploy'
+DEPLOY_STATE_DEPLOY_PREP_FAILED = 'deploy-prep-failed'
 DEPLOY_STATE_PRE_INSTALL = 'pre-install'
 DEPLOY_STATE_PRE_INSTALL_FAILED = 'pre-install-failed'
 DEPLOY_STATE_INSTALLING = 'installing'
