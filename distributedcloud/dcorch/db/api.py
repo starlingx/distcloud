@@ -253,6 +253,10 @@ def orch_request_get(context, orch_request_id):
     return IMPL.orch_request_get(context, orch_request_id)
 
 
+def orch_request_get_most_recent_failed_request(context):
+    return IMPL.orch_request_get_most_recent_failed_request(context)
+
+
 def orch_request_get_all(context, orch_job_id=None):
     return IMPL.orch_request_get_all(context, orch_job_id=orch_job_id)
 
@@ -294,3 +298,13 @@ def orch_request_destroy(context, orch_request_id):
 
 def orch_request_delete_by_subcloud(context, region_name):
     return IMPL.orch_request_delete_by_subcloud(context, region_name)
+
+
+def orch_request_delete_previous_failed_requests(context, delete_timestamp):
+    return IMPL.orch_request_delete_previous_failed_requests(
+        context, delete_timestamp)
+
+
+# Periodic cleanup
+def purge_deleted_records(context, age_in_days=1):
+    return IMPL.purge_deleted_records(context, age_in_days)

@@ -25,6 +25,7 @@
 Implementation of SQLAlchemy backend.
 """
 
+import datetime
 import sys
 import threading
 
@@ -37,10 +38,12 @@ from oslo_utils import timeutils
 from oslo_utils import uuidutils
 
 from sqlalchemy import asc
+from sqlalchemy import desc
 from sqlalchemy.orm.exc import MultipleResultsFound
 from sqlalchemy.orm.exc import NoResultFound
 from sqlalchemy.orm import joinedload_all
 
+from dcorch.common import consts
 from dcorch.common import exceptions as exception
 from dcorch.common.i18n import _
 from dcorch.db.sqlalchemy import migration
@@ -788,6 +791,18 @@ def orch_request_get(context, orch_request_id):
 
 
 @require_context
+def orch_request_get_most_recent_failed_request(context):
+    query = model_query(context, models.OrchRequest). \
+        filter_by(deleted=0). \
+        filter_by(state=consts.ORCH_REQUEST_STATE_FAILED)
+
+    try:
+        return query.order_by(desc(models.OrchRequest.updated_at)).first()
+    except NoResultFound:
+        return None
+
+
+@require_context
 def orch_request_get_all(context, orch_job_id=None):
     query = model_query(context, models.OrchRequest). \
         filter_by(deleted=0)
@@ -891,3 +906,56 @@ def orch_request_delete_by_subcloud(context, region_name):
         session.query(models.OrchRequest). \
             filter_by(target_region_name=region_name). \
             delete()
+
+
+@require_admin_context
+def orch_request_delete_previous_failed_requests(context, delete_timestamp):
+    """Soft delete orch_request entries.
+
+       This is used to soft delete all previously failed requests at
+       the end of each audit cycle.
+    """
+    LOG.info('Soft deleting failed orch requests at and before %s',
+             delete_timestamp)
+    with write_session() as session:
+        query = session.query(models.OrchRequest). \
+            filter_by(deleted=0). \
+            filter_by(state=consts.ORCH_REQUEST_STATE_FAILED). \
+            filter(models.OrchRequest.updated_at <= delete_timestamp)
+
+        count = query.update({'deleted': 1,
+                              'deleted_at': timeutils.utcnow()})
+    LOG.info('%d previously failed sync requests soft deleted', count)
+
+
+@require_admin_context
+def purge_deleted_records(context, age_in_days):
+    deleted_age = \
+        timeutils.utcnow() - datetime.timedelta(days=age_in_days)
+
+    LOG.info('Purging deleted records older than %s', deleted_age)
+
+    with write_session() as session:
+        # Purging orch_request table
+        count = session.query(models.OrchRequest). \
+            filter_by(deleted=1). \
+            filter(models.OrchRequest.deleted_at < deleted_age).delete()
+        LOG.info('%d records were purged from orch_request table.', count)
+
+        # Purging orch_job table
+        subquery = model_query(context, models.OrchRequest.orch_job_id). \
+            group_by(models.OrchRequest.orch_job_id)
+
+        count = session.query(models.OrchJob). \
+            filter(~models.OrchJob.id.in_(subquery)). \
+            delete(synchronize_session='fetch')
+        LOG.info('%d records were purged from orch_job table.', count)
+
+        # Purging resource table
+        subquery = model_query(context, models.OrchJob.resource_id). \
+            group_by(models.OrchJob.resource_id)
+
+        count = session.query(models.Resource). \
+            filter(~models.Resource.id.in_(subquery)). \
+            delete(synchronize_session='fetch')
+        LOG.info('%d records were purged from resource table.', count)

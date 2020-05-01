@@ -35,7 +35,10 @@ class OrchRequest(base.OrchestratorObject, base.VersionedObjectDictCompat):
         'api_version': fields.StringField(nullable=True),
         'target_region_name': fields.StringField(),
         'orch_job_id': fields.IntegerField(),
-        'orch_job': fields.ObjectField('OrchJob')
+        'orch_job': fields.ObjectField('OrchJob'),
+        'updated_at': fields.DateTimeField(nullable=True),
+        'deleted_at': fields.DateTimeField(nullable=True),
+        'deleted': fields.IntegerField()
     }
 
     def create(self):
@@ -86,6 +89,15 @@ class OrchRequest(base.OrchestratorObject, base.VersionedObjectDictCompat):
         db_orch_request = db_api.orch_request_get(context, id)
         return cls._from_db_object(context, cls(), db_orch_request)
 
+    @classmethod
+    def get_most_recent_failed_request(cls, context):
+        db_orch_request = \
+            db_api.orch_request_get_most_recent_failed_request(context)
+        if db_orch_request:
+            return cls._from_db_object(context, cls(), db_orch_request)
+        else:
+            return None
+
     def save(self):
         updates = self.obj_get_changes()
         updates.pop('id', None)
@@ -97,6 +109,11 @@ class OrchRequest(base.OrchestratorObject, base.VersionedObjectDictCompat):
 
     def delete(self):
         db_api.orch_request_destroy(self._context, self.id)
+
+    @classmethod
+    def delete_previous_failed_requests(cls, context, delete_time):
+        db_api.orch_request_delete_previous_failed_requests(
+            context, delete_time)
 
 
 @base.OrchestratorObjectRegistry.register
