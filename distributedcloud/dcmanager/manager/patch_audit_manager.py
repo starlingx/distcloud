@@ -56,6 +56,7 @@ class PatchAuditManager(manager.Manager):
         self.subcloud_manager = kwargs['subcloud_manager']
         # Wait 20 seconds before doing the first audit
         self.wait_time_passed = DEFAULT_PATCH_AUDIT_DELAY_SECONDS - 25
+        self.audit_count = 0
 
     # Used to force an audit on the next interval
     _force_audit = False
@@ -98,11 +99,19 @@ class PatchAuditManager(manager.Manager):
             except Exception as e:
                 LOG.exception(e)
 
+    def _update_subcloud_sync_status(self, sc_name, sc_endpoint_type, sc_status):
+        self.subcloud_manager.update_subcloud_endpoint_status(
+            self.context,
+            subcloud_name=sc_name,
+            endpoint_type=sc_endpoint_type,
+            sync_status=sc_status)
+
     def _periodic_patch_audit_loop(self):
         """Audit patch status of subclouds loop."""
 
         # We are running in our own green thread here.
         LOG.info('Triggered patch audit.')
+        self.audit_count += 1
 
         try:
             m_os_ks_client = OpenStackDriver(
@@ -118,6 +127,15 @@ class PatchAuditManager(manager.Manager):
             consts.DEFAULT_REGION_NAME, m_os_ks_client.session)
         regionone_patches = patching_client.query()
         LOG.debug("regionone_patches: %s" % regionone_patches)
+
+        # Get the active software version in RegionOne as it may be needed
+        # later for subcloud load audit.
+        sysinv_client = SysinvClient(
+            consts.DEFAULT_REGION_NAME, m_os_ks_client.session)
+        regionone_loads = sysinv_client.get_loads()
+        for load in regionone_loads:
+            if load.state == consts.LOAD_STATE_ACTIVE:
+                regionone_software_version = load.software_version
 
         # Build lists of patches that should be applied or committed in all
         # subclouds, based on their state in RegionOne. Check repostate
@@ -191,8 +209,12 @@ class PatchAuditManager(manager.Manager):
                 LOG.warn('Cannot retrieve loads for subcloud: %s' %
                          subcloud.name)
                 continue
+
+            subcloud_software_version = None
             for load in loads:
                 installed_loads.append(load.software_version)
+                if load.state == consts.LOAD_STATE_ACTIVE:
+                    subcloud_software_version = load.software_version
 
             out_of_sync = False
 
@@ -241,16 +263,41 @@ class PatchAuditManager(manager.Manager):
             if out_of_sync:
                 LOG.debug("Subcloud %s is out-of-sync for patching" %
                           subcloud.name)
-                self.subcloud_manager.update_subcloud_endpoint_status(
-                    self.context,
-                    subcloud_name=subcloud.name,
-                    endpoint_type=dcorch_consts.ENDPOINT_TYPE_PATCHING,
-                    sync_status=consts.SYNC_STATUS_OUT_OF_SYNC)
+                self._update_subcloud_sync_status(
+                    subcloud.name, dcorch_consts.ENDPOINT_TYPE_PATCHING,
+                    consts.SYNC_STATUS_OUT_OF_SYNC)
             else:
                 LOG.debug("Subcloud %s is in-sync for patching" %
                           subcloud.name)
-                self.subcloud_manager.update_subcloud_endpoint_status(
-                    self.context,
-                    subcloud_name=subcloud.name,
-                    endpoint_type=dcorch_consts.ENDPOINT_TYPE_PATCHING,
-                    sync_status=consts.SYNC_STATUS_IN_SYNC)
+                self._update_subcloud_sync_status(
+                    subcloud.name, dcorch_consts.ENDPOINT_TYPE_PATCHING,
+                    consts.SYNC_STATUS_IN_SYNC)
+
+            # Check subcloud software version every other audit cycle
+            if self.audit_count % 2 != 0:
+                LOG.debug('Auditing load of subcloud %s' % subcloud.name)
+                try:
+                    upgrades = sysinv_client.get_upgrades()
+                except Exception:
+                    LOG.warn('Cannot retrieve upgrade info for subcloud: %s' %
+                             subcloud.name)
+                    continue
+
+                if not upgrades:
+                    # No upgrade in progress
+                    if subcloud_software_version == regionone_software_version:
+                        self._update_subcloud_sync_status(
+                            subcloud.name, dcorch_consts.ENDPOINT_TYPE_LOAD,
+                            consts.SYNC_STATUS_IN_SYNC)
+                    else:
+                        self._update_subcloud_sync_status(
+                            subcloud.name, dcorch_consts.ENDPOINT_TYPE_LOAD,
+                            consts.SYNC_STATUS_OUT_OF_SYNC)
+                else:
+                    # As upgrade is still in progress, set the subcloud load
+                    # status as out-of-sync.
+                    self._update_subcloud_sync_status(
+                        subcloud.name, dcorch_consts.ENDPOINT_TYPE_LOAD,
+                        consts.SYNC_STATUS_OUT_OF_SYNC)
+
+        LOG.info('Patch audit completed.')

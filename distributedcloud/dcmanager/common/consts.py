@@ -124,3 +124,6 @@ DEPLOY_COMMON_FILE_OPTIONS = [
     DEPLOY_OVERRIDES,
     DEPLOY_CHART
 ]
+
+# Active load state
+LOAD_STATE_ACTIVE = 'active'
