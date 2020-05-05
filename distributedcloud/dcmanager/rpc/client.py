@@ -89,6 +89,31 @@ class ManagerClient(object):
                                              endpoint_type=endpoint_type,
                                              sync_status=sync_status))
 
+    def update_subcloud_availability(self, ctxt,
+                                     subcloud_name,
+                                     availability_status,
+                                     update_state_only=False,
+                                     audit_fail_count=None):
+        return self.call(
+            ctxt,
+            self.make_msg('update_subcloud_availability',
+                          subcloud_name=subcloud_name,
+                          availability_status=availability_status,
+                          update_state_only=update_state_only,
+                          audit_fail_count=audit_fail_count))
+
+    def update_subcloud_sync_endpoint_type(self, ctxt, subcloud_id,
+                                           subcloud_name,
+                                           endpoint_type_list,
+                                           openstack_installed):
+        return self.cast(
+            ctxt,
+            self.make_msg('update_subcloud_sync_endpoint_type',
+                          subcloud_id=subcloud_id,
+                          subcloud_name=subcloud_name,
+                          endpoint_type_list=endpoint_type_list,
+                          openstack_installed=openstack_installed))
+
     def create_sw_update_strategy(self, ctxt, payload):
         return self.call(ctxt, self.make_msg('create_sw_update_strategy',
                                              payload=payload))

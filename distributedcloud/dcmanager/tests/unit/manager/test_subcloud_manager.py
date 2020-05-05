@@ -27,7 +27,9 @@ sys.modules['fm_core'] = mock.Mock()
 
 import threading
 
+from dccommon import consts as dccommon_consts
 from dcmanager.common import consts
+from dcmanager.common import exceptions
 from dcmanager.db.sqlalchemy import api as db_api
 from dcmanager.manager import subcloud_manager
 from dcmanager.tests import base
@@ -39,6 +41,7 @@ class FakeDCOrchAPI(object):
     def __init__(self):
         self.update_subcloud_states = mock.MagicMock()
         self.add_subcloud_sync_endpoint_type = mock.MagicMock()
+        self.remove_subcloud_sync_endpoint_type = mock.MagicMock()
         self.del_subcloud = mock.MagicMock()
         self.add_subcloud = mock.MagicMock()
 
@@ -443,3 +446,136 @@ class TestSubcloudManager(base.DCManagerTestCase):
                 self.assertIsNotNone(updated_subcloud_status)
                 self.assertEqual(updated_subcloud_status.sync_status,
                                  consts.SYNC_STATUS_OUT_OF_SYNC)
+
+    def test_update_subcloud_availability_go_online(self):
+        # create a subcloud
+        subcloud = self.create_subcloud_static(self.ctx, name='subcloud1')
+        self.assertIsNotNone(subcloud)
+        self.assertEqual(subcloud.availability_status,
+                         consts.AVAILABILITY_OFFLINE)
+
+        sm = subcloud_manager.SubcloudManager()
+        sm.update_subcloud_availability(self.ctx, subcloud.name,
+                                        consts.AVAILABILITY_ONLINE)
+
+        updated_subcloud = db_api.subcloud_get_by_name(self.ctx, 'subcloud1')
+        # Verify the subcloud was set to online
+        self.assertEqual(updated_subcloud.availability_status,
+                         consts.AVAILABILITY_ONLINE)
+        # Verify notifying dcorch
+        self.fake_dcorch_api.update_subcloud_states.assert_called_once_with(
+            self.ctx, subcloud.name, updated_subcloud.management_state,
+            consts.AVAILABILITY_ONLINE)
+
+    def test_update_subcloud_availability_go_offline(self):
+        subcloud = self.create_subcloud_static(self.ctx, name='subcloud1')
+        self.assertIsNotNone(subcloud)
+
+        # Set the subcloud to online/managed
+        db_api.subcloud_update(self.ctx, subcloud.id,
+                               management_state=consts.MANAGEMENT_MANAGED,
+                               availability_status=consts.AVAILABILITY_ONLINE)
+
+        sm = subcloud_manager.SubcloudManager()
+
+        # create sync statuses for endpoints and set them to in-sync
+        for endpoint in [dcorch_consts.ENDPOINT_TYPE_PLATFORM,
+                         dcorch_consts.ENDPOINT_TYPE_IDENTITY,
+                         dcorch_consts.ENDPOINT_TYPE_PATCHING,
+                         dcorch_consts.ENDPOINT_TYPE_FM,
+                         dcorch_consts.ENDPOINT_TYPE_NFV]:
+            db_api.subcloud_status_create(
+                self.ctx, subcloud.id, endpoint)
+            sm.update_subcloud_endpoint_status(
+                self.ctx, subcloud_name=subcloud.name,
+                endpoint_type=endpoint,
+                sync_status=consts.SYNC_STATUS_IN_SYNC)
+
+        # Audit fails once
+        audit_fail_count = 1
+        sm.update_subcloud_availability(self.ctx, subcloud.name,
+                                        availability_status=None,
+                                        audit_fail_count=audit_fail_count)
+        # Verify the subclcoud availability was not updated
+        updated_subcloud = db_api.subcloud_get_by_name(self.ctx, 'subcloud1')
+        self.assertEqual(updated_subcloud.availability_status,
+                         consts.AVAILABILITY_ONLINE)
+        # Verify dcorch was not notified
+        self.fake_dcorch_api.update_subcloud_states.assert_not_called()
+        # Verify the audit_fail_count was updated
+        updated_subcloud = db_api.subcloud_get_by_name(self.ctx, 'subcloud1')
+        self.assertEqual(updated_subcloud.audit_fail_count, audit_fail_count)
+
+        # Audit fails again
+        audit_fail_count = audit_fail_count + 1
+        sm.update_subcloud_availability(self.ctx, subcloud.name,
+                                        consts.AVAILABILITY_OFFLINE,
+                                        audit_fail_count=audit_fail_count)
+
+        # Verify the subclcoud availability was updated
+        updated_subcloud = db_api.subcloud_get_by_name(self.ctx, 'subcloud1')
+        self.assertEqual(updated_subcloud.availability_status,
+                         consts.AVAILABILITY_OFFLINE)
+
+        # Verify notifying dcorch
+        self.fake_dcorch_api.update_subcloud_states.assert_called_once_with(
+            self.ctx, subcloud.name, updated_subcloud.management_state,
+            consts.AVAILABILITY_OFFLINE)
+
+        # Verify all endpoint statuses set to unknown
+        for subcloud, subcloud_status in db_api. \
+                subcloud_get_with_status(self.ctx, subcloud.id):
+            self.assertIsNotNone(subcloud_status)
+            self.assertEqual(subcloud_status.sync_status,
+                             consts.SYNC_STATUS_UNKNOWN)
+
+    def test_update_subcloud_sync_endpoint_type(self):
+        subcloud = self.create_subcloud_static(self.ctx, name='subcloud1')
+        self.assertIsNotNone(subcloud)
+
+        sm = subcloud_manager.SubcloudManager()
+
+        endpoint_type_list = dccommon_consts.ENDPOINT_TYPES_LIST_OS
+
+        # Test openstack app installed
+        openstack_installed = True
+        sm.update_subcloud_sync_endpoint_type(self.ctx, subcloud.name,
+                                              endpoint_type_list,
+                                              openstack_installed)
+
+        # Verify notifying dcorch to add subcloud sync endpoint type
+        self.fake_dcorch_api.add_subcloud_sync_endpoint_type.\
+            assert_called_once_with(self.ctx, subcloud.name,
+                                    endpoint_type_list)
+
+        # Verify the subcloud status created for os endpoints
+        for endpoint in endpoint_type_list:
+            subcloud_status = db_api.subcloud_status_get(
+                self.ctx, subcloud.id, endpoint)
+            self.assertIsNotNone(subcloud_status)
+            self.assertEqual(subcloud_status.sync_status,
+                             consts.SYNC_STATUS_UNKNOWN)
+
+        # Verify the subcloud openstack_installed was updated
+        updated_subcloud = db_api.subcloud_get_by_name(self.ctx, subcloud.name)
+        self.assertEqual(updated_subcloud.openstack_installed, True)
+
+        # Test openstack app removed
+        openstack_installed = False
+        sm.update_subcloud_sync_endpoint_type(self.ctx, subcloud.name,
+                                              endpoint_type_list,
+                                              openstack_installed)
+        # Verify notifying dcorch to remove subcloud sync endpoint type
+        self.fake_dcorch_api.remove_subcloud_sync_endpoint_type.\
+            assert_called_once_with(self.ctx, subcloud.name,
+                                    endpoint_type_list)
+
+        # Verify the subcloud status is deleted for os endpoints
+        for endpoint in endpoint_type_list:
+            self.assertRaises(exceptions.SubcloudStatusNotFound,
+                              db_api.subcloud_status_get, self.ctx,
+                              subcloud.id, endpoint)
+
+        # Verify the subcloud openstack_installed was updated
+        updated_subcloud = db_api.subcloud_get_by_name(self.ctx, subcloud.name)
+        self.assertEqual(updated_subcloud.openstack_installed, False)

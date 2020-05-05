@@ -100,7 +100,7 @@ class EngineClient(object):
 
     def add_subcloud_sync_endpoint_type(self, ctxt, subcloud_name,
                                         endpoint_type_list):
-        return self.call(
+        return self.cast(
             ctxt,
             self.make_msg('add_subcloud_sync_endpoint_type',
                           subcloud_name=subcloud_name,
@@ -108,7 +108,7 @@ class EngineClient(object):
 
     def remove_subcloud_sync_endpoint_type(self, ctxt, subcloud_name,
                                            endpoint_type_list):
-        return self.call(
+        return self.cast(
             ctxt,
             self.make_msg('remove_subcloud_sync_endpoint_type',
                           subcloud_name=subcloud_name,

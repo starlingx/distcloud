@@ -20,8 +20,8 @@
 import mock
 
 from dccommon.drivers.openstack import sdk_platform as sdk
+from dcmanager.audit import alarm_aggregation
 from dcmanager.common import exceptions
-from dcmanager.manager import alarm_aggregation
 from dcmanager.tests import base
 from dcmanager.tests import utils
 
