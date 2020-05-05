@@ -4,6 +4,7 @@
       - publish-stx-docs
       - stx-api-ref-jobs
       - stx-release-notes-jobs
+      - stx-bandit-jobs
     check:
       jobs:
         - openstack-tox-linters
