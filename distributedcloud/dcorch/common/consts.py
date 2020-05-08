@@ -126,11 +126,17 @@ ENDPOINT_TYPE_PATCHING = "patching"
 ENDPOINT_TYPE_IDENTITY = "identity"
 ENDPOINT_TYPE_FM = "faultmanagement"
 ENDPOINT_TYPE_NFV = "nfv"
+ENDPOINT_TYPE_LOAD = "load"
 
-# platform endpoint types
+# All endpoint types
 ENDPOINT_TYPES_LIST = [ENDPOINT_TYPE_PLATFORM,
                        ENDPOINT_TYPE_PATCHING,
-                       ENDPOINT_TYPE_IDENTITY]
+                       ENDPOINT_TYPE_IDENTITY,
+                       ENDPOINT_TYPE_LOAD]
+
+# Dcorch sync endpoint types
+SYNC_ENDPOINT_TYPES_LIST = [ENDPOINT_TYPE_PLATFORM,
+                            ENDPOINT_TYPE_IDENTITY]
 
 ENDPOINT_QUOTA_MAPPING = {
     ENDPOINT_TYPE_COMPUTE: NOVA_QUOTA_FIELDS,
