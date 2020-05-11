@@ -184,9 +184,9 @@ internalServerError (500), serviceUnavailable (503)
 
 This operation does not accept a request body.
 
-********************
+******************
 Creates a subcloud
-********************
+******************
 
 .. rest_method:: POST /v1.0/subclouds
 
@@ -215,7 +215,7 @@ serviceUnavailable (503)
    "bootstrap_values", "plain", "xsd:string", "The content of a file containing the bootstrap overrides such as subcloud name, management and OAM subnet."
    "install_values (Optional)", "plain", "xsd:string", "The content of a file containing install variables such as subcloud bootstrap interface and BMC information."
    "deploy_config (Optional)", "plain", "xsd:string", "The content of a file containing the resource definitions describing the desired subcloud configuration."
-   "group_id", "plain", "xsd:int", "Id of the subcloud group. Defaults to 1"
+   "group_id", "plain", "xsd:int", "Id of the subcloud group. Defaults to 1."
 
 **Response parameters**
 
