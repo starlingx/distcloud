@@ -64,7 +64,7 @@ class ManagerClient(object):
         return client.cast(ctxt, method, **kwargs)
 
     def add_subcloud(self, ctxt, payload):
-        return self.call(ctxt, self.make_msg('add_subcloud',
+        return self.cast(ctxt, self.make_msg('add_subcloud',
                                              payload=payload))
 
     def delete_subcloud(self, ctxt, subcloud_id):
