@@ -163,9 +163,6 @@ class TestSubcloudManager(base.DCManagerTestCase):
         self.assertEqual('localhost', sm.host)
         self.assertEqual(self.ctx, sm.context)
 
-    def exception_dcorch_rpc(self):
-        raise FakeException
-
     @mock.patch.object(subcloud_manager.SubcloudManager,
                        '_create_intermediate_ca_cert')
     @mock.patch.object(subcloud_manager.SubcloudManager,
@@ -194,6 +191,10 @@ class TestSubcloudManager(base.DCManagerTestCase):
         controllers = FAKE_CONTROLLERS
         services = FAKE_SERVICES
 
+        # dcmanager add_subcloud queries the data from the db
+        fake_subcloud = Subcloud(values, False)
+        mock_db_api.subcloud_get_by_name.return_value = fake_subcloud
+
         mock_sysinv_client().get_controller_hosts.return_value = controllers
         mock_keystone_client().services_list = services
         mock_keyring.get_password.return_value = "testpassword"
@@ -221,8 +222,11 @@ class TestSubcloudManager(base.DCManagerTestCase):
         controllers = FAKE_CONTROLLERS
         services = FAKE_SERVICES
 
-        self.fake_dcorch_api.add_subcloud.\
-            side_effect = self.exception_dcorch_rpc
+        # dcmanager add_subcloud queries the data from the db
+        fake_subcloud = Subcloud(values, False)
+        mock_db_api.subcloud_get_by_name.return_value = fake_subcloud
+
+        self.fake_dcorch_api.add_subcloud.side_effect = FakeException('boom')
         mock_sysinv_client().get_controller_hosts.return_value = controllers
         mock_keystone_client().services_list = services
 

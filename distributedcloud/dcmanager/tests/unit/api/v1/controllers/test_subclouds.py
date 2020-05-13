@@ -131,7 +131,8 @@ class TestSubclouds(testroot.DCManagerApiTest):
         fields = list()
         for f in subclouds.SUBCLOUD_ADD_MANDATORY_FILE:
             fake_name = f + "_fake"
-            fields.append((f, fake_name, "fake content"))
+            fake_content = "fake content".encode('utf-8')
+            fields.append((f, fake_name, fake_content))
         data = copy.copy(FAKE_SUBCLOUD_DATA)
         data.update(FAKE_BOOTSTRAP_VALUE)
         mock_get_request_data.return_value = data
@@ -174,10 +175,12 @@ class TestSubclouds(testroot.DCManagerApiTest):
         fields = list()
         for f in subclouds.SUBCLOUD_ADD_GET_FILE_CONTENTS:
             fake_name = f + "_fake"
-            fields.append((f, fake_name, "fake content"))
+            fake_content = "fake content".encode('utf-8')
+            fields.append((f, fake_name, fake_content))
         params = copy.copy(FAKE_BOOTSTRAP_VALUE)
-        params.update({'bmc_password':
-                      base64.b64encode('bmc_password'.encode("utf-8"))})
+        params.update(
+            {'bmc_password':
+             base64.b64encode('bmc_password'.encode("utf-8")).decode('utf-8')})
         data.update(params)
         mock_get_request_data.return_value = data
         mock_upload_deploy_config_file.return_value = True

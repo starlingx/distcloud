@@ -45,7 +45,8 @@ class TestSubcloudDeploy(testroot.DCManagerApiTest):
         fields = list()
         for opt in consts.DEPLOY_COMMON_FILE_OPTIONS:
             fake_name = opt + "_fake"
-            fields.append((opt, fake_name, "fake content"))
+            fake_content = "fake content".encode('utf-8')
+            fields.append((opt, fake_name, fake_content))
         mock_upload_files.return_value = True
         response = self.app.post(FAKE_URL,
                                  headers=FAKE_HEADERS,
@@ -59,7 +60,8 @@ class TestSubcloudDeploy(testroot.DCManagerApiTest):
         fields = list()
         for opt in opts:
             fake_name = opt + "_fake"
-            fields.append((opt, fake_name, "fake content"))
+            fake_content = "fake content".encode('utf-8')
+            fields.append((opt, fake_name, fake_content))
         mock_upload_files.return_value = True
         response = self.app.post(FAKE_URL,
                                  headers=FAKE_HEADERS,
@@ -72,7 +74,8 @@ class TestSubcloudDeploy(testroot.DCManagerApiTest):
     def test_post_subcloud_deploy_missing_file_name(self, mock_upload_files):
         fields = list()
         for opt in consts.DEPLOY_COMMON_FILE_OPTIONS:
-            fields.append((opt, "", "fake content"))
+            fake_content = "fake content".encode('utf-8')
+            fields.append((opt, "", fake_content))
         mock_upload_files.return_value = True
         response = self.app.post(FAKE_URL,
                                  headers=FAKE_HEADERS,
