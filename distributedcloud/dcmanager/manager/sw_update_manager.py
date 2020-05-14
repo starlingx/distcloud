@@ -73,9 +73,10 @@ class SwUpdateManager(manager.Manager):
                     subcloud_status.sync_status ==
                     consts.SYNC_STATUS_OUT_OF_SYNC)
         elif strategy_type == consts.SW_UPDATE_TYPE_UPGRADE:
-            # todo(abailey): Check if subcloud requires upgrade
-            LOG.warning("_validate_subcloud_status_sync for upgrade not done")
-            return True
+            return (subcloud_status.endpoint_type ==
+                    dcorch_consts.ENDPOINT_TYPE_LOAD and
+                    subcloud_status.sync_status ==
+                    consts.SYNC_STATUS_OUT_OF_SYNC)
         # Unimplemented strategy_type status check. Log an error
         LOG.error("_validate_subcloud_status_sync for %s not implemented" %
                   strategy_type)
@@ -157,8 +158,14 @@ class SwUpdateManager(manager.Manager):
                 continue
 
             if strategy_type == consts.SW_UPDATE_TYPE_UPGRADE:
-                # todo(abailey): Check if subcloud requires upgrade
-                LOG.warning("subcloud upgrade sync-unknown not implemented")
+                if (subcloud_status.endpoint_type ==
+                    dcorch_consts.ENDPOINT_TYPE_LOAD and
+                        subcloud_status.sync_status ==
+                        consts.SYNC_STATUS_UNKNOWN):
+                    raise exceptions.BadRequest(
+                        resource='strategy',
+                        msg='Upgrade sync status is unknown for one or more '
+                            'subclouds')
             elif strategy_type == consts.SW_UPDATE_TYPE_PATCH:
                 if (subcloud_status.endpoint_type ==
                     dcorch_consts.ENDPOINT_TYPE_PATCHING and
@@ -190,13 +197,7 @@ class SwUpdateManager(manager.Manager):
         # out of sync
         current_stage = 2
         stage_size = 0
-        subcloud_step_set = set()
         for subcloud, subcloud_status in subclouds:
-            if subcloud.id in subcloud_step_set:
-                # Do not re-add a subcloud that already has steps
-                LOG.warning("subcloud: %s status: %s attempted to be re-added"
-                            % (subcloud.name, subcloud_status))
-                continue
             if cloud_name and subcloud.name != cloud_name:
                 # We are not targetting for update this subcloud
                 continue
@@ -213,9 +214,6 @@ class SwUpdateManager(manager.Manager):
                     stage=current_stage,
                     state=consts.STRATEGY_STATE_INITIAL,
                     details='')
-                # todo(abailey): remove all code related to subcloud_step_set
-                # once the upgrade endpoint is added to the list of statuses.
-                subcloud_step_set.add(subcloud.id)
 
                 # todo(abailey): subcloud-group affects these stages
                 # We have added a subcloud to this stage
