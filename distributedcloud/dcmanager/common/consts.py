@@ -23,6 +23,8 @@ RPC_API_VERSION = "1.0"
 
 TOPIC_DC_MANAGER = "dcmanager"
 
+TOPIC_DC_MANAGER_AUDIT = "dcmanager-audit"
+
 PATCH_VAULT_DIR = "/opt/dc-vault/patches"
 
 # Well known region names

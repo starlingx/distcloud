@@ -22,7 +22,7 @@ import mock
 import sys
 sys.modules['fm_core'] = mock.Mock()
 
-from dcmanager.manager import scheduler
+from dcmanager.common import scheduler
 from dcmanager.manager import service
 from dcmanager.tests import base
 from dcmanager.tests import utils
@@ -56,10 +56,8 @@ class TestDCManagerService(base.DCManagerTestCase):
         self.service_obj.init_tgm()
         self.assertIsNotNone(self.service_obj.TG)
 
-    @mock.patch.object(service, 'SubcloudAuditManager')
-    def test_init_audit_managers(self, mock_audit_manager):
+    def test_init_audit_managers(self):
         self.service_obj.init_audit_managers()
-        self.assertIsNotNone(self.service_obj.subcloud_audit_manager)
         self.assertIsNotNone(self.service_obj.patch_audit_manager)
 
     @mock.patch.object(service, 'SwUpdateManager')
@@ -72,29 +70,16 @@ class TestDCManagerService(base.DCManagerTestCase):
 
     @mock.patch.object(service, 'SwUpdateManager')
     @mock.patch.object(service, 'SubcloudManager')
-    @mock.patch.object(service, 'SubcloudAuditManager')
     @mock.patch.object(service, 'rpc_messaging')
-    def test_start(self, mock_rpc, mock_audit_manager, mock_subcloud_manager,
+    def test_start(self, mock_rpc, mock_subcloud_manager,
                    mock_sw_update_manager):
         self.service_obj.start()
         mock_rpc.get_rpc_server.assert_called_once_with(
             self.service_obj.target, self.service_obj)
         mock_rpc.get_rpc_server().start.assert_called_once_with()
 
-    @mock.patch.object(service, 'SubcloudAuditManager')
     @mock.patch.object(service, 'PatchAuditManager')
-    def test_periodic_audit_subclouds(self, mock_patch_audit_manager,
-                                      mock_subcloud_audit_manager):
-        self.service_obj.init_tgm()
-        self.service_obj.init_audit_managers()
-        self.service_obj.subcloud_audit()
-        mock_subcloud_audit_manager().periodic_subcloud_audit.\
-            assert_called_once_with()
-
-    @mock.patch.object(service, 'SubcloudAuditManager')
-    @mock.patch.object(service, 'PatchAuditManager')
-    def test_periodic_audit_patches(self, mock_patch_audit_manager,
-                                    mock_subcloud_audit_manager):
+    def test_periodic_audit_patches(self, mock_patch_audit_manager):
         self.service_obj.init_tgm()
         self.service_obj.init_audit_managers()
         self.service_obj.patch_audit()
@@ -137,20 +122,18 @@ class TestDCManagerService(base.DCManagerTestCase):
 
     @mock.patch.object(service, 'SwUpdateManager')
     @mock.patch.object(service, 'SubcloudManager')
-    @mock.patch.object(service, 'SubcloudAuditManager')
     @mock.patch.object(service, 'rpc_messaging')
-    def test_stop_rpc_server(self, mock_rpc, mock_audit_manager,
-                             mock_subcloud_manager, mock_sw_update_manager):
+    def test_stop_rpc_server(self, mock_rpc, mock_subcloud_manager,
+                             mock_sw_update_manager):
         self.service_obj.start()
         self.service_obj._stop_rpc_server()
         mock_rpc.get_rpc_server().stop.assert_called_once_with()
 
     @mock.patch.object(service, 'SwUpdateManager')
     @mock.patch.object(service, 'SubcloudManager')
-    @mock.patch.object(service, 'SubcloudAuditManager')
     @mock.patch.object(service, 'rpc_messaging')
-    def test_stop(self, mock_rpc, mock_audit_manager,
-                  mock_subcloud_manager, mock_sw_update_manager):
+    def test_stop(self, mock_rpc, mock_subcloud_manager,
+                  mock_sw_update_manager):
         self.service_obj.start()
         self.service_obj.stop()
         mock_rpc.get_rpc_server().stop.assert_called_once_with()

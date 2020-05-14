@@ -36,10 +36,10 @@ from dccommon.drivers.openstack import vim
 from dcmanager.common import consts
 from dcmanager.common import context
 from dcmanager.common import exceptions
+from dcmanager.common import scheduler
 from dcmanager.common import utils
 from dcmanager.db import api as db_api
 from dcmanager.manager.patch_audit_manager import PatchAuditManager
-from dcmanager.manager import scheduler
 
 LOG = logging.getLogger(__name__)
 

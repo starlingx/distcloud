@@ -1041,3 +1041,153 @@ class SubcloudManager(manager.Manager):
                 self._update_subcloud_endpoint_status(
                     context, subcloud.name, endpoint_type, sync_status,
                     alarmable)
+
+    def _update_subcloud_state(self, context, subcloud_name,
+                               management_state, availability_status):
+        try:
+            self.dcorch_rpc_client.update_subcloud_states(
+                context, subcloud_name, management_state, availability_status)
+
+            LOG.info('Notifying dcorch, subcloud:%s management: %s, '
+                     'availability:%s' %
+                     (subcloud_name,
+                      management_state,
+                      availability_status))
+        except Exception:
+            LOG.exception('Problem informing dcorch of subcloud state change,'
+                          'subcloud: %s' % subcloud_name)
+
+    def _raise_or_clear_subcloud_status_alarm(self, subcloud_name,
+                                              availability_status):
+        entity_instance_id = "subcloud=%s" % subcloud_name
+        fault = self.fm_api.get_fault(
+            fm_const.FM_ALARM_ID_DC_SUBCLOUD_OFFLINE,
+            entity_instance_id)
+
+        if fault and (availability_status == consts.AVAILABILITY_ONLINE):
+            try:
+                self.fm_api.clear_fault(
+                    fm_const.FM_ALARM_ID_DC_SUBCLOUD_OFFLINE,
+                    entity_instance_id)
+            except Exception:
+                LOG.exception("Failed to clear offline alarm for subcloud: %s",
+                              subcloud_name)
+
+        elif not fault and \
+                (availability_status == consts.AVAILABILITY_OFFLINE):
+            try:
+                fault = fm_api.Fault(
+                    alarm_id=fm_const.FM_ALARM_ID_DC_SUBCLOUD_OFFLINE,
+                    alarm_state=fm_const.FM_ALARM_STATE_SET,
+                    entity_type_id=fm_const.FM_ENTITY_TYPE_SUBCLOUD,
+                    entity_instance_id=entity_instance_id,
+
+                    severity=fm_const.FM_ALARM_SEVERITY_CRITICAL,
+                    reason_text=('%s is offline' % subcloud_name),
+                    alarm_type=fm_const.FM_ALARM_TYPE_0,
+                    probable_cause=fm_const.ALARM_PROBABLE_CAUSE_29,
+                    proposed_repair_action="Wait for subcloud to "
+                                           "become online; if "
+                                           "problem persists contact "
+                                           "next level of support.",
+                    service_affecting=True)
+
+                self.fm_api.set_fault(fault)
+            except Exception:
+                LOG.exception("Failed to raise offline alarm for subcloud: %s",
+                              subcloud_name)
+
+    def update_subcloud_availability(self, context, subcloud_name,
+                                     availability_status,
+                                     update_state_only=False,
+                                     audit_fail_count=None):
+        try:
+            subcloud = db_api.subcloud_get_by_name(context, subcloud_name)
+        except Exception:
+            LOG.exception("Failed to get subcloud by name: %s" % subcloud_name)
+
+        if update_state_only:
+            # Nothing has changed, but we want to send a state update for this
+            # subcloud as an audit. Get the most up-to-date data.
+            self._update_subcloud_state(context, subcloud_name,
+                                        subcloud.management_state,
+                                        availability_status)
+        elif availability_status is None:
+            # only update the audit fail count
+            try:
+                db_api.subcloud_update(self.context, subcloud.id,
+                                       audit_fail_count=audit_fail_count)
+            except exceptions.SubcloudNotFound:
+                # slim possibility subcloud could have been deleted since
+                # we found it in db, ignore this benign error.
+                LOG.info('Ignoring SubcloudNotFound when attempting '
+                         'audit_fail_count update: %s' % subcloud_name)
+                return
+        else:
+            self._raise_or_clear_subcloud_status_alarm(subcloud_name,
+                                                       availability_status)
+
+            if availability_status == consts.AVAILABILITY_OFFLINE:
+                # Subcloud is going offline, set all endpoint statuses to
+                # unknown.
+                self._update_subcloud_endpoint_status(
+                    context, subcloud_name, endpoint_type=None,
+                    sync_status=consts.SYNC_STATUS_UNKNOWN)
+
+            try:
+                updated_subcloud = db_api.subcloud_update(
+                    context,
+                    subcloud.id,
+                    availability_status=availability_status,
+                    audit_fail_count=audit_fail_count)
+            except exceptions.SubcloudNotFound:
+                # slim possibility subcloud could have been deleted since
+                # we found it in db, ignore this benign error.
+                LOG.info('Ignoring SubcloudNotFound when attempting state'
+                         ' update: %s' % subcloud_name)
+                return
+
+            # Send dcorch a state update
+            self._update_subcloud_state(context, subcloud_name,
+                                        updated_subcloud.management_state,
+                                        availability_status)
+
+    def update_subcloud_sync_endpoint_type(self, context,
+                                           subcloud_name,
+                                           endpoint_type_list,
+                                           openstack_installed):
+        operation = 'add' if openstack_installed else 'remove'
+        func_switcher = {
+            'add': (
+                self.dcorch_rpc_client.add_subcloud_sync_endpoint_type,
+                db_api.subcloud_status_create
+            ),
+            'remove': (
+                self.dcorch_rpc_client.remove_subcloud_sync_endpoint_type,
+                db_api.subcloud_status_delete
+            )
+        }
+
+        try:
+            subcloud = db_api.subcloud_get_by_name(context, subcloud_name)
+        except Exception:
+            LOG.exception("Failed to get subcloud by name: %s" % subcloud_name)
+
+        try:
+            # Notify dcorch to add/remove sync endpoint type list
+            func_switcher[operation][0](self.context, subcloud_name,
+                                        endpoint_type_list)
+            LOG.info('Notifying dcorch, subcloud: %s new sync endpoint: %s' %
+                     (subcloud_name, endpoint_type_list))
+
+            # Update subcloud status table by adding/removing openstack sync
+            # endpoint types
+            for endpoint_type in endpoint_type_list:
+                func_switcher[operation][1](self.context, subcloud.id,
+                                            endpoint_type)
+            # Update openstack_installed of subcloud table
+            db_api.subcloud_update(self.context, subcloud.id,
+                                   openstack_installed=openstack_installed)
+        except Exception:
+            LOG.exception('Problem informing dcorch of subcloud sync endpoint'
+                          ' type change, subcloud: %s' % subcloud_name)
