@@ -132,10 +132,7 @@ class PatchAuditManager(manager.Manager):
         # later for subcloud load audit.
         sysinv_client = SysinvClient(
             consts.DEFAULT_REGION_NAME, m_os_ks_client.session)
-        regionone_loads = sysinv_client.get_loads()
-        for load in regionone_loads:
-            if load.state == consts.LOAD_STATE_ACTIVE:
-                regionone_software_version = load.software_version
+        regionone_software_version = sysinv_client.get_system().software_version
 
         # Build lists of patches that should be applied or committed in all
         # subclouds, based on their state in RegionOne. Check repostate
@@ -210,11 +207,8 @@ class PatchAuditManager(manager.Manager):
                          subcloud.name)
                 continue
 
-            subcloud_software_version = None
             for load in loads:
                 installed_loads.append(load.software_version)
-                if load.state == consts.LOAD_STATE_ACTIVE:
-                    subcloud_software_version = load.software_version
 
             out_of_sync = False
 
@@ -285,6 +279,9 @@ class PatchAuditManager(manager.Manager):
 
                 if not upgrades:
                     # No upgrade in progress
+                    subcloud_software_version = \
+                        sysinv_client.get_system().software_version
+
                     if subcloud_software_version == regionone_software_version:
                         self._update_subcloud_sync_status(
                             subcloud.name, dcorch_consts.ENDPOINT_TYPE_LOAD,

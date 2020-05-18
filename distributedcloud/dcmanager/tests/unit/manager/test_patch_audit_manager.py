@@ -63,6 +63,11 @@ class Upgrade(object):
         self.state = state
 
 
+class System(object):
+    def __init__(self, software_version):
+        self.software_version = software_version
+
+
 class FakePatchingClientInSync(object):
     def __init__(self, region, session):
         self.region = region
@@ -183,6 +188,7 @@ class FakeSysinvClientOneLoad(object):
     def __init__(self, region, session):
         self.loads = [Load('17.07', 'active')]
         self.upgrades = []
+        self.system = System('17.07')
 
     def get_loads(self):
         return self.loads
@@ -190,21 +196,28 @@ class FakeSysinvClientOneLoad(object):
     def get_upgrades(self):
         return self.upgrades
 
+    def get_system(self):
+        return self.system
+
 
 class FakeSysinvClientOneLoadUnmatchedSoftwareVersion(object):
     def __init__(self, region, session):
         self.region = region
         self.loads = [Load('17.07', 'active')]
         self.upgrades = []
+        self.system = System('17.07')
 
     def get_loads(self):
-        if self.region == 'subcloud2':
-            return [Load('17.06', 'active')]
-        else:
-            return self.loads
+        return self.loads
 
     def get_upgrades(self):
         return self.upgrades
+
+    def get_system(self):
+        if self.region == 'subcloud2':
+            return System('17.06')
+        else:
+            return self.system
 
 
 class FakeSysinvClientOneLoadUpgradeInProgress(object):
@@ -212,6 +225,7 @@ class FakeSysinvClientOneLoadUpgradeInProgress(object):
         self.region = region
         self.loads = [Load('17.07', 'active')]
         self.upgrades = []
+        self.system = System('17.07')
 
     def get_loads(self):
         return self.loads
@@ -221,6 +235,9 @@ class FakeSysinvClientOneLoadUpgradeInProgress(object):
             return [Upgrade('started')]
         else:
             return self.upgrades
+
+    def get_system(self):
+        return self.system
 
 
 class TestAuditManager(base.DCManagerTestCase):
