@@ -19,14 +19,14 @@
 # of this software may be licensed only pursuant to the terms
 # of an applicable Wind River license agreement.
 #
-
+import pecan
 
 from dcmanager.api.controllers.v1 import alarm_manager
+from dcmanager.api.controllers.v1 import subcloud_deploy
+from dcmanager.api.controllers.v1 import subcloud_group
 from dcmanager.api.controllers.v1 import subclouds
 from dcmanager.api.controllers.v1 import sw_update_options
 from dcmanager.api.controllers.v1 import sw_update_strategy
-
-import pecan
 
 
 class Controller(object):
@@ -41,11 +41,15 @@ class Controller(object):
         sub_controllers = dict()
         if minor_version == '0':
             sub_controllers["subclouds"] = subclouds.SubcloudsController
+            sub_controllers["subcloud-deploy"] = subcloud_deploy.\
+                SubcloudDeployController
             sub_controllers["alarms"] = alarm_manager.SubcloudAlarmController
             sub_controllers["sw-update-strategy"] = \
                 sw_update_strategy.SwUpdateStrategyController
             sub_controllers["sw-update-options"] = \
                 sw_update_options.SwUpdateOptionsController
+            sub_controllers["subcloud-groups"] = \
+                subcloud_group.SubcloudGroupsController
 
         for name, ctrl in sub_controllers.items():
             setattr(self, name, ctrl)

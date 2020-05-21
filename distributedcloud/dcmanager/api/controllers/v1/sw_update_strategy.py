@@ -38,6 +38,11 @@ from dcmanager.rpc import client as rpc_client
 CONF = cfg.CONF
 LOG = logging.getLogger(__name__)
 
+SUPPORTED_STRATEGY_TYPES = [
+    consts.SW_UPDATE_TYPE_UPGRADE,
+    consts.SW_UPDATE_TYPE_PATCH
+]
+
 
 class SwUpdateStrategyController(object):
 
@@ -118,7 +123,7 @@ class SwUpdateStrategyController(object):
             strategy_type = payload.get('type')
             if not strategy_type:
                 pecan.abort(400, _('type required'))
-            if strategy_type not in consts.SW_UPDATE_TYPE_PATCH:
+            if strategy_type not in SUPPORTED_STRATEGY_TYPES:
                 pecan.abort(400, _('type invalid'))
 
             subcloud_apply_type = payload.get('subcloud-apply-type')

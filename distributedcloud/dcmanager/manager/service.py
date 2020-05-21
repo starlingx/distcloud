@@ -34,9 +34,8 @@ from dcmanager.common import context
 from dcmanager.common import exceptions
 from dcmanager.common.i18n import _
 from dcmanager.common import messaging as rpc_messaging
+from dcmanager.common import scheduler
 from dcmanager.manager.patch_audit_manager import PatchAuditManager
-from dcmanager.manager import scheduler
-from dcmanager.manager.subcloud_audit_manager import SubcloudAuditManager
 from dcmanager.manager.subcloud_manager import SubcloudManager
 from dcmanager.manager.sw_update_manager import SwUpdateManager
 
@@ -81,7 +80,6 @@ class DCManagerService(service.Service):
         self.target = None
         self._rpc_server = None
         self.subcloud_manager = None
-        self.subcloud_audit_manager = None
         self.sw_update_manager = None
         self.patch_audit_manager = None
 
@@ -89,8 +87,6 @@ class DCManagerService(service.Service):
         self.TG = scheduler.ThreadGroupManager()
 
     def init_audit_managers(self):
-        self.subcloud_audit_manager = SubcloudAuditManager(
-            subcloud_manager=self.subcloud_manager)
         self.patch_audit_manager = PatchAuditManager(
             subcloud_manager=self.subcloud_manager)
 
@@ -116,17 +112,8 @@ class DCManagerService(service.Service):
         super(DCManagerService, self).start()
         if self.periodic_enable:
             LOG.info("Adding periodic tasks for the manager to perform")
-            self.TG.add_timer(cfg.CONF.scheduler.subcloud_audit_interval,
-                              self.subcloud_audit, initial_delay=10)
             self.TG.add_timer(cfg.CONF.scheduler.patch_audit_interval,
                               self.patch_audit, initial_delay=60)
-
-    def subcloud_audit(self):
-        # Audit availability of all subclouds.
-        # Note this will run in a separate green thread
-        LOG.debug("Subcloud audit job started at: %s",
-                  time.strftime("%c"))
-        self.subcloud_audit_manager.periodic_subcloud_audit()
 
     def patch_audit(self):
         # Audit patch status of all subclouds.
@@ -149,13 +136,14 @@ class DCManagerService(service.Service):
 
     @request_context
     def update_subcloud(self, context, subcloud_id, management_state=None,
-                        description=None, location=None):
+                        description=None, location=None, group_id=None):
         # Updates a subcloud
         LOG.info("Handling update_subcloud request for: %s" % subcloud_id)
         subcloud = self.subcloud_manager.update_subcloud(context, subcloud_id,
                                                          management_state,
                                                          description,
-                                                         location)
+                                                         location,
+                                                         group_id)
         # If a subcloud has been set to the managed state, trigger the
         # patching audit so it can update the sync status ASAP.
         if management_state == consts.MANAGEMENT_MANAGED:
@@ -187,6 +175,32 @@ class DCManagerService(service.Service):
             PatchAuditManager.trigger_audit()
 
         return
+
+    @request_context
+    def update_subcloud_availability(self, context,
+                                     subcloud_name,
+                                     availability_status,
+                                     update_state_only=False,
+                                     audit_fail_count=None):
+        # Updates subcloud availability
+        LOG.info("Handling update_subcloud_availability request for: %s" %
+                 subcloud_name)
+        self.subcloud_manager.update_subcloud_availability(
+            context,
+            subcloud_name,
+            availability_status,
+            update_state_only,
+            audit_fail_count)
+
+    @request_context
+    def update_subcloud_sync_endpoint_type(self, context, subcloud_name,
+                                           endpoint_type_list,
+                                           openstack_installed):
+        # Updates subcloud sync endpoint type
+        LOG.info("Handling update_subcloud_sync_endpoint_type request for: %s"
+                 % subcloud_name)
+        self.subcloud_manager.update_subcloud_sync_endpoint_type(
+            context, subcloud_name, endpoint_type_list, openstack_installed)
 
     @request_context
     def create_sw_update_strategy(self, context, payload):

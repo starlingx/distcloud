@@ -45,7 +45,7 @@ LOG = logging.getLogger(__name__)
 
 patch_opts = [
     cfg.StrOpt('patch_vault',
-               default='/opt/patch-vault/',
+               default='/opt/dc-vault/patches/',
                help='file system for patch storage on SystemController'),
 ]
 

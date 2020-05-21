@@ -13,13 +13,14 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 #
-# Copyright (c) 2017 Wind River Systems, Inc.
+# Copyright (c) 2017-2020 Wind River Systems, Inc.
 #
 # The right to copy, distribute, modify, or otherwise make use
 # of this software may be licensed only pursuant to the terms
 # of an applicable Wind River license agreement.
 #
 
+import base64
 import copy
 import mock
 import six
@@ -51,8 +52,7 @@ FAKE_SUBCLOUD_DATA = {"name": "subcloud1",
                       "external_oam_subnet": "10.10.10.0/24",
                       "external_oam_gateway_address": "10.10.10.1",
                       "external_oam_floating_address": "10.10.10.12",
-                      "availability-status": "disabled",
-                      "sysadmin_password": "testpass"}
+                      "availability-status": "disabled"}
 
 FAKE_SUBCLOUD_INSTALL_VALUES = {
     "image": "http://192.168.101.2:8080/iso/bootimage.iso",
@@ -70,6 +70,11 @@ FAKE_SUBCLOUD_INSTALL_VALUES = {
     "bootstrap_vlan": 128,
     "rootfs_device": "/dev/disk/by-path/pci-0000:5c:00.0-scsi-0:1:0:0",
     "boot_device": "/dev/disk/by-path/pci-0000:5c:00.0-scsi-0:1:0:0"
+}
+
+FAKE_BOOTSTRAP_VALUE = {
+    'bootstrap-address': '10.10.10.12',
+    'sysadmin_password': base64.b64encode('testpass'.encode("utf-8"))
 }
 
 
@@ -104,44 +109,87 @@ class TestSubclouds(testroot.DCManagerApiTest):
         self.ctx = utils.dummy_context()
 
     @mock.patch.object(subclouds.SubcloudsController,
+                       '_add_subcloud_to_database')
+    @mock.patch.object(subclouds.SubcloudsController,
+                       '_upload_deploy_config_file')
+    @mock.patch.object(subclouds.SubcloudsController,
+                       '_get_request_data')
+    @mock.patch.object(subclouds.SubcloudsController,
                        '_get_management_address_pool')
     @mock.patch.object(rpc_client, 'ManagerClient')
     @mock.patch.object(subclouds, 'db_api')
     def test_post_subcloud(self, mock_db_api, mock_rpc_client,
-                           mock_get_management_address_pool):
-        data = FAKE_SUBCLOUD_DATA
+                           mock_get_management_address_pool,
+                           mock_get_request_data,
+                           mock_upload_deploy_config_file,
+                           mock_add_subcloud_to_database):
         management_address_pool = FakeAddressPool('192.168.204.0', 24,
                                                   '192.168.204.2',
                                                   '192.168.204.100')
         mock_get_management_address_pool.return_value = management_address_pool
         mock_rpc_client().add_subcloud.return_value = True
-        response = self.app.post_json(FAKE_URL,
-                                      headers=FAKE_HEADERS,
-                                      params=data)
+        fields = list()
+        for f in subclouds.SUBCLOUD_ADD_MANDATORY_FILE:
+            fake_name = f + "_fake"
+            fake_content = "fake content".encode('utf-8')
+            fields.append((f, fake_name, fake_content))
+        data = copy.copy(FAKE_SUBCLOUD_DATA)
+        data.update(FAKE_BOOTSTRAP_VALUE)
+        mock_get_request_data.return_value = data
+        mock_upload_deploy_config_file.return_value = True
+        mock_db_api.subcloud_db_model_to_dict.return_value = data
+        response = self.app.post(FAKE_URL,
+                                 headers=FAKE_HEADERS,
+                                 params=FAKE_BOOTSTRAP_VALUE,
+                                 upload_files=fields)
+        mock_add_subcloud_to_database.assert_called_once()
         mock_rpc_client().add_subcloud.assert_called_once_with(
             mock.ANY,
             data)
         self.assertEqual(response.status_int, 200)
 
     @mock.patch.object(subclouds.SubcloudsController,
+                       '_add_subcloud_to_database')
+    @mock.patch.object(subclouds.SubcloudsController,
+                       '_upload_deploy_config_file')
+    @mock.patch.object(subclouds.SubcloudsController,
+                       '_get_request_data')
+    @mock.patch.object(subclouds.SubcloudsController,
                        '_get_management_address_pool')
     @mock.patch.object(rpc_client, 'ManagerClient')
     @mock.patch.object(subclouds, 'db_api')
     def test_post_subcloud_with_install_values(
             self, mock_db_api, mock_rpc_client,
-            mock_get_management_address_pool):
+            mock_get_management_address_pool,
+            mock_get_request_data,
+            mock_upload_deploy_config_file,
+            mock_add_subcloud_to_database):
         data = copy.copy(FAKE_SUBCLOUD_DATA)
         install_data = copy.copy(FAKE_SUBCLOUD_INSTALL_VALUES)
-        data['bmc_password'] = 'bmc_password'
         data.update({'install_values': install_data})
         management_address_pool = FakeAddressPool('192.168.204.0', 24,
                                                   '192.168.204.2',
                                                   '192.168.204.100')
         mock_get_management_address_pool.return_value = management_address_pool
         mock_rpc_client().add_subcloud.return_value = True
-        response = self.app.post_json(FAKE_URL,
-                                      headers=FAKE_HEADERS,
-                                      params=data)
+        fields = list()
+        for f in subclouds.SUBCLOUD_ADD_GET_FILE_CONTENTS:
+            fake_name = f + "_fake"
+            fake_content = "fake content".encode('utf-8')
+            fields.append((f, fake_name, fake_content))
+        params = copy.copy(FAKE_BOOTSTRAP_VALUE)
+        params.update(
+            {'bmc_password':
+             base64.b64encode('bmc_password'.encode("utf-8")).decode('utf-8')})
+        data.update(params)
+        mock_get_request_data.return_value = data
+        mock_upload_deploy_config_file.return_value = True
+        mock_db_api.subcloud_db_model_to_dict.return_value = data
+        response = self.app.post(FAKE_URL,
+                                 headers=FAKE_HEADERS,
+                                 params=params,
+                                 upload_files=fields)
+        mock_add_subcloud_to_database.assert_called_once()
         self.assertEqual(response.status_int, 200)
 
     @mock.patch.object(subclouds.SubcloudsController,
@@ -499,7 +547,8 @@ class TestSubclouds(testroot.DCManagerApiTest):
             mock.ANY,
             management_state=consts.MANAGEMENT_UNMANAGED,
             description=None,
-            location=None)
+            location=None,
+            group_id=None)
         self.assertEqual(response.status_int, 200)
 
     @mock.patch.object(rpc_client, 'ManagerClient')

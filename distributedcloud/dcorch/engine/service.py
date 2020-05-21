@@ -28,7 +28,6 @@ from dcorch.common import context
 from dcorch.common import exceptions
 from dcorch.common.i18n import _
 from dcorch.common import messaging as rpc_messaging
-from dcorch.engine.alarm_aggregate_manager import AlarmAggregateManager
 from dcorch.engine.fernet_key_manager import FernetKeyManager
 from dcorch.engine.generic_sync_manager import GenericSyncManager
 from dcorch.engine.initial_sync_manager import InitialSyncManager
@@ -82,7 +81,6 @@ class EngineService(service.Service):
         self._rpc_server = None
         self.qm = None
         self.gsm = None
-        self.aam = None
         self.fkm = None
         self.ism = None
 
@@ -97,14 +95,11 @@ class EngineService(service.Service):
         self.gsm = GenericSyncManager()
         self.gsm.init_from_db(ctxt)
 
-    def init_aam(self):
-        self.aam = AlarmAggregateManager()
-
     def init_fkm(self):
         self.fkm = FernetKeyManager(self.gsm)
 
     def init_ism(self):
-        self.ism = InitialSyncManager(self.gsm, self.fkm, self.aam)
+        self.ism = InitialSyncManager(self.gsm, self.fkm)
         self.ism.init_actions()
         self.TG.start(self.ism.initial_sync_thread)
 
@@ -113,7 +108,6 @@ class EngineService(service.Service):
         self.init_tgm()
         self.init_qm()
         self.init_gsm()
-        self.init_aam()
         self.init_fkm()
         self.init_ism()
         target = oslo_messaging.Target(version=self.rpc_api_version,
@@ -133,7 +127,7 @@ class EngineService(service.Service):
             LOG.info("Adding periodic tasks for the engine to perform")
             self.TG.add_timer(self.periodic_interval,
                               self.periodic_sync_audit,
-                              initial_delay=self.periodic_interval / 2)
+                              initial_delay=30)
             self.TG.add_timer(CONF.fernet.key_rotation_interval *
                               dccommon_consts.SECONDS_IN_HOUR,
                               self.periodic_key_rotation,
@@ -265,14 +259,6 @@ class EngineService(service.Service):
         self.gsm.update_subcloud_version(ctxt, subcloud_name, sw_version)
 
     @request_context
-    def update_alarm_summary(self, ctxt, region_name):
-        self.aam.update_alarm_summary(ctxt, region_name)
-
-    @request_context
-    def get_alarm_summary(self, ctxt):
-        return self.aam.get_alarm_summary(ctxt)
-
-    @request_context
     # The sync job info has been written to the DB, alert the sync engine
     # that there is work to do.
     # todo: add authentication since ctxt not actually needed later
@@ -300,8 +286,6 @@ class EngineService(service.Service):
         self._stop_rpc_server()
 
         self.TG.stop()
-        if self.aam:
-            self.aam.shutdown()
         # Terminate the engine process
         LOG.info("All threads were gone, terminating engine")
         super(EngineService, self).stop()

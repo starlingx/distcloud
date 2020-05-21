@@ -49,11 +49,6 @@ class FakeFKM(object):
         self.distribute_keys = mock.MagicMock()
 
 
-class FakeAAM(object):
-    def __init__(self):
-        self.enable_snmp = mock.MagicMock()
-
-
 class TestInitialSyncManager(base.OrchestratorTestCase):
     def setUp(self):
         super(TestInitialSyncManager, self).setUp()
@@ -69,10 +64,9 @@ class TestInitialSyncManager(base.OrchestratorTestCase):
         self.mock_context.get_admin_context.return_value = self.ctx
         self.addCleanup(p.stop)
 
-        # Mock the GSM, FKM and AAM
+        # Mock the GSM and FKM
         self.fake_gsm = FakeGSM(self.ctx)
         self.fake_fkm = FakeFKM()
-        self.fake_aam = FakeAAM()
 
     @staticmethod
     def create_subcloud_static(ctxt, name, **kwargs):
@@ -85,8 +79,7 @@ class TestInitialSyncManager(base.OrchestratorTestCase):
 
     def test_init(self):
         ism = initial_sync_manager.InitialSyncManager(self.fake_gsm,
-                                                      self.fake_fkm,
-                                                      self.fake_aam)
+                                                      self.fake_fkm)
         self.assertIsNotNone(ism)
         self.assertEqual(self.ctx, ism.context)
 
@@ -110,8 +103,7 @@ class TestInitialSyncManager(base.OrchestratorTestCase):
             initial_sync_state=consts.INITIAL_SYNC_STATE_REQUESTED)
 
         ism = initial_sync_manager.InitialSyncManager(self.fake_gsm,
-                                                      self.fake_fkm,
-                                                      self.fake_aam)
+                                                      self.fake_fkm)
 
         # Perform init actions
         ism.init_actions()
@@ -139,8 +131,7 @@ class TestInitialSyncManager(base.OrchestratorTestCase):
         self.assertIsNotNone(subcloud)
 
         ism = initial_sync_manager.InitialSyncManager(self.fake_gsm,
-                                                      self.fake_fkm,
-                                                      self.fake_aam)
+                                                      self.fake_fkm)
 
         # Initial sync the subcloud
         ism._initial_sync_subcloud(subcloud.region_name)
@@ -150,8 +141,6 @@ class TestInitialSyncManager(base.OrchestratorTestCase):
                                                       subcloud.region_name)
         self.fake_fkm.distribute_keys.assert_called_with(self.ctx,
                                                          subcloud.region_name)
-        self.fake_aam.enable_snmp.assert_called_with(self.ctx,
-                                                     subcloud.region_name)
 
         # Verify that the subcloud was enabled
         self.fake_gsm.enable_subcloud.assert_called_with(self.ctx,
@@ -171,8 +160,7 @@ class TestInitialSyncManager(base.OrchestratorTestCase):
         self.assertIsNotNone(subcloud)
 
         ism = initial_sync_manager.InitialSyncManager(self.fake_gsm,
-                                                      self.fake_fkm,
-                                                      self.fake_aam)
+                                                      self.fake_fkm)
 
         # Initial sync the subcloud
         ism._initial_sync_subcloud(subcloud.region_name)
@@ -193,8 +181,7 @@ class TestInitialSyncManager(base.OrchestratorTestCase):
         self.assertIsNotNone(subcloud)
 
         ism = initial_sync_manager.InitialSyncManager(self.fake_gsm,
-                                                      self.fake_fkm,
-                                                      self.fake_aam)
+                                                      self.fake_fkm)
 
         # Force a failure
         self.fake_gsm.initial_sync.side_effect = Exception('fake_exception')
@@ -226,8 +213,7 @@ class TestInitialSyncManager(base.OrchestratorTestCase):
             initial_sync_state=consts.INITIAL_SYNC_STATE_FAILED)
 
         ism = initial_sync_manager.InitialSyncManager(self.fake_gsm,
-                                                      self.fake_fkm,
-                                                      self.fake_aam)
+                                                      self.fake_fkm)
 
         # Reattempt sync success
         ism._reattempt_sync('subcloud2')

@@ -186,23 +186,6 @@ class Subcloud(BASE, OrchestratorBase):
                                 default=consts.INITIAL_SYNC_STATE_NONE)
 
 
-class SubcloudAlarmSummary(BASE, OrchestratorBase):
-    """Represents a Distributed Cloud subcloud alarm aggregate"""
-    __tablename__ = 'subcloud_alarms'
-    __table_args__ = (
-        Index('subcloud_alarm_region_name_idx', 'region_name'),
-    )
-    id = Column(Integer, primary_key=True, nullable=False, autoincrement=True)
-    uuid = Column(String(36), unique=True)
-    region_name = Column('region_name', String(255), unique=True)  # keystone
-    critical_alarms = Column('critical_alarms', Integer)
-    major_alarms = Column('major_alarms', Integer)
-    minor_alarms = Column('minor_alarms', Integer)
-    warnings = Column('warnings', Integer)
-    cloud_status = Column('cloud_status', String(64))
-    capabilities = Column(JSONEncodedDict)
-
-
 class Resource(BASE, OrchestratorBase):
     """Represents a Distributed Cloud Orchestrator Resource"""
 

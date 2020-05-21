@@ -13,11 +13,13 @@
 # License for the specific language governing permissions and limitations
 # under the License.
 
+import datetime
 import oslo_db
 import sqlalchemy
 
 from oslo_config import cfg
 from oslo_db import options
+from oslo_utils import timeutils
 from oslo_utils import uuidutils
 
 from dcorch.common import config
@@ -268,6 +270,59 @@ class DBAPIOrchRequestTest(base.OrchestratorTestCase):
         self.assertEqual(1, len(orch_requests_sysinv))
         self.assertEqual(1, len(orch_requests_flavor))
 
+    def test_orch_request_get_most_recent_failed_request(self):
+        orch_requests = self.create_some_failed_orch_requests()
+        orts = orch_requests[0].updated_at
+        orid = orch_requests[0].id
+        for request in orch_requests:
+            if request.updated_at > orts:
+                orid = request.id
+
+        most_recent = \
+            db_api.orch_request_get_most_recent_failed_request(self.ctx)
+        self.assertIsNotNone(most_recent)
+        self.assertEqual(orid,
+                         most_recent.id)
+
+    def test_orch_request_delete_previous_failed_requests(self):
+        orch_requests = self.create_some_orch_requests()
+        total_count = len(orch_requests)
+        failed_count = 0
+        for request in orch_requests:
+            if request.state == consts.ORCH_REQUEST_STATE_FAILED:
+                failed_count += 1
+
+        expected_count = total_count - failed_count
+        db_api.orch_request_delete_previous_failed_requests(
+            self.ctx, timeutils.utcnow())
+        orch_requests = db_api.orch_request_get_all(self.ctx)
+        self.assertEqual(expected_count, len(orch_requests))
+
+    def create_some_failed_orch_requests(self):
+        # All db apis used in this method have already been verified
+        orch_requests = []
+        orch_request1 = self.create_default_sysinv_orch_job()
+        orch_request2 = self.create_default_sysinv_orch_job()
+
+        values = {'state': consts.ORCH_REQUEST_STATE_FAILED,
+                  'try_count': 2}
+
+        db_api.orch_request_update(self.ctx,
+                                   orch_request1.uuid,
+                                   values)
+
+        db_api.orch_request_update(self.ctx,
+                                   orch_request2.uuid,
+                                   values)
+
+        orch_requests = db_api.orch_request_get_all(self.ctx)
+        return orch_requests
+
+    def create_some_orch_requests(self):
+        orch_requests = self.create_some_failed_orch_requests()
+        orch_requests.append(self.create_default_sysinv_orch_job())
+        return orch_requests
+
     def create_default_sysinv_orch_job(self):
         resource_sysinv = self.create_default_resource(
             consts.RESOURCE_TYPE_SYSINV_DNS)
@@ -404,3 +459,28 @@ class DBAPIOrchRequestTest(base.OrchestratorTestCase):
 
         self.assertEqual(1, len(orch_requests_attrs))
         self.assertEqual(orch_request_compute.id, orch_requests_attrs[0].id)
+
+    def test_purge_deleted_records(self):
+        orch_requests = self.create_some_orch_requests()
+        total_count = len(orch_requests)
+        soft_deleted_count = 0
+
+        delete_time = timeutils.utcnow() - datetime.timedelta(days=2)
+        values = {'deleted': 1,
+                  'deleted_at': delete_time}
+        for request in orch_requests:
+            if request == consts.ORCH_REQUEST_STATE_FAILED:
+                db_api.orch_request_update(self.ctx, request.uuid, values)
+                soft_deleted_count += 1
+
+        expected_count = total_count - soft_deleted_count
+        db_api.purge_deleted_records(self.ctx, 1)
+        # As each resource in this unit test has a single orch job which
+        # has a single orch request, the number of resources, orch jobs
+        # and orch requests after purge must be the same.
+        orch_requests = db_api.orch_request_get_all(self.ctx)
+        self.assertEqual(expected_count, len(orch_requests))
+        orch_jobs = db_api.orch_job_get_all(self.ctx)
+        self.assertEqual(expected_count, len(orch_jobs))
+        resources = db_api.resource_get_all(self.ctx)
+        self.assertEqual(expected_count, len(resources))

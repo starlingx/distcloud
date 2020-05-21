@@ -64,7 +64,7 @@ class ManagerClient(object):
         return client.cast(ctxt, method, **kwargs)
 
     def add_subcloud(self, ctxt, payload):
-        return self.call(ctxt, self.make_msg('add_subcloud',
+        return self.cast(ctxt, self.make_msg('add_subcloud',
                                              payload=payload))
 
     def delete_subcloud(self, ctxt, subcloud_id):
@@ -72,12 +72,13 @@ class ManagerClient(object):
                                              subcloud_id=subcloud_id))
 
     def update_subcloud(self, ctxt, subcloud_id, management_state=None,
-                        description=None, location=None):
+                        description=None, location=None, group_id=None):
         return self.call(ctxt, self.make_msg('update_subcloud',
                                              subcloud_id=subcloud_id,
                                              management_state=management_state,
                                              description=description,
-                                             location=location))
+                                             location=location,
+                                             group_id=group_id))
 
     def update_subcloud_endpoint_status(self, ctxt, subcloud_name=None,
                                         endpoint_type=None,
@@ -87,6 +88,31 @@ class ManagerClient(object):
                                              subcloud_name=subcloud_name,
                                              endpoint_type=endpoint_type,
                                              sync_status=sync_status))
+
+    def update_subcloud_availability(self, ctxt,
+                                     subcloud_name,
+                                     availability_status,
+                                     update_state_only=False,
+                                     audit_fail_count=None):
+        return self.call(
+            ctxt,
+            self.make_msg('update_subcloud_availability',
+                          subcloud_name=subcloud_name,
+                          availability_status=availability_status,
+                          update_state_only=update_state_only,
+                          audit_fail_count=audit_fail_count))
+
+    def update_subcloud_sync_endpoint_type(self, ctxt, subcloud_id,
+                                           subcloud_name,
+                                           endpoint_type_list,
+                                           openstack_installed):
+        return self.cast(
+            ctxt,
+            self.make_msg('update_subcloud_sync_endpoint_type',
+                          subcloud_id=subcloud_id,
+                          subcloud_name=subcloud_name,
+                          endpoint_type_list=endpoint_type_list,
+                          openstack_installed=openstack_installed))
 
     def create_sw_update_strategy(self, ctxt, payload):
         return self.call(ctxt, self.make_msg('create_sw_update_strategy',

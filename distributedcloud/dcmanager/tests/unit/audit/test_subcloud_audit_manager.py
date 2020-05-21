@@ -24,19 +24,25 @@ import sys
 sys.modules['fm_core'] = mock.Mock()
 
 from dccommon import consts as dccommon_consts
+from dcmanager.audit import subcloud_audit_manager
 from dcmanager.common import consts
 from dcmanager.db.sqlalchemy import api as db_api
-from dcmanager.manager import subcloud_audit_manager
-from dcmanager.manager import subcloud_manager
+# from dcmanager.manager import subcloud_manager
 
 from dcmanager.tests import base
 
 
-class FakeDCOrchAPI(object):
+class FakeDCManagerAPI(object):
 
     def __init__(self):
-        self.update_subcloud_states = mock.MagicMock()
-        self.add_subcloud_sync_endpoint_type = mock.MagicMock()
+        self.update_subcloud_availability = mock.MagicMock()
+        self.update_subcloud_sync_endpoint_type = mock.MagicMock()
+
+
+class FakeAlarmAggregation(object):
+
+    def __init__(self):
+        self.update_alarm_summary = mock.MagicMock()
 
 
 class FakeServiceGroup(object):
@@ -178,34 +184,50 @@ class FakeSysinvClient(object):
         return self.get_applications_result
 
 
+class FakeFmClient(object):
+
+    def get_alarm_summary(self):
+        pass
+
+
+class FakeOpenStackDriver(object):
+
+    def __init__(self, region_name):
+        self.sysinv_client = FakeSysinvClient('fake_region', 'fake_session')
+        self.fm_client = FakeFmClient()
+
+
 class TestAuditManager(base.DCManagerTestCase):
     def setUp(self):
         super(TestAuditManager, self).setUp()
 
-        # Mock the DCOrch API
-        self.fake_dcorch_api = FakeDCOrchAPI()
-        p = mock.patch('dcorch.rpc.client.EngineClient')
-        self.mock_dcorch_api = p.start()
-        self.mock_dcorch_api.return_value = self.fake_dcorch_api
+        # Mock the DCManager API
+        self.fake_dcmanager_api = FakeDCManagerAPI()
+        p = mock.patch('dcmanager.rpc.client.ManagerClient')
+        self.mock_dcmanager_api = p.start()
+        self.mock_dcmanager_api.return_value = self.fake_dcmanager_api
         self.addCleanup(p.stop)
 
-        # Mock the SysinvClient
-        self.fake_sysinv_client = FakeSysinvClient('fake_region',
-                                                   'fake_session')
-        p = mock.patch.object(subcloud_audit_manager, 'SysinvClient')
-        self.mock_sysinv_client = p.start()
-        self.mock_sysinv_client.return_value = self.fake_sysinv_client
-        self.addCleanup(p.stop)
-
-        # Mock the KeystoneClient
+        # Mock the OpenStackDriver
+        self.fake_openstack_client = FakeOpenStackDriver('fake_region')
         p = mock.patch.object(subcloud_audit_manager, 'OpenStackDriver')
         self.mock_openstack_driver = p.start()
+        self.mock_openstack_driver.return_value = self.fake_openstack_client
         self.addCleanup(p.stop)
 
         # Mock the context
         p = mock.patch.object(subcloud_audit_manager, 'context')
         self.mock_context = p.start()
         self.mock_context.get_admin_context.return_value = self.ctx
+        self.addCleanup(p.stop)
+
+        # Mock alarm aggregation
+        self.fake_alarm_aggr = FakeAlarmAggregation()
+        p = mock.patch.object(subcloud_audit_manager,
+                              'alarm_aggregation')
+        self.mock_alarm_aggr = p.start()
+        self.mock_alarm_aggr.AlarmAggregation.return_value = \
+            self.fake_alarm_aggr
         self.addCleanup(p.stop)
 
     @staticmethod
@@ -222,65 +244,52 @@ class TestAuditManager(base.DCManagerTestCase):
             'systemcontroller_gateway_ip': "192.168.204.101",
             'deploy_status': "not-deployed",
             'openstack_installed': False,
+            'group_id': 1,
         }
         values.update(kwargs)
         return db_api.subcloud_create(ctxt, **values)
 
     def test_init(self):
-        sm = subcloud_manager.SubcloudManager()
-        am = subcloud_audit_manager.SubcloudAuditManager(subcloud_manager=sm)
+        am = subcloud_audit_manager.SubcloudAuditManager()
         self.assertIsNotNone(am)
         self.assertEqual('subcloud_audit_manager', am.service_name)
         self.assertEqual('localhost', am.host)
         self.assertEqual(self.ctx, am.context)
 
     def test_periodic_subcloud_audit(self):
-        mock_sm = mock.Mock()
-        am = subcloud_audit_manager.SubcloudAuditManager(
-            subcloud_manager=mock_sm)
-        am.periodic_subcloud_audit()
+        am = subcloud_audit_manager.SubcloudAuditManager()
+        am._periodic_subcloud_audit_loop()
 
     def test_audit_subcloud_online(self):
 
         subcloud = self.create_subcloud_static(self.ctx, name='subcloud1')
         self.assertIsNotNone(subcloud)
 
-        mock_sm = mock.Mock()
-        am = subcloud_audit_manager.SubcloudAuditManager(
-            subcloud_manager=mock_sm)
-
-        # No stx-openstack application
-        self.fake_sysinv_client.get_application_results = []
+        am = subcloud_audit_manager.SubcloudAuditManager()
 
         # Audit the subcloud
         am._audit_subcloud(subcloud.name, update_subcloud_state=False,
                            audit_openstack=False)
 
         # Verify the subcloud was set to online
-        self.fake_dcorch_api.update_subcloud_states.assert_called_with(
+        self.fake_dcmanager_api.update_subcloud_availability.assert_called_with(
+            mock.ANY, subcloud.name, consts.AVAILABILITY_ONLINE,
+            False, 0)
 
-            mock.ANY, subcloud.name, consts.MANAGEMENT_UNMANAGED,
-            consts.AVAILABILITY_ONLINE)
-
-        # Verify the openstack endpoints were not added
-        self.fake_dcorch_api.add_subcloud_sync_endpoint_type.\
+        # Verify the openstack endpoints were not updated
+        self.fake_dcmanager_api.update_subcloud_sync_endpoint_type.\
             assert_not_called()
 
-        # Verify the subcloud openstack_installed was not updated
-        updated_subcloud = db_api.subcloud_get_by_name(self.ctx, 'subcloud1')
-        self.assertEqual(updated_subcloud.openstack_installed, False)
+        # Verify alarm update is called
+        self.fake_alarm_aggr.update_alarm_summary.assert_called_with(
+            subcloud.name, self.fake_openstack_client.fm_client)
 
     def test_audit_subcloud_online_no_change(self):
 
         subcloud = self.create_subcloud_static(self.ctx, name='subcloud1')
         self.assertIsNotNone(subcloud)
 
-        mock_sm = mock.Mock()
-        am = subcloud_audit_manager.SubcloudAuditManager(
-            subcloud_manager=mock_sm)
-
-        # No stx-openstack application
-        self.fake_sysinv_client.get_application_results = []
+        am = subcloud_audit_manager.SubcloudAuditManager()
 
         # Set the subcloud to online
         db_api.subcloud_update(
@@ -292,27 +301,23 @@ class TestAuditManager(base.DCManagerTestCase):
                            audit_openstack=False)
 
         # Verify the subcloud state was not updated
-        self.fake_dcorch_api.update_subcloud_states.assert_not_called()
-
-        # Verify the openstack endpoints were not added
-        self.fake_dcorch_api.add_subcloud_sync_endpoint_type.\
+        self.fake_dcmanager_api.update_subcloud_availability.\
             assert_not_called()
 
-        # Verify the subcloud openstack_installed was not updated
-        updated_subcloud = db_api.subcloud_get_by_name(self.ctx, 'subcloud1')
-        self.assertEqual(updated_subcloud.openstack_installed, False)
+        # Verify the openstack endpoints were not added
+        self.fake_dcmanager_api.update_subcloud_sync_endpoint_type.\
+            assert_not_called()
+
+        # Verify alarm update is called
+        self.fake_alarm_aggr.update_alarm_summary.assert_called_with(
+            'subcloud1', self.fake_openstack_client.fm_client)
 
     def test_audit_subcloud_online_no_change_force_update(self):
 
         subcloud = self.create_subcloud_static(self.ctx, name='subcloud1')
         self.assertIsNotNone(subcloud)
 
-        mock_sm = mock.Mock()
-        am = subcloud_audit_manager.SubcloudAuditManager(
-            subcloud_manager=mock_sm)
-
-        # No stx-openstack application
-        self.fake_sysinv_client.get_application_results = []
+        am = subcloud_audit_manager.SubcloudAuditManager()
 
         # Set the subcloud to online
         db_api.subcloud_update(
@@ -324,26 +329,24 @@ class TestAuditManager(base.DCManagerTestCase):
                            audit_openstack=False)
 
         # Verify the subcloud state was updated even though no change
-        self.fake_dcorch_api.update_subcloud_states.assert_called_with(
-            mock.ANY, 'subcloud1', consts.MANAGEMENT_UNMANAGED,
-            consts.AVAILABILITY_ONLINE)
+        self.fake_dcmanager_api.update_subcloud_availability.assert_called_with(
+            mock.ANY, subcloud.name, consts.AVAILABILITY_ONLINE,
+            True, None)
 
-        # Verify the openstack endpoints were not added
-        self.fake_dcorch_api.add_subcloud_sync_endpoint_type.\
+        # Verify the openstack endpoints were not updated
+        self.fake_dcmanager_api.update_subcloud_sync_endpoint_type.\
             assert_not_called()
 
-        # Verify the subcloud openstack_installed was not updated
-        updated_subcloud = db_api.subcloud_get_by_name(self.ctx, 'subcloud1')
-        self.assertEqual(updated_subcloud.openstack_installed, False)
+        # Verify alarm update is called
+        self.fake_alarm_aggr.update_alarm_summary.assert_called_with(
+            'subcloud1', self.fake_openstack_client.fm_client)
 
-    def test_audit_subcloud_offline(self):
+    def test_audit_subcloud_go_offline(self):
 
         subcloud = self.create_subcloud_static(self.ctx, name='subcloud1')
         self.assertIsNotNone(subcloud)
 
-        mock_sm = mock.Mock()
-        am = subcloud_audit_manager.SubcloudAuditManager(
-            subcloud_manager=mock_sm)
+        am = subcloud_audit_manager.SubcloudAuditManager()
 
         # Set the subcloud to online
         db_api.subcloud_update(
@@ -351,58 +354,161 @@ class TestAuditManager(base.DCManagerTestCase):
             availability_status=consts.AVAILABILITY_ONLINE)
 
         # Mark a service group as inactive
-        self.fake_sysinv_client.get_service_groups_result = \
+        self.fake_openstack_client.sysinv_client.get_service_groups_result = \
             copy.deepcopy(FAKE_SERVICE_GROUPS)
-        self.fake_sysinv_client.get_service_groups_result[3].state = 'inactive'
+        self.fake_openstack_client.sysinv_client. \
+            get_service_groups_result[3].state = 'inactive'
 
         # Audit the subcloud
         am._audit_subcloud(subcloud.name, update_subcloud_state=False,
                            audit_openstack=False)
 
-        # Verify the subcloud was not set to offline
-        self.fake_dcorch_api.update_subcloud_states.assert_not_called()
+        # Verify the audit fail count was updated
+        audit_fail_count = 1
+        self.fake_dcmanager_api.update_subcloud_availability.\
+            assert_called_with(mock.ANY, subcloud.name,
+                               None, False, audit_fail_count)
 
-        # Verify the audit_fail_count was updated
-        updated_subcloud = db_api.subcloud_get_by_name(self.ctx, 'subcloud1')
-        self.assertEqual(updated_subcloud.audit_fail_count, 1)
+        db_api.subcloud_update(self.ctx, subcloud.id,
+                               audit_fail_count=audit_fail_count)
 
         # Audit the subcloud again
         am._audit_subcloud(subcloud.name, update_subcloud_state=False,
                            audit_openstack=False)
+        audit_fail_count = audit_fail_count + 1
 
         # Verify the subcloud was set to offline
-        self.fake_dcorch_api.update_subcloud_states.assert_called_with(
-            mock.ANY, 'subcloud1', consts.MANAGEMENT_UNMANAGED,
-            consts.AVAILABILITY_OFFLINE)
+        self.fake_dcmanager_api.update_subcloud_availability.\
+            assert_called_with(mock.ANY, subcloud.name,
+                               consts.AVAILABILITY_OFFLINE, False,
+                               audit_fail_count)
 
-        # Verify the sublcoud availability was updated
-        updated_subcloud = db_api.subcloud_get_by_name(self.ctx, 'subcloud1')
-        self.assertEqual(updated_subcloud.availability_status,
-                         consts.AVAILABILITY_OFFLINE)
+        # Verify alarm update is called only once
+        self.fake_alarm_aggr.update_alarm_summary.assert_called_once_with(
+            subcloud.name, self.fake_openstack_client.fm_client)
 
-    def test_audit_subcloud_online_with_openstack(self):
-
+    def test_audit_subcloud_offline_no_change(self):
         subcloud = self.create_subcloud_static(self.ctx, name='subcloud1')
         self.assertIsNotNone(subcloud)
 
-        mock_sm = mock.Mock()
-        am = subcloud_audit_manager.SubcloudAuditManager(
-            subcloud_manager=mock_sm)
+        am = subcloud_audit_manager.SubcloudAuditManager()
+
+        db_api.subcloud_update(self.ctx, subcloud.id,
+                               audit_fail_count=consts.AVAIL_FAIL_COUNT_MAX)
+
+        # Mark a service group as inactive
+        self.fake_openstack_client.sysinv_client.get_service_groups_result = \
+            copy.deepcopy(FAKE_SERVICE_GROUPS)
+        self.fake_openstack_client.sysinv_client. \
+            get_service_groups_result[3].state = 'inactive'
 
         # Audit the subcloud
         am._audit_subcloud(subcloud.name, update_subcloud_state=False,
                            audit_openstack=True)
 
-        # Verify the subcloud was set to online
-        self.fake_dcorch_api.update_subcloud_states.assert_called_with(
-            mock.ANY, 'subcloud1', consts.MANAGEMENT_UNMANAGED,
-            consts.AVAILABILITY_ONLINE)
+        # Verify the subcloud state was not updated
+        self.fake_dcmanager_api.update_subcloud_availability.\
+            assert_not_called()
+
+        # Verify the openstack endpoints were not updated
+        self.fake_dcmanager_api.update_subcloud_sync_endpoint_type.\
+            assert_not_called()
+
+        # Verify alarm update is not called
+        self.fake_alarm_aggr.update_alarm_summary.assert_not_called()
+
+    def test_audit_subcloud_online_with_openstack_installed(self):
+
+        subcloud = self.create_subcloud_static(self.ctx, name='subcloud1')
+        self.assertIsNotNone(subcloud)
+
+        am = subcloud_audit_manager.SubcloudAuditManager()
+
+        # Set the subcloud to online
+        db_api.subcloud_update(
+            self.ctx, subcloud.id,
+            availability_status=consts.AVAILABILITY_ONLINE)
+
+        # Audit the subcloud
+        am._audit_subcloud(subcloud.name, update_subcloud_state=False,
+                           audit_openstack=True)
+
+        # Verify the subcloud state was not updated
+        self.fake_dcmanager_api.update_subcloud_availability.\
+            assert_not_called()
 
         # Verify the openstack endpoints were added
-        self.fake_dcorch_api.add_subcloud_sync_endpoint_type.\
-            assert_called_with(mock.ANY, 'subcloud1',
-                               dccommon_consts.ENDPOINT_TYPES_LIST_OS)
+        # self.fake_dcmanager_api.update_subcloud_sync_endpoint_type.\
+        #    assert_called_with(mock.ANY, 'subcloud1',
+        #                       dccommon_consts.ENDPOINT_TYPES_LIST_OS,
+        #                       True)
 
-        # Verify the subcloud openstack_installed was updated
-        updated_subcloud = db_api.subcloud_get_by_name(self.ctx, 'subcloud1')
-        self.assertEqual(updated_subcloud.openstack_installed, True)
+        # Verify alarm update is called
+        self.fake_alarm_aggr.update_alarm_summary.assert_called_once_with(
+            'subcloud1', self.fake_openstack_client.fm_client)
+
+    def test_audit_subcloud_online_with_openstack_removed(self):
+
+        subcloud = self.create_subcloud_static(self.ctx, name='subcloud1')
+        self.assertIsNotNone(subcloud)
+
+        am = subcloud_audit_manager.SubcloudAuditManager()
+
+        # Set the subcloud to online and openstack installed
+        db_api.subcloud_update(
+            self.ctx, subcloud.id,
+            availability_status=consts.AVAILABILITY_ONLINE,
+            openstack_installed=True)
+
+        # Remove stx-openstack application
+        FAKE_APPLICATIONS.pop(1)
+
+        # Audit the subcloud
+        am._audit_subcloud(subcloud.name, update_subcloud_state=False,
+                           audit_openstack=True)
+
+        # Verify the subcloud state was not updated
+        self.fake_dcmanager_api.update_subcloud_availability.\
+            assert_not_called()
+
+        # Verify the openstack endpoints were removed
+        self.fake_dcmanager_api.update_subcloud_sync_endpoint_type.\
+            assert_called_with(mock.ANY, 'subcloud1',
+                               dccommon_consts.ENDPOINT_TYPES_LIST_OS, False)
+
+        # Verify alarm update is called
+        self.fake_alarm_aggr.update_alarm_summary.assert_called_once_with(
+            'subcloud1', self.fake_openstack_client.fm_client)
+
+    def test_audit_subcloud_online_with_openstack_inactive(self):
+
+        subcloud = self.create_subcloud_static(self.ctx, name='subcloud1')
+        self.assertIsNotNone(subcloud)
+
+        am = subcloud_audit_manager.SubcloudAuditManager()
+
+        # Set the subcloud to online and openstack installed
+        db_api.subcloud_update(
+            self.ctx, subcloud.id,
+            availability_status=consts.AVAILABILITY_ONLINE,
+            openstack_installed=True)
+
+        # stx-openstack application is not active
+        FAKE_APPLICATIONS[1].active = False
+
+        # Audit the subcloud
+        am._audit_subcloud(subcloud.name, update_subcloud_state=False,
+                           audit_openstack=True)
+
+        # Verify the subcloud state was not updated
+        self.fake_dcmanager_api.update_subcloud_availability.\
+            assert_not_called()
+
+        # Verify the openstack endpoints were removed
+        self.fake_dcmanager_api.update_subcloud_sync_endpoint_type.\
+            assert_called_with(mock.ANY, 'subcloud1',
+                               dccommon_consts.ENDPOINT_TYPES_LIST_OS, False)
+
+        # Verify alarm update is called
+        self.fake_alarm_aggr.update_alarm_summary.assert_called_once_with(
+            'subcloud1', self.fake_openstack_client.fm_client)

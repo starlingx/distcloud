@@ -81,11 +81,6 @@ class OAMAddressesNotFound(NotFound):
     message = _("OAM Addresses Not Found")
 
 
-class TrapDestAlreadyExists(Conflict):
-    message = _("TrapDest in region=%(region_name)s ip_address=%(ip_address)s "
-                "community=%(community)s already exists")
-
-
 class TrapDestNotFound(NotFound):
     message = _("Trapdest in region=%(region_name)s with ip_address "
                 "%(ip_address)s not found")

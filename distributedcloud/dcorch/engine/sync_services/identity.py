@@ -1,4 +1,4 @@
-# Copyright 2018 Wind River
+# Copyright 2018-2020 Wind River
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -101,16 +101,42 @@ class IdentitySyncThread(SyncThread):
         if (not self.sc_dbs_client and self.sc_admin_session):
             self.sc_dbs_client = dbsyncclient.Client(
                 session=self.sc_admin_session,
-                endpoint_type=consts.DBS_ENDPOINT_INTERNAL,
+                endpoint_type=consts.DBS_ENDPOINT_ADMIN,
                 region_name=self.subcloud_engine.subcloud.region_name)
 
-    def reinitialize_m_clients(self):
+    def reauthenticate_m_dbs_client(self):
         if self.m_dbs_client and self.admin_session:
             self.m_dbs_client.update(session=self.admin_session)
 
-    def reinitialize_sc_clients(self):
+    def reauthenticate_m_ks_client(self):
+        if self.sc_ks_client and self.sc_admin_session:
+            self.sc_ks_client.authenticate(
+                auth_url=self.admin_session.auth.auth_url,
+                username=self.admin_session.auth._username,
+                password=self.admin_session.auth._password,
+                project_name=self.admin_session.auth._project_name,
+                user_domain_name=self.admin_session.auth._user_domain_name,
+                project_domain_name=self.admin_session.auth._project_domain_name,
+            )
+
+    def reauthenticate_sc_clients(self):
+        self.reauthenticate_sc_dbs_client()
+        self.reauthenticate_sc_ks_client()
+
+    def reauthenticate_sc_dbs_client(self):
         if self.sc_dbs_client and self.sc_admin_session:
             self.sc_dbs_client.update(session=self.sc_admin_session)
+
+    def reauthenticate_sc_ks_client(self):
+        if self.sc_ks_client and self.sc_admin_session:
+            self.sc_ks_client.authenticate(
+                auth_url=self.sc_admin_session.auth.auth_url,
+                username=self.sc_admin_session.auth._username,
+                password=self.sc_admin_session.auth._password,
+                project_name=self.sc_admin_session.auth._project_name,
+                user_domain_name=self.sc_admin_session.auth._user_domain_name,
+                project_domain_name=self.sc_admin_session.auth._project_domain_name,
+            )
 
     def initialize(self):
         # Subcloud may be enabled a while after being added.
@@ -131,7 +157,10 @@ class IdentitySyncThread(SyncThread):
                  extra=self.log_extra)
 
     def _initial_sync_users(self, m_users, sc_users):
-        # Particularly sync users with same name but different ID
+        # Particularly sync users with same name but different ID.  admin user
+        # is a special case as the id's will match (as this is forced during
+        # the subcloud deploy) but the details will not so we still need to
+        # sync it here.
         m_client = self.m_dbs_client.identity_manager
         sc_client = self.sc_dbs_client.identity_manager
 
@@ -139,7 +168,9 @@ class IdentitySyncThread(SyncThread):
             for sc_user in sc_users:
                 if (m_user.local_user.name == sc_user.local_user.name and
                         m_user.domain_id == sc_user.domain_id and
-                        m_user.id != sc_user.id):
+                        (m_user.id != sc_user.id or
+                         sc_user.local_user.name ==
+                         dccommon_consts.ADMIN_USER_NAME)):
                     user_records = m_client.user_detail(m_user.id)
                     if not user_records:
                         LOG.error("No data retrieved from master cloud for"
@@ -157,7 +188,7 @@ class IdentitySyncThread(SyncThread):
                                  .format(sc_user.id,
                                          self.subcloud_engine.subcloud.
                                          region_name, str(e)))
-                        self.reinitialize_sc_clients()
+                        self.reauthenticate_sc_dbs_client()
                         user_ref = sc_client.update_user(sc_user.id,
                                                          user_records)
 
@@ -167,8 +198,9 @@ class IdentitySyncThread(SyncThread):
                         raise exceptions.SyncRequestFailed
                     # If admin user get synced, the client need to
                     # re-authenticate.
-                    if sc_user.local_user.name == "admin":
-                        self.reinitialize_sc_clients()
+                    if sc_user.local_user.name == \
+                       dccommon_consts.ADMIN_USER_NAME:
+                        self.reauthenticate_sc_clients()
 
     def _initial_sync_projects(self, m_projects, sc_projects):
         # Particularly sync projects with same name but different ID.
@@ -197,7 +229,7 @@ class IdentitySyncThread(SyncThread):
                                  .format(sc_project.id,
                                          self.subcloud_engine.subcloud.
                                          region_name, str(e)))
-                        self.reinitialize_sc_clients()
+                        self.reauthenticate_sc_dbs_client()
                         project_ref = sc_client.update_project(sc_project.id,
                                                                project_records)
 
@@ -208,8 +240,46 @@ class IdentitySyncThread(SyncThread):
                         raise exceptions.SyncRequestFailed
                     # If admin project get synced, the client need to
                     # re-authenticate.
-                    if sc_project.name == "admin":
-                        self.reinitialize_sc_clients()
+                    if sc_project.name == dccommon_consts.ADMIN_PROJECT_NAME:
+                        self.reauthenticate_sc_clients()
+
+    def _initial_sync_roles(self, m_roles, sc_roles):
+        # Particularly sync roles with same name but different ID
+        m_client = self.m_dbs_client.role_manager
+        sc_client = self.sc_dbs_client.role_manager
+
+        for m_role in m_roles:
+            for sc_role in sc_roles:
+                if (m_role.name == sc_role.name and
+                        m_role.domain_id == sc_role.domain_id and
+                        m_role.id != sc_role.id):
+                    role_record = m_client.role_detail(m_role.id)
+                    if not role_record:
+                        LOG.error("No data retrieved from master cloud for"
+                                  " role {} to update its equivalent in"
+                                  " subcloud.".format(m_role.id))
+                        raise exceptions.SyncRequestFailed
+                    # update the role by pushing down the DB records to
+                    # subcloud
+                    try:
+                        role_ref = sc_client.update_role(sc_role.id,
+                                                         role_record)
+                    # Retry once if unauthorized
+                    except dbsync_exceptions.Unauthorized as e:
+                        LOG.info("Update role {} request failed for {}: {}."
+                                 .format(sc_role.id,
+                                         self.subcloud_engine.subcloud.
+                                         region_name, str(e)))
+                        self.reauthenticate_sc_dbs_client()
+                        role_ref = sc_client.update_role(sc_role.id,
+                                                         role_record)
+
+                    if not role_ref:
+                        LOG.error("No role data returned when updating role {}"
+                                  " in subcloud {}."
+                                  .format(sc_role.id, self.subcloud_engine.
+                                          subcloud.region_name))
+                        raise exceptions.SyncRequestFailed
 
     def initial_sync(self):
         # Service users and projects are created at deployment time. They exist
@@ -266,6 +336,26 @@ class IdentitySyncThread(SyncThread):
 
         self._initial_sync_projects(m_projects, sc_projects)
 
+        # get roles from master cloud
+        m_roles = self.get_master_resources(
+            consts.RESOURCE_TYPE_IDENTITY_ROLES)
+
+        if not m_roles:
+            LOG.error("No roles returned from {}".
+                      format(dccommon_consts.VIRTUAL_MASTER_CLOUD))
+            raise exceptions.SyncRequestFailed
+
+        # get roles from the subcloud
+        sc_roles = self.get_subcloud_resources(
+            consts.RESOURCE_TYPE_IDENTITY_ROLES)
+
+        if not sc_roles:
+            LOG.error("No roles returned from subcloud {}".
+                      format(self.subcloud_engine.subcloud.region_name))
+            raise exceptions.SyncRequestFailed
+
+        self._initial_sync_roles(m_roles, sc_roles)
+
         # Return True if no exceptions
         return True
 
@@ -297,12 +387,13 @@ class IdentitySyncThread(SyncThread):
                       .format(self.subcloud_engine.subcloud.region_name,
                               str(e)), extra=self.log_extra)
             raise exceptions.SyncRequestTimeout
-        except dbsync_exceptions.Unauthorized as e:
+        except (dbsync_exceptions.Unauthorized,
+                keystone_exceptions.Unauthorized) as e:
             LOG.info("Request [{}] failed for {}: {}"
                      .format(request.orch_job.operation_type,
                              self.subcloud_engine.subcloud.region_name,
                              str(e)), extra=self.log_extra)
-            self.reinitialize_sc_clients()
+            self.reauthenticate_sc_clients()
             raise exceptions.SyncRequestFailedRetry
         except exceptions.SyncRequestFailed:
             raise
@@ -1360,7 +1451,6 @@ class IdentitySyncThread(SyncThread):
             # All are found
             else:
                 result = True
-
         return result
 
     def _has_same_identity_ids(self, m, sc):
@@ -1472,62 +1562,86 @@ class IdentitySyncThread(SyncThread):
         # Retrieve master resources from DB or through Keystone.
         # users, projects, roles, and token revocation events use
         # dbsync client, other resources use keystone client.
-        try:
-            if resource_type == consts.RESOURCE_TYPE_IDENTITY_USERS or \
-                resource_type == consts.RESOURCE_TYPE_IDENTITY_PROJECTS or \
-                resource_type == consts.RESOURCE_TYPE_IDENTITY_ROLES or \
-                resource_type == \
-                consts.RESOURCE_TYPE_IDENTITY_TOKEN_REVOKE_EVENTS or \
-                resource_type == \
-                consts.RESOURCE_TYPE_IDENTITY_TOKEN_REVOKE_EVENTS_FOR_USER:
+        if self.is_resource_handled_by_dbs_client(resource_type):
+            try:
                 return self._get_resource_audit_handler(resource_type,
                                                         self.m_dbs_client)
-            return self._get_resource_audit_handler(resource_type,
-                                                    self.m_ks_client)
-        except dbsync_exceptions.Unauthorized as e:
-            LOG.info("Get resource [{}] request failed for {}: {}."
-                     .format(resource_type,
-                             dccommon_consts.VIRTUAL_MASTER_CLOUD,
-                             str(e)), extra=self.log_extra)
-            # In case of token expires, re-authenticate and retry once
-            self.reinitialize_m_clients()
-            return self._get_resource_audit_handler(resource_type,
-                                                    self.m_dbs_client)
-        except Exception as e:
-            LOG.exception(e)
-            return None
+            except dbsync_exceptions.Unauthorized as e:
+                LOG.info("Get master resource [{}] request failed for {}: {}."
+                         .format(resource_type,
+                                 dccommon_consts.VIRTUAL_MASTER_CLOUD,
+                                 str(e)), extra=self.log_extra)
+                # Token might be expired, re-authenticate dbsync client
+                self.reauthenticate_m_dbs_client()
+
+                # Retry with re-authenticated dbsync client
+                return self._get_resource_audit_handler(resource_type,
+                                                        self.m_dbs_client)
+            except Exception as e:
+                LOG.exception(e)
+                return None
+        else:
+            try:
+                return self._get_resource_audit_handler(resource_type,
+                                                        self.m_ks_client)
+            except keystone_exceptions.Unauthorized as e:
+                LOG.info("Get master resource [{}] request failed for {}: {}."
+                         .format(resource_type,
+                                 dccommon_consts.VIRTUAL_MASTER_CLOUD,
+                                 str(e)), extra=self.log_extra)
+                # Token might be expired, re-authenticate ks client
+                self.reauthenticate_m_ks_client()
+
+                # Retry with re-authenticated ks client
+                return self._get_resource_audit_handler(resource_type,
+                                                        self.m_ks_client)
+            except Exception as e:
+                LOG.exception(e)
+                return None
 
     def get_subcloud_resources(self, resource_type):
         self.initialize_sc_clients()
-        # Retrieve master resources from DB or through keystone.
+        # Retrieve subcloud resources from DB or through keystone.
         # users, projects, roles, and token revocation events use
         # dbsync client, other resources use keystone client.
-        try:
-            if resource_type == consts.RESOURCE_TYPE_IDENTITY_USERS or \
-                    resource_type == \
-                    consts.RESOURCE_TYPE_IDENTITY_PROJECTS or \
-                    resource_type == consts.RESOURCE_TYPE_IDENTITY_ROLES or \
-                    resource_type == \
-                    consts.RESOURCE_TYPE_IDENTITY_TOKEN_REVOKE_EVENTS or \
-                    resource_type == \
-                    consts.RESOURCE_TYPE_IDENTITY_TOKEN_REVOKE_EVENTS_FOR_USER:
+
+        if self.is_resource_handled_by_dbs_client(resource_type):
+            try:
                 return self._get_resource_audit_handler(resource_type,
                                                         self.sc_dbs_client)
-            return self._get_resource_audit_handler(resource_type,
-                                                    self.sc_ks_client)
+            except dbsync_exceptions.Unauthorized as e:
+                LOG.info("Get subcloud resource [{}] request failed for {}: {}."
+                         .format(resource_type,
+                                 self.subcloud_engine.subcloud.region_name,
+                                 str(e)), extra=self.log_extra)
 
-        except dbsync_exceptions.Unauthorized as e:
-            LOG.info("Get resource [{}] request failed for {}: {}."
-                     .format(resource_type,
-                             self.subcloud_engine.subcloud.region_name,
-                             str(e)), extra=self.log_extra)
-            # In case of token expires, re-authenticate and retry once
-            self.reinitialize_sc_clients()
-            return self._get_resource_audit_handler(resource_type,
-                                                    self.sc_dbs_client)
-        except Exception as e:
-            LOG.exception(e)
-            return None
+                # Token might be expired, re-authenticate dbsync client
+                self.reauthenticate_sc_dbs_client()
+
+                # Retry with re-authenticated dbsync client
+                return self._get_resource_audit_handler(resource_type,
+                                                        self.sc_dbs_client)
+            except Exception as e:
+                LOG.exception(e)
+                return None
+        else:
+            try:
+                return self._get_resource_audit_handler(resource_type,
+                                                        self.sc_ks_client)
+            except keystone_exceptions.Unauthorized as e:
+                LOG.info("Get subcloud resource [{}] request failed for {}: {}."
+                         .format(resource_type,
+                                 self.subcloud_engine.subcloud.region_name,
+                                 str(e)), extra=self.log_extra)
+                # Token might be expired, re-authenticate ks client
+                self.reauthenticate_sc_ks_client()
+
+                # Retry with re-authenticated ks client
+                return self._get_resource_audit_handler(resource_type,
+                                                        self.sc_ks_client)
+            except Exception as e:
+                LOG.exception(e)
+                return None
 
     def same_resource(self, resource_type, m_resource, sc_resource):
         if (resource_type ==
@@ -1674,3 +1788,15 @@ class IdentitySyncThread(SyncThread):
                 exist = True
                 break
         return exist
+
+    @staticmethod
+    def is_resource_handled_by_dbs_client(resource_type):
+        if resource_type in [
+                consts.RESOURCE_TYPE_IDENTITY_USERS,
+                consts.RESOURCE_TYPE_IDENTITY_PROJECTS,
+                consts.RESOURCE_TYPE_IDENTITY_ROLES,
+                consts.RESOURCE_TYPE_IDENTITY_TOKEN_REVOKE_EVENTS,
+                consts.RESOURCE_TYPE_IDENTITY_TOKEN_REVOKE_EVENTS_FOR_USER
+                ]:
+            return True
+        return False

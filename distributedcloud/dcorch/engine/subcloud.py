@@ -48,9 +48,7 @@ class SubCloudEngine(object):
             self.subcloud = subcloud
         else:
             capabilities = {}
-            endpoint_type_list = dco_consts.ENDPOINT_TYPES_LIST[:]
-            # patching is handled by dcmanager
-            endpoint_type_list.remove(dco_consts.ENDPOINT_TYPE_PATCHING)
+            endpoint_type_list = dco_consts.SYNC_ENDPOINT_TYPES_LIST[:]
             capabilities.update({'endpoint_types': endpoint_type_list})
             self.subcloud = Subcloud(
                 context, region_name=name, software_version=version,

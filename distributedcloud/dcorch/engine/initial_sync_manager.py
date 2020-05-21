@@ -33,11 +33,10 @@ SYNC_FAIL_HOLD_OFF = 60
 class InitialSyncManager(object):
     """Manages the initial sync for each subcloud."""
 
-    def __init__(self, gsm, fkm, aam, *args, **kwargs):
+    def __init__(self, gsm, fkm, *args, **kwargs):
         super(InitialSyncManager, self).__init__()
         self.gsm = gsm
         self.fkm = fkm
-        self.aam = aam
         self.context = context.get_admin_context()
         # Keeps track of greenthreads we create to do work.
         self.thread_group_manager = scheduler.ThreadGroupManager(
@@ -143,7 +142,6 @@ class InitialSyncManager(object):
         try:
             self.gsm.initial_sync(self.context, subcloud_name)
             self.fkm.distribute_keys(self.context, subcloud_name)
-            self.aam.enable_snmp(self.context, subcloud_name)
         except Exception as e:
             LOG.exception('Initial sync failed for %s: %s', subcloud_name, e)
             # We need to try again

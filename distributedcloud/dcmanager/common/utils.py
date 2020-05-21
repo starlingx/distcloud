@@ -22,6 +22,7 @@
 
 import grp
 import itertools
+import netaddr
 import os
 import pwd
 import six.moves
@@ -51,6 +52,59 @@ def get_import_path(cls):
 def get_batch_projects(batch_size, project_list, fillvalue=None):
     args = [iter(project_list)] * batch_size
     return six.moves.zip_longest(fillvalue=fillvalue, *args)
+
+
+def validate_address_str(ip_address_str, network):
+    """Determine whether an address is valid."""
+    try:
+        ip_address = netaddr.IPAddress(ip_address_str)
+        if ip_address.version != network.version:
+            msg = ("Invalid IP version - must match network version " +
+                   ip_version_to_string(network.version))
+            raise exceptions.ValidateFail(msg)
+        elif ip_address == network:
+            raise exceptions.ValidateFail("Cannot use network address")
+        elif ip_address == network.broadcast:
+            raise exceptions.ValidateFail("Cannot use broadcast address")
+        elif ip_address not in network:
+            raise exceptions.ValidateFail(
+                "Address must be in subnet %s" % str(network))
+        return ip_address
+    except netaddr.AddrFormatError:
+        raise exceptions.ValidateFail(
+            "Invalid address - not a valid IP address")
+
+
+def ip_version_to_string(ip_version):
+    """Returns a string representation of ip_version."""
+    if ip_version == 4:
+        return "IPv4"
+    elif ip_version == 6:
+        return "IPv6"
+    else:
+        return "IP"
+
+
+def validate_network_str(network_str, minimum_size,
+                         existing_networks=None, multicast=False):
+    """Determine whether a network is valid."""
+    try:
+        network = netaddr.IPNetwork(network_str)
+        if network.size < minimum_size:
+            raise exceptions.ValidateFail("Subnet too small - must have at "
+                                          "least %d addresses" % minimum_size)
+        elif network.version == 6 and network.prefixlen < 64:
+            raise exceptions.ValidateFail("IPv6 minimum prefix length is 64")
+        elif existing_networks:
+            if any(network.ip in subnet for subnet in existing_networks):
+                raise exceptions.ValidateFail("Subnet overlaps with another "
+                                              "configured subnet")
+        elif multicast and not network.is_multicast():
+            raise exceptions.ValidateFail("Invalid subnet - must be multicast")
+        return network
+    except netaddr.AddrFormatError:
+        raise exceptions.ValidateFail(
+            "Invalid subnet - not a valid IP subnet")
 
 
 # to do validate the quota limits
@@ -146,3 +200,10 @@ def synchronized(name, external=True, fair=False):
     return lockutils.synchronized(name, lock_file_prefix=prefix,
                                   external=external, lock_path=lock_path,
                                   semaphores=None, delay=0.01, fair=fair)
+
+
+def get_filename_by_prefix(dir_path, prefix):
+    for filename in os.listdir(dir_path):
+        if filename.startswith(prefix):
+            return filename
+    return None

@@ -25,12 +25,12 @@
 Implementation of SQLAlchemy backend.
 """
 
+import datetime
 import sys
 import threading
 
 from oslo_db import exception as db_exc
 from oslo_db.sqlalchemy import enginefacade
-# from oslo_db.sqlalchemy import utils as db_utils
 
 from oslo_log import log as logging
 from oslo_utils import strutils
@@ -43,6 +43,7 @@ from sqlalchemy.orm.exc import MultipleResultsFound
 from sqlalchemy.orm.exc import NoResultFound
 from sqlalchemy.orm import joinedload_all
 
+from dcorch.common import consts
 from dcorch.common import exceptions as exception
 from dcorch.common.i18n import _
 from dcorch.db.sqlalchemy import migration
@@ -790,6 +791,18 @@ def orch_request_get(context, orch_request_id):
 
 
 @require_context
+def orch_request_get_most_recent_failed_request(context):
+    query = model_query(context, models.OrchRequest). \
+        filter_by(deleted=0). \
+        filter_by(state=consts.ORCH_REQUEST_STATE_FAILED)
+
+    try:
+        return query.order_by(desc(models.OrchRequest.updated_at)).first()
+    except NoResultFound:
+        return None
+
+
+@require_context
 def orch_request_get_all(context, orch_job_id=None):
     query = model_query(context, models.OrchRequest). \
         filter_by(deleted=0)
@@ -895,63 +908,54 @@ def orch_request_delete_by_subcloud(context, region_name):
             delete()
 
 
-@require_context
-def _subcloud_alarms_get(context, region_id, session=None):
-    query = model_query(context, models.SubcloudAlarmSummary, session=session). \
-        filter_by(deleted=0)
-    query = add_identity_filter(query, region_id, use_region_name=True)
+@require_admin_context
+def orch_request_delete_previous_failed_requests(context, delete_timestamp):
+    """Soft delete orch_request entries.
 
-    try:
-        return query.one()
-    except NoResultFound:
-        raise exception.SubcloudNotFound(region_name=region_id)
-    except MultipleResultsFound:
-        raise exception.InvalidParameterValue(
-            err="Multiple entries found for subcloud %s" % region_id)
+       This is used to soft delete all previously failed requests at
+       the end of each audit cycle.
+    """
+    LOG.info('Soft deleting failed orch requests at and before %s',
+             delete_timestamp)
+    with write_session() as session:
+        query = session.query(models.OrchRequest). \
+            filter_by(deleted=0). \
+            filter_by(state=consts.ORCH_REQUEST_STATE_FAILED). \
+            filter(models.OrchRequest.updated_at <= delete_timestamp)
 
-
-@require_context
-def subcloud_alarms_get(context, region_id):
-    return _subcloud_get(context, region_id)
-
-
-@require_context
-def subcloud_alarms_get_all(context, region_name=None):
-    query = model_query(context, models.SubcloudAlarmSummary). \
-        filter_by(deleted=0)
-
-    if region_name:
-        query = add_identity_filter(query, region_name, use_region_name=True)
-
-    return query.order_by(desc(models.SubcloudAlarmSummary.id)).all()
+        count = query.update({'deleted': 1,
+                              'deleted_at': timeutils.utcnow()})
+    LOG.info('%d previously failed sync requests soft deleted', count)
 
 
 @require_admin_context
-def subcloud_alarms_create(context, region_name, values):
+def purge_deleted_records(context, age_in_days):
+    deleted_age = \
+        timeutils.utcnow() - datetime.timedelta(days=age_in_days)
+
+    LOG.info('Purging deleted records older than %s', deleted_age)
+
     with write_session() as session:
-        result = models.SubcloudAlarmSummary()
-        result.region_name = region_name
-        if not values.get('uuid'):
-            values['uuid'] = uuidutils.generate_uuid()
-        result.update(values)
-        try:
-            session.add(result)
-        except db_exc.DBDuplicateEntry:
-            raise exception.SubcloudAlreadyExists(region_name=region_name)
-        return result
+        # Purging orch_request table
+        count = session.query(models.OrchRequest). \
+            filter_by(deleted=1). \
+            filter(models.OrchRequest.deleted_at < deleted_age).delete()
+        LOG.info('%d records were purged from orch_request table.', count)
 
+        # Purging orch_job table
+        subquery = model_query(context, models.OrchRequest.orch_job_id). \
+            group_by(models.OrchRequest.orch_job_id)
 
-@require_admin_context
-def subcloud_alarms_update(context, region_name, values):
-    with write_session() as session:
-        result = _subcloud_alarms_get(context, region_name, session)
-        result.update(values)
-        result.save(session)
-        return result
+        count = session.query(models.OrchJob). \
+            filter(~models.OrchJob.id.in_(subquery)). \
+            delete(synchronize_session='fetch')
+        LOG.info('%d records were purged from orch_job table.', count)
 
+        # Purging resource table
+        subquery = model_query(context, models.OrchJob.resource_id). \
+            group_by(models.OrchJob.resource_id)
 
-@require_admin_context
-def subcloud_alarms_delete(context, region_name):
-    with write_session() as session:
-        session.query(models.SubcloudAlarmSummary).\
-            filter_by(region_name=region_name).delete()
+        count = session.query(models.Resource). \
+            filter(~models.Resource.id.in_(subquery)). \
+            delete(synchronize_session='fetch')
+        LOG.info('%d records were purged from resource table.', count)

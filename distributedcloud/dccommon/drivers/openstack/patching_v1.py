@@ -23,6 +23,7 @@ from oslo_log import log
 import requests
 from requests_toolbelt import MultipartEncoder
 
+from dccommon import consts
 from dccommon.drivers import base
 
 LOG = log.getLogger(__name__)
@@ -41,9 +42,10 @@ class PatchingClient(base.DriverBase):
 
     def __init__(self, region, session):
         # Get an endpoint and token.
-        self.endpoint = session.get_endpoint(service_type='patching',
-                                             region_name=region,
-                                             interface='internal')
+        self.endpoint = session.get_endpoint(
+            service_type='patching',
+            region_name=region,
+            interface=consts.KS_ENDPOINT_ADMIN)
         self.token = session.get_token()
 
     def query(self, state=None, release=None,):

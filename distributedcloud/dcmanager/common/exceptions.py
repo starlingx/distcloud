@@ -65,6 +65,12 @@ class BadRequest(DCManagerException):
     message = _('Bad %(resource)s request: %(msg)s')
 
 
+class ValidateFail(DCManagerException):
+    def __init__(self, message):
+        self.message = message
+        super(ValidateFail, self).__init__()
+
+
 class NotFound(DCManagerException):
     message = _("Not found")
 
@@ -92,6 +98,14 @@ class InUse(DCManagerException):
 class InvalidConfigurationOption(DCManagerException):
     message = _("An invalid value was provided for %(opt_name)s: "
                 "%(opt_value)s")
+
+
+class InvalidParameterValue(DCManagerException):
+    message = _("%(err)s")
+
+
+class SubcloudAlreadyExists(Conflict):
+    message = _("Subcloud with region_name=%(region_name)s already exists")
 
 
 class SubcloudNotFound(NotFound):
@@ -122,6 +136,22 @@ class SubcloudNotOffline(DCManagerException):
 class SubcloudPatchOptsNotFound(NotFound):
     message = _("No options found for Subcloud with id %(subcloud_id)s, "
                 "defaults will be used.")
+
+
+class SubcloudGroupNotFound(NotFound):
+    message = _("Subcloud Group with id %(group_id)s doesn't exist.")
+
+
+class SubcloudGroupNameNotFound(NotFound):
+    message = _("Subcloud Group with name %(name)s doesn't exist.")
+
+
+class SubcloudGroupNameViolation(DCManagerException):
+    message = _("Default Subcloud Group name cannot be changed or reused.")
+
+
+class SubcloudGroupDefaultNotDeletable(DCManagerException):
+    message = _("Default Subcloud Group %(group_id)s may not be deleted.")
 
 
 class ConnectionRefused(DCManagerException):

@@ -13,7 +13,7 @@
 # License for the specific language governing permissions and limitations
 # under the License.
 #
-# Copyright (c) 2017-2019 Wind River Systems, Inc.
+# Copyright (c) 2017-2020 Wind River Systems, Inc.
 #
 # The right to copy, distribute, modify, or otherwise make use
 # of this software may be licensed only pursuant to the terms
@@ -24,13 +24,20 @@
 Implementation of SQLAlchemy backend.
 """
 
+import sqlalchemy
 import sys
 import threading
 
+from oslo_db import exception as db_exc
+from oslo_db.exception import DBDuplicateEntry
 from oslo_db.sqlalchemy import enginefacade
-
 from oslo_log import log as logging
+from oslo_utils import strutils
+from oslo_utils import uuidutils
 
+from sqlalchemy import desc
+from sqlalchemy.orm.exc import MultipleResultsFound
+from sqlalchemy.orm.exc import NoResultFound
 from sqlalchemy.orm import joinedload_all
 
 from dcmanager.common import consts
@@ -206,7 +213,7 @@ def subcloud_create(context, name, description, location, software_version,
                     management_subnet, management_gateway_ip,
                     management_start_ip, management_end_ip,
                     systemcontroller_gateway_ip, deploy_status,
-                    openstack_installed):
+                    openstack_installed, group_id):
     with write_session() as session:
         subcloud_ref = models.Subcloud()
         subcloud_ref.name = name
@@ -223,6 +230,7 @@ def subcloud_create(context, name, description, location, software_version,
         subcloud_ref.deploy_status = deploy_status
         subcloud_ref.audit_fail_count = 0
         subcloud_ref.openstack_installed = openstack_installed
+        subcloud_ref.group_id = group_id
         session.add(subcloud_ref)
         return subcloud_ref
 
@@ -231,7 +239,8 @@ def subcloud_create(context, name, description, location, software_version,
 def subcloud_update(context, subcloud_id, management_state=None,
                     availability_status=None, software_version=None,
                     description=None, location=None, audit_fail_count=None,
-                    deploy_status=None, openstack_installed=None):
+                    deploy_status=None, openstack_installed=None,
+                    group_id=None):
     with write_session() as session:
         subcloud_ref = subcloud_get(context, subcloud_id)
         if management_state is not None:
@@ -250,6 +259,8 @@ def subcloud_update(context, subcloud_id, management_state=None,
             subcloud_ref.deploy_status = deploy_status
         if openstack_installed is not None:
             subcloud_ref.openstack_installed = openstack_installed
+        if group_id is not None:
+            subcloud_ref.group_id = group_id
         subcloud_ref.save(session)
         return subcloud_ref
 
@@ -262,7 +273,6 @@ def subcloud_destroy(context, subcloud_id):
 
 
 ##########################
-
 
 @require_context
 def subcloud_status_get(context, subcloud_id, endpoint_type):
@@ -526,6 +536,138 @@ def sw_update_opts_default_destroy(context):
 
 
 ##########################
+# subcloud group
+##########################
+@require_context
+def subcloud_group_get(context, group_id):
+    try:
+        result = model_query(context, models.SubcloudGroup). \
+            filter_by(deleted=0). \
+            filter_by(id=group_id). \
+            one()
+    except NoResultFound:
+        raise exception.SubcloudGroupNotFound(group_id=group_id)
+    except MultipleResultsFound:
+        raise exception.InvalidParameterValue(
+            err="Multiple entries found for subcloud group %s" % group_id)
+
+    return result
+
+
+@require_context
+def subcloud_group_get_by_name(context, name):
+    try:
+        result = model_query(context, models.SubcloudGroup). \
+            filter_by(deleted=0). \
+            filter_by(name=name). \
+            one()
+    except NoResultFound:
+        raise exception.SubcloudGroupNameNotFound(name=name)
+    except MultipleResultsFound:
+        # This exception should never happen due to the UNIQUE setting for name
+        raise exception.InvalidParameterValue(
+            err="Multiple entries found for subcloud group %s" % name)
+
+    return result
+
+
+# This method returns all subclouds for a particular subcloud group
+@require_context
+def subcloud_get_for_group(context, group_id):
+    return model_query(context, models.Subcloud). \
+        filter_by(deleted=0). \
+        filter_by(group_id=group_id). \
+        order_by(models.Subcloud.id). \
+        all()
+
+
+@require_context
+def subcloud_group_get_all(context):
+    result = model_query(context, models.SubcloudGroup). \
+        filter_by(deleted=0). \
+        order_by(models.SubcloudGroup.id). \
+        all()
+
+    return result
+
+
+@require_admin_context
+def subcloud_group_create(context,
+                          name,
+                          description,
+                          update_apply_type,
+                          max_parallel_subclouds):
+    with write_session() as session:
+        subcloud_group_ref = models.SubcloudGroup()
+        subcloud_group_ref.name = name
+        subcloud_group_ref.description = description
+        subcloud_group_ref.update_apply_type = update_apply_type
+        subcloud_group_ref.max_parallel_subclouds = max_parallel_subclouds
+        session.add(subcloud_group_ref)
+        return subcloud_group_ref
+
+
+@require_admin_context
+def subcloud_group_update(context,
+                          group_id,
+                          name=None,
+                          description=None,
+                          update_apply_type=None,
+                          max_parallel_subclouds=None):
+    with write_session() as session:
+        subcloud_group_ref = subcloud_group_get(context, group_id)
+        if name is not None:
+            # Do not allow the name of the default group to be edited
+            if subcloud_group_ref.id == consts.DEFAULT_SUBCLOUD_GROUP_ID:
+                raise exception.SubcloudGroupNameViolation()
+            # do not allow another group to use the default group name
+            if name == consts.DEFAULT_SUBCLOUD_GROUP_NAME:
+                raise exception.SubcloudGroupNameViolation()
+            subcloud_group_ref.name = name
+        if description is not None:
+            subcloud_group_ref.description = description
+        if update_apply_type is not None:
+            subcloud_group_ref.update_apply_type = update_apply_type
+        if max_parallel_subclouds is not None:
+            subcloud_group_ref.max_parallel_subclouds = max_parallel_subclouds
+        subcloud_group_ref.save(session)
+        return subcloud_group_ref
+
+
+@require_admin_context
+def subcloud_group_destroy(context, group_id):
+    with write_session() as session:
+        subcloud_group_ref = subcloud_group_get(context, group_id)
+        if subcloud_group_ref.id == consts.DEFAULT_SUBCLOUD_GROUP_ID:
+            raise exception.SubcloudGroupDefaultNotDeletable(group_id=group_id)
+        session.delete(subcloud_group_ref)
+
+
+def initialize_subcloud_group_default(engine):
+    try:
+        default_group = {
+            "id": consts.DEFAULT_SUBCLOUD_GROUP_ID,
+            "name": consts.DEFAULT_SUBCLOUD_GROUP_NAME,
+            "description": consts.DEFAULT_SUBCLOUD_GROUP_DESCRIPTION,
+            "update_apply_type":
+                consts.DEFAULT_SUBCLOUD_GROUP_UPDATE_APPLY_TYPE,
+            "max_parallel_subclouds":
+                consts.DEFAULT_SUBCLOUD_GROUP_MAX_PARALLEL_SUBCLOUDS,
+            "deleted": 0
+        }
+        meta = sqlalchemy.MetaData(bind=engine)
+        subcloud_group = sqlalchemy.Table('subcloud_group', meta, autoload=True)
+        try:
+            with engine.begin() as conn:
+                conn.execute(subcloud_group.insert(), default_group)
+            LOG.info("Default Subcloud Group created")
+        except DBDuplicateEntry:
+            # The default already exists.
+            pass
+    except Exception as ex:
+        LOG.error("Exception occurred setting up default subcloud group", ex)
+
+##########################
 
 
 @require_context
@@ -606,13 +748,107 @@ def strategy_step_destroy_all(context):
 
 
 ##########################
+def initialize_db_defaults(engine):
+    # a default value may already exist.  If it does not, create it
+    initialize_subcloud_group_default(engine)
 
 
 def db_sync(engine, version=None):
     """Migrate the database to `version` or the most recent version."""
-    return migration.db_sync(engine, version=version)
+    retVal = migration.db_sync(engine, version=version)
+    # returns None if migration has completed
+    if retVal is None:
+        initialize_db_defaults(engine)
+    return retVal
 
 
 def db_version(engine):
     """Display the current database version."""
     return migration.db_version(engine)
+
+
+##########################
+def add_identity_filter(query, value,
+                        use_name=None):
+    """Adds an identity filter to a query.
+
+    Filters results by 'id', if supplied value is a valid integer.
+    then attempts to filter results by 'uuid';
+    otherwise filters by name
+
+    :param query: Initial query to add filter to.
+    :param value: Value for filtering results by.
+    :param use_name: Use name in filter
+
+    :return: Modified query.
+    """
+    if strutils.is_int_like(value):
+        return query.filter_by(id=value)
+    elif uuidutils.is_uuid_like(value):
+        return query.filter_by(uuid=value)
+    elif use_name:
+        return query.filter_by(name=value)
+    else:
+        return query.filter_by(name=value)
+
+
+@require_context
+def _subcloud_alarms_get(context, name):
+    query = model_query(context, models.SubcloudAlarmSummary). \
+        filter_by(deleted=0)
+    query = add_identity_filter(query, name, use_name=True)
+
+    try:
+        return query.one()
+    except NoResultFound:
+        raise exception.SubcloudNotFound(region_name=name)
+    except MultipleResultsFound:
+        raise exception.InvalidParameterValue(
+            err="Multiple entries found for subcloud %s" % name)
+
+
+@require_context
+def subcloud_alarms_get(context, name):
+    return _subcloud_alarms_get(context, name)
+
+
+@require_context
+def subcloud_alarms_get_all(context, name=None):
+    query = model_query(context, models.SubcloudAlarmSummary). \
+        filter_by(deleted=0)
+
+    if name:
+        query = add_identity_filter(query, name, use_name=True)
+
+    return query.order_by(desc(models.SubcloudAlarmSummary.id)).all()
+
+
+@require_admin_context
+def subcloud_alarms_create(context, name, values):
+    with write_session() as session:
+        result = models.SubcloudAlarmSummary()
+        result.name = name
+        if not values.get('uuid'):
+            values['uuid'] = uuidutils.generate_uuid()
+        result.update(values)
+        try:
+            session.add(result)
+        except db_exc.DBDuplicateEntry:
+            raise exception.SubcloudAlreadyExists(region_name=name)
+        return result
+
+
+@require_admin_context
+def subcloud_alarms_update(context, name, values):
+    with write_session() as session:
+        result = _subcloud_alarms_get(context, name)
+        result.update(values)
+        result.save(session)
+        return result
+
+
+@require_admin_context
+def subcloud_alarms_delete(context, name):
+    with write_session() as session:
+        session.query(models.SubcloudAlarmSummary).\
+            filter_by(name=name).delete()

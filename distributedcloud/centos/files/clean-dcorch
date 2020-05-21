@@ -1,0 +1,23 @@
+#!/bin/bash
+
+#
+# Wrapper script to run dcorch-manage db_clean on active controller only
+#
+re='^[0-9]+$'
+
+function is_active_pgserver()
+{
+    # Determine whether we're running on the same controller as the service.
+    /usr/bin/sm-query service postgres | grep -q enabled-active
+    return $?
+}
+
+if is_active_pgserver
+then
+    if [[ $1 =~ $re ]]
+    then
+        /usr/bin/nice -n 2 /usr/bin/dcorch-manage db_clean $1 >> /var/log/dcorch/dcorch-clean.log
+    else
+        /usr/bin/nice -n 2 /usr/bin/dcorch-manage db_clean 3 >> /var/log/dcorch/dcorch-clean.log
+    fi
+fi

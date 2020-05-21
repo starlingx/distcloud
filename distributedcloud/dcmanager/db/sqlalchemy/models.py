@@ -13,7 +13,7 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 #
-# Copyright (c) 2017 Wind River Systems, Inc.
+# Copyright (c) 2017-2020 Wind River Systems, Inc.
 #
 # The right to copy, distribute, modify, or otherwise make use
 # of this software may be licensed only pursuant to the terms
@@ -75,6 +75,18 @@ class DCManagerBase(models.ModelBase,
         session.commit()
 
 
+class SubcloudGroup(BASE, DCManagerBase):
+    """Represents a subcloud group"""
+
+    __tablename__ = 'subcloud_group'
+
+    id = Column(Integer, primary_key=True, autoincrement=True, nullable=False)
+    name = Column(String(255), unique=True)
+    description = Column(String(255))
+    update_apply_type = Column(String(255))
+    max_parallel_subclouds = Column(Integer)
+
+
 class Subcloud(BASE, DCManagerBase):
     """Represents a subcloud"""
 
@@ -95,6 +107,11 @@ class Subcloud(BASE, DCManagerBase):
     openstack_installed = Column(Boolean, nullable=False, default=False)
     systemcontroller_gateway_ip = Column(String(255))
     audit_fail_count = Column(Integer)
+    # multiple subclouds can be in a particular group
+    group_id = Column(Integer,
+                      ForeignKey('subcloud_group.id'))
+    group = relationship(SubcloudGroup,
+                         backref=backref('subcloud'))
 
 
 class SubcloudStatus(BASE, DCManagerBase):
@@ -169,3 +186,16 @@ class StrategyStep(BASE, DCManagerBase):
     finished_at = Column(DateTime)
     subcloud = relationship('Subcloud', backref=backref("strategy_steps",
                                                         cascade="all,delete"))
+
+
+class SubcloudAlarmSummary(BASE, DCManagerBase):
+    """Represents a Distributed Cloud subcloud alarm aggregate"""
+    __tablename__ = 'subcloud_alarms'
+    id = Column(Integer, primary_key=True, nullable=False, autoincrement=True)
+    uuid = Column(String(36), unique=True)
+    name = Column('name', String(255), unique=True)
+    critical_alarms = Column('critical_alarms', Integer)
+    major_alarms = Column('major_alarms', Integer)
+    minor_alarms = Column('minor_alarms', Integer)
+    warnings = Column('warnings', Integer)
+    cloud_status = Column('cloud_status', String(64))

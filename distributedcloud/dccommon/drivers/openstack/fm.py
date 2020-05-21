@@ -50,8 +50,7 @@ class FmClient(base.DriverBase):
 
         """
         try:
-            LOG.info("get_alarm_summary region %s" %
-                     self.region_name)
+            LOG.debug("get_alarm_summary region %s" % self.region_name)
             alarms = self.fm.alarm.summary()
         except Exception as e:
             LOG.error("get_alarm_summary exception={}".format(e))

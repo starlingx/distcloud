@@ -100,7 +100,7 @@ class EngineClient(object):
 
     def add_subcloud_sync_endpoint_type(self, ctxt, subcloud_name,
                                         endpoint_type_list):
-        return self.call(
+        return self.cast(
             ctxt,
             self.make_msg('add_subcloud_sync_endpoint_type',
                           subcloud_name=subcloud_name,
@@ -108,7 +108,7 @@ class EngineClient(object):
 
     def remove_subcloud_sync_endpoint_type(self, ctxt, subcloud_name,
                                            endpoint_type_list):
-        return self.call(
+        return self.cast(
             ctxt,
             self.make_msg('remove_subcloud_sync_endpoint_type',
                           subcloud_name=subcloud_name,
@@ -119,15 +119,6 @@ class EngineClient(object):
             ctxt,
             self.make_msg('update_subcloud_version',
                           subcloud_name=subcloud_name, sw_version=sw_version))
-
-    def update_alarm_summary(self, ctxt, region_name):
-        return self.cast(
-            ctxt, self.make_msg('update_alarm_summary',
-                                region_name=region_name))
-
-    def get_alarm_summary(self, ctxt):
-        return self.call(
-            ctxt, self.make_msg('get_alarm_summary'))
 
     # The sync job info has been written to the DB, alert the sync engine
     # that there is work to do.

@@ -30,6 +30,7 @@ from dccommon import exceptions
 
 LOG = log.getLogger(__name__)
 
+STRATEGY_NAME_FW_UPDATE = 'fw-update'
 STRATEGY_NAME_SW_PATCH = 'sw-patch'
 STRATEGY_NAME_SW_UPGRADE = 'sw-upgrade'
 
@@ -75,9 +76,10 @@ class VimClient(base.DriverBase):
         try:
             # The nfv_client doesn't support a session, so we need to
             # get an endpoint and token.
-            self.endpoint = session.get_endpoint(service_type='nfv',
-                                                 region_name=region,
-                                                 interface='internal')
+            self.endpoint = session.get_endpoint(
+                service_type='nfv',
+                region_name=region,
+                interface=consts.KS_ENDPOINT_ADMIN)
             self.token = session.get_token()
 
         except exceptions.ServiceUnavailable:

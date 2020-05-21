@@ -63,8 +63,6 @@ RPC_API_VERSION = "1.0"
 
 TOPIC_ORCH_ENGINE = "dcorch-engine"
 
-ALARMS_DISABLED = "disabled"
-
 # SyncRequest States
 ORCH_REQUEST_NONE = None
 ORCH_REQUEST_QUEUED = "queued"  # in database, not in thread
@@ -128,11 +126,17 @@ ENDPOINT_TYPE_PATCHING = "patching"
 ENDPOINT_TYPE_IDENTITY = "identity"
 ENDPOINT_TYPE_FM = "faultmanagement"
 ENDPOINT_TYPE_NFV = "nfv"
+ENDPOINT_TYPE_LOAD = "load"
 
-# platform endpoint types
+# All endpoint types
 ENDPOINT_TYPES_LIST = [ENDPOINT_TYPE_PLATFORM,
                        ENDPOINT_TYPE_PATCHING,
-                       ENDPOINT_TYPE_IDENTITY]
+                       ENDPOINT_TYPE_IDENTITY,
+                       ENDPOINT_TYPE_LOAD]
+
+# Dcorch sync endpoint types
+SYNC_ENDPOINT_TYPES_LIST = [ENDPOINT_TYPE_PLATFORM,
+                            ENDPOINT_TYPE_IDENTITY]
 
 ENDPOINT_QUOTA_MAPPING = {
     ENDPOINT_TYPE_COMPUTE: NOVA_QUOTA_FIELDS,
@@ -142,6 +146,7 @@ ENDPOINT_QUOTA_MAPPING = {
 
 # DB sync agent endpoint
 DBS_ENDPOINT_INTERNAL = "internal"
+DBS_ENDPOINT_ADMIN = "admin"
 DBS_ENDPOINT_DEFAULT = DBS_ENDPOINT_INTERNAL
 
 # Do we need separate patch/put operations or could we just use
@@ -167,11 +172,6 @@ ACTION_ADDTENANTACCESS = "addTenantAccess"
 ACTION_REMOVETENANTACCESS = "removeTenantAccess"
 ACTION_EXTRASPECS_POST = "extra_specs"
 ACTION_EXTRASPECS_DELETE = "extra_specs_delete"
-
-# Alarm aggregation
-ALARM_OK_STATUS = "OK"
-ALARM_DEGRADED_STATUS = "degraded"
-ALARM_CRITICAL_STATUS = "critical"
 
 # Subcloud initial sync state
 INITIAL_SYNC_STATE_NONE = "none"

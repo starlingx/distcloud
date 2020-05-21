@@ -28,15 +28,17 @@ import keyring
 import netaddr
 import os
 import threading
+import time
 
 from oslo_log import log as logging
 from oslo_messaging import RemoteError
 
 from tsconfig.tsconfig import CONFIG_PATH
-from tsconfig.tsconfig import SW_VERSION
 
+from dccommon import consts as dccommon_consts
 from dccommon.drivers.openstack.keystone_v3 import KeystoneClient
 from dccommon.drivers.openstack.sysinv_v1 import SysinvClient
+from dccommon import kubeoperator
 
 from dcorch.common import consts as dcorch_consts
 from dcorch.rpc import client as dcorch_rpc_client
@@ -47,6 +49,7 @@ from dcmanager.common import exceptions
 from dcmanager.common.i18n import _
 from dcmanager.common import manager
 from dcmanager.common import utils
+
 from dcmanager.db import api as db_api
 from dcmanager.manager.subcloud_install import SubcloudInstall
 
@@ -60,7 +63,6 @@ LOG = logging.getLogger(__name__)
 ADDN_HOSTS_DC = 'dnsmasq.addn_hosts_dc'
 
 # Subcloud configuration paths
-ANSIBLE_OVERRIDES_PATH = '/opt/dc/ansible'
 INVENTORY_FILE_POSTFIX = '_inventory.yml'
 ANSIBLE_SUBCLOUD_PLAYBOOK = \
     '/usr/share/ansible/stx-ansible/playbooks/bootstrap.yml'
@@ -77,6 +79,10 @@ USERS_TO_REPLICATE = [
     'barbican']
 
 SERVICES_USER = 'services'
+
+SC_INTERMEDIATE_CERT_DURATION = "87600h"
+SC_INTERMEDIATE_CERT_RENEW_BEFORE = "720h"
+CERT_NAMESPACE = "dc-cert"
 
 
 def sync_update_subcloud_endpoint_status(func):
@@ -108,6 +114,70 @@ class SubcloudManager(manager.Manager):
         self.dcorch_rpc_client = dcorch_rpc_client.EngineClient()
         self.fm_api = fm_api.FaultAPIs()
 
+    @staticmethod
+    def _get_subcloud_cert_name(subcloud_name):
+        cert_name = "%s-adminep-ca-certificate" % subcloud_name
+        return cert_name
+
+    @staticmethod
+    def _get_subcloud_cert_secret_name(subcloud_name):
+        secret_name = "%s-adminep-ca-certificate" % subcloud_name
+        return secret_name
+
+    @staticmethod
+    def _create_intermediate_ca_cert(payload):
+        subcloud_name = payload["name"]
+        cert_name = SubcloudManager._get_subcloud_cert_name(subcloud_name)
+        secret_name = SubcloudManager._get_subcloud_cert_secret_name(
+            subcloud_name)
+
+        cert = {
+            "apiVersion": "cert-manager.io/v1alpha2",
+            "kind": "Certificate",
+            "metadata": {
+                "namespace": CERT_NAMESPACE,
+                "name": cert_name
+            },
+            "spec": {
+                "secretName": secret_name,
+                "duration": SC_INTERMEDIATE_CERT_DURATION,
+                "renewBefore": SC_INTERMEDIATE_CERT_RENEW_BEFORE,
+                "issuerRef": {
+                    "kind": "Issuer",
+                    "name": "dc-adminep-root-ca-issuer"
+                },
+                "commonName": cert_name,
+                "isCA": True,
+            },
+        }
+
+        kube = kubeoperator.KubeOperator()
+        kube.apply_cert_manager_certificate(CERT_NAMESPACE, cert_name, cert)
+
+        for count in range(1, 20):
+            secret = kube.kube_get_secret(secret_name, CERT_NAMESPACE)
+            if not hasattr(secret, 'data'):
+                time.sleep(1)
+                LOG.debug('Wait for %s ... %s' % (secret_name, count))
+                continue
+
+            data = secret.data
+            if 'ca.crt' not in data or \
+                    'tls.crt' not in data or 'tls.key' not in data:
+                # ca cert, certificate and key pair are needed and must exist
+                # for creating an intermediate ca. If not, certificate is not
+                # ready yet.
+                time.sleep(1)
+                LOG.debug('Wait for %s ... %s' % (secret_name, count))
+                continue
+
+            payload['dc_root_ca_cert'] = data['ca.crt']
+            payload['sc_ca_cert'] = data['tls.crt']
+            payload['sc_ca_key'] = data['tls.key']
+            return
+
+        raise Exception("Secret for certificate %s is not ready." % cert_name)
+
     def add_subcloud(self, context, payload):
         """Add subcloud and notify orchestrators.
 
@@ -116,36 +186,11 @@ class SubcloudManager(manager.Manager):
         :param payload: subcloud configuration
         """
         LOG.info("Adding subcloud %s." % payload['name'])
-        dcorch_populated = False
-        try:
-            subcloud = db_api.subcloud_get_by_name(context, payload['name'])
-        except exceptions.SubcloudNameNotFound:
-            pass
-        else:
-            raise exceptions.BadRequest(
-                resource='subcloud',
-                msg='Subcloud with that name already exists')
+        subcloud = db_api.subcloud_get_by_name(context, payload['name'])
 
-        # Subcloud is added with software version that matches system
-        # controller.
-        software_version = SW_VERSION
-        try:
-            subcloud = db_api.subcloud_create(
-                context,
-                payload['name'],
-                payload.get('description'),
-                payload.get('location'),
-                software_version,
-                payload['management_subnet'],
-                payload['management_gateway_address'],
-                payload['management_start_address'],
-                payload['management_end_address'],
-                payload['systemcontroller_gateway_address'],
-                consts.DEPLOY_STATE_NONE,
-                False)
-        except Exception as e:
-            LOG.exception(e)
-            raise e
+        db_api.subcloud_update(
+            context, subcloud.id,
+            deploy_status=consts.DEPLOY_STATE_PRE_DEPLOY)
 
         # Populate the subcloud status table with all endpoints
         for endpoint in dcorch_consts.ENDPOINT_TYPES_LIST:
@@ -156,7 +201,7 @@ class SubcloudManager(manager.Manager):
         try:
             # Ansible inventory filename for the specified subcloud
             ansible_subcloud_inventory_file = os.path.join(
-                ANSIBLE_OVERRIDES_PATH,
+                consts.ANSIBLE_OVERRIDES_PATH,
                 subcloud.name + INVENTORY_FILE_POSTFIX)
 
             # Create a new route to this subcloud on the management interface
@@ -195,20 +240,25 @@ class SubcloudManager(manager.Manager):
 
             for service in m_ks_client.services_list:
                 if service.type == dcorch_consts.ENDPOINT_TYPE_PLATFORM:
-                    endpoint_url = "http://{}:6385/v1".format(endpoint_ip)
-                    endpoint_config.append((service.id, endpoint_url))
-                if service.type == dcorch_consts.ENDPOINT_TYPE_IDENTITY:
-                    endpoint_url = "http://{}:5000/v3".format(endpoint_ip)
-                    endpoint_config.append((service.id, endpoint_url))
-                if service.type == dcorch_consts.ENDPOINT_TYPE_PATCHING:
-                    endpoint_url = "http://{}:5491".format(endpoint_ip)
-                    endpoint_config.append((service.id, endpoint_url))
-                if service.type == dcorch_consts.ENDPOINT_TYPE_FM:
-                    endpoint_url = "http://{}:18002".format(endpoint_ip)
-                    endpoint_config.append((service.id, endpoint_url))
-                if service.type == dcorch_consts.ENDPOINT_TYPE_NFV:
-                    endpoint_url = "http://{}:4545".format(endpoint_ip)
-                    endpoint_config.append((service.id, endpoint_url))
+                    admin_endpoint_url = "https://{}:6386/v1".format(endpoint_ip)
+                    endpoint_config.append({"id": service.id,
+                                            "admin_endpoint_url": admin_endpoint_url})
+                elif service.type == dcorch_consts.ENDPOINT_TYPE_IDENTITY:
+                    admin_endpoint_url = "https://{}:5001/v3".format(endpoint_ip)
+                    endpoint_config.append({"id": service.id,
+                                            "admin_endpoint_url": admin_endpoint_url})
+                elif service.type == dcorch_consts.ENDPOINT_TYPE_PATCHING:
+                    admin_endpoint_url = "https://{}:5492".format(endpoint_ip)
+                    endpoint_config.append({"id": service.id,
+                                            "admin_endpoint_url": admin_endpoint_url})
+                elif service.type == dcorch_consts.ENDPOINT_TYPE_FM:
+                    admin_endpoint_url = "https://{}:18003".format(endpoint_ip)
+                    endpoint_config.append({"id": service.id,
+                                            "admin_endpoint_url": admin_endpoint_url})
+                elif service.type == dcorch_consts.ENDPOINT_TYPE_NFV:
+                    admin_endpoint_url = "https://{}:4546".format(endpoint_ip)
+                    endpoint_config.append({"id": service.id,
+                                            "admin_endpoint_url": admin_endpoint_url})
 
             if len(endpoint_config) < 5:
                 raise exceptions.BadRequest(
@@ -216,17 +266,24 @@ class SubcloudManager(manager.Manager):
                     msg='Missing service in SystemController')
 
             for endpoint in endpoint_config:
-                for iface in ['internal', 'admin']:
-                    m_ks_client.keystone_client.endpoints.create(
-                        endpoint[0],
-                        endpoint[1],
-                        interface=iface,
-                        region=subcloud.name)
+                m_ks_client.keystone_client.endpoints.create(
+                    endpoint["id"],
+                    endpoint['admin_endpoint_url'],
+                    interface=dccommon_consts.KS_ENDPOINT_ADMIN,
+                    region=subcloud.name)
 
             # Inform orchestrator that subcloud has been added
             self.dcorch_rpc_client.add_subcloud(
                 context, subcloud.name, subcloud.software_version)
-            dcorch_populated = True
+
+            # create entry into alarm summary table, will get real values later
+            alarm_updates = {'critical_alarms': -1,
+                             'major_alarms': -1,
+                             'minor_alarms': -1,
+                             'warnings': -1,
+                             'cloud_status': consts.ALARMS_DISABLED}
+            db_api.subcloud_alarms_create(context, subcloud.name,
+                                          alarm_updates)
 
             # Regenerate the addn_hosts_dc file
             self._create_addn_hosts_dc(context)
@@ -252,12 +309,19 @@ class SubcloudManager(manager.Manager):
                     payload['sysadmin_password']
 
             if "deploy_playbook" in payload:
+                payload['deploy_values'] = dict()
                 payload['deploy_values']['ansible_become_pass'] = \
                     payload['sysadmin_password']
                 payload['deploy_values']['ansible_ssh_pass'] = \
                     payload['sysadmin_password']
                 payload['deploy_values']['admin_password'] = \
                     str(keyring.get_password('CGCS', 'admin'))
+                payload['deploy_values']['deployment_config'] = \
+                    payload[consts.DEPLOY_CONFIG]
+                payload['deploy_values']['deployment_manager_chart'] = \
+                    payload[consts.DEPLOY_CHART]
+                payload['deploy_values']['deployment_manager_overrides'] = \
+                    payload[consts.DEPLOY_OVERRIDES]
 
             del payload['sysadmin_password']
 
@@ -269,6 +333,9 @@ class SubcloudManager(manager.Manager):
             # Create the ansible inventory for the new subcloud
             self._create_subcloud_inventory(payload,
                                             ansible_subcloud_inventory_file)
+
+            # create subcloud intermediate certificate and pass in keys
+            self._create_intermediate_ca_cert(payload)
 
             # Write this subclouds overrides to file
             # NOTE: This file should not be deleted if subcloud add fails
@@ -284,7 +351,7 @@ class SubcloudManager(manager.Manager):
                     "ansible-playbook", ANSIBLE_SUBCLOUD_INSTALL_PLAYBOOK,
                     "-i", ansible_subcloud_inventory_file,
                     "--limit", subcloud.name,
-                    "-e", "@%s" % ANSIBLE_OVERRIDES_PATH + "/" +
+                    "-e", "@%s" % consts.ANSIBLE_OVERRIDES_PATH + "/" +
                           payload['name'] + '/' + "install_values.yml"
                 ]
 
@@ -298,17 +365,15 @@ class SubcloudManager(manager.Manager):
             # which overrides to load
             apply_command += [
                 "-e", str("override_files_dir='%s' region_name=%s") % (
-                    ANSIBLE_OVERRIDES_PATH, subcloud.name)]
+                    consts.ANSIBLE_OVERRIDES_PATH, subcloud.name)]
 
             deploy_command = None
             if "deploy_playbook" in payload:
                 deploy_command = [
-                    "ansible-playbook", ANSIBLE_OVERRIDES_PATH + '/' +
-                    payload['name'] + "_deploy.yml",
-                    "-e", "@%s" % ANSIBLE_OVERRIDES_PATH + "/" +
+                    "ansible-playbook", payload[consts.DEPLOY_PLAYBOOK],
+                    "-e", "@%s" % consts.ANSIBLE_OVERRIDES_PATH + "/" +
                           payload['name'] + "_deploy_values.yml",
-                    "-i",
-                    ansible_subcloud_inventory_file,
+                    "-i", ansible_subcloud_inventory_file,
                     "--limit", subcloud.name
                 ]
 
@@ -320,15 +385,13 @@ class SubcloudManager(manager.Manager):
 
             return db_api.subcloud_db_model_to_dict(subcloud)
 
-        except Exception as e:
-            LOG.exception(e)
-            # If we failed to create the subcloud, clean up anything we may
-            # have done.
-            self._remove_subcloud_details(context,
-                                          subcloud,
-                                          ansible_subcloud_inventory_file,
-                                          dcorch_populated)
-            raise e
+        except Exception:
+            LOG.exception("Failed to create subcloud %s" % payload['name'])
+            # If we failed to create the subcloud, update the
+            # deployment status
+            db_api.subcloud_update(
+                context, subcloud.id,
+                deploy_status=consts.DEPLOY_STATE_DEPLOY_PREP_FAILED)
 
     @staticmethod
     def run_deploy(install_command, apply_command, deploy_command, subcloud,
@@ -340,7 +403,8 @@ class SubcloudManager(manager.Manager):
                 deploy_status=consts.DEPLOY_STATE_PRE_INSTALL)
             try:
                 install = SubcloudInstall(context, subcloud.name)
-                install.prep(ANSIBLE_OVERRIDES_PATH, payload['install_values'])
+                install.prep(consts.ANSIBLE_OVERRIDES_PATH,
+                             payload['install_values'])
             except Exception as e:
                 LOG.exception(e)
                 db_api.subcloud_update(
@@ -488,7 +552,7 @@ class SubcloudManager(manager.Manager):
     def _write_subcloud_ansible_config(self, context, payload):
         """Create the override file for usage with the specified subcloud"""
 
-        overrides_file = os.path.join(ANSIBLE_OVERRIDES_PATH,
+        overrides_file = os.path.join(consts.ANSIBLE_OVERRIDES_PATH,
                                       payload['name'] + '.yml')
 
         m_ks_client = KeystoneClient()
@@ -518,19 +582,17 @@ class SubcloudManager(manager.Manager):
 
             for k, v in payload.items():
                 if k not in ['deploy_playbook', 'deploy_values',
-                             'install_values']:
+                             'deploy_config', 'deploy_chart',
+                             'deploy_overrides', 'install_values']:
                     f_out_overrides_file.write("%s: %s\n" % (k, json.dumps(v)))
 
     def _write_deploy_files(self, payload):
-        """Create the deploy playbook and value files for the subcloud"""
+        """Create the deploy value files for the subcloud"""
 
-        deploy_playbook_file = os.path.join(
-            ANSIBLE_OVERRIDES_PATH, payload['name'] + '_deploy.yml')
         deploy_values_file = os.path.join(
-            ANSIBLE_OVERRIDES_PATH, payload['name'] + '_deploy_values.yml')
+            consts.ANSIBLE_OVERRIDES_PATH, payload['name'] +
+            '_deploy_values.yml')
 
-        with open(deploy_playbook_file, 'w') as f_out_deploy_playbook_file:
-            json.dump(payload['deploy_playbook'], f_out_deploy_playbook_file)
         with open(deploy_values_file, 'w') as f_out_deploy_values_file:
             json.dump(payload['deploy_values'], f_out_deploy_values_file)
 
@@ -558,18 +620,35 @@ class SubcloudManager(manager.Manager):
                         subcloud.systemcontroller_gateway_ip)),
                     1)
 
+    @staticmethod
+    def _delete_subcloud_cert(subcloud_name):
+        cert_name = SubcloudManager._get_subcloud_cert_name(subcloud_name)
+        secret_name = SubcloudManager._get_subcloud_cert_secret_name(
+            subcloud_name)
+
+        kube = kubeoperator.KubeOperator()
+        kube.delete_cert_manager_certificate(CERT_NAMESPACE, cert_name)
+
+        kube.kube_delete_secret(secret_name, CERT_NAMESPACE)
+        LOG.info("cert %s and secret %s are deleted" % (cert_name, secret_name))
+
     def _remove_subcloud_details(self, context,
                                  subcloud,
-                                 ansible_subcloud_inventory_file,
-                                 dcorch_populated=True):
+                                 ansible_subcloud_inventory_file):
         """Remove subcloud details from database and inform orchestrators"""
         # Inform orchestrators that subcloud has been deleted
-        if dcorch_populated:
-            try:
-                self.dcorch_rpc_client.del_subcloud(context, subcloud.name)
-            except RemoteError as e:
-                if "SubcloudNotFound" in e:
-                    pass
+        try:
+            self.dcorch_rpc_client.del_subcloud(context, subcloud.name)
+        except RemoteError as e:
+            if "SubcloudNotFound" in e:
+                pass
+
+        # delete the associated alarm entry
+        try:
+            db_api.subcloud_alarms_delete(context, subcloud.name)
+        except RemoteError as e:
+            if "SubcloudNotFound" in e:
+                pass
 
         # We only delete subcloud endpoints, region and user information
         # in the Central Region. The subcloud is already unmanaged and powered
@@ -593,6 +672,9 @@ class SubcloudManager(manager.Manager):
 
         # Delete the ansible inventory for the new subcloud
         self._delete_subcloud_inventory(ansible_subcloud_inventory_file)
+
+        # Delete the subcloud intermediate certificate
+        SubcloudManager._delete_subcloud_cert(subcloud.name)
 
         # Regenerate the addn_hosts_dc file
         self._create_addn_hosts_dc(context)
@@ -618,7 +700,7 @@ class SubcloudManager(manager.Manager):
 
         # Ansible inventory filename for the specified subcloud
         ansible_subcloud_inventory_file = os.path.join(
-            ANSIBLE_OVERRIDES_PATH,
+            consts.ANSIBLE_OVERRIDES_PATH,
             subcloud.name + INVENTORY_FILE_POSTFIX)
 
         self._remove_subcloud_details(context,
@@ -644,8 +726,13 @@ class SubcloudManager(manager.Manager):
                      "subcloud %s" % subcloud.name)
             LOG.exception(e)
 
-    def update_subcloud(self, context, subcloud_id, management_state=None,
-                        description=None, location=None):
+    def update_subcloud(self,
+                        context,
+                        subcloud_id,
+                        management_state=None,
+                        description=None,
+                        location=None,
+                        group_id=None):
         """Update subcloud and notify orchestrators.
 
         :param context: request context object
@@ -653,6 +740,7 @@ class SubcloudManager(manager.Manager):
         :param management_state: new management state
         :param description: new description
         :param location: new location
+        :param group_id: new subcloud group id
         """
 
         LOG.info("Updating subcloud %s." % subcloud_id)
@@ -683,10 +771,12 @@ class SubcloudManager(manager.Manager):
                 LOG.error("Invalid management_state %s" % management_state)
                 raise exceptions.InternalError()
 
-        subcloud = db_api.subcloud_update(context, subcloud_id,
+        subcloud = db_api.subcloud_update(context,
+                                          subcloud_id,
                                           management_state=management_state,
                                           description=description,
-                                          location=location)
+                                          location=location,
+                                          group_id=group_id)
 
         # Inform orchestrators that subcloud has been updated
         if management_state:
@@ -951,3 +1041,153 @@ class SubcloudManager(manager.Manager):
                 self._update_subcloud_endpoint_status(
                     context, subcloud.name, endpoint_type, sync_status,
                     alarmable)
+
+    def _update_subcloud_state(self, context, subcloud_name,
+                               management_state, availability_status):
+        try:
+            self.dcorch_rpc_client.update_subcloud_states(
+                context, subcloud_name, management_state, availability_status)
+
+            LOG.info('Notifying dcorch, subcloud:%s management: %s, '
+                     'availability:%s' %
+                     (subcloud_name,
+                      management_state,
+                      availability_status))
+        except Exception:
+            LOG.exception('Problem informing dcorch of subcloud state change,'
+                          'subcloud: %s' % subcloud_name)
+
+    def _raise_or_clear_subcloud_status_alarm(self, subcloud_name,
+                                              availability_status):
+        entity_instance_id = "subcloud=%s" % subcloud_name
+        fault = self.fm_api.get_fault(
+            fm_const.FM_ALARM_ID_DC_SUBCLOUD_OFFLINE,
+            entity_instance_id)
+
+        if fault and (availability_status == consts.AVAILABILITY_ONLINE):
+            try:
+                self.fm_api.clear_fault(
+                    fm_const.FM_ALARM_ID_DC_SUBCLOUD_OFFLINE,
+                    entity_instance_id)
+            except Exception:
+                LOG.exception("Failed to clear offline alarm for subcloud: %s",
+                              subcloud_name)
+
+        elif not fault and \
+                (availability_status == consts.AVAILABILITY_OFFLINE):
+            try:
+                fault = fm_api.Fault(
+                    alarm_id=fm_const.FM_ALARM_ID_DC_SUBCLOUD_OFFLINE,
+                    alarm_state=fm_const.FM_ALARM_STATE_SET,
+                    entity_type_id=fm_const.FM_ENTITY_TYPE_SUBCLOUD,
+                    entity_instance_id=entity_instance_id,
+
+                    severity=fm_const.FM_ALARM_SEVERITY_CRITICAL,
+                    reason_text=('%s is offline' % subcloud_name),
+                    alarm_type=fm_const.FM_ALARM_TYPE_0,
+                    probable_cause=fm_const.ALARM_PROBABLE_CAUSE_29,
+                    proposed_repair_action="Wait for subcloud to "
+                                           "become online; if "
+                                           "problem persists contact "
+                                           "next level of support.",
+                    service_affecting=True)
+
+                self.fm_api.set_fault(fault)
+            except Exception:
+                LOG.exception("Failed to raise offline alarm for subcloud: %s",
+                              subcloud_name)
+
+    def update_subcloud_availability(self, context, subcloud_name,
+                                     availability_status,
+                                     update_state_only=False,
+                                     audit_fail_count=None):
+        try:
+            subcloud = db_api.subcloud_get_by_name(context, subcloud_name)
+        except Exception:
+            LOG.exception("Failed to get subcloud by name: %s" % subcloud_name)
+
+        if update_state_only:
+            # Nothing has changed, but we want to send a state update for this
+            # subcloud as an audit. Get the most up-to-date data.
+            self._update_subcloud_state(context, subcloud_name,
+                                        subcloud.management_state,
+                                        availability_status)
+        elif availability_status is None:
+            # only update the audit fail count
+            try:
+                db_api.subcloud_update(self.context, subcloud.id,
+                                       audit_fail_count=audit_fail_count)
+            except exceptions.SubcloudNotFound:
+                # slim possibility subcloud could have been deleted since
+                # we found it in db, ignore this benign error.
+                LOG.info('Ignoring SubcloudNotFound when attempting '
+                         'audit_fail_count update: %s' % subcloud_name)
+                return
+        else:
+            self._raise_or_clear_subcloud_status_alarm(subcloud_name,
+                                                       availability_status)
+
+            if availability_status == consts.AVAILABILITY_OFFLINE:
+                # Subcloud is going offline, set all endpoint statuses to
+                # unknown.
+                self._update_subcloud_endpoint_status(
+                    context, subcloud_name, endpoint_type=None,
+                    sync_status=consts.SYNC_STATUS_UNKNOWN)
+
+            try:
+                updated_subcloud = db_api.subcloud_update(
+                    context,
+                    subcloud.id,
+                    availability_status=availability_status,
+                    audit_fail_count=audit_fail_count)
+            except exceptions.SubcloudNotFound:
+                # slim possibility subcloud could have been deleted since
+                # we found it in db, ignore this benign error.
+                LOG.info('Ignoring SubcloudNotFound when attempting state'
+                         ' update: %s' % subcloud_name)
+                return
+
+            # Send dcorch a state update
+            self._update_subcloud_state(context, subcloud_name,
+                                        updated_subcloud.management_state,
+                                        availability_status)
+
+    def update_subcloud_sync_endpoint_type(self, context,
+                                           subcloud_name,
+                                           endpoint_type_list,
+                                           openstack_installed):
+        operation = 'add' if openstack_installed else 'remove'
+        func_switcher = {
+            'add': (
+                self.dcorch_rpc_client.add_subcloud_sync_endpoint_type,
+                db_api.subcloud_status_create
+            ),
+            'remove': (
+                self.dcorch_rpc_client.remove_subcloud_sync_endpoint_type,
+                db_api.subcloud_status_delete
+            )
+        }
+
+        try:
+            subcloud = db_api.subcloud_get_by_name(context, subcloud_name)
+        except Exception:
+            LOG.exception("Failed to get subcloud by name: %s" % subcloud_name)
+
+        try:
+            # Notify dcorch to add/remove sync endpoint type list
+            func_switcher[operation][0](self.context, subcloud_name,
+                                        endpoint_type_list)
+            LOG.info('Notifying dcorch, subcloud: %s new sync endpoint: %s' %
+                     (subcloud_name, endpoint_type_list))
+
+            # Update subcloud status table by adding/removing openstack sync
+            # endpoint types
+            for endpoint_type in endpoint_type_list:
+                func_switcher[operation][1](self.context, subcloud.id,
+                                            endpoint_type)
+            # Update openstack_installed of subcloud table
+            db_api.subcloud_update(self.context, subcloud.id,
+                                   openstack_installed=openstack_installed)
+        except Exception:
+            LOG.exception('Problem informing dcorch of subcloud sync endpoint'
+                          ' type change, subcloud: %s' % subcloud_name)
