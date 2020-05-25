@@ -98,3 +98,7 @@ class CommunityNotFound(NotFound):
 class CertificateNotFound(NotFound):
     message = _("Certificate in region=%(region_name)s with signature "
                 "%(signature)s not found")
+
+
+class LoadNotFound(NotFound):
+    message = _("Load in region=%(region_name)s with id %(load_id)s not found")

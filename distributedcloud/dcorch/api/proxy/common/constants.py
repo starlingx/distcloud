@@ -1,4 +1,4 @@
-# Copyright 2017-2019 Wind River
+# Copyright 2017-2020 Wind River
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -99,6 +99,10 @@ USER_PATHS = [
     '/v1/iuser/{uuid}'
 ]
 
+LOAD_PATHS = [
+    '/v1/loads/import_load',
+    '/v1/loads/{id}'
+]
 
 SYSINV_PATH_MAP = {
     consts.RESOURCE_TYPE_SYSINV_DNS: DNS_PATHS,
@@ -106,7 +110,12 @@ SYSINV_PATH_MAP = {
     consts.RESOURCE_TYPE_SYSINV_SNMP_COMM: COMMUNITY_STRING_PATHS,
     consts.RESOURCE_TYPE_SYSINV_CERTIFICATE: CERTIFICATE_PATHS,
     consts.RESOURCE_TYPE_SYSINV_USER: USER_PATHS,
+    consts.RESOURCE_TYPE_SYSINV_LOAD: LOAD_PATHS,
 }
+
+LOAD_FILES_STAGING_DIR = '/scratch/tmp_load'
+IMPORT_LOAD_FILES = ['path_to_iso', 'path_to_sig']
+IMPORTED_LOAD_MAX_COUNT = 1
 
 # Cinder
 CINDER_QUOTA_PATHS = [
@@ -318,6 +327,7 @@ ROUTE_METHOD_MAP = {
         consts.RESOURCE_TYPE_SYSINV_SNMP_COMM: ['POST', 'DELETE'],
         consts.RESOURCE_TYPE_SYSINV_CERTIFICATE: ['POST', 'DELETE'],
         consts.RESOURCE_TYPE_SYSINV_USER: ['PATCH', 'PUT'],
+        consts.RESOURCE_TYPE_SYSINV_LOAD: ['POST', 'DELETE'],
     },
     consts.ENDPOINT_TYPE_NETWORK: {
         consts.RESOURCE_TYPE_NETWORK_SECURITY_GROUP: ['POST', 'PUT', 'DELETE'],
@@ -354,3 +364,7 @@ ROUTE_METHOD_MAP = {
 
     }
 }
+
+LOAD_VAULT_DIR = '/opt/dc-vault/loads'
+ENDPOINT_TYPE_PATCHING_TMPDIR = "/scratch/patch-api-proxy-tmpdir"
+ENDPOINT_TYPE_PLATFORM_TMPDIR = "/scratch/platform-api-proxy-tmpdir"
