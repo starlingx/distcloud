@@ -111,6 +111,15 @@ class SwUpgradeOrchThread(threading.Thread):
         return strategy_step.subcloud.name
 
     @staticmethod
+    def format_update_details(last_state, info):
+        # include the last state, since the current state is likely 'failed'
+        details = "%s: %s" % (last_state, info)
+        # details cannot exceed 255 chars. truncate and add '..'
+        if len(details) > 255:
+            details = details[:253] + '..'
+        return details
+
+    @staticmethod
     def license_up_to_date(target_license, existing_license):
         return target_license == existing_license
 
@@ -288,6 +297,8 @@ class SwUpgradeOrchThread(threading.Thread):
                                               strategy_step,
                                               self.install_subcloud_license,
                                               log_error=True)
+                # todo(abailey): state and their method invoked can be managed
+                # using a dictionary to make this more maintainable.
                 elif strategy_step.state == \
                         consts.STRATEGY_STATE_INSTALLING_LICENSE:
                     self.process_upgrade_step(region,
@@ -298,7 +309,43 @@ class SwUpgradeOrchThread(threading.Thread):
                         consts.STRATEGY_STATE_IMPORTING_LOAD:
                     self.process_upgrade_step(region,
                                               strategy_step,
-                                              self.install_subcloud_load,
+                                              self.import_subcloud_load,
+                                              log_error=False)
+                elif strategy_step.state == \
+                        consts.STRATEGY_STATE_STARTING_UPGRADE:
+                    self.process_upgrade_step(region,
+                                              strategy_step,
+                                              self.start_subcloud_upgrade,
+                                              log_error=False)
+                elif strategy_step.state == \
+                        consts.STRATEGY_STATE_LOCKING_CONTROLLER:
+                    self.process_upgrade_step(region,
+                                              strategy_step,
+                                              self.lock_subcloud_controller,
+                                              log_error=False)
+                elif strategy_step.state == \
+                        consts.STRATEGY_STATE_UPGRADING_SIMPLEX:
+                    self.process_upgrade_step(region,
+                                              strategy_step,
+                                              self.upgrade_subcloud_simplex,
+                                              log_error=False)
+                elif strategy_step.state == \
+                        consts.STRATEGY_STATE_MIGRATING_DATA:
+                    self.process_upgrade_step(region,
+                                              strategy_step,
+                                              self.migrate_subcloud_data,
+                                              log_error=False)
+                elif strategy_step.state == \
+                        consts.STRATEGY_STATE_UNLOCKING_CONTROLLER:
+                    self.process_upgrade_step(region,
+                                              strategy_step,
+                                              self.unlock_subcloud_controller,
+                                              log_error=False)
+                elif strategy_step.state == \
+                        consts.STRATEGY_STATE_ACTIVATING:
+                    self.process_upgrade_step(region,
+                                              strategy_step,
+                                              self.activate_subcloud,
                                               log_error=False)
                 # todo(abailey): Add calls to self.process_upgrade_step
                 # for each additional state, with the appropriate thread
@@ -357,27 +404,6 @@ class SwUpgradeOrchThread(threading.Thread):
             if region in self.subcloud_workers:
                 del self.subcloud_workers[region]
 
-    def install_subcloud_load(self, strategy_step):
-        """Install the load on the subcloud
-
-        Removes the worker reference after the operation is complete.
-        """
-
-        try:
-            # self.do_install_subcloud_load(strategy_step)
-            raise NotImplementedError
-        except Exception:
-            # Catch ALL exceptions and set the strategy to failed
-            LOG.exception("Install load failed")
-            self.strategy_step_update(strategy_step.subcloud_id,
-                                      state=consts.STRATEGY_STATE_FAILED,
-                                      details=("Install load failed"))
-        finally:
-            # The worker is done.
-            region = self.get_region_name(strategy_step)
-            if region in self.subcloud_workers:
-                del self.subcloud_workers[region]
-
     def do_install_subcloud_license(self, strategy_step):
         """Install the License for a software upgrade in this subcloud"""
 
@@ -401,7 +427,7 @@ class SwUpgradeOrchThread(threading.Thread):
         target_error = system_controller_license.get('error')
 
         # If the system controller does not have a license, do not attempt
-        # to install licenses on subcluds, and simply proceed to the next stage
+        # to install licenses on subclouds, and simply proceed to the next stage
         if len(target_error) != 0:
             if LICENSE_FILE_NOT_FOUND_SUBSTRING in target_error:
                 LOG.debug("Stage:<%s>, Subcloud:<%s>. "
@@ -420,7 +446,7 @@ class SwUpgradeOrchThread(threading.Thread):
                                self.get_region_name(strategy_step),
                                target_error))
                 raise exceptions.LicenseMissingError(
-                    subcloud_id="SystemController")
+                    subcloud_id=consts.SYSTEM_CONTROLLER_NAME)
 
         # retrieve the keystone session for the subcloud and query its license
         subcloud_ks_client = self.get_ks_client(strategy_step.subcloud.name)
@@ -508,3 +534,74 @@ class SwUpgradeOrchThread(threading.Thread):
         except Exception as e:
             LOG.exception(e)
             raise e
+
+    def perform_state_action(self, strategy_step, state_operator, next_state):
+        """Extensible state handler for processing and transitioning states """
+        try:
+            LOG.info("Stage: %s, State: %s, Subcloud: %s"
+                     % (strategy_step.stage,
+                        strategy_step.state,
+                        self.get_region_name(strategy_step)))
+            state_operator.perform_state_action(strategy_step)
+            # If we get here without an exception raised, proceed to next state
+            self.strategy_step_update(strategy_step.subcloud_id,
+                                      state=next_state)
+        except Exception as e:
+            # Catch ALL exceptions and set the strategy to failed
+            LOG.exception("Failed! Stage: %s, State: %s, Subcloud: %s"
+                          % (strategy_step.stage,
+                             strategy_step.state,
+                             self.get_region_name(strategy_step)))
+            details = self.format_update_details(strategy_step.state, str(e))
+            self.strategy_step_update(strategy_step.subcloud_id,
+                                      state=consts.STRATEGY_STATE_FAILED,
+                                      details=details)
+        finally:
+            # The worker is done.
+            region = self.get_region_name(strategy_step)
+            if region in self.subcloud_workers:
+                del self.subcloud_workers[region]
+
+    # todo(abailey): convert license install to the same pattern as the other states
+
+    def import_subcloud_load(self, strategy_step):
+        from dcmanager.manager.states.upgrade.import_load import ImportLoadState
+        self.perform_state_action(strategy_step,
+                                  ImportLoadState(),
+                                  consts.STRATEGY_STATE_STARTING_UPGRADE)
+
+    def start_subcloud_upgrade(self, strategy_step):
+        from dcmanager.manager.states.upgrade.starting_upgrade import StartingUpgradeState
+        self.perform_state_action(strategy_step,
+                                  StartingUpgradeState(),
+                                  consts.STRATEGY_STATE_LOCKING_CONTROLLER)
+
+    def lock_subcloud_controller(self, strategy_step):
+        from dcmanager.manager.states.lock_host import LockHostState
+        self.perform_state_action(strategy_step,
+                                  LockHostState(),
+                                  consts.STRATEGY_STATE_UPGRADING_SIMPLEX)
+
+    def upgrade_subcloud_simplex(self, strategy_step):
+        from dcmanager.manager.states.upgrade.upgrading_simplex import UpgradingSimplexState
+        self.perform_state_action(strategy_step,
+                                  UpgradingSimplexState(),
+                                  consts.STRATEGY_STATE_MIGRATING_DATA)
+
+    def migrate_subcloud_data(self, strategy_step):
+        from dcmanager.manager.states.upgrade.migrating_data import MigratingDataState
+        self.perform_state_action(strategy_step,
+                                  MigratingDataState(),
+                                  consts.STRATEGY_STATE_UNLOCKING_CONTROLLER)
+
+    def unlock_subcloud_controller(self, strategy_step):
+        from dcmanager.manager.states.unlock_host import UnlockHostState
+        self.perform_state_action(strategy_step,
+                                  UnlockHostState(),
+                                  consts.STRATEGY_STATE_ACTIVATING)
+
+    def activate_subcloud(self, strategy_step):
+        from dcmanager.manager.states.upgrade.activating import ActivatingState
+        self.perform_state_action(strategy_step,
+                                  ActivatingState(),
+                                  consts.STRATEGY_STATE_COMPLETE)

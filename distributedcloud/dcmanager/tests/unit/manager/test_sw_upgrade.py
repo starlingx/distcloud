@@ -10,7 +10,7 @@
 # License for the specific language governing permissions and limitations
 # under the License.
 #
-# Copyright (c) 2017 Wind River Systems, Inc.
+# Copyright (c) 2017-2020 Wind River Systems, Inc.
 #
 # The right to copy, distribute, modify, or otherwise make use
 # of this software may be licensed only pursuant to the terms
@@ -112,6 +112,16 @@ class TestSwUpgrade(base.DCManagerTestCase):
         self.mock_db_api = p.start()
         self.addCleanup(p.stop)
 
+    def setup_strategy_step(self, strategy_state):
+        data = copy.copy(FAKE_STRATEGY_STEP_DATA)
+        data['state'] = strategy_state
+        data['subcloud'] = Subcloud(1,
+                                    'subcloud1',
+                                    is_managed=True,
+                                    is_online=True)
+        fake_strategy_step = StrategyStep(**data)
+        return fake_strategy_step
+
     def setup_upgrade_worker(self):
         sw_update_manager.SwUpgradeOrchThread.stopped = lambda x: False
         mock_strategy_lock = mock.Mock()
@@ -134,16 +144,8 @@ class TestSwUpgradeLicenseStage(TestSwUpgrade):
 
     def setUp(self):
         super(TestSwUpgradeLicenseStage, self).setUp()
-
-    def setup_license_install_step(self):
-        data = copy.copy(FAKE_STRATEGY_STEP_DATA)
-        data['state'] = consts.STRATEGY_STATE_INSTALLING_LICENSE
-        data['subcloud'] = Subcloud(1,
-                                    'subcloud1',
-                                    is_managed=True,
-                                    is_online=True)
-        fake_strategy_step = StrategyStep(**data)
-        return fake_strategy_step
+        self.strategy_step = \
+            self.setup_strategy_step(consts.STRATEGY_STATE_INSTALLING_LICENSE)
 
     def test_upgrade_subcloud_license_install_failure(self):
         # Test the install subcloud license step where the system controller
@@ -160,14 +162,13 @@ class TestSwUpgradeLicenseStage(TestSwUpgrade):
         self.fake_sysinv_client.install_license.return_value = \
             MISSING_LICENSE_RESPONSE
 
-        fake_strategy_step = self.setup_license_install_step()
-        self.worker.install_subcloud_license(fake_strategy_step)
+        self.worker.install_subcloud_license(self.strategy_step)
 
         # verify the license install was invoked
         self.fake_sysinv_client.install_license.assert_called()
 
         # Verify a install_license failure leads to a state failure
-        self.assert_step_updated(fake_strategy_step.subcloud_id,
+        self.assert_step_updated(self.strategy_step.subcloud_id,
                                  consts.STRATEGY_STATE_FAILED)
 
     def test_upgrade_subcloud_license_install_success(self):
@@ -185,14 +186,13 @@ class TestSwUpgradeLicenseStage(TestSwUpgrade):
         self.fake_sysinv_client.install_license.return_value = \
             LICENSE_VALID_RESPONSE
 
-        fake_strategy_step = self.setup_license_install_step()
-        self.worker.install_subcloud_license(fake_strategy_step)
+        self.worker.install_subcloud_license(self.strategy_step)
 
         # verify the license install was invoked
         self.fake_sysinv_client.install_license.assert_called()
 
         # On success, the next state after installing license is importing load
-        self.assert_step_updated(fake_strategy_step.subcloud_id,
+        self.assert_step_updated(self.strategy_step.subcloud_id,
                                  consts.STRATEGY_STATE_IMPORTING_LOAD)
 
     def test_upgrade_subcloud_license_skip_existing(self):
@@ -205,14 +205,13 @@ class TestSwUpgradeLicenseStage(TestSwUpgrade):
         self.fake_sysinv_client.get_license.side_effect = \
             [LICENSE_VALID_RESPONSE,
              LICENSE_VALID_RESPONSE]
-        fake_strategy_step = self.setup_license_install_step()
-        self.worker.install_subcloud_license(fake_strategy_step)
+        self.worker.install_subcloud_license(self.strategy_step)
 
         # A license install should not have been attempted due to the license
         # already being up to date
         self.fake_sysinv_client.install_license.assert_not_called()
         # On success, the next state after installing license is importing load
-        self.assert_step_updated(fake_strategy_step.subcloud_id,
+        self.assert_step_updated(self.strategy_step.subcloud_id,
                                  consts.STRATEGY_STATE_IMPORTING_LOAD)
 
     def test_upgrade_subcloud_license_overrides_mismatched_license(self):
@@ -231,14 +230,13 @@ class TestSwUpgradeLicenseStage(TestSwUpgrade):
         self.fake_sysinv_client.install_license.return_value = \
             LICENSE_VALID_RESPONSE
 
-        fake_strategy_step = self.setup_license_install_step()
-        self.worker.install_subcloud_license(fake_strategy_step)
+        self.worker.install_subcloud_license(self.strategy_step)
 
         # verify the license install was invoked
         self.fake_sysinv_client.install_license.assert_called()
 
         # On success, the next state after installing license is importing load
-        self.assert_step_updated(fake_strategy_step.subcloud_id,
+        self.assert_step_updated(self.strategy_step.subcloud_id,
                                  consts.STRATEGY_STATE_IMPORTING_LOAD)
 
     def test_upgrade_subcloud_license_skip_when_no_sys_controller_lic(self):
@@ -248,15 +246,14 @@ class TestSwUpgradeLicenseStage(TestSwUpgrade):
         # Only makes one query to system controller
         self.fake_sysinv_client.get_license.side_effect = \
             [MISSING_LICENSE_RESPONSE, ]
-        fake_strategy_step = self.setup_license_install_step()
         # Test the install subcloud license stage
-        self.worker.install_subcloud_license(fake_strategy_step)
+        self.worker.install_subcloud_license(self.strategy_step)
 
         # A license install should proceed to the next state without
         # calling a license install
         self.fake_sysinv_client.install_license.assert_not_called()
         # Skip license install and move to next state
-        self.assert_step_updated(fake_strategy_step.subcloud_id,
+        self.assert_step_updated(self.strategy_step.subcloud_id,
                                  consts.STRATEGY_STATE_IMPORTING_LOAD)
 
     def test_upgrade_subcloud_license_handle_failure(self):
@@ -274,14 +271,13 @@ class TestSwUpgradeLicenseStage(TestSwUpgrade):
         self.fake_sysinv_client.install_license.return_value = \
             MISSING_LICENSE_RESPONSE
 
-        fake_strategy_step = self.setup_license_install_step()
-        self.worker.install_subcloud_license(fake_strategy_step)
+        self.worker.install_subcloud_license(self.strategy_step)
 
         # verify the license install was invoked
         self.fake_sysinv_client.install_license.assert_called()
 
         # Verify a install_license failure leads to a state failure
-        self.assert_step_updated(fake_strategy_step.subcloud_id,
+        self.assert_step_updated(self.strategy_step.subcloud_id,
                                  consts.STRATEGY_STATE_FAILED)
 
     def test_upgrade_subcloud_license_installs(self):
@@ -299,12 +295,11 @@ class TestSwUpgradeLicenseStage(TestSwUpgrade):
         self.fake_sysinv_client.install_license.return_value = \
             LICENSE_VALID_RESPONSE
 
-        fake_strategy_step = self.setup_license_install_step()
-        self.worker.install_subcloud_license(fake_strategy_step)
+        self.worker.install_subcloud_license(self.strategy_step)
 
         # verify the license install was invoked
         self.fake_sysinv_client.install_license.assert_called()
 
         # On success, the next state after installing license is importing load
-        self.assert_step_updated(fake_strategy_step.subcloud_id,
+        self.assert_step_updated(self.strategy_step.subcloud_id,
                                  consts.STRATEGY_STATE_IMPORTING_LOAD)
