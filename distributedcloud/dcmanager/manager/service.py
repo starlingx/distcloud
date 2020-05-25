@@ -136,6 +136,14 @@ class DCManagerService(service.Service):
         return subcloud
 
     @request_context
+    def reconfigure_subcloud(self, context, subcloud_id, payload):
+        # Reconfigures a subcloud
+        LOG.info("Handling reconfigure_subcloud request for: %s" % subcloud_id)
+        return self.subcloud_manager.reconfigure_subcloud(context,
+                                                          subcloud_id,
+                                                          payload)
+
+    @request_context
     def update_subcloud_endpoint_status(self, context, subcloud_name=None,
                                         endpoint_type=None,
                                         sync_status=consts.

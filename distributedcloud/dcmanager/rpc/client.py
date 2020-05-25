@@ -80,6 +80,11 @@ class ManagerClient(object):
                                              location=location,
                                              group_id=group_id))
 
+    def reconfigure_subcloud(self, ctxt, subcloud_id, payload):
+        return self.call(ctxt, self.make_msg('reconfigure_subcloud',
+                                             subcloud_id=subcloud_id,
+                                             payload=payload))
+
     def update_subcloud_endpoint_status(self, ctxt, subcloud_name=None,
                                         endpoint_type=None,
                                         sync_status=consts.

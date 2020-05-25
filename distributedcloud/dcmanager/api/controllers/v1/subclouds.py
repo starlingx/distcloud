@@ -18,6 +18,8 @@
 # SPDX-License-Identifier: Apache-2.0
 #
 
+from requests_toolbelt.multipart import decoder
+
 import base64
 import keyring
 from netaddr import AddrFormatError
@@ -52,7 +54,6 @@ from dcmanager.db import api as db_api
 
 from dcmanager.rpc import client as rpc_client
 
-
 CONF = cfg.CONF
 LOG = logging.getLogger(__name__)
 # System mode
@@ -67,6 +68,10 @@ INSTALL_VALUES = 'install_values'
 
 SUBCLOUD_ADD_MANDATORY_FILE = [
     BOOTSTRAP_VALUES,
+]
+
+SUBCLOUD_RECONFIG_MANDATORY_FILE = [
+    consts.DEPLOY_CONFIG,
 ]
 
 SUBCLOUD_ADD_GET_FILE_CONTENTS = [
@@ -118,13 +123,13 @@ class SubcloudsController(object):
             file_item = request.POST[consts.DEPLOY_CONFIG]
             filename = getattr(file_item, 'filename', '')
             if not filename:
-                pecan.abort(400, _("No %s file uploaded" %
-                                   consts.DEPLOY_CONFIG))
+                pecan.abort(400, _("No %s file uploaded"
+                            % consts.DEPLOY_CONFIG))
             file_item.file.seek(0, os.SEEK_SET)
             contents = file_item.file.read()
             # the deploy config needs to upload to the override location
             fn = os.path.join(consts.ANSIBLE_OVERRIDES_PATH, payload['name']
-                              + '_' + os.path.basename(filename))
+                              + '_deploy_config.yml')
             try:
                 with open(fn, "w") as f:
                     f.write(contents)
@@ -153,6 +158,32 @@ class SubcloudsController(object):
                     payload.update({f: data})
                 del request.POST[f]
         payload.update(request.POST)
+        return payload
+
+    @staticmethod
+    def _get_reconfig_payload(request, subcloud_name):
+        payload = dict()
+        multipart_data = decoder.MultipartDecoder(request.body,
+                                                  pecan.request.headers.get('Content-Type'))
+
+        for filename in SUBCLOUD_RECONFIG_MANDATORY_FILE:
+            for part in multipart_data.parts:
+                header = part.headers.get('Content-Disposition')
+                if filename in header:
+                    file_item = part.content
+                    fn = os.path.join(consts.ANSIBLE_OVERRIDES_PATH, subcloud_name
+                                      + '_deploy_config.yml')
+                    try:
+                        with open(fn, "w") as f:
+                            f.write(file_item)
+                    except Exception:
+                        msg = _("Failed to upload %s file" % consts.DEPLOY_CONFIG)
+                        LOG.exception(msg)
+                        pecan.abort(400, msg)
+                    payload.update({consts.DEPLOY_CONFIG: fn})
+                elif "sysadmin_password" in header:
+                    payload.update({'sysadmin_password': part.content})
+        SubcloudsController._get_common_deploy_files(payload)
         return payload
 
     def _validate_subcloud_config(self,
@@ -713,10 +744,13 @@ class SubcloudsController(object):
 
     @utils.synchronized(LOCK_NAME)
     @index.when(method='PATCH', template='json')
-    def patch(self, subcloud_ref=None):
+    def patch(self, subcloud_ref=None, reconfigure=None):
         """Update a subcloud.
 
         :param subcloud_ref: ID or name of subcloud to update
+
+        :param reconfigure: Specifies if this is a subcloud reconfigure
+        or subcloud update operation
         """
 
         context = restcomm.extract_context_from_environ()
@@ -724,10 +758,6 @@ class SubcloudsController(object):
 
         if subcloud_ref is None:
             pecan.abort(400, _('Subcloud ID required'))
-
-        payload = eval(request.body)
-        if not payload:
-            pecan.abort(400, _('Body required'))
 
         if subcloud_ref.isdigit():
             # Look up subcloud as an ID
@@ -745,40 +775,78 @@ class SubcloudsController(object):
 
         subcloud_id = subcloud.id
 
-        management_state = payload.get('management-state')
-        description = payload.get('description')
-        location = payload.get('location')
-        group_id = payload.get('group_id')
+        if reconfigure is None:
+            payload = eval(request.body)
+            if not payload:
+                pecan.abort(400, _('Body required'))
 
-        if not (management_state or description or location or group_id):
-            pecan.abort(400, _('nothing to update'))
+            management_state = payload.get('management-state')
+            description = payload.get('description')
+            location = payload.get('location')
+            group_id = payload.get('group_id')
 
-        # Syntax checking
-        if management_state and \
-                management_state not in [consts.MANAGEMENT_UNMANAGED,
-                                         consts.MANAGEMENT_MANAGED]:
-            pecan.abort(400, _('Invalid management-state'))
+            if not (management_state or description or location or group_id):
+                pecan.abort(400, _('nothing to update'))
 
-        # Verify the group_id is valid
-        if group_id:
+            # Syntax checking
+            if management_state and \
+                    management_state not in [consts.MANAGEMENT_UNMANAGED,
+                                             consts.MANAGEMENT_MANAGED]:
+                pecan.abort(400, _('Invalid management-state'))
+
+            # Verify the group_id is valid
+            if group_id:
+                try:
+                    db_api.subcloud_group_get(context, group_id)
+                except exceptions.SubcloudGroupNotFound:
+                    pecan.abort(400, _('Invalid group-id'))
+
             try:
-                db_api.subcloud_group_get(context, group_id)
-            except exceptions.SubcloudGroupNotFound:
-                pecan.abort(400, _('Invalid group-id'))
+                # Inform dcmanager-manager that subcloud has been updated.
+                # It will do all the real work...
+                subcloud = self.rpc_client.update_subcloud(
+                    context, subcloud_id, management_state=management_state,
+                    description=description, location=location, group_id=group_id)
+                return subcloud
+            except RemoteError as e:
+                pecan.abort(422, e.value)
+            except Exception as e:
+                # additional exceptions.
+                LOG.exception(e)
+                pecan.abort(500, _('Unable to update subcloud'))
+        else:
+            payload = self._get_reconfig_payload(request, subcloud.name)
+            if not payload:
+                pecan.abort(400, _('Body required'))
 
-        try:
-            # Inform dcmanager-manager that subcloud has been updated.
-            # It will do all the real work...
-            subcloud = self.rpc_client.update_subcloud(
-                context, subcloud_id, management_state=management_state,
-                description=description, location=location, group_id=group_id)
-            return subcloud
-        except RemoteError as e:
-            pecan.abort(422, e.value)
-        except Exception as e:
-            # additional exceptions.
-            LOG.exception(e)
-            pecan.abort(500, _('Unable to update subcloud'))
+            if subcloud.deploy_status not in [consts.DEPLOY_STATE_DONE,
+                                              consts.DEPLOY_STATE_DEPLOY_PREP_FAILED,
+                                              consts.DEPLOY_STATE_DEPLOY_FAILED]:
+                pecan.abort(400, _('Subcloud deploy status must be either '
+                                   'complete, deploy-prep-failed or deploy-failed'))
+            sysadmin_password = \
+                payload.get('sysadmin_password')
+            if not sysadmin_password:
+                pecan.abort(400, _('subcloud sysadmin_password required'))
+
+            try:
+                payload['sysadmin_password'] = base64.b64decode(
+                    sysadmin_password).decode('utf-8')
+            except Exception:
+                msg = _('Failed to decode subcloud sysadmin_password, '
+                        'verify the password is base64 encoded')
+                LOG.exception(msg)
+                pecan.abort(400, msg)
+
+            try:
+                subcloud = self.rpc_client.reconfigure_subcloud(context, subcloud_id,
+                                                                payload)
+                return subcloud
+            except RemoteError as e:
+                pecan.abort(422, e.value)
+            except Exception:
+                LOG.exception("Unable to reconfigure subcloud %s" % subcloud.name)
+                pecan.abort(500, _('Unable to reconfigure subcloud'))
 
     @utils.synchronized(LOCK_NAME)
     @index.when(method='delete', template='json')
