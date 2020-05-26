@@ -39,7 +39,6 @@ from dcmanager.common import exceptions
 from dcmanager.common import scheduler
 from dcmanager.common import utils
 from dcmanager.db import api as db_api
-from dcmanager.manager.patch_audit_manager import PatchAuditManager
 
 LOG = logging.getLogger(__name__)
 
@@ -61,12 +60,14 @@ class PatchOrchThread(threading.Thread):
       database as it goes, with state and progress information.
     """
 
-    def __init__(self, strategy_lock):
+    def __init__(self, strategy_lock, audit_rpc_client):
         super(PatchOrchThread, self).__init__()
         self.context = context.get_admin_context()
         self._stop = threading.Event()
         # Used to protect strategy when an atomic read/update is required.
         self.strategy_lock = strategy_lock
+        # Used to notify dcmanager-audit to trigger a patch audit
+        self.audit_rpc_client = audit_rpc_client
         # Keeps track of greenthreads we create to do work.
         self.thread_group_manager = scheduler.ThreadGroupManager(
             thread_pool_size=100)
@@ -192,7 +193,7 @@ class PatchOrchThread(threading.Thread):
                             self.context, state=consts.SW_UPDATE_STATE_FAILED)
                     # Trigger patch audit to update the sync status for
                     # each subcloud.
-                    PatchAuditManager.trigger_audit()
+                    self.audit_rpc_client.trigger_patch_audit(self.context)
                     return
                 elif sw_update_strategy.stop_on_failure:
                     # We have been told to stop on failures
@@ -222,7 +223,7 @@ class PatchOrchThread(threading.Thread):
                     db_api.sw_update_strategy_update(
                         self.context, state=consts.SW_UPDATE_STATE_COMPLETE)
             # Trigger patch audit to update the sync status for each subcloud.
-            PatchAuditManager.trigger_audit()
+            self.audit_rpc_client.trigger_patch_audit(self.context)
             return
 
         if stop_after_stage is not None:
@@ -246,7 +247,7 @@ class PatchOrchThread(threading.Thread):
                         self.context, state=consts.SW_UPDATE_STATE_FAILED)
                 # Trigger patch audit to update the sync status for each
                 # subcloud.
-                PatchAuditManager.trigger_audit()
+                self.audit_rpc_client.trigger_patch_audit(self.context)
                 return
 
         LOG.debug("Working on stage %d" % current_stage)

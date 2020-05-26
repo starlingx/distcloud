@@ -32,6 +32,7 @@ from dccommon import consts as dccommon_consts
 from dccommon.drivers.openstack.sdk_platform import OpenStackDriver
 
 from dcmanager.audit import alarm_aggregation
+from dcmanager.audit import patch_audit
 from dcmanager.common import consts
 from dcmanager.common import context
 from dcmanager.common import exceptions
@@ -49,9 +50,17 @@ LOG = logging.getLogger(__name__)
 SUBCLOUD_STATE_UPDATE_ITERATIONS = \
     dccommon_consts.SECONDS_IN_HOUR / CONF.scheduler.subcloud_audit_interval
 
+# Patch audit normally happens every DEFAULT_PATCH_AUDIT_DELAY_SECONDS, but
+# can be forced to happen on the next audit interval by calling
+# trigger_patch_audit.
+DEFAULT_PATCH_AUDIT_DELAY_SECONDS = 300
+
 
 class SubcloudAuditManager(manager.Manager):
     """Manages tasks related to audits."""
+
+    # Used to force patch audit on the next interval
+    force_patch_audit = False
 
     def __init__(self, *args, **kwargs):
         LOG.debug(_('SubcloudAuditManager initialization...'))
@@ -67,7 +76,24 @@ class SubcloudAuditManager(manager.Manager):
         self.subcloud_workers = dict()
         # Number of audits since last subcloud state update
         self.audit_count = 0
+        # Number of patch audits
+        self.patch_audit_count = 0
         self.alarm_aggr = alarm_aggregation.AlarmAggregation(self.context)
+        self.patch_audit = patch_audit.PatchAudit(
+            self.context, self.dcmanager_rpc_client)
+        self.patch_audit_wait_time_passed = DEFAULT_PATCH_AUDIT_DELAY_SECONDS
+
+    @classmethod
+    def trigger_patch_audit(cls, context):
+        """Trigger patch audit at next interval.
+
+        This can be called from outside the dcmanager audit
+        """
+        cls.force_patch_audit = True
+
+    @classmethod
+    def reset_force_patch_audit(cls):
+        cls.force_patch_audit = False
 
     def periodic_subcloud_audit(self):
         """Audit availability of subclouds."""
@@ -85,6 +111,35 @@ class SubcloudAuditManager(manager.Manager):
             except Exception:
                 LOG.exception("Error in periodic subcloud audit loop")
 
+    def _get_patch_audit(self):
+        """Return the patch audit data if the patch audit should be triggered.
+
+           Also, returns whether to audit the load.
+        """
+        patch_audit_data = None
+        audit_load = False
+
+        # This won't be super accurate as we aren't woken up after exactly
+        # the interval seconds, but it is good enough for an audit.
+        self.patch_audit_wait_time_passed +=\
+            CONF.scheduler.subcloud_audit_interval
+        # Determine whether to trigger a patch audit of each subcloud
+        if (SubcloudAuditManager.force_patch_audit or
+                self.patch_audit_wait_time_passed >=
+                DEFAULT_PATCH_AUDIT_DELAY_SECONDS):
+            LOG.info("Trigger patch audit")
+            self.patch_audit_count += 1
+            # Query RegionOne patches and software version
+            patch_audit_data = self.patch_audit.get_regionone_audit_data()
+            # Check subcloud software version every other audit cycle
+            if self.patch_audit_count % 2 != 0:
+                LOG.info("Trigger load audit")
+                audit_load = True
+            SubcloudAuditManager.reset_force_patch_audit()
+            self.patch_audit_wait_time_passed = 0
+
+        return patch_audit_data, audit_load
+
     def _periodic_subcloud_audit_loop(self):
         """Audit availability of subclouds loop."""
 
@@ -95,8 +150,11 @@ class SubcloudAuditManager(manager.Manager):
         # Determine whether to trigger a state update to each subcloud
         if self.audit_count >= SUBCLOUD_STATE_UPDATE_ITERATIONS:
             update_subcloud_state = True
+            self.audit_count = 0
         else:
             update_subcloud_state = False
+
+        patch_audit_data, do_load_audit = self._get_patch_audit()
 
         openstack_installed = False
         # The feature of syncing openstack resources to the subclouds was not
@@ -131,7 +189,9 @@ class SubcloudAuditManager(manager.Manager):
                 self.thread_group_manager.start(self._audit_subcloud,
                                                 subcloud.name,
                                                 update_subcloud_state,
-                                                openstack_installed)
+                                                openstack_installed,
+                                                patch_audit_data,
+                                                do_load_audit)
 
         # Wait for all greenthreads to complete
         LOG.info('Waiting for subcloud audits to complete.')
@@ -236,7 +296,7 @@ class SubcloudAuditManager(manager.Manager):
                 openstack_installed_current)
 
     def _audit_subcloud(self, subcloud_name, update_subcloud_state,
-                        audit_openstack):
+                        audit_openstack, patch_audit_data, do_load_audit):
         """Audit a single subcloud."""
 
         # Retrieve the subcloud
@@ -326,12 +386,19 @@ class SubcloudAuditManager(manager.Manager):
                 subcloud_name,
                 availability_status=avail_status_current,
                 update_state_only=True)
-            self.audit_count = 0
 
-        if avail_to_set == consts.AVAILABILITY_ONLINE:
-            # If subcloud is online, get alarm summary and store in db,
+        # If subcloud is managed and online, audit additional resources
+        if (subcloud.management_state == consts.MANAGEMENT_MANAGED and
+                avail_to_set == consts.AVAILABILITY_ONLINE):
+            # Get alarm summary and store in db,
             if fm_client:
                 self.alarm_aggr.update_alarm_summary(subcloud_name, fm_client)
+
+            # If we have patch audit data, audit the subcloud
+            if patch_audit_data:
+                self.patch_audit.subcloud_patch_audit(subcloud_name,
+                                                      patch_audit_data,
+                                                      do_load_audit)
 
             # Audit openstack application in the subcloud
             if audit_openstack and sysinv_client:

@@ -23,6 +23,7 @@ import threading
 
 from oslo_log import log as logging
 
+from dcmanager.audit import rpcapi as dcmanager_audit_rpc_client
 from dcmanager.common import consts
 from dcmanager.common import exceptions
 from dcmanager.common import manager
@@ -45,12 +46,17 @@ class SwUpdateManager(manager.Manager):
         # Used to protect strategies when an atomic read/update is required.
         self.strategy_lock = threading.Lock()
 
+        # Used to notify dcmanager-audit
+        self.audit_rpc_client = dcmanager_audit_rpc_client.ManagerAuditClient()
+
         # Start worker threads
         # - patch orchestration thread
-        self.patch_orch_thread = PatchOrchThread(self.strategy_lock)
+        self.patch_orch_thread = PatchOrchThread(self.strategy_lock,
+                                                 self.audit_rpc_client)
         self.patch_orch_thread.start()
         # - sw upgrade orchestration thread
-        self.sw_upgrade_orch_thread = SwUpgradeOrchThread(self.strategy_lock)
+        self.sw_upgrade_orch_thread = SwUpgradeOrchThread(self.strategy_lock,
+                                                          self.audit_rpc_client)
         self.sw_upgrade_orch_thread.start()
 
     def stop(self):
