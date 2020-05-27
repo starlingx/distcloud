@@ -185,13 +185,15 @@ class SwUpdateManager(manager.Manager):
             stop_on_failure,
             consts.SW_UPDATE_STATE_INITIAL)
 
-        # Always create a strategy step for the system controller
-        db_api.strategy_step_create(
-            context,
-            None,
-            stage=1,
-            state=consts.STRATEGY_STATE_INITIAL,
-            details='')
+        # For 'upgrade' do not create a strategy step for the system controller
+        # For 'patch', always create a strategy step for the system controller
+        if strategy_type == consts.SW_UPDATE_TYPE_PATCH:
+            db_api.strategy_step_create(
+                context,
+                None,
+                stage=1,
+                state=consts.STRATEGY_STATE_INITIAL,
+                details='')
 
         # Create a strategy step for each subcloud that is managed, online and
         # out of sync

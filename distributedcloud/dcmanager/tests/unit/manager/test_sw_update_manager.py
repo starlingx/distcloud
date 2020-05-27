@@ -339,13 +339,8 @@ class SwUpdateStrategy(object):
         self.updated_at = timeutils.utcnow()
 
 
-class FakeFwUpdateOrchThread(object):
-    def __init__(self):
-        # Mock methods that are called in normal execution of this thread
-        self.start = mock.MagicMock()
-
-
-class FakeSwUpgradeOrchThread(object):
+# All orch_threads can be mocked the same way
+class FakeOrchThread(object):
     def __init__(self):
         # Mock methods that are called in normal execution of this thread
         self.start = mock.MagicMock()
@@ -362,7 +357,7 @@ class TestSwUpdateManager(base.DCManagerTestCase):
         self.addCleanup(p.stop)
 
         # Note: mock where an item is used, not where it comes from
-        self.fake_sw_upgrade_orch_thread = FakeSwUpgradeOrchThread()
+        self.fake_sw_upgrade_orch_thread = FakeOrchThread()
         p = mock.patch.object(sw_update_manager, 'SwUpgradeOrchThread')
         self.mock_sw_upgrade_orch_thread = p.start()
         self.mock_sw_upgrade_orch_thread.return_value = \

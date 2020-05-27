@@ -156,6 +156,14 @@ class SysinvClient(base.DriverBase):
         """Get a list of service groups."""
         return self.sysinv_client.sm_servicegroup.list()
 
+    def get_license(self):
+        """Get the license."""
+        return self.sysinv_client.license.show()
+
+    def install_license(self, license_file):
+        """Install a license."""
+        return self.sysinv_client.license.install_license(license_file)
+
     def get_loads(self):
         """Get a list of loads."""
         return self.sysinv_client.load.list()

@@ -170,6 +170,14 @@ class InvalidInputError(DCManagerException):
     message = _("An invalid value was provided")
 
 
+class LicenseInstallError(DCManagerException):
+    message = _("Error while installing license on subcloud: %(subcloud_id)s")
+
+
+class LicenseMissingError(DCManagerException):
+    message = _("License does not exist on subcloud: %(subcloud_id)s")
+
+
 class StrategyStepNotFound(NotFound):
     message = _("StrategyStep with subcloud_id %(subcloud_id)s "
                 "doesn't exist.")
