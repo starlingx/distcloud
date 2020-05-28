@@ -218,3 +218,21 @@ def retrieve_token_audit_id(fernet_token):
             audit_id = base64.urlsafe_b64encode(audit_id).rstrip('=')
 
     return audit_id
+
+
+def cleanup(environ):
+    """Close any temp files that might have opened.
+
+    :param environ: a request environment
+    :return: None
+    """
+
+    if 'webob._parsed_post_vars' in environ:
+        post_vars, body_file = environ['webob._parsed_post_vars']
+        # the content is copied into a BytesIO or temporary file
+        if not isinstance(body_file, bytes):
+            body_file.close()
+        for f in post_vars.keys():
+            item = post_vars[f]
+            if hasattr(item, 'file'):
+                item.file.close()

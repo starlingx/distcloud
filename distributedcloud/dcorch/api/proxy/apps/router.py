@@ -25,6 +25,7 @@ from routes.middleware import RoutesMiddleware
 
 from dcorch.api.proxy.common import constants
 from dcorch.api.proxy.common.service import Middleware
+from dcorch.api.proxy.common import utils as proxy_utils
 
 LOG = logging.getLogger(__name__)
 
@@ -69,6 +70,7 @@ class Router(Middleware):
             if self.forwarder:
                 return self.forwarder
             msg = _('The request is not allowed in System Controller')
+            proxy_utils.cleanup(req.environ)
             raise webob.exc.HTTPForbidden(explanation=msg)
         LOG.debug("Found match action!")
         app = match['controller']
