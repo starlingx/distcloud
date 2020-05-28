@@ -288,14 +288,24 @@ class SubcloudManager(manager.Manager):
             # Regenerate the addn_hosts_dc file
             self._create_addn_hosts_dc(context)
 
-            # Query system controller keystone admin user/project IDs and
-            # store in payload so they get copied to the override file
-            admin_user = m_ks_client.get_user_by_name('admin')
-            admin_project = m_ks_client.get_project_by_name('admin')
+            # Query system controller keystone admin user/project IDs,
+            # services project id and sysinv user id and store in payload so
+            # they get copied to the override file
+            admin_user = m_ks_client.get_user_by_name(
+                dccommon_consts.ADMIN_USER_NAME)
+            admin_project = m_ks_client.get_project_by_name(
+                dccommon_consts.ADMIN_PROJECT_NAME)
+            services_project = m_ks_client.get_project_by_name(SERVICES_USER)
+            sysinv_user = m_ks_client.get_user_by_name(
+                dccommon_consts.SYSINV_USER_NAME)
             payload['system_controller_keystone_admin_user_id'] = \
                 admin_user.id
             payload['system_controller_keystone_admin_project_id'] = \
                 admin_project.id
+            payload['system_controller_keystone_services_project_id'] = \
+                services_project.id
+            payload['system_controller_keystone_sysinv_user_id'] = \
+                sysinv_user.id
 
             # Add the admin and service user passwords to the payload so they
             # get copied to the override file

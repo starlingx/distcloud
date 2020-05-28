@@ -157,10 +157,10 @@ class IdentitySyncThread(SyncThread):
                  extra=self.log_extra)
 
     def _initial_sync_users(self, m_users, sc_users):
-        # Particularly sync users with same name but different ID.  admin user
-        # is a special case as the id's will match (as this is forced during
-        # the subcloud deploy) but the details will not so we still need to
-        # sync it here.
+        # Particularly sync users with same name but different ID.  admin and
+        # sysinv users are special cases as the id's will match (as this is
+        # forced during the subcloud deploy) but the details will not so we
+        # still need to sync them here.
         m_client = self.m_dbs_client.identity_manager
         sc_client = self.sc_dbs_client.identity_manager
 
@@ -169,8 +169,9 @@ class IdentitySyncThread(SyncThread):
                 if (m_user.local_user.name == sc_user.local_user.name and
                         m_user.domain_id == sc_user.domain_id and
                         (m_user.id != sc_user.id or
-                         sc_user.local_user.name ==
-                         dccommon_consts.ADMIN_USER_NAME)):
+                         sc_user.local_user.name in
+                         [dccommon_consts.ADMIN_USER_NAME,
+                          dccommon_consts.SYSINV_USER_NAME])):
                     user_records = m_client.user_detail(m_user.id)
                     if not user_records:
                         LOG.error("No data retrieved from master cloud for"
