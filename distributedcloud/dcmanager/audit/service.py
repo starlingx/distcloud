@@ -20,6 +20,7 @@
 
 import six
 
+import functools
 from oslo_config import cfg
 from oslo_log import log as logging
 import oslo_messaging
@@ -27,12 +28,27 @@ from oslo_service import service
 
 from dcmanager.audit.subcloud_audit_manager import SubcloudAuditManager
 from dcmanager.common import consts
+from dcmanager.common import context
+from dcmanager.common import exceptions
 from dcmanager.common.i18n import _
 from dcmanager.common import messaging as rpc_messaging
 from dcmanager.common import scheduler
 
 CONF = cfg.CONF
 LOG = logging.getLogger(__name__)
+
+
+def request_context(func):
+    @functools.wraps(func)
+    def wrapped(self, ctx, *args, **kwargs):
+        if ctx is not None and not isinstance(ctx, context.RequestContext):
+            ctx = context.RequestContext.from_dict(ctx.to_dict())
+        try:
+            return func(self, ctx, *args, **kwargs)
+        except exceptions.DCManagerException:
+            raise oslo_messaging.rpc.dispatcher.ExpectedException()
+
+    return wrapped
 
 
 class DCManagerAuditService(service.Service):
@@ -91,3 +107,10 @@ class DCManagerAuditService(service.Service):
         # Terminate the engine process
         LOG.info("All threads were gone, terminating engine")
         super(DCManagerAuditService, self).stop()
+
+    @request_context
+    def trigger_patch_audit(self, context):
+        """Used to force a patch audit on the next interval"""
+
+        LOG.info("Trigger patch audit.")
+        return self.subcloud_audit_manager.trigger_patch_audit(context)

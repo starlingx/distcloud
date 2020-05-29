@@ -10,7 +10,7 @@
 # License for the specific language governing permissions and limitations
 # under the License.
 #
-# Copyright (c) 2017 Wind River Systems, Inc.
+# Copyright (c) 2017-2020 Wind River Systems, Inc.
 #
 # The right to copy, distribute, modify, or otherwise make use
 # of this software may be licensed only pursuant to the terms
@@ -18,7 +18,6 @@
 #
 
 import six
-import time
 
 import functools
 from oslo_config import cfg
@@ -29,13 +28,13 @@ from oslo_utils import uuidutils
 
 from dcorch.common import consts as dcorch_consts
 
+from dcmanager.audit import rpcapi as dcmanager_audit_rpc_client
 from dcmanager.common import consts
 from dcmanager.common import context
 from dcmanager.common import exceptions
 from dcmanager.common.i18n import _
 from dcmanager.common import messaging as rpc_messaging
 from dcmanager.common import scheduler
-from dcmanager.manager.patch_audit_manager import PatchAuditManager
 from dcmanager.manager.subcloud_manager import SubcloudManager
 from dcmanager.manager.sw_update_manager import SwUpdateManager
 
@@ -76,19 +75,14 @@ class DCManagerService(service.Service):
         # happens after the fork when spawning multiple worker processes
         self.engine_id = None
         self.TG = None
-        self.periodic_enable = cfg.CONF.scheduler.periodic_enable
         self.target = None
         self._rpc_server = None
         self.subcloud_manager = None
         self.sw_update_manager = None
-        self.patch_audit_manager = None
+        self.audit_rpc_client = None
 
     def init_tgm(self):
         self.TG = scheduler.ThreadGroupManager()
-
-    def init_audit_managers(self):
-        self.patch_audit_manager = PatchAuditManager(
-            subcloud_manager=self.subcloud_manager)
 
     def init_managers(self):
         self.subcloud_manager = SubcloudManager()
@@ -101,26 +95,16 @@ class DCManagerService(service.Service):
         self.dcmanager_id = uuidutils.generate_uuid()
         self.init_tgm()
         self.init_managers()
-        self.init_audit_managers()
         target = oslo_messaging.Target(version=self.rpc_api_version,
                                        server=self.host,
                                        topic=self.topic)
         self.target = target
         self._rpc_server = rpc_messaging.get_rpc_server(self.target, self)
         self._rpc_server.start()
+        # Used to notify dcmanager-audit
+        self.audit_rpc_client = dcmanager_audit_rpc_client.ManagerAuditClient()
 
         super(DCManagerService, self).start()
-        if self.periodic_enable:
-            LOG.info("Adding periodic tasks for the manager to perform")
-            self.TG.add_timer(cfg.CONF.scheduler.patch_audit_interval,
-                              self.patch_audit, initial_delay=60)
-
-    def patch_audit(self):
-        # Audit patch status of all subclouds.
-        # Note this will run in a separate green thread
-        LOG.debug("Patch audit job started at: %s",
-                  time.strftime("%c"))
-        self.patch_audit_manager.periodic_patch_audit()
 
     @request_context
     def add_subcloud(self, context, payload):
@@ -147,7 +131,7 @@ class DCManagerService(service.Service):
         # If a subcloud has been set to the managed state, trigger the
         # patching audit so it can update the sync status ASAP.
         if management_state == consts.MANAGEMENT_MANAGED:
-            PatchAuditManager.trigger_audit()
+            self.audit_rpc_client.trigger_patch_audit(context)
 
         return subcloud
 
@@ -172,7 +156,7 @@ class DCManagerService(service.Service):
         # patching audit so it can update the sync status ASAP.
         if endpoint_type == dcorch_consts.ENDPOINT_TYPE_PATCHING and \
                 sync_status == consts.SYNC_STATUS_UNKNOWN:
-            PatchAuditManager.trigger_audit()
+            self.audit_rpc_client.trigger_patch_audit(context)
 
         return
 

@@ -115,7 +115,9 @@ class TestSwUpgrade(base.DCManagerTestCase):
     def setup_upgrade_worker(self):
         sw_update_manager.SwUpgradeOrchThread.stopped = lambda x: False
         mock_strategy_lock = mock.Mock()
-        worker = sw_update_manager.SwUpgradeOrchThread(mock_strategy_lock)
+        mock_dcmanager_audit_api = mock.Mock()
+        worker = sw_update_manager.SwUpgradeOrchThread(mock_strategy_lock,
+                                                       mock_dcmanager_audit_api)
         worker.get_ks_client = mock.Mock()
         return worker
 

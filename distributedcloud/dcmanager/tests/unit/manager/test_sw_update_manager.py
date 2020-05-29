@@ -346,6 +346,12 @@ class FakeOrchThread(object):
         self.start = mock.MagicMock()
 
 
+class FakeDCManagerAuditAPI(object):
+
+    def __init__(self):
+        self.trigger_patch_audit = mock.MagicMock()
+
+
 class TestSwUpdateManager(base.DCManagerTestCase):
     def setUp(self):
         super(TestSwUpdateManager, self).setUp()
@@ -362,6 +368,14 @@ class TestSwUpdateManager(base.DCManagerTestCase):
         self.mock_sw_upgrade_orch_thread = p.start()
         self.mock_sw_upgrade_orch_thread.return_value = \
             self.fake_sw_upgrade_orch_thread
+        self.addCleanup(p.stop)
+
+        # Mock the dcmanager audit API
+        self.fake_dcmanager_audit_api = FakeDCManagerAuditAPI()
+        p = mock.patch('dcmanager.audit.rpcapi.ManagerAuditClient')
+        self.mock_dcmanager_audit_api = p.start()
+        self.mock_dcmanager_audit_api.return_value = \
+            self.fake_dcmanager_audit_api
         self.addCleanup(p.stop)
 
     @mock.patch.object(sw_update_manager, 'PatchOrchThread')
@@ -694,7 +708,8 @@ class TestSwUpdateManager(base.DCManagerTestCase):
         FakePatchingClientOutOfSync.upload = mock.Mock()
         sw_update_manager.PatchOrchThread.stopped = lambda x: False
         mock_strategy_lock = mock.Mock()
-        pot = sw_update_manager.PatchOrchThread(mock_strategy_lock)
+        pot = sw_update_manager.PatchOrchThread(mock_strategy_lock,
+                                                self.fake_dcmanager_audit_api)
         pot.get_ks_client = mock.Mock()
         pot.update_subcloud_patches(fake_strategy_step)
 
@@ -740,7 +755,8 @@ class TestSwUpdateManager(base.DCManagerTestCase):
         FakePatchingClientOutOfSync.upload = mock.Mock()
         sw_update_manager.PatchOrchThread.stopped = lambda x: False
         mock_strategy_lock = mock.Mock()
-        pot = sw_update_manager.PatchOrchThread(mock_strategy_lock)
+        pot = sw_update_manager.PatchOrchThread(mock_strategy_lock,
+                                                self.fake_dcmanager_audit_api)
         pot.get_ks_client = mock.Mock()
         pot.update_subcloud_patches(fake_strategy_step)
 
@@ -776,7 +792,8 @@ class TestSwUpdateManager(base.DCManagerTestCase):
         FakePatchingClientOutOfSync.upload = mock.Mock()
         sw_update_manager.PatchOrchThread.stopped = lambda x: False
         mock_strategy_lock = mock.Mock()
-        pot = sw_update_manager.PatchOrchThread(mock_strategy_lock)
+        pot = sw_update_manager.PatchOrchThread(mock_strategy_lock,
+                                                self.fake_dcmanager_audit_api)
         pot.get_ks_client = mock.Mock()
         pot.update_subcloud_patches(fake_strategy_step)
 
@@ -809,7 +826,8 @@ class TestSwUpdateManager(base.DCManagerTestCase):
         FakePatchingClientFinish.commit = mock.Mock()
         sw_update_manager.PatchOrchThread.stopped = lambda x: False
         mock_strategy_lock = mock.Mock()
-        pot = sw_update_manager.PatchOrchThread(mock_strategy_lock)
+        pot = sw_update_manager.PatchOrchThread(mock_strategy_lock,
+                                                self.fake_dcmanager_audit_api)
         pot.get_ks_client = mock.Mock()
         pot.finish(fake_strategy_step)
 

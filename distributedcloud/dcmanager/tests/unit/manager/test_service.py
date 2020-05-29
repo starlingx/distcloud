@@ -33,6 +33,12 @@ FAKE_USER = utils.UUID1
 FAKE_JOB = utils.UUID2
 
 
+class FakeDCManagerAuditAPI(object):
+
+    def __init__(self):
+        self.trigger_patch_audit = mock.MagicMock()
+
+
 class TestDCManagerService(base.DCManagerTestCase):
     def setUp(self):
         super(TestDCManagerService, self).setUp()
@@ -46,19 +52,21 @@ class TestDCManagerService(base.DCManagerTestCase):
         self.user_id = FAKE_USER
         self.job_id = FAKE_JOB
 
+        # Mock the DCManager Audit API
+        self.fake_dcmanager_audit_api = FakeDCManagerAuditAPI()
+        p = mock.patch('dcmanager.audit.rpcapi.ManagerAuditClient')
+        self.mock_dcmanager_audit_api = p.start()
+        self.mock_dcmanager_audit_api.return_value = \
+            self.fake_dcmanager_audit_api
+        self.addCleanup(p.stop)
+
     def test_init(self):
         self.assertEqual(self.service_obj.host, 'localhost')
         self.assertEqual(self.service_obj.topic, 'dcmanager')
-        self.assertEqual(self.service_obj.periodic_enable,
-                         CONF.scheduler.periodic_enable)
 
     def test_init_tgm(self):
         self.service_obj.init_tgm()
         self.assertIsNotNone(self.service_obj.TG)
-
-    def test_init_audit_managers(self):
-        self.service_obj.init_audit_managers()
-        self.assertIsNotNone(self.service_obj.patch_audit_manager)
 
     @mock.patch.object(service, 'SwUpdateManager')
     @mock.patch.object(service, 'SubcloudManager')
@@ -77,14 +85,6 @@ class TestDCManagerService(base.DCManagerTestCase):
         mock_rpc.get_rpc_server.assert_called_once_with(
             self.service_obj.target, self.service_obj)
         mock_rpc.get_rpc_server().start.assert_called_once_with()
-
-    @mock.patch.object(service, 'PatchAuditManager')
-    def test_periodic_audit_patches(self, mock_patch_audit_manager):
-        self.service_obj.init_tgm()
-        self.service_obj.init_audit_managers()
-        self.service_obj.patch_audit()
-        mock_patch_audit_manager().periodic_patch_audit.\
-            assert_called_once_with()
 
     @mock.patch.object(service, 'SwUpdateManager')
     @mock.patch.object(service, 'SubcloudManager')

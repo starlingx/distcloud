@@ -24,32 +24,23 @@ from oslo_config import cfg
 import sys
 sys.modules['fm_core'] = mock.Mock()
 
+from dcmanager.audit import patch_audit
+from dcmanager.audit import subcloud_audit_manager
 from dcmanager.common import consts
-from dcmanager.manager import patch_audit_manager
-from dcmanager.manager import subcloud_manager
 from dcmanager.tests import base
 from dcmanager.tests import utils
 
 from dcorch.common import consts as dcorch_consts
-from dcorch.common import messaging as dcorch_messaging
 
 
 CONF = cfg.CONF
 
 
-class Subcloud(object):
-    def __init__(self, id, name, is_managed, is_online):
-        self.id = id
-        self.name = name
-        self.software_version = '17.07'
-        if is_managed:
-            self.management_state = consts.MANAGEMENT_MANAGED
-        else:
-            self.management_state = consts.MANAGEMENT_UNMANAGED
-        if is_online:
-            self.availability_status = consts.AVAILABILITY_ONLINE
-        else:
-            self.availability_status = consts.AVAILABILITY_OFFLINE
+class FakeDCManagerAPI(object):
+
+    def __init__(self):
+        self.update_subcloud_availability = mock.MagicMock()
+        self.update_subcloud_endpoint_status = mock.MagicMock()
 
 
 class Load(object):
@@ -240,105 +231,78 @@ class FakeSysinvClientOneLoadUpgradeInProgress(object):
         return self.system
 
 
-class TestAuditManager(base.DCManagerTestCase):
+class TestPatchAudit(base.DCManagerTestCase):
     def setUp(self):
-        super(TestAuditManager, self).setUp()
+        super(TestPatchAudit, self).setUp()
         self.ctxt = utils.dummy_context()
-        dcorch_messaging.setup("fake://", optional=True)
 
-    @mock.patch.object(patch_audit_manager, 'PatchingClient')
-    @mock.patch.object(patch_audit_manager, 'OpenStackDriver')
-    @mock.patch.object(patch_audit_manager, 'context')
-    def test_init(self, mock_context,
-                  mock_openstack_driver,
-                  mock_patching_client):
+        # Mock the DCManager API
+        self.fake_dcmanager_api = FakeDCManagerAPI()
+        p = mock.patch('dcmanager.rpc.client.ManagerClient')
+        self.mock_dcmanager_api = p.start()
+        self.mock_dcmanager_api.return_value = self.fake_dcmanager_api
+        self.addCleanup(p.stop)
+
+    def test_init(self):
+        pm = patch_audit.PatchAudit(self.ctxt,
+                                    self.fake_dcmanager_api)
+        self.assertIsNotNone(pm)
+        self.assertEqual(self.ctxt, pm.context)
+        self.assertEqual(self.fake_dcmanager_api, pm.dcmanager_rpc_client)
+
+    @mock.patch.object(patch_audit, 'SysinvClient')
+    @mock.patch.object(patch_audit, 'PatchingClient')
+    @mock.patch.object(patch_audit, 'OpenStackDriver')
+    @mock.patch.object(subcloud_audit_manager, 'context')
+    def test_periodic_patch_audit_in_sync(self, mock_context,
+                                          mock_openstack_driver,
+                                          mock_patching_client,
+                                          mock_sysinv_client):
         mock_context.get_admin_context.return_value = self.ctxt
-
-        sm = subcloud_manager.SubcloudManager()
-        am = patch_audit_manager.PatchAuditManager(subcloud_manager=sm)
-        self.assertIsNotNone(am)
-        self.assertEqual('patch_audit_manager', am.service_name)
-        self.assertEqual('localhost', am.host)
-        self.assertEqual(self.ctxt, am.context)
-
-    @mock.patch.object(patch_audit_manager, 'SysinvClient')
-    @mock.patch.object(patch_audit_manager, 'db_api')
-    @mock.patch.object(patch_audit_manager, 'PatchingClient')
-    @mock.patch.object(patch_audit_manager, 'OpenStackDriver')
-    @mock.patch.object(patch_audit_manager, 'context')
-    def test_periodic_patch_audit_in_sync(
-            self, mock_context,
-            mock_openstack_driver,
-            mock_patching_client,
-            mock_db_api,
-            mock_sysinv_client):
-        mock_context.get_admin_context.return_value = self.ctxt
-        mock_sm = mock.Mock()
-        am = patch_audit_manager.PatchAuditManager(subcloud_manager=mock_sm)
-
         mock_patching_client.side_effect = FakePatchingClientInSync
         mock_sysinv_client.side_effect = FakeSysinvClientOneLoad
-        fake_subcloud1 = Subcloud(1, 'subcloud1',
-                                  is_managed=True, is_online=True)
-        fake_subcloud2 = Subcloud(2, 'subcloud2',
-                                  is_managed=True, is_online=True)
-        mock_db_api.subcloud_get_all.return_value = [fake_subcloud1,
-                                                     fake_subcloud2]
 
-        am._periodic_patch_audit_loop()
-        expected_calls = [
-            mock.call(mock.ANY,
-                      subcloud_name='subcloud1',
-                      endpoint_type=dcorch_consts.ENDPOINT_TYPE_PATCHING,
-                      sync_status=consts.SYNC_STATUS_IN_SYNC),
-            mock.call(mock.ANY,
-                      subcloud_name='subcloud1',
-                      endpoint_type=dcorch_consts.ENDPOINT_TYPE_LOAD,
-                      sync_status=consts.SYNC_STATUS_IN_SYNC),
-            mock.call(mock.ANY,
-                      subcloud_name='subcloud2',
-                      endpoint_type=dcorch_consts.ENDPOINT_TYPE_PATCHING,
-                      sync_status=consts.SYNC_STATUS_IN_SYNC),
-            mock.call(mock.ANY,
-                      subcloud_name='subcloud2',
-                      endpoint_type=dcorch_consts.ENDPOINT_TYPE_LOAD,
-                      sync_status=consts.SYNC_STATUS_IN_SYNC),
-        ]
-        mock_sm.update_subcloud_endpoint_status.assert_has_calls(
-            expected_calls)
+        pm = patch_audit.PatchAudit(self.ctxt,
+                                    self.fake_dcmanager_api)
+        am = subcloud_audit_manager.SubcloudAuditManager()
+        am.patch_audit = pm
 
-    @mock.patch.object(patch_audit_manager, 'SysinvClient')
-    @mock.patch.object(patch_audit_manager, 'db_api')
-    @mock.patch.object(patch_audit_manager, 'PatchingClient')
-    @mock.patch.object(patch_audit_manager, 'OpenStackDriver')
-    @mock.patch.object(patch_audit_manager, 'context')
-    def test_periodic_patch_audit_out_of_sync(
-            self, mock_context,
-            mock_openstack_driver,
-            mock_patching_client,
-            mock_db_api,
-            mock_sysinv_client):
+        patch_audit_data, do_load_audit = am._get_patch_audit()
+        for name in ['subcloud1', 'subcloud2']:
+            pm.subcloud_patch_audit(name, patch_audit_data, do_load_audit)
+            expected_calls = [
+                mock.call(mock.ANY,
+                          subcloud_name=name,
+                          endpoint_type=dcorch_consts.ENDPOINT_TYPE_PATCHING,
+                          sync_status=consts.SYNC_STATUS_IN_SYNC),
+                mock.call(mock.ANY,
+                          subcloud_name=name,
+                          endpoint_type=dcorch_consts.ENDPOINT_TYPE_LOAD,
+                          sync_status=consts.SYNC_STATUS_IN_SYNC)]
+            self.fake_dcmanager_api.update_subcloud_endpoint_status. \
+                assert_has_calls(expected_calls)
+
+    @mock.patch.object(patch_audit, 'SysinvClient')
+    @mock.patch.object(patch_audit, 'PatchingClient')
+    @mock.patch.object(patch_audit, 'OpenStackDriver')
+    @mock.patch.object(subcloud_audit_manager, 'context')
+    def test_periodic_patch_audit_out_of_sync(self, mock_context,
+                                              mock_openstack_driver,
+                                              mock_patching_client,
+                                              mock_sysinv_client):
         mock_context.get_admin_context.return_value = self.ctxt
-        mock_sm = mock.Mock()
-        am = patch_audit_manager.PatchAuditManager(
-            subcloud_manager=mock_sm)
+        pm = patch_audit.PatchAudit(self.ctxt,
+                                    self.fake_dcmanager_api)
+        am = subcloud_audit_manager.SubcloudAuditManager()
+        am.patch_audit = pm
 
         mock_patching_client.side_effect = FakePatchingClientOutOfSync
         mock_sysinv_client.side_effect = FakeSysinvClientOneLoad
-        fake_subcloud1 = Subcloud(1, 'subcloud1',
-                                  is_managed=True, is_online=True)
-        fake_subcloud2 = Subcloud(2, 'subcloud2',
-                                  is_managed=True, is_online=True)
-        fake_subcloud3 = Subcloud(3, 'subcloud3',
-                                  is_managed=True, is_online=True)
-        fake_subcloud4 = Subcloud(4, 'subcloud4',
-                                  is_managed=True, is_online=True)
-        mock_db_api.subcloud_get_all.return_value = [fake_subcloud1,
-                                                     fake_subcloud2,
-                                                     fake_subcloud3,
-                                                     fake_subcloud4]
 
-        am._periodic_patch_audit_loop()
+        patch_audit_data, do_load_audit = am._get_patch_audit()
+        for name in ['subcloud1', 'subcloud2', 'subcloud3', 'subcloud4']:
+            pm.subcloud_patch_audit(name, patch_audit_data, do_load_audit)
+
         expected_calls = [
             mock.call(mock.ANY,
                       subcloud_name='subcloud1',
@@ -372,109 +336,64 @@ class TestAuditManager(base.DCManagerTestCase):
                       subcloud_name='subcloud4',
                       endpoint_type=dcorch_consts.ENDPOINT_TYPE_LOAD,
                       sync_status=consts.SYNC_STATUS_IN_SYNC),
-        ]
-        mock_sm.update_subcloud_endpoint_status.assert_has_calls(
-            expected_calls)
+            ]
 
-    @mock.patch.object(patch_audit_manager, 'SysinvClient')
-    @mock.patch.object(patch_audit_manager, 'db_api')
-    @mock.patch.object(patch_audit_manager, 'PatchingClient')
-    @mock.patch.object(patch_audit_manager, 'OpenStackDriver')
-    @mock.patch.object(patch_audit_manager, 'context')
-    def test_periodic_patch_audit_ignore_unmanaged_or_offline(
-            self, mock_context,
-            mock_openstack_driver,
-            mock_patching_client,
-            mock_db_api,
-            mock_sysinv_client):
+        self.fake_dcmanager_api.update_subcloud_endpoint_status.\
+            assert_has_calls(expected_calls)
+
+    @mock.patch.object(patch_audit, 'SysinvClient')
+    @mock.patch.object(patch_audit, 'PatchingClient')
+    @mock.patch.object(patch_audit, 'OpenStackDriver')
+    @mock.patch.object(subcloud_audit_manager, 'context')
+    def test_periodic_patch_audit_extra_patches(self, mock_context,
+                                                mock_openstack_driver,
+                                                mock_patching_client,
+                                                mock_sysinv_client):
         mock_context.get_admin_context.return_value = self.ctxt
-        mock_sm = mock.Mock()
-        am = patch_audit_manager.PatchAuditManager(
-            subcloud_manager=mock_sm)
-
-        mock_patching_client.side_effect = FakePatchingClientOutOfSync
-        fake_subcloud1 = Subcloud(1, 'subcloud1',
-                                  is_managed=False, is_online=True)
-        fake_subcloud2 = Subcloud(2, 'subcloud2',
-                                  is_managed=True, is_online=False)
-        mock_db_api.subcloud_get_all.return_value = [fake_subcloud1,
-                                                     fake_subcloud2]
-
-        am._periodic_patch_audit_loop()
-        mock_sm.update_subcloud_endpoint_status.assert_not_called()
-
-    @mock.patch.object(patch_audit_manager, 'SysinvClient')
-    @mock.patch.object(patch_audit_manager, 'db_api')
-    @mock.patch.object(patch_audit_manager, 'PatchingClient')
-    @mock.patch.object(patch_audit_manager, 'OpenStackDriver')
-    @mock.patch.object(patch_audit_manager, 'context')
-    def test_periodic_patch_audit_extra_patches(
-            self, mock_context,
-            mock_openstack_driver,
-            mock_patching_client,
-            mock_db_api,
-            mock_sysinv_client):
-        mock_context.get_admin_context.return_value = self.ctxt
-        mock_sm = mock.Mock()
-        am = patch_audit_manager.PatchAuditManager(
-            subcloud_manager=mock_sm)
+        pm = patch_audit.PatchAudit(self.ctxt,
+                                    self.fake_dcmanager_api)
+        am = subcloud_audit_manager.SubcloudAuditManager()
+        am.patch_audit = pm
 
         mock_patching_client.side_effect = FakePatchingClientExtraPatches
         mock_sysinv_client.side_effect = FakeSysinvClientOneLoad
-        fake_subcloud1 = Subcloud(1, 'subcloud1',
-                                  is_managed=True, is_online=True)
-        fake_subcloud2 = Subcloud(2, 'subcloud2',
-                                  is_managed=True, is_online=True)
-        mock_db_api.subcloud_get_all.return_value = [fake_subcloud1,
-                                                     fake_subcloud2]
 
-        am._periodic_patch_audit_loop()
-        expected_calls = [
-            mock.call(mock.ANY,
-                      subcloud_name='subcloud1',
-                      endpoint_type=dcorch_consts.ENDPOINT_TYPE_PATCHING,
-                      sync_status=consts.SYNC_STATUS_OUT_OF_SYNC),
-            mock.call(mock.ANY,
-                      subcloud_name='subcloud1',
-                      endpoint_type=dcorch_consts.ENDPOINT_TYPE_LOAD,
-                      sync_status=consts.SYNC_STATUS_IN_SYNC),
-            mock.call(mock.ANY,
-                      subcloud_name='subcloud2',
-                      endpoint_type=dcorch_consts.ENDPOINT_TYPE_PATCHING,
-                      sync_status=consts.SYNC_STATUS_OUT_OF_SYNC),
-            mock.call(mock.ANY,
-                      subcloud_name='subcloud2',
-                      endpoint_type=dcorch_consts.ENDPOINT_TYPE_LOAD,
-                      sync_status=consts.SYNC_STATUS_IN_SYNC),
-        ]
-        mock_sm.update_subcloud_endpoint_status.assert_has_calls(
-            expected_calls)
+        patch_audit_data, do_load_audit = am._get_patch_audit()
+        for name in ['subcloud1', 'subcloud2']:
+            pm.subcloud_patch_audit(name, patch_audit_data, do_load_audit)
+            expected_calls = [
+                mock.call(mock.ANY,
+                          subcloud_name=name,
+                          endpoint_type=dcorch_consts.ENDPOINT_TYPE_PATCHING,
+                          sync_status=consts.SYNC_STATUS_OUT_OF_SYNC),
+                mock.call(mock.ANY,
+                          subcloud_name=name,
+                          endpoint_type=dcorch_consts.ENDPOINT_TYPE_LOAD,
+                          sync_status=consts.SYNC_STATUS_IN_SYNC)]
+            self.fake_dcmanager_api.update_subcloud_endpoint_status.\
+                assert_has_calls(expected_calls)
 
-    @mock.patch.object(patch_audit_manager, 'SysinvClient')
-    @mock.patch.object(patch_audit_manager, 'db_api')
-    @mock.patch.object(patch_audit_manager, 'PatchingClient')
-    @mock.patch.object(patch_audit_manager, 'OpenStackDriver')
-    @mock.patch.object(patch_audit_manager, 'context')
+    @mock.patch.object(patch_audit, 'SysinvClient')
+    @mock.patch.object(patch_audit, 'PatchingClient')
+    @mock.patch.object(patch_audit, 'OpenStackDriver')
+    @mock.patch.object(subcloud_audit_manager, 'context')
     def test_periodic_patch_audit_unmatched_software_version(
             self, mock_context,
             mock_openstack_driver,
             mock_patching_client,
-            mock_db_api,
             mock_sysinv_client):
         mock_context.get_admin_context.return_value = self.ctxt
-        mock_sm = mock.Mock()
-        am = patch_audit_manager.PatchAuditManager(subcloud_manager=mock_sm)
-
+        pm = patch_audit.PatchAudit(self.ctxt,
+                                    self.fake_dcmanager_api)
+        am = subcloud_audit_manager.SubcloudAuditManager()
+        am.patch_audit = pm
         mock_patching_client.side_effect = FakePatchingClientInSync
         mock_sysinv_client.side_effect = FakeSysinvClientOneLoadUnmatchedSoftwareVersion
-        fake_subcloud1 = Subcloud(1, 'subcloud1',
-                                  is_managed=True, is_online=True)
-        fake_subcloud2 = Subcloud(2, 'subcloud2',
-                                  is_managed=True, is_online=True)
-        mock_db_api.subcloud_get_all.return_value = [fake_subcloud1,
-                                                     fake_subcloud2]
 
-        am._periodic_patch_audit_loop()
+        patch_audit_data, do_load_audit = am._get_patch_audit()
+        for name in ['subcloud1', 'subcloud2']:
+            pm.subcloud_patch_audit(name, patch_audit_data, do_load_audit)
+
         expected_calls = [
             mock.call(mock.ANY,
                       subcloud_name='subcloud1',
@@ -493,34 +412,30 @@ class TestAuditManager(base.DCManagerTestCase):
                       endpoint_type=dcorch_consts.ENDPOINT_TYPE_LOAD,
                       sync_status=consts.SYNC_STATUS_OUT_OF_SYNC),
         ]
-        mock_sm.update_subcloud_endpoint_status.assert_has_calls(
-            expected_calls)
+        self.fake_dcmanager_api.update_subcloud_endpoint_status.\
+            assert_has_calls(expected_calls)
 
-    @mock.patch.object(patch_audit_manager, 'SysinvClient')
-    @mock.patch.object(patch_audit_manager, 'db_api')
-    @mock.patch.object(patch_audit_manager, 'PatchingClient')
-    @mock.patch.object(patch_audit_manager, 'OpenStackDriver')
-    @mock.patch.object(patch_audit_manager, 'context')
+    @mock.patch.object(patch_audit, 'SysinvClient')
+    @mock.patch.object(patch_audit, 'PatchingClient')
+    @mock.patch.object(patch_audit, 'OpenStackDriver')
+    @mock.patch.object(subcloud_audit_manager, 'context')
     def test_periodic_patch_audit_upgrade_in_progress(
             self, mock_context,
             mock_openstack_driver,
             mock_patching_client,
-            mock_db_api,
             mock_sysinv_client):
         mock_context.get_admin_context.return_value = self.ctxt
-        mock_sm = mock.Mock()
-        am = patch_audit_manager.PatchAuditManager(subcloud_manager=mock_sm)
-
+        pm = patch_audit.PatchAudit(self.ctxt,
+                                    self.fake_dcmanager_api)
+        am = subcloud_audit_manager.SubcloudAuditManager()
+        am.patch_audit = pm
         mock_patching_client.side_effect = FakePatchingClientInSync
         mock_sysinv_client.side_effect = FakeSysinvClientOneLoadUpgradeInProgress
-        fake_subcloud1 = Subcloud(1, 'subcloud1',
-                                  is_managed=True, is_online=True)
-        fake_subcloud2 = Subcloud(2, 'subcloud2',
-                                  is_managed=True, is_online=True)
-        mock_db_api.subcloud_get_all.return_value = [fake_subcloud1,
-                                                     fake_subcloud2]
 
-        am._periodic_patch_audit_loop()
+        patch_audit_data, do_load_audit = am._get_patch_audit()
+        for name in ['subcloud1', 'subcloud2']:
+            pm.subcloud_patch_audit(name, patch_audit_data, do_load_audit)
+
         expected_calls = [
             mock.call(mock.ANY,
                       subcloud_name='subcloud1',
@@ -539,5 +454,5 @@ class TestAuditManager(base.DCManagerTestCase):
                       endpoint_type=dcorch_consts.ENDPOINT_TYPE_LOAD,
                       sync_status=consts.SYNC_STATUS_OUT_OF_SYNC),
         ]
-        mock_sm.update_subcloud_endpoint_status.assert_has_calls(
-            expected_calls)
+        self.fake_dcmanager_api.update_subcloud_endpoint_status.\
+            assert_has_calls(expected_calls)
