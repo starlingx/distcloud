@@ -80,10 +80,37 @@ class SysinvClient(base.DriverBase):
         except exceptions.ServiceUnavailable:
             raise
 
+    def get_host(self, hostname_or_id):
+        """Get a host by its hostname or id."""
+        return self.sysinv_client.ihost.get(hostname_or_id)
+
     def get_controller_hosts(self):
         """Get a list of controller hosts."""
         return self.sysinv_client.ihost.list_personality(
             sysinv_constants.CONTROLLER)
+
+    def _do_host_action(self, host_id, action_value):
+        """Protected method to invoke an action on a host."""
+        patch = [{'op': 'replace',
+                  'path': '/action',
+                  'value': action_value}, ]
+        return self.sysinv_client.ihost.update(host_id, patch)
+
+    def lock_host(self, host_id, force=False):
+        """Lock a host"""
+        if force:
+            action_value = 'force-lock'
+        else:
+            action_value = 'lock'
+        return self._do_host_action(host_id, action_value)
+
+    def unlock_host(self, host_id, force=False):
+        """Unlock a host"""
+        if force:
+            action_value = 'force-unlock'
+        else:
+            action_value = 'unlock'
+        return self._do_host_action(host_id, action_value)
 
     def get_management_interface(self, hostname):
         """Get the management interface for a host."""

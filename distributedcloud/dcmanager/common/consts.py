@@ -39,6 +39,10 @@ MANAGEMENT_MANAGED = "managed"
 AVAILABILITY_OFFLINE = "offline"
 AVAILABILITY_ONLINE = "online"
 
+# Admin status for hosts
+ADMIN_LOCKED = 'locked'
+ADMIN_UNLOCKED = 'unlocked'
+
 # Subcloud sync status
 SYNC_STATUS_UNKNOWN = "unknown"
 SYNC_STATUS_IN_SYNC = "in-sync"
@@ -99,7 +103,7 @@ STRATEGY_STATE_FAILED = "failed"
 
 STRATEGY_STATE_INSTALLING_LICENSE = "installing license"
 STRATEGY_STATE_IMPORTING_LOAD = "importing load"
-STRATEGY_STATE_STARTING = "starting"
+STRATEGY_STATE_STARTING_UPGRADE = "starting upgrade"
 STRATEGY_STATE_LOCKING_CONTROLLER = "locking controller"
 STRATEGY_STATE_UPGRADING_SIMPLEX = "upgrading simplex"
 STRATEGY_STATE_MIGRATING_DATA = "migrating data"

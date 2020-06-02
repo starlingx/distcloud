@@ -196,7 +196,7 @@ class SwUpdateManager(manager.Manager):
         if strategy_type == consts.SW_UPDATE_TYPE_PATCH:
             db_api.strategy_step_create(
                 context,
-                None,
+                None,  # None means not a subcloud. ie: SystemController
                 stage=1,
                 state=consts.STRATEGY_STATE_INITIAL,
                 details='')
