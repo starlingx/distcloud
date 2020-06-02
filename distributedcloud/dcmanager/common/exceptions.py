@@ -178,6 +178,10 @@ class LicenseMissingError(DCManagerException):
     message = _("License does not exist on subcloud: %(subcloud_id)s")
 
 
+class VaultLoadMissingError(DCManagerException):
+    message = _("No matching: %(file_type) found in vault: %(vault_dir)")
+
+
 class StrategyStepNotFound(NotFound):
     message = _("StrategyStep with subcloud_id %(subcloud_id)s "
                 "doesn't exist.")

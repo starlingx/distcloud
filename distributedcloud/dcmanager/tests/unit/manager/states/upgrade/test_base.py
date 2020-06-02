@@ -4,19 +4,61 @@
 # SPDX-License-Identifier: Apache-2.0
 #
 import mock
+import uuid
 
 from dcmanager.manager.states.base import BaseState
 from sysinv.common import constants as sysinv_constants
 
 from dcmanager.tests.unit.manager.test_sw_upgrade import TestSwUpgrade
 
-CURRENT_LOAD = '20.01'
-UPDATED_LOAD = '20.06'
+PREVIOUS_VERSION = '12.34'
+UPGRADED_VERSION = '56.78'
 
 
 class FakeKeystoneClient(object):
     def __init__(self):
         self.session = mock.MagicMock()
+
+
+class FakeLoad(object):
+    def __init__(self,
+                 obj_id,
+                 compatible_version='N/A',
+                 required_patches='N/A',
+                 software_version=PREVIOUS_VERSION,
+                 state='active',
+                 created_at=None,
+                 updated_at=None):
+        self.id = obj_id
+        self.uuid = uuid.uuid4()
+        self.required_patches = required_patches
+        self.software_version = software_version
+        self.state = state
+        self.created_at = created_at
+        self.updated_at = updated_at
+
+
+class FakeSystem(object):
+    def __init__(self,
+                 obj_id=1,
+                 software_version=UPGRADED_VERSION):
+        self.id = obj_id
+        self.uuid = uuid.uuid4()
+        self.software_version = software_version
+
+
+class FakeUpgrade(object):
+    def __init__(self,
+                 obj_id=1,
+                 state='completed',
+                 from_release=PREVIOUS_VERSION,
+                 to_release=UPGRADED_VERSION):
+        self.id = obj_id
+        self.uuid = uuid.uuid4()
+        self.state = state
+        self.from_release = from_release
+        self.to_release = to_release
+        self.links = []
 
 
 class FakeSysinvClient(object):
@@ -31,7 +73,7 @@ class FakeController(object):
                  administrative=sysinv_constants.ADMIN_UNLOCKED,
                  availability=sysinv_constants.AVAILABILITY_AVAILABLE,
                  ihost_action=None,
-                 target_load=CURRENT_LOAD,
+                 target_load=UPGRADED_VERSION,
                  task=None):
         self.id = host_id
         self.hostname = hostname
