@@ -20,6 +20,7 @@
 #
 
 import hashlib
+import os
 
 from cgtsclient.exc import HTTPConflict
 from cgtsclient.exc import HTTPNotFound
@@ -29,8 +30,6 @@ from cgtsclient.v1.itrapdest import CREATION_ATTRIBUTES \
     as SNMP_TRAPDEST_CREATION_ATTRIBUTES
 from oslo_log import log
 
-from sysinv.common import constants as sysinv_constants
-
 from dccommon import consts
 from dccommon.drivers import base
 from dccommon import exceptions
@@ -38,6 +37,25 @@ from dccommon import exceptions
 
 LOG = log.getLogger(__name__)
 API_VERSION = '1'
+
+CERT_CA_FILE = "ca-cert.pem"
+CERT_MODE_DOCKER_REGISTRY = 'docker_registry'
+CERT_MODE_SSL = 'ssl'
+CERT_MODE_SSL_CA = 'ssl_ca'
+CERT_MODE_TPM = 'tpm_mode'
+
+CONTROLLER = 'controller'
+
+NETWORK_TYPE_MGMT = 'mgmt'
+
+SSL_CERT_CA_DIR = "/etc/pki/ca-trust/source/anchors/"
+SSL_CERT_CA_FILE = os.path.join(SSL_CERT_CA_DIR, CERT_CA_FILE)
+SSL_CERT_DIR = "/etc/ssl/private/"
+SSL_CERT_FILE = "server-cert.pem"
+SSL_PEM_FILE = os.path.join(SSL_CERT_DIR, SSL_CERT_FILE)
+
+DOCKER_REGISTRY_CERT_FILE = os.path.join(SSL_CERT_DIR, "registry-cert.crt")
+DOCKER_REGISTRY_KEY_FILE = os.path.join(SSL_CERT_DIR, "registry-cert.key")
 
 
 def make_sysinv_patch(update_dict):
@@ -87,7 +105,7 @@ class SysinvClient(base.DriverBase):
     def get_controller_hosts(self):
         """Get a list of controller hosts."""
         return self.sysinv_client.ihost.list_personality(
-            sysinv_constants.CONTROLLER)
+            CONTROLLER)
 
     def _do_host_action(self, host_id, action_value):
         """Protected method to invoke an action on a host."""
@@ -119,7 +137,7 @@ class SysinvClient(base.DriverBase):
             interface_networks = self.sysinv_client.interface_network.\
                 list_by_interface(interface.uuid)
             for if_net in interface_networks:
-                if if_net.network_type == sysinv_constants.NETWORK_TYPE_MGMT:
+                if if_net.network_type == NETWORK_TYPE_MGMT:
                     return interface
 
         # This can happen if the host is still being installed and has not
@@ -131,7 +149,7 @@ class SysinvClient(base.DriverBase):
         """Get the management address pool for a host."""
         networks = self.sysinv_client.network.list()
         for network in networks:
-            if network.type == sysinv_constants.NETWORK_TYPE_MGMT:
+            if network.type == NETWORK_TYPE_MGMT:
                 address_pool_uuid = network.pool_uuid
                 break
         else:
@@ -194,6 +212,32 @@ class SysinvClient(base.DriverBase):
     def get_loads(self):
         """Get a list of loads."""
         return self.sysinv_client.load.list()
+
+    def get_load(self, load_id):
+        """Get a particular load."""
+        return self.sysinv_client.load.get(load_id)
+
+    def delete_load(self, load_id):
+        """Delete a load with the given id
+
+           :param: load id
+        """
+        try:
+            LOG.info("delete_load region {} load_id: {}".format(
+                     self.region_name, load_id))
+            self.sysinv_client.load.delete(load_id)
+        except HTTPNotFound:
+            LOG.info("delete_load NotFound {} for region: {}".format(
+                     load_id, self.region_name))
+            raise exceptions.LoadNotFound(region_name=self.region_name,
+                                          load_id=load_id)
+        except Exception as e:
+            LOG.error("delete_load exception={}".format(e))
+            raise e
+
+    def get_hosts(self):
+        """Get a list of hosts."""
+        return self.sysinv_client.ihost.list()
 
     def get_upgrades(self):
         """Get a list of upgrades."""
@@ -452,33 +496,30 @@ class SysinvClient(base.DriverBase):
         if not certificate:
             if data:
                 data['passphrase'] = None
-                mode = data.get('mode', sysinv_constants.CERT_MODE_SSL)
-                if mode == sysinv_constants.CERT_MODE_SSL_CA:
-                    certificate_files = [sysinv_constants.SSL_CERT_CA_FILE]
-                elif mode == sysinv_constants.CERT_MODE_SSL:
-                    certificate_files = [sysinv_constants.SSL_PEM_FILE]
-                elif mode == sysinv_constants.CERT_MODE_DOCKER_REGISTRY:
+                mode = data.get('mode', CERT_MODE_SSL)
+                if mode == CERT_MODE_SSL_CA:
+                    certificate_files = [SSL_CERT_CA_FILE]
+                elif mode == CERT_MODE_SSL:
+                    certificate_files = [SSL_PEM_FILE]
+                elif mode == CERT_MODE_DOCKER_REGISTRY:
                     certificate_files = \
-                        [sysinv_constants.DOCKER_REGISTRY_KEY_FILE,
-                         sysinv_constants.DOCKER_REGISTRY_CERT_FILE]
+                        [DOCKER_REGISTRY_KEY_FILE,
+                         DOCKER_REGISTRY_CERT_FILE]
                 else:
                     LOG.warn("update_certificate mode {} not supported".format(
                         mode))
                     return
-            elif signature and signature.startswith(
-                    sysinv_constants.CERT_MODE_SSL_CA):
-                data['mode'] = sysinv_constants.CERT_MODE_SSL_CA
-                certificate_files = [sysinv_constants.SSL_CERT_CA_FILE]
-            elif signature and signature.startswith(
-                    sysinv_constants.CERT_MODE_SSL):
-                data['mode'] = sysinv_constants.CERT_MODE_SSL
-                certificate_files = [sysinv_constants.SSL_PEM_FILE]
-            elif signature and signature.startswith(
-                    sysinv_constants.CERT_MODE_DOCKER_REGISTRY):
-                data['mode'] = sysinv_constants.CERT_MODE_DOCKER_REGISTRY
+            elif signature and signature.startswith(CERT_MODE_SSL_CA):
+                data['mode'] = CERT_MODE_SSL_CA
+                certificate_files = [SSL_CERT_CA_FILE]
+            elif signature and signature.startswith(CERT_MODE_SSL):
+                data['mode'] = CERT_MODE_SSL
+                certificate_files = [SSL_PEM_FILE]
+            elif signature and signature.startswith(CERT_MODE_DOCKER_REGISTRY):
+                data['mode'] = CERT_MODE_DOCKER_REGISTRY
                 certificate_files = \
-                    [sysinv_constants.DOCKER_REGISTRY_KEY_FILE,
-                     sysinv_constants.DOCKER_REGISTRY_CERT_FILE]
+                    [DOCKER_REGISTRY_KEY_FILE,
+                     DOCKER_REGISTRY_CERT_FILE]
             else:
                 LOG.warn("update_certificate signature {} "
                          "not supported".format(signature))
@@ -493,8 +534,8 @@ class SysinvClient(base.DriverBase):
                 signature, certificate_files))
 
         if (signature and
-                (signature.startswith(sysinv_constants.CERT_MODE_SSL) or
-                    (signature.startswith(sysinv_constants.CERT_MODE_TPM)))):
+                (signature.startswith(CERT_MODE_SSL) or
+                    (signature.startswith(CERT_MODE_TPM)))):
             # ensure https is enabled
             isystem = self.sysinv_client.isystem.list()[0]
             https_enabled = isystem.capabilities.get('https_enabled', False)

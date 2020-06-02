@@ -1,4 +1,4 @@
-# Copyright 2017-2019 Wind River
+# Copyright 2017-2020 Wind River
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -14,9 +14,14 @@
 # limitations under the License.
 
 import json
+import os
+import shutil
 import webob.dec
 import webob.exc
 
+from dccommon.drivers.openstack.sdk_platform import OpenStackDriver
+from dccommon.drivers.openstack.sysinv_v1 import SysinvClient
+from dcmanager.common import consts as dcmanager_consts
 from dcorch.api.proxy.apps.dispatcher import APIDispatcher
 from dcorch.api.proxy.apps.proxy import Proxy
 from dcorch.api.proxy.common import constants as proxy_consts
@@ -27,11 +32,11 @@ from dcorch.common import consts
 import dcorch.common.context as k_context
 from dcorch.common import exceptions as exception
 from dcorch.common import utils
+from dcorch.rpc import client as rpc_client
 from oslo_config import cfg
 from oslo_log import log as logging
 from oslo_service.wsgi import Request
-
-from dcorch.rpc import client as rpc_client
+from oslo_utils._i18n import _
 
 
 LOG = logging.getLogger(__name__)
@@ -386,10 +391,90 @@ class SysinvAPIController(APIController):
         }
 
     def _process_response(self, environ, request_body, response):
-        if self.get_status_code(response) in self.OK_STATUS_CODE:
-            self._enqueue_work(environ, request_body, response)
-            self.notify(environ, self.ENDPOINT_TYPE)
-        return response
+        try:
+            if self.get_status_code(response) in self.OK_STATUS_CODE:
+                resource_type = self._get_resource_type_from_environ(environ)
+                operation_type = proxy_utils.get_operation_type(environ)
+
+                if resource_type == consts.RESOURCE_TYPE_SYSINV_LOAD:
+                    if operation_type == consts.OPERATION_TYPE_POST:
+                        resp = json.loads(response.body)
+                        if resp.get('error'):
+                            self._check_load_in_vault()
+                        else:
+                            new_load = resp.get('new_load')
+                            self._save_load_to_vault(new_load['software_version'])
+                    else:
+                        sw_version = json.loads(response.body)['software_version']
+                        self._remove_load_from_vault(sw_version)
+
+                else:
+                    self._enqueue_work(environ, request_body, response)
+                    self.notify(environ, self.ENDPOINT_TYPE)
+
+            return response
+        finally:
+            proxy_utils.cleanup(environ)
+
+    def _save_load_to_vault(self, sw_version):
+        versioned_vault = os.path.join(proxy_consts.LOAD_VAULT_DIR,
+                                       sw_version)
+
+        try:
+            if not os.path.isdir(versioned_vault):
+                os.makedirs(versioned_vault)
+
+            # Copy the load files from staging directory
+            load_path = proxy_consts.LOAD_FILES_STAGING_DIR
+            load_files = [f for f in os.listdir(load_path)
+                          if os.path.isfile(os.path.join(load_path, f))]
+            if len(load_files) != len(proxy_consts.IMPORT_LOAD_FILES):
+                msg = _("Failed to store load in vault. Please check "
+                        "dcorch log for details.")
+                raise webob.exc.HTTPInsufficientStorage(explanation=msg)
+
+            for lf in load_files:
+                shutil.copy(os.path.join(load_path, lf), versioned_vault)
+
+            LOG.info("Load (%s) saved to vault." % sw_version)
+        except Exception:
+            msg = _("Failed to store load in vault. Please check "
+                    "dcorch log for details.")
+            raise webob.exc.HTTPInsufficientStorage(explanation=msg)
+
+    def _remove_load_from_vault(self, sw_version):
+        versioned_vault = os.path.join(
+            proxy_consts.LOAD_VAULT_DIR, sw_version)
+
+        if os.path.isdir(versioned_vault):
+            shutil.rmtree(versioned_vault)
+            LOG.info("Load (%s) removed from vault." % sw_version)
+
+    def _check_load_in_vault(self):
+        if not os.path.exists(proxy_consts.LOAD_VAULT_DIR):
+            # The vault directory has not even been created. This must
+            # be the very first load-import request which failed.
+            return
+        elif len(os.listdir(proxy_consts.LOAD_VAULT_DIR)) == 0:
+            try:
+                ks_client = OpenStackDriver(
+                    region_name=dcmanager_consts.DEFAULT_REGION_NAME,
+                    region_clients=None).keystone_client
+                sysinv_client = SysinvClient(
+                    dcmanager_consts.DEFAULT_REGION_NAME, ks_client.session)
+                loads = sysinv_client.get_loads()
+            except Exception:
+                # Shouldn't be here
+                LOG.exception("Failed to get list of loads.")
+                return
+            else:
+                if len(loads) > proxy_consts.IMPORTED_LOAD_MAX_COUNT:
+                    # The previous load regardless of its current state
+                    # was mistakenly imported without the proxy.
+                    msg = _("Previous load was not imported in the right "
+                            "region. Please remove the previous load and "
+                            "re-import it using 'SystemController' region.")
+                    raise webob.exc.HTTPUnprocessableEntity(explanation=msg)
 
     def _enqueue_work(self, environ, request_body, response):
         LOG.info("enqueue_work")
@@ -413,6 +498,10 @@ class SysinvAPIController(APIController):
                                     for res in resource]
                 else:
                     resource_ids = [resource.get('signature')]
+        elif resource_type == consts.RESOURCE_TYPE_SYSINV_LOAD:
+            if operation_type == consts.OPERATION_TYPE_DELETE:
+                resource_id = json.loads(response.body)['software_version']
+                resource_ids = [resource_id]
         else:
             if (operation_type == consts.OPERATION_TYPE_POST and
                     resource_type in self.RESOURCE_ID_MAP):
