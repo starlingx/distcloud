@@ -126,8 +126,8 @@ class SubcloudsController(object):
             fn = os.path.join(consts.ANSIBLE_OVERRIDES_PATH, payload['name']
                               + '_' + os.path.basename(filename))
             try:
-                dst = os.open(fn, os.O_WRONLY | os.O_CREAT)
-                os.write(dst, contents)
+                with open(fn, "w") as f:
+                    f.write(contents)
             except Exception:
                 msg = _("Failed to upload %s file" % consts.DEPLOY_CONFIG)
                 LOG.exception(msg)
