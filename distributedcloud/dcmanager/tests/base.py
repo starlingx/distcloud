@@ -25,6 +25,7 @@ import sqlalchemy
 from oslo_config import cfg
 from oslo_db import options
 
+from dcmanager.common import consts
 from dcmanager.db import api as api
 from dcmanager.db.sqlalchemy import api as db_api
 
@@ -63,7 +64,8 @@ SUBCLOUD_SAMPLE_DATA_0 = [
     "10.10.10.1",  # external_oam_gateway_address
     "10.10.10.12",  # external_oam_floating_address
     "testpass",  # sysadmin_password
-    1  # group_id
+    1,  # group_id
+    consts.DEPLOY_STATE_DONE  # deploy_status
 ]
 
 
