@@ -30,6 +30,7 @@ import threading
 from dccommon import consts as dccommon_consts
 from dcmanager.common import consts
 from dcmanager.common import exceptions
+from dcmanager.common import utils as cutils
 from dcmanager.db.sqlalchemy import api as db_api
 from dcmanager.manager import subcloud_manager
 from dcmanager.tests import base
@@ -123,6 +124,7 @@ class Subcloud(object):
             data['external_oam_floating_address']
         self.systemcontroller_gateway_ip = \
             data['systemcontroller_gateway_address']
+        self.data_install = data['data_install']
         self.created_at = timeutils.utcnow()
         self.updated_at = timeutils.utcnow()
 
@@ -159,6 +161,7 @@ class TestSubcloudManager(base.DCManagerTestCase):
             'deploy_status': "not-deployed",
             'openstack_installed': False,
             'group_id': 1,
+            'data_install': 'data from install',
         }
         values.update(kwargs)
         return db_api.subcloud_create(ctxt, **values)
@@ -172,15 +175,13 @@ class TestSubcloudManager(base.DCManagerTestCase):
 
     @mock.patch.object(subcloud_manager.SubcloudManager,
                        '_create_intermediate_ca_cert')
-    @mock.patch.object(subcloud_manager.SubcloudManager,
-                       '_delete_subcloud_inventory')
+    @mock.patch.object(cutils, 'delete_subcloud_inventory')
     @mock.patch.object(subcloud_manager, 'KeystoneClient')
     @mock.patch.object(subcloud_manager, 'db_api')
     @mock.patch.object(subcloud_manager, 'SysinvClient')
     @mock.patch.object(subcloud_manager.SubcloudManager,
                        '_create_addn_hosts_dc')
-    @mock.patch.object(subcloud_manager.SubcloudManager,
-                       '_create_subcloud_inventory')
+    @mock.patch.object(cutils, 'create_subcloud_inventory')
     @mock.patch.object(subcloud_manager.SubcloudManager,
                        '_write_subcloud_ansible_config')
     @mock.patch.object(subcloud_manager,

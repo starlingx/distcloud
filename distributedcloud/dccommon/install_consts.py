@@ -31,3 +31,6 @@ MANDATORY_INSTALL_VALUES = [
     'bmc_password',
     'install_type'
 ]
+
+ANSIBLE_SUBCLOUD_INSTALL_PLAYBOOK = \
+    '/usr/share/ansible/stx-ansible/playbooks/install.yml'

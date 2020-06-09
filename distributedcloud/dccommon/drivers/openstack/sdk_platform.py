@@ -23,6 +23,7 @@ from oslo_log import log
 from oslo_utils import timeutils
 
 from dccommon import consts
+from dccommon.drivers.openstack.barbican import BarbicanClient
 from dccommon.drivers.openstack.fm import FmClient
 from dccommon.drivers.openstack.keystone_v3 import KeystoneClient
 from dccommon.drivers.openstack.sysinv_v1 import SysinvClient
@@ -39,6 +40,7 @@ STALE_TOKEN_DURATION_STEP = 20
 KEYSTONE_CLIENT_NAME = 'keystone'
 SYSINV_CLIENT_NAME = 'sysinv'
 FM_CLIENT_NAME = 'fm'
+BARBICAN_CLIENT_NAME = 'barbican'
 
 LOG = log.getLogger(__name__)
 
@@ -46,13 +48,15 @@ LOCK_NAME = 'dc-openstackdriver-platform'
 
 SUPPORTED_REGION_CLIENTS = [
     SYSINV_CLIENT_NAME,
-    FM_CLIENT_NAME
+    FM_CLIENT_NAME,
+    BARBICAN_CLIENT_NAME,
 ]
 
 # region client type and class mappings
 region_client_class_map = {
     SYSINV_CLIENT_NAME: SysinvClient,
     FM_CLIENT_NAME: FmClient,
+    BARBICAN_CLIENT_NAME: BarbicanClient,
 }
 
 
@@ -68,6 +72,7 @@ class OpenStackDriver(object):
         self.keystone_client = None
         self.sysinv_client = None
         self.fm_client = None
+        self.barbican_client = None
 
         if region_clients:
             # check if the requested clients are in the supported client list

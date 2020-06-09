@@ -123,6 +123,7 @@ DEPLOY_STATE_PRE_INSTALL = 'pre-install'
 DEPLOY_STATE_PRE_INSTALL_FAILED = 'pre-install-failed'
 DEPLOY_STATE_INSTALLING = 'installing'
 DEPLOY_STATE_INSTALL_FAILED = 'install-failed'
+DEPLOY_STATE_INSTALLED = 'installed'
 DEPLOY_STATE_BOOTSTRAPPING = 'bootstrapping'
 DEPLOY_STATE_BOOTSTRAP_FAILED = 'bootstrap-failed'
 DEPLOY_STATE_DEPLOYING = 'deploying'
@@ -147,3 +148,12 @@ DEPLOY_COMMON_FILE_OPTIONS = [
     DEPLOY_OVERRIDES,
     DEPLOY_CHART
 ]
+
+
+DC_LOG_DIR = '/var/log/dcmanager/'
+INVENTORY_FILE_POSTFIX = '_inventory.yml'
+
+# The following password is just a temporary and internal password that is used
+# after a remote install as part of the upgrade. The real sysadmin password
+# will be restored af the subcloud is re-managed at the end of the upgrade.
+TEMP_SYSADMIN_PASSWORD = 'St8rlingX*'

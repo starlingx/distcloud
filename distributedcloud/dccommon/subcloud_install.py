@@ -24,19 +24,17 @@ from eventlet.green import subprocess
 import json
 import netaddr
 import os
-import socket
-
+from oslo_log import log as logging
 from six.moves.urllib import error as urllib_error
 from six.moves.urllib import parse
 from six.moves.urllib import request
+import socket
 
+from dccommon import consts
 from dccommon.drivers.openstack.keystone_v3 import KeystoneClient
 from dccommon.drivers.openstack.sysinv_v1 import SysinvClient
-from dcmanager.common import consts
-from dcmanager.common import exceptions
-from dcmanager.common import install_consts
-
-from oslo_log import log as logging
+from dccommon import exceptions
+from dccommon import install_consts
 
 LOG = logging.getLogger(__name__)
 
@@ -88,7 +86,7 @@ class SubcloudInstall(object):
         ks_client = KeystoneClient()
         session = ks_client.endpoint_cache.get_session_from_token(
             context.auth_token, context.project)
-        self.sysinv_client = SysinvClient(consts.DEFAULT_REGION_NAME, session)
+        self.sysinv_client = SysinvClient(consts.CLOUD_0, session)
         self.name = subcloud_name
         self.input_iso = None
         self.www_root = None
@@ -288,14 +286,14 @@ class SubcloudInstall(object):
             msg = "Error: Downloading file %s may be interrupted: %s" % (
                 values['image'], e)
             LOG.error(msg)
-            raise exceptions.DCManagerException(
+            raise exceptions.DCCommonException(
                 resource=self.name,
                 msg=msg)
         except Exception as e:
             msg = "Error: Could not download file %s: %s" % (
                 values['image'], e)
             LOG.error(msg)
-            raise exceptions.DCManagerException(
+            raise exceptions.DCCommonException(
                 resource=self.name,
                 msg=msg)
 

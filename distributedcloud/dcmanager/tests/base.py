@@ -20,6 +20,7 @@
 # of an applicable Wind River license agreement.
 #
 
+import json
 import sqlalchemy
 
 from oslo_config import cfg
@@ -65,7 +66,8 @@ SUBCLOUD_SAMPLE_DATA_0 = [
     "10.10.10.12",  # external_oam_floating_address
     "testpass",  # sysadmin_password
     1,  # group_id
-    consts.DEPLOY_STATE_DONE  # deploy_status
+    consts.DEPLOY_STATE_DONE,  # deploy_status
+    json.dumps({'data_install': 'test data install values'}),  # data_install
 ]
 
 

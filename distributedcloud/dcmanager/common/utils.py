@@ -207,3 +207,30 @@ def get_filename_by_prefix(dir_path, prefix):
         if filename.startswith(prefix):
             return filename
     return None
+
+
+def create_subcloud_inventory(subcloud, inventory_file):
+    """Create the ansible inventory file for the specified subcloud"""
+
+    # Delete the file if it already exists
+    delete_subcloud_inventory(inventory_file)
+
+    with open(inventory_file, 'w') as f_out_inventory:
+        f_out_inventory.write(
+            '---\n'
+            'all:\n'
+            '  vars:\n'
+            '    ansible_ssh_user: sysadmin\n'
+            '  hosts:\n'
+            '    ' + subcloud['name'] + ':\n'
+            '      ansible_host: ' +
+            subcloud['bootstrap-address'] + '\n'
+        )
+
+
+def delete_subcloud_inventory(inventory_file):
+    """Delete the ansible inventory file for the specified subcloud"""
+
+    # Delete the file if it exists
+    if os.path.isfile(inventory_file):
+        os.remove(inventory_file)

@@ -213,7 +213,7 @@ def subcloud_create(context, name, description, location, software_version,
                     management_subnet, management_gateway_ip,
                     management_start_ip, management_end_ip,
                     systemcontroller_gateway_ip, deploy_status,
-                    openstack_installed, group_id):
+                    openstack_installed, group_id, data_install=None):
     with write_session() as session:
         subcloud_ref = models.Subcloud()
         subcloud_ref.name = name
@@ -231,6 +231,8 @@ def subcloud_create(context, name, description, location, software_version,
         subcloud_ref.audit_fail_count = 0
         subcloud_ref.openstack_installed = openstack_installed
         subcloud_ref.group_id = group_id
+        if data_install is not None:
+            subcloud_ref.data_install = data_install
         session.add(subcloud_ref)
         return subcloud_ref
 
@@ -239,8 +241,11 @@ def subcloud_create(context, name, description, location, software_version,
 def subcloud_update(context, subcloud_id, management_state=None,
                     availability_status=None, software_version=None,
                     description=None, location=None, audit_fail_count=None,
-                    deploy_status=None, openstack_installed=None,
-                    group_id=None):
+                    deploy_status=None,
+                    openstack_installed=None,
+                    group_id=None,
+                    data_install=None,
+                    data_upgrade=None):
     with write_session() as session:
         subcloud_ref = subcloud_get(context, subcloud_id)
         if management_state is not None:
@@ -255,8 +260,12 @@ def subcloud_update(context, subcloud_id, management_state=None,
             subcloud_ref.location = location
         if audit_fail_count is not None:
             subcloud_ref.audit_fail_count = audit_fail_count
+        if data_install is not None:
+            subcloud_ref.data_install = data_install
         if deploy_status is not None:
             subcloud_ref.deploy_status = deploy_status
+        if data_upgrade is not None:
+            subcloud_ref.data_upgrade = data_upgrade
         if openstack_installed is not None:
             subcloud_ref.openstack_installed = openstack_installed
         if group_id is not None:

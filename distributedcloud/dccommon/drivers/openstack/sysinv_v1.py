@@ -130,6 +130,39 @@ class SysinvClient(base.DriverBase):
             action_value = 'unlock'
         return self._do_host_action(host_id, action_value)
 
+    def configure_bmc_host(self,
+                           host_id,
+                           bm_username,
+                           bm_ip,
+                           bm_password,
+                           bm_type='ipmi'):
+        """Configure bmc of a host"""
+        patch = [
+            {'op': 'replace',
+             'path': '/bm_username',
+             'value': bm_username},
+            {'op': 'replace',
+             'path': '/bm_ip',
+             'value': bm_ip},
+            {'op': 'replace',
+             'path': '/bm_password',
+             'value': bm_password},
+            {'op': 'replace',
+             'path': '/bm_type',
+             'value': bm_type},
+        ]
+        return self.sysinv_client.ihost.update(host_id, patch)
+
+    def power_on_host(self, host_id):
+        """Power on a host"""
+        action_value = 'power-on'
+        return self._do_host_action(host_id, action_value)
+
+    def power_off_host(self, host_id):
+        """Power off a host"""
+        action_value = 'power-off'
+        return self._do_host_action(host_id, action_value)
+
     def get_management_interface(self, hostname):
         """Get the management interface for a host."""
         interfaces = self.sysinv_client.iinterface.list(hostname)

@@ -99,7 +99,9 @@ class Subcloud(BASE, DCManagerBase):
     software_version = Column(String(255))
     management_state = Column(String(255))
     availability_status = Column(String(255))
+    data_install = Column(String())
     deploy_status = Column(String(255))
+    data_upgrade = Column(String())
     management_subnet = Column(String(255))
     management_gateway_ip = Column(String(255))
     management_start_ip = Column(String(255), unique=True)
@@ -107,6 +109,7 @@ class Subcloud(BASE, DCManagerBase):
     openstack_installed = Column(Boolean, nullable=False, default=False)
     systemcontroller_gateway_ip = Column(String(255))
     audit_fail_count = Column(Integer)
+
     # multiple subclouds can be in a particular group
     group_id = Column(Integer,
                       ForeignKey('subcloud_group.id'))

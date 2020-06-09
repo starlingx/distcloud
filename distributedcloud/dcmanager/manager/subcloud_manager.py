@@ -39,11 +39,13 @@ from dccommon import consts as dccommon_consts
 from dccommon.drivers.openstack.keystone_v3 import KeystoneClient
 from dccommon.drivers.openstack.sysinv_v1 import SysinvClient
 from dccommon import kubeoperator
+from dccommon.subcloud_install import SubcloudInstall
 
 from dcorch.common import consts as dcorch_consts
 from dcorch.rpc import client as dcorch_rpc_client
 
 from dcmanager.common import consts
+from dcmanager.common.consts import INVENTORY_FILE_POSTFIX
 from dcmanager.common import context
 from dcmanager.common import exceptions
 from dcmanager.common.i18n import _
@@ -51,7 +53,6 @@ from dcmanager.common import manager
 from dcmanager.common import utils
 
 from dcmanager.db import api as db_api
-from dcmanager.manager.subcloud_install import SubcloudInstall
 
 from fm_api import constants as fm_const
 from fm_api import fm_api
@@ -63,12 +64,10 @@ LOG = logging.getLogger(__name__)
 ADDN_HOSTS_DC = 'dnsmasq.addn_hosts_dc'
 
 # Subcloud configuration paths
-INVENTORY_FILE_POSTFIX = '_inventory.yml'
 ANSIBLE_SUBCLOUD_PLAYBOOK = \
     '/usr/share/ansible/stx-ansible/playbooks/bootstrap.yml'
 ANSIBLE_SUBCLOUD_INSTALL_PLAYBOOK = \
     '/usr/share/ansible/stx-ansible/playbooks/install.yml'
-DC_LOG_DIR = '/var/log/dcmanager/'
 
 USERS_TO_REPLICATE = [
     'sysinv',
@@ -78,8 +77,6 @@ USERS_TO_REPLICATE = [
     'fm',
     'barbican',
     'dcmanager']
-
-SERVICES_USER = 'services'
 
 SC_INTERMEDIATE_CERT_DURATION = "87600h"
 SC_INTERMEDIATE_CERT_RENEW_BEFORE = "720h"
@@ -191,7 +188,6 @@ class SubcloudManager(manager.Manager):
         """Add subcloud and notify orchestrators.
 
         :param context: request context object
-        :param name: name of subcloud to add
         :param payload: subcloud configuration
         """
         LOG.info("Adding subcloud %s." % payload['name'])
@@ -303,7 +299,8 @@ class SubcloudManager(manager.Manager):
                 dccommon_consts.ADMIN_USER_NAME)
             admin_project = m_ks_client.get_project_by_name(
                 dccommon_consts.ADMIN_PROJECT_NAME)
-            services_project = m_ks_client.get_project_by_name(SERVICES_USER)
+            services_project = m_ks_client.get_project_by_name(
+                dccommon_consts.SERVICES_USER_NAME)
             sysinv_user = m_ks_client.get_user_by_name(
                 dccommon_consts.SYSINV_USER_NAME)
             dcmanager_user = m_ks_client.get_user_by_name(
@@ -342,14 +339,14 @@ class SubcloudManager(manager.Manager):
                 ]
 
             del payload['sysadmin_password']
-
             payload['users'] = dict()
             for user in USERS_TO_REPLICATE:
                 payload['users'][user] = \
-                    str(keyring.get_password(user, SERVICES_USER))
+                    str(keyring.get_password(
+                        user, dccommon_consts.SERVICES_USER_NAME))
 
             # Create the ansible inventory for the new subcloud
-            self._create_subcloud_inventory(payload,
+            utils.create_subcloud_inventory(payload,
                                             ansible_subcloud_inventory_file)
 
             # create subcloud intermediate certificate and pass in keys
@@ -467,7 +464,7 @@ class SubcloudManager(manager.Manager):
                 context, subcloud.id,
                 deploy_status=consts.DEPLOY_STATE_INSTALLING)
             try:
-                install.install(DC_LOG_DIR, install_command)
+                install.install(consts.DC_LOG_DIR, install_command)
             except Exception as e:
                 db_api.subcloud_update(
                     context, subcloud.id,
@@ -490,7 +487,7 @@ class SubcloudManager(manager.Manager):
 
             # Run the ansible boostrap-subcloud playbook
             log_file = \
-                DC_LOG_DIR + subcloud.name + '_bootstrap_' + \
+                consts.DC_LOG_DIR + subcloud.name + '_bootstrap_' + \
                 str(datetime.datetime.now().strftime('%Y-%m-%d-%H-%M-%S')) \
                 + '.log'
             with open(log_file, "w") as f_out_log:
@@ -519,7 +516,7 @@ class SubcloudManager(manager.Manager):
                 context, subcloud.id,
                 deploy_status=consts.DEPLOY_STATE_DEPLOYING)
             log_file = \
-                DC_LOG_DIR + subcloud.name + '_deploy_' + \
+                consts.DC_LOG_DIR + subcloud.name + '_deploy_' + \
                 str(datetime.datetime.now().strftime('%Y-%m-%d-%H-%M-%S')) \
                 + '.log'
             with open(log_file, "w") as f_out_log:
@@ -568,35 +565,6 @@ class SubcloudManager(manager.Manager):
             os.rename(addn_hosts_dc_temp, addn_hosts_dc)
             # restart dnsmasq so it can re-read our addn_hosts file.
             os.system("pkill -HUP dnsmasq")
-
-    def _create_subcloud_inventory(self,
-                                   subcloud,
-                                   inventory_file):
-        """Create the inventory file for the specified subcloud"""
-
-        # Delete the file if it already exists
-        if os.path.isfile(inventory_file):
-            os.remove(inventory_file)
-
-        with open(inventory_file, 'w') as f_out_inventory:
-            f_out_inventory.write(
-                '---\n'
-                'all:\n'
-                '  vars:\n'
-                '    ansible_ssh_user: sysadmin\n'
-                '  hosts:\n'
-                '    ' + subcloud['name'] + ':\n'
-                '      ansible_host: ' +
-                subcloud['bootstrap-address'] + '\n'
-            )
-
-    def _delete_subcloud_inventory(self,
-                                   inventory_file):
-        """Delete the inventory file for the specified subcloud"""
-
-        # Delete the file if it exists
-        if os.path.isfile(inventory_file):
-            os.remove(inventory_file)
 
     def _write_subcloud_ansible_config(self, context, payload):
         """Create the override file for usage with the specified subcloud"""
@@ -736,7 +704,7 @@ class SubcloudManager(manager.Manager):
             raise e
 
         # Delete the ansible inventory for the new subcloud
-        self._delete_subcloud_inventory(ansible_subcloud_inventory_file)
+        utils.delete_subcloud_inventory(ansible_subcloud_inventory_file)
 
         # Delete the subcloud intermediate certificate
         SubcloudManager._delete_subcloud_cert(subcloud.name)

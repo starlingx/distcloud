@@ -17,29 +17,24 @@
 # of an applicable Wind River license agreement.
 #
 
-SECONDS_IN_HOUR = 3600
+from sqlalchemy import Column
+from sqlalchemy import MetaData
+from sqlalchemy import Table
+from sqlalchemy import Text
 
-KS_ENDPOINT_ADMIN = "admin"
-KS_ENDPOINT_INTERNAL = "internal"
-KS_ENDPOINT_DEFAULT = KS_ENDPOINT_ADMIN
 
-ENDPOINT_TYPE_IDENTITY_OS = "identity_openstack"
+def upgrade(migrate_engine):
+    meta = MetaData()
+    meta.bind = migrate_engine
 
-# openstack endpoint types
-ENDPOINT_TYPES_LIST_OS = [ENDPOINT_TYPE_IDENTITY_OS]
+    subclouds = Table('subclouds', meta, autoload=True)
 
-# distributed Cloud constants
-CLOUD_0 = "RegionOne"
-VIRTUAL_MASTER_CLOUD = "SystemController"
+    # Add the 'data_install' to persist data_install data
+    subclouds.create_column(Column('data_install', Text))
 
-SW_UPDATE_DEFAULT_TITLE = "all clouds default"
-LOAD_VAULT_DIR = '/opt/dc-vault/loads'
+    # Add the data_upgrade which persist over an upgrade
+    subclouds.create_column(Column('data_upgrade', Text))
 
-USER_HEADER_VALUE = "distcloud"
-USER_HEADER = {'User-Header': USER_HEADER_VALUE}
 
-ADMIN_USER_NAME = "admin"
-ADMIN_PROJECT_NAME = "admin"
-SYSINV_USER_NAME = "sysinv"
-DCMANAGER_USER_NAME = "dcmanager"
-SERVICES_USER_NAME = "services"
+def downgrade(migrate_engine):
+    raise NotImplementedError('Database downgrade is unsupported.')

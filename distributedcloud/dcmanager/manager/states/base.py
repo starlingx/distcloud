@@ -8,9 +8,11 @@ import six
 
 from oslo_log import log as logging
 
+from dccommon.drivers.openstack.barbican import BarbicanClient
 from dccommon.drivers.openstack.sdk_platform import OpenStackDriver
 from dccommon.drivers.openstack.sysinv_v1 import SysinvClient
 from dcmanager.common import consts
+from dcmanager.common import context
 
 LOG = logging.getLogger(__name__)
 
@@ -20,6 +22,7 @@ class BaseState(object):
 
     def __init__(self):
         super(BaseState, self).__init__()
+        self.context = context.get_admin_context()
 
     def debug_log(self, strategy_step, details):
         LOG.debug("Stage: %s, State: %s, Subcloud: %s, Details: %s"
@@ -34,6 +37,13 @@ class BaseState(object):
                     strategy_step.state,
                     self.get_region_name(strategy_step),
                     details))
+
+    def error_log(self, strategy_step, details):
+        LOG.error("Stage: %s, State: %s, Subcloud: %s, Details: %s"
+                  % (strategy_step.stage,
+                     strategy_step.state,
+                     self.get_region_name(strategy_step),
+                     details))
 
     @staticmethod
     def get_region_name(strategy_step):
@@ -63,6 +73,13 @@ class BaseState(object):
            todo(abailey): determine if this client can be cached
         """
         return SysinvClient(region_name, session)
+
+    @staticmethod
+    def get_barbican_client(region_name, session):
+        """construct a barbican client
+
+        """
+        return BarbicanClient(region_name, session)
 
     @abc.abstractmethod
     def perform_state_action(self, strategy_step):

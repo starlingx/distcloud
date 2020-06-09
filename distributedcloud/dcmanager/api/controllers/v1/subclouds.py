@@ -21,6 +21,7 @@
 from requests_toolbelt.multipart import decoder
 
 import base64
+import json
 import keyring
 from netaddr import AddrFormatError
 from netaddr import IPAddress
@@ -39,6 +40,7 @@ from pecan import request
 from dccommon.drivers.openstack.keystone_v3 import KeystoneClient
 from dccommon.drivers.openstack.sysinv_v1 import SysinvClient
 from dccommon import exceptions as dccommon_exceptions
+from dccommon import install_consts
 
 from keystoneauth1 import exceptions as keystone_exceptions
 
@@ -48,7 +50,6 @@ from dcmanager.api.controllers import restcomm
 from dcmanager.common import consts
 from dcmanager.common import exceptions
 from dcmanager.common.i18n import _
-from dcmanager.common import install_consts
 from dcmanager.common import utils
 from dcmanager.db import api as db_api
 
@@ -495,6 +496,10 @@ class SubcloudsController(object):
         # if group_id has been omitted from payload, use 'Default'.
         group_id = payload.get('group_id',
                                consts.DEFAULT_SUBCLOUD_GROUP_ID)
+        data_install = None
+        if 'install_values' in payload:
+            data_install = json.dumps(payload['install_values'])
+
         subcloud = db_api.subcloud_create(
             context,
             payload['name'],
@@ -508,7 +513,8 @@ class SubcloudsController(object):
             payload['systemcontroller_gateway_address'],
             consts.DEPLOY_STATE_NONE,
             False,
-            group_id)
+            group_id,
+            data_install=data_install)
         return subcloud
 
     @index.when(method='GET', template='json')
