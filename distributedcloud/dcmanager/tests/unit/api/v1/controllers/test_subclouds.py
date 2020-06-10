@@ -56,7 +56,7 @@ FAKE_SUBCLOUD_DATA = {"name": "subcloud1",
 
 FAKE_SUBCLOUD_INSTALL_VALUES = {
     "image": "http://192.168.101.2:8080/iso/bootimage.iso",
-    "software_version": "20.01",
+    "software_version": "12.34",
     "bootstrap_interface": "eno1",
     "bootstrap_address": "128.224.151.183",
     "bootstrap_address_prefix": 23,

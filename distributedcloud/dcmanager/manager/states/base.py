@@ -28,6 +28,13 @@ class BaseState(object):
                      self.get_region_name(strategy_step),
                      details))
 
+    def info_log(self, strategy_step, details):
+        LOG.info("Stage: %s, State: %s, Subcloud: %s, Details: %s"
+                 % (strategy_step.stage,
+                    strategy_step.state,
+                    self.get_region_name(strategy_step),
+                    details))
+
     @staticmethod
     def get_region_name(strategy_step):
         """Get the region name for a strategy step"""

@@ -235,6 +235,11 @@ class SysinvClient(base.DriverBase):
             LOG.error("delete_load exception={}".format(e))
             raise e
 
+    def import_load(self, path_to_iso, path_to_sig):
+        """Import the particular software load."""
+        return self.sysinv_client.load.import_load(path_to_iso=path_to_iso,
+                                                   path_to_sig=path_to_sig)
+
     def get_hosts(self):
         """Get a list of hosts."""
         return self.sysinv_client.ihost.list()
@@ -242,6 +247,21 @@ class SysinvClient(base.DriverBase):
     def get_upgrades(self):
         """Get a list of upgrades."""
         return self.sysinv_client.upgrade.list()
+
+    def upgrade_activate(self):
+        """Invoke the API for 'system upgrade-activate', which is an update """
+        patch = [{'op': 'replace',
+                  'path': '/state',
+                  'value': 'activation-requested'}, ]
+        return self.sysinv_client.upgrade.update(patch)
+
+    def upgrade_complete(self):
+        """Invoke the API for 'system upgrade-complete', which is a delete"""
+        return self.sysinv_client.upgrade.delete()
+
+    def upgrade_start(self, force=False):
+        """Invoke the API for 'system upgrade-start', which is a create"""
+        return self.sysinv_client.upgrade.create(force)
 
     def get_applications(self):
         """Get a list of containerized applications"""

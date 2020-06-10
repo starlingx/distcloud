@@ -31,7 +31,7 @@ class TestSwUpgradeUnlockControllerStage(TestSwUpgradeState):
         super(TestSwUpgradeUnlockControllerStage, self).setUp()
 
         # next state after a successful unlock is 'activating'
-        self.on_success_state = consts.STRATEGY_STATE_ACTIVATING
+        self.on_success_state = consts.STRATEGY_STATE_ACTIVATING_UPGRADE
 
         # Add the strategy_step state being processed by this unit test
         self.strategy_step = self.setup_strategy_step(
@@ -56,8 +56,8 @@ class TestSwUpgradeUnlockControllerStage(TestSwUpgradeState):
         # mock the API call as failed on the subcloud
         self.sysinv_client.unlock_host.return_value = CONTROLLER_0_UNLOCKING
 
-        # invoke the strategy state operation
-        self.worker.unlock_subcloud_controller(self.strategy_step)
+        # invoke the strategy state operation on the orch thread
+        self.worker.perform_state_action(self.strategy_step)
 
         # verify the unlock command was actually attempted
         self.sysinv_client.unlock_host.assert_called()
@@ -72,8 +72,8 @@ class TestSwUpgradeUnlockControllerStage(TestSwUpgradeState):
         # mock the controller host query as being already unlocked
         self.sysinv_client.get_host.return_value = CONTROLLER_0_UNLOCKED
 
-        # invoke the strategy state operation
-        self.worker.unlock_subcloud_controller(self.strategy_step)
+        # invoke the strategy state operation on the orch thread
+        self.worker.perform_state_action(self.strategy_step)
 
         # verify the unlock command was never attempted
         self.sysinv_client.unlock_host.assert_not_called()
@@ -95,8 +95,8 @@ class TestSwUpgradeUnlockControllerStage(TestSwUpgradeState):
         # mock the API call as successful on the subcloud
         self.sysinv_client.unlock_host.return_value = CONTROLLER_0_UNLOCKING
 
-        # invoke the strategy state operation
-        self.worker.unlock_subcloud_controller(self.strategy_step)
+        # invoke the strategy state operation on the orch thread
+        self.worker.perform_state_action(self.strategy_step)
 
         # verify the lock command was actually attempted
         self.sysinv_client.unlock_host.assert_called()
@@ -119,8 +119,8 @@ class TestSwUpgradeUnlockControllerStage(TestSwUpgradeState):
         self.sysinv_client.unlock_host.return_value = \
             CONTROLLER_0_UNLOCKING_FAILED
 
-        # invoke the strategy state operation
-        self.worker.unlock_subcloud_controller(self.strategy_step)
+        # invoke the strategy state operation on the orch thread
+        self.worker.perform_state_action(self.strategy_step)
 
         # verify the unlock command was actually attempted
         self.sysinv_client.unlock_host.assert_called()
@@ -136,8 +136,8 @@ class TestSwUpgradeUnlockControllerStage(TestSwUpgradeState):
         self.sysinv_client.get_host.side_effect = \
             Exception("Unable to find host controller-0")
 
-        # invoke the strategy state operation
-        self.worker.unlock_subcloud_controller(self.strategy_step)
+        # invoke the strategy state operation on the orch thread
+        self.worker.perform_state_action(self.strategy_step)
 
         # verify the unlock command was never attempted
         self.sysinv_client.unlock_host.assert_not_called()

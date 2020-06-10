@@ -5,12 +5,9 @@
 #
 import time
 
-from oslo_log import log as logging
-
 from dcmanager.common.consts import ADMIN_LOCKED
 from dcmanager.manager.states.base import BaseState
 
-LOG = logging.getLogger(__name__)
 DEFAULT_MAX_QUERIES = 6
 DEFAULT_SLEEP_DURATION = 10
 
@@ -46,7 +43,7 @@ class LockHostState(BaseState):
         if host.administrative == ADMIN_LOCKED:
             msg = "Host: %s already: %s." % (self.target_hostname,
                                              host.administrative)
-            self.debug_log(strategy_step, msg)
+            self.info_log(strategy_step, msg)
             return True
 
         # Invoke the action
@@ -63,7 +60,7 @@ class LockHostState(BaseState):
             if host.administrative == ADMIN_LOCKED:
                 msg = "Host: %s is now: %s" % (self.target_hostname,
                                                host.administrative)
-                self.debug_log(strategy_step, msg)
+                self.info_log(strategy_step, msg)
                 break
             counter += 1
             if counter >= self.max_queries:

@@ -44,7 +44,7 @@ SUBCLOUD_SAMPLE_DATA_0 = [
     "subcloud-4",  # name
     "demo subcloud",   # description
     "Ottawa-Lab-Aisle_3-Rack_C",  # location
-    "20.01",  # software-version
+    "12.34",  # software-version
     "managed",   # management-state
     "online",  # availability-status
     "fd01:3::0/64",  # management_subnet

@@ -108,7 +108,8 @@ STRATEGY_STATE_LOCKING_CONTROLLER = "locking controller"
 STRATEGY_STATE_UPGRADING_SIMPLEX = "upgrading simplex"
 STRATEGY_STATE_MIGRATING_DATA = "migrating data"
 STRATEGY_STATE_UNLOCKING_CONTROLLER = "unlocking controller"
-STRATEGY_STATE_ACTIVATING = "activating"
+STRATEGY_STATE_ACTIVATING_UPGRADE = "activating upgrade"
+STRATEGY_STATE_COMPLETING_UPGRADE = "completing upgrade"
 
 # Subcloud deploy status states
 DEPLOY_STATE_NONE = 'not-deployed'
