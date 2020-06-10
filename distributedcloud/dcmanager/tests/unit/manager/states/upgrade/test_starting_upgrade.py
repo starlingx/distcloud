@@ -77,6 +77,8 @@ class TestSwUpgradeStartingUpgradeStage(TestSwUpgradeState):
 
         # verify the API call that succeeded was actually invoked
         self.sysinv_client.upgrade_start.assert_called()
+        # verify default alarm-restriction-type (relaxed) is treated as 'force'
+        self.sysinv_client.upgrade_start.assert_called_with(force=True)
 
         # On success, the state should transition to the next state
         self.assert_step_updated(self.strategy_step.subcloud_id,

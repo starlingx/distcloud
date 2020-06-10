@@ -16,14 +16,12 @@ class LockHostState(BaseState):
     """Orchestration state for locking a host"""
 
     def __init__(self,
-                 hostname='controller-0',
-                 max_queries=DEFAULT_MAX_QUERIES,
-                 sleep_duration=DEFAULT_SLEEP_DURATION):
+                 hostname='controller-0'):
         super(LockHostState, self).__init__()
         self.target_hostname = hostname
         # max time to wait (in seconds) is: sleep_duration * max_queries
-        self.sleep_duration = sleep_duration
-        self.max_queries = max_queries
+        self.sleep_duration = DEFAULT_SLEEP_DURATION
+        self.max_queries = DEFAULT_MAX_QUERIES
 
     def perform_state_action(self, strategy_step):
         """Locks a host on the subcloud

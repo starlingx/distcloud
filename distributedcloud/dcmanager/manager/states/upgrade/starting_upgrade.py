@@ -3,15 +3,18 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 #
+from dccommon.drivers.openstack.vim import ALARM_RESTRICTIONS_RELAXED
+from dcmanager.common import utils
 from dcmanager.manager.states.base import BaseState
+
+DEFAULT_FORCE_FLAG = False
 
 
 class StartingUpgradeState(BaseState):
     """Upgrade state for starting an upgrade on a subcloud"""
 
-    def __init__(self, force=False):
+    def __init__(self):
         super(StartingUpgradeState, self).__init__()
-        self.force = force
 
     def perform_state_action(self, strategy_step):
         """Start an upgrade on a subcloud
@@ -34,8 +37,18 @@ class StartingUpgradeState(BaseState):
                               "An upgrade already exists: %s" % upgrade)
         else:
             # invoke the API 'upgrade-start'.
+            # query the alarm_restriction_type from DB SwUpdateOpts
+            force_flag = DEFAULT_FORCE_FLAG
+            opts_dict = \
+                utils.get_sw_update_opts(self.context,
+                                         for_sw_update=True,
+                                         subcloud_id=strategy_step.subcloud_id)
+            if opts_dict is not None:
+                force_flag = (opts_dict.get('alarm-restriction-type')
+                              == ALARM_RESTRICTIONS_RELAXED)
+
             # This call is synchronous and throws an exception on failure.
-            sysinv_client.upgrade_start(self.force)
+            sysinv_client.upgrade_start(force=force_flag)
 
         # When we return from this method without throwing an exception, the
         # state machine can proceed to the next state

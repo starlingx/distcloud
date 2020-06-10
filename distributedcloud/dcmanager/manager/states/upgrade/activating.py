@@ -3,6 +3,8 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 #
+import time
+
 from dcmanager.manager.states.base import BaseState
 
 ALREADY_ACTIVATING_STATES = ['activation-requested',
@@ -10,12 +12,30 @@ ALREADY_ACTIVATING_STATES = ['activation-requested',
                              'activation-complete',
                              'activating']
 
+ACTIVATING_COMPLETED_STATES = ['activation-failed',
+                               'activation-complete',
+                               'aborting']
+
+DEFAULT_MAX_QUERIES = 6
+DEFAULT_SLEEP_DURATION = 10
+
 
 class ActivatingUpgradeState(BaseState):
     """Upgrade state actions for activating an upgrade"""
 
     def __init__(self):
         super(ActivatingUpgradeState, self).__init__()
+        # max time to wait (in seconds) is: sleep_duration * max_queries
+        self.sleep_duration = DEFAULT_SLEEP_DURATION
+        self.max_queries = DEFAULT_MAX_QUERIES
+
+    def get_upgrade_state(self, sysinv_client):
+        upgrades = sysinv_client.get_upgrades()
+        if len(upgrades) == 0:
+            raise Exception("No upgrades were found to activate")
+
+        # The list of upgrades will never contain more than one entry.
+        return upgrades[0].state
 
     def perform_state_action(self, strategy_step):
         """Activate an upgrade on a subcloud
@@ -27,23 +47,31 @@ class ActivatingUpgradeState(BaseState):
         ks_client = self.get_keystone_client(strategy_step.subcloud.name)
         sysinv_client = self.get_sysinv_client(strategy_step.subcloud.name,
                                                ks_client.session)
-        upgrades = sysinv_client.get_upgrades()
 
-        # If there are no existing upgrades, there is nothing to activate
-        if len(upgrades) == 0:
-            raise Exception("No upgrades were found to activate")
+        upgrade_state = self.get_upgrade_state(sysinv_client)
 
-        # The list of upgrades will never contain more than one entry.
-        for upgrade in upgrades:
-            # Check if an existing upgrade is already activated
-            if upgrade.state in ALREADY_ACTIVATING_STATES:
+        # Check if an existing upgrade is already activated
+        if upgrade_state in ALREADY_ACTIVATING_STATES:
+            self.info_log(strategy_step,
+                          "Already in an activating state:%s" % upgrade_state)
+            return True
+
+        # invoke the API 'upgrade-activate'.
+        # Throws an exception on failure (no upgrade found, bad host state)
+        sysinv_client.upgrade_activate()
+        # Need to loop until changed to a activating completed state
+        counter = 0
+        while True:
+            upgrade_state = self.get_upgrade_state(sysinv_client)
+            if upgrade_state in ACTIVATING_COMPLETED_STATES:
                 self.info_log(strategy_step,
-                              "Already in activating state:%s" % upgrade.state)
+                              "Activation completed. State=%s" % upgrade_state)
                 break
-        else:
-            # invoke the API 'upgrade-activate'.
-            # Throws an exception on failure (no upgrade found, bad host state)
-            sysinv_client.upgrade_activate()
+            counter += 1
+            if counter >= self.max_queries:
+                raise Exception("Timeout waiting for activation to complete")
+            time.sleep(self.sleep_duration)
+            # todo(abailey): add support for checking if the thread is stopped
 
         # When we return from this method without throwing an exception, the
         # state machine can proceed to the next state

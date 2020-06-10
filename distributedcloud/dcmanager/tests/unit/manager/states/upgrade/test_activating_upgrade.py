@@ -3,6 +3,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 #
+import itertools
 import mock
 
 from dcmanager.common import consts
@@ -16,6 +17,10 @@ ACTIVATING_UPGRADE = FakeUpgrade(state='activation-requested')
 ALREADY_ACTIVATED_UPGRADE = FakeUpgrade(state='activation-complete')
 
 
+@mock.patch("dcmanager.manager.states.upgrade.activating.DEFAULT_MAX_QUERIES",
+            3)
+@mock.patch("dcmanager.manager.states.upgrade.activating.DEFAULT_SLEEP_DURATION",
+            1)
 class TestSwUpgradeActivatingStage(TestSwUpgradeState):
 
     def setUp(self):
@@ -56,7 +61,13 @@ class TestSwUpgradeActivatingStage(TestSwUpgradeState):
         """Test the activating upgrade step succeeds."""
 
         # upgrade_activate will only be called if an appropriate upgrade exists
-        self.sysinv_client.get_upgrades.return_value = [VALID_UPGRADE, ]
+        # first call is before the API call
+        # loops once waiting for activating to complete
+        # final query is the activation having completed
+        self.sysinv_client.get_upgrades.side_effect = [
+            [VALID_UPGRADE, ],
+            [ACTIVATING_UPGRADE, ],
+            [ALREADY_ACTIVATED_UPGRADE], ]
 
         # API call will not raise an exception, and will return an upgrade
         self.sysinv_client.upgrade_activate.return_value = ACTIVATING_UPGRADE
@@ -89,3 +100,26 @@ class TestSwUpgradeActivatingStage(TestSwUpgradeState):
         # On success, the state is set to the next state
         self.assert_step_updated(self.strategy_step.subcloud_id,
                                  self.on_success_state)
+
+    def test_upgrade_subcloud_activating_upgrade_times_out(self):
+        """Test the activating upgrade step should succeed but times out."""
+
+        # upgrade_activate will only be called if an appropriate upgrade exists
+        # first call is before the API call
+        # remaining loops are wating for the activation to complete
+        self.sysinv_client.get_upgrades.side_effect = itertools.chain(
+            [[VALID_UPGRADE, ], ],
+            itertools.repeat([ACTIVATING_UPGRADE, ]))
+
+        # API call will not raise an exception, and will return an upgrade
+        self.sysinv_client.upgrade_activate.return_value = ACTIVATING_UPGRADE
+
+        # invoke the strategy state operation on the orch thread
+        self.worker.perform_state_action(self.strategy_step)
+
+        # verify the API cvall was invoked
+        self.sysinv_client.upgrade_activate.assert_called()
+
+        # Times out. state goes to failed
+        self.assert_step_updated(self.strategy_step.subcloud_id,
+                                 consts.STRATEGY_STATE_FAILED)

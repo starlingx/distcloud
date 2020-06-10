@@ -7,7 +7,7 @@ import itertools
 import mock
 
 from dcmanager.common import consts
-from dcmanager.manager.states.lock_host import DEFAULT_MAX_QUERIES
+from dcmanager.manager.states import lock_host
 
 from dcmanager.tests.unit.manager.states.upgrade.test_base \
     import FakeController
@@ -25,6 +25,8 @@ CONTROLLER_0_LOCKING_FAILED = \
                    task='Swacting')
 
 
+@mock.patch("dcmanager.manager.states.lock_host.DEFAULT_MAX_QUERIES", 3)
+@mock.patch("dcmanager.manager.states.lock_host.DEFAULT_SLEEP_DURATION", 1)
 class TestSwUpgradeLockControllerStage(TestSwUpgradeState):
 
     def setUp(self):
@@ -102,7 +104,7 @@ class TestSwUpgradeLockControllerStage(TestSwUpgradeState):
         self.sysinv_client.lock_host.assert_called()
 
         # verify the query was invoked: 1 + max_attempts times
-        self.assertEqual(DEFAULT_MAX_QUERIES + 1,
+        self.assertEqual(lock_host.DEFAULT_MAX_QUERIES + 1,
                          self.sysinv_client.get_host.call_count)
 
         # verify that state failed due to subcloud never finishing the lock
