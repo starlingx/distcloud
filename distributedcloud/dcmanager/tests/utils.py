@@ -118,4 +118,5 @@ def create_subcloud_dict(data_list):
             'external_oam_gateway_address': data_list[20],
             'external_oam_floating_address': data_list[21],
             'sysadmin_password': data_list[22],
-            'group_id': data_list[23]}
+            'group_id': data_list[23],
+            'deploy_status': data_list[24]}

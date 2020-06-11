@@ -773,6 +773,12 @@ class SubcloudManager(manager.Manager):
                     raise exceptions.BadRequest(
                         resource='subcloud',
                         msg='Subcloud is already managed')
+                if subcloud.deploy_status != consts.DEPLOY_STATE_DONE:
+                    LOG.warning("Subcloud %s can be managed only when"
+                                "deploy_status is complete" % subcloud_id)
+                    raise exceptions.BadRequest(
+                        resource='subcloud',
+                        msg='Subcloud can be managed only if deploy status is complete')
                 if subcloud.availability_status != \
                         consts.AVAILABILITY_ONLINE:
                     LOG.warning("Subcloud %s is not online" % subcloud_id)
