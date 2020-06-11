@@ -614,3 +614,27 @@ class TestSubcloudManager(base.DCManagerTestCase):
         # Verify the subcloud openstack_installed was updated
         updated_subcloud = db_api.subcloud_get_by_name(self.ctx, subcloud.name)
         self.assertEqual(updated_subcloud.openstack_installed, False)
+
+    @mock.patch.object(subcloud_manager, 'db_api')
+    @mock.patch.object(subcloud_manager.SubcloudManager,
+                       '_prepare_for_deployment')
+    @mock.patch.object(threading.Thread,
+                       'start')
+    def test_reconfig_subcloud(self, mock_thread_start,
+                               mock_prepare_for_deployment,
+                               mock_db_api):
+        values = utils.create_subcloud_dict(base.SUBCLOUD_SAMPLE_DATA_0)
+        values['deploy_status'] = consts.DEPLOY_STATE_PRE_DEPLOY
+        fake_subcloud_result = Subcloud(values, False)
+        mock_db_api.subcloud_update.return_value = fake_subcloud_result
+        fake_payload = {"sysadmin_password": "testpass",
+                        "deploy_playbook": "test_playbook.yaml",
+                        "deploy_overrides": "test_overrides.yaml",
+                        "deploy_chart": "test_chart.yaml",
+                        "deploy_config": "subcloud1.yaml"}
+        sm = subcloud_manager.SubcloudManager()
+        sm.reconfigure_subcloud(self.ctx,
+                                values['id'],
+                                payload=fake_payload)
+        mock_thread_start.assert_called_once()
+        mock_prepare_for_deployment.assert_called_once()

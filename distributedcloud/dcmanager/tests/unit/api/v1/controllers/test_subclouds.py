@@ -20,6 +20,8 @@
 # of an applicable Wind River license agreement.
 #
 
+from oslo_utils import timeutils
+
 import base64
 import copy
 import mock
@@ -40,7 +42,8 @@ WRONG_URL = '/v1.0/wrong'
 FAKE_HEADERS = {'X-Tenant-Id': FAKE_TENANT, 'X_ROLE': 'admin',
                 'X-Identity-Status': 'Confirmed'}
 
-FAKE_SUBCLOUD_DATA = {"name": "subcloud1",
+FAKE_SUBCLOUD_DATA = {"id": FAKE_ID,
+                      "name": "subcloud1",
                       "description": "subcloud1 description",
                       "location": "subcloud1 location",
                       "system_mode": "duplex",
@@ -49,6 +52,7 @@ FAKE_SUBCLOUD_DATA = {"name": "subcloud1",
                       "management_end_address": "192.168.101.50",
                       "management_gateway_address": "192.168.101.1",
                       "systemcontroller_gateway_address": "192.168.204.101",
+                      "deploy_status": consts.DEPLOY_STATE_DONE,
                       "external_oam_subnet": "10.10.10.0/24",
                       "external_oam_gateway_address": "10.10.10.1",
                       "external_oam_floating_address": "10.10.10.12",
@@ -76,6 +80,33 @@ FAKE_BOOTSTRAP_VALUE = {
     'bootstrap-address': '10.10.10.12',
     'sysadmin_password': base64.b64encode('testpass'.encode("utf-8"))
 }
+
+
+class Subcloud(object):
+    def __init__(self, data, is_online):
+        self.id = data['id']
+        self.name = data['name']
+        self.description = data['description']
+        self.location = data['location']
+        self.management_state = consts.MANAGEMENT_UNMANAGED
+        if is_online:
+            self.availability_status = consts.AVAILABILITY_ONLINE
+        else:
+            self.availability_status = consts.AVAILABILITY_OFFLINE
+        self.deploy_status = data['deploy_status']
+        self.management_subnet = data['management_subnet']
+        self.management_gateway_ip = data['management_gateway_address']
+        self.management_start_ip = data['management_start_address']
+        self.management_end_ip = data['management_end_address']
+        self.external_oam_subnet = data['external_oam_subnet']
+        self.external_oam_gateway_address = \
+            data['external_oam_gateway_address']
+        self.external_oam_floating_address = \
+            data['external_oam_floating_address']
+        self.systemcontroller_gateway_ip = \
+            data['systemcontroller_gateway_address']
+        self.created_at = timeutils.utcnow()
+        self.updated_at = timeutils.utcnow()
 
 
 class FakeAddressPool(object):
@@ -552,7 +583,8 @@ class TestSubclouds(testroot.DCManagerApiTest):
         self.assertEqual(response.status_int, 200)
 
     @mock.patch.object(rpc_client, 'ManagerClient')
-    def test_patch_subcloud_no_body(self, mock_rpc_client):
+    @mock.patch.object(subclouds, 'db_api')
+    def test_patch_subcloud_no_body(self, mock_db_api, mock_rpc_client):
         data = {}
         six.assertRaisesRegex(self, webtest.app.AppError, "400 *",
                               self.app.patch_json, FAKE_URL + '/' + FAKE_ID,
@@ -564,4 +596,92 @@ class TestSubclouds(testroot.DCManagerApiTest):
         data = {'management-state': 'bad-status'}
         six.assertRaisesRegex(self, webtest.app.AppError, "400 *",
                               self.app.patch_json, FAKE_URL + '/' + FAKE_ID,
+                              headers=FAKE_HEADERS, params=data)
+
+    @mock.patch.object(rpc_client, 'ManagerClient')
+    @mock.patch.object(subclouds, 'db_api')
+    @mock.patch.object(subclouds.SubcloudsController, '_get_reconfig_payload')
+    def test_reconfigure_subcloud(self, mock_get_reconfig_payload,
+                                  mock_db_api, mock_rpc_client):
+        fake_password = (base64.b64encode('testpass'.encode("utf-8"))).decode('ascii')
+        data = {'sysadmin_password': fake_password}
+
+        mock_rpc_client().reconfigure_subcloud.return_value = True
+        mock_get_reconfig_payload.return_value = data
+
+        # Return a fake subcloud database object
+        fake_subcloud = Subcloud(FAKE_SUBCLOUD_DATA, False)
+        mock_db_api.subcloud_get.return_value = fake_subcloud
+
+        response = self.app.patch_json(FAKE_URL + '/' + FAKE_ID +
+                                       '/reconfigure',
+                                       headers=FAKE_HEADERS,
+                                       params=data)
+        mock_rpc_client().reconfigure_subcloud.assert_called_once_with(
+            mock.ANY,
+            FAKE_ID,
+            mock.ANY)
+        self.assertEqual(response.status_int, 200)
+
+    @mock.patch.object(rpc_client, 'ManagerClient')
+    @mock.patch.object(subclouds, 'db_api')
+    @mock.patch.object(subclouds.SubcloudsController, '_get_reconfig_payload')
+    def test_reconfigure_subcloud_no_body(self, mock_get_reconfig_payload,
+                                          mock_db_api, mock_rpc_client):
+        # Pass an empty request body
+        data = {}
+        mock_get_reconfig_payload.return_value = data
+        mock_rpc_client().reconfigure_subcloud.return_value = True
+
+        # Return a fake subcloud database object
+        fake_subcloud = Subcloud(FAKE_SUBCLOUD_DATA, False)
+        mock_db_api.subcloud_get.return_value = fake_subcloud
+
+        six.assertRaisesRegex(self, webtest.app.AppError, "400 *",
+                              self.app.patch_json, FAKE_URL + '/' +
+                              FAKE_ID + '/reconfigure',
+                              headers=FAKE_HEADERS, params=data)
+
+    @mock.patch.object(rpc_client, 'ManagerClient')
+    @mock.patch.object(subclouds, 'db_api')
+    @mock.patch.object(subclouds.SubcloudsController, '_get_reconfig_payload')
+    def test_reconfigure_subcloud_bad_password(self, mock_get_reconfig_payload,
+                                               mock_db_api, mock_rpc_client):
+        # Pass a sysadmin_password which is not base64 encoded
+        data = {'sysadmin_password': 'not_base64'}
+        mock_get_reconfig_payload.return_value = data
+        mock_rpc_client().reconfigure_subcloud.return_value = True
+
+        # Return a fake subcloud database object
+        fake_subcloud = Subcloud(FAKE_SUBCLOUD_DATA, False)
+        mock_db_api.subcloud_get.return_value = fake_subcloud
+
+        six.assertRaisesRegex(self, webtest.app.AppError, "400 *",
+                              self.app.patch_json, FAKE_URL + '/' +
+                              FAKE_ID + '/reconfigure',
+                              headers=FAKE_HEADERS, params=data)
+
+    @mock.patch.object(rpc_client, 'ManagerClient')
+    @mock.patch.object(subclouds, 'db_api')
+    @mock.patch.object(subclouds.SubcloudsController, '_get_reconfig_payload')
+    def test_reconfigure_invalid_deploy_status(self,
+                                               mock_get_reconfig_payload,
+                                               mock_db_api,
+                                               mock_rpc_client):
+        fake_password = base64.b64encode('testpass'.encode("utf-8")).decode("utf-8")
+        data = {'sysadmin_password': fake_password}
+        # Update the deploy status to bootstrap-failed
+        FAKE_SUBCLOUD_DATA_NEW = copy.copy(FAKE_SUBCLOUD_DATA)
+        FAKE_SUBCLOUD_DATA_NEW["deploy_status"] = \
+            consts.DEPLOY_STATE_BOOTSTRAP_FAILED
+        mock_get_reconfig_payload.return_value = data
+        mock_rpc_client().reconfigure_subcloud.return_value = True
+
+        # Return a fake subcloud database object
+        fake_subcloud = Subcloud(FAKE_SUBCLOUD_DATA_NEW, False)
+        mock_db_api.subcloud_get.return_value = fake_subcloud
+
+        six.assertRaisesRegex(self, webtest.app.AppError, "400 *",
+                              self.app.patch_json, FAKE_URL + '/' +
+                              FAKE_ID + '/reconfigure',
                               headers=FAKE_HEADERS, params=data)
