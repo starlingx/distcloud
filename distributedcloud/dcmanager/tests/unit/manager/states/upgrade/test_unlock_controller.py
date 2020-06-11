@@ -7,14 +7,16 @@ import itertools
 import mock
 
 from dcmanager.common import consts
-from dcmanager.manager.states.unlock_host import DEFAULT_MAX_QUERIES
+from dcmanager.manager.states import unlock_host
 
 from dcmanager.tests.unit.manager.states.upgrade.test_base \
     import FakeController
 from dcmanager.tests.unit.manager.states.upgrade.test_base \
     import TestSwUpgradeState
 
-CONTROLLER_0_UNLOCKED = FakeController(administrative=consts.ADMIN_UNLOCKED)
+CONTROLLER_0_UNLOCKED = \
+    FakeController(administrative=consts.ADMIN_UNLOCKED,
+                   operational=consts.OPERATIONAL_ENABLED)
 CONTROLLER_0_LOCKED = FakeController(administrative=consts.ADMIN_LOCKED)
 CONTROLLER_0_UNLOCKING = FakeController(administrative=consts.ADMIN_LOCKED,
                                         ihost_action='unlock',
@@ -25,6 +27,11 @@ CONTROLLER_0_UNLOCKING_FAILED = \
                    task='Swacting')
 
 
+@mock.patch("dcmanager.manager.states.unlock_host.DEFAULT_MAX_API_QUERIES", 3)
+@mock.patch("dcmanager.manager.states.unlock_host.DEFAULT_MAX_FAILED_QUERIES",
+            3)
+@mock.patch("dcmanager.manager.states.unlock_host.DEFAULT_API_SLEEP", 1)
+@mock.patch("dcmanager.manager.states.unlock_host.DEFAULT_FAILED_SLEEP", 1)
 class TestSwUpgradeUnlockControllerStage(TestSwUpgradeState):
 
     def setUp(self):
@@ -102,7 +109,7 @@ class TestSwUpgradeUnlockControllerStage(TestSwUpgradeState):
         self.sysinv_client.unlock_host.assert_called()
 
         # verify the query was invoked: 1 + max_attempts times
-        self.assertEqual(DEFAULT_MAX_QUERIES + 1,
+        self.assertEqual(unlock_host.DEFAULT_MAX_API_QUERIES + 1,
                          self.sysinv_client.get_host.call_count)
 
         # verify that state failed due to subcloud never finishing the unlock

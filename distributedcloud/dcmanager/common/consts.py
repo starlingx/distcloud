@@ -43,6 +43,10 @@ AVAILABILITY_ONLINE = "online"
 ADMIN_LOCKED = 'locked'
 ADMIN_UNLOCKED = 'unlocked'
 
+# operational status for hosts
+OPERATIONAL_ENABLED = 'enabled'
+OPERATIONAL_DISABLED = 'disabled'
+
 # Subcloud sync status
 SYNC_STATUS_UNKNOWN = "unknown"
 SYNC_STATUS_IN_SYNC = "in-sync"

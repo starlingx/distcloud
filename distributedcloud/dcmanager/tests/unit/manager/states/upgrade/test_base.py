@@ -6,8 +6,8 @@
 import mock
 import uuid
 
+from dcmanager.common import consts
 from dcmanager.manager.states.base import BaseState
-from sysinv.common import constants as sysinv_constants
 
 from dcmanager.tests.unit.manager.test_sw_upgrade import TestSwUpgrade
 
@@ -70,14 +70,16 @@ class FakeController(object):
     def __init__(self,
                  host_id=1,
                  hostname='controller-0',
-                 administrative=sysinv_constants.ADMIN_UNLOCKED,
-                 availability=sysinv_constants.AVAILABILITY_AVAILABLE,
+                 administrative=consts.ADMIN_UNLOCKED,
+                 operational=consts.OPERATIONAL_ENABLED,
+                 availability=consts.AVAILABILITY_ONLINE,
                  ihost_action=None,
                  target_load=UPGRADED_VERSION,
                  task=None):
         self.id = host_id
         self.hostname = hostname
         self.administrative = administrative
+        self.operational = operational
         self.availability = availability
         self.ihost_action = ihost_action
         self.target_load = target_load
