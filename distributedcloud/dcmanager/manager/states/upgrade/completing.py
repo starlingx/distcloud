@@ -3,7 +3,14 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 #
+import time
+
+from dcmanager.common.exceptions import StrategyStoppedException
 from dcmanager.manager.states.base import BaseState
+
+# Max time: 10 minutes = 60 queries x 10 seconds between each query
+DEFAULT_MAX_QUERIES = 60
+DEFAULT_SLEEP_DURATION = 10
 
 
 class CompletingUpgradeState(BaseState):
@@ -11,6 +18,9 @@ class CompletingUpgradeState(BaseState):
 
     def __init__(self):
         super(CompletingUpgradeState, self).__init__()
+        # max time to wait (in seconds) is: sleep_duration * max_queries
+        self.sleep_duration = DEFAULT_SLEEP_DURATION
+        self.max_queries = DEFAULT_MAX_QUERIES
 
     def perform_state_action(self, strategy_step):
         """Complete an upgrade on a subcloud
@@ -25,7 +35,7 @@ class CompletingUpgradeState(BaseState):
 
         # upgrade-complete causes the upgrade to be deleted.
         # if no upgrade exists, there is no need to call it.
-        # The API should always return a list, but check for None anyways
+        # The API should always return a list
         upgrades = sysinv_client.get_upgrades()
         if len(upgrades) == 0:
             self.info_log(strategy_step,
@@ -33,8 +43,24 @@ class CompletingUpgradeState(BaseState):
             return True
 
         # invoke the API 'upgrade-complete'
-        # This is a blocking call that raises an exception on failure.
+        # This is a partially blocking call that raises exception on failure.
         sysinv_client.upgrade_complete()
+
+        # 'completion' deletes the upgrade. Need to loop until it is deleted
+        counter = 0
+        while True:
+            # If event handler stop has been triggered, fail the state
+            if self.stopped():
+                raise StrategyStoppedException()
+            upgrades = sysinv_client.get_upgrades()
+            if len(upgrades) == 0:
+                self.info_log(strategy_step,
+                              "Upgrade completed.")
+                break
+            counter += 1
+            if counter >= self.max_queries:
+                raise Exception("Timeout waiting for completion to complete")
+            time.sleep(self.sleep_duration)
 
         # When we return from this method without throwing an exception, the
         # state machine can proceed to the next state

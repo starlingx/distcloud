@@ -6,10 +6,12 @@
 import time
 
 from dcmanager.common import consts
+from dcmanager.common.exceptions import StrategyStoppedException
 from dcmanager.manager.states.base import BaseState
 from dcmanager.manager.states.upgrade import utils
 
-DEFAULT_MAX_QUERIES = 6
+# Max time: 30 minutes = 180 queries x 10 seconds between
+DEFAULT_MAX_QUERIES = 180
 DEFAULT_SLEEP_DURATION = 10
 
 
@@ -62,6 +64,9 @@ class ImportingLoadState(BaseState):
         # repeatedly query until load state changes to 'imported' or we timeout
         counter = 0
         while True:
+            # If event handler stop has been triggered, fail the state
+            if self.stopped():
+                raise StrategyStoppedException()
             # query the load state to see if it is in the new state
             # get_load returns a Load object
             load = sysinv_client.get_load(new_load_id)
@@ -74,7 +79,6 @@ class ImportingLoadState(BaseState):
             if counter >= self.max_queries:
                 raise Exception("Timeout waiting for import to complete")
             time.sleep(self.sleep_duration)
-            # todo(abailey): add support for checking if the thread is stopped
 
         # When we return from this method without throwing an exception, the
         # state machine can proceed to the next state

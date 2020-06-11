@@ -212,7 +212,7 @@ class SwUpgradeOrchThread(threading.Thread):
     def apply(self, sw_update_strategy):
         """Apply an upgrade strategy"""
 
-        LOG.info("Applying upgrade strategy")
+        LOG.debug("Applying upgrade strategy")
         strategy_steps = db_api.strategy_step_get_all(self.context)
 
         # Figure out which stage we are working on
@@ -296,7 +296,7 @@ class SwUpgradeOrchThread(threading.Thread):
                 self.audit_rpc_client.trigger_patch_audit(self.context)
                 return
 
-        LOG.info("Working on stage %d" % current_stage)
+        LOG.debug("Working on stage %d" % current_stage)
         for strategy_step in strategy_steps:
             if strategy_step.stage == current_stage:
                 region = self.get_region_name(strategy_step)
@@ -398,6 +398,7 @@ class SwUpgradeOrchThread(threading.Thread):
                         self.get_region_name(strategy_step)))
             # Instantiate the state operator and perform the state actions
             state_operator = self.determine_state_operator(strategy_step)
+            state_operator.registerStopEvent(self._stop)
             state_operator.perform_state_action(strategy_step)
             # If we get here without an exception raised, proceed to next state
             next_state = self.determine_next_state(strategy_step)

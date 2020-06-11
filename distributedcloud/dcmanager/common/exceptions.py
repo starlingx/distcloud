@@ -189,3 +189,7 @@ class StrategyStepNotFound(NotFound):
 
 class StrategyStepNameNotFound(NotFound):
     message = _("StrategyStep with name %(name)s doesn't exist.")
+
+
+class StrategyStoppedException(DCManagerException):
+    message = _("Strategy has been stopped")

@@ -23,6 +23,18 @@ class BaseState(object):
     def __init__(self):
         super(BaseState, self).__init__()
         self.context = context.get_admin_context()
+        self._stop = None
+
+    def registerStopEvent(self, stop_event):
+        """Store an orch_thread threading.Event to detect stop."""
+        self._stop = stop_event
+
+    def stopped(self):
+        """Check if the threading.Event is set, otherwise return False."""
+        if self._stop is not None:
+            return self._stop.isSet()
+        else:
+            return False
 
     def debug_log(self, strategy_step, details):
         LOG.debug("Stage: %s, State: %s, Subcloud: %s, Details: %s"

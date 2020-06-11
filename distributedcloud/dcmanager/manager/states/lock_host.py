@@ -6,9 +6,11 @@
 import time
 
 from dcmanager.common.consts import ADMIN_LOCKED
+from dcmanager.common.exceptions import StrategyStoppedException
 from dcmanager.manager.states.base import BaseState
 
-DEFAULT_MAX_QUERIES = 6
+# Max time: 10 minutes = 60 queries x 10 seconds
+DEFAULT_MAX_QUERIES = 60
 DEFAULT_SLEEP_DURATION = 10
 
 
@@ -53,6 +55,9 @@ class LockHostState(BaseState):
         # this action is asynchronous, query until it completes or times out
         counter = 0
         while True:
+            # If event handler stop has been triggered, fail the state
+            if self.stopped():
+                raise StrategyStoppedException()
             # query the administrative state to see if it is the new state.
             host = sysinv_client.get_host(self.target_hostname)
             if host.administrative == ADMIN_LOCKED:
@@ -64,7 +69,6 @@ class LockHostState(BaseState):
             if counter >= self.max_queries:
                 raise Exception("Timeout waiting for lock to complete")
             time.sleep(self.sleep_duration)
-            # todo(abailey): add support for checking if the thread is stopped
 
         # If we are here, the loop broke out cleanly and the action succeeded
         # When we return from this method without throwing an exception, the

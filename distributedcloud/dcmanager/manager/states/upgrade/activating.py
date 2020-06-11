@@ -5,6 +5,7 @@
 #
 import time
 
+from dcmanager.common.exceptions import StrategyStoppedException
 from dcmanager.manager.states.base import BaseState
 
 ALREADY_ACTIVATING_STATES = ['activation-requested',
@@ -16,7 +17,8 @@ ACTIVATING_COMPLETED_STATES = ['activation-failed',
                                'activation-complete',
                                'aborting']
 
-DEFAULT_MAX_QUERIES = 6
+# Max time: 10 minutes = 60 queries x 10 seconds sleep between queries
+DEFAULT_MAX_QUERIES = 60
 DEFAULT_SLEEP_DURATION = 10
 
 
@@ -62,6 +64,9 @@ class ActivatingUpgradeState(BaseState):
         # Need to loop until changed to a activating completed state
         counter = 0
         while True:
+            # If event handler stop has been triggered, fail the state
+            if self.stopped():
+                raise StrategyStoppedException()
             upgrade_state = self.get_upgrade_state(sysinv_client)
             if upgrade_state in ACTIVATING_COMPLETED_STATES:
                 self.info_log(strategy_step,
@@ -71,7 +76,6 @@ class ActivatingUpgradeState(BaseState):
             if counter >= self.max_queries:
                 raise Exception("Timeout waiting for activation to complete")
             time.sleep(self.sleep_duration)
-            # todo(abailey): add support for checking if the thread is stopped
 
         # When we return from this method without throwing an exception, the
         # state machine can proceed to the next state

@@ -7,6 +7,7 @@ import time
 
 from dcmanager.common.consts import ADMIN_UNLOCKED
 from dcmanager.common.consts import OPERATIONAL_ENABLED
+from dcmanager.common.exceptions import StrategyStoppedException
 from dcmanager.manager.states.base import BaseState
 
 # When an unlock occurs, a reboot is triggered. During reboot, API calls fail.
@@ -71,6 +72,9 @@ class UnlockHostState(BaseState):
         auth_failure = False
 
         while True:
+            # If event handler stop has been triggered, fail the state
+            if self.stopped():
+                raise StrategyStoppedException()
             try:
                 # query the administrative state to see if it is the new state.
                 host = sysinv_client.get_host(self.target_hostname)

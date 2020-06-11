@@ -8,6 +8,7 @@ import mock
 
 from dcmanager.common import consts
 
+from dcmanager.manager.states.upgrade import activating
 from dcmanager.tests.unit.manager.states.upgrade.test_base import FakeUpgrade
 from dcmanager.tests.unit.manager.states.upgrade.test_base \
     import TestSwUpgradeState
@@ -75,7 +76,7 @@ class TestSwUpgradeActivatingStage(TestSwUpgradeState):
         # invoke the strategy state operation on the orch thread
         self.worker.perform_state_action(self.strategy_step)
 
-        # verify the API cvall was invoked
+        # verify the API call was invoked
         self.sysinv_client.upgrade_activate.assert_called()
 
         # On success, the state should be updated to the next state
@@ -117,8 +118,12 @@ class TestSwUpgradeActivatingStage(TestSwUpgradeState):
         # invoke the strategy state operation on the orch thread
         self.worker.perform_state_action(self.strategy_step)
 
-        # verify the API cvall was invoked
+        # verify the API call was invoked
         self.sysinv_client.upgrade_activate.assert_called()
+
+        # verify the get_upgrades query was invoked: 1 + max_attempts times
+        self.assertEqual(activating.DEFAULT_MAX_QUERIES + 1,
+                         self.sysinv_client.get_upgrades.call_count)
 
         # Times out. state goes to failed
         self.assert_step_updated(self.strategy_step.subcloud_id,
