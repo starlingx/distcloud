@@ -1059,12 +1059,15 @@ class SubcloudManager(manager.Manager):
             raise e
 
         # Only allow updating the sync status if managed and online.
+        # except dc-cert endpoint is audit only when subcloud is online
+        # this could happen before subcloud is being managed.
         # This means if a subcloud is going offline or unmanaged, then
         # the sync status update must be done first.
         if (((subcloud.availability_status ==
               consts.AVAILABILITY_ONLINE)
             and (subcloud.management_state ==
-                 consts.MANAGEMENT_MANAGED))
+                 consts.MANAGEMENT_MANAGED or
+                 endpoint_type == dcorch_consts.ENDPOINT_TYPE_DC_CERT))
                 or (sync_status != consts.SYNC_STATUS_IN_SYNC)):
 
             # update a single subcloud
@@ -1211,6 +1214,14 @@ class SubcloudManager(manager.Manager):
                 LOG.info('Ignoring SubcloudNotFound when attempting state'
                          ' update: %s' % subcloud_name)
                 return
+
+            if availability_status == consts.AVAILABILITY_ONLINE:
+                # Subcloud is going online, we always want the dc-cert
+                # endpoint to start out as synced.
+                self._update_subcloud_endpoint_status(
+                    context, subcloud_name,
+                    endpoint_type=dcorch_consts.ENDPOINT_TYPE_DC_CERT,
+                    sync_status=consts.SYNC_STATUS_IN_SYNC)
 
             # Send dcorch a state update
             self._update_subcloud_state(context, subcloud_name,
