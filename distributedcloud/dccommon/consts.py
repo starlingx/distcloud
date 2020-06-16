@@ -40,3 +40,4 @@ USER_HEADER = {'User-Header': USER_HEADER_VALUE}
 ADMIN_USER_NAME = "admin"
 ADMIN_PROJECT_NAME = "admin"
 SYSINV_USER_NAME = "sysinv"
+DCMANAGER_USER_NAME = "dcmanager"

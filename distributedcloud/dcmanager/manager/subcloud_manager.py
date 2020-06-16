@@ -76,7 +76,8 @@ USERS_TO_REPLICATE = [
     'vim',
     'mtce',
     'fm',
-    'barbican']
+    'barbican',
+    'dcmanager']
 
 SERVICES_USER = 'services'
 
@@ -289,8 +290,8 @@ class SubcloudManager(manager.Manager):
             self._create_addn_hosts_dc(context)
 
             # Query system controller keystone admin user/project IDs,
-            # services project id and sysinv user id and store in payload so
-            # they get copied to the override file
+            # services project id, sysinv and dcmanager user id and store in
+            # payload so they get copied to the override file
             admin_user = m_ks_client.get_user_by_name(
                 dccommon_consts.ADMIN_USER_NAME)
             admin_project = m_ks_client.get_project_by_name(
@@ -298,6 +299,8 @@ class SubcloudManager(manager.Manager):
             services_project = m_ks_client.get_project_by_name(SERVICES_USER)
             sysinv_user = m_ks_client.get_user_by_name(
                 dccommon_consts.SYSINV_USER_NAME)
+            dcmanager_user = m_ks_client.get_user_by_name(
+                dccommon_consts.DCMANAGER_USER_NAME)
             payload['system_controller_keystone_admin_user_id'] = \
                 admin_user.id
             payload['system_controller_keystone_admin_project_id'] = \
@@ -306,6 +309,8 @@ class SubcloudManager(manager.Manager):
                 services_project.id
             payload['system_controller_keystone_sysinv_user_id'] = \
                 sysinv_user.id
+            payload['system_controller_keystone_dcmanager_user_id'] = \
+                dcmanager_user.id
 
             # Add the admin and service user passwords to the payload so they
             # get copied to the override file

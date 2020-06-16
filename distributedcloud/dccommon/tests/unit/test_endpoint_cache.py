@@ -48,7 +48,7 @@ class EndpointCacheTest(base.DCCommonTestCase):
         auth_uri_opts = [
             cfg.StrOpt('auth_uri',
                        default="fake_auth_uri")]
-        cfg.CONF.register_opts(auth_uri_opts, 'cache')
+        cfg.CONF.register_opts(auth_uri_opts, 'endpoint_cache')
 
     @patch.object(endpoint_cache.EndpointCache, '_initialize_keystone_client')
     @patch.object(endpoint_cache.EndpointCache, '_get_endpoint_from_keystone')

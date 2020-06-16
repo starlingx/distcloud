@@ -23,6 +23,7 @@
 import collections
 import threading
 
+from keystoneauth1 import exceptions as keystone_exceptions
 from keystoneauth1 import loading
 from keystoneauth1 import session
 
@@ -32,6 +33,8 @@ from oslo_config import cfg
 from oslo_log import log as logging
 
 from dccommon import consts
+
+CONF = cfg.CONF
 
 LOG = logging.getLogger(__name__)
 
@@ -51,29 +54,21 @@ class EndpointCache(object):
         if auth_url:
             self.external_auth_url = auth_url
         else:
-            self.external_auth_url = cfg.CONF.cache.auth_uri
+            self.external_auth_url = CONF.endpoint_cache.auth_uri
 
         self._initialize_keystone_client(region_name, auth_url)
 
         self._update_endpoints()
 
     def _initialize_keystone_client(self, region_name=None, auth_url=None):
-        with EndpointCache.plugin_lock:
-            if EndpointCache.plugin_loader is None:
-                EndpointCache.plugin_loader = loading.get_plugin_loader(
-                    cfg.CONF.keystone_authtoken.auth_type)
+        self.admin_session = EndpointCache.get_admin_session(
+            self.external_auth_url,
+            CONF.endpoint_cache.username,
+            CONF.endpoint_cache.user_domain_name,
+            CONF.endpoint_cache.password,
+            CONF.endpoint_cache.project_name,
+            CONF.endpoint_cache.project_domain_name)
 
-        auth = EndpointCache.plugin_loader.load_from_options(
-            auth_url=self.external_auth_url,
-            username=cfg.CONF.cache.admin_username,
-            user_domain_name=cfg.CONF.cache.admin_user_domain_name,
-            password=cfg.CONF.cache.admin_password,
-            project_name=cfg.CONF.cache.admin_tenant,
-            project_domain_name=cfg.CONF.cache.admin_project_domain_name,
-        )
-        self.admin_session = session.Session(
-            auth=auth, additional_headers=consts.USER_HEADER,
-            timeout=cfg.CONF.keystone_authtoken.http_connect_timeout)
         self.keystone_client = keystone_client.Client(
             session=self.admin_session,
             region_name=consts.CLOUD_0)
@@ -98,23 +93,74 @@ class EndpointCache(object):
                 LOG.error("Cannot find identity auth_url for %s", region_name)
                 raise
 
-            # We assume that the Admin user names and passwords are the same
-            # on this subcloud since this is an audited resource
-            sc_auth = EndpointCache.plugin_loader.load_from_options(
-                auth_url=sc_auth_url,
-                username=cfg.CONF.cache.admin_username,
-                user_domain_name=cfg.CONF.cache.admin_user_domain_name,
-                password=cfg.CONF.cache.admin_password,
-                project_name=cfg.CONF.cache.admin_tenant,
-                project_domain_name=cfg.CONF.cache.admin_project_domain_name,
-            )
-            self.admin_session = session.Session(
-                auth=sc_auth, additional_headers=consts.USER_HEADER,
-                timeout=cfg.CONF.keystone_authtoken.http_connect_timeout)
+            # We assume that the dcmanager user names and passwords are the
+            # same on this subcloud since this is an audited resource
+            self.admin_session = EndpointCache.get_admin_session(
+                sc_auth_url,
+                CONF.endpoint_cache.username,
+                CONF.endpoint_cache.user_domain_name,
+                CONF.endpoint_cache.password,
+                CONF.endpoint_cache.project_name,
+                CONF.endpoint_cache.project_domain_name)
+            # check if the current session is valid and get an admin session
+            # if necessary
+            self.admin_session = EndpointCache.get_admin_backup_session(
+                self.admin_session, CONF.endpoint_cache.username, sc_auth_url)
+
             self.keystone_client = keystone_client.Client(
                 session=self.admin_session,
                 region_name=region_name)
             self.external_auth_url = sc_auth_url
+
+    @classmethod
+    def get_admin_session(cls, auth_url, user_name, user_domain_name,
+                          user_password, user_project, user_project_domain,
+                          timeout=None):
+        with EndpointCache.plugin_lock:
+            if EndpointCache.plugin_loader is None:
+                EndpointCache.plugin_loader = loading.get_plugin_loader(
+                    CONF.endpoint_cache.auth_plugin)
+
+        user_auth = EndpointCache.plugin_loader.load_from_options(
+            auth_url=auth_url,
+            username=user_name,
+            user_domain_name=user_domain_name,
+            password=user_password,
+            project_name=user_project,
+            project_domain_name=user_project_domain,
+        )
+        timeout = (CONF.endpoint_cache.http_connect_timeout if timeout is None
+                   else timeout)
+        return session.Session(
+            auth=user_auth, additional_headers=consts.USER_HEADER,
+            timeout=timeout)
+
+    @classmethod
+    def get_admin_backup_session(cls, admin_session, user_name, auth_url):
+        """Validate a session and open an admin session if it fails.
+
+        This method is require to handle an upgrade to stx 4.0 and it
+        can be removed in stx 5.0.
+
+        """
+
+        try:
+            admin_session.get_auth_headers()
+        except keystone_exceptions.Unauthorized:
+            # this will only happen briefly during an upgrade to stx 4.0
+            # just until the dcorch has synced the dcmanager user to each
+            # subcloud
+            LOG.info("Failed to authenticate user:%s, use %s user instead"
+                     % (user_name,
+                        CONF.cache.admin_username))
+            admin_session = EndpointCache.get_admin_session(
+                auth_url,
+                CONF.cache.admin_username,
+                CONF.cache.admin_user_domain_name,
+                CONF.cache.admin_password,
+                CONF.cache.admin_tenant,
+                CONF.cache.admin_project_domain_name)
+        return admin_session
 
     @staticmethod
     def _is_central_cloud(region_id):
