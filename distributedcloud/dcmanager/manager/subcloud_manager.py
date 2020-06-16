@@ -169,8 +169,9 @@ class SubcloudManager(manager.Manager):
                 continue
 
             data = secret.data
-            if 'ca.crt' not in data or \
-                    'tls.crt' not in data or 'tls.key' not in data:
+            if ('ca.crt' not in data or
+                    'tls.crt' not in data or 'tls.key' not in data) or  \
+               not (data['ca.crt'] and data['tls.crt'] and data['tls.key']):
                 # ca cert, certificate and key pair are needed and must exist
                 # for creating an intermediate ca. If not, certificate is not
                 # ready yet.
