@@ -5,7 +5,7 @@
 #
 import time
 
-from dcmanager.common.consts import ADMIN_LOCKED
+from dcmanager.common import consts
 from dcmanager.common.exceptions import StrategyStoppedException
 from dcmanager.manager.states.base import BaseState
 
@@ -17,9 +17,9 @@ DEFAULT_SLEEP_DURATION = 10
 class LockHostState(BaseState):
     """Orchestration state for locking a host"""
 
-    def __init__(self,
-                 hostname='controller-0'):
-        super(LockHostState, self).__init__()
+    def __init__(self, hostname='controller-0'):
+        super(LockHostState, self).__init__(
+            next_state=consts.STRATEGY_STATE_UPGRADING_SIMPLEX)
         self.target_hostname = hostname
         # max time to wait (in seconds) is: sleep_duration * max_queries
         self.sleep_duration = DEFAULT_SLEEP_DURATION
@@ -28,8 +28,8 @@ class LockHostState(BaseState):
     def perform_state_action(self, strategy_step):
         """Locks a host on the subcloud
 
-        Any exceptions raised by this method set the strategy to FAILED
-        Returning normally from this method set the strategy to the next step
+        Returns the next state in the state machine on success.
+        Any exceptions raised by this method set the strategy to FAILED.
         """
 
         # Create a sysinv client on the subcloud
@@ -40,11 +40,11 @@ class LockHostState(BaseState):
         host = sysinv_client.get_host(self.target_hostname)
 
         # if the host is already in the desired state, no need for action
-        if host.administrative == ADMIN_LOCKED:
+        if host.administrative == consts.ADMIN_LOCKED:
             msg = "Host: %s already: %s." % (self.target_hostname,
                                              host.administrative)
             self.info_log(strategy_step, msg)
-            return True
+            return self.next_state
 
         # Invoke the action
         # ihost_action is 'lock' and task is set to 'Locking'
@@ -60,7 +60,7 @@ class LockHostState(BaseState):
                 raise StrategyStoppedException()
             # query the administrative state to see if it is the new state.
             host = sysinv_client.get_host(self.target_hostname)
-            if host.administrative == ADMIN_LOCKED:
+            if host.administrative == consts.ADMIN_LOCKED:
                 msg = "Host: %s is now: %s" % (self.target_hostname,
                                                host.administrative)
                 self.info_log(strategy_step, msg)
@@ -73,4 +73,4 @@ class LockHostState(BaseState):
         # If we are here, the loop broke out cleanly and the action succeeded
         # When we return from this method without throwing an exception, the
         # state machine can proceed to the next state
-        return True
+        return self.next_state

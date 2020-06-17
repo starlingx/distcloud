@@ -11,7 +11,6 @@ from dccommon.install_consts import ANSIBLE_SUBCLOUD_INSTALL_PLAYBOOK
 from dccommon.subcloud_install import SubcloudInstall
 
 from dcmanager.common import consts
-from dcmanager.common.consts import INVENTORY_FILE_POSTFIX
 from dcmanager.common import utils
 from dcmanager.db import api as db_api
 from dcmanager.manager.states.base import BaseState
@@ -27,13 +26,14 @@ class UpgradingSimplexState(BaseState):
     """Upgrade state for upgrading a simplex subcloud host"""
 
     def __init__(self):
-        super(UpgradingSimplexState, self).__init__()
+        super(UpgradingSimplexState, self).__init__(
+            next_state=consts.STRATEGY_STATE_MIGRATING_DATA)
 
     def perform_state_action(self, strategy_step):
         """Upgrade a simplex host on a subcloud
 
-        Any exceptions raised by this method set the strategy to FAILED
-        Returning normally from this method set the strategy to the next step
+        Returns the next state in the state machine on success.
+        Any exceptions raised by this method set the strategy to FAILED.
         """
 
         LOG.info("Performing simplex upgrade for subcloud %s" %
@@ -65,7 +65,7 @@ class UpgradingSimplexState(BaseState):
                 target_version, subcloud_sysinv_client):
             self.info_log(strategy_step,
                           "Load:%s already active" % target_version)
-            return True
+            return self.next_state
 
         # Check whether subcloud supports redfish, and if not, fail.
         # This needs to be inferred from absence of install_values as
@@ -78,6 +78,7 @@ class UpgradingSimplexState(BaseState):
         # Upgrade the subcloud to the install_values image
         self.perform_subcloud_install(
             strategy_step, local_ks_client.session, install_values)
+        return self.next_state
 
     def _check_load_already_active(self, target_version, subcloud_sysinv_client):
         """Check if the target_version is already active in subcloud"""
@@ -347,7 +348,7 @@ class UpgradingSimplexState(BaseState):
 
         ansible_subcloud_inventory_file = os.path.join(
             consts.ANSIBLE_OVERRIDES_PATH,
-            strategy_step.subcloud.name + INVENTORY_FILE_POSTFIX)
+            strategy_step.subcloud.name + consts.INVENTORY_FILE_POSTFIX)
 
         # Create the ansible inventory for the upgrade subcloud
         utils.create_subcloud_inventory(install_values,

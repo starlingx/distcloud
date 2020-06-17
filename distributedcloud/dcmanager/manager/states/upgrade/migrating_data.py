@@ -53,7 +53,8 @@ class MigratingDataState(BaseState):
     """Upgrade step for migrating data"""
 
     def __init__(self):
-        super(MigratingDataState, self).__init__()
+        super(MigratingDataState, self).__init__(
+            next_state=consts.STRATEGY_STATE_UNLOCKING_CONTROLLER)
 
         self.ansible_sleep = DEFAULT_ANSIBLE_SLEEP
         self.max_api_queries = DEFAULT_MAX_API_QUERIES
@@ -164,13 +165,13 @@ class MigratingDataState(BaseState):
     def perform_state_action(self, strategy_step):
         """Migrate data for an upgrade on a subcloud
 
-        Any exceptions raised by this method set the strategy to FAILED
-        Returning normally from this method set the strategy to the next step
+        Returns the next state in the state machine on success.
+        Any exceptions raised by this method set the strategy to FAILED.
         """
 
         if not self.is_subcloud_data_migration_required(strategy_step):
             self.info_log(strategy_step, "Data migration is already done.")
-            return True
+            return self.next_state
 
         self.info_log(strategy_step, "Start migrating data...")
         db_api.subcloud_update(
@@ -209,4 +210,4 @@ class MigratingDataState(BaseState):
         self.wait_for_unlock(strategy_step)
 
         self.info_log(strategy_step, "Data migration completed.")
-        return True
+        return self.next_state

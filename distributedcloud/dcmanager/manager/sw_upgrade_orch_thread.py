@@ -39,6 +39,7 @@ from dcmanager.manager.states.upgrade.installing_license \
     import InstallingLicenseState
 from dcmanager.manager.states.upgrade.migrating_data \
     import MigratingDataState
+from dcmanager.manager.states.upgrade.pre_check import PreCheckState
 from dcmanager.manager.states.upgrade.starting_upgrade \
     import StartingUpgradeState
 from dcmanager.manager.states.upgrade.upgrading_simplex \
@@ -46,21 +47,9 @@ from dcmanager.manager.states.upgrade.upgrading_simplex \
 
 LOG = logging.getLogger(__name__)
 
-# The state machine transition order for an APPLY
-ORDERED_STATES = [
-    consts.STRATEGY_STATE_INSTALLING_LICENSE,
-    consts.STRATEGY_STATE_IMPORTING_LOAD,
-    consts.STRATEGY_STATE_STARTING_UPGRADE,
-    consts.STRATEGY_STATE_LOCKING_CONTROLLER,
-    consts.STRATEGY_STATE_UPGRADING_SIMPLEX,
-    consts.STRATEGY_STATE_MIGRATING_DATA,
-    consts.STRATEGY_STATE_UNLOCKING_CONTROLLER,
-    consts.STRATEGY_STATE_ACTIVATING_UPGRADE,
-    consts.STRATEGY_STATE_COMPLETING_UPGRADE,
-]
-
-# every state in ORDERED_STATES should have an operator
+# every state should have an operator
 STATE_OPERATORS = {
+    consts.STRATEGY_STATE_PRE_CHECK: PreCheckState,
     consts.STRATEGY_STATE_INSTALLING_LICENSE: InstallingLicenseState,
     consts.STRATEGY_STATE_IMPORTING_LOAD: ImportingLoadState,
     consts.STRATEGY_STATE_STARTING_UPGRADE: StartingUpgradeState,
@@ -105,7 +94,7 @@ class SwUpgradeOrchThread(threading.Thread):
         self.subcloud_workers = dict()
 
         # When an upgrade is initiated, this is the first state
-        self.starting_state = ORDERED_STATES[0]
+        self.starting_state = consts.STRATEGY_STATE_PRE_CHECK
 
     def stopped(self):
         return self._stop.isSet()
@@ -143,17 +132,6 @@ class SwUpgradeOrchThread(threading.Thread):
         state_operator = STATE_OPERATORS.get(strategy_step.state)
         # instantiate and return the state_operator class
         return state_operator()
-
-    @staticmethod
-    def determine_next_state(strategy_step):
-        """Return next state for the strategy step based on current state."""
-        # todo(abailey): next_state may differ for AIO, STD, etc.. subclouds
-        next_index = ORDERED_STATES.index(strategy_step.state) + 1
-        if next_index < len(ORDERED_STATES):
-            next_state = ORDERED_STATES[next_index]
-        else:
-            next_state = consts.STRATEGY_STATE_COMPLETE
-        return next_state
 
     def strategy_step_update(self, subcloud_id, state=None, details=None):
         """Update the strategy step in the DB
@@ -405,9 +383,8 @@ class SwUpgradeOrchThread(threading.Thread):
             # Instantiate the state operator and perform the state actions
             state_operator = self.determine_state_operator(strategy_step)
             state_operator.registerStopEvent(self._stop)
-            state_operator.perform_state_action(strategy_step)
+            next_state = state_operator.perform_state_action(strategy_step)
             # If we get here without an exception raised, proceed to next state
-            next_state = self.determine_next_state(strategy_step)
             self.strategy_step_update(strategy_step.subcloud_id,
                                       state=next_state)
         except Exception as e:

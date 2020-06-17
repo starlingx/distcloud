@@ -20,10 +20,14 @@ LOG = logging.getLogger(__name__)
 @six.add_metaclass(abc.ABCMeta)
 class BaseState(object):
 
-    def __init__(self):
+    def __init__(self, next_state):
         super(BaseState, self).__init__()
+        self.next_state = next_state
         self.context = context.get_admin_context()
         self._stop = None
+
+    def override_next_state(self, next_state):
+        self.next_state = next_state
 
     def registerStopEvent(self, stop_event):
         """Store an orch_thread threading.Event to detect stop."""
@@ -95,5 +99,9 @@ class BaseState(object):
 
     @abc.abstractmethod
     def perform_state_action(self, strategy_step):
-        """Perform the action for this state on the strategy_step"""
+        """Perform the action for this state on the strategy_step
+
+        Returns the next state in the state machine on success.
+        Any exceptions raised by this method set the strategy to FAILED.
+        """
         pass

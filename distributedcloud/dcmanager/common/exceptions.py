@@ -178,6 +178,11 @@ class LicenseMissingError(DCManagerException):
     message = _("License does not exist on subcloud: %(subcloud_id)s")
 
 
+class ManualRecoveryRequiredException(DCManagerException):
+    message = _("Offline Subcloud: %(subcloud)s needs manual recovery from "
+                "deploy state:%(deploy_state)s")
+
+
 class VaultLoadMissingError(DCManagerException):
     message = _("No matching: %(file_type) found in vault: %(vault_dir)")
 

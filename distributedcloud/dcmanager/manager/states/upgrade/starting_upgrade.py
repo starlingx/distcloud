@@ -6,6 +6,7 @@
 import time
 
 from dccommon.drivers.openstack.vim import ALARM_RESTRICTIONS_RELAXED
+from dcmanager.common import consts
 from dcmanager.common.exceptions import StrategyStoppedException
 from dcmanager.common import utils
 from dcmanager.manager.states.base import BaseState
@@ -21,7 +22,8 @@ class StartingUpgradeState(BaseState):
     """Upgrade state for starting an upgrade on a subcloud"""
 
     def __init__(self):
-        super(StartingUpgradeState, self).__init__()
+        super(StartingUpgradeState, self).__init__(
+            next_state=consts.STRATEGY_STATE_LOCKING_CONTROLLER)
         self.sleep_duration = DEFAULT_SLEEP_DURATION
         self.max_queries = DEFAULT_MAX_QUERIES
 
@@ -35,8 +37,8 @@ class StartingUpgradeState(BaseState):
     def perform_state_action(self, strategy_step):
         """Start an upgrade on a subcloud
 
-        Any exceptions raised by this method set the strategy to FAILED
-        Returning normally from this method set the strategy to the next step
+        Returns the next state in the state machine on success.
+        Any exceptions raised by this method set the strategy to FAILED.
         """
         # get the keystone and sysinv clients for the subcloud
         ks_client = self.get_keystone_client(strategy_step.subcloud.name)
@@ -51,7 +53,7 @@ class StartingUpgradeState(BaseState):
                 # If a previous upgrade exists (even one that failed) skip
                 self.info_log(strategy_step,
                               "An upgrade already exists: %s" % upgrade)
-                return True
+                return self.next_state
         else:
             # invoke the API 'upgrade-start'.
             # query the alarm_restriction_type from DB SwUpdateOpts
@@ -85,4 +87,4 @@ class StartingUpgradeState(BaseState):
 
         # When we return from this method without throwing an exception, the
         # state machine can proceed to the next state
-        return True
+        return self.next_state

@@ -8,6 +8,7 @@ import uuid
 
 from dcmanager.common import consts
 from dcmanager.manager.states.base import BaseState
+from oslo_utils import timeutils
 
 from dcmanager.tests.unit.manager.test_sw_upgrade import TestSwUpgrade
 
@@ -85,6 +86,37 @@ class FakeController(object):
         self.ihost_action = ihost_action
         self.target_load = target_load
         self.task = task
+
+
+class FakeSubcloud(object):
+    def __init__(self,
+                 subcloud_id=1,
+                 name='subcloud1',
+                 description='subcloud',
+                 location='A location',
+                 software_version='12.34',
+                 management_state=consts.MANAGEMENT_MANAGED,
+                 availability_status=consts.AVAILABILITY_ONLINE,
+                 deploy_status=consts.DEPLOY_STATE_DONE):
+        self.id = subcloud_id
+        self.name = name
+        self.description = description
+        self.location = location
+        self.software_version = software_version
+        self.management_state = management_state
+        self.availability_status = availability_status
+        self.deploy_status = deploy_status
+        # todo(abailey): add these and re-factor other unit tests to use
+        # self.management_subnet = management_subnet
+        # self.management_gateway_ip = management_gateway_ip
+        # self.management_start_ip = management_start_ip
+        # self.management_end_ip = management_end_ip
+        # self.external_oam_subnet = external_oam_subnet
+        # self.external_oam_gateway_address = external_oam_gateway_address
+        # self.external_oam_floating_address = external_oam_floating_address
+        # self.systemcontroller_gateway_ip = systemcontroller_gateway_ip
+        self.created_at = timeutils.utcnow()
+        self.updated_at = timeutils.utcnow()
 
 
 class TestSwUpgradeState(TestSwUpgrade):

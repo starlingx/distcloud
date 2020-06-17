@@ -15,7 +15,8 @@ class InstallingLicenseState(BaseState):
     """Upgrade state action for installing a license"""
 
     def __init__(self):
-        super(InstallingLicenseState, self).__init__()
+        super(InstallingLicenseState, self).__init__(
+            next_state=consts.STRATEGY_STATE_IMPORTING_LOAD)
 
     @staticmethod
     def license_up_to_date(target_license, existing_license):
@@ -24,8 +25,8 @@ class InstallingLicenseState(BaseState):
     def perform_state_action(self, strategy_step):
         """Install the License for a software upgrade in this subcloud
 
-        Any exceptions raised by this method set the strategy to FAILED
-        Returning normally from this method set the strategy to the next step
+        Returns the next state in the state machine on success.
+        Any exceptions raised by this method set the strategy to FAILED.
         """
 
         # check if the the system controller has a license
@@ -47,7 +48,7 @@ class InstallingLicenseState(BaseState):
                 self.info_log(strategy_step,
                               "System Controller License missing: %s."
                               % target_error)
-                return True
+                return self.next_state
             else:
                 # An unexpected error occurred querying the license
                 raise exceptions.LicenseInstallError(
@@ -68,7 +69,7 @@ class InstallingLicenseState(BaseState):
         if len(subcloud_error) == 0:
             if self.license_up_to_date(target_license, subcloud_license):
                 self.info_log(strategy_step, "License up to date.")
-                return True
+                return self.next_state
             else:
                 self.debug_log(strategy_step, "License mismatch. Updating.")
         else:
@@ -83,4 +84,4 @@ class InstallingLicenseState(BaseState):
 
         # The license has been successfully installed. Move to the next stage
         self.info_log(strategy_step, "License installed.")
-        return True
+        return self.next_state

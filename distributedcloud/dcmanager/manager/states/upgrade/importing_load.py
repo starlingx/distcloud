@@ -19,7 +19,8 @@ class ImportingLoadState(BaseState):
     """Upgrade state for importing a load"""
 
     def __init__(self):
-        super(ImportingLoadState, self).__init__()
+        super(ImportingLoadState, self).__init__(
+            next_state=consts.STRATEGY_STATE_STARTING_UPGRADE)
         # max time to wait (in seconds) is: sleep_duration * max_queries
         self.sleep_duration = DEFAULT_SLEEP_DURATION
         self.max_queries = DEFAULT_MAX_QUERIES
@@ -27,8 +28,8 @@ class ImportingLoadState(BaseState):
     def perform_state_action(self, strategy_step):
         """Import a load on a subcloud
 
-        Any exceptions raised by this method set the strategy to FAILED
-        Returning normally from this method set the strategy to the next step
+        Returns the next state in the state machine on success.
+        Any exceptions raised by this method set the strategy to FAILED.
         """
         # determine the version of the system controller in region one
         local_ks_client = self.get_keystone_client()
@@ -48,7 +49,7 @@ class ImportingLoadState(BaseState):
             if load.software_version == target_version:
                 self.info_log(strategy_step,
                               "Load:%s already found" % target_version)
-                return True
+                return self.next_state
 
         # If we are here, the load needs to be imported
         # ISO and SIG files are found in the vault under a version directory
@@ -82,4 +83,4 @@ class ImportingLoadState(BaseState):
 
         # When we return from this method without throwing an exception, the
         # state machine can proceed to the next state
-        return True
+        return self.next_state

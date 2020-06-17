@@ -5,8 +5,7 @@
 #
 import time
 
-from dcmanager.common.consts import ADMIN_UNLOCKED
-from dcmanager.common.consts import OPERATIONAL_ENABLED
+from dcmanager.common import consts
 from dcmanager.common.exceptions import StrategyStoppedException
 from dcmanager.manager.states.base import BaseState
 
@@ -27,7 +26,8 @@ class UnlockHostState(BaseState):
     """Orchestration state for unlocking a host."""
 
     def __init__(self, hostname='controller-0'):
-        super(UnlockHostState, self).__init__()
+        super(UnlockHostState, self).__init__(
+            next_state=consts.STRATEGY_STATE_ACTIVATING_UPGRADE)
         self.target_hostname = hostname
         self.max_api_queries = DEFAULT_MAX_API_QUERIES
         self.api_sleep_duration = DEFAULT_API_SLEEP
@@ -37,8 +37,8 @@ class UnlockHostState(BaseState):
     def perform_state_action(self, strategy_step):
         """Unlocks a host on the subcloud
 
-        Any exceptions raised by this method set the strategy to FAILED
-        Returning normally from this method set the strategy to the next step
+        Returns the next state in the state machine on success.
+        Any exceptions raised by this method set the strategy to FAILED.
         """
 
         # Create a sysinv client on the subcloud
@@ -49,11 +49,11 @@ class UnlockHostState(BaseState):
         host = sysinv_client.get_host(self.target_hostname)
 
         # if the host is already in the desired state, no need for action
-        if host.administrative == ADMIN_UNLOCKED:
+        if host.administrative == consts.ADMIN_UNLOCKED:
             msg = "Host: %s already: %s." % (self.target_hostname,
                                              host.administrative)
             self.info_log(strategy_step, msg)
-            return True
+            return self.next_state
 
         # Invoke the action
         # ihost_action is 'unlock' and task is set to 'Unlocking'
@@ -78,8 +78,8 @@ class UnlockHostState(BaseState):
             try:
                 # query the administrative state to see if it is the new state.
                 host = sysinv_client.get_host(self.target_hostname)
-                if (host.administrative == ADMIN_UNLOCKED and
-                        host.operational == OPERATIONAL_ENABLED):
+                if (host.administrative == consts.ADMIN_UNLOCKED and
+                        host.operational == consts.OPERATIONAL_ENABLED):
                     # Success. Break out of the loop.
                     msg = "Host: %s is now: %s %s" % (self.target_hostname,
                                                       host.administrative,
@@ -126,4 +126,4 @@ class UnlockHostState(BaseState):
         # If we are here, the loop broke out cleanly and the action succeeded
         # When we return from this method without throwing an exception, the
         # state machine can proceed to the next state
-        return True
+        return self.next_state

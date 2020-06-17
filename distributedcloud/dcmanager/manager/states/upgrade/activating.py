@@ -5,6 +5,7 @@
 #
 import time
 
+from dcmanager.common import consts
 from dcmanager.common.exceptions import StrategyStoppedException
 from dcmanager.manager.states.base import BaseState
 
@@ -22,7 +23,8 @@ class ActivatingUpgradeState(BaseState):
     """Upgrade state actions for activating an upgrade"""
 
     def __init__(self):
-        super(ActivatingUpgradeState, self).__init__()
+        super(ActivatingUpgradeState, self).__init__(
+            next_state=consts.STRATEGY_STATE_COMPLETING_UPGRADE)
         # max time to wait (in seconds) is: sleep_duration * max_queries
         self.sleep_duration = DEFAULT_SLEEP_DURATION
         self.max_queries = DEFAULT_MAX_QUERIES
@@ -38,8 +40,8 @@ class ActivatingUpgradeState(BaseState):
     def perform_state_action(self, strategy_step):
         """Activate an upgrade on a subcloud
 
-        Any exceptions raised by this method set the strategy to FAILED
-        Returning normally from this method set the strategy to the next step
+        Returns the next state in the state machine on success.
+        Any exceptions raised by this method set the strategy to FAILED.
         """
         # get the keystone and sysinv clients for the subcloud
         ks_client = self.get_keystone_client(strategy_step.subcloud.name)
@@ -52,7 +54,7 @@ class ActivatingUpgradeState(BaseState):
         if upgrade_state in ACTIVATING_COMPLETED_STATES:
             self.info_log(strategy_step,
                           "Already in an activating state:%s" % upgrade_state)
-            return True
+            return self.next_state
 
         # invoke the API 'upgrade-activate'.
         # Throws an exception on failure (no upgrade found, bad host state)
@@ -78,4 +80,4 @@ class ActivatingUpgradeState(BaseState):
 
         # When we return from this method without throwing an exception, the
         # state machine can proceed to the next state
-        return True
+        return self.next_state
