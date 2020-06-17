@@ -38,6 +38,8 @@ OCF_RESKEY_pid_default="$HA_RSCTMP/$OCF_RESOURCE_INSTANCE.pid"
 : ${OCF_RESKEY_user=${OCF_RESKEY_user_default}}
 : ${OCF_RESKEY_pid=${OCF_RESKEY_pid_default}}
 
+export TMPDIR=/var/run/dcmanager
+
 #######################################################################
 
 usage() {
