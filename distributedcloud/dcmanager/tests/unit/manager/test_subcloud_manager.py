@@ -73,6 +73,10 @@ FAKE_SERVICES = [
         dcorch_consts.ENDPOINT_TYPE_NFV,
         5
     ),
+    FakeService(
+        dcorch_consts.ENDPOINT_TYPE_DC_CERT,
+        6
+    )
 ]
 
 
@@ -357,7 +361,8 @@ class TestSubcloudManager(base.DCManagerTestCase):
                          dcorch_consts.ENDPOINT_TYPE_IDENTITY,
                          dcorch_consts.ENDPOINT_TYPE_PATCHING,
                          dcorch_consts.ENDPOINT_TYPE_FM,
-                         dcorch_consts.ENDPOINT_TYPE_NFV]:
+                         dcorch_consts.ENDPOINT_TYPE_NFV,
+                         dcorch_consts.ENDPOINT_TYPE_DC_CERT]:
             status = db_api.subcloud_status_create(
                 self.ctx, subcloud.id, endpoint)
             self.assertIsNotNone(status)
@@ -369,7 +374,8 @@ class TestSubcloudManager(base.DCManagerTestCase):
                          dcorch_consts.ENDPOINT_TYPE_IDENTITY,
                          dcorch_consts.ENDPOINT_TYPE_PATCHING,
                          dcorch_consts.ENDPOINT_TYPE_FM,
-                         dcorch_consts.ENDPOINT_TYPE_NFV]:
+                         dcorch_consts.ENDPOINT_TYPE_NFV,
+                         dcorch_consts.ENDPOINT_TYPE_DC_CERT]:
             # Update
             sm.update_subcloud_endpoint_status(
                 self.ctx, subcloud_name=subcloud.name,
@@ -388,7 +394,8 @@ class TestSubcloudManager(base.DCManagerTestCase):
                          dcorch_consts.ENDPOINT_TYPE_IDENTITY,
                          dcorch_consts.ENDPOINT_TYPE_PATCHING,
                          dcorch_consts.ENDPOINT_TYPE_FM,
-                         dcorch_consts.ENDPOINT_TYPE_NFV]:
+                         dcorch_consts.ENDPOINT_TYPE_NFV,
+                         dcorch_consts.ENDPOINT_TYPE_DC_CERT]:
             sm.update_subcloud_endpoint_status(
                 self.ctx, subcloud_name=subcloud.name,
                 endpoint_type=endpoint,
@@ -431,6 +438,19 @@ class TestSubcloudManager(base.DCManagerTestCase):
             self.assertEqual(updated_subcloud_status.sync_status,
                              consts.SYNC_STATUS_OUT_OF_SYNC)
 
+        endpoint = dcorch_consts.ENDPOINT_TYPE_DC_CERT
+        sm.update_subcloud_endpoint_status(
+            self.ctx, subcloud_name=subcloud.name,
+            endpoint_type=endpoint,
+            sync_status=consts.SYNC_STATUS_IN_SYNC)
+
+        updated_subcloud_status = db_api.subcloud_status_get(
+            self.ctx, subcloud.id, endpoint)
+        self.assertIsNotNone(updated_subcloud_status)
+        # No change in status: Only online/managed clouds are updated
+        self.assertEqual(updated_subcloud_status.sync_status,
+                         consts.SYNC_STATUS_IN_SYNC)
+
         # Set/verify the subcloud is online/managed
         db_api.subcloud_update(
             self.ctx, subcloud.id,
@@ -448,7 +468,8 @@ class TestSubcloudManager(base.DCManagerTestCase):
                          dcorch_consts.ENDPOINT_TYPE_IDENTITY,
                          dcorch_consts.ENDPOINT_TYPE_PATCHING,
                          dcorch_consts.ENDPOINT_TYPE_FM,
-                         dcorch_consts.ENDPOINT_TYPE_NFV]:
+                         dcorch_consts.ENDPOINT_TYPE_NFV,
+                         dcorch_consts.ENDPOINT_TYPE_DC_CERT]:
             sm.update_subcloud_endpoint_status(
                 self.ctx, subcloud_name=subcloud.name,
                 endpoint_type=endpoint,
@@ -467,7 +488,8 @@ class TestSubcloudManager(base.DCManagerTestCase):
                              dcorch_consts.ENDPOINT_TYPE_IDENTITY,
                              dcorch_consts.ENDPOINT_TYPE_PATCHING,
                              dcorch_consts.ENDPOINT_TYPE_FM,
-                             dcorch_consts.ENDPOINT_TYPE_NFV]:
+                             dcorch_consts.ENDPOINT_TYPE_NFV,
+                             dcorch_consts.ENDPOINT_TYPE_DC_CERT]:
                 sm.update_subcloud_endpoint_status(
                     self.ctx, subcloud_name=subcloud.name,
                     endpoint_type=endpoint,
@@ -485,11 +507,27 @@ class TestSubcloudManager(base.DCManagerTestCase):
     def test_update_subcloud_availability_go_online(self):
         # create a subcloud
         subcloud = self.create_subcloud_static(self.ctx, name='subcloud1')
+
         self.assertIsNotNone(subcloud)
         self.assertEqual(subcloud.availability_status,
                          consts.AVAILABILITY_OFFLINE)
 
         sm = subcloud_manager.SubcloudManager()
+        db_api.subcloud_update(self.ctx, subcloud.id,
+                               management_state=consts.MANAGEMENT_MANAGED)
+
+        # create sync statuses for endpoints
+        for endpoint in [dcorch_consts.ENDPOINT_TYPE_PLATFORM,
+                         dcorch_consts.ENDPOINT_TYPE_IDENTITY,
+                         dcorch_consts.ENDPOINT_TYPE_PATCHING,
+                         dcorch_consts.ENDPOINT_TYPE_FM,
+                         dcorch_consts.ENDPOINT_TYPE_NFV,
+                         dcorch_consts.ENDPOINT_TYPE_DC_CERT]:
+            status = db_api.subcloud_status_create(
+                self.ctx, subcloud.id, endpoint)
+            self.assertIsNotNone(status)
+            self.assertEqual(status.sync_status, consts.SYNC_STATUS_UNKNOWN)
+
         sm.update_subcloud_availability(self.ctx, subcloud.name,
                                         consts.AVAILABILITY_ONLINE)
 
