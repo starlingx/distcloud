@@ -22,6 +22,7 @@ from oslo_log import log as logging
 from oslo_utils import timeutils
 
 from dccommon import consts as dccommon_consts
+from dccommon.endpoint_cache import EndpointCache
 from dcdbsync.dbsyncclient import client as dbsyncclient
 from dcmanager.common import consts as dcmanager_consts
 from dcmanager.rpc import client as dcmanager_rpc_client
@@ -33,8 +34,6 @@ from dcorch.objects import orchrequest
 from dcorch.objects import resource
 from dcorch.objects import subcloud_resource
 
-from keystoneauth1 import loading
-from keystoneauth1 import session
 from keystoneclient import client as keystoneclient
 
 
@@ -125,28 +124,30 @@ class SyncThread(object):
     def initialize(self):
         # base implementation of initializing the master client.
         # The specific SyncThread subclasses may extend this.
-        loader = loading.get_plugin_loader(
-            cfg.CONF.keystone_authtoken.auth_type)
 
-        config = None
         if self.endpoint_type in consts.ENDPOINT_TYPES_LIST:
-            config = cfg.CONF.cache
+            config = cfg.CONF.endpoint_cache
+            self.admin_session = EndpointCache.get_admin_session(
+                config.auth_uri,
+                config.username,
+                config.user_domain_name,
+                config.password,
+                config.project_name,
+                config.project_domain_name,
+                timeout=60)
         elif self.endpoint_type in dccommon_consts.ENDPOINT_TYPES_LIST_OS:
             config = cfg.CONF.openstack_cache
+            self.admin_session = EndpointCache.get_admin_session(
+                config.auth_uri,
+                config.admin_username,
+                config.admin_user_domain_name,
+                config.admin_password,
+                config.admin_tenant,
+                config.admin_project_domain_name,
+                timeout=60)
         else:
             raise exceptions.EndpointNotSupported(
                 endpoint=self.endpoint_type)
-
-        auth = loader.load_from_options(
-            auth_url=config.auth_uri,
-            username=config.admin_username,
-            password=config.admin_password,
-            project_name=config.admin_tenant,
-            project_domain_name=config.admin_project_domain_name,
-            user_domain_name=config.admin_user_domain_name)
-        self.admin_session = session.Session(
-            auth=auth, timeout=60,
-            additional_headers=dccommon_consts.USER_HEADER)
 
         # keystone client
         self.ks_client = keystoneclient.Client(
@@ -180,26 +181,31 @@ class SyncThread(object):
                          extra=self.log_extra)
                 return
 
-            loader = loading.get_plugin_loader(
-                cfg.CONF.keystone_authtoken.auth_type)
-
             config = None
             if self.endpoint_type in consts.ENDPOINT_TYPES_LIST:
-                config = cfg.CONF.cache
+                config = cfg.CONF.endpoint_cache
+                self.sc_admin_session = EndpointCache.get_admin_session(
+                    sc_auth_url,
+                    config.username,
+                    config.user_domain_name,
+                    config.password,
+                    config.project_name,
+                    config.project_domain_name,
+                    timeout=60)
             elif self.endpoint_type in dccommon_consts.ENDPOINT_TYPES_LIST_OS:
                 config = cfg.CONF.openstack_cache
+                self.sc_admin_session = EndpointCache.get_admin_session(
+                    sc_auth_url,
+                    config.admin_username,
+                    config.admin_user_domain_name,
+                    config.admin_password,
+                    config.admin_tenant,
+                    config.admin_project_domain_name,
+                    timeout=60)
 
-            sc_auth = loader.load_from_options(
-                auth_url=sc_auth_url,
-                username=config.admin_username,
-                password=config.admin_password,
-                project_name=config.admin_tenant,
-                project_domain_name=config.admin_project_domain_name,
-                user_domain_name=config.admin_user_domain_name)
-
-            self.sc_admin_session = session.Session(
-                auth=sc_auth, timeout=60,
-                additional_headers=dccommon_consts.USER_HEADER)
+            if config is cfg.CONF.endpoint_cache:
+                self.sc_admin_session = EndpointCache.get_admin_backup_session(
+                    self.sc_admin_session, config.username, sc_auth_url)
 
     def initial_sync(self):
         # Return True to indicate initial sync success

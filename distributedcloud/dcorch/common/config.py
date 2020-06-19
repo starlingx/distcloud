@@ -133,7 +133,7 @@ cinder_quotas = [
                     'for backups per project.')
 ]
 
-# OpenStack credentials used for Endpoint Cache
+# OpenStack admin user credentials used for Endpoint Cache
 cache_opts = [
     cfg.StrOpt('auth_uri',
                help='Keystone authorization url'),
@@ -156,6 +156,29 @@ cache_opts = [
                default='Default',
                help='Project domain name of admin account, needed when'
                     ' auto_refresh_endpoint set to True')
+]
+
+# OpenStack credentials used for Endpoint Cache
+endpoint_cache_opts = [
+    cfg.StrOpt('auth_uri',
+               help='Keystone authorization url'),
+    cfg.StrOpt('auth_plugin',
+               help='Name of the plugin to load'),
+    cfg.StrOpt('username',
+               help='Username of account'),
+    cfg.StrOpt('password',
+               help='Password of account'),
+    cfg.StrOpt('project_name',
+               help='Project name of account'),
+    cfg.StrOpt('user_domain_name',
+               default='Default',
+               help='User domain name of account'),
+    cfg.StrOpt('project_domain_name',
+               default='Default',
+               help='Project domain name of account'),
+    cfg.IntOpt('http_connect_timeout',
+               help='Request timeout value for communicating with Identity'
+                    ' API server.'),
 ]
 
 scheduler_opts = [
@@ -195,7 +218,10 @@ pecan_group = cfg.OptGroup(name='pecan',
                            title='Pecan options')
 
 cache_opt_group = cfg.OptGroup(name='cache',
-                               title='OpenStack Credentials')
+                               title='OpenStack Admin Credentials')
+
+endpoint_cache_opt_group = cfg.OptGroup(name='endpoint_cache',
+                                        title='OpenStack Credentials')
 
 openstack_cache_opt_group = cfg.OptGroup(name='openstack_cache',
                                          title='Containerized OpenStack'
@@ -210,6 +236,7 @@ def list_opts():
     yield default_quota_group.name, neutron_quotas
     yield default_quota_group.name, cinder_quotas
     yield cache_opt_group.name, cache_opts
+    yield endpoint_cache_opt_group.name, endpoint_cache_opts
     yield openstack_cache_opt_group.name, cache_opts
     yield scheduler_opt_group.name, scheduler_opts
     yield pecan_group.name, pecan_opts
