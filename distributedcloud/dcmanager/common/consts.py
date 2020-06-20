@@ -128,6 +128,8 @@ DEPLOY_STATE_BOOTSTRAPPING = 'bootstrapping'
 DEPLOY_STATE_BOOTSTRAP_FAILED = 'bootstrap-failed'
 DEPLOY_STATE_DEPLOYING = 'deploying'
 DEPLOY_STATE_DEPLOY_FAILED = 'deploy-failed'
+DEPLOY_STATE_MIGRATING_DATA = 'migrating-data'
+DEPLOY_STATE_DATA_MIGRATION_FAILED = 'data-migration-failed'
 DEPLOY_STATE_DONE = 'complete'
 
 # Alarm aggregation

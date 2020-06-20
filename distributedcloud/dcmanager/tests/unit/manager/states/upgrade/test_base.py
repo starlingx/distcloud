@@ -31,6 +31,7 @@ class FakeLoad(object):
                  updated_at=None):
         self.id = obj_id
         self.uuid = uuid.uuid4()
+        self.compatible_version = compatible_version
         self.required_patches = required_patches
         self.software_version = software_version
         self.state = state
