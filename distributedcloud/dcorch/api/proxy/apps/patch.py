@@ -156,7 +156,7 @@ class PatchAPIController(Middleware):
         # write the patch to a temporary directory first
         tempdir = tempfile.mkdtemp(prefix="patch_proxy_", dir='/scratch')
         fn = tempdir + '/' + os.path.basename(filename)
-        dst = os.open(fn, os.O_WRONLY | os.O_CREAT)
+        dst = os.open(fn, os.O_WRONLY | os.O_CREAT | os.O_TRUNC)
         size = 64 * 1024
         n = size
         while n >= size:

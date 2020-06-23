@@ -66,7 +66,7 @@ class SubcloudDeployController(object):
             dst = open(fn, 'wb')
             dst.write(contents)
         else:
-            dst = os.open(fn, os.O_WRONLY | os.O_CREAT)
+            dst = os.open(fn, os.O_WRONLY | os.O_CREAT | os.O_TRUNC)
             os.write(dst, contents)
 
     @expose(generic=True, template='json')
