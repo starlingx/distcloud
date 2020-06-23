@@ -162,6 +162,21 @@ class SubcloudsController(object):
         return payload
 
     @staticmethod
+    def _get_patch_data(request):
+        fields = ['management-state', 'description', 'location', 'group_id',
+                  'bmc_password', INSTALL_VALUES]
+        payload = dict()
+        multipart_data = decoder.MultipartDecoder(
+            request.body, pecan.request.headers.get('Content-Type'))
+        for f in fields:
+            for part in multipart_data.parts:
+                header = part.headers.get('Content-Disposition')
+                if f in header:
+                    data = yaml.safe_load(part.content.decode('utf8'))
+                    payload.update({f: data})
+        return payload
+
+    @staticmethod
     def _get_reconfig_payload(request, subcloud_name):
         payload = dict()
         multipart_data = decoder.MultipartDecoder(request.body,
@@ -345,7 +360,7 @@ class SubcloudsController(object):
         if not bmc_password:
             pecan.abort(400, _('subcloud bmc_password required'))
         try:
-            bmc_password = base64.b64decode(bmc_password).decode('utf-8')
+            base64.b64decode(bmc_password).decode('utf-8')
         except Exception:
             msg = _('Failed to decode subcloud bmc_password, verify'
                     ' the password is base64 encoded')
@@ -782,7 +797,7 @@ class SubcloudsController(object):
         subcloud_id = subcloud.id
 
         if reconfigure is None:
-            payload = eval(request.body)
+            payload = self._get_patch_data(request)
             if not payload:
                 pecan.abort(400, _('Body required'))
 
@@ -790,9 +805,6 @@ class SubcloudsController(object):
             description = payload.get('description')
             location = payload.get('location')
             group_id = payload.get('group_id')
-
-            if not (management_state or description or location or group_id):
-                pecan.abort(400, _('nothing to update'))
 
             # Syntax checking
             if management_state and \
@@ -807,12 +819,18 @@ class SubcloudsController(object):
                 except exceptions.SubcloudGroupNotFound:
                     pecan.abort(400, _('Invalid group-id'))
 
+            data_install = None
+            if INSTALL_VALUES in payload:
+                self._validate_install_values(payload)
+                data_install = json.dumps(payload[INSTALL_VALUES])
+
             try:
                 # Inform dcmanager-manager that subcloud has been updated.
                 # It will do all the real work...
                 subcloud = self.rpc_client.update_subcloud(
                     context, subcloud_id, management_state=management_state,
-                    description=description, location=location, group_id=group_id)
+                    description=description, location=location, group_id=group_id,
+                    data_install=data_install)
                 return subcloud
             except RemoteError as e:
                 pecan.abort(422, e.value)

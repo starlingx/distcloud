@@ -290,7 +290,30 @@ class TestSubcloudManager(base.DCManagerTestCase):
             management_state=consts.MANAGEMENT_MANAGED,
             description="subcloud new description",
             location="subcloud new location",
-            group_id=None)
+            group_id=None,
+            data_install=None)
+
+    @mock.patch.object(subcloud_manager, 'db_api')
+    def test_update_subcloud_with_install_values(self, mock_db_api):
+        data = utils.create_subcloud_dict(base.SUBCLOUD_SAMPLE_DATA_0)
+        subcloud_result = Subcloud(data, True)
+        mock_db_api.subcloud_get.return_value = subcloud_result
+        mock_db_api.subcloud_update.return_value = subcloud_result
+        sm = subcloud_manager.SubcloudManager()
+        sm.update_subcloud(self.ctx,
+                           data['id'],
+                           management_state=consts.MANAGEMENT_MANAGED,
+                           description="subcloud new description",
+                           location="subcloud new location",
+                           data_install="install values")
+        mock_db_api.subcloud_update.assert_called_once_with(
+            mock.ANY,
+            data['id'],
+            management_state=consts.MANAGEMENT_MANAGED,
+            description="subcloud new description",
+            location="subcloud new location",
+            group_id=None,
+            data_install="install values")
 
     @mock.patch.object(subcloud_manager, 'db_api')
     def test_update_already_managed_subcloud(self, mock_db_api):
@@ -346,7 +369,8 @@ class TestSubcloudManager(base.DCManagerTestCase):
             management_state=consts.MANAGEMENT_MANAGED,
             description="subcloud new description",
             location="subcloud new location",
-            group_id=2)
+            group_id=2,
+            data_install=None)
 
     def test_update_subcloud_endpoint_status(self):
         # create a subcloud

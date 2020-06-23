@@ -118,7 +118,8 @@ class TestDCManagerService(base.DCManagerTestCase):
         mock_subcloud_manager().update_subcloud.\
             assert_called_once_with(self.context, mock.ANY,
                                     mock.ANY, mock.ANY,
-                                    mock.ANY, mock.ANY)
+                                    mock.ANY, mock.ANY,
+                                    mock.ANY)
 
     @mock.patch.object(service, 'SwUpdateManager')
     @mock.patch.object(service, 'SubcloudManager')

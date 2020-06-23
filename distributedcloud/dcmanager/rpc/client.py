@@ -72,13 +72,15 @@ class ManagerClient(object):
                                              subcloud_id=subcloud_id))
 
     def update_subcloud(self, ctxt, subcloud_id, management_state=None,
-                        description=None, location=None, group_id=None):
+                        description=None, location=None, group_id=None,
+                        data_install=None):
         return self.call(ctxt, self.make_msg('update_subcloud',
                                              subcloud_id=subcloud_id,
                                              management_state=management_state,
                                              description=description,
                                              location=location,
-                                             group_id=group_id))
+                                             group_id=group_id,
+                                             data_install=data_install))
 
     def reconfigure_subcloud(self, ctxt, subcloud_id, payload):
         return self.call(ctxt, self.make_msg('reconfigure_subcloud',

@@ -765,7 +765,8 @@ class SubcloudManager(manager.Manager):
                         management_state=None,
                         description=None,
                         location=None,
-                        group_id=None):
+                        group_id=None,
+                        data_install=None):
         """Update subcloud and notify orchestrators.
 
         :param context: request context object
@@ -774,6 +775,7 @@ class SubcloudManager(manager.Manager):
         :param description: new description
         :param location: new location
         :param group_id: new subcloud group id
+        :param data_install: subcloud install values
         """
 
         LOG.info("Updating subcloud %s." % subcloud_id)
@@ -815,7 +817,8 @@ class SubcloudManager(manager.Manager):
                                           management_state=management_state,
                                           description=description,
                                           location=location,
-                                          group_id=group_id)
+                                          group_id=group_id,
+                                          data_install=data_install)
 
         # Inform orchestrators that subcloud has been updated
         if management_state:

@@ -18,7 +18,6 @@
 # of an applicable Wind River license agreement.
 #
 
-import base64
 import datetime
 from eventlet.green import subprocess
 import json
@@ -405,10 +404,6 @@ class SubcloudInstall(object):
         payload['image'] = os.path.join(self.get_image_base_url(), 'iso',
                                         software_version, 'nodes',
                                         self.name, 'bootimage.iso')
-        # encode the bmc_password
-        encoded_password = base64.b64encode(
-            payload['bmc_password'].encode("utf-8"))
-        payload['bmc_password'] = str(encoded_password)
 
         # create the rvmc config file
         self.create_rvmc_config_file(override_path, payload)
