@@ -64,13 +64,23 @@ class SwUpdateStrategyController(object):
         """
         context = restcomm.extract_context_from_environ()
 
+        # If 'type' is in the request params, filter the update_type
+        update_type_filter = request.params.get('type', None)
+
         if steps is None:
             # Strategy requested
             strategy = None
             try:
-                strategy = db_api.sw_update_strategy_get(context)
+                strategy = db_api.sw_update_strategy_get(
+                    context,
+                    update_type=update_type_filter)
             except exceptions.NotFound:
-                pecan.abort(404, _('Strategy not found'))
+                if update_type_filter is None:
+                    pecan.abort(404, _('Strategy not found'))
+                else:
+                    pecan.abort(404,
+                                _("Strategy of type '%s' not found"
+                                  % update_type_filter))
 
             strategy_dict = db_api.sw_update_strategy_db_model_to_dict(
                 strategy)
@@ -160,6 +170,9 @@ class SwUpdateStrategyController(object):
                 LOG.exception(e)
                 pecan.abort(500, _('Unable to create strategy'))
         elif actions == 'actions':
+            # If 'type' is in the request params, filter the update_type
+            update_type_filter = request.params.get('type', None)
+
             # Apply or abort a strategy
             action = payload.get('action')
             if not action:
@@ -168,7 +181,9 @@ class SwUpdateStrategyController(object):
                 try:
                     # Ask dcmanager-manager to apply the strategy.
                     # It will do all the real work...
-                    return self.rpc_client.apply_sw_update_strategy(context)
+                    return self.rpc_client.apply_sw_update_strategy(
+                        context,
+                        update_type=update_type_filter)
                 except RemoteError as e:
                     pecan.abort(422, e.value)
                 except Exception as e:
@@ -178,7 +193,9 @@ class SwUpdateStrategyController(object):
                 try:
                     # Ask dcmanager-manager to abort the strategy.
                     # It will do all the real work...
-                    return self.rpc_client.abort_sw_update_strategy(context)
+                    return self.rpc_client.abort_sw_update_strategy(
+                        context,
+                        update_type=update_type_filter)
                 except RemoteError as e:
                     pecan.abort(422, e.value)
                 except Exception as e:
@@ -190,10 +207,15 @@ class SwUpdateStrategyController(object):
         """Delete the software update strategy."""
         context = restcomm.extract_context_from_environ()
 
+        # If 'type' is in the request params, filter the update_type
+        update_type_filter = request.params.get('type', None)
+
         try:
             # Ask dcmanager-manager to delete the strategy.
             # It will do all the real work...
-            return self.rpc_client.delete_sw_update_strategy(context)
+            return self.rpc_client.delete_sw_update_strategy(
+                context,
+                update_type=update_type_filter)
         except RemoteError as e:
             pecan.abort(422, e.value)
         except Exception as e:

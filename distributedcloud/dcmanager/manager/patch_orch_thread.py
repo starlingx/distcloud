@@ -135,7 +135,8 @@ class PatchOrchThread(threading.Thread):
                 LOG.debug('Running patch orchestration')
 
                 sw_update_strategy = db_api.sw_update_strategy_get(
-                    self.context)
+                    self.context,
+                    update_type=consts.SW_UPDATE_TYPE_PATCH)
 
                 if sw_update_strategy.type == consts.SW_UPDATE_TYPE_PATCH:
                     if sw_update_strategy.state in [

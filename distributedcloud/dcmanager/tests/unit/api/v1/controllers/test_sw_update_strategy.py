@@ -127,12 +127,36 @@ class TestSwUpdateStrategy(testroot.DCManagerApiTest):
 
     @mock.patch.object(rpc_client, 'ManagerClient')
     @mock.patch.object(sw_update_strategy, 'db_api')
+    def test_scoped_post_sw_update_apply(self, mock_db_api, mock_rpc_client):
+        data = FAKE_SW_UPDATE_APPLY_DATA
+        mock_rpc_client().apply_sw_update_strategy.return_value = True
+        response = self.app.post_json(
+            FAKE_URL + '/actions?type=' + consts.SW_UPDATE_TYPE_PATCH,
+            headers=FAKE_HEADERS,
+            params=data)
+        mock_rpc_client().apply_sw_update_strategy.assert_called_once()
+        self.assertEqual(response.status_int, 200)
+
+    @mock.patch.object(rpc_client, 'ManagerClient')
+    @mock.patch.object(sw_update_strategy, 'db_api')
     def test_post_sw_update_abort(self, mock_db_api, mock_rpc_client):
         mock_rpc_client().abort_sw_update_strategy.return_value = True
         data = FAKE_SW_UPDATE_ABORT_DATA
         response = self.app.post_json(FAKE_URL + '/actions',
                                       headers=FAKE_HEADERS,
                                       params=data)
+        mock_rpc_client().abort_sw_update_strategy.assert_called_once()
+        self.assertEqual(response.status_int, 200)
+
+    @mock.patch.object(rpc_client, 'ManagerClient')
+    @mock.patch.object(sw_update_strategy, 'db_api')
+    def test_scoped_post_sw_update_abort(self, mock_db_api, mock_rpc_client):
+        mock_rpc_client().abort_sw_update_strategy.return_value = True
+        data = FAKE_SW_UPDATE_ABORT_DATA
+        response = self.app.post_json(
+            FAKE_URL + '/actions?type=' + consts.SW_UPDATE_TYPE_PATCH,
+            headers=FAKE_HEADERS,
+            params=data)
         mock_rpc_client().abort_sw_update_strategy.assert_called_once()
         self.assertEqual(response.status_int, 200)
 
@@ -152,13 +176,33 @@ class TestSwUpdateStrategy(testroot.DCManagerApiTest):
         mock_rpc_client().delete_sw_update_strategy.return_value = True
         response = self.app.delete_json(delete_url, headers=FAKE_HEADERS)
         mock_rpc_client().delete_sw_update_strategy.assert_called_once_with(
-            mock.ANY)
+            mock.ANY, update_type=None)
+        self.assertEqual(response.status_int, 200)
+
+    @mock.patch.object(rpc_client, 'ManagerClient')
+    @mock.patch.object(sw_update_strategy, 'db_api')
+    def test_scoped_delete_sw_update_strategy(self,
+                                              mock_db_api,
+                                              mock_rpc_client):
+        delete_url = FAKE_URL + "?type=" + consts.SW_UPDATE_TYPE_PATCH
+        mock_rpc_client().delete_sw_update_strategy.return_value = True
+        response = self.app.delete_json(delete_url, headers=FAKE_HEADERS)
+        mock_rpc_client().delete_sw_update_strategy.assert_called_once_with(
+            mock.ANY, update_type=consts.SW_UPDATE_TYPE_PATCH)
         self.assertEqual(response.status_int, 200)
 
     @mock.patch.object(rpc_client, 'ManagerClient')
     @mock.patch.object(sw_update_strategy, 'db_api')
     def test_get_sw_update_strategy(self, mock_db_api, mock_rpc_client):
         get_url = FAKE_URL
+        mock_db_api.sw_update_strategy_db_model_to_dict.return_value = {}
+        self.app.get(get_url, headers=FAKE_HEADERS)
+        self.assertEqual(1, mock_db_api.sw_update_strategy_get.call_count)
+
+    @mock.patch.object(rpc_client, 'ManagerClient')
+    @mock.patch.object(sw_update_strategy, 'db_api')
+    def test_scoped_get_sw_update_strategy(self, mock_db_api, mock_rpc_client):
+        get_url = FAKE_URL + '?type=' + consts.SW_UPDATE_TYPE_PATCH
         mock_db_api.sw_update_strategy_db_model_to_dict.return_value = {}
         self.app.get(get_url, headers=FAKE_HEADERS)
         self.assertEqual(1, mock_db_api.sw_update_strategy_get.call_count)

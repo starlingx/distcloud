@@ -361,11 +361,11 @@ def subcloud_status_destroy_all(context, subcloud_id):
 
 
 @require_context
-def sw_update_strategy_get(context):
-    result = model_query(context, models.SwUpdateStrategy). \
-        filter_by(deleted=0). \
-        first()
-
+def sw_update_strategy_get(context, update_type=None):
+    query = model_query(context, models.SwUpdateStrategy).filter_by(deleted=0)
+    if update_type is not None:
+        query = query.filter_by(type=update_type)
+    result = query.first()
     if not result:
         raise exception.NotFound()
 
@@ -388,9 +388,10 @@ def sw_update_strategy_create(context, type, subcloud_apply_type,
 
 
 @require_admin_context
-def sw_update_strategy_update(context, state=None):
+def sw_update_strategy_update(context, state=None, update_type=None):
     with write_session() as session:
-        sw_update_strategy_ref = sw_update_strategy_get(context)
+        sw_update_strategy_ref = \
+            sw_update_strategy_get(context, update_type=update_type)
         if state is not None:
             sw_update_strategy_ref.state = state
         sw_update_strategy_ref.save(session)
@@ -398,9 +399,10 @@ def sw_update_strategy_update(context, state=None):
 
 
 @require_admin_context
-def sw_update_strategy_destroy(context):
+def sw_update_strategy_destroy(context, update_type=None):
     with write_session() as session:
-        sw_update_strategy_ref = sw_update_strategy_get(context)
+        sw_update_strategy_ref = \
+            sw_update_strategy_get(context, update_type=update_type)
         session.delete(sw_update_strategy_ref)
 
 

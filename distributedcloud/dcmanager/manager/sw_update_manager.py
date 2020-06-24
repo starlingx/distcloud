@@ -97,14 +97,15 @@ class SwUpdateManager(manager.Manager):
         LOG.info("Creating software update strategy of type %s." %
                  payload['type'])
 
-        # Don't create a strategy if one already exists.
+        # Don't create a strategy if one exists. No need to filter by type
         try:
-            db_api.sw_update_strategy_get(context)
+            strategy = db_api.sw_update_strategy_get(context, update_type=None)
         except exceptions.NotFound:
             pass
         else:
-            raise exceptions.BadRequest(resource='strategy',
-                                        msg='Strategy already exists')
+            raise exceptions.BadRequest(
+                resource='strategy',
+                msg="Strategy of type: '%s' already exists" % strategy.type)
 
         strategy_type = payload.get('type')
 
@@ -274,10 +275,11 @@ class SwUpdateManager(manager.Manager):
             strategy)
         return strategy_dict
 
-    def delete_sw_update_strategy(self, context):
+    def delete_sw_update_strategy(self, context, update_type=None):
         """Delete software update strategy.
 
         :param context: request context object.
+        :param update_type: the type to filter on querying
         """
         LOG.info("Deleting software update strategy.")
 
@@ -285,7 +287,8 @@ class SwUpdateManager(manager.Manager):
         # The strategy object is common to all workers (patch, upgrades, etc)
         with self.strategy_lock:
             # Retrieve the existing strategy from the database
-            sw_update_strategy = db_api.sw_update_strategy_get(context)
+            sw_update_strategy = \
+                db_api.sw_update_strategy_get(context, update_type=update_type)
 
             # Semantic checking
             if sw_update_strategy.state not in [
@@ -301,23 +304,27 @@ class SwUpdateManager(manager.Manager):
             # Set the state to deleting, which will trigger the orchestration
             # to delete it...
             sw_update_strategy = db_api.sw_update_strategy_update(
-                context, state=consts.SW_UPDATE_STATE_DELETING)
+                context,
+                state=consts.SW_UPDATE_STATE_DELETING,
+                update_type=update_type)
 
         strategy_dict = db_api.sw_update_strategy_db_model_to_dict(
             sw_update_strategy)
         return strategy_dict
 
-    def apply_sw_update_strategy(self, context):
+    def apply_sw_update_strategy(self, context, update_type=None):
         """Apply software update strategy.
 
         :param context: request context object.
+        :param update_type: the type to filter on querying
         """
         LOG.info("Applying software update strategy.")
 
         # Ensure our read/update of the strategy is done without interference
         with self.strategy_lock:
             # Retrieve the existing strategy from the database
-            sw_update_strategy = db_api.sw_update_strategy_get(context)
+            sw_update_strategy = \
+                db_api.sw_update_strategy_get(context, update_type=update_type)
 
             # Semantic checking
             if sw_update_strategy.state != consts.SW_UPDATE_STATE_INITIAL:
@@ -329,22 +336,26 @@ class SwUpdateManager(manager.Manager):
             # Set the state to applying, which will trigger the orchestration
             # to begin...
             sw_update_strategy = db_api.sw_update_strategy_update(
-                context, state=consts.SW_UPDATE_STATE_APPLYING)
+                context,
+                state=consts.SW_UPDATE_STATE_APPLYING,
+                update_type=update_type)
         strategy_dict = db_api.sw_update_strategy_db_model_to_dict(
             sw_update_strategy)
         return strategy_dict
 
-    def abort_sw_update_strategy(self, context):
+    def abort_sw_update_strategy(self, context, update_type=None):
         """Abort software update strategy.
 
         :param context: request context object.
+        :param update_type: the type to filter on querying
         """
         LOG.info("Aborting software update strategy.")
 
         # Ensure our read/update of the strategy is done without interference
         with self.strategy_lock:
             # Retrieve the existing strategy from the database
-            sw_update_strategy = db_api.sw_update_strategy_get(context)
+            sw_update_strategy = \
+                db_api.sw_update_strategy_get(context, update_type=update_type)
 
             # Semantic checking
             if sw_update_strategy.state != consts.SW_UPDATE_STATE_APPLYING:

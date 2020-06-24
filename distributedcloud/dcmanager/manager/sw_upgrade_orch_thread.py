@@ -160,7 +160,8 @@ class SwUpgradeOrchThread(threading.Thread):
                 LOG.debug('Running upgrade orchestration')
 
                 sw_update_strategy = db_api.sw_update_strategy_get(
-                    self.context)
+                    self.context,
+                    update_type=consts.SW_UPDATE_TYPE_UPGRADE)
 
                 if sw_update_strategy.type == consts.SW_UPDATE_TYPE_UPGRADE:
                     if sw_update_strategy.state in [
@@ -215,7 +216,9 @@ class SwUpgradeOrchThread(threading.Thread):
                              "processing upgrade step on SystemController")
                     with self.strategy_lock:
                         db_api.sw_update_strategy_update(
-                            self.context, state=consts.SW_UPDATE_STATE_FAILED)
+                            self.context,
+                            state=consts.SW_UPDATE_STATE_FAILED,
+                            update_type=consts.SW_UPDATE_TYPE_UPGRADE)
                     # Trigger audit to update the sync status for
                     # each subcloud.
                     self.audit_rpc_client.trigger_patch_audit(self.context)
@@ -236,17 +239,23 @@ class SwUpgradeOrchThread(threading.Thread):
                 LOG.info("Strategy application has failed.")
                 with self.strategy_lock:
                     db_api.sw_update_strategy_update(
-                        self.context, state=consts.SW_UPDATE_STATE_FAILED)
+                        self.context,
+                        state=consts.SW_UPDATE_STATE_FAILED,
+                        update_type=consts.SW_UPDATE_TYPE_UPGRADE)
             elif abort_detected:
                 LOG.info("Strategy application was aborted.")
                 with self.strategy_lock:
                     db_api.sw_update_strategy_update(
-                        self.context, state=consts.SW_UPDATE_STATE_ABORTED)
+                        self.context,
+                        state=consts.SW_UPDATE_STATE_ABORTED,
+                        update_type=consts.SW_UPDATE_TYPE_UPGRADE)
             else:
                 LOG.info("Strategy application is complete.")
                 with self.strategy_lock:
                     db_api.sw_update_strategy_update(
-                        self.context, state=consts.SW_UPDATE_STATE_COMPLETE)
+                        self.context,
+                        state=consts.SW_UPDATE_STATE_COMPLETE,
+                        update_type=consts.SW_UPDATE_TYPE_UPGRADE)
             # Trigger audit to update the sync status for each subcloud.
             self.audit_rpc_client.trigger_patch_audit(self.context)
             return
@@ -269,7 +278,9 @@ class SwUpgradeOrchThread(threading.Thread):
                          stop_after_stage)
                 with self.strategy_lock:
                     db_api.sw_update_strategy_update(
-                        self.context, state=consts.SW_UPDATE_STATE_FAILED)
+                        self.context,
+                        state=consts.SW_UPDATE_STATE_FAILED,
+                        update_type=consts.SW_UPDATE_TYPE_UPGRADE)
                 # Trigger audit to update the sync status for each subcloud.
                 self.audit_rpc_client.trigger_patch_audit(self.context)
                 return
@@ -340,7 +351,9 @@ class SwUpgradeOrchThread(threading.Thread):
 
         with self.strategy_lock:
             db_api.sw_update_strategy_update(
-                self.context, state=consts.SW_UPDATE_STATE_ABORTING)
+                self.context,
+                state=consts.SW_UPDATE_STATE_ABORTING,
+                update_type=consts.SW_UPDATE_TYPE_UPGRADE)
 
     def delete(self, sw_update_strategy):
         """Delete an upgrade strategy"""
