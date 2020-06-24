@@ -106,16 +106,24 @@ class SwUpdateManager(manager.Manager):
             raise exceptions.BadRequest(resource='strategy',
                                         msg='Strategy already exists')
 
-        # todo(abailey) make use of subcloud group
         strategy_type = payload.get('type')
+
+        # if use_group_apply_type = True, we use the subcloud_apply_type
+        # specified for each subcloud group
+        # else we use the subcloud_apply_type specified through CLI
+        use_group_apply_type = False
         subcloud_apply_type = payload.get('subcloud-apply-type')
         if not subcloud_apply_type:
-            subcloud_apply_type = consts.SUBCLOUD_APPLY_TYPE_PARALLEL
+            use_group_apply_type = True
 
+        # if use_group_max_parallel = True, we use the max_parallel_subclouds
+        # value specified for each subcloud group
+        # else we use the max_parallel_subclouds value specified through CLI
+        use_group_max_parallel = False
         max_parallel_subclouds_str = payload.get('max-parallel-subclouds')
         if not max_parallel_subclouds_str:
-            # Default will be 20 subclouds in parallel
-            max_parallel_subclouds = 20
+            max_parallel_subclouds = None
+            use_group_max_parallel = True
         else:
             max_parallel_subclouds = int(max_parallel_subclouds_str)
 
@@ -205,35 +213,62 @@ class SwUpdateManager(manager.Manager):
         # out of sync
         current_stage = 2
         stage_size = 0
-        for subcloud, subcloud_status in subclouds:
-            if cloud_name and subcloud.name != cloud_name:
-                # We are not targetting for update this subcloud
-                continue
-            if (subcloud.management_state != consts.MANAGEMENT_MANAGED or
-                    subcloud.availability_status !=
-                    consts.AVAILABILITY_ONLINE):
-                continue
+        stage_updated = False
 
-            if self._validate_subcloud_status_sync(strategy_type,
-                                                   subcloud_status):
-                db_api.strategy_step_create(
-                    context,
-                    subcloud.id,
-                    stage=current_stage,
-                    state=consts.STRATEGY_STATE_INITIAL,
-                    details='')
+        # Fetch all subcloud groups
+        groups = db_api.subcloud_group_get_all(context)
 
-                # todo(abailey): subcloud-group affects these stages
-                # We have added a subcloud to this stage
-                stage_size += 1
-                if subcloud_apply_type == consts.SUBCLOUD_APPLY_TYPE_SERIAL:
-                    # For serial apply type always move to next stage
-                    current_stage += 1
-                elif stage_size >= max_parallel_subclouds:
-                    # For parallel apply type, move to next stage if we have
-                    # reached the maximum subclouds for this stage
-                    current_stage += 1
-                    stage_size = 0
+        for group in groups:
+            # Fetch subcloud list for each group
+            subclouds_list = db_api.subcloud_get_for_group(context, group.id)
+            if use_group_max_parallel:
+                max_parallel_subclouds = group.max_parallel_subclouds
+            if use_group_apply_type:
+                subcloud_apply_type = group.update_apply_type
+            for subcloud in subclouds_list:
+                stage_updated = False
+                if cloud_name and subcloud.name != cloud_name:
+                    # We are not targeting for update this subcloud
+                    continue
+                if (subcloud.management_state != consts.MANAGEMENT_MANAGED or
+                        subcloud.availability_status !=
+                        consts.AVAILABILITY_ONLINE):
+                    continue
+
+                subcloud_status = db_api.subcloud_status_get_all(context, subcloud.id)
+                for status in subcloud_status:
+                    if self._validate_subcloud_status_sync(strategy_type,
+                                                           status):
+                        LOG.debug("Created for %s" % subcloud.id)
+                        db_api.strategy_step_create(
+                            context,
+                            subcloud.id,
+                            stage=current_stage,
+                            state=consts.STRATEGY_STATE_INITIAL,
+                            details='')
+
+                        # We have added a subcloud to this stage
+                        stage_size += 1
+                        if consts.SUBCLOUD_APPLY_TYPE_SERIAL in subcloud_apply_type:
+                            # For serial apply type always move to next stage
+                            stage_updated = True
+                            current_stage += 1
+                        elif stage_size >= max_parallel_subclouds:
+                            # For parallel apply type, move to next stage if we have
+                            # reached the maximum subclouds for this stage
+                            stage_updated = True
+                            current_stage += 1
+                            stage_size = 0
+
+            # Reset the stage_size before iterating through a new subcloud group
+            stage_size = 0
+            # current_stage value is updated only when subcloud_apply_type is serial
+            # or the max_parallel_subclouds limit is reached. If the value is updated
+            # for either one of these reasons and it also happens to be the last
+            # iteration for this particular group, the following check will prevent
+            # the current_stage value from being updated twice
+            if not stage_updated:
+                current_stage += 1
 
         strategy_dict = db_api.sw_update_strategy_db_model_to_dict(
             strategy)
