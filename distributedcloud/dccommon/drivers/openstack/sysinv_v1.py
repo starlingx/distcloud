@@ -93,7 +93,8 @@ class SysinvClient(base.DriverBase):
 
             self.sysinv_client = client.Client(API_VERSION,
                                                endpoint=endpoint,
-                                               token=token)
+                                               token=token,
+                                               timeout=600)
             self.region_name = region
         except exceptions.ServiceUnavailable:
             raise

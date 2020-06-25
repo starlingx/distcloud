@@ -56,7 +56,7 @@ class PatchingClient(base.DriverBase):
         if release is not None:
             url += "&release=%s" % release
         headers = {"X-Auth-Token": self.token}
-        response = requests.get(url, headers=headers)
+        response = requests.get(url, headers=headers, timeout=600)
 
         if response.status_code == 200:
             data = response.json()
