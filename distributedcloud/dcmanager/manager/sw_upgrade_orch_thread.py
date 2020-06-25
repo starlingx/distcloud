@@ -300,8 +300,18 @@ class SwUpgradeOrchThread(threading.Thread):
         for strategy_step in strategy_steps:
             if strategy_step.stage == current_stage:
                 region = self.get_region_name(strategy_step)
-
+                if self.stopped():
+                    LOG.info("Exiting because task is stopped")
+                    return
                 if strategy_step.state == \
+                        consts.STRATEGY_STATE_FAILED:
+                    LOG.debug("Intermediate step is failed")
+                    continue
+                elif strategy_step.state == \
+                        consts.STRATEGY_STATE_COMPLETE:
+                    LOG.debug("Intermediate step is complete")
+                    continue
+                elif strategy_step.state == \
                         consts.STRATEGY_STATE_INITIAL:
                     # Don't start upgrading this subcloud if it has been
                     # unmanaged by the user. If orchestration was already
@@ -331,10 +341,6 @@ class SwUpgradeOrchThread(threading.Thread):
                     self.process_upgrade_step(region,
                                               strategy_step,
                                               log_error=False)
-
-                if self.stopped():
-                    LOG.info("Exiting because task is stopped")
-                    return
 
     def abort(self, sw_update_strategy):
         """Abort an upgrade strategy"""
