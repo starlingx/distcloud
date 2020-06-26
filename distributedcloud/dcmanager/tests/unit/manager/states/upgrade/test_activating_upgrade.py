@@ -15,11 +15,12 @@ from dcmanager.tests.unit.manager.states.upgrade.test_base \
 
 VALID_UPGRADE = FakeUpgrade(state='imported')
 ACTIVATING_UPGRADE = FakeUpgrade(state='activation-requested')
+ACTIVATING_FAILED = FakeUpgrade(state='activation-failed')
 ALREADY_ACTIVATED_UPGRADE = FakeUpgrade(state='activation-complete')
 
 
 @mock.patch("dcmanager.manager.states.upgrade.activating.DEFAULT_MAX_QUERIES",
-            3)
+            5)
 @mock.patch("dcmanager.manager.states.upgrade.activating.DEFAULT_SLEEP_DURATION",
             1)
 class TestSwUpgradeActivatingStage(TestSwUpgradeState):
@@ -128,3 +129,33 @@ class TestSwUpgradeActivatingStage(TestSwUpgradeState):
         # Times out. state goes to failed
         self.assert_step_updated(self.strategy_step.subcloud_id,
                                  consts.STRATEGY_STATE_FAILED)
+
+    def test_upgrade_subcloud_activating_upgrade_retries(self):
+        """Test the activating upgrade step fails but succeeds on retry."""
+
+        # upgrade_activate will only be called if an appropriate upgrade exists
+        # first call is before the API call
+        # then goes to activating
+        # then activating fails which triggers a retry
+        # then goes to activating
+        # then goes to success
+        self.sysinv_client.get_upgrades.side_effect = [
+            [VALID_UPGRADE, ],
+            [ACTIVATING_UPGRADE, ],
+            [ACTIVATING_FAILED, ],
+            [ACTIVATING_UPGRADE, ],
+            [ALREADY_ACTIVATED_UPGRADE, ]
+        ]
+
+        # API call will not raise an exception, and will return an upgrade
+        self.sysinv_client.upgrade_activate.return_value = ACTIVATING_UPGRADE
+
+        # invoke the strategy state operation on the orch thread
+        self.worker.perform_state_action(self.strategy_step)
+
+        # verify the API call was invoked twice
+        self.assertEqual(2, self.sysinv_client.upgrade_activate.call_count)
+
+        # Even though it failed once, the retry passed
+        self.assert_step_updated(self.strategy_step.subcloud_id,
+                                 self.on_success_state)

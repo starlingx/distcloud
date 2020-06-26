@@ -8,18 +8,14 @@ import time
 from dcmanager.common.exceptions import StrategyStoppedException
 from dcmanager.manager.states.base import BaseState
 
-ALREADY_ACTIVATING_STATES = ['activation-requested',
-                             'activation-failed',
-                             'activation-complete',
-                             'activating']
-
-ACTIVATING_COMPLETED_STATES = ['activation-failed',
-                               'activation-complete',
+ACTIVATING_COMPLETED_STATES = ['activation-complete',
                                'aborting']
 
-# Max time: 10 minutes = 60 queries x 10 seconds sleep between queries
-DEFAULT_MAX_QUERIES = 60
-DEFAULT_SLEEP_DURATION = 10
+ACTIVATING_RETRY_STATES = ['activation-failed', ]
+
+# Max time: 15 minutes = 15 queries x 60 seconds sleep between queries
+DEFAULT_MAX_QUERIES = 15
+DEFAULT_SLEEP_DURATION = 60
 
 
 class ActivatingUpgradeState(BaseState):
@@ -53,7 +49,7 @@ class ActivatingUpgradeState(BaseState):
         upgrade_state = self.get_upgrade_state(sysinv_client)
 
         # Check if an existing upgrade is already activated
-        if upgrade_state in ALREADY_ACTIVATING_STATES:
+        if upgrade_state in ACTIVATING_COMPLETED_STATES:
             self.info_log(strategy_step,
                           "Already in an activating state:%s" % upgrade_state)
             return True
@@ -68,7 +64,10 @@ class ActivatingUpgradeState(BaseState):
             if self.stopped():
                 raise StrategyStoppedException()
             upgrade_state = self.get_upgrade_state(sysinv_client)
-            if upgrade_state in ACTIVATING_COMPLETED_STATES:
+            if upgrade_state in ACTIVATING_RETRY_STATES:
+                # We failed.  Better try again
+                sysinv_client.upgrade_activate()
+            elif upgrade_state in ACTIVATING_COMPLETED_STATES:
                 self.info_log(strategy_step,
                               "Activation completed. State=%s" % upgrade_state)
                 break
