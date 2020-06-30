@@ -51,7 +51,7 @@ class SysinvSyncThread(SyncThread):
     CERTIFICATE_SIG_NULL = 'NoCertificate'
     RESOURCE_UUID_NULL = 'NoResourceUUID'
 
-    AVOID_SYNC_CERTIFICATES = ["ssl"]
+    SYNC_CERTIFICATES = ["ssl_ca", "openstack_ca"]
 
     def __init__(self, subcloud_engine):
         super(SysinvSyncThread, self).__init__(subcloud_engine)
@@ -355,18 +355,19 @@ class SysinvSyncThread(SyncThread):
                      extra=self.log_extra)
             return
 
-        if payload.get('certtype') in self.AVOID_SYNC_CERTIFICATES:
-            return
+        certificate, metadata = self._decode_certificate_payload(
+            certificate_dict)
 
         if isinstance(payload, dict):
+            if payload.get('certtype') not in self.SYNC_CERTIFICATES:
+                return
             signature = payload.get('signature')
             LOG.info("signature from dict={}".format(signature))
         else:
+            if metadata.get('mode') not in self.SYNC_CERTIFICATES:
+                return
             signature = rsrc.master_id
             LOG.info("signature from master_id={}".format(signature))
-
-        certificate, metadata = self._decode_certificate_payload(
-            certificate_dict)
 
         icertificate = None
         signature = rsrc.master_id
@@ -657,11 +658,11 @@ class SysinvSyncThread(SyncThread):
 
     def get_certificates_resources(self, os_client):
         certificate_list = os_client.sysinv_client.get_certificates()
-        # Filter SSL certificates to avoid sync
+        # Only sync the specified certificates to subclouds
         filtered_list = [certificate
                          for certificate in certificate_list
-                         if certificate.certtype not in
-                         self.AVOID_SYNC_CERTIFICATES]
+                         if certificate.certtype in
+                         self.SYNC_CERTIFICATES]
         return filtered_list
 
     def get_user_resource(self, os_client):
