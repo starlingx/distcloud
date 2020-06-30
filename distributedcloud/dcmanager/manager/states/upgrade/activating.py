@@ -13,8 +13,8 @@ ACTIVATING_COMPLETED_STATES = ['activation-complete',
 
 ACTIVATING_RETRY_STATES = ['activation-failed', ]
 
-# Max time: 15 minutes = 15 queries x 60 seconds sleep between queries
-DEFAULT_MAX_QUERIES = 15
+# Max time: 45 minutes = 45 queries x 60 seconds sleep between queries
+DEFAULT_MAX_QUERIES = 45
 DEFAULT_SLEEP_DURATION = 60
 
 
