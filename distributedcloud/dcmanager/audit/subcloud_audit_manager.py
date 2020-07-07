@@ -174,10 +174,15 @@ class SubcloudAuditManager(manager.Manager):
         #        break
 
         for subcloud in db_api.subcloud_get_all(self.context):
+            # Include failure deploy status states in the auditable list
+            # so that the subcloud can be set as offline
             if (subcloud.deploy_status not in
                     [consts.DEPLOY_STATE_DONE,
                      consts.DEPLOY_STATE_DEPLOYING,
-                     consts.DEPLOY_STATE_DEPLOY_FAILED]):
+                     consts.DEPLOY_STATE_DEPLOY_FAILED,
+                     consts.DEPLOY_STATE_INSTALL_FAILED,
+                     consts.DEPLOY_STATE_PRE_INSTALL_FAILED,
+                     consts.DEPLOY_STATE_DATA_MIGRATION_FAILED]):
                 LOG.debug("Skip subcloud %s audit, deploy_status: %s" %
                           (subcloud.name, subcloud.deploy_status))
                 continue
