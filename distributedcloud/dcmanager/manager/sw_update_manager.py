@@ -28,6 +28,7 @@ from dcmanager.common import consts
 from dcmanager.common import exceptions
 from dcmanager.common import manager
 from dcmanager.db import api as db_api
+from dcmanager.manager.fw_update_orch_thread import FwUpdateOrchThread
 from dcmanager.manager.patch_orch_thread import PatchOrchThread
 from dcmanager.manager.sw_upgrade_orch_thread import SwUpgradeOrchThread
 from dcorch.common import consts as dcorch_consts
@@ -58,6 +59,10 @@ class SwUpdateManager(manager.Manager):
         self.sw_upgrade_orch_thread = SwUpgradeOrchThread(self.strategy_lock,
                                                           self.audit_rpc_client)
         self.sw_upgrade_orch_thread.start()
+        # - fw update orchestration thread
+        self.fw_update_orch_thread = FwUpdateOrchThread(self.strategy_lock,
+                                                        self.audit_rpc_client)
+        self.fw_update_orch_thread.start()
 
     def stop(self):
         # Stop (and join) the worker threads
@@ -67,6 +72,9 @@ class SwUpdateManager(manager.Manager):
         # - sw upgrade orchestration thread
         self.sw_upgrade_orch_thread.stop()
         self.sw_upgrade_orch_thread.join()
+        # - fw update orchestration thread
+        self.fw_update_orch_thread.stop()
+        self.fw_update_orch_thread.join()
 
     def _validate_subcloud_status_sync(self, strategy_type,
                                        subcloud_status, force):
@@ -90,6 +98,11 @@ class SwUpdateManager(manager.Manager):
                         dcorch_consts.ENDPOINT_TYPE_LOAD and
                         subcloud_status.sync_status ==
                         consts.SYNC_STATUS_OUT_OF_SYNC)
+        elif strategy_type == consts.SW_UPDATE_TYPE_FIRMWARE:
+            return (subcloud_status.endpoint_type ==
+                    dcorch_consts.ENDPOINT_TYPE_FIRMWARE and
+                    subcloud_status.sync_status ==
+                    consts.SYNC_STATUS_OUT_OF_SYNC)
         # Unimplemented strategy_type status check. Log an error
         LOG.error("_validate_subcloud_status_sync for %s not implemented" %
                   strategy_type)
@@ -173,6 +186,14 @@ class SwUpdateManager(manager.Manager):
                     raise exceptions.BadRequest(
                         resource='strategy',
                         msg='Subcloud %s does not require upgrade' % cloud_name)
+            elif strategy_type == consts.SW_UPDATE_TYPE_FIRMWARE:
+                subcloud_status = db_api.subcloud_status_get(
+                    context, subcloud.id, dcorch_consts.ENDPOINT_TYPE_FIRMWARE)
+                if subcloud_status.sync_status == consts.SYNC_STATUS_IN_SYNC:
+                    raise exceptions.BadRequest(
+                        resource='strategy',
+                        msg='Subcloud %s does not require firmware update'
+                            % cloud_name)
             elif strategy_type == consts.SW_UPDATE_TYPE_PATCH:
                 # Make sure subcloud requires patching
                 subcloud_status = db_api.subcloud_status_get(
@@ -215,6 +236,17 @@ class SwUpdateManager(manager.Manager):
                         resource='strategy',
                         msg='Patching sync status is unknown for one or more '
                             'subclouds')
+            elif strategy_type == consts.SW_UPDATE_TYPE_FIRMWARE:
+                if subcloud.availability_status != consts.AVAILABILITY_ONLINE:
+                    continue
+                elif (subcloud_status.endpoint_type ==
+                      dcorch_consts.ENDPOINT_TYPE_FIRMWARE and
+                        subcloud_status.sync_status ==
+                        consts.SYNC_STATUS_UNKNOWN):
+                    raise exceptions.BadRequest(
+                        resource='strategy',
+                        msg='Firmware sync status is unknown for one or more '
+                            'subclouds')
 
         # Create the strategy
         strategy = db_api.sw_update_strategy_create(
@@ -226,6 +258,7 @@ class SwUpdateManager(manager.Manager):
             consts.SW_UPDATE_STATE_INITIAL)
 
         # For 'upgrade' do not create a strategy step for the system controller
+        # For 'firmware' do not create a strategy step for system controller
         # For 'patch', always create a strategy step for the system controller
         if strategy_type == consts.SW_UPDATE_TYPE_PATCH:
             db_api.strategy_step_create(

@@ -116,6 +116,12 @@ STRATEGY_STATE_UNLOCKING_CONTROLLER = "unlocking controller"
 STRATEGY_STATE_ACTIVATING_UPGRADE = "activating upgrade"
 STRATEGY_STATE_COMPLETING_UPGRADE = "completing upgrade"
 
+# Firmware update orchestration states
+STRATEGY_STATE_IMPORTING_FIRMWARE = "importing firmware"
+STRATEGY_STATE_CREATING_FW_UPDATE_STRATEGY = "creating fw update strategy"
+STRATEGY_STATE_APPLYING_FW_UPDATE_STRATEGY = "applying fw update strategy"
+STRATEGY_STATE_FINISHING_FW_UPDATE = "finishing fw update"
+
 # Subcloud deploy status states
 DEPLOY_STATE_NONE = 'not-deployed'
 DEPLOY_STATE_PRE_DEPLOY = 'pre-deploy'

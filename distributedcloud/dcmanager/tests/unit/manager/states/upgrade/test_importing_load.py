@@ -10,14 +10,12 @@ from dcmanager.common import consts
 from dcmanager.common.exceptions import VaultLoadMissingError
 from dcmanager.manager.states.upgrade import importing_load
 
-from dcmanager.tests.unit.manager.states.upgrade.test_base import FakeLoad
-from dcmanager.tests.unit.manager.states.upgrade.test_base import FakeSystem
-from dcmanager.tests.unit.manager.states.upgrade.test_base \
-    import PREVIOUS_VERSION
+from dcmanager.tests.unit.manager.states.fakes import FakeLoad
+from dcmanager.tests.unit.manager.states.fakes import FakeSystem
+from dcmanager.tests.unit.manager.states.fakes import PREVIOUS_VERSION
+from dcmanager.tests.unit.manager.states.fakes import UPGRADED_VERSION
 from dcmanager.tests.unit.manager.states.upgrade.test_base  \
     import TestSwUpgradeState
-from dcmanager.tests.unit.manager.states.upgrade.test_base \
-    import UPGRADED_VERSION
 
 PREVIOUS_LOAD = FakeLoad(1, software_version=PREVIOUS_VERSION)
 UPGRADED_LOAD = FakeLoad(2,

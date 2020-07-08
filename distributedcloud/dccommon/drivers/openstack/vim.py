@@ -68,6 +68,9 @@ STATE_ABORT_FAILED = 'abort-failed'
 STATE_ABORT_TIMEOUT = 'abort-timeout'
 STATE_ABORTED = 'aborted'
 
+# The exception message when vim authorization fails
+VIM_AUTHORIZATION_FAILED = "Authorization failed"
+
 
 class VimClient(base.DriverBase):
     """VIM driver."""
@@ -107,7 +110,7 @@ class VimClient(base.DriverBase):
         LOG.debug("Strategy created: %s" % strategy)
         return strategy
 
-    def get_strategy(self, strategy_name):
+    def get_strategy(self, strategy_name, raise_error_if_missing=True):
         """Get the current orchestration strategy"""
 
         url = self.endpoint
@@ -115,7 +118,8 @@ class VimClient(base.DriverBase):
             self.token, url,
             strategy_name=strategy_name)
         if not strategy:
-            raise Exception("Get strategy failed")
+            if raise_error_if_missing:
+                raise Exception("Get strategy failed")
 
         LOG.debug("Strategy: %s" % strategy)
         return strategy

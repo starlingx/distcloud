@@ -765,3 +765,32 @@ class SysinvClient(base.DriverBase):
     def get_device_image_states(self):
         """Get a list of device image states."""
         return self.sysinv_client.device_image_state.list()
+
+    def apply_device_image(self, device_image_id, labels=None):
+        """Apply a device image.
+
+           :param: device_image_id the image to apply
+           :param: labels the labels to pass as part of the apply
+        """
+        return self.sysinv_client.device_image.apply(device_image_id,
+                                                     labels=labels)
+
+    def remove_device_image(self, device_image_id, labels=None):
+        """Remove a device image.
+
+           :param: device_image_id the image to remove
+           :param: labels the labels to pass as part of the remove
+        """
+        return self.sysinv_client.device_image.remove(device_image_id,
+                                                      labels=labels)
+
+    def upload_device_image(self, device_image_file, fields):
+        """Upload a device image.
+
+           :param: device_image_file the file to upload
+           :param: fields can be: 'bitstream_type', 'pci_vendor', 'pci_device',
+           'bitstream_id', 'key_signature', 'revoke_key_id', 'name',
+           'description', 'image_version', 'uuid
+        """
+        return self.sysinv_client.device_image.upload(device_image_file,
+                                                      **fields)

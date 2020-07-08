@@ -7,9 +7,9 @@ import mock
 
 from dcmanager.common import consts
 from dcmanager.manager.states.upgrade import migrating_data
-from dcmanager.tests.unit.manager.states.upgrade.test_base \
-    import FakeController
-from dcmanager.tests.unit.manager.states.upgrade.test_base import FakeSubcloud
+
+from dcmanager.tests.unit.manager.states.fakes import FakeController
+from dcmanager.tests.unit.manager.states.fakes import FakeSubcloud
 from dcmanager.tests.unit.manager.states.upgrade.test_base  \
     import TestSwUpgradeState
 
