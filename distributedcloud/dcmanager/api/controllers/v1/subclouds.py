@@ -54,6 +54,7 @@ from dcmanager.common import utils
 from dcmanager.db import api as db_api
 
 from dcmanager.rpc import client as rpc_client
+from dcorch.common import consts as dcorch_consts
 
 CONF = cfg.CONF
 LOG = logging.getLogger(__name__)
@@ -200,6 +201,18 @@ class SubcloudsController(object):
                 elif "sysadmin_password" in header:
                     payload.update({'sysadmin_password': part.content})
         SubcloudsController._get_common_deploy_files(payload)
+        return payload
+
+    @staticmethod
+    def _get_updatestatus_payload(request):
+        """retrieve payload of a patch request for update_status
+
+        :param request: request from the http client
+        :return: dict object submitted from the http client
+        """
+
+        payload = dict()
+        payload.update(json.loads(request.body))
         return payload
 
     def _validate_subcloud_config(self,
@@ -765,12 +778,12 @@ class SubcloudsController(object):
 
     @utils.synchronized(LOCK_NAME)
     @index.when(method='PATCH', template='json')
-    def patch(self, subcloud_ref=None, reconfigure=None):
+    def patch(self, subcloud_ref=None, verb=None):
         """Update a subcloud.
 
         :param subcloud_ref: ID or name of subcloud to update
 
-        :param reconfigure: Specifies if this is a subcloud reconfigure
+        :param verb: Specifies the patch action to be taken
         or subcloud update operation
         """
 
@@ -796,7 +809,7 @@ class SubcloudsController(object):
 
         subcloud_id = subcloud.id
 
-        if reconfigure is None:
+        if verb is None:
             payload = self._get_patch_data(request)
             if not payload:
                 pecan.abort(400, _('Body required'))
@@ -838,7 +851,7 @@ class SubcloudsController(object):
                 # additional exceptions.
                 LOG.exception(e)
                 pecan.abort(500, _('Unable to update subcloud'))
-        else:
+        elif verb == 'reconfigure':
             payload = self._get_reconfig_payload(request, subcloud.name)
             if not payload:
                 pecan.abort(400, _('Body required'))
@@ -871,6 +884,9 @@ class SubcloudsController(object):
             except Exception:
                 LOG.exception("Unable to reconfigure subcloud %s" % subcloud.name)
                 pecan.abort(500, _('Unable to reconfigure subcloud'))
+        elif verb == 'update_status':
+            res = self.updatestatus(subcloud.name)
+            return res
 
     @utils.synchronized(LOCK_NAME)
     @index.when(method='delete', template='json')
@@ -907,3 +923,40 @@ class SubcloudsController(object):
         except Exception as e:
             LOG.exception(e)
             pecan.abort(500, _('Unable to delete subcloud'))
+
+    def updatestatus(self, subcloud_name):
+        """Update subcloud sync status
+
+        :param subcloud_name: name of the subcloud
+        :return: json result object for the operation on success
+        """
+
+        payload = self._get_updatestatus_payload(request)
+        if not payload:
+            pecan.abort(400, _('Body required'))
+
+        endpoint = payload.get('endpoint')
+        if not endpoint:
+            pecan.abort(400, _('endpoint required'))
+        allowed_endpoints = [dcorch_consts.ENDPOINT_TYPE_DC_CERT]
+        if endpoint not in allowed_endpoints:
+            pecan.abort(400, _('updating endpoint %s status is not allowed'
+                               % endpoint))
+
+        status = payload.get('status')
+        if not status:
+            pecan.abort(400, _('status required'))
+
+        allowed_status = [consts.SYNC_STATUS_IN_SYNC,
+                          consts.SYNC_STATUS_OUT_OF_SYNC,
+                          consts.SYNC_STATUS_UNKNOWN]
+        if status not in allowed_status:
+            pecan.abort(400, _('status %s in invalid.' % status))
+
+        LOG.info('update %s set %s=%s' % (subcloud_name, endpoint, status))
+        context = restcomm.extract_context_from_environ()
+        self.rpc_client.update_subcloud_endpoint_status(
+            context, subcloud_name, endpoint, status)
+
+        result = {'result': 'OK'}
+        return result
