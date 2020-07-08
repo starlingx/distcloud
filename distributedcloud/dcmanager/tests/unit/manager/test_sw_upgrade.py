@@ -84,7 +84,7 @@ class TestSwUpgrade(base.DCManagerTestCase):
         data = copy.copy(FAKE_STRATEGY_STEP_DATA)
         data['state'] = strategy_state
         data['subcloud'] = Subcloud(1,
-                                    'subcloud1',
+                                    'subcloud1', 1,
                                     is_managed=True,
                                     is_online=True)
         fake_strategy_step = StrategyStep(**data)
