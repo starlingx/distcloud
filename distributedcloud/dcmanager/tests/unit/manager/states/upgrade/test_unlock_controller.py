@@ -44,7 +44,7 @@ class TestSwUpgradeUnlockControllerStage(TestSwUpgradeState):
         self.strategy_step = self.setup_strategy_step(
             consts.STRATEGY_STATE_UNLOCKING_CONTROLLER)
 
-        # Add mock API endpoints for sysinv client calls invcked by this state
+        # Add mock API endpoints for sysinv client calls invoked by this state
         self.sysinv_client.get_host = mock.MagicMock()
         self.sysinv_client.unlock_host = mock.MagicMock()
 

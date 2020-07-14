@@ -14,9 +14,12 @@ ACTIVATING_COMPLETED_STATES = ['activation-complete',
 
 ACTIVATING_RETRY_STATES = ['activation-failed', ]
 
+ACTIVATING_IN_PROGRESS_STATES = ['activating', ]
+
 # Max time: 45 minutes = 45 queries x 60 seconds sleep between queries
 DEFAULT_MAX_QUERIES = 45
 DEFAULT_SLEEP_DURATION = 60
+MAX_FAILED_RETRIES = 10
 
 
 class ActivatingUpgradeState(BaseState):
@@ -28,6 +31,7 @@ class ActivatingUpgradeState(BaseState):
         # max time to wait (in seconds) is: sleep_duration * max_queries
         self.sleep_duration = DEFAULT_SLEEP_DURATION
         self.max_queries = DEFAULT_MAX_QUERIES
+        self.max_failed_retries = MAX_FAILED_RETRIES
 
     def get_upgrade_state(self, sysinv_client):
         upgrades = sysinv_client.get_upgrades()
@@ -67,15 +71,29 @@ class ActivatingUpgradeState(BaseState):
                 raise StrategyStoppedException()
             upgrade_state = self.get_upgrade_state(sysinv_client)
             if upgrade_state in ACTIVATING_RETRY_STATES:
+                if counter >= self.max_failed_retries:
+                    raise Exception("Failed to activate upgrade. Please "
+                                    "check sysinv.log on the subcloud for "
+                                    "details.")
                 # We failed.  Better try again
+                self.info_log(strategy_step,
+                              "Activation failed, retrying... State=%s"
+                              % upgrade_state)
                 sysinv_client.upgrade_activate()
+            elif upgrade_state in ACTIVATING_IN_PROGRESS_STATES:
+                self.info_log(strategy_step,
+                              "Activation in progress, waiting... State=%s"
+                              % upgrade_state)
             elif upgrade_state in ACTIVATING_COMPLETED_STATES:
                 self.info_log(strategy_step,
-                              "Activation completed. State=%s" % upgrade_state)
+                              "Activation completed. State=%s"
+                              % upgrade_state)
                 break
             counter += 1
             if counter >= self.max_queries:
-                raise Exception("Timeout waiting for activation to complete")
+                raise Exception("Timeout waiting for activation to complete. "
+                                "Please check sysinv.log on the subcloud for "
+                                "details.")
             time.sleep(self.sleep_duration)
 
         # When we return from this method without throwing an exception, the

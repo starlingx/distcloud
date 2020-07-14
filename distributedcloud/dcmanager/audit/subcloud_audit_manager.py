@@ -182,7 +182,8 @@ class SubcloudAuditManager(manager.Manager):
                      consts.DEPLOY_STATE_DEPLOY_FAILED,
                      consts.DEPLOY_STATE_INSTALL_FAILED,
                      consts.DEPLOY_STATE_PRE_INSTALL_FAILED,
-                     consts.DEPLOY_STATE_DATA_MIGRATION_FAILED]):
+                     consts.DEPLOY_STATE_DATA_MIGRATION_FAILED,
+                     consts.DEPLOY_STATE_MIGRATED]):
                 LOG.debug("Skip subcloud %s audit, deploy_status: %s" %
                           (subcloud.name, subcloud.deploy_status))
                 continue

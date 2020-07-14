@@ -38,7 +38,7 @@ class TestSwUpgradeInstallingLicenseStage(TestSwUpgradeState):
         self.strategy_step = \
             self.setup_strategy_step(consts.STRATEGY_STATE_INSTALLING_LICENSE)
 
-        # Add mock API endpoints for sysinv client calls invcked by this state
+        # Add mock API endpoints for sysinv client calls invoked by this state
         self.sysinv_client.get_license = mock.MagicMock()
         self.sysinv_client.install_license = mock.MagicMock()
 

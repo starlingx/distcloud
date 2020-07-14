@@ -8,6 +8,7 @@ import mock
 from dcmanager.common import consts
 from dcmanager.manager.states.upgrade import completing
 
+from dcmanager.tests.unit.manager.states.upgrade.test_base import FakeSystem
 from dcmanager.tests.unit.manager.states.upgrade.test_base import FakeUpgrade
 from dcmanager.tests.unit.manager.states.upgrade.test_base \
     import TestSwUpgradeState
@@ -33,9 +34,12 @@ class TestSwUpgradeCompletingStage(TestSwUpgradeState):
         self.strategy_step = \
             self.setup_strategy_step(consts.STRATEGY_STATE_COMPLETING_UPGRADE)
 
-        # Add mock API endpoints for sysinv client calls invcked by this state
+        # Add mock API endpoints for sysinv client calls invoked by this state
         self.sysinv_client.upgrade_complete = mock.MagicMock()
         self.sysinv_client.get_upgrades = mock.MagicMock()
+        self.sysinv_client.get_system = mock.MagicMock()
+        self.sysinv_client.get_system.return_value = FakeSystem()
+        self.sysinv_client.get_system = mock.MagicMock()
 
     def test_upgrade_subcloud_completing_upgrade_failure(self):
         """Test the completing upgrade API call fails."""
@@ -70,11 +74,19 @@ class TestSwUpgradeCompletingStage(TestSwUpgradeState):
         # API call will not raise an exception. It will delete the upgrade
         self.sysinv_client.upgrade_complete.return_value = UPGRADE_COMPLETING
 
+        # Mock the db API call
+        p = mock.patch('dcmanager.db.api.subcloud_update')
+        self.mock_db_update = p.start()
+        self.addCleanup(p.stop)
+
         # invoke the strategy state operation on the orch thread
         self.worker.perform_state_action(self.strategy_step)
 
         # verify the API call was invoked
         self.sysinv_client.upgrade_complete.assert_called()
+
+        # verify the DB update was invoked
+        self.mock_db_update.assert_called()
 
         # On success, the state should be updated to the next state
         self.assert_step_updated(self.strategy_step.subcloud_id,
@@ -89,11 +101,19 @@ class TestSwUpgradeCompletingStage(TestSwUpgradeState):
 
         # API call will not be invoked, so no need to mock it
 
+        # Mock the db API call
+        p = mock.patch('dcmanager.db.api.subcloud_update')
+        self.mock_db_update = p.start()
+        self.addCleanup(p.stop)
+
         # invoke the strategy state operation on the orch thread
         self.worker.perform_state_action(self.strategy_step)
 
         # upgrade is already in one of the completing states so skip completing
         self.sysinv_client.upgrade_complete.assert_not_called()
+
+        # verify the DB update was invoked
+        self.mock_db_update.assert_called()
 
         # On success, the state is set to the next state
         self.assert_step_updated(self.strategy_step.subcloud_id,

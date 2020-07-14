@@ -62,30 +62,6 @@ class MigratingDataState(BaseState):
         self.max_failed_queries = DEFAULT_MAX_FAILED_QUERIES
         self.failed_sleep_duration = DEFAULT_FAILED_SLEEP
 
-    def is_subcloud_data_migration_required(self, strategy_step):
-        local_ks_client = self.get_keystone_client()
-        local_sysinv_client = \
-            self.get_sysinv_client(consts.DEFAULT_REGION_NAME,
-                                   local_ks_client.session)
-        sc_version = local_sysinv_client.get_system().software_version
-
-        try:
-            ks_client = self.get_keystone_client(strategy_step.subcloud.name)
-            sysinv_client = self.get_sysinv_client(strategy_step.subcloud.name,
-                                                   ks_client.session)
-            subcloud_version = sysinv_client.get_system().software_version
-            if subcloud_version == sc_version:
-                self.debug_log(strategy_step, "Subcloud upgrade is already done.")
-            else:
-                # Subcloud data migration is complete but not yet activated
-                self.info_log(strategy_step, "Data migration is already done.")
-
-            return False
-        except Exception as e:
-            # After a fresh install, subcloud keystone is not yet accessible
-            self.info_log(strategy_step, str(e))
-            return True
-
     def wait_for_unlock(self, strategy_step):
         """This method returns successfully when the unlock completes.
 
@@ -169,10 +145,23 @@ class MigratingDataState(BaseState):
         Any exceptions raised by this method set the strategy to FAILED.
         """
 
-        if not self.is_subcloud_data_migration_required(strategy_step):
-            self.info_log(strategy_step, "Data migration is already done.")
+        # To account for abrupt termination of dcmanager, check the last known
+        # subcloud deploy status. If it is migrated/complete, advance to the next
+        # stage. If it is 'migrating', fail the strategy. The user will need to
+        # delete the existing strategy, create a new one and apply. Pre-check will
+        # set the appropriate next step for this subcloud.
+        subcloud = db_api.subcloud_get(self.context, strategy_step.subcloud.id)
+        if (subcloud.deploy_status == consts.DEPLOY_STATE_MIGRATED or
+                subcloud.deploy_status == consts.DEPLOY_STATE_DONE):
             return self.next_state
+        elif subcloud.deploy_status == consts.DEPLOY_STATE_MIGRATING_DATA:
+            db_api.subcloud_update(
+                self.context, strategy_step.subcloud_id,
+                deploy_status=consts.DEPLOY_STATE_DATA_MIGRATION_FAILED)
+            raise Exception("Previous data migration was abruptly terminated. "
+                            "Please try again with a new upgrade strategy.")
 
+        # If it gets here, the subcloud deploy status must be 'installed'.
         self.info_log(strategy_step, "Start migrating data...")
         db_api.subcloud_update(
             self.context, strategy_step.subcloud_id,
@@ -198,16 +187,16 @@ class MigratingDataState(BaseState):
             self.error_log(strategy_step, str(e))
             raise
 
-        db_api.subcloud_update(
-            self.context, strategy_step.subcloud_id,
-            deploy_status=consts.DEPLOY_STATE_DONE)
-
         # Ansible invokes an unlock. Need to wait for the unlock to complete.
         # Wait for 3 minutes for mtc/scripts to shut down services
         # todo(abailey): split this into smaller sleeps to allow stopping early
         time.sleep(self.ansible_sleep)
         # wait up to 60 minutes for reboot to complete
         self.wait_for_unlock(strategy_step)
+
+        db_api.subcloud_update(
+            self.context, strategy_step.subcloud_id,
+            deploy_status=consts.DEPLOY_STATE_MIGRATED)
 
         self.info_log(strategy_step, "Data migration completed.")
         return self.next_state

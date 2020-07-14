@@ -30,7 +30,8 @@ class StartingUpgradeState(BaseState):
     def get_upgrade_state(self, sysinv_client):
         upgrades = sysinv_client.get_upgrades()
         if len(upgrades) == 0:
-            raise Exception("No upgrades were found")
+            raise Exception("Failed to generate upgrade data. Please "
+                            "check sysinv.log on the subcloud for details.")
         # The list of upgrades will never contain more than one entry.
         return upgrades[0].state
 

@@ -34,16 +34,17 @@ class TestSwUpgradePreCheckStage(TestSwUpgradeState):
         self.sysinv_client.get_host = mock.MagicMock()
         self.sysinv_client.get_host_filesystem = mock.MagicMock()
 
-    def test_upgrade_pre_check_subcloud_online(self):
-        """Test pre check step where the subcloud is online.
+    def test_upgrade_pre_check_subcloud_online_fresh(self):
+        """Test pre check step where the subcloud is online and running N load
 
         The pre-check should transition in this scenario to the first state
         of a normal upgrade orchestation which is 'installing license'.
         """
 
-        # subcloud is online
-        self.mock_db_query.return_value = \
-            FakeSubcloud(availability_status=consts.AVAILABILITY_ONLINE)
+        # online subcloud running N load
+        self.mock_db_query.return_value = FakeSubcloud(
+            availability_status=consts.AVAILABILITY_ONLINE,
+            deploy_status=consts.DEPLOY_STATE_DONE)
 
         self.sysinv_client.get_host_filesystem.side_effect = \
             [CONTROLLER_0_HOST_FS_SCRATCH_MIN_SIZED]
@@ -57,6 +58,30 @@ class TestSwUpgradePreCheckStage(TestSwUpgradeState):
         # Verify the expected next state happened (installing license)
         self.assert_step_updated(self.strategy_step.subcloud_id,
                                  consts.STRATEGY_STATE_INSTALLING_LICENSE)
+
+    def test_upgrade_pre_check_subcloud_online_migrated(self):
+        """Test pre check step where the subcloud is online and running N+1 load
+
+        The pre-check in this scenario should advance directly to 'activating upgrade'.
+        """
+
+        # online subcloud running N+1 load
+        self.mock_db_query.return_value = FakeSubcloud(
+            availability_status=consts.AVAILABILITY_ONLINE,
+            deploy_status=consts.DEPLOY_STATE_MIGRATED)
+
+        self.sysinv_client.get_host_filesystem.side_effect = \
+            [CONTROLLER_0_HOST_FS_SCRATCH_MIN_SIZED]
+
+        # invoke the strategy state operation on the orch thread
+        self.worker.perform_state_action(self.strategy_step)
+
+        # verify the DB query was invoked
+        self.mock_db_query.assert_called()
+
+        # Verify the expected next state happened (activating upgrade)
+        self.assert_step_updated(self.strategy_step.subcloud_id,
+                                 consts.STRATEGY_STATE_ACTIVATING_UPGRADE)
 
     def test_upgrade_pre_check_subcloud_online_scratch_undersized(self):
         """Test pre check step where the subcloud is online undersized scratch
