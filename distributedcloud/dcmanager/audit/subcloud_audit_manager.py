@@ -21,6 +21,7 @@
 #
 
 import eventlet
+import time
 
 from keystoneauth1 import exceptions as keystone_exceptions
 from oslo_config import cfg
@@ -53,7 +54,7 @@ SUBCLOUD_STATE_UPDATE_ITERATIONS = \
 # Patch audit normally happens every DEFAULT_PATCH_AUDIT_DELAY_SECONDS, but
 # can be forced to happen on the next audit interval by calling
 # trigger_patch_audit.
-DEFAULT_PATCH_AUDIT_DELAY_SECONDS = 300
+DEFAULT_PATCH_AUDIT_DELAY_SECONDS = 900
 
 
 class SubcloudAuditManager(manager.Manager):
@@ -81,7 +82,8 @@ class SubcloudAuditManager(manager.Manager):
         self.alarm_aggr = alarm_aggregation.AlarmAggregation(self.context)
         self.patch_audit = patch_audit.PatchAudit(
             self.context, self.dcmanager_rpc_client)
-        self.patch_audit_wait_time_passed = DEFAULT_PATCH_AUDIT_DELAY_SECONDS
+        # trigger a patch audit on startup
+        self.patch_audit_time = 0
 
     @classmethod
     def trigger_patch_audit(cls, context):
@@ -119,24 +121,22 @@ class SubcloudAuditManager(manager.Manager):
         patch_audit_data = None
         audit_load = False
 
-        # This won't be super accurate as we aren't woken up after exactly
-        # the interval seconds, but it is good enough for an audit.
-        self.patch_audit_wait_time_passed +=\
-            CONF.scheduler.subcloud_audit_interval
+        current_time = time.time()
         # Determine whether to trigger a patch audit of each subcloud
         if (SubcloudAuditManager.force_patch_audit or
-                self.patch_audit_wait_time_passed >=
-                DEFAULT_PATCH_AUDIT_DELAY_SECONDS):
+                (current_time - self.patch_audit_time >=
+                    DEFAULT_PATCH_AUDIT_DELAY_SECONDS)):
             LOG.info("Trigger patch audit")
+            self.patch_audit_time = current_time
             self.patch_audit_count += 1
             # Query RegionOne patches and software version
             patch_audit_data = self.patch_audit.get_regionone_audit_data()
-            # Check subcloud software version every other audit cycle
-            if self.patch_audit_count % 2 != 0:
+            # Check subcloud software version every other patch audit cycle
+            if (self.patch_audit_count % 2 != 0 or
+                    SubcloudAuditManager.force_patch_audit):
                 LOG.info("Trigger load audit")
                 audit_load = True
             SubcloudAuditManager.reset_force_patch_audit()
-            self.patch_audit_wait_time_passed = 0
 
         return patch_audit_data, audit_load
 
