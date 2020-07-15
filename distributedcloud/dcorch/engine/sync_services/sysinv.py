@@ -674,8 +674,11 @@ class SysinvSyncThread(SyncThread):
 
     def get_resource_id(self, resource_type, resource):
         if resource_type == consts.RESOURCE_TYPE_SYSINV_SNMP_COMM:
-            LOG.debug("get_resource_id for community {}".format(resource))
-            return resource.community
+            if hasattr(resource, 'community'):
+                LOG.debug("get_resource_id for community {}".format(resource))
+                return resource.community
+            elif hasattr(resource, 'master_id'):
+                return resource.master_id
         elif resource_type == consts.RESOURCE_TYPE_SYSINV_SNMP_TRAPDEST:
             if hasattr(resource, 'ip_address') and \
                hasattr(resource, 'community'):
@@ -683,6 +686,8 @@ class SysinvSyncThread(SyncThread):
                           "community".format(resource),
                           extra=self.log_extra)
                 return resource.ip_address
+            elif hasattr(resource, 'master_id'):
+                return resource.master_id
         elif resource_type == consts.RESOURCE_TYPE_SYSINV_CERTIFICATE:
             if hasattr(resource, 'signature'):
                 LOG.debug("get_resource_id signature={}".format(
