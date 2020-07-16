@@ -850,18 +850,21 @@ class SubcloudManager(manager.Manager):
 
             if management_state == consts.MANAGEMENT_UNMANAGED:
 
-                # set all endpoint statuses to unknown
+                # set all endpoint statuses to unknown, except the dc-cert
+                # endpoint which continues to be audited for unmanaged
+                # subclouds
                 self.update_subcloud_endpoint_status(
                     context,
                     subcloud_name=subcloud.name,
                     endpoint_type=None,
-                    sync_status=consts.SYNC_STATUS_UNKNOWN)
+                    sync_status=consts.SYNC_STATUS_UNKNOWN,
+                    ignore_endpoints=[dcorch_consts.ENDPOINT_TYPE_DC_CERT])
 
         return db_api.subcloud_db_model_to_dict(subcloud)
 
     def _update_online_managed_subcloud(self, context, subcloud_id,
                                         endpoint_type, sync_status,
-                                        alarmable):
+                                        alarmable, ignore_endpoints=None):
         """Update online/managed subcloud endpoint status
 
         :param context: request context object
@@ -869,7 +872,12 @@ class SubcloudManager(manager.Manager):
         :param endpoint_type: endpoint type to update
         :param sync_status: sync status to set
         :param alarmable: controls raising an alarm if applicable
+        :param ignore_endpoints: list of endpoints to ignore (only used if
+               endpoint_type is None)
         """
+
+        if ignore_endpoints is None:
+            ignore_endpoints = []
 
         subcloud_status_list = []
         subcloud = None
@@ -955,11 +963,16 @@ class SubcloudManager(manager.Manager):
 
             else:
                 # update all endpoints on this subcloud
-                LOG.info("Updating all subclouds, endpoint: %s sync: %s" %
-                         (endpoint_type, sync_status))
+                LOG.info("Updating all endpoints on subcloud: %s sync: %s "
+                         "ignore_endpoints: %s" %
+                         (subcloud.name, sync_status, ignore_endpoints))
 
                 for entry in subcloud_status_list:
                     endpoint = entry[consts.ENDPOINT_TYPE]
+                    if endpoint in ignore_endpoints:
+                        # Do not update this endpoint
+                        continue
+
                     db_api.subcloud_status_update(context,
                                                   subcloud_id,
                                                   endpoint,
@@ -1014,7 +1027,8 @@ class SubcloudManager(manager.Manager):
             subcloud_name,
             endpoint_type=None,
             sync_status=consts.SYNC_STATUS_OUT_OF_SYNC,
-            alarmable=True):
+            alarmable=True,
+            ignore_endpoints=None):
         """Update subcloud endpoint status
 
         :param context: request context object
@@ -1022,7 +1036,12 @@ class SubcloudManager(manager.Manager):
         :param endpoint_type: endpoint type to update
         :param sync_status: sync status to set
         :param alarmable: controls raising an alarm if applicable
+        :param ignore_endpoints: list of endpoints to ignore (only used if
+               endpoint_type is None)
         """
+
+        if ignore_endpoints is None:
+            ignore_endpoints = []
 
         if not subcloud_name:
             raise exceptions.BadRequest(
@@ -1053,21 +1072,24 @@ class SubcloudManager(manager.Manager):
                                                      subcloud.id,
                                                      endpoint_type,
                                                      sync_status,
-                                                     alarmable)
+                                                     alarmable,
+                                                     ignore_endpoints)
             except Exception as e:
                 LOG.exception(e)
                 raise e
         else:
-            LOG.info("Ignoring unmanaged/offline subcloud sync_status "
-                     "update for subcloud:%s endpoint:%s sync:%s" %
-                     (subcloud_name, endpoint_type, sync_status))
+            LOG.info("Ignoring subcloud sync_status update for subcloud:%s "
+                     "availability:%s management:%s endpoint:%s sync:%s" %
+                     (subcloud_name, subcloud.availability_status,
+                      subcloud.management_state, endpoint_type, sync_status))
 
     def update_subcloud_endpoint_status(
             self, context,
             subcloud_name=None,
             endpoint_type=None,
             sync_status=consts.SYNC_STATUS_OUT_OF_SYNC,
-            alarmable=True):
+            alarmable=True,
+            ignore_endpoints=None):
         """Update subcloud endpoint status
 
         :param context: request context object
@@ -1075,17 +1097,23 @@ class SubcloudManager(manager.Manager):
         :param endpoint_type: endpoint type to update
         :param sync_status: sync status to set
         :param alarmable: controls raising an alarm if applicable
+        :param ignore_endpoints: list of endpoints to ignore (only used if
+               endpoint_type is None)
         """
+
+        if ignore_endpoints is None:
+            ignore_endpoints = []
 
         if subcloud_name:
             self._update_subcloud_endpoint_status(
-                context, subcloud_name, endpoint_type, sync_status, alarmable)
+                context, subcloud_name, endpoint_type, sync_status, alarmable,
+                ignore_endpoints)
         else:
             # update all subclouds
             for subcloud in db_api.subcloud_get_all(context):
                 self._update_subcloud_endpoint_status(
                     context, subcloud.name, endpoint_type, sync_status,
-                    alarmable)
+                    alarmable, ignore_endpoints)
 
     def _update_subcloud_state(self, context, subcloud_name,
                                management_state, availability_status):
