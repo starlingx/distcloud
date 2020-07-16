@@ -286,19 +286,21 @@ def sw_update_strategy_create(context, type, subcloud_apply_type,
                                           stop_on_failure, state)
 
 
-def sw_update_strategy_get(context):
+def sw_update_strategy_get(context, update_type=None):
     """Retrieve a sw update or raise if it does not exist."""
-    return IMPL.sw_update_strategy_get(context)
+    return IMPL.sw_update_strategy_get(context, update_type=update_type)
 
 
-def sw_update_strategy_update(context, state=None):
+def sw_update_strategy_update(context, state=None, update_type=None):
     """Update a sw update or raise if it does not exist."""
-    return IMPL.sw_update_strategy_update(context, state)
+    return IMPL.sw_update_strategy_update(context,
+                                          state,
+                                          update_type=update_type)
 
 
-def sw_update_strategy_destroy(context):
+def sw_update_strategy_destroy(context, update_type=None):
     """Destroy the sw update or raise if it does not exist."""
-    return IMPL.sw_update_strategy_destroy(context)
+    return IMPL.sw_update_strategy_destroy(context, update_type=update_type)
 
 
 ###################

@@ -205,22 +205,28 @@ class DCManagerService(service.Service):
             context, payload)
 
     @request_context
-    def delete_sw_update_strategy(self, context):
+    def delete_sw_update_strategy(self, context, update_type=None):
         # Deletes the software update strategy
         LOG.info("Handling delete_sw_update_strategy request")
-        return self.sw_update_manager.delete_sw_update_strategy(context)
+        return self.sw_update_manager.delete_sw_update_strategy(
+            context,
+            update_type=update_type)
 
     @request_context
-    def apply_sw_update_strategy(self, context):
+    def apply_sw_update_strategy(self, context, update_type=None):
         # Applies the software update strategy
         LOG.info("Handling apply_sw_update_strategy request")
-        return self.sw_update_manager.apply_sw_update_strategy(context)
+        return self.sw_update_manager.apply_sw_update_strategy(
+            context,
+            update_type=update_type)
 
     @request_context
-    def abort_sw_update_strategy(self, context):
+    def abort_sw_update_strategy(self, context, update_type=None):
         # Aborts the software update strategy
         LOG.info("Handling abort_sw_update_strategy request")
-        return self.sw_update_manager.abort_sw_update_strategy(context)
+        return self.sw_update_manager.abort_sw_update_strategy(
+            context,
+            update_type=update_type)
 
     def _stop_rpc_server(self):
         # Stop RPC connection to prevent new requests

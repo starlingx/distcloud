@@ -125,11 +125,14 @@ class ManagerClient(object):
         return self.call(ctxt, self.make_msg('create_sw_update_strategy',
                                              payload=payload))
 
-    def delete_sw_update_strategy(self, ctxt):
-        return self.call(ctxt, self.make_msg('delete_sw_update_strategy'))
+    def delete_sw_update_strategy(self, ctxt, update_type=None):
+        return self.call(ctxt, self.make_msg('delete_sw_update_strategy',
+                                             update_type=update_type))
 
-    def apply_sw_update_strategy(self, ctxt):
-        return self.call(ctxt, self.make_msg('apply_sw_update_strategy'))
+    def apply_sw_update_strategy(self, ctxt, update_type=None):
+        return self.call(ctxt, self.make_msg('apply_sw_update_strategy',
+                                             update_type=update_type))
 
-    def abort_sw_update_strategy(self, ctxt):
-        return self.call(ctxt, self.make_msg('abort_sw_update_strategy'))
+    def abort_sw_update_strategy(self, ctxt, update_type=None):
+        return self.call(ctxt, self.make_msg('abort_sw_update_strategy',
+                                             update_type=update_type))

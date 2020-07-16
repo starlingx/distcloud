@@ -933,7 +933,32 @@ class TestSwUpdateManager(base.DCManagerTestCase):
                              consts.SW_UPDATE_STATE_INITIAL)
         um = sw_update_manager.SwUpdateManager()
         deleted_strategy = um.delete_sw_update_strategy(self.ctxt)
-        self.assertEqual(deleted_strategy['state'], consts.SW_UPDATE_STATE_DELETING)
+        self.assertEqual(deleted_strategy['state'],
+                         consts.SW_UPDATE_STATE_DELETING)
+
+    @mock.patch.object(sw_update_manager, 'PatchOrchThread')
+    def test_delete_sw_update_strategy_scoped(self, mock_patch_orch_thread):
+        self.create_strategy(self.ctxt,
+                             consts.SW_UPDATE_TYPE_PATCH,
+                             consts.SW_UPDATE_STATE_INITIAL)
+        um = sw_update_manager.SwUpdateManager()
+        deleted_strategy = um.delete_sw_update_strategy(
+            self.ctxt,
+            update_type=consts.SW_UPDATE_TYPE_PATCH)
+        self.assertEqual(deleted_strategy['state'],
+                         consts.SW_UPDATE_STATE_DELETING)
+
+    @mock.patch.object(sw_update_manager, 'PatchOrchThread')
+    def test_delete_sw_update_strategy_bad_scope(self, mock_patch_orch_thread):
+        self.create_strategy(self.ctxt,
+                             consts.SW_UPDATE_TYPE_PATCH,
+                             consts.SW_UPDATE_STATE_INITIAL)
+        um = sw_update_manager.SwUpdateManager()
+        # the strategy is PATCH. The delete for UPGRADE should fail
+        self.assertRaises(exceptions.NotFound,
+                          um.delete_sw_update_strategy,
+                          self.ctx,
+                          update_type=consts.SW_UPDATE_TYPE_UPGRADE)
 
     @mock.patch.object(sw_update_manager, 'PatchOrchThread')
     def test_delete_sw_update_strategy_invalid_state(
