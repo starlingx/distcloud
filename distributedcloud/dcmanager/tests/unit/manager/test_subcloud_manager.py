@@ -433,6 +433,51 @@ class TestSubcloudManager(base.DCManagerTestCase):
             self.assertEqual(updated_subcloud_status.sync_status,
                              consts.SYNC_STATUS_OUT_OF_SYNC)
 
+        # Attempt to update each status to be unknown for an offline/unmanaged
+        # subcloud. This is allowed.
+        sm.update_subcloud_endpoint_status(
+            self.ctx, subcloud_name=subcloud.name,
+            endpoint_type=None,
+            sync_status=consts.SYNC_STATUS_UNKNOWN)
+
+        for endpoint in [dcorch_consts.ENDPOINT_TYPE_PLATFORM,
+                         dcorch_consts.ENDPOINT_TYPE_IDENTITY,
+                         dcorch_consts.ENDPOINT_TYPE_PATCHING,
+                         dcorch_consts.ENDPOINT_TYPE_FM,
+                         dcorch_consts.ENDPOINT_TYPE_NFV,
+                         dcorch_consts.ENDPOINT_TYPE_DC_CERT]:
+            updated_subcloud_status = db_api.subcloud_status_get(
+                self.ctx, subcloud.id, endpoint)
+            self.assertIsNotNone(updated_subcloud_status)
+            self.assertEqual(updated_subcloud_status.sync_status,
+                             consts.SYNC_STATUS_UNKNOWN)
+
+        # Attempt to update each status to be out-of-sync for an
+        # offline/unmanaged subcloud. Exclude one endpoint. This is allowed.
+        sm.update_subcloud_endpoint_status(
+            self.ctx, subcloud_name=subcloud.name,
+            endpoint_type=None,
+            sync_status=consts.SYNC_STATUS_OUT_OF_SYNC,
+            ignore_endpoints=[dcorch_consts.ENDPOINT_TYPE_DC_CERT])
+
+        for endpoint in [dcorch_consts.ENDPOINT_TYPE_PLATFORM,
+                         dcorch_consts.ENDPOINT_TYPE_IDENTITY,
+                         dcorch_consts.ENDPOINT_TYPE_PATCHING,
+                         dcorch_consts.ENDPOINT_TYPE_FM,
+                         dcorch_consts.ENDPOINT_TYPE_NFV]:
+            updated_subcloud_status = db_api.subcloud_status_get(
+                self.ctx, subcloud.id, endpoint)
+            self.assertIsNotNone(updated_subcloud_status)
+            self.assertEqual(updated_subcloud_status.sync_status,
+                             consts.SYNC_STATUS_OUT_OF_SYNC)
+        # Verify the dc-sync endpoint did not change
+        endpoint = dcorch_consts.ENDPOINT_TYPE_DC_CERT
+        updated_subcloud_status = db_api.subcloud_status_get(
+            self.ctx, subcloud.id, endpoint)
+        self.assertIsNotNone(updated_subcloud_status)
+        self.assertEqual(updated_subcloud_status.sync_status,
+                         consts.SYNC_STATUS_UNKNOWN)
+
         # Set/verify the subcloud is online/unmanaged
         db_api.subcloud_update(
             self.ctx, subcloud.id,
@@ -463,6 +508,8 @@ class TestSubcloudManager(base.DCManagerTestCase):
             self.assertEqual(updated_subcloud_status.sync_status,
                              consts.SYNC_STATUS_OUT_OF_SYNC)
 
+        # Attempt to update dc-cert status to be in-sync for an
+        # online/unmanaged subcloud. This is allowed. Verify the change.
         endpoint = dcorch_consts.ENDPOINT_TYPE_DC_CERT
         sm.update_subcloud_endpoint_status(
             self.ctx, subcloud_name=subcloud.name,
@@ -472,7 +519,6 @@ class TestSubcloudManager(base.DCManagerTestCase):
         updated_subcloud_status = db_api.subcloud_status_get(
             self.ctx, subcloud.id, endpoint)
         self.assertIsNotNone(updated_subcloud_status)
-        # No change in status: Only online/managed clouds are updated
         self.assertEqual(updated_subcloud_status.sync_status,
                          consts.SYNC_STATUS_IN_SYNC)
 
