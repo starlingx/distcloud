@@ -42,6 +42,7 @@ FAKE_SW_UPDATE_DATA = {
     "subcloud-apply-type": consts.SUBCLOUD_APPLY_TYPE_PARALLEL,
     "max-parallel-subclouds": "2",
     "stop-on-failure": "true",
+    "force": "false",
     "state": consts.SW_UPDATE_STATE_INITIAL
 }
 
@@ -925,6 +926,162 @@ class TestSwUpdateManager(base.DCManagerTestCase):
         self.assertRaises(exceptions.BadRequest,
                           um.create_sw_update_strategy,
                           self.ctxt, payload=FAKE_SW_UPDATE_DATA)
+
+    @mock.patch.object(sw_update_manager, 'PatchOrchThread')
+    def test_create_sw_update_strategy_offline_subcloud_no_force(
+            self, mock_patch_orch_thread):
+
+        # Create fake subclouds and respective status
+        # Subcloud1 will not be included in the strategy as it's offline
+        fake_subcloud1 = self.create_subcloud(self.ctxt, 'subcloud1', 1,
+                                              is_managed=True, is_online=False)
+        self.create_subcloud_status(self.ctxt, fake_subcloud1.id)
+
+        # Subcloud2 will be included in the strategy as it's online
+        fake_subcloud2 = self.create_subcloud(self.ctxt, 'subcloud2', 1,
+                                              is_managed=True, is_online=True)
+        self.create_subcloud_status(self.ctxt, fake_subcloud2.id)
+
+        # Subcloud3 will be included in the strategy as it's online
+        fake_subcloud3 = self.create_subcloud(self.ctxt, 'subcloud3', 1,
+                                              is_managed=True, is_online=True)
+        self.create_subcloud_status(self.ctxt, fake_subcloud3.id)
+
+        # Subcloud3 will be included in the strategy as it's online
+        fake_subcloud4 = self.create_subcloud(self.ctxt, 'subcloud4', 1,
+                                              is_managed=True, is_online=True)
+        self.create_subcloud_status(self.ctxt, fake_subcloud4.id)
+
+        um = sw_update_manager.SwUpdateManager()
+        data = copy.copy(FAKE_SW_UPDATE_DATA)
+        data["type"] = consts.SW_UPDATE_TYPE_UPGRADE
+        data["max-parallel-subclouds"] = 10
+        strategy_dict = um.create_sw_update_strategy(self.ctxt, payload=data)
+
+        # Assert that values passed through CLI are used instead of group values
+        self.assertEqual(strategy_dict['max-parallel-subclouds'], 10)
+        self.assertEqual(strategy_dict['subcloud-apply-type'],
+                         consts.SUBCLOUD_APPLY_TYPE_PARALLEL)
+        self.assertEqual(strategy_dict['type'], consts.SW_UPDATE_TYPE_UPGRADE)
+
+        # Verify the strategy step list
+        subcloud_ids = [None, 2, 3, 4]
+        stage = [1, 2]
+        strategy_step_list = db_api.strategy_step_get_all(self.ctxt)
+        for index, strategy_step in enumerate(strategy_step_list):
+            self.assertEqual(subcloud_ids[index], strategy_step.subcloud_id)
+            self.assertEqual(stage[index], strategy_step.stage)
+
+    @mock.patch.object(sw_update_manager, 'PatchOrchThread')
+    def test_create_sw_update_strategy_not_in_sync_offline_subcloud_with_force_upgrade(
+            self, mock_patch_orch_thread):
+
+        # This test verifies the offline subcloud is added to the strategy
+        # because force option is specified in the upgrade request.
+        fake_subcloud1 = self.create_subcloud(self.ctxt, 'subcloud1', 1,
+                                              is_managed=True, is_online=False)
+        self.create_subcloud_status(self.ctxt,
+                                    fake_subcloud1.id,
+                                    dcorch_consts.ENDPOINT_TYPE_LOAD,
+                                    consts.SYNC_STATUS_UNKNOWN)
+
+        um = sw_update_manager.SwUpdateManager()
+        data = copy.copy(FAKE_SW_UPDATE_DATA)
+        data["type"] = consts.SW_UPDATE_TYPE_UPGRADE
+        data["force"] = True
+        data["cloud_name"] = 'subcloud1'
+
+        strategy_dict = um.create_sw_update_strategy(self.ctxt, payload=data)
+
+        # Assert that values passed through CLI are used instead of group values
+        self.assertEqual(strategy_dict['subcloud-apply-type'],
+                         consts.SUBCLOUD_APPLY_TYPE_PARALLEL)
+        self.assertEqual(strategy_dict['type'], consts.SW_UPDATE_TYPE_UPGRADE)
+
+        # Verify the strategy step list
+        subcloud_ids = [None, 1]
+        stage = [1, 2]
+        strategy_step_list = db_api.strategy_step_get_all(self.ctxt)
+        for index, strategy_step in enumerate(strategy_step_list):
+            self.assertEqual(subcloud_ids[index], strategy_step.subcloud_id)
+            self.assertEqual(stage[index], strategy_step.stage)
+
+    @mock.patch.object(sw_update_manager, 'PatchOrchThread')
+    def test_create_sw_update_strategy_in_sync_offline_subcloud_with_force_upgrade(
+            self, mock_patch_orch_thread):
+
+        # This test verifies that a bad request exception is raised even
+        # though force option is specified in the request because the load sync
+        # status of the offline subcloud is in-sync.
+        fake_subcloud1 = self.create_subcloud(self.ctxt, 'subcloud1', 1,
+                                              is_managed=True, is_online=False)
+        self.create_subcloud_status(self.ctxt,
+                                    fake_subcloud1.id,
+                                    dcorch_consts.ENDPOINT_TYPE_LOAD,
+                                    consts.SYNC_STATUS_IN_SYNC)
+
+        um = sw_update_manager.SwUpdateManager()
+        data = copy.copy(FAKE_SW_UPDATE_DATA)
+        data["type"] = consts.SW_UPDATE_TYPE_UPGRADE
+        data["force"] = True
+        data["cloud_name"] = 'subcloud1'
+
+        self.assertRaises(exceptions.BadRequest,
+                          um.create_sw_update_strategy,
+                          self.ctxt, payload=data)
+
+    @mock.patch.object(sw_update_manager, 'PatchOrchThread')
+    def test_create_sw_update_strategy_online_subcloud_with_force_upgrade(
+            self, mock_patch_orch_thread):
+
+        # This test verifies that the force option has no effect in
+        # upgrade creation strategy if the subcloud is online. A bad request
+        # exception will be raised if the subcloud load sync status is
+        # unknown.
+        fake_subcloud1 = self.create_subcloud(self.ctxt, 'subcloud1', 1,
+                                              is_managed=True, is_online=True)
+        self.create_subcloud_status(self.ctxt,
+                                    fake_subcloud1.id,
+                                    dcorch_consts.ENDPOINT_TYPE_LOAD,
+                                    consts.SYNC_STATUS_UNKNOWN)
+
+        um = sw_update_manager.SwUpdateManager()
+        data = copy.copy(FAKE_SW_UPDATE_DATA)
+        data["type"] = consts.SW_UPDATE_TYPE_UPGRADE
+        data["force"] = True
+        data["cloud_name"] = 'subcloud1'
+
+        self.assertRaises(exceptions.BadRequest,
+                          um.create_sw_update_strategy,
+                          self.ctxt, payload=data)
+
+    @mock.patch.object(sw_update_manager, 'PatchOrchThread')
+    def test_create_sw_update_strategy_offline_subcloud_with_force_patching(
+            self, mock_patch_orch_thread):
+
+        # This test verifies that the force option has no effect in
+        # patching creation strategy even though the subcloud is offline
+        fake_subcloud1 = self.create_subcloud(self.ctxt, 'subcloud1', 1,
+                                              is_managed=True, is_online=False)
+        self.create_subcloud_status(self.ctxt, fake_subcloud1.id)
+
+        um = sw_update_manager.SwUpdateManager()
+        data = copy.copy(FAKE_SW_UPDATE_DATA)
+        data["force"] = True
+        data["cloud_name"] = 'subcloud1'
+        strategy_dict = um.create_sw_update_strategy(self.ctxt, payload=data)
+
+        # Assert that values passed through CLI are used instead of group values
+        self.assertEqual(strategy_dict['subcloud-apply-type'],
+                         consts.SUBCLOUD_APPLY_TYPE_PARALLEL)
+
+        # Verify the strategy step list
+        subcloud_ids = [None]
+        stage = [1]
+        strategy_step_list = db_api.strategy_step_get_all(self.ctxt)
+        for index, strategy_step in enumerate(strategy_step_list):
+            self.assertEqual(subcloud_ids[index], strategy_step.subcloud_id)
+            self.assertEqual(stage[index], strategy_step.stage)
 
     @mock.patch.object(sw_update_manager, 'PatchOrchThread')
     def test_delete_sw_update_strategy(self, mock_patch_orch_thread):
