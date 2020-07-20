@@ -57,6 +57,10 @@ SSL_PEM_FILE = os.path.join(SSL_CERT_DIR, SSL_CERT_FILE)
 DOCKER_REGISTRY_CERT_FILE = os.path.join(SSL_CERT_DIR, "registry-cert.crt")
 DOCKER_REGISTRY_KEY_FILE = os.path.join(SSL_CERT_DIR, "registry-cert.key")
 
+# The following is the name of the host filesystem 'scratch' which is used
+# by dcmanager upgrade orchestration for the load import operations.
+HOST_FS_NAME_SCRATCH = 'scratch'
+
 
 def make_sysinv_patch(update_dict):
     patch = []
@@ -725,3 +729,23 @@ class SysinvClient(base.DriverBase):
             raise e
 
         return keys
+
+    def get_host_filesystems(self, host_uuid):
+        """Get the host filesystems for a host"""
+
+        return self.sysinv_client.host_fs.list(host_uuid)
+
+    def get_host_filesystem(self, host_uuid, name):
+        """Get the named filesystem for a host
+
+           :return: host_fs or None
+        """
+
+        host_fs = None
+        host_fs_list = self.get_host_filesystems(host_uuid)
+
+        for host_fs in host_fs_list or []:
+            if host_fs.name == name:
+                break
+
+        return host_fs

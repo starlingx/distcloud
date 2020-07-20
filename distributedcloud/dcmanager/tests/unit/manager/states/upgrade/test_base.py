@@ -10,6 +10,7 @@ from dcmanager.common import consts
 from dcmanager.manager.states.base import BaseState
 from oslo_utils import timeutils
 
+from dcmanager.tests.unit.common.subcloud import FAKE_SUBCLOUD_INSTALL_VALUES
 from dcmanager.tests.unit.manager.test_sw_upgrade import TestSwUpgrade
 
 PREVIOUS_VERSION = '12.34'
@@ -97,7 +98,8 @@ class FakeSubcloud(object):
                  software_version='12.34',
                  management_state=consts.MANAGEMENT_MANAGED,
                  availability_status=consts.AVAILABILITY_ONLINE,
-                 deploy_status=consts.DEPLOY_STATE_DONE):
+                 deploy_status=consts.DEPLOY_STATE_DONE,
+                 data_install=FAKE_SUBCLOUD_INSTALL_VALUES):
         self.id = subcloud_id
         self.name = name
         self.description = description
@@ -115,8 +117,20 @@ class FakeSubcloud(object):
         # self.external_oam_gateway_address = external_oam_gateway_address
         # self.external_oam_floating_address = external_oam_floating_address
         # self.systemcontroller_gateway_ip = systemcontroller_gateway_ip
+        self.data_install = data_install
         self.created_at = timeutils.utcnow()
         self.updated_at = timeutils.utcnow()
+
+
+class FakeHostFilesystem(object):
+    def __init__(self,
+                 name='scratch',
+                 logical_volume='scratch-lv',
+                 size=16):
+        self.name = name
+        self.logical_volume = logical_volume
+        self.size = size
+        self.uuid = uuid.uuid4()
 
 
 class TestSwUpgradeState(TestSwUpgrade):
