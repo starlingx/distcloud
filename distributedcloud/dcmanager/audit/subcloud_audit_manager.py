@@ -33,6 +33,7 @@ from dccommon import consts as dccommon_consts
 from dccommon.drivers.openstack.sdk_platform import OpenStackDriver
 
 from dcmanager.audit import alarm_aggregation
+from dcmanager.audit import firmware_audit
 from dcmanager.audit import patch_audit
 from dcmanager.common import consts
 from dcmanager.common import context
@@ -63,6 +64,9 @@ class SubcloudAuditManager(manager.Manager):
     # Used to force patch audit on the next interval
     force_patch_audit = False
 
+    # Used to force patch audit on the next interval
+    force_firmware_audit = False
+
     def __init__(self, *args, **kwargs):
         LOG.debug(_('SubcloudAuditManager initialization...'))
 
@@ -84,6 +88,8 @@ class SubcloudAuditManager(manager.Manager):
             self.context, self.dcmanager_rpc_client)
         # trigger a patch audit on startup
         self.patch_audit_time = 0
+        self.firmware_audit = firmware_audit.FirmwareAudit(
+            self.context, self.dcmanager_rpc_client)
 
     @classmethod
     def trigger_patch_audit(cls, context):
@@ -96,6 +102,18 @@ class SubcloudAuditManager(manager.Manager):
     @classmethod
     def reset_force_patch_audit(cls):
         cls.force_patch_audit = False
+
+    @classmethod
+    def trigger_firmware_audit(cls, context):
+        """Trigger firmware audit at next interval.
+
+        This can be called from outside the dcmanager audit
+        """
+        cls.force_firmware_audit = True
+
+    @classmethod
+    def reset_force_firmware_audit(cls):
+        cls.force_firmware_audit = False
 
     def periodic_subcloud_audit(self):
         """Audit availability of subclouds."""
@@ -113,13 +131,15 @@ class SubcloudAuditManager(manager.Manager):
             except Exception:
                 LOG.exception("Error in periodic subcloud audit loop")
 
-    def _get_patch_audit(self):
-        """Return the patch audit data if the patch audit should be triggered.
+    def _get_audit_data(self):
+        """Return the patch audit and firmware audit data it should be triggered.
 
-           Also, returns whether to audit the load.
+           Also, returns whether to audit the load and firmware.
         """
         patch_audit_data = None
+        firmware_audit_data = None
         audit_load = False
+        audit_firmware = False
 
         current_time = time.time()
         # Determine whether to trigger a patch audit of each subcloud
@@ -136,9 +156,21 @@ class SubcloudAuditManager(manager.Manager):
                     SubcloudAuditManager.force_patch_audit):
                 LOG.info("Trigger load audit")
                 audit_load = True
+            if (self.patch_audit_count % 4 == 1):
+                LOG.info("Trigger firmware audit")
+                audit_firmware = True
+                firmware_audit_data = self.firmware_audit.get_regionone_audit_data()
+            SubcloudAuditManager.reset_force_firmware_audit()
             SubcloudAuditManager.reset_force_patch_audit()
 
-        return patch_audit_data, audit_load
+        # Trigger a firmware audit as it is changed through proxy
+        if (SubcloudAuditManager.force_firmware_audit):
+            LOG.info("Trigger firmware audit")
+            audit_firmware = True
+            firmware_audit_data = self.firmware_audit.get_regionone_audit_data()
+            SubcloudAuditManager.reset_force_firmware_audit()
+
+        return patch_audit_data, firmware_audit_data, audit_load, audit_firmware
 
     def _periodic_subcloud_audit_loop(self):
         """Audit availability of subclouds loop."""
@@ -154,7 +186,8 @@ class SubcloudAuditManager(manager.Manager):
         else:
             update_subcloud_state = False
 
-        patch_audit_data, do_load_audit = self._get_patch_audit()
+        patch_audit_data, firmware_audit_data,\
+            do_load_audit, do_firmware_audit = self._get_audit_data()
 
         openstack_installed = False
         # The feature of syncing openstack resources to the subclouds was not
@@ -197,7 +230,9 @@ class SubcloudAuditManager(manager.Manager):
                                                 update_subcloud_state,
                                                 openstack_installed,
                                                 patch_audit_data,
-                                                do_load_audit)
+                                                firmware_audit_data,
+                                                do_load_audit,
+                                                do_firmware_audit)
 
         # Wait for all greenthreads to complete
         LOG.info('Waiting for subcloud audits to complete.')
@@ -302,7 +337,8 @@ class SubcloudAuditManager(manager.Manager):
                 openstack_installed_current)
 
     def _audit_subcloud(self, subcloud_name, update_subcloud_state,
-                        audit_openstack, patch_audit_data, do_load_audit):
+                        audit_openstack, patch_audit_data, firmware_audit_data,
+                        do_load_audit, do_firmware_audit):
         """Audit a single subcloud."""
 
         # Retrieve the subcloud
@@ -405,6 +441,10 @@ class SubcloudAuditManager(manager.Manager):
                 self.patch_audit.subcloud_patch_audit(subcloud_name,
                                                       patch_audit_data,
                                                       do_load_audit)
+            # Perform firmware audit
+            if do_firmware_audit:
+                self.firmware_audit.subcloud_firmware_audit(subcloud_name,
+                                                            firmware_audit_data)
 
             # Audit openstack application in the subcloud
             if audit_openstack and sysinv_client:

@@ -129,13 +129,15 @@ ENDPOINT_TYPE_FM = "faultmanagement"
 ENDPOINT_TYPE_NFV = "nfv"
 ENDPOINT_TYPE_LOAD = "load"
 ENDPOINT_TYPE_DC_CERT = 'dc-cert'
+ENDPOINT_TYPE_FIRMWARE = 'firmware'
 
 # All endpoint types
 ENDPOINT_TYPES_LIST = [ENDPOINT_TYPE_PLATFORM,
                        ENDPOINT_TYPE_PATCHING,
                        ENDPOINT_TYPE_IDENTITY,
                        ENDPOINT_TYPE_LOAD,
-                       ENDPOINT_TYPE_DC_CERT]
+                       ENDPOINT_TYPE_DC_CERT,
+                       ENDPOINT_TYPE_FIRMWARE]
 
 # Dcorch sync endpoint types
 SYNC_ENDPOINT_TYPES_LIST = [ENDPOINT_TYPE_PLATFORM,

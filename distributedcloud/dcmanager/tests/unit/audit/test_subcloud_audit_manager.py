@@ -36,6 +36,7 @@ class FakeDCManagerAPI(object):
     def __init__(self):
         self.update_subcloud_availability = mock.MagicMock()
         self.update_subcloud_sync_endpoint_type = mock.MagicMock()
+        self.update_subcloud_endpoint_status = mock.MagicMock()
 
 
 class FakeAlarmAggregation(object):
@@ -48,6 +49,13 @@ class FakePatchAudit(object):
 
     def __init__(self):
         self.subcloud_patch_audit = mock.MagicMock()
+        self.get_regionone_audit_data = mock.MagicMock()
+
+
+class FakeFirmwareAudit(object):
+
+    def __init__(self):
+        self.subcloud_firmware_audit = mock.MagicMock()
         self.get_regionone_audit_data = mock.MagicMock()
 
 
@@ -245,6 +253,15 @@ class TestAuditManager(base.DCManagerTestCase):
             self.fake_patch_audit
         self.addCleanup(p.stop)
 
+        # Mock firmware audit
+        self.fake_firmware_audit = FakeFirmwareAudit()
+        p = mock.patch.object(subcloud_audit_manager,
+                              'firmware_audit')
+        self.mock_firmware_audit = p.start()
+        self.mock_firmware_audit.FirmwareAudit.return_value = \
+            self.fake_firmware_audit
+        self.addCleanup(p.stop)
+
     @staticmethod
     def create_subcloud_static(ctxt, **kwargs):
         values = {
@@ -288,11 +305,14 @@ class TestAuditManager(base.DCManagerTestCase):
         am = subcloud_audit_manager.SubcloudAuditManager()
 
         # Audit the subcloud
-        patch_audit_data, do_load_audit = am._get_patch_audit()
+        patch_audit_data, firmware_audit_data,\
+            do_load_audit, do_firmware_audit = am._get_audit_data()
         am._audit_subcloud(subcloud.name, update_subcloud_state=False,
                            audit_openstack=False,
                            patch_audit_data=patch_audit_data,
-                           do_load_audit=do_load_audit)
+                           firmware_audit_data=firmware_audit_data,
+                           do_load_audit=do_load_audit,
+                           do_firmware_audit=do_firmware_audit)
 
         # Verify the subcloud was set to online
         self.fake_dcmanager_api.update_subcloud_availability.assert_called_with(
@@ -311,6 +331,10 @@ class TestAuditManager(base.DCManagerTestCase):
         self.fake_patch_audit.subcloud_patch_audit.assert_called_with(
             subcloud.name, patch_audit_data, do_load_audit)
 
+        # Verify firmware audit is called
+        self.fake_firmware_audit.subcloud_firmware_audit.assert_called_with(
+            subcloud.name, firmware_audit_data)
+
     def test_audit_subcloud_online_unmanaged(self):
 
         subcloud = self.create_subcloud_static(self.ctx, name='subcloud1')
@@ -319,11 +343,14 @@ class TestAuditManager(base.DCManagerTestCase):
         am = subcloud_audit_manager.SubcloudAuditManager()
 
         # Audit the subcloud
-        patch_audit_data, do_load_audit = am._get_patch_audit()
+        patch_audit_data, firmware_audit_data,\
+            do_load_audit, do_firmware_audit = am._get_audit_data()
         am._audit_subcloud(subcloud.name, update_subcloud_state=False,
                            audit_openstack=False,
                            patch_audit_data=patch_audit_data,
-                           do_load_audit=do_load_audit)
+                           firmware_audit_data=firmware_audit_data,
+                           do_load_audit=do_load_audit,
+                           do_firmware_audit=do_firmware_audit)
 
         # Verify the subcloud was set to online
         self.fake_dcmanager_api.update_subcloud_availability.assert_called_with(
@@ -340,6 +367,9 @@ class TestAuditManager(base.DCManagerTestCase):
         # Verify patch audit is not called
         self.fake_patch_audit.subcloud_patch_audit.assert_not_called()
 
+        # Verify firmware audit is not called
+        self.fake_firmware_audit.subcloud_firmware_audit.assert_not_called()
+
     def test_audit_subcloud_online_no_change(self):
 
         subcloud = self.create_subcloud_static(self.ctx, name='subcloud1')
@@ -355,7 +385,9 @@ class TestAuditManager(base.DCManagerTestCase):
         # Audit the subcloud
         am._audit_subcloud(subcloud.name, update_subcloud_state=False,
                            audit_openstack=False, patch_audit_data=None,
-                           do_load_audit=False)
+                           firmware_audit_data=None,
+                           do_load_audit=False,
+                           do_firmware_audit=False)
 
         # Verify the subcloud state was not updated
         self.fake_dcmanager_api.update_subcloud_availability.\
@@ -386,7 +418,9 @@ class TestAuditManager(base.DCManagerTestCase):
         # Audit the subcloud and force a state update
         am._audit_subcloud(subcloud.name, update_subcloud_state=True,
                            audit_openstack=False, patch_audit_data=None,
-                           do_load_audit=False)
+                           firmware_audit_data=None,
+                           do_load_audit=False,
+                           do_firmware_audit=False)
 
         # Verify the subcloud state was updated even though no change
         self.fake_dcmanager_api.update_subcloud_availability.assert_called_with(
@@ -402,6 +436,9 @@ class TestAuditManager(base.DCManagerTestCase):
 
         # Verify patch audit is not called
         self.fake_patch_audit.subcloud_patch_audit.assert_not_called()
+
+        # Verify firmware audit is not called
+        self.fake_firmware_audit.subcloud_firmware_audit.assert_not_called()
 
     def test_audit_subcloud_go_offline(self):
 
@@ -423,11 +460,14 @@ class TestAuditManager(base.DCManagerTestCase):
             get_service_groups_result[3].state = 'inactive'
 
         # Audit the subcloud
-        patch_audit_data, do_load_audit = am._get_patch_audit()
+        patch_audit_data, firmware_audit_data,\
+            do_load_audit, do_firmware_audit = am._get_audit_data()
         am._audit_subcloud(subcloud.name, update_subcloud_state=False,
                            audit_openstack=False,
                            patch_audit_data=patch_audit_data,
-                           do_load_audit=do_load_audit)
+                           firmware_audit_data=firmware_audit_data,
+                           do_load_audit=do_load_audit,
+                           do_firmware_audit=do_firmware_audit)
 
         # Verify the audit fail count was updated
         audit_fail_count = 1
@@ -442,7 +482,10 @@ class TestAuditManager(base.DCManagerTestCase):
         am._audit_subcloud(subcloud.name, update_subcloud_state=False,
                            audit_openstack=False,
                            patch_audit_data=patch_audit_data,
-                           do_load_audit=do_load_audit)
+                           firmware_audit_data=firmware_audit_data,
+                           do_load_audit=do_load_audit,
+                           do_firmware_audit=do_firmware_audit)
+
         audit_fail_count = audit_fail_count + 1
 
         # Verify the subcloud was set to offline
@@ -458,6 +501,10 @@ class TestAuditManager(base.DCManagerTestCase):
         # Verify patch audit is called only once
         self.fake_patch_audit.subcloud_patch_audit.assert_called_once_with(
             subcloud.name, mock.ANY, True)
+
+        # Verify firmware audit is called
+        self.fake_firmware_audit.subcloud_firmware_audit.assert_called_once_with(
+            subcloud.name, mock.ANY)
 
     def test_audit_subcloud_offline_no_change(self):
         subcloud = self.create_subcloud_static(self.ctx, name='subcloud1')
@@ -475,11 +522,14 @@ class TestAuditManager(base.DCManagerTestCase):
             get_service_groups_result[3].state = 'inactive'
 
         # Audit the subcloud
-        patch_audit_data, do_load_audit = am._get_patch_audit()
+        patch_audit_data, firmware_audit_data,\
+            do_load_audit, do_firmware_audit = am._get_audit_data()
         am._audit_subcloud(subcloud.name, update_subcloud_state=False,
                            audit_openstack=True,
                            patch_audit_data=patch_audit_data,
-                           do_load_audit=do_load_audit)
+                           firmware_audit_data=firmware_audit_data,
+                           do_load_audit=do_load_audit,
+                           do_firmware_audit=do_firmware_audit)
 
         # Verify the subcloud state was not updated
         self.fake_dcmanager_api.update_subcloud_availability.\
@@ -494,6 +544,9 @@ class TestAuditManager(base.DCManagerTestCase):
 
         # Verify patch audit is not called
         self.fake_patch_audit.subcloud_patch_audit.assert_not_called()
+
+        # Verify firmware audit is not called
+        self.fake_firmware_audit.subcloud_firmware_audit.assert_not_called()
 
     def test_audit_subcloud_online_with_openstack_installed(self):
 
@@ -511,7 +564,8 @@ class TestAuditManager(base.DCManagerTestCase):
         # Audit the subcloud
         am._audit_subcloud(subcloud.name, update_subcloud_state=False,
                            audit_openstack=True, patch_audit_data=None,
-                           do_load_audit=False)
+                           firmware_audit_data=None,
+                           do_load_audit=False, do_firmware_audit=False)
 
         # Verify the subcloud state was not updated
         self.fake_dcmanager_api.update_subcloud_availability.\
@@ -529,6 +583,9 @@ class TestAuditManager(base.DCManagerTestCase):
 
         # Verify patch audit is not called
         self.fake_patch_audit.subcloud_patch_audit.assert_not_called()
+
+        # Verify firmware audit is not called
+        self.fake_firmware_audit.subcloud_firmware_audit.assert_not_called()
 
     def test_audit_subcloud_online_with_openstack_removed(self):
 
@@ -550,7 +607,8 @@ class TestAuditManager(base.DCManagerTestCase):
         # Audit the subcloud
         am._audit_subcloud(subcloud.name, update_subcloud_state=False,
                            audit_openstack=True, patch_audit_data=None,
-                           do_load_audit=False)
+                           firmware_audit_data=None,
+                           do_load_audit=False, do_firmware_audit=False)
 
         # Verify the subcloud state was not updated
         self.fake_dcmanager_api.update_subcloud_availability.\
@@ -567,6 +625,9 @@ class TestAuditManager(base.DCManagerTestCase):
 
         # Verify patch audit is not called
         self.fake_patch_audit.subcloud_patch_audit.assert_not_called()
+
+        # Verify firmware audit is not called
+        self.fake_firmware_audit.subcloud_firmware_audit.assert_not_called()
 
     def test_audit_subcloud_online_with_openstack_inactive(self):
 
@@ -588,7 +649,8 @@ class TestAuditManager(base.DCManagerTestCase):
         # Audit the subcloud
         am._audit_subcloud(subcloud.name, update_subcloud_state=False,
                            audit_openstack=True, patch_audit_data=None,
-                           do_load_audit=False)
+                           firmware_audit_data=None,
+                           do_load_audit=False, do_firmware_audit=False)
 
         # Verify the subcloud state was not updated
         self.fake_dcmanager_api.update_subcloud_availability.\
@@ -605,3 +667,6 @@ class TestAuditManager(base.DCManagerTestCase):
 
         # Verify patch audit is not called
         self.fake_patch_audit.subcloud_patch_audit.assert_not_called()
+
+        # Verify firmware audit is not called
+        self.fake_firmware_audit.subcloud_firmware_audit.assert_not_called()

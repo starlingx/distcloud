@@ -114,3 +114,10 @@ class DCManagerAuditService(service.Service):
 
         LOG.info("Trigger patch audit.")
         return self.subcloud_audit_manager.trigger_patch_audit(context)
+
+    @request_context
+    def trigger_firmware_audit(self, context):
+        """Used to force a firmware audit on the next interval"""
+
+        LOG.info("Trigger firmware audit.")
+        return self.subcloud_audit_manager.trigger_firmware_audit(context)

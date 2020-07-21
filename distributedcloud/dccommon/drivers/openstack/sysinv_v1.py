@@ -749,3 +749,19 @@ class SysinvClient(base.DriverBase):
                 break
 
         return host_fs
+
+    def get_host_device_list(self, host_name):
+        """Get a list of devices for a given host"""
+        return self.sysinv_client.pci_device.list(host_name)
+
+    def get_device_label_list(self):
+        """Get a list of device labels"""
+        return self.sysinv_client.device_label.list()
+
+    def get_device_images(self):
+        """Get a list of device images."""
+        return self.sysinv_client.device_image.list()
+
+    def get_device_image_states(self):
+        """Get a list of device image states."""
+        return self.sysinv_client.device_image_state.list()

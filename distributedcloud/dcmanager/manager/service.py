@@ -131,9 +131,11 @@ class DCManagerService(service.Service):
                                                          group_id,
                                                          data_install)
         # If a subcloud has been set to the managed state, trigger the
-        # patching audit so it can update the sync status ASAP.
+        # patching audit and firmware audit so it can update the
+        # sync status ASAP.
         if management_state == consts.MANAGEMENT_MANAGED:
             self.audit_rpc_client.trigger_patch_audit(context)
+            self.audit_rpc_client.trigger_firmware_audit(context)
 
         return subcloud
 
@@ -167,6 +169,12 @@ class DCManagerService(service.Service):
         if endpoint_type == dcorch_consts.ENDPOINT_TYPE_PATCHING and \
                 sync_status == consts.SYNC_STATUS_UNKNOWN:
             self.audit_rpc_client.trigger_patch_audit(context)
+
+        # If the firmware sync status is being set to unknown, trigger the
+        # firmware audit so it can update the sync status ASAP.
+        if endpoint_type == dcorch_consts.ENDPOINT_TYPE_FIRMWARE and \
+                sync_status == consts.SYNC_STATUS_UNKNOWN:
+            self.audit_rpc_client.trigger_firmware_audit(context)
 
         return
 

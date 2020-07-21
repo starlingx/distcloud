@@ -61,3 +61,6 @@ class ManagerAuditClient(object):
 
     def trigger_patch_audit(self, ctxt):
         return self.cast(ctxt, self.make_msg('trigger_patch_audit'))
+
+    def trigger_firmware_audit(self, ctxt):
+        return self.cast(ctxt, self.make_msg('trigger_firmware_audit'))

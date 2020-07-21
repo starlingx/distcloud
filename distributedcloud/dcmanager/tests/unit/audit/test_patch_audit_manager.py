@@ -267,7 +267,9 @@ class TestPatchAudit(base.DCManagerTestCase):
         am = subcloud_audit_manager.SubcloudAuditManager()
         am.patch_audit = pm
 
-        patch_audit_data, do_load_audit = am._get_patch_audit()
+        patch_audit_data, firmware_audit_data,\
+            do_load_audit, do_firmware_audit = am._get_audit_data()
+
         for name in ['subcloud1', 'subcloud2']:
             pm.subcloud_patch_audit(name, patch_audit_data, do_load_audit)
             expected_calls = [
@@ -299,7 +301,9 @@ class TestPatchAudit(base.DCManagerTestCase):
         mock_patching_client.side_effect = FakePatchingClientOutOfSync
         mock_sysinv_client.side_effect = FakeSysinvClientOneLoad
 
-        patch_audit_data, do_load_audit = am._get_patch_audit()
+        patch_audit_data, firmware_audit_data,\
+            do_load_audit, do_firmware_audit = am._get_audit_data()
+
         for name in ['subcloud1', 'subcloud2', 'subcloud3', 'subcloud4']:
             pm.subcloud_patch_audit(name, patch_audit_data, do_load_audit)
 
@@ -358,7 +362,9 @@ class TestPatchAudit(base.DCManagerTestCase):
         mock_patching_client.side_effect = FakePatchingClientExtraPatches
         mock_sysinv_client.side_effect = FakeSysinvClientOneLoad
 
-        patch_audit_data, do_load_audit = am._get_patch_audit()
+        patch_audit_data, firmware_audit_data,\
+            do_load_audit, do_firmware_audit = am._get_audit_data()
+
         for name in ['subcloud1', 'subcloud2']:
             pm.subcloud_patch_audit(name, patch_audit_data, do_load_audit)
             expected_calls = [
@@ -390,7 +396,9 @@ class TestPatchAudit(base.DCManagerTestCase):
         mock_patching_client.side_effect = FakePatchingClientInSync
         mock_sysinv_client.side_effect = FakeSysinvClientOneLoadUnmatchedSoftwareVersion
 
-        patch_audit_data, do_load_audit = am._get_patch_audit()
+        patch_audit_data, firmware_audit_data,\
+            do_load_audit, do_firmware_audit = am._get_audit_data()
+
         for name in ['subcloud1', 'subcloud2']:
             pm.subcloud_patch_audit(name, patch_audit_data, do_load_audit)
 
@@ -432,7 +440,9 @@ class TestPatchAudit(base.DCManagerTestCase):
         mock_patching_client.side_effect = FakePatchingClientInSync
         mock_sysinv_client.side_effect = FakeSysinvClientOneLoadUpgradeInProgress
 
-        patch_audit_data, do_load_audit = am._get_patch_audit()
+        patch_audit_data, firmware_audit_data,\
+            do_load_audit, do_firmware_audit = am._get_audit_data()
+
         for name in ['subcloud1', 'subcloud2']:
             pm.subcloud_patch_audit(name, patch_audit_data, do_load_audit)
 
