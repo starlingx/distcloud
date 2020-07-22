@@ -952,10 +952,15 @@ def purge_deleted_records(context, age_in_days):
         LOG.info('%d records were purged from orch_job table.', count)
 
         # Purging resource table
-        subquery = model_query(context, models.OrchJob.resource_id). \
+        orchjob_subquery = model_query(context, models.OrchJob.resource_id). \
             group_by(models.OrchJob.resource_id)
 
+        subcloud_resource_subquery = model_query(
+            context, models.SubcloudResource.resource_id). \
+            group_by(models.SubcloudResource.resource_id)
+
         count = session.query(models.Resource). \
-            filter(~models.Resource.id.in_(subquery)). \
+            filter(~models.Resource.id.in_(orchjob_subquery)). \
+            filter(~models.Resource.id.in_(subcloud_resource_subquery)). \
             delete(synchronize_session='fetch')
         LOG.info('%d records were purged from resource table.', count)
