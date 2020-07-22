@@ -183,8 +183,12 @@ class ManualRecoveryRequiredException(DCManagerException):
                 "deploy state:%(deploy_state)s")
 
 
+class PreCheckFailedException(DCManagerException):
+    message = _("Subcloud: %(subcloud)s upgrade precheck failed: %(details)s")
+
+
 class VaultLoadMissingError(DCManagerException):
-    message = _("No matching: %(file_type) found in vault: %(vault_dir)")
+    message = _("No matching: %(file_type)s found in vault: %(vault_dir)s")
 
 
 class StrategyStepNotFound(NotFound):

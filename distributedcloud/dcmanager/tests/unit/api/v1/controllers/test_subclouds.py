@@ -34,6 +34,7 @@ from dcmanager.api.controllers.v1 import subclouds
 from dcmanager.common import consts
 from dcmanager.rpc import client as rpc_client
 from dcmanager.tests.unit.api import test_root_controller as testroot
+from dcmanager.tests.unit.common.subcloud import FAKE_SUBCLOUD_INSTALL_VALUES
 from dcmanager.tests import utils
 
 FAKE_TENANT = utils.UUID1
@@ -58,24 +59,6 @@ FAKE_SUBCLOUD_DATA = {"id": FAKE_ID,
                       "external_oam_gateway_address": "10.10.10.1",
                       "external_oam_floating_address": "10.10.10.12",
                       "availability-status": "disabled"}
-
-FAKE_SUBCLOUD_INSTALL_VALUES = {
-    "image": "http://192.168.101.2:8080/iso/bootimage.iso",
-    "software_version": "12.34",
-    "bootstrap_interface": "eno1",
-    "bootstrap_address": "128.224.151.183",
-    "bootstrap_address_prefix": 23,
-    "bmc_address": "128.224.64.180",
-    "bmc_username": "root",
-    "nexthop_gateway": "128.224.150.1",
-    "network_address": "128.224.144.0",
-    "network_mask": "255.255.254.0",
-    "install_type": 3,
-    "console_type": "tty0",
-    "bootstrap_vlan": 128,
-    "rootfs_device": "/dev/disk/by-path/pci-0000:5c:00.0-scsi-0:1:0:0",
-    "boot_device": "/dev/disk/by-path/pci-0000:5c:00.0-scsi-0:1:0:0"
-}
 
 FAKE_BOOTSTRAP_VALUE = {
     'bootstrap-address': '10.10.10.12',
