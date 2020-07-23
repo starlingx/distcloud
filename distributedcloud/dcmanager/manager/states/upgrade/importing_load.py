@@ -56,12 +56,26 @@ class ImportingLoadState(BaseState):
         iso_path, sig_path = utils.get_vault_load_files(target_version)
 
         # Call the API. import_load blocks until the load state is 'importing'
-        imported_load = sysinv_client.import_load(iso_path, sig_path)
+        try:
+            imported_load = sysinv_client.import_load(iso_path, sig_path)
+        except Exception as e:
+            self.error_log(strategy_step, str(e))
+            raise Exception("Failed to import load. Please check sysinv.log on "
+                            "the subcloud for details.")
+
         new_load = imported_load.get('new_load', {})
-        if new_load.get('software_version') != target_version:
-            raise Exception("The imported load was not the expected version")
+        if new_load:
+            if new_load.get('software_version') != target_version:
+                raise Exception("The imported load was not the expected version.")
+        else:
+            self.error_log(strategy_step, imported_load.get('error'))
+            raise Exception("Failed to import load. Please check sysinv.log on "
+                            "the subcloud for details.")
 
         new_load_id = new_load.get('id')
+        self.info_log(strategy_step,
+                      "Load import request accepted, load software version = %s"
+                      % new_load.get('software_version'))
         # repeatedly query until load state changes to 'imported' or we timeout
         counter = 0
         while True:

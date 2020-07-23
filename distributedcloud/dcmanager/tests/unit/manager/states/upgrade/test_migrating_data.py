@@ -9,7 +9,7 @@ from dcmanager.common import consts
 from dcmanager.manager.states.upgrade import migrating_data
 from dcmanager.tests.unit.manager.states.upgrade.test_base \
     import FakeController
-from dcmanager.tests.unit.manager.states.upgrade.test_base import FakeSystem
+from dcmanager.tests.unit.manager.states.upgrade.test_base import FakeSubcloud
 from dcmanager.tests.unit.manager.states.upgrade.test_base  \
     import TestSwUpgradeState
 
@@ -45,17 +45,11 @@ class TestSwUpgradeMigratingDataStage(TestSwUpgradeState):
             self.setup_strategy_step(consts.STRATEGY_STATE_MIGRATING_DATA)
 
         # Add mock API endpoints for sysinv client calls invoked by this state
-        self.sysinv_client.get_system = mock.MagicMock()
-        self.sysinv_client.get_system.return_value = FakeSystem()
         self.sysinv_client.get_host = mock.MagicMock()
 
     @mock.patch.object(migrating_data, 'db_api')
     def test_upgrade_subcloud_migrating_data_failure(self, mock_db_api):
         """Test migrating data step where the subprocess call fails."""
-
-        # Simulate data migration has not started yet
-        self.sysinv_client.get_system.side_effect = \
-            [FakeSystem(), Exception("Fresh install!")]
 
         # Simulate a failed subprocess call to the platform upgrade playbook
         # on the subcloud.
@@ -75,10 +69,6 @@ class TestSwUpgradeMigratingDataStage(TestSwUpgradeState):
     @mock.patch.object(migrating_data, 'db_api')
     def test_upgrade_subcloud_migrating_data_success(self, mock_db_api):
         """Test migrating data step where the subprocess call passes."""
-
-        # Simulate data migration has not started yet
-        self.sysinv_client.get_system.side_effect = \
-            [FakeSystem(), Exception("Fresh install!")]
 
         # Simulate a successful subprocess call to the platform upgrade playbook
         # on the subcloud.
@@ -103,11 +93,17 @@ class TestSwUpgradeMigratingDataStage(TestSwUpgradeState):
         self.assert_step_updated(self.strategy_step.subcloud_id,
                                  self.on_success_state)
 
-    def test_upgrade_subcloud_migrating_data_skip(self):
-        """Test the migrating data step skipped"""
+    def test_upgrade_subcloud_migrating_data_skip_migration_done(self):
+        """Test the migrating data step skipped (migration completed)"""
 
-        # get_system is mocked to return the same fake system for both
-        # system controller and subclould.
+        # Mock the db API call
+        p = mock.patch('dcmanager.db.api.subcloud_get')
+        self.mock_db_query = p.start()
+        self.addCleanup(p.stop)
+
+        # online subcloud running N load
+        self.mock_db_query.return_value = FakeSubcloud(
+            deploy_status=consts.DEPLOY_STATE_MIGRATED)
 
         # Invoke the strategy state operation on the orch thread
         self.worker.perform_state_action(self.strategy_step)
@@ -116,16 +112,57 @@ class TestSwUpgradeMigratingDataStage(TestSwUpgradeState):
         self.assert_step_updated(self.strategy_step.subcloud_id,
                                  self.on_success_state)
 
+    def test_upgrade_subcloud_migrating_data_skip_deployment_done(self):
+        """Test the migrating data step skipped (deployment completed)"""
+
+        # Mock the db API call
+        p = mock.patch('dcmanager.db.api.subcloud_get')
+        self.mock_db_query = p.start()
+        self.addCleanup(p.stop)
+
+        # online subcloud running N load
+        self.mock_db_query.return_value = FakeSubcloud(
+            deploy_status=consts.DEPLOY_STATE_DONE)
+
+        # Invoke the strategy state operation on the orch thread
+        self.worker.perform_state_action(self.strategy_step)
+
+        # On success, should have moved to the next state
+        self.assert_step_updated(self.strategy_step.subcloud_id,
+                                 self.on_success_state)
+
+    def test_upgrade_subcloud_migrating_data_interrupted_migration(self):
+        """Test the migrating data step skipped"""
+
+        # Mock the db API calls
+        p1 = mock.patch('dcmanager.db.api.subcloud_get')
+        self.mock_db_query = p1.start()
+        self.addCleanup(p1.stop)
+
+        p2 = mock.patch('dcmanager.db.api.subcloud_update')
+        self.mock_db_update = p2.start()
+        self.addCleanup(p2.stop)
+
+        # online subcloud running N load
+        self.mock_db_query.return_value = FakeSubcloud(
+            deploy_status=consts.DEPLOY_STATE_MIGRATING_DATA)
+
+        # Invoke the strategy state operation on the orch thread
+        self.worker.perform_state_action(self.strategy_step)
+
+        # verify the DB update was invoked
+        self.mock_db_update.assert_called()
+
+        # Cannot resume the migration, the state goes to failed
+        self.assert_step_updated(self.strategy_step.subcloud_id,
+                                 consts.STRATEGY_STATE_FAILED)
+
     @mock.patch.object(migrating_data, 'db_api')
     def test_upgrade_subcloud_migrating_data_reboot_timeout(self, mock_db_api):
         """Test migrating data step times out during reboot
 
         The subprocess call passes however the reboot times out.
         """
-
-        # Simulate data migration has not started yet
-        self.sysinv_client.get_system.side_effect = \
-            [FakeSystem(), Exception("Fresh install!")]
 
         # Simulate a successful subprocess call to the platform upgrade playbook
         # on the subcloud.
@@ -155,10 +192,6 @@ class TestSwUpgradeMigratingDataStage(TestSwUpgradeState):
 
         The subprocess call passes however the unlock enable times out.
         """
-
-        # Simulate data migration has not started yet
-        self.sysinv_client.get_system.side_effect = \
-            [FakeSystem(), Exception("Fresh install!")]
 
         # Simulate a successful subprocess call to the platform upgrade playbook
         # on the subcloud.

@@ -79,7 +79,7 @@ class TestSwUpgradeImportingLoadStage(TestSwUpgradeState):
         self.mock_vault_files.return_value = (FAKE_ISO, FAKE_SIG)
         self.addCleanup(p.stop)
 
-        # Add mock API endpoints for sysinv client calls invcked by this state
+        # Add mock API endpoints for sysinv client calls invoked by this state
         self.sysinv_client.get_system = mock.MagicMock()
         self.sysinv_client.get_system.return_value = FakeSystem()
         self.sysinv_client.get_loads = mock.MagicMock()

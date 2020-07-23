@@ -13,11 +13,15 @@ from dcmanager.db import api as db_api
 from dcmanager.manager.states.base import BaseState
 
 # These deploy states should transition to the 'upgrading' state
-VALID_UPGRADE_STATES = [consts.DEPLOY_STATE_INSTALL_FAILED,
+VALID_UPGRADE_STATES = [consts.DEPLOY_STATE_PRE_INSTALL_FAILED,
+                        consts.DEPLOY_STATE_INSTALL_FAILED,
                         consts.DEPLOY_STATE_DATA_MIGRATION_FAILED, ]
 
 # These deploy states should transition to the 'migrating_data' state
 VALID_MIGRATE_DATA_STATES = [consts.DEPLOY_STATE_INSTALLED, ]
+
+# These deploy states should transition to the 'activating_upgrade' state
+VALID_ACTIVATION_STATES = [consts.DEPLOY_STATE_MIGRATED, ]
 
 MIN_SCRATCH_SIZE_REQUIRED_GB = 16
 
@@ -76,13 +80,18 @@ class PreCheckState(BaseState):
     def perform_state_action(self, strategy_step):
         """This state will check if the subcloud is offline:
 
-        if online, proceed to INSTALLING_LICENSE state
-        if offline, check the deploy_status and transfer to the correct state.
+        Check the deploy_status and transfer to the correct state.
         if an unsupported deploy_status is encountered, fail the upgrade
         """
         subcloud = db_api.subcloud_get(self.context, strategy_step.subcloud.id)
         if subcloud.availability_status == consts.AVAILABILITY_ONLINE:
             self._perform_subcloud_online_checks(strategy_step, subcloud)
+            # If the subcloud has completed data migration and is online,
+            # advance directly to activating upgrade step. Otherwise, start
+            # from installing license step.
+            if subcloud.deploy_status == consts.DEPLOY_STATE_MIGRATED:
+                self.override_next_state(consts.STRATEGY_STATE_ACTIVATING_UPGRADE)
+
             return self.next_state
 
         # it is offline.
@@ -90,8 +99,12 @@ class PreCheckState(BaseState):
             self.override_next_state(consts.STRATEGY_STATE_UPGRADING_SIMPLEX)
             return self.next_state
 
-        if subcloud.deploy_status in VALID_MIGRATE_DATA_STATES:
+        elif subcloud.deploy_status in VALID_MIGRATE_DATA_STATES:
             self.override_next_state(consts.STRATEGY_STATE_MIGRATING_DATA)
+            return self.next_state
+
+        elif subcloud.deploy_status in VALID_ACTIVATION_STATES:
+            self.override_next_state(consts.STRATEGY_STATE_ACTIVATING_UPGRADE)
             return self.next_state
 
         # FAIL: We are offline and encountered an un-recoverable deploy status

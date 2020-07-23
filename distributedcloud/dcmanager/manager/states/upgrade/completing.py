@@ -7,7 +7,9 @@ import time
 
 from dcmanager.common import consts
 from dcmanager.common.exceptions import StrategyStoppedException
+from dcmanager.db import api as db_api
 from dcmanager.manager.states.base import BaseState
+
 
 # Max time: 10 minutes = 60 queries x 10 seconds between each query
 DEFAULT_MAX_QUERIES = 60
@@ -23,6 +25,19 @@ class CompletingUpgradeState(BaseState):
         # max time to wait (in seconds) is: sleep_duration * max_queries
         self.sleep_duration = DEFAULT_SLEEP_DURATION
         self.max_queries = DEFAULT_MAX_QUERIES
+
+    def finalize_upgrade(self, strategy_step):
+        ks_client = self.get_keystone_client(strategy_step.subcloud.name)
+        sysinv_client = self.get_sysinv_client(strategy_step.subcloud.name,
+                                               ks_client.session)
+
+        software_version = sysinv_client.get_system().software_version
+
+        db_api.subcloud_update(
+            self.context, strategy_step.subcloud_id,
+            deploy_status=consts.DEPLOY_STATE_DONE,
+            software_version=software_version)
+        return self.next_state
 
     def perform_state_action(self, strategy_step):
         """Complete an upgrade on a subcloud
@@ -42,7 +57,7 @@ class CompletingUpgradeState(BaseState):
         if len(upgrades) == 0:
             self.info_log(strategy_step,
                           "No upgrades exist. Nothing needs completing")
-            return self.next_state
+            return self.finalize_upgrade(strategy_step)
 
         # invoke the API 'upgrade-complete'
         # This is a partially blocking call that raises exception on failure.
@@ -66,4 +81,4 @@ class CompletingUpgradeState(BaseState):
 
         # When we return from this method without throwing an exception, the
         # state machine can proceed to the next state
-        return self.next_state
+        return self.finalize_upgrade(strategy_step)

@@ -67,7 +67,9 @@ class LockHostState(BaseState):
                 break
             counter += 1
             if counter >= self.max_queries:
-                raise Exception("Timeout waiting for lock to complete")
+                raise Exception("Timeout waiting for lock to complete. "
+                                "Please check sysinv.log on the subcloud "
+                                "for details.")
             time.sleep(self.sleep_duration)
 
         # If we are here, the loop broke out cleanly and the action succeeded

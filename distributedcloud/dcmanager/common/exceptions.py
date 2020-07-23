@@ -180,7 +180,7 @@ class LicenseMissingError(DCManagerException):
 
 class ManualRecoveryRequiredException(DCManagerException):
     message = _("Offline Subcloud: %(subcloud)s needs manual recovery from "
-                "deploy state:%(deploy_state)s")
+                "deploy state: %(deploy_status)s")
 
 
 class PreCheckFailedException(DCManagerException):

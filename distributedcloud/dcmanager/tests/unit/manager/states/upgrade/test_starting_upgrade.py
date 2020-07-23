@@ -34,7 +34,7 @@ class TestSwUpgradeStartingUpgradeStage(TestSwUpgradeState):
         self.strategy_step = \
             self.setup_strategy_step(consts.STRATEGY_STATE_STARTING_UPGRADE)
 
-        # Add mock API endpoints for sysinv client calls invcked by this state
+        # Add mock API endpoints for sysinv client calls invoked by this state
         self.sysinv_client.upgrade_start = mock.MagicMock()
         self.sysinv_client.get_upgrades = mock.MagicMock()
 
