@@ -159,6 +159,15 @@ class SwUpdateStrategyController(object):
                 if stop_on_failure not in ["true", "false"]:
                     pecan.abort(400, _('stop-on-failure invalid'))
 
+            force_flag = payload.get('force')
+            if force_flag is not None:
+                if force_flag not in ["true", "false"]:
+                    pecan.abort(400, _('force invalid'))
+                elif payload.get('cloud_name') is None:
+                    pecan.abort(400, _('The --force option can only be applied for '
+                                       'a single subcloud. Please specify '
+                                       'the subcloud name.'))
+
             try:
                 # Ask dcmanager-manager to create the strategy.
                 # It will do all the real work...

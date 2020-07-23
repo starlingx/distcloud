@@ -43,7 +43,6 @@ FAKE_SW_UPDATE_DATA = {
     "max-parallel-subclouds": "10",
     "stop-on-failure": "true"
 }
-
 FAKE_SW_UPDATE_APPLY_DATA = {
     "action": consts.SW_UPDATE_ACTION_APPLY
 }
@@ -62,6 +61,21 @@ class TestSwUpdateStrategy(testroot.DCManagerApiTest):
     @mock.patch.object(sw_update_strategy, 'db_api')
     def test_post_sw_update(self, mock_db_api, mock_rpc_client):
         data = FAKE_SW_UPDATE_DATA
+        mock_rpc_client().create_sw_update_strategy.return_value = True
+        response = self.app.post_json(FAKE_URL,
+                                      headers=FAKE_HEADERS,
+                                      params=data)
+        mock_rpc_client().create_sw_update_strategy.assert_called_once_with(
+            mock.ANY,
+            data)
+        self.assertEqual(response.status_int, 200)
+
+    @mock.patch.object(rpc_client, 'ManagerClient')
+    @mock.patch.object(sw_update_strategy, 'db_api')
+    def test_post_sw_update_with_force_option(self, mock_db_api, mock_rpc_client):
+        data = copy.copy(FAKE_SW_UPDATE_DATA)
+        data["force"] = "true"
+        data["cloud_name"] = "subcloud1"
         mock_rpc_client().create_sw_update_strategy.return_value = True
         response = self.app.post_json(FAKE_URL,
                                       headers=FAKE_HEADERS,
@@ -95,6 +109,36 @@ class TestSwUpdateStrategy(testroot.DCManagerApiTest):
             self, mock_db_api, mock_rpc_client):
         data = copy.copy(FAKE_SW_UPDATE_DATA)
         data["max-parallel-subclouds"] = "not an integer"
+        six.assertRaisesRegex(self, webtest.app.AppError, "400 *",
+                              self.app.post_json, FAKE_URL,
+                              headers=FAKE_HEADERS, params=data)
+
+    @mock.patch.object(rpc_client, 'ManagerClient')
+    @mock.patch.object(sw_update_strategy, 'db_api')
+    def test_post_sw_update_invalid_stop_on_failure_type(
+            self, mock_db_api, mock_rpc_client):
+        data = copy.copy(FAKE_SW_UPDATE_DATA)
+        data["stop-on-failure"] = "not an boolean"
+        six.assertRaisesRegex(self, webtest.app.AppError, "400 *",
+                              self.app.post_json, FAKE_URL,
+                              headers=FAKE_HEADERS, params=data)
+
+    @mock.patch.object(rpc_client, 'ManagerClient')
+    @mock.patch.object(sw_update_strategy, 'db_api')
+    def test_post_sw_update_invalid_force_type(
+            self, mock_db_api, mock_rpc_client):
+        data = copy.copy(FAKE_SW_UPDATE_DATA)
+        data["force"] = "not an boolean"
+        six.assertRaisesRegex(self, webtest.app.AppError, "400 *",
+                              self.app.post_json, FAKE_URL,
+                              headers=FAKE_HEADERS, params=data)
+
+    @mock.patch.object(rpc_client, 'ManagerClient')
+    @mock.patch.object(sw_update_strategy, 'db_api')
+    def test_post_sw_update_valid_force_type_missing_cloud_name(
+            self, mock_db_api, mock_rpc_client):
+        data = copy.copy(FAKE_SW_UPDATE_DATA)
+        data["force"] = "true"
         six.assertRaisesRegex(self, webtest.app.AppError, "400 *",
                               self.app.post_json, FAKE_URL,
                               headers=FAKE_HEADERS, params=data)

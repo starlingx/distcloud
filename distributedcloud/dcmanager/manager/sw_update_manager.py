@@ -68,7 +68,8 @@ class SwUpdateManager(manager.Manager):
         self.sw_upgrade_orch_thread.stop()
         self.sw_upgrade_orch_thread.join()
 
-    def _validate_subcloud_status_sync(self, strategy_type, subcloud_status):
+    def _validate_subcloud_status_sync(self, strategy_type,
+                                       subcloud_status, force):
         """Check the appropriate subcloud_status fields for the strategy_type
 
            Returns: True if out of sync.
@@ -79,10 +80,16 @@ class SwUpdateManager(manager.Manager):
                     subcloud_status.sync_status ==
                     consts.SYNC_STATUS_OUT_OF_SYNC)
         elif strategy_type == consts.SW_UPDATE_TYPE_UPGRADE:
-            return (subcloud_status.endpoint_type ==
-                    dcorch_consts.ENDPOINT_TYPE_LOAD and
-                    subcloud_status.sync_status ==
-                    consts.SYNC_STATUS_OUT_OF_SYNC)
+            if force:
+                return (subcloud_status.endpoint_type ==
+                        dcorch_consts.ENDPOINT_TYPE_LOAD and
+                        subcloud_status.sync_status !=
+                        consts.SYNC_STATUS_IN_SYNC)
+            else:
+                return (subcloud_status.endpoint_type ==
+                        dcorch_consts.ENDPOINT_TYPE_LOAD and
+                        subcloud_status.sync_status ==
+                        consts.SYNC_STATUS_OUT_OF_SYNC)
         # Unimplemented strategy_type status check. Log an error
         LOG.error("_validate_subcloud_status_sync for %s not implemented" %
                   strategy_type)
@@ -129,6 +136,7 @@ class SwUpdateManager(manager.Manager):
             max_parallel_subclouds = int(max_parallel_subclouds_str)
 
         stop_on_failure_str = payload.get('stop-on-failure')
+
         if not stop_on_failure_str:
             stop_on_failure = False
         else:
@@ -136,6 +144,15 @@ class SwUpdateManager(manager.Manager):
                 stop_on_failure = True
             else:
                 stop_on_failure = False
+
+        force_str = payload.get('force')
+        if not force_str:
+            force = False
+        else:
+            if force_str in ['true']:
+                force = True
+            else:
+                force = False
 
         # Has the user specified a specific subcloud?
         cloud_name = payload.get('cloud_name')
@@ -149,8 +166,13 @@ class SwUpdateManager(manager.Manager):
                     msg='Subcloud %s does not exist' % cloud_name)
 
             if strategy_type == consts.SW_UPDATE_TYPE_UPGRADE:
-                # todo(abailey): Check if subcloud requires upgrade
-                LOG.warning("subcloud upgrade in-sync status not implemented")
+                # Make sure subcloud requires upgrade
+                subcloud_status = db_api.subcloud_status_get(
+                    context, subcloud.id, dcorch_consts.ENDPOINT_TYPE_LOAD)
+                if subcloud_status.sync_status == consts.SYNC_STATUS_IN_SYNC:
+                    raise exceptions.BadRequest(
+                        resource='strategy',
+                        msg='Subcloud %s does not require upgrade' % cloud_name)
             elif strategy_type == consts.SW_UPDATE_TYPE_PATCH:
                 # Make sure subcloud requires patching
                 subcloud_status = db_api.subcloud_status_get(
@@ -160,21 +182,22 @@ class SwUpdateManager(manager.Manager):
                         resource='strategy',
                         msg='Subcloud %s does not require patching' % cloud_name)
 
-        # Don't create a strategy if the strategy sync status is unknown for
-        # any subcloud we will be updating that is managed and online.
+        # Don't create a strategy if any of the subclouds is online and the
+        # relevant sync status is unknown. Offline subcloud is skipped unless
+        # --force option is specified and strategy type is upgrade.
         subclouds = db_api.subcloud_get_all_with_status(context)
         for subcloud, subcloud_status in subclouds:
-            if cloud_name and subcloud.name != cloud_name:
+            if (cloud_name and subcloud.name != cloud_name or
+                    subcloud.management_state != consts.MANAGEMENT_MANAGED):
                 # We are not updating this subcloud
-                continue
-            if (subcloud.management_state != consts.MANAGEMENT_MANAGED or
-                    subcloud.availability_status !=
-                    consts.AVAILABILITY_ONLINE):
                 continue
 
             if strategy_type == consts.SW_UPDATE_TYPE_UPGRADE:
-                if (subcloud_status.endpoint_type ==
-                    dcorch_consts.ENDPOINT_TYPE_LOAD and
+                if subcloud.availability_status != consts.AVAILABILITY_ONLINE:
+                    if not force:
+                        continue
+                elif (subcloud_status.endpoint_type ==
+                      dcorch_consts.ENDPOINT_TYPE_LOAD and
                         subcloud_status.sync_status ==
                         consts.SYNC_STATUS_UNKNOWN):
                     raise exceptions.BadRequest(
@@ -182,8 +205,10 @@ class SwUpdateManager(manager.Manager):
                         msg='Upgrade sync status is unknown for one or more '
                             'subclouds')
             elif strategy_type == consts.SW_UPDATE_TYPE_PATCH:
-                if (subcloud_status.endpoint_type ==
-                    dcorch_consts.ENDPOINT_TYPE_PATCHING and
+                if subcloud.availability_status != consts.AVAILABILITY_ONLINE:
+                    continue
+                elif (subcloud_status.endpoint_type ==
+                      dcorch_consts.ENDPOINT_TYPE_PATCHING and
                         subcloud_status.sync_status ==
                         consts.SYNC_STATUS_UNKNOWN):
                     raise exceptions.BadRequest(
@@ -228,18 +253,26 @@ class SwUpdateManager(manager.Manager):
                 subcloud_apply_type = group.update_apply_type
             for subcloud in subclouds_list:
                 stage_updated = False
-                if cloud_name and subcloud.name != cloud_name:
+                if (cloud_name and subcloud.name != cloud_name or
+                        subcloud.management_state != consts.MANAGEMENT_MANAGED):
                     # We are not targeting for update this subcloud
                     continue
-                if (subcloud.management_state != consts.MANAGEMENT_MANAGED or
-                        subcloud.availability_status !=
-                        consts.AVAILABILITY_ONLINE):
-                    continue
+
+                if subcloud.availability_status != consts.AVAILABILITY_ONLINE:
+                    if strategy_type == consts.SW_UPDATE_TYPE_UPGRADE:
+                        if not force:
+                            continue
+                    else:
+                        continue
+
+                # force option only has an effect in offline case
+                forced_validate = force and (subcloud.availability_status !=
+                                             consts.AVAILABILITY_ONLINE)
 
                 subcloud_status = db_api.subcloud_status_get_all(context, subcloud.id)
                 for status in subcloud_status:
                     if self._validate_subcloud_status_sync(strategy_type,
-                                                           status):
+                                                           status, forced_validate):
                         LOG.debug("Created for %s" % subcloud.id)
                         db_api.strategy_step_create(
                             context,
