@@ -391,11 +391,20 @@ class IdentitySyncThread(SyncThread):
             raise exceptions.SyncRequestTimeout
         except (dbsync_exceptions.Unauthorized,
                 keystone_exceptions.Unauthorized) as e:
-            LOG.info("Request [{}] failed for {}: {}"
+            LOG.info("Request [{} {}] failed for {}: {}"
                      .format(request.orch_job.operation_type,
+                             rsrc.resource_type,
                              self.subcloud_engine.subcloud.region_name,
                              str(e)), extra=self.log_extra)
             self.reauthenticate_sc_clients()
+            raise exceptions.SyncRequestFailedRetry
+        except dbsync_exceptions.UnauthorizedMaster as e:
+            LOG.info("Request [{} {}] failed for {}: {}"
+                     .format(request.orch_job.operation_type,
+                             rsrc.resource_type,
+                             self.subcloud_engine.subcloud.region_name,
+                             str(e)), extra=self.log_extra)
+            self.reauthenticate_m_dbs_client()
             raise exceptions.SyncRequestFailedRetry
         except exceptions.SyncRequestFailed:
             raise
@@ -417,7 +426,11 @@ class IdentitySyncThread(SyncThread):
 
         # Retrieve DB records of the user just created. The records is in JSON
         # format
-        user_records = self.m_dbs_client.identity_manager.user_detail(user_id)
+        try:
+            user_records = self.m_dbs_client.identity_manager.\
+                user_detail(user_id)
+        except dbsync_exceptions.Unauthorized:
+            raise dbsync_exceptions.UnauthorizedMaster
         if not user_records:
             LOG.error("No data retrieved from master cloud for user {} to"
                       " create its equivalent in subcloud.".format(user_id),
@@ -464,7 +477,11 @@ class IdentitySyncThread(SyncThread):
 
         # Retrieve DB records of the user. The records is in JSON
         # format
-        user_records = self.m_dbs_client.identity_manager.user_detail(user_id)
+        try:
+            user_records = self.m_dbs_client.identity_manager.\
+                user_detail(user_id)
+        except dbsync_exceptions.Unauthorized:
+            raise dbsync_exceptions.UnauthorizedMaster
         if not user_records:
             LOG.error("No data retrieved from master cloud for user {} to"
                       " update its equivalent in subcloud.".format(user_id),
@@ -584,8 +601,11 @@ class IdentitySyncThread(SyncThread):
 
         # Retrieve DB records of the project just created.
         # The records is in JSON format.
-        project_records = self.m_dbs_client.project_manager.\
-            project_detail(project_id)
+        try:
+            project_records = self.m_dbs_client.project_manager.\
+                project_detail(project_id)
+        except dbsync_exceptions.Unauthorized:
+            raise dbsync_exceptions.UnauthorizedMaster
         if not project_records:
             LOG.error("No data retrieved from master cloud for project {} to"
                       " create its equivalent in subcloud.".format(project_id),
@@ -633,8 +653,11 @@ class IdentitySyncThread(SyncThread):
 
         # Retrieve DB records of the project. The records is in JSON
         # format
-        project_records = self.m_dbs_client.project_manager.\
-            project_detail(project_id)
+        try:
+            project_records = self.m_dbs_client.project_manager.\
+                project_detail(project_id)
+        except dbsync_exceptions.Unauthorized:
+            raise dbsync_exceptions.UnauthorizedMaster
         if not project_records:
             LOG.error("No data retrieved from master cloud for project {} to"
                       " update its equivalent in subcloud.".format(project_id),
@@ -749,8 +772,11 @@ class IdentitySyncThread(SyncThread):
 
         # Retrieve DB records of the role just created. The records is in JSON
         # format.
-        role_records = self.m_dbs_client.role_manager.\
-            role_detail(role_id)
+        try:
+            role_records = self.m_dbs_client.role_manager.\
+                role_detail(role_id)
+        except dbsync_exceptions.Unauthorized:
+            raise dbsync_exceptions.UnauthorizedMaster
         if not role_records:
             LOG.error("No data retrieved from master cloud for role {} to"
                       " create its equivalent in subcloud.".format(role_id),
@@ -798,8 +824,11 @@ class IdentitySyncThread(SyncThread):
 
         # Retrieve DB records of the role. The records is in JSON
         # format
-        role_records = self.m_dbs_client.role_manager.\
-            role_detail(role_id)
+        try:
+            role_records = self.m_dbs_client.role_manager.\
+                role_detail(role_id)
+        except dbsync_exceptions.Unauthorized:
+            raise dbsync_exceptions.UnauthorizedMaster
         if not role_records:
             LOG.error("No data retrieved from master cloud for role {} to"
                       " update its equivalent in subcloud.".format(role_id),
@@ -1057,8 +1086,11 @@ class IdentitySyncThread(SyncThread):
 
         # Retrieve DB records of the revoke event just created. The records
         # is in JSON format.
-        revoke_event_records = self.m_dbs_client.revoke_event_manager.\
-            revoke_event_detail(audit_id=audit_id)
+        try:
+            revoke_event_records = self.m_dbs_client.revoke_event_manager.\
+                revoke_event_detail(audit_id=audit_id)
+        except dbsync_exceptions.Unauthorized:
+            raise dbsync_exceptions.UnauthorizedMaster
         if not revoke_event_records:
             LOG.error("No data retrieved from master cloud for token"
                       " revocation event with audit_id {} to create its"
@@ -1128,8 +1160,11 @@ class IdentitySyncThread(SyncThread):
 
         # Retrieve DB records of the revoke event just created. The records
         # is in JSON format.
-        revoke_event_records = self.m_dbs_client.revoke_event_manager.\
-            revoke_event_detail(user_id=event_id)
+        try:
+            revoke_event_records = self.m_dbs_client.revoke_event_manager.\
+                revoke_event_detail(user_id=event_id)
+        except dbsync_exceptions.Unauthorized:
+            raise dbsync_exceptions.UnauthorizedMaster
         if not revoke_event_records:
             LOG.error("No data retrieved from master cloud for token"
                       " revocation event with event_id {} to create its"

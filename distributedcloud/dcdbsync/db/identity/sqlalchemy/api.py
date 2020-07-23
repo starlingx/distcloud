@@ -13,7 +13,7 @@
 # License for the specific language governing permissions and limitations
 # under the License.
 #
-# Copyright (c) 2019 Wind River Systems, Inc.
+# Copyright (c) 2019-2020 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -392,6 +392,7 @@ def project_update(context, project_id, payload):
             domain_ref_projects = []
             parent_ref_projects = []
             domain_ref_users = []
+            domain_ref_local_users = []
             project = payload[table]
             new_project_id = project.get('id')
             if project_id != new_project_id:

@@ -63,7 +63,7 @@ AUDIT_LOCK_NAME = 'dcorch-audit'
 class SyncThread(object):
     """Manages tasks related to resource management."""
 
-    MAX_RETRY = 2
+    MAX_RETRY = 3
     # used by the audit to cache the master resources
     master_resources_dict = collections.defaultdict(dict)
 
