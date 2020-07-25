@@ -51,6 +51,7 @@ from dcmanager.common import exceptions
 from dcmanager.common.i18n import _
 from dcmanager.common import manager
 from dcmanager.common import utils
+from dcmanager.rpc import client as rpc_client
 
 from dcmanager.db import api as db_api
 
@@ -862,6 +863,12 @@ class SubcloudManager(manager.Manager):
                     endpoint_type=None,
                     sync_status=consts.SYNC_STATUS_UNKNOWN,
                     ignore_endpoints=[dcorch_consts.ENDPOINT_TYPE_DC_CERT])
+            elif management_state == consts.MANAGEMENT_MANAGED:
+                # Subcloud is managed
+                # Tell cert-mon to audit endpoint certificate
+                LOG.info('Request for managed audit for %s' % subcloud.name)
+                dc_notification = rpc_client.DCManagerNotifications()
+                dc_notification.subcloud_managed(context, subcloud.name)
 
         return db_api.subcloud_db_model_to_dict(subcloud)
 
@@ -1224,12 +1231,11 @@ class SubcloudManager(manager.Manager):
                 return
 
             if availability_status == consts.AVAILABILITY_ONLINE:
-                # Subcloud is going online, we always want the dc-cert
-                # endpoint to start out as synced.
-                self._update_subcloud_endpoint_status(
-                    context, subcloud_name,
-                    endpoint_type=dcorch_consts.ENDPOINT_TYPE_DC_CERT,
-                    sync_status=consts.SYNC_STATUS_IN_SYNC)
+                # Subcloud is going online
+                # Tell cert-mon to audit endpoint certificate.
+                LOG.info('Request for online audit for %s' % subcloud_name)
+                dc_notification = rpc_client.DCManagerNotifications()
+                dc_notification.subcloud_online(context, subcloud_name)
 
             # Send dcorch a state update
             self._update_subcloud_state(context, subcloud_name,
