@@ -47,11 +47,7 @@ class PreCheckState(BaseState):
         # obtain necessary clients
         subcloud_sysinv_client = None
         try:
-            subcloud_ks_client = \
-                self.get_keystone_client(strategy_step.subcloud.name)
-            subcloud_sysinv_client = self.get_sysinv_client(
-                strategy_step.subcloud.name,
-                subcloud_ks_client.session)
+            subcloud_sysinv_client = self.get_sysinv_client(strategy_step.subcloud.name)
         except Exception:
             # if getting the token times out, the orchestrator may have
             # restarted and subcloud may be offline; so will attempt

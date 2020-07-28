@@ -5,9 +5,12 @@
 #
 import time
 
+from cgtsclient.exc import HTTPUnauthorized
+
 from dcmanager.common import consts
 from dcmanager.common.exceptions import StrategyStoppedException
 from dcmanager.manager.states.base import BaseState
+
 
 # When an unlock occurs, a reboot is triggered. During reboot, API calls fail.
 # The max time allowed here is 30 minutes (ie: 30 queries with 1 minute sleep)
@@ -42,9 +45,7 @@ class UnlockHostState(BaseState):
         """
 
         # Create a sysinv client on the subcloud
-        ks_client = self.get_keystone_client(strategy_step.subcloud.name)
-        sysinv_client = self.get_sysinv_client(strategy_step.subcloud.name,
-                                               ks_client.session)
+        sysinv_client = self.get_sysinv_client(strategy_step.subcloud.name)
 
         host = sysinv_client.get_host(self.target_hostname)
 
@@ -89,34 +90,30 @@ class UnlockHostState(BaseState):
                 # no exception was raised so reset fail and auth checks
                 auth_failure = False
                 fail_counter = 0
-            except Exception as e:
-                if e.message == "Authorization failed":
-                    # Since a token could expire while waiting, generate
-                    # a new token (by re-creating the client) and re-try the
-                    # request, but only once.
-                    if not auth_failure:
-                        auth_failure = True
-                        self.info_log(strategy_step,
-                                      "Authorization failure. Retrying...")
-                        ks_client = self.get_keystone_client(
-                            strategy_step.subcloud.name)
-                        sysinv_client = self.get_sysinv_client(
-                            strategy_step.subcloud.name,
-                            ks_client.session)
-                        continue
-                    else:
-                        raise Exception("Repeated authorization failures.")
-                else:
-                    # Handle other exceptions due to being unreachable
-                    # for a significant period of time when there is a
-                    # controller swact, or in the case of AIO-SX,
-                    # when the controller reboots.
-                    fail_counter += 1
-                    if fail_counter >= self.max_failed_queries:
-                        raise Exception("Timeout waiting for reboot to complete")
-                    time.sleep(self.failed_sleep_duration)
-                    # skip the api_counter
+            except HTTPUnauthorized:
+                # Since a token could expire while waiting, generate
+                # a new token (by re-creating the client) and re-try the
+                # request, but only once.
+                if not auth_failure:
+                    auth_failure = True
+                    self.warn_log(strategy_step,
+                                  "Authorization failure. Retrying...")
+                    sysinv_client = self.get_sysinv_client(
+                        strategy_step.subcloud.name)
                     continue
+                else:
+                    raise Exception("Repeated authorization failures.")
+            except Exception:
+                # Handle other exceptions due to being unreachable
+                # for a significant period of time when there is a
+                # controller swact, or in the case of AIO-SX,
+                # when the controller reboots.
+                fail_counter += 1
+                if fail_counter >= self.max_failed_queries:
+                    raise Exception("Timeout waiting for reboot to complete")
+                time.sleep(self.failed_sleep_duration)
+                # skip the api_counter
+                continue
             # If the max counter is exceeeded, raise a timeout exception
             api_counter += 1
             if api_counter >= self.max_api_queries:

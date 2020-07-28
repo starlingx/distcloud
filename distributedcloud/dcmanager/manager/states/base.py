@@ -54,6 +54,13 @@ class BaseState(object):
                     self.get_region_name(strategy_step),
                     details))
 
+    def warn_log(self, strategy_step, details):
+        LOG.warn("Stage: %s, State: %s, Subcloud: %s, Details: %s"
+                 % (strategy_step.stage,
+                    strategy_step.state,
+                    self.get_region_name(strategy_step),
+                    details))
+
     def error_log(self, strategy_step, details):
         LOG.error("Stage: %s, State: %s, Subcloud: %s, Details: %s"
                   % (strategy_step.stage,
@@ -82,20 +89,22 @@ class BaseState(object):
                         % region_name)
             raise
 
-    @staticmethod
-    def get_sysinv_client(region_name, session):
+    def get_sysinv_client(self, region_name):
         """construct a sysinv client
 
            todo(abailey): determine if this client can be cached
         """
-        return SysinvClient(region_name, session)
+        keystone_client = self.get_keystone_client(region_name)
 
-    @staticmethod
-    def get_barbican_client(region_name, session):
+        return SysinvClient(region_name, keystone_client.session)
+
+    def get_barbican_client(self, region_name):
         """construct a barbican client
 
         """
-        return BarbicanClient(region_name, session)
+        keystone_client = self.get_keystone_client(region_name)
+
+        return BarbicanClient(region_name, keystone_client.session)
 
     @abc.abstractmethod
     def perform_state_action(self, strategy_step):

@@ -27,9 +27,7 @@ class CompletingUpgradeState(BaseState):
         self.max_queries = DEFAULT_MAX_QUERIES
 
     def finalize_upgrade(self, strategy_step):
-        ks_client = self.get_keystone_client(strategy_step.subcloud.name)
-        sysinv_client = self.get_sysinv_client(strategy_step.subcloud.name,
-                                               ks_client.session)
+        sysinv_client = self.get_sysinv_client(strategy_step.subcloud.name)
 
         software_version = sysinv_client.get_system().software_version
 
@@ -45,10 +43,8 @@ class CompletingUpgradeState(BaseState):
         Returns the next state in the state machine on success.
         Any exceptions raised by this method set the strategy to FAILED.
         """
-        # get the keystone and sysinv clients for the subcloud
-        ks_client = self.get_keystone_client(strategy_step.subcloud.name)
-        sysinv_client = self.get_sysinv_client(strategy_step.subcloud.name,
-                                               ks_client.session)
+        # get the sysinv client for the subcloud
+        sysinv_client = self.get_sysinv_client(strategy_step.subcloud.name)
 
         # upgrade-complete causes the upgrade to be deleted.
         # if no upgrade exists, there is no need to call it.

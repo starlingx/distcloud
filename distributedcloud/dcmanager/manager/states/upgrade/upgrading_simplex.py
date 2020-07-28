@@ -16,10 +16,7 @@ from dcmanager.db import api as db_api
 from dcmanager.manager.states.base import BaseState
 from dcmanager.manager.states.upgrade import utils as upgrade_utils
 
-from oslo_log import log as logging
 from tsconfig.tsconfig import SW_VERSION
-
-LOG = logging.getLogger(__name__)
 
 
 class UpgradingSimplexState(BaseState):
@@ -36,19 +33,15 @@ class UpgradingSimplexState(BaseState):
         Any exceptions raised by this method set the strategy to FAILED.
         """
 
-        LOG.info("Performing simplex upgrade for subcloud %s" %
-                 strategy_step.subcloud.name)
+        self.info_log(strategy_step, "Performing simplex upgrade for subcloud")
 
         subcloud_sysinv_client = None
         subcloud_barbican_client = None
         try:
-            subcloud_ks_client = self.get_keystone_client(strategy_step.subcloud.name)
             subcloud_sysinv_client = self.get_sysinv_client(
-                strategy_step.subcloud.name,
-                subcloud_ks_client.session)
+                strategy_step.subcloud.name)
             subcloud_barbican_client = self.get_barbican_client(
-                strategy_step.subcloud.name,
-                subcloud_ks_client.session)
+                strategy_step.subcloud.name)
         except Exception:
             # if getting the token times out, the orchestrator may have
             # restarted and subcloud may be offline; so will attempt
@@ -203,10 +196,8 @@ class UpgradingSimplexState(BaseState):
 
         subcloud = db_api.subcloud_get(self.context, strategy_step.subcloud_id)
         if not subcloud.data_install:
-            message = ("Failed to get upgrade data from install "
-                       "for subcloud %s." %
-                       strategy_step.subcloud.name)
-            LOG.warn(message)
+            message = ("Failed to get upgrade data from install")
+            self.warn_log(strategy_step, message)
             raise Exception(message)
 
         data_install = json.loads(subcloud.data_install)
@@ -380,5 +371,4 @@ class UpgradingSimplexState(BaseState):
             self.context, strategy_step.subcloud_id,
             deploy_status=consts.DEPLOY_STATE_INSTALLED)
         install.cleanup()
-        LOG.info("Successfully installed subcloud %s" %
-                 strategy_step.subcloud.name)
+        self.info_log(strategy_step, "Successfully installed subcloud")

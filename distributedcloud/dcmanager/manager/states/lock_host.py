@@ -33,9 +33,7 @@ class LockHostState(BaseState):
         """
 
         # Create a sysinv client on the subcloud
-        ks_client = self.get_keystone_client(strategy_step.subcloud.name)
-        sysinv_client = self.get_sysinv_client(strategy_step.subcloud.name,
-                                               ks_client.session)
+        sysinv_client = self.get_sysinv_client(strategy_step.subcloud.name)
 
         host = sysinv_client.get_host(self.target_hostname)
 

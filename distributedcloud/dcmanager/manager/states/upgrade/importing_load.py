@@ -32,16 +32,12 @@ class ImportingLoadState(BaseState):
         Any exceptions raised by this method set the strategy to FAILED.
         """
         # determine the version of the system controller in region one
-        local_ks_client = self.get_keystone_client()
         local_sysinv_client = \
-            self.get_sysinv_client(consts.DEFAULT_REGION_NAME,
-                                   local_ks_client.session)
+            self.get_sysinv_client(consts.DEFAULT_REGION_NAME)
         target_version = local_sysinv_client.get_system().software_version
 
-        # get the keystone and sysinv clients for the subcloud
-        ks_client = self.get_keystone_client(strategy_step.subcloud.name)
-        sysinv_client = self.get_sysinv_client(strategy_step.subcloud.name,
-                                               ks_client.session)
+        # sysinv client for the subcloud
+        sysinv_client = self.get_sysinv_client(strategy_step.subcloud.name)
 
         # Check if the load is already imported by checking the version
         current_loads = sysinv_client.get_loads()

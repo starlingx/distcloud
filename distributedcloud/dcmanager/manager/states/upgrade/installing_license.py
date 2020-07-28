@@ -30,10 +30,8 @@ class InstallingLicenseState(BaseState):
         """
 
         # check if the the system controller has a license
-        local_ks_client = self.get_keystone_client()
         local_sysinv_client = \
-            self.get_sysinv_client(consts.DEFAULT_REGION_NAME,
-                                   local_ks_client.session)
+            self.get_sysinv_client(consts.DEFAULT_REGION_NAME)
         system_controller_license = local_sysinv_client.get_license()
         # get_license returns a dictionary with keys: content and error
         # 'content' can be an empty string in success or failure case.
@@ -55,11 +53,8 @@ class InstallingLicenseState(BaseState):
                     subcloud_id=consts.SYSTEM_CONTROLLER_NAME)
 
         # retrieve the keystone session for the subcloud and query its license
-        subcloud_ks_client = \
-            self.get_keystone_client(strategy_step.subcloud.name)
         subcloud_sysinv_client = \
-            self.get_sysinv_client(strategy_step.subcloud.name,
-                                   subcloud_ks_client.session)
+            self.get_sysinv_client(strategy_step.subcloud.name)
         subcloud_license_response = subcloud_sysinv_client.get_license()
         subcloud_license = subcloud_license_response.get('content')
         subcloud_error = subcloud_license_response.get('error')

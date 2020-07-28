@@ -5,9 +5,12 @@
 #
 import time
 
+from cgtsclient.exc import HTTPUnauthorized
+
 from dcmanager.common import consts
 from dcmanager.common.exceptions import StrategyStoppedException
 from dcmanager.manager.states.base import BaseState
+
 
 ACTIVATING_COMPLETED_STATES = ['activation-complete',
                                'aborting']
@@ -48,9 +51,7 @@ class ActivatingUpgradeState(BaseState):
         Any exceptions raised by this method set the strategy to FAILED.
         """
         # get the keystone and sysinv clients for the subcloud
-        ks_client = self.get_keystone_client(strategy_step.subcloud.name)
-        sysinv_client = self.get_sysinv_client(strategy_step.subcloud.name,
-                                               ks_client.session)
+        sysinv_client = self.get_sysinv_client(strategy_step.subcloud.name)
 
         upgrade_state = self.get_upgrade_state(sysinv_client)
 
@@ -69,7 +70,15 @@ class ActivatingUpgradeState(BaseState):
             # If event handler stop has been triggered, fail the state
             if self.stopped():
                 raise StrategyStoppedException()
-            upgrade_state = self.get_upgrade_state(sysinv_client)
+            try:
+                upgrade_state = self.get_upgrade_state(sysinv_client)
+            except HTTPUnauthorized:
+                self.warn_log(strategy_step,
+                              "HTTPUnauthorized exception, retrying")
+                sysinv_client = self.get_sysinv_client(strategy_step.subcloud.name)
+                counter += 1
+                continue  # retry
+
             if upgrade_state in ACTIVATING_RETRY_STATES:
                 if counter >= self.max_failed_retries:
                     raise Exception("Failed to activate upgrade. Please "

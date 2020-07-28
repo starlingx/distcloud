@@ -41,10 +41,8 @@ class StartingUpgradeState(BaseState):
         Returns the next state in the state machine on success.
         Any exceptions raised by this method set the strategy to FAILED.
         """
-        # get the keystone and sysinv clients for the subcloud
-        ks_client = self.get_keystone_client(strategy_step.subcloud.name)
-        sysinv_client = self.get_sysinv_client(strategy_step.subcloud.name,
-                                               ks_client.session)
+        # get sysinv client for the subcloud
+        sysinv_client = self.get_sysinv_client(strategy_step.subcloud.name)
 
         # Check if an existing upgrade is already in progress.
         # The list of upgrades will never contain more than one entry.
