@@ -715,3 +715,69 @@ class TestSubclouds(testroot.DCManagerApiTest):
                               self.app.patch_json, FAKE_URL + '/' +
                               FAKE_ID + '/reconfigure',
                               headers=FAKE_HEADERS, params=data)
+
+    @mock.patch.object(rpc_client, 'ManagerClient')
+    @mock.patch.object(subclouds, 'db_api')
+    @mock.patch.object(subclouds.SubcloudsController, '_get_updatestatus_payload')
+    def test_subcloud_updatestatus(self, mock_get_updatestatus_payload,
+                                   mock_db_api,
+                                   mock_rpc_client):
+        data = {'endpoint': 'dc-cert', 'status': 'in-sync'}
+        mock_get_updatestatus_payload.return_value = data
+
+        FAKE_SUBCLOUD_DATA_NEW = copy.copy(FAKE_SUBCLOUD_DATA)
+        fake_subcloud = Subcloud(FAKE_SUBCLOUD_DATA_NEW, False)
+        mock_db_api.subcloud_get.return_value = fake_subcloud
+        mock_rpc_client().update_subcloud_endpoint_status.return_value = True
+        response = self.app.patch_json(FAKE_URL + '/' + FAKE_ID + '/update_status',
+                                       data, headers=FAKE_HEADERS)
+
+        mock_rpc_client().update_subcloud_endpoint_status.assert_called_once_with(
+            mock.ANY,
+            fake_subcloud.name,
+            'dc-cert',
+            'in-sync')
+
+        self.assertEqual(response.status_int, 200)
+
+    @mock.patch.object(rpc_client, 'ManagerClient')
+    @mock.patch.object(subclouds, 'db_api')
+    @mock.patch.object(subclouds.SubcloudsController, '_get_updatestatus_payload')
+    def test_subcloud_updatestatus_invalid_endpoint(
+            self, mock_get_updatestatus_payload,
+            mock_db_api,
+            mock_rpc_client):
+        data = {'endpoint': 'any-other-endpoint', 'status': 'in-sync'}
+        mock_get_updatestatus_payload.return_value = data
+
+        FAKE_SUBCLOUD_DATA_NEW = copy.copy(FAKE_SUBCLOUD_DATA)
+        fake_subcloud = Subcloud(FAKE_SUBCLOUD_DATA_NEW, False)
+        mock_db_api.subcloud_get.return_value = fake_subcloud
+        mock_rpc_client().update_subcloud_endpoint_status.return_value = True
+
+        six.assertRaisesRegex(self, webtest.app.AppError, "400 *",
+                              self.app.patch_json, FAKE_URL + '/' +
+                              FAKE_ID + '/update_status',
+                              headers=FAKE_HEADERS, params=data)
+        mock_rpc_client().update_subcloud_endpoint_status.assert_not_called()
+
+    @mock.patch.object(rpc_client, 'ManagerClient')
+    @mock.patch.object(subclouds, 'db_api')
+    @mock.patch.object(subclouds.SubcloudsController, '_get_updatestatus_payload')
+    def test_subcloud_updatestatus_invalid_status(
+            self, mock_get_updatestatus_payload,
+            mock_db_api,
+            mock_rpc_client):
+        data = {'endpoint': 'dc-cert', 'status': 'not-sure'}
+        mock_get_updatestatus_payload.return_value = data
+
+        FAKE_SUBCLOUD_DATA_NEW = copy.copy(FAKE_SUBCLOUD_DATA)
+        fake_subcloud = Subcloud(FAKE_SUBCLOUD_DATA_NEW, False)
+        mock_db_api.subcloud_get.return_value = fake_subcloud
+        mock_rpc_client().update_subcloud_endpoint_status.return_value = True
+
+        six.assertRaisesRegex(self, webtest.app.AppError, "400 *",
+                              self.app.patch_json, FAKE_URL + '/' +
+                              FAKE_ID + '/update_status',
+                              headers=FAKE_HEADERS, params=data)
+        mock_rpc_client().update_subcloud_endpoint_status.assert_not_called()
