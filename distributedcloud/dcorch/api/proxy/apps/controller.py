@@ -16,12 +16,14 @@
 import json
 import os
 import shutil
+import tempfile
 import webob.dec
 import webob.exc
 
 from dccommon.drivers.openstack.sdk_platform import OpenStackDriver
 from dccommon.drivers.openstack.sysinv_v1 import SysinvClient
 from dcmanager.common import consts as dcmanager_consts
+from dcmanager.rpc import client as dcmanager_rpc_client
 from dcorch.api.proxy.apps.dispatcher import APIDispatcher
 from dcorch.api.proxy.apps.proxy import Proxy
 from dcorch.api.proxy.common import constants as proxy_consts
@@ -381,16 +383,37 @@ class SysinvAPIController(APIController):
     }
     OK_STATUS_CODE = [
         webob.exc.HTTPOk.code,
+        webob.exc.HTTPAccepted.code,
         webob.exc.HTTPNoContent.code
     ]
 
     def __init__(self, app, conf):
         super(SysinvAPIController, self).__init__(app, conf)
+        self.dcmanager_rpc_client = dcmanager_rpc_client.ManagerClient()
         self.response_hander_map = {
             self.ENDPOINT_TYPE: self._process_response
         }
 
-    def _process_response(self, environ, request_body, response):
+    @webob.dec.wsgify(RequestClass=Request)
+    def __call__(self, req):
+        if CONF.show_request:
+            self.print_request(req)
+        environ = req.environ
+        application = self.process_request(req)
+        response = req.get_response(application)
+        return self.process_response(environ, req, response)
+
+    def _notify_dcmanager(self, request, response):
+        # Send a RPC to dcmanager
+        LOG.info("Send RPC to dcmanager to set firmware sync status to "
+                 "unknown")
+        self.dcmanager_rpc_client.update_subcloud_endpoint_status(
+            self.ctxt,
+            endpoint_type=consts.ENDPOINT_TYPE_FIRMWARE,
+            sync_status=dcmanager_consts.SYNC_STATUS_UNKNOWN)
+        return response
+
+    def _process_response(self, environ, request, response):
         try:
             if self.get_status_code(response) in self.OK_STATUS_CODE:
                 resource_type = self._get_resource_type_from_environ(environ)
@@ -407,9 +430,24 @@ class SysinvAPIController(APIController):
                     else:
                         sw_version = json.loads(response.body)['software_version']
                         self._remove_load_from_vault(sw_version)
-
+                elif resource_type == consts.RESOURCE_TYPE_SYSINV_DEVICE_IMAGE:
+                    notify = True
+                    if operation_type == consts.OPERATION_TYPE_POST:
+                        resp = json.loads(response.body)
+                        if not resp.get('error'):
+                            self._device_image_upload_req(request, response)
+                        else:
+                            notify = False
+                    elif operation_type == consts.OPERATION_TYPE_DELETE:
+                        filename = self._get_device_image_filename(
+                            json.loads(response.body))
+                        self._delete_device_image_from_vault(filename)
+                    # PATCH operation for apply/remove commands fall through
+                    # as they only require to notify dcmanager
+                    if notify:
+                        self._notify_dcmanager(request, response)
                 else:
-                    self._enqueue_work(environ, request_body, response)
+                    self._enqueue_work(environ, request, response)
                     self.notify(environ, self.ENDPOINT_TYPE)
 
             return response
@@ -476,8 +514,73 @@ class SysinvAPIController(APIController):
                             "re-import it using 'SystemController' region.")
                     raise webob.exc.HTTPUnprocessableEntity(explanation=msg)
 
-    def _enqueue_work(self, environ, request_body, response):
+    def _copy_device_image_to_vault(self, src_filepath, dst_filename):
+        try:
+            if not os.path.isdir(proxy_consts.DEVICE_IMAGE_VAULT_DIR):
+                os.makedirs(proxy_consts.DEVICE_IMAGE_VAULT_DIR)
+            image_file_path = os.path.join(proxy_consts.DEVICE_IMAGE_VAULT_DIR,
+                                           dst_filename)
+            shutil.copyfile(src_filepath, image_file_path)
+            LOG.info("copied %s to %s" % (src_filepath, image_file_path))
+        except Exception:
+            msg = _("Failed to store device image in vault. Please check "
+                    "dcorch log for details.")
+            raise webob.exc.HTTPInsufficientStorage(explanation=msg)
+
+    def _store_image_file(self, file_item, dst_filename):
+        # write the image to a temporary directory first
+        tempdir = tempfile.mkdtemp(prefix="device_image_", dir='/scratch')
+        fn = tempdir + '/' + os.path.basename(file_item.filename)
+        if hasattr(file_item.file, 'fileno'):
+            src = file_item.file.fileno()
+            dst = os.open(fn, os.O_WRONLY | os.O_CREAT | os.O_TRUNC)
+            size = 64 * 1024
+            n = size
+            while n >= size:
+                s = os.read(src, size)
+                n = os.write(dst, s)
+            os.close(dst)
+        else:
+            with open(fn, 'wb') as fd:
+                fd.write(file_item.file.read())
+
+        # copy the device image to the vault
+        try:
+            self._copy_device_image_to_vault(fn, dst_filename)
+        finally:
+            shutil.rmtree(tempdir)
+
+    def _device_image_upload_req(self, request, response):
+        # stores device image in the vault storage
+        file_item = request.POST['file']
+        try:
+            resource = json.loads(response.body)[consts.RESOURCE_TYPE_SYSINV_DEVICE_IMAGE]
+            dst_filename = self._get_device_image_filename(resource)
+            self._store_image_file(file_item, dst_filename)
+        except Exception:
+            LOG.exception("Failed to store the device image to vault")
+        proxy_utils.cleanup(request.environ)
+        return response
+
+    def _get_device_image_filename(self, resource):
+        filename = "{}-{}-{}-{}.bit".format(
+            resource.get('bitstream_type'),
+            resource.get('pci_vendor'),
+            resource.get('pci_device'),
+            resource.get('uuid'))
+        return filename
+
+    def _delete_device_image_from_vault(self, filename):
+        image_file_path = os.path.join(
+            proxy_consts.DEVICE_IMAGE_VAULT_DIR, filename)
+
+        if os.path.isfile(image_file_path):
+            os.remove(image_file_path)
+            LOG.info("Device image (%s) removed from vault." % filename)
+
+    def _enqueue_work(self, environ, request, response):
         LOG.info("enqueue_work")
+        request_body = request.body
         resource_info = {}
         request_header = self.get_request_header(environ)
         operation_type = proxy_utils.get_operation_type(environ)
