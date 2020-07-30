@@ -766,7 +766,8 @@ class SubcloudManager(manager.Manager):
                         description=None,
                         location=None,
                         group_id=None,
-                        data_install=None):
+                        data_install=None,
+                        force=None):
         """Update subcloud and notify orchestrators.
 
         :param context: request context object
@@ -776,6 +777,7 @@ class SubcloudManager(manager.Manager):
         :param location: new location
         :param group_id: new subcloud group id
         :param data_install: subcloud install values
+        :param force: force flag
         """
 
         LOG.info("Updating subcloud %s." % subcloud_id)
@@ -798,16 +800,17 @@ class SubcloudManager(manager.Manager):
                     raise exceptions.BadRequest(
                         resource='subcloud',
                         msg='Subcloud is already managed')
-                if subcloud.deploy_status != consts.DEPLOY_STATE_DONE:
-                    LOG.warning("Subcloud %s can be managed only when"
-                                "deploy_status is complete" % subcloud_id)
-                    raise exceptions.BadRequest(
-                        resource='subcloud',
-                        msg='Subcloud can be managed only if deploy status is complete')
-                if subcloud.availability_status != \
-                        consts.AVAILABILITY_ONLINE:
-                    LOG.warning("Subcloud %s is not online" % subcloud_id)
-                    raise exceptions.SubcloudNotOnline()
+                elif not force:
+                    if subcloud.deploy_status != consts.DEPLOY_STATE_DONE:
+                        LOG.warning("Subcloud %s can be managed only when"
+                                    "deploy_status is complete" % subcloud_id)
+                        raise exceptions.BadRequest(
+                            resource='subcloud',
+                            msg='Subcloud can be managed only if deploy status is complete')
+                    if subcloud.availability_status != \
+                            consts.AVAILABILITY_ONLINE:
+                        LOG.warning("Subcloud %s is not online" % subcloud_id)
+                        raise exceptions.SubcloudNotOnline()
             else:
                 LOG.error("Invalid management_state %s" % management_state)
                 raise exceptions.InternalError()

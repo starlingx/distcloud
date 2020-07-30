@@ -165,7 +165,7 @@ class SubcloudsController(object):
     @staticmethod
     def _get_patch_data(request):
         fields = ['management-state', 'description', 'location', 'group_id',
-                  'bmc_password', INSTALL_VALUES]
+                  'bmc_password', INSTALL_VALUES, 'force']
         payload = dict()
         multipart_data = decoder.MultipartDecoder(
             request.body, pecan.request.headers.get('Content-Type'))
@@ -825,6 +825,13 @@ class SubcloudsController(object):
                                              consts.MANAGEMENT_MANAGED]:
                 pecan.abort(400, _('Invalid management-state'))
 
+            force_flag = payload.get('force')
+            if force_flag is not None:
+                if force_flag not in [True, False]:
+                    pecan.abort(400, _('Invalid force value'))
+                elif management_state != consts.MANAGEMENT_MANAGED:
+                    pecan.abort(400, _('Invalid option: force'))
+
             # Verify the group_id is valid
             if group_id:
                 try:
@@ -843,7 +850,7 @@ class SubcloudsController(object):
                 subcloud = self.rpc_client.update_subcloud(
                     context, subcloud_id, management_state=management_state,
                     description=description, location=location, group_id=group_id,
-                    data_install=data_install)
+                    data_install=data_install, force=force_flag)
                 return subcloud
             except RemoteError as e:
                 pecan.abort(422, e.value)

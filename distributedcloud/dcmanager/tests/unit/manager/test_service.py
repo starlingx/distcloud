@@ -10,7 +10,7 @@
 # License for the specific language governing permissions and limitations
 # under the License.
 #
-# Copyright (c) 2017 Wind River Systems, Inc.
+# Copyright (c) 2017-2020 Wind River Systems, Inc.
 #
 # The right to copy, distribute, modify, or otherwise make use
 # of this software may be licensed only pursuant to the terms
@@ -119,7 +119,7 @@ class TestDCManagerService(base.DCManagerTestCase):
             assert_called_once_with(self.context, mock.ANY,
                                     mock.ANY, mock.ANY,
                                     mock.ANY, mock.ANY,
-                                    mock.ANY)
+                                    mock.ANY, mock.ANY)
 
     @mock.patch.object(service, 'SwUpdateManager')
     @mock.patch.object(service, 'SubcloudManager')
