@@ -109,34 +109,23 @@ class IdentitySyncThread(SyncThread):
             self.m_dbs_client.update(session=self.admin_session)
 
     def reauthenticate_m_ks_client(self):
-        if self.sc_ks_client and self.sc_admin_session:
-            self.sc_ks_client.authenticate(
-                auth_url=self.admin_session.auth.auth_url,
-                username=self.admin_session.auth._username,
-                password=self.admin_session.auth._password,
-                project_name=self.admin_session.auth._project_name,
-                user_domain_name=self.admin_session.auth._user_domain_name,
-                project_domain_name=self.admin_session.auth._project_domain_name,
-            )
+        if self.m_ks_client and self.admin_session:
+            self.m_ks_client.session.invalidate()
+            self.m_ks_client.session.get_auth_headers()
 
     def reauthenticate_sc_clients(self):
-        self.reauthenticate_sc_dbs_client()
         self.reauthenticate_sc_ks_client()
+        self.sc_dbs_client.update(session=self.sc_admin_session)
 
     def reauthenticate_sc_dbs_client(self):
-        if self.sc_dbs_client and self.sc_admin_session:
-            self.sc_dbs_client.update(session=self.sc_admin_session)
+        self.sc_admin_session = None
+        self.sc_dbs_client = None
+        self.initialize_sc_clients()
 
     def reauthenticate_sc_ks_client(self):
-        if self.sc_ks_client and self.sc_admin_session:
-            self.sc_ks_client.authenticate(
-                auth_url=self.sc_admin_session.auth.auth_url,
-                username=self.sc_admin_session.auth._username,
-                password=self.sc_admin_session.auth._password,
-                project_name=self.sc_admin_session.auth._project_name,
-                user_domain_name=self.sc_admin_session.auth._user_domain_name,
-                project_domain_name=self.sc_admin_session.auth._project_domain_name,
-            )
+        self.sc_admin_session = None
+        self.sc_ks_client = None
+        self.initialize_sc_clients()
 
     def initialize(self):
         # Subcloud may be enabled a while after being added.
