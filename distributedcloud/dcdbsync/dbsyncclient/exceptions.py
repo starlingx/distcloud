@@ -12,7 +12,7 @@
 #    See the License for the specific language governing permissions and
 #    limitations under the License.
 #
-# Copyright (c) 2019 Wind River Systems, Inc.
+# Copyright (c) 2019-2020 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -84,6 +84,15 @@ class UnknownConnectionError(DBsyncClientException):
 class Unauthorized(DBsyncClientException):
     message = "UnauthorizedException occurred"
     code = "UNAUTHORIZED_EXCEPTION"
+
+    def __init__(self, message=None):
+        if message:
+            self.message = message
+
+
+class UnauthorizedMaster(DBsyncClientException):
+    message = "Unauthorized request - master resource"
+    code = "UNAUTHORIZED_EXCEPTION_MASTER"
 
     def __init__(self, message=None):
         if message:
