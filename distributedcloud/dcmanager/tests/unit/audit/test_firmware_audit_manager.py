@@ -67,9 +67,9 @@ class DeviceImage(object):
 
 
 class DeviceImageState(object):
-    def __init__(self, pciaddr, image_uuid,
+    def __init__(self, pcidevice_uuid, image_uuid,
                  status):
-        self.pciaddr = pciaddr
+        self.pcidevice_uuid = pcidevice_uuid
         self.image_uuid = image_uuid
         self.status = status
 
@@ -149,13 +149,13 @@ DEVICE_LABEL1 = DeviceLabels('06789e01-13b6-2347',
                              'value1')
 
 # Device image state where image is written to device
-DEVICE_IMAGE_STATE1 = DeviceImageState('0000:00:04.0',
+DEVICE_IMAGE_STATE1 = DeviceImageState(PCI_DEVICE4.uuid,
                                        '04ae0e01-13b6-4105',
                                        'completed')
 
 # Device image state where image is applied but not written
 # to the device
-DEVICE_IMAGE_STATE2 = DeviceImageState('0000:00:04.0',
+DEVICE_IMAGE_STATE2 = DeviceImageState(PCI_DEVICE4.uuid,
                                        '04ae0e01-13b6-4105',
                                        'pending')
 

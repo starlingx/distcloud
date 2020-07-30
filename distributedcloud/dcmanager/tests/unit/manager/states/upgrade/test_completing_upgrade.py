@@ -8,8 +8,8 @@ import mock
 from dcmanager.common import consts
 from dcmanager.manager.states.upgrade import completing
 
-from dcmanager.tests.unit.manager.states.upgrade.test_base import FakeSystem
-from dcmanager.tests.unit.manager.states.upgrade.test_base import FakeUpgrade
+from dcmanager.tests.unit.manager.states.fakes import FakeSystem
+from dcmanager.tests.unit.manager.states.fakes import FakeUpgrade
 from dcmanager.tests.unit.manager.states.upgrade.test_base \
     import TestSwUpgradeState
 

@@ -39,6 +39,7 @@ CONF = cfg.CONF
 LOG = logging.getLogger(__name__)
 
 SUPPORTED_STRATEGY_TYPES = [
+    consts.SW_UPDATE_TYPE_FIRMWARE,
     consts.SW_UPDATE_TYPE_UPGRADE,
     consts.SW_UPDATE_TYPE_PATCH
 ]

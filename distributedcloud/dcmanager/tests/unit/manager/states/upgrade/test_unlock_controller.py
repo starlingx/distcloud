@@ -9,8 +9,7 @@ import mock
 from dcmanager.common import consts
 from dcmanager.manager.states import unlock_host
 
-from dcmanager.tests.unit.manager.states.upgrade.test_base \
-    import FakeController
+from dcmanager.tests.unit.manager.states.fakes import FakeController
 from dcmanager.tests.unit.manager.states.upgrade.test_base \
     import TestSwUpgradeState
 

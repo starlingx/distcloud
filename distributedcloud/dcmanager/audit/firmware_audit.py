@@ -138,7 +138,7 @@ class FirmwareAudit(object):
                 image.pci_device == device.pdevice_id:
                 device_image_state = None
                 for device_image_state_obj in subcloud_device_image_states:
-                    if device_image_state_obj.pciaddr == device.pciaddr \
+                    if device_image_state_obj.pcidevice_uuid == device.uuid \
                         and device_image_state_obj.image_uuid == image.uuid:
                         device_image_state = device_image_state_obj
                         break

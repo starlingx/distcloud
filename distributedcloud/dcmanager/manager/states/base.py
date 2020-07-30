@@ -11,6 +11,7 @@ from oslo_log import log as logging
 from dccommon.drivers.openstack.barbican import BarbicanClient
 from dccommon.drivers.openstack.sdk_platform import OpenStackDriver
 from dccommon.drivers.openstack.sysinv_v1 import SysinvClient
+from dccommon.drivers.openstack.vim import VimClient
 from dcmanager.common import consts
 from dcmanager.common import context
 
@@ -105,6 +106,16 @@ class BaseState(object):
         keystone_client = self.get_keystone_client(region_name)
 
         return BarbicanClient(region_name, keystone_client.session)
+
+    @staticmethod
+    def get_vim_client(region_name):
+        """construct a vim client for a region."""
+        # If keystone client fails to initialze, raise an exception
+        # a cached keystone client is used if valid
+        os_client = OpenStackDriver(region_name=region_name,
+                                    region_clients=None)
+        return VimClient(region_name,
+                         os_client.keystone_client.session)
 
     @abc.abstractmethod
     def perform_state_action(self, strategy_step):
