@@ -46,10 +46,11 @@ class TestFwUpdateImportingFirmwareStage(TestFwUpdateState):
 
         # Add mock API endpoints for sysinv client calls invcked by this state
         self.sysinv_client.get_device_images = mock.MagicMock()
-        self.sysinv_client.get_device_image = mock.MagicMock()
         self.sysinv_client.get_device_image_states = mock.MagicMock()
+        self.sysinv_client.apply_device_image = mock.MagicMock()
         self.sysinv_client.remove_device_image = mock.MagicMock()
         self.sysinv_client.upload_device_image = mock.MagicMock()
+        self.sysinv_client.get_hosts = mock.MagicMock()
 
     def test_importing_firmware_empty_system_controller(self):
         """Test importing firmware step when system controller has no FW"""
@@ -63,11 +64,13 @@ class TestFwUpdateImportingFirmwareStage(TestFwUpdateState):
         # invoke the strategy state operation on the orch thread
         self.worker.perform_state_action(self.strategy_step)
 
-        # 0 on system controller, 3 on subcloud means
-        # - 0 calls to import
+        # 0 on system controller so there should be no calls to upload
         self.sysinv_client.upload_device_image.assert_not_called()
-        # - 0 calls to apply
-        # - 3 calls to remove
+
+        # Since no active images on system controller, apply will not be called
+        self.sysinv_client.apply_device_image.assert_not_called()
+
+        # Any applied images on subcloud should be removed
         self.assertEqual(3, self.sysinv_client.remove_device_image.call_count)
 
         # Successful promotion to next state

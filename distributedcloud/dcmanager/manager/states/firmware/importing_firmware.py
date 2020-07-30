@@ -66,7 +66,7 @@ class ImportingFirmwareState(BaseState):
                 # the applied image in the subcloud is not in the system
                 # controller applied list, and should be removed
                 # Use the existing labels on the image to remove them
-                self.info_log("Removing %s" % image.uuid)
+                self.info_log(strategy_step, "Removing %s" % image.uuid)
                 self.get_sysinv_client(region).remove_device_image(
                     image.uuid,
                     image.applied_labels)
@@ -142,9 +142,10 @@ class ImportingFirmwareState(BaseState):
                     # subclouds that are more than AIO-SX are provisioned, this
                     # will likely need to be revisited
                     labels = []
-                    for device_labels in subcloud_device_label_list:
-                        if device_labels.pcidevice_uuid == device.uuid:
-                            labels.append(device_labels)
+                    for device_label in subcloud_device_label_list:
+                        if device_label.pcidevice_uuid == device.uuid:
+                            labels.append({device_label.label_key:
+                                           device_label.label_value})
                     # this may need to be the 'all' label if none are found
                     apply_response = self.get_sysinv_client(
                         region).apply_device_image(image.uuid, labels=labels)
