@@ -10,7 +10,7 @@
 # License for the specific language governing permissions and limitations
 # under the License.
 #
-# Copyright (c) 2017 Wind River Systems, Inc.
+# Copyright (c) 2017-2020 Wind River Systems, Inc.
 #
 # The right to copy, distribute, modify, or otherwise make use
 # of this software may be licensed only pursuant to the terms
@@ -73,14 +73,15 @@ class ManagerClient(object):
 
     def update_subcloud(self, ctxt, subcloud_id, management_state=None,
                         description=None, location=None, group_id=None,
-                        data_install=None):
+                        data_install=None, force=None):
         return self.call(ctxt, self.make_msg('update_subcloud',
                                              subcloud_id=subcloud_id,
                                              management_state=management_state,
                                              description=description,
                                              location=location,
                                              group_id=group_id,
-                                             data_install=data_install))
+                                             data_install=data_install,
+                                             force=force))
 
     def reconfigure_subcloud(self, ctxt, subcloud_id, payload):
         return self.call(ctxt, self.make_msg('reconfigure_subcloud',

@@ -567,7 +567,8 @@ class TestSubclouds(testroot.DCManagerApiTest):
             description=None,
             location=None,
             group_id=None,
-            data_install=None)
+            data_install=None,
+            force=None)
         self.assertEqual(response.status_int, 200)
 
     @mock.patch.object(rpc_client, 'ManagerClient')
@@ -603,7 +604,8 @@ class TestSubclouds(testroot.DCManagerApiTest):
             description=None,
             location=None,
             group_id=None,
-            data_install=json.dumps(install_data))
+            data_install=json.dumps(install_data),
+            force=None)
         self.assertEqual(response.status_int, 200)
 
     @mock.patch.object(rpc_client, 'ManagerClient')
@@ -627,6 +629,53 @@ class TestSubclouds(testroot.DCManagerApiTest):
         six.assertRaisesRegex(self, webtest.app.AppError, "400 *",
                               self.app.patch_json, FAKE_URL + '/' + FAKE_ID,
                               headers=FAKE_HEADERS, params=data)
+
+    @mock.patch.object(rpc_client, 'ManagerClient')
+    @mock.patch.object(subclouds, 'db_api')
+    @mock.patch.object(subclouds.SubcloudsController, '_get_patch_data')
+    def test_patch_subcloud_bad_force_value(self, mock_get_patch_data,
+                                            mock_db_api, mock_rpc_client):
+        data = {'management-state': consts.MANAGEMENT_MANAGED,
+                'force': 'bad-value'}
+        mock_get_patch_data.return_value = data
+        six.assertRaisesRegex(self, webtest.app.AppError, "400 *",
+                              self.app.patch_json, FAKE_URL + '/' + FAKE_ID,
+                              headers=FAKE_HEADERS, params=data)
+
+    @mock.patch.object(rpc_client, 'ManagerClient')
+    @mock.patch.object(subclouds, 'db_api')
+    @mock.patch.object(subclouds.SubcloudsController, '_get_patch_data')
+    def test_patch_subcloud_forced_unmanaged(self, mock_get_patch_data,
+                                             mock_db_api, mock_rpc_client):
+        data = {'management-state': consts.MANAGEMENT_UNMANAGED,
+                'force': True}
+        mock_get_patch_data.return_value = data
+        six.assertRaisesRegex(self, webtest.app.AppError, "400 *",
+                              self.app.patch_json, FAKE_URL + '/' + FAKE_ID,
+                              headers=FAKE_HEADERS, params=data)
+
+    @mock.patch.object(rpc_client, 'ManagerClient')
+    @mock.patch.object(subclouds, 'db_api')
+    @mock.patch.object(subclouds.SubcloudsController, '_get_patch_data')
+    def test_patch_subcloud_forced_manage(self, mock_get_patch_data,
+                                          mock_db_api, mock_rpc_client):
+        data = {'management-state': consts.MANAGEMENT_MANAGED,
+                'force': True}
+        mock_rpc_client().update_subcloud.return_value = True
+        mock_get_patch_data.return_value = data
+        response = self.app.patch_json(FAKE_URL + '/' + FAKE_ID,
+                                       headers=FAKE_HEADERS,
+                                       params=data)
+        mock_rpc_client().update_subcloud.assert_called_once_with(
+            mock.ANY,
+            mock.ANY,
+            management_state=consts.MANAGEMENT_MANAGED,
+            description=None,
+            location=None,
+            group_id=None,
+            data_install=None,
+            force=True)
+        self.assertEqual(response.status_int, 200)
 
     @mock.patch.object(rpc_client, 'ManagerClient')
     @mock.patch.object(subclouds, 'db_api')

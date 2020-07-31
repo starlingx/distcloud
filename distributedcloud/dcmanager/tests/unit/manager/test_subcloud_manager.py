@@ -351,6 +351,41 @@ class TestSubcloudManager(base.DCManagerTestCase):
                           management_state=consts.MANAGEMENT_MANAGED)
 
     @mock.patch.object(subcloud_manager, 'db_api')
+    def test_manage_when_offline_without_force(self, mock_db_api):
+        data = utils.create_subcloud_dict(base.SUBCLOUD_SAMPLE_DATA_0)
+        subcloud_result = Subcloud(data, True)
+        mock_db_api.subcloud_get.return_value = subcloud_result
+        subcloud_result.availability_status = consts.AVAILABILITY_OFFLINE
+        sm = subcloud_manager.SubcloudManager()
+        self.assertRaises(exceptions.SubcloudNotOnline,
+                          sm.update_subcloud, self.ctx,
+                          data['id'],
+                          management_state=consts.MANAGEMENT_MANAGED)
+
+    @mock.patch.object(subcloud_manager, 'db_api')
+    def test_manage_when_offline_with_force(self, mock_db_api):
+        data = utils.create_subcloud_dict(base.SUBCLOUD_SAMPLE_DATA_0)
+        subcloud_result = Subcloud(data, True)
+        mock_db_api.subcloud_get.return_value = subcloud_result
+        subcloud_result.availability_status = consts.AVAILABILITY_OFFLINE
+        sm = subcloud_manager.SubcloudManager()
+        sm.update_subcloud(self.ctx,
+                           data['id'],
+                           management_state=consts.MANAGEMENT_MANAGED,
+                           description="subcloud new description",
+                           location="subcloud new location",
+                           data_install="install values",
+                           force=True)
+        mock_db_api.subcloud_update.assert_called_once_with(
+            mock.ANY,
+            data['id'],
+            management_state=consts.MANAGEMENT_MANAGED,
+            description="subcloud new description",
+            location="subcloud new location",
+            group_id=None,
+            data_install="install values")
+
+    @mock.patch.object(subcloud_manager, 'db_api')
     def test_update_subcloud_group_id(self, mock_db_api):
         data = utils.create_subcloud_dict(base.SUBCLOUD_SAMPLE_DATA_0)
         subcloud_result = Subcloud(data, True)

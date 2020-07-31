@@ -121,7 +121,7 @@ class DCManagerService(service.Service):
     @request_context
     def update_subcloud(self, context, subcloud_id, management_state=None,
                         description=None, location=None, group_id=None,
-                        data_install=None):
+                        data_install=None, force=None):
         # Updates a subcloud
         LOG.info("Handling update_subcloud request for: %s" % subcloud_id)
         subcloud = self.subcloud_manager.update_subcloud(context, subcloud_id,
@@ -129,7 +129,8 @@ class DCManagerService(service.Service):
                                                          description,
                                                          location,
                                                          group_id,
-                                                         data_install)
+                                                         data_install,
+                                                         force)
         # If a subcloud has been set to the managed state, trigger the
         # patching audit and firmware audit so it can update the
         # sync status ASAP.
