@@ -186,7 +186,7 @@ scheduler_opts = [
                 default=True,
                 help='boolean value for enable/disenable periodic tasks'),
     cfg.IntOpt('periodic_interval',
-               default=600,
+               default=1200,
                help='periodic time interval for automatic quota sync job'
                     ' and resource sync audit')
 ]
