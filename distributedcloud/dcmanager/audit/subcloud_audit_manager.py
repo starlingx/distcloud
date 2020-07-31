@@ -21,7 +21,9 @@
 #
 
 import eventlet
+import os
 import time
+from tsconfig.tsconfig import CONFIG_PATH
 
 from keystoneauth1 import exceptions as keystone_exceptions
 from oslo_config import cfg
@@ -43,6 +45,7 @@ from dcmanager.common import manager
 from dcmanager.common import scheduler
 from dcmanager.db import api as db_api
 from dcmanager.rpc import client as dcmanager_rpc_client
+from dcorch.common import consts as dcorch_consts
 
 CONF = cfg.CONF
 LOG = logging.getLogger(__name__)
@@ -91,6 +94,34 @@ class SubcloudAuditManager(manager.Manager):
         self.firmware_audit = firmware_audit.FirmwareAudit(
             self.context, self.dcmanager_rpc_client)
 
+    def _add_missing_endpoints(self):
+        file_path = os.path.join(CONFIG_PATH, '.fpga_endpoint_added')
+        # If file exists on the controller, all the endpoints have been
+        # added to DB
+        if not os.path.isfile(file_path):
+            # Ensures all endpoints exist for all subclouds
+            # If the endpoint doesn't exist, an entry will be made
+            # in endpoint_status table
+            for subcloud in db_api.subcloud_get_all(self.context):
+                subcloud_statuses = \
+                    db_api.subcloud_status_get_all(self.context,
+                                                   subcloud.id)
+                # Use set difference to find missing endpoints
+                endpoint_type_set = set(dcorch_consts.ENDPOINT_TYPES_LIST)
+                subcloud_set = set()
+                for subcloud_status in subcloud_statuses:
+                    subcloud_set.add(subcloud_status.endpoint_type)
+
+                missing_endpoints = list(endpoint_type_set - subcloud_set)
+
+                for endpoint in missing_endpoints:
+                    db_api.subcloud_status_create(self.context,
+                                                  subcloud.id,
+                                                  endpoint)
+            # Add a flag on a replicated filesystem to avoid re-running
+            # the DB checks for missing subcloud endpoints
+            open(file_path, 'w').close()
+
     @classmethod
     def trigger_patch_audit(cls, context):
         """Trigger patch audit at next interval.
@@ -118,6 +149,8 @@ class SubcloudAuditManager(manager.Manager):
     def periodic_subcloud_audit(self):
         """Audit availability of subclouds."""
 
+        # Verify subclouds have all the endpoints in DB
+        self._add_missing_endpoints()
         # Blanket catch all exceptions in the audit so that the audit
         # does not die.
         while True:
