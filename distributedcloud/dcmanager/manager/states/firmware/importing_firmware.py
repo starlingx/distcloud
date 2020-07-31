@@ -58,6 +58,13 @@ class ImportingFirmwareState(BaseState):
             utils.filter_applied_images(subcloud_images,
                                         expected_value=True)
 
+        subcloud_device_label_list = self.get_sysinv_client(
+            region).get_device_label_list()
+
+        subcloud_labels = []
+        for device_label in subcloud_device_label_list:
+            subcloud_labels.append({device_label.label_key:
+                                    device_label.label_value})
         # - remove any applied images in subcloud that are not applied on the
         # system controller
         for image in applied_subcloud_images:
@@ -65,11 +72,18 @@ class ImportingFirmwareState(BaseState):
                                        applied_system_controller_images):
                 # the applied image in the subcloud is not in the system
                 # controller applied list, and should be removed
-                # Use the existing labels on the image to remove them
-                self.info_log(strategy_step, "Removing %s" % image.uuid)
+                # Use the existing labels on the image for the remove
+                labels = []
+                for label in image.applied_labels:
+                    # Do not append an empty dictionary
+                    if label:
+                        labels.append(label)
+                self.info_log(strategy_step,
+                              "Remove Image %s by labels: %s" % (image.uuid,
+                                                                 str(labels)))
                 self.get_sysinv_client(region).remove_device_image(
                     image.uuid,
-                    image.applied_labels)
+                    labels)
 
         # get the list of enabled devices on the subcloud
         enabled_host_device_list = []
@@ -91,9 +105,6 @@ class ImportingFirmwareState(BaseState):
         # Retrieve the device image states on this subcloud.
         subcloud_device_image_states = self.get_sysinv_client(
             region).get_device_image_states()
-
-        subcloud_device_label_list = self.get_sysinv_client(
-            region).get_device_label_list()
 
         # go through the applied images on system controller
         # any of the images that correspond to an enabled device on the
@@ -134,27 +145,26 @@ class ImportingFirmwareState(BaseState):
                 else:
                     # If no device image state is present in the list that
                     # means the image hasn't been applied yet
-                    self.info_log(strategy_step,
-                                  "Applying device image:%s for device:%s"
-                                  % (image.uuid, device.uuid))
-                    # todo(abailey): the devices are for the entire subcloud
-                    # however these APIs may be per host.  In the future when
-                    # subclouds that are more than AIO-SX are provisioned, this
-                    # will likely need to be revisited
+
+                    # apply with ALL the labels declared for this image on
+                    # system controller
                     labels = []
-                    for device_label in subcloud_device_label_list:
-                        if device_label.pcidevice_uuid == device.uuid:
-                            labels.append({device_label.label_key:
-                                           device_label.label_value})
-                    # this may need to be the 'all' label if none are found
+                    for label in image.applied_labels:
+                        # Do not append an empty dictionary
+                        if label:
+                            labels.append(label)
+                    self.info_log(strategy_step,
+                                  "Applying device image:%s with labels:%s"
+                                  % (image.uuid, str(labels)))
+
                     apply_response = self.get_sysinv_client(
                         region).apply_device_image(image.uuid, labels=labels)
                     self.debug_log(strategy_step,
                                    "Apply device image returned: %s"
                                    % str(apply_response))
                     self.info_log(strategy_step,
-                                  "Applied image:%s, device:%s, labels:%s"
-                                  % (image.uuid, device.uuid, str(labels)))
+                                  "Applied image:%s with labels:%s"
+                                  % (image.uuid, str(labels)))
                     continue
 
                 # We have a device_image_state. Lets examine the apply status

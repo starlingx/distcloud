@@ -14,7 +14,6 @@ from dcmanager.tests.unit.manager.states.firmware.test_base \
 class TestFwUpdateFinishingFwUpdateStage(TestFwUpdateState):
 
     def setUp(self):
-        self.skipTest("TestFwUpdateFinishingFwUpdateStage under construction")
         super(TestFwUpdateFinishingFwUpdateStage, self).setUp()
 
         # set the next state in the chain (when this state is successful)
@@ -26,6 +25,8 @@ class TestFwUpdateFinishingFwUpdateStage(TestFwUpdateState):
 
         # Add mock API endpoints for sysinv client calls invcked by this state
         self.vim_client.get_strategy = mock.MagicMock()
+        self.vim_client.delete_strategy = mock.MagicMock()
+        self.sysinv_client.get_hosts = mock.MagicMock()
 
     def test_finishing_vim_strategy_success(self):
         """Test finishing the firmware update."""

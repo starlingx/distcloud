@@ -34,6 +34,7 @@ class FakeController(object):
                  ihost_action=None,
                  target_load=UPGRADED_VERSION,
                  task=None):
+        self.uuid = str(uuid.uuid4())
         self.id = host_id
         self.hostname = hostname
         self.administrative = administrative
@@ -44,18 +45,43 @@ class FakeController(object):
         self.task = task
 
 
+class FakeDevice(object):
+    def __init__(self,
+                 obj_id,
+                 pvendor_id=FAKE_VENDOR,
+                 pdevice_id=FAKE_DEVICE,
+                 enabled=True):
+        self.uuid = obj_id
+        self.pvendor_id = pvendor_id
+        self.pdevice_id = pdevice_id
+        self.enabled = enabled
+
+
 class FakeDeviceImage(object):
     def __init__(self,
                  obj_id,
                  pci_vendor=FAKE_VENDOR,
                  pci_device=FAKE_DEVICE,
+                 bitstream_type='functional',
                  applied=False,
                  applied_labels=None):
         self.uuid = obj_id
         self.pci_vendor = pci_vendor
         self.pci_device = pci_device
+        self.bitstream_type = bitstream_type
         self.applied = applied
         self.applied_labels = applied_labels
+
+
+class FakeDeviceLabel(object):
+    def __init__(self,
+                 label_key=None,
+                 label_value=None,
+                 pcidevice_uuid=None):
+        self.uuid = str(uuid.uuid4())
+        self.label_key = label_key
+        self.label_value = label_value
+        self.pcidevice_uuid = pcidevice_uuid
 
 
 class FakeHostFilesystem(object):
@@ -66,7 +92,7 @@ class FakeHostFilesystem(object):
         self.name = name
         self.logical_volume = logical_volume
         self.size = size
-        self.uuid = uuid.uuid4()
+        self.uuid = str(uuid.uuid4())
 
 
 class FakeKeystoneClient(object):
