@@ -61,6 +61,8 @@ DOCKER_REGISTRY_KEY_FILE = os.path.join(SSL_CERT_DIR, "registry-cert.key")
 # by dcmanager upgrade orchestration for the load import operations.
 HOST_FS_NAME_SCRATCH = 'scratch'
 
+SYSINV_CLIENT_REST_DEFAULT_TIMEOUT = 600
+
 
 def make_sysinv_patch(update_dict):
     patch = []
@@ -80,7 +82,7 @@ def make_sysinv_patch(update_dict):
 class SysinvClient(base.DriverBase):
     """Sysinv V1 driver."""
 
-    def __init__(self, region, session):
+    def __init__(self, region, session, timeout=SYSINV_CLIENT_REST_DEFAULT_TIMEOUT):
         try:
             # TOX cannot import cgts_client and all the dependencies therefore
             # the client is being lazy loaded since TOX doesn't actually
@@ -98,7 +100,7 @@ class SysinvClient(base.DriverBase):
             self.sysinv_client = client.Client(API_VERSION,
                                                endpoint=endpoint,
                                                token=token,
-                                               timeout=600)
+                                               timeout=timeout)
             self.region_name = region
         except exceptions.ServiceUnavailable:
             raise
