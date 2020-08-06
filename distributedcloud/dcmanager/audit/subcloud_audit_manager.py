@@ -160,7 +160,8 @@ class SubcloudAuditManager(manager.Manager):
                 LOG.info("Trigger firmware audit")
                 audit_firmware = True
                 firmware_audit_data = self.firmware_audit.get_regionone_audit_data()
-            SubcloudAuditManager.reset_force_firmware_audit()
+                # Reset force_firmware_audit only when firmware audit has been fired
+                SubcloudAuditManager.reset_force_firmware_audit()
             SubcloudAuditManager.reset_force_patch_audit()
 
         # Trigger a firmware audit as it is changed through proxy
