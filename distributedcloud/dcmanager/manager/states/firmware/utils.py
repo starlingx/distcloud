@@ -102,7 +102,7 @@ def determine_image_fields(image):
                   'name',
                   'description',
                   'image_version']
-    fields = dict((k, v) for (k, v) in vars(image).items()
+    fields = dict((k, str(v)) for (k, v) in vars(image).items()
                   if k in field_list and not (v is None))
     return fields
 
