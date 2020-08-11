@@ -7,6 +7,8 @@ from dccommon.drivers.openstack import vim
 from dcmanager.common import consts
 from dcmanager.manager.states.base import BaseState
 from dcmanager.manager.states.firmware import utils
+from dcmanager.rpc import client as dcmanager_rpc_client
+from dcorch.common import consts as dcorch_consts
 
 
 class FinishingFwUpdateState(BaseState):
@@ -15,6 +17,19 @@ class FinishingFwUpdateState(BaseState):
     def __init__(self):
         super(FinishingFwUpdateState, self).__init__(
             next_state=consts.STRATEGY_STATE_COMPLETE)
+
+    def align_subcloud_status(self, strategy_step):
+        self.info_log(strategy_step,
+                      "Setting endpoint status of %s to %s"
+                      % (dcorch_consts.ENDPOINT_TYPE_FIRMWARE,
+                         consts.SYNC_STATUS_IN_SYNC))
+        rpc_client = dcmanager_rpc_client.ManagerClient()
+        # The subcloud name is the same as the region in the strategy_step
+        rpc_client.update_subcloud_endpoint_status(
+            self.context,
+            subcloud_name=self.get_region_name(strategy_step),
+            endpoint_type=dcorch_consts.ENDPOINT_TYPE_FIRMWARE,
+            sync_status=consts.SYNC_STATUS_IN_SYNC)
 
     def perform_state_action(self, strategy_step):
         """Finish the firmware update.
@@ -61,6 +76,8 @@ class FinishingFwUpdateState(BaseState):
             # There are no enabled devices in this subcloud, so break out
             # of this handler, since there will be nothing examine
             self.info_log(strategy_step, "No enabled devices.")
+            # This is the final state for this subcloud. set it to in-sync
+            self.align_subcloud_status(strategy_step)
             return self.next_state
 
         # determine list of applied subcloud images
@@ -91,5 +108,7 @@ class FinishingFwUpdateState(BaseState):
             # todo(abailey): create a custom Exception
             raise Exception("Not all images applied successfully")
 
+        # This is the final state for this subcloud. set it to in-sync
+        self.align_subcloud_status(strategy_step)
         # Success, state machine can proceed to the next state
         return self.next_state
