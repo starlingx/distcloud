@@ -12,6 +12,7 @@ from oslo_utils import timeutils
 from dcmanager.tests.unit.common.subcloud import FAKE_SUBCLOUD_INSTALL_VALUES
 
 
+PREVIOUS_PREVIOUS_VERSION = '01.23'
 PREVIOUS_VERSION = '12.34'
 UPGRADED_VERSION = '56.78'
 
