@@ -812,7 +812,7 @@ def _subcloud_alarms_get(context, name):
     try:
         return query.one()
     except NoResultFound:
-        raise exception.SubcloudNotFound(region_name=name)
+        raise exception.SubcloudNameNotFound(name=name)
     except MultipleResultsFound:
         raise exception.InvalidParameterValue(
             err="Multiple entries found for subcloud %s" % name)

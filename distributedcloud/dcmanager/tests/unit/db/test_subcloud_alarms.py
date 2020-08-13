@@ -92,7 +92,7 @@ class DBAPISubcloudAlarm(base.DCManagerTestCase):
     def test_subcloud_alarms_get_not_found(self):
         result = self.create_subcloud_alarms(self.ctxt, 'subcloud1')
         self.assertIsNotNone(result)
-        self.assertRaises(exception.SubcloudNotFound,
+        self.assertRaises(exception.SubcloudNameNotFound,
                           db_api.subcloud_alarms_get,
                           self.ctx, 'subcloud2')
 
