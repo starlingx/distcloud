@@ -280,6 +280,10 @@ class SysinvClient(base.DriverBase):
         return self.sysinv_client.load.import_load(path_to_iso=path_to_iso,
                                                    path_to_sig=path_to_sig)
 
+    def get_system_health(self):
+        """Get system health."""
+        return self.sysinv_client.health.get()
+
     def get_hosts(self):
         """Get a list of hosts."""
         return self.sysinv_client.ihost.list()

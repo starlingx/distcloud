@@ -3,6 +3,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 #
+import re
 
 from dccommon.drivers.openstack.sysinv_v1 import HOST_FS_NAME_SCRATCH
 
@@ -34,16 +35,6 @@ class PreCheckState(BaseState):
             next_state=consts.STRATEGY_STATE_INSTALLING_LICENSE)
 
     def _perform_subcloud_online_checks(self, strategy_step, subcloud):
-
-        # check presence of data_install values.  These are managed
-        # semantically on subcloud add or update
-        if not subcloud.data_install:
-            details = ("Data install values are missing and must be updated "
-                       "via dcmanager subcloud update")
-            raise PreCheckFailedException(
-                subcloud=strategy_step.subcloud.name,
-                details=details)
-
         # obtain necessary clients
         subcloud_sysinv_client = None
         try:
@@ -59,6 +50,60 @@ class PreCheckState(BaseState):
             raise ManualRecoveryRequiredException(
                 subcloud=strategy_step.subcloud.name,
                 deploy_status=subcloud.deploy_status)
+
+        # check system health
+        #
+        # Sample output #1
+        # ================
+        #     Some non-management affecting alarms, all other checks passed
+        #
+        # System Health:
+        # All hosts are provisioned: [OK]
+        # All hosts are unlocked/enabled: [OK]
+        # All hosts have current configurations: [OK]
+        # All hosts are patch current: [OK]
+        # Ceph Storage Healthy: [OK]
+        # No alarms: [Fail]
+        # [1] alarms found, [0] of which are management affecting
+        # All kubernetes nodes are ready: [OK]
+        # All kubernetes control plane pods are ready: [OK]
+        #
+        # Sample output #2
+        # ================
+        #     Multiple failed checks, management affecting alarms
+        #
+        # System Health:
+        # All hosts are provisioned: [OK]
+        # All hosts are unlocked/enabled: [OK]
+        # All hosts have current configurations: [OK]
+        # All hosts are patch current: [OK]
+        # Ceph Storage Healthy: [Fail]
+        # No alarms: [Fail]
+        # [7] alarms found, [2] of which are management affecting
+        # All kubernetes nodes are ready: [OK]
+        # All kubernetes control plane pods are ready: [OK]
+
+        system_health = subcloud_sysinv_client.get_system_health()
+        fails = re.findall("\[Fail\]", system_health)
+        failed_alarm_check = re.findall("No alarms: \[Fail\]", system_health)
+        no_mgmt_alarms = re.findall("\[0\] of which are management affecting",
+                                    system_health)
+
+        # The only 2 health conditions acceptable for upgrade are:
+        # a) subcloud is completely healthy (i.e. no failed checks)
+        # b) subcloud only fails alarm check and it only has non-management
+        #    affecting alarm(s)
+        if ((len(fails) == 0) or
+                (len(fails) == 1 and failed_alarm_check and no_mgmt_alarms)):
+            self.info_log(strategy_step, "health check passed.")
+        else:
+            details = "System health check failed. Please run 'system health-query' " \
+                      "command on the subcloud for more details."
+            self.error_log(strategy_step, "\n" + system_health)
+            raise PreCheckFailedException(
+                subcloud=strategy_step.subcloud.name,
+                details=details,
+                )
 
         # check scratch
         host = subcloud_sysinv_client.get_host("controller-0")
@@ -80,6 +125,15 @@ class PreCheckState(BaseState):
         if an unsupported deploy_status is encountered, fail the upgrade
         """
         subcloud = db_api.subcloud_get(self.context, strategy_step.subcloud.id)
+        # check presence of data_install values.  These are managed
+        # semantically on subcloud add or update
+        if not subcloud.data_install:
+            details = ("Data install values are missing and must be updated "
+                       "via dcmanager subcloud update")
+            raise PreCheckFailedException(
+                subcloud=strategy_step.subcloud.name,
+                details=details)
+
         if subcloud.availability_status == consts.AVAILABILITY_ONLINE:
             self._perform_subcloud_online_checks(strategy_step, subcloud)
             # If the subcloud has completed data migration and is online,
