@@ -399,9 +399,12 @@ class SysinvAPIController(APIController):
         if CONF.show_request:
             self.print_request(req)
         environ = req.environ
+        # copy the request and the request body
+        request = req
+        request.body = req.body
         application = self.process_request(req)
         response = req.get_response(application)
-        return self.process_response(environ, req, response)
+        return self.process_response(environ, request, response)
 
     def _notify_dcmanager(self, request, response):
         # Send a RPC to dcmanager
