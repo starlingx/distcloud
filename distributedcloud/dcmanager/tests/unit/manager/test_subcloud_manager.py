@@ -34,8 +34,10 @@ from dcmanager.common import utils as cutils
 from dcmanager.db.sqlalchemy import api as db_api
 from dcmanager.manager import subcloud_manager
 from dcmanager.tests import base
+from dcmanager.tests.unit.common import fake_subcloud
 from dcmanager.tests import utils
 from dcorch.common import consts as dcorch_consts
+from tsconfig.tsconfig import SW_VERSION
 
 
 class FakeDCOrchAPI(object):
@@ -45,6 +47,7 @@ class FakeDCOrchAPI(object):
         self.remove_subcloud_sync_endpoint_type = mock.MagicMock()
         self.del_subcloud = mock.MagicMock()
         self.add_subcloud = mock.MagicMock()
+        self.update_subcloud_version = mock.MagicMock()
 
 
 class FakeDCManagerNotifications(object):
@@ -886,3 +889,153 @@ class TestSubcloudManager(base.DCManagerTestCase):
                                 payload=fake_payload)
         mock_thread_start.assert_called_once()
         mock_prepare_for_deployment.assert_called_once()
+
+    def test_get_ansible_filename(self):
+        sm = subcloud_manager.SubcloudManager()
+        filename = sm._get_ansible_filename('subcloud1',
+                                            consts.INVENTORY_FILE_POSTFIX)
+        self.assertEqual(filename, '/opt/dc/ansible/subcloud1_inventory.yml')
+
+    def test_compose_install_command(self):
+        sm = subcloud_manager.SubcloudManager()
+        install_command = sm.compose_install_command(
+            'subcloud1', '/opt/dc/ansible/subcloud1_inventory.yml')
+        self.assertEqual(
+            install_command,
+            [
+                'ansible-playbook', subcloud_manager.ANSIBLE_SUBCLOUD_INSTALL_PLAYBOOK,
+                '-i', '/opt/dc/ansible/subcloud1_inventory.yml', '--limit', 'subcloud1',
+                '-e', "@/opt/dc/ansible/subcloud1/install_values.yml"
+            ]
+        )
+
+    def test_compose_apply_command(self):
+        sm = subcloud_manager.SubcloudManager()
+        apply_command = sm.compose_apply_command(
+            'subcloud1', '/opt/dc/ansible/subcloud1_inventory.yml')
+        self.assertEqual(
+            apply_command,
+            [
+                'ansible-playbook', subcloud_manager.ANSIBLE_SUBCLOUD_PLAYBOOK, '-i',
+                '/opt/dc/ansible/subcloud1_inventory.yml', '--limit', 'subcloud1', '-e',
+                "override_files_dir='/opt/dc/ansible' region_name=subcloud1"
+            ]
+        )
+
+    def test_compose_deploy_command(self):
+        sm = subcloud_manager.SubcloudManager()
+        fake_payload = {"sysadmin_password": "testpass",
+                        "deploy_playbook": "test_playbook.yaml",
+                        "deploy_overrides": "test_overrides.yaml",
+                        "deploy_chart": "test_chart.yaml",
+                        "deploy_config": "subcloud1.yaml"}
+        deploy_command = sm.compose_deploy_command(
+            'subcloud1', '/opt/dc/ansible/subcloud1_inventory.yml', fake_payload)
+        self.assertEqual(
+            deploy_command,
+            [
+                'ansible-playbook', 'test_playbook.yaml', '-e',
+                '@/opt/dc/ansible/subcloud1_deploy_values.yml', '-i',
+                '/opt/dc/ansible/subcloud1_inventory.yml', '--limit', 'subcloud1'
+            ]
+        )
+
+    @mock.patch.object(
+        subcloud_manager.SubcloudManager, '_create_intermediate_ca_cert')
+    @mock.patch.object(
+        subcloud_manager.SubcloudManager, 'compose_install_command')
+    @mock.patch.object(
+        subcloud_manager.SubcloudManager, 'compose_apply_command')
+    @mock.patch.object(subcloud_manager, 'db_api')
+    @mock.patch.object(cutils, 'create_subcloud_inventory')
+    @mock.patch.object(threading.Thread, 'start')
+    @mock.patch.object(subcloud_manager, 'keyring')
+    def test_reinstall_subcloud_with_image(
+        self, mock_keyring, mock_thread_start,
+        mock_create_subcloud_inventory, mock_db_api,
+        mock_compose_apply_command, mock_compose_install_command,
+        mock_create_intermediate_ca_cert):
+
+        values = utils.create_subcloud_dict(base.SUBCLOUD_SAMPLE_DATA_0)
+        values['deploy_status'] = consts.DEPLOY_STATE_PRE_DEPLOY
+        fake_install_values = fake_subcloud.FAKE_SUBCLOUD_INSTALL_VALUES
+        fake_install_values['software_version'] = SW_VERSION
+        fake_payload = {
+            "bmc_password": "bmc_pass",
+            "install_values": fake_install_values}
+        fake_subcloud_result = Subcloud(values, False)
+
+        mock_db_api.subcloud_get.return_value = fake_subcloud_result
+        mock_db_api.subcloud_update.return_value = fake_subcloud_result
+        sm = subcloud_manager.SubcloudManager()
+        mock_keyring.get_password.return_value = "testpassword"
+
+        sm.reinstall_subcloud(self.ctx, values['id'], payload=fake_payload)
+        mock_keyring.get_password.assert_called_once()
+        mock_create_subcloud_inventory.assert_called_once()
+        mock_compose_install_command.assert_called_once()
+        mock_compose_apply_command.assert_called_once()
+        mock_thread_start.assert_called_once()
+
+    @mock.patch.object(
+        subcloud_manager.SubcloudManager, '_create_intermediate_ca_cert')
+    @mock.patch.object(cutils, "get_vault_load_files")
+    @mock.patch.object(
+        subcloud_manager.SubcloudManager, 'compose_install_command')
+    @mock.patch.object(
+        subcloud_manager.SubcloudManager, 'compose_apply_command')
+    @mock.patch.object(subcloud_manager, 'db_api')
+    @mock.patch.object(cutils, 'create_subcloud_inventory')
+    @mock.patch.object(threading.Thread, 'start')
+    @mock.patch.object(subcloud_manager, 'keyring')
+    def test_reinstall_subcloud_without_image(
+        self, mock_keyring, mock_thread_start, mock_create_subcloud_inventory,
+        mock_db_api, mock_compose_apply_command, mock_compose_install_command,
+        mock_get_vault_load_files, mock_create_intermediate_ca_cert):
+
+        values = utils.create_subcloud_dict(base.SUBCLOUD_SAMPLE_DATA_0)
+        values['deploy_status'] = consts.DEPLOY_STATE_PRE_DEPLOY
+        fake_install_values = fake_subcloud.FAKE_SUBCLOUD_INSTALL_VALUES
+        fake_install_values['software_version'] = SW_VERSION
+        del fake_install_values['image']
+        fake_payload = {
+            "bmc_password": "bmc_pass",
+            "install_values": fake_install_values}
+        fake_subcloud_result = Subcloud(values, False)
+
+        mock_db_api.subcloud_get.return_value = fake_subcloud_result
+        mock_db_api.subcloud_update.return_value = fake_subcloud_result
+        sm = subcloud_manager.SubcloudManager()
+        mock_keyring.get_password.return_value = "testpassword"
+        mock_get_vault_load_files.return_value = ("iso file path", "sig file path")
+
+        sm.reinstall_subcloud(self.ctx, values['id'], payload=fake_payload)
+        mock_keyring.get_password.assert_called_once()
+        mock_create_subcloud_inventory.assert_called_once()
+        mock_compose_install_command.assert_called_once()
+        mock_compose_apply_command.assert_called_once()
+        mock_thread_start.assert_called_once()
+
+    @mock.patch.object(subcloud_manager, 'db_api')
+    def test_reinstall_online_subcloud(self, mock_db_api):
+        data = utils.create_subcloud_dict(base.SUBCLOUD_SAMPLE_DATA_0)
+        subcloud_result = Subcloud(data, True)
+        subcloud_result.availability_status = consts.AVAILABILITY_ONLINE
+        mock_db_api.subcloud_get.return_value = subcloud_result
+        sm = subcloud_manager.SubcloudManager()
+        self.assertRaises(exceptions.SubcloudNotOffline,
+                          sm.reinstall_subcloud, self.ctx,
+                          data['id'], data)
+
+    @mock.patch.object(subcloud_manager, 'db_api')
+    def test_reinstall_subcloud_software_not_match(self, mock_db_api):
+        fake_install_values = fake_subcloud.FAKE_SUBCLOUD_INSTALL_VALUES
+        data = utils.create_subcloud_dict(base.SUBCLOUD_SAMPLE_DATA_0)
+        subcloud_result = Subcloud(data, True)
+        subcloud_result.availability_status = consts.AVAILABILITY_OFFLINE
+        mock_db_api.subcloud_get.return_value = subcloud_result
+        data.update({'install_values': fake_install_values})
+        sm = subcloud_manager.SubcloudManager()
+        self.assertRaises(exceptions.BadRequest,
+                          sm.reinstall_subcloud, self.ctx,
+                          data['id'], data)

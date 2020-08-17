@@ -407,6 +407,8 @@ internalServerError (500), serviceUnavailable (503)
    "patching_sync_status (Optional)", "plain", "xsd:string", "The patching sync status of the subcloud."
    "oam_floating_ip (Optional)", "plain", "xsd:string", "OAM Floating IP of the subcloud."
    "group_id (Optional)", "plain", "xsd:int", "Id of the subcloud group."
+   "data_install (Optional)", "plain", "xsd:string", "The values of the subcloud installation."
+   "data_upgrade (Optional)", "plain", "xsd:string", "The values of the subcloud upgrade."
 
 ::
 
@@ -446,7 +448,9 @@ internalServerError (500), serviceUnavailable (503)
      "group_id": 1,
      "id": 1,
      "name": "subcloud6",
-     "oam_floating_ip" "10.10.10.12"
+     "oam_floating_ip": "10.10.10.12",
+     "data_install": "{"bootstrap_interface": "eno1", "bootstrap_address": ...}",
+     "data_upgrade": null
    }
 
 This operation does not accept a request body.
@@ -610,6 +614,83 @@ Accepts Content-Type multipart/form-data
      "group_id": 2,
      "id": 1,
      "name": "subcloud6"
+   }
+
+**********************************
+Reinstalls a specific subcloud
+**********************************
+
+.. rest_method:: PATCH /v1.0/subclouds/{subcloud}/reinstall
+
+Reinstall and bootstrap a subcloud based on its previous install configurations.
+After reinstall, a reconfigure operation with deploy_config file is expected to deploy the subcloud.
+
+**Normal response codes**
+
+200
+
+**Error response codes**
+
+badRequest (400), unauthorized (401), forbidden (403), badMethod (405),
+HTTPUnprocessableEntity (422), internalServerError (500),
+serviceUnavailable (503)
+
+**Request parameters**
+
+.. csv-table::
+         :header: "Parameter", "Style", "Type", "Description"
+   :widths: 20, 20, 20, 60
+
+   "subcloud", "URI", "xsd:string", "The subcloud reference, name or id."
+
+**Response parameters**
+
+.. csv-table::
+   :header: "Parameter", "Style", "Type", "Description"
+   :widths: 20, 20, 20, 60
+
+   "id", "plain", "xsd:int", "The unique identifier for this object."
+   "created_at", "plain", "xsd:dateTime", "The time when the object was created."
+   "updated_at", "plain", "xsd:dateTime", "The time when the object was last updated."
+   "name", "plain", "xsd:string", "The name provisioned for the subcloud."
+   "description(Optional)", "plain", "xsd:string", "The description of the subcloud."
+   "location(Optional)", "plain", "xsd:string", "The location of the subcloud."
+   "software-version", "plain", "xsd:string", "The software version of the subcloud."
+   "deploy_status", "plain", "xsd:string", "The deployment status of the subcloud."
+   "management-state", "plain", "xsd:string", "Management state of the subcloud."
+   "availability-status (Optional)", "plain", "xsd:string", "Availability status of the subcloud."
+   "management-subnet", "plain", "xsd:string", "Management subnet for subcloud in CIDR format."
+   "management-start-ip", "plain", "xsd:string", "Start of management IP address range for subcloud."
+   "management-end-ip", "plain", "xsd:string", "End of management IP address range for subcloud."
+   "systemcontroller-gateway-ip", "plain", "xsd:string", "Systemcontroller gateway IP Address."
+   "openstack-installed (Optional)", "plain", "xsd:boolean", "Whether openstack is installed on the subcloud."
+   "group_id (Optional)", "plain", "xsd:int", "Id of the subcloud group."
+   "data_install", "plain", "xsd:string", "The values of the subcloud installation."
+   "data_upgrade (Optional)", "plain", "xsd:string", "The values of the subcloud upgrade."
+
+::
+
+   {
+     "description": "subcloud description",
+     "management-start-ip": "192.168.204.50",
+     "created-at": "2018-02-25T19:06:35.208505",
+     "updated-at": "2018-02-25T23:01:17.490090",
+     "software-version": "20.06",
+     "management-state": "unmanaged",
+     "availability-status": "offline",
+     "openstack-installed": false,
+     "deploy-status": "pre-install",
+     "systemcontroller-gateway-ip": "192.168.204.101",
+     "location": "location",
+     "management-subnet": "192.168.204.0/24",
+     "management-gateway-ip": "192.168.204.1",
+     "management-end-ip": "192.168.204.100",
+     "group_id": 2,
+     "id": 1,
+     "name": "subcloud6",
+     "data_install": "{"bootstrap_interface": "eno1", "bootstrap_address": ...}",
+     "data_upgrade": null,
+     "deploy_status": "pre-deploy"
    }
 
 *****************************

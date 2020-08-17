@@ -9,7 +9,7 @@ import uuid
 from dcmanager.common import consts
 from oslo_utils import timeutils
 
-from dcmanager.tests.unit.common.subcloud import FAKE_SUBCLOUD_INSTALL_VALUES
+from dcmanager.tests.unit.common.fake_subcloud import FAKE_SUBCLOUD_INSTALL_VALUES
 
 
 PREVIOUS_PREVIOUS_VERSION = '01.23'
