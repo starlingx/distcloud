@@ -368,7 +368,17 @@ class SubcloudsController(object):
 
     @staticmethod
     def _validate_install_values(payload):
+        """Validate install values if 'install_values' is present in payload.
+
+           The image in payload install values is optional, and if not provided,
+           the image is set to the available active load image.
+
+           :return boolean: True if bmc install requested, otherwise False
+        """
         install_values = payload.get('install_values')
+        if not install_values:
+            return False
+
         bmc_password = payload.get('bmc_password')
         if not bmc_password:
             pecan.abort(400, _('subcloud bmc_password required'))
@@ -383,8 +393,20 @@ class SubcloudsController(object):
 
         for k in install_consts.MANDATORY_INSTALL_VALUES:
             if k not in install_values:
-                pecan.abort(400, _('Mandatory install value %s not present')
-                            % k)
+                if k == 'image':
+                    # check for the image at load vault load location
+                    matching_iso, matching_sig = utils.get_vault_load_files(tsc.SW_VERSION)
+                    if not os.path.isfile(matching_iso):
+                        msg = ('Failed to get active load image. Provide '
+                               'active load image via '
+                               '"system --os-region-name SystemController '
+                               'load-import --active"')
+                        pecan.abort(400, _(msg))
+
+                    LOG.info("image was not in install_values: will reference %s" %
+                             matching_iso)
+                else:
+                    pecan.abort(400, _('Mandatory install value %s not present') % k)
 
         if (install_values['install_type'] not in
                 range(install_consts.SUPPORTED_INSTALL_TYPES)):
@@ -449,6 +471,8 @@ class SubcloudsController(object):
             except ValueError as e:
                 LOG.exception(e)
                 pecan.abort(400, _("rd.net.timeout.ipv6dad invalid: %s") % e)
+
+        return True
 
     def _get_subcloud_users(self):
         """Get the subcloud users and passwords from keyring"""
@@ -763,8 +787,7 @@ class SubcloudsController(object):
                                            systemcontroller_gateway_ip,
                                            group_id)
 
-            if 'install_values' in payload:
-                self._validate_install_values(payload)
+            self._validate_install_values(payload)
 
             # Upload the deploy config files if it is included in the request
             # It has a dependency on the subcloud name, and it is called after
@@ -850,8 +873,7 @@ class SubcloudsController(object):
                     pecan.abort(400, _('Invalid group-id'))
 
             data_install = None
-            if INSTALL_VALUES in payload:
-                self._validate_install_values(payload)
+            if self._validate_install_values(payload):
                 data_install = json.dumps(payload[INSTALL_VALUES])
 
             try:

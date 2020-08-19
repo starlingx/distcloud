@@ -17,6 +17,7 @@ import json
 import os
 import shutil
 import tempfile
+import tsconfig.tsconfig as tsc
 import webob.dec
 import webob.exc
 
@@ -457,11 +458,20 @@ class SysinvAPIController(APIController):
         finally:
             proxy_utils.cleanup(environ)
 
+    def _is_active_load(self, sw_version):
+        if sw_version == tsc.SW_VERSION:
+            return True
+        return False
+
     def _save_load_to_vault(self, sw_version):
         versioned_vault = os.path.join(proxy_consts.LOAD_VAULT_DIR,
                                        sw_version)
 
         try:
+            if self._is_active_load(sw_version):
+                LOG.info("_save_load_to_vault remove prior %s" % sw_version)
+                self._remove_load_from_vault(sw_version)
+
             if not os.path.isdir(versioned_vault):
                 os.makedirs(versioned_vault)
 
@@ -472,10 +482,16 @@ class SysinvAPIController(APIController):
             if len(load_files) != len(proxy_consts.IMPORT_LOAD_FILES):
                 msg = _("Failed to store load in vault. Please check "
                         "dcorch log for details.")
+                LOG.error("_save_load_to_vault failed to store load in vault")
                 raise webob.exc.HTTPInsufficientStorage(explanation=msg)
 
             for lf in load_files:
                 shutil.copy(os.path.join(load_path, lf), versioned_vault)
+
+            if self._is_active_load(sw_version):
+                LOG.info("remove files from staging %s" %
+                         proxy_consts.LOAD_FILES_STAGING_DIR)
+                shutil.rmtree(proxy_consts.LOAD_FILES_STAGING_DIR)
 
             LOG.info("Load (%s) saved to vault." % sw_version)
         except Exception:

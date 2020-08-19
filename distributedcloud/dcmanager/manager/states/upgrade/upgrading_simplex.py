@@ -14,7 +14,6 @@ from dcmanager.common import consts
 from dcmanager.common import utils
 from dcmanager.db import api as db_api
 from dcmanager.manager.states.base import BaseState
-from dcmanager.manager.states.upgrade import utils as upgrade_utils
 
 from tsconfig.tsconfig import SW_VERSION
 
@@ -181,7 +180,7 @@ class UpgradingSimplexState(BaseState):
         """Get the subcloud upgrade load information"""
 
         # The 'software_version' is the active running load on SystemController
-        matching_iso, _ = upgrade_utils.get_vault_load_files(SW_VERSION)
+        matching_iso, _ = utils.get_vault_load_files(SW_VERSION)
         if not os.path.isfile(matching_iso):
             message = ("Failed to get upgrade load info for subcloud %s" %
                        strategy_step.subcloud.name)
