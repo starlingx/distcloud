@@ -111,6 +111,9 @@ class UpgradingSimplexState(BaseState):
                 # rootfs_device: "/dev/disk/by-path/pci-0000:00:1f.2-ata-1.0"
                 # boot_device: "/dev/disk/by-path/pci-0000:00:1f.2-ata-1.0"
 
+                # Set rd.net.timeout.ipv6dad to increase timeout on IPv6 NIC up
+                # rd.net.timeout.ipv6dad: 300
+
             BOOTSTRAP: (also needed for bootstrap)
                 # If the subcloud's bootstrap IP interface and the system controller are not on the
                 # same network then the customer must configure a default route or static route
@@ -230,6 +233,7 @@ class UpgradingSimplexState(BaseState):
             'bootstrap_vlan',
             'wait_for_timeout',
             'no_check_certificate',
+            'rd.net.timeout.ipv6dad',
         ]
 
         for p in optional_bootstrap_parameters:

@@ -56,6 +56,7 @@ OPTIONAL_INSTALL_VALUES = [
     'bootstrap_vlan',
     'rootfs_device',
     'boot_device',
+    'rd.net.timeout.ipv6dad',
     'no_check_certificate'
 ]
 
@@ -67,6 +68,7 @@ GEN_ISO_OPTIONS = {
     'install_type': '--default-boot',
     'rootfs_device': '--param',
     'boot_device': '--param',
+    'rd.net.timeout.ipv6dad': '--param',
     'bootstrap_vlan': '--param',
     'no_check_certificate': '--param'
 }
@@ -314,9 +316,9 @@ class SubcloudInstall(object):
                       and self.get_https_enabled()):
                     update_iso_cmd += [GEN_ISO_OPTIONS[k],
                                        'inst.noverifyssl=True']
-                elif k == 'rootfs_device' or k == 'boot_device':
+                elif k == 'rootfs_device' or k == 'boot_device' or k == 'rd.net.timeout.ipv6dad':
                     update_iso_cmd += [GEN_ISO_OPTIONS[k],
-                                       (k + '=' + values[k])]
+                                       (k + '=' + str(values[k]))]
                 elif k == 'bootstrap_vlan':
                     vlan_inteface = "%s.%s:%s" % \
                                     (values['bootstrap_interface'],
