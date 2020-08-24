@@ -12,6 +12,14 @@ manager.py:
     start Manager service
     python manager.py --config-file=/etc/dcmanager.conf
 
+audit.py:
+    start Audit service
+    python audit.py --config-file=/etc/dcmanager.conf
+
+orchestrator.py:
+    start Orchestrator service
+    python orchestrator.py --config-file=/etc/dcmanager.conf
+
 manage.py:
     CLI interface for dcmanager database management
     dcmanager-manage --config-file /etc/dcmanager.conf db_sync

@@ -25,7 +25,10 @@ TOPIC_DC_MANAGER = "dcmanager"
 
 TOPIC_DC_MANAGER_AUDIT = "dcmanager-audit"
 
+TOPIC_DC_MANAGER_ORCHESTRATOR = "dcmanager-orchestrator"
+
 LOADS_VAULT_DIR = "/opt/dc-vault/loads"
+
 PATCH_VAULT_DIR = "/opt/dc-vault/patches"
 
 # Well known region names

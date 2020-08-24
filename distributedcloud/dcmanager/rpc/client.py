@@ -134,22 +134,6 @@ class ManagerClient(RPCClient):
                           endpoint_type_list=endpoint_type_list,
                           openstack_installed=openstack_installed))
 
-    def create_sw_update_strategy(self, ctxt, payload):
-        return self.call(ctxt, self.make_msg('create_sw_update_strategy',
-                                             payload=payload))
-
-    def delete_sw_update_strategy(self, ctxt, update_type=None):
-        return self.call(ctxt, self.make_msg('delete_sw_update_strategy',
-                                             update_type=update_type))
-
-    def apply_sw_update_strategy(self, ctxt, update_type=None):
-        return self.call(ctxt, self.make_msg('apply_sw_update_strategy',
-                                             update_type=update_type))
-
-    def abort_sw_update_strategy(self, ctxt, update_type=None):
-        return self.call(ctxt, self.make_msg('abort_sw_update_strategy',
-                                             update_type=update_type))
-
 
 class DCManagerNotifications(RPCClient):
     """DC Manager Notification interface to broadcast subcloud state changed

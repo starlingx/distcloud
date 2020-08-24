@@ -27,7 +27,7 @@ import webtest
 
 from dcmanager.api.controllers.v1 import sw_update_strategy
 from dcmanager.common import consts
-from dcmanager.rpc import client as rpc_client
+from dcmanager.orchestrator import rpcapi as rpc_client
 from dcmanager.tests.unit.api import test_root_controller as testroot
 from dcmanager.tests import utils
 
@@ -57,7 +57,7 @@ class TestSwUpdateStrategy(testroot.DCManagerApiTest):
         super(TestSwUpdateStrategy, self).setUp()
         self.ctx = utils.dummy_context()
 
-    @mock.patch.object(rpc_client, 'ManagerClient')
+    @mock.patch.object(rpc_client, 'ManagerOrchestratorClient')
     @mock.patch.object(sw_update_strategy, 'db_api')
     def test_post_sw_update(self, mock_db_api, mock_rpc_client):
         data = FAKE_SW_UPDATE_DATA
@@ -70,7 +70,7 @@ class TestSwUpdateStrategy(testroot.DCManagerApiTest):
             data)
         self.assertEqual(response.status_int, 200)
 
-    @mock.patch.object(rpc_client, 'ManagerClient')
+    @mock.patch.object(rpc_client, 'ManagerOrchestratorClient')
     @mock.patch.object(sw_update_strategy, 'db_api')
     def test_post_sw_update_with_force_option(self, mock_db_api, mock_rpc_client):
         data = copy.copy(FAKE_SW_UPDATE_DATA)
@@ -85,7 +85,7 @@ class TestSwUpdateStrategy(testroot.DCManagerApiTest):
             data)
         self.assertEqual(response.status_int, 200)
 
-    @mock.patch.object(rpc_client, 'ManagerClient')
+    @mock.patch.object(rpc_client, 'ManagerOrchestratorClient')
     @mock.patch.object(sw_update_strategy, 'db_api')
     def test_post_sw_update_bad_type(self, mock_db_api, mock_rpc_client):
         data = copy.copy(FAKE_SW_UPDATE_DATA)
@@ -94,7 +94,7 @@ class TestSwUpdateStrategy(testroot.DCManagerApiTest):
                               self.app.post_json, FAKE_URL,
                               headers=FAKE_HEADERS, params=data)
 
-    @mock.patch.object(rpc_client, 'ManagerClient')
+    @mock.patch.object(rpc_client, 'ManagerOrchestratorClient')
     @mock.patch.object(sw_update_strategy, 'db_api')
     def test_post_sw_update_bad_apply_type(self, mock_db_api, mock_rpc_client):
         data = copy.copy(FAKE_SW_UPDATE_DATA)
@@ -103,7 +103,7 @@ class TestSwUpdateStrategy(testroot.DCManagerApiTest):
                               self.app.post_json, FAKE_URL,
                               headers=FAKE_HEADERS, params=data)
 
-    @mock.patch.object(rpc_client, 'ManagerClient')
+    @mock.patch.object(rpc_client, 'ManagerOrchestratorClient')
     @mock.patch.object(sw_update_strategy, 'db_api')
     def test_post_sw_update_bad_max_parallel(
             self, mock_db_api, mock_rpc_client):
@@ -113,7 +113,7 @@ class TestSwUpdateStrategy(testroot.DCManagerApiTest):
                               self.app.post_json, FAKE_URL,
                               headers=FAKE_HEADERS, params=data)
 
-    @mock.patch.object(rpc_client, 'ManagerClient')
+    @mock.patch.object(rpc_client, 'ManagerOrchestratorClient')
     @mock.patch.object(sw_update_strategy, 'db_api')
     def test_post_sw_update_invalid_stop_on_failure_type(
             self, mock_db_api, mock_rpc_client):
@@ -123,7 +123,7 @@ class TestSwUpdateStrategy(testroot.DCManagerApiTest):
                               self.app.post_json, FAKE_URL,
                               headers=FAKE_HEADERS, params=data)
 
-    @mock.patch.object(rpc_client, 'ManagerClient')
+    @mock.patch.object(rpc_client, 'ManagerOrchestratorClient')
     @mock.patch.object(sw_update_strategy, 'db_api')
     def test_post_sw_update_invalid_force_type(
             self, mock_db_api, mock_rpc_client):
@@ -133,7 +133,7 @@ class TestSwUpdateStrategy(testroot.DCManagerApiTest):
                               self.app.post_json, FAKE_URL,
                               headers=FAKE_HEADERS, params=data)
 
-    @mock.patch.object(rpc_client, 'ManagerClient')
+    @mock.patch.object(rpc_client, 'ManagerOrchestratorClient')
     @mock.patch.object(sw_update_strategy, 'db_api')
     def test_post_sw_update_valid_force_type_missing_cloud_name(
             self, mock_db_api, mock_rpc_client):
@@ -143,14 +143,14 @@ class TestSwUpdateStrategy(testroot.DCManagerApiTest):
                               self.app.post_json, FAKE_URL,
                               headers=FAKE_HEADERS, params=data)
 
-    @mock.patch.object(rpc_client, 'ManagerClient')
+    @mock.patch.object(rpc_client, 'ManagerOrchestratorClient')
     def test_post_no_body(self, mock_rpc_client):
         data = {}
         six.assertRaisesRegex(self, webtest.app.AppError, "400 *",
                               self.app.post_json, FAKE_URL,
                               headers=FAKE_HEADERS, params=data)
 
-    @mock.patch.object(rpc_client, 'ManagerClient')
+    @mock.patch.object(rpc_client, 'ManagerOrchestratorClient')
     def test_post_no_type(self, mock_rpc_client):
         data = copy.copy(FAKE_SW_UPDATE_DATA)
         del data['type']
@@ -158,7 +158,7 @@ class TestSwUpdateStrategy(testroot.DCManagerApiTest):
                               self.app.post_json, FAKE_URL,
                               headers=FAKE_HEADERS, params=data)
 
-    @mock.patch.object(rpc_client, 'ManagerClient')
+    @mock.patch.object(rpc_client, 'ManagerOrchestratorClient')
     @mock.patch.object(sw_update_strategy, 'db_api')
     def test_post_sw_update_apply(self, mock_db_api, mock_rpc_client):
         data = FAKE_SW_UPDATE_APPLY_DATA
@@ -169,7 +169,7 @@ class TestSwUpdateStrategy(testroot.DCManagerApiTest):
         mock_rpc_client().apply_sw_update_strategy.assert_called_once()
         self.assertEqual(response.status_int, 200)
 
-    @mock.patch.object(rpc_client, 'ManagerClient')
+    @mock.patch.object(rpc_client, 'ManagerOrchestratorClient')
     @mock.patch.object(sw_update_strategy, 'db_api')
     def test_scoped_post_sw_update_apply(self, mock_db_api, mock_rpc_client):
         data = FAKE_SW_UPDATE_APPLY_DATA
@@ -181,7 +181,7 @@ class TestSwUpdateStrategy(testroot.DCManagerApiTest):
         mock_rpc_client().apply_sw_update_strategy.assert_called_once()
         self.assertEqual(response.status_int, 200)
 
-    @mock.patch.object(rpc_client, 'ManagerClient')
+    @mock.patch.object(rpc_client, 'ManagerOrchestratorClient')
     @mock.patch.object(sw_update_strategy, 'db_api')
     def test_post_sw_update_abort(self, mock_db_api, mock_rpc_client):
         mock_rpc_client().abort_sw_update_strategy.return_value = True
@@ -192,7 +192,7 @@ class TestSwUpdateStrategy(testroot.DCManagerApiTest):
         mock_rpc_client().abort_sw_update_strategy.assert_called_once()
         self.assertEqual(response.status_int, 200)
 
-    @mock.patch.object(rpc_client, 'ManagerClient')
+    @mock.patch.object(rpc_client, 'ManagerOrchestratorClient')
     @mock.patch.object(sw_update_strategy, 'db_api')
     def test_scoped_post_sw_update_abort(self, mock_db_api, mock_rpc_client):
         mock_rpc_client().abort_sw_update_strategy.return_value = True
@@ -204,7 +204,7 @@ class TestSwUpdateStrategy(testroot.DCManagerApiTest):
         mock_rpc_client().abort_sw_update_strategy.assert_called_once()
         self.assertEqual(response.status_int, 200)
 
-    @mock.patch.object(rpc_client, 'ManagerClient')
+    @mock.patch.object(rpc_client, 'ManagerOrchestratorClient')
     @mock.patch.object(sw_update_strategy, 'db_api')
     def test_post_sw_update_bad_action(self, mock_db_api, mock_rpc_client):
         data = copy.copy(FAKE_SW_UPDATE_APPLY_DATA)
@@ -213,7 +213,7 @@ class TestSwUpdateStrategy(testroot.DCManagerApiTest):
                               self.app.post_json, FAKE_URL,
                               headers=FAKE_HEADERS, params=data)
 
-    @mock.patch.object(rpc_client, 'ManagerClient')
+    @mock.patch.object(rpc_client, 'ManagerOrchestratorClient')
     @mock.patch.object(sw_update_strategy, 'db_api')
     def test_delete_sw_update_strategy(self, mock_db_api, mock_rpc_client):
         delete_url = FAKE_URL
@@ -223,7 +223,7 @@ class TestSwUpdateStrategy(testroot.DCManagerApiTest):
             mock.ANY, update_type=None)
         self.assertEqual(response.status_int, 200)
 
-    @mock.patch.object(rpc_client, 'ManagerClient')
+    @mock.patch.object(rpc_client, 'ManagerOrchestratorClient')
     @mock.patch.object(sw_update_strategy, 'db_api')
     def test_scoped_delete_sw_update_strategy(self,
                                               mock_db_api,
@@ -235,7 +235,7 @@ class TestSwUpdateStrategy(testroot.DCManagerApiTest):
             mock.ANY, update_type=consts.SW_UPDATE_TYPE_PATCH)
         self.assertEqual(response.status_int, 200)
 
-    @mock.patch.object(rpc_client, 'ManagerClient')
+    @mock.patch.object(rpc_client, 'ManagerOrchestratorClient')
     @mock.patch.object(sw_update_strategy, 'db_api')
     def test_get_sw_update_strategy(self, mock_db_api, mock_rpc_client):
         get_url = FAKE_URL
@@ -243,7 +243,7 @@ class TestSwUpdateStrategy(testroot.DCManagerApiTest):
         self.app.get(get_url, headers=FAKE_HEADERS)
         self.assertEqual(1, mock_db_api.sw_update_strategy_get.call_count)
 
-    @mock.patch.object(rpc_client, 'ManagerClient')
+    @mock.patch.object(rpc_client, 'ManagerOrchestratorClient')
     @mock.patch.object(sw_update_strategy, 'db_api')
     def test_scoped_get_sw_update_strategy(self, mock_db_api, mock_rpc_client):
         get_url = FAKE_URL + '?type=' + consts.SW_UPDATE_TYPE_PATCH
@@ -251,14 +251,14 @@ class TestSwUpdateStrategy(testroot.DCManagerApiTest):
         self.app.get(get_url, headers=FAKE_HEADERS)
         self.assertEqual(1, mock_db_api.sw_update_strategy_get.call_count)
 
-    @mock.patch.object(rpc_client, 'ManagerClient')
+    @mock.patch.object(rpc_client, 'ManagerOrchestratorClient')
     @mock.patch.object(sw_update_strategy, 'db_api')
     def test_get_sw_update_strategy_steps(self, mock_db_api, mock_rpc_client):
         get_url = FAKE_URL + '/steps'
         self.app.get(get_url, headers=FAKE_HEADERS)
         self.assertEqual(1, mock_db_api.strategy_step_get_all.call_count)
 
-    @mock.patch.object(rpc_client, 'ManagerClient')
+    @mock.patch.object(rpc_client, 'ManagerOrchestratorClient')
     @mock.patch.object(sw_update_strategy, 'db_api')
     def test_get_sw_update_strategy_single_step(
             self, mock_db_api, mock_rpc_client):

@@ -29,6 +29,7 @@ Source10:      dcorch.conf
 Source11:      dcdbsync.conf
 Source12:      clean-dcorch
 Source13:      dcmanager-audit.service
+Source14:      dcmanager-orchestrator.service
 
 BuildArch:     noarch
 
@@ -132,6 +133,7 @@ install -d -m 755 %{buildroot}%{_sysconfdir}/dcmanager/
 install -p -D -m 644 %{SOURCE1} %{buildroot}%{_unitdir}/dcmanager-api.service
 install -p -D -m 644 %{SOURCE2} %{buildroot}%{_unitdir}/dcmanager-manager.service
 install -p -D -m 644 %{SOURCE13} %{buildroot}%{_unitdir}/dcmanager-audit.service
+install -p -D -m 644 %{SOURCE14} %{buildroot}%{_unitdir}/dcmanager-orchestrator.service
 install -p -D -m 644 %{SOURCE9} %{buildroot}%{_tmpfilesdir}
 # install default config files
 cd %{_builddir}/%{pypi_name}-%{version} && oslo-config-generator --config-file ./dcmanager/config-generator.conf --output-file %{_builddir}/%{pypi_name}-%{version}%{_sysconfdir}/dcmanager/dcmanager.conf.sample
@@ -189,6 +191,8 @@ install -m 755 -D -p %{SOURCE12} %{buildroot}/%{_bindir}/clean-dcorch
 %{_unitdir}/dcmanager-api.service
 %{_bindir}/dcmanager-audit
 %{_unitdir}/dcmanager-audit.service
+%{_bindir}/dcmanager-orchestrator
+%{_unitdir}/dcmanager-orchestrator.service
 %{_bindir}/dcmanager-manager
 %{_unitdir}/dcmanager-manager.service
 %{_bindir}/dcmanager-manage

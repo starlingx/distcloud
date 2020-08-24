@@ -36,7 +36,6 @@ from dcmanager.common.i18n import _
 from dcmanager.common import messaging as rpc_messaging
 from dcmanager.common import scheduler
 from dcmanager.manager.subcloud_manager import SubcloudManager
-from dcmanager.manager.sw_update_manager import SwUpdateManager
 
 CONF = cfg.CONF
 LOG = logging.getLogger(__name__)
@@ -78,7 +77,6 @@ class DCManagerService(service.Service):
         self.target = None
         self._rpc_server = None
         self.subcloud_manager = None
-        self.sw_update_manager = None
         self.audit_rpc_client = None
 
     def init_tgm(self):
@@ -86,10 +84,6 @@ class DCManagerService(service.Service):
 
     def init_managers(self):
         self.subcloud_manager = SubcloudManager()
-        self.sw_update_manager = SwUpdateManager()
-
-    def stop_managers(self):
-        self.sw_update_manager.stop()
 
     def start(self):
         self.dcmanager_id = uuidutils.generate_uuid()
@@ -205,38 +199,6 @@ class DCManagerService(service.Service):
         self.subcloud_manager.update_subcloud_sync_endpoint_type(
             context, subcloud_name, endpoint_type_list, openstack_installed)
 
-    @request_context
-    def create_sw_update_strategy(self, context, payload):
-        # Creates a software update strategy
-        LOG.info("Handling create_sw_update_strategy request of type %s" %
-                 payload.get('type'))
-        return self.sw_update_manager.create_sw_update_strategy(
-            context, payload)
-
-    @request_context
-    def delete_sw_update_strategy(self, context, update_type=None):
-        # Deletes the software update strategy
-        LOG.info("Handling delete_sw_update_strategy request")
-        return self.sw_update_manager.delete_sw_update_strategy(
-            context,
-            update_type=update_type)
-
-    @request_context
-    def apply_sw_update_strategy(self, context, update_type=None):
-        # Applies the software update strategy
-        LOG.info("Handling apply_sw_update_strategy request")
-        return self.sw_update_manager.apply_sw_update_strategy(
-            context,
-            update_type=update_type)
-
-    @request_context
-    def abort_sw_update_strategy(self, context, update_type=None):
-        # Aborts the software update strategy
-        LOG.info("Handling abort_sw_update_strategy request")
-        return self.sw_update_manager.abort_sw_update_strategy(
-            context,
-            update_type=update_type)
-
     def _stop_rpc_server(self):
         # Stop RPC connection to prevent new requests
         LOG.debug(_("Attempting to stop engine service..."))
@@ -252,7 +214,6 @@ class DCManagerService(service.Service):
         self._stop_rpc_server()
 
         self.TG.stop()
-        self.stop_managers()
 
         # Terminate the engine process
         LOG.info("All threads were gone, terminating engine")

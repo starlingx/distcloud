@@ -145,6 +145,8 @@ scheduler_opts = [
 common_opts = [
     cfg.IntOpt('workers', default=1,
                help='number of workers'),
+    cfg.IntOpt('orch_workers', default=1,
+               help='number of orchestrator workers'),
     cfg.IntOpt('audit_workers', default=1,
                help='number of audit workers'),
     cfg.StrOpt('host',

@@ -33,7 +33,7 @@ from dcmanager.common import consts
 from dcmanager.common import exceptions
 from dcmanager.common.i18n import _
 from dcmanager.db import api as db_api
-from dcmanager.rpc import client as rpc_client
+from dcmanager.orchestrator import rpcapi as orch_rpc_client
 
 CONF = cfg.CONF
 LOG = logging.getLogger(__name__)
@@ -49,7 +49,7 @@ class SwUpdateStrategyController(object):
 
     def __init__(self):
         super(SwUpdateStrategyController, self).__init__()
-        self.rpc_client = rpc_client.ManagerClient()
+        self.orch_rpc_client = orch_rpc_client.ManagerOrchestratorClient()
 
     @expose(generic=True, template='json')
     def index(self):
@@ -172,8 +172,8 @@ class SwUpdateStrategyController(object):
             try:
                 # Ask dcmanager-manager to create the strategy.
                 # It will do all the real work...
-                return self.rpc_client.create_sw_update_strategy(context,
-                                                                 payload)
+                return self.orch_rpc_client.create_sw_update_strategy(context,
+                                                                      payload)
             except RemoteError as e:
                 pecan.abort(422, e.value)
             except Exception as e:
@@ -191,7 +191,7 @@ class SwUpdateStrategyController(object):
                 try:
                     # Ask dcmanager-manager to apply the strategy.
                     # It will do all the real work...
-                    return self.rpc_client.apply_sw_update_strategy(
+                    return self.orch_rpc_client.apply_sw_update_strategy(
                         context,
                         update_type=update_type_filter)
                 except RemoteError as e:
@@ -203,7 +203,7 @@ class SwUpdateStrategyController(object):
                 try:
                     # Ask dcmanager-manager to abort the strategy.
                     # It will do all the real work...
-                    return self.rpc_client.abort_sw_update_strategy(
+                    return self.orch_rpc_client.abort_sw_update_strategy(
                         context,
                         update_type=update_type_filter)
                 except RemoteError as e:
@@ -223,7 +223,7 @@ class SwUpdateStrategyController(object):
         try:
             # Ask dcmanager-manager to delete the strategy.
             # It will do all the real work...
-            return self.rpc_client.delete_sw_update_strategy(
+            return self.orch_rpc_client.delete_sw_update_strategy(
                 context,
                 update_type=update_type_filter)
         except RemoteError as e:
