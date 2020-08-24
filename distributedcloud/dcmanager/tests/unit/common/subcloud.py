@@ -19,5 +19,6 @@ FAKE_SUBCLOUD_INSTALL_VALUES = {
     "console_type": "tty0",
     "bootstrap_vlan": 128,
     "rootfs_device": "/dev/disk/by-path/pci-0000:5c:00.0-scsi-0:1:0:0",
-    "boot_device": "/dev/disk/by-path/pci-0000:5c:00.0-scsi-0:1:0:0"
+    "boot_device": "/dev/disk/by-path/pci-0000:5c:00.0-scsi-0:1:0:0",
+    "rd.net.timeout.ipv6dad": 300,
 }

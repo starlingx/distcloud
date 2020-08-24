@@ -440,6 +440,16 @@ class SubcloudsController(object):
                 pecan.abort(400, _("network address and bootstrap address "
                                    "must be the same IP version"))
 
+        if 'rd.net.timeout.ipv6dad' in install_values:
+            try:
+                ipv6dad_timeout = int(install_values['rd.net.timeout.ipv6dad'])
+                if ipv6dad_timeout <= 0:
+                    pecan.abort(400, _("rd.net.timeout.ipv6dad must be greater "
+                                       "than 0: %d") % ipv6dad_timeout)
+            except ValueError as e:
+                LOG.exception(e)
+                pecan.abort(400, _("rd.net.timeout.ipv6dad invalid: %s") % e)
+
     def _get_subcloud_users(self):
         """Get the subcloud users and passwords from keyring"""
         DEFAULT_SERVICE_PROJECT_NAME = 'services'
