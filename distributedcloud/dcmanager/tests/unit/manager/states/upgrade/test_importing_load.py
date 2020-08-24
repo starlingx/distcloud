@@ -48,31 +48,35 @@ FAILED_IMPORT_RESPONSE = 'kaboom'
 
 # To simulate a response where a database record has already been created
 # but the state was set to 'error'.
-FAILED_IMPORT_RESPONSE_PROCESSING_ERROR = {
-    'new_load': {
-        'id': 2,
-        'uuid': 'aaa4b4c6-8536-41f6-87ea-211d208a723b',
-        'compatible_version': PREVIOUS_VERSION,
-        'required_patches': '',
-        'software_version': UPGRADED_VERSION,
-        'state': 'error',
-        'created_at': '2020-06-01 12:12:12+00:00',
-        'updated_at': None
-    }
-}
+FAILED_IMPORT_RESPONSE_PROCESSING_ERROR = FakeLoad.from_dict({
+    'obj_id': 2,
+    'compatible_version': PREVIOUS_VERSION,
+    'required_patches': '',
+    'software_version': UPGRADED_VERSION,
+    'state': 'error',
+    'created_at': '2020-06-01 12:12:12+00:00',
+    'updated_at': None
+})
 
-SUCCESS_IMPORTING_RESPONSE = {
-    'new_load': {
-        'id': 2,
-        'uuid': 'aaa4b4c6-8536-41f6-87ea-211d208a723b',
-        'compatible_version': PREVIOUS_VERSION,
-        'required_patches': '',
-        'software_version': UPGRADED_VERSION,
-        'state': 'importing',
-        'created_at': '2020-06-01 12:12:12+00:00',
-        'updated_at': None
-    }
-}
+SUCCESS_IMPORTING_RESPONSE = FakeLoad.from_dict({
+    'obj_id': 2,
+    'compatible_version': PREVIOUS_VERSION,
+    'required_patches': '',
+    'software_version': UPGRADED_VERSION,
+    'state': 'importing',
+    'created_at': '2020-06-01 12:12:12+00:00',
+    'updated_at': None
+})
+
+SUCCESS_IMPORT_METADATA_RESPONSE = FakeLoad.from_dict({
+    'obj_id': 2,
+    'compatible_version': PREVIOUS_VERSION,
+    'required_patches': '',
+    'software_version': UPGRADED_VERSION,
+    'state': 'imported-metadata',
+    'created_at': '2020-06-01 12:12:12+00:00',
+    'updated_at': None
+})
 
 SUCCESS_DELETE_RESPONSE = {
     'id': 0,
@@ -112,11 +116,14 @@ class TestSwUpgradeImportingLoadStage(TestSwUpgradeState):
 
         # Add mock API endpoints for sysinv client calls invoked by this state
         self.sysinv_client.get_system = mock.MagicMock()
-        self.sysinv_client.get_system.return_value = FakeSystem()
+        system_values = FakeSystem()
+        system_values.system_mode = consts.SYSTEM_MODE_DUPLEX
+        self.sysinv_client.get_system.return_value = system_values
         self.sysinv_client.get_loads = mock.MagicMock()
         self.sysinv_client.get_load = mock.MagicMock()
         self.sysinv_client.delete_load = mock.MagicMock()
         self.sysinv_client.import_load = mock.MagicMock()
+        self.sysinv_client.import_load_metadata = mock.MagicMock()
 
     def test_upgrade_subcloud_importing_load_success(self):
         """Test the importing load step succeeds.
@@ -335,5 +342,53 @@ class TestSwUpgradeImportingLoadStage(TestSwUpgradeState):
                          self.sysinv_client.get_loads.call_count)
 
         # verify that state failed due to the delete load never finishing
+        self.assert_step_updated(self.strategy_step.subcloud_id,
+                                 consts.STRATEGY_STATE_FAILED)
+
+    def test_upgrade_sx_subcloud_import_success(self):
+        """Test import_load_metadata invoked and strategy continues as expected"""
+        system_values = FakeSystem()
+        system_values.system_mode = consts.SYSTEM_MODE_SIMPLEX
+        self.sysinv_client.get_system.return_value = system_values
+
+        # Two get load calls. One to the subcloud one to the system controller
+        self.sysinv_client.get_loads.side_effect = [
+            DEST_LOAD_MISSING, DEST_LOAD_EXISTS, ]
+
+        # Simulate an API success on the subcloud.
+        self.sysinv_client.import_load_metadata.return_value = \
+            SUCCESS_IMPORT_METADATA_RESPONSE
+
+        # invoke the strategy state operation on the orch thread
+        self.worker.perform_state_action(self.strategy_step)
+
+        # verify the import load metadata API call was invoked
+        self.sysinv_client.import_load_metadata.assert_called()
+
+        # On success, should have moved to the next state
+        self.assert_step_updated(self.strategy_step.subcloud_id,
+                                 self.on_success_state)
+
+    def test_upgrade_sx_subcloud_import_failure(self):
+        """Test when import_load_metadata fails the strategy exits"""
+        system_values = FakeSystem()
+        system_values.system_mode = consts.SYSTEM_MODE_SIMPLEX
+        self.sysinv_client.get_system.return_value = system_values
+
+        # Two get load calls. One to the subcloud one to the system controller
+        self.sysinv_client.get_loads.side_effect = [
+            DEST_LOAD_MISSING, DEST_LOAD_EXISTS, ]
+
+        # Simulate an API failure on the subcloud.
+        self.sysinv_client.import_load_metadata.side_effect = \
+            Exception("Failure to create load")
+
+        # invoke the strategy state operation on the orch thread
+        self.worker.perform_state_action(self.strategy_step)
+
+        # verify the import load metadata API call was invoked
+        self.sysinv_client.import_load_metadata.assert_called()
+
+        # verify that strategy state is set to failed
         self.assert_step_updated(self.strategy_step.subcloud_id,
                                  consts.STRATEGY_STATE_FAILED)

@@ -28,9 +28,9 @@ WAIT_INTERVAL = 60
 class ApplyingVIMStrategyState(BaseState):
     """State for creating the VIM FPGA update strategy."""
 
-    def __init__(self):
+    def __init__(self, region_name):
         super(ApplyingVIMStrategyState, self).__init__(
-            next_state=consts.STRATEGY_STATE_FINISHING_FW_UPDATE)
+            next_state=consts.STRATEGY_STATE_FINISHING_FW_UPDATE, region_name=region_name)
         self.max_failed_queries = DEFAULT_MAX_FAILED_QUERIES
         self.wait_attempts = DEFAULT_MAX_WAIT_ATTEMPTS
         self.wait_interval = WAIT_INTERVAL

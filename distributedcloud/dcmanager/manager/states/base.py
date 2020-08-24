@@ -21,11 +21,12 @@ LOG = logging.getLogger(__name__)
 @six.add_metaclass(abc.ABCMeta)
 class BaseState(object):
 
-    def __init__(self, next_state):
+    def __init__(self, next_state, region_name):
         super(BaseState, self).__init__()
         self.next_state = next_state
         self.context = context.get_admin_context()
         self._stop = None
+        self.region_name = region_name
 
     def override_next_state(self, next_state):
         self.next_state = next_state
@@ -98,6 +99,14 @@ class BaseState(object):
         keystone_client = self.get_keystone_client(region_name)
 
         return SysinvClient(region_name, keystone_client.session)
+
+    @property
+    def local_sysinv(self):
+        return self.get_sysinv_client(consts.DEFAULT_REGION_NAME)
+
+    @property
+    def subcloud_sysinv(self):
+        return self.get_sysinv_client(self.region_name)
 
     def get_barbican_client(self, region_name):
         """construct a barbican client

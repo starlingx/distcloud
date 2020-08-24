@@ -21,9 +21,9 @@ from tsconfig.tsconfig import SW_VERSION
 class UpgradingSimplexState(BaseState):
     """Upgrade state for upgrading a simplex subcloud host"""
 
-    def __init__(self):
+    def __init__(self, region_name):
         super(UpgradingSimplexState, self).__init__(
-            next_state=consts.STRATEGY_STATE_MIGRATING_DATA)
+            next_state=consts.STRATEGY_STATE_MIGRATING_DATA, region_name=region_name)
 
     def perform_state_action(self, strategy_step):
         """Upgrade a simplex host on a subcloud

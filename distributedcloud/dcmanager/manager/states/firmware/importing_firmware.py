@@ -17,9 +17,9 @@ class ImportingFirmwareState(BaseState):
        Ensure those device images are uploaded on the subcloud.
     """
 
-    def __init__(self):
+    def __init__(self, region_name):
         super(ImportingFirmwareState, self).__init__(
-            next_state=consts.STRATEGY_STATE_CREATING_FW_UPDATE_STRATEGY)
+            next_state=consts.STRATEGY_STATE_CREATING_FW_UPDATE_STRATEGY, region_name=region_name)
 
     def _image_in_list(self, image, image_list):
         # todo(abailey): FUTURE. There may be other ways that two images can

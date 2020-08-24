@@ -19,9 +19,9 @@ DEFAULT_SLEEP_DURATION = 10
 class CompletingUpgradeState(BaseState):
     """Upgrade state actions for completing an upgrade"""
 
-    def __init__(self):
+    def __init__(self, region_name):
         super(CompletingUpgradeState, self).__init__(
-            next_state=consts.STRATEGY_STATE_DELETING_LOAD)
+            next_state=consts.STRATEGY_STATE_DELETING_LOAD, region_name=region_name)
         # max time to wait (in seconds) is: sleep_duration * max_queries
         self.sleep_duration = DEFAULT_SLEEP_DURATION
         self.max_queries = DEFAULT_MAX_QUERIES

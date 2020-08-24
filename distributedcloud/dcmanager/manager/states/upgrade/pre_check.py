@@ -30,9 +30,9 @@ MIN_SCRATCH_SIZE_REQUIRED_GB = 16
 class PreCheckState(BaseState):
     """This State performs entry checks and skips to the appropriate state"""
 
-    def __init__(self):
+    def __init__(self, region_name):
         super(PreCheckState, self).__init__(
-            next_state=consts.STRATEGY_STATE_INSTALLING_LICENSE)
+            next_state=consts.STRATEGY_STATE_INSTALLING_LICENSE, region_name=region_name)
 
     def _perform_subcloud_online_checks(self, strategy_step, subcloud):
         # obtain necessary clients

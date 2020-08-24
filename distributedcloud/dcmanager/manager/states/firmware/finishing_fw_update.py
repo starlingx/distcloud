@@ -14,9 +14,9 @@ from dcorch.common import consts as dcorch_consts
 class FinishingFwUpdateState(BaseState):
     """State for finishing the firmware update."""
 
-    def __init__(self):
+    def __init__(self, region_name):
         super(FinishingFwUpdateState, self).__init__(
-            next_state=consts.STRATEGY_STATE_COMPLETE)
+            next_state=consts.STRATEGY_STATE_COMPLETE, region_name=region_name)
 
     def align_subcloud_status(self, strategy_step):
         self.info_log(strategy_step,

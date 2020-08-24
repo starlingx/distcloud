@@ -26,9 +26,9 @@ MAX_FAILED_RETRIES = 10
 class ActivatingUpgradeState(BaseState):
     """Upgrade state actions for activating an upgrade"""
 
-    def __init__(self):
+    def __init__(self, region_name):
         super(ActivatingUpgradeState, self).__init__(
-            next_state=consts.STRATEGY_STATE_COMPLETING_UPGRADE)
+            next_state=consts.STRATEGY_STATE_COMPLETING_UPGRADE, region_name=region_name)
         # max time to wait (in seconds) is: sleep_duration * max_queries
         self.sleep_duration = DEFAULT_SLEEP_DURATION
         self.max_queries = DEFAULT_MAX_QUERIES

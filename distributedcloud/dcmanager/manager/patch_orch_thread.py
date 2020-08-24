@@ -418,7 +418,6 @@ class PatchOrchThread(threading.Thread):
 
         # Determine which loads are present in this subcloud. During an
         # upgrade, there will be more than one load installed.
-        installed_loads = list()
         try:
             loads = self.get_sysinv_client(
                 strategy_step.subcloud.name).get_loads()
@@ -431,8 +430,7 @@ class PatchOrchThread(threading.Thread):
                 state=consts.STRATEGY_STATE_FAILED,
                 details=message)
             return
-        for load in loads:
-            installed_loads.append(load.software_version)
+        installed_loads = utils.get_loads_for_patching(loads)
 
         patches_to_upload = list()
         patches_to_apply = list()

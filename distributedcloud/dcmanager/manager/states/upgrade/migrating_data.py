@@ -53,9 +53,9 @@ def migrate_subcloud_data(subcloud_name, migrate_command):
 class MigratingDataState(BaseState):
     """Upgrade step for migrating data"""
 
-    def __init__(self):
+    def __init__(self, region_name):
         super(MigratingDataState, self).__init__(
-            next_state=consts.STRATEGY_STATE_UNLOCKING_CONTROLLER)
+            next_state=consts.STRATEGY_STATE_UNLOCKING_CONTROLLER, region_name=region_name)
 
         self.ansible_sleep = DEFAULT_ANSIBLE_SLEEP
         self.max_api_queries = DEFAULT_MAX_API_QUERIES

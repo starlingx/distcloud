@@ -419,18 +419,13 @@ class SysinvAPIController(APIController):
 
     def _process_response(self, environ, request, response):
         try:
+            resource_type = self._get_resource_type_from_environ(environ)
+            operation_type = proxy_utils.get_operation_type(environ)
             if self.get_status_code(response) in self.OK_STATUS_CODE:
-                resource_type = self._get_resource_type_from_environ(environ)
-                operation_type = proxy_utils.get_operation_type(environ)
-
                 if resource_type == consts.RESOURCE_TYPE_SYSINV_LOAD:
                     if operation_type == consts.OPERATION_TYPE_POST:
-                        resp = json.loads(response.body)
-                        if resp.get('error'):
-                            self._check_load_in_vault()
-                        else:
-                            new_load = resp.get('new_load')
-                            self._save_load_to_vault(new_load['software_version'])
+                        new_load = json.loads(response.body)
+                        self._save_load_to_vault(new_load['software_version'])
                     else:
                         sw_version = json.loads(response.body)['software_version']
                         self._remove_load_from_vault(sw_version)
@@ -453,6 +448,10 @@ class SysinvAPIController(APIController):
                 else:
                     self._enqueue_work(environ, request, response)
                     self.notify(environ, self.ENDPOINT_TYPE)
+            else:
+                if resource_type == consts.RESOURCE_TYPE_SYSINV_LOAD and \
+                        operation_type == consts.OPERATION_TYPE_POST:
+                    self._check_load_in_vault()
 
             return response
         finally:

@@ -21,9 +21,9 @@ UPGRADE_STARTED_STATES = ['started', ]
 class StartingUpgradeState(BaseState):
     """Upgrade state for starting an upgrade on a subcloud"""
 
-    def __init__(self):
+    def __init__(self, region_name):
         super(StartingUpgradeState, self).__init__(
-            next_state=consts.STRATEGY_STATE_LOCKING_CONTROLLER)
+            next_state=consts.STRATEGY_STATE_LOCKING_CONTROLLER, region_name=region_name)
         self.sleep_duration = DEFAULT_SLEEP_DURATION
         self.max_queries = DEFAULT_MAX_QUERIES
 

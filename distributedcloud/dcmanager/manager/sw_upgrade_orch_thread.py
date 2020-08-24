@@ -133,7 +133,7 @@ class SwUpgradeOrchThread(threading.Thread):
         """Return the state operator for the current state"""
         state_operator = STATE_OPERATORS.get(strategy_step.state)
         # instantiate and return the state_operator class
-        return state_operator()
+        return state_operator(region_name=SwUpgradeOrchThread.get_region_name(strategy_step))
 
     def strategy_step_update(self, subcloud_id, state=None, details=None):
         """Update the strategy step in the DB

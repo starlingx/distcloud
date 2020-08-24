@@ -19,9 +19,9 @@ DEFAULT_SLEEP_DURATION = 10
 class CreatingVIMStrategyState(BaseState):
     """State for creating the VIM FPGA update strategy."""
 
-    def __init__(self):
+    def __init__(self, region_name):
         super(CreatingVIMStrategyState, self).__init__(
-            next_state=consts.STRATEGY_STATE_APPLYING_FW_UPDATE_STRATEGY)
+            next_state=consts.STRATEGY_STATE_APPLYING_FW_UPDATE_STRATEGY, region_name=region_name)
         # max time to wait for the strategy to be built (in seconds)
         # is: sleep_duration * max_queries
         self.sleep_duration = DEFAULT_SLEEP_DURATION

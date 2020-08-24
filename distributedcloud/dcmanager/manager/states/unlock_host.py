@@ -26,9 +26,9 @@ DEFAULT_API_SLEEP = 60
 class UnlockHostState(BaseState):
     """Orchestration state for unlocking a host."""
 
-    def __init__(self, hostname='controller-0'):
+    def __init__(self, region_name, hostname='controller-0'):
         super(UnlockHostState, self).__init__(
-            next_state=consts.STRATEGY_STATE_ACTIVATING_UPGRADE)
+            next_state=consts.STRATEGY_STATE_ACTIVATING_UPGRADE, region_name=region_name)
         self.target_hostname = hostname
         self.max_api_queries = DEFAULT_MAX_API_QUERIES
         self.api_sleep_duration = DEFAULT_API_SLEEP

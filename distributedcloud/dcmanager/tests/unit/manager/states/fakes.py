@@ -119,6 +119,13 @@ class FakeLoad(object):
         self.created_at = created_at
         self.updated_at = updated_at
 
+    @staticmethod
+    def from_dict(load_data):
+        return FakeLoad(**load_data)
+
+    def to_dict(self):
+        return dict(self.__dict__)
+
 
 class FakeSubcloud(object):
     def __init__(self,

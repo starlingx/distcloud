@@ -58,10 +58,6 @@ from dcorch.common import consts as dcorch_consts
 
 CONF = cfg.CONF
 LOG = logging.getLogger(__name__)
-# System mode
-SYSTEM_MODE_DUPLEX = "duplex"
-SYSTEM_MODE_SIMPLEX = "simplex"
-SYSTEM_MODE_DUPLEX_DIRECT = "duplex-direct"
 
 LOCK_NAME = 'SubcloudsController'
 

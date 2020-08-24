@@ -265,3 +265,12 @@ def get_vault_load_files(target_version):
 
     # return the iso and sig for this load
     return (matching_iso, matching_sig)
+
+
+def get_loads_for_patching(loads):
+    """Filter the loads that can be patched. Return their software versions"""
+    valid_states = [
+        consts.ACTIVE_LOAD_STATE,
+        consts.IMPORTED_LOAD_STATE
+    ]
+    return [load.software_version for load in loads if load.state in valid_states]

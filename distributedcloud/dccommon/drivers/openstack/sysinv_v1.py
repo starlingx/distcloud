@@ -284,6 +284,10 @@ class SysinvClient(base.DriverBase):
         """Get system health."""
         return self.sysinv_client.health.get()
 
+    def import_load_metadata(self, load):
+        """Import the software load metadata."""
+        return self.sysinv_client.load.import_load_metadata(load=load)
+
     def get_hosts(self):
         """Get a list of hosts."""
         return self.sysinv_client.ihost.list()

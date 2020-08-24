@@ -32,7 +32,7 @@ from dcorch.common import consts as dcorch_consts
 
 from dcmanager.common import consts
 from dcmanager.common.i18n import _
-
+from dcmanager.common import utils
 
 LOG = logging.getLogger(__name__)
 
@@ -150,7 +150,6 @@ class PatchAudit(object):
 
         # Determine which loads are present in this subcloud. During an
         # upgrade, there will be more than one load installed.
-        installed_loads = list()
         try:
             loads = sysinv_client.get_loads()
         except Exception:
@@ -158,8 +157,7 @@ class PatchAudit(object):
                           'skip patch audit' % subcloud_name)
             return
 
-        for load in loads:
-            installed_loads.append(load.software_version)
+        installed_loads = utils.get_loads_for_patching(loads)
 
         out_of_sync = False
 

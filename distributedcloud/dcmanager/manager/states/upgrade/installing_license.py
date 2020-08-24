@@ -14,9 +14,9 @@ LICENSE_FILE_NOT_FOUND_SUBSTRING = "License file not found"
 class InstallingLicenseState(BaseState):
     """Upgrade state action for installing a license"""
 
-    def __init__(self):
+    def __init__(self, region_name):
         super(InstallingLicenseState, self).__init__(
-            next_state=consts.STRATEGY_STATE_IMPORTING_LOAD)
+            next_state=consts.STRATEGY_STATE_IMPORTING_LOAD, region_name=region_name)
 
     @staticmethod
     def license_up_to_date(target_license, existing_license):

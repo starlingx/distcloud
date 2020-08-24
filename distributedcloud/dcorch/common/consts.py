@@ -185,6 +185,3 @@ INITIAL_SYNC_STATE_REQUESTED = "requested"
 INITIAL_SYNC_STATE_IN_PROGRESS = "in-progress"
 INITIAL_SYNC_STATE_COMPLETED = "completed"
 INITIAL_SYNC_STATE_FAILED = "failed"
-
-# Active load state
-LOAD_STATE_ACTIVE = 'active'

@@ -169,3 +169,20 @@ INVENTORY_FILE_POSTFIX = '_inventory.yml'
 # after a remote install as part of the upgrade. The real sysadmin password
 # will be restored af the subcloud is re-managed at the end of the upgrade.
 TEMP_SYSADMIN_PASSWORD = 'St8rlingX*'
+
+# System mode
+SYSTEM_MODE_DUPLEX = "duplex"
+SYSTEM_MODE_SIMPLEX = "simplex"
+SYSTEM_MODE_DUPLEX_DIRECT = "duplex-direct"
+
+# Load states
+ACTIVE_LOAD_STATE = 'active'
+IMPORTING_LOAD_STATE = 'importing'
+IMPORTED_LOAD_STATE = 'imported'
+IMPORTED_METADATA_LOAD_STATE = 'imported-metadata'
+ERROR_LOAD_STATE = 'error'
+DELETING_LOAD_STATE = 'deleting'
+IMPORTED_LOAD_STATES = [
+    IMPORTED_LOAD_STATE,
+    IMPORTED_METADATA_LOAD_STATE
+]

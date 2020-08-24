@@ -93,6 +93,7 @@ class StrategyStep(object):
 class Load(object):
     def __init__(self, software_version):
         self.software_version = software_version
+        self.state = consts.ACTIVE_LOAD_STATE
 
 
 class FakePatchingClientOutOfSync(mock.Mock):
