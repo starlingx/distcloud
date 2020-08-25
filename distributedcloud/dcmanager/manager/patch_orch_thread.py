@@ -96,8 +96,20 @@ class PatchOrchThread(threading.Thread):
                 region_clients=None)
             return os_client.keystone_client
         except Exception:
-            LOG.warn('Failure initializing KeystoneClient')
+            LOG.warn('Failure initializing KeystoneClient %s' % region_name)
             raise
+
+    def get_sysinv_client(self, region_name=consts.DEFAULT_REGION_NAME):
+        ks_client = self.get_ks_client(region_name)
+        return SysinvClient(region_name, ks_client.session)
+
+    def get_patching_client(self, region_name=consts.DEFAULT_REGION_NAME):
+        ks_client = self.get_ks_client(region_name)
+        return PatchingClient(region_name, ks_client.session)
+
+    def get_vim_client(self, region_name=consts.DEFAULT_REGION_NAME):
+        ks_client = self.get_ks_client(region_name)
+        return vim.VimClient(region_name, ks_client.session)
 
     @staticmethod
     def get_region_name(strategy_step):
@@ -369,12 +381,8 @@ class PatchOrchThread(threading.Thread):
         LOG.info("Updating patches for subcloud %s" %
                  strategy_step.subcloud.name)
 
-        ks_client = self.get_ks_client()
-
         # First query RegionOne to determine what patches should be applied.
-        patching_client = PatchingClient(
-            consts.DEFAULT_REGION_NAME, ks_client.session)
-        regionone_patches = patching_client.query()
+        regionone_patches = self.get_patching_client(consts.DEFAULT_REGION_NAME).query()
         LOG.debug("regionone_patches: %s" % regionone_patches)
 
         # Build lists of patches that should be applied in this subcloud,
@@ -392,48 +400,10 @@ class PatchOrchThread(threading.Thread):
                 applied_patch_ids.append(patch_id)
         LOG.debug("RegionOne applied_patch_ids: %s" % applied_patch_ids)
 
-        # First need to retrieve the Subcloud's Keystone session
-        try:
-            sc_ks_client = self.get_ks_client(strategy_step.subcloud.name)
-        except (keystone_exceptions.EndpointNotFound, IndexError) as e:
-            message = ("Identity endpoint for subcloud: %s not found. %s" %
-                       (strategy_step.subcloud.name, e))
-            LOG.error(message)
-            self.strategy_step_update(
-                strategy_step.subcloud_id,
-                state=consts.STRATEGY_STATE_FAILED,
-                details=message)
-            return
-
-        try:
-            patching_client = PatchingClient(
-                strategy_step.subcloud.name, sc_ks_client.session)
-        except keystone_exceptions.EndpointNotFound:
-            message = ("Patching endpoint for subcloud: %s not found." %
-                       strategy_step.subcloud.name)
-            LOG.error(message)
-            self.strategy_step_update(
-                strategy_step.subcloud_id,
-                state=consts.STRATEGY_STATE_FAILED,
-                details=message)
-            return
-
-        try:
-            sysinv_client = SysinvClient(strategy_step.subcloud.name,
-                                         sc_ks_client.session)
-        except keystone_exceptions.EndpointNotFound:
-            message = ("Sysinv endpoint for subcloud: %s not found." %
-                       strategy_step.subcloud.name)
-            LOG.error(message)
-            self.strategy_step_update(
-                strategy_step.subcloud_id,
-                state=consts.STRATEGY_STATE_FAILED,
-                details=message)
-            return
-
         # Retrieve all the patches that are present in this subcloud.
         try:
-            subcloud_patches = patching_client.query()
+            subcloud_patches = self.get_patching_client(
+                strategy_step.subcloud.name).query()
             LOG.debug("Patches for subcloud %s: %s" %
                       (strategy_step.subcloud.name, subcloud_patches))
         except Exception:
@@ -450,7 +420,8 @@ class PatchOrchThread(threading.Thread):
         # upgrade, there will be more than one load installed.
         installed_loads = list()
         try:
-            loads = sysinv_client.get_loads()
+            loads = self.get_sysinv_client(
+                strategy_step.subcloud.name).get_loads()
         except Exception:
             message = ('Cannot retrieve loads for subcloud: %s' %
                        strategy_step.subcloud.name)
@@ -523,7 +494,8 @@ class PatchOrchThread(threading.Thread):
             LOG.info("Removing patches %s from subcloud %s" %
                      (patches_to_remove, strategy_step.subcloud.name))
             try:
-                patching_client.remove(patches_to_remove)
+                self.get_patching_client(
+                    strategy_step.subcloud.name).remove(patches_to_remove)
             except Exception:
                 message = ('Failed to remove patches %s from subcloud %s' %
                            (patches_to_remove, strategy_step.subcloud.name))
@@ -552,7 +524,8 @@ class PatchOrchThread(threading.Thread):
                     return
 
                 try:
-                    patching_client.upload([patch_file])
+                    self.get_patching_client(
+                        strategy_step.subcloud.name).upload([patch_file])
                 except Exception:
                     message = ('Failed to upload patch file %s to subcloud %s'
                                % (patch_file, strategy_step.subcloud.name))
@@ -571,7 +544,8 @@ class PatchOrchThread(threading.Thread):
             LOG.info("Applying patches %s to subcloud %s" %
                      (patches_to_apply, strategy_step.subcloud.name))
             try:
-                patching_client.apply(patches_to_apply)
+                self.get_patching_client(
+                    strategy_step.subcloud.name).apply(patches_to_apply)
             except Exception:
                 message = ("Failed to apply patches %s to subcloud %s" %
                            (patches_to_apply, strategy_step.subcloud.name))
@@ -588,7 +562,8 @@ class PatchOrchThread(threading.Thread):
         wait_count = 0
         while True:
             try:
-                subcloud_hosts = patching_client.query_hosts()
+                subcloud_hosts = self.get_patching_client(
+                    strategy_step.subcloud.name).query_hosts()
             except Exception:
                 message = ("Failed to query patch status of hosts on "
                            "subcloud %s" % strategy_step.subcloud.name)
@@ -655,27 +630,19 @@ class PatchOrchThread(threading.Thread):
 
         LOG.info("Creating patch strategy for %s" % region)
 
-        # TODO(knasim-wrs): memoize the keystone client in the class
-        # instance instead of instantiating a new keystone client
-        # at each subcloud strategy step.
+        # First check if the strategy has been created.
         try:
-            ks_client = self.get_ks_client(region)
-        except (keystone_exceptions.EndpointNotFound, IndexError) as e:
-            message = ("Identity endpoint for subcloud: %s not found. %s" %
-                       (region, e))
+            subcloud_strategy = self.get_vim_client(region).get_strategy(
+                strategy_name=vim.STRATEGY_NAME_SW_PATCH)
+        except (keystone_exceptions.EndpointNotFound, IndexError):
+            message = ("Endpoint for subcloud: %s not found." %
+                       region)
             LOG.error(message)
             self.strategy_step_update(
                 strategy_step.subcloud_id,
                 state=consts.STRATEGY_STATE_FAILED,
                 details=message)
             return
-
-        vim_client = vim.VimClient(region, ks_client.session)
-
-        # First check if the strategy has been created.
-        try:
-            subcloud_strategy = vim_client.get_strategy(
-                strategy_name=vim.STRATEGY_NAME_SW_PATCH)
         except Exception:
             # Strategy doesn't exist yet
             subcloud_strategy = None
@@ -686,9 +653,8 @@ class PatchOrchThread(threading.Thread):
             # been done (e.g. in a previous attempt). Also, if we are just
             # committing patches, patch orchestration is not required.
             orch_required = False
-            patching_client = PatchingClient(region, ks_client.session)
             try:
-                cloud_hosts = patching_client.query_hosts()
+                cloud_hosts = self.get_patching_client(region).query_hosts()
             except Exception:
                 message = ("Failed to query patch status of hosts on %s" %
                            region)
@@ -724,7 +690,7 @@ class PatchOrchThread(threading.Thread):
 
             # If we are here, we need to create the strategy
             try:
-                subcloud_strategy = vim_client.create_strategy(
+                subcloud_strategy = self.get_vim_client(region).create_strategy(
                     strategy_name=vim.STRATEGY_NAME_SW_PATCH,
                     storage_apply_type=opts_dict['storage-apply-type'],
                     worker_apply_type=opts_dict['worker-apply-type'],
@@ -759,7 +725,7 @@ class PatchOrchThread(threading.Thread):
         wait_count = 0
         while True:
             try:
-                subcloud_strategy = vim_client.get_strategy(
+                subcloud_strategy = self.get_vim_client(region).get_strategy(
                     strategy_name=vim.STRATEGY_NAME_SW_PATCH)
             except Exception:
                 message = ("Failed to get patch strategy for %s" % region)
@@ -840,23 +806,9 @@ class PatchOrchThread(threading.Thread):
 
         LOG.info("Applying patch strategy for %s" % region)
 
-        try:
-            ks_client = self.get_ks_client(region)
-        except (keystone_exceptions.EndpointNotFound, IndexError):
-            message = ("Identity endpoint for subcloud: %s not found." %
-                       region)
-            LOG.error(message)
-            self.strategy_step_update(
-                strategy_step.subcloud_id,
-                state=consts.STRATEGY_STATE_FAILED,
-                details=message)
-            return
-
-        vim_client = vim.VimClient(region, ks_client.session)
-
         # First check if the strategy has been created.
         try:
-            subcloud_strategy = vim_client.get_strategy(
+            subcloud_strategy = self.get_vim_client(region).get_strategy(
                 strategy_name=vim.STRATEGY_NAME_SW_PATCH)
         except Exception:
             # Strategy doesn't exist
@@ -866,7 +818,7 @@ class PatchOrchThread(threading.Thread):
 
         if subcloud_strategy.state == vim.STATE_READY_TO_APPLY:
             try:
-                subcloud_strategy = vim_client.apply_strategy(
+                subcloud_strategy = self.get_vim_client(region).apply_strategy(
                     strategy_name=vim.STRATEGY_NAME_SW_PATCH)
             except Exception:
                 message = "Strategy apply failed for %s" % region
@@ -897,62 +849,39 @@ class PatchOrchThread(threading.Thread):
         wait_count = 0
         get_fail_count = 0
         last_details = ""
-        auth_failure = False
         while True:
             try:
-                subcloud_strategy = vim_client.get_strategy(
+                subcloud_strategy = self.get_vim_client(region).get_strategy(
                     strategy_name=vim.STRATEGY_NAME_SW_PATCH)
-                auth_failure = False
                 get_fail_count = 0
             except Exception as e:
-                if e.message == "Authorization failed":
-                    # Since it can take hours to apply a strategy, there is a
-                    # chance our keystone token will expire. Attempt to get
-                    # a new token (by re-creating the client) and re-try the
-                    # request, but only once.
-                    if not auth_failure:
-                        auth_failure = True
-                        LOG.info("Authorization failure getting strategy for "
-                                 "%s. Retrying..." % region)
-                        vim_client = vim.VimClient(region, ks_client.session)
-                        continue
-                    else:
-                        message = ("Repeated authorization failure getting "
-                                   "patch strategy for %s" % region)
-                        LOG.warn(message)
-                        self.strategy_step_update(
-                            strategy_step.subcloud_id,
-                            state=consts.STRATEGY_STATE_FAILED,
-                            details=message)
-                        return
+                # When applying the strategy to a subcloud, the VIM can
+                # be unreachable for a significant period of time when
+                # there is a controller swact, or in the case of AIO-SX,
+                # when the controller reboots.
+                get_fail_count += 1
+                wait_count += 1
+                if get_fail_count >= (GET_FAIL_LIMIT / WAIT_INTERVAL):
+                    # We have waited too long.
+                    message = ("Failed to get patch strategy for %s" %
+                               region)
+                    LOG.warn(message)
+                    self.strategy_step_update(
+                        strategy_step.subcloud_id,
+                        state=consts.STRATEGY_STATE_FAILED,
+                        details=message)
+                    return
                 else:
-                    # When applying the strategy to a subcloud, the VIM can
-                    # be unreachable for a significant period of time when
-                    # there is a controller swact, or in the case of AIO-SX,
-                    # when the controller reboots.
-                    get_fail_count += 1
-                    wait_count += 1
-                    if get_fail_count >= (GET_FAIL_LIMIT / WAIT_INTERVAL):
-                        # We have waited too long.
-                        message = ("Failed to get patch strategy for %s" %
-                                   region)
-                        LOG.warn(message)
-                        self.strategy_step_update(
-                            strategy_step.subcloud_id,
-                            state=consts.STRATEGY_STATE_FAILED,
-                            details=message)
-                        return
-                    else:
-                        LOG.info("Unable to get patch strategy for %s - "
-                                 "attempt %d - reason: %s" %
-                                 (region, get_fail_count, e))
+                    LOG.info("Unable to get patch strategy for %s - "
+                             "attempt %d - reason: %s" %
+                             (region, get_fail_count, e))
 
-                    if self.stopped():
-                        LOG.info("Exiting because task is stopped")
-                        return
+                if self.stopped():
+                    LOG.info("Exiting because task is stopped")
+                    return
 
-                    # Wait before doing another query.
-                    time.sleep(WAIT_INTERVAL)
+                # Wait before doing another query.
+                time.sleep(WAIT_INTERVAL)
 
             if subcloud_strategy.state == vim.STATE_APPLIED:
                 # Move on to the next state
@@ -1018,24 +947,19 @@ class PatchOrchThread(threading.Thread):
 
         LOG.info("Deleting patch strategy for %s" % region)
 
+        # First check if the strategy has been created.
         try:
-            ks_client = self.get_ks_client(region)
-        except (keystone_exceptions.EndpointNotFound, IndexError) as e:
-            message = ("Identity endpoint for subcloud: %s not found. %s" %
-                       (region, e))
+            subcloud_strategy = self.get_vim_client(region).get_strategy(
+                strategy_name=vim.STRATEGY_NAME_SW_PATCH)
+        except (keystone_exceptions.EndpointNotFound, IndexError):
+            message = ("Endpoint for subcloud: %s not found." %
+                       region)
             LOG.error(message)
             self.strategy_step_update(
                 strategy_step.subcloud_id,
                 state=consts.STRATEGY_STATE_FAILED,
                 details=message)
             return
-
-        vim_client = vim.VimClient(region, ks_client.session)
-
-        # First check if the strategy has been created.
-        try:
-            subcloud_strategy = vim_client.get_strategy(
-                strategy_name=vim.STRATEGY_NAME_SW_PATCH)
         except Exception:
             # Strategy doesn't exist so there is nothing to do
             return
@@ -1051,7 +975,7 @@ class PatchOrchThread(threading.Thread):
 
         # If we are here, we need to delete the strategy
         try:
-            vim_client.delete_strategy(
+            self.get_vim_client(region).delete_strategy(
                 strategy_name=vim.STRATEGY_NAME_SW_PATCH)
         except Exception:
             message = "Strategy delete failed for %s" % region
@@ -1088,13 +1012,9 @@ class PatchOrchThread(threading.Thread):
         LOG.info("Finishing patch strategy for %s" %
                  strategy_step.subcloud.name)
 
-        ks_client = self.get_ks_client()
-
-        # First query RegionOne to determine what patches should be committed.
-        patching_client = PatchingClient(
-            consts.DEFAULT_REGION_NAME, ks_client.session)
-        regionone_committed_patches = patching_client.query(
-            state=patching_v1.PATCH_STATE_COMMITTED)
+        regionone_committed_patches = self.get_patching_client(
+            consts.DEFAULT_REGION_NAME).query(
+                state=patching_v1.PATCH_STATE_COMMITTED)
         LOG.debug("regionone_committed_patches: %s" %
                   regionone_committed_patches)
 
@@ -1103,34 +1023,9 @@ class PatchOrchThread(threading.Thread):
             committed_patch_ids.append(patch_id)
         LOG.debug("RegionOne committed_patch_ids: %s" % committed_patch_ids)
 
-        # First need to retrieve the Subcloud's Keystone session
         try:
-            sc_ks_client = self.get_ks_client(strategy_step.subcloud.name)
-        except (keystone_exceptions.EndpointNotFound, IndexError) as e:
-            message = ("Identity endpoint for subcloud: %s not found. %s" %
-                       (strategy_step.subcloud.name, e))
-            LOG.error(message)
-            self.strategy_step_update(
-                strategy_step.subcloud_id,
-                state=consts.STRATEGY_STATE_FAILED,
-                details=message)
-            return
-
-        try:
-            patching_client = PatchingClient(
-                strategy_step.subcloud.name, sc_ks_client.session)
-        except keystone_exceptions.EndpointNotFound:
-            message = ("Patching endpoint for subcloud: %s not found." %
-                       strategy_step.subcloud.name)
-            LOG.error(message)
-            self.strategy_step_update(
-                strategy_step.subcloud_id,
-                state=consts.STRATEGY_STATE_FAILED,
-                details=message)
-            return
-
-        try:
-            subcloud_patches = patching_client.query()
+            subcloud_patches = self.get_patching_client(
+                strategy_step.subcloud.name).query()
             LOG.debug("Patches for subcloud %s: %s" %
                       (strategy_step.subcloud.name, subcloud_patches))
         except Exception:
@@ -1168,7 +1063,8 @@ class PatchOrchThread(threading.Thread):
             LOG.info("Deleting patches %s from subcloud %s" %
                      (patches_to_delete, strategy_step.subcloud.name))
             try:
-                patching_client.delete(patches_to_delete)
+                self.get_patching_client(
+                    strategy_step.subcloud.name).delete(patches_to_delete)
             except Exception:
                 message = ('Failed to delete patches %s from subcloud %s' %
                            (patches_to_delete, strategy_step.subcloud.name))
@@ -1187,7 +1083,8 @@ class PatchOrchThread(threading.Thread):
             LOG.info("Committing patches %s in subcloud %s" %
                      (patches_to_commit, strategy_step.subcloud.name))
             try:
-                patching_client.commit(patches_to_commit)
+                self.get_patching_client(
+                    strategy_step.subcloud.name).commit(patches_to_commit)
             except Exception:
                 message = ('Failed to commit patches %s in subcloud %s' %
                            (patches_to_commit, strategy_step.subcloud.name))

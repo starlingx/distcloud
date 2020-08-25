@@ -5,8 +5,6 @@
 #
 import time
 
-from cgtsclient.exc import HTTPUnauthorized
-
 from dcmanager.common import consts
 from dcmanager.common.exceptions import StrategyStoppedException
 from dcmanager.manager.states.base import BaseState
@@ -69,8 +67,6 @@ class UnlockHostState(BaseState):
         # Allow separate durations for failures (ie: reboot) and api retries
         api_counter = 0
         fail_counter = 0
-        # Allow just one failed auth (token expired)
-        auth_failure = False
 
         while True:
             # If event handler stop has been triggered, fail the state
@@ -78,7 +74,8 @@ class UnlockHostState(BaseState):
                 raise StrategyStoppedException()
             try:
                 # query the administrative state to see if it is the new state.
-                host = sysinv_client.get_host(self.target_hostname)
+                host = self.get_sysinv_client(
+                    strategy_step.subcloud.name).get_host(self.target_hostname)
                 if (host.administrative == consts.ADMIN_UNLOCKED and
                         host.operational == consts.OPERATIONAL_ENABLED):
                     # Success. Break out of the loop.
@@ -87,22 +84,8 @@ class UnlockHostState(BaseState):
                                                       host.operational)
                     self.info_log(strategy_step, msg)
                     break
-                # no exception was raised so reset fail and auth checks
-                auth_failure = False
+                # no exception was raised so reset fail checks
                 fail_counter = 0
-            except HTTPUnauthorized:
-                # Since a token could expire while waiting, generate
-                # a new token (by re-creating the client) and re-try the
-                # request, but only once.
-                if not auth_failure:
-                    auth_failure = True
-                    self.warn_log(strategy_step,
-                                  "Authorization failure. Retrying...")
-                    sysinv_client = self.get_sysinv_client(
-                        strategy_step.subcloud.name)
-                    continue
-                else:
-                    raise Exception("Repeated authorization failures.")
             except Exception:
                 # Handle other exceptions due to being unreachable
                 # for a significant period of time when there is a

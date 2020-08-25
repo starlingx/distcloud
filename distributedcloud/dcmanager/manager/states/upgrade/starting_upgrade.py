@@ -27,8 +27,9 @@ class StartingUpgradeState(BaseState):
         self.sleep_duration = DEFAULT_SLEEP_DURATION
         self.max_queries = DEFAULT_MAX_QUERIES
 
-    def get_upgrade_state(self, sysinv_client):
-        upgrades = sysinv_client.get_upgrades()
+    def get_upgrade_state(self, strategy_step):
+        upgrades = self.get_sysinv_client(
+            strategy_step.subcloud.name).get_upgrades()
         if len(upgrades) == 0:
             raise Exception("Failed to generate upgrade data. Please "
                             "check sysinv.log on the subcloud for details.")
@@ -41,12 +42,10 @@ class StartingUpgradeState(BaseState):
         Returns the next state in the state machine on success.
         Any exceptions raised by this method set the strategy to FAILED.
         """
-        # get sysinv client for the subcloud
-        sysinv_client = self.get_sysinv_client(strategy_step.subcloud.name)
-
         # Check if an existing upgrade is already in progress.
         # The list of upgrades will never contain more than one entry.
-        upgrades = sysinv_client.get_upgrades()
+        upgrades = self.get_sysinv_client(
+            strategy_step.subcloud.name).get_upgrades()
         if upgrades is not None and len(upgrades) > 0:
             for upgrade in upgrades:
                 # If a previous upgrade exists (even one that failed) skip
@@ -66,7 +65,8 @@ class StartingUpgradeState(BaseState):
                               == ALARM_RESTRICTIONS_RELAXED)
 
             # This call is asynchronous and throws an exception on failure.
-            sysinv_client.upgrade_start(force=force_flag)
+            self.get_sysinv_client(
+                strategy_step.subcloud.name).upgrade_start(force=force_flag)
 
         # Do not move to the next state until the upgrade state is correct
         counter = 0
@@ -74,7 +74,7 @@ class StartingUpgradeState(BaseState):
             # If event handler stop has been triggered, fail the state
             if self.stopped():
                 raise StrategyStoppedException()
-            upgrade_state = self.get_upgrade_state(sysinv_client)
+            upgrade_state = self.get_upgrade_state(strategy_step)
             if upgrade_state in UPGRADE_STARTED_STATES:
                 self.info_log(strategy_step,
                               "Upgrade started. State=%s" % upgrade_state)

@@ -5,8 +5,6 @@
 #
 import time
 
-from cgtsclient.exc import HTTPUnauthorized
-
 from dcmanager.common import consts
 from dcmanager.common.exceptions import StrategyStoppedException
 from dcmanager.manager.states.base import BaseState
@@ -36,8 +34,10 @@ class ActivatingUpgradeState(BaseState):
         self.max_queries = DEFAULT_MAX_QUERIES
         self.max_failed_retries = MAX_FAILED_RETRIES
 
-    def get_upgrade_state(self, sysinv_client):
-        upgrades = sysinv_client.get_upgrades()
+    def get_upgrade_state(self, strategy_step):
+        upgrades = self.get_sysinv_client(
+            strategy_step.subcloud.name).get_upgrades()
+
         if len(upgrades) == 0:
             raise Exception("No upgrades were found to activate")
 
@@ -50,10 +50,8 @@ class ActivatingUpgradeState(BaseState):
         Returns the next state in the state machine on success.
         Any exceptions raised by this method set the strategy to FAILED.
         """
-        # get the keystone and sysinv clients for the subcloud
-        sysinv_client = self.get_sysinv_client(strategy_step.subcloud.name)
 
-        upgrade_state = self.get_upgrade_state(sysinv_client)
+        upgrade_state = self.get_upgrade_state(strategy_step)
 
         # Check if an existing upgrade is already activated
         if upgrade_state in ACTIVATING_COMPLETED_STATES:
@@ -63,21 +61,14 @@ class ActivatingUpgradeState(BaseState):
 
         # invoke the API 'upgrade-activate'.
         # Throws an exception on failure (no upgrade found, bad host state)
-        sysinv_client.upgrade_activate()
+        self.get_sysinv_client(strategy_step.subcloud.name).upgrade_activate()
         # Need to loop until changed to a activating completed state
         counter = 0
         while True:
             # If event handler stop has been triggered, fail the state
             if self.stopped():
                 raise StrategyStoppedException()
-            try:
-                upgrade_state = self.get_upgrade_state(sysinv_client)
-            except HTTPUnauthorized:
-                self.warn_log(strategy_step,
-                              "HTTPUnauthorized exception, retrying")
-                sysinv_client = self.get_sysinv_client(strategy_step.subcloud.name)
-                counter += 1
-                continue  # retry
+            upgrade_state = self.get_upgrade_state(strategy_step)
 
             if upgrade_state in ACTIVATING_RETRY_STATES:
                 if counter >= self.max_failed_retries:
@@ -88,7 +79,8 @@ class ActivatingUpgradeState(BaseState):
                 self.info_log(strategy_step,
                               "Activation failed, retrying... State=%s"
                               % upgrade_state)
-                sysinv_client.upgrade_activate()
+                self.get_sysinv_client(
+                    strategy_step.subcloud.name).upgrade_activate()
             elif upgrade_state in ACTIVATING_IN_PROGRESS_STATES:
                 self.info_log(strategy_step,
                               "Activation in progress, waiting... State=%s"

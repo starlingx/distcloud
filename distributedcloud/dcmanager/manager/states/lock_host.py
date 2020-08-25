@@ -57,7 +57,8 @@ class LockHostState(BaseState):
             if self.stopped():
                 raise StrategyStoppedException()
             # query the administrative state to see if it is the new state.
-            host = sysinv_client.get_host(self.target_hostname)
+            host = self.get_sysinv_client(
+                strategy_step.subcloud.name).get_host(self.target_hostname)
             if host.administrative == consts.ADMIN_LOCKED:
                 msg = "Host: %s is now: %s" % (self.target_hostname,
                                                host.administrative)

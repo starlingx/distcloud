@@ -65,7 +65,9 @@ class CompletingUpgradeState(BaseState):
             # If event handler stop has been triggered, fail the state
             if self.stopped():
                 raise StrategyStoppedException()
-            upgrades = sysinv_client.get_upgrades()
+
+            upgrades = self.get_sysinv_client(
+                strategy_step.subcloud.name).get_upgrades()
             if len(upgrades) == 0:
                 self.info_log(strategy_step,
                               "Upgrade completed.")

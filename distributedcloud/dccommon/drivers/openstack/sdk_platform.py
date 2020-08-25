@@ -33,8 +33,9 @@ from dccommon import exceptions
 # Gap, in seconds, to determine whether the given token is about to expire
 # These values are used to randomize the token early renewal duration and
 # to distribute the new keystone creation to different audit cycles
-STALE_TOKEN_DURATION_MIN = 40
-STALE_TOKEN_DURATION_MAX = 120
+
+STALE_TOKEN_DURATION_MIN = 300
+STALE_TOKEN_DURATION_MAX = 480
 STALE_TOKEN_DURATION_STEP = 20
 
 KEYSTONE_CLIENT_NAME = 'keystone'
