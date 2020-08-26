@@ -163,10 +163,12 @@ class MigratingDataState(BaseState):
             consts.ANSIBLE_OVERRIDES_PATH,
             strategy_step.subcloud.name + consts.INVENTORY_FILE_POSTFIX)
 
+        # Send skip_patching=true to prevent the playbook from applying any patches present in the
+        # upgrade_data. All the required patches will be included in the generated install iso.
         data_migrating_cmd = [
             "ansible-playbook", ANSIBLE_UPGRADE_PLAYBOOK,
             "-i", ansible_subcloud_inventory_file, "-e",
-            "ansible_ssh_pass=%s ansible_become_pass=%s"
+            "ansible_ssh_pass=%s ansible_become_pass=%s skip_patching=true"
             % (consts.TEMP_SYSADMIN_PASSWORD, consts.TEMP_SYSADMIN_PASSWORD)]
 
         try:
