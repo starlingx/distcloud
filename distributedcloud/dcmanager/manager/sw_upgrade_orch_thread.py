@@ -34,6 +34,7 @@ from dcmanager.manager.states.lock_host import LockHostState
 from dcmanager.manager.states.unlock_host import UnlockHostState
 from dcmanager.manager.states.upgrade.activating import ActivatingUpgradeState
 from dcmanager.manager.states.upgrade.completing import CompletingUpgradeState
+from dcmanager.manager.states.upgrade.deleting_load import DeletingLoadState
 from dcmanager.manager.states.upgrade.importing_load import ImportingLoadState
 from dcmanager.manager.states.upgrade.installing_license \
     import InstallingLicenseState
@@ -59,6 +60,7 @@ STATE_OPERATORS = {
     consts.STRATEGY_STATE_UNLOCKING_CONTROLLER: UnlockHostState,
     consts.STRATEGY_STATE_ACTIVATING_UPGRADE: ActivatingUpgradeState,
     consts.STRATEGY_STATE_COMPLETING_UPGRADE: CompletingUpgradeState,
+    consts.STRATEGY_STATE_DELETING_LOAD: DeletingLoadState,
 }
 
 

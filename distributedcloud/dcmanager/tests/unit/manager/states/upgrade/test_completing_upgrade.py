@@ -28,7 +28,7 @@ class TestSwUpgradeCompletingStage(TestSwUpgradeState):
         super(TestSwUpgradeCompletingStage, self).setUp()
 
         # next state after completing an upgrade is 'complete'
-        self.on_success_state = consts.STRATEGY_STATE_COMPLETE
+        self.on_success_state = consts.STRATEGY_STATE_DELETING_LOAD
 
         # Add the strategy_step state being processed by this unit test
         self.strategy_step = \

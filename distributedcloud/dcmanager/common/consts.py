@@ -115,6 +115,7 @@ STRATEGY_STATE_MIGRATING_DATA = "migrating data"
 STRATEGY_STATE_UNLOCKING_CONTROLLER = "unlocking controller"
 STRATEGY_STATE_ACTIVATING_UPGRADE = "activating upgrade"
 STRATEGY_STATE_COMPLETING_UPGRADE = "completing upgrade"
+STRATEGY_STATE_DELETING_LOAD = "deleting load"
 
 # Firmware update orchestration states
 STRATEGY_STATE_IMPORTING_FIRMWARE = "importing firmware"

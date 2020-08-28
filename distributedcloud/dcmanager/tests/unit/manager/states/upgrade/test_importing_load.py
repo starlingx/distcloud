@@ -12,12 +12,17 @@ from dcmanager.manager.states.upgrade import importing_load
 
 from dcmanager.tests.unit.manager.states.fakes import FakeLoad
 from dcmanager.tests.unit.manager.states.fakes import FakeSystem
+from dcmanager.tests.unit.manager.states.fakes import PREVIOUS_PREVIOUS_VERSION
 from dcmanager.tests.unit.manager.states.fakes import PREVIOUS_VERSION
 from dcmanager.tests.unit.manager.states.fakes import UPGRADED_VERSION
 from dcmanager.tests.unit.manager.states.upgrade.test_base  \
     import TestSwUpgradeState
 
-PREVIOUS_LOAD = FakeLoad(1, software_version=PREVIOUS_VERSION)
+
+PREVIOUS_PREVIOUS_LOAD = FakeLoad(0, software_version=PREVIOUS_PREVIOUS_VERSION,
+                                  state='imported')
+PREVIOUS_LOAD = FakeLoad(1, software_version=PREVIOUS_VERSION,
+                         state='active')
 UPGRADED_LOAD = FakeLoad(2,
                          compatible_version=PREVIOUS_VERSION,
                          software_version=UPGRADED_VERSION)
@@ -32,13 +37,30 @@ IMPORTED_LOAD = FakeLoad(UPGRADED_LOAD.id,
                          compatible_version=UPGRADED_LOAD.compatible_version,
                          software_version=UPGRADED_LOAD.software_version)
 
-DEST_LOAD_EXISTS = [PREVIOUS_LOAD, UPGRADED_LOAD, ]
+DEST_LOAD_EXISTS = [UPGRADED_LOAD, ]
 DEST_LOAD_MISSING = [PREVIOUS_LOAD, ]
+DEST_LOAD_MISSING_2_LOADS = [PREVIOUS_LOAD, PREVIOUS_PREVIOUS_LOAD, ]
 
 FAKE_ISO = '/opt/dc-vault/loads/' + UPGRADED_VERSION + '/bootimage.iso'
 FAKE_SIG = '/opt/dc-vault/loads/' + UPGRADED_VERSION + '/bootimage.sig'
 
 FAILED_IMPORT_RESPONSE = 'kaboom'
+
+# To simulate a response where a database record has already been created
+# but the state was set to 'error'.
+FAILED_IMPORT_RESPONSE_PROCESSING_ERROR = {
+    'new_load': {
+        'id': 2,
+        'uuid': 'aaa4b4c6-8536-41f6-87ea-211d208a723b',
+        'compatible_version': PREVIOUS_VERSION,
+        'required_patches': '',
+        'software_version': UPGRADED_VERSION,
+        'state': 'error',
+        'created_at': '2020-06-01 12:12:12+00:00',
+        'updated_at': None
+    }
+}
+
 SUCCESS_IMPORTING_RESPONSE = {
     'new_load': {
         'id': 2,
@@ -50,6 +72,17 @@ SUCCESS_IMPORTING_RESPONSE = {
         'created_at': '2020-06-01 12:12:12+00:00',
         'updated_at': None
     }
+}
+
+SUCCESS_DELETE_RESPONSE = {
+    'id': 0,
+    'uuid': 'aaa4b4c6-8536-41f6-87ea-211d208a723b',
+    'compatible_version': PREVIOUS_VERSION,
+    'required_patches': '',
+    'software_version': PREVIOUS_PREVIOUS_VERSION,
+    'state': 'deleting',
+    'created_at': '2020-06-01 12:12:12+00:00',
+    'updated_at': None
 }
 
 
@@ -82,26 +115,8 @@ class TestSwUpgradeImportingLoadStage(TestSwUpgradeState):
         self.sysinv_client.get_system.return_value = FakeSystem()
         self.sysinv_client.get_loads = mock.MagicMock()
         self.sysinv_client.get_load = mock.MagicMock()
+        self.sysinv_client.delete_load = mock.MagicMock()
         self.sysinv_client.import_load = mock.MagicMock()
-
-    def test_upgrade_subcloud_importing_load_failure(self):
-        """Test importing load step where the import_load API call fails."""
-
-        # Simulate the target load has not been imported yet on the subcloud
-        self.sysinv_client.get_loads.return_value = DEST_LOAD_MISSING
-
-        # Simulate an API failure on the subcloud.
-        self.sysinv_client.import_load.return_value = FAILED_IMPORT_RESPONSE
-
-        # invoke the strategy state operation on the orch thread
-        self.worker.perform_state_action(self.strategy_step)
-
-        # verify the import load API call was invoked
-        self.sysinv_client.import_load.assert_called()
-
-        # Verify a failure leads to a state failure
-        self.assert_step_updated(self.strategy_step.subcloud_id,
-                                 consts.STRATEGY_STATE_FAILED)
 
     def test_upgrade_subcloud_importing_load_success(self):
         """Test the importing load step succeeds.
@@ -122,6 +137,43 @@ class TestSwUpgradeImportingLoadStage(TestSwUpgradeState):
 
         # invoke the strategy state operation on the orch thread
         self.worker.perform_state_action(self.strategy_step)
+
+        # verify the import load API call was invoked
+        self.sysinv_client.import_load.assert_called()
+
+        # On success, should have moved to the next state
+        self.assert_step_updated(self.strategy_step.subcloud_id,
+                                 self.on_success_state)
+
+    def test_upgrade_subcloud_importing_load_with_old_load_success(self):
+        """Test the importing load step succeeds with existing old load
+
+        The old (N-1) load already exists and is removed before importing the
+        new (N+1) load. Both the delete_load and import_load call succeed.
+        """
+
+        # Simulate the target load has not been imported yet on the subcloud
+        # Mock get_loads API to return 2 loads in the first call and 1 load
+        # in subsequent call.
+        self.sysinv_client.get_loads.side_effect = [
+            DEST_LOAD_MISSING_2_LOADS, DEST_LOAD_MISSING, ]
+
+        # Simulate a delete_load API success on the subcloud.
+        self.sysinv_client.delete_load.return_value = \
+            SUCCESS_DELETE_RESPONSE
+
+        # Simulate an API success on the subcloud.
+        self.sysinv_client.import_load.return_value = \
+            SUCCESS_IMPORTING_RESPONSE
+
+        # mock the get_load queries to return 'imported' and not 'importing'
+        self.sysinv_client.get_load.return_value = IMPORTED_LOAD
+
+        # invoke the strategy state operation on the orch thread
+        self.worker.perform_state_action(self.strategy_step)
+
+        # verify the delete load API call was invoked
+        self.sysinv_client.delete_load.assert_called()
 
         # verify the import load API call was invoked
         self.sysinv_client.import_load.assert_called()
@@ -169,7 +221,60 @@ class TestSwUpgradeImportingLoadStage(TestSwUpgradeState):
         self.assert_step_updated(self.strategy_step.subcloud_id,
                                  self.on_success_state)
 
-    def test_importing_load_timeout(self):
+    def test_upgrade_subcloud_importing_load_general_failure(self):
+        """Test import_load invoked and fails due to general failure condition
+
+        The API call returns no new load data. This scenario can be
+        observed following a connection, disk space, sematic check or load
+        validation failure.
+        """
+
+        # Simulate the target load has not been imported yet on the subcloud
+        self.sysinv_client.get_loads.return_value = DEST_LOAD_MISSING
+
+        # Simulate an API failure on the subcloud.
+        self.sysinv_client.import_load.return_value = FAILED_IMPORT_RESPONSE
+
+        # invoke the strategy state operation on the orch thread
+        self.worker.perform_state_action(self.strategy_step)
+
+        # verify the import load API call was invoked
+        self.sysinv_client.import_load.assert_called()
+
+        # Verify a failure leads to a state failure
+        self.assert_step_updated(self.strategy_step.subcloud_id,
+                                 consts.STRATEGY_STATE_FAILED)
+
+    def test_upgrade_subcloud_importing_load_processing_error(self):
+        """Test import_load invoked and fails due to error state
+
+        The API call succeeds, however subsequent get_load call
+        returns a load in error state. This scenario can be observed
+        if sysinv conductor fails to process the import request in
+        the background.
+        """
+
+        # Simulate the target load has not been imported yet on the subcloud
+        self.sysinv_client.get_loads.return_value = DEST_LOAD_MISSING
+
+        # Simulate an API success on the subclould.
+        self.sysinv_client.import_load.return_value = SUCCESS_IMPORTING_RESPONSE
+
+        # mock the get_load queries to return 'error' state load data
+        self.sysinv_client.get_load.return_value = \
+            FAILED_IMPORT_RESPONSE_PROCESSING_ERROR
+
+        # invoke the strategy state operation on the orch thread
+        self.worker.perform_state_action(self.strategy_step)
+
+        # verify the import load API call was invoked
+        self.sysinv_client.import_load.assert_called()
+
+        # Verify a failure leads to a state failure
+        self.assert_step_updated(self.strategy_step.subcloud_id,
+                                 consts.STRATEGY_STATE_FAILED)
+
+    def test_upgrade_subcloud_importing_load_timeout(self):
         """Test import_load invoked and fails if times out before 'imported'
 
         The API call succeeds, however the state times out waiting for
@@ -197,5 +302,38 @@ class TestSwUpgradeImportingLoadStage(TestSwUpgradeState):
                          self.sysinv_client.get_load.call_count)
 
         # verify that state failed due to the import_load never finishing
+        self.assert_step_updated(self.strategy_step.subcloud_id,
+                                 consts.STRATEGY_STATE_FAILED)
+
+    def test_upgrade_subcloud_deleting_load_timeout(self):
+        """Test delete_load invoked and fails if times out
+
+        The subcloud still has an N-1 load that needs to be removed before
+        the N+1 load can be imported. The API call to delete this old load
+        succeeds, however the state times out waiting for the load to be
+        removed.
+        """
+        # Simulate the target load has not been imported yet on the subcloud
+        self.sysinv_client.get_loads.return_value = DEST_LOAD_MISSING_2_LOADS
+
+        # Simulate a delete_load API success on the subcloud.
+        self.sysinv_client.delete_load.return_value = \
+            SUCCESS_DELETE_RESPONSE
+
+        # mock the get_loads queries to return 2 loads
+        self.sysinv_client.get_loads.side_effect = \
+            itertools.repeat(DEST_LOAD_MISSING_2_LOADS)
+
+        # invoke the strategy state operation on the orch thread
+        self.worker.perform_state_action(self.strategy_step)
+
+        # verify the import load API call was invoked
+        self.sysinv_client.delete_load.assert_called()
+
+        # verify the get_loads query was invoked 1 + max_attempts times
+        self.assertEqual(importing_load.DEFAULT_MAX_QUERIES + 1,
+                         self.sysinv_client.get_loads.call_count)
+
+        # verify that state failed due to the delete load never finishing
         self.assert_step_updated(self.strategy_step.subcloud_id,
                                  consts.STRATEGY_STATE_FAILED)
