@@ -47,6 +47,12 @@ class FakeDCOrchAPI(object):
         self.add_subcloud = mock.MagicMock()
 
 
+class FakeDCManagerNotifications(object):
+    def __init__(self):
+        self.subcloud_online = mock.MagicMock()
+        self.subcloud_managed = mock.MagicMock()
+
+
 class FakeService(object):
     def __init__(self, type, id):
         self.type = type
@@ -278,6 +284,13 @@ class TestSubcloudManager(base.DCManagerTestCase):
         subcloud_result = Subcloud(data, True)
         mock_db_api.subcloud_get.return_value = subcloud_result
         mock_db_api.subcloud_update.return_value = subcloud_result
+
+        fake_dcmanager_notification = FakeDCManagerNotifications()
+
+        p = mock.patch('dcmanager.rpc.client.DCManagerNotifications')
+        mock_dcmanager_api = p.start()
+        mock_dcmanager_api.return_value = fake_dcmanager_notification
+
         sm = subcloud_manager.SubcloudManager()
         sm.update_subcloud(self.ctx,
                            data['id'],
@@ -293,6 +306,9 @@ class TestSubcloudManager(base.DCManagerTestCase):
             group_id=None,
             data_install=None)
 
+        fake_dcmanager_notification.subcloud_managed.assert_called_once_with(
+            self.ctx, data['name'])
+
     @mock.patch.object(subcloud_manager, 'db_api')
     def test_update_subcloud_with_install_values(self, mock_db_api):
         data = utils.create_subcloud_dict(base.SUBCLOUD_SAMPLE_DATA_0)
@@ -300,6 +316,12 @@ class TestSubcloudManager(base.DCManagerTestCase):
         mock_db_api.subcloud_get.return_value = subcloud_result
         mock_db_api.subcloud_update.return_value = subcloud_result
         sm = subcloud_manager.SubcloudManager()
+        fake_dcmanager_cermon_api = FakeDCManagerNotifications()
+
+        p = mock.patch('dcmanager.rpc.client.DCManagerNotifications')
+        mock_dcmanager_api = p.start()
+        mock_dcmanager_api.return_value = fake_dcmanager_cermon_api
+
         sm.update_subcloud(self.ctx,
                            data['id'],
                            management_state=consts.MANAGEMENT_MANAGED,
@@ -314,6 +336,7 @@ class TestSubcloudManager(base.DCManagerTestCase):
             location="subcloud new location",
             group_id=None,
             data_install="install values")
+        fake_dcmanager_cermon_api.subcloud_managed.assert_called_once_with(self.ctx, data['name'])
 
     @mock.patch.object(subcloud_manager, 'db_api')
     def test_update_already_managed_subcloud(self, mock_db_api):
@@ -368,6 +391,12 @@ class TestSubcloudManager(base.DCManagerTestCase):
         subcloud_result = Subcloud(data, True)
         mock_db_api.subcloud_get.return_value = subcloud_result
         subcloud_result.availability_status = consts.AVAILABILITY_OFFLINE
+        fake_dcmanager_cermon_api = FakeDCManagerNotifications()
+
+        p = mock.patch('dcmanager.rpc.client.DCManagerNotifications')
+        mock_dcmanager_api = p.start()
+        mock_dcmanager_api.return_value = fake_dcmanager_cermon_api
+
         sm = subcloud_manager.SubcloudManager()
         sm.update_subcloud(self.ctx,
                            data['id'],
@@ -391,6 +420,12 @@ class TestSubcloudManager(base.DCManagerTestCase):
         subcloud_result = Subcloud(data, True)
         mock_db_api.subcloud_get.return_value = subcloud_result
         mock_db_api.subcloud_update.return_value = subcloud_result
+        fake_dcmanager_cermon_api = FakeDCManagerNotifications()
+
+        p = mock.patch('dcmanager.rpc.client.DCManagerNotifications')
+        mock_dcmanager_api = p.start()
+        mock_dcmanager_api.return_value = fake_dcmanager_cermon_api
+
         sm = subcloud_manager.SubcloudManager()
         sm.update_subcloud(self.ctx,
                            data['id'],
@@ -406,6 +441,7 @@ class TestSubcloudManager(base.DCManagerTestCase):
             location="subcloud new location",
             group_id=2,
             data_install=None)
+        fake_dcmanager_cermon_api.subcloud_managed.assert_called_once_with(self.ctx, data['name'])
 
     def test_update_subcloud_endpoint_status(self):
         # create a subcloud
@@ -618,6 +654,12 @@ class TestSubcloudManager(base.DCManagerTestCase):
         self.assertEqual(subcloud.availability_status,
                          consts.AVAILABILITY_OFFLINE)
 
+        fake_dcmanager_cermon_api = FakeDCManagerNotifications()
+
+        p = mock.patch('dcmanager.rpc.client.DCManagerNotifications')
+        mock_dcmanager_api = p.start()
+        mock_dcmanager_api.return_value = fake_dcmanager_cermon_api
+
         sm = subcloud_manager.SubcloudManager()
         db_api.subcloud_update(self.ctx, subcloud.id,
                                management_state=consts.MANAGEMENT_MANAGED)
@@ -645,6 +687,8 @@ class TestSubcloudManager(base.DCManagerTestCase):
         self.fake_dcorch_api.update_subcloud_states.assert_called_once_with(
             self.ctx, subcloud.name, updated_subcloud.management_state,
             consts.AVAILABILITY_ONLINE)
+
+        fake_dcmanager_cermon_api.subcloud_online.assert_called_once_with(self.ctx, subcloud.name)
 
     def test_update_subcloud_availability_go_offline(self):
         subcloud = self.create_subcloud_static(self.ctx, name='subcloud1')

@@ -29,19 +29,16 @@ from dcmanager.common import messaging
 LOG = logging.getLogger(__name__)
 
 
-class ManagerClient(object):
-    """Client side of the DC Manager rpc API.
+class RPCClient(object):
+    """RPC client
 
-    Version History:
-     1.0 - Initial version (Mitaka 1.0 release)
+    Basic RPC client implementation to deliver RPC 'call' and 'cast'
     """
 
-    BASE_RPC_API_VERSION = '1.0'
-
-    def __init__(self):
+    def __init__(self, topic, version):
         self._client = messaging.get_rpc_client(
-            topic=consts.TOPIC_DC_MANAGER,
-            version=self.BASE_RPC_API_VERSION)
+            topic=topic,
+            version=version)
 
     @staticmethod
     def make_msg(method, **kwargs):
@@ -62,6 +59,21 @@ class ManagerClient(object):
         else:
             client = self._client
         return client.cast(ctxt, method, **kwargs)
+
+
+class ManagerClient(RPCClient):
+    """Client side of the DC Manager rpc API.
+
+    Version History:
+     1.0 - Initial version (Mitaka 1.0 release)
+    """
+
+    BASE_RPC_API_VERSION = '1.0'
+
+    def __init__(self):
+        super(ManagerClient, self).__init__(
+            consts.TOPIC_DC_MANAGER,
+            self.BASE_RPC_API_VERSION)
 
     def add_subcloud(self, ctxt, payload):
         return self.cast(ctxt, self.make_msg('add_subcloud',
@@ -137,3 +149,26 @@ class ManagerClient(object):
     def abort_sw_update_strategy(self, ctxt, update_type=None):
         return self.call(ctxt, self.make_msg('abort_sw_update_strategy',
                                              update_type=update_type))
+
+
+class DCManagerNotifications(RPCClient):
+    """DC Manager Notification interface to broadcast subcloud state changed
+
+    Version History:
+       1.0 - Initial version
+    """
+
+    def __init__(self):
+        DCMANAGER_RPC_API_VERSION = '1.0'
+        TOPIC_DC_NOTIFICIATION = 'DCMANAGER-NOTIFICATION'
+
+        super(DCManagerNotifications, self).__init__(
+            TOPIC_DC_NOTIFICIATION, DCMANAGER_RPC_API_VERSION)
+
+    def subcloud_online(self, ctxt, subcloud_name):
+        return self.cast(ctxt, self.make_msg('subcloud_online',
+                                             subcloud_name=subcloud_name))
+
+    def subcloud_managed(self, ctxt, subcloud_name):
+        return self.cast(ctxt, self.make_msg('subcloud_managed',
+                                             subcloud_name=subcloud_name))
