@@ -7,8 +7,8 @@ import time
 
 from dcmanager.common import consts
 from dcmanager.common.exceptions import StrategyStoppedException
+from dcmanager.common import utils
 from dcmanager.manager.states.base import BaseState
-from dcmanager.manager.states.upgrade import utils
 
 # Max time: 30 minutes = 180 queries x 10 seconds between
 DEFAULT_MAX_QUERIES = 180

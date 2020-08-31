@@ -34,6 +34,7 @@ from oslo_log import log as logging
 from oslo_messaging import RemoteError
 
 from tsconfig.tsconfig import CONFIG_PATH
+from tsconfig.tsconfig import SW_VERSION
 
 from dccommon import consts as dccommon_consts
 from dccommon.drivers.openstack.keystone_v3 import KeystoneClient
@@ -327,6 +328,10 @@ class SubcloudManager(manager.Manager):
             if "install_values" in payload:
                 payload['install_values']['ansible_ssh_pass'] = \
                     payload['sysadmin_password']
+                if 'image' not in payload['install_values']:
+                    matching_iso, matching_sig = utils.get_vault_load_files(
+                        SW_VERSION)
+                    payload['install_values'].update({'image': matching_iso})
 
             deploy_command = None
             if "deploy_playbook" in payload:

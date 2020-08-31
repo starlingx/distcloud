@@ -273,6 +273,7 @@ class SubcloudInstall(object):
         if not os.path.isdir(self.www_root):
             os.mkdir(self.www_root, 0o755)
 
+        path = None
         try:
             if parse.urlparse(values['image']).scheme:
                 url = values['image']
@@ -280,8 +281,19 @@ class SubcloudInstall(object):
                 path = os.path.abspath(values['image'])
                 url = parse.urljoin('file:', request.pathname2url(path))
             filename = os.path.join(override_path, 'bootimage.iso')
-            LOG.info("Downloading %s to %s", url, override_path)
-            self.input_iso, _ = request.urlretrieve(url, filename)
+
+            if path and path.startswith(consts.LOAD_VAULT_DIR +
+                                        '/' + str(values['software_version'])):
+                if os.path.exists(path):
+                    # Reference known load in vault
+                    LOG.info("Setting input_iso to load vault path %s" % path)
+                    self.input_iso = path
+                else:
+                    raise exceptions.LoadNotInVault(path=path)
+            else:
+                LOG.info("Downloading %s to %s", url, override_path)
+                self.input_iso, _ = request.urlretrieve(url, filename)
+
             LOG.info("Downloaded %s to %s", url, self.input_iso)
         except urllib_error.ContentTooShortError as e:
             msg = "Error: Downloading file %s may be interrupted: %s" % (
@@ -356,7 +368,9 @@ class SubcloudInstall(object):
             raise Exception(msg)
 
     def cleanup(self):
+        # Do not remove the input_iso if it is in the Load Vault
         if (self.input_iso is not None and
+                not self.input_iso.startswith(consts.LOAD_VAULT_DIR) and
                 os.path.exists(self.input_iso)):
             os.remove(self.input_iso)
 

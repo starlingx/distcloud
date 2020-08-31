@@ -102,3 +102,7 @@ class CertificateNotFound(NotFound):
 
 class LoadNotFound(NotFound):
     message = _("Load in region=%(region_name)s with id %(load_id)s not found")
+
+
+class LoadNotInVault(NotFound):
+    message = _("Load at path %(path)s not found")

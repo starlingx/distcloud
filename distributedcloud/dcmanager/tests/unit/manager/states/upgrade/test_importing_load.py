@@ -104,7 +104,7 @@ class TestSwUpgradeImportingLoadStage(TestSwUpgradeState):
 
         # Mock the get_vault_load_files utility method
         p = mock.patch(
-            'dcmanager.manager.states.upgrade.utils.get_vault_load_files')
+            'dcmanager.common.utils.get_vault_load_files')
         self.mock_vault_files = p.start()
         # simulate get_vault_load_files finding the iso and sig in the vault
         self.mock_vault_files.return_value = (FAKE_ISO, FAKE_SIG)
