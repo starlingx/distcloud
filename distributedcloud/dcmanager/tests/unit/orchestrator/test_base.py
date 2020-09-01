@@ -30,9 +30,9 @@ from dcmanager.orchestrator import sw_update_manager
 from dcmanager.orchestrator import sw_upgrade_orch_thread
 
 from dcmanager.tests import base
+from dcmanager.tests.unit.fakes import FakeVimClient
 from dcmanager.tests.unit.orchestrator.states.fakes import FakeKeystoneClient
 from dcmanager.tests.unit.orchestrator.states.fakes import FakeSysinvClient
-from dcmanager.tests.unit.orchestrator.states.fakes import FakeVimClient
 from dcmanager.tests.unit.orchestrator.test_sw_update_manager import FakeOrchThread
 from dcmanager.tests.unit.orchestrator.test_sw_update_manager \
     import StrategyStep

@@ -9,7 +9,7 @@ from dccommon.drivers.openstack import vim
 from dcmanager.common import consts
 from dcmanager.orchestrator.states.firmware.finishing_fw_update import FinishingFwUpdateState
 
-from dcmanager.tests.unit.orchestrator.states.fakes import FakeVimStrategy
+from dcmanager.tests.unit.fakes import FakeVimStrategy
 from dcmanager.tests.unit.orchestrator.states.firmware.test_base \
     import TestFwUpdateState
 
@@ -47,9 +47,6 @@ class TestFwUpdateFinishingFwUpdateStage(TestFwUpdateState):
 
         # invoke the strategy state operation on the orch thread
         self.worker.perform_state_action(self.strategy_step)
-
-        # ensure that the delete was called
-        self.vim_client.delete_strategy.assert_called_once()
 
         # Successful promotion to next state
         self.assert_step_updated(self.strategy_step.subcloud_id,

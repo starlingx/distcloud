@@ -80,7 +80,6 @@ class ApplyingVIMStrategyState(BaseState):
         wait_count = 0
         get_fail_count = 0
         last_details = ""
-        auth_failure = False
         while True:
             # todo(abailey): combine the sleep and stop check into one method
             # which would allow the longer 60 second sleep to be broken into
@@ -101,37 +100,21 @@ class ApplyingVIMStrategyState(BaseState):
                 subcloud_strategy = self.get_vim_client(region).get_strategy(
                     strategy_name=vim.STRATEGY_NAME_FW_UPDATE,
                     raise_error_if_missing=False)
-                auth_failure = False
                 get_fail_count = 0
-            except Exception as e:
-                if e.message == vim.VIM_AUTHORIZATION_FAILED:
-                    # Since it can take hours to apply a strategy, there is a
-                    # chance our keystone token will expire. Attempt to get
-                    # a new token (by re-creating the client) and re-try the
-                    # request, but only once.
-                    if not auth_failure:
-                        auth_failure = True
-                        self.log_info(strategy_step,
-                                      "Authorization failure getting strategy."
-                                      " Retrying...")
-                        continue
-                    else:
-                        raise Exception("Repeated authorization failure "
-                                        "getting firmware update strategy")
-                else:
-                    # When applying the strategy to a subcloud, the VIM can
-                    # be unreachable for a significant period of time when
-                    # there is a controller swact, or in the case of AIO-SX,
-                    # when the controller reboots.
-                    get_fail_count += 1
-                    if get_fail_count >= self.max_failed_queries:
-                        # We have waited too long.
-                        raise Exception("Timeout during recovery of apply "
-                                        "firmware strategy.")
-                    self.debug_log(strategy_step,
-                                   "Unable to get firmware strategy - "
-                                   "attempt %d" % get_fail_count)
-                    continue
+            except Exception:
+                # When applying the strategy to a subcloud, the VIM can
+                # be unreachable for a significant period of time when
+                # there is a controller swact, or in the case of AIO-SX,
+                # when the controller reboots.
+                get_fail_count += 1
+                if get_fail_count >= self.max_failed_queries:
+                    # We have waited too long.
+                    raise Exception("Timeout during recovery of apply "
+                                    "firmware strategy.")
+                self.debug_log(strategy_step,
+                               "Unable to get firmware strategy - "
+                               "attempt %d" % get_fail_count)
+                continue
             # The loop gets here if the API is able to respond
             # Check if the strategy no longer exists. This should not happen.
             if subcloud_strategy is None:

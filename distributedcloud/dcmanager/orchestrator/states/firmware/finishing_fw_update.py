@@ -3,7 +3,6 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 #
-from dccommon.drivers.openstack import vim
 from dcmanager.common import consts
 from dcmanager.orchestrator.states.base import BaseState
 from dcmanager.orchestrator.states.firmware import utils
@@ -41,23 +40,10 @@ class FinishingFwUpdateState(BaseState):
         Returns the next state for the state machine if successful.
         """
         # Possible things that need to be done in this state:
-        # - delete the vim fw update strategy
         # - clean up files
         # - report information about the firmware on the subcloud
 
         region = self.get_region_name(strategy_step)
-
-        # Get the existing firmware strategy, which may be None
-        subcloud_strategy = self.get_vim_client(region).get_strategy(
-            strategy_name=vim.STRATEGY_NAME_FW_UPDATE,
-            raise_error_if_missing=False)
-
-        if subcloud_strategy is not None:
-            self.info_log(strategy_step,
-                          "Deleting FW VIM strategy that has state: %s"
-                          % subcloud_strategy.state)
-            self.get_vim_client(region).delete_strategy(
-                strategy_name=vim.STRATEGY_NAME_FW_UPDATE)
 
         # FINAL CHECK
         # if any of the device images are in failed state, fail this state
