@@ -361,7 +361,7 @@ class UpgradingSimplexState(BaseState):
             self.context, strategy_step.subcloud_id,
             deploy_status=consts.DEPLOY_STATE_INSTALLING)
         try:
-            install.install(consts.DC_LOG_DIR, install_command)
+            install.install(consts.DC_ANSIBLE_LOG_DIR, install_command)
         except Exception as e:
             db_api.subcloud_update(
                 self.context, strategy_step.subcloud_id,

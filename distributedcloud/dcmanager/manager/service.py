@@ -17,6 +17,7 @@
 # of an applicable Wind River license agreement.
 #
 
+import os
 import six
 
 import functools
@@ -97,6 +98,9 @@ class DCManagerService(service.Service):
         self._rpc_server.start()
         # Used to notify dcmanager-audit
         self.audit_rpc_client = dcmanager_audit_rpc_client.ManagerAuditClient()
+
+        if not os.path.isdir(consts.DC_ANSIBLE_LOG_DIR):
+            os.mkdir(consts.DC_ANSIBLE_LOG_DIR, 0o755)
 
         super(DCManagerService, self).start()
 

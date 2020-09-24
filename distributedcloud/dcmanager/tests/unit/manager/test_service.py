@@ -18,7 +18,7 @@
 #
 
 import mock
-
+import os.path
 import sys
 sys.modules['fm_core'] = mock.Mock()
 
@@ -51,6 +51,8 @@ class TestDCManagerService(base.DCManagerTestCase):
         self.payload = {}
         self.user_id = FAKE_USER
         self.job_id = FAKE_JOB
+
+        os.path.isdir = mock.Mock(return_value=True)
 
         # Mock the DCManager Audit API
         self.fake_dcmanager_audit_api = FakeDCManagerAuditAPI()

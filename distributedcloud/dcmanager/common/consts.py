@@ -166,6 +166,7 @@ DEPLOY_COMMON_FILE_OPTIONS = [
 
 
 DC_LOG_DIR = '/var/log/dcmanager/'
+DC_ANSIBLE_LOG_DIR = DC_LOG_DIR + 'ansible'
 INVENTORY_FILE_POSTFIX = '_inventory.yml'
 
 # The following password is just a temporary and internal password that is used

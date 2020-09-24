@@ -20,8 +20,6 @@
 # of an applicable Wind River license agreement.
 #
 
-import datetime
-from eventlet.green import subprocess
 import filecmp
 import json
 import keyring
@@ -39,8 +37,10 @@ from tsconfig.tsconfig import SW_VERSION
 from dccommon import consts as dccommon_consts
 from dccommon.drivers.openstack.sdk_platform import OpenStackDriver
 from dccommon.drivers.openstack.sysinv_v1 import SysinvClient
+from dccommon.exceptions import PlaybookExecutionFailed
 from dccommon import kubeoperator
 from dccommon.subcloud_install import SubcloudInstall
+from dccommon.utils import run_playbook
 
 from dcorch.common import consts as dcorch_consts
 from dcorch.rpc import client as dcorch_rpc_client
@@ -547,6 +547,8 @@ class SubcloudManager(manager.Manager):
                    install_command=None, apply_command=None,
                    deploy_command=None):
 
+        log_file = os.path.join(consts.DC_ANSIBLE_LOG_DIR, subcloud.name) + \
+            '_playbook_output.log'
         if install_command:
             db_api.subcloud_update(
                 context, subcloud.id,
@@ -569,7 +571,7 @@ class SubcloudManager(manager.Manager):
                 context, subcloud.id,
                 deploy_status=consts.DEPLOY_STATE_INSTALLING)
             try:
-                install.install(consts.DC_LOG_DIR, install_command)
+                install.install(consts.DC_ANSIBLE_LOG_DIR, install_command)
             except Exception as e:
                 db_api.subcloud_update(
                     context, subcloud.id,
@@ -591,58 +593,43 @@ class SubcloudManager(manager.Manager):
                 raise e
 
             # Run the ansible boostrap-subcloud playbook
-            log_file = \
-                consts.DC_LOG_DIR + subcloud.name + '_bootstrap_' + \
-                str(datetime.datetime.now().strftime('%Y-%m-%d-%H-%M-%S')) \
-                + '.log'
-            with open(log_file, "w") as f_out_log:
-                try:
-                    subprocess.check_call(apply_command,
-                                          stdout=f_out_log,
-                                          stderr=f_out_log)
-                except subprocess.CalledProcessError as ex:
-                    msg = "Failed to run the subcloud bootstrap playbook" \
-                          " for subcloud %s, check individual log at " \
-                          "%s for detailed output." % (
-                              subcloud.name,
-                              log_file)
-                    ex.cmd = 'ansible-playbook'
-                    LOG.error(msg)
-                    db_api.subcloud_update(
-                        context, subcloud.id,
-                        deploy_status=consts.DEPLOY_STATE_BOOTSTRAP_FAILED)
-                    return
-                LOG.info("Successfully bootstrapped subcloud %s" %
-                         subcloud.name)
+            try:
+                run_playbook(log_file, apply_command)
+            except PlaybookExecutionFailed:
+                msg = "Failed to run the subcloud bootstrap playbook" \
+                      " for subcloud %s, check individual log at " \
+                      "%s for detailed output." % (
+                          subcloud.name,
+                          log_file)
+                LOG.error(msg)
+                db_api.subcloud_update(
+                    context, subcloud.id,
+                    deploy_status=consts.DEPLOY_STATE_BOOTSTRAP_FAILED)
+                return
+            LOG.info("Successfully bootstrapped subcloud %s" %
+                     subcloud.name)
 
         if deploy_command:
             # Run the custom deploy playbook
             db_api.subcloud_update(
                 context, subcloud.id,
                 deploy_status=consts.DEPLOY_STATE_DEPLOYING)
-            log_file = \
-                consts.DC_LOG_DIR + subcloud.name + '_deploy_' + \
-                str(datetime.datetime.now().strftime('%Y-%m-%d-%H-%M-%S')) \
-                + '.log'
-            with open(log_file, "w") as f_out_log:
-                try:
-                    subprocess.check_call(deploy_command,
-                                          stdout=f_out_log,
-                                          stderr=f_out_log)
-                except subprocess.CalledProcessError as ex:
-                    msg = "Failed to run the subcloud deploy playbook" \
-                          " for subcloud %s, check individual log at " \
-                          "%s for detailed output." % (
-                              subcloud.name,
-                              log_file)
-                    ex.cmd = 'deploy-playbook'
-                    LOG.error(msg)
-                    db_api.subcloud_update(
-                        context, subcloud.id,
-                        deploy_status=consts.DEPLOY_STATE_DEPLOY_FAILED)
-                    return
-                LOG.info("Successfully deployed subcloud %s" %
-                         subcloud.name)
+
+            try:
+                run_playbook(log_file, deploy_command)
+            except PlaybookExecutionFailed:
+                msg = "Failed to run the subcloud deploy playbook" \
+                      " for subcloud %s, check individual log at " \
+                      "%s for detailed output." % (
+                          subcloud.name,
+                          log_file)
+                LOG.error(msg)
+                db_api.subcloud_update(
+                    context, subcloud.id,
+                    deploy_status=consts.DEPLOY_STATE_DEPLOY_FAILED)
+                return
+            LOG.info("Successfully deployed subcloud %s" %
+                     subcloud.name)
 
         db_api.subcloud_update(
             context, subcloud.id,

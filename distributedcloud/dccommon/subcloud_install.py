@@ -18,7 +18,6 @@
 # of an applicable Wind River license agreement.
 #
 
-import datetime
 from eventlet.green import subprocess
 import json
 import netaddr
@@ -34,6 +33,7 @@ from dccommon.drivers.openstack.keystone_v3 import KeystoneClient
 from dccommon.drivers.openstack.sysinv_v1 import SysinvClient
 from dccommon import exceptions
 from dccommon import install_consts
+from dccommon.utils import run_playbook
 
 LOG = logging.getLogger(__name__)
 
@@ -438,16 +438,12 @@ class SubcloudInstall(object):
 
     def install(self, log_file_dir, install_command):
         LOG.info("Start remote install %s", self.name)
-        log_file = (log_file_dir + self.name + '_install_' +
-                    str(datetime.datetime.now().strftime('%Y-%m-%d-%H-%M-%S'))
-                    + '.log')
-        with open(log_file, "w") as f_out_log:
-            try:
-                subprocess.check_call(install_command,
-                                      stdout=f_out_log,
-                                      stderr=f_out_log)
-            except subprocess.CalledProcessError:
-                msg = ("Failed to install the subcloud %s, check individual "
-                       "log at %s for detailed output."
-                       % (self.name, log_file))
-                raise Exception(msg)
+        log_file = os.path.join(log_file_dir, self.name) + '_playbook_output.log'
+
+        try:
+            run_playbook(log_file, install_command)
+        except exceptions.PlaybookExecutionFailed:
+            msg = ("Failed to install the subcloud %s, check individual "
+                   "log at %s for detailed output."
+                   % (self.name, log_file))
+            raise Exception(msg)

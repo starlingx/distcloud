@@ -3,11 +3,11 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 #
-import datetime
-from eventlet.green import subprocess
 import os
 import time
 
+from dccommon.exceptions import PlaybookExecutionFailed
+from dccommon.utils import run_playbook
 from dcmanager.common import consts
 from dcmanager.common.exceptions import StrategyStoppedException
 from dcmanager.db import api as db_api
@@ -32,22 +32,16 @@ DEFAULT_API_SLEEP = 60
 DEFAULT_ANSIBLE_SLEEP = 180
 
 
-# TODO(tngo): Create a utility function that invokes ansible playbook for various
-# dcmanager use cases (subcloud add, remote install and platform upgrade).
 def migrate_subcloud_data(subcloud_name, migrate_command):
-    log_file = (consts.DC_LOG_DIR + subcloud_name + '_migrate_' +
-                str(datetime.datetime.now().strftime('%Y-%m-%d-%H-%M-%S'))
-                + '.log')
-    with open(log_file, "w") as f_out_log:
-        try:
-            subprocess.check_call(migrate_command,
-                                  stdout=f_out_log,
-                                  stderr=f_out_log)
-        except subprocess.CalledProcessError:
-            msg = ("Failed to migrate data for subcloud %s, check individual "
-                   "log at %s for detailed output."
-                   % (subcloud_name, log_file))
-            raise Exception(msg)
+    log_file = os.path.join(consts.DC_ANSIBLE_LOG_DIR, subcloud_name) + \
+        '_playbook_output.log'
+    try:
+        run_playbook(log_file, migrate_command)
+    except PlaybookExecutionFailed:
+        msg = ("Failed to migrate data for subcloud %s, check individual "
+               "log at %s for detailed output."
+               % (subcloud_name, log_file))
+        raise Exception(msg)
 
 
 class MigratingDataState(BaseState):

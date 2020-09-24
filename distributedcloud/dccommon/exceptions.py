@@ -106,3 +106,7 @@ class LoadNotFound(NotFound):
 
 class LoadNotInVault(NotFound):
     message = _("Load at path %(path)s not found")
+
+
+class PlaybookExecutionFailed(DCCommonException):
+    message = _("Playbook execution failed, command=%(playbook_cmd)s")
