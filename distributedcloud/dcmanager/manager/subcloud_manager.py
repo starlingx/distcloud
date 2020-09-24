@@ -37,7 +37,7 @@ from tsconfig.tsconfig import CONFIG_PATH
 from tsconfig.tsconfig import SW_VERSION
 
 from dccommon import consts as dccommon_consts
-from dccommon.drivers.openstack.keystone_v3 import KeystoneClient
+from dccommon.drivers.openstack.sdk_platform import OpenStackDriver
 from dccommon.drivers.openstack.sysinv_v1 import SysinvClient
 from dccommon import kubeoperator
 from dccommon.subcloud_install import SubcloudInstall
@@ -212,11 +212,12 @@ class SubcloudManager(manager.Manager):
 
             # Create a new route to this subcloud on the management interface
             # on both controllers.
-            m_ks_client = KeystoneClient()
+            m_ks_client = OpenStackDriver(
+                region_name=consts.DEFAULT_REGION_NAME,
+                region_clients=None).keystone_client
             subcloud_subnet = netaddr.IPNetwork(payload['management_subnet'])
-            session = m_ks_client.endpoint_cache.get_session_from_token(
-                context.auth_token, context.project)
-            sysinv_client = SysinvClient(consts.DEFAULT_REGION_NAME, session)
+            sysinv_client = SysinvClient(consts.DEFAULT_REGION_NAME,
+                                         m_ks_client.session)
             controllers = sysinv_client.get_controller_hosts()
             for controller in controllers:
                 management_interface = sysinv_client.get_management_interface(
@@ -297,26 +298,38 @@ class SubcloudManager(manager.Manager):
             # Query system controller keystone admin user/project IDs,
             # services project id, sysinv and dcmanager user id and store in
             # payload so they get copied to the override file
-            admin_user = m_ks_client.get_user_by_name(
-                dccommon_consts.ADMIN_USER_NAME)
-            admin_project = m_ks_client.get_project_by_name(
-                dccommon_consts.ADMIN_PROJECT_NAME)
-            services_project = m_ks_client.get_project_by_name(
-                dccommon_consts.SERVICES_USER_NAME)
-            sysinv_user = m_ks_client.get_user_by_name(
-                dccommon_consts.SYSINV_USER_NAME)
-            dcmanager_user = m_ks_client.get_user_by_name(
-                dccommon_consts.DCMANAGER_USER_NAME)
+            admin_user_id = None
+            sysinv_user_id = None
+            dcmanager_user_id = None
+            admin_project_id = None
+            services_project_id = None
+
+            user_list = m_ks_client.get_enabled_users(id_only=False)
+            for user in user_list:
+                if user.name == dccommon_consts.ADMIN_USER_NAME:
+                    admin_user_id = user.id
+                elif user.name == dccommon_consts.SYSINV_USER_NAME:
+                    sysinv_user_id = user.id
+                elif user.name == dccommon_consts.DCMANAGER_USER_NAME:
+                    dcmanager_user_id = user.id
+
+            project_list = m_ks_client.get_enabled_projects(id_only=False)
+            for project in project_list:
+                if project.name == dccommon_consts.ADMIN_PROJECT_NAME:
+                    admin_project_id = project.id
+                elif project.name == dccommon_consts.SERVICES_USER_NAME:
+                    services_project_id = project.id
+
             payload['system_controller_keystone_admin_user_id'] = \
-                admin_user.id
+                admin_user_id
             payload['system_controller_keystone_admin_project_id'] = \
-                admin_project.id
+                admin_project_id
             payload['system_controller_keystone_services_project_id'] = \
-                services_project.id
+                services_project_id
             payload['system_controller_keystone_sysinv_user_id'] = \
-                sysinv_user.id
+                sysinv_user_id
             payload['system_controller_keystone_dcmanager_user_id'] = \
-                dcmanager_user.id
+                dcmanager_user_id
 
             # Add the admin and service user passwords to the payload so they
             # get copied to the override file
@@ -578,10 +591,10 @@ class SubcloudManager(manager.Manager):
         overrides_file = os.path.join(consts.ANSIBLE_OVERRIDES_PATH,
                                       payload['name'] + '.yml')
 
-        m_ks_client = KeystoneClient()
-        session = m_ks_client.endpoint_cache.get_session_from_token(
-            context.auth_token, context.project)
-        sysinv_client = SysinvClient(consts.DEFAULT_REGION_NAME, session)
+        m_ks_client = OpenStackDriver(
+            region_name=consts.DEFAULT_REGION_NAME,
+            region_clients=None).keystone_client
+        sysinv_client = SysinvClient(consts.DEFAULT_REGION_NAME, m_ks_client.session)
 
         mgmt_pool = sysinv_client.get_management_address_pool()
         mgmt_floating_ip = mgmt_pool.floating_address
@@ -638,14 +651,14 @@ class SubcloudManager(manager.Manager):
     def _delete_subcloud_routes(self, context, subcloud):
         """Delete the routes to this subcloud"""
 
-        keystone_client = KeystoneClient()
-        session = keystone_client.endpoint_cache.get_session_from_token(
-            context.auth_token, context.project)
+        keystone_client = OpenStackDriver(
+            region_name=consts.DEFAULT_REGION_NAME,
+            region_clients=None).keystone_client
 
         # Delete the route to this subcloud on the management interface on
         # both controllers.
         management_subnet = netaddr.IPNetwork(subcloud.management_subnet)
-        sysinv_client = SysinvClient(consts.DEFAULT_REGION_NAME, session)
+        sysinv_client = SysinvClient(consts.DEFAULT_REGION_NAME, keystone_client.session)
         controllers = sysinv_client.get_controller_hosts()
         for controller in controllers:
             management_interface = sysinv_client.get_management_interface(
@@ -693,7 +706,9 @@ class SubcloudManager(manager.Manager):
         # in the Central Region. The subcloud is already unmanaged and powered
         # down so is not accessible. Therefore set up a session with the
         # Central Region Keystone ONLY.
-        keystone_client = KeystoneClient()
+        keystone_client = OpenStackDriver(
+            region_name=consts.DEFAULT_REGION_NAME,
+            region_clients=None).keystone_client
 
         # Delete keystone endpoints for subcloud
         keystone_client.delete_endpoints(subcloud.name)

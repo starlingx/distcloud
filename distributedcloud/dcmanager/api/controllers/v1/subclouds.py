@@ -37,7 +37,7 @@ import pecan
 from pecan import expose
 from pecan import request
 
-from dccommon.drivers.openstack.keystone_v3 import KeystoneClient
+from dccommon.drivers.openstack.sdk_platform import OpenStackDriver
 from dccommon.drivers.openstack.sysinv_v1 import SysinvClient
 from dccommon import exceptions as dccommon_exceptions
 from dccommon import install_consts
@@ -502,22 +502,24 @@ class SubcloudsController(object):
 
         return user_list
 
-    def _get_management_address_pool(self, context):
-        """Get the system controller's management address pool"""
-        session = KeystoneClient().endpoint_cache.get_session_from_token(
-            context.auth_token, context.project)
-        sysinv_client = SysinvClient(consts.DEFAULT_REGION_NAME, session)
-        return sysinv_client.get_management_address_pool()
-
     @staticmethod
-    def get_ks_client(region_name=None):
+    def get_ks_client(region_name=consts.DEFAULT_REGION_NAME):
         """This will get a new keystone client (and new token)"""
         try:
-            return KeystoneClient(region_name)
+            os_client = OpenStackDriver(region_name=region_name,
+                                        region_clients=None)
+            return os_client.keystone_client
         except Exception:
             LOG.warn('Failure initializing KeystoneClient '
                      'for region %s' % region_name)
             raise
+
+    def _get_management_address_pool(self, context):
+        """Get the system controller's management address pool"""
+        ks_client = self.get_ks_client()
+        sysinv_client = SysinvClient(consts.DEFAULT_REGION_NAME,
+                                     ks_client.session)
+        return sysinv_client.get_management_address_pool()
 
     def _get_oam_addresses(self, context, subcloud_name):
         """Get the subclouds oam addresses"""
