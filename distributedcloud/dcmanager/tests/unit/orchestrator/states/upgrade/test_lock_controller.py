@@ -13,23 +13,15 @@ from dcmanager.tests.unit.orchestrator.states.fakes import FakeController
 from dcmanager.tests.unit.orchestrator.states.upgrade.test_base \
     import TestSwUpgradeState
 
-CONTROLLER_0_UNLOCKED = FakeController(administrative=consts.ADMIN_UNLOCKED)
-CONTROLLER_0_LOCKED = FakeController(administrative=consts.ADMIN_LOCKED)
-CONTROLLER_0_LOCKING = FakeController(administrative=consts.ADMIN_UNLOCKED,
-                                      ihost_action='lock',
-                                      task='Locking')
-CONTROLLER_0_LOCKING_FAILED = \
-    FakeController(administrative=consts.ADMIN_UNLOCKED,
-                   ihost_action='force-swact',
-                   task='Swacting')
-
 
 @mock.patch("dcmanager.orchestrator.states.lock_host.DEFAULT_MAX_QUERIES", 3)
 @mock.patch("dcmanager.orchestrator.states.lock_host.DEFAULT_SLEEP_DURATION", 1)
-class TestSwUpgradeLockControllerStage(TestSwUpgradeState):
+class TestSwUpgradeLockSimplexStage(TestSwUpgradeState):
+
+    state = consts.STRATEGY_STATE_LOCKING_CONTROLLER_0
 
     def setUp(self):
-        super(TestSwUpgradeLockControllerStage, self).setUp()
+        super(TestSwUpgradeLockSimplexStage, self).setUp()
 
         # next state after a successful lock is upgrading simplex
         self.on_success_state = consts.STRATEGY_STATE_UPGRADING_SIMPLEX
@@ -38,12 +30,27 @@ class TestSwUpgradeLockControllerStage(TestSwUpgradeState):
         self.subcloud = self.setup_subcloud()
 
         # Add the strategy_step state being processed by this unit test
-        self.strategy_step = \
-            self.setup_strategy_step(consts.STRATEGY_STATE_LOCKING_CONTROLLER)
+        self.strategy_step = self.setup_strategy_step(self.state)
 
         # Add mock API endpoints for sysinv client calls invoked by this state
         self.sysinv_client.get_host = mock.MagicMock()
         self.sysinv_client.lock_host = mock.MagicMock()
+        self.setup_fake_controllers('controller-0')
+
+    def setup_fake_controllers(self, host_name):
+        self.CONTROLLER_UNLOCKED = FakeController(hostname=host_name,
+                                                  administrative=consts.ADMIN_UNLOCKED)
+        self.CONTROLLER_LOCKED = FakeController(hostname=host_name,
+                                                administrative=consts.ADMIN_LOCKED)
+        self.CONTROLLER_LOCKING = FakeController(hostname=host_name,
+                                                 administrative=consts.ADMIN_UNLOCKED,
+                                                 ihost_action='lock',
+                                                 task='Locking')
+        self.CONTROLLER_LOCKING_FAILED = \
+            FakeController(hostname=host_name,
+                           administrative=consts.ADMIN_UNLOCKED,
+                           ihost_action='force-swact',
+                           task='Swacting')
 
     def test_lock_success(self):
         """Test the lock command returns a success"""
@@ -52,13 +59,13 @@ class TestSwUpgradeLockControllerStage(TestSwUpgradeState):
         # first query is the starting state
         # query 2,3 are are during the lock phase
         # query 4 : the host is now locked
-        self.sysinv_client.get_host.side_effect = [CONTROLLER_0_UNLOCKED,
-                                                   CONTROLLER_0_LOCKING,
-                                                   CONTROLLER_0_LOCKING,
-                                                   CONTROLLER_0_LOCKED]
+        self.sysinv_client.get_host.side_effect = [self.CONTROLLER_UNLOCKED,
+                                                   self.CONTROLLER_LOCKING,
+                                                   self.CONTROLLER_LOCKING,
+                                                   self.CONTROLLER_LOCKED]
 
         # mock the API call as failed on the subcloud
-        self.sysinv_client.lock_host.return_value = CONTROLLER_0_LOCKING
+        self.sysinv_client.lock_host.return_value = self.CONTROLLER_LOCKING
 
         # invoke the strategy state operation on the orch thread
         self.worker.perform_state_action(self.strategy_step)
@@ -74,7 +81,7 @@ class TestSwUpgradeLockControllerStage(TestSwUpgradeState):
         """Test the lock command skips if host is already locked"""
 
         # mock the controller host query as being already locked
-        self.sysinv_client.get_host.return_value = CONTROLLER_0_LOCKED
+        self.sysinv_client.get_host.return_value = self.CONTROLLER_LOCKED
 
         # invoke the strategy state operation on the orch thread
         self.worker.perform_state_action(self.strategy_step)
@@ -93,11 +100,11 @@ class TestSwUpgradeLockControllerStage(TestSwUpgradeState):
         # first query is the starting state
         # all remaining queries, the host returns 'locking'
         self.sysinv_client.get_host.side_effect = itertools.chain(
-            [CONTROLLER_0_UNLOCKED, ],
-            itertools.repeat(CONTROLLER_0_LOCKING))
+            [self.CONTROLLER_UNLOCKED, ],
+            itertools.repeat(self.CONTROLLER_LOCKING))
 
         # mock the API call as successful on the subcloud
-        self.sysinv_client.lock_host.return_value = CONTROLLER_0_LOCKING
+        self.sysinv_client.lock_host.return_value = self.CONTROLLER_LOCKING
 
         # invoke the strategy state operation on the orch thread
         self.worker.perform_state_action(self.strategy_step)
@@ -117,10 +124,10 @@ class TestSwUpgradeLockControllerStage(TestSwUpgradeState):
         """Test the lock command returns a failure"""
 
         # mock the controller get_host query
-        self.sysinv_client.get_host.return_value = CONTROLLER_0_UNLOCKED
+        self.sysinv_client.get_host.return_value = self.CONTROLLER_UNLOCKED
 
         # mock the API call as failed on the subcloud
-        self.sysinv_client.lock_host.return_value = CONTROLLER_0_LOCKING_FAILED
+        self.sysinv_client.lock_host.return_value = self.CONTROLLER_LOCKING_FAILED
 
         # invoke the strategy state operation on the orch thread
         self.worker.perform_state_action(self.strategy_step)
@@ -148,3 +155,16 @@ class TestSwUpgradeLockControllerStage(TestSwUpgradeState):
         # verify that the state moves to the next state
         self.assert_step_updated(self.strategy_step.subcloud_id,
                                  consts.STRATEGY_STATE_FAILED)
+
+
+class TestSwUpgradeLockDuplexStage(TestSwUpgradeLockSimplexStage):
+
+    def setUp(self):
+        self.state = consts.STRATEGY_STATE_LOCKING_CONTROLLER_1
+        super(TestSwUpgradeLockDuplexStage, self).setUp()
+
+        # next state after a successful lock is upgrading simplex
+        self.on_success_state = consts.STRATEGY_STATE_UPGRADING_DUPLEX
+
+        # Add mock API endpoints for sysinv client calls invoked by this state
+        self.setup_fake_controllers('controller-1')

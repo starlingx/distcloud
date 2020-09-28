@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2020 Wind River Systems, Inc.
+# Copyright (c) 2020-2021 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -17,9 +17,9 @@ DEFAULT_SLEEP_DURATION = 10
 class LockHostState(BaseState):
     """Orchestration state for locking a host"""
 
-    def __init__(self, region_name, hostname='controller-0'):
+    def __init__(self, next_state, region_name, hostname):
         super(LockHostState, self).__init__(
-            next_state=consts.STRATEGY_STATE_UPGRADING_SIMPLEX, region_name=region_name)
+            next_state=next_state, region_name=region_name)
         self.target_hostname = hostname
         # max time to wait (in seconds) is: sleep_duration * max_queries
         self.sleep_duration = DEFAULT_SLEEP_DURATION

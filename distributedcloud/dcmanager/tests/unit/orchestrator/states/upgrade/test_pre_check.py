@@ -10,6 +10,7 @@ from dcmanager.common import consts
 from dcmanager.tests.unit.orchestrator.states.fakes import FakeController
 from dcmanager.tests.unit.orchestrator.states.fakes import FakeHostFilesystem
 from dcmanager.tests.unit.orchestrator.states.fakes import FakeSubcloud
+from dcmanager.tests.unit.orchestrator.states.fakes import FakeSystem
 from dcmanager.tests.unit.orchestrator.states.upgrade.test_base \
     import TestSwUpgradeState
 
@@ -86,6 +87,11 @@ class TestSwUpgradePreCheckStage(TestSwUpgradeState):
         self.sysinv_client.get_host = mock.MagicMock()
         self.sysinv_client.get_host_filesystem = mock.MagicMock()
         self.sysinv_client.get_system_health = mock.MagicMock()
+        self.sysinv_client.get_system = mock.MagicMock()
+        system_values = FakeSystem()
+        system_values.system_mode = consts.SYSTEM_MODE_SIMPLEX
+        self.sysinv_client.get_system.return_value = system_values
+        self.sysinv_client.get_upgrades = mock.MagicMock()
 
     def test_upgrade_pre_check_subcloud_online_fresh(self):
         """Test pre check step where the subcloud is online and running N load

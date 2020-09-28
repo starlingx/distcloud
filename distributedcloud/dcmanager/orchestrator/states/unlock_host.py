@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2020 Wind River Systems, Inc.
+# Copyright (c) 2020-2021 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -26,14 +26,22 @@ DEFAULT_API_SLEEP = 60
 class UnlockHostState(BaseState):
     """Orchestration state for unlocking a host."""
 
-    def __init__(self, region_name, hostname='controller-0'):
+    def __init__(self, next_state, region_name, hostname):
         super(UnlockHostState, self).__init__(
-            next_state=consts.STRATEGY_STATE_ACTIVATING_UPGRADE, region_name=region_name)
+            next_state=next_state, region_name=region_name)
         self.target_hostname = hostname
         self.max_api_queries = DEFAULT_MAX_API_QUERIES
         self.api_sleep_duration = DEFAULT_API_SLEEP
         self.max_failed_queries = DEFAULT_MAX_FAILED_QUERIES
         self.failed_sleep_duration = DEFAULT_FAILED_SLEEP
+
+    def check_host_ready(self, host):
+        """Returns True if host is unlocked, enabled and available."""
+
+        if (host.administrative == consts.ADMIN_UNLOCKED and
+                host.operational == consts.OPERATIONAL_ENABLED and
+                host.availability == consts.AVAILABILITY_AVAILABLE):
+            return True
 
     def perform_state_action(self, strategy_step):
         """Unlocks a host on the subcloud
@@ -48,9 +56,11 @@ class UnlockHostState(BaseState):
         host = sysinv_client.get_host(self.target_hostname)
 
         # if the host is already in the desired state, no need for action
-        if host.administrative == consts.ADMIN_UNLOCKED:
-            msg = "Host: %s already: %s." % (self.target_hostname,
-                                             host.administrative)
+        if self.check_host_ready(host):
+            msg = "Host: %s is already: %s %s %s" % (self.target_hostname,
+                                                     host.administrative,
+                                                     host.operational,
+                                                     host.availability)
             self.info_log(strategy_step, msg)
             return self.next_state
 
@@ -76,12 +86,12 @@ class UnlockHostState(BaseState):
                 # query the administrative state to see if it is the new state.
                 host = self.get_sysinv_client(
                     strategy_step.subcloud.name).get_host(self.target_hostname)
-                if (host.administrative == consts.ADMIN_UNLOCKED and
-                        host.operational == consts.OPERATIONAL_ENABLED):
+                if self.check_host_ready(host):
                     # Success. Break out of the loop.
-                    msg = "Host: %s is now: %s %s" % (self.target_hostname,
-                                                      host.administrative,
-                                                      host.operational)
+                    msg = "Host: %s is now: %s %s %s" % (self.target_hostname,
+                                                         host.administrative,
+                                                         host.operational,
+                                                         host.availability)
                     self.info_log(strategy_step, msg)
                     break
                 # no exception was raised so reset fail checks

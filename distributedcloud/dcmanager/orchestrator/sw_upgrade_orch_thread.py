@@ -23,26 +23,44 @@ import datetime
 import threading
 import time
 
+from keystoneauth1 import exceptions as keystone_exceptions
 from oslo_log import log as logging
 
+from dccommon.drivers.openstack.sdk_platform import OpenStackDriver
+from dccommon.drivers.openstack import vim
 from dcmanager.common import consts
 from dcmanager.common import context
 from dcmanager.common import exceptions
 from dcmanager.common import scheduler
 from dcmanager.db import api as db_api
-from dcmanager.orchestrator.states.lock_host import LockHostState
-from dcmanager.orchestrator.states.unlock_host import UnlockHostState
 from dcmanager.orchestrator.states.upgrade.activating import ActivatingUpgradeState
+from dcmanager.orchestrator.states.upgrade.applying_vim_upgrade_strategy \
+    import ApplyingVIMUpgradeStrategyState
 from dcmanager.orchestrator.states.upgrade.completing import CompletingUpgradeState
+from dcmanager.orchestrator.states.upgrade.creating_vim_upgrade_strategy \
+    import CreatingVIMUpgradeStrategyState
 from dcmanager.orchestrator.states.upgrade.deleting_load import DeletingLoadState
+from dcmanager.orchestrator.states.upgrade.finishing_patch_strategy \
+    import FinishingPatchStrategyState
 from dcmanager.orchestrator.states.upgrade.importing_load import ImportingLoadState
 from dcmanager.orchestrator.states.upgrade.installing_license \
     import InstallingLicenseState
+from dcmanager.orchestrator.states.upgrade.lock_duplex import LockDuplexState
+from dcmanager.orchestrator.states.upgrade.lock_simplex import LockSimplexState
 from dcmanager.orchestrator.states.upgrade.migrating_data \
     import MigratingDataState
 from dcmanager.orchestrator.states.upgrade.pre_check import PreCheckState
 from dcmanager.orchestrator.states.upgrade.starting_upgrade \
     import StartingUpgradeState
+from dcmanager.orchestrator.states.upgrade.swact_to_controller_0 \
+    import SwactToController0State
+from dcmanager.orchestrator.states.upgrade.swact_to_controller_1 \
+    import SwactToController1State
+from dcmanager.orchestrator.states.upgrade.unlock_duplex import UnlockDuplexState
+from dcmanager.orchestrator.states.upgrade.unlock_simplex import UnlockSimplexState
+from dcmanager.orchestrator.states.upgrade.updating_patches import UpdatingPatchesState
+from dcmanager.orchestrator.states.upgrade.upgrading_duplex \
+    import UpgradingDuplexState
 from dcmanager.orchestrator.states.upgrade.upgrading_simplex \
     import UpgradingSimplexState
 
@@ -53,13 +71,24 @@ STATE_OPERATORS = {
     consts.STRATEGY_STATE_PRE_CHECK: PreCheckState,
     consts.STRATEGY_STATE_INSTALLING_LICENSE: InstallingLicenseState,
     consts.STRATEGY_STATE_IMPORTING_LOAD: ImportingLoadState,
+    consts.STRATEGY_STATE_UPDATING_PATCHES: UpdatingPatchesState,
+    consts.STRATEGY_STATE_FINISHING_PATCH_STRATEGY: FinishingPatchStrategyState,
     consts.STRATEGY_STATE_STARTING_UPGRADE: StartingUpgradeState,
-    consts.STRATEGY_STATE_LOCKING_CONTROLLER: LockHostState,
+    consts.STRATEGY_STATE_LOCKING_CONTROLLER_0: LockSimplexState,
+    consts.STRATEGY_STATE_LOCKING_CONTROLLER_1: LockDuplexState,
     consts.STRATEGY_STATE_UPGRADING_SIMPLEX: UpgradingSimplexState,
+    consts.STRATEGY_STATE_UPGRADING_DUPLEX: UpgradingDuplexState,
     consts.STRATEGY_STATE_MIGRATING_DATA: MigratingDataState,
-    consts.STRATEGY_STATE_UNLOCKING_CONTROLLER: UnlockHostState,
+    consts.STRATEGY_STATE_SWACTING_TO_CONTROLLER_0: SwactToController0State,
+    consts.STRATEGY_STATE_SWACTING_TO_CONTROLLER_1: SwactToController1State,
+    consts.STRATEGY_STATE_UNLOCKING_CONTROLLER_0: UnlockSimplexState,
+    consts.STRATEGY_STATE_UNLOCKING_CONTROLLER_1: UnlockDuplexState,
     consts.STRATEGY_STATE_ACTIVATING_UPGRADE: ActivatingUpgradeState,
     consts.STRATEGY_STATE_COMPLETING_UPGRADE: CompletingUpgradeState,
+    consts.STRATEGY_STATE_CREATING_VIM_UPGRADE_STRATEGY:
+        CreatingVIMUpgradeStrategyState,
+    consts.STRATEGY_STATE_APPLYING_VIM_UPGRADE_STRATEGY:
+        ApplyingVIMUpgradeStrategyState,
     consts.STRATEGY_STATE_DELETING_LOAD: DeletingLoadState,
 }
 
@@ -118,6 +147,22 @@ class SwUpgradeOrchThread(threading.Thread):
             # This is the SystemController.
             return consts.DEFAULT_REGION_NAME
         return strategy_step.subcloud.name
+
+    @staticmethod
+    def get_ks_client(region_name=consts.DEFAULT_REGION_NAME):
+        """This will get a cached keystone client (and token)"""
+        try:
+            os_client = OpenStackDriver(
+                region_name=region_name,
+                region_clients=None)
+            return os_client.keystone_client
+        except Exception:
+            LOG.warn('Failure initializing KeystoneClient')
+            raise
+
+    def get_vim_client(self, region_name=consts.DEFAULT_REGION_NAME):
+        ks_client = self.get_ks_client(region_name)
+        return vim.VimClient(region_name, ks_client.session)
 
     @staticmethod
     def format_update_details(last_state, info):
@@ -362,8 +407,14 @@ class SwUpgradeOrchThread(threading.Thread):
 
         LOG.info("Deleting upgrade strategy")
 
-        # todo(abailey): determine if we should validate the strategy_steps
-        # before allowing the delete
+        strategy_steps = db_api.strategy_step_get_all(self.context)
+
+        for strategy_step in strategy_steps:
+            self.delete_subcloud_strategy(strategy_step)
+
+            if self.stopped():
+                LOG.info("Exiting because task is stopped")
+                return
 
         # Remove the strategy from the database
         try:
@@ -372,6 +423,50 @@ class SwUpgradeOrchThread(threading.Thread):
         except Exception as e:
             LOG.exception(e)
             raise e
+
+    # todo(abailey): refactor delete to reuse patch orch code
+    def delete_subcloud_strategy(self, strategy_step):
+        """Delete the vim strategy in this subcloud"""
+
+        strategy_name = vim.STRATEGY_NAME_FW_UPDATE
+        region = self.get_region_name(strategy_step)
+
+        LOG.info("Deleting vim strategy %s for %s" % (strategy_name, region))
+
+        # First check if the strategy has been created.
+        try:
+            subcloud_strategy = self.get_vim_client(region).get_strategy(
+                strategy_name=strategy_name)
+        except (keystone_exceptions.EndpointNotFound, IndexError):
+            message = ("Endpoint for subcloud: %s not found." %
+                       region)
+            LOG.error(message)
+            self.strategy_step_update(
+                strategy_step.subcloud_id,
+                state=consts.STRATEGY_STATE_FAILED,
+                details=message)
+            return
+        except Exception:
+            # Strategy doesn't exist so there is nothing to do
+            return
+
+        if subcloud_strategy.state in [vim.STATE_BUILDING,
+                                       vim.STATE_APPLYING,
+                                       vim.STATE_ABORTING]:
+            # Can't delete a strategy in these states
+            message = ("Strategy for %s in wrong state (%s)for delete" %
+                       (region, subcloud_strategy.state))
+            LOG.warn(message)
+            raise Exception(message)
+
+        # If we are here, we need to delete the strategy
+        try:
+            self.get_vim_client(region).delete_strategy(
+                strategy_name=strategy_name)
+        except Exception:
+            message = "Strategy delete failed for %s" % region
+            LOG.warn(message)
+            raise
 
     def process_upgrade_step(self, region, strategy_step, log_error=False):
         """manage the green thread for calling perform_state_action"""

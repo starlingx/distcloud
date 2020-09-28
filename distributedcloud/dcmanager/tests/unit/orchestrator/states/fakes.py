@@ -29,7 +29,8 @@ class FakeController(object):
                  availability=consts.AVAILABILITY_ONLINE,
                  ihost_action=None,
                  target_load=UPGRADED_VERSION,
-                 task=None):
+                 task=None,
+                 capabilities={"Personality": "Controller-Active"}):
         self.uuid = str(uuid.uuid4())
         self.id = host_id
         self.hostname = hostname
@@ -39,6 +40,7 @@ class FakeController(object):
         self.ihost_action = ihost_action
         self.target_load = target_load
         self.task = task
+        self.capabilities = capabilities
 
 
 class FakeDevice(object):
@@ -126,6 +128,7 @@ class FakeSubcloud(object):
     def __init__(self,
                  subcloud_id=1,
                  name='subcloud1',
+                 group_id=1,
                  description='subcloud',
                  location='A location',
                  software_version=PREVIOUS_VERSION,
@@ -135,6 +138,7 @@ class FakeSubcloud(object):
                  data_install=FAKE_SUBCLOUD_INSTALL_VALUES):
         self.id = subcloud_id
         self.name = name
+        self.group_id = group_id
         self.description = description
         self.location = location
         self.software_version = software_version
@@ -156,6 +160,11 @@ class FakeSubcloud(object):
 
 
 class FakeSysinvClient(object):
+    def __init__(self):
+        pass
+
+
+class FakePatchingClient(object):
     def __init__(self):
         pass
 

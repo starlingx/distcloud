@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2020 Wind River Systems, Inc.
+# Copyright (c) 2020-2021 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -49,7 +49,7 @@ class MigratingDataState(BaseState):
 
     def __init__(self, region_name):
         super(MigratingDataState, self).__init__(
-            next_state=consts.STRATEGY_STATE_UNLOCKING_CONTROLLER, region_name=region_name)
+            next_state=consts.STRATEGY_STATE_UNLOCKING_CONTROLLER_0, region_name=region_name)
 
         self.ansible_sleep = DEFAULT_ANSIBLE_SLEEP
         self.max_api_queries = DEFAULT_MAX_API_QUERIES

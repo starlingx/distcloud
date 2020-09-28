@@ -38,7 +38,7 @@ class TestSwUpgradeMigratingDataStage(TestSwUpgradeState):
         super(TestSwUpgradeMigratingDataStage, self).setUp()
 
         # next state after 'migrating data' is 'unlocking controller'
-        self.on_success_state = consts.STRATEGY_STATE_UNLOCKING_CONTROLLER
+        self.on_success_state = consts.STRATEGY_STATE_UNLOCKING_CONTROLLER_0
 
         # Add the subcloud being processed by this unit test
         self.subcloud = self.setup_subcloud()

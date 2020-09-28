@@ -9,6 +9,7 @@ import mock
 from dcmanager.common import consts
 from dcmanager.orchestrator.states.upgrade import starting_upgrade
 
+from dcmanager.tests.unit.orchestrator.states.fakes import FakeSystem
 from dcmanager.tests.unit.orchestrator.states.fakes import FakeUpgrade
 from dcmanager.tests.unit.orchestrator.states.upgrade.test_base \
     import TestSwUpgradeState
@@ -22,13 +23,13 @@ UPGRADE_STARTED = FakeUpgrade(state='started')
             ".DEFAULT_MAX_QUERIES", 3)
 @mock.patch("dcmanager.orchestrator.states.upgrade.starting_upgrade"
             ".DEFAULT_SLEEP_DURATION", 1)
-class TestSwUpgradeStartingUpgradeStage(TestSwUpgradeState):
+class TestSwUpgradeSimplexStartingUpgradeStage(TestSwUpgradeState):
 
     def setUp(self):
-        super(TestSwUpgradeStartingUpgradeStage, self).setUp()
+        super(TestSwUpgradeSimplexStartingUpgradeStage, self).setUp()
 
         # next state after 'starting upgrade' is 'migrating data'
-        self.on_success_state = consts.STRATEGY_STATE_LOCKING_CONTROLLER
+        self.on_success_state = consts.STRATEGY_STATE_LOCKING_CONTROLLER_0
 
         # Add the subcloud being processed by this unit test
         self.subcloud = self.setup_subcloud()
@@ -40,6 +41,10 @@ class TestSwUpgradeStartingUpgradeStage(TestSwUpgradeState):
         # Add mock API endpoints for sysinv client calls invoked by this state
         self.sysinv_client.upgrade_start = mock.MagicMock()
         self.sysinv_client.get_upgrades = mock.MagicMock()
+        self.sysinv_client.get_system = mock.MagicMock()
+        system_values = FakeSystem()
+        system_values.system_mode = consts.SYSTEM_MODE_SIMPLEX
+        self.sysinv_client.get_system.return_value = system_values
 
     def test_upgrade_subcloud_upgrade_start_failure(self):
         """Test the upgrade_start where the API call fails.
@@ -169,3 +174,21 @@ class TestSwUpgradeStartingUpgradeStage(TestSwUpgradeState):
         # Verify the timeout leads to a state failure
         self.assert_step_updated(self.strategy_step.subcloud_id,
                                  consts.STRATEGY_STATE_FAILED)
+
+
+@mock.patch("dcmanager.orchestrator.states.upgrade.starting_upgrade"
+            ".DEFAULT_MAX_QUERIES", 3)
+@mock.patch("dcmanager.orchestrator.states.upgrade.starting_upgrade"
+            ".DEFAULT_SLEEP_DURATION", 1)
+class TestSwUpgradeDuplexStartingUpgradeStage(TestSwUpgradeSimplexStartingUpgradeStage):
+
+    def setUp(self):
+        super(TestSwUpgradeDuplexStartingUpgradeStage, self).setUp()
+
+        # next state after 'starting upgrade' is 'migrating data'
+        self.on_success_state = consts.STRATEGY_STATE_LOCKING_CONTROLLER_1
+
+        # Add mock API endpoints for sysinv client calls invoked by this state
+        system_values = FakeSystem()
+        system_values.system_mode = consts.SYSTEM_MODE_DUPLEX
+        self.sysinv_client.get_system.return_value = system_values

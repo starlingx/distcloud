@@ -31,6 +31,7 @@ from dcmanager.tests.unit.common import fake_strategy
 from dcmanager.tests.unit.common import fake_subcloud
 from dcmanager.tests.unit.fakes import FakeVimClient
 from dcmanager.tests.unit.orchestrator.states.fakes import FakeKeystoneClient
+from dcmanager.tests.unit.orchestrator.states.fakes import FakePatchingClient
 from dcmanager.tests.unit.orchestrator.states.fakes import FakeSysinvClient
 from dcmanager.tests.unit.orchestrator.test_sw_update_manager import FakeOrchThread
 from dcmanager.tests import utils
@@ -67,6 +68,13 @@ class TestSwUpdate(base.DCManagerTestCase):
         p = mock.patch.object(BaseState, 'get_sysinv_client')
         self.mock_sysinv_client = p.start()
         self.mock_sysinv_client.return_value = self.sysinv_client
+        self.addCleanup(p.stop)
+
+        # Mock the patching client defined in the base state class
+        self.patching_client = FakePatchingClient()
+        p = mock.patch.object(BaseState, 'get_patching_client')
+        self.mock_patching_client = p.start()
+        self.mock_patching_client.return_value = self.patching_client
         self.addCleanup(p.stop)
 
         # Mock the vim client defined in the base state class

@@ -132,6 +132,14 @@ class SysinvClient(base.DriverBase):
             action_value = 'unlock'
         return self._do_host_action(host_id, action_value)
 
+    def swact_host(self, host_id, force=False):
+        """Perform host swact"""
+        if force:
+            action_value = 'force-swact'
+        else:
+            action_value = 'swact'
+        return self._do_host_action(host_id, action_value)
+
     def configure_bmc_host(self,
                            host_id,
                            bm_username,
@@ -154,6 +162,10 @@ class SysinvClient(base.DriverBase):
              'value': bm_type},
         ]
         return self.sysinv_client.ihost.update(host_id, patch)
+
+    def upgrade_host(self, host_id, force=False):
+        """Invoke the API for 'system host-upgrade'"""
+        return self.sysinv_client.ihost.upgrade(host_id, force)
 
     def power_on_host(self, host_id):
         """Power on a host"""

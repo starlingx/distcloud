@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2020 Wind River Systems, Inc.
+# Copyright (c) 2020-2021 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -9,6 +9,7 @@ import six
 from oslo_log import log as logging
 
 from dccommon.drivers.openstack.barbican import BarbicanClient
+from dccommon.drivers.openstack.patching_v1 import PatchingClient
 from dccommon.drivers.openstack.sdk_platform import OpenStackDriver
 from dccommon.drivers.openstack.sysinv_v1 import SysinvClient
 from dccommon.drivers.openstack.vim import VimClient
@@ -100,6 +101,10 @@ class BaseState(object):
 
         return SysinvClient(region_name, keystone_client.session)
 
+    def get_patching_client(self, region_name=consts.DEFAULT_REGION_NAME):
+        keystone_client = self.get_keystone_client(region_name)
+        return PatchingClient(region_name, keystone_client.session)
+
     @property
     def local_sysinv(self):
         return self.get_sysinv_client(consts.DEFAULT_REGION_NAME)
@@ -116,15 +121,11 @@ class BaseState(object):
 
         return BarbicanClient(region_name, keystone_client.session)
 
-    @staticmethod
-    def get_vim_client(region_name):
+    def get_vim_client(self, region_name):
         """construct a vim client for a region."""
-        # If keystone client fails to initialze, raise an exception
-        # a cached keystone client is used if valid
-        os_client = OpenStackDriver(region_name=region_name,
-                                    region_clients=None)
+        keystone_client = self.get_keystone_client(region_name)
         return VimClient(region_name,
-                         os_client.keystone_client.session)
+                         keystone_client.session)
 
     @abc.abstractmethod
     def perform_state_action(self, strategy_step):

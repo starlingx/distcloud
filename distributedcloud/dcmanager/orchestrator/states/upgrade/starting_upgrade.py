@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2020 Wind River Systems, Inc.
+# Copyright (c) 2020-2021 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -22,8 +22,16 @@ class StartingUpgradeState(BaseState):
     """Upgrade state for starting an upgrade on a subcloud"""
 
     def __init__(self, region_name):
-        super(StartingUpgradeState, self).__init__(
-            next_state=consts.STRATEGY_STATE_LOCKING_CONTROLLER, region_name=region_name)
+        subcloud_type = self.get_sysinv_client(
+            region_name).get_system().system_mode
+        if subcloud_type == consts.SYSTEM_MODE_SIMPLEX:
+            super(StartingUpgradeState, self).__init__(
+                next_state=consts.STRATEGY_STATE_LOCKING_CONTROLLER_0,
+                region_name=region_name)
+        else:
+            super(StartingUpgradeState, self).__init__(
+                next_state=consts.STRATEGY_STATE_LOCKING_CONTROLLER_1,
+                region_name=region_name)
         self.sleep_duration = DEFAULT_SLEEP_DURATION
         self.max_queries = DEFAULT_MAX_QUERIES
 

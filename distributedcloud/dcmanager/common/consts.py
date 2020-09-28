@@ -51,6 +51,14 @@ ADMIN_UNLOCKED = 'unlocked'
 OPERATIONAL_ENABLED = 'enabled'
 OPERATIONAL_DISABLED = 'disabled'
 
+# Availability status for hosts
+AVAILABILITY_AVAILABLE = 'available'
+AVAILABILITY_DEGRADED = 'degraded'
+
+# Personality of hosts
+PERSONALITY_CONTROLLER_ACTIVE = 'Controller-Active'
+PERSONALITY_CONTROLLER_STANDBY = 'Controller-Standby'
+
 # Subcloud sync status
 SYNC_STATUS_UNKNOWN = "unknown"
 SYNC_STATUS_IN_SYNC = "in-sync"
@@ -112,13 +120,22 @@ STRATEGY_STATE_FAILED = "failed"
 STRATEGY_STATE_PRE_CHECK = "pre check"
 STRATEGY_STATE_INSTALLING_LICENSE = "installing license"
 STRATEGY_STATE_IMPORTING_LOAD = "importing load"
+STRATEGY_STATE_UPDATING_PATCHES = "updating patches"
+STRATEGY_STATE_FINISHING_PATCH_STRATEGY = "finishing patch strategy"
 STRATEGY_STATE_STARTING_UPGRADE = "starting upgrade"
-STRATEGY_STATE_LOCKING_CONTROLLER = "locking controller"
+STRATEGY_STATE_LOCKING_CONTROLLER_0 = "locking controller-0"
+STRATEGY_STATE_LOCKING_CONTROLLER_1 = "locking controller-1"
 STRATEGY_STATE_UPGRADING_SIMPLEX = "upgrading simplex"
+STRATEGY_STATE_UPGRADING_DUPLEX = "upgrading duplex"
 STRATEGY_STATE_MIGRATING_DATA = "migrating data"
-STRATEGY_STATE_UNLOCKING_CONTROLLER = "unlocking controller"
+STRATEGY_STATE_UNLOCKING_CONTROLLER_0 = "unlocking controller-0"
+STRATEGY_STATE_UNLOCKING_CONTROLLER_1 = "unlocking controller-1"
+STRATEGY_STATE_SWACTING_TO_CONTROLLER_0 = "swacting to controller-0"
+STRATEGY_STATE_SWACTING_TO_CONTROLLER_1 = "swacting to controller-1"
 STRATEGY_STATE_ACTIVATING_UPGRADE = "activating upgrade"
 STRATEGY_STATE_COMPLETING_UPGRADE = "completing upgrade"
+STRATEGY_STATE_CREATING_VIM_UPGRADE_STRATEGY = "creating VIM upgrade strategy"
+STRATEGY_STATE_APPLYING_VIM_UPGRADE_STRATEGY = "applying VIM upgrade strategy"
 STRATEGY_STATE_DELETING_LOAD = "deleting load"
 
 # Firmware update orchestration states
@@ -144,6 +161,15 @@ DEPLOY_STATE_MIGRATING_DATA = 'migrating-data'
 DEPLOY_STATE_DATA_MIGRATION_FAILED = 'data-migration-failed'
 DEPLOY_STATE_MIGRATED = 'migrated'
 DEPLOY_STATE_DONE = 'complete'
+
+
+# Upgrades States
+UPGRADE_STATE_DATA_MIGRATION_COMPLETE = 'data-migration-complete'
+UPGRADE_STATE_DATA_MIGRATION_FAILED = 'data-migration-failed'
+UPGRADE_STATE_UPGRADING_CONTROLLERS = 'upgrading-controllers'
+UPGRADE_STATE_UPGRADING_HOSTS = 'upgrading-hosts'
+UPGRADE_STATE_ACTIVATION_FAILED = 'activation-failed'
+UPGRADE_STATE_ACTIVATION_COMPLETE = 'activation-complete'
 
 # Alarm aggregation
 ALARMS_DISABLED = "disabled"

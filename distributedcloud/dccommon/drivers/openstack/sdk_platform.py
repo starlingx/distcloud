@@ -86,7 +86,7 @@ class OpenStackDriver(object):
 
         self.get_cached_keystone_client(region_name)
         if self.keystone_client is None:
-            LOG.info("get new keystone client for subcloud %s", region_name)
+            LOG.debug("get new keystone client for subcloud %s", region_name)
             try:
                 self.keystone_client = KeystoneClient(region_name, auth_url)
                 OpenStackDriver.update_region_clients(region_name,
@@ -214,11 +214,11 @@ class OpenStackDriver(object):
                                     STALE_TOKEN_DURATION_MAX,
                                     STALE_TOKEN_DURATION_STEP)
         if timeutils.is_soon(expiry_time, duration):
-            LOG.info("The cached keystone token for subcloud %s "
-                     "will expire soon %s" %
-                     (region_name,
-                      OpenStackDriver._identity_tokens[region_name]
-                      ['expires_at']))
+            LOG.debug("The cached keystone token for subcloud %s "
+                      "will expire soon %s" %
+                      (region_name,
+                       OpenStackDriver._identity_tokens[region_name]
+                       ['expires_at']))
             # Reset the cached dictionary
             OpenStackDriver.os_clients_dict[region_name] = \
                 collections.defaultdict(dict)
