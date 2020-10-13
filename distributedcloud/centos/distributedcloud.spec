@@ -30,6 +30,8 @@ Source11:      dcdbsync.conf
 Source12:      clean-dcorch
 Source13:      dcmanager-audit.service
 Source14:      dcmanager-orchestrator.service
+Source15:      distcloud-syslog.conf
+Source16:      distcloud-logrotate.conf
 
 BuildArch:     noarch
 
@@ -139,6 +141,8 @@ install -p -D -m 644 %{SOURCE9} %{buildroot}%{_tmpfilesdir}
 cd %{_builddir}/%{pypi_name}-%{version} && oslo-config-generator --config-file ./dcmanager/config-generator.conf --output-file %{_builddir}/%{pypi_name}-%{version}%{_sysconfdir}/dcmanager/dcmanager.conf.sample
 install -p -D -m 640 %{_builddir}/%{pypi_name}-%{version}%{_sysconfdir}/dcmanager/dcmanager.conf.sample %{buildroot}%{_sysconfdir}/dcmanager/dcmanager.conf
 
+install -p -D -m 644 %{SOURCE15} %{buildroot}%{_sysconfdir}/syslog-ng/conf.d/distcloud.conf
+install -p -D -m 644 %{SOURCE16} %{buildroot}%{_sysconfdir}/logrotate.d/distcloud.conf
 
 install -d -m 755 %{buildroot}/var/log/dcorch
 install -d -m 755 %{buildroot}/var/cache/dcorch
@@ -182,6 +186,8 @@ install -m 755 -D -p %{SOURCE12} %{buildroot}/%{_bindir}/clean-dcorch
 %{python2_sitelib}/dccommon*
 %{python2_sitelib}/distributedcloud-*.egg-info
 %exclude %{python2_sitelib}/dccommon/tests
+%{_sysconfdir}/syslog-ng/conf.d/distcloud.conf
+%{_sysconfdir}/logrotate.d/distcloud.conf
 
 %files dcmanager
 %license LICENSE
