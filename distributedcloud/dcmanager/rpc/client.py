@@ -100,6 +100,11 @@ class ManagerClient(RPCClient):
                                              subcloud_id=subcloud_id,
                                              payload=payload))
 
+    def reinstall_subcloud(self, ctxt, subcloud_id, payload):
+        return self.cast(ctxt, self.make_msg('reinstall_subcloud',
+                                             subcloud_id=subcloud_id,
+                                             payload=payload))
+
     def update_subcloud_endpoint_status(self, ctxt, subcloud_name=None,
                                         endpoint_type=None,
                                         sync_status=consts.

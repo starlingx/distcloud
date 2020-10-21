@@ -115,13 +115,6 @@ class SubcloudManager(manager.Manager):
         self.fm_api = fm_api.FaultAPIs()
 
     @staticmethod
-    def _get_ansible_inventory_filename(subcloud_name):
-        ansible_inventory_filename = os.path.join(
-            consts.ANSIBLE_OVERRIDES_PATH,
-            subcloud_name + INVENTORY_FILE_POSTFIX)
-        return ansible_inventory_filename
-
-    @staticmethod
     def _get_subcloud_cert_name(subcloud_name):
         cert_name = "%s-adminep-ca-certificate" % subcloud_name
         return cert_name
@@ -186,6 +179,44 @@ class SubcloudManager(manager.Manager):
 
         raise Exception("Secret for certificate %s is not ready." % cert_name)
 
+    def _get_ansible_filename(self, subcloud_name, postfix='.yml'):
+        ansible_filename = os.path.join(
+            consts.ANSIBLE_OVERRIDES_PATH,
+            subcloud_name + postfix)
+        return ansible_filename
+
+    def compose_install_command(self, subcloud_name, ansible_subcloud_inventory_file):
+        install_command = [
+            "ansible-playbook", ANSIBLE_SUBCLOUD_INSTALL_PLAYBOOK,
+            "-i", ansible_subcloud_inventory_file,
+            "--limit", subcloud_name,
+            "-e", "@%s" % consts.ANSIBLE_OVERRIDES_PATH + "/" +
+                  subcloud_name + '/' + "install_values.yml"]
+        return install_command
+
+    def compose_apply_command(self, subcloud_name, ansible_subcloud_inventory_file):
+        apply_command = [
+            "ansible-playbook", ANSIBLE_SUBCLOUD_PLAYBOOK, "-i",
+            ansible_subcloud_inventory_file,
+            "--limit", subcloud_name
+        ]
+        # Add the overrides dir and region_name so the playbook knows
+        # which overrides to load
+        apply_command += [
+            "-e", str("override_files_dir='%s' region_name=%s") % (
+                consts.ANSIBLE_OVERRIDES_PATH, subcloud_name)]
+        return apply_command
+
+    def compose_deploy_command(self, subcloud_name, ansible_subcloud_inventory_file, payload):
+        deploy_command = [
+            "ansible-playbook", payload[consts.DEPLOY_PLAYBOOK],
+            "-e", "@%s" % consts.ANSIBLE_OVERRIDES_PATH + "/" +
+                  subcloud_name + '_deploy_values.yml',
+            "-i", ansible_subcloud_inventory_file,
+            "--limit", subcloud_name
+            ]
+        return deploy_command
+
     def add_subcloud(self, context, payload):
         """Add subcloud and notify orchestrators.
 
@@ -207,8 +238,8 @@ class SubcloudManager(manager.Manager):
 
         try:
             # Ansible inventory filename for the specified subcloud
-            ansible_subcloud_inventory_file = SubcloudManager.\
-                _get_ansible_inventory_filename(subcloud.name)
+            ansible_subcloud_inventory_file = self._get_ansible_filename(
+                subcloud.name, INVENTORY_FILE_POSTFIX)
 
             # Create a new route to this subcloud on the management interface
             # on both controllers.
@@ -349,13 +380,10 @@ class SubcloudManager(manager.Manager):
             deploy_command = None
             if "deploy_playbook" in payload:
                 self._prepare_for_deployment(payload, subcloud.name)
-                deploy_command = [
-                    "ansible-playbook", payload[consts.DEPLOY_PLAYBOOK],
-                    "-e", "@%s" % consts.ANSIBLE_OVERRIDES_PATH + "/" +
-                          subcloud.name + "_deploy_values.yml",
-                    "-i", ansible_subcloud_inventory_file,
-                    "--limit", subcloud.name
-                ]
+                deploy_command = self.compose_deploy_command(
+                    subcloud.name,
+                    ansible_subcloud_inventory_file,
+                    payload)
 
             del payload['sysadmin_password']
             payload['users'] = dict()
@@ -375,28 +403,14 @@ class SubcloudManager(manager.Manager):
             # NOTE: This file should not be deleted if subcloud add fails
             # as it is used for debugging
             self._write_subcloud_ansible_config(context, payload)
-
             install_command = None
             if "install_values" in payload:
-                install_command = [
-                    "ansible-playbook", ANSIBLE_SUBCLOUD_INSTALL_PLAYBOOK,
-                    "-i", ansible_subcloud_inventory_file,
-                    "--limit", subcloud.name,
-                    "-e", "@%s" % consts.ANSIBLE_OVERRIDES_PATH + "/" +
-                          payload['name'] + '/' + "install_values.yml"
-                ]
-
-            apply_command = [
-                "ansible-playbook", ANSIBLE_SUBCLOUD_PLAYBOOK, "-i",
-                ansible_subcloud_inventory_file,
-                "--limit", subcloud.name
-            ]
-
-            # Add the overrides dir and region_name so the playbook knows
-            # which overrides to load
-            apply_command += [
-                "-e", str("override_files_dir='%s' region_name=%s") % (
-                    consts.ANSIBLE_OVERRIDES_PATH, subcloud.name)]
+                install_command = self.compose_install_command(
+                    subcloud.name,
+                    ansible_subcloud_inventory_file)
+            apply_command = self.compose_apply_command(
+                subcloud.name,
+                ansible_subcloud_inventory_file)
 
             apply_thread = threading.Thread(
                 target=self.run_deploy,
@@ -427,22 +441,18 @@ class SubcloudManager(manager.Manager):
             deploy_status=consts.DEPLOY_STATE_PRE_DEPLOY)
         try:
             # Ansible inventory filename for the specified subcloud
-            ansible_subcloud_inventory_file = SubcloudManager.\
-                _get_ansible_inventory_filename(subcloud.name)
+            ansible_subcloud_inventory_file = self._get_ansible_filename(
+                subcloud.name, INVENTORY_FILE_POSTFIX)
 
             deploy_command = None
             if "deploy_playbook" in payload:
                 self._prepare_for_deployment(payload, subcloud.name)
-                deploy_command = [
-                    "ansible-playbook", payload[consts.DEPLOY_PLAYBOOK],
-                    "-e", "@%s" % consts.ANSIBLE_OVERRIDES_PATH + "/" +
-                          subcloud.name + "_deploy_values.yml",
-                    "-i", ansible_subcloud_inventory_file,
-                    "--limit", subcloud.name
-                    ]
+                deploy_command = self.compose_deploy_command(
+                    subcloud.name,
+                    ansible_subcloud_inventory_file,
+                    payload)
 
             del payload['sysadmin_password']
-
             apply_thread = threading.Thread(
                 target=self.run_deploy,
                 args=(subcloud, payload, context, None, None, deploy_command))
@@ -451,6 +461,82 @@ class SubcloudManager(manager.Manager):
         except Exception:
             LOG.exception("Failed to create subcloud %s" % subcloud.name)
             # If we failed to create the subcloud, update the
+            # deployment status
+            db_api.subcloud_update(
+                context, subcloud_id,
+                deploy_status=consts.DEPLOY_STATE_DEPLOY_PREP_FAILED)
+
+    def reinstall_subcloud(self, context, subcloud_id, payload):
+        """Reinstall subcloud
+
+        :param context: request context object
+        :param subcloud_id: subcloud id from db
+        :param payload: subcloud reinstall
+        """
+
+        # Retrieve the subcloud details from the database
+        subcloud = db_api.subcloud_get(context, subcloud_id)
+
+        # Semantic checking
+        if subcloud.availability_status == \
+                consts.AVAILABILITY_ONLINE:
+            raise exceptions.SubcloudNotOffline()
+
+        software_version = str(payload['install_values'].get('software_version'))
+        LOG.info("The type of sw version is %s" % type(SW_VERSION))
+
+        if software_version != SW_VERSION:
+            raise exceptions.BadRequest(
+                resource='subcloud',
+                msg='Software version should match the system controller')
+
+        if 'image' not in payload['install_values']:
+            matching_iso, matching_sig = utils.get_vault_load_files(
+                SW_VERSION)
+            payload['install_values'].update({'image': matching_iso})
+
+        LOG.info("Reinstalling subcloud %s." % subcloud_id)
+
+        subcloud = db_api.subcloud_update(
+            context, subcloud_id,
+            software_version=SW_VERSION,
+            deploy_status=consts.DEPLOY_STATE_PRE_INSTALL)
+
+        try:
+            ansible_subcloud_inventory_file = self._get_ansible_filename(
+                subcloud.name, INVENTORY_FILE_POSTFIX)
+
+            payload['admin_password'] = str(
+                keyring.get_password('CGCS', 'admin'))
+            payload['ansible_become_pass'] = payload['admin_password']
+            payload['ansible_ssh_pass'] = payload['admin_password']
+            payload['install_values']['ansible_ssh_pass'] = \
+                payload['admin_password']
+            payload['install_values']['ansible_become_pass'] = \
+                payload['admin_password']
+            payload['bootstrap-address'] = \
+                payload['install_values']['bootstrap_address']
+
+            utils.create_subcloud_inventory(payload,
+                                            ansible_subcloud_inventory_file)
+
+            self._create_intermediate_ca_cert(payload)
+
+            install_command = self.compose_install_command(
+                subcloud.name,
+                ansible_subcloud_inventory_file)
+            apply_command = self.compose_apply_command(
+                subcloud.name,
+                ansible_subcloud_inventory_file)
+            apply_thread = threading.Thread(
+                target=self.run_deploy,
+                args=(subcloud, payload, context,
+                      install_command, apply_command, None))
+            apply_thread.start()
+            return db_api.subcloud_db_model_to_dict(subcloud)
+        except Exception:
+            LOG.exception("Failed to reinstall subcloud %s" % subcloud.name)
+            # If we failed to reinstall the subcloud, update the
             # deployment status
             db_api.subcloud_update(
                 context, subcloud_id,
@@ -753,9 +839,8 @@ class SubcloudManager(manager.Manager):
             raise exceptions.SubcloudNotOffline()
 
         # Ansible inventory filename for the specified subcloud
-        ansible_subcloud_inventory_file = os.path.join(
-            consts.ANSIBLE_OVERRIDES_PATH,
-            subcloud.name + INVENTORY_FILE_POSTFIX)
+        ansible_subcloud_inventory_file = self._get_ansible_filename(
+            subcloud.name, INVENTORY_FILE_POSTFIX)
 
         self._remove_subcloud_details(context,
                                       subcloud,

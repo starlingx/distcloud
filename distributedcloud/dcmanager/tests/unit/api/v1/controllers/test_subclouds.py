@@ -25,6 +25,7 @@ from oslo_utils import timeutils
 import base64
 import copy
 import json
+import keyring
 import mock
 import six
 from six.moves import http_client
@@ -32,44 +33,25 @@ import webtest
 
 from dcmanager.api.controllers.v1 import subclouds
 from dcmanager.common import consts
+from dcmanager.common import utils as cutils
 from dcmanager.db.sqlalchemy import api as db_api
 from dcmanager.rpc import client as rpc_client
 from dcmanager.tests.unit.api import test_root_controller as testroot
 from dcmanager.tests.unit.api.v1.controllers.mixins import APIMixin
 from dcmanager.tests.unit.api.v1.controllers.mixins import PostMixin
-from dcmanager.tests.unit.common.subcloud import FAKE_SUBCLOUD_INSTALL_VALUES
+from dcmanager.tests.unit.common import fake_subcloud
 from dcmanager.tests import utils
 
 SAMPLE_SUBCLOUD_NAME = 'SubcloudX'
 SAMPLE_SUBCLOUD_DESCRIPTION = 'A Subcloud of mystery'
 
-FAKE_TENANT = utils.UUID1
-FAKE_ID = '1'
-FAKE_URL = '/v1.0/subclouds'
-WRONG_URL = '/v1.0/wrong'
-FAKE_HEADERS = {'X-Tenant-Id': FAKE_TENANT, 'X_ROLE': 'admin',
-                'X-Identity-Status': 'Confirmed'}
-
-FAKE_SUBCLOUD_DATA = {"id": FAKE_ID,
-                      "name": "subcloud1",
-                      "description": "subcloud1 description",
-                      "location": "subcloud1 location",
-                      "system_mode": "duplex",
-                      "management_subnet": "192.168.101.0/24",
-                      "management_start_address": "192.168.101.2",
-                      "management_end_address": "192.168.101.50",
-                      "management_gateway_address": "192.168.101.1",
-                      "systemcontroller_gateway_address": "192.168.204.101",
-                      "deploy_status": consts.DEPLOY_STATE_DONE,
-                      "external_oam_subnet": "10.10.10.0/24",
-                      "external_oam_gateway_address": "10.10.10.1",
-                      "external_oam_floating_address": "10.10.10.12",
-                      "availability-status": "disabled"}
-
-FAKE_BOOTSTRAP_VALUE = {
-    'bootstrap-address': '10.10.10.12',
-    'sysadmin_password': base64.b64encode('testpass'.encode("utf-8"))
-}
+FAKE_ID = fake_subcloud.FAKE_ID
+FAKE_URL = fake_subcloud.FAKE_URL
+WRONG_URL = fake_subcloud.WRONG_URL
+FAKE_HEADERS = fake_subcloud.FAKE_HEADERS
+FAKE_SUBCLOUD_DATA = fake_subcloud.FAKE_SUBCLOUD_DATA
+FAKE_BOOTSTRAP_VALUE = fake_subcloud.FAKE_BOOTSTRAP_VALUE
+FAKE_SUBCLOUD_INSTALL_VALUES = fake_subcloud.FAKE_SUBCLOUD_INSTALL_VALUES
 
 
 class Subcloud(object):
@@ -97,6 +79,8 @@ class Subcloud(object):
             data['systemcontroller_gateway_address']
         self.created_at = timeutils.utcnow()
         self.updated_at = timeutils.utcnow()
+        self.data_install = ''
+        self.data_upgrade = ''
 
 
 class FakeAddressPool(object):
@@ -1121,3 +1105,89 @@ class TestSubcloudAPIOther(testroot.DCManagerApiTest):
                               FAKE_ID + '/update_status',
                               headers=FAKE_HEADERS, params=data)
         mock_rpc_client().update_subcloud_endpoint_status.assert_not_called()
+
+    @mock.patch.object(rpc_client, 'ManagerClient')
+    def test_get_config_file_path(self, mock_rpc_client):
+        sc = subclouds.SubcloudsController()
+        bootstrap_file = sc._get_config_file_path("subcloud1")
+        install_values = sc._get_config_file_path("subcloud1", "install_values")
+        deploy_config = sc._get_config_file_path("subcloud1", consts.DEPLOY_CONFIG)
+        self.assertEqual(bootstrap_file, "/opt/dc/ansible/subcloud1.yml")
+        self.assertEqual(install_values, "/opt/dc/ansible/subcloud1/install_values.yml")
+        self.assertEqual(deploy_config, "/opt/dc/ansible/subcloud1_deploy_config.yml")
+
+    @mock.patch.object(rpc_client, 'ManagerClient')
+    @mock.patch.object(keyring, 'get_password')
+    def test_get_subcloud_db_install_values(
+        self, mock_keyring, mock_rpc_client):
+        install_data = copy.copy(FAKE_SUBCLOUD_INSTALL_VALUES)
+        encoded_password = base64.b64encode(
+            'bmc_password'.encode("utf-8")).decode('utf-8')
+        bmc_password = {'bmc_password': encoded_password}
+        install_data.update(bmc_password)
+        test_subcloud = copy.copy(FAKE_SUBCLOUD_DATA)
+        subcloud_info = Subcloud(test_subcloud, False)
+        subcloud_info.data_install = json.dumps(install_data)
+
+        sc = subclouds.SubcloudsController()
+        actual_result = sc._get_subcloud_db_install_values(subcloud_info)
+        actual_result.update({
+            'admin_password': 'adminpass'
+        })
+        install_data.update({
+            'ansible_become_pass': consts.TEMP_SYSADMIN_PASSWORD,
+            'ansible_ssh_pass': consts.TEMP_SYSADMIN_PASSWORD,
+            'admin_password': 'adminpass'
+        })
+        self.assertEqual(
+            json.loads(json.dumps(install_data)),
+            json.loads(json.dumps(actual_result)))
+
+    @mock.patch.object(rpc_client, 'ManagerClient')
+    @mock.patch.object(keyring, 'get_password')
+    @mock.patch.object(subclouds, 'db_api')
+    def test_get_subcloud_db_install_values_without_bmc_password(
+        self, mock_db_api, mock_keyring, mock_rpc_client):
+        install_data = copy.copy(FAKE_SUBCLOUD_INSTALL_VALUES)
+        test_subcloud = copy.copy(FAKE_SUBCLOUD_DATA)
+
+        subcloud_info = Subcloud(test_subcloud, False)
+        subcloud_info.data_install = json.dumps(install_data)
+        mock_db_api.subcloud_get.return_value = subcloud_info
+
+        six.assertRaisesRegex(self, webtest.app.AppError, "400 *",
+                              self.app.patch_json, FAKE_URL + '/' +
+                              FAKE_ID + '/reinstall',
+                              headers=FAKE_HEADERS)
+
+    @mock.patch.object(cutils, 'get_vault_load_files')
+    @mock.patch.object(rpc_client, 'ManagerClient')
+    @mock.patch.object(subclouds, 'db_api')
+    @mock.patch.object(subclouds.SubcloudsController, '_get_subcloud_db_install_values')
+    @mock.patch.object(subclouds.SubcloudsController, '_validate_install_values')
+    def test_reinstall_subcloud(
+        self, moc_validate_install_values, mock_get_subcloud_db_install_values,
+        mock_db_api, mock_rpc_client, mock_get_vault_load_files):
+
+        # Return a fake subcloud database object
+        fake_subcloud = Subcloud(FAKE_SUBCLOUD_DATA, False)
+        mock_db_api.subcloud_get.return_value = fake_subcloud
+
+        install_data = copy.copy(FAKE_SUBCLOUD_INSTALL_VALUES)
+        encoded_password = base64.b64encode(
+            'bmc_password'.encode("utf-8")).decode('utf-8')
+        bmc_password = {'bmc_password': encoded_password}
+        install_data.update(bmc_password)
+
+        mock_get_subcloud_db_install_values.return_value = install_data
+        mock_db_api.subcloud_db_model_to_dict.return_value = FAKE_SUBCLOUD_DATA
+        mock_rpc_client().reinstall_subcloud.return_value = True
+        mock_get_vault_load_files.return_value = ('iso_file_path', 'sig_file_path')
+        response = self.app.patch_json(
+            FAKE_URL + '/' + FAKE_ID + '/reinstall',
+            headers=FAKE_HEADERS)
+        mock_rpc_client().reinstall_subcloud.assert_called_once_with(
+            mock.ANY,
+            FAKE_ID,
+            mock.ANY)
+        self.assertEqual(response.status_int, 200)

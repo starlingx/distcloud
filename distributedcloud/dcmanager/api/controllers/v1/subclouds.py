@@ -126,15 +126,8 @@ class SubcloudsController(object):
             file_item.file.seek(0, os.SEEK_SET)
             contents = file_item.file.read()
             # the deploy config needs to upload to the override location
-            fn = os.path.join(consts.ANSIBLE_OVERRIDES_PATH, payload['name']
-                              + '_deploy_config.yml')
-            try:
-                with open(fn, "w") as f:
-                    f.write(contents)
-            except Exception:
-                msg = _("Failed to upload %s file" % consts.DEPLOY_CONFIG)
-                LOG.exception(msg)
-                pecan.abort(400, msg)
+            fn = self._get_config_file_path(payload['name'], consts.DEPLOY_CONFIG)
+            self._upload_config_file(contents, fn, consts.DEPLOY_CONFIG)
             payload.update({consts.DEPLOY_CONFIG: fn})
             self._get_common_deploy_files(payload)
 
@@ -173,8 +166,16 @@ class SubcloudsController(object):
                     payload.update({f: data})
         return payload
 
-    @staticmethod
-    def _get_reconfig_payload(request, subcloud_name):
+    def _upload_config_file(self, file_item, config_file, config_type):
+        try:
+            with open(config_file, "w") as f:
+                f.write(file_item)
+        except Exception:
+            msg = _("Failed to upload %s file" % config_type)
+            LOG.exception(msg)
+            pecan.abort(400, msg)
+
+    def _get_reconfig_payload(self, request, subcloud_name):
         payload = dict()
         multipart_data = decoder.MultipartDecoder(request.body,
                                                   pecan.request.headers.get('Content-Type'))
@@ -183,21 +184,61 @@ class SubcloudsController(object):
             for part in multipart_data.parts:
                 header = part.headers.get('Content-Disposition')
                 if filename in header:
-                    file_item = part.content
-                    fn = os.path.join(consts.ANSIBLE_OVERRIDES_PATH, subcloud_name
-                                      + '_deploy_config.yml')
-                    try:
-                        with open(fn, "w") as f:
-                            f.write(file_item)
-                    except Exception:
-                        msg = _("Failed to upload %s file" % consts.DEPLOY_CONFIG)
-                        LOG.exception(msg)
-                        pecan.abort(400, msg)
+                    fn = self._get_config_file_path(subcloud_name, consts.DEPLOY_CONFIG)
+                    self._upload_config_file(part.content, fn, consts.DEPLOY_CONFIG)
                     payload.update({consts.DEPLOY_CONFIG: fn})
                 elif "sysadmin_password" in header:
                     payload.update({'sysadmin_password': part.content})
-        SubcloudsController._get_common_deploy_files(payload)
+        self._get_common_deploy_files(payload)
         return payload
+
+    def _get_config_file_path(self, subcloud_name, config_file_type=None):
+        if config_file_type == consts.DEPLOY_CONFIG:
+            file_path = os.path.join(
+                consts.ANSIBLE_OVERRIDES_PATH,
+                subcloud_name + '_' + config_file_type + '.yml'
+            )
+        elif config_file_type == INSTALL_VALUES:
+            file_path = os.path.join(
+                consts.ANSIBLE_OVERRIDES_PATH + '/' + subcloud_name,
+                config_file_type + '.yml'
+            )
+        else:
+            file_path = os.path.join(
+                consts.ANSIBLE_OVERRIDES_PATH,
+                subcloud_name + '.yml'
+            )
+        return file_path
+
+    def _get_subcloud_db_install_values(self, subcloud):
+        if not subcloud.data_install:
+            msg = _("Failed to read data install from db")
+            LOG.exception(msg)
+            pecan.abort(400, msg)
+
+        install_values = json.loads(subcloud.data_install)
+
+        # mandatory bootstrap parameters
+        mandatory_bootstrap_parameters = [
+            'bootstrap_interface',
+            'bootstrap_address',
+            'bootstrap_address_prefix',
+            'bmc_username',
+            'bmc_address',
+            'bmc_password',
+        ]
+        for p in mandatory_bootstrap_parameters:
+            if p not in install_values:
+                msg = _("Failed to get %s from data_install" % p)
+                LOG.exception(msg)
+                pecan.abort(400, msg)
+
+        install_values.update({
+            'ansible_become_pass': consts.TEMP_SYSADMIN_PASSWORD,
+            'ansible_ssh_pass': consts.TEMP_SYSADMIN_PASSWORD
+        })
+
+        return install_values
 
     @staticmethod
     def _get_updatestatus_payload(request):
@@ -802,7 +843,8 @@ class SubcloudsController(object):
             except RemoteError as e:
                 pecan.abort(422, e.value)
             except Exception:
-                LOG.exception("Unable to create subcloud %s" % name)
+                LOG.exception(
+                    "Unable to create subcloud %s" % payload.get('name'))
                 pecan.abort(500, _('Unable to create subcloud'))
         else:
             pecan.abort(400, _('Invalid request'))
@@ -921,6 +963,30 @@ class SubcloudsController(object):
             except Exception:
                 LOG.exception("Unable to reconfigure subcloud %s" % subcloud.name)
                 pecan.abort(500, _('Unable to reconfigure subcloud'))
+        elif verb == "reinstall":
+            install_values = self._get_subcloud_db_install_values(subcloud)
+            payload = db_api.subcloud_db_model_to_dict(subcloud)
+            for k in ['data_install', 'data_upgrade', 'created-at', 'updated-at']:
+                if k in payload:
+                    del payload[k]
+
+            payload.update({
+                'bmc_password': install_values.get('bmc_password'),
+                'install_values': install_values,
+            })
+
+            try:
+                self.rpc_client.reinstall_subcloud(
+                    context, subcloud_id, payload)
+
+                # Return deploy_status as pre-install
+                subcloud.deploy_status = consts.DEPLOY_STATE_PRE_INSTALL
+                return db_api.subcloud_db_model_to_dict(subcloud)
+            except RemoteError as e:
+                pecan.abort(422, e.value)
+            except Exception:
+                LOG.exception("Unable to reinstall subcloud %s" % subcloud.name)
+                pecan.abort(500, _('Unable to reinstall subcloud'))
         elif verb == 'update_status':
             res = self.updatestatus(subcloud.name)
             return res
