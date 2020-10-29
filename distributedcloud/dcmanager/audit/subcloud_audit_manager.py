@@ -29,8 +29,6 @@ from keystoneauth1 import exceptions as keystone_exceptions
 from oslo_config import cfg
 from oslo_log import log as logging
 
-from sysinv.common import constants as sysinv_constants
-
 from dccommon import consts as dccommon_consts
 from dccommon.drivers.openstack.sdk_platform import OpenStackDriver
 
@@ -59,6 +57,9 @@ SUBCLOUD_STATE_UPDATE_ITERATIONS = \
 # can be forced to happen on the next audit interval by calling
 # trigger_patch_audit.
 DEFAULT_PATCH_AUDIT_DELAY_SECONDS = 900
+
+# Name of starlingx openstack helm application
+HELM_APP_OPENSTACK = 'stx-openstack'
 
 
 class SubcloudAuditManager(manager.Manager):
@@ -236,7 +237,7 @@ class SubcloudAuditManager(manager.Manager):
         # would require changes to handle this gracefully.
         # apps = sysinv_client.get_applications()
         # for app in apps:
-        #    if app.name == sysinv_constants.HELM_APP_OPENSTACK and app.active:
+        #    if app.name == HELM_APP_OPENSTACK and app.active:
         #        openstack_installed = True
         #        break
 
@@ -349,8 +350,7 @@ class SubcloudAuditManager(manager.Manager):
             return
 
         for app in apps:
-            if app.name == sysinv_constants.HELM_APP_OPENSTACK \
-                    and app.active:
+            if app.name == HELM_APP_OPENSTACK and app.active:
                 # audit find openstack app is installed and active in
                 # the subcloud
                 openstack_installed_current = True
