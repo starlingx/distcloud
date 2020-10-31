@@ -22,7 +22,6 @@ from os import path as os_path
 import threading
 
 from oslo_config import cfg
-from oslo_utils import timeutils
 
 from dcmanager.common import consts
 from dcmanager.common import context
@@ -314,21 +313,6 @@ class FakeSysinvClientOneLoad(object):
 class Controller(object):
     def __init__(self, hostname):
         self.hostname = hostname
-
-
-class SwUpdateStrategy(object):
-    def __init__(self, id, data):
-        self.id = id
-        self.type = data['type']
-        self.subcloud_apply_type = data['subcloud-apply-type']
-        self.max_parallel_subclouds = int(data['max-parallel-subclouds'])
-        if data['stop-on-failure'] == 'true':
-            self.stop_on_failure = True
-        else:
-            self.stop_on_failure = False
-        self.state = data['state']
-        self.created_at = timeutils.utcnow()
-        self.updated_at = timeutils.utcnow()
 
 
 # All orch_threads can be mocked the same way

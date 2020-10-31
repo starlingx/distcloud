@@ -23,8 +23,11 @@ import datetime
 import threading
 import time
 
+from keystoneauth1 import exceptions as keystone_exceptions
 from oslo_log import log as logging
 
+from dccommon.drivers.openstack.sdk_platform import OpenStackDriver
+from dccommon.drivers.openstack import vim
 from dcmanager.common import consts
 from dcmanager.common import context
 from dcmanager.common import exceptions
@@ -100,6 +103,22 @@ class FwUpdateOrchThread(threading.Thread):
         # Stop any greenthreads that are still running
         self.thread_group_manager.stop()
         LOG.info("FwUpdateOrchThread Stopped")
+
+    @staticmethod
+    def get_ks_client(region_name=consts.DEFAULT_REGION_NAME):
+        """This will get a cached keystone client (and token)"""
+        try:
+            os_client = OpenStackDriver(
+                region_name=region_name,
+                region_clients=None)
+            return os_client.keystone_client
+        except Exception:
+            LOG.warn('Failure initializing KeystoneClient')
+            raise
+
+    def get_vim_client(self, region_name=consts.DEFAULT_REGION_NAME):
+        ks_client = self.get_ks_client(region_name)
+        return vim.VimClient(region_name, ks_client.session)
 
     @staticmethod
     def get_region_name(strategy_step):
@@ -352,8 +371,14 @@ class FwUpdateOrchThread(threading.Thread):
 
         LOG.info("Deleting fw update strategy")
 
-        # todo(abailey): determine if we should validate the strategy_steps
-        # before allowing the delete
+        strategy_steps = db_api.strategy_step_get_all(self.context)
+
+        for strategy_step in strategy_steps:
+            self.delete_subcloud_strategy(strategy_step)
+
+            if self.stopped():
+                LOG.info("Exiting because task is stopped")
+                return
 
         # Remove the strategy from the database
         try:
@@ -362,6 +387,50 @@ class FwUpdateOrchThread(threading.Thread):
         except Exception as e:
             LOG.exception(e)
             raise e
+
+    # todo(abailey): refactor delete to reuse patch orch code
+    def delete_subcloud_strategy(self, strategy_step):
+        """Delete the vim strategy in this subcloud"""
+
+        strategy_name = vim.STRATEGY_NAME_FW_UPDATE
+        region = self.get_region_name(strategy_step)
+
+        LOG.info("Deleting vim strategy %s for %s" % (strategy_name, region))
+
+        # First check if the strategy has been created.
+        try:
+            subcloud_strategy = self.get_vim_client(region).get_strategy(
+                strategy_name=strategy_name)
+        except (keystone_exceptions.EndpointNotFound, IndexError):
+            message = ("Endpoint for subcloud: %s not found." %
+                       region)
+            LOG.error(message)
+            self.strategy_step_update(
+                strategy_step.subcloud_id,
+                state=consts.STRATEGY_STATE_FAILED,
+                details=message)
+            return
+        except Exception:
+            # Strategy doesn't exist so there is nothing to do
+            return
+
+        if subcloud_strategy.state in [vim.STATE_BUILDING,
+                                       vim.STATE_APPLYING,
+                                       vim.STATE_ABORTING]:
+            # Can't delete a strategy in these states
+            message = ("Strategy for %s in wrong state (%s)for delete" %
+                       (region, subcloud_strategy.state))
+            LOG.warn(message)
+            raise Exception(message)
+
+        # If we are here, we need to delete the strategy
+        try:
+            self.get_vim_client(region).delete_strategy(
+                strategy_name=strategy_name)
+        except Exception:
+            message = "Strategy delete failed for %s" % region
+            LOG.warn(message)
+            raise
 
     def process_update_step(self, region, strategy_step, log_error=False):
         """manage the green thread for calling perform_state_action"""

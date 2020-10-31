@@ -19,11 +19,6 @@ UPGRADED_VERSION = '56.78'
 FAKE_VENDOR = '8086'
 FAKE_DEVICE = '0b30'
 
-# VIM constants for Strategy
-APPLY_TYPE_SERIAL = 'serial'
-INSTANCE_ACTION_STOP_START = 'stop-start'
-ALARM_RESTRICTIONS_STRICT = 'strict'
-
 
 class FakeController(object):
     def __init__(self,
@@ -186,47 +181,3 @@ class FakeUpgrade(object):
         self.from_release = from_release
         self.to_release = to_release
         self.links = []
-
-
-class FakeVimClient(object):
-    def __init__(self):
-        pass
-
-
-class FakeVimStrategy(object):
-    """Represents a VIM Strategy object defined in:
-
-       starlingx/nfv/nfv-client/nfv_client/openstack/sw_update.py
-    """
-
-    def __init__(self,
-                 name="VIM Strategy",
-                 controller_apply_type=APPLY_TYPE_SERIAL,
-                 storage_apply_type=APPLY_TYPE_SERIAL,
-                 swift_apply_type=APPLY_TYPE_SERIAL,
-                 worker_apply_type=APPLY_TYPE_SERIAL,
-                 max_parallel_worker_hosts=2,
-                 default_instance_action=INSTANCE_ACTION_STOP_START,
-                 alarm_restrictions=ALARM_RESTRICTIONS_STRICT,
-                 current_phase=None,
-                 current_phase_completion_percentage=0,
-                 state=None,
-                 build_phase=None,
-                 apply_phase=None,
-                 abort_phase=None):
-        self.uuid = str(uuid.uuid4())
-        self.name = name
-        self.controller_apply_type = controller_apply_type
-        self.storage_apply_type = storage_apply_type
-        self.swift_apply_type = swift_apply_type
-        self.worker_apply_type = worker_apply_type
-        self.max_parallel_worker_hosts = max_parallel_worker_hosts
-        self.default_instance_action = default_instance_action
-        self.alarm_restrictions = alarm_restrictions
-        self.current_phase = current_phase
-        self.current_phase_completion_percentage =\
-            current_phase_completion_percentage
-        self.state = state
-        self.build_phase = build_phase
-        self.apply_phase = apply_phase
-        self.abort_phase = abort_phase

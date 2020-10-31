@@ -73,26 +73,26 @@ class CreatingVIMStrategyState(BaseState):
                                                           region)
         else:
             self.info_log(strategy_step,
-                          "FW VIM strategy exists with state: %s"
+                          "FW VIM strategy already exists with state: %s"
                           % subcloud_strategy.state)
-            # if a strategy exists in any type of failed state or aborted
-            # state it should be deleted.
-            # applied state should also be deleted from previous success runs.
-            if subcloud_strategy.state in [vim.STATE_BUILD_FAILED,
-                                           vim.STATE_BUILD_TIMEOUT,
-                                           vim.STATE_APPLY_FAILED,
-                                           vim.STATE_APPLY_TIMEOUT,
-                                           vim.STATE_ABORTED,
-                                           vim.STATE_ABORT_FAILED,
-                                           vim.STATE_ABORT_TIMEOUT,
-                                           vim.STATE_APPLIED]:
-                self.info_log(strategy_step,
-                              "Deleting existing FW VIM strategy")
-                self.get_vim_client(region).delete_strategy(
-                    strategy_name=vim.STRATEGY_NAME_FW_UPDATE)
-                # re-create it
-                subcloud_strategy = self._create_vim_strategy(strategy_step,
-                                                              region)
+            # if a strategy exists in building/applying/aborting do not delete
+            # it and instead raise an exception
+            if subcloud_strategy.state in [vim.STATE_BUILDING,
+                                           vim.STATE_APPLYING,
+                                           vim.STATE_ABORTING]:
+                # Can't delete a strategy in these states
+                message = ("Failed to create a VIM strategy for %s. "
+                           "There already is an existing strategy in %s state"
+                           % (region, subcloud_strategy.state))
+                self.warn_log(strategy_step, message)
+                raise Exception(message)
+
+            # if strategy exists in any other type of state, delete and create
+            self.info_log(strategy_step, "Deleting existing FW VIM strategy")
+            self.get_vim_client(region).delete_strategy(
+                strategy_name=vim.STRATEGY_NAME_FW_UPDATE)
+            subcloud_strategy = self._create_vim_strategy(strategy_step,
+                                                          region)
 
         # A strategy already exists, or is being built
         # Loop until the strategy is done building Repeatedly query the API

@@ -10,7 +10,7 @@ from dccommon.drivers.openstack import vim
 from dcmanager.common import consts
 from dcmanager.orchestrator.states.firmware import applying_vim_strategy
 
-from dcmanager.tests.unit.orchestrator.states.fakes import FakeVimStrategy
+from dcmanager.tests.unit.fakes import FakeVimStrategy
 from dcmanager.tests.unit.orchestrator.states.firmware.test_base \
     import TestFwUpdateState
 
