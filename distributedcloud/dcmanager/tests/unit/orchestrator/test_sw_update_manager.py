@@ -29,7 +29,10 @@ from dcmanager.common import exceptions
 from dcmanager.db.sqlalchemy import api as db_api
 from dcmanager.orchestrator import patch_orch_thread
 from dcmanager.orchestrator import sw_update_manager
+
 from dcmanager.tests import base
+from dcmanager.tests.unit.common import fake_strategy
+from dcmanager.tests.unit.common import fake_subcloud
 from dcmanager.tests import utils
 from dcorch.common import consts as dcorch_consts
 
@@ -472,24 +475,26 @@ class TestSwUpdateManager(base.DCManagerTestCase):
         self.assertEqual('localhost', um.host)
 
     @mock.patch.object(sw_update_manager, 'PatchOrchThread')
-    @mock.patch.object(sw_update_manager, 'db_api')
     def test_create_sw_update_strategy_no_subclouds(
-            self, mock_db_api, mock_patch_orch_thread):
-        mock_db_api.sw_update_strategy_get.side_effect = \
-            exceptions.NotFound()
+            self, mock_patch_orch_thread):
         um = sw_update_manager.SwUpdateManager()
-        um.create_sw_update_strategy(self.ctxt, payload=FAKE_SW_UPDATE_DATA)
-        mock_db_api.sw_update_strategy_create.assert_called_once()
+        response = um.create_sw_update_strategy(
+            self.ctxt, payload=FAKE_SW_UPDATE_DATA)
 
-        expected_calls = [
-            mock.call(mock.ANY,
-                      None,
-                      stage=1,
-                      state=consts.STRATEGY_STATE_INITIAL,
-                      details=''),
-        ]
-        mock_db_api.strategy_step_create.assert_has_calls(
-            expected_calls)
+        # Verify strategy was created as expected
+        self.assertEqual(response['type'],
+                         FAKE_SW_UPDATE_DATA['type'])
+
+        # Verify strategy step was created as expected
+        strategy_steps = db_api.strategy_step_get_all(self.ctx)
+        self.assertEqual(strategy_steps[0]['state'],
+                         consts.STRATEGY_STATE_INITIAL)
+        self.assertEqual(strategy_steps[0]['stage'],
+                         1)
+        self.assertEqual(strategy_steps[0]['details'],
+                         '')
+        self.assertEqual(strategy_steps[0]['subcloud_id'],
+                         None)
 
     @mock.patch.object(sw_update_manager, 'PatchOrchThread')
     def test_create_sw_update_strategy_parallel(
@@ -1174,20 +1179,24 @@ class TestSwUpdateManager(base.DCManagerTestCase):
     @mock.patch.object(os_path, 'isfile')
     @mock.patch.object(patch_orch_thread, 'PatchingClient')
     @mock.patch.object(threading, 'Thread')
-    @mock.patch.object(patch_orch_thread, 'db_api')
     def test_update_subcloud_patches(
-            self, mock_db_api, mock_threading,
+            self, mock_threading,
             mock_patching_client, mock_os_path_isfile, mock_sysinv_client):
+
+        subcloud_id = fake_subcloud.create_fake_subcloud(self.ctx).id
+        subcloud = db_api.subcloud_update(
+            self.ctx,
+            subcloud_id,
+            management_state=consts.MANAGEMENT_MANAGED,
+            availability_status=consts.AVAILABILITY_ONLINE)
+        fake_strategy.create_fake_strategy_step(
+            self.ctx,
+            subcloud_id=subcloud.id,
+            state=consts.STRATEGY_STATE_UPDATING_PATCHES)
+        strategy_step = db_api.strategy_step_get_by_name(self.ctx, subcloud.name)
 
         mock_patching_client.side_effect = FakePatchingClientOutOfSync
         mock_os_path_isfile.return_value = True
-        fake_subcloud = Subcloud(1, 'subcloud1', 1,
-                                 is_managed=True, is_online=True)
-        data = copy.copy(FAKE_STRATEGY_STEP_DATA)
-        data['state'] = consts.STRATEGY_STATE_UPDATING_PATCHES
-        data['subcloud'] = fake_subcloud
-        data['subcloud_name'] = 'subcloud1'
-        fake_strategy_step = StrategyStep(**data)
         mock_sysinv_client.side_effect = FakeSysinvClientOneLoad
         FakePatchingClientOutOfSync.apply = mock.Mock()
         FakePatchingClientOutOfSync.remove = mock.Mock()
@@ -1197,7 +1206,7 @@ class TestSwUpdateManager(base.DCManagerTestCase):
         pot = sw_update_manager.PatchOrchThread(mock_strategy_lock,
                                                 self.fake_dcmanager_audit_api)
         pot.get_ks_client = mock.Mock()
-        pot.update_subcloud_patches(fake_strategy_step)
+        pot.update_subcloud_patches(strategy_step)
 
         assert(compare_call_with_unsorted_list(
             FakePatchingClientOutOfSync.remove.call_args_list[0],
@@ -1209,31 +1218,33 @@ class TestSwUpdateManager(base.DCManagerTestCase):
             FakePatchingClientOutOfSync.apply.call_args_list[0],
             ['DC.2', 'DC.3', 'DC.8']
         ))
-        mock_db_api.strategy_step_update.assert_called_with(
-            mock.ANY,
-            fake_strategy_step.subcloud_id,
-            state=consts.STRATEGY_STATE_CREATING_STRATEGY,
-            details=mock.ANY,
-            started_at=mock.ANY,
-            finished_at=mock.ANY,
-        )
+
+        # Verify that strategy step was updated
+        updated_strategy_steps = db_api.strategy_step_get_all(self.ctx)
+        self.assertEqual(updated_strategy_steps[0]['state'],
+                         consts.STRATEGY_STATE_CREATING_STRATEGY)
 
     @mock.patch.object(patch_orch_thread, 'SysinvClient')
     @mock.patch.object(os_path, 'isfile')
     @mock.patch.object(patch_orch_thread, 'PatchingClient')
     @mock.patch.object(threading, 'Thread')
-    @mock.patch.object(patch_orch_thread, 'db_api')
     def test_update_subcloud_patches_bad_committed(
-            self, mock_db_api, mock_threading,
+            self, mock_threading,
             mock_patching_client, mock_os_path_isfile, mock_sysinv_client):
 
+        subcloud_id = fake_subcloud.create_fake_subcloud(self.ctx).id
+        subcloud = db_api.subcloud_update(
+            self.ctx,
+            subcloud_id,
+            management_state=consts.MANAGEMENT_MANAGED,
+            availability_status=consts.AVAILABILITY_ONLINE)
+        fake_strategy.create_fake_strategy_step(
+            self.ctx,
+            subcloud_id=subcloud.id,
+            state=consts.STRATEGY_STATE_UPDATING_PATCHES)
+        strategy_step = db_api.strategy_step_get_by_name(self.ctx, subcloud.name)
+
         mock_os_path_isfile.return_value = True
-        fake_subcloud = Subcloud(1, 'subcloud1', 1,
-                                 is_managed=True, is_online=True)
-        data = copy.copy(FAKE_STRATEGY_STEP_DATA)
-        data['state'] = consts.STRATEGY_STATE_UPDATING_PATCHES
-        data['subcloud'] = fake_subcloud
-        fake_strategy_step = StrategyStep(**data)
         mock_patching_client.side_effect = FakePatchingClientSubcloudCommitted
         mock_sysinv_client.side_effect = FakeSysinvClientOneLoad
         FakePatchingClientOutOfSync.apply = mock.Mock()
@@ -1244,33 +1255,34 @@ class TestSwUpdateManager(base.DCManagerTestCase):
         pot = sw_update_manager.PatchOrchThread(mock_strategy_lock,
                                                 self.fake_dcmanager_audit_api)
         pot.get_ks_client = mock.Mock()
-        pot.update_subcloud_patches(fake_strategy_step)
+        pot.update_subcloud_patches(strategy_step)
 
-        mock_db_api.strategy_step_update.assert_called_with(
-            mock.ANY,
-            fake_strategy_step.subcloud_id,
-            state=consts.STRATEGY_STATE_FAILED,
-            details=mock.ANY,
-            started_at=mock.ANY,
-            finished_at=mock.ANY,
-        )
+        # Verify that strategy step was updated
+        updated_strategy_steps = db_api.strategy_step_get_all(self.ctx)
+        self.assertEqual(updated_strategy_steps[0]['state'],
+                         consts.STRATEGY_STATE_FAILED)
 
     @mock.patch.object(patch_orch_thread, 'SysinvClient')
     @mock.patch.object(os_path, 'isfile')
     @mock.patch.object(patch_orch_thread, 'PatchingClient')
     @mock.patch.object(threading, 'Thread')
-    @mock.patch.object(patch_orch_thread, 'db_api')
     def test_update_subcloud_patches_bad_state(
-            self, mock_db_api, mock_threading,
+            self, mock_threading,
             mock_patching_client, mock_os_path_isfile, mock_sysinv_client):
 
+        subcloud_id = fake_subcloud.create_fake_subcloud(self.ctx).id
+        subcloud = db_api.subcloud_update(
+            self.ctx,
+            subcloud_id,
+            management_state=consts.MANAGEMENT_MANAGED,
+            availability_status=consts.AVAILABILITY_ONLINE)
+        fake_strategy.create_fake_strategy_step(
+            self.ctx,
+            subcloud_id=subcloud.id,
+            state=consts.STRATEGY_STATE_UPDATING_PATCHES)
+        strategy_step = db_api.strategy_step_get_by_name(self.ctx, subcloud.name)
+
         mock_os_path_isfile.return_value = True
-        fake_subcloud = Subcloud(1, 'subcloud1', 1,
-                                 is_managed=True, is_online=True)
-        data = copy.copy(FAKE_STRATEGY_STEP_DATA)
-        data['state'] = consts.STRATEGY_STATE_UPDATING_PATCHES
-        data['subcloud'] = fake_subcloud
-        fake_strategy_step = StrategyStep(**data)
         mock_patching_client.side_effect = FakePatchingClientSubcloudUnknown
         mock_sysinv_client.side_effect = FakeSysinvClientOneLoad
         FakePatchingClientOutOfSync.apply = mock.Mock()
@@ -1281,32 +1293,33 @@ class TestSwUpdateManager(base.DCManagerTestCase):
         pot = sw_update_manager.PatchOrchThread(mock_strategy_lock,
                                                 self.fake_dcmanager_audit_api)
         pot.get_ks_client = mock.Mock()
-        pot.update_subcloud_patches(fake_strategy_step)
+        pot.update_subcloud_patches(strategy_step)
 
-        mock_db_api.strategy_step_update.assert_called_with(
-            mock.ANY,
-            fake_strategy_step.subcloud_id,
-            state=consts.STRATEGY_STATE_FAILED,
-            details=mock.ANY,
-            started_at=mock.ANY,
-            finished_at=mock.ANY,
-        )
+        # Verify that strategy step was updated
+        updated_strategy_steps = db_api.strategy_step_get_all(self.ctx)
+        self.assertEqual(updated_strategy_steps[0]['state'],
+                         consts.STRATEGY_STATE_FAILED)
 
     @mock.patch.object(os_path, 'isfile')
     @mock.patch.object(patch_orch_thread, 'PatchingClient')
     @mock.patch.object(threading, 'Thread')
-    @mock.patch.object(patch_orch_thread, 'db_api')
     def test_finish(
-            self, mock_db_api, mock_threading,
+            self, mock_threading,
             mock_patching_client, mock_os_path_isfile):
 
+        subcloud_id = fake_subcloud.create_fake_subcloud(self.ctx).id
+        subcloud = db_api.subcloud_update(
+            self.ctx,
+            subcloud_id,
+            management_state=consts.MANAGEMENT_MANAGED,
+            availability_status=consts.AVAILABILITY_ONLINE)
+        fake_strategy.create_fake_strategy_step(
+            self.ctx,
+            subcloud_id=subcloud.id,
+            state=consts.STRATEGY_STATE_UPDATING_PATCHES)
+        strategy_step = db_api.strategy_step_get_by_name(self.ctx, subcloud.name)
+
         mock_os_path_isfile.return_value = True
-        fake_subcloud = Subcloud(1, 'subcloud1', 1,
-                                 is_managed=True, is_online=True)
-        data = copy.copy(FAKE_STRATEGY_STEP_DATA)
-        data['state'] = consts.STRATEGY_STATE_UPDATING_PATCHES
-        data['subcloud'] = fake_subcloud
-        fake_strategy_step = StrategyStep(**data)
         mock_patching_client.side_effect = FakePatchingClientFinish
         FakePatchingClientFinish.delete = mock.Mock()
         FakePatchingClientFinish.commit = mock.Mock()
@@ -1315,7 +1328,7 @@ class TestSwUpdateManager(base.DCManagerTestCase):
         pot = sw_update_manager.PatchOrchThread(mock_strategy_lock,
                                                 self.fake_dcmanager_audit_api)
         pot.get_ks_client = mock.Mock()
-        pot.finish(fake_strategy_step)
+        pot.finish(strategy_step)
 
         assert(compare_call_with_unsorted_list(
             FakePatchingClientFinish.delete.call_args_list[0],
@@ -1325,11 +1338,8 @@ class TestSwUpdateManager(base.DCManagerTestCase):
             FakePatchingClientFinish.commit.call_args_list[0],
             ['DC.2', 'DC.3']
         ))
-        mock_db_api.strategy_step_update.assert_called_with(
-            mock.ANY,
-            fake_strategy_step.subcloud_id,
-            state=consts.STRATEGY_STATE_COMPLETE,
-            details=mock.ANY,
-            started_at=mock.ANY,
-            finished_at=mock.ANY,
-        )
+
+        # Verify that strategy step was updated
+        updated_strategy_steps = db_api.strategy_step_get_all(self.ctx)
+        self.assertEqual(updated_strategy_steps[0]['state'],
+                         consts.STRATEGY_STATE_COMPLETE)

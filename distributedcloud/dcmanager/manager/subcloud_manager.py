@@ -224,10 +224,10 @@ class SubcloudManager(manager.Manager):
         :param payload: subcloud configuration
         """
         LOG.info("Adding subcloud %s." % payload['name'])
-        subcloud = db_api.subcloud_get_by_name(context, payload['name'])
+        subcloud_id = db_api.subcloud_get_by_name(context, payload['name']).id
 
-        db_api.subcloud_update(
-            context, subcloud.id,
+        subcloud = db_api.subcloud_update(
+            context, subcloud_id,
             deploy_status=consts.DEPLOY_STATE_PRE_DEPLOY)
 
         # Populate the subcloud status table with all endpoints

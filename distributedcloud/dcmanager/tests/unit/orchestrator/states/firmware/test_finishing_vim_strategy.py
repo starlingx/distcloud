@@ -24,6 +24,9 @@ class TestFwUpdateFinishingFwUpdateStage(TestFwUpdateState):
         # set the next state in the chain (when this state is successful)
         self.on_success_state = consts.STRATEGY_STATE_COMPLETE
 
+        # Add the subcloud being processed by this unit test
+        self.subcloud = self.setup_subcloud()
+
         # Add the strategy_step state being processed by this unit test
         self.strategy_step = self.setup_strategy_step(
             consts.STRATEGY_STATE_FINISHING_FW_UPDATE)

@@ -7,8 +7,8 @@ import itertools
 import mock
 
 from dcmanager.common import consts
-
 from dcmanager.orchestrator.states.upgrade import activating
+
 from dcmanager.tests.unit.orchestrator.states.fakes import FakeUpgrade
 from dcmanager.tests.unit.orchestrator.states.upgrade.test_base \
     import TestSwUpgradeState
@@ -30,6 +30,9 @@ class TestSwUpgradeActivatingStage(TestSwUpgradeState):
 
         # next state after activating an upgrade is 'completing'
         self.on_success_state = consts.STRATEGY_STATE_COMPLETING_UPGRADE
+
+        # Add the subcloud being processed by this unit test
+        self.subcloud = self.setup_subcloud()
 
         # Add the strategy_step state being processed by this unit test
         self.strategy_step = \

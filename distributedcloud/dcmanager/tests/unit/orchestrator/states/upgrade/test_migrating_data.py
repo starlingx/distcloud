@@ -40,6 +40,9 @@ class TestSwUpgradeMigratingDataStage(TestSwUpgradeState):
         # next state after 'migrating data' is 'unlocking controller'
         self.on_success_state = consts.STRATEGY_STATE_UNLOCKING_CONTROLLER
 
+        # Add the subcloud being processed by this unit test
+        self.subcloud = self.setup_subcloud()
+
         # Add the strategy_step state being processed by this unit test
         self.strategy_step = \
             self.setup_strategy_step(consts.STRATEGY_STATE_MIGRATING_DATA)
@@ -47,8 +50,7 @@ class TestSwUpgradeMigratingDataStage(TestSwUpgradeState):
         # Add mock API endpoints for sysinv client calls invoked by this state
         self.sysinv_client.get_host = mock.MagicMock()
 
-    @mock.patch.object(migrating_data, 'db_api')
-    def test_upgrade_subcloud_migrating_data_failure(self, mock_db_api):
+    def test_upgrade_subcloud_migrating_data_failure(self):
         """Test migrating data step where the subprocess call fails."""
 
         # Simulate a failed subprocess call to the platform upgrade playbook
@@ -66,8 +68,7 @@ class TestSwUpgradeMigratingDataStage(TestSwUpgradeState):
         self.assert_step_updated(self.strategy_step.subcloud_id,
                                  consts.STRATEGY_STATE_FAILED)
 
-    @mock.patch.object(migrating_data, 'db_api')
-    def test_upgrade_subcloud_migrating_data_success(self, mock_db_api):
+    def test_upgrade_subcloud_migrating_data_success(self):
         """Test migrating data step where the subprocess call passes."""
 
         # Simulate a successful subprocess call to the platform upgrade playbook
@@ -157,8 +158,7 @@ class TestSwUpgradeMigratingDataStage(TestSwUpgradeState):
         self.assert_step_updated(self.strategy_step.subcloud_id,
                                  consts.STRATEGY_STATE_FAILED)
 
-    @mock.patch.object(migrating_data, 'db_api')
-    def test_upgrade_subcloud_migrating_data_reboot_timeout(self, mock_db_api):
+    def test_upgrade_subcloud_migrating_data_reboot_timeout(self):
         """Test migrating data step times out during reboot
 
         The subprocess call passes however the reboot times out.
@@ -186,8 +186,7 @@ class TestSwUpgradeMigratingDataStage(TestSwUpgradeState):
         self.assert_step_updated(self.strategy_step.subcloud_id,
                                  consts.STRATEGY_STATE_FAILED)
 
-    @mock.patch.object(migrating_data, 'db_api')
-    def test_upgrade_subcloud_migrating_data_recover_timeout(self, mock_db_api):
+    def test_upgrade_subcloud_migrating_data_recover_timeout(self):
         """Test migrating data step times out enabling after reboot
 
         The subprocess call passes however the unlock enable times out.

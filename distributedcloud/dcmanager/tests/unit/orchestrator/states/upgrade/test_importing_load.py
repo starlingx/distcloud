@@ -102,6 +102,9 @@ class TestSwUpgradeImportingLoadStage(TestSwUpgradeState):
         # next state after 'importing load' is 'starting upgrade'
         self.on_success_state = consts.STRATEGY_STATE_STARTING_UPGRADE
 
+        # Add the subcloud being processed by this unit test
+        self.subcloud = self.setup_subcloud()
+
         # Add the strategy_step state being processed by this unit test
         self.strategy_step = \
             self.setup_strategy_step(consts.STRATEGY_STATE_IMPORTING_LOAD)

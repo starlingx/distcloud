@@ -7,6 +7,8 @@
 import base64
 
 from dcmanager.common import consts
+from dcmanager.db.sqlalchemy import api as db_api
+
 from dcmanager.tests import utils
 
 FAKE_TENANT = utils.UUID1
@@ -56,3 +58,23 @@ FAKE_SUBCLOUD_INSTALL_VALUES = {
     "boot_device": "/dev/disk/by-path/pci-0000:5c:00.0-scsi-0:1:0:0",
     "rd.net.timeout.ipv6dad": 300,
 }
+
+
+def create_fake_subcloud(ctxt, **kwargs):
+    values = {
+        "name": "subcloud1",
+        "description": "subcloud1 description",
+        "location": "subcloud1 location",
+        'software_version': "18.03",
+        "management_subnet": "192.168.101.0/24",
+        "management_gateway_ip": "192.168.101.1",
+        "management_start_ip": "192.168.101.3",
+        "management_end_ip": "192.168.101.4",
+        "systemcontroller_gateway_ip": "192.168.204.101",
+        'deploy_status': consts.DEPLOY_STATE_DONE,
+        'openstack_installed': False,
+        'group_id': 1,
+        'data_install': 'data from install',
+    }
+    values.update(kwargs)
+    return db_api.subcloud_create(ctxt, **values)

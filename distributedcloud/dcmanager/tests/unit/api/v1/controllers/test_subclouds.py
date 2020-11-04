@@ -36,6 +36,7 @@ from dcmanager.common import consts
 from dcmanager.common import utils as cutils
 from dcmanager.db.sqlalchemy import api as db_api
 from dcmanager.rpc import client as rpc_client
+
 from dcmanager.tests.unit.api import test_root_controller as testroot
 from dcmanager.tests.unit.api.v1.controllers.mixins import APIMixin
 from dcmanager.tests.unit.api.v1.controllers.mixins import PostMixin
@@ -740,9 +741,9 @@ class TestSubcloudAPIOther(testroot.DCManagerApiTest):
         self.ctx = utils.dummy_context()
 
     @mock.patch.object(rpc_client, 'ManagerClient')
-    @mock.patch.object(subclouds, 'db_api')
-    def test_delete_subcloud(self, mock_db_api, mock_rpc_client):
-        delete_url = FAKE_URL + '/' + FAKE_ID
+    def test_delete_subcloud(self, mock_rpc_client):
+        subcloud = fake_subcloud.create_fake_subcloud(self.ctx)
+        delete_url = FAKE_URL + '/' + str(subcloud.id)
         mock_rpc_client().delete_subcloud.return_value = True
         response = self.app.delete_json(delete_url, headers=FAKE_HEADERS)
         mock_rpc_client().delete_subcloud.assert_called_once_with(
@@ -759,27 +760,25 @@ class TestSubcloudAPIOther(testroot.DCManagerApiTest):
     @mock.patch.object(subclouds.SubcloudsController,
                        '_get_oam_addresses')
     @mock.patch.object(rpc_client, 'ManagerClient')
-    @mock.patch.object(subclouds, 'db_api')
     def test_get_subcloud(self,
-                          mock_db_api,
                           mock_rpc_client,
                           mock_get_oam_addresses):
-        get_url = FAKE_URL + '/' + FAKE_ID
+        subcloud = fake_subcloud.create_fake_subcloud(self.ctx)
+        get_url = FAKE_URL + '/' + str(subcloud.id)
         response = self.app.get(get_url, headers=FAKE_HEADERS)
         self.assertEqual(response.content_type, 'application/json')
         self.assertEqual(response.status_code, http_client.OK)
         self.assertEqual(response.json.get('oam_floating_ip', None), None)
-        self.assertEqual(1, mock_db_api.subcloud_get_with_status.call_count)
+        self.assertEqual(response.json['name'], subcloud.name)
 
     @mock.patch.object(subclouds.SubcloudsController,
                        '_get_oam_addresses')
     @mock.patch.object(rpc_client, 'ManagerClient')
-    @mock.patch.object(subclouds, 'db_api')
     def test_get_subcloud_with_additional_detail(self,
-                                                 mock_db_api,
                                                  mock_rpc_client,
                                                  mock_get_oam_addresses):
-        get_url = FAKE_URL + '/' + FAKE_ID + '/detail'
+        subcloud = fake_subcloud.create_fake_subcloud(self.ctx)
+        get_url = FAKE_URL + '/' + str(subcloud.id) + '/detail'
         oam_addresses = FakeOAMAddressPool('10.10.10.254',
                                            '10.10.10.1',
                                            '10.10.10.254',
@@ -796,12 +795,11 @@ class TestSubcloudAPIOther(testroot.DCManagerApiTest):
     @mock.patch.object(subclouds.SubcloudsController,
                        '_get_oam_addresses')
     @mock.patch.object(rpc_client, 'ManagerClient')
-    @mock.patch.object(subclouds, 'db_api')
-    def test_subcloud_oam_ip_unavailable(self,
-                                         mock_db_api,
-                                         mock_rpc_client,
-                                         mock_get_oam_addresses):
-        get_url = FAKE_URL + '/' + FAKE_ID + '/detail'
+    def test_get_subcloud_oam_ip_unavailable(self,
+                                             mock_rpc_client,
+                                             mock_get_oam_addresses):
+        subcloud = fake_subcloud.create_fake_subcloud(self.ctx)
+        get_url = FAKE_URL + '/' + str(subcloud.id) + '/detail'
         mock_get_oam_addresses.return_value = None
         response = self.app.get(get_url, headers=FAKE_HEADERS)
         self.assertEqual(response.content_type, 'application/json')
@@ -809,48 +807,42 @@ class TestSubcloudAPIOther(testroot.DCManagerApiTest):
         self.assertEqual('unavailable', response.json['oam_floating_ip'])
 
     @mock.patch.object(rpc_client, 'ManagerClient')
-    @mock.patch.object(subclouds, 'db_api')
-    def test_get_wrong_request(self, mock_db_api, mock_rpc_client):
+    def test_get_wrong_request(self, mock_rpc_client):
         get_url = WRONG_URL + '/' + FAKE_ID
         six.assertRaisesRegex(self, webtest.app.AppError, "404 *",
                               self.app.get, get_url,
                               headers=FAKE_HEADERS)
 
     @mock.patch.object(rpc_client, 'ManagerClient')
-    @mock.patch.object(subclouds, 'db_api')
-    def test_get_subcloud_all(self, mock_db_api, mock_rpc_client):
+    def test_get_subcloud_all(self, mock_rpc_client):
+        subcloud = fake_subcloud.create_fake_subcloud(self.ctx)
         get_url = FAKE_URL
-        self.app.get(get_url, headers=FAKE_HEADERS)
-        self.assertEqual(1,
-                         mock_db_api.subcloud_get_all_with_status.call_count)
+        response = self.app.get(get_url, headers=FAKE_HEADERS)
+        self.assertEqual(response.json['subclouds'][0]['name'], subcloud.name)
 
     @mock.patch.object(rpc_client, 'ManagerClient')
-    @mock.patch.object(subclouds, 'db_api')
     @mock.patch.object(subclouds.SubcloudsController, '_get_patch_data')
-    def test_patch_subcloud(self, mock_get_patch_data, mock_db_api,
+    def test_patch_subcloud(self, mock_get_patch_data,
                             mock_rpc_client):
+        subcloud = fake_subcloud.create_fake_subcloud(self.ctx)
         data = {'management-state': consts.MANAGEMENT_UNMANAGED}
         mock_rpc_client().update_subcloud.return_value = True
         mock_get_patch_data.return_value = data
-        response = self.app.patch_json(FAKE_URL + '/' + FAKE_ID,
+        response = self.app.patch_json(FAKE_URL + '/' + str(subcloud.id),
                                        headers=FAKE_HEADERS,
                                        params=data)
-        mock_rpc_client().update_subcloud.assert_called_once_with(
-            mock.ANY,
-            mock.ANY,
-            management_state=consts.MANAGEMENT_UNMANAGED,
-            description=None,
-            location=None,
-            group_id=None,
-            data_install=None,
-            force=None)
         self.assertEqual(response.status_int, 200)
 
+        # Verify subcloud was updated with correct values
+        updated_subcloud = db_api.subcloud_get_by_name(self.ctx, subcloud.name)
+        self.assertEqual(consts.MANAGEMENT_UNMANAGED,
+                         updated_subcloud.management_state)
+
     @mock.patch.object(rpc_client, 'ManagerClient')
-    @mock.patch.object(subclouds, 'db_api')
     @mock.patch.object(subclouds.SubcloudsController, '_get_patch_data')
     def test_patch_subcloud_install_values(self, mock_get_patch_data,
-                                           mock_db_api, mock_rpc_client):
+                                           mock_rpc_client):
+        subcloud = fake_subcloud.create_fake_subcloud(self.ctx)
         payload = {}
         install_data = copy.copy(FAKE_SUBCLOUD_INSTALL_VALUES)
         encoded_password = base64.b64encode(
@@ -861,11 +853,8 @@ class TestSubcloudAPIOther(testroot.DCManagerApiTest):
         mock_rpc_client().update_subcloud.return_value = True
         mock_get_patch_data.return_value = payload
 
-        # Return a fake subcloud database object
-        fake_subcloud = Subcloud(FAKE_SUBCLOUD_DATA, False)
-        mock_db_api.subcloud_get.return_value = fake_subcloud
         fake_content = "fake content".encode("utf-8")
-        response = self.app.patch(FAKE_URL + '/' + FAKE_ID,
+        response = self.app.patch(FAKE_URL + '/' + str(subcloud.id),
                                   headers=FAKE_HEADERS,
                                   params=data,
                                   upload_files=[("install_values",
@@ -874,7 +863,7 @@ class TestSubcloudAPIOther(testroot.DCManagerApiTest):
         install_data.update({'bmc_password': encoded_password})
         mock_rpc_client().update_subcloud.assert_called_once_with(
             mock.ANY,
-            FAKE_ID,
+            subcloud.id,
             management_state=None,
             description=None,
             location=None,
@@ -884,61 +873,65 @@ class TestSubcloudAPIOther(testroot.DCManagerApiTest):
         self.assertEqual(response.status_int, 200)
 
     @mock.patch.object(rpc_client, 'ManagerClient')
-    @mock.patch.object(subclouds, 'db_api')
     @mock.patch.object(subclouds.SubcloudsController, '_get_patch_data')
-    def test_patch_subcloud_no_body(self, mock_get_patch_data, mock_db_api,
+    def test_patch_subcloud_no_body(self, mock_get_patch_data,
                                     mock_rpc_client):
+        subcloud = fake_subcloud.create_fake_subcloud(self.ctx)
         data = {}
         mock_get_patch_data.return_value = data
         six.assertRaisesRegex(self, webtest.app.AppError, "400 *",
-                              self.app.patch_json, FAKE_URL + '/' + FAKE_ID,
+                              self.app.patch_json,
+                              FAKE_URL + '/' + str(subcloud.id),
                               headers=FAKE_HEADERS, params=data)
 
     @mock.patch.object(rpc_client, 'ManagerClient')
-    @mock.patch.object(subclouds, 'db_api')
     @mock.patch.object(subclouds.SubcloudsController, '_get_patch_data')
-    def test_patch_subcloud_bad_status(self, mock_get_patch_data, mock_db_api,
+    def test_patch_subcloud_bad_status(self, mock_get_patch_data,
                                        mock_rpc_client):
+        subcloud = fake_subcloud.create_fake_subcloud(self.ctx)
         data = {'management-state': 'bad-status'}
         mock_get_patch_data.return_value = data
         six.assertRaisesRegex(self, webtest.app.AppError, "400 *",
-                              self.app.patch_json, FAKE_URL + '/' + FAKE_ID,
+                              self.app.patch_json,
+                              FAKE_URL + '/' + str(subcloud.id),
                               headers=FAKE_HEADERS, params=data)
 
     @mock.patch.object(rpc_client, 'ManagerClient')
-    @mock.patch.object(subclouds, 'db_api')
     @mock.patch.object(subclouds.SubcloudsController, '_get_patch_data')
     def test_patch_subcloud_bad_force_value(self, mock_get_patch_data,
-                                            mock_db_api, mock_rpc_client):
+                                            mock_rpc_client):
+        subcloud = fake_subcloud.create_fake_subcloud(self.ctx)
         data = {'management-state': consts.MANAGEMENT_MANAGED,
                 'force': 'bad-value'}
         mock_get_patch_data.return_value = data
         six.assertRaisesRegex(self, webtest.app.AppError, "400 *",
-                              self.app.patch_json, FAKE_URL + '/' + FAKE_ID,
+                              self.app.patch_json,
+                              FAKE_URL + '/' + str(subcloud.id),
                               headers=FAKE_HEADERS, params=data)
 
     @mock.patch.object(rpc_client, 'ManagerClient')
-    @mock.patch.object(subclouds, 'db_api')
     @mock.patch.object(subclouds.SubcloudsController, '_get_patch_data')
     def test_patch_subcloud_forced_unmanaged(self, mock_get_patch_data,
-                                             mock_db_api, mock_rpc_client):
+                                             mock_rpc_client):
+        subcloud = fake_subcloud.create_fake_subcloud(self.ctx)
         data = {'management-state': consts.MANAGEMENT_UNMANAGED,
                 'force': True}
         mock_get_patch_data.return_value = data
         six.assertRaisesRegex(self, webtest.app.AppError, "400 *",
-                              self.app.patch_json, FAKE_URL + '/' + FAKE_ID,
+                              self.app.patch_json,
+                              FAKE_URL + '/' + str(subcloud.id),
                               headers=FAKE_HEADERS, params=data)
 
     @mock.patch.object(rpc_client, 'ManagerClient')
-    @mock.patch.object(subclouds, 'db_api')
     @mock.patch.object(subclouds.SubcloudsController, '_get_patch_data')
     def test_patch_subcloud_forced_manage(self, mock_get_patch_data,
-                                          mock_db_api, mock_rpc_client):
+                                          mock_rpc_client):
+        subcloud = fake_subcloud.create_fake_subcloud(self.ctx)
         data = {'management-state': consts.MANAGEMENT_MANAGED,
                 'force': True}
         mock_rpc_client().update_subcloud.return_value = True
         mock_get_patch_data.return_value = data
-        response = self.app.patch_json(FAKE_URL + '/' + FAKE_ID,
+        response = self.app.patch_json(FAKE_URL + '/' + str(subcloud.id),
                                        headers=FAKE_HEADERS,
                                        params=data)
         mock_rpc_client().update_subcloud.assert_called_once_with(
@@ -953,156 +946,126 @@ class TestSubcloudAPIOther(testroot.DCManagerApiTest):
         self.assertEqual(response.status_int, 200)
 
     @mock.patch.object(rpc_client, 'ManagerClient')
-    @mock.patch.object(subclouds, 'db_api')
     @mock.patch.object(subclouds.SubcloudsController, '_get_reconfig_payload')
     def test_reconfigure_subcloud(self, mock_get_reconfig_payload,
-                                  mock_db_api, mock_rpc_client):
+                                  mock_rpc_client):
+        subcloud = fake_subcloud.create_fake_subcloud(self.ctx)
         fake_password = (base64.b64encode('testpass'.encode("utf-8"))).decode('ascii')
         data = {'sysadmin_password': fake_password}
 
         mock_rpc_client().reconfigure_subcloud.return_value = True
         mock_get_reconfig_payload.return_value = data
 
-        # Return a fake subcloud database object
-        fake_subcloud = Subcloud(FAKE_SUBCLOUD_DATA, False)
-        mock_db_api.subcloud_get.return_value = fake_subcloud
-
-        response = self.app.patch_json(FAKE_URL + '/' + FAKE_ID +
+        response = self.app.patch_json(FAKE_URL + '/' + str(subcloud.id) +
                                        '/reconfigure',
                                        headers=FAKE_HEADERS,
                                        params=data)
         mock_rpc_client().reconfigure_subcloud.assert_called_once_with(
             mock.ANY,
-            FAKE_ID,
+            subcloud.id,
             mock.ANY)
         self.assertEqual(response.status_int, 200)
 
     @mock.patch.object(rpc_client, 'ManagerClient')
-    @mock.patch.object(subclouds, 'db_api')
     @mock.patch.object(subclouds.SubcloudsController, '_get_reconfig_payload')
     def test_reconfigure_subcloud_no_body(self, mock_get_reconfig_payload,
-                                          mock_db_api, mock_rpc_client):
+                                          mock_rpc_client):
+        subcloud = fake_subcloud.create_fake_subcloud(self.ctx)
         # Pass an empty request body
         data = {}
         mock_get_reconfig_payload.return_value = data
         mock_rpc_client().reconfigure_subcloud.return_value = True
 
-        # Return a fake subcloud database object
-        fake_subcloud = Subcloud(FAKE_SUBCLOUD_DATA, False)
-        mock_db_api.subcloud_get.return_value = fake_subcloud
-
         six.assertRaisesRegex(self, webtest.app.AppError, "400 *",
                               self.app.patch_json, FAKE_URL + '/' +
-                              FAKE_ID + '/reconfigure',
+                              str(subcloud.id) + '/reconfigure',
                               headers=FAKE_HEADERS, params=data)
 
     @mock.patch.object(rpc_client, 'ManagerClient')
-    @mock.patch.object(subclouds, 'db_api')
     @mock.patch.object(subclouds.SubcloudsController, '_get_reconfig_payload')
     def test_reconfigure_subcloud_bad_password(self, mock_get_reconfig_payload,
-                                               mock_db_api, mock_rpc_client):
+                                               mock_rpc_client):
+        subcloud = fake_subcloud.create_fake_subcloud(self.ctx)
         # Pass a sysadmin_password which is not base64 encoded
         data = {'sysadmin_password': 'not_base64'}
         mock_get_reconfig_payload.return_value = data
         mock_rpc_client().reconfigure_subcloud.return_value = True
 
-        # Return a fake subcloud database object
-        fake_subcloud = Subcloud(FAKE_SUBCLOUD_DATA, False)
-        mock_db_api.subcloud_get.return_value = fake_subcloud
-
         six.assertRaisesRegex(self, webtest.app.AppError, "400 *",
                               self.app.patch_json, FAKE_URL + '/' +
-                              FAKE_ID + '/reconfigure',
+                              str(subcloud.id) + '/reconfigure',
                               headers=FAKE_HEADERS, params=data)
 
     @mock.patch.object(rpc_client, 'ManagerClient')
-    @mock.patch.object(subclouds, 'db_api')
     @mock.patch.object(subclouds.SubcloudsController, '_get_reconfig_payload')
     def test_reconfigure_invalid_deploy_status(self,
                                                mock_get_reconfig_payload,
-                                               mock_db_api,
                                                mock_rpc_client):
+        subcloud = fake_subcloud.create_fake_subcloud(
+            self.ctx,
+            deploy_status=consts.DEPLOY_STATE_BOOTSTRAP_FAILED)
         fake_password = base64.b64encode('testpass'.encode("utf-8")).decode("utf-8")
         data = {'sysadmin_password': fake_password}
-        # Update the deploy status to bootstrap-failed
-        FAKE_SUBCLOUD_DATA_NEW = copy.copy(FAKE_SUBCLOUD_DATA)
-        FAKE_SUBCLOUD_DATA_NEW["deploy_status"] = \
-            consts.DEPLOY_STATE_BOOTSTRAP_FAILED
         mock_get_reconfig_payload.return_value = data
         mock_rpc_client().reconfigure_subcloud.return_value = True
 
-        # Return a fake subcloud database object
-        fake_subcloud = Subcloud(FAKE_SUBCLOUD_DATA_NEW, False)
-        mock_db_api.subcloud_get.return_value = fake_subcloud
-
         six.assertRaisesRegex(self, webtest.app.AppError, "400 *",
                               self.app.patch_json, FAKE_URL + '/' +
-                              FAKE_ID + '/reconfigure',
+                              str(subcloud.id) + '/reconfigure',
                               headers=FAKE_HEADERS, params=data)
 
     @mock.patch.object(rpc_client, 'ManagerClient')
-    @mock.patch.object(subclouds, 'db_api')
     @mock.patch.object(subclouds.SubcloudsController, '_get_updatestatus_payload')
     def test_subcloud_updatestatus(self, mock_get_updatestatus_payload,
-                                   mock_db_api,
                                    mock_rpc_client):
+        subcloud = fake_subcloud.create_fake_subcloud(self.ctx)
         data = {'endpoint': 'dc-cert', 'status': 'in-sync'}
         mock_get_updatestatus_payload.return_value = data
 
-        FAKE_SUBCLOUD_DATA_NEW = copy.copy(FAKE_SUBCLOUD_DATA)
-        fake_subcloud = Subcloud(FAKE_SUBCLOUD_DATA_NEW, False)
-        mock_db_api.subcloud_get.return_value = fake_subcloud
         mock_rpc_client().update_subcloud_endpoint_status.return_value = True
-        response = self.app.patch_json(FAKE_URL + '/' + FAKE_ID + '/update_status',
-                                       data, headers=FAKE_HEADERS)
+        response = self.app.patch_json(
+            FAKE_URL + '/' + str(subcloud.id) + '/update_status',
+            data, headers=FAKE_HEADERS)
 
         mock_rpc_client().update_subcloud_endpoint_status.assert_called_once_with(
             mock.ANY,
-            fake_subcloud.name,
+            subcloud.name,
             'dc-cert',
             'in-sync')
 
         self.assertEqual(response.status_int, 200)
 
     @mock.patch.object(rpc_client, 'ManagerClient')
-    @mock.patch.object(subclouds, 'db_api')
     @mock.patch.object(subclouds.SubcloudsController, '_get_updatestatus_payload')
     def test_subcloud_updatestatus_invalid_endpoint(
             self, mock_get_updatestatus_payload,
-            mock_db_api,
             mock_rpc_client):
+        subcloud = fake_subcloud.create_fake_subcloud(self.ctx)
         data = {'endpoint': 'any-other-endpoint', 'status': 'in-sync'}
         mock_get_updatestatus_payload.return_value = data
 
-        FAKE_SUBCLOUD_DATA_NEW = copy.copy(FAKE_SUBCLOUD_DATA)
-        fake_subcloud = Subcloud(FAKE_SUBCLOUD_DATA_NEW, False)
-        mock_db_api.subcloud_get.return_value = fake_subcloud
         mock_rpc_client().update_subcloud_endpoint_status.return_value = True
 
         six.assertRaisesRegex(self, webtest.app.AppError, "400 *",
                               self.app.patch_json, FAKE_URL + '/' +
-                              FAKE_ID + '/update_status',
+                              str(subcloud.id) + '/update_status',
                               headers=FAKE_HEADERS, params=data)
         mock_rpc_client().update_subcloud_endpoint_status.assert_not_called()
 
     @mock.patch.object(rpc_client, 'ManagerClient')
-    @mock.patch.object(subclouds, 'db_api')
     @mock.patch.object(subclouds.SubcloudsController, '_get_updatestatus_payload')
     def test_subcloud_updatestatus_invalid_status(
             self, mock_get_updatestatus_payload,
-            mock_db_api,
             mock_rpc_client):
+        subcloud = fake_subcloud.create_fake_subcloud(self.ctx)
         data = {'endpoint': 'dc-cert', 'status': 'not-sure'}
         mock_get_updatestatus_payload.return_value = data
 
-        FAKE_SUBCLOUD_DATA_NEW = copy.copy(FAKE_SUBCLOUD_DATA)
-        fake_subcloud = Subcloud(FAKE_SUBCLOUD_DATA_NEW, False)
-        mock_db_api.subcloud_get.return_value = fake_subcloud
         mock_rpc_client().update_subcloud_endpoint_status.return_value = True
 
         six.assertRaisesRegex(self, webtest.app.AppError, "400 *",
                               self.app.patch_json, FAKE_URL + '/' +
-                              FAKE_ID + '/update_status',
+                              str(subcloud.id) + '/update_status',
                               headers=FAKE_HEADERS, params=data)
         mock_rpc_client().update_subcloud_endpoint_status.assert_not_called()
 
@@ -1145,33 +1108,26 @@ class TestSubcloudAPIOther(testroot.DCManagerApiTest):
 
     @mock.patch.object(rpc_client, 'ManagerClient')
     @mock.patch.object(keyring, 'get_password')
-    @mock.patch.object(subclouds, 'db_api')
     def test_get_subcloud_db_install_values_without_bmc_password(
-        self, mock_db_api, mock_keyring, mock_rpc_client):
+        self, mock_keyring, mock_rpc_client):
         install_data = copy.copy(FAKE_SUBCLOUD_INSTALL_VALUES)
-        test_subcloud = copy.copy(FAKE_SUBCLOUD_DATA)
-
-        subcloud_info = Subcloud(test_subcloud, False)
-        subcloud_info.data_install = json.dumps(install_data)
-        mock_db_api.subcloud_get.return_value = subcloud_info
+        subcloud = fake_subcloud.create_fake_subcloud(
+            self.ctx, data_install=json.dumps(install_data))
 
         six.assertRaisesRegex(self, webtest.app.AppError, "400 *",
                               self.app.patch_json, FAKE_URL + '/' +
-                              FAKE_ID + '/reinstall',
+                              str(subcloud.id) + '/reinstall',
                               headers=FAKE_HEADERS)
 
     @mock.patch.object(cutils, 'get_vault_load_files')
     @mock.patch.object(rpc_client, 'ManagerClient')
-    @mock.patch.object(subclouds, 'db_api')
     @mock.patch.object(subclouds.SubcloudsController, '_get_subcloud_db_install_values')
     @mock.patch.object(subclouds.SubcloudsController, '_validate_install_values')
     def test_reinstall_subcloud(
         self, moc_validate_install_values, mock_get_subcloud_db_install_values,
-        mock_db_api, mock_rpc_client, mock_get_vault_load_files):
+        mock_rpc_client, mock_get_vault_load_files):
 
-        # Return a fake subcloud database object
-        fake_subcloud = Subcloud(FAKE_SUBCLOUD_DATA, False)
-        mock_db_api.subcloud_get.return_value = fake_subcloud
+        subcloud = fake_subcloud.create_fake_subcloud(self.ctx)
 
         install_data = copy.copy(FAKE_SUBCLOUD_INSTALL_VALUES)
         encoded_password = base64.b64encode(
@@ -1180,14 +1136,13 @@ class TestSubcloudAPIOther(testroot.DCManagerApiTest):
         install_data.update(bmc_password)
 
         mock_get_subcloud_db_install_values.return_value = install_data
-        mock_db_api.subcloud_db_model_to_dict.return_value = FAKE_SUBCLOUD_DATA
         mock_rpc_client().reinstall_subcloud.return_value = True
         mock_get_vault_load_files.return_value = ('iso_file_path', 'sig_file_path')
         response = self.app.patch_json(
-            FAKE_URL + '/' + FAKE_ID + '/reinstall',
+            FAKE_URL + '/' + str(subcloud.id) + '/reinstall',
             headers=FAKE_HEADERS)
         mock_rpc_client().reinstall_subcloud.assert_called_once_with(
             mock.ANY,
-            FAKE_ID,
+            subcloud.id,
             mock.ANY)
         self.assertEqual(response.status_int, 200)

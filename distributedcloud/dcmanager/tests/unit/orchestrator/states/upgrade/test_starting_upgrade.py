@@ -30,6 +30,9 @@ class TestSwUpgradeStartingUpgradeStage(TestSwUpgradeState):
         # next state after 'starting upgrade' is 'migrating data'
         self.on_success_state = consts.STRATEGY_STATE_LOCKING_CONTROLLER
 
+        # Add the subcloud being processed by this unit test
+        self.subcloud = self.setup_subcloud()
+
         # Add the strategy_step state being processed by this unit test
         self.strategy_step = \
             self.setup_strategy_step(consts.STRATEGY_STATE_STARTING_UPGRADE)

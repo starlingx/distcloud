@@ -16,40 +16,26 @@
 # of this software may be licensed only pursuant to the terms
 # of an applicable Wind River license agreement.
 #
-import copy
 import mock
 
 from oslo_config import cfg
 
 from dcmanager.common import consts
 from dcmanager.common import context
-from dcmanager.orchestrator import fw_update_orch_thread
-from dcmanager.orchestrator import patch_orch_thread
+from dcmanager.db.sqlalchemy import api as db_api
 from dcmanager.orchestrator.states.base import BaseState
 from dcmanager.orchestrator import sw_update_manager
-from dcmanager.orchestrator import sw_upgrade_orch_thread
 
 from dcmanager.tests import base
+from dcmanager.tests.unit.common import fake_strategy
+from dcmanager.tests.unit.common import fake_subcloud
 from dcmanager.tests.unit.fakes import FakeVimClient
 from dcmanager.tests.unit.orchestrator.states.fakes import FakeKeystoneClient
 from dcmanager.tests.unit.orchestrator.states.fakes import FakeSysinvClient
 from dcmanager.tests.unit.orchestrator.test_sw_update_manager import FakeOrchThread
-from dcmanager.tests.unit.orchestrator.test_sw_update_manager \
-    import StrategyStep
-from dcmanager.tests.unit.orchestrator.test_sw_update_manager \
-    import Subcloud
 from dcmanager.tests import utils
 
 CONF = cfg.CONF
-
-FAKE_STRATEGY_STEP_DATA = {
-    "id": 1,
-    "subcloud_id": 1,
-    "stage": 1,
-    "state": consts.STRATEGY_STATE_INITIAL,
-    "details": '',
-    "subcloud": None
-}
 
 
 class TestSwUpdate(base.DCManagerTestCase):
@@ -100,10 +86,6 @@ class TestSwUpdate(base.DCManagerTestCase):
             worker = \
                 sw_update_manager.SwUpgradeOrchThread(mock_strategy_lock,
                                                       mock_dcmanager_audit_api)
-            # Mock db_api
-            p = mock.patch.object(sw_upgrade_orch_thread, 'db_api')
-            self.mock_db_api = p.start()
-            self.addCleanup(p.stop)
         else:
             # mock the upgrade orch thread
             self.fake_sw_upgrade_orch_thread = FakeOrchThread()
@@ -118,10 +100,6 @@ class TestSwUpdate(base.DCManagerTestCase):
             worker = \
                 sw_update_manager.PatchOrchThread(mock_strategy_lock,
                                                   mock_dcmanager_audit_api)
-            # Mock db_api
-            p = mock.patch.object(patch_orch_thread, 'db_api')
-            self.mock_db_api = p.start()
-            self.addCleanup(p.stop)
         else:
             # mock the patch orch thread
             self.fake_sw_patch_orch_thread = FakeOrchThread()
@@ -136,10 +114,6 @@ class TestSwUpdate(base.DCManagerTestCase):
             worker = \
                 sw_update_manager.FwUpdateOrchThread(mock_strategy_lock,
                                                      mock_dcmanager_audit_api)
-            # Mock db_api
-            p = mock.patch.object(fw_update_orch_thread, 'db_api')
-            self.mock_db_api = p.start()
-            self.addCleanup(p.stop)
         else:
             # mock the patch orch thread
             self.fake_fw_update_orch_thread = FakeOrchThread()
@@ -151,22 +125,24 @@ class TestSwUpdate(base.DCManagerTestCase):
 
         return worker
 
+    def setup_subcloud(self):
+        subcloud_id = fake_subcloud.create_fake_subcloud(
+            self.ctx,
+            deploy_status=consts.DEPLOY_STATE_INSTALLED,
+        ).id
+        return db_api.subcloud_update(
+            self.ctx,
+            subcloud_id,
+            management_state=consts.MANAGEMENT_MANAGED,
+            availability_status=consts.AVAILABILITY_ONLINE)
+
     def setup_strategy_step(self, strategy_state):
-        data = copy.copy(FAKE_STRATEGY_STEP_DATA)
-        data['state'] = strategy_state
-        data['subcloud'] = Subcloud(1,
-                                    'subcloud1', 1,
-                                    is_managed=True,
-                                    is_online=True)
-        fake_strategy_step = StrategyStep(**data)
-        return fake_strategy_step
+        fake_strategy.create_fake_strategy_step(
+            self.ctx,
+            subcloud_id=self.subcloud.id,
+            state=strategy_state)
+        return db_api.strategy_step_get(self.ctx, self.subcloud.id)
 
     def assert_step_updated(self, subcloud_id, update_state):
-        self.mock_db_api.strategy_step_update.assert_called_with(
-            mock.ANY,
-            subcloud_id,
-            state=update_state,
-            details=mock.ANY,
-            started_at=mock.ANY,
-            finished_at=mock.ANY,
-        )
+        step = db_api.strategy_step_get(self.ctx, subcloud_id)
+        self.assertEqual(step.state, update_state)
