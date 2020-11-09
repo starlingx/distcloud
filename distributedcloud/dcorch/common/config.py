@@ -143,6 +143,7 @@ cache_opts = [
                help='Username of admin account, needed when'
                     ' auto_refresh_endpoint set to True'),
     cfg.StrOpt('admin_password',
+               secret=True,
                help='Password of admin account, needed when'
                     ' auto_refresh_endpoint set to True'),
     cfg.StrOpt('admin_tenant',
@@ -167,6 +168,7 @@ endpoint_cache_opts = [
     cfg.StrOpt('username',
                help='Username of account'),
     cfg.StrOpt('password',
+               secret=True,
                help='Password of account'),
     cfg.StrOpt('project_name',
                help='Project name of account'),
