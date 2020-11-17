@@ -80,6 +80,7 @@ AVAIL_FAIL_COUNT_MAX = 9999
 
 # Software update strategy types
 SW_UPDATE_TYPE_FIRMWARE = "firmware"
+SW_UPDATE_TYPE_KUBERNETES = "kubernetes"
 SW_UPDATE_TYPE_PATCH = "patch"
 SW_UPDATE_TYPE_UPGRADE = "upgrade"
 
@@ -145,6 +146,20 @@ STRATEGY_STATE_IMPORTING_FIRMWARE = "importing firmware"
 STRATEGY_STATE_CREATING_FW_UPDATE_STRATEGY = "creating fw update strategy"
 STRATEGY_STATE_APPLYING_FW_UPDATE_STRATEGY = "applying fw update strategy"
 STRATEGY_STATE_FINISHING_FW_UPDATE = "finishing fw update"
+
+# Kubernetes update orchestration states
+STRATEGY_STATE_KUBE_UPDATING_PATCHES = \
+    "kube updating patches"
+STRATEGY_STATE_KUBE_CREATING_VIM_PATCH_STRATEGY = \
+    "kube creating vim patch strategy"
+STRATEGY_STATE_KUBE_APPLYING_VIM_PATCH_STRATEGY = \
+    "kube applying vim patch strategy"
+STRATEGY_STATE_KUBE_DELETING_VIM_PATCH_STRATEGY = \
+    "kube deleting vim patch strategy"
+STRATEGY_STATE_KUBE_CREATING_VIM_KUBE_UPGRADE_STRATEGY = \
+    "kube creating vim kube upgrade strategy"
+STRATEGY_STATE_KUBE_APPLYING_VIM_KUBE_UPGRADE_STRATEGY = \
+    "kube applying vim kube upgrade strategy"
 
 # Subcloud deploy status states
 DEPLOY_STATE_NONE = 'not-deployed'

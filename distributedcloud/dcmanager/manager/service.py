@@ -129,7 +129,6 @@ class DCManagerService(service.Service):
                                                          group_id,
                                                          data_install,
                                                          force)
-
         return subcloud
 
     @request_context
@@ -184,6 +183,12 @@ class DCManagerService(service.Service):
         if endpoint_type == dcorch_consts.ENDPOINT_TYPE_FIRMWARE and \
                 sync_status == consts.SYNC_STATUS_UNKNOWN:
             self.audit_rpc_client.trigger_firmware_audit(context)
+
+        # If the kubernetes sync status is being set to unknown, trigger the
+        # kubernetes audit so it can update the sync status ASAP.
+        if endpoint_type == dcorch_consts.ENDPOINT_TYPE_KUBERNETES and \
+                sync_status == consts.SYNC_STATUS_UNKNOWN:
+            self.audit_rpc_client.trigger_kubernetes_audit(context)
 
         return
 

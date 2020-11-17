@@ -14,7 +14,7 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 #
-# Copyright (c) 2017 Wind River Systems, Inc.
+# Copyright (c) 2017-2021 Wind River Systems, Inc.
 #
 # The right to copy, distribute, modify, or otherwise make use
 # of this software may be licensed only pursuant to the terms
@@ -180,6 +180,10 @@ class LicenseInstallError(DCManagerException):
 
 class LicenseMissingError(DCManagerException):
     message = _("License does not exist on subcloud: %(subcloud_id)s")
+
+
+class KubeUpgradeFailedException(DCManagerException):
+    message = _("Subcloud: %(subcloud)s kube upgrade failed: %(details)s")
 
 
 class ManualRecoveryRequiredException(DCManagerException):

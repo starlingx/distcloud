@@ -10,7 +10,7 @@
 # License for the specific language governing permissions and limitations
 # under the License.
 #
-# Copyright (c) 2020 Wind River Systems, Inc.
+# Copyright (c) 2020-2021 Wind River Systems, Inc.
 #
 # The right to copy, distribute, modify, or otherwise make use
 # of this software may be licensed only pursuant to the terms
@@ -59,11 +59,14 @@ class ManagerAuditClient(object):
             client = self._client
         return client.cast(ctxt, method, **kwargs)
 
-    def trigger_patch_audit(self, ctxt):
-        return self.cast(ctxt, self.make_msg('trigger_patch_audit'))
-
     def trigger_firmware_audit(self, ctxt):
         return self.cast(ctxt, self.make_msg('trigger_firmware_audit'))
+
+    def trigger_kubernetes_audit(self, ctxt):
+        return self.cast(ctxt, self.make_msg('trigger_kubernetes_audit'))
+
+    def trigger_patch_audit(self, ctxt):
+        return self.cast(ctxt, self.make_msg('trigger_patch_audit'))
 
     def trigger_subcloud_audits(self, ctxt, subcloud_id):
         return self.cast(ctxt, self.make_msg('trigger_subcloud_audits',
@@ -104,12 +107,21 @@ class ManagerAuditWorkerClient(object):
             client = self._client
         return client.cast(ctxt, method, **kwargs)
 
-    # Tell audit-worker to perform audit on the subclouds with these
-    # subcloud IDs.
-    def audit_subclouds(self, ctxt, subcloud_ids, patch_audit_data=None,
-                        firmware_audit_data=None, do_openstack_audit=False):
-        return self.cast(ctxt, self.make_msg('audit_subclouds',
-                                             subcloud_ids=subcloud_ids,
-                                             patch_audit_data=patch_audit_data,
-                                             firmware_audit_data=firmware_audit_data,
-                                             do_openstack_audit=do_openstack_audit))
+    def audit_subclouds(self,
+                        ctxt,
+                        subcloud_ids,
+                        patch_audit_data=None,
+                        firmware_audit_data=None,
+                        kubernetes_audit_data=None,
+                        do_openstack_audit=False):
+        """Tell audit-worker to perform audit on the subclouds with these
+
+           subcloud IDs.
+        """
+        return self.cast(
+            ctxt, self.make_msg('audit_subclouds',
+                                subcloud_ids=subcloud_ids,
+                                patch_audit_data=patch_audit_data,
+                                firmware_audit_data=firmware_audit_data,
+                                kubernetes_audit_data=kubernetes_audit_data,
+                                do_openstack_audit=do_openstack_audit))

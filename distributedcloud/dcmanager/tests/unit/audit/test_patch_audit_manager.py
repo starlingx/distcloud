@@ -10,7 +10,7 @@
 # License for the specific language governing permissions and limitations
 # under the License.
 #
-# Copyright (c) 2017-2020 Wind River Systems, Inc.
+# Copyright (c) 2017-2021 Wind River Systems, Inc.
 #
 # The right to copy, distribute, modify, or otherwise make use
 # of this software may be licensed only pursuant to the terms
@@ -281,7 +281,8 @@ class TestPatchAudit(base.DCManagerTestCase):
         am.patch_audit = pm
 
         do_load_audit = True
-        patch_audit_data, firmware_audit_data = am._get_audit_data(True, True)
+        patch_audit_data, firmware_audit_data, kubernetes_audit_data = \
+            am._get_audit_data(True, True, True)
         # Convert to dict like what would happen calling via RPC
         patch_audit_data = patch_audit_data.to_dict()
 
@@ -317,7 +318,8 @@ class TestPatchAudit(base.DCManagerTestCase):
         mock_sysinv_client.side_effect = FakeSysinvClientOneLoad
 
         do_load_audit = True
-        patch_audit_data, firmware_audit_data = am._get_audit_data(True, True)
+        patch_audit_data, firmware_audit_data, kubernetes_audit_data = \
+            am._get_audit_data(True, True, True)
         # Convert to dict like what would happen calling via RPC
         patch_audit_data = patch_audit_data.to_dict()
 
@@ -380,7 +382,8 @@ class TestPatchAudit(base.DCManagerTestCase):
         mock_sysinv_client.side_effect = FakeSysinvClientOneLoad
 
         do_load_audit = True
-        patch_audit_data, firmware_audit_data = am._get_audit_data(True, True)
+        patch_audit_data, firmware_audit_data, kubernetes_audit_data = \
+            am._get_audit_data(True, True, True)
         # Convert to dict like what would happen calling via RPC
         patch_audit_data = patch_audit_data.to_dict()
 
@@ -416,7 +419,8 @@ class TestPatchAudit(base.DCManagerTestCase):
         mock_sysinv_client.side_effect = FakeSysinvClientOneLoadUnmatchedSoftwareVersion
 
         do_load_audit = True
-        patch_audit_data, firmware_audit_data = am._get_audit_data(True, True)
+        patch_audit_data, firmware_audit_data, kubernetes_audit_data = \
+            am._get_audit_data(True, True, True)
         # Convert to dict like what would happen calling via RPC
         patch_audit_data = patch_audit_data.to_dict()
 
@@ -462,7 +466,8 @@ class TestPatchAudit(base.DCManagerTestCase):
         mock_sysinv_client.side_effect = FakeSysinvClientOneLoadUpgradeInProgress
 
         do_load_audit = True
-        patch_audit_data, firmware_audit_data = am._get_audit_data(True, True)
+        patch_audit_data, firmware_audit_data, kubernetes_audit_data = \
+            am._get_audit_data(True, True, True)
         # Convert to dict like what would happen calling via RPC
         patch_audit_data = patch_audit_data.to_dict()
 

@@ -12,7 +12,7 @@
 # License for the specific language governing permissions and limitations
 # under the License.
 #
-# Copyright (c) 2017-2020 Wind River Systems, Inc.
+# Copyright (c) 2017-2021 Wind River Systems, Inc.
 #
 # The right to copy, distribute, modify, or otherwise make use
 # of this software may be licensed only pursuant to the terms
@@ -51,6 +51,30 @@ SSL_PEM_FILE = os.path.join(SSL_CERT_DIR, SSL_CERT_FILE)
 
 DOCKER_REGISTRY_CERT_FILE = os.path.join(SSL_CERT_DIR, "registry-cert.crt")
 DOCKER_REGISTRY_KEY_FILE = os.path.join(SSL_CERT_DIR, "registry-cert.key")
+
+# The following constants are declared in sysinv/common/kubernetes.py
+# Kubernetes upgrade states
+KUBE_UPGRADE_STARTED = 'upgrade-started'
+KUBE_UPGRADE_DOWNLOADING_IMAGES = 'downloading-images'
+KUBE_UPGRADE_DOWNLOADING_IMAGES_FAILED = 'downloading-images-failed'
+KUBE_UPGRADE_DOWNLOADED_IMAGES = 'downloaded-images'
+KUBE_UPGRADING_FIRST_MASTER = 'upgrading-first-master'
+KUBE_UPGRADING_FIRST_MASTER_FAILED = 'upgrading-first-master-failed'
+KUBE_UPGRADED_FIRST_MASTER = 'upgraded-first-master'
+KUBE_UPGRADING_NETWORKING = 'upgrading-networking'
+KUBE_UPGRADING_NETWORKING_FAILED = 'upgrading-networking-failed'
+KUBE_UPGRADED_NETWORKING = 'upgraded-networking'
+KUBE_UPGRADING_SECOND_MASTER = 'upgrading-second-master'
+KUBE_UPGRADING_SECOND_MASTER_FAILED = 'upgrading-second-master-failed'
+KUBE_UPGRADED_SECOND_MASTER = 'upgraded-second-master'
+KUBE_UPGRADING_KUBELETS = 'upgrading-kubelets'
+KUBE_UPGRADE_COMPLETE = 'upgrade-complete'
+
+# Kubernetes host upgrade statuses
+KUBE_HOST_UPGRADING_CONTROL_PLANE = 'upgrading-control-plane'
+KUBE_HOST_UPGRADING_CONTROL_PLANE_FAILED = 'upgrading-control-plane-failed'
+KUBE_HOST_UPGRADING_KUBELET = 'upgrading-kubelet'
+KUBE_HOST_UPGRADING_KUBELET_FAILED = 'upgrading-kubelet-failed'
 
 # The following is the name of the host filesystem 'scratch' which is used
 # by dcmanager upgrade orchestration for the load import operations.
@@ -651,6 +675,30 @@ class SysinvClient(base.DriverBase):
     def get_device_image_states(self):
         """Get a list of device image states."""
         return self.sysinv_client.device_image_state.list()
+
+    def get_kube_upgrade(self, kube_upgrade_uuid):
+        """Retrieve the details of a given kubernetes upgrade
+
+        :param kube_upgrade_uuid: kube upgrade uuid
+        If the upgrade is not found, returns None
+        """
+        return self.sysinv_client.kube_upgrade.get(kube_upgrade_uuid)
+
+    def get_kube_upgrades(self):
+        """Retrieve the kubernetes upgrade if one is present."""
+        return self.sysinv_client.kube_upgrade.list()
+
+    def get_kube_version(self, version):
+        """Retrieve the details of a given kubernetes version
+
+        :param version: kubernetes version
+        If the version is not found, returns None
+        """
+        return self.sysinv_client.kube_version.get(version)
+
+    def get_kube_versions(self):
+        """Retrieve the list of kubernetes versions known to the system."""
+        return self.sysinv_client.kube_version.list()
 
     def apply_device_image(self, device_image_id, labels=None):
         """Apply a device image.

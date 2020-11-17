@@ -12,7 +12,7 @@
 # License for the specific language governing permissions and limitations
 # under the License.
 #
-# Copyright (c) 2017-2020 Wind River Systems, Inc.
+# Copyright (c) 2017-2021 Wind River Systems, Inc.
 #
 # The right to copy, distribute, modify, or otherwise make use
 # of this software may be licensed only pursuant to the terms
@@ -31,6 +31,7 @@ from dccommon import exceptions
 LOG = log.getLogger(__name__)
 
 STRATEGY_NAME_FW_UPDATE = 'fw-update'
+STRATEGY_NAME_KUBE_UPGRADE = 'kube-upgrade'
 STRATEGY_NAME_SW_PATCH = 'sw-patch'
 STRATEGY_NAME_SW_UPGRADE = 'sw-upgrade'
 
@@ -88,9 +89,14 @@ class VimClient(base.DriverBase):
         except exceptions.ServiceUnavailable:
             raise
 
-    def create_strategy(self, strategy_name, storage_apply_type,
-                        worker_apply_type, max_parallel_worker_hosts,
-                        default_instance_action, alarm_restrictions):
+    def create_strategy(self,
+                        strategy_name,
+                        storage_apply_type,
+                        worker_apply_type,
+                        max_parallel_worker_hosts,
+                        default_instance_action,
+                        alarm_restrictions,
+                        **kwargs):
         """Create orchestration strategy"""
 
         url = self.endpoint
@@ -103,9 +109,10 @@ class VimClient(base.DriverBase):
             worker_apply_type=worker_apply_type,
             max_parallel_worker_hosts=max_parallel_worker_hosts,
             default_instance_action=default_instance_action,
-            alarm_restrictions=alarm_restrictions)
+            alarm_restrictions=alarm_restrictions,
+            **kwargs)
         if not strategy:
-            raise Exception("Strategy creation failed")
+            raise Exception("Strategy:(%s) creation failed" % strategy_name)
 
         LOG.debug("Strategy created: %s" % strategy)
         return strategy

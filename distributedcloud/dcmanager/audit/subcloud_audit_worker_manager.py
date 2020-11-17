@@ -31,6 +31,7 @@ from dccommon.drivers.openstack.sdk_platform import OpenStackDriver
 
 from dcmanager.audit import alarm_aggregation
 from dcmanager.audit import firmware_audit
+from dcmanager.audit import kubernetes_audit
 from dcmanager.audit import patch_audit
 from dcmanager.audit.subcloud_audit_manager import HELM_APP_OPENSTACK
 from dcmanager.common import consts
@@ -71,10 +72,13 @@ class SubcloudAuditWorkerManager(manager.Manager):
             self.context, self.dcmanager_rpc_client)
         self.firmware_audit = firmware_audit.FirmwareAudit(
             self.context, self.dcmanager_rpc_client)
+        self.kubernetes_audit = kubernetes_audit.KubernetesAudit(
+            self.context, self.dcmanager_rpc_client)
         self.pid = os.getpid()
 
     def audit_subclouds(self, context, subcloud_ids, patch_audit_data,
-                        firmware_audit_data, do_openstack_audit):
+                        firmware_audit_data, kubernetes_audit_data,
+                        do_openstack_audit):
         """Run audits of the specified subcloud(s)"""
 
         LOG.debug('PID: %s, subclouds to audit: %s, do_openstack_audit: %s' %
@@ -119,6 +123,7 @@ class SubcloudAuditWorkerManager(manager.Manager):
             do_patch_audit = subcloud_audits.patch_audit_requested
             do_load_audit = subcloud_audits.load_audit_requested
             do_firmware_audit = subcloud_audits.firmware_audit_requested
+            do_kubernetes_audit = subcloud_audits.kubernetes_audit_requested
             update_subcloud_state = subcloud_audits.state_update_requested
 
             # Create a new greenthread for each subcloud to allow the audits
@@ -131,9 +136,11 @@ class SubcloudAuditWorkerManager(manager.Manager):
                                                 do_openstack_audit,
                                                 patch_audit_data,
                                                 firmware_audit_data,
+                                                kubernetes_audit_data,
                                                 do_patch_audit,
                                                 do_load_audit,
-                                                do_firmware_audit)
+                                                do_firmware_audit,
+                                                do_kubernetes_audit)
 
     def _update_subcloud_availability(self, subcloud_name,
                                       availability_status=None,
@@ -227,17 +234,25 @@ class SubcloudAuditWorkerManager(manager.Manager):
                 endpoint_type_list,
                 openstack_installed_current)
 
-    def _do_audit_subcloud(self, subcloud, update_subcloud_state,
-                           do_audit_openstack, patch_audit_data,
-                           firmware_audit_data, do_patch_audit,
-                           do_load_audit, do_firmware_audit):
+    def _do_audit_subcloud(self,
+                           subcloud,
+                           update_subcloud_state,
+                           do_audit_openstack,
+                           patch_audit_data,
+                           firmware_audit_data,
+                           kubernetes_audit_data,
+                           do_patch_audit,
+                           do_load_audit,
+                           do_firmware_audit,
+                           do_kubernetes_audit):
         audits_done = []
         # Do the actual subcloud audit.
         try:
             audits_done = self._audit_subcloud(
                 subcloud, update_subcloud_state, do_audit_openstack,
-                patch_audit_data, firmware_audit_data, do_patch_audit,
-                do_load_audit, do_firmware_audit)
+                patch_audit_data, firmware_audit_data, kubernetes_audit_data,
+                do_patch_audit,
+                do_load_audit, do_firmware_audit, do_kubernetes_audit)
         except Exception:
             LOG.exception("Got exception auditing subcloud: %s" % subcloud.name)
 
@@ -251,8 +266,10 @@ class SubcloudAuditWorkerManager(manager.Manager):
                   (self.pid, subcloud.name))
 
     def _audit_subcloud(self, subcloud, update_subcloud_state,
-                        do_audit_openstack, patch_audit_data, firmware_audit_data,
-                        do_patch_audit, do_load_audit, do_firmware_audit):
+                        do_audit_openstack, patch_audit_data,
+                        firmware_audit_data, kubernetes_audit_data,
+                        do_patch_audit, do_load_audit, do_firmware_audit,
+                        do_kubernetes_audit):
         """Audit a single subcloud."""
 
         avail_status_current = subcloud.availability_status
@@ -357,6 +374,12 @@ class SubcloudAuditWorkerManager(manager.Manager):
                 self.firmware_audit.subcloud_firmware_audit(subcloud_name,
                                                             firmware_audit_data)
                 audits_done.append('firmware')
+            # Perform kubernetes audit
+            if do_kubernetes_audit:
+                self.kubernetes_audit.subcloud_kubernetes_audit(
+                    subcloud_name,
+                    kubernetes_audit_data)
+                audits_done.append('kubernetes')
             # Audit openstack application in the subcloud
             if do_audit_openstack and sysinv_client:
                 self._audit_subcloud_openstack_app(

@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2020 Wind River Systems, Inc.
+# Copyright (c) 2020-2021 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -24,21 +24,17 @@ STRATEGY_FAILED_BUILDING = FakeVimStrategy(vim.STATE_BUILD_FAILED)
             "DEFAULT_MAX_QUERIES", 3)
 @mock.patch("dcmanager.orchestrator.states.creating_vim_strategy."
             "DEFAULT_SLEEP_DURATION", 1)
-class TestSwUpgradeCreatingVIMStrategyStage(TestSwUpgradeState):
+class CreatingVIMStrategyStageMixin(object):
 
-    def setUp(self):
-        super(TestSwUpgradeCreatingVIMStrategyStage, self).setUp()
-
-        # set the next state in the chain (when this state is successful)
-        self.on_success_state =\
-            consts.STRATEGY_STATE_APPLYING_VIM_UPGRADE_STRATEGY
+    def set_state(self, state, success_state):
+        self.state = state
+        self.on_success_state = success_state
 
         # Add the subcloud being processed by this unit test
         self.subcloud = self.setup_subcloud()
 
         # Add the strategy_step state being processed by this unit test
-        self.strategy_step = self.setup_strategy_step(
-            consts.STRATEGY_STATE_CREATING_VIM_UPGRADE_STRATEGY)
+        self.strategy_step = self.setup_strategy_step(self.state)
 
         # Add mock API endpoints for sysinv client calls invcked by this state
         self.vim_client.create_strategy = mock.MagicMock()
@@ -185,3 +181,13 @@ class TestSwUpgradeCreatingVIMStrategyStage(TestSwUpgradeState):
         # Failure case
         self.assert_step_updated(self.strategy_step.subcloud_id,
                                  consts.STRATEGY_STATE_FAILED)
+
+
+class TestSwUpgradeCreatingVIMStrategyStage(CreatingVIMStrategyStageMixin,
+                                            TestSwUpgradeState):
+    """Test Creating Vim Strategy for a SW upgrade"""
+
+    def setUp(self):
+        super(TestSwUpgradeCreatingVIMStrategyStage, self).setUp()
+        self.set_state(consts.STRATEGY_STATE_CREATING_VIM_UPGRADE_STRATEGY,
+                       consts.STRATEGY_STATE_APPLYING_VIM_UPGRADE_STRATEGY)

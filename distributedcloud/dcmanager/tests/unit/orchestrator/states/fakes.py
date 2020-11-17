@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2020 Wind River Systems, Inc.
+# Copyright (c) 2020-2021 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -9,12 +9,16 @@ import uuid
 from dcmanager.common import consts
 from oslo_utils import timeutils
 
-from dcmanager.tests.unit.common.fake_subcloud import FAKE_SUBCLOUD_INSTALL_VALUES
+from dcmanager.tests.unit.common.fake_subcloud \
+    import FAKE_SUBCLOUD_INSTALL_VALUES
 
 
 PREVIOUS_PREVIOUS_VERSION = '01.23'
 PREVIOUS_VERSION = '12.34'
 UPGRADED_VERSION = '56.78'
+
+PREVIOUS_KUBE_VERSION = 'v1.2.3'
+UPGRADED_KUBE_VERSION = 'v1.2.3-a'
 
 FAKE_VENDOR = '8086'
 FAKE_DEVICE = '0b30'
@@ -96,6 +100,38 @@ class FakeHostFilesystem(object):
 class FakeKeystoneClient(object):
     def __init__(self):
         self.session = mock.MagicMock()
+
+
+class FakeKubeUpgrade(object):
+    def __init__(self,
+                 obj_id=1,
+                 from_version=PREVIOUS_KUBE_VERSION,
+                 to_version=UPGRADED_KUBE_VERSION,
+                 state='upgrade-complete'):
+        self.id = obj_id
+        self.uuid = str(uuid.uuid4())
+        self.from_version = state
+        self.to_version = to_version
+        self.state = state
+
+
+class FakeKubeVersion(object):
+    def __init__(self,
+                 obj_id=1,
+                 version=UPGRADED_KUBE_VERSION,
+                 target=True,
+                 state='active'):
+        self.id = obj_id
+        self.uuid = str(uuid.uuid4())
+        self.version = version
+        self.target = target
+        self.state = state
+        self.upgrade_from = []
+        self.applied_patches = []
+        self.available_patches = []
+
+    def to_dict(self):
+        return dict(self.__dict__)
 
 
 class FakeLoad(object):

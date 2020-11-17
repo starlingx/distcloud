@@ -12,7 +12,7 @@
 # License for the specific language governing permissions and limitations
 # under the License.
 #
-# Copyright (c) 2017-2020 Wind River Systems, Inc.
+# Copyright (c) 2017-2021 Wind River Systems, Inc.
 #
 # The right to copy, distribute, modify, or otherwise make use
 # of this software may be licensed only pursuant to the terms
@@ -129,6 +129,7 @@ ENDPOINT_TYPE_NFV = "nfv"
 ENDPOINT_TYPE_LOAD = "load"
 ENDPOINT_TYPE_DC_CERT = 'dc-cert'
 ENDPOINT_TYPE_FIRMWARE = 'firmware'
+ENDPOINT_TYPE_KUBERNETES = 'kubernetes'
 
 # All endpoint types
 ENDPOINT_TYPES_LIST = [ENDPOINT_TYPE_PLATFORM,
@@ -136,7 +137,8 @@ ENDPOINT_TYPES_LIST = [ENDPOINT_TYPE_PLATFORM,
                        ENDPOINT_TYPE_IDENTITY,
                        ENDPOINT_TYPE_LOAD,
                        ENDPOINT_TYPE_DC_CERT,
-                       ENDPOINT_TYPE_FIRMWARE]
+                       ENDPOINT_TYPE_FIRMWARE,
+                       ENDPOINT_TYPE_KUBERNETES]
 
 # Dcorch sync endpoint types
 SYNC_ENDPOINT_TYPES_LIST = [ENDPOINT_TYPE_PLATFORM,

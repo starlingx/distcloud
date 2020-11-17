@@ -11,7 +11,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-# Copyright (c) 2020 Wind River Systems, Inc.
+# Copyright (c) 2020-2021 Wind River Systems, Inc.
 #
 # The right to copy, distribute, modify, or otherwise make use
 # of this software may be licensed only pursuant to the terms
@@ -110,18 +110,25 @@ class DCManagerAuditService(service.Service):
         super(DCManagerAuditService, self).stop()
 
     @request_context
-    def trigger_patch_audit(self, context):
-        """Used to force a patch audit on the next interval"""
-
-        LOG.info("Trigger patch audit.")
-        return self.subcloud_audit_manager.trigger_patch_audit(context)
-
-    @request_context
     def trigger_firmware_audit(self, context):
         """Used to force a firmware audit on the next interval"""
 
         LOG.info("Trigger firmware audit.")
         return self.subcloud_audit_manager.trigger_firmware_audit(context)
+
+    @request_context
+    def trigger_kubernetes_audit(self, context):
+        """Used to force a kubernetes audit on the next interval"""
+
+        LOG.info("Trigger kubernetes audit.")
+        return self.subcloud_audit_manager.trigger_kubernetes_audit(context)
+
+    @request_context
+    def trigger_patch_audit(self, context):
+        """Used to force a patch audit on the next interval"""
+
+        LOG.info("Trigger patch audit.")
+        return self.subcloud_audit_manager.trigger_patch_audit(context)
 
     @request_context
     def trigger_subcloud_audits(self, context, subcloud_id):
@@ -185,10 +192,18 @@ class DCManagerAuditWorkerService(service.Service):
         super(DCManagerAuditWorkerService, self).stop()
 
     @request_context
-    def audit_subclouds(self, context, subcloud_ids,
-                        patch_audit_data, firmware_audit_data,
+    def audit_subclouds(self,
+                        context,
+                        subcloud_ids,
+                        patch_audit_data,
+                        firmware_audit_data,
+                        kubernetes_audit_data,
                         do_openstack_audit):
         """Used to trigger audits of the specified subcloud(s)"""
         self.subcloud_audit_worker_manager.audit_subclouds(
-            context, subcloud_ids, patch_audit_data,
-            firmware_audit_data, do_openstack_audit)
+            context,
+            subcloud_ids,
+            patch_audit_data,
+            firmware_audit_data,
+            kubernetes_audit_data,
+            do_openstack_audit)

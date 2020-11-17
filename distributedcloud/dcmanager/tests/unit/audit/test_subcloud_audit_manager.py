@@ -46,6 +46,12 @@ class FakeFirmwareAudit(object):
         self.get_regionone_audit_data = mock.MagicMock()
 
 
+class FakeKubernetesAudit(object):
+
+    def __init__(self):
+        self.get_regionone_audit_data = mock.MagicMock()
+
+
 class FakeServiceGroup(object):
     def __init__(self, status, desired_state, service_group_name, uuid,
                  node_name, state, condition, name):
@@ -231,6 +237,15 @@ class TestAuditManager(base.DCManagerTestCase):
         self.mock_firmware_audit = p.start()
         self.mock_firmware_audit.FirmwareAudit.return_value = \
             self.fake_firmware_audit
+        self.addCleanup(p.stop)
+
+        # Mock kubernetes audit
+        self.fake_kubernetes_audit = FakeKubernetesAudit()
+        p = mock.patch.object(subcloud_audit_manager,
+                              'kubernetes_audit')
+        self.mock_kubernetes_audit = p.start()
+        self.mock_kubernetes_audit.KubernetesAudit.return_value = \
+            self.fake_kubernetes_audit
         self.addCleanup(p.stop)
 
     @staticmethod

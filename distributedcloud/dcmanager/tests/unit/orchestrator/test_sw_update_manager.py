@@ -10,7 +10,7 @@
 # License for the specific language governing permissions and limitations
 # under the License.
 #
-# Copyright (c) 2017 Wind River Systems, Inc.
+# Copyright (c) 2017-2021 Wind River Systems, Inc.
 #
 # The right to copy, distribute, modify, or otherwise make use
 # of this software may be licensed only pursuant to the terms
@@ -437,6 +437,13 @@ class TestSwUpdateManager(base.DCManagerTestCase):
         self.mock_fw_update_orch_thread = p.start()
         self.mock_fw_update_orch_thread.return_value = \
             self.fake_fw_update_orch_thread
+        self.addCleanup(p.stop)
+
+        self.fake_kube_upgrade_orch_thread = FakeOrchThread()
+        p = mock.patch.object(sw_update_manager, 'KubeUpgradeOrchThread')
+        self.mock_kube_upgrade_orch_thread = p.start()
+        self.mock_kube_upgrade_orch_thread.return_value = \
+            self.fake_kube_upgrade_orch_thread
         self.addCleanup(p.stop)
 
         # Mock the dcmanager audit API

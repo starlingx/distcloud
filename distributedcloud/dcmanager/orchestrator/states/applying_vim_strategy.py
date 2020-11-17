@@ -61,22 +61,27 @@ class ApplyingVIMStrategyState(BaseState):
             subcloud_strategy = self.get_vim_client(region).apply_strategy(
                 strategy_name=self.strategy_name)
             if subcloud_strategy.state == vim.STATE_APPLYING:
-                self.info_log(strategy_step, "VIM Strategy apply in progress")
+                self.info_log(strategy_step,
+                              "(%s) VIM Strategy apply in progress"
+                              % self.strategy_name)
             elif subcloud_strategy.state == vim.STATE_APPLIED:
                 # Success.
                 self.info_log(strategy_step,
-                              "VIM strategy has been applied")
+                              "(%s) VIM strategy has been applied"
+                              % self.strategy_name)
             elif subcloud_strategy.state in [vim.STATE_APPLY_FAILED,
                                              vim.STATE_APPLY_TIMEOUT]:
                 # Explicit known failure states
-                raise Exception("VIM strategy apply failed. %s. %s"
-                                % (subcloud_strategy.state,
+                raise Exception("(%s) VIM strategy apply failed. %s. %s"
+                                % (self.strategy_name,
+                                   subcloud_strategy.state,
                                    subcloud_strategy.apply_phase.reason))
             else:
                 # Other states are bad
-                raise Exception("VIM strategy apply failed. "
+                raise Exception("(%s) VIM strategy apply failed. "
                                 "Unexpected State: %s."
-                                % subcloud_strategy.state)
+                                % (self.strategy_name,
+                                   subcloud_strategy.state))
 
         # wait for the new strategy to apply or an existing strategy.
         # Loop until the strategy applies. Repeatedly query the API
@@ -98,7 +103,8 @@ class ApplyingVIMStrategyState(BaseState):
             # break out of the loop if the max number of attempts is reached
             wait_count += 1
             if wait_count >= self.wait_attempts:
-                raise Exception("Timeout applying VIM strategy.")
+                raise Exception("Timeout applying (%s) vim strategy."
+                                % self.strategy_name)
             # every loop we wait, even the first one
             time.sleep(self.wait_interval)
 
@@ -117,15 +123,17 @@ class ApplyingVIMStrategyState(BaseState):
                 if get_fail_count >= self.max_failed_queries:
                     # We have waited too long.
                     raise Exception("Timeout during recovery of apply "
-                                    "VIM strategy.")
+                                    "(%s) Vim strategy."
+                                    % self.strategy_name)
                 self.debug_log(strategy_step,
-                               "Unable to get VIM strategy - "
-                               "attempt %d" % get_fail_count)
+                               "Unable to get (%s) vim strategy - attempt %d"
+                               % (self.strategy_name, get_fail_count))
                 continue
             # The loop gets here if the API is able to respond
             # Check if the strategy no longer exists. This should not happen.
             if subcloud_strategy is None:
-                raise Exception("VIM strategy not found.")
+                raise Exception("(%s) vim strategy not found."
+                                % self.strategy_name)
             elif subcloud_strategy.state == vim.STATE_APPLYING:
                 # Still applying. Update details if it has changed
                 new_details = ("%s phase is %s%% complete" % (
@@ -143,19 +151,22 @@ class ApplyingVIMStrategyState(BaseState):
             elif subcloud_strategy.state == vim.STATE_APPLIED:
                 # Success.
                 self.info_log(strategy_step,
-                              "VIM strategy has been applied")
+                              "(%s) Vim strategy has been applied"
+                              % self.strategy_name)
                 break
             elif subcloud_strategy.state in [vim.STATE_APPLY_FAILED,
                                              vim.STATE_APPLY_TIMEOUT]:
                 # Explicit known failure states
-                raise Exception("VIM strategy apply failed. %s. %s"
-                                % (subcloud_strategy.state,
+                raise Exception("(%s) Vim strategy apply failed. %s. %s"
+                                % (self.strategy_name,
+                                   subcloud_strategy.state,
                                    subcloud_strategy.apply_phase.reason))
             else:
                 # Other states are bad
-                raise Exception("VIM strategy apply failed. "
+                raise Exception("(%s) Vim strategy apply failed. "
                                 "Unexpected State: %s."
-                                % subcloud_strategy.state)
+                                % (self.strategy_name,
+                                   subcloud_strategy.state))
             # end of loop
 
         # Success, state machine can proceed to the next state

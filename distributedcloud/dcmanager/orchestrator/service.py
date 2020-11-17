@@ -11,7 +11,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-# Copyright (c) 2020 Wind River Systems, Inc.
+# Copyright (c) 2020-2021 Wind River Systems, Inc.
 #
 # The right to copy, distribute, modify, or otherwise make use
 # of this software may be licensed only pursuant to the terms
@@ -86,18 +86,25 @@ class DCManagerOrchestratorService(service.Service):
     def _stop_rpc_server(self):
         # Stop RPC connection to prevent new requests
         LOG.debug("Attempting to stop engine service...")
-        try:
-            self._rpc_server.stop()
-            self._rpc_server.wait()
-            LOG.info('Engine service stopped successfully')
-        except Exception as ex:
-            LOG.error('Failed to stop engine service: %s',
-                      six.text_type(ex))
+        if self._rpc_server is not None:
+            try:
+                self._rpc_server.stop()
+                self._rpc_server.wait()
+                self._rpc_server = None
+                LOG.info('Engine service stopped successfully')
+            except Exception as ex:
+                LOG.error('Failed to stop engine service: %s',
+                          six.text_type(ex))
 
     def stop(self):
+        """Stop anything initiated by start"""
         self._stop_rpc_server()
-        self.TG.stop()
-        self.sw_update_manager.stop()
+        if self.TG is not None:
+            self.TG.stop()
+            self.TG = None
+        if self.sw_update_manager is not None:
+            self.sw_update_manager.stop()
+            self.sw_update_manager = None
         # Terminate the engine process
         LOG.info("All threads were gone, terminating engine")
         super(DCManagerOrchestratorService, self).stop()

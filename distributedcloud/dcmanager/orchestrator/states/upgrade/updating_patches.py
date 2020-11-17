@@ -15,8 +15,6 @@ from dcmanager.orchestrator.states.base import BaseState
 # Max time: 30 minutes = 180 queries x 10 seconds between
 DEFAULT_MAX_QUERIES = 180
 DEFAULT_SLEEP_DURATION = 10
-LOAD_IMPORT_REQUEST_TYPE = 'import'
-LOAD_DELETE_REQUEST_TYPE = 'delete'
 
 
 class UpdatingPatchesState(BaseState):

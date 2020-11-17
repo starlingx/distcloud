@@ -10,7 +10,7 @@
 # License for the specific language governing permissions and limitations
 # under the License.
 #
-# Copyright (c) 2017-2020 Wind River Systems, Inc.
+# Copyright (c) 2017-2021 Wind River Systems, Inc.
 #
 # The right to copy, distribute, modify, or otherwise make use
 # of this software may be licensed only pursuant to the terms
@@ -403,7 +403,8 @@ class TestFirmwareAudit(base.DCManagerTestCase):
         am = subcloud_audit_manager.SubcloudAuditManager()
         am.firmware_audit = fm
 
-        patch_audit_data, firmware_audit_data = am._get_audit_data(True, True)
+        patch_audit_data, firmware_audit_data, kubernetes_audit_data = \
+            am._get_audit_data(True, True, True)
 
         for name in ['subcloud1', 'subcloud2']:
             fm.subcloud_firmware_audit(name, firmware_audit_data)
@@ -435,7 +436,8 @@ class TestFirmwareAudit(base.DCManagerTestCase):
         am = subcloud_audit_manager.SubcloudAuditManager()
         am.firmware_audit = fm
 
-        patch_audit_data, firmware_audit_data = am._get_audit_data(True, True)
+        patch_audit_data, firmware_audit_data, kubernetes_audit_data = \
+            am._get_audit_data(True, True, True)
 
         for name in ['subcloud1', 'subcloud2']:
             fm.subcloud_firmware_audit(name, firmware_audit_data)
@@ -467,7 +469,8 @@ class TestFirmwareAudit(base.DCManagerTestCase):
         am = subcloud_audit_manager.SubcloudAuditManager()
         am.firmware_audit = fm
 
-        patch_audit_data, firmware_audit_data = am._get_audit_data(True, True)
+        patch_audit_data, firmware_audit_data, kubernetes_audit_data = \
+            am._get_audit_data(True, True, True)
 
         for name in ['subcloud1', 'subcloud2']:
             fm.subcloud_firmware_audit(name, firmware_audit_data)
@@ -499,7 +502,8 @@ class TestFirmwareAudit(base.DCManagerTestCase):
         am = subcloud_audit_manager.SubcloudAuditManager()
         am.firmware_audit = fm
 
-        patch_audit_data, firmware_audit_data = am._get_audit_data(True, True)
+        patch_audit_data, firmware_audit_data, kubernetes_audit_data = \
+            am._get_audit_data(True, True, True)
 
         for name in ['subcloud1', 'subcloud2']:
             fm.subcloud_firmware_audit(name, firmware_audit_data)
@@ -531,7 +535,8 @@ class TestFirmwareAudit(base.DCManagerTestCase):
         am = subcloud_audit_manager.SubcloudAuditManager()
         am.firmware_audit = fm
 
-        patch_audit_data, firmware_audit_data = am._get_audit_data(True, True)
+        patch_audit_data, firmware_audit_data, kubernetes_audit_data = \
+            am._get_audit_data(True, True, True)
 
         for name in ['subcloud1', 'subcloud2']:
             fm.subcloud_firmware_audit(name, firmware_audit_data)
@@ -563,7 +568,8 @@ class TestFirmwareAudit(base.DCManagerTestCase):
         am = subcloud_audit_manager.SubcloudAuditManager()
         am.firmware_audit = fm
 
-        patch_audit_data, firmware_audit_data = am._get_audit_data(True, True)
+        patch_audit_data, firmware_audit_data, kubernetes_audit_data = \
+            am._get_audit_data(True, True, True)
 
         for name in ['subcloud1', 'subcloud2']:
             fm.subcloud_firmware_audit(name, firmware_audit_data)
@@ -595,7 +601,8 @@ class TestFirmwareAudit(base.DCManagerTestCase):
         am = subcloud_audit_manager.SubcloudAuditManager()
         am.firmware_audit = fm
 
-        patch_audit_data, firmware_audit_data = am._get_audit_data(True, True)
+        patch_audit_data, firmware_audit_data, kubernetes_audit_data = \
+            am._get_audit_data(True, True, True)
 
         for name in ['subcloud1', 'subcloud2']:
             fm.subcloud_firmware_audit(name, firmware_audit_data)
@@ -627,7 +634,8 @@ class TestFirmwareAudit(base.DCManagerTestCase):
         am = subcloud_audit_manager.SubcloudAuditManager()
         am.firmware_audit = fm
 
-        patch_audit_data, firmware_audit_data = am._get_audit_data(True, True)
+        patch_audit_data, firmware_audit_data, kubernetes_audit_data = \
+            am._get_audit_data(True, True, True)
 
         for name in ['subcloud1', 'subcloud2']:
             fm.subcloud_firmware_audit(name, firmware_audit_data)

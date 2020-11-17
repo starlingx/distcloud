@@ -229,7 +229,7 @@ class GenericSyncManager(object):
         sc = sc.create()
         for endpoint_type in endpoint_type_list:
             db_api.subcloud_sync_create(context, name, endpoint_type,
-                                        values={'subcloud_id': sc.id})
+                                        values={'subcloud_id': sc.id})  # pylint: disable=E1101
         #  Create the sync object for this engine
         self.create_sync_objects(name, capabilities)
 

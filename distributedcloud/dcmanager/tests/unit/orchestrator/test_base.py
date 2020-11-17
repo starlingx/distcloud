@@ -10,7 +10,7 @@
 # License for the specific language governing permissions and limitations
 # under the License.
 #
-# Copyright (c) 2017-2020 Wind River Systems, Inc.
+# Copyright (c) 2017-2021 Wind River Systems, Inc.
 #
 # The right to copy, distribute, modify, or otherwise make use
 # of this software may be licensed only pursuant to the terms
@@ -129,6 +129,20 @@ class TestSwUpdate(base.DCManagerTestCase):
             self.mock_fw_update_orch_thread = p.start()
             self.mock_fw_update_orch_thread.return_value = \
                 self.fake_fw_update_orch_thread
+            self.addCleanup(p.stop)
+
+        if strategy_type == consts.SW_UPDATE_TYPE_KUBERNETES:
+            sw_update_manager.KubeUpgradeOrchThread.stopped = lambda x: False
+            worker = sw_update_manager.KubeUpgradeOrchThread(
+                mock_strategy_lock,
+                mock_dcmanager_audit_api)
+        else:
+            # mock the patch orch thread
+            self.fake_kube_upgrade_orch_thread = FakeOrchThread()
+            p = mock.patch.object(sw_update_manager, 'KubeUpgradeOrchThread')
+            self.mock_kube_upgrade_orch_thread = p.start()
+            self.mock_kube_upgrade_orch_thread.return_value = \
+                self.fake_kube_upgrade_orch_thread
             self.addCleanup(p.stop)
 
         return worker

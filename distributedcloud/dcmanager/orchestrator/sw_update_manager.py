@@ -13,7 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-# Copyright (c) 2017-2020 Wind River Systems, Inc.
+# Copyright (c) 2017-2021 Wind River Systems, Inc.
 #
 # The right to copy, distribute, modify, or otherwise make use
 # of this software may be licensed only pursuant to the terms
@@ -30,6 +30,8 @@ from dcmanager.common import manager
 from dcmanager.common import utils
 from dcmanager.db import api as db_api
 from dcmanager.orchestrator.fw_update_orch_thread import FwUpdateOrchThread
+from dcmanager.orchestrator.kube_upgrade_orch_thread \
+    import KubeUpgradeOrchThread
 from dcmanager.orchestrator.patch_orch_thread import PatchOrchThread
 from dcmanager.orchestrator.sw_upgrade_orch_thread import SwUpgradeOrchThread
 from dcorch.common import consts as dcorch_consts
@@ -64,6 +66,10 @@ class SwUpdateManager(manager.Manager):
         self.fw_update_orch_thread = FwUpdateOrchThread(self.strategy_lock,
                                                         self.audit_rpc_client)
         self.fw_update_orch_thread.start()
+        # - kube upgrade orchestration thread
+        self.kube_upgrade_orch_thread = \
+            KubeUpgradeOrchThread(self.strategy_lock, self.audit_rpc_client)
+        self.kube_upgrade_orch_thread.start()
 
     def stop(self):
         # Stop (and join) the worker threads
@@ -76,6 +82,9 @@ class SwUpdateManager(manager.Manager):
         # - fw update orchestration thread
         self.fw_update_orch_thread.stop()
         self.fw_update_orch_thread.join()
+        # - kube upgrade  orchestration thread
+        self.kube_upgrade_orch_thread.stop()
+        self.kube_upgrade_orch_thread.join()
 
     def _validate_subcloud_status_sync(self, strategy_type,
                                        subcloud_status, force):
@@ -102,6 +111,11 @@ class SwUpdateManager(manager.Manager):
         elif strategy_type == consts.SW_UPDATE_TYPE_FIRMWARE:
             return (subcloud_status.endpoint_type ==
                     dcorch_consts.ENDPOINT_TYPE_FIRMWARE and
+                    subcloud_status.sync_status ==
+                    consts.SYNC_STATUS_OUT_OF_SYNC)
+        elif strategy_type == consts.SW_UPDATE_TYPE_KUBERNETES:
+            return (subcloud_status.endpoint_type ==
+                    dcorch_consts.ENDPOINT_TYPE_KUBERNETES and
                     subcloud_status.sync_status ==
                     consts.SYNC_STATUS_OUT_OF_SYNC)
         # Unimplemented strategy_type status check. Log an error
@@ -207,6 +221,14 @@ class SwUpdateManager(manager.Manager):
                         resource='strategy',
                         msg='Subcloud %s does not require firmware update'
                             % cloud_name)
+            elif strategy_type == consts.SW_UPDATE_TYPE_KUBERNETES:
+                subcloud_status = db_api.subcloud_status_get(
+                    context, subcloud.id, dcorch_consts.ENDPOINT_TYPE_KUBERNETES)
+                if subcloud_status.sync_status == consts.SYNC_STATUS_IN_SYNC:
+                    raise exceptions.BadRequest(
+                        resource='strategy',
+                        msg='Subcloud %s does not require kubernetes update'
+                            % cloud_name)
             elif strategy_type == consts.SW_UPDATE_TYPE_PATCH:
                 # Make sure subcloud requires patching
                 subcloud_status = db_api.subcloud_status_get(
@@ -267,6 +289,17 @@ class SwUpdateManager(manager.Manager):
                     raise exceptions.BadRequest(
                         resource='strategy',
                         msg='Firmware sync status is unknown for one or more '
+                            'subclouds')
+            elif strategy_type == consts.SW_UPDATE_TYPE_KUBERNETES:
+                if subcloud.availability_status != consts.AVAILABILITY_ONLINE:
+                    continue
+                elif (subcloud_status.endpoint_type ==
+                      dcorch_consts.ENDPOINT_TYPE_KUBERNETES and
+                        subcloud_status.sync_status ==
+                        consts.SYNC_STATUS_UNKNOWN):
+                    raise exceptions.BadRequest(
+                        resource='strategy',
+                        msg='Kubernetes sync status is unknown for one or more '
                             'subclouds')
 
         # Create the strategy

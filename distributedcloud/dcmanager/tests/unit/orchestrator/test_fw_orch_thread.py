@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2020 Wind River Systems, Inc.
+# Copyright (c) 2020-2021 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -9,7 +9,7 @@ from dccommon.drivers.openstack import vim
 from dcmanager.common import consts
 from dcmanager.common import exceptions as exception
 from dcmanager.db.sqlalchemy import api as db_api
-from dcmanager.orchestrator.fw_update_orch_thread import FwUpdateOrchThread
+from dcmanager.orchestrator.orch_thread import OrchThread
 
 from dcmanager.tests.unit.common import fake_strategy
 from dcmanager.tests.unit.fakes import FakeVimClient
@@ -26,16 +26,16 @@ class TestFwOrchThread(TestSwUpdate):
     def setUp(self):
         super(TestFwOrchThread, self).setUp()
 
-        # Mock the vim client defined in the orch thread
-        self.worker_vim_client = FakeVimClient()
-        p = mock.patch.object(FwUpdateOrchThread, 'get_vim_client')
-        self.mock_worker_vim_client = p.start()
-        self.mock_worker_vim_client.return_value = self.worker_vim_client
+        # Mock the vim client defined in the base state class
+        self.vim_client = FakeVimClient()
+        p = mock.patch.object(OrchThread, 'get_vim_client')
+        self.mock_vim_client = p.start()
+        self.mock_vim_client.return_value = self.vim_client
         self.addCleanup(p.stop)
 
-        self.worker_vim_client.create_strategy = mock.MagicMock()
-        self.worker_vim_client.delete_strategy = mock.MagicMock()
-        self.worker_vim_client.get_strategy = mock.MagicMock()
+        self.vim_client.create_strategy = mock.MagicMock()
+        self.vim_client.delete_strategy = mock.MagicMock()
+        self.vim_client.get_strategy = mock.MagicMock()
 
     def setup_strategy(self, state):
         return fake_strategy.create_fake_strategy(
@@ -52,7 +52,7 @@ class TestFwOrchThread(TestSwUpdate):
         self.worker.delete(self.strategy)
 
         # There are no strategy steps, so no vim api calls should be invoked
-        self.worker_vim_client.get_strategy.assert_not_called()
+        self.vim_client.get_strategy.assert_not_called()
 
         # Verify the strategy was deleted
         self.assertRaises(exception.NotFound,
@@ -70,13 +70,13 @@ class TestFwOrchThread(TestSwUpdate):
             consts.STRATEGY_STATE_CREATING_FW_UPDATE_STRATEGY)
 
         # If the subcloud does not have a vim strategy, it raises an exception
-        self.worker_vim_client.get_strategy.side_effect = Exception
+        self.vim_client.get_strategy.side_effect = Exception
 
         # invoke the strategy (not strategy step) operation on the orch thread
         self.worker.delete(self.strategy)
 
         # There is a step, so the vim strategy should be queried
-        self.worker_vim_client.get_strategy.assert_called()
+        self.vim_client.get_strategy.assert_called()
 
         # Verify the strategy was deleted
         self.assertRaises(exception.NotFound,
@@ -99,14 +99,14 @@ class TestFwOrchThread(TestSwUpdate):
 
         # the subcloud returns a vim strategy
         vim_strategy = FakeVimStrategy(state=vim.STATE_APPLIED)
-        self.worker_vim_client.get_strategy.return_value = vim_strategy
+        self.vim_client.get_strategy.return_value = vim_strategy
 
         # invoke the strategy (not strategy step) operation on the orch thread
         self.worker.delete(self.strategy)
 
         # There is a step, so the vim strategy should be queried and deleted
-        self.worker_vim_client.get_strategy.assert_called()
-        self.worker_vim_client.delete_strategy.assert_called()
+        self.vim_client.get_strategy.assert_called()
+        self.vim_client.delete_strategy.assert_called()
 
         # Verify the strategy was deleted
         self.assertRaises(exception.NotFound,

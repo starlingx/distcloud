@@ -28,7 +28,8 @@ class CreatingVIMStrategyState(BaseState):
         self.max_queries = DEFAULT_MAX_QUERIES
 
     def _create_vim_strategy(self, strategy_step, region):
-        self.info_log(strategy_step, "Creating VIM strategy")
+        self.info_log(strategy_step,
+                      "Creating (%s) VIM strategy" % self.strategy_name)
 
         # Get the update options
         opts_dict = dcmanager_utils.get_sw_update_opts(
@@ -50,6 +51,10 @@ class CreatingVIMStrategyState(BaseState):
             raise Exception("Unexpected VIM strategy build state: %s"
                             % subcloud_strategy.state)
         return subcloud_strategy
+
+    def skip_check(self, strategy_step, subcloud_strategy):
+        """Subclasses can override this to allow this state to skip ahead"""
+        return None
 
     def perform_state_action(self, strategy_step):
         """Create a VIM strategy using VIM REST API
@@ -113,6 +118,17 @@ class CreatingVIMStrategyState(BaseState):
             subcloud_strategy = self.get_vim_client(region).get_strategy(
                 strategy_name=self.strategy_name,
                 raise_error_if_missing=True)
+
+            # Check for skip criteria where a failed 'build' might be expected
+            skip_state = self.skip_check(strategy_step,  # pylint: disable=assignment-from-none
+                                         subcloud_strategy)
+            if skip_state is not None:
+                self.info_log(strategy_step,
+                              "Skip forward to state:(%s)" % skip_state)
+                self.override_next_state(skip_state)
+                # break out of loop. Let overridden 'next_state' take over
+                break
+
             if subcloud_strategy.state == vim.STATE_READY_TO_APPLY:
                 self.info_log(strategy_step, "VIM strategy has been built")
                 break

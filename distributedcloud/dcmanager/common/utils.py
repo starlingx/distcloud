@@ -269,6 +269,18 @@ def get_vault_load_files(target_version):
     return (matching_iso, matching_sig)
 
 
+def get_active_kube_version(kube_versions):
+    """Returns the active version name for kubernetes from a list of versions"""
+
+    active_kube_version = None
+    for kube in kube_versions:
+        kube_dict = kube.to_dict()
+        if kube_dict.get('target') and kube_dict.get('state') == 'active':
+            active_kube_version = kube_dict.get('version')
+            break
+    return active_kube_version
+
+
 def get_loads_for_patching(loads):
     """Filter the loads that can be patched. Return their software versions"""
     valid_states = [

@@ -1,4 +1,4 @@
-# Copyright 2017-2020 Wind River
+# Copyright 2017-2021 Wind River
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -403,15 +403,21 @@ class SysinvAPIController(APIController):
         response = req.get_response(application)
         return self.process_response(environ, request, response)
 
-    def _notify_dcmanager(self, request, response):
+    def _notify_dcmanager(self, request, response, endpoint_type, sync_status):
         # Send a RPC to dcmanager
-        LOG.info("Send RPC to dcmanager to set firmware sync status to "
-                 "unknown")
+        LOG.info("Send RPC to dcmanager to set: %s sync status to: %s"
+                 % (endpoint_type, sync_status))
         self.dcmanager_rpc_client.update_subcloud_endpoint_status(
             self.ctxt,
-            endpoint_type=consts.ENDPOINT_TYPE_FIRMWARE,
-            sync_status=dcmanager_consts.SYNC_STATUS_UNKNOWN)
+            endpoint_type=endpoint_type,
+            sync_status=sync_status)
         return response
+
+    def _notify_dcmanager_firmware(self, request, response):
+        return self._notify_dcmanager(request,
+                                      response,
+                                      consts.ENDPOINT_TYPE_FIRMWARE,
+                                      dcmanager_consts.SYNC_STATUS_UNKNOWN)
 
     def _process_response(self, environ, request, response):
         try:
@@ -440,7 +446,7 @@ class SysinvAPIController(APIController):
                     # PATCH operation for apply/remove commands fall through
                     # as they only require to notify dcmanager
                     if notify:
-                        self._notify_dcmanager(request, response)
+                        self._notify_dcmanager_firmware(request, response)
                 else:
                     self._enqueue_work(environ, request, response)
                     self.notify(environ, self.ENDPOINT_TYPE)
