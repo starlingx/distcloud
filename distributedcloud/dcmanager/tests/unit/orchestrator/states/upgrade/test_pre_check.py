@@ -7,11 +7,13 @@ import mock
 
 from dcmanager.common import consts
 
+from dcmanager.tests.unit.orchestrator.states.fakes import FakeController
 from dcmanager.tests.unit.orchestrator.states.fakes import FakeHostFilesystem
 from dcmanager.tests.unit.orchestrator.states.fakes import FakeSubcloud
 from dcmanager.tests.unit.orchestrator.states.upgrade.test_base \
     import TestSwUpgradeState
 
+CONTROLLER_0_LOCKED = FakeController(administrative=consts.ADMIN_LOCKED)
 CONTROLLER_0_HOST_FS_SCRATCH_MIN_SIZED = FakeHostFilesystem(size=16)
 CONTROLLER_0_HOST_FS_SCRATCH_UNDER_SIZED = FakeHostFilesystem(size=15)
 SYSTEM_HEALTH_RESPONSE_SUCCESS = \
@@ -300,6 +302,33 @@ class TestSwUpgradePreCheckStage(TestSwUpgradeState):
         # Verify the exception caused the state to go to failed
         self.assert_step_updated(self.strategy_step.subcloud_id,
                                  consts.STRATEGY_STATE_FAILED)
+
+    def test_upgrade_pre_check_subcloud_online_host_locked_install_failed(self):
+        """Test pre check step where the subcloud is locked and install-failed
+
+        If the subcloud host is locked, the subcloud's deploy state is
+        install-failed it is still online; this means the remote install step
+        had previously failed early. Upon retry, the pre-check should transition
+        directly to upgrading simplex state.
+        """
+
+        # subcloud is online and deploy status is install-failed
+        self.mock_db_query.return_value = FakeSubcloud(
+            availability_status=consts.AVAILABILITY_ONLINE,
+            deploy_status=consts.DEPLOY_STATE_INSTALL_FAILED)
+
+        # subcloud is locked
+        self.sysinv_client.get_host.side_effect = [CONTROLLER_0_LOCKED]
+
+        # invoke the strategy state operation on the orch thread
+        self.worker.perform_state_action(self.strategy_step)
+
+        # verify the DB query was invoked
+        self.mock_db_query.assert_called()
+
+        # Verify the expected next state happened (upgrading)
+        self.assert_step_updated(self.strategy_step.subcloud_id,
+                                 consts.STRATEGY_STATE_UPGRADING_SIMPLEX)
 
     def test_upgrade_pre_check_subcloud_offline_no_data_install(self):
         """Test pre check step where the subcloud is offline without data install.

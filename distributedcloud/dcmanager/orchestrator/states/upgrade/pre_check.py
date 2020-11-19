@@ -34,23 +34,7 @@ class PreCheckState(BaseState):
         super(PreCheckState, self).__init__(
             next_state=consts.STRATEGY_STATE_INSTALLING_LICENSE, region_name=region_name)
 
-    def _perform_subcloud_online_checks(self, strategy_step, subcloud):
-        # obtain necessary clients
-        subcloud_sysinv_client = None
-        try:
-            subcloud_sysinv_client = self.get_sysinv_client(strategy_step.subcloud.name)
-        except Exception:
-            # if getting the token times out, the orchestrator may have
-            # restarted and subcloud may be offline; so will attempt
-            # to use the persisted values
-            message = ("_perform_subcloud_online_checks subcloud %s "
-                       "failed to get subcloud client" %
-                       strategy_step.subcloud.name)
-            self.error_log(strategy_step, message)
-            raise ManualRecoveryRequiredException(
-                subcloud=strategy_step.subcloud.name,
-                deploy_status=subcloud.deploy_status)
-
+    def _perform_subcloud_online_checks(self, strategy_step, subcloud_sysinv_client):
         # check system health
         #
         # Sample output #1
@@ -135,7 +119,33 @@ class PreCheckState(BaseState):
                 details=details)
 
         if subcloud.availability_status == consts.AVAILABILITY_ONLINE:
-            self._perform_subcloud_online_checks(strategy_step, subcloud)
+            subcloud_sysinv_client = None
+            try:
+                subcloud_sysinv_client = self.get_sysinv_client(strategy_step.subcloud.name)
+            except Exception:
+                # if getting the token times out, the orchestrator may have
+                # restarted and subcloud may be offline; so will attempt
+                # to use the persisted values
+                message = ("_perform_subcloud_online_checks subcloud %s "
+                           "failed to get subcloud client" %
+                           strategy_step.subcloud.name)
+                self.error_log(strategy_step, message)
+                raise ManualRecoveryRequiredException(
+                    subcloud=strategy_step.subcloud.name,
+                    deploy_status=subcloud.deploy_status)
+
+            host = subcloud_sysinv_client.get_host("controller-0")
+            if (host.administrative == consts.ADMIN_LOCKED and
+                    subcloud.deploy_status == consts.DEPLOY_STATE_INSTALL_FAILED):
+                # If the subcloud is online but its deploy state is install-failed
+                # and the subcloud host is locked, the upgrading simplex step must
+                # have failed early in the previous upgrade attempt. The pre-check
+                # should transition directly to upgrading simplex step in the
+                # retry.
+                self.override_next_state(consts.STRATEGY_STATE_UPGRADING_SIMPLEX)
+                return self.next_state
+
+            self._perform_subcloud_online_checks(strategy_step, subcloud_sysinv_client)
             # If the subcloud has completed data migration and is online,
             # advance directly to activating upgrade step. Otherwise, start
             # from installing license step.
