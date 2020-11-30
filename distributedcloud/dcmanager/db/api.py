@@ -13,7 +13,7 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 #
-# Copyright (c) 2017-2020 Wind River Systems, Inc.
+# Copyright (c) 2017-2021 Wind River Systems, Inc.
 #
 # The right to copy, distribute, modify, or otherwise make use
 # of this software may be licensed only pursuant to the terms
@@ -43,6 +43,53 @@ def get_engine():
 
 def get_session():
     return IMPL.get_session()
+
+
+# subcloud audit db methods
+
+##########################
+
+def subcloud_audits_get(context, subcloud_id):
+    """Get subcloud_audits info for a subcloud."""
+    return IMPL.subcloud_audits_get(context, subcloud_id)
+
+
+def subcloud_audits_get_all(context):
+    """Get subcloud_audits info for all subclouds."""
+    return IMPL.subcloud_audits_get_all(context)
+
+
+def subcloud_audits_update_all(context, values):
+    """"Mark sub-audits as needed for all subclouds."""
+    return IMPL.subcloud_audits_update_all(context, values)
+
+
+def subcloud_audits_create(context, subcloud_id):
+    """"Create subcloud_audits info for a subcloud."""
+    return IMPL.subcloud_audits_create(context, subcloud_id)
+
+
+def subcloud_audits_update(context, subcloud_id, values):
+    """Get all subcloud_audits that need auditing."""
+    return IMPL.subcloud_audits_update(context, subcloud_id, values)
+
+
+def subcloud_audits_get_all_need_audit(context, last_audit_threshold):
+    """Get all subcloud_audits that need auditing."""
+    return IMPL.subcloud_audits_get_all_need_audit(context, last_audit_threshold)
+
+
+# In the functions below it would be cleaner if the timestamp were calculated
+# by the DB server.  If server time is in UTC func.now() might work.
+
+def subcloud_audits_get_and_start_audit(context, subcloud_id):
+    """Set the 'audit started' timestamp for the main audit."""
+    return IMPL.subcloud_audits_get_and_start_audit(context, subcloud_id)
+
+
+def subcloud_audits_end_audit(context, subcloud_id):
+    """Set the 'audit finished' timestamp for the main audit."""
+    return IMPL.subcloud_audits_end_audit(context, subcloud_id)
 
 
 # subcloud db methods

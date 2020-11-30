@@ -13,7 +13,7 @@
 # License for the specific language governing permissions and limitations
 # under the License.
 #
-# Copyright (c) 2017-2020 Wind River Systems, Inc.
+# Copyright (c) 2017-2021 Wind River Systems, Inc.
 #
 # The right to copy, distribute, modify, or otherwise make use
 # of this software may be licensed only pursuant to the terms
@@ -24,6 +24,7 @@
 Implementation of SQLAlchemy backend.
 """
 
+import datetime
 import sqlalchemy
 import sys
 import threading
@@ -39,6 +40,7 @@ from sqlalchemy import desc
 from sqlalchemy.orm.exc import MultipleResultsFound
 from sqlalchemy.orm.exc import NoResultFound
 from sqlalchemy.orm import joinedload_all
+from sqlalchemy.sql.expression import true
 
 from dcmanager.common import consts
 from dcmanager.common import exceptions as exception
@@ -146,6 +148,97 @@ def require_context(f):
 
 
 @require_context
+def subcloud_audits_get(context, subcloud_id):
+    result = model_query(context, models.SubcloudAudits). \
+        filter_by(deleted=0). \
+        filter_by(subcloud_id=subcloud_id). \
+        first()
+
+    if not result:
+        raise exception.SubcloudNotFound(subcloud_id=subcloud_id)
+
+    return result
+
+
+@require_context
+def subcloud_audits_get_all(context):
+    return model_query(context, models.SubcloudAudits). \
+        filter_by(deleted=0). \
+        all()
+
+
+@require_context
+def subcloud_audits_update_all(context, values):
+    with write_session() as session:
+        result = session.query(models.SubcloudAudits).\
+            filter_by(deleted=0).\
+            update(values)
+        return result
+
+
+@require_admin_context
+def subcloud_audits_create(context, subcloud_id):
+    with write_session() as session:
+        subcloud_audits_ref = models.SubcloudAudits()
+        subcloud_audits_ref.subcloud_id = subcloud_id
+        session.add(subcloud_audits_ref)
+        return subcloud_audits_ref
+
+
+@require_admin_context
+def subcloud_audits_update(context, subcloud_id, values):
+    with write_session() as session:
+        subcloud_audits_ref = subcloud_audits_get(context, subcloud_id)
+        subcloud_audits_ref.update(values)
+        subcloud_audits_ref.save(session)
+        return subcloud_audits_ref
+
+
+@require_context
+def subcloud_audits_get_all_need_audit(context, last_audit_threshold):
+    with read_session() as session:
+        result = session.query(models.SubcloudAudits).\
+            filter_by(deleted=0).\
+            filter(models.SubcloudAudits.audit_started_at <= models.SubcloudAudits.audit_finished_at).\
+            filter((models.SubcloudAudits.audit_finished_at < last_audit_threshold) |
+                   (models.SubcloudAudits.patch_audit_requested == true()) |
+                   (models.SubcloudAudits.firmware_audit_requested == true()) |
+                   (models.SubcloudAudits.load_audit_requested == true()) |
+                   (models.SubcloudAudits.kubernetes_audit_requested == true())).\
+            all()
+    return result
+
+
+# In the functions below it would be cleaner if the timestamp were calculated
+# by the DB server.  If server time is in UTC func.now() might work.
+
+@require_context
+def subcloud_audits_get_and_start_audit(context, subcloud_id):
+    with write_session() as session:
+        subcloud_audits_ref = subcloud_audits_get(context, subcloud_id)
+        subcloud_audits_ref.audit_started_at = datetime.datetime.utcnow()
+        subcloud_audits_ref.save(session)
+        return subcloud_audits_ref
+
+
+@require_context
+def subcloud_audits_end_audit(context, subcloud_id):
+    with write_session() as session:
+        subcloud_audits_ref = subcloud_audits_get(context, subcloud_id)
+        subcloud_audits_ref.audit_finished_at = datetime.datetime.utcnow()
+        subcloud_audits_ref.state_update_requested = False
+        subcloud_audits_ref.patch_audit_requested = False
+        subcloud_audits_ref.firmware_audit_requested = False
+        subcloud_audits_ref.load_audit_requested = False
+        subcloud_audits_ref.kubernetes_audit_requested = False
+        subcloud_audits_ref.save(session)
+        return subcloud_audits_ref
+
+
+###################
+
+
+@require_context
 def subcloud_get(context, subcloud_id):
     result = model_query(context, models.Subcloud). \
         filter_by(deleted=0). \
@@ -234,6 +327,8 @@ def subcloud_create(context, name, description, location, software_version,
         if data_install is not None:
             subcloud_ref.data_install = data_install
         session.add(subcloud_ref)
+        session.flush()
+        subcloud_audits_create(context, subcloud_ref.id)
         return subcloud_ref
 
 
