@@ -23,6 +23,8 @@ ALREADY_ACTIVATED_UPGRADE = FakeUpgrade(state='activation-complete')
             5)
 @mock.patch("dcmanager.orchestrator.states.upgrade.activating.DEFAULT_SLEEP_DURATION",
             1)
+@mock.patch("dcmanager.orchestrator.states.upgrade.activating.MAX_FAILED_RETRIES",
+            3)
 class TestSwUpgradeActivatingStage(TestSwUpgradeState):
 
     def setUp(self):
@@ -162,3 +164,67 @@ class TestSwUpgradeActivatingStage(TestSwUpgradeState):
         # Even though it failed once, the retry passed
         self.assert_step_updated(self.strategy_step.subcloud_id,
                                  self.on_success_state)
+
+    def test_upgrade_subcloud_activating_upgrade_exceed_max_retries(self):
+        """Test the activating upgrade step should succeed but times out."""
+
+        # upgrade_activate will only be called if an appropriate upgrade exists
+        # first call is before the API call
+        # remaining loops are retrying due to the activationg fails
+        # the get_upgrades query is invoked less than max query limit
+        self.sysinv_client.get_upgrades.side_effect = itertools.chain(
+            [[VALID_UPGRADE, ], ],
+            itertools.repeat([ACTIVATING_FAILED, ]))
+
+        # API call will not raise an exception, and will return an upgrade
+        self.sysinv_client.upgrade_activate.return_value = ACTIVATING_UPGRADE
+
+        # invoke the strategy state operation on the orch thread
+        self.worker.perform_state_action(self.strategy_step)
+
+        # verify the API call was invoked: 1 + MAX_FAILED_RETRIES times
+        self.assertEqual(activating.MAX_FAILED_RETRIES + 1,
+                         self.sysinv_client.upgrade_activate.call_count)
+
+        # verify the get_upgrades query was invoked: 2 + MAX_FAILED_RETRIES times
+        self.assertEqual(activating.MAX_FAILED_RETRIES + 2,
+                         self.sysinv_client.get_upgrades.call_count)
+
+        # Exceeds maximum retries. state goes to failed
+        self.assert_step_updated(self.strategy_step.subcloud_id,
+                                 consts.STRATEGY_STATE_FAILED)
+
+    def test_upgrade_subcloud_activating_retries_until_times_out(self):
+        """Test the activating upgrade fails due to reaches the max retries."""
+
+        # upgrade_activate will only be called if an appropriate upgrade exists
+        # first call is before the API call
+        # then goes to three times of activating
+        # remaining loops are activate failed
+        # the API call is invoked less than the maxmium retries + 1
+        # the states goes to failed due to times out rather than max retries
+        self.sysinv_client.get_upgrades.side_effect = itertools.chain(
+            [[VALID_UPGRADE, ],
+             [ACTIVATING_UPGRADE, ],
+             [ACTIVATING_UPGRADE, ],
+             [ACTIVATING_UPGRADE, ], ],
+            itertools.repeat([ACTIVATING_FAILED, ]))
+
+        # API call will not raise an exception, and will return an upgrade
+        self.sysinv_client.upgrade_activate.return_value = ACTIVATING_UPGRADE
+
+        # invoke the strategy state operation on the orch thread
+        self.worker.perform_state_action(self.strategy_step)
+
+        # verify the API call was invoked was invoked:
+        # max_attempts + 1 - 3 times, 3 times for the in progress status
+        self.assertEqual(activating.DEFAULT_MAX_QUERIES - 2,
+                         self.sysinv_client.upgrade_activate.call_count)
+
+        # verify the get_upgrades query was invoked: 2 + max_attempts times
+        self.assertEqual(activating.DEFAULT_MAX_QUERIES + 1,
+                         self.sysinv_client.get_upgrades.call_count)
+
+        # Times out. state goes to failed
+        self.assert_step_updated(self.strategy_step.subcloud_id,
+                                 consts.STRATEGY_STATE_FAILED)

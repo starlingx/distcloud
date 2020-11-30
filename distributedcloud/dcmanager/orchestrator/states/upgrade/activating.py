@@ -63,7 +63,8 @@ class ActivatingUpgradeState(BaseState):
         # Throws an exception on failure (no upgrade found, bad host state)
         self.get_sysinv_client(strategy_step.subcloud.name).upgrade_activate()
         # Need to loop until changed to a activating completed state
-        counter = 0
+        audit_counter = 0
+        activate_retry_counter = 0
         while True:
             # If event handler stop has been triggered, fail the state
             if self.stopped():
@@ -71,11 +72,12 @@ class ActivatingUpgradeState(BaseState):
             upgrade_state = self.get_upgrade_state(strategy_step)
 
             if upgrade_state in ACTIVATING_RETRY_STATES:
-                if counter >= self.max_failed_retries:
+                if activate_retry_counter >= self.max_failed_retries:
                     raise Exception("Failed to activate upgrade. Please "
                                     "check sysinv.log on the subcloud for "
                                     "details.")
                 # We failed.  Better try again
+                activate_retry_counter += 1
                 self.info_log(strategy_step,
                               "Activation failed, retrying... State=%s"
                               % upgrade_state)
@@ -90,8 +92,8 @@ class ActivatingUpgradeState(BaseState):
                               "Activation completed. State=%s"
                               % upgrade_state)
                 break
-            counter += 1
-            if counter >= self.max_queries:
+            audit_counter += 1
+            if audit_counter >= self.max_queries:
                 raise Exception("Timeout waiting for activation to complete. "
                                 "Please check sysinv.log on the subcloud for "
                                 "details.")
