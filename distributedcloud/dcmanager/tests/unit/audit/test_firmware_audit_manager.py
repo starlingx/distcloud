@@ -44,6 +44,12 @@ class FakeDCManagerAPI(object):
         self.update_subcloud_endpoint_status = mock.MagicMock()
 
 
+class FakeAuditWorkerAPI(object):
+
+    def __init__(self):
+        self.audit_subclouds = mock.MagicMock()
+
+
 class PCIDevice(object):
     def __init__(self, uuid, name,
                  pciaddr, pvendor_id,
@@ -363,6 +369,13 @@ class TestFirmwareAudit(base.DCManagerTestCase):
         self.mock_dcmanager_api.return_value = self.fake_dcmanager_api
         self.addCleanup(p.stop)
 
+        # Mock the Audit Worker API
+        self.fake_audit_worker_api = FakeAuditWorkerAPI()
+        p = mock.patch('dcmanager.audit.rpcapi.ManagerAuditWorkerClient')
+        self.mock_audit_worker_api = p.start()
+        self.mock_audit_worker_api.return_value = self.fake_audit_worker_api
+        self.addCleanup(p.stop)
+
     def test_init(self):
         fm = firmware_audit.FirmwareAudit(self.ctxt,
                                           self.fake_dcmanager_api)
@@ -390,8 +403,7 @@ class TestFirmwareAudit(base.DCManagerTestCase):
         am = subcloud_audit_manager.SubcloudAuditManager()
         am.firmware_audit = fm
 
-        patch_audit_data, firmware_audit_data,\
-            do_load_audit, do_firmware_audit = am._get_audit_data()
+        patch_audit_data, firmware_audit_data = am._get_audit_data(True, True)
 
         for name in ['subcloud1', 'subcloud2']:
             fm.subcloud_firmware_audit(name, firmware_audit_data)
@@ -423,8 +435,7 @@ class TestFirmwareAudit(base.DCManagerTestCase):
         am = subcloud_audit_manager.SubcloudAuditManager()
         am.firmware_audit = fm
 
-        patch_audit_data, firmware_audit_data,\
-            do_load_audit, do_firmware_audit = am._get_audit_data()
+        patch_audit_data, firmware_audit_data = am._get_audit_data(True, True)
 
         for name in ['subcloud1', 'subcloud2']:
             fm.subcloud_firmware_audit(name, firmware_audit_data)
@@ -456,8 +467,7 @@ class TestFirmwareAudit(base.DCManagerTestCase):
         am = subcloud_audit_manager.SubcloudAuditManager()
         am.firmware_audit = fm
 
-        patch_audit_data, firmware_audit_data,\
-            do_load_audit, do_firmware_audit = am._get_audit_data()
+        patch_audit_data, firmware_audit_data = am._get_audit_data(True, True)
 
         for name in ['subcloud1', 'subcloud2']:
             fm.subcloud_firmware_audit(name, firmware_audit_data)
@@ -489,8 +499,7 @@ class TestFirmwareAudit(base.DCManagerTestCase):
         am = subcloud_audit_manager.SubcloudAuditManager()
         am.firmware_audit = fm
 
-        patch_audit_data, firmware_audit_data,\
-            do_load_audit, do_firmware_audit = am._get_audit_data()
+        patch_audit_data, firmware_audit_data = am._get_audit_data(True, True)
 
         for name in ['subcloud1', 'subcloud2']:
             fm.subcloud_firmware_audit(name, firmware_audit_data)
@@ -522,8 +531,7 @@ class TestFirmwareAudit(base.DCManagerTestCase):
         am = subcloud_audit_manager.SubcloudAuditManager()
         am.firmware_audit = fm
 
-        patch_audit_data, firmware_audit_data,\
-            do_load_audit, do_firmware_audit = am._get_audit_data()
+        patch_audit_data, firmware_audit_data = am._get_audit_data(True, True)
 
         for name in ['subcloud1', 'subcloud2']:
             fm.subcloud_firmware_audit(name, firmware_audit_data)
@@ -555,8 +563,7 @@ class TestFirmwareAudit(base.DCManagerTestCase):
         am = subcloud_audit_manager.SubcloudAuditManager()
         am.firmware_audit = fm
 
-        patch_audit_data, firmware_audit_data,\
-            do_load_audit, do_firmware_audit = am._get_audit_data()
+        patch_audit_data, firmware_audit_data = am._get_audit_data(True, True)
 
         for name in ['subcloud1', 'subcloud2']:
             fm.subcloud_firmware_audit(name, firmware_audit_data)
@@ -588,8 +595,7 @@ class TestFirmwareAudit(base.DCManagerTestCase):
         am = subcloud_audit_manager.SubcloudAuditManager()
         am.firmware_audit = fm
 
-        patch_audit_data, firmware_audit_data,\
-            do_load_audit, do_firmware_audit = am._get_audit_data()
+        patch_audit_data, firmware_audit_data = am._get_audit_data(True, True)
 
         for name in ['subcloud1', 'subcloud2']:
             fm.subcloud_firmware_audit(name, firmware_audit_data)
@@ -621,8 +627,7 @@ class TestFirmwareAudit(base.DCManagerTestCase):
         am = subcloud_audit_manager.SubcloudAuditManager()
         am.firmware_audit = fm
 
-        patch_audit_data, firmware_audit_data,\
-            do_load_audit, do_firmware_audit = am._get_audit_data()
+        patch_audit_data, firmware_audit_data = am._get_audit_data(True, True)
 
         for name in ['subcloud1', 'subcloud2']:
             fm.subcloud_firmware_audit(name, firmware_audit_data)

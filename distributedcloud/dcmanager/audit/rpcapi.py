@@ -64,3 +64,48 @@ class ManagerAuditClient(object):
 
     def trigger_firmware_audit(self, ctxt):
         return self.cast(ctxt, self.make_msg('trigger_firmware_audit'))
+
+
+class ManagerAuditWorkerClient(object):
+    """Client side of the DC Manager Audit Worker rpc API.
+
+    Version History:
+     1.0 - Initial version
+    """
+
+    BASE_RPC_API_VERSION = '1.0'
+
+    def __init__(self):
+        self._client = messaging.get_rpc_client(
+            topic=consts.TOPIC_DC_MANAGER_AUDIT_WORKER,
+            version=self.BASE_RPC_API_VERSION)
+
+    @staticmethod
+    def make_msg(method, **kwargs):
+        return method, kwargs
+
+    def call(self, ctxt, msg, version=None):
+        method, kwargs = msg
+        if version is not None:
+            client = self._client.prepare(version=version)
+        else:
+            client = self._client
+        return client.call(ctxt, method, **kwargs)
+
+    def cast(self, ctxt, msg, version=None):
+        method, kwargs = msg
+        if version is not None:
+            client = self._client.prepare(version=version)
+        else:
+            client = self._client
+        return client.cast(ctxt, method, **kwargs)
+
+    # Tell audit-worker to perform audit on the subclouds with these
+    # subcloud IDs.
+    def audit_subclouds(self, ctxt, subcloud_ids, patch_audit_data=None,
+                        firmware_audit_data=None, do_openstack_audit=False):
+        return self.cast(ctxt, self.make_msg('audit_subclouds',
+                                             subcloud_ids=subcloud_ids,
+                                             patch_audit_data=patch_audit_data,
+                                             firmware_audit_data=firmware_audit_data,
+                                             do_openstack_audit=do_openstack_audit))

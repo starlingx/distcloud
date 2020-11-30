@@ -20,29 +20,24 @@
 # of an applicable Wind River license agreement.
 #
 
+import datetime
 import eventlet
 import os
 import time
 from tsconfig.tsconfig import CONFIG_PATH
 
-from keystoneauth1 import exceptions as keystone_exceptions
 from oslo_config import cfg
 from oslo_log import log as logging
 
 from dccommon import consts as dccommon_consts
-from dccommon.drivers.openstack.sdk_platform import OpenStackDriver
 
-from dcmanager.audit import alarm_aggregation
 from dcmanager.audit import firmware_audit
 from dcmanager.audit import patch_audit
-from dcmanager.common import consts
+from dcmanager.audit import rpcapi as dcmanager_audit_rpc_client
 from dcmanager.common import context
-from dcmanager.common import exceptions
 from dcmanager.common.i18n import _
 from dcmanager.common import manager
-from dcmanager.common import scheduler
 from dcmanager.db import api as db_api
-from dcmanager.rpc import client as dcmanager_rpc_client
 from dcorch.common import consts as dcorch_consts
 
 CONF = cfg.CONF
@@ -67,7 +62,7 @@ class SubcloudAuditManager(manager.Manager):
     # Used to force patch audit on the next interval
     force_patch_audit = False
 
-    # Used to force patch audit on the next interval
+    # Used to force firmware audit on the next interval
     force_firmware_audit = False
 
     def __init__(self, *args, **kwargs):
@@ -76,23 +71,17 @@ class SubcloudAuditManager(manager.Manager):
         super(SubcloudAuditManager, self).__init__(
             service_name="subcloud_audit_manager")
         self.context = context.get_admin_context()
-        self.dcmanager_rpc_client = dcmanager_rpc_client.ManagerClient()
-        # Keeps track of greenthreads we create to do work.
-        self.thread_group_manager = scheduler.ThreadGroupManager(
-            thread_pool_size=100)
-        # Track workers created for each subcloud.
-        self.subcloud_workers = dict()
+        self.audit_worker_rpc_client = dcmanager_audit_rpc_client.ManagerAuditWorkerClient()
         # Number of audits since last subcloud state update
-        self.audit_count = 0
+        self.audit_count = SUBCLOUD_STATE_UPDATE_ITERATIONS - 2
         # Number of patch audits
         self.patch_audit_count = 0
-        self.alarm_aggr = alarm_aggregation.AlarmAggregation(self.context)
         self.patch_audit = patch_audit.PatchAudit(
-            self.context, self.dcmanager_rpc_client)
+            self.context, None)
         # trigger a patch audit on startup
         self.patch_audit_time = 0
         self.firmware_audit = firmware_audit.FirmwareAudit(
-            self.context, self.dcmanager_rpc_client)
+            self.context, None)
 
     def _add_missing_endpoints(self):
         file_path = os.path.join(CONFIG_PATH, '.fpga_endpoint_added')
@@ -164,26 +153,20 @@ class SubcloudAuditManager(manager.Manager):
             except Exception:
                 LOG.exception("Error in periodic subcloud audit loop")
 
-    def _get_audit_data(self):
-        """Return the patch audit and firmware audit data it should be triggered.
-
-           Also, returns whether to audit the load and firmware.
-        """
-        patch_audit_data = None
-        firmware_audit_data = None
+    def _get_audits_needed(self):
+        """Returns which (if any) extra audits are needed."""
+        audit_patch = False
         audit_load = False
         audit_firmware = False
-
         current_time = time.time()
         # Determine whether to trigger a patch audit of each subcloud
         if (SubcloudAuditManager.force_patch_audit or
                 (current_time - self.patch_audit_time >=
                     CONF.scheduler.patch_audit_interval)):
             LOG.info("Trigger patch audit")
+            audit_patch = True
             self.patch_audit_time = current_time
             self.patch_audit_count += 1
-            # Query RegionOne patches and software version
-            patch_audit_data = self.patch_audit.get_regionone_audit_data()
             # Check subcloud software version every other patch audit cycle
             if (self.patch_audit_count % 2 != 0 or
                     SubcloudAuditManager.force_patch_audit):
@@ -192,19 +175,28 @@ class SubcloudAuditManager(manager.Manager):
             if (self.patch_audit_count % 4 == 1):
                 LOG.info("Trigger firmware audit")
                 audit_firmware = True
-                firmware_audit_data = self.firmware_audit.get_regionone_audit_data()
                 # Reset force_firmware_audit only when firmware audit has been fired
                 SubcloudAuditManager.reset_force_firmware_audit()
-            SubcloudAuditManager.reset_force_patch_audit()
-
         # Trigger a firmware audit as it is changed through proxy
         if (SubcloudAuditManager.force_firmware_audit):
             LOG.info("Trigger firmware audit")
             audit_firmware = True
-            firmware_audit_data = self.firmware_audit.get_regionone_audit_data()
             SubcloudAuditManager.reset_force_firmware_audit()
 
-        return patch_audit_data, firmware_audit_data, audit_load, audit_firmware
+        return audit_patch, audit_load, audit_firmware
+
+    def _get_audit_data(self, audit_patch, audit_firmware):
+        """Return the patch audit and firmware audit data as needed."""
+        patch_audit_data = None
+        firmware_audit_data = None
+        if audit_patch:
+            # Query RegionOne patches and software version
+            patch_audit_data = self.patch_audit.get_regionone_audit_data()
+        if audit_firmware:
+            # Query RegionOne firmware
+            firmware_audit_data = self.firmware_audit.get_regionone_audit_data()
+
+        return patch_audit_data, firmware_audit_data
 
     def _periodic_subcloud_audit_loop(self):
         """Audit availability of subclouds loop."""
@@ -213,17 +205,30 @@ class SubcloudAuditManager(manager.Manager):
         LOG.info('Triggered subcloud audit.')
         self.audit_count += 1
 
-        # Determine whether to trigger a state update to each subcloud
+        # Determine whether to trigger a state update to each subcloud.
         if self.audit_count >= SUBCLOUD_STATE_UPDATE_ITERATIONS:
             update_subcloud_state = True
             self.audit_count = 0
         else:
             update_subcloud_state = False
 
-        patch_audit_data, firmware_audit_data,\
-            do_load_audit, do_firmware_audit = self._get_audit_data()
+        # Determine whether we want to trigger specialty audits.
+        audit_patch, audit_load, audit_firmware = self._get_audits_needed()
 
-        openstack_installed = False
+        # Set desired audit flags for all subclouds.
+        values = {}
+        if update_subcloud_state:
+            values['state_update_requested'] = True
+        if audit_patch:
+            values['patch_audit_requested'] = True
+        if audit_load:
+            values['load_audit_requested'] = True
+        if audit_firmware:
+            values['firmware_audit_requested'] = True
+        db_api.subcloud_audits_update_all(self.context, values)
+
+        do_openstack_audit = False
+
         # The feature of syncing openstack resources to the subclouds was not
         # completed, therefore, auditing the openstack application is disabled
         # Determine whether OpenStack is installed in central cloud
@@ -237,249 +242,52 @@ class SubcloudAuditManager(manager.Manager):
         # apps = sysinv_client.get_applications()
         # for app in apps:
         #    if app.name == HELM_APP_OPENSTACK and app.active:
-        #        openstack_installed = True
+        #        do_openstack_audit = True
         #        break
 
-        for subcloud in db_api.subcloud_get_all(self.context):
-            # Include failure deploy status states in the auditable list
-            # so that the subcloud can be set as offline
-            if (subcloud.deploy_status not in
-                    [consts.DEPLOY_STATE_DONE,
-                     consts.DEPLOY_STATE_DEPLOYING,
-                     consts.DEPLOY_STATE_DEPLOY_FAILED,
-                     consts.DEPLOY_STATE_INSTALL_FAILED,
-                     consts.DEPLOY_STATE_PRE_INSTALL_FAILED,
-                     consts.DEPLOY_STATE_DATA_MIGRATION_FAILED,
-                     consts.DEPLOY_STATE_MIGRATED]):
-                LOG.debug("Skip subcloud %s audit, deploy_status: %s" %
-                          (subcloud.name, subcloud.deploy_status))
-                continue
+        current_time = datetime.datetime.utcnow()
+        last_audit_threshold = current_time - datetime.timedelta(
+            seconds=CONF.scheduler.subcloud_audit_interval)
 
-            # Create a new greenthread for each subcloud to allow the audits
-            # to be done in parallel. If there are not enough greenthreads
-            # in the pool, this will block until one becomes available.
-            self.subcloud_workers[subcloud.name] = \
-                self.thread_group_manager.start(self._audit_subcloud,
-                                                subcloud.name,
-                                                update_subcloud_state,
-                                                openstack_installed,
-                                                patch_audit_data,
-                                                firmware_audit_data,
-                                                do_load_audit,
-                                                do_firmware_audit)
+        subcloud_ids = []
+        subcloud_audits = db_api.subcloud_audits_get_all_need_audit(
+            self.context, last_audit_threshold)
 
-        # Wait for all greenthreads to complete
-        LOG.info('Waiting for subcloud audits to complete.')
-        for thread in self.subcloud_workers.values():
-            thread.wait()
+        # Now check whether any of these subclouds need patch audit or firmware
+        # audit data and grab it if needed.
+        if not audit_patch:
+            for audit in subcloud_audits:
+                if audit.patch_audit_requested:
+                    audit_patch = True
+                    LOG.info("DB says patch audit needed")
+                    break
+        if not audit_firmware:
+            for audit in subcloud_audits:
+                if audit.firmware_audit_requested:
+                    LOG.info("DB says firmware audit needed")
+                    audit_firmware = True
+                    break
+        patch_audit_data, firmware_audit_data = self._get_audit_data(
+            audit_patch, audit_firmware)
+        LOG.info("patch_audit_data: %s, firmware_audit_data: %s" %
+                 (patch_audit_data, firmware_audit_data))
 
-        # Clear the list of workers before next audit
-        self.subcloud_workers = dict()
-        LOG.info('All subcloud audits have completed.')
-
-    def _update_subcloud_availability(self, subcloud_name,
-                                      availability_status=None,
-                                      update_state_only=False,
-                                      audit_fail_count=None):
-        try:
-            self.dcmanager_rpc_client.update_subcloud_availability(
-                self.context, subcloud_name, availability_status,
-                update_state_only, audit_fail_count)
-            LOG.info('Notifying dcmanager, subcloud:%s, availability:%s' %
-                     (subcloud_name,
-                      availability_status))
-        except Exception:
-            LOG.exception('Problem informing dcmanager of subcloud '
-                          'availability state change, subcloud: %s'
-                          % subcloud_name)
-
-    @staticmethod
-    def _get_subcloud_availability_status(subcloud_name, sysinv_client):
-        """For each subcloud, if at least one service is active in each
-
-        service of servicegroup-list then declare the subcloud online.
-        """
-        avail_to_set = consts.AVAILABILITY_OFFLINE
-        svc_groups = None
-
-        # get a list of service groups in the subcloud
-        try:
-            svc_groups = sysinv_client.get_service_groups()
-        except Exception as e:
-            LOG.warn('Cannot retrieve service groups for '
-                     'subcloud: %s, %s' % (subcloud_name, e))
-
-        if svc_groups:
-            active_sgs = []
-            inactive_sgs = []
-
-            # Build 2 lists, 1 of active service groups,
-            # one with non-active.
-            for sg in svc_groups:
-                if sg.state != consts.SERVICE_GROUP_STATUS_ACTIVE:
-                    inactive_sgs.append(sg.service_group_name)
-                else:
-                    active_sgs.append(sg.service_group_name)
-
-            # Create a list of service groups that are only present
-            # in non-active list
-            inactive_only = [sg for sg in inactive_sgs if
-                             sg not in active_sgs]
-
-            # An empty inactive only list and a non-empty active list
-            # means we're good to go.
-            if not inactive_only and active_sgs:
-                avail_to_set = \
-                    consts.AVAILABILITY_ONLINE
-            else:
-                LOG.info("Subcloud:%s has non-active "
-                         "service groups: %s" %
-                         (subcloud_name, inactive_only))
-        return avail_to_set
-
-    def _audit_subcloud_openstack_app(self, subcloud_name, sysinv_client,
-                                      openstack_installed):
-        openstack_installed_current = False
-        # get a list of installed apps in the subcloud
-        try:
-            apps = sysinv_client.get_applications()
-        except Exception:
-            LOG.exception('Cannot retrieve installed apps for subcloud:%s'
-                          % subcloud_name)
-            return
-
-        for app in apps:
-            if app.name == HELM_APP_OPENSTACK and app.active:
-                # audit find openstack app is installed and active in
-                # the subcloud
-                openstack_installed_current = True
-                break
-
-        endpoint_type_list = dccommon_consts.ENDPOINT_TYPES_LIST_OS
-        if openstack_installed_current and not openstack_installed:
-            self.dcmanager_rpc_client.update_subcloud_sync_endpoint_type(
-                self.context,
-                subcloud_name,
-                endpoint_type_list,
-                openstack_installed_current)
-        elif not openstack_installed_current and openstack_installed:
-            self.dcmanager_rpc_client.update_subcloud_sync_endpoint_type(
-                self.context,
-                subcloud_name,
-                endpoint_type_list,
-                openstack_installed_current)
-
-    def _audit_subcloud(self, subcloud_name, update_subcloud_state,
-                        audit_openstack, patch_audit_data, firmware_audit_data,
-                        do_load_audit, do_firmware_audit):
-        """Audit a single subcloud."""
-
-        # Retrieve the subcloud
-        try:
-            subcloud = db_api.subcloud_get_by_name(self.context, subcloud_name)
-        except exceptions.SubcloudNotFound:
-            # Possibility subcloud could have been deleted since the list of
-            # subclouds to audit was created.
-            LOG.info('Ignoring SubcloudNotFound when auditing subcloud %s' %
-                     subcloud_name)
-            return
-
-        avail_status_current = subcloud.availability_status
-        audit_fail_count = subcloud.audit_fail_count
-
-        # Set defaults to None and disabled so we will still set disabled
-        # status if we encounter an error.
-
-        sysinv_client = None
-        fm_client = None
-        avail_to_set = consts.AVAILABILITY_OFFLINE
-
-        try:
-            os_client = OpenStackDriver(region_name=subcloud_name,
-                                        thread_name='subcloud-audit')
-            sysinv_client = os_client.sysinv_client
-            fm_client = os_client.fm_client
-        except (keystone_exceptions.EndpointNotFound,
-                keystone_exceptions.ConnectFailure,
-                keystone_exceptions.ConnectTimeout,
-                IndexError):
-            if avail_status_current == consts.AVAILABILITY_OFFLINE:
-                LOG.info("Identity or Platform endpoint for %s not "
-                         "found, ignoring for offline "
-                         "subcloud." % subcloud_name)
-                return
-            else:
-                # The subcloud will be marked as offline below.
-                LOG.error("Identity or Platform endpoint for online "
-                          "subcloud: %s not found." % subcloud_name)
-
-        except Exception:
-            LOG.exception("Failed to get OS Client for subcloud: %s"
-                          % subcloud_name)
-
-        # Check availability of the subcloud
-        if sysinv_client:
-            avail_to_set = self._get_subcloud_availability_status(
-                subcloud_name, sysinv_client)
-
-        if avail_to_set == consts.AVAILABILITY_OFFLINE:
-            if audit_fail_count < consts.AVAIL_FAIL_COUNT_MAX:
-                audit_fail_count = audit_fail_count + 1
-            if (avail_status_current == consts.AVAILABILITY_ONLINE) and \
-                    (audit_fail_count < consts.AVAIL_FAIL_COUNT_TO_ALARM):
-                # Do not set offline until we have failed audit
-                # the requisite number of times
-                avail_to_set = consts.AVAILABILITY_ONLINE
+        # We want a chunksize of at least 1 so add the number of workers.
+        chunksize = (len(subcloud_audits) + CONF.audit_worker_workers) / CONF.audit_worker_workers
+        for audit in subcloud_audits:
+            subcloud_ids.append(audit.subcloud_id)
+            if len(subcloud_ids) == chunksize:
+                # We've gathered a batch of subclouds, send it for processing.
+                self.audit_worker_rpc_client.audit_subclouds(
+                    self.context, subcloud_ids, patch_audit_data,
+                    firmware_audit_data, do_openstack_audit)
+                LOG.debug('Sent subcloud audit request message for subclouds: %s' % subcloud_ids)
+                subcloud_ids = []
+        if len(subcloud_ids) > 0:
+            # We've got a partial batch...send it off for processing.
+            self.audit_worker_rpc_client.audit_subclouds(
+                self.context, subcloud_ids, patch_audit_data,
+                firmware_audit_data, do_openstack_audit)
+            LOG.debug('Sent final subcloud audit request message for subclouds: %s' % subcloud_ids)
         else:
-            # In the case of a one off blip, we may need to set the
-            # fail count back to 0
-            audit_fail_count = 0
-
-        if avail_to_set != avail_status_current:
-
-            if avail_to_set == consts.AVAILABILITY_ONLINE:
-                audit_fail_count = 0
-
-            LOG.info('Setting new availability status: %s '
-                     'on subcloud: %s' %
-                     (avail_to_set, subcloud_name))
-            self._update_subcloud_availability(
-                subcloud_name,
-                availability_status=avail_to_set,
-                audit_fail_count=audit_fail_count)
-
-        elif audit_fail_count != subcloud.audit_fail_count:
-            self._update_subcloud_availability(
-                subcloud_name,
-                availability_status=None,
-                audit_fail_count=audit_fail_count)
-
-        elif update_subcloud_state:
-            # Nothing has changed, but we want to send a state update for this
-            # subcloud as an audit.
-            self._update_subcloud_availability(
-                subcloud_name,
-                availability_status=avail_status_current,
-                update_state_only=True)
-
-        # If subcloud is managed and online, audit additional resources
-        if (subcloud.management_state == consts.MANAGEMENT_MANAGED and
-                avail_to_set == consts.AVAILABILITY_ONLINE):
-            # Get alarm summary and store in db,
-            if fm_client:
-                self.alarm_aggr.update_alarm_summary(subcloud_name, fm_client)
-
-            # If we have patch audit data, audit the subcloud
-            if patch_audit_data:
-                self.patch_audit.subcloud_patch_audit(subcloud_name,
-                                                      patch_audit_data,
-                                                      do_load_audit)
-            # Perform firmware audit
-            if do_firmware_audit:
-                self.firmware_audit.subcloud_firmware_audit(subcloud_name,
-                                                            firmware_audit_data)
-
-            # Audit openstack application in the subcloud
-            if audit_openstack and sysinv_client:
-                self._audit_subcloud_openstack_app(
-                    subcloud_name, sysinv_client, subcloud.openstack_installed)
+            LOG.debug('Done sending audit request messages.')

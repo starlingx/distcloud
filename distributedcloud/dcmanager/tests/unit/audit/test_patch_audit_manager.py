@@ -43,6 +43,12 @@ class FakeDCManagerAPI(object):
         self.update_subcloud_endpoint_status = mock.MagicMock()
 
 
+class FakeAuditWorkerAPI(object):
+
+    def __init__(self):
+        self.audit_subclouds = mock.MagicMock()
+
+
 class Load(object):
     def __init__(self, software_version, state):
         self.software_version = software_version
@@ -243,6 +249,13 @@ class TestPatchAudit(base.DCManagerTestCase):
         self.mock_dcmanager_api.return_value = self.fake_dcmanager_api
         self.addCleanup(p.stop)
 
+        # Mock the Audit Worker API
+        self.fake_audit_worker_api = FakeAuditWorkerAPI()
+        p = mock.patch('dcmanager.audit.rpcapi.ManagerAuditWorkerClient')
+        self.mock_audit_worker_api = p.start()
+        self.mock_audit_worker_api.return_value = self.fake_audit_worker_api
+        self.addCleanup(p.stop)
+
     def test_init(self):
         pm = patch_audit.PatchAudit(self.ctxt,
                                     self.fake_dcmanager_api)
@@ -267,8 +280,10 @@ class TestPatchAudit(base.DCManagerTestCase):
         am = subcloud_audit_manager.SubcloudAuditManager()
         am.patch_audit = pm
 
-        patch_audit_data, firmware_audit_data,\
-            do_load_audit, do_firmware_audit = am._get_audit_data()
+        do_load_audit = True
+        patch_audit_data, firmware_audit_data = am._get_audit_data(True, True)
+        # Convert to dict like what would happen calling via RPC
+        patch_audit_data = patch_audit_data.to_dict()
 
         for name in ['subcloud1', 'subcloud2']:
             pm.subcloud_patch_audit(name, patch_audit_data, do_load_audit)
@@ -301,8 +316,10 @@ class TestPatchAudit(base.DCManagerTestCase):
         mock_patching_client.side_effect = FakePatchingClientOutOfSync
         mock_sysinv_client.side_effect = FakeSysinvClientOneLoad
 
-        patch_audit_data, firmware_audit_data,\
-            do_load_audit, do_firmware_audit = am._get_audit_data()
+        do_load_audit = True
+        patch_audit_data, firmware_audit_data = am._get_audit_data(True, True)
+        # Convert to dict like what would happen calling via RPC
+        patch_audit_data = patch_audit_data.to_dict()
 
         for name in ['subcloud1', 'subcloud2', 'subcloud3', 'subcloud4']:
             pm.subcloud_patch_audit(name, patch_audit_data, do_load_audit)
@@ -362,8 +379,10 @@ class TestPatchAudit(base.DCManagerTestCase):
         mock_patching_client.side_effect = FakePatchingClientExtraPatches
         mock_sysinv_client.side_effect = FakeSysinvClientOneLoad
 
-        patch_audit_data, firmware_audit_data,\
-            do_load_audit, do_firmware_audit = am._get_audit_data()
+        do_load_audit = True
+        patch_audit_data, firmware_audit_data = am._get_audit_data(True, True)
+        # Convert to dict like what would happen calling via RPC
+        patch_audit_data = patch_audit_data.to_dict()
 
         for name in ['subcloud1', 'subcloud2']:
             pm.subcloud_patch_audit(name, patch_audit_data, do_load_audit)
@@ -396,8 +415,10 @@ class TestPatchAudit(base.DCManagerTestCase):
         mock_patching_client.side_effect = FakePatchingClientInSync
         mock_sysinv_client.side_effect = FakeSysinvClientOneLoadUnmatchedSoftwareVersion
 
-        patch_audit_data, firmware_audit_data,\
-            do_load_audit, do_firmware_audit = am._get_audit_data()
+        do_load_audit = True
+        patch_audit_data, firmware_audit_data = am._get_audit_data(True, True)
+        # Convert to dict like what would happen calling via RPC
+        patch_audit_data = patch_audit_data.to_dict()
 
         for name in ['subcloud1', 'subcloud2']:
             pm.subcloud_patch_audit(name, patch_audit_data, do_load_audit)
@@ -440,8 +461,10 @@ class TestPatchAudit(base.DCManagerTestCase):
         mock_patching_client.side_effect = FakePatchingClientInSync
         mock_sysinv_client.side_effect = FakeSysinvClientOneLoadUpgradeInProgress
 
-        patch_audit_data, firmware_audit_data,\
-            do_load_audit, do_firmware_audit = am._get_audit_data()
+        do_load_audit = True
+        patch_audit_data, firmware_audit_data = am._get_audit_data(True, True)
+        # Convert to dict like what would happen calling via RPC
+        patch_audit_data = patch_audit_data.to_dict()
 
         for name in ['subcloud1', 'subcloud2']:
             pm.subcloud_patch_audit(name, patch_audit_data, do_load_audit)

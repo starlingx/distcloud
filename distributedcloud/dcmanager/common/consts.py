@@ -12,7 +12,7 @@
 # License for the specific language governing permissions and limitations
 # under the License.
 #
-# Copyright (c) 2017-2020 Wind River Systems, Inc.
+# Copyright (c) 2017-2021 Wind River Systems, Inc.
 #
 # The right to copy, distribute, modify, or otherwise make use
 # of this software may be licensed only pursuant to the terms
@@ -24,6 +24,8 @@ RPC_API_VERSION = "1.0"
 TOPIC_DC_MANAGER = "dcmanager"
 
 TOPIC_DC_MANAGER_AUDIT = "dcmanager-audit"
+
+TOPIC_DC_MANAGER_AUDIT_WORKER = "dcmanager-audit-worker"
 
 TOPIC_DC_MANAGER_ORCHESTRATOR = "dcmanager-orchestrator"
 

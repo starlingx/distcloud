@@ -27,6 +27,7 @@ import oslo_messaging
 from oslo_service import service
 
 from dcmanager.audit.subcloud_audit_manager import SubcloudAuditManager
+from dcmanager.audit.subcloud_audit_worker_manager import SubcloudAuditWorkerManager
 from dcmanager.common import consts
 from dcmanager.common import context
 from dcmanager.common import exceptions
@@ -121,3 +122,66 @@ class DCManagerAuditService(service.Service):
 
         LOG.info("Trigger firmware audit.")
         return self.subcloud_audit_manager.trigger_firmware_audit(context)
+
+
+class DCManagerAuditWorkerService(service.Service):
+    """Lifecycle manager for a running audit service."""
+
+    def __init__(self):
+
+        super(DCManagerAuditWorkerService, self).__init__()
+        self.host = cfg.CONF.host
+        self.rpc_api_version = consts.RPC_API_VERSION
+        self.topic = consts.TOPIC_DC_MANAGER_AUDIT_WORKER
+        # The following are initialized here, but assigned in start() which
+        # happens after the fork when spawning multiple worker processes
+        self.TG = None
+        self.target = None
+        self._rpc_server = None
+        self.subcloud_audit_worker_manager = None
+
+    def start(self):
+        self.init_tgm()
+        self.init_audit_managers()
+        target = oslo_messaging.Target(version=self.rpc_api_version,
+                                       server=self.host,
+                                       topic=self.topic)
+        self.target = target
+        self._rpc_server = rpc_messaging.get_rpc_server(self.target, self)
+        self._rpc_server.start()
+        super(DCManagerAuditWorkerService, self).start()
+
+    def init_tgm(self):
+        self.TG = scheduler.ThreadGroupManager()
+
+    def init_audit_managers(self):
+        self.subcloud_audit_worker_manager = SubcloudAuditWorkerManager()
+
+    def _stop_rpc_server(self):
+        # Stop RPC connection to prevent new requests
+        LOG.debug(_("Attempting to stop audit-worker RPC service..."))
+        try:
+            self._rpc_server.stop()
+            self._rpc_server.wait()
+            LOG.info('Audit-worker RPC service stopped successfully')
+        except Exception as ex:
+            LOG.error('Failed to stop audit-worker RPC service: %s',
+                      six.text_type(ex))
+
+    def stop(self):
+        self._stop_rpc_server()
+
+        self.TG.stop()
+
+        # Terminate the engine process
+        LOG.info("All threads were gone, terminating audit-worker engine")
+        super(DCManagerAuditWorkerService, self).stop()
+
+    @request_context
+    def audit_subclouds(self, context, subcloud_ids,
+                        patch_audit_data, firmware_audit_data,
+                        do_openstack_audit):
+        """Used to trigger audits of the specified subcloud(s)"""
+        self.subcloud_audit_worker_manager.audit_subclouds(
+            context, subcloud_ids, patch_audit_data,
+            firmware_audit_data, do_openstack_audit)

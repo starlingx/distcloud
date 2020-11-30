@@ -18,7 +18,7 @@
 #
 
 """
-DC Manager Audit Service.
+DC Manager Audit Worker Service.
 """
 
 import eventlet
@@ -36,23 +36,23 @@ from dcmanager.common import messaging
 _lazy.enable_lazy()
 config.register_options()
 config.register_keystone_options()
-LOG = logging.getLogger('dcmanager.audit')
+LOG = logging.getLogger('dcmanager.audit-worker')
 
 CONF = cfg.CONF
 
 
 def main():
     logging.register_options(CONF)
-    CONF(project='dcmanager', prog='dcmanager-audit')
-    logging.setup(cfg.CONF, 'dcmanager-audit')
+    CONF(project='dcmanager', prog='dcmanager-audit-worker')
+    logging.setup(cfg.CONF, 'dcmanager-audit-worker')
     logging.set_defaults()
     messaging.setup()
 
     from dcmanager.audit import service as audit
 
-    srv = audit.DCManagerAuditService()
+    srv = audit.DCManagerAuditWorkerService()
     launcher = service.launch(cfg.CONF,
-                              srv, workers=CONF.audit_workers)
+                              srv, workers=CONF.audit_worker_workers)
 
     LOG.info("Configuration:")
     cfg.CONF.log_opt_values(LOG, logging.INFO)

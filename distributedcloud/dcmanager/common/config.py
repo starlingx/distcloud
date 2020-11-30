@@ -152,6 +152,8 @@ common_opts = [
                help='number of orchestrator workers'),
     cfg.IntOpt('audit_workers', default=1,
                help='number of audit workers'),
+    cfg.IntOpt('audit_worker_workers', default=4,
+               help='number of audit-worker workers'),
     cfg.StrOpt('host',
                default='localhost',
                help='hostname of the machine')

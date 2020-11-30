@@ -46,6 +46,20 @@ class PatchAuditData(object):
         self.committed_patch_ids = committed_patch_ids
         self.software_version = software_version
 
+    def to_dict(self):
+        return {
+            'patches': self.patches,
+            'applied_patch_ids': self.applied_patch_ids,
+            'committed_patch_ids': self.committed_patch_ids,
+            'software_version': self.software_version,
+        }
+
+    @classmethod
+    def from_dict(cls, values):
+        if values is None:
+            return None
+        return cls(**values)
+
 
 class PatchAudit(object):
     """Manages tasks related to patch audits."""
@@ -160,6 +174,9 @@ class PatchAudit(object):
         installed_loads = utils.get_loads_for_patching(loads)
 
         out_of_sync = False
+
+        # audit_data will be a dict due to passing through RPC so objectify it
+        audit_data = PatchAuditData.from_dict(audit_data)
 
         # Check that all patches in this subcloud are in the correct
         # state, based on the state of the patch in RegionOne. For the

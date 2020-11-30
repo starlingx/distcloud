@@ -32,6 +32,7 @@ Source13:      dcmanager-audit.service
 Source14:      dcmanager-orchestrator.service
 Source15:      distcloud-syslog.conf
 Source16:      distcloud-logrotate.conf
+Source17:      dcmanager-audit-worker.service
 
 BuildArch:     noarch
 
@@ -135,6 +136,7 @@ install -d -m 755 %{buildroot}%{_sysconfdir}/dcmanager/
 install -p -D -m 644 %{SOURCE1} %{buildroot}%{_unitdir}/dcmanager-api.service
 install -p -D -m 644 %{SOURCE2} %{buildroot}%{_unitdir}/dcmanager-manager.service
 install -p -D -m 644 %{SOURCE13} %{buildroot}%{_unitdir}/dcmanager-audit.service
+install -p -D -m 644 %{SOURCE17} %{buildroot}%{_unitdir}/dcmanager-audit-worker.service
 install -p -D -m 644 %{SOURCE14} %{buildroot}%{_unitdir}/dcmanager-orchestrator.service
 install -p -D -m 644 %{SOURCE9} %{buildroot}%{_tmpfilesdir}
 # install default config files
@@ -197,6 +199,8 @@ install -m 755 -D -p %{SOURCE12} %{buildroot}/%{_bindir}/clean-dcorch
 %{_unitdir}/dcmanager-api.service
 %{_bindir}/dcmanager-audit
 %{_unitdir}/dcmanager-audit.service
+%{_bindir}/dcmanager-audit-worker
+%{_unitdir}/dcmanager-audit-worker.service
 %{_bindir}/dcmanager-orchestrator
 %{_unitdir}/dcmanager-orchestrator.service
 %{_bindir}/dcmanager-manager
