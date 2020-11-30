@@ -136,7 +136,8 @@ def enqueue_work(context, endpoint_type,
                 master_id=source_resource_id)
             rsrc.create()
             LOG.info("Resource created in DB {}/{}/{}/{}".format(
-                rsrc.id, resource_type, source_resource_id, operation_type))
+                rsrc.id,  # pylint: disable=E1101
+                resource_type, source_resource_id, operation_type))
         except oslo_db_exception.DBDuplicateEntry:
             # In case of discrepancies found during audit, resource might
             # be already present in DB, but not its dependent resources.
@@ -179,7 +180,7 @@ def enqueue_work(context, endpoint_type,
         orch_req = orchrequest.OrchRequest(
             context=context, state=consts.ORCH_REQUEST_QUEUED,
             target_region_name=sc.region_name,
-            orch_job_id=orch_job.id)
+            orch_job_id=orch_job.id)  # pylint: disable=E1101
         orch_req.create()
     LOG.info("Work order created for {}:{}/{}/{}/{}".format(
         subcloud, rsrc.id, resource_type, source_resource_id, operation_type))

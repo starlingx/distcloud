@@ -83,6 +83,10 @@ class NotAuthorized(DCManagerException):
     message = _("Not authorized.")
 
 
+class Forbidden(DCManagerException):
+    message = _("Requested API is forbidden")
+
+
 class ServiceUnavailable(DCManagerException):
     message = _("The service is unavailable")
 

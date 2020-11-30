@@ -335,7 +335,7 @@ class UpgradingSimplexState(BaseState):
             db_api.subcloud_update(
                 self.context, strategy_step.subcloud_id,
                 deploy_status=consts.DEPLOY_STATE_PRE_INSTALL_FAILED)
-            self.error_log(strategy_step, e.message)
+            self.error_log(strategy_step, str(e))
             # TODO(jkung): cleanup to be implemented within SubcloudInstall
             install.cleanup()
             raise
@@ -366,7 +366,7 @@ class UpgradingSimplexState(BaseState):
             db_api.subcloud_update(
                 self.context, strategy_step.subcloud_id,
                 deploy_status=consts.DEPLOY_STATE_INSTALL_FAILED)
-            self.error_log(strategy_step, e.message)
+            self.error_log(strategy_step, str(e))
             install.cleanup()
             raise
 

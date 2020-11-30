@@ -85,7 +85,7 @@ class FernetKeyManager(manager.Manager):
             if self.gsm:
                 self.gsm.sync_request(self.context, self.endpoint_type)
         except Exception as e:
-            LOG.error(_("Exception in schedule_work: %s") % e.message)
+            LOG.error(_("Exception in schedule_work: %s") % str(e))
 
     @staticmethod
     def _get_master_keys():
@@ -104,7 +104,7 @@ class FernetKeyManager(manager.Manager):
                      dccommon_consts.CLOUD_0)
         except Exception as e:
             LOG.info(_("Fail to retrieve the master fernet keys: %s") %
-                     e.message)
+                     str(e))
         return keys
 
     def rotate_fernet_keys(self):
@@ -148,5 +148,5 @@ class FernetKeyManager(manager.Manager):
             LOG.info(_("Update the fernet repo on %s timeout") %
                      subcloud_name)
         except Exception as e:
-            error_msg = "subcloud: {}, {}".format(subcloud_name, e.message)
+            error_msg = "subcloud: {}, {}".format(subcloud_name, str(e))
             LOG.info(_("Fail to update fernet repo %s") % error_msg)

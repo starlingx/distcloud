@@ -1792,7 +1792,8 @@ class IdentitySyncThread(SyncThread):
                         master_id=master_id)
                     rsrc.create()
                     LOG.info("Resource created in DB {}/{}/{}".format(
-                        rsrc.id, resource_type, master_id))
+                        rsrc.id,  # pylint: disable=E1101
+                        resource_type, master_id))
 
                 self.persist_db_subcloud_resource(rsrc.id,
                                                   self.get_resource_id(

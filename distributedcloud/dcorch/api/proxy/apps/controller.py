@@ -372,7 +372,7 @@ class ComputeAPIController(APIController):
                                operation_type,
                                resource_info)
         except exception.ResourceNotFound as e:
-            raise webob.exc.HTTPNotFound(explanation=e.format_message())
+            raise webob.exc.HTTPNotFound(explanation=str(e))
 
 
 class SysinvAPIController(APIController):
@@ -648,7 +648,7 @@ class SysinvAPIController(APIController):
                                    operation_type,
                                    json.dumps(resource_info))
             except exception.ResourceNotFound as e:
-                raise webob.exc.HTTPNotFound(explanation=e.format_message())
+                raise webob.exc.HTTPNotFound(explanation=str(e))
 
 
 class IdentityAPIController(APIController):
@@ -765,7 +765,7 @@ class IdentityAPIController(APIController):
                                    operation_type,
                                    json.dumps(resource_info))
             except exception.ResourceNotFound as e:
-                raise webob.exc.HTTPNotFound(explanation=e.format_message())
+                raise webob.exc.HTTPNotFound(explanation=str(e))
         else:
             LOG.warning("Empty resource id for resource: %s", operation_type)
 
@@ -823,7 +823,7 @@ class CinderAPIController(APIController):
                                operation_type,
                                resource_info)
         except exception.ResourceNotFound as e:
-            raise webob.exc.HTTPNotFound(explanation=e.format_message())
+            raise webob.exc.HTTPNotFound(explanation=str(e))
 
 
 class NeutronAPIController(APIController):
@@ -891,7 +891,7 @@ class NeutronAPIController(APIController):
                                operation_type,
                                resource_info)
         except exception.ResourceNotFound as e:
-            raise webob.exc.HTTPNotFound(explanation=e.format_message())
+            raise webob.exc.HTTPNotFound(explanation=str(e))
 
 
 class OrchAPIController(APIController):

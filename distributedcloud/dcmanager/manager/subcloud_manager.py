@@ -562,7 +562,7 @@ class SubcloudManager(manager.Manager):
                 db_api.subcloud_update(
                     context, subcloud.id,
                     deploy_status=consts.DEPLOY_STATE_PRE_INSTALL_FAILED)
-                LOG.error(e.message)
+                LOG.error(str(e))
                 install.cleanup()
                 return
 
@@ -576,7 +576,7 @@ class SubcloudManager(manager.Manager):
                 db_api.subcloud_update(
                     context, subcloud.id,
                     deploy_status=consts.DEPLOY_STATE_INSTALL_FAILED)
-                LOG.error(e.message)
+                LOG.error(str(e))
                 install.cleanup()
                 return
             install.cleanup()

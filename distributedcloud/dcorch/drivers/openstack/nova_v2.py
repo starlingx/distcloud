@@ -129,7 +129,7 @@ class NovaClient(base.DriverBase):
             return keypair
 
         except Exception as exception:
-            LOG.error('Exception Occurred: %s', exception.message)
+            LOG.error('Exception Occurred: %s', str(exception))
             pass
 
     def create_keypairs(self, force, keypair):
@@ -143,7 +143,7 @@ class NovaClient(base.DriverBase):
                 self.nova_client.keypairs.delete(keypair)
                 LOG.info("Deleted Keypair: %s", keypair.name)
             except Exception as exception:
-                LOG.error('Exception Occurred: %s', exception.message)
+                LOG.error('Exception Occurred: %s', str(exception))
                 pass
             LOG.info("Created Keypair: %s", keypair.name)
         return self.nova_client.keypairs. \
