@@ -20,7 +20,7 @@ from dcorch.common import exceptions
 from dcorch.db import api as db_api
 from dcorch.objects import base
 from oslo_versionedobjects import base as ovo_base
-from oslo_versionedobjects import fields
+from oslo_versionedobjects import fields as ovo_fields
 
 
 @base.OrchestratorObjectRegistry.register
@@ -29,12 +29,12 @@ class SubcloudResource(base.OrchestratorObject,
     """DC Orchestrator subcloud object."""
 
     fields = {
-        'id': fields.IntegerField(),
-        'uuid': fields.UUIDField(),
-        'shared_config_state': fields.StringField(),
-        'subcloud_resource_id': fields.StringField(),
-        'resource_id': fields.IntegerField(),
-        'subcloud_id': fields.IntegerField(),
+        'id': ovo_fields.IntegerField(),
+        'uuid': ovo_fields.UUIDField(),
+        'shared_config_state': ovo_fields.StringField(),
+        'subcloud_resource_id': ovo_fields.StringField(),
+        'resource_id': ovo_fields.IntegerField(),
+        'subcloud_id': ovo_fields.IntegerField(),
     }
 
     def create(self):
@@ -56,7 +56,7 @@ class SubcloudResource(base.OrchestratorObject,
         return self._from_db_object(self._context, self, db_subcloud_resource)
 
     def is_managed(self):
-        return self.shared_config_state == consts.SHARED_CONFIG_STATE_MANAGED
+        return self.shared_config_state == consts.SHARED_CONFIG_STATE_MANAGED  # pylint: disable=E1101
 
     @classmethod
     def get_by_id(cls, context, id):
@@ -76,13 +76,16 @@ class SubcloudResource(base.OrchestratorObject,
         updates.pop('uuid', None)
         updates.pop('resource', None)
         updates.pop('subcloud', None)
-        db_subcloud = db_api.subcloud_resource_update(self._context,
-                                                      self.id, updates)
+        db_subcloud = db_api.subcloud_resource_update(
+            self._context,
+            self.id,  # pylint: disable=E1101
+            updates)
         self._from_db_object(self._context, self, db_subcloud)
         self.obj_reset_changes()
 
     def delete(self):
-        db_api.subcloud_resource_delete(self._context, self.id)
+        db_api.subcloud_resource_delete(self._context,
+                                        self.id)  # pylint: disable=E1101
 
 
 @base.OrchestratorObjectRegistry.register
@@ -91,7 +94,7 @@ class SubcloudResourceList(ovo_base.ObjectListBase, base.OrchestratorObject):
     VERSION = '1.1'
 
     fields = {
-        'objects': fields.ListOfObjectsField('SubcloudResource'),
+        'objects': ovo_fields.ListOfObjectsField('SubcloudResource'),
     }
 
     @classmethod

@@ -19,7 +19,7 @@ from dcorch.common import exceptions
 from dcorch.db import api as db_api
 from dcorch.objects import base
 from oslo_versionedobjects import base as ovo_base
-from oslo_versionedobjects import fields
+from oslo_versionedobjects import fields as ovo_fields
 
 
 @base.OrchestratorObjectRegistry.register
@@ -27,10 +27,10 @@ class Resource(base.OrchestratorObject, base.VersionedObjectDictCompat):
     """DC Orchestrator subcloud object."""
 
     fields = {
-        'id': fields.IntegerField(),
-        'uuid': fields.UUIDField(),
-        'resource_type': fields.StringField(),
-        'master_id': fields.StringField(),
+        'id': ovo_fields.IntegerField(),
+        'uuid': ovo_fields.UUIDField(),
+        'resource_type': ovo_fields.StringField(),
+        'master_id': ovo_fields.StringField(),
     }
 
     def create(self):
@@ -63,13 +63,17 @@ class Resource(base.OrchestratorObject, base.VersionedObjectDictCompat):
 
     def delete(self):
         db_api.resource_delete(
-            self._context, self.resource_type, self.master_id)
+            self._context,
+            self.resource_type,  # pylint: disable=E1101
+            self.master_id)  # pylint: disable=E1101
 
     def save(self):
         updates = self.obj_get_changes()
         updates.pop('id', None)
         updates.pop('uuid', None)
-        db_resource = db_api.resource_update(self._context, self.id, updates)
+        db_resource = db_api.resource_update(self._context,
+                                             self.id,  # pylint: disable=E1101
+                                             updates)
         self._from_db_object(self._context, self, db_resource)
         self.obj_reset_changes()
 
@@ -80,7 +84,7 @@ class ResourceList(ovo_base.ObjectListBase, base.OrchestratorObject):
     VERSION = '1.1'
 
     fields = {
-        'objects': fields.ListOfObjectsField('Resource'),
+        'objects': ovo_fields.ListOfObjectsField('Resource'),
     }
 
     @classmethod

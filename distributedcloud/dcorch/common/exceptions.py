@@ -73,6 +73,10 @@ class NotAuthorized(OrchestratorException):
     message = _("Not authorized.")
 
 
+class Forbidden(OrchestratorException):
+    message = _("Requested API is forbidden")
+
+
 class ServiceUnavailable(OrchestratorException):
     message = _("The service is unavailable")
 

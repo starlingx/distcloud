@@ -17,7 +17,7 @@
 
 from dcorch.db import api as db_api
 from dcorch.objects import base
-from oslo_versionedobjects import fields
+from oslo_versionedobjects import fields as ovo_fields
 
 
 @base.OrchestratorObjectRegistry.register
@@ -25,16 +25,16 @@ class Service(base.OrchestratorObject, base.VersionedObjectDictCompat):
     """DC Orchestrator service object."""
 
     fields = {
-        'id': fields.UUIDField(),
-        'host': fields.StringField(),
-        'binary': fields.StringField(),
-        'topic': fields.StringField(),
-        'disabled': fields.BooleanField(),
-        'disabled_reason': fields.StringField(nullable=True),
-        'created_at': fields.DateTimeField(),
-        'updated_at': fields.DateTimeField(),
-        'deleted_at': fields.DateTimeField(nullable=True),
-        'deleted': fields.IntegerField(nullable=True),
+        'id': ovo_fields.UUIDField(),
+        'host': ovo_fields.StringField(),
+        'binary': ovo_fields.StringField(),
+        'topic': ovo_fields.StringField(),
+        'disabled': ovo_fields.BooleanField(),
+        'disabled_reason': ovo_fields.StringField(nullable=True),
+        'created_at': ovo_fields.DateTimeField(),
+        'updated_at': ovo_fields.DateTimeField(),
+        'deleted_at': ovo_fields.DateTimeField(nullable=True),
+        'deleted': ovo_fields.IntegerField(nullable=True),
     }
 
     @classmethod

@@ -234,7 +234,7 @@ class NetworkSyncThread(SyncThread):
         try:
             rule = self.sc_neutron_client.create_security_group_rule(body)
             rule_id = rule['security_group_rule']['id']
-        except neutronclient.common.exceptions.Conflict:
+        except neutronclient_exceptions.Conflict:
             # This can happen if we try to create a rule that is already there.
             # If this happens, we'll update our mapping on the next audit.
             LOG.info("Problem creating security group rule {}, neutron says"
@@ -365,7 +365,8 @@ class NetworkSyncThread(SyncThread):
                             master_id=master_id)
                         rsrc.create()
                         LOG.info("Resource created in DB {}/{}/{}".format(
-                            rsrc.id, resource_type, master_id))
+                            rsrc.id,  # pylint: disable=E1101
+                            resource_type, master_id))
 
                     self.persist_db_subcloud_resource(rsrc.id,
                                                       sc_r['id'])

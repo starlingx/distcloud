@@ -391,7 +391,7 @@ class QuotaManager(manager.Manager):
                     sc_user = sc_os_driver.get_user_by_name(quser.name)
                     sc_user_id = getattr(sc_user, 'id', None)
             except Exception as e:
-                LOG.error("quota sync %s: %s", current_region, e.message)
+                LOG.error("quota sync %s: %s", current_region, str(e))
                 continue
 
             thread = threading.Thread(target=self.update_quota_limits,
@@ -441,7 +441,7 @@ class QuotaManager(manager.Manager):
                     sc_user = sc_os_driver.get_user_by_name(quser.name)
                     sc_user_id = getattr(sc_user, 'id', None)
             except Exception as e:
-                LOG.error("quota usage %s: %s", current_region, e.message)
+                LOG.error("quota usage %s: %s", current_region, str(e))
                 continue
 
             thread = threading.Thread(target=self.read_quota_usage,

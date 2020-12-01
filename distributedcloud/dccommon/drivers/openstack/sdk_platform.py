@@ -94,7 +94,7 @@ class OpenStackDriver(object):
                                                       self.keystone_client)
             except Exception as exception:
                 LOG.error('keystone_client region %s error: %s' %
-                          (region_name, exception.message))
+                          (region_name, str(exception)))
                 raise exception
 
         if region_clients:
@@ -116,7 +116,7 @@ class OpenStackDriver(object):
                     except Exception as exception:
                         LOG.error('Region %s client %s thread %s error: %s' %
                                   (region_name, client_name, thread_name,
-                                   exception.message))
+                                   str(exception)))
                         raise exception
 
     @lockutils.synchronized(LOCK_NAME)
@@ -201,7 +201,7 @@ class OpenStackDriver(object):
                     OpenStackDriver._identity_tokens[region_name] = token
 
         except Exception as exception:
-            LOG.info('_is_token_valid handle: %s', exception.message)
+            LOG.info('_is_token_valid handle: %s', str(exception))
             # Reset the cached dictionary
             OpenStackDriver.os_clients_dict[region_name] = \
                 collections.defaultdict(dict)

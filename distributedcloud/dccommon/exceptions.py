@@ -61,6 +61,10 @@ class NotFound(DCCommonException):
     pass
 
 
+class Forbidden(DCCommonException):
+    message = _("Requested API is forbidden")
+
+
 class Conflict(DCCommonException):
     pass
 
@@ -75,6 +79,10 @@ class InvalidInputError(DCCommonException):
 
 class InternalError(DCCommonException):
     message = _("Error when performing operation")
+
+
+class ProjectNotFound(NotFound):
+    message = _("Project %(project_id)s doesn't exist")
 
 
 class OAMAddressesNotFound(NotFound):
