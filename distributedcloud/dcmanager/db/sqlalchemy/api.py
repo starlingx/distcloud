@@ -670,7 +670,9 @@ def initialize_subcloud_group_default(engine):
         subcloud_group = sqlalchemy.Table('subcloud_group', meta, autoload=True)
         try:
             with engine.begin() as conn:
-                conn.execute(subcloud_group.insert(), default_group)
+                conn.execute(
+                    subcloud_group.insert(),  # pylint: disable=E1120
+                    default_group)
             LOG.info("Default Subcloud Group created")
         except DBDuplicateEntry:
             # The default already exists.

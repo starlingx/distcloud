@@ -361,8 +361,8 @@ class SubcloudInstall(object):
         LOG.debug("update_iso_cmd:(%s)", str_cmd)
         try:
             with open(os.devnull, "w") as fnull:
-                subprocess.check_call(update_iso_cmd, stdout=fnull,
-                                      stderr=fnull)
+                subprocess.check_call(  # pylint: disable=E1102
+                    update_iso_cmd, stdout=fnull, stderr=fnull)
         except subprocess.CalledProcessError:
             msg = "Failed to update iso %s, " % str(update_iso_cmd)
             raise Exception(msg)
@@ -384,8 +384,8 @@ class SubcloudInstall(object):
             ]
             try:
                 with open(os.devnull, "w") as fnull:
-                    subprocess.check_call(cleanup_cmd, stdout=fnull,
-                                          stderr=fnull)
+                    subprocess.check_call(  # pylint: disable=E1102
+                        cleanup_cmd, stdout=fnull, stderr=fnull)
             except subprocess.CalledProcessError:
                 LOG.error("Failed to delete boot files.")
 

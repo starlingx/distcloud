@@ -180,7 +180,7 @@ def upgrade(migrate_engine):
         # populate the sw_update_opts_default with the default values.
         con = migrate_engine.connect()
 
-        con.execute(sw_update_opts_default.insert(),
+        con.execute(sw_update_opts_default.insert(),  # pylint: disable=E1120
                     storage_apply_type=vim.APPLY_TYPE_PARALLEL,
                     compute_apply_type=vim.APPLY_TYPE_PARALLEL,
                     max_parallel_computes=10,

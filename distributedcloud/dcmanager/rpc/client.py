@@ -127,14 +127,13 @@ class ManagerClient(RPCClient):
                           update_state_only=update_state_only,
                           audit_fail_count=audit_fail_count))
 
-    def update_subcloud_sync_endpoint_type(self, ctxt, subcloud_id,
+    def update_subcloud_sync_endpoint_type(self, ctxt,
                                            subcloud_name,
                                            endpoint_type_list,
                                            openstack_installed):
         return self.cast(
             ctxt,
             self.make_msg('update_subcloud_sync_endpoint_type',
-                          subcloud_id=subcloud_id,
                           subcloud_name=subcloud_name,
                           endpoint_type_list=endpoint_type_list,
                           openstack_installed=openstack_installed))

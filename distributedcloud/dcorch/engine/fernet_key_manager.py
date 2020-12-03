@@ -112,7 +112,7 @@ class FernetKeyManager(manager.Manager):
 
         with open(os.devnull, "w") as fnull:
             try:
-                subprocess.check_call(KEY_ROTATE_CMD,
+                subprocess.check_call(KEY_ROTATE_CMD,  # pylint: disable=E1102
                                       stdout=fnull,
                                       stderr=fnull)
             except subprocess.CalledProcessError:

@@ -775,7 +775,7 @@ class SyncThread(object):
         m_resources = None
         db_resources = None
         # Query subcloud first. If not reachable, abort audit.
-        sc_resources = self.get_subcloud_resources(resource_type)
+        sc_resources = self.get_subcloud_resources(resource_type)  # pylint: disable=E1128
         if sc_resources is None:
             return m_resources, db_resources, sc_resources
         db_resources = self.get_db_master_resources(resource_type)
@@ -787,7 +787,7 @@ class SyncThread(object):
         if resource_type in SyncThread.master_resources_dict:
             m_resources = SyncThread.master_resources_dict[resource_type]
         else:
-            m_resources = self.get_master_resources(resource_type)
+            m_resources = self.get_master_resources(resource_type)  # pylint: disable=E1128
             if m_resources is not None:
                 SyncThread.master_resources_dict[resource_type] = m_resources
         return m_resources

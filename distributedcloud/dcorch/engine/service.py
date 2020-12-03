@@ -174,11 +174,11 @@ class EngineService(service.Service):
                                                       project_id, user_id)
 
     @request_context
-    def quota_sync_for_project(self, context, project_id):
+    def quota_sync_for_project(self, context, project_id, user_id):
         # On Demand Quota Sync for a project, will be triggered by KB-API
-        LOG.info("On Demand Quota Sync Called for: %s",
-                 project_id)
-        self.qm.quota_sync_for_project(project_id)
+        LOG.info("On Demand Quota Sync Called for: %s %s",
+                 project_id, user_id)
+        self.qm.quota_sync_for_project(project_id, user_id)
 
     @request_context
     def add_subcloud(self, ctxt, subcloud_name, sw_version):

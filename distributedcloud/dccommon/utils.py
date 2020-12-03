@@ -55,10 +55,11 @@ def run_playbook(log_file, playbook_command):
             f_out_log.write(txt)
             f_out_log.flush()
 
-            subprocess.check_call(playbook_command,
-                                  stdout=f_out_log,
-                                  stderr=f_out_log,
-                                  env=exec_env)
+            subprocess.check_call(  # pylint: disable=E1102
+                playbook_command,
+                stdout=f_out_log,
+                stderr=f_out_log,
+                env=exec_env)
         except subprocess.CalledProcessError:
             raise PlaybookExecutionFailed(playbook_cmd=playbook_command)
         except Exception as e:

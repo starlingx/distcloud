@@ -108,8 +108,7 @@ def upgrade(migrate_engine):
             meta.drop_all(tables=tables[:index])
             raise
 
-    rows = quota_classes.count(). \
-        where(quota_classes.c.class_name == 'default').execute().scalar()
+    rows = quota_classes.count().where(quota_classes.c.class_name == 'default').execute().scalar()  # pylint: disable=E1120
 
     # Do not add entries if there are already 'default' entries.  We don't
     # want to write over something the user added.
@@ -117,7 +116,7 @@ def upgrade(migrate_engine):
         created_at = datetime.datetime.now()
 
         # Set default quota limits
-        qci = quota_classes.insert()
+        qci = quota_classes.insert()  # pylint: disable=E1120
         for resource, default in CONF.dc_orch_global_limit.items():
             qci.execute({'created_at': created_at,
                          'class_name': QUOTA_CLASS_NAME_DEFAULT,
