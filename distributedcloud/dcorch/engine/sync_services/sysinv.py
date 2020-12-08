@@ -13,6 +13,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import threading
+
 from keystoneauth1 import exceptions as keystone_exceptions
 from requests_toolbelt import MultipartDecoder
 
@@ -53,10 +55,12 @@ class SysinvSyncThread(SyncThread):
 
     SYNC_CERTIFICATES = ["ssl_ca", "openstack_ca"]
 
-    def __init__(self, subcloud_engine):
-        super(SysinvSyncThread, self).__init__(subcloud_engine)
-
-        self.endpoint_type = consts.ENDPOINT_TYPE_PLATFORM
+    def __init__(self, subcloud_name, endpoint_type=None, engine_id=None):
+        super(SysinvSyncThread, self).__init__(subcloud_name,
+                                               endpoint_type=endpoint_type,
+                                               engine_id=engine_id)
+        if not self.endpoint_type:
+            self.endpoint_type = consts.ENDPOINT_TYPE_PLATFORM
         self.sync_handler_map = {
             consts.RESOURCE_TYPE_SYSINV_DNS:
                 self.sync_platform_resource,
@@ -71,9 +75,9 @@ class SysinvSyncThread(SyncThread):
             consts.RESOURCE_TYPE_SYSINV_FERNET_REPO:
                 self.sync_platform_resource
         }
-        self.region_name = self.subcloud_engine.subcloud.region_name
+        self.region_name = subcloud_name
         self.log_extra = {"instance": "{}/{}: ".format(
-            self.subcloud_engine.subcloud.region_name, self.endpoint_type)}
+            self.region_name, self.endpoint_type)}
 
         self.audit_resources = [
             consts.RESOURCE_TYPE_SYSINV_CERTIFICATE,
@@ -90,11 +94,13 @@ class SysinvSyncThread(SyncThread):
 
     def sync_platform_resource(self, request, rsrc):
         try:
-            s_os_client = sdk.OpenStackDriver(region_name=self.region_name,
-                                              thread_name=self.thread.name)
+            s_os_client = sdk.OpenStackDriver(
+                region_name=self.region_name,
+                thread_name='sync')
             # invoke the sync method for the requested resource_type
             # I.e. sync_idns
             s_func_name = "sync_" + rsrc.resource_type
+            LOG.info("Obj:%s, func:%s" % (type(self), s_func_name))
             getattr(self, s_func_name)(s_os_client, request, rsrc)
         except AttributeError:
             LOG.error("{} not implemented for {}"
@@ -180,7 +186,7 @@ class SysinvSyncThread(SyncThread):
 
     def snmp_trapdest_create(self, s_os_client, request, rsrc):
         LOG.info("snmp_trapdest_create region {} resource_info={}".format(
-                 self.subcloud_engine.subcloud.region_name,
+                 self.region_name,
                  request.orch_job.resource_info),
                  extra=self.log_extra)
         resource_info_dict = jsonutils.loads(request.orch_job.resource_info)
@@ -248,7 +254,7 @@ class SysinvSyncThread(SyncThread):
 
     def snmp_community_create(self, s_os_client, request, rsrc):
         LOG.info("snmp_community_create region {} resource_info={}".format(
-                 self.subcloud_engine.subcloud.region_name,
+                 self.region_name,
                  request.orch_job.resource_info),
                  extra=self.log_extra)
         resource_info_dict = jsonutils.loads(request.orch_job.resource_info)
@@ -407,7 +413,7 @@ class SysinvSyncThread(SyncThread):
                     break
             if not cert_to_delete:
                 raise dccommon_exceptions.CertificateNotFound(
-                    region_name=self.subcloud_engine.subcloud.region_name,
+                    region_name=self.region_name,
                     signature=subcloud_rsrc.subcloud_resource_id)
             s_os_client.sysinv_client.delete_certificate(cert_to_delete)
         except dccommon_exceptions.CertificateNotFound:
@@ -440,7 +446,7 @@ class SysinvSyncThread(SyncThread):
         except (keystone_exceptions.connection.ConnectTimeout,
                 keystone_exceptions.ConnectFailure) as e:
             LOG.info("sync_certificates: subcloud {} is not reachable [{}]"
-                     .format(self.subcloud_engine.subcloud.region_name,
+                     .format(self.region_name,
                              str(e)), extra=self.log_extra)
             raise exceptions.SyncRequestTimeout
         except Exception as e:
@@ -519,7 +525,7 @@ class SysinvSyncThread(SyncThread):
         except (keystone_exceptions.connection.ConnectTimeout,
                 keystone_exceptions.ConnectFailure) as e:
             LOG.info("sync_fernet_resources: subcloud {} is not reachable [{}]"
-                     .format(self.subcloud_engine.subcloud.region_name,
+                     .format(self.region_name,
                              str(e)), extra=self.log_extra)
             raise exceptions.SyncRequestTimeout
         except Exception as e:
@@ -528,7 +534,7 @@ class SysinvSyncThread(SyncThread):
 
     def create_fernet_repo(self, s_os_client, request, rsrc):
         LOG.info("create_fernet_repo region {} resource_info={}".format(
-            self.subcloud_engine.subcloud.region_name,
+            self.region_name,
             request.orch_job.resource_info),
             extra=self.log_extra)
         resource_info = jsonutils.loads(request.orch_job.resource_info)
@@ -550,7 +556,7 @@ class SysinvSyncThread(SyncThread):
 
     def update_fernet_repo(self, s_os_client, request, rsrc):
         LOG.info("update_fernet_repo region {} resource_info={}".format(
-            self.subcloud_engine.subcloud.region_name,
+            self.region_name,
             request.orch_job.resource_info),
             extra=self.log_extra)
         resource_info = jsonutils.loads(request.orch_job.resource_info)
@@ -572,10 +578,12 @@ class SysinvSyncThread(SyncThread):
 
     # SysInv Audit Related
     def get_master_resources(self, resource_type):
+        LOG.info("get_master_resources thread:{}".format(
+            threading.currentThread().getName()), extra=self.log_extra)
         try:
             os_client = sdk.OpenStackDriver(
                 region_name=dccommon_consts.CLOUD_0,
-                thread_name=self.audit_thread.name)
+                thread_name='audit')
             if resource_type == consts.RESOURCE_TYPE_SYSINV_DNS:
                 return [self.get_dns_resource(os_client)]
             elif resource_type == consts.RESOURCE_TYPE_SYSINV_SNMP_COMM:
@@ -597,9 +605,11 @@ class SysinvSyncThread(SyncThread):
             return None
 
     def get_subcloud_resources(self, resource_type):
+        LOG.info("get_subcloud_resources thread:{}".format(
+            threading.currentThread().getName()), extra=self.log_extra)
         try:
             os_client = sdk.OpenStackDriver(region_name=self.region_name,
-                                            thread_name=self.audit_thread.name)
+                                            thread_name='audit')
             if resource_type == consts.RESOURCE_TYPE_SYSINV_DNS:
                 return [self.get_dns_resource(os_client)]
             elif resource_type == consts.RESOURCE_TYPE_SYSINV_SNMP_COMM:
@@ -621,14 +631,14 @@ class SysinvSyncThread(SyncThread):
                 keystone_exceptions.ConnectFailure) as e:
             LOG.info("get subcloud_resources {}: subcloud {} is not reachable"
                      "[{}]".format(resource_type,
-                                   self.subcloud_engine.subcloud.region_name,
+                                   self.region_name,
                                    str(e)), extra=self.log_extra)
             # None will force skip of audit
             return None
         except exceptions.NotAuthorized as e:
             LOG.info("get subcloud_resources {}: subcloud {} not authorized"
                      "[{}]".format(resource_type,
-                                   self.subcloud_engine.subcloud.region_name,
+                                   self.region_name,
                                    str(e)), extra=self.log_extra)
             sdk.OpenStackDriver.delete_region_clients(self.region_name)
             return None
@@ -643,9 +653,9 @@ class SysinvSyncThread(SyncThread):
     def post_audit(self):
         super(SysinvSyncThread, self).post_audit()
         sdk.OpenStackDriver.delete_region_clients_for_thread(
-            self.region_name, self.audit_thread.name)
+            self.region_name, 'audit')
         sdk.OpenStackDriver.delete_region_clients_for_thread(
-            dccommon_consts.CLOUD_0, self.audit_thread.name)
+            dccommon_consts.CLOUD_0, 'audit')
 
     def get_dns_resource(self, os_client):
         return os_client.sysinv_client.get_dns()

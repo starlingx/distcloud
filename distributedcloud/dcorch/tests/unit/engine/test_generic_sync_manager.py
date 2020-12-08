@@ -24,18 +24,27 @@ from dcorch.common import consts
 from dcorch.common import exceptions
 from dcorch.db.sqlalchemy import api as db_api
 from dcorch.engine import generic_sync_manager
+from dcorch.engine.sync_services import sysinv
 
 from dcorch.tests import base
+from oslo_utils import uuidutils
+
+
+class FakeSyncThread(object):
+    def __init__(self):
+        self.start = mock.MagicMock()
 
 
 class TestGenericSyncManager(base.OrchestratorTestCase):
     def setUp(self):
         super(TestGenericSyncManager, self).setUp()
+        self.engine_id = uuidutils.generate_uuid()
 
-        # Mock SubCloudEngine methods
-        p = mock.patch(
-            'dcorch.engine.subcloud.SubCloudEngine.spawn_sync_threads')
-        self.mock_spawn_sync_threads = p.start()
+        # Mock the sysinv sync methods
+        self.fake_sync_thread_sysinv = FakeSyncThread()
+        p = mock.patch.object(sysinv, 'SysinvSyncThread')
+        self.mock_sync_service_sysinv = p.start()
+        self.mock_sync_service_sysinv.return_value = self.fake_sync_thread_sysinv
         self.addCleanup(p.stop)
 
     @staticmethod
@@ -51,7 +60,7 @@ class TestGenericSyncManager(base.OrchestratorTestCase):
         return db_api.subcloud_create(ctxt, name, values=values)
 
     def test_init(self):
-        gsm = generic_sync_manager.GenericSyncManager()
+        gsm = generic_sync_manager.GenericSyncManager(self.engine_id)
         self.assertIsNotNone(gsm)
 
     def test_init_from_db(self):
@@ -66,21 +75,15 @@ class TestGenericSyncManager(base.OrchestratorTestCase):
             self.ctx,
             name='subcloud3')
 
-        gsm = generic_sync_manager.GenericSyncManager()
+        gsm = generic_sync_manager.GenericSyncManager(self.engine_id)
 
         # Initialize from the DB
         gsm.init_from_db(self.ctx)
 
         # Verify the engines were created
-        self.assertEqual(
-            gsm.subcloud_engines['subcloud1'].subcloud.region_name,
-            'subcloud1')
-        self.assertEqual(
-            gsm.subcloud_engines['subcloud2'].subcloud.region_name,
-            'subcloud2')
-        self.assertEqual(
-            gsm.subcloud_engines['subcloud3'].subcloud.region_name,
-            'subcloud3')
+        self.assertEqual(gsm.sync_objs['subcloud1'], {})
+        self.assertEqual(gsm.sync_objs['subcloud2'], {})
+        self.assertEqual(gsm.sync_objs['subcloud3'], {})
 
     def test_subcloud_state_matches(self):
 
@@ -91,7 +94,7 @@ class TestGenericSyncManager(base.OrchestratorTestCase):
             availability_status=dcm_consts.AVAILABILITY_ONLINE,
             initial_sync_state=consts.INITIAL_SYNC_STATE_REQUESTED)
 
-        gsm = generic_sync_manager.GenericSyncManager()
+        gsm = generic_sync_manager.GenericSyncManager(self.engine_id)
 
         # Initialize from the DB
         gsm.init_from_db(self.ctx)
@@ -133,7 +136,7 @@ class TestGenericSyncManager(base.OrchestratorTestCase):
             availability_status=dcm_consts.AVAILABILITY_ONLINE,
             initial_sync_state=consts.INITIAL_SYNC_STATE_REQUESTED)
 
-        gsm = generic_sync_manager.GenericSyncManager()
+        gsm = generic_sync_manager.GenericSyncManager(self.engine_id)
 
         # Initialize from the DB
         gsm.init_from_db(self.ctx)
@@ -156,7 +159,7 @@ class TestGenericSyncManager(base.OrchestratorTestCase):
             availability_status=dcm_consts.AVAILABILITY_ONLINE,
             initial_sync_state=consts.INITIAL_SYNC_STATE_REQUESTED)
 
-        gsm = generic_sync_manager.GenericSyncManager()
+        gsm = generic_sync_manager.GenericSyncManager(self.engine_id)
 
         # Initialize from the DB
         gsm.init_from_db(self.ctx)
@@ -198,7 +201,7 @@ class TestGenericSyncManager(base.OrchestratorTestCase):
             availability_status=dcm_consts.AVAILABILITY_ONLINE,
             initial_sync_state=consts.INITIAL_SYNC_STATE_REQUESTED)
 
-        gsm = generic_sync_manager.GenericSyncManager()
+        gsm = generic_sync_manager.GenericSyncManager(self.engine_id)
 
         # Initialize from the DB
         gsm.init_from_db(self.ctx)

@@ -20,6 +20,7 @@ import functools
 from oslo_config import cfg
 from oslo_log import log as logging
 import oslo_messaging
+import resource
 
 from dccommon import consts as dccommon_consts
 from dcmanager.common import consts as dcm_consts
@@ -28,6 +29,7 @@ from dcorch.common import context
 from dcorch.common import exceptions
 from dcorch.common.i18n import _
 from dcorch.common import messaging as rpc_messaging
+from dcorch.db import api as db_api
 from dcorch.engine.fernet_key_manager import FernetKeyManager
 from dcorch.engine.generic_sync_manager import GenericSyncManager
 from dcorch.engine.initial_sync_manager import InitialSyncManager
@@ -92,16 +94,18 @@ class EngineService(service.Service):
 
     def init_gsm(self):
         ctxt = context.get_admin_context()
-        self.gsm = GenericSyncManager()
+        self.gsm = GenericSyncManager(self.engine_id)
         self.gsm.init_from_db(ctxt)
+        self.TG.start(self.gsm.sync_job_thread, self.engine_id)
+        self.TG.start(self.gsm.sync_audit_thread, self.engine_id)
 
     def init_fkm(self):
         self.fkm = FernetKeyManager(self.gsm)
 
     def init_ism(self):
         self.ism = InitialSyncManager(self.gsm, self.fkm)
-        self.ism.init_actions()
-        self.TG.start(self.ism.initial_sync_thread)
+        self.ism.init_actions(self.engine_id)
+        self.TG.start(self.ism.initial_sync_thread, self.engine_id)
 
     def start(self):
         self.engine_id = uuidutils.generate_uuid()
@@ -119,15 +123,17 @@ class EngineService(service.Service):
 
         self.service_registry_cleanup()
 
+        self.set_resource_limit()
+
         self.TG.add_timer(cfg.CONF.report_interval,
                           self.service_registry_report)
+
+        self.TG.add_timer(2 * self.periodic_interval,
+                          self.sync_lock_cleanup)
 
         super(EngineService, self).start()
         if self.periodic_enable:
             LOG.info("Adding periodic tasks for the engine to perform")
-            self.TG.add_timer(self.periodic_interval,
-                              self.periodic_sync_audit,
-                              initial_delay=30)
             self.TG.add_timer(CONF.fernet.key_rotation_interval *
                               dccommon_consts.SECONDS_IN_HOUR,
                               self.periodic_key_rotation,
@@ -158,6 +164,33 @@ class EngineService(service.Service):
                 # hasn't been updated, assuming it's died.
                 LOG.info('Service %s was aborted', svc['id'])
                 service_obj.Service.delete(ctx, svc['id'])
+        # Delete sync locks where service ID no longer exists. This could
+        # happen if the process is terminated abnormally e.g. poweroff
+        db_api.purge_stale_sync_lock(ctx)
+
+    def sync_lock_cleanup(self):
+        ctx = context.get_admin_context()
+        time_window = (2 * cfg.CONF.report_interval)
+        services = service_obj.Service.get_all(ctx)
+        for svc in services:
+            if svc['id'] == self.engine_id:
+                continue
+            if timeutils.is_older_than(svc['updated_at'], time_window):
+                # delete the stale sync lock if any
+                LOG.info("To delete the stale locks")
+                db_api.sync_lock_delete_by_engine_id(ctx, svc['id'])
+
+    def set_resource_limit(self):
+        try:
+            resource.setrlimit(resource.RLIMIT_NOFILE, (cfg.CONF.rlimit_nofile,
+                                                        cfg.CONF.rlimit_nofile))
+        except Exception as ex:
+            LOG.error('Engine id %s: failed to set the NOFILE resource limit: '
+                      '%s' % (self.engine_id, ex))
+
+    def delete_sync_lock(self, service_id):
+        ctx = context.get_admin_context()
+        db_api.sync_lock_delete_by_engine_id(ctx, service_id)
 
     def periodic_balance_all(self, engine_id):
         # Automated Quota Sync for all the keystone projects
@@ -264,12 +297,6 @@ class EngineService(service.Service):
     # todo: add authentication since ctxt not actually needed later
     def sync_request(self, ctxt, endpoint_type):
         self.gsm.sync_request(ctxt, endpoint_type)
-
-    def periodic_sync_audit(self):
-        # subcloud sync audit
-        LOG.info("Periodic sync audit started at: %s",
-                 time.strftime("%c"))
-        self.gsm.run_sync_audit()
 
     def _stop_rpc_server(self):
         # Stop RPC connection to prevent new requests

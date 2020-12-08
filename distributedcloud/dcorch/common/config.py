@@ -24,6 +24,9 @@ global_opts = [
     cfg.IntOpt('report_interval',
                default=60,
                help='Seconds between running periodic reporting tasks.'),
+    cfg.IntOpt('rlimit_nofile',
+               default=4096,
+               help='Maximum number of open files per process.'),
 ]
 
 # Pecan_opts
@@ -194,7 +197,7 @@ scheduler_opts = [
 ]
 
 common_opts = [
-    cfg.IntOpt('workers', default=1,
+    cfg.IntOpt('workers', default=5,
                help='number of workers'),
     cfg.StrOpt('host',
                default='localhost',

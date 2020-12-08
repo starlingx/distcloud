@@ -25,6 +25,7 @@ from dcorch.db.sqlalchemy import api as db_api
 from dcorch.engine import initial_sync_manager
 
 from dcorch.tests import base
+from oslo_utils import uuidutils
 
 
 class FakeGSM(object):
@@ -32,6 +33,7 @@ class FakeGSM(object):
         self.ctx = ctx
         self.initial_sync = mock.MagicMock()
         self.enable_subcloud = mock.MagicMock()
+        self.init_subcloud_sync_audit = mock.MagicMock()
 
     def update_subcloud_state(self, name, initial_sync_state):
         db_api.subcloud_update(
@@ -52,6 +54,7 @@ class FakeFKM(object):
 class TestInitialSyncManager(base.OrchestratorTestCase):
     def setUp(self):
         super(TestInitialSyncManager, self).setUp()
+        self.engine_id = uuidutils.generate_uuid()
 
         # Mock eventlet
         p = mock.patch('eventlet.greenthread.spawn_after')
@@ -106,7 +109,7 @@ class TestInitialSyncManager(base.OrchestratorTestCase):
                                                       self.fake_fkm)
 
         # Perform init actions
-        ism.init_actions()
+        ism.init_actions(self.engine_id)
 
         # Verify the subclouds are in the correct initial sync state
         subcloud = db_api.subcloud_get(self.ctx, 'subcloud1')
@@ -134,7 +137,9 @@ class TestInitialSyncManager(base.OrchestratorTestCase):
                                                       self.fake_fkm)
 
         # Initial sync the subcloud
-        ism._initial_sync_subcloud(subcloud.region_name)
+        ism._initial_sync_subcloud(self.ctx,
+                                   self.engine_id,
+                                   subcloud.region_name, None, None)
 
         # Verify that the initial sync steps were done
         self.fake_gsm.initial_sync.assert_called_with(self.ctx,
@@ -163,7 +168,9 @@ class TestInitialSyncManager(base.OrchestratorTestCase):
                                                       self.fake_fkm)
 
         # Initial sync the subcloud
-        ism._initial_sync_subcloud(subcloud.region_name)
+        ism._initial_sync_subcloud(self.ctx,
+                                   self.engine_id,
+                                   subcloud.region_name, None, None)
 
         # Verify that the initial sync steps were not done
         self.fake_gsm.initial_sync.assert_not_called()
@@ -187,7 +194,9 @@ class TestInitialSyncManager(base.OrchestratorTestCase):
         self.fake_gsm.initial_sync.side_effect = Exception('fake_exception')
 
         # Initial sync the subcloud
-        ism._initial_sync_subcloud(subcloud.region_name)
+        ism._initial_sync_subcloud(self.ctx,
+                                   self.engine_id,
+                                   subcloud.region_name, None, None)
 
         # Verify the initial sync was failed
         subcloud = db_api.subcloud_get(self.ctx, 'subcloud1')

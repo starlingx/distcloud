@@ -70,6 +70,14 @@ class Subcloud(base.OrchestratorObject, base.VersionedObjectDictCompat):
         db_subcloud = db_api.subcloud_get(context, subcloud_name)
         return cls._from_db_object(context, cls(), db_subcloud)
 
+    @classmethod
+    def delete_subcloud_by_name(cls, context, subcloud_name):
+        try:
+            db_api.subcloud_delete(context, subcloud_name)
+        except Exception as e:
+            LOG.error("Failed to delete subcloud entry for %s: %s"
+                      % (subcloud_name, e))
+
     def save(self):
         updates = self.obj_get_changes()
         updates.pop('id', None)

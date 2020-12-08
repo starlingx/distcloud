@@ -34,8 +34,11 @@ LOG = logging.getLogger(__name__)
 class ComputeSyncThread(SyncThread):
     """Manages tasks related to resource management for nova."""
 
-    def __init__(self, subcloud_engine):
-        super(ComputeSyncThread, self).__init__(subcloud_engine)
+    def __init__(self, subcloud_name, endpoint_type=None, engine_id=None):
+        super(ComputeSyncThread, self).__init__(subcloud_name,
+                                                endpoint_type=endpoint_type,
+                                                engine_id=engine_id)
+        self.region_name = subcloud_name
         self.endpoint_type = consts.ENDPOINT_TYPE_COMPUTE
         self.sync_handler_map = {
             consts.RESOURCE_TYPE_COMPUTE_FLAVOR: self.sync_compute_resource,
@@ -51,7 +54,7 @@ class ComputeSyncThread(SyncThread):
             # note: no audit here for quotas, that's handled separately
         ]
         self.log_extra = {"instance": "{}/{}: ".format(
-            self.subcloud_engine.subcloud.region_name, self.endpoint_type)}
+            self.region_name, self.endpoint_type)}
         self.sc_nova_client = None
         self.initialize()
         LOG.info("ComputeSyncThread initialized", extra=self.log_extra)
@@ -62,7 +65,7 @@ class ComputeSyncThread(SyncThread):
             self.sc_nova_client = novaclient.Client(
                 '2.38', session=self.sc_admin_session,
                 endpoint_type=dccommon_consts.KS_ENDPOINT_ADMIN,
-                region_name=self.subcloud_engine.subcloud.region_name)
+                region_name=self.region_name)
 
     def initialize(self):
         # Subcloud may be enabled a while after being added.
@@ -95,7 +98,7 @@ class ComputeSyncThread(SyncThread):
         except (keystone_exceptions.connection.ConnectTimeout,
                 keystone_exceptions.ConnectFailure) as e:
             LOG.error("sync_compute_resource: {} is not reachable [{}]"
-                      .format(self.subcloud_engine.subcloud.region_name,
+                      .format(self.region_name,
                               str(e)), extra=self.log_extra)
             raise exceptions.SyncRequestTimeout
         except exceptions.SyncRequestFailed:
@@ -377,7 +380,7 @@ class ComputeSyncThread(SyncThread):
         except (keystone_exceptions.connection.ConnectTimeout,
                 keystone_exceptions.ConnectFailure) as e:
             LOG.info("get_flavor: subcloud {} is not reachable [{}]"
-                     .format(self.subcloud_engine.subcloud.region_name,
+                     .format(self.region_name,
                              str(e)), extra=self.log_extra)
             return None
         except Exception as e:
@@ -396,7 +399,7 @@ class ComputeSyncThread(SyncThread):
 
     def audit_dependants(self, resource_type, m_flavor, sc_flavor):
         num_of_audit_jobs = 0
-        if not self.subcloud_engine.is_enabled() or self.should_exit():
+        if not self.is_subcloud_enabled() or self.should_exit():
             return num_of_audit_jobs
         if resource_type == consts.RESOURCE_TYPE_COMPUTE_FLAVOR:
             num_of_audit_jobs += self.audit_flavor_access(
@@ -578,7 +581,7 @@ class ComputeSyncThread(SyncThread):
             except (keystone_exceptions.connection.ConnectTimeout,
                     keystone_exceptions.ConnectFailure) as e:
                 LOG.info("get_all_resources: subcloud {} is not reachable [{}]"
-                         .format(self.subcloud_engine.subcloud.region_name,
+                         .format(self.region_name,
                                  str(e)), extra=self.log_extra)
                 return None, None, None
             except Exception as e:
@@ -617,7 +620,7 @@ class ComputeSyncThread(SyncThread):
         quota_dict = \
             quota_manager.QuotaManager.calculate_subcloud_project_quotas(
                 project_id, user_id, quota_dict,
-                self.subcloud_engine.subcloud.region_name)
+                self.region_name)
 
         # Force the update in case existing usage is higher.
         quota_dict['force'] = True
@@ -683,7 +686,7 @@ class ComputeSyncThread(SyncThread):
         quota_dict = \
             quota_manager.QuotaManager.calculate_subcloud_project_quotas(
                 project_id, user_id, quota_dict,
-                self.subcloud_engine.subcloud.region_name)
+                self.region_name)
 
         # Force the update in case existing usage is higher.
         quota_dict['force'] = True
@@ -730,7 +733,7 @@ class ComputeSyncThread(SyncThread):
         except (keystone_exceptions.connection.ConnectTimeout,
                 keystone_exceptions.ConnectFailure) as e:
             LOG.info("get_quota_class: subcloud {} is not reachable [{}]"
-                     .format(self.subcloud_engine.subcloud.region_name,
+                     .format(self.region_name,
                              str(e)), extra=self.log_extra)
             return None
         except Exception as e:

@@ -34,8 +34,11 @@ LOG = logging.getLogger(__name__)
 class NetworkSyncThread(SyncThread):
     """Manages tasks related to resource management for neutron."""
 
-    def __init__(self, subcloud_engine):
-        super(NetworkSyncThread, self).__init__(subcloud_engine)
+    def __init__(self, subcloud_name, endpoint_type=None, engine_id=None):
+        super(NetworkSyncThread, self).__init__(subcloud_name,
+                                                endpoint_type=endpoint_type,
+                                                engine_id=engine_id)
+        self.region_name = subcloud_name
         self.endpoint_type = consts.ENDPOINT_TYPE_NETWORK
         self.sync_handler_map = {
             consts.RESOURCE_TYPE_NETWORK_QUOTA_SET: self.sync_network_resource,
@@ -52,7 +55,7 @@ class NetworkSyncThread(SyncThread):
             # note: no audit here for quotas, that's handled separately
         ]
         self.log_extra = {"instance": "{}/{}: ".format(
-            self.subcloud_engine.subcloud.region_name, self.endpoint_type)}
+            self.region_name, self.endpoint_type)}
         self.sc_neutron_client = None
         self.initialize()
         LOG.info("NetworkSyncThread initialized", extra=self.log_extra)
@@ -63,7 +66,7 @@ class NetworkSyncThread(SyncThread):
             self.sc_neutron_client = neutronclient.Client(
                 "2.0", session=self.sc_admin_session,
                 endpoint_type=dccommon_consts.KS_ENDPOINT_ADMIN,
-                region_name=self.subcloud_engine.subcloud.region_name)
+                region_name=self.region_name)
 
     def initialize(self):
         # Subcloud may be enabled a while after being added.
@@ -95,7 +98,7 @@ class NetworkSyncThread(SyncThread):
         except (keystone_exceptions.connection.ConnectTimeout,
                 keystone_exceptions.ConnectFailure) as e:
             LOG.error("sync_network_resource: {} is not reachable [{}]"
-                      .format(self.subcloud_engine.subcloud.region_name,
+                      .format(self.region_name,
                               str(e)), extra=self.log_extra)
             raise exceptions.SyncRequestTimeout
         except exceptions.SyncRequestFailed:
@@ -118,7 +121,7 @@ class NetworkSyncThread(SyncThread):
         quota_dict = \
             quota_manager.QuotaManager.calculate_subcloud_project_quotas(
                 project_id, user_id, quota_dict,
-                self.subcloud_engine.subcloud.region_name)
+                self.region_name)
 
         # Apply the limits to the subcloud.
         self.sc_neutron_client.update_quota(project_id, {"quota": quota_dict})
@@ -144,7 +147,7 @@ class NetworkSyncThread(SyncThread):
         quota_dict = \
             quota_manager.QuotaManager.calculate_subcloud_project_quotas(
                 project_id, user_id, quota_dict,
-                self.subcloud_engine.subcloud.region_name)
+                self.region_name)
 
         # Apply the limits to the subcloud.
         self.sc_neutron_client.update_quota(project_id, {"quota": quota_dict})
@@ -439,7 +442,7 @@ class NetworkSyncThread(SyncThread):
         qc1_tenant_name = sdk.OpenStackDriver().get_project_by_id(
             qc1['tenant_id']).name
         qc2_tenant_name = sdk.OpenStackDriver(
-            self.subcloud_engine.subcloud.region_name).get_project_by_id(
+            self.region_name).get_project_by_id(
             qc2['tenant_id']).name
 
         return (qc1['description'] == qc2['description'] and
@@ -454,7 +457,7 @@ class NetworkSyncThread(SyncThread):
         qc1_tenant_name = sdk.OpenStackDriver().get_project_by_id(
             qc1['tenant_id']).name
         qc2_tenant_name = sdk.OpenStackDriver(
-            self.subcloud_engine.subcloud.region_name).get_project_by_id(
+            self.region_name).get_project_by_id(
             qc2['tenant_id']).name
 
         return (qc1['description'] == qc2['description'] and
@@ -483,7 +486,7 @@ class NetworkSyncThread(SyncThread):
         except (keystone_exceptions.connection.ConnectTimeout,
                 keystone_exceptions.ConnectFailure) as e:
             LOG.info("get_flavor: subcloud {} is not reachable [{}]"
-                     .format(self.subcloud_engine.subcloud.region_name,
+                     .format(self.region_name,
                              str(e)), extra=self.log_extra)
             return None
         except Exception as e:
@@ -512,7 +515,7 @@ class NetworkSyncThread(SyncThread):
         except (keystone_exceptions.connection.ConnectTimeout,
                 keystone_exceptions.ConnectFailure) as e:
             LOG.info("get_flavor: subcloud {} is not reachable [{}]"
-                     .format(self.subcloud_engine.subcloud.region_name,
+                     .format(self.region_name,
                              str(e)), extra=self.log_extra)
             return None
         except Exception as e:

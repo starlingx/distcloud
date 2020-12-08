@@ -185,3 +185,16 @@ INITIAL_SYNC_STATE_REQUESTED = "requested"
 INITIAL_SYNC_STATE_IN_PROGRESS = "in-progress"
 INITIAL_SYNC_STATE_COMPLETED = "completed"
 INITIAL_SYNC_STATE_FAILED = "failed"
+
+# Subcloud sync status
+SYNC_STATUS_NONE = "none"
+SYNC_STATUS_REQUESTED = "requested"
+SYNC_STATUS_IN_PROGRESS = "in-progress"
+SYNC_STATUS_COMPLETED = "completed"
+SYNC_STATUS_FAILED = "failed"
+
+# Subcloud audit status
+AUDIT_STATUS_NONE = "none"
+AUDIT_STATUS_IN_PROGRESS = "in-progress"
+AUDIT_STATUS_COMPLETED = "completed"
+AUDIT_STATUS_FAILED = "failed"
