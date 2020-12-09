@@ -840,6 +840,68 @@ class TestSubcloudAPIOther(testroot.DCManagerApiTest):
 
     @mock.patch.object(rpc_client, 'ManagerClient')
     @mock.patch.object(subclouds.SubcloudsController, '_get_patch_data')
+    def test_update_subcloud_group_value(self,
+                                         mock_get_patch_data,
+                                         mock_rpc_client):
+        subcloud = fake_subcloud.create_fake_subcloud(self.ctx)
+        good_values = [1, "1"]
+        expected_group_id = 1
+        for x in good_values:
+            data = {'group_id': x}
+            mock_rpc_client().update_subcloud.return_value = True
+            mock_get_patch_data.return_value = data
+            response = self.app.patch_json(FAKE_URL + '/' + str(subcloud.id),
+                                           headers=FAKE_HEADERS,
+                                           params=data)
+            self.assertEqual(response.status_int, 200)
+            # Verify subcloud was updated with correct values
+            updated_subcloud = db_api.subcloud_get_by_name(self.ctx,
+                                                           subcloud.name)
+            self.assertEqual(expected_group_id,
+                             updated_subcloud.group_id)
+
+    @mock.patch.object(rpc_client, 'ManagerClient')
+    @mock.patch.object(subclouds.SubcloudsController, '_get_patch_data')
+    def test_update_subcloud_group_value_by_name(self,
+                                                 mock_get_patch_data,
+                                                 mock_rpc_client):
+        subcloud = fake_subcloud.create_fake_subcloud(self.ctx)
+        expected_group_id = 1
+        data = {'group_id': 'Default'}
+        mock_rpc_client().update_subcloud.return_value = True
+        mock_get_patch_data.return_value = data
+        response = self.app.patch_json(FAKE_URL + '/' + str(subcloud.id),
+                                       headers=FAKE_HEADERS,
+                                       params=data)
+        self.assertEqual(response.status_int, 200)
+
+        # Verify subcloud was updated with correct values
+        updated_subcloud = db_api.subcloud_get_by_name(self.ctx, subcloud.name)
+        self.assertEqual(expected_group_id,
+                         updated_subcloud.group_id)
+
+    @mock.patch.object(rpc_client, 'ManagerClient')
+    @mock.patch.object(subclouds.SubcloudsController, '_get_patch_data')
+    def test_update_subcloud_group_bad_value(self,
+                                             mock_get_patch_data,
+                                             mock_rpc_client):
+        subcloud = fake_subcloud.create_fake_subcloud(self.ctx)
+        # There is only 1 subcloud group 'Default' which has id '1'
+        # This should test that boolean, zero, negative, float and bad values
+        # all get rejected
+        bad_values = [0, -1, 2, "0", "-1", 0.5, "BadName", "False", "True"]
+        for x in bad_values:
+            data = {'group_id': x}
+            mock_rpc_client().update_subcloud.return_value = True
+            mock_get_patch_data.return_value = data
+            response = self.app.patch_json(FAKE_URL + '/' + str(subcloud.id),
+                                           headers=FAKE_HEADERS,
+                                           params=data,
+                                           expect_errors=True)
+            self.assertEqual(response.status_int, 400)
+
+    @mock.patch.object(rpc_client, 'ManagerClient')
+    @mock.patch.object(subclouds.SubcloudsController, '_get_patch_data')
     def test_patch_subcloud_install_values(self, mock_get_patch_data,
                                            mock_rpc_client):
         subcloud = fake_subcloud.create_fake_subcloud(self.ctx)

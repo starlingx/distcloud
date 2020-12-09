@@ -906,11 +906,21 @@ class SubcloudsController(object):
                     pecan.abort(400, _('Invalid option: force'))
 
             # Verify the group_id is valid
-            if group_id:
+            if group_id is not None:
                 try:
-                    db_api.subcloud_group_get(context, group_id)
+                    # group_id may be passed in the payload as an int or str
+                    group_id = str(group_id)
+                    if group_id.isdigit():
+                        grp = db_api.subcloud_group_get(context, group_id)
+                    else:
+                        # replace the group_id (name) with the id
+                        grp = db_api.subcloud_group_get_by_name(context,
+                                                                group_id)
+                    group_id = grp.id
+                except exceptions.SubcloudGroupNameNotFound:
+                    pecan.abort(400, _('Invalid group'))
                 except exceptions.SubcloudGroupNotFound:
-                    pecan.abort(400, _('Invalid group-id'))
+                    pecan.abort(400, _('Invalid group'))
 
             data_install = None
             if self._validate_install_values(payload):
