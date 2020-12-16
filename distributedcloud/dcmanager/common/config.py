@@ -11,7 +11,7 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 #
-# Copyright (c) 2017-2020 Wind River Systems, Inc.
+# Copyright (c) 2017-2021 Wind River Systems, Inc.
 #
 # The right to copy, distribute, modify, or otherwise make use
 # of this software may be licensed only pursuant to the terms
@@ -138,11 +138,11 @@ scheduler_opts = [
                 default=True,
                 help='boolean value for enable/disable periodic tasks'),
     cfg.IntOpt('subcloud_audit_interval',
-               default=20,
+               default=30,
                help='periodic time interval for subcloud audit'),
     cfg.IntOpt('patch_audit_interval',
-               default=10,
-               help='periodic time interval for patch audit')
+               default=900,
+               help='default time interval for patch audit')
 ]
 
 common_opts = [
