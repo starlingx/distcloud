@@ -139,6 +139,73 @@ class TestSwUpdateStrategy(testroot.DCManagerApiTest):
                               headers=FAKE_HEADERS, params=data)
 
     @mock.patch.object(rpc_client, 'ManagerOrchestratorClient')
+    def test_post_sw_update_group_name_or_id_not_exists(
+            self, mock_rpc_client):
+        data = copy.copy(FAKE_SW_UPDATE_DATA)
+        del data["subcloud-apply-type"]
+        del data["max-parallel-subclouds"]
+        data["subcloud_group"] = "fake_group"
+        response = self.app.post_json(FAKE_URL,
+                                      headers=FAKE_HEADERS,
+                                      params=data,
+                                      expect_errors=True)
+        mock_rpc_client().create_sw_update_strategy.assert_not_called()
+        self.assertEqual(response.status_int, 400)
+
+        data["subcloud_group"] = "100"
+        response = self.app.post_json(FAKE_URL,
+                                      headers=FAKE_HEADERS,
+                                      params=data,
+                                      expect_errors=True)
+        mock_rpc_client().create_sw_update_strategy.assert_not_called()
+        self.assertEqual(response.status_int, 400)
+
+    @mock.patch.object(rpc_client, 'ManagerOrchestratorClient')
+    def test_post_sw_update_with_cloud_name_and_group_id(
+            self, mock_rpc_client):
+        data = copy.copy(FAKE_SW_UPDATE_DATA)
+        del data["subcloud-apply-type"]
+        del data["max-parallel-subclouds"]
+
+        data["cloud_name"] = "subcloud1"
+        data["subcloud_group"] = "group1"
+        response = self.app.post_json(FAKE_URL,
+                                      headers=FAKE_HEADERS,
+                                      params=data,
+                                      expect_errors=True)
+        mock_rpc_client().create_sw_update_strategy.assert_not_called()
+        self.assertEqual(response.status_int, 400)
+
+        data["subcloud_group"] = "2"
+        response = self.app.post_json(FAKE_URL,
+                                      headers=FAKE_HEADERS,
+                                      params=data,
+                                      expect_errors=True)
+        mock_rpc_client().create_sw_update_strategy.assert_not_called()
+        self.assertEqual(response.status_int, 400)
+
+    @mock.patch.object(rpc_client, 'ManagerOrchestratorClient')
+    def test_post_sw_update_with_group_id_and_other_group_values(
+            self, mock_rpc_client):
+        # fake data contains subcloud-apply-type and max-parallel-subclouds
+        data = copy.copy(FAKE_SW_UPDATE_DATA)
+        data["subcloud_group"] = "group1"
+        response = self.app.post_json(FAKE_URL,
+                                      headers=FAKE_HEADERS,
+                                      params=data,
+                                      expect_errors=True)
+        mock_rpc_client().create_sw_update_strategy.assert_not_called()
+        self.assertEqual(response.status_int, 400)
+
+        data["subcloud_group"] = "2"
+        response = self.app.post_json(FAKE_URL,
+                                      headers=FAKE_HEADERS,
+                                      params=data,
+                                      expect_errors=True)
+        mock_rpc_client().create_sw_update_strategy.assert_not_called()
+        self.assertEqual(response.status_int, 400)
+
+    @mock.patch.object(rpc_client, 'ManagerOrchestratorClient')
     def test_post_no_body(self, mock_rpc_client):
         data = {}
         six.assertRaisesRegex(self, webtest.app.AppError, "400 *",

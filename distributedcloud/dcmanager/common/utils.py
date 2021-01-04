@@ -274,3 +274,20 @@ def get_loads_for_patching(loads):
         consts.IMPORTED_LOAD_STATE
     ]
     return [load.software_version for load in loads if load.state in valid_states]
+
+
+def subcloud_group_get_by_ref(context, group_ref):
+    # Handle getting a group by either name, or ID
+    if group_ref.isdigit():
+        # Lookup subcloud group as an ID
+        try:
+            group = db_api.subcloud_group_get(context, group_ref)
+        except exceptions.SubcloudGroupNotFound:
+            return None
+    else:
+        # Lookup subcloud group as a name
+        try:
+            group = db_api.subcloud_group_get_by_name(context, group_ref)
+        except exceptions.SubcloudGroupNameNotFound:
+            return None
+    return group

@@ -497,6 +497,99 @@ class TestSwUpdateManager(base.DCManagerTestCase):
                          None)
 
     @mock.patch.object(sw_update_manager, 'PatchOrchThread')
+    def test_create_sw_update_strategy_for_a_single_group(
+            self, mock_patch_orch_thread):
+        # Create fake subclouds and respective status
+        # Subcloud1 will be patched
+        fake_subcloud1 = self.create_subcloud(self.ctxt, 'subcloud1',
+                                              self.fake_group2.id,
+                                              is_managed=True, is_online=True)
+        self.create_subcloud_status(self.ctxt, fake_subcloud1.id)
+
+        # Subcloud2 will not be patched because not managed
+        fake_subcloud2 = self.create_subcloud(self.ctxt, 'subcloud2',
+                                              self.fake_group2.id,
+                                              is_managed=False, is_online=True)
+        self.create_subcloud_status(self.ctxt, fake_subcloud2.id)
+
+        data = copy.copy(FAKE_SW_UPDATE_DATA)
+        data['subcloud_group'] = str(self.fake_group2.id)
+        um = sw_update_manager.SwUpdateManager()
+        response = um.create_sw_update_strategy(
+            self.ctxt, payload=data)
+
+        # Verify strategy was created as expected using group values
+        self.assertEqual(response['max-parallel-subclouds'], 2)
+        self.assertEqual(response['subcloud-apply-type'],
+                         consts.SUBCLOUD_APPLY_TYPE_SERIAL)
+        self.assertEqual(response['type'],
+                         FAKE_SW_UPDATE_DATA['type'])
+
+        # Verify strategy step was created as expected
+        strategy_steps = db_api.strategy_step_get_all(self.ctx)
+        self.assertEqual(strategy_steps[0]['state'],
+                         consts.STRATEGY_STATE_INITIAL)
+        self.assertEqual(strategy_steps[0]['stage'],
+                         1)
+        self.assertEqual(strategy_steps[0]['details'],
+                         '')
+        self.assertEqual(strategy_steps[0]['subcloud_id'],
+                         None)
+
+    @mock.patch.object(sw_update_manager, 'PatchOrchThread')
+    def test_create_sw_update_strategy_parallel_for_a_single_group(
+            self, mock_patch_orch_thread):
+        # Create fake subclouds and respective status
+        fake_subcloud1 = self.create_subcloud(self.ctxt, 'subcloud1',
+                                              self.fake_group3.id,
+                                              is_managed=True, is_online=True)
+        self.create_subcloud_status(self.ctxt, fake_subcloud1.id)
+
+        fake_subcloud2 = self.create_subcloud(self.ctxt, 'subcloud2',
+                                              self.fake_group3.id,
+                                              is_managed=True, is_online=True)
+        self.create_subcloud_status(self.ctxt, fake_subcloud2.id)
+
+        data = copy.copy(FAKE_SW_UPDATE_DATA)
+        data["type"] = consts.SW_UPDATE_TYPE_UPGRADE
+        data['subcloud_group'] = str(self.fake_group3.id)
+        um = sw_update_manager.SwUpdateManager()
+        response = um.create_sw_update_strategy(
+            self.ctxt, payload=data)
+
+        # Verify strategy was created as expected using group values
+        self.assertEqual(response['max-parallel-subclouds'], 2)
+        self.assertEqual(response['subcloud-apply-type'],
+                         consts.SUBCLOUD_APPLY_TYPE_PARALLEL)
+        self.assertEqual(response['type'], consts.SW_UPDATE_TYPE_UPGRADE)
+
+        # Verify the strategy step list
+        subcloud_ids = [None, 1, 2]
+        stage = [1, 2, 3, 4, 5, 6]
+        strategy_step_list = db_api.strategy_step_get_all(self.ctxt)
+        for index, strategy_step in enumerate(strategy_step_list):
+            self.assertEqual(subcloud_ids[index], strategy_step.subcloud_id)
+            self.assertEqual(stage[index], strategy_step.stage)
+
+    @mock.patch.object(sw_update_manager, 'PatchOrchThread')
+    def test_create_sw_update_strategy_with_cloud_name_not_exists(
+            self, mock_patch_orch_thread):
+        # Create fake subclouds and respective status
+        fake_subcloud1 = self.create_subcloud(self.ctxt, 'subcloud1',
+                                              self.fake_group3.id,
+                                              is_managed=True, is_online=True)
+        self.create_subcloud_status(self.ctxt, fake_subcloud1.id)
+
+        data = copy.copy(FAKE_SW_UPDATE_DATA)
+
+        # Create a strategy with a cloud_name that doesn't exist
+        data['cloud_name'] = 'subcloud2'
+        um = sw_update_manager.SwUpdateManager()
+        self.assertRaises(exceptions.BadRequest,
+                          um.create_sw_update_strategy,
+                          self.ctxt, payload=data)
+
+    @mock.patch.object(sw_update_manager, 'PatchOrchThread')
     def test_create_sw_update_strategy_parallel(
             self, mock_patch_orch_thread):
 

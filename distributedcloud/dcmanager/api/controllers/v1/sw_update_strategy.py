@@ -32,6 +32,7 @@ from dcmanager.api.controllers import restcomm
 from dcmanager.common import consts
 from dcmanager.common import exceptions
 from dcmanager.common.i18n import _
+from dcmanager.common import utils
 from dcmanager.db import api as db_api
 from dcmanager.orchestrator import rpcapi as orch_rpc_client
 
@@ -168,6 +169,26 @@ class SwUpdateStrategyController(object):
                     pecan.abort(400, _('The --force option can only be applied for '
                                        'a single subcloud. Please specify '
                                        'the subcloud name.'))
+
+            subcloud_group = payload.get('subcloud_group')
+            # prevents passing both cloud_name and subcloud_group options
+            # from REST APIs and checks if the group exists
+            if subcloud_group is not None:
+                if payload.get('cloud_name') is not None:
+                    pecan.abort(400, _('cloud_name and subcloud_group are '
+                                       'mutually exclusive'))
+
+                if (subcloud_apply_type is not None or
+                        max_parallel_subclouds_str is not None):
+                    pecan.abort(400, _('subcloud-apply-type and '
+                                       'max-parallel-subclouds are not '
+                                       'supported when subcloud_group is '
+                                       'applied'))
+
+                group = utils.subcloud_group_get_by_ref(context,
+                                                        subcloud_group)
+                if group is None:
+                    pecan.abort(400, _('Invalid group_id'))
 
             try:
                 # Ask dcmanager-manager to create the strategy.

@@ -27,6 +27,7 @@ from dcmanager.audit import rpcapi as dcmanager_audit_rpc_client
 from dcmanager.common import consts
 from dcmanager.common import exceptions
 from dcmanager.common import manager
+from dcmanager.common import utils
 from dcmanager.db import api as db_api
 from dcmanager.orchestrator.fw_update_orch_thread import FwUpdateOrchThread
 from dcmanager.orchestrator.patch_orch_thread import PatchOrchThread
@@ -133,20 +134,32 @@ class SwUpdateManager(manager.Manager):
         # specified for each subcloud group
         # else we use the subcloud_apply_type specified through CLI
         use_group_apply_type = False
-        subcloud_apply_type = payload.get('subcloud-apply-type')
-        if not subcloud_apply_type:
-            use_group_apply_type = True
-
         # if use_group_max_parallel = True, we use the max_parallel_subclouds
         # value specified for each subcloud group
         # else we use the max_parallel_subclouds value specified through CLI
         use_group_max_parallel = False
-        max_parallel_subclouds_str = payload.get('max-parallel-subclouds')
-        if not max_parallel_subclouds_str:
-            max_parallel_subclouds = None
+
+        single_group = None
+        subcloud_group = payload.get('subcloud_group')
+        if subcloud_group:
+            single_group = utils.subcloud_group_get_by_ref(context,
+                                                           subcloud_group)
+            subcloud_apply_type = single_group.update_apply_type
+            max_parallel_subclouds = single_group.max_parallel_subclouds
+            use_group_apply_type = True
             use_group_max_parallel = True
         else:
-            max_parallel_subclouds = int(max_parallel_subclouds_str)
+            subcloud_apply_type = payload.get('subcloud-apply-type')
+            max_parallel_subclouds_str = payload.get('max-parallel-subclouds')
+
+            if not subcloud_apply_type:
+                use_group_apply_type = True
+
+            if not max_parallel_subclouds_str:
+                max_parallel_subclouds = None
+                use_group_max_parallel = True
+            else:
+                max_parallel_subclouds = int(max_parallel_subclouds_str)
 
         stop_on_failure_str = payload.get('stop-on-failure')
 
@@ -206,7 +219,15 @@ class SwUpdateManager(manager.Manager):
         # Don't create a strategy if any of the subclouds is online and the
         # relevant sync status is unknown. Offline subcloud is skipped unless
         # --force option is specified and strategy type is upgrade.
-        subclouds = db_api.subcloud_get_all_with_status(context)
+        if single_group:
+            subclouds = []
+            for sb in db_api.subcloud_get_for_group(context, single_group.id):
+                statuses = db_api.subcloud_status_get_all(context, sb.id)
+                for status in statuses:
+                    subclouds.append((sb, status))
+        else:
+            subclouds = db_api.subcloud_get_all_with_status(context)
+
         for subcloud, subcloud_status in subclouds:
             if (cloud_name and subcloud.name != cloud_name or
                     subcloud.management_state != consts.MANAGEMENT_MANAGED):
@@ -274,8 +295,11 @@ class SwUpdateManager(manager.Manager):
         stage_size = 0
         stage_updated = False
 
-        # Fetch all subcloud groups
-        groups = db_api.subcloud_group_get_all(context)
+        if single_group:
+            groups = [single_group]
+        else:
+            # Fetch all subcloud groups
+            groups = db_api.subcloud_group_get_all(context)
 
         for group in groups:
             # Fetch subcloud list for each group
