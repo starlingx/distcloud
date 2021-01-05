@@ -38,8 +38,13 @@ from dccommon.utils import run_playbook
 LOG = logging.getLogger(__name__)
 
 BOOT_MENU_TIMEOUT = '5'
+
+# The RVMC_IMAGE_NAME:RVMC_IMAGE_TAG must align with the one specified
+# in system images in the ansible install/upgrade playbook
 RVMC_NAME_PREFIX = 'rvmc'
 RVMC_IMAGE_NAME = 'docker.io/starlingx/rvmc'
+RVMC_IMAGE_TAG = 'stx.5.0-v1.0.0'
+
 SUBCLOUD_ISO_PATH = '/opt/platform/iso'
 SUBCLOUD_ISO_DOWNLOAD_PATH = '/www/pages/iso'
 GEN_ISO_COMMAND = '/usr/local/bin/gen-bootloader-iso.sh'
@@ -175,15 +180,15 @@ class SubcloudInstall(object):
 
         return "%s://%s:%s" % (protocol, self.get_oam_address(), port)
 
-    def get_image_tag(self, image_name):
+    def check_image_exists(self, image_name, image_tag):
         tags = self.sysinv_client.get_registry_image_tags(image_name)
-        if not tags:
-            msg = ("Error: Image %s not found in the local registry." %
-                   image_name)
-            LOG.error(msg)
-            raise exceptions.NotFound()
-        tag = getattr(tags[0], 'tag')
-        return tag
+        if tags:
+            if any(getattr(tag, 'tag') == image_tag for tag in tags):
+                return
+        msg = "Error: Image %s:%s not found in the local registry." % (
+            image_name, image_tag)
+        LOG.error(msg)
+        raise exceptions.NotFound()
 
     @staticmethod
     def create_rvmc_config_file(override_path, payload):
@@ -199,8 +204,9 @@ class SubcloudInstall(object):
     def create_install_override_file(self, override_path, payload):
 
         LOG.debug("create install override file")
+        self.check_image_exists(RVMC_IMAGE_NAME, RVMC_IMAGE_TAG)
         rvmc_image = LOCAL_REGISTRY_PREFIX + RVMC_IMAGE_NAME + ':' +\
-            self.get_image_tag(RVMC_IMAGE_NAME)
+            RVMC_IMAGE_TAG
         install_override_file = os.path.join(override_path,
                                              'install_values.yml')
         rvmc_name = "%s-%s" % (RVMC_NAME_PREFIX, self.name)
