@@ -279,9 +279,9 @@ class SyncThread(object):
                 subcloud_sync.sync_status_report_time, timeutils.utcnow())
             if delta < 3600:
                 if subcloud_sync.sync_status_reported == sync_status:
-                    LOG.info("skip set_sync_status sync_status_reported=%s, sync_status=%s " %
-                             (subcloud_sync.sync_status_reported, sync_status, ),
-                             extra=self.log_extra)
+                    LOG.debug("skip set_sync_status sync_status_reported=%s, sync_status=%s " %
+                              (subcloud_sync.sync_status_reported, sync_status, ),
+                              extra=self.log_extra)
                     return
 
         LOG.info("{}: set_sync_status {}".format(self.subcloud_name, sync_status),
@@ -351,7 +351,16 @@ class SyncThread(object):
                             # we were processing work for it.
                             raise exceptions.EndpointNotReachable()
                     request.state = consts.ORCH_REQUEST_STATE_IN_PROGRESS
-                    request.save()  # save to DB
+                    try:
+                        request.save()  # save to DB
+                    except exceptions.OrchRequestNotFound:
+                        # This case is handled in loop below, but should also be
+                        # handled here as well.
+                        LOG.info("Orch request already deleted request uuid=%s state=%s" %
+                                 (request.uuid, request.state),
+                                 extra=self.log_extra)
+                        continue
+
                     retry_count = 0
                     while retry_count < self.MAX_RETRY:
                         try:
