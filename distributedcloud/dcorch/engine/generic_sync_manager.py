@@ -138,9 +138,17 @@ class GenericSyncManager(object):
         for sc in subclouds:
             if sc.region_name in self.sync_objs.keys():
                 sc_names.append(sc.region_name)
-                for e in self.sync_objs[sc.region_name].keys():
-                    self.sync_subcloud(self.context, engine_id, sc.region_name,
-                                       e, 'sync')
+                for ept in self.sync_objs[sc.region_name].keys():
+                    try:
+                        self.sync_subcloud(self.context, engine_id, sc.region_name,
+                                           ept, 'sync')
+                    except exceptions.SubcloudSyncNotFound:
+                        # The endpoint in subcloud_sync has been removed
+                        LOG.info("Engine id:(%s/%s) SubcloudSyncNotFound "
+                                 "remove from sync_obj endpoint_type %s" %
+                                 (engine_id, sc.region_name, ept))
+                        self.sync_objs[sc.region_name].pop(ept, None)
+
         LOG.debug('Engine id:(%s) Waiting for sync_subclouds %s to complete.'
                   % (engine_id, sc_names))
         for thread in self.subcloud_threads:
@@ -176,6 +184,7 @@ class GenericSyncManager(object):
         # precheck if the sync_state is still started
         subcloud_sync = db_api.subcloud_sync_get(context, subcloud_name,
                                                  endpoint_type)
+
         if subcloud_sync.sync_request in [dco_consts.SYNC_STATUS_REQUESTED,
                                           dco_consts.SYNC_STATUS_FAILED]:
             self.mutex_start_thread(
@@ -368,6 +377,7 @@ class GenericSyncManager(object):
             if capabilities.get('endpoint_types') is None:
                 # assign back if 'endpoint_types' is not in capabilities
                 capabilities['endpoint_types'] = c_endpoint_type_list
+            sc.capabilities = capabilities
             sc.save()
 
         # Create objects for the endpoint types
@@ -389,8 +399,9 @@ class GenericSyncManager(object):
 
                 # skip creation if a sync_obj of this endpoint type already
                 # exists
-                if not self.sync_objs[subcloud_name].get(
-                        endpoint_type == endpoint_type):
+                sync_obj = self.sync_objs[subcloud_name].get(
+                    endpoint_type == endpoint_type)
+                if not sync_obj:
                     LOG.info("add_subcloud_sync_endpoint_type "
                              "subcloud_name=%s, sync_obj add=%s" %
                              (subcloud_name, endpoint_type))
@@ -441,6 +452,7 @@ class GenericSyncManager(object):
             for endpoint_type in endpoint_type_list:
                 if endpoint_type in c_endpoint_type_list:
                     c_endpoint_type_list.remove(endpoint_type)
+            sc.capabilities = capabilities
             sc.save()
 
     def update_subcloud_version(self, context, subcloud_name, sw_version):
