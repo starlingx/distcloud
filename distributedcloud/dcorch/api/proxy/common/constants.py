@@ -80,16 +80,6 @@ DNS_PATHS = [
     '/v1/idns/{uuid}'
 ]
 
-TRAP_DEST_PATHS = [
-    '/v1/itrapdest',
-    '/v1/itrapdest/{ip}'
-]
-
-COMMUNITY_STRING_PATHS = [
-    '/v1/icommunity',
-    '/v1/icommunity/{community}'
-]
-
 CERTIFICATE_PATHS = [
     '/v1/certificate/certificate_install',
     '/v1/certificate/{uuid}'
@@ -102,8 +92,6 @@ USER_PATHS = [
 
 SYSINV_PATH_MAP = {
     consts.RESOURCE_TYPE_SYSINV_DNS: DNS_PATHS,
-    consts.RESOURCE_TYPE_SYSINV_SNMP_TRAPDEST: TRAP_DEST_PATHS,
-    consts.RESOURCE_TYPE_SYSINV_SNMP_COMM: COMMUNITY_STRING_PATHS,
     consts.RESOURCE_TYPE_SYSINV_CERTIFICATE: CERTIFICATE_PATHS,
     consts.RESOURCE_TYPE_SYSINV_USER: USER_PATHS,
 }
@@ -314,8 +302,6 @@ ROUTE_METHOD_MAP = {
     },
     consts.ENDPOINT_TYPE_PLATFORM: {
         consts.RESOURCE_TYPE_SYSINV_DNS: ['PATCH', 'PUT'],
-        consts.RESOURCE_TYPE_SYSINV_SNMP_TRAPDEST: ['POST', 'DELETE'],
-        consts.RESOURCE_TYPE_SYSINV_SNMP_COMM: ['POST', 'DELETE'],
         consts.RESOURCE_TYPE_SYSINV_CERTIFICATE: ['POST', 'DELETE'],
         consts.RESOURCE_TYPE_SYSINV_USER: ['PATCH', 'PUT'],
     },

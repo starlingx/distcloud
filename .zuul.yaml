@@ -25,6 +25,7 @@
 - job:
     name: stx-distcloud-tox-py27
     parent: tox
+    nodeset: ubuntu-xenial
     description: Run py27 for distcloud
     required-projects:
       - starlingx/fault
@@ -37,6 +38,7 @@
 
 - job:
     name: stx-distcloud-tox-py36
+    nodeset: ubuntu-bionic
     parent: tox
     description: Run py36 for distcloud
     required-projects:
@@ -50,6 +52,7 @@
 
 - job:
     name: stx-distcloud-tox-pylint
+    nodeset: ubuntu-bionic
     parent: tox
     description: Run pylint for distcloud
     required-projects:
@@ -63,6 +66,7 @@
 
 - job:
     name: stx-distcloud-tox-pep8
+    nodeset: ubuntu-bionic
     parent: tox
     description: Run pep8 for distcloud
     required-projects:

@@ -370,10 +370,6 @@ class ComputeAPIController(APIController):
 class SysinvAPIController(APIController):
 
     ENDPOINT_TYPE = consts.ENDPOINT_TYPE_PLATFORM
-    RESOURCE_ID_MAP = {
-        consts.RESOURCE_TYPE_SYSINV_SNMP_TRAPDEST: 'ip_address',
-        consts.RESOURCE_TYPE_SYSINV_SNMP_COMM: 'community'
-    }
     OK_STATUS_CODE = [
         webob.exc.HTTPOk.code,
         webob.exc.HTTPNoContent.code
@@ -414,14 +410,7 @@ class SysinvAPIController(APIController):
                 else:
                     resource_ids = [resource.get('signature')]
         else:
-            if (operation_type == consts.OPERATION_TYPE_POST and
-                    resource_type in self.RESOURCE_ID_MAP):
-                # need to get the id from the request data since it is
-                # not available in the header
-                rid = self.RESOURCE_ID_MAP.get(resource_type)
-                resource_id = json.loads(request_body)[rid]
-            else:
-                resource_id = self.get_resource_id_from_link(request_header)
+            resource_id = self.get_resource_id_from_link(request_header)
             resource_ids = [resource_id]
             if operation_type != consts.OPERATION_TYPE_DELETE:
                 resource_info['payload'] = json.loads(request_body)
