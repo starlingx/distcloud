@@ -44,9 +44,6 @@ class SysinvSyncThread(SyncThread):
                                consts.RESOURCE_TYPE_SYSINV_FERNET_REPO
                                ]
 
-    SYSINV_ADD_DELETE_RESOURCES = [consts.RESOURCE_TYPE_SYSINV_SNMP_COMM,
-                                   consts.RESOURCE_TYPE_SYSINV_SNMP_TRAPDEST]
-
     SYSINV_CREATE_RESOURCES = [consts.RESOURCE_TYPE_SYSINV_CERTIFICATE,
                                consts.RESOURCE_TYPE_SYSINV_FERNET_REPO]
 
@@ -64,10 +61,6 @@ class SysinvSyncThread(SyncThread):
         self.sync_handler_map = {
             consts.RESOURCE_TYPE_SYSINV_DNS:
                 self.sync_platform_resource,
-            consts.RESOURCE_TYPE_SYSINV_SNMP_COMM:
-                self.sync_platform_resource,
-            consts.RESOURCE_TYPE_SYSINV_SNMP_TRAPDEST:
-                self.sync_platform_resource,
             consts.RESOURCE_TYPE_SYSINV_CERTIFICATE:
                 self.sync_platform_resource,
             consts.RESOURCE_TYPE_SYSINV_USER:
@@ -82,8 +75,6 @@ class SysinvSyncThread(SyncThread):
         self.audit_resources = [
             consts.RESOURCE_TYPE_SYSINV_CERTIFICATE,
             consts.RESOURCE_TYPE_SYSINV_DNS,
-            consts.RESOURCE_TYPE_SYSINV_SNMP_COMM,
-            consts.RESOURCE_TYPE_SYSINV_SNMP_TRAPDEST,
             consts.RESOURCE_TYPE_SYSINV_USER,
             consts.RESOURCE_TYPE_SYSINV_FERNET_REPO,
         ]
@@ -168,141 +159,6 @@ class SysinvSyncThread(SyncThread):
             rsrc.id, idns.uuid)
         LOG.info("DNS {}:{} [{}] updated"
                  .format(rsrc.id, subcloud_rsrc_id, nameservers),
-                 extra=self.log_extra)
-
-    def sync_itrapdest(self, s_os_client, request, rsrc):
-        switcher = {
-            consts.OPERATION_TYPE_POST: self.snmp_trapdest_create,
-            consts.OPERATION_TYPE_CREATE: self.snmp_trapdest_create,
-            consts.OPERATION_TYPE_DELETE: self.snmp_trapdest_delete,
-        }
-
-        func = switcher[request.orch_job.operation_type]
-        try:
-            func(s_os_client, request, rsrc)
-        except Exception as e:
-            LOG.exception(e)
-            raise e
-
-    def snmp_trapdest_create(self, s_os_client, request, rsrc):
-        LOG.info("snmp_trapdest_create region {} resource_info={}".format(
-                 self.region_name,
-                 request.orch_job.resource_info),
-                 extra=self.log_extra)
-        resource_info_dict = jsonutils.loads(request.orch_job.resource_info)
-        payload = resource_info_dict.get('payload')
-        if not payload:
-            payload = resource_info_dict
-
-        try:
-            itrapdest = s_os_client.sysinv_client.snmp_trapdest_create(
-                payload)
-            itrapdest_id = itrapdest.uuid
-            ip_address = itrapdest.ip_address
-        except (AttributeError, TypeError) as e:
-            LOG.info("snmp_trapdest_create error {}".format(e),
-                     extra=self.log_extra)
-            raise exceptions.SyncRequestFailedRetry
-
-        # Now persist the subcloud resource to the DB for later
-        subcloud_rsrc_id = self.persist_db_subcloud_resource(
-            rsrc.id, ip_address)
-
-        LOG.info("SNMP trapdest {}:{} [{}/{}] created".format(rsrc.id,
-                 subcloud_rsrc_id, ip_address, itrapdest_id),
-                 extra=self.log_extra)
-        return itrapdest
-
-    def snmp_trapdest_delete(self, s_os_client, request, rsrc):
-        subcloud_rsrc = self.get_db_subcloud_resource(rsrc.id)
-        if not subcloud_rsrc:
-            return
-
-        try:
-            s_os_client.sysinv_client.snmp_trapdest_delete(
-                subcloud_rsrc.subcloud_resource_id)
-        except dccommon_exceptions.TrapDestNotFound:
-            # SNMP trapdest already deleted in subcloud, carry on.
-            LOG.info("SNMP trapdest not in subcloud, may be already deleted",
-                     extra=self.log_extra)
-        except (AttributeError, TypeError) as e:
-            LOG.info("snmp_trapdest_delete error {}".format(e),
-                     extra=self.log_extra)
-            raise exceptions.SyncRequestFailedRetry
-
-        subcloud_rsrc.delete()
-        # Master Resource can be deleted only when all subcloud resources
-        # are deleted along with corresponding orch_job and orch_requests.
-        LOG.info("SNMP trapdest {}:{} [{}] deleted".format(
-                 rsrc.id, subcloud_rsrc.id,
-                 subcloud_rsrc.subcloud_resource_id),
-                 extra=self.log_extra)
-
-    def sync_icommunity(self, s_os_client, request, rsrc):
-        switcher = {
-            consts.OPERATION_TYPE_POST: self.snmp_community_create,
-            consts.OPERATION_TYPE_CREATE: self.snmp_community_create,
-            consts.OPERATION_TYPE_DELETE: self.snmp_community_delete,
-        }
-
-        func = switcher[request.orch_job.operation_type]
-        try:
-            func(s_os_client, request, rsrc)
-        except Exception as e:
-            LOG.exception(e)
-            raise exceptions.SyncRequestFailedRetry
-
-    def snmp_community_create(self, s_os_client, request, rsrc):
-        LOG.info("snmp_community_create region {} resource_info={}".format(
-                 self.region_name,
-                 request.orch_job.resource_info),
-                 extra=self.log_extra)
-        resource_info_dict = jsonutils.loads(request.orch_job.resource_info)
-        payload = resource_info_dict.get('payload')
-        if not payload:
-            payload = resource_info_dict
-
-        try:
-            icommunity = s_os_client.sysinv_client.snmp_community_create(
-                payload)
-            icommunity_id = icommunity.uuid
-            community = icommunity.community
-        except (AttributeError, TypeError) as e:
-            LOG.info("snmp_community_create error {}".format(e),
-                     extra=self.log_extra)
-            raise exceptions.SyncRequestFailedRetry
-
-        # Now persist the subcloud resource to the DB for later
-        subcloud_rsrc_id = self.persist_db_subcloud_resource(
-            rsrc.id, community)
-
-        LOG.info("SNMP community {}:{} [{}/{}] created".format(rsrc.id,
-                 subcloud_rsrc_id, community, icommunity_id),
-                 extra=self.log_extra)
-        return icommunity
-
-    def snmp_community_delete(self, s_os_client, request, rsrc):
-        subcloud_rsrc = self.get_db_subcloud_resource(rsrc.id)
-        if not subcloud_rsrc:
-            return
-        try:
-            s_os_client.sysinv_client.snmp_community_delete(
-                subcloud_rsrc.subcloud_resource_id)
-        except dccommon_exceptions.CommunityNotFound:
-            # Community already deleted in subcloud, carry on.
-            LOG.info("SNMP community not in subcloud, may be already deleted",
-                     extra=self.log_extra)
-        except (AttributeError, TypeError) as e:
-            LOG.info("snmp_community_delete error {}".format(e),
-                     extra=self.log_extra)
-            raise exceptions.SyncRequestFailedRetry
-
-        subcloud_rsrc.delete()
-        # Master Resource can be deleted only when all subcloud resources
-        # are deleted along with corresponding orch_job and orch_requests.
-        LOG.info("SNMP community {}:{} [{}] deleted".format(
-                 rsrc.id, subcloud_rsrc.id,
-                 subcloud_rsrc.subcloud_resource_id),
                  extra=self.log_extra)
 
     def update_certificate(self, s_os_client, signature,
@@ -586,10 +442,6 @@ class SysinvSyncThread(SyncThread):
                 thread_name='audit')
             if resource_type == consts.RESOURCE_TYPE_SYSINV_DNS:
                 return [self.get_dns_resource(os_client)]
-            elif resource_type == consts.RESOURCE_TYPE_SYSINV_SNMP_COMM:
-                return self.get_snmp_community_resources(os_client)
-            elif resource_type == consts.RESOURCE_TYPE_SYSINV_SNMP_TRAPDEST:
-                return self.get_snmp_trapdest_resources(os_client)
             elif resource_type == consts.RESOURCE_TYPE_SYSINV_CERTIFICATE:
                 return self.get_certificates_resources(os_client)
             elif resource_type == consts.RESOURCE_TYPE_SYSINV_USER:
@@ -612,10 +464,6 @@ class SysinvSyncThread(SyncThread):
                                             thread_name='audit')
             if resource_type == consts.RESOURCE_TYPE_SYSINV_DNS:
                 return [self.get_dns_resource(os_client)]
-            elif resource_type == consts.RESOURCE_TYPE_SYSINV_SNMP_COMM:
-                return self.get_snmp_community_resources(os_client)
-            elif resource_type == consts.RESOURCE_TYPE_SYSINV_SNMP_TRAPDEST:
-                return self.get_snmp_trapdest_resources(os_client)
             elif resource_type == consts.RESOURCE_TYPE_SYSINV_CERTIFICATE:
                 return self.get_certificates_resources(os_client)
             elif resource_type == consts.RESOURCE_TYPE_SYSINV_USER:
@@ -660,12 +508,6 @@ class SysinvSyncThread(SyncThread):
     def get_dns_resource(self, os_client):
         return os_client.sysinv_client.get_dns()
 
-    def get_snmp_trapdest_resources(self, os_client):
-        return os_client.sysinv_client.snmp_trapdest_list()
-
-    def get_snmp_community_resources(self, os_client):
-        return os_client.sysinv_client.snmp_community_list()
-
     def get_certificates_resources(self, os_client):
         certificate_list = os_client.sysinv_client.get_certificates()
         # Only sync the specified certificates to subclouds
@@ -683,22 +525,7 @@ class SysinvSyncThread(SyncThread):
         return FernetKeyManager.to_resource_info(keys)
 
     def get_resource_id(self, resource_type, resource):
-        if resource_type == consts.RESOURCE_TYPE_SYSINV_SNMP_COMM:
-            if hasattr(resource, 'community'):
-                LOG.debug("get_resource_id for community {}".format(resource))
-                return resource.community
-            elif hasattr(resource, 'master_id'):
-                return resource.master_id
-        elif resource_type == consts.RESOURCE_TYPE_SYSINV_SNMP_TRAPDEST:
-            if hasattr(resource, 'ip_address') and \
-               hasattr(resource, 'community'):
-                LOG.debug("get_resource_id resource={} has ip_address and "
-                          "community".format(resource),
-                          extra=self.log_extra)
-                return resource.ip_address
-            elif hasattr(resource, 'master_id'):
-                return resource.master_id
-        elif resource_type == consts.RESOURCE_TYPE_SYSINV_CERTIFICATE:
+        if resource_type == consts.RESOURCE_TYPE_SYSINV_CERTIFICATE:
             if hasattr(resource, 'signature'):
                 LOG.debug("get_resource_id signature={}".format(
                     resource.signature))
@@ -741,22 +568,6 @@ class SysinvSyncThread(SyncThread):
                 same_nameservers = False
         return same_nameservers
 
-    def same_snmp_trapdest(self, i1, i2):
-        LOG.debug("same_snmp_trapdest i1={}, i2={}".format(i1, i2),
-                  extra=self.log_extra)
-        return (i1.ip_address == i2.ip_address and
-                i1.community == i2.community)
-
-    def same_snmp_community(self, i1, i2):
-        LOG.debug("same_snmp_community i1={}, i2={}".format(i1, i2),
-                  extra=self.log_extra)
-        if i1.community and (i1.community != i2.community):
-            if i1.signature == self.RESOURCE_UUID_NULL:
-                LOG.info("Master Resource SNMP Community NULL UUID")
-                return True
-            return False
-        return True
-
     def same_certificate(self, i1, i2):
         LOG.debug("same_certificate i1={}, i2={}".format(i1, i2),
                   extra=self.log_extra)
@@ -796,10 +607,6 @@ class SysinvSyncThread(SyncThread):
     def same_resource(self, resource_type, m_resource, sc_resource):
         if resource_type == consts.RESOURCE_TYPE_SYSINV_DNS:
             return self.same_dns(m_resource, sc_resource)
-        elif resource_type == consts.RESOURCE_TYPE_SYSINV_SNMP_COMM:
-            return self.same_snmp_community(m_resource, sc_resource)
-        elif resource_type == consts.RESOURCE_TYPE_SYSINV_SNMP_TRAPDEST:
-            return self.same_snmp_trapdest(m_resource, sc_resource)
         elif resource_type == consts.RESOURCE_TYPE_SYSINV_CERTIFICATE:
             return self.same_certificate(m_resource, sc_resource)
         elif resource_type == consts.RESOURCE_TYPE_SYSINV_USER:
@@ -813,17 +620,8 @@ class SysinvSyncThread(SyncThread):
 
     def audit_discrepancy(self, resource_type, m_resource, sc_resources):
         # Return true to try the audit_action
-        if resource_type in self.SYSINV_ADD_DELETE_RESOURCES:
-            # It could be that the details are different
-            # between master cloud and subcloud now.
-            # Thus, delete the resource before creating it again.
-            master_id = self.get_resource_id(resource_type, m_resource)
-            self.schedule_work(self.endpoint_type, resource_type,
-                               master_id,
-                               consts.OPERATION_TYPE_DELETE)
-            return True
-        elif (resource_type in self.SYSINV_MODIFY_RESOURCES or
-              resource_type in self.SYSINV_CREATE_RESOURCES):
+        if (resource_type in self.SYSINV_MODIFY_RESOURCES or
+                resource_type in self.SYSINV_CREATE_RESOURCES):
             # The resource differs, signal to perform the audit_action
             return True
 
@@ -896,8 +694,6 @@ class SysinvSyncThread(SyncThread):
     def get_resource_info(self, resource_type,
                           resource, operation_type=None):
         payload_resources = [consts.RESOURCE_TYPE_SYSINV_DNS,
-                             consts.RESOURCE_TYPE_SYSINV_SNMP_COMM,
-                             consts.RESOURCE_TYPE_SYSINV_SNMP_TRAPDEST,
                              consts.RESOURCE_TYPE_SYSINV_CERTIFICATE,
                              consts.RESOURCE_TYPE_SYSINV_USER,
                              ]
