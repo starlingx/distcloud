@@ -30,6 +30,7 @@ from oslo_config import cfg
 from oslo_log import log as logging
 
 from dccommon import consts as dccommon_consts
+from dccommon.drivers.openstack import sysinv_v1
 
 from dcmanager.audit import firmware_audit
 from dcmanager.audit import patch_audit
@@ -248,6 +249,22 @@ class SubcloudAuditManager(manager.Manager):
         current_time = datetime.datetime.utcnow()
         last_audit_threshold = current_time - datetime.timedelta(
             seconds=CONF.scheduler.subcloud_audit_interval)
+        # The sysinv and patching subcloud REST API timeouts are 600 sec,
+        # and we need to be greater than that, so lets go with that plus
+        # an extra audit interval.
+        last_audit_fixup_threshold = current_time - datetime.timedelta(
+            seconds=(sysinv_v1.SYSINV_CLIENT_REST_DEFAULT_TIMEOUT +
+                     CONF.scheduler.subcloud_audit_interval))
+
+        # Fix up any stale audit timestamps for subclouds that started an
+        # audit but never finished it.
+        start = datetime.datetime.utcnow()
+        num_fixed = db_api.subcloud_audits_fix_expired_audits(
+            self.context, last_audit_fixup_threshold)
+        end = datetime.datetime.utcnow()
+        if num_fixed > 0:
+            LOG.info('Fixed up subcloud audit timestamp for %s subclouds.' % num_fixed)
+            LOG.info('Fixup took %s seconds' % (end - start))
 
         subcloud_ids = []
         subcloud_audits = db_api.subcloud_audits_get_all_need_audit(

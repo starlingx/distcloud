@@ -40,6 +40,7 @@ from sqlalchemy import desc
 from sqlalchemy.orm.exc import MultipleResultsFound
 from sqlalchemy.orm.exc import NoResultFound
 from sqlalchemy.orm import joinedload_all
+from sqlalchemy.orm import load_only
 from sqlalchemy.sql.expression import true
 
 from dcmanager.common import consts
@@ -233,6 +234,27 @@ def subcloud_audits_end_audit(context, subcloud_id):
         subcloud_audits_ref.kubernetes_audit_requested = False
         subcloud_audits_ref.save(session)
         return subcloud_audits_ref
+
+
+# Find and fix up subcloud audits where the audit has taken too long.
+# We want to find subclouds that started an audit but never finished
+# it and update the "finished at" timestamp to be the same as
+# the "started at" timestamp.  Returns the number of rows updated.
+@require_context
+def subcloud_audits_fix_expired_audits(context, last_audit_threshold):
+    with write_session() as session:
+        result = session.query(models.SubcloudAudits).\
+            options(load_only("deleted", "audit_started_at",
+                              "audit_finished_at")).\
+            filter_by(deleted=0).\
+            filter(models.SubcloudAudits.audit_finished_at <
+                   last_audit_threshold).\
+            filter(models.SubcloudAudits.audit_started_at >
+                   models.SubcloudAudits.audit_finished_at).\
+            update({"audit_finished_at":
+                    models.SubcloudAudits.audit_started_at},
+                   synchronize_session=False)
+    return result
 
 
 ###################
