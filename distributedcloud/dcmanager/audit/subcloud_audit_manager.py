@@ -53,10 +53,9 @@ LOG = logging.getLogger(__name__)
 SUBCLOUD_STATE_UPDATE_ITERATIONS = \
     dccommon_consts.SECONDS_IN_HOUR / CONF.scheduler.subcloud_audit_interval
 
-# Patch audit normally happens every DEFAULT_PATCH_AUDIT_DELAY_SECONDS, but
-# can be forced to happen on the next audit interval by calling
+# Patch audit normally happens every CONF.scheduler.patch_audit_interval
+# seconds, but can be forced to happen on the next audit interval by calling
 # trigger_patch_audit.
-DEFAULT_PATCH_AUDIT_DELAY_SECONDS = 900
 
 # Name of starlingx openstack helm application
 HELM_APP_OPENSTACK = 'stx-openstack'
@@ -179,7 +178,7 @@ class SubcloudAuditManager(manager.Manager):
         # Determine whether to trigger a patch audit of each subcloud
         if (SubcloudAuditManager.force_patch_audit or
                 (current_time - self.patch_audit_time >=
-                    DEFAULT_PATCH_AUDIT_DELAY_SECONDS)):
+                    CONF.scheduler.patch_audit_interval)):
             LOG.info("Trigger patch audit")
             self.patch_audit_time = current_time
             self.patch_audit_count += 1
