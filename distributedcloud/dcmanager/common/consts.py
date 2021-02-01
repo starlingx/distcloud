@@ -181,6 +181,10 @@ DEPLOY_STATE_PRE_RESTORE = 'pre-restore'
 DEPLOY_STATE_RESTORE_PREP_FAILED = 'restore-prep-failed'
 DEPLOY_STATE_RESTORING = 'restoring'
 DEPLOY_STATE_RESTORE_FAILED = 'restore-failed'
+DEPLOY_STATE_PRE_REHOME = 'pre-rehome'
+DEPLOY_STATE_REHOMING = 'rehoming'
+DEPLOY_STATE_REHOME_FAILED = 'rehome-failed'
+DEPLOY_STATE_REHOME_PREP_FAILED = 'rehome-prep-failed'
 DEPLOY_STATE_DONE = 'complete'
 
 

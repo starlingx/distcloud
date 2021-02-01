@@ -871,6 +871,12 @@ class SubcloudsController(object):
                 LOG.exception(msg)
                 pecan.abort(400, msg)
 
+            migrate_str = payload.get('migrate')
+            if migrate_str is not None:
+                if migrate_str not in ["true", "false"]:
+                    pecan.abort(400, _('The migrate option is invalid, '
+                                       'valid options are true and false.'))
+
             # If a subcloud group is not passed, use the default
             group_id = payload.get('group_id',
                                    consts.DEFAULT_SUBCLOUD_GROUP_ID)
