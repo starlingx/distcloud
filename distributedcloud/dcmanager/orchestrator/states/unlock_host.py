@@ -22,6 +22,13 @@ DEFAULT_FAILED_SLEEP = 60
 DEFAULT_MAX_API_QUERIES = 30
 DEFAULT_API_SLEEP = 60
 
+# The unlock command sometime fails, for instance, on SR-IOV VF changes,
+# sometimes, the runtime manifest takes a while to apply the changes while
+# locked
+# The unlock shall retry up to 20 minutes (ie: 10 retries with 2 minutes sleep)
+DEFAULT_MAX_UNLOCK_RETRIES = 10
+DEFAULT_UNLOCK_SLEEP = 120
+
 
 class UnlockHostState(BaseState):
     """Orchestration state for unlocking a host."""
@@ -34,6 +41,8 @@ class UnlockHostState(BaseState):
         self.api_sleep_duration = DEFAULT_API_SLEEP
         self.max_failed_queries = DEFAULT_MAX_FAILED_QUERIES
         self.failed_sleep_duration = DEFAULT_FAILED_SLEEP
+        self.max_unlock_retries = DEFAULT_MAX_UNLOCK_RETRIES
+        self.unlock_sleep_duration = DEFAULT_UNLOCK_SLEEP
 
     def check_host_ready(self, host):
         """Returns True if host is unlocked, enabled and available."""
@@ -66,9 +75,22 @@ class UnlockHostState(BaseState):
 
         # Invoke the action
         # ihost_action is 'unlock' and task is set to 'Unlocking'
-        response = sysinv_client.unlock_host(host.id)
-        if (response.ihost_action != 'unlock' or response.task != 'Unlocking'):
-            raise Exception("Unable to unlock host %s" % self.target_hostname)
+        # handle possible unlock failures that can occur in corner cases
+        unlock_counter = 0
+
+        while True:
+            try:
+                response = self.get_sysinv_client(
+                    strategy_step.subcloud.name).unlock_host(host.id)
+                if (response.ihost_action != 'unlock' or response.task != 'Unlocking'):
+                    raise Exception("Unable to unlock host %s" % self.target_hostname)
+                break
+            except Exception as e:
+                if unlock_counter >= self.max_unlock_retries:
+                    raise
+                unlock_counter += 1
+                self.error_log(strategy_step, str(e))
+                time.sleep(self.unlock_sleep_duration)
 
         # unlock triggers a reboot.
         # must ignore certain errors until the system completes the reboot

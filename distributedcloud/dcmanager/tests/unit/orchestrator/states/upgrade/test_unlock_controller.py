@@ -17,8 +17,11 @@ from dcmanager.tests.unit.orchestrator.states.upgrade.test_base \
 @mock.patch("dcmanager.orchestrator.states.unlock_host.DEFAULT_MAX_API_QUERIES", 3)
 @mock.patch("dcmanager.orchestrator.states.unlock_host.DEFAULT_MAX_FAILED_QUERIES",
             3)
+@mock.patch("dcmanager.orchestrator.states.unlock_host.DEFAULT_MAX_UNLOCK_RETRIES",
+            3)
 @mock.patch("dcmanager.orchestrator.states.unlock_host.DEFAULT_API_SLEEP", 1)
 @mock.patch("dcmanager.orchestrator.states.unlock_host.DEFAULT_FAILED_SLEEP", 1)
+@mock.patch("dcmanager.orchestrator.states.unlock_host.DEFAULT_UNLOCK_SLEEP", 1)
 class TestSwUpgradeUnlockSimplexStage(TestSwUpgradeState):
 
     state = consts.STRATEGY_STATE_UNLOCKING_CONTROLLER_0
@@ -128,6 +131,71 @@ class TestSwUpgradeUnlockSimplexStage(TestSwUpgradeState):
         # verify that state failed due to subcloud never finishing the unlock
         self.assert_step_updated(self.strategy_step.subcloud_id,
                                  consts.STRATEGY_STATE_FAILED)
+
+    def test_unlock_failure_sriov(self):
+        """Test the unlock command returns an exception because of sriov failure"""
+
+        # mock the get_host query
+        self.sysinv_client.get_host.return_value = self.CONTROLLER_LOCKED
+
+        # mock the API call as an unlock sriov failure
+        self.sysinv_client.unlock_host.side_effect = \
+            Exception("Expecting number of interface sriov_numvfs=32. Please"
+                      " wait a few minutes for inventory update and retry"
+                      " host-unlock.")
+
+        # invoke the strategy state operation on the orch thread
+        self.worker.perform_state_action(self.strategy_step)
+
+        # verify the unlock command was actually attempted
+        self.sysinv_client.unlock_host.assert_called()
+
+        # verified the unlock was tried max retries + 1
+        self.assertEqual(unlock_host.DEFAULT_MAX_UNLOCK_RETRIES + 1,
+                         self.sysinv_client.unlock_host.call_count)
+
+        # verify that state failed due to subcloud never finishing the unlock
+        self.assert_step_updated(self.strategy_step.subcloud_id,
+                                 consts.STRATEGY_STATE_FAILED)
+
+    def test_unlock_attempt_due_sriov_failure(self):
+        """Test the unlock attempts after sriov failure"""
+
+        # mock the get_host query
+        self.sysinv_client.get_host.return_value = self.CONTROLLER_LOCKED
+
+        # mock the API call as an unlock sriov failure 2 times then a success
+        self.sysinv_client.unlock_host.side_effect = \
+            [Exception("Expecting number of interface sriov_numvfs=32. Please"
+                       " wait a few minutes for inventory update and retry"
+                       " host-unlock."),
+             Exception("Expecting number of interface sriov_numvfs=32. Please"
+                       " wait a few minutes for inventory update and retry"
+                       " host-unlock."),
+             self.CONTROLLER_UNLOCKING]
+
+        # invoke the strategy state operation on the orch thread
+        self.worker.perform_state_action(self.strategy_step)
+
+        # verify the unlock command was actually attempted
+        self.sysinv_client.unlock_host.assert_called()
+
+        # verify the unlock was called 3 times: 1st call + 2 retries
+        self.assertEqual(3, self.sysinv_client.unlock_host.call_count)
+
+        # verify that state failed because host did not get unlocked
+        self.assert_step_updated(self.strategy_step.subcloud_id,
+                                 consts.STRATEGY_STATE_FAILED)
+
+        # now move to unlock the controller
+        self.sysinv_client.get_host.return_value = self.CONTROLLER_UNLOCKED
+
+        # invoke the strategy state operation on the orch thread
+        self.worker.perform_state_action(self.strategy_step)
+
+        # verify that the state moves to the next state
+        self.assert_step_updated(self.strategy_step.subcloud_id,
+                                 self.on_success_state)
 
     def test_unlock_failure(self):
         """Test the unlock command returns a failure"""
