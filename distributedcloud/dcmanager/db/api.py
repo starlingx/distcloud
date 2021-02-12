@@ -92,9 +92,11 @@ def subcloud_audits_end_audit(context, subcloud_id):
     return IMPL.subcloud_audits_end_audit(context, subcloud_id)
 
 
-def subcloud_audits_fix_expired_audits(context, last_audit_threshold):
+def subcloud_audits_fix_expired_audits(context, last_audit_threshold,
+                                       trigger_audits=False):
     return IMPL.subcloud_audits_fix_expired_audits(context,
-                                                   last_audit_threshold)
+                                                   last_audit_threshold,
+                                                   trigger_audits)
 
 
 # subcloud db methods

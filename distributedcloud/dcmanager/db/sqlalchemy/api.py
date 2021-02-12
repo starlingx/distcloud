@@ -241,7 +241,17 @@ def subcloud_audits_end_audit(context, subcloud_id):
 # it and update the "finished at" timestamp to be the same as
 # the "started at" timestamp.  Returns the number of rows updated.
 @require_context
-def subcloud_audits_fix_expired_audits(context, last_audit_threshold):
+def subcloud_audits_fix_expired_audits(context, last_audit_threshold,
+                                       trigger_audits=False):
+    values = {
+        "audit_finished_at": models.SubcloudAudits.audit_started_at
+    }
+    if trigger_audits:
+        # request all the special audits
+        values['patch_audit_requested'] = True
+        values['firmware_audit_requested'] = True
+        values['load_audit_requested'] = True
+        values['kubernetes_audit_requested'] = True
     with write_session() as session:
         result = session.query(models.SubcloudAudits).\
             options(load_only("deleted", "audit_started_at",
@@ -251,9 +261,7 @@ def subcloud_audits_fix_expired_audits(context, last_audit_threshold):
                    last_audit_threshold).\
             filter(models.SubcloudAudits.audit_started_at >
                    models.SubcloudAudits.audit_finished_at).\
-            update({"audit_finished_at":
-                    models.SubcloudAudits.audit_started_at},
-                   synchronize_session=False)
+            update(values, synchronize_session=False)
     return result
 
 

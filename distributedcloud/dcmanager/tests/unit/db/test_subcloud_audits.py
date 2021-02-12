@@ -219,3 +219,26 @@ class DBAPISubcloudAuditsTest(base.DCManagerTestCase):
         # Check that for the one that was updated we didn't trigger sub-audits.
         result = db_api.subcloud_audits_get(self.ctx, 1)
         self.assertEqual(result['patch_audit_requested'], False)
+
+    def test_subcloud_audits_fix_expired_trigger_audits(self):
+        # Set the 'start' timestamp later than the 'finished' timestamp
+        # but with the 'finished' timestamp long ago.
+        db_api.subcloud_audits_get_and_start_audit(self.ctxt, 1)
+        last_audit_threshold = (datetime.datetime.utcnow() -
+                                datetime.timedelta(seconds=100))
+        # Fix up expired audits and trigger subaudits.
+        count = db_api.subcloud_audits_fix_expired_audits(
+            self.ctxt, last_audit_threshold, trigger_audits=True)
+        self.assertEqual(count, 1)
+        # For the fixed-up audits, subaudits should be requested.
+        result = db_api.subcloud_audits_get(self.ctx, 1)
+        self.assertEqual(result['patch_audit_requested'], True)
+        self.assertEqual(result['firmware_audit_requested'], True)
+        self.assertEqual(result['load_audit_requested'], True)
+        self.assertEqual(result['kubernetes_audit_requested'], True)
+        # For the not-fixed-up audits, subaudits should not be requested.
+        result = db_api.subcloud_audits_get(self.ctx, 2)
+        self.assertEqual(result['patch_audit_requested'], False)
+        self.assertEqual(result['firmware_audit_requested'], False)
+        self.assertEqual(result['load_audit_requested'], False)
+        self.assertEqual(result['kubernetes_audit_requested'], False)

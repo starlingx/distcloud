@@ -141,6 +141,12 @@ class SubcloudAuditManager(manager.Manager):
 
         # Verify subclouds have all the endpoints in DB
         self._add_missing_endpoints()
+        # For any subclouds that were in the middle of being audited
+        # when dcmanager-audit was shut down, fix up the timestamps so we'll
+        # audit them and request all sub-audits.
+        # (This is for swact and process restart.)
+        db_api.subcloud_audits_fix_expired_audits(
+            self.context, datetime.datetime.utcnow(), trigger_audits=True)
         # Blanket catch all exceptions in the audit so that the audit
         # does not die.
         while True:
