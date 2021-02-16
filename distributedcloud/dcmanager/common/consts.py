@@ -75,7 +75,7 @@ ENDPOINT_TYPE = "endpoint_type"
 SERVICE_GROUP_STATUS_ACTIVE = "active"
 
 # Availability fail count
-AVAIL_FAIL_COUNT_TO_ALARM = 2
+AVAIL_FAIL_COUNT_TO_ALARM = 1
 AVAIL_FAIL_COUNT_MAX = 9999
 
 # Software update strategy types

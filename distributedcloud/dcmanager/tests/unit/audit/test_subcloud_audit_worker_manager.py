@@ -531,10 +531,14 @@ class TestAuditWorkerManager(base.DCManagerTestCase):
         audit_fail_count = 1
         self.fake_dcmanager_api.update_subcloud_availability.\
             assert_called_with(mock.ANY, subcloud.name,
-                               None, False, audit_fail_count)
+                               consts.AVAILABILITY_OFFLINE,
+                               False, audit_fail_count)
 
+        # Update the DB like dcmanager would do.
         subcloud = db_api.subcloud_update(
-            self.ctx, subcloud.id, audit_fail_count=audit_fail_count)
+            self.ctx, subcloud.id,
+            availability_status=consts.AVAILABILITY_OFFLINE,
+            audit_fail_count=audit_fail_count)
 
         # Audit the subcloud again
         wm._audit_subcloud(subcloud, update_subcloud_state=False,
@@ -547,23 +551,20 @@ class TestAuditWorkerManager(base.DCManagerTestCase):
 
         audit_fail_count = audit_fail_count + 1
 
-        # Verify the subcloud was set to offline
+        # Verify the subcloud availability didn't change, just the fail count
         self.fake_dcmanager_api.update_subcloud_availability.\
             assert_called_with(mock.ANY, subcloud.name,
-                               consts.AVAILABILITY_OFFLINE, False,
+                               None, False,
                                audit_fail_count)
 
-        # Verify alarm update is called only once
-        self.fake_alarm_aggr.update_alarm_summary.assert_called_once_with(
-            subcloud.name, self.fake_openstack_client.fm_client)
+        # Verify alarm update is not called
+        self.fake_alarm_aggr.update_alarm_summary.assert_not_called()
 
-        # Verify patch audit is called only once
-        self.fake_patch_audit.subcloud_patch_audit.assert_called_once_with(
-            subcloud.name, mock.ANY, True)
+        # Verify patch audit is not called
+        self.fake_patch_audit.subcloud_patch_audit.assert_not_called()
 
-        # Verify firmware audit is called
-        self.fake_firmware_audit.subcloud_firmware_audit.assert_called_once_with(
-            subcloud.name, mock.ANY)
+        # Verify firmware audit is not called
+        self.fake_firmware_audit.subcloud_firmware_audit.assert_not_called()
 
     def test_audit_subcloud_offline_no_change(self):
         subcloud = self.create_subcloud_static(self.ctx, name='subcloud1')
