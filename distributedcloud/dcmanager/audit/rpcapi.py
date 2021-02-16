@@ -65,6 +65,10 @@ class ManagerAuditClient(object):
     def trigger_firmware_audit(self, ctxt):
         return self.cast(ctxt, self.make_msg('trigger_firmware_audit'))
 
+    def trigger_subcloud_audits(self, ctxt, subcloud_id):
+        return self.cast(ctxt, self.make_msg('trigger_subcloud_audits',
+                                             subcloud_id=subcloud_id))
+
 
 class ManagerAuditWorkerClient(object):
     """Client side of the DC Manager Audit Worker rpc API.

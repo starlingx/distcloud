@@ -223,15 +223,19 @@ def subcloud_audits_get_and_start_audit(context, subcloud_id):
 
 
 @require_context
-def subcloud_audits_end_audit(context, subcloud_id):
+def subcloud_audits_end_audit(context, subcloud_id, audits_done):
     with write_session() as session:
         subcloud_audits_ref = subcloud_audits_get(context, subcloud_id)
         subcloud_audits_ref.audit_finished_at = datetime.datetime.utcnow()
         subcloud_audits_ref.state_update_requested = False
-        subcloud_audits_ref.patch_audit_requested = False
-        subcloud_audits_ref.firmware_audit_requested = False
-        subcloud_audits_ref.load_audit_requested = False
-        subcloud_audits_ref.kubernetes_audit_requested = False
+        if 'patch' in audits_done:
+            subcloud_audits_ref.patch_audit_requested = False
+        if 'firmware' in audits_done:
+            subcloud_audits_ref.firmware_audit_requested = False
+        if 'load' in audits_done:
+            subcloud_audits_ref.load_audit_requested = False
+        if 'kubernetes' in audits_done:
+            subcloud_audits_ref.kubernetes_audit_requested = False
         subcloud_audits_ref.save(session)
         return subcloud_audits_ref
 

@@ -123,6 +123,13 @@ class DCManagerAuditService(service.Service):
         LOG.info("Trigger firmware audit.")
         return self.subcloud_audit_manager.trigger_firmware_audit(context)
 
+    @request_context
+    def trigger_subcloud_audits(self, context, subcloud_id):
+        """Trigger all subcloud audits for one subcloud."""
+        LOG.info("Trigger all audits for subcloud %s", subcloud_id)
+        return self.subcloud_audit_manager.trigger_subcloud_audits(
+            context, subcloud_id)
+
 
 class DCManagerAuditWorkerService(service.Service):
     """Lifecycle manager for a running audit service."""

@@ -262,3 +262,14 @@ class TestAuditManager(base.DCManagerTestCase):
     def test_periodic_subcloud_audit(self):
         am = subcloud_audit_manager.SubcloudAuditManager()
         am._periodic_subcloud_audit_loop()
+
+    def test_audit_one_subcloud(self):
+        subcloud = self.create_subcloud_static(self.ctx)
+        am = subcloud_audit_manager.SubcloudAuditManager()
+        am.trigger_subcloud_audits(self.ctx, subcloud.id)
+        # Subaudits should be requested.
+        result = db_api.subcloud_audits_get(self.ctx, subcloud.id)
+        self.assertEqual(result['patch_audit_requested'], True)
+        self.assertEqual(result['firmware_audit_requested'], True)
+        self.assertEqual(result['load_audit_requested'], True)
+        self.assertEqual(result['kubernetes_audit_requested'], True)

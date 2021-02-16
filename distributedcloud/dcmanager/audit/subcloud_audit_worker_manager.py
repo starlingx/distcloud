@@ -110,7 +110,9 @@ class SubcloudAuditWorkerManager(manager.Manager):
                           (subcloud.name, subcloud.deploy_status))
                 # This DB API call will set the "audit_finished_at" timestamp
                 # so it won't get audited again for a while.
-                db_api.subcloud_audits_end_audit(self.context, subcloud_id)
+                audits_done = []
+                db_api.subcloud_audits_end_audit(self.context,
+                                                 subcloud_id, audits_done)
                 continue
 
             # Check the per-subcloud audit flags
@@ -229,18 +231,20 @@ class SubcloudAuditWorkerManager(manager.Manager):
                            do_audit_openstack, patch_audit_data,
                            firmware_audit_data, do_patch_audit,
                            do_load_audit, do_firmware_audit):
+        audits_done = []
         # Do the actual subcloud audit.
         try:
-            self._audit_subcloud(subcloud, update_subcloud_state,
-                                 do_audit_openstack, patch_audit_data,
-                                 firmware_audit_data, do_patch_audit,
-                                 do_load_audit, do_firmware_audit)
+            audits_done = self._audit_subcloud(
+                subcloud, update_subcloud_state, do_audit_openstack,
+                patch_audit_data, firmware_audit_data, do_patch_audit,
+                do_load_audit, do_firmware_audit)
         except Exception:
             LOG.exception("Got exception auditing subcloud: %s" % subcloud.name)
 
         # Update the audit completion timestamp so it doesn't get
         # audited again for a while.
-        db_api.subcloud_audits_end_audit(self.context, subcloud.id)
+        db_api.subcloud_audits_end_audit(self.context,
+                                         subcloud.id, audits_done)
         # Remove the worker for this subcloud
         self.subcloud_workers.pop(subcloud.name, None)
         LOG.debug("PID: %s, done auditing subcloud: %s." %
@@ -254,6 +258,7 @@ class SubcloudAuditWorkerManager(manager.Manager):
         avail_status_current = subcloud.availability_status
         audit_fail_count = subcloud.audit_fail_count
         subcloud_name = subcloud.name
+        audits_done = []
 
         # Set defaults to None and disabled so we will still set disabled
         # status if we encounter an error.
@@ -275,7 +280,7 @@ class SubcloudAuditWorkerManager(manager.Manager):
                 LOG.info("Identity or Platform endpoint for %s not "
                          "found, ignoring for offline "
                          "subcloud." % subcloud_name)
-                return
+                return audits_done
             else:
                 # The subcloud will be marked as offline below.
                 LOG.error("Identity or Platform endpoint for online "
@@ -344,11 +349,16 @@ class SubcloudAuditWorkerManager(manager.Manager):
                 self.patch_audit.subcloud_patch_audit(subcloud_name,
                                                       patch_audit_data,
                                                       do_load_audit)
+                audits_done.append('patch')
+                if do_load_audit:
+                    audits_done.append('load')
             # Perform firmware audit
             if do_firmware_audit:
                 self.firmware_audit.subcloud_firmware_audit(subcloud_name,
                                                             firmware_audit_data)
+                audits_done.append('firmware')
             # Audit openstack application in the subcloud
             if do_audit_openstack and sysinv_client:
                 self._audit_subcloud_openstack_app(
                     subcloud_name, sysinv_client, subcloud.openstack_installed)
+        return audits_done

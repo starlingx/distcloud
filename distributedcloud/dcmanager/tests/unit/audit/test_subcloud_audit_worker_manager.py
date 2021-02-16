@@ -736,3 +736,56 @@ class TestAuditWorkerManager(base.DCManagerTestCase):
 
         # Verify firmware audit is not called
         self.fake_firmware_audit.subcloud_firmware_audit.assert_not_called()
+
+    def test_audit_subcloud_partial_subaudits(self):
+        subcloud = self.create_subcloud_static(self.ctx, name='subcloud1')
+        self.assertIsNotNone(subcloud)
+
+        # Set the subcloud to managed
+        subcloud = db_api.subcloud_update(
+            self.ctx, subcloud.id,
+            management_state='managed')
+
+        am = subcloud_audit_manager.SubcloudAuditManager()
+        wm = subcloud_audit_worker_manager.SubcloudAuditWorkerManager()
+
+        # Pretend like we're going to audit the subcloud
+        do_patch_audit = True
+        do_load_audit = False
+        do_firmware_audit = False
+        patch_audit_data, firmware_audit_data = am._get_audit_data(
+            do_patch_audit, do_firmware_audit)
+        # Convert to dict like what would happen calling via RPC
+        patch_audit_data = patch_audit_data.to_dict()
+
+        # Now pretend someone triggered all the subaudits in the DB
+        # after the subcloud audit was triggered but before it ran.
+        am.trigger_subcloud_audits(self.ctx, subcloud.id)
+
+        # Make sure all subaudits are requested in DB
+        audits = db_api.subcloud_audits_get(self.ctx, subcloud.id)
+        self.assertEqual(audits.patch_audit_requested, True)
+        self.assertEqual(audits.load_audit_requested, True)
+        self.assertEqual(audits.firmware_audit_requested, True)
+
+        # Do the actual audit
+        wm._do_audit_subcloud(subcloud, update_subcloud_state=False,
+                              do_audit_openstack=False,
+                              patch_audit_data=patch_audit_data,
+                              firmware_audit_data=firmware_audit_data,
+                              do_patch_audit=do_patch_audit,
+                              do_load_audit=do_load_audit,
+                              do_firmware_audit=do_firmware_audit)
+
+        # Verify patch audit is called
+        self.fake_patch_audit.subcloud_patch_audit.assert_called_with(
+            subcloud.name, patch_audit_data, do_load_audit)
+
+        # Verify firmware audit is not called
+        self.fake_firmware_audit.subcloud_firmware_audit.assert_not_called()
+
+        # Ensure the subaudits that didn't run are still requested
+        audits = db_api.subcloud_audits_get(self.ctx, subcloud.id)
+        self.assertEqual(audits.patch_audit_requested, False)
+        self.assertEqual(audits.load_audit_requested, True)
+        self.assertEqual(audits.firmware_audit_requested, True)

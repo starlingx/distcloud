@@ -136,6 +136,16 @@ class SubcloudAuditManager(manager.Manager):
     def reset_force_firmware_audit(cls):
         cls.force_firmware_audit = False
 
+    def trigger_subcloud_audits(self, context, subcloud_id):
+        """Trigger all subcloud audits for one subcloud."""
+        values = {
+            'patch_audit_requested': True,
+            'firmware_audit_requested': True,
+            'load_audit_requested': True,
+            'kubernetes_audit_requested': True,
+        }
+        db_api.subcloud_audits_update(context, subcloud_id, values)
+
     def periodic_subcloud_audit(self):
         """Audit availability of subclouds."""
 
