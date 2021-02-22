@@ -45,6 +45,7 @@ from dccommon.utils import run_playbook
 from dcorch.common import consts as dcorch_consts
 from dcorch.rpc import client as dcorch_rpc_client
 
+from dcmanager.audit import rpcapi as dcmanager_audit_rpc_client
 from dcmanager.common import consts
 from dcmanager.common.consts import INVENTORY_FILE_POSTFIX
 from dcmanager.common import context
@@ -113,6 +114,7 @@ class SubcloudManager(manager.Manager):
         self.context = context.get_admin_context()
         self.dcorch_rpc_client = dcorch_rpc_client.EngineClient()
         self.fm_api = fm_api.FaultAPIs()
+        self.audit_rpc_client = dcmanager_audit_rpc_client.ManagerAuditClient()
 
     @staticmethod
     def _get_subcloud_cert_name(subcloud_name):
@@ -961,6 +963,9 @@ class SubcloudManager(manager.Manager):
                 LOG.info('Request for managed audit for %s' % subcloud.name)
                 dc_notification = rpc_client.DCManagerNotifications()
                 dc_notification.subcloud_managed(context, subcloud.name)
+                # Trigger all the audits for the subcloud so it can update the
+                # sync status ASAP.
+                self.audit_rpc_client.trigger_subcloud_audits(context, subcloud_id)
 
         return db_api.subcloud_db_model_to_dict(subcloud)
 

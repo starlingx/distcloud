@@ -40,6 +40,12 @@ from dcorch.common import consts as dcorch_consts
 from tsconfig.tsconfig import SW_VERSION
 
 
+class FakeDCManagerAuditAPI(object):
+
+    def __init__(self):
+        self.trigger_subcloud_audits = mock.MagicMock()
+
+
 class FakeDCOrchAPI(object):
     def __init__(self):
         self.update_subcloud_states = mock.MagicMock()
@@ -202,6 +208,14 @@ class Subcloud(object):
 class TestSubcloudManager(base.DCManagerTestCase):
     def setUp(self):
         super(TestSubcloudManager, self).setUp()
+
+        # Mock the DCManager Audit API
+        self.fake_dcmanager_audit_api = FakeDCManagerAuditAPI()
+        p = mock.patch('dcmanager.audit.rpcapi.ManagerAuditClient')
+        self.mock_dcmanager_audit_api = p.start()
+        self.mock_dcmanager_audit_api.return_value = \
+            self.fake_dcmanager_audit_api
+        self.addCleanup(p.stop)
 
         # Mock the DCOrch API
         self.fake_dcorch_api = FakeDCOrchAPI()
@@ -370,6 +384,8 @@ class TestSubcloudManager(base.DCManagerTestCase):
 
         fake_dcmanager_notification.subcloud_managed.assert_called_once_with(
             self.ctx, subcloud.name)
+        self.fake_dcmanager_audit_api.trigger_subcloud_audits.assert_called_once_with(
+            self.ctx, subcloud.id)
 
         # Verify subcloud was updated with correct values
         updated_subcloud = db_api.subcloud_get_by_name(self.ctx, subcloud.name)
@@ -405,6 +421,8 @@ class TestSubcloudManager(base.DCManagerTestCase):
 
         fake_dcmanager_cermon_api.subcloud_managed.assert_called_once_with(
             self.ctx, subcloud.name)
+        self.fake_dcmanager_audit_api.trigger_subcloud_audits.assert_called_once_with(
+            self.ctx, subcloud.id)
 
         # Verify subcloud was updated with correct values
         updated_subcloud = db_api.subcloud_get_by_name(self.ctx, subcloud.name)
@@ -431,6 +449,7 @@ class TestSubcloudManager(base.DCManagerTestCase):
                           sm.update_subcloud, self.ctx,
                           subcloud.id,
                           management_state=consts.MANAGEMENT_MANAGED)
+        self.fake_dcmanager_audit_api.trigger_subcloud_audits.assert_not_called()
 
     def test_update_already_unmanaged_subcloud(self):
         subcloud = self.create_subcloud_static(
@@ -443,6 +462,7 @@ class TestSubcloudManager(base.DCManagerTestCase):
                           sm.update_subcloud, self.ctx,
                           subcloud.id,
                           management_state=consts.MANAGEMENT_UNMANAGED)
+        self.fake_dcmanager_audit_api.trigger_subcloud_audits.assert_not_called()
 
     def test_manage_when_deploy_status_failed(self):
         subcloud = self.create_subcloud_static(

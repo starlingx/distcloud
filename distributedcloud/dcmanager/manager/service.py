@@ -129,12 +129,6 @@ class DCManagerService(service.Service):
                                                          group_id,
                                                          data_install,
                                                          force)
-        # If a subcloud has been set to the managed state, trigger the
-        # patching audit and firmware audit so it can update the
-        # sync status ASAP.
-        if management_state == consts.MANAGEMENT_MANAGED:
-            self.audit_rpc_client.trigger_patch_audit(context)
-            self.audit_rpc_client.trigger_firmware_audit(context)
 
         return subcloud
 
