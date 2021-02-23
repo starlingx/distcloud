@@ -13,7 +13,7 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 #
-# Copyright (c) 2017-2020 Wind River Systems, Inc.
+# Copyright (c) 2017-2021 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -63,6 +63,7 @@ LOCK_NAME = 'SubcloudsController'
 
 BOOTSTRAP_VALUES = 'bootstrap_values'
 INSTALL_VALUES = 'install_values'
+RESTORE_VALUES = 'restore_values'
 
 SUBCLOUD_ADD_MANDATORY_FILE = [
     BOOTSTRAP_VALUES,
@@ -72,9 +73,26 @@ SUBCLOUD_RECONFIG_MANDATORY_FILE = [
     consts.DEPLOY_CONFIG,
 ]
 
+SUBCLOUD_RESTORE_MANDATORY_FILE = [
+    RESTORE_VALUES,
+]
+
 SUBCLOUD_ADD_GET_FILE_CONTENTS = [
     BOOTSTRAP_VALUES,
     INSTALL_VALUES,
+]
+
+# The following parameters can be provided by the user for
+# remote subcloud restore
+#   - initial_backup_dir (default to /opt/platform-backup)
+#   - backup_filename (mandatory parameter)
+#   - ansible_ssh_pass (sysadmin_password)
+#   - ansible_become_pass (sysadmin_password)
+#   - on_box_data (default to true)
+#   - wipe_ceph_osds (default to false)
+#   - ansible_remote_tmp (default to /tmp)
+MANDATORY_RESTORE_VALUES = [
+    'backup_filename',
 ]
 
 
@@ -190,6 +208,30 @@ class SubcloudsController(object):
                 elif "sysadmin_password" in header:
                     payload.update({'sysadmin_password': part.content})
         self._get_common_deploy_files(payload)
+        return payload
+
+    @staticmethod
+    def _get_restore_payload(request):
+        payload = dict()
+        for f in SUBCLOUD_RESTORE_MANDATORY_FILE:
+            if f not in request.POST:
+                pecan.abort(400, _("Missing required file for %s") % f)
+
+        multipart_data = decoder.MultipartDecoder(request.body,
+                                                  pecan.request.headers.get('Content-Type'))
+        for f in SUBCLOUD_RESTORE_MANDATORY_FILE:
+            for part in multipart_data.parts:
+                header = part.headers.get('Content-Disposition')
+                if f in header:
+                    file_item = request.POST[f]
+                    file_item.file.seek(0, os.SEEK_SET)
+                    data = yaml.safe_load(file_item.file.read().decode('utf8'))
+                    payload.update({RESTORE_VALUES: data})
+                elif "sysadmin_password" in header:
+                    payload.update({'sysadmin_password': part.content})
+                elif "with_install" in header:
+                    payload.update({'with_install': part.content})
+
         return payload
 
     def _get_config_file_path(self, subcloud_name, config_file_type=None):
@@ -432,14 +474,8 @@ class SubcloudsController(object):
             if k not in install_values:
                 if k == 'image':
                     # check for the image at load vault load location
-                    matching_iso, matching_sig = utils.get_vault_load_files(tsc.SW_VERSION)
-                    if not os.path.isfile(matching_iso):
-                        msg = ('Failed to get active load image. Provide '
-                               'active load image via '
-                               '"system --os-region-name SystemController '
-                               'load-import --active"')
-                        pecan.abort(400, _(msg))
-
+                    matching_iso, matching_sig = \
+                        SubcloudsController.verify_active_load_in_vault()
                     LOG.info("image was not in install_values: will reference %s" %
                              matching_iso)
                 else:
@@ -510,6 +546,15 @@ class SubcloudsController(object):
                 pecan.abort(400, _("rd.net.timeout.ipv6dad invalid: %s") % e)
 
         return True
+
+    @staticmethod
+    def _validate_restore_values(payload):
+        """Validate the restore values to ensure parameters for remote restore are present"""
+
+        restore_values = payload.get(RESTORE_VALUES)
+        for p in MANDATORY_RESTORE_VALUES:
+            if p not in restore_values:
+                pecan.abort(400, _('Mandatory restore value %s not present') % p)
 
     def _get_subcloud_users(self):
         """Get the subcloud users and passwords from keyring"""
@@ -617,6 +662,22 @@ class SubcloudsController(object):
             group_id,
             data_install=data_install)
         return subcloud
+
+    @staticmethod
+    def verify_active_load_in_vault():
+        try:
+            matching_iso, matching_sig = utils.get_vault_load_files(tsc.SW_VERSION)
+            if not matching_iso:
+                msg = _('Failed to get active load image. Provide '
+                        'active load image via '
+                        '"system --os-region-name SystemController '
+                        'load-import --active"')
+                LOG.exception(msg)
+                pecan.abort(400, msg)
+            return matching_iso, matching_sig
+        except Exception as e:
+            LOG.exception(str(e))
+            pecan.abort(400, str(e))
 
     @index.when(method='GET', template='json')
     def get(self, subcloud_ref=None, detail=None):
@@ -997,6 +1058,86 @@ class SubcloudsController(object):
             except Exception:
                 LOG.exception("Unable to reinstall subcloud %s" % subcloud.name)
                 pecan.abort(500, _('Unable to reinstall subcloud'))
+        elif verb == "restore":
+            payload = self._get_restore_payload(request)
+            if not payload:
+                pecan.abort(400, _('Body required'))
+
+            if subcloud.management_state != consts.MANAGEMENT_UNMANAGED:
+                pecan.abort(400, _('Subcloud can not be restored while it is still '
+                                   'in managed state. Please unmanage the subcloud '
+                                   'and try again.'))
+            elif subcloud.deploy_status in [consts.DEPLOY_STATE_INSTALLING,
+                                            consts.DEPLOY_STATE_BOOTSTRAPPING,
+                                            consts.DEPLOY_STATE_DEPLOYING]:
+                pecan.abort(400, _('This operation is not allowed while subcloud install, '
+                                   'bootstrap or deploy is in progress.'))
+            sysadmin_password = \
+                payload.get('sysadmin_password')
+            if not sysadmin_password:
+                pecan.abort(400, _('subcloud sysadmin_password required'))
+
+            try:
+                payload['sysadmin_password'] = base64.b64decode(
+                    sysadmin_password).decode('utf-8')
+            except Exception:
+                msg = _('Failed to decode subcloud sysadmin_password, '
+                        'verify the password is base64 encoded')
+                LOG.exception(msg)
+                pecan.abort(400, msg)
+
+            with_install = payload.get('with_install')
+
+            if with_install is not None:
+                if with_install == 'true' or with_install == 'True':
+                    payload.update({'with_install': True})
+                elif with_install == 'false' or with_install == 'False':
+                    payload.update({'with_install': False})
+                else:
+                    pecan.abort(400, _('Invalid with_install value'))
+
+            self._validate_restore_values(payload)
+
+            if with_install:
+                # Request to remote install as part of subcloud restore. Confirm the
+                # subcloud install data in the db still contain the required parameters
+                # for remote install.
+                install_values = self._get_subcloud_db_install_values(subcloud)
+                payload.update({
+                    'install_values': install_values,
+                })
+
+                # Confirm the active system controller load is still in dc-vault
+                SubcloudsController.verify_active_load_in_vault()
+            else:
+                # Not Redfish capable subcloud. The subcloud has been reinstalled
+                # and required patches have been applied.
+                #
+                # Pseudo code:
+                #   - Retrieve install_values of the subcloud from the database.
+                #     If it does not exist, try to retrieve the bootstrap address
+                #     from its ansible inventory file (/opt/dc/ansible).
+                #   - If the bootstrap address can be obtained, add install_values
+                #     to the payload and continue.
+                #   - If the bootstrap address cannot be obtained, abort with an
+                #     error message advising the user to run "dcmanager subcloud
+                #     update --bootstrap-address <bootstrap_address>" command
+                msg = _('This operation is not yet supported for subclouds without '
+                        'remote install capability.')
+                LOG.exception(msg)
+                pecan.abort(400, msg)
+
+            try:
+                self.rpc_client.restore_subcloud(context, subcloud_id,
+                                                 payload)
+                # Return deploy_status as pre-restore
+                subcloud.deploy_status = consts.DEPLOY_STATE_PRE_RESTORE
+                return db_api.subcloud_db_model_to_dict(subcloud)
+            except RemoteError as e:
+                pecan.abort(422, e.value)
+            except Exception:
+                LOG.exception("Unable to restore subcloud %s" % subcloud.name)
+                pecan.abort(500, _('Unable to restore subcloud'))
         elif verb == 'update_status':
             res = self.updatestatus(subcloud.name)
             return res

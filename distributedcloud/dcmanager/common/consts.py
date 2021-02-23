@@ -162,6 +162,10 @@ DEPLOY_STATE_DEPLOY_FAILED = 'deploy-failed'
 DEPLOY_STATE_MIGRATING_DATA = 'migrating-data'
 DEPLOY_STATE_DATA_MIGRATION_FAILED = 'data-migration-failed'
 DEPLOY_STATE_MIGRATED = 'migrated'
+DEPLOY_STATE_PRE_RESTORE = 'pre-restore'
+DEPLOY_STATE_RESTORE_PREP_FAILED = 'restore-prep-failed'
+DEPLOY_STATE_RESTORING = 'restoring'
+DEPLOY_STATE_RESTORE_FAILED = 'restore-failed'
 DEPLOY_STATE_DONE = 'complete'
 
 

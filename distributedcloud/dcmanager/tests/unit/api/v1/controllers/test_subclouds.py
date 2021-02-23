@@ -462,7 +462,7 @@ class TestSubcloudPost(testroot.DCManagerApiTest,
         """Test POST operation with install values fails if data missing."""
 
         # todo(abailey): add a new unit test with no image and no vault files
-        mock_vault_files.return_value = ('fake_iso', 'fake_sig')
+        mock_vault_files.return_value = (None, None)
 
         params = self.get_post_params()
         # add bmc_password to params
@@ -483,6 +483,7 @@ class TestSubcloudPost(testroot.DCManagerApiTest,
                                      expect_errors=True)
             self._verify_post_failure(response, key, None)
 
+        mock_vault_files.return_value = ('fake_iso', 'fake_sig')
         # try with nothing removed and verify it works
         self.install_data = copy.copy(self.FAKE_INSTALL_DATA)
         upload_files = self.get_post_upload_files()

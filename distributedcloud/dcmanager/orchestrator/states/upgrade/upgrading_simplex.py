@@ -181,7 +181,7 @@ class UpgradingSimplexState(BaseState):
 
         # The 'software_version' is the active running load on SystemController
         matching_iso, _ = utils.get_vault_load_files(SW_VERSION)
-        if not os.path.isfile(matching_iso):
+        if not matching_iso:
             message = ("Failed to get upgrade load info for subcloud %s" %
                        strategy_step.subcloud.name)
             raise Exception(message)

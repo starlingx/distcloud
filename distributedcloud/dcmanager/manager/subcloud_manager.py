@@ -13,7 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-# Copyright (c) 2017-2020 Wind River Systems, Inc.
+# Copyright (c) 2017-2021 Wind River Systems, Inc.
 #
 # The right to copy, distribute, modify, or otherwise make use
 # of this software may be licensed only pursuant to the terms
@@ -71,6 +71,10 @@ ANSIBLE_SUBCLOUD_PLAYBOOK = \
     '/usr/share/ansible/stx-ansible/playbooks/bootstrap.yml'
 ANSIBLE_SUBCLOUD_INSTALL_PLAYBOOK = \
     '/usr/share/ansible/stx-ansible/playbooks/install.yml'
+ANSIBLE_SUBCLOUD_RESTORE_PLAYBOOK = \
+    '/usr/share/ansible/stx-ansible/playbooks/restore_platform.yml'
+ANSIBLE_HOST_VALIDATION_PLAYBOOK = \
+    '/usr/share/ansible/stx-ansible/playbooks/validate_host.yml'
 
 USERS_TO_REPLICATE = [
     'sysinv',
@@ -218,6 +222,28 @@ class SubcloudManager(manager.Manager):
             "--limit", subcloud_name
             ]
         return deploy_command
+
+    def compose_check_target_command(self, subcloud_name,
+                                     ansible_subcloud_inventory_file, payload):
+        check_target_command = [
+            "ansible-playbook", ANSIBLE_HOST_VALIDATION_PLAYBOOK,
+            "-i", ansible_subcloud_inventory_file,
+            "--limit", subcloud_name,
+            "-e", "@%s" % consts.ANSIBLE_OVERRIDES_PATH + "/" +
+            subcloud_name + "_check_target_values.yml"]
+
+        return check_target_command
+
+    def compose_restore_command(self, subcloud_name,
+                                ansible_subcloud_inventory_file, payload):
+        restore_command = [
+            "ansible-playbook", ANSIBLE_SUBCLOUD_RESTORE_PLAYBOOK,
+            "-i", ansible_subcloud_inventory_file,
+            "--limit", subcloud_name,
+            "-e", "@%s" % consts.ANSIBLE_OVERRIDES_PATH + "/" +
+            subcloud_name + "_restore_values.yml"]
+
+        return restore_command
 
     def add_subcloud(self, context, payload):
         """Add subcloud and notify orchestrators.
@@ -544,10 +570,131 @@ class SubcloudManager(manager.Manager):
                 context, subcloud_id,
                 deploy_status=consts.DEPLOY_STATE_DEPLOY_PREP_FAILED)
 
+    def _create_check_target_override_file(self, payload, subcloud_name):
+        check_target_override_file = os.path.join(
+            consts.ANSIBLE_OVERRIDES_PATH, subcloud_name +
+            '_check_target_values.yml')
+
+        with open(check_target_override_file, 'w') as f_out:
+            f_out.write(
+                '---\n'
+            )
+            for k, v in payload['check_target_values'].items():
+                f_out.write("%s: %s\n" % (k, json.dumps(v)))
+
+    def _create_restore_override_file(self, payload, subcloud_name):
+        restore_override_file = os.path.join(
+            consts.ANSIBLE_OVERRIDES_PATH, subcloud_name +
+            '_restore_values.yml')
+
+        with open(restore_override_file, 'w') as f_out:
+            f_out.write(
+                '---\n'
+            )
+            for k, v in payload['restore_values'].items():
+                f_out.write("%s: %s\n" % (k, json.dumps(v)))
+
+    def _prepare_for_restore(self, payload, subcloud_name):
+        payload['check_target_values'] = dict()
+        payload['check_target_values']['ansible_ssh_pass'] = \
+            payload['sysadmin_password']
+        payload['check_target_values']['software_version'] = SW_VERSION
+        payload['check_target_values']['bootstrap_address'] = \
+            payload['bootstrap-address']
+        payload['check_target_values']['check_bootstrap_address'] = 'true'
+        payload['check_target_values']['check_patches'] = 'false'
+
+        self._create_check_target_override_file(payload, subcloud_name)
+
+        payload['restore_values']['ansible_ssh_pass'] = \
+            payload['sysadmin_password']
+        payload['restore_values']['ansible_become_pass'] = \
+            payload['sysadmin_password']
+        payload['restore_values']['admin_password'] = \
+            str(keyring.get_password('CGCS', 'admin'))
+        payload['restore_values']['skip_patches_restore'] = 'true'
+
+        self._create_restore_override_file(payload, subcloud_name)
+
+    def restore_subcloud(self, context, subcloud_id, payload):
+        """Restore subcloud
+
+        :param context: request context object
+        :param subcloud_id: subcloud id from db
+        :param payload: subcloud restore detail
+        """
+
+        # Retrieve the subcloud details from the database
+        subcloud = db_api.subcloud_get(context, subcloud_id)
+
+        if subcloud.management_state != consts.MANAGEMENT_UNMANAGED:
+            raise exceptions.SubcloudNotUnmanaged()
+
+        db_api.subcloud_update(context, subcloud_id,
+                               deploy_status=consts.DEPLOY_STATE_PRE_RESTORE)
+
+        try:
+            # Ansible inventory filename for the specified subcloud
+            ansible_subcloud_inventory_file = self._get_ansible_filename(
+                subcloud.name, INVENTORY_FILE_POSTFIX)
+
+            # Add parameters used to generate inventory
+            payload['name'] = subcloud.name
+            payload['bootstrap-address'] = \
+                payload['install_values']['bootstrap_address']
+            payload['software_version'] = SW_VERSION
+
+            install_command = None
+
+            if payload['with_install']:
+                # Redfish capable subclouds
+                LOG.info("Reinstalling subcloud %s." % subcloud.name)
+
+                # Disegard the current 'image' config. Always reinstall with
+                # the system controller active image in dc-vault.
+                matching_iso, matching_sig = utils.get_vault_load_files(SW_VERSION)
+
+                payload['install_values'].update({'image': matching_iso})
+                payload['install_values']['ansible_ssh_pass'] = \
+                    payload['sysadmin_password']
+
+                utils.create_subcloud_inventory(payload,
+                                                ansible_subcloud_inventory_file)
+
+                install_command = self.compose_install_command(
+                    subcloud.name, ansible_subcloud_inventory_file)
+
+            else:
+                # Non Redfish capable subcloud
+                # Shouldn't get here as the API has already rejected the request.
+                return
+
+            # Prepare for restore
+            self._prepare_for_restore(payload, subcloud.name)
+            check_target_command = self.compose_check_target_command(
+                subcloud.name, ansible_subcloud_inventory_file, payload)
+
+            restore_command = self.compose_restore_command(
+                subcloud.name, ansible_subcloud_inventory_file, payload)
+
+            apply_thread = threading.Thread(
+                target=self.run_deploy,
+                args=(subcloud, payload, context,
+                      install_command, None, None, check_target_command, restore_command))
+            apply_thread.start()
+            return db_api.subcloud_db_model_to_dict(subcloud)
+
+        except Exception:
+            LOG.exception("Failed to restore subcloud %s" % subcloud.name)
+            db_api.subcloud_update(
+                context, subcloud_id,
+                deploy_status=consts.DEPLOY_STATE_RESTORE_PREP_FAILED)
+
     @staticmethod
     def run_deploy(subcloud, payload, context,
                    install_command=None, apply_command=None,
-                   deploy_command=None):
+                   deploy_command=None, check_target_command=None,
+                   restore_command=None):
 
         log_file = os.path.join(consts.DC_ANSIBLE_LOG_DIR, subcloud.name) + \
             '_playbook_output.log'
@@ -583,6 +730,27 @@ class SubcloudManager(manager.Manager):
                 return
             install.cleanup()
             LOG.info("Successfully installed subcloud %s" % subcloud.name)
+
+        # Leave the following block here in case there is another use
+        # case besides subcloud restore where validating host post
+        # fresh install is necessary.
+        if check_target_command:
+            try:
+                run_playbook(log_file, check_target_command)
+            except PlaybookExecutionFailed:
+                msg = "Failed to run the validate host playbook" \
+                      " for subcloud %s, check individual log at " \
+                      "%s for detailed output." % (
+                          subcloud.name,
+                          log_file)
+                LOG.error(msg)
+                if restore_command:
+                    db_api.subcloud_update(
+                        context, subcloud.id,
+                        deploy_status=consts.DEPLOY_STATE_RESTORE_PREP_FAILED)
+                return
+
+            LOG.info("Successfully checked subcloud %s" % subcloud.name)
 
         if apply_command:
             try:
@@ -631,6 +799,27 @@ class SubcloudManager(manager.Manager):
                     deploy_status=consts.DEPLOY_STATE_DEPLOY_FAILED)
                 return
             LOG.info("Successfully deployed subcloud %s" %
+                     subcloud.name)
+        elif restore_command:
+            db_api.subcloud_update(
+                context, subcloud.id,
+                deploy_status=consts.DEPLOY_STATE_RESTORING)
+
+            # Run the restore platform playbook
+            try:
+                run_playbook(log_file, restore_command)
+            except PlaybookExecutionFailed:
+                msg = "Failed to run the subcloud restore playbook" \
+                      " for subcloud %s, check individual log at " \
+                      "%s for detailed output." % (
+                          subcloud.name,
+                          log_file)
+                LOG.error(msg)
+                db_api.subcloud_update(
+                    context, subcloud.id,
+                    deploy_status=consts.DEPLOY_STATE_RESTORE_FAILED)
+                return
+            LOG.info("Successfully restored controller-0 of subcloud %s" %
                      subcloud.name)
 
         db_api.subcloud_update(

@@ -10,7 +10,7 @@
 # License for the specific language governing permissions and limitations
 # under the License.
 #
-# Copyright (c) 2017-2020 Wind River Systems, Inc.
+# Copyright (c) 2017-2021 Wind River Systems, Inc.
 #
 # The right to copy, distribute, modify, or otherwise make use
 # of this software may be licensed only pursuant to the terms
@@ -147,6 +147,14 @@ class DCManagerService(service.Service):
         return self.subcloud_manager.reinstall_subcloud(context,
                                                         subcloud_id,
                                                         payload)
+
+    @request_context
+    def restore_subcloud(self, context, subcloud_id, payload):
+        # Restore a subcloud
+        LOG.info("Handling restore_subcloud request for: %s" % subcloud_id)
+        return self.subcloud_manager.restore_subcloud(context,
+                                                      subcloud_id,
+                                                      payload)
 
     @request_context
     def update_subcloud_endpoint_status(self, context, subcloud_name=None,

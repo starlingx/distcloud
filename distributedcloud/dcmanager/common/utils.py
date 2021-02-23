@@ -248,20 +248,22 @@ def get_vault_load_files(target_version):
 
     matching_iso = None
     matching_sig = None
-    for a_file in os.listdir(vault_dir):
-        if a_file.lower().endswith(".iso"):
-            matching_iso = os.path.join(vault_dir, a_file)
-            continue
-        elif a_file.lower().endswith(".sig"):
-            matching_sig = os.path.join(vault_dir, a_file)
-            continue
-    # If no .iso or .sig is found, raise an exception
-    if matching_iso is None:
-        raise exceptions.VaultLoadMissingError(
-            file_type='.iso', vault_dir=vault_dir)
-    if matching_sig is None:
-        raise exceptions.VaultLoadMissingError(
-            file_type='.sig', vault_dir=vault_dir)
+
+    if os.path.isdir(vault_dir):
+        for a_file in os.listdir(vault_dir):
+            if a_file.lower().endswith(".iso"):
+                matching_iso = os.path.join(vault_dir, a_file)
+                continue
+            elif a_file.lower().endswith(".sig"):
+                matching_sig = os.path.join(vault_dir, a_file)
+                continue
+        # If no .iso or .sig is found, raise an exception
+        if matching_iso is None:
+            raise exceptions.VaultLoadMissingError(
+                file_type='.iso', vault_dir=vault_dir)
+        if matching_sig is None:
+            raise exceptions.VaultLoadMissingError(
+                file_type='.sig', vault_dir=vault_dir)
 
     # return the iso and sig for this load
     return (matching_iso, matching_sig)

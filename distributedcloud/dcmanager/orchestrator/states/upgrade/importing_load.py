@@ -110,6 +110,11 @@ class ImportingLoadState(BaseState):
             else:
                 # ISO and SIG files are found in the vault under a version directory
                 iso_path, sig_path = utils.get_vault_load_files(target_version)
+                if not iso_path:
+                    message = ("Failed to get upgrade load info for subcloud %s" %
+                               strategy_step.subcloud.name)
+                    raise Exception(message)
+
                 # Call the API. import_load blocks until the load state is 'importing'
                 new_load = self.subcloud_sysinv.import_load(iso_path, sig_path)
                 if new_load.software_version != target_version:

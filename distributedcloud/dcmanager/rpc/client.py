@@ -10,7 +10,7 @@
 # License for the specific language governing permissions and limitations
 # under the License.
 #
-# Copyright (c) 2017-2020 Wind River Systems, Inc.
+# Copyright (c) 2017-2021 Wind River Systems, Inc.
 #
 # The right to copy, distribute, modify, or otherwise make use
 # of this software may be licensed only pursuant to the terms
@@ -102,6 +102,11 @@ class ManagerClient(RPCClient):
 
     def reinstall_subcloud(self, ctxt, subcloud_id, payload):
         return self.cast(ctxt, self.make_msg('reinstall_subcloud',
+                                             subcloud_id=subcloud_id,
+                                             payload=payload))
+
+    def restore_subcloud(self, ctxt, subcloud_id, payload):
+        return self.cast(ctxt, self.make_msg('restore_subcloud',
                                              subcloud_id=subcloud_id,
                                              payload=payload))
 
