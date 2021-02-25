@@ -1285,6 +1285,7 @@ class SubcloudManager(manager.Manager):
             subcloud = db_api.subcloud_get_by_name(context, subcloud_name)
         except Exception:
             LOG.exception("Failed to get subcloud by name: %s" % subcloud_name)
+            raise
 
         if update_state_only:
             # Nothing has changed, but we want to send a state update for this
@@ -1333,6 +1334,10 @@ class SubcloudManager(manager.Manager):
                 LOG.info('Request for online audit for %s' % subcloud_name)
                 dc_notification = rpc_client.DCManagerNotifications()
                 dc_notification.subcloud_online(context, subcloud_name)
+                # Trigger all the audits for the subcloud so it can update the
+                # sync status ASAP.
+                self.audit_rpc_client.trigger_subcloud_audits(context,
+                                                              subcloud.id)
 
             # Send dcorch a state update
             self._update_subcloud_state(context, subcloud_name,
@@ -1359,6 +1364,7 @@ class SubcloudManager(manager.Manager):
             subcloud = db_api.subcloud_get_by_name(context, subcloud_name)
         except Exception:
             LOG.exception("Failed to get subcloud by name: %s" % subcloud_name)
+            raise
 
         try:
             # Notify dcorch to add/remove sync endpoint type list

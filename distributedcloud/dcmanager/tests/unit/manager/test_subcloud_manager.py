@@ -807,6 +807,56 @@ class TestSubcloudManager(base.DCManagerTestCase):
         self.fake_dcorch_api.update_subcloud_states.assert_called_once_with(
             self.ctx, subcloud.name, updated_subcloud.management_state,
             consts.AVAILABILITY_ONLINE)
+        # Verify triggering audits
+        self.fake_dcmanager_audit_api.trigger_subcloud_audits.\
+            assert_called_once_with(self.ctx, subcloud.id)
+
+        fake_dcmanager_cermon_api.subcloud_online.assert_called_once_with(self.ctx, subcloud.name)
+
+    def test_update_subcloud_availability_go_online_unmanaged(self):
+        # create a subcloud
+        subcloud = self.create_subcloud_static(self.ctx, name='subcloud1')
+
+        self.assertIsNotNone(subcloud)
+        self.assertEqual(subcloud.availability_status,
+                         consts.AVAILABILITY_OFFLINE)
+
+        fake_dcmanager_cermon_api = FakeDCManagerNotifications()
+
+        p = mock.patch('dcmanager.rpc.client.DCManagerNotifications')
+        mock_dcmanager_api = p.start()
+        mock_dcmanager_api.return_value = fake_dcmanager_cermon_api
+
+        sm = subcloud_manager.SubcloudManager()
+
+        # Note that we have intentionally left the subcloud as "unmanaged"
+
+        # create sync statuses for endpoints
+        for endpoint in [dcorch_consts.ENDPOINT_TYPE_PLATFORM,
+                         dcorch_consts.ENDPOINT_TYPE_IDENTITY,
+                         dcorch_consts.ENDPOINT_TYPE_PATCHING,
+                         dcorch_consts.ENDPOINT_TYPE_FM,
+                         dcorch_consts.ENDPOINT_TYPE_NFV,
+                         dcorch_consts.ENDPOINT_TYPE_DC_CERT]:
+            status = db_api.subcloud_status_create(
+                self.ctx, subcloud.id, endpoint)
+            self.assertIsNotNone(status)
+            self.assertEqual(status.sync_status, consts.SYNC_STATUS_UNKNOWN)
+
+        sm.update_subcloud_availability(self.ctx, subcloud.name,
+                                        consts.AVAILABILITY_ONLINE)
+
+        updated_subcloud = db_api.subcloud_get_by_name(self.ctx, 'subcloud1')
+        # Verify the subcloud was set to online
+        self.assertEqual(updated_subcloud.availability_status,
+                         consts.AVAILABILITY_ONLINE)
+        # Verify notifying dcorch
+        self.fake_dcorch_api.update_subcloud_states.assert_called_once_with(
+            self.ctx, subcloud.name, updated_subcloud.management_state,
+            consts.AVAILABILITY_ONLINE)
+        # Verify triggering audits
+        self.fake_dcmanager_audit_api.trigger_subcloud_audits.\
+            assert_called_once_with(self.ctx, subcloud.id)
 
         fake_dcmanager_cermon_api.subcloud_online.assert_called_once_with(self.ctx, subcloud.name)
 
@@ -871,6 +921,10 @@ class TestSubcloudManager(base.DCManagerTestCase):
             self.assertIsNotNone(subcloud_status)
             self.assertEqual(subcloud_status.sync_status,
                              consts.SYNC_STATUS_UNKNOWN)
+
+        # Verify we did not trigger subcloud audits
+        self.fake_dcmanager_audit_api.trigger_subcloud_audits.\
+            assert_not_called()
 
     def test_update_subcloud_sync_endpoint_type(self):
         subcloud = self.create_subcloud_static(self.ctx, name='subcloud1')
