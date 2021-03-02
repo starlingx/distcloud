@@ -120,8 +120,11 @@ class SubcloudAuditWorkerManager(manager.Manager):
                 continue
 
             # Check the per-subcloud audit flags
-            do_patch_audit = subcloud_audits.patch_audit_requested
             do_load_audit = subcloud_audits.load_audit_requested
+            # Currently we do the load audit as part of the patch audit,
+            # so if we want a load audit we need to do a patch audit.
+            do_patch_audit = (subcloud_audits.patch_audit_requested or
+                              do_load_audit)
             do_firmware_audit = subcloud_audits.firmware_audit_requested
             do_kubernetes_audit = subcloud_audits.kubernetes_audit_requested
             update_subcloud_state = subcloud_audits.state_update_requested

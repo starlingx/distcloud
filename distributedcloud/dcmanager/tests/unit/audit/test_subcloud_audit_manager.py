@@ -288,3 +288,12 @@ class TestAuditManager(base.DCManagerTestCase):
         self.assertEqual(result['firmware_audit_requested'], True)
         self.assertEqual(result['load_audit_requested'], True)
         self.assertEqual(result['kubernetes_audit_requested'], True)
+
+    def test_trigger_load_audit(self):
+        subcloud = self.create_subcloud_static(self.ctx)
+        am = subcloud_audit_manager.SubcloudAuditManager()
+        am.trigger_load_audit(self.ctx)
+        # Load audit should be requested.
+        result = db_api.subcloud_audits_get(self.ctx, subcloud.id)
+        self.assertEqual(result['patch_audit_requested'], False)
+        self.assertEqual(result['load_audit_requested'], True)
