@@ -36,6 +36,7 @@ from dcmanager.audit import firmware_audit
 from dcmanager.audit import kubernetes_audit
 from dcmanager.audit import patch_audit
 from dcmanager.audit import rpcapi as dcmanager_audit_rpc_client
+from dcmanager.audit import utils as audit_utils
 from dcmanager.common import context
 from dcmanager.common.i18n import _
 from dcmanager.common import manager
@@ -153,6 +154,11 @@ class SubcloudAuditManager(manager.Manager):
         This can be called from outside the dcmanager audit
         """
         cls.force_patch_audit = True
+
+    @classmethod
+    def trigger_load_audit(cls, context):
+        """Trigger load audit of all subclouds at next audit."""
+        audit_utils.request_subcloud_audits(context, audit_load=True)
 
     @classmethod
     def reset_force_patch_audit(cls):
@@ -273,18 +279,9 @@ class SubcloudAuditManager(manager.Manager):
             self._get_audits_needed()
 
         # Set desired audit flags for all subclouds.
-        values = {}
-        if update_subcloud_state:
-            values['state_update_requested'] = True
-        if audit_patch:
-            values['patch_audit_requested'] = True
-        if audit_load:
-            values['load_audit_requested'] = True
-        if audit_firmware:
-            values['firmware_audit_requested'] = True
-        if audit_kubernetes:
-            values['kubernetes_audit_requested'] = True
-        db_api.subcloud_audits_update_all(self.context, values)
+        audit_utils.request_subcloud_audits(
+            self.context, update_subcloud_state, audit_patch, audit_load,
+            audit_firmware, audit_kubernetes)
 
         do_openstack_audit = False
 
@@ -332,7 +329,9 @@ class SubcloudAuditManager(manager.Manager):
         # audit data and grab it if needed.
         if not audit_patch:
             for audit in subcloud_audits:
-                if audit.patch_audit_requested:
+                # Currently the load audit is done as part of the patch audit.
+                # It might make sense to split it out.
+                if audit.patch_audit_requested or audit.load_audit_requested:
                     audit_patch = True
                     LOG.info("DB says patch audit needed")
                     break

@@ -68,6 +68,9 @@ class ManagerAuditClient(object):
     def trigger_patch_audit(self, ctxt):
         return self.cast(ctxt, self.make_msg('trigger_patch_audit'))
 
+    def trigger_load_audit(self, ctxt):
+        return self.cast(ctxt, self.make_msg('trigger_load_audit'))
+
     def trigger_subcloud_audits(self, ctxt, subcloud_id):
         return self.cast(ctxt, self.make_msg('trigger_subcloud_audits',
                                              subcloud_id=subcloud_id))

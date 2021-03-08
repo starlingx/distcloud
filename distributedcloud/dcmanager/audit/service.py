@@ -131,6 +131,13 @@ class DCManagerAuditService(service.Service):
         return self.subcloud_audit_manager.trigger_patch_audit(context)
 
     @request_context
+    def trigger_load_audit(self, context):
+        """Used to force a load audit on the next interval"""
+
+        LOG.info("Trigger load audit.")
+        return self.subcloud_audit_manager.trigger_load_audit(context)
+
+    @request_context
     def trigger_subcloud_audits(self, context, subcloud_id):
         """Trigger all subcloud audits for one subcloud."""
         LOG.info("Trigger all audits for subcloud %s", subcloud_id)
