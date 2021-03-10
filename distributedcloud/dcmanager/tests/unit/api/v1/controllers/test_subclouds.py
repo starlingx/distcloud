@@ -13,7 +13,7 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 #
-# Copyright (c) 2017-2020 Wind River Systems, Inc.
+# Copyright (c) 2017-2021 Wind River Systems, Inc.
 #
 # The right to copy, distribute, modify, or otherwise make use
 # of this software may be licensed only pursuant to the terms
@@ -736,6 +736,15 @@ class TestSubcloudPost(testroot.DCManagerApiTest,
 
 
 class TestSubcloudAPIOther(testroot.DCManagerApiTest):
+
+    FAKE_RESTORE_PAYLOAD = {
+        'sysadmin_password':
+            (base64.b64encode('testpass'.encode("utf-8"))).decode('ascii'),
+        'with_install': 'true',
+        'restore_values': {'on_box_data': 'false',
+                           'backup_filename': 'some_fake_tarfile'}
+    }
+
     """Test GET, delete and patch API calls"""
     def setUp(self):
         super(TestSubcloudAPIOther, self).setUp()
@@ -1205,6 +1214,144 @@ class TestSubcloudAPIOther(testroot.DCManagerApiTest):
             FAKE_URL + '/' + str(subcloud.id) + '/reinstall',
             headers=FAKE_HEADERS)
         mock_rpc_client().reinstall_subcloud.assert_called_once_with(
+            mock.ANY,
+            subcloud.id,
+            mock.ANY)
+        self.assertEqual(response.status_int, 200)
+
+    @mock.patch.object(rpc_client, 'ManagerClient')
+    @mock.patch.object(subclouds.SubcloudsController, '_get_restore_payload')
+    def test_restore_subcloud_no_body(self, mock_get_restore_payload,
+                                      mock_rpc_client):
+
+        subcloud = fake_subcloud.create_fake_subcloud(self.ctx)
+        restore_payload = {}
+
+        mock_rpc_client().restore_subcloud.return_value = True
+        mock_get_restore_payload.return_value = restore_payload
+        six.assertRaisesRegex(self, webtest.app.AppError, "400 *",
+                              self.app.patch_json, FAKE_URL + '/' +
+                              str(subcloud.id) + '/restore',
+                              headers=FAKE_HEADERS, params=restore_payload)
+
+    @mock.patch.object(rpc_client, 'ManagerClient')
+    def test_restore_subcloud_missing_restore_values(self, mock_rpc_client):
+
+        subcloud = fake_subcloud.create_fake_subcloud(self.ctx)
+        restore_payload = copy.copy(self.FAKE_RESTORE_PAYLOAD)
+        del restore_payload['restore_values']
+
+        mock_rpc_client().restore_subcloud.return_value = True
+        six.assertRaisesRegex(self, webtest.app.AppError, "400 *",
+                              self.app.patch_json, FAKE_URL + '/' +
+                              str(subcloud.id) + '/restore',
+                              headers=FAKE_HEADERS, params=restore_payload)
+
+    @mock.patch.object(rpc_client, 'ManagerClient')
+    @mock.patch.object(subclouds.SubcloudsController, '_get_restore_payload')
+    def test_restore_subcloud_in_managed_state(self, mock_get_restore_payload,
+                                               mock_rpc_client):
+
+        subcloud = fake_subcloud.create_fake_subcloud(self.ctx)
+        db_api.subcloud_update(self.ctx,
+                               subcloud.id,
+                               management_state=consts.MANAGEMENT_MANAGED)
+        restore_payload = copy.copy(self.FAKE_RESTORE_PAYLOAD)
+
+        mock_rpc_client().restore_subcloud.return_value = True
+        mock_get_restore_payload.return_value = restore_payload
+        six.assertRaisesRegex(self, webtest.app.AppError, "400 *",
+                              self.app.patch_json, FAKE_URL + '/' +
+                              str(subcloud.id) + '/restore',
+                              headers=FAKE_HEADERS, params=restore_payload)
+
+    @mock.patch.object(rpc_client, 'ManagerClient')
+    @mock.patch.object(subclouds.SubcloudsController, '_get_restore_payload')
+    def test_restore_subcloud_undergoing_bootstrap(self, mock_get_restore_payload,
+                                                   mock_rpc_client):
+
+        subcloud = fake_subcloud.create_fake_subcloud(self.ctx)
+        db_api.subcloud_update(self.ctx,
+                               subcloud.id,
+                               deploy_status=consts.DEPLOY_STATE_BOOTSTRAPPING)
+        restore_payload = copy.copy(self.FAKE_RESTORE_PAYLOAD)
+
+        mock_rpc_client().restore_subcloud.return_value = True
+        mock_get_restore_payload.return_value = restore_payload
+        six.assertRaisesRegex(self, webtest.app.AppError, "400 *",
+                              self.app.patch_json, FAKE_URL + '/' +
+                              str(subcloud.id) + '/restore',
+                              headers=FAKE_HEADERS, params=restore_payload)
+
+    @mock.patch.object(rpc_client, 'ManagerClient')
+    @mock.patch.object(subclouds.SubcloudsController, '_get_restore_payload')
+    def test_restore_subcloud_bad_sysadmin_password(self, mock_get_restore_payload,
+                                                    mock_rpc_client):
+
+        subcloud = fake_subcloud.create_fake_subcloud(self.ctx)
+        restore_payload = copy.copy(self.FAKE_RESTORE_PAYLOAD)
+        restore_payload['sysadmin_password'] = 'not_base64_encoded'
+
+        mock_rpc_client().restore_subcloud.return_value = True
+        mock_get_restore_payload.return_value = restore_payload
+        six.assertRaisesRegex(self, webtest.app.AppError, "400 *",
+                              self.app.patch_json, FAKE_URL + '/' +
+                              str(subcloud.id) + '/restore',
+                              headers=FAKE_HEADERS, params=restore_payload)
+
+    @mock.patch.object(rpc_client, 'ManagerClient')
+    @mock.patch.object(subclouds.SubcloudsController, '_get_restore_payload')
+    def test_restore_subcloud_without_remote_install(self, mock_get_restore_payload,
+                                                     mock_rpc_client):
+
+        subcloud = fake_subcloud.create_fake_subcloud(self.ctx)
+        restore_payload = copy.copy(self.FAKE_RESTORE_PAYLOAD)
+        del restore_payload['with_install']
+
+        mock_rpc_client().restore_subcloud.return_value = True
+        mock_get_restore_payload.return_value = restore_payload
+        six.assertRaisesRegex(self, webtest.app.AppError, "400 *",
+                              self.app.patch_json, FAKE_URL + '/' +
+                              str(subcloud.id) + '/restore',
+                              headers=FAKE_HEADERS, params=restore_payload)
+
+    @mock.patch.object(rpc_client, 'ManagerClient')
+    @mock.patch.object(subclouds.SubcloudsController, '_get_restore_payload')
+    def test_restore_subcloud_missing_mandatory_restore_parameter(
+        self, mock_get_restore_payload, mock_rpc_client):
+
+        subcloud = fake_subcloud.create_fake_subcloud(self.ctx)
+        restore_payload = copy.copy(self.FAKE_RESTORE_PAYLOAD)
+        restore_payload['restore_values'] = {'on_box_data': 'false'}
+
+        mock_rpc_client().restore_subcloud.return_value = True
+        mock_get_restore_payload.return_value = restore_payload
+        six.assertRaisesRegex(self, webtest.app.AppError, "400 *",
+                              self.app.patch_json, FAKE_URL + '/' +
+                              str(subcloud.id) + '/restore',
+                              headers=FAKE_HEADERS, params=restore_payload)
+
+    @mock.patch.object(cutils, 'get_vault_load_files')
+    @mock.patch.object(rpc_client, 'ManagerClient')
+    @mock.patch.object(subclouds.SubcloudsController, '_get_subcloud_db_install_values')
+    @mock.patch.object(subclouds.SubcloudsController, '_get_restore_payload')
+    def test_restore_subcloud(self, mock_get_restore_payload,
+                              mock_get_subcloud_db_install_values,
+                              mock_rpc_client, mock_get_vault_load_files):
+
+        subcloud = fake_subcloud.create_fake_subcloud(self.ctx)
+        install_data = copy.copy(FAKE_SUBCLOUD_INSTALL_VALUES)
+        restore_payload = copy.copy(self.FAKE_RESTORE_PAYLOAD)
+
+        mock_get_subcloud_db_install_values.return_value = install_data
+        mock_rpc_client().restore_subcloud.return_value = True
+        mock_get_restore_payload.return_value = restore_payload
+        mock_get_vault_load_files.return_value = ('iso_file_path', 'sig_file_path')
+        response = self.app.patch_json(FAKE_URL + '/' + str(subcloud.id) +
+                                       '/restore',
+                                       headers=FAKE_HEADERS,
+                                       params=restore_payload)
+        mock_rpc_client().restore_subcloud.assert_called_once_with(
             mock.ANY,
             subcloud.id,
             mock.ANY)
