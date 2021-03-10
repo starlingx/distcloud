@@ -469,9 +469,10 @@ class SysinvAPIController(APIController):
                                        sw_version)
 
         try:
-            if self._is_active_load(sw_version):
-                LOG.info("_save_load_to_vault remove prior %s" % sw_version)
-                self._remove_load_from_vault(sw_version)
+            # Remove any existing loads in the vault. At this point sysinv has
+            # validated/added the load so we must match the DC vault to that.
+            LOG.info("_save_load_to_vault remove prior %s" % sw_version)
+            self._remove_load_from_vault(sw_version)
 
             if not os.path.isdir(versioned_vault):
                 os.makedirs(versioned_vault)
