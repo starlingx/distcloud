@@ -376,6 +376,13 @@ class TestFirmwareAudit(base.DCManagerTestCase):
         self.mock_audit_worker_api.return_value = self.fake_audit_worker_api
         self.addCleanup(p.stop)
 
+    def _rpc_convert(self, object_list):
+        # Convert to dict like what would happen calling via RPC
+        dict_results = []
+        for result in object_list:
+            dict_results.append(result.to_dict())
+        return dict_results
+
     def test_init(self):
         fm = firmware_audit.FirmwareAudit(self.ctxt,
                                           self.fake_dcmanager_api)
@@ -405,6 +412,9 @@ class TestFirmwareAudit(base.DCManagerTestCase):
 
         patch_audit_data, firmware_audit_data, kubernetes_audit_data = \
             am._get_audit_data(True, True, True)
+
+        # Convert to dict like what would happen calling via RPC
+        firmware_audit_data = self._rpc_convert(firmware_audit_data)
 
         for name in ['subcloud1', 'subcloud2']:
             fm.subcloud_firmware_audit(name, firmware_audit_data)
@@ -439,6 +449,9 @@ class TestFirmwareAudit(base.DCManagerTestCase):
         patch_audit_data, firmware_audit_data, kubernetes_audit_data = \
             am._get_audit_data(True, True, True)
 
+        # Convert to dict like what would happen calling via RPC
+        firmware_audit_data = self._rpc_convert(firmware_audit_data)
+
         for name in ['subcloud1', 'subcloud2']:
             fm.subcloud_firmware_audit(name, firmware_audit_data)
             expected_calls = [
@@ -471,6 +484,9 @@ class TestFirmwareAudit(base.DCManagerTestCase):
 
         patch_audit_data, firmware_audit_data, kubernetes_audit_data = \
             am._get_audit_data(True, True, True)
+
+        # Convert to dict like what would happen calling via RPC
+        firmware_audit_data = self._rpc_convert(firmware_audit_data)
 
         for name in ['subcloud1', 'subcloud2']:
             fm.subcloud_firmware_audit(name, firmware_audit_data)
@@ -505,6 +521,9 @@ class TestFirmwareAudit(base.DCManagerTestCase):
         patch_audit_data, firmware_audit_data, kubernetes_audit_data = \
             am._get_audit_data(True, True, True)
 
+        # Convert to dict like what would happen calling via RPC
+        firmware_audit_data = self._rpc_convert(firmware_audit_data)
+
         for name in ['subcloud1', 'subcloud2']:
             fm.subcloud_firmware_audit(name, firmware_audit_data)
             expected_calls = [
@@ -537,6 +556,9 @@ class TestFirmwareAudit(base.DCManagerTestCase):
 
         patch_audit_data, firmware_audit_data, kubernetes_audit_data = \
             am._get_audit_data(True, True, True)
+
+        # Convert to dict like what would happen calling via RPC
+        firmware_audit_data = self._rpc_convert(firmware_audit_data)
 
         for name in ['subcloud1', 'subcloud2']:
             fm.subcloud_firmware_audit(name, firmware_audit_data)
@@ -571,6 +593,9 @@ class TestFirmwareAudit(base.DCManagerTestCase):
         patch_audit_data, firmware_audit_data, kubernetes_audit_data = \
             am._get_audit_data(True, True, True)
 
+        # Convert to dict like what would happen calling via RPC
+        firmware_audit_data = self._rpc_convert(firmware_audit_data)
+
         for name in ['subcloud1', 'subcloud2']:
             fm.subcloud_firmware_audit(name, firmware_audit_data)
             expected_calls = [
@@ -604,6 +629,9 @@ class TestFirmwareAudit(base.DCManagerTestCase):
         patch_audit_data, firmware_audit_data, kubernetes_audit_data = \
             am._get_audit_data(True, True, True)
 
+        # Convert to dict like what would happen calling via RPC
+        firmware_audit_data = self._rpc_convert(firmware_audit_data)
+
         for name in ['subcloud1', 'subcloud2']:
             fm.subcloud_firmware_audit(name, firmware_audit_data)
             expected_calls = [
@@ -636,6 +664,9 @@ class TestFirmwareAudit(base.DCManagerTestCase):
 
         patch_audit_data, firmware_audit_data, kubernetes_audit_data = \
             am._get_audit_data(True, True, True)
+
+        # Convert to dict like what would happen calling via RPC
+        firmware_audit_data = self._rpc_convert(firmware_audit_data)
 
         for name in ['subcloud1', 'subcloud2']:
             fm.subcloud_firmware_audit(name, firmware_audit_data)
