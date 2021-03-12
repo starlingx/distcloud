@@ -1155,3 +1155,173 @@ class TestSubcloudManager(base.DCManagerTestCase):
         self.assertRaises(exceptions.BadRequest,
                           sm.reinstall_subcloud, self.ctx,
                           subcloud.id, data)
+
+    def test_handle_subcloud_operations_in_progress(self):
+        subcloud1 = self.create_subcloud_static(
+            self.ctx,
+            name='subcloud1',
+            deploy_status=consts.DEPLOY_STATE_PRE_DEPLOY)
+        subcloud2 = self.create_subcloud_static(
+            self.ctx,
+            name='subcloud2',
+            deploy_status=consts.DEPLOY_STATE_PRE_INSTALL)
+        subcloud3 = self.create_subcloud_static(
+            self.ctx,
+            name='subcloud3',
+            deploy_status=consts.DEPLOY_STATE_INSTALLING)
+        subcloud4 = self.create_subcloud_static(
+            self.ctx,
+            name='subcloud4',
+            deploy_status=consts.DEPLOY_STATE_BOOTSTRAPPING)
+        subcloud5 = self.create_subcloud_static(
+            self.ctx,
+            name='subcloud5',
+            deploy_status=consts.DEPLOY_STATE_DEPLOYING)
+        subcloud6 = self.create_subcloud_static(
+            self.ctx,
+            name='subcloud6',
+            deploy_status=consts.DEPLOY_STATE_MIGRATING_DATA)
+        subcloud7 = self.create_subcloud_static(
+            self.ctx,
+            name='subcloud7',
+            deploy_status=consts.DEPLOY_STATE_PRE_RESTORE)
+        subcloud8 = self.create_subcloud_static(
+            self.ctx,
+            name='subcloud8',
+            deploy_status=consts.DEPLOY_STATE_RESTORING)
+        subcloud9 = self.create_subcloud_static(
+            self.ctx,
+            name='subcloud9',
+            deploy_status=consts.DEPLOY_STATE_NONE)
+
+        sm = subcloud_manager.SubcloudManager()
+        sm.handle_subcloud_operations_in_progress()
+
+        subcloud = db_api.subcloud_get_by_name(self.ctx, subcloud1.name)
+        self.assertEqual(consts.DEPLOY_STATE_DEPLOY_PREP_FAILED,
+                         subcloud.deploy_status)
+
+        subcloud = db_api.subcloud_get_by_name(self.ctx, subcloud2.name)
+        self.assertEqual(consts.DEPLOY_STATE_PRE_INSTALL_FAILED,
+                         subcloud.deploy_status)
+
+        subcloud = db_api.subcloud_get_by_name(self.ctx, subcloud3.name)
+        self.assertEqual(consts.DEPLOY_STATE_INSTALL_FAILED,
+                         subcloud.deploy_status)
+
+        subcloud = db_api.subcloud_get_by_name(self.ctx, subcloud4.name)
+        self.assertEqual(consts.DEPLOY_STATE_BOOTSTRAP_FAILED,
+                         subcloud.deploy_status)
+
+        subcloud = db_api.subcloud_get_by_name(self.ctx, subcloud5.name)
+        self.assertEqual(consts.DEPLOY_STATE_DEPLOY_FAILED,
+                         subcloud.deploy_status)
+
+        subcloud = db_api.subcloud_get_by_name(self.ctx, subcloud6.name)
+        self.assertEqual(consts.DEPLOY_STATE_DATA_MIGRATION_FAILED,
+                         subcloud.deploy_status)
+
+        subcloud = db_api.subcloud_get_by_name(self.ctx, subcloud7.name)
+        self.assertEqual(consts.DEPLOY_STATE_RESTORE_PREP_FAILED,
+                         subcloud.deploy_status)
+
+        subcloud = db_api.subcloud_get_by_name(self.ctx, subcloud8.name)
+        self.assertEqual(consts.DEPLOY_STATE_RESTORE_FAILED,
+                         subcloud.deploy_status)
+
+        subcloud = db_api.subcloud_get_by_name(self.ctx, subcloud9.name)
+        self.assertEqual(consts.DEPLOY_STATE_DEPLOY_PREP_FAILED,
+                         subcloud.deploy_status)
+
+    def test_handle_completed_subcloud_operations(self):
+        subcloud1 = self.create_subcloud_static(
+            self.ctx,
+            name='subcloud1',
+            deploy_status=consts.DEPLOY_STATE_DEPLOY_PREP_FAILED)
+        subcloud2 = self.create_subcloud_static(
+            self.ctx,
+            name='subcloud2',
+            deploy_status=consts.DEPLOY_STATE_PRE_INSTALL_FAILED)
+        subcloud3 = self.create_subcloud_static(
+            self.ctx,
+            name='subcloud3',
+            deploy_status=consts.DEPLOY_STATE_INSTALL_FAILED)
+        subcloud4 = self.create_subcloud_static(
+            self.ctx,
+            name='subcloud4',
+            deploy_status=consts.DEPLOY_STATE_INSTALLED)
+        subcloud5 = self.create_subcloud_static(
+            self.ctx,
+            name='subcloud5',
+            deploy_status=consts.DEPLOY_STATE_BOOTSTRAP_FAILED)
+        subcloud6 = self.create_subcloud_static(
+            self.ctx,
+            name='subcloud6',
+            deploy_status=consts.DEPLOY_STATE_DEPLOY_FAILED)
+        subcloud7 = self.create_subcloud_static(
+            self.ctx,
+            name='subcloud7',
+            deploy_status=consts.DEPLOY_STATE_DATA_MIGRATION_FAILED)
+        subcloud8 = self.create_subcloud_static(
+            self.ctx,
+            name='subcloud8',
+            deploy_status=consts.DEPLOY_STATE_MIGRATED)
+        subcloud9 = self.create_subcloud_static(
+            self.ctx,
+            name='subcloud9',
+            deploy_status=consts.DEPLOY_STATE_RESTORE_PREP_FAILED)
+        subcloud10 = self.create_subcloud_static(
+            self.ctx,
+            name='subcloud10',
+            deploy_status=consts.DEPLOY_STATE_RESTORE_FAILED)
+        subcloud11 = self.create_subcloud_static(
+            self.ctx,
+            name='subcloud11',
+            deploy_status=consts.DEPLOY_STATE_DONE)
+
+        sm = subcloud_manager.SubcloudManager()
+        sm.handle_subcloud_operations_in_progress()
+
+        subcloud = db_api.subcloud_get_by_name(self.ctx, subcloud1.name)
+        self.assertEqual(consts.DEPLOY_STATE_DEPLOY_PREP_FAILED,
+                         subcloud.deploy_status)
+
+        subcloud = db_api.subcloud_get_by_name(self.ctx, subcloud2.name)
+        self.assertEqual(consts.DEPLOY_STATE_PRE_INSTALL_FAILED,
+                         subcloud.deploy_status)
+
+        subcloud = db_api.subcloud_get_by_name(self.ctx, subcloud3.name)
+        self.assertEqual(consts.DEPLOY_STATE_INSTALL_FAILED,
+                         subcloud.deploy_status)
+
+        subcloud = db_api.subcloud_get_by_name(self.ctx, subcloud4.name)
+        self.assertEqual(consts.DEPLOY_STATE_INSTALLED,
+                         subcloud.deploy_status)
+
+        subcloud = db_api.subcloud_get_by_name(self.ctx, subcloud5.name)
+        self.assertEqual(consts.DEPLOY_STATE_BOOTSTRAP_FAILED,
+                         subcloud.deploy_status)
+
+        subcloud = db_api.subcloud_get_by_name(self.ctx, subcloud6.name)
+        self.assertEqual(consts.DEPLOY_STATE_DEPLOY_FAILED,
+                         subcloud.deploy_status)
+
+        subcloud = db_api.subcloud_get_by_name(self.ctx, subcloud7.name)
+        self.assertEqual(consts.DEPLOY_STATE_DATA_MIGRATION_FAILED,
+                         subcloud.deploy_status)
+
+        subcloud = db_api.subcloud_get_by_name(self.ctx, subcloud8.name)
+        self.assertEqual(consts.DEPLOY_STATE_MIGRATED,
+                         subcloud.deploy_status)
+
+        subcloud = db_api.subcloud_get_by_name(self.ctx, subcloud9.name)
+        self.assertEqual(consts.DEPLOY_STATE_RESTORE_PREP_FAILED,
+                         subcloud.deploy_status)
+
+        subcloud = db_api.subcloud_get_by_name(self.ctx, subcloud10.name)
+        self.assertEqual(consts.DEPLOY_STATE_RESTORE_FAILED,
+                         subcloud.deploy_status)
+
+        subcloud = db_api.subcloud_get_by_name(self.ctx, subcloud11.name)
+        self.assertEqual(consts.DEPLOY_STATE_DONE,
+                         subcloud.deploy_status)

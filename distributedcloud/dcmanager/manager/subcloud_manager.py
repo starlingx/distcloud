@@ -89,6 +89,17 @@ SC_INTERMEDIATE_CERT_DURATION = "8760h"  # 1 year = 24 hours x 365
 SC_INTERMEDIATE_CERT_RENEW_BEFORE = "720h"  # 30 days
 CERT_NAMESPACE = "dc-cert"
 
+TRANSITORY_STATES = {consts.DEPLOY_STATE_NONE: consts.DEPLOY_STATE_DEPLOY_PREP_FAILED,
+                     consts.DEPLOY_STATE_PRE_DEPLOY: consts.DEPLOY_STATE_DEPLOY_PREP_FAILED,
+                     consts.DEPLOY_STATE_PRE_INSTALL: consts.DEPLOY_STATE_PRE_INSTALL_FAILED,
+                     consts.DEPLOY_STATE_INSTALLING: consts.DEPLOY_STATE_INSTALL_FAILED,
+                     consts.DEPLOY_STATE_BOOTSTRAPPING: consts.DEPLOY_STATE_BOOTSTRAP_FAILED,
+                     consts.DEPLOY_STATE_DEPLOYING: consts.DEPLOY_STATE_DEPLOY_FAILED,
+                     consts.DEPLOY_STATE_MIGRATING_DATA: consts.DEPLOY_STATE_DATA_MIGRATION_FAILED,
+                     consts.DEPLOY_STATE_PRE_RESTORE: consts.DEPLOY_STATE_RESTORE_PREP_FAILED,
+                     consts.DEPLOY_STATE_RESTORING: consts.DEPLOY_STATE_RESTORE_FAILED,
+                     }
+
 
 def sync_update_subcloud_endpoint_status(func):
     """Synchronized lock decorator for _update_subcloud_endpoint_status. """
@@ -1573,3 +1584,26 @@ class SubcloudManager(manager.Manager):
         except Exception:
             LOG.exception('Problem informing dcorch of subcloud sync endpoint'
                           ' type change, subcloud: %s' % subcloud_name)
+
+    def handle_subcloud_operations_in_progress(self):
+        """Identify subclouds in transitory stages and update subcloud deploy
+
+        state to failure.
+        """
+
+        LOG.info('Identifying subclouds in transitory stages.')
+
+        # identify subclouds in transitory states
+        subclouds_in_transitory_states = [subcloud for subcloud in
+                                          db_api.subcloud_get_all(self.context)
+                                          if subcloud.deploy_status in TRANSITORY_STATES.keys()]
+
+        # update the deploy_state to the corresponding failure state
+        for subcloud in subclouds_in_transitory_states:
+            new_deploy_status = TRANSITORY_STATES[subcloud.deploy_status]
+            LOG.info("Changing subcloud %s deploy status from %s to %s."
+                     % (subcloud.name, subcloud.deploy_status, new_deploy_status))
+            db_api.subcloud_update(
+                self.context,
+                subcloud.id,
+                deploy_status=new_deploy_status)
