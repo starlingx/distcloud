@@ -34,6 +34,31 @@ from dcmanager.common import consts
 LOG = logging.getLogger(__name__)
 
 
+class FirmwareAuditData(object):
+    def __init__(self, uuid, applied, pci_vendor,
+                 pci_device, applied_labels):
+        self.uuid = uuid
+        self.applied = applied
+        self.pci_vendor = pci_vendor
+        self.pci_device = pci_device
+        self.applied_labels = applied_labels
+
+    def to_dict(self):
+        return {
+            'uuid': self.uuid,
+            'applied': self.applied,
+            'pci_vendor': self.pci_vendor,
+            'pci_device': self.pci_device,
+            'applied_labels': self.applied_labels,
+        }
+
+    @classmethod
+    def from_dict(cls, values):
+        if values is None:
+            return None
+        return cls(**values)
+
+
 class FirmwareAudit(object):
     """Manages tasks related to firmware audits."""
 
@@ -77,7 +102,11 @@ class FirmwareAudit(object):
             # Filter images which have been applied on RegionOne
             for image in local_device_images:
                 if image.applied:
-                    filtered_images.append(image)
+                    filtered_images.append(FirmwareAuditData(image.uuid,
+                                                             image.applied,
+                                                             image.pci_vendor,
+                                                             image.pci_device,
+                                                             image.applied_labels))
             LOG.debug("RegionOne applied_images: %s" % filtered_images)
         except Exception:
             LOG.exception('Cannot retrieve device images for RegionOne, '
@@ -224,7 +253,10 @@ class FirmwareAudit(object):
 
         # Check that all device images applied in RegionOne
         # are applied and installed on this subcloud
+        # The audit_data for region one is a dictionary
         for image in audit_data:
+            # audit_data will be a dict from passing through RPC, so objectify
+            image = FirmwareAuditData.from_dict(image)
             proceed = self._check_subcloud_device_has_image(image,
                                                             enabled_host_device_list,
                                                             subcloud_device_image_states,
