@@ -22,11 +22,21 @@ from datetime import datetime
 from eventlet.green import subprocess
 import os
 from oslo_log import log as logging
+from oslo_utils import timeutils
+import random
 
 from dccommon.exceptions import PlaybookExecutionFailed
 
 LOG = logging.getLogger(__name__)
 ANSIBLE_PASSWD_PARMS = ['ansible_ssh_pass', 'ansible_become_pass']
+
+# Gap, in seconds, to determine whether the given token is about to expire
+# These values are used to randomize the token early renewal duration and
+# to distribute the new keystone creation to different audit cycles
+
+STALE_TOKEN_DURATION_MIN = 300
+STALE_TOKEN_DURATION_MAX = 480
+STALE_TOKEN_DURATION_STEP = 20
 
 
 def run_playbook(log_file, playbook_command):
@@ -65,3 +75,17 @@ def run_playbook(log_file, playbook_command):
         except Exception as e:
             LOG.error(str(e))
             raise
+
+
+def is_token_expiring_soon(token,
+                           stale_token_duration_min=STALE_TOKEN_DURATION_MIN,
+                           stale_token_duration_max=STALE_TOKEN_DURATION_MAX,
+                           stale_token_duration_step=STALE_TOKEN_DURATION_STEP):
+        expiry_time = timeutils.normalize_time(timeutils.parse_isotime(token['expires_at']))
+        duration = random.randrange(stale_token_duration_min,
+                                    stale_token_duration_max,
+                                    stale_token_duration_step)
+        if timeutils.is_soon(expiry_time, duration):
+            return True
+        else:
+            return False

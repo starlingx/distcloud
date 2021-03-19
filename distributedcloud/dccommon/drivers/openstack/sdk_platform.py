@@ -16,11 +16,9 @@
 OpenStack Driver
 """
 import collections
-import random
 
 from oslo_concurrency import lockutils
 from oslo_log import log
-from oslo_utils import timeutils
 
 from dccommon import consts
 from dccommon.drivers.openstack.barbican import BarbicanClient
@@ -28,15 +26,8 @@ from dccommon.drivers.openstack.fm import FmClient
 from dccommon.drivers.openstack.keystone_v3 import KeystoneClient
 from dccommon.drivers.openstack.sysinv_v1 import SysinvClient
 from dccommon import exceptions
+from dccommon.utils import is_token_expiring_soon
 
-
-# Gap, in seconds, to determine whether the given token is about to expire
-# These values are used to randomize the token early renewal duration and
-# to distribute the new keystone creation to different audit cycles
-
-STALE_TOKEN_DURATION_MIN = 300
-STALE_TOKEN_DURATION_MAX = 480
-STALE_TOKEN_DURATION_STEP = 20
 
 KEYSTONE_CLIENT_NAME = 'keystone'
 SYSINV_CLIENT_NAME = 'sysinv'
@@ -208,12 +199,12 @@ class OpenStackDriver(object):
             OpenStackDriver._identity_tokens[region_name] = None
             return False
 
-        expiry_time = timeutils.normalize_time(timeutils.parse_isotime(
-            self._identity_tokens[region_name]['expires_at']))
-        duration = random.randrange(STALE_TOKEN_DURATION_MIN,
-                                    STALE_TOKEN_DURATION_MAX,
-                                    STALE_TOKEN_DURATION_STEP)
-        if timeutils.is_soon(expiry_time, duration):
+        token_expiring_soon = is_token_expiring_soon(
+            token=self._identity_tokens[region_name])
+
+        # If token is expiring soon, reset cached dictionaries and return False.
+        # Else return true.
+        if token_expiring_soon:
             LOG.debug("The cached keystone token for subcloud %s "
                       "will expire soon %s" %
                       (region_name,
