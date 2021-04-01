@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2020 Wind River Systems, Inc.
+# Copyright (c) 2020-2021 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -7,7 +7,7 @@ import mock
 
 from dccommon.drivers.openstack import vim
 from dcmanager.common import consts
-from dcmanager.orchestrator.states.firmware.finishing_fw_update import FinishingFwUpdateState
+from dcmanager.orchestrator.states.firmware import finishing_fw_update
 
 from dcmanager.tests.unit.fakes import FakeVimStrategy
 from dcmanager.tests.unit.orchestrator.states.firmware.test_base \
@@ -16,6 +16,9 @@ from dcmanager.tests.unit.orchestrator.states.firmware.test_base \
 STRATEGY_APPLIED = FakeVimStrategy(state=vim.STATE_APPLIED)
 
 
+@mock.patch("dcmanager.orchestrator.states.firmware.finishing_fw_update.DEFAULT_MAX_FAILED_QUERIES",
+            3)
+@mock.patch("dcmanager.orchestrator.states.firmware.finishing_fw_update.DEFAULT_FAILED_SLEEP", 1)
 class TestFwUpdateFinishingFwUpdateStage(TestFwUpdateState):
 
     def setUp(self):
@@ -35,8 +38,9 @@ class TestFwUpdateFinishingFwUpdateStage(TestFwUpdateState):
         self.vim_client.get_strategy = mock.MagicMock()
         self.vim_client.delete_strategy = mock.MagicMock()
         self.sysinv_client.get_hosts = mock.MagicMock()
+        self.sysinv_client.get_host_device_list = mock.MagicMock()
 
-        p = mock.patch.object(FinishingFwUpdateState, 'align_subcloud_status')
+        p = mock.patch.object(finishing_fw_update.FinishingFwUpdateState, 'align_subcloud_status')
         self.mock_align = p.start()
         self.addCleanup(p.stop)
 
@@ -75,3 +79,27 @@ class TestFwUpdateFinishingFwUpdateStage(TestFwUpdateState):
         # Successful promotion to next state
         self.assert_step_updated(self.strategy_step.subcloud_id,
                                  self.on_success_state)
+
+    def test_finishing_vim_strategy_failure_get_hosts(self):
+        """Test finishing firmware update with communication error to subcloud"""
+
+        # mock the get_host query fails and raises an exception
+        self.sysinv_client.get_hosts.side_effect = \
+            Exception("HTTP CommunicationError")
+
+        # invoke the strategy state operation on the orch thread
+        self.worker.perform_state_action(self.strategy_step)
+
+        # verify the query was actually attempted
+        self.sysinv_client.get_hosts.assert_called()
+
+        # verified the query was tried max retries + 1
+        self.assertEqual(finishing_fw_update.DEFAULT_MAX_FAILED_QUERIES + 1,
+                         self.sysinv_client.get_hosts.call_count)
+
+        # verify the subsequent sysinv command was never attempted
+        self.sysinv_client.get_host_device_list.assert_not_called()
+
+        # verify that the state moves to the next state
+        self.assert_step_updated(self.strategy_step.subcloud_id,
+                                 consts.STRATEGY_STATE_FAILED)
