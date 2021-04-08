@@ -7,6 +7,7 @@ import json
 import keyring
 import os
 
+from base64 import b64encode
 from dccommon.install_consts import ANSIBLE_SUBCLOUD_INSTALL_PLAYBOOK
 from dccommon.subcloud_install import SubcloudInstall
 
@@ -284,7 +285,7 @@ class UpgradingSimplexState(BaseState):
         volatile_data_install.update({
             'bmc_address': host.bm_ip,
             'bmc_username': host.bm_username,
-            'bmc_password': bmc_password,
+            'bmc_password': b64encode(bmc_password),
             'install_type': install_type,
             'boot_device': host.boot_device,
             'rootfs_device': host.rootfs_device,
