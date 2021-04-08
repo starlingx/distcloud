@@ -27,22 +27,27 @@ from keystoneauth1 import exceptions as keystone_exceptions
 from keystoneauth1 import loading
 from keystoneauth1 import session
 
-from keystoneclient.v3 import client as keystone_client
+from keystoneclient.v3 import client as ks_client
 
+from oslo_concurrency import lockutils
 from oslo_config import cfg
 from oslo_log import log as logging
 
 from dccommon import consts
+from dccommon.utils import is_token_expiring_soon
 
 CONF = cfg.CONF
 
 LOG = logging.getLogger(__name__)
+
+LOCK_NAME = 'dc-keystone-endpoint-cache'
 
 
 class EndpointCache(object):
 
     plugin_loader = None
     plugin_lock = threading.Lock()
+    master_keystone_client = None
 
     def __init__(self, region_name=None, auth_url=None):
         self.endpoint_map = collections.defaultdict(dict)
@@ -69,9 +74,8 @@ class EndpointCache(object):
             CONF.endpoint_cache.project_name,
             CONF.endpoint_cache.project_domain_name)
 
-        self.keystone_client = keystone_client.Client(
-            session=self.admin_session,
-            region_name=consts.CLOUD_0)
+        self.get_cached_master_keystone_client()
+        self.keystone_client = EndpointCache.master_keystone_client
 
         # if Endpoint cache is intended for a subcloud then
         # we need to retrieve the subcloud token and session.
@@ -91,6 +95,7 @@ class EndpointCache(object):
                 sc_auth_url = sc_auth_url[0].url
             except IndexError:
                 LOG.error("Cannot find identity auth_url for %s", region_name)
+                EndpointCache.master_keystone_client = None
                 raise
 
             # We assume that the dcmanager user names and passwords are the
@@ -107,7 +112,7 @@ class EndpointCache(object):
             self.admin_session = EndpointCache.get_admin_backup_session(
                 self.admin_session, CONF.endpoint_cache.username, sc_auth_url)
 
-            self.keystone_client = keystone_client.Client(
+            self.keystone_client = ks_client.Client(
                 session=self.admin_session,
                 region_name=region_name)
             self.external_auth_url = sc_auth_url
@@ -248,3 +253,26 @@ class EndpointCache(object):
                                         token=token, project_id=project_id)
         sess = session.Session(auth=auth)
         return sess
+
+    @lockutils.synchronized(LOCK_NAME)
+    def get_cached_master_keystone_client(self):
+        if (EndpointCache.master_keystone_client is None):
+            EndpointCache.master_keystone_client = ks_client.Client(
+                session=self.admin_session,
+                region_name=consts.CLOUD_0)
+        else:
+            token = EndpointCache.master_keystone_client.tokens.validate(
+                EndpointCache.master_keystone_client.session.get_token(),
+                include_catalog=False)
+
+            token_expiring_soon = is_token_expiring_soon(token=token)
+
+            # If token is expiring soon, initialize a new master keystone
+            # client
+            if token_expiring_soon:
+                LOG.debug("The cached keystone token for %s "
+                          "will expire soon %s" %
+                          (consts.CLOUD_0, token['expires_at']))
+                EndpointCache.master_keystone_client = ks_client.Client(
+                    session=self.admin_session,
+                    region_name=consts.CLOUD_0)
