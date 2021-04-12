@@ -118,18 +118,8 @@ class PreCheckState(BaseState):
         Check the deploy_status and transfer to the correct state.
         if an unsupported deploy_status is encountered, fail the upgrade
         """
-        subcloud_type = self.get_sysinv_client(
-            strategy_step.subcloud.name).get_system().system_mode
 
         subcloud = db_api.subcloud_get(self.context, strategy_step.subcloud.id)
-        # check presence of data_install values.  These are managed
-        # semantically on subcloud add or update
-        if subcloud_type == consts.SYSTEM_MODE_SIMPLEX and not subcloud.data_install:
-            details = ("Data install values are missing and must be updated "
-                       "via dcmanager subcloud update")
-            raise PreCheckFailedException(
-                subcloud=strategy_step.subcloud.name,
-                details=details)
 
         if subcloud.availability_status == consts.AVAILABILITY_ONLINE:
             subcloud_sysinv_client = None
@@ -148,6 +138,18 @@ class PreCheckState(BaseState):
                     deploy_status=subcloud.deploy_status)
 
             host = subcloud_sysinv_client.get_host("controller-0")
+            subcloud_type = self.get_sysinv_client(
+                strategy_step.subcloud.name).get_system().system_mode
+
+            # Check presence of data_install values.  These are managed
+            # semantically on subcloud add or update
+            if subcloud_type == consts.SYSTEM_MODE_SIMPLEX and not subcloud.data_install:
+                details = ("Data install values are missing and must be updated "
+                           "via dcmanager subcloud update")
+                raise PreCheckFailedException(
+                    subcloud=strategy_step.subcloud.name,
+                    details=details)
+
             if (host.administrative == consts.ADMIN_LOCKED and
                     subcloud.deploy_status == consts.DEPLOY_STATE_INSTALL_FAILED):
                 # If the subcloud is online but its deploy state is install-failed
@@ -222,14 +224,17 @@ class PreCheckState(BaseState):
                         self.override_next_state(consts.STRATEGY_STATE_COMPLETING_UPGRADE)
             return self.next_state
 
-        # it is offline.
+        # If it gets here, the subcloud must be offline and is a simplex
         if subcloud.deploy_status in VALID_UPGRADE_STATES:
-            if subcloud_type == consts.SYSTEM_MODE_SIMPLEX:
-                self.override_next_state(consts.STRATEGY_STATE_UPGRADING_SIMPLEX)
-                return self.next_state
-            else:
-                self.override_next_state(consts.STRATEGY_STATE_UPGRADING_DUPLEX)
-                return self.next_state
+            if not subcloud.data_install:
+                details = ("Data install values are missing and must be updated "
+                           "via dcmanager subcloud update")
+                raise PreCheckFailedException(
+                    subcloud=strategy_step.subcloud.name,
+                    details=details)
+
+            self.override_next_state(consts.STRATEGY_STATE_UPGRADING_SIMPLEX)
+            return self.next_state
 
         elif subcloud.deploy_status in VALID_MIGRATE_DATA_STATES:
             self.override_next_state(consts.STRATEGY_STATE_MIGRATING_DATA)
