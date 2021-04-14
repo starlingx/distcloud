@@ -136,15 +136,24 @@ class KubernetesAudit(object):
             return
 
         out_of_sync = True
-        # We will consider it out of sync even for 'partial' state
-        # The audit data for subcloud_results is an object not a dictionary
-        subcloud_results = sysinv_client.get_kube_versions()
-        for result in subcloud_results:
-            if result.target and result.state == 'active':
-                subcloud_version = result.version
-                if subcloud_version == region_one_version:
-                    out_of_sync = False
-                    break
+
+        # if there is a kubernetes upgrade operation in the subcloud,
+        # the subcloud can immediately be flagged as out of sync
+        subcloud_kube_upgrades = sysinv_client.get_kube_upgrades()
+        if len(subcloud_kube_upgrades) > 0:
+            # We are out of sync
+            LOG.debug('Existing Kubernetes upgrade exists for:(%s)'
+                      % subcloud_name)
+        else:
+            # We will consider it out of sync even for 'partial' state
+            # The audit data for subcloud_results is an object not a dictionary
+            subcloud_results = sysinv_client.get_kube_versions()
+            for result in subcloud_results:
+                if result.target and result.state == 'active':
+                    subcloud_version = result.version
+                    if subcloud_version == region_one_version:
+                        out_of_sync = False
+                        break
 
         if out_of_sync:
             self._update_subcloud_sync_status(
