@@ -109,7 +109,10 @@ class SubcloudAuditWorkerManager(manager.Manager):
                      consts.DEPLOY_STATE_INSTALL_FAILED,
                      consts.DEPLOY_STATE_PRE_INSTALL_FAILED,
                      consts.DEPLOY_STATE_DATA_MIGRATION_FAILED,
-                     consts.DEPLOY_STATE_MIGRATED]):
+                     consts.DEPLOY_STATE_MIGRATED,
+                     consts.DEPLOY_STATE_RESTORING,
+                     consts.DEPLOY_STATE_RESTORE_PREP_FAILED,
+                     consts.DEPLOY_STATE_RESTORE_FAILED]):
                 LOG.debug("Skip subcloud %s audit, deploy_status: %s" %
                           (subcloud.name, subcloud.deploy_status))
                 # This DB API call will set the "audit_finished_at" timestamp
