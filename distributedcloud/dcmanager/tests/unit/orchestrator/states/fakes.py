@@ -205,6 +205,11 @@ class FakePatchingClient(object):
         pass
 
 
+class FakeFmClient(object):
+    def __init__(self):
+        pass
+
+
 class FakeSystem(object):
     def __init__(self,
                  obj_id=1,
@@ -226,3 +231,11 @@ class FakeUpgrade(object):
         self.from_release = from_release
         self.to_release = to_release
         self.links = []
+
+
+class FakeAlarm(object):
+    def __init__(self,
+                 alarm_id='12.34',
+                 mgmt_affecting='False'):
+        self.alarm_id = alarm_id
+        self.mgmt_affecting = mgmt_affecting

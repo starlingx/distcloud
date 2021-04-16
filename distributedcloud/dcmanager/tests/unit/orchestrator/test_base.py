@@ -30,6 +30,7 @@ from dcmanager.tests import base
 from dcmanager.tests.unit.common import fake_strategy
 from dcmanager.tests.unit.common import fake_subcloud
 from dcmanager.tests.unit.fakes import FakeVimClient
+from dcmanager.tests.unit.orchestrator.states.fakes import FakeFmClient
 from dcmanager.tests.unit.orchestrator.states.fakes import FakeKeystoneClient
 from dcmanager.tests.unit.orchestrator.states.fakes import FakePatchingClient
 from dcmanager.tests.unit.orchestrator.states.fakes import FakeSysinvClient
@@ -82,6 +83,13 @@ class TestSwUpdate(base.DCManagerTestCase):
         p = mock.patch.object(BaseState, 'get_vim_client')
         self.mock_vim_client = p.start()
         self.mock_vim_client.return_value = self.vim_client
+        self.addCleanup(p.stop)
+
+        # Mock the fm client defined in the base state class
+        self.fm_client = FakeFmClient()
+        p = mock.patch.object(BaseState, 'get_fm_client')
+        self.mock_fm_client = p.start()
+        self.mock_fm_client.return_value = self.fm_client
         self.addCleanup(p.stop)
 
     def setup_orch_worker(self, strategy_type):
