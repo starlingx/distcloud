@@ -281,11 +281,16 @@ class UpgradingSimplexState(BaseState):
         bmc_password = None
         if subcloud_barbican_client:
             bmc_password = subcloud_barbican_client.get_host_bmc_password(host.uuid)
+            if bmc_password:
+                # If the host is configured to store bmc in its barbican database,
+                # encode the password. Otherwise leave it as None and it will be
+                # replaced with the value retrieved from the dcmanager database.
+                bmc_password = b64encode(bmc_password)
 
         volatile_data_install.update({
             'bmc_address': host.bm_ip,
             'bmc_username': host.bm_username,
-            'bmc_password': b64encode(bmc_password),
+            'bmc_password': bmc_password,
             'install_type': install_type,
             'boot_device': host.boot_device,
             'rootfs_device': host.rootfs_device,

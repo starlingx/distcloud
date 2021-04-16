@@ -3,6 +3,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 #
+import copy
 import re
 
 from dccommon.drivers.openstack.sysinv_v1 import HOST_FS_NAME_SCRATCH
@@ -26,6 +27,11 @@ VALID_ACTIVATION_STATES = [consts.DEPLOY_STATE_MIGRATED, ]
 
 MIN_SCRATCH_SIZE_REQUIRED_GB = 16
 
+UPGRADE_IN_PROGRESS_ALARM = '900.005'
+HOST_ADMINISTRATIVELY_LOCKED_ALARM = '200.001'
+
+ALARM_IGNORE_LIST = [UPGRADE_IN_PROGRESS_ALARM, ]
+
 
 class PreCheckState(BaseState):
     """This State performs entry checks and skips to the appropriate state"""
@@ -34,73 +40,85 @@ class PreCheckState(BaseState):
         super(PreCheckState, self).__init__(
             next_state=consts.STRATEGY_STATE_INSTALLING_LICENSE, region_name=region_name)
 
-    def _perform_subcloud_online_checks(self, strategy_step, subcloud_sysinv_client):
-        subcloud_type = self.get_sysinv_client(
-            strategy_step.subcloud.name).get_system().system_mode
-        upgrades = self.get_sysinv_client(strategy_step.subcloud.name).get_upgrades()
+    def _perform_subcloud_online_checks(self, strategy_step, subcloud_sysinv_client,
+                                        subcloud_fm_client, host, alarm_ignore_list):
 
-        # For duplex upgrade, we skip health checks if an upgrade is in progress.
+        # check system health
+        #
+        # Sample output #1
+        # ================
+        #     Some non-management affecting alarms, all other checks passed
+        #
+        # System Health:
+        # All hosts are provisioned: [OK]
+        # All hosts are unlocked/enabled: [OK]
+        # All hosts have current configurations: [OK]
+        # All hosts are patch current: [OK]
+        # Ceph Storage Healthy: [OK]
+        # No alarms: [Fail]
+        # [1] alarms found, [0] of which are management affecting
+        # All kubernetes nodes are ready: [OK]
+        # All kubernetes control plane pods are ready: [OK]
+        #
+        # Sample output #2
+        # ================
+        #     Multiple failed checks, management affecting alarms
+        #
+        # System Health:
+        # All hosts are provisioned: [OK]
+        # All hosts are unlocked/enabled: [OK]
+        # All hosts have current configurations: [OK]
+        # All hosts are patch current: [OK]
+        # Ceph Storage Healthy: [Fail]
+        # No alarms: [Fail]
+        # [7] alarms found, [2] of which are management affecting
+        # All kubernetes nodes are ready: [OK]
+        # All kubernetes control plane pods are ready: [OK]
 
-        if (len(upgrades) != 0 and subcloud_type == consts.SYSTEM_MODE_DUPLEX):
-            self.info_log(strategy_step, "Health check skipped for non-simplex subclouds.")
+        # TODO(teewrs): Update the sysinv API to allow a list of ignored alarms
+        # to be passed to the health check API. This would be much more efficient
+        # than having to retrieve the alarms in a separate step.
+        system_health = subcloud_sysinv_client.get_system_health()
+        fails = re.findall("\[Fail\]", system_health)
+        failed_alarm_check = re.findall("No alarms: \[Fail\]", system_health)
+        no_mgmt_alarms = re.findall("\[0\] of which are management affecting",
+                                    system_health)
+        # The health conditions acceptable for upgrade are:
+        # a) subcloud is completely healthy (i.e. no failed checks)
+        # b) subcloud only fails alarm check and it only has non-management
+        #    affecting alarm(s)
+        # c) the management alarm(s) that subcloud has once upgrade has started
+        #    are upgrade alarm itself and host locked alarm
+
+        if ((len(fails) == 0) or
+                (len(fails) == 1 and failed_alarm_check and no_mgmt_alarms)):
+            self.info_log(strategy_step, "Health check passed.")
+        elif ((len(fails) > 1) or (len(fails) == 1 and not failed_alarm_check)):
+            # Multiple failures or kubernetes related failure which has not been
+            # converted into an alarm condition.
+            details = "System health check failed due to multiple failures. " \
+                      "Please run 'system health-query' command on the " \
+                      "subcloud for more details."
+            self.error_log(strategy_step, "\n" + system_health)
+            raise PreCheckFailedException(
+                subcloud=strategy_step.subcloud.name,
+                details=details,
+                )
         else:
-            # check system health
-            #
-            # Sample output #1
-            # ================
-            #     Some non-management affecting alarms, all other checks passed
-            #
-            # System Health:
-            # All hosts are provisioned: [OK]
-            # All hosts are unlocked/enabled: [OK]
-            # All hosts have current configurations: [OK]
-            # All hosts are patch current: [OK]
-            # Ceph Storage Healthy: [OK]
-            # No alarms: [Fail]
-            # [1] alarms found, [0] of which are management affecting
-            # All kubernetes nodes are ready: [OK]
-            # All kubernetes control plane pods are ready: [OK]
-            #
-            # Sample output #2
-            # ================
-            #     Multiple failed checks, management affecting alarms
-            #
-            # System Health:
-            # All hosts are provisioned: [OK]
-            # All hosts are unlocked/enabled: [OK]
-            # All hosts have current configurations: [OK]
-            # All hosts are patch current: [OK]
-            # Ceph Storage Healthy: [Fail]
-            # No alarms: [Fail]
-            # [7] alarms found, [2] of which are management affecting
-            # All kubernetes nodes are ready: [OK]
-            # All kubernetes control plane pods are ready: [OK]
-
-            system_health = subcloud_sysinv_client.get_system_health()
-            fails = re.findall("\[Fail\]", system_health)
-            failed_alarm_check = re.findall("No alarms: \[Fail\]", system_health)
-            no_mgmt_alarms = re.findall("\[0\] of which are management affecting",
-                                        system_health)
-            # The only 2 health conditions acceptable for simplex upgrade are:
-            # a) subcloud is completely healthy (i.e. no failed checks)
-            # b) subcloud only fails alarm check and it only has non-management
-            #    affecting alarm(s)
-
-            if ((len(fails) == 0) or
-                    (len(fails) == 1 and failed_alarm_check and no_mgmt_alarms)):
-                self.info_log(strategy_step, "Health check passed.")
-            else:
-                details = "System health check failed. " \
-                          "Please run 'system health-query' " \
-                          "command on the subcloud for more details."
-                self.error_log(strategy_step, "\n" + system_health)
-                raise PreCheckFailedException(
-                    subcloud=strategy_step.subcloud.name,
-                    details=details,
-                    )
+            alarms = subcloud_fm_client.get_alarms()
+            for alarm in alarms:
+                if alarm.alarm_id not in alarm_ignore_list:
+                    if alarm.mgmt_affecting == "True":
+                        details = "System health check failed due to alarm %s. " \
+                                  "Please run 'system health-query' " \
+                                  "command on the subcloud for more details." % alarm.alarm_id
+                        self.error_log(strategy_step, "\n" + system_health)
+                        raise PreCheckFailedException(
+                            subcloud=strategy_step.subcloud.name,
+                            details=details,
+                            )
 
         # check scratch
-        host = subcloud_sysinv_client.get_host("controller-0")
         scratch_fs = subcloud_sysinv_client.get_host_filesystem(
             host.uuid, HOST_FS_NAME_SCRATCH)
         if scratch_fs.size < MIN_SCRATCH_SIZE_REQUIRED_GB:
@@ -125,12 +143,12 @@ class PreCheckState(BaseState):
             subcloud_sysinv_client = None
             try:
                 subcloud_sysinv_client = self.get_sysinv_client(strategy_step.subcloud.name)
+                subcloud_fm_client = self.get_fm_client(strategy_step.subcloud.name)
             except Exception:
                 # if getting the token times out, the orchestrator may have
                 # restarted and subcloud may be offline; so will attempt
                 # to use the persisted values
-                message = ("_perform_subcloud_online_checks subcloud %s "
-                           "failed to get subcloud client" %
+                message = ("Subcloud %s failed to get subcloud client" %
                            strategy_step.subcloud.name)
                 self.error_log(strategy_step, message)
                 raise ManualRecoveryRequiredException(
@@ -160,7 +178,24 @@ class PreCheckState(BaseState):
                 self.override_next_state(consts.STRATEGY_STATE_UPGRADING_SIMPLEX)
                 return self.next_state
 
-            self._perform_subcloud_online_checks(strategy_step, subcloud_sysinv_client)
+            # We skip the subcloud online check if either the subcloud deploy status is
+            # "migrated" or the subcloud is a duplex subcloud and upgrade has started.
+            upgrades = subcloud_sysinv_client.get_upgrades()
+            if (subcloud.deploy_status == consts.DEPLOY_STATE_MIGRATED or
+               (len(upgrades) != 0 and subcloud_type == consts.SYSTEM_MODE_DUPLEX)):
+                self.info_log(strategy_step,
+                              "Online subcloud checks skipped.")
+            else:
+                alarm_ignore_list = copy.copy(ALARM_IGNORE_LIST)
+                if (host.administrative == consts.ADMIN_LOCKED and len(upgrades) != 0):
+                    alarm_ignore_list.append(HOST_ADMINISTRATIVELY_LOCKED_ALARM)
+
+                self._perform_subcloud_online_checks(strategy_step,
+                                                     subcloud_sysinv_client,
+                                                     subcloud_fm_client,
+                                                     host,
+                                                     alarm_ignore_list)
+
             # If the subcloud has completed data migration and is online,
             # advance directly to activating upgrade step. Otherwise, start
             # from installing license step.

@@ -56,3 +56,14 @@ class FmClient(base.DriverBase):
             LOG.error("get_alarm_summary exception={}".format(e))
             raise e
         return alarms
+
+    def get_alarms(self):
+        """Get this region alarms"""
+
+        try:
+            LOG.debug("get_alarms region %s" % self.region_name)
+            alarms = self.fm.alarm.list(include_suppress=True)
+        except Exception as e:
+            LOG.error("get_alarms exception={}".format(e))
+            raise e
+        return alarms

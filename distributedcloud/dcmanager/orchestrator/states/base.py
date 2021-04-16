@@ -9,6 +9,7 @@ import six
 from oslo_log import log as logging
 
 from dccommon.drivers.openstack.barbican import BarbicanClient
+from dccommon.drivers.openstack.fm import FmClient
 from dccommon.drivers.openstack.patching_v1 import PatchingClient
 from dccommon.drivers.openstack.sdk_platform import OpenStackDriver
 from dccommon.drivers.openstack.sysinv_v1 import SysinvClient
@@ -100,6 +101,10 @@ class BaseState(object):
         keystone_client = self.get_keystone_client(region_name)
 
         return SysinvClient(region_name, keystone_client.session)
+
+    def get_fm_client(self, region_name):
+        keystone_client = self.get_keystone_client(region_name)
+        return FmClient(region_name, keystone_client.session)
 
     def get_patching_client(self, region_name=consts.DEFAULT_REGION_NAME):
         keystone_client = self.get_keystone_client(region_name)

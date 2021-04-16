@@ -7,10 +7,12 @@ import mock
 
 from dcmanager.common import consts
 
+from dcmanager.tests.unit.orchestrator.states.fakes import FakeAlarm
 from dcmanager.tests.unit.orchestrator.states.fakes import FakeController
 from dcmanager.tests.unit.orchestrator.states.fakes import FakeHostFilesystem
 from dcmanager.tests.unit.orchestrator.states.fakes import FakeSubcloud
 from dcmanager.tests.unit.orchestrator.states.fakes import FakeSystem
+from dcmanager.tests.unit.orchestrator.states.fakes import FakeUpgrade
 from dcmanager.tests.unit.orchestrator.states.upgrade.test_base \
     import TestSwUpgradeState
 
@@ -66,6 +68,22 @@ SYSTEM_HEALTH_RESPONSE_MULTIPLE_FAILED_HEALTH_CHECKS =  \
     "All kubernetes control plane pods are ready: [Fail]\n" \
     "Kubernetes control plane pods not ready: kube-apiserver-controller-0"
 
+SYSTEM_HEALTH_RESPONSE_K8S_FAILED_HEALTH_CHECKS =  \
+    "System Health:\n" \
+    "All hosts are provisioned: [OK]\n" \
+    "All hosts are unlocked/enabled: [OK]\n" \
+    "All hosts have current configurations: [OK]\n" \
+    "All hosts are patch current: [OK]\n" \
+    "Ceph Storage Healthy: [OK]\n" \
+    "No alarms: [OK]\n" \
+    "All kubernetes nodes are ready: [Fail]\n" \
+    "All kubernetes control plane pods are ready: [OK]"
+
+UPGRADE_STARTED = FakeUpgrade(state='started')
+
+UPGRADE_ALARM = FakeAlarm('900.005', 'True')
+HOST_LOCKED_ALARM = FakeAlarm('200.001', 'True')
+
 
 class TestSwUpgradePreCheckStage(TestSwUpgradeState):
 
@@ -92,6 +110,7 @@ class TestSwUpgradePreCheckStage(TestSwUpgradeState):
         system_values.system_mode = consts.SYSTEM_MODE_SIMPLEX
         self.sysinv_client.get_system.return_value = system_values
         self.sysinv_client.get_upgrades = mock.MagicMock()
+        self.fm_client.get_alarms = mock.MagicMock()
 
     def test_upgrade_pre_check_subcloud_online_fresh(self):
         """Test pre check step where the subcloud is online and running N load
@@ -172,34 +191,28 @@ class TestSwUpgradePreCheckStage(TestSwUpgradeState):
             availability_status=consts.AVAILABILITY_ONLINE,
             deploy_status=consts.DEPLOY_STATE_MIGRATED)
 
-        self.sysinv_client.get_host_filesystem.side_effect = \
-            [CONTROLLER_0_HOST_FS_SCRATCH_MIN_SIZED]
-
-        self.sysinv_client.get_system_health.return_value = \
-            SYSTEM_HEALTH_RESPONSE_SUCCESS
-
         # invoke the strategy state operation on the orch thread
         self.worker.perform_state_action(self.strategy_step)
 
         # verify the DB query was invoked
         self.mock_db_query.assert_called()
 
-        # verify the get system health API call was invoked
-        self.sysinv_client.get_system_health.assert_called()
+        # verify the get system health API call was not invoked
+        self.sysinv_client.get_system_health.assert_not_called()
 
-        # verify the get host filesystem API call was invoked
-        self.sysinv_client.get_host_filesystem.assert_called()
+        # verify the get host filesystem API call was not invoked
+        self.sysinv_client.get_host_filesystem.assert_not_called()
 
         # Verify the expected next state happened (activating upgrade)
         self.assert_step_updated(self.strategy_step.subcloud_id,
                                  consts.STRATEGY_STATE_ACTIVATING_UPGRADE)
 
-    def test_upgrade_pre_check_subcloud_online_management_alarm(self):
-        """Test pre check step where the subcloud is online with a mgmt alarm
+    def test_upgrade_pre_check_subcloud_online_host_locked_upgrade_started_mgmt_alarms(self):
+        """Test pre check step where the subcloud is online, locked and upgrade has started.
 
-        The pre-check should raise an exception and transition to the failed
-        state when the subcloud is not ready for upgrade due to the management
-        affecting alarm.
+        The pre-check should move to the next step as the upgrade alarm can
+        be ignored and the host locked alarm can also be ignored if upgrade has
+        started.
         """
 
         # online subcloud running N+1 load
@@ -207,8 +220,19 @@ class TestSwUpgradePreCheckStage(TestSwUpgradeState):
             availability_status=consts.AVAILABILITY_ONLINE,
             deploy_status=consts.DEPLOY_STATE_DONE)
 
+        # subcloud is locked
+        self.sysinv_client.get_host.side_effect = [CONTROLLER_0_LOCKED]
+
+        # upgrade has started
+        self.sysinv_client.get_upgrades.return_value = [UPGRADE_STARTED, ]
+
         self.sysinv_client.get_system_health.return_value = \
             SYSTEM_HEALTH_RESPONSE_MGMT_AFFECTING_ALARM
+
+        self.fm_client.get_alarms.return_value = [UPGRADE_ALARM, HOST_LOCKED_ALARM, ]
+
+        self.sysinv_client.get_host_filesystem.side_effect = \
+            [CONTROLLER_0_HOST_FS_SCRATCH_MIN_SIZED]
 
         # invoke the strategy state operation on the orch thread
         self.worker.perform_state_action(self.strategy_step)
@@ -218,6 +242,50 @@ class TestSwUpgradePreCheckStage(TestSwUpgradeState):
 
         # verify the get system health API call was invoked
         self.sysinv_client.get_system_health.assert_called()
+
+        # verify the get alarms API call was invoked
+        self.fm_client.get_alarms.assert_called()
+
+        # verify the get host filesystem API call was invoked
+        self.sysinv_client.get_host_filesystem.assert_called()
+
+        # Verify the expected next state happened (installing license)
+        self.assert_step_updated(self.strategy_step.subcloud_id,
+                                 consts.STRATEGY_STATE_INSTALLING_LICENSE)
+
+    def test_upgrade_pre_check_subcloud_online_host_locked_no_upgrade_mgmt_alarms(self):
+        """Test pre check step where subcloud is online, locked and upgrade has not started.
+
+        The pre-check should raise an exception and transition to the failed
+        state as host locked alarm cannot be skipped if upgrade has
+        not been started.
+        """
+
+        # online subcloud running N+1 load
+        self.mock_db_query.return_value = FakeSubcloud(
+            availability_status=consts.AVAILABILITY_ONLINE,
+            deploy_status=consts.DEPLOY_STATE_DONE)
+
+        # subcloud is locked
+        self.sysinv_client.get_host.side_effect = [CONTROLLER_0_LOCKED]
+
+        self.sysinv_client.get_system_health.return_value = \
+            SYSTEM_HEALTH_RESPONSE_MGMT_AFFECTING_ALARM
+
+        self.fm_client.get_alarms.return_value = [HOST_LOCKED_ALARM, ]
+
+        # self.fm_client.get_alarms.return_value = \
+        # invoke the strategy state operation on the orch thread
+        self.worker.perform_state_action(self.strategy_step)
+
+        # verify the DB query was invoked
+        self.mock_db_query.assert_called()
+
+        # verify the get system health API call was invoked
+        self.sysinv_client.get_system_health.assert_called()
+
+        # verify the get alarms API call was invoked
+        self.fm_client.get_alarms.assert_called()
 
         # Verify the exception caused the state to go to failed
         self.assert_step_updated(self.strategy_step.subcloud_id,
@@ -238,6 +306,35 @@ class TestSwUpgradePreCheckStage(TestSwUpgradeState):
 
         self.sysinv_client.get_system_health.return_value = \
             SYSTEM_HEALTH_RESPONSE_MULTIPLE_FAILED_HEALTH_CHECKS
+
+        # invoke the strategy state operation on the orch thread
+        self.worker.perform_state_action(self.strategy_step)
+
+        # verify the DB query was invoked
+        self.mock_db_query.assert_called()
+
+        # verify the get system health API call was invoked
+        self.sysinv_client.get_system_health.assert_called()
+
+        # Verify the exception caused the state to go to failed
+        self.assert_step_updated(self.strategy_step.subcloud_id,
+                                 consts.STRATEGY_STATE_FAILED)
+
+    def test_upgrade_pre_check_subcloud_online_failed_health_checks_no_alarms(self):
+        """Test pre check step where the subcloud is online but is unhealthy
+
+        The pre-check should raise an exception and transition to the failed
+        state when the subcloud is not ready for upgrade due to some failure
+        other than platform alarms.
+        """
+
+        # online subcloud running N+1 load
+        self.mock_db_query.return_value = FakeSubcloud(
+            availability_status=consts.AVAILABILITY_ONLINE,
+            deploy_status=consts.DEPLOY_STATE_DONE)
+
+        self.sysinv_client.get_system_health.return_value = \
+            SYSTEM_HEALTH_RESPONSE_K8S_FAILED_HEALTH_CHECKS
 
         # invoke the strategy state operation on the orch thread
         self.worker.perform_state_action(self.strategy_step)
