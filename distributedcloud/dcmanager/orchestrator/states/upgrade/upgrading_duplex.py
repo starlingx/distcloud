@@ -94,7 +94,7 @@ class UpgradingDuplexState(BaseState):
             raise Exception("No upgrades were found")
 
         # The list of upgrades will never contain more than one entry.
-        if upgrades[0].state == 'data-migration-failed':
+        if upgrades[0].state == consts.UPGRADE_STATE_DATA_MIGRATION_FAILED:
             raise Exception("Data migration failed on host %s" % self.target_hostname)
 
         # If we reach at this point, the upgrade state is 'data-migration-complete'

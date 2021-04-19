@@ -33,6 +33,7 @@ class FakeController(object):
                  availability=consts.AVAILABILITY_ONLINE,
                  ihost_action=None,
                  target_load=UPGRADED_VERSION,
+                 software_load=PREVIOUS_VERSION,
                  task=None,
                  capabilities={"Personality": "Controller-Active"}):
         self.uuid = str(uuid.uuid4())
@@ -43,6 +44,7 @@ class FakeController(object):
         self.availability = availability
         self.ihost_action = ihost_action
         self.target_load = target_load
+        self.software_load = software_load
         self.task = task
         self.capabilities = capabilities
 

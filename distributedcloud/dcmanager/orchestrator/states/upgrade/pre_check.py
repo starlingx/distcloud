@@ -183,9 +183,10 @@ class PreCheckState(BaseState):
                 message = ("Subcloud %s failed to get subcloud client" %
                            strategy_step.subcloud.name)
                 self.error_log(strategy_step, message)
+                error_message = "deploy state: %s" % subcloud.deploy_status
                 raise ManualRecoveryRequiredException(
                     subcloud=strategy_step.subcloud.name,
-                    deploy_status=subcloud.deploy_status)
+                    error_message=error_message)
 
             host = subcloud_sysinv_client.get_host("controller-0")
             subcloud_type = self.get_sysinv_client(
@@ -243,14 +244,25 @@ class PreCheckState(BaseState):
                     # If upgrade has started, skip subcloud online checks
                     self.info_log(strategy_step, "Online subcloud checks skipped.")
                     upgrade_state = upgrades[0].state
-
-                    if (upgrade_state == consts.UPGRADE_STATE_UPGRADING_CONTROLLERS):
+                    if(upgrade_state == consts.UPGRADE_STATE_DATA_MIGRATION_FAILED or
+                       upgrade_state == consts.UPGRADE_STATE_DATA_MIGRATION):
+                        error_message = "upgrade state: %s" % upgrade_state
+                        raise ManualRecoveryRequiredException(
+                            subcloud=strategy_step.subcloud.name,
+                            error_message=error_message)
+                    elif(upgrade_state == consts.UPGRADE_STATE_UPGRADING_CONTROLLERS or
+                         upgrade_state == consts.UPGRADE_STATE_DATA_MIGRATION_COMPLETE):
                         # At this point the subcloud is duplex, deploy state is complete
                         # and "system upgrade-show" on the subcloud indicates that the
                         # upgrade state is "upgrading-controllers".
-                        # If controller-0 is the active controller, we need to swact
+                        # If controller-1 is locked then we unlock it,
+                        # if controller-0 is active we need to swact
                         # else we can proceed to create the VIM strategy.
-                        if host.capabilities.get('Personality') == consts.PERSONALITY_CONTROLLER_ACTIVE:
+                        controller_1_host = subcloud_sysinv_client.get_host("controller-1")
+                        if controller_1_host.administrative == consts.ADMIN_LOCKED:
+                            self.override_next_state(
+                                consts.STRATEGY_STATE_UNLOCKING_CONTROLLER_1)
+                        elif host.capabilities.get('Personality') == consts.PERSONALITY_CONTROLLER_ACTIVE:
                             self.override_next_state(
                                 consts.STRATEGY_STATE_SWACTING_TO_CONTROLLER_1)
                         else:
@@ -272,7 +284,9 @@ class PreCheckState(BaseState):
                         subcloud_hosts = self.get_sysinv_client(
                             strategy_step.subcloud.name).get_hosts()
                         for subcloud_host in subcloud_hosts:
-                            if(subcloud_host.software_load != target_version):
+                            if(subcloud_host.software_load != target_version or
+                               subcloud_host.administrative == consts.ADMIN_LOCKED or
+                               subcloud_host.operational == consts.OPERATIONAL_DISABLED):
                                 all_hosts_upgraded = False
                                 self.override_next_state(
                                     consts.STRATEGY_STATE_CREATING_VIM_UPGRADE_STRATEGY)
@@ -326,6 +340,7 @@ class PreCheckState(BaseState):
         # FAIL: We are offline and encountered an un-recoverable deploy status
         self.info_log(strategy_step,
                       "Un-handled deploy_status: %s" % subcloud.deploy_status)
+        error_message = "deploy state: %s" % subcloud.deploy_status
         raise ManualRecoveryRequiredException(
             subcloud=strategy_step.subcloud.name,
-            deploy_status=subcloud.deploy_status)
+            error_message=error_message)

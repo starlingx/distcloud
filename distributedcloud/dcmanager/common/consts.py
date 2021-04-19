@@ -185,6 +185,7 @@ DEPLOY_STATE_DONE = 'complete'
 
 
 # Upgrades States
+UPGRADE_STATE_DATA_MIGRATION = 'data-migration'
 UPGRADE_STATE_DATA_MIGRATION_COMPLETE = 'data-migration-complete'
 UPGRADE_STATE_DATA_MIGRATION_FAILED = 'data-migration-failed'
 UPGRADE_STATE_UPGRADING_CONTROLLERS = 'upgrading-controllers'
