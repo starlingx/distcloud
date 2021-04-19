@@ -94,6 +94,9 @@ class MigratingDataState(BaseState):
                 # when the controller reboots.
                 fail_counter += 1
                 if fail_counter >= self.max_failed_queries:
+                    db_api.subcloud_update(
+                        self.context, strategy_step.subcloud_id,
+                        deploy_status=consts.DEPLOY_STATE_DATA_MIGRATION_FAILED)
                     raise Exception("Timeout waiting on reboot to complete")
                 time.sleep(self.failed_sleep_duration)
                 # skip the api_counter
@@ -101,6 +104,9 @@ class MigratingDataState(BaseState):
             # If the max counter is exceeeded, raise a timeout exception
             api_counter += 1
             if api_counter >= self.max_api_queries:
+                db_api.subcloud_update(
+                    self.context, strategy_step.subcloud_id,
+                    deploy_status=consts.DEPLOY_STATE_DATA_MIGRATION_FAILED)
                 raise Exception("Timeout waiting for unlock to complete")
             time.sleep(self.api_sleep_duration)
 

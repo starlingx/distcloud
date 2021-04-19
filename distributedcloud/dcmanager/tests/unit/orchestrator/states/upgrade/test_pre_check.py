@@ -207,6 +207,48 @@ class TestSwUpgradePreCheckStage(TestSwUpgradeState):
         self.assert_step_updated(self.strategy_step.subcloud_id,
                                  consts.STRATEGY_STATE_ACTIVATING_UPGRADE)
 
+    def test_upgrade_pre_check_subcloud_online_migrate_failed(self):
+        """Test pre check step where the subcloud is online following an unlock timeout
+
+        The pre-check in this scenario should advance directly to 'activating upgrade'.
+        """
+
+        p2 = mock.patch('dcmanager.db.api.subcloud_update')
+        self.mock_db_update = p2.start()
+        self.addCleanup(p2.stop)
+
+        # online subcloud running N+1 load
+        self.mock_db_query.return_value = FakeSubcloud(
+            availability_status=consts.AVAILABILITY_ONLINE,
+            deploy_status=consts.DEPLOY_STATE_DATA_MIGRATION_FAILED)
+
+        self.sysinv_client.get_system_health.return_value = \
+            SYSTEM_HEALTH_RESPONSE_MGMT_AFFECTING_ALARM
+
+        self.fm_client.get_alarms.return_value = [UPGRADE_ALARM, ]
+
+        self.sysinv_client.get_host_filesystem.side_effect = \
+            [CONTROLLER_0_HOST_FS_SCRATCH_MIN_SIZED]
+
+        # invoke the strategy state operation on the orch thread
+        self.worker.perform_state_action(self.strategy_step)
+
+        # verify the DB query was invoked
+        self.mock_db_query.assert_called()
+
+        # verify the get system health API call was invoked
+        self.sysinv_client.get_system_health.assert_called()
+
+        # verify the get host filesystem API call was invoked
+        self.sysinv_client.get_host_filesystem.assert_called()
+
+        # verify the DB update was invoked
+        self.mock_db_update.assert_called()
+
+        # Verify the expected next state happened (activating upgrade)
+        self.assert_step_updated(self.strategy_step.subcloud_id,
+                                 consts.STRATEGY_STATE_ACTIVATING_UPGRADE)
+
     def test_upgrade_pre_check_subcloud_online_host_locked_upgrade_started_mgmt_alarms(self):
         """Test pre check step where the subcloud is online, locked and upgrade has started.
 
@@ -268,6 +310,8 @@ class TestSwUpgradePreCheckStage(TestSwUpgradeState):
 
         # subcloud is locked
         self.sysinv_client.get_host.side_effect = [CONTROLLER_0_LOCKED]
+
+        self.sysinv_client.get_upgrades.return_value = []
 
         self.sysinv_client.get_system_health.return_value = \
             SYSTEM_HEALTH_RESPONSE_MGMT_AFFECTING_ALARM
@@ -406,11 +450,38 @@ class TestSwUpgradePreCheckStage(TestSwUpgradeState):
         self.assert_step_updated(self.strategy_step.subcloud_id,
                                  consts.STRATEGY_STATE_FAILED)
 
+    def test_upgrade_pre_check_subcloud_online_host_locked_pre_install_failed(self):
+        """Test pre check step where the subcloud is locked and install-failed
+
+        If the subcloud host is locked and the subcloud's deploy status is
+        pre-install-failed, this means the upgrading simplex step had previously
+        failed to retrieve the subcloud install data. Upon retry, the pre-check
+        should transition directly to upgrading simplex state.
+        """
+
+        # subcloud is online and deploy status is install-failed
+        self.mock_db_query.return_value = FakeSubcloud(
+            availability_status=consts.AVAILABILITY_ONLINE,
+            deploy_status=consts.DEPLOY_STATE_PRE_INSTALL_FAILED)
+
+        # subcloud is locked
+        self.sysinv_client.get_host.side_effect = [CONTROLLER_0_LOCKED]
+
+        # invoke the strategy state operation on the orch thread
+        self.worker.perform_state_action(self.strategy_step)
+
+        # verify the DB query was invoked
+        self.mock_db_query.assert_called()
+
+        # Verify the expected next state happened (upgrading)
+        self.assert_step_updated(self.strategy_step.subcloud_id,
+                                 consts.STRATEGY_STATE_UPGRADING_SIMPLEX)
+
     def test_upgrade_pre_check_subcloud_online_host_locked_install_failed(self):
         """Test pre check step where the subcloud is locked and install-failed
 
-        If the subcloud host is locked, the subcloud's deploy state is
-        install-failed it is still online; this means the remote install step
+        If the subcloud host is locked and the subcloud's deploy status is
+        install-failed and it is still online, this means the upgrading simplex step
         had previously failed early. Upon retry, the pre-check should transition
         directly to upgrading simplex state.
         """

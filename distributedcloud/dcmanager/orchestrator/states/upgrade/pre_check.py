@@ -40,10 +40,10 @@ class PreCheckState(BaseState):
         super(PreCheckState, self).__init__(
             next_state=consts.STRATEGY_STATE_INSTALLING_LICENSE, region_name=region_name)
 
-    def _perform_subcloud_online_checks(self, strategy_step, subcloud_sysinv_client,
-                                        subcloud_fm_client, host, alarm_ignore_list):
+    def _check_health(self, strategy_step, subcloud_sysinv_client, subcloud_fm_client,
+                      host, upgrades):
 
-        # check system health
+        # Check system health
         #
         # Sample output #1
         # ================
@@ -83,42 +83,66 @@ class PreCheckState(BaseState):
         failed_alarm_check = re.findall("No alarms: \[Fail\]", system_health)
         no_mgmt_alarms = re.findall("\[0\] of which are management affecting",
                                     system_health)
+
+        alarm_ignore_list = copy.copy(ALARM_IGNORE_LIST)
+        if (host.administrative == consts.ADMIN_LOCKED and upgrades):
+            alarm_ignore_list.append(HOST_ADMINISTRATIVELY_LOCKED_ALARM)
+
         # The health conditions acceptable for upgrade are:
         # a) subcloud is completely healthy (i.e. no failed checks)
         # b) subcloud only fails alarm check and it only has non-management
         #    affecting alarm(s)
         # c) the management alarm(s) that subcloud has once upgrade has started
         #    are upgrade alarm itself and host locked alarm
-
         if ((len(fails) == 0) or
                 (len(fails) == 1 and failed_alarm_check and no_mgmt_alarms)):
             self.info_log(strategy_step, "Health check passed.")
-        elif ((len(fails) > 1) or (len(fails) == 1 and not failed_alarm_check)):
-            # Multiple failures or kubernetes related failure which has not been
+            return
+
+        if not failed_alarm_check:
+            # Health check failure: no alarms involved
+            #
+            # These could be Kubernetes or other related failure(s) which has not been been
             # converted into an alarm condition.
-            details = "System health check failed due to multiple failures. " \
-                      "Please run 'system health-query' command on the " \
-                      "subcloud for more details."
+            details = "System health check failed. Please run 'system health-query' " \
+                      "command on the subcloud for more details."
             self.error_log(strategy_step, "\n" + system_health)
             raise PreCheckFailedException(
                 subcloud=strategy_step.subcloud.name,
                 details=details,
                 )
         else:
-            alarms = subcloud_fm_client.get_alarms()
-            for alarm in alarms:
-                if alarm.alarm_id not in alarm_ignore_list:
-                    if alarm.mgmt_affecting == "True":
-                        details = "System health check failed due to alarm %s. " \
-                                  "Please run 'system health-query' " \
-                                  "command on the subcloud for more details." % alarm.alarm_id
-                        self.error_log(strategy_step, "\n" + system_health)
-                        raise PreCheckFailedException(
-                            subcloud=strategy_step.subcloud.name,
-                            details=details,
-                            )
+            # Health check failure: one or more alarms
+            if (upgrades and (len(fails) == len(alarm_ignore_list))):
+                # Upgrade has started, previous try failed either before or after
+                # host lock.
+                return
+            elif len(fails) == 1:
+                # Healthy check failure: exclusively alarms related
+                alarms = subcloud_fm_client.get_alarms()
+                for alarm in alarms:
+                    if alarm.alarm_id not in alarm_ignore_list:
+                        if alarm.mgmt_affecting == "True":
+                            details = "System health check failed due to alarm %s. " \
+                                      "Please run 'system health-query' " \
+                                      "command on the subcloud for more details." % alarm.alarm_id
+                            self.error_log(strategy_step, "\n" + system_health)
+                            raise PreCheckFailedException(
+                                subcloud=strategy_step.subcloud.name,
+                                details=details,
+                                )
+            else:
+                # Multiple failures
+                details = "System health check failed due to multiple failures. " \
+                          "Please run 'system health-query' command on the " \
+                          "subcloud for more details."
+                self.error_log(strategy_step, "\n" + system_health)
+                raise PreCheckFailedException(
+                    subcloud=strategy_step.subcloud.name,
+                    details=details,
+                    )
 
-        # check scratch
+    def _check_scratch(self, strategy_step, subcloud_sysinv_client, host):
         scratch_fs = subcloud_sysinv_client.get_host_filesystem(
             host.uuid, HOST_FS_NAME_SCRATCH)
         if scratch_fs.size < MIN_SCRATCH_SIZE_REQUIRED_GB:
@@ -129,6 +153,14 @@ class PreCheckState(BaseState):
                 subcloud=strategy_step.subcloud.name,
                 details=details,
                 )
+
+    def _perform_subcloud_online_checks(self, strategy_step, subcloud_sysinv_client,
+                                        subcloud_fm_client, host, upgrades):
+
+        self._check_health(strategy_step, subcloud_sysinv_client, subcloud_fm_client,
+                           host, upgrades)
+
+        self._check_scratch(strategy_step, subcloud_sysinv_client, host)
 
     def perform_state_action(self, strategy_step):
         """This state will check if the subcloud is offline:
@@ -159,56 +191,60 @@ class PreCheckState(BaseState):
             subcloud_type = self.get_sysinv_client(
                 strategy_step.subcloud.name).get_system().system_mode
 
-            # Check presence of data_install values.  These are managed
-            # semantically on subcloud add or update
-            if subcloud_type == consts.SYSTEM_MODE_SIMPLEX and not subcloud.data_install:
-                details = ("Data install values are missing and must be updated "
-                           "via dcmanager subcloud update")
-                raise PreCheckFailedException(
-                    subcloud=strategy_step.subcloud.name,
-                    details=details)
-
-            if (host.administrative == consts.ADMIN_LOCKED and
-                    subcloud.deploy_status == consts.DEPLOY_STATE_INSTALL_FAILED):
-                # If the subcloud is online but its deploy state is install-failed
-                # and the subcloud host is locked, the upgrading simplex step must
-                # have failed early in the previous upgrade attempt. The pre-check
-                # should transition directly to upgrading simplex step in the
-                # retry.
-                self.override_next_state(consts.STRATEGY_STATE_UPGRADING_SIMPLEX)
-                return self.next_state
-
-            # We skip the subcloud online check if either the subcloud deploy status is
-            # "migrated" or the subcloud is a duplex subcloud and upgrade has started.
             upgrades = subcloud_sysinv_client.get_upgrades()
-            if (subcloud.deploy_status == consts.DEPLOY_STATE_MIGRATED or
-               (len(upgrades) != 0 and subcloud_type == consts.SYSTEM_MODE_DUPLEX)):
-                self.info_log(strategy_step,
-                              "Online subcloud checks skipped.")
+            if subcloud_type == consts.SYSTEM_MODE_SIMPLEX:
+                # Check presence of data_install values.  These are managed
+                # semantically on subcloud add or update
+                if not subcloud.data_install:
+                    details = ("Data install values are missing and must be updated "
+                               "via dcmanager subcloud update")
+                    raise PreCheckFailedException(
+                        subcloud=strategy_step.subcloud.name,
+                        details=details)
+
+                if (host.administrative == consts.ADMIN_LOCKED and
+                        (subcloud.deploy_status == consts.DEPLOY_STATE_INSTALL_FAILED or
+                         subcloud.deploy_status == consts.DEPLOY_STATE_PRE_INSTALL_FAILED)):
+                    # If the subcloud is online but its deploy state is pre-install-failed
+                    # or install-failed and the subcloud host is locked, the upgrading
+                    # simplex step must have failed early in the previous upgrade attempt.
+                    # The pre-check should transition directly to upgrading simplex step in the
+                    # retry.
+                    self.override_next_state(consts.STRATEGY_STATE_UPGRADING_SIMPLEX)
+                    return self.next_state
+
+                # Skip subcloud online checks if the subcloud deploy status is
+                # "migrated".
+                if subcloud.deploy_status == consts.DEPLOY_STATE_MIGRATED:
+                    self.info_log(strategy_step, "Online subcloud checks skipped.")
+                else:
+                    self._perform_subcloud_online_checks(strategy_step,
+                                                         subcloud_sysinv_client,
+                                                         subcloud_fm_client,
+                                                         host, upgrades)
+
+                if subcloud.deploy_status == consts.DEPLOY_STATE_MIGRATED:
+                    # If the subcloud has completed data migration, advance directly
+                    # to activating upgrade step.
+                    self.override_next_state(consts.STRATEGY_STATE_ACTIVATING_UPGRADE)
+                elif subcloud.deploy_status == consts.DEPLOY_STATE_DATA_MIGRATION_FAILED:
+                    # If the subcloud deploy status is data-migration-failed but
+                    # it is online and has passed subcloud online checks, it must have
+                    # timed out while waiting for the subcloud to reboot previously and
+                    # has succesfully been unlocked since. Update the subcloud deploy
+                    # status and advance to activating upgrade step.
+                    db_api.subcloud_update(
+                        self.context, strategy_step.subcloud_id,
+                        deploy_status=consts.DEPLOY_STATE_MIGRATED)
+                    self.override_next_state(consts.STRATEGY_STATE_ACTIVATING_UPGRADE)
             else:
-                alarm_ignore_list = copy.copy(ALARM_IGNORE_LIST)
-                if (host.administrative == consts.ADMIN_LOCKED and len(upgrades) != 0):
-                    alarm_ignore_list.append(HOST_ADMINISTRATIVELY_LOCKED_ALARM)
-
-                self._perform_subcloud_online_checks(strategy_step,
-                                                     subcloud_sysinv_client,
-                                                     subcloud_fm_client,
-                                                     host,
-                                                     alarm_ignore_list)
-
-            # If the subcloud has completed data migration and is online,
-            # advance directly to activating upgrade step. Otherwise, start
-            # from installing license step.
-            if subcloud.deploy_status == consts.DEPLOY_STATE_MIGRATED:
-                self.override_next_state(consts.STRATEGY_STATE_ACTIVATING_UPGRADE)
-
-            if (subcloud_type == consts.SYSTEM_MODE_DUPLEX and
-                    subcloud.deploy_status == consts.DEPLOY_STATE_DONE):
-                upgrades = self.get_sysinv_client(strategy_step.subcloud.name).get_upgrades()
-
-                if len(upgrades) != 0:
+                # Duplex case
+                if upgrades:
+                    # If upgrade has started, skip subcloud online checks
+                    self.info_log(strategy_step, "Online subcloud checks skipped.")
                     upgrade_state = upgrades[0].state
-                    if(upgrade_state == consts.UPGRADE_STATE_UPGRADING_CONTROLLERS):
+
+                    if (upgrade_state == consts.UPGRADE_STATE_UPGRADING_CONTROLLERS):
                         # At this point the subcloud is duplex, deploy state is complete
                         # and "system upgrade-show" on the subcloud indicates that the
                         # upgrade state is "upgrading-controllers".
@@ -220,7 +256,7 @@ class PreCheckState(BaseState):
                         else:
                             self.override_next_state(
                                 consts.STRATEGY_STATE_CREATING_VIM_UPGRADE_STRATEGY)
-                    elif(upgrade_state == consts.UPGRADE_STATE_UPGRADING_HOSTS):
+                    elif (upgrade_state == consts.UPGRADE_STATE_UPGRADING_HOSTS):
                         # At this point the subcloud is duplex, deploy state is complete
                         # and "system upgrade-show" on the subcloud indicates that the
                         # upgrade state is "upgrading-hosts".
@@ -248,15 +284,23 @@ class PreCheckState(BaseState):
                             else:
                                 self.override_next_state(
                                     consts.STRATEGY_STATE_SWACTING_TO_CONTROLLER_0)
-                    elif(upgrade_state == consts.UPGRADE_STATE_ACTIVATION_FAILED):
+                    elif (upgrade_state == consts.UPGRADE_STATE_ACTIVATION_FAILED):
                         if(host.capabilities.get('Personality') == consts.PERSONALITY_CONTROLLER_ACTIVE):
                             self.override_next_state(
                                 consts.STRATEGY_STATE_ACTIVATING_UPGRADE)
                         else:
                             self.override_next_state(
                                 consts.STRATEGY_STATE_SWACTING_TO_CONTROLLER_0)
-                    elif(upgrade_state == consts.UPGRADE_STATE_ACTIVATION_COMPLETE):
+                    elif (upgrade_state == consts.UPGRADE_STATE_ACTIVATION_COMPLETE):
                         self.override_next_state(consts.STRATEGY_STATE_COMPLETING_UPGRADE)
+
+                else:
+                    # Perform subcloud online check for duplex and proceed to the next step
+                    # (i.e. installing license)
+                    self._perform_subcloud_online_checks(strategy_step,
+                                                         subcloud_sysinv_client,
+                                                         subcloud_fm_client,
+                                                         host, upgrades)
             return self.next_state
 
         # If it gets here, the subcloud must be offline and is a simplex

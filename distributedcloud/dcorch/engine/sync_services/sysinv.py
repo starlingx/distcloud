@@ -326,7 +326,7 @@ class SysinvSyncThread(SyncThread):
             raise exceptions.SyncRequestFailedRetry
 
     def sync_iuser(self, s_os_client, request, rsrc):
-        # The system is populated with user entry for wrsroot.
+        # The system is populated with user entry for sysadmin.
         LOG.info("sync_user resource_info={}".format(
                  request.orch_job.resource_info),
                  extra=self.log_extra)
@@ -364,7 +364,7 @@ class SysinvSyncThread(SyncThread):
         # Ensure subcloud resource is persisted to the DB for later
         subcloud_rsrc_id = self.persist_db_subcloud_resource(
             rsrc.id, iuser.uuid)
-        LOG.info("User wrsroot {}:{} [{}] updated"
+        LOG.info("User sysadmin {}:{} [{}] updated"
                  .format(rsrc.id, subcloud_rsrc_id, passwd_hash),
                  extra=self.log_extra)
 

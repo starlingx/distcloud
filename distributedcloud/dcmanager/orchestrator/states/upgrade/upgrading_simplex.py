@@ -199,6 +199,12 @@ class UpgradingSimplexState(BaseState):
 
         subcloud = db_api.subcloud_get(self.context, strategy_step.subcloud_id)
         if not subcloud.data_install:
+            # Set the deploy status to pre-install-failed so it can be
+            # handled accordingly in pre check step.
+            db_api.subcloud_update(
+                self.context, strategy_step.subcloud_id,
+                deploy_status=consts.DEPLOY_STATE_PRE_INSTALL_FAILED)
+
             message = ("Failed to get upgrade data from install")
             self.warn_log(strategy_step, message)
             raise Exception(message)
