@@ -176,3 +176,18 @@ class TestSwUpdate(base.DCManagerTestCase):
     def assert_step_updated(self, subcloud_id, update_state):
         step = db_api.strategy_step_get(self.ctx, subcloud_id)
         self.assertEqual(step.state, update_state)
+
+    # utility methods to help assert the value of any subcloud attribute
+    def assert_subcloud_attribute(self, subcloud_id, attr_name, expected_val):
+        subcloud = db_api.subcloud_get(self.ctx, subcloud_id)
+        self.assertEqual(subcloud[attr_name], expected_val)
+
+    def assert_subcloud_software_version(self, subcloud_id, expected_val):
+        self.assert_subcloud_attribute(subcloud_id,
+                                       'software_version',
+                                       expected_val)
+
+    def assert_subcloud_deploy_status(self, subcloud_id, expected_val):
+        self.assert_subcloud_attribute(subcloud_id,
+                                       'deploy_status',
+                                       expected_val)
