@@ -195,7 +195,8 @@ class PatchAudit(object):
                     out_of_sync = True
             elif subcloud_patches[patch_id]['patchstate'] == \
                     patching_v1.PATCH_STATE_COMMITTED:
-                if patch_id not in audit_data.committed_patch_ids:
+                if (patch_id not in audit_data.committed_patch_ids and
+                        patch_id not in audit_data.applied_patch_ids):
                     LOG.warn("Patch %s should not be committed in %s" %
                              (patch_id, subcloud_name))
                     out_of_sync = True

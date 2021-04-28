@@ -81,6 +81,9 @@ class FakePatchingClientInSync(object):
                     'DC.3': {'sw_version': '17.07',
                              'repostate': 'Committed',
                              'patchstate': 'Committed'},
+                    'DC.4': {'sw_version': '17.07',
+                             'repostate': 'Applied',
+                             'patchstate': 'Applied'},
                     # This patch won't make us out of sync because it is for
                     # a different release.
                     'OTHER_REL_DC.1': {'sw_version': '17.08',
@@ -95,6 +98,9 @@ class FakePatchingClientInSync(object):
                              'repostate': 'Applied',
                              'patchstate': 'Applied'},
                     'DC.3': {'sw_version': '17.07',
+                             'repostate': 'Committed',
+                             'patchstate': 'Committed'},
+                    'DC.4': {'sw_version': '17.07',
                              'repostate': 'Committed',
                              'patchstate': 'Committed'},
                     }
