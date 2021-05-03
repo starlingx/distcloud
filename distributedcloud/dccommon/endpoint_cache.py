@@ -23,7 +23,6 @@
 import collections
 import threading
 
-from keystoneauth1 import exceptions as keystone_exceptions
 from keystoneauth1 import loading
 from keystoneauth1 import session
 
@@ -107,10 +106,6 @@ class EndpointCache(object):
                 CONF.endpoint_cache.password,
                 CONF.endpoint_cache.project_name,
                 CONF.endpoint_cache.project_domain_name)
-            # check if the current session is valid and get an admin session
-            # if necessary
-            self.admin_session = EndpointCache.get_admin_backup_session(
-                self.admin_session, CONF.endpoint_cache.username, sc_auth_url)
 
             self.keystone_client = ks_client.Client(
                 session=self.admin_session,
@@ -139,33 +134,6 @@ class EndpointCache(object):
         return session.Session(
             auth=user_auth, additional_headers=consts.USER_HEADER,
             timeout=timeout)
-
-    @classmethod
-    def get_admin_backup_session(cls, admin_session, user_name, auth_url):
-        """Validate a session and open an admin session if it fails.
-
-        This method is require to handle an upgrade to stx 4.0 and it
-        can be removed in stx 5.0.
-
-        """
-
-        try:
-            admin_session.get_auth_headers()
-        except keystone_exceptions.Unauthorized:
-            # this will only happen briefly during an upgrade to stx 4.0
-            # just until the dcorch has synced the dcmanager user to each
-            # subcloud
-            LOG.info("Failed to authenticate user:%s, use %s user instead"
-                     % (user_name,
-                        CONF.cache.admin_username))
-            admin_session = EndpointCache.get_admin_session(
-                auth_url,
-                CONF.cache.admin_username,
-                CONF.cache.admin_user_domain_name,
-                CONF.cache.admin_password,
-                CONF.cache.admin_tenant,
-                CONF.cache.admin_project_domain_name)
-        return admin_session
 
     @staticmethod
     def _is_central_cloud(region_id):

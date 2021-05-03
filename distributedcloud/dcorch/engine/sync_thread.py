@@ -193,10 +193,6 @@ class SyncThread(object):
                     config.admin_project_domain_name,
                     timeout=60)
 
-            if config is cfg.CONF.endpoint_cache:
-                self.sc_admin_session = EndpointCache.get_admin_backup_session(
-                    self.sc_admin_session, config.username, sc_auth_url)
-
     def initial_sync(self):
         # Return True to indicate initial sync success
         return True
