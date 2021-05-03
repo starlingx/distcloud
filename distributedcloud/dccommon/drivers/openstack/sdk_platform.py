@@ -83,6 +83,9 @@ class OpenStackDriver(object):
                 OpenStackDriver.update_region_clients(region_name,
                                                       KEYSTONE_CLIENT_NAME,
                                                       self.keystone_client)
+                # Clear client object cache
+                OpenStackDriver.os_clients_dict[region_name] = \
+                    collections.defaultdict(dict)
             except Exception as exception:
                 LOG.error('keystone_client region %s error: %s' %
                           (region_name, str(exception)))
@@ -185,14 +188,18 @@ class OpenStackDriver(object):
                     OpenStackDriver._identity_tokens[region_name],
                     include_catalog=False)
                 if token != OpenStackDriver._identity_tokens[region_name]:
-                    LOG.debug("%s: updating token %s to %s" %
+                    LOG.debug("%s: AccessInfo changed %s to %s" %
                               (region_name,
                                OpenStackDriver._identity_tokens[region_name],
                                token))
-                    OpenStackDriver._identity_tokens[region_name] = token
+                    OpenStackDriver._identity_tokens[region_name] = None
+                    OpenStackDriver.os_clients_dict[region_name] = \
+                        collections.defaultdict(dict)
+                    return False
 
         except Exception as exception:
-            LOG.info('_is_token_valid handle: %s', str(exception))
+            LOG.info('_is_token_valid handle: region: %s error: %s',
+                     (region_name, str(exception)))
             # Reset the cached dictionary
             OpenStackDriver.os_clients_dict[region_name] = \
                 collections.defaultdict(dict)

@@ -75,7 +75,11 @@ ENDPOINT_TYPE = "endpoint_type"
 SERVICE_GROUP_STATUS_ACTIVE = "active"
 
 # Availability fail count
-AVAIL_FAIL_COUNT_TO_ALARM = 1
+# we don't want to alarm first failure since there are
+# cases where we expect a transient failure in the
+# subcloud (e.g. haproxy process restart to update
+# certificates)
+AVAIL_FAIL_COUNT_TO_ALARM = 2
 AVAIL_FAIL_COUNT_MAX = 9999
 
 # Software update strategy types
