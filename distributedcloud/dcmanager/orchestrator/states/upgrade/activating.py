@@ -9,7 +9,6 @@ from dcmanager.common import consts
 from dcmanager.common.exceptions import StrategyStoppedException
 from dcmanager.orchestrator.states.base import BaseState
 
-
 ACTIVATING_COMPLETED_STATES = ['activation-complete',
                                'aborting']
 
@@ -35,8 +34,16 @@ class ActivatingUpgradeState(BaseState):
         self.max_failed_retries = MAX_FAILED_RETRIES
 
     def get_upgrade_state(self, strategy_step):
-        upgrades = self.get_sysinv_client(
-            strategy_step.subcloud.name).get_upgrades()
+        try:
+            upgrades = self.get_sysinv_client(
+                strategy_step.subcloud.name).get_upgrades()
+
+        except Exception as exception:
+            self.warn_log(strategy_step,
+                          "Encountered exception: %s, "
+                          "retry upgrade activation for subcloud %s."
+                          % (str(exception), strategy_step.subcloud.name))
+            return ACTIVATING_RETRY_STATES[0]
 
         if len(upgrades) == 0:
             raise Exception("No upgrades were found to activate")
@@ -81,8 +88,15 @@ class ActivatingUpgradeState(BaseState):
                 self.info_log(strategy_step,
                               "Activation failed, retrying... State=%s"
                               % upgrade_state)
-                self.get_sysinv_client(
-                    strategy_step.subcloud.name).upgrade_activate()
+                try:
+                    self.get_sysinv_client(
+                        strategy_step.subcloud.name).upgrade_activate()
+                except Exception as exception:
+                    self.warn_log(strategy_step,
+                                  "Encountered exception: %s, "
+                                  "retry upgrade activation for subcloud %s."
+                                  % (str(exception),
+                                     strategy_step.subcloud.name))
             elif upgrade_state in ACTIVATING_IN_PROGRESS_STATES:
                 self.info_log(strategy_step,
                               "Activation in progress, waiting... State=%s"
