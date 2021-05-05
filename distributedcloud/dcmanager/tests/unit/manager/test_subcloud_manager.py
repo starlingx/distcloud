@@ -276,6 +276,8 @@ class TestSubcloudManager(base.DCManagerTestCase):
         self.assertEqual(self.ctx, sm.context)
 
     @mock.patch.object(subcloud_manager.SubcloudManager,
+                       'compose_rehome_command')
+    @mock.patch.object(subcloud_manager.SubcloudManager,
                        '_create_intermediate_ca_cert')
     @mock.patch.object(cutils, 'delete_subcloud_inventory')
     @mock.patch.object(subcloud_manager, 'OpenStackDriver')
@@ -295,7 +297,8 @@ class TestSubcloudManager(base.DCManagerTestCase):
                           mock_create_addn_hosts, mock_sysinv_client,
                           mock_keystone_client,
                           mock_delete_subcloud_inventory,
-                          mock_create_intermediate_ca_cert):
+                          mock_create_intermediate_ca_cert,
+                          mock_compose_rehome_command):
         values = utils.create_subcloud_dict(base.SUBCLOUD_SAMPLE_DATA_0)
         values['deploy_status'] = consts.DEPLOY_STATE_NONE
         controllers = FAKE_CONTROLLERS
@@ -317,6 +320,7 @@ class TestSubcloudManager(base.DCManagerTestCase):
         mock_keyring.get_password.assert_called()
         mock_thread_start.assert_called_once()
         mock_create_intermediate_ca_cert.assert_called_once()
+        mock_compose_rehome_command.assert_not_called()
 
         # Verify subcloud was updated with correct values
         self.assertEqual(consts.DEPLOY_STATE_PRE_DEPLOY,
@@ -325,6 +329,64 @@ class TestSubcloudManager(base.DCManagerTestCase):
         # Verify subcloud was updated with correct values
         updated_subcloud = db_api.subcloud_get_by_name(self.ctx, values['name'])
         self.assertEqual(consts.DEPLOY_STATE_PRE_DEPLOY,
+                         updated_subcloud.deploy_status)
+
+    @mock.patch.object(subcloud_manager.SubcloudManager,
+                       'compose_rehome_command')
+    @mock.patch.object(subcloud_manager.SubcloudManager,
+                       '_create_intermediate_ca_cert')
+    @mock.patch.object(cutils, 'delete_subcloud_inventory')
+    @mock.patch.object(subcloud_manager, 'OpenStackDriver')
+    @mock.patch.object(subcloud_manager, 'SysinvClient')
+    @mock.patch.object(subcloud_manager.SubcloudManager,
+                       '_create_addn_hosts_dc')
+    @mock.patch.object(cutils, 'create_subcloud_inventory')
+    @mock.patch.object(subcloud_manager.SubcloudManager,
+                       '_write_subcloud_ansible_config')
+    @mock.patch.object(subcloud_manager,
+                       'keyring')
+    @mock.patch.object(threading.Thread,
+                       'start')
+    def test_add_subcloud_with_migration_option(
+        self, mock_thread_start, mock_keyring,
+        mock_write_subcloud_ansible_config,
+        mock_create_subcloud_inventory,
+        mock_create_addn_hosts, mock_sysinv_client,
+        mock_keystone_client,
+        mock_delete_subcloud_inventory,
+        mock_create_intermediate_ca_cert,
+        mock_compose_rehome_command):
+        values = utils.create_subcloud_dict(base.SUBCLOUD_SAMPLE_DATA_0)
+        values['deploy_status'] = consts.DEPLOY_STATE_NONE
+        values['migrate'] = 'true'
+        controllers = FAKE_CONTROLLERS
+
+        # dcmanager add_subcloud queries the data from the db
+        self.create_subcloud_static(self.ctx, name=values['name'])
+
+        mock_sysinv_client().get_controller_hosts.return_value = controllers
+        mock_keystone_client().keystone_client = FakeKeystoneClient()
+        mock_keyring.get_password.return_value = "testpassword"
+
+        sm = subcloud_manager.SubcloudManager()
+        subcloud_dict = sm.add_subcloud(self.ctx, payload=values)
+        mock_sysinv_client().create_route.assert_called()
+        self.fake_dcorch_api.add_subcloud.assert_called_once()
+        mock_create_addn_hosts.assert_called_once()
+        mock_create_subcloud_inventory.assert_called_once()
+        mock_write_subcloud_ansible_config.assert_called_once()
+        mock_keyring.get_password.assert_called_with('smapi', 'services')
+        mock_thread_start.assert_called_once()
+        mock_create_intermediate_ca_cert.assert_called_once()
+        mock_compose_rehome_command.assert_called_once()
+
+        # Verify subcloud was updated with correct values
+        self.assertEqual(consts.DEPLOY_STATE_PRE_REHOME,
+                         subcloud_dict['deploy-status'])
+
+        # Verify subcloud was updated with correct values
+        updated_subcloud = db_api.subcloud_get_by_name(self.ctx, values['name'])
+        self.assertEqual(consts.DEPLOY_STATE_PRE_REHOME,
                          updated_subcloud.deploy_status)
 
     @mock.patch.object(subcloud_manager, 'OpenStackDriver')
@@ -350,6 +412,31 @@ class TestSubcloudManager(base.DCManagerTestCase):
         # Verify subcloud was updated with correct values
         subcloud = db_api.subcloud_get_by_name(self.ctx, values['name'])
         self.assertEqual(consts.DEPLOY_STATE_DEPLOY_PREP_FAILED,
+                         subcloud.deploy_status)
+
+    @mock.patch.object(subcloud_manager, 'OpenStackDriver')
+    @mock.patch.object(subcloud_manager, 'SysinvClient')
+    def test_add_subcloud_with_migrate_option_prep_failed(
+        self, mock_sysinv_client, mock_keystone_client):
+        values = utils.create_subcloud_dict(base.SUBCLOUD_SAMPLE_DATA_0)
+        values['migrate'] = 'true'
+        controllers = FAKE_CONTROLLERS
+        services = FAKE_SERVICES
+
+        # dcmanager add_subcloud queries the data from the db
+        self.create_subcloud_static(self.ctx, name=values['name'])
+
+        self.fake_dcorch_api.add_subcloud.side_effect = FakeException('boom')
+        mock_sysinv_client().get_controller_hosts.return_value = controllers
+        mock_keystone_client().services_list = services
+
+        sm = subcloud_manager.SubcloudManager()
+        sm.add_subcloud(self.ctx, payload=values)
+        mock_sysinv_client().create_route.assert_called()
+
+        # Verify subcloud was updated with correct values
+        subcloud = db_api.subcloud_get_by_name(self.ctx, values['name'])
+        self.assertEqual(consts.DEPLOY_STATE_REHOME_PREP_FAILED,
                          subcloud.deploy_status)
 
     @mock.patch.object(subcloud_manager.SubcloudManager,
@@ -1065,6 +1152,19 @@ class TestSubcloudManager(base.DCManagerTestCase):
                 'ansible-playbook', 'test_playbook.yaml', '-e',
                 '@/opt/dc/ansible/subcloud1_deploy_values.yml', '-i',
                 '/opt/dc/ansible/subcloud1_inventory.yml', '--limit', 'subcloud1'
+            ]
+        )
+
+    def test_compose_rehome_command(self):
+        sm = subcloud_manager.SubcloudManager()
+        rehome_command = sm.compose_rehome_command(
+            'subcloud1', '/opt/dc/ansible/subcloud1_inventory.yml')
+        self.assertEqual(
+            rehome_command,
+            [
+                'ansible-playbook', subcloud_manager.ANSIBLE_SUBCLOUD_REHOME_PLAYBOOK, '-i',
+                '/opt/dc/ansible/subcloud1_inventory.yml', '--limit', 'subcloud1', '-e',
+                "override_files_dir='/opt/dc/ansible' region_name=subcloud1"
             ]
         )
 

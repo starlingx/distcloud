@@ -75,6 +75,8 @@ ANSIBLE_SUBCLOUD_RESTORE_PLAYBOOK = \
     '/usr/share/ansible/stx-ansible/playbooks/restore_platform.yml'
 ANSIBLE_HOST_VALIDATION_PLAYBOOK = \
     '/usr/share/ansible/stx-ansible/playbooks/validate_host.yml'
+ANSIBLE_SUBCLOUD_REHOME_PLAYBOOK = \
+    '/usr/share/ansible/stx-ansible/playbooks/rehome_subcloud.yml'
 
 USERS_TO_REPLICATE = [
     'sysinv',
@@ -256,6 +258,15 @@ class SubcloudManager(manager.Manager):
 
         return restore_command
 
+    def compose_rehome_command(self, subcloud_name, ansible_subcloud_inventory_file):
+        rehome_command = [
+            "ansible-playbook", ANSIBLE_SUBCLOUD_REHOME_PLAYBOOK,
+            "-i", ansible_subcloud_inventory_file,
+            "--limit", subcloud_name,
+            "-e", str("override_files_dir='%s' region_name=%s") % (
+                consts.ANSIBLE_OVERRIDES_PATH, subcloud_name)]
+        return rehome_command
+
     def add_subcloud(self, context, payload):
         """Add subcloud and notify orchestrators.
 
@@ -265,9 +276,17 @@ class SubcloudManager(manager.Manager):
         LOG.info("Adding subcloud %s." % payload['name'])
         subcloud_id = db_api.subcloud_get_by_name(context, payload['name']).id
 
-        subcloud = db_api.subcloud_update(
-            context, subcloud_id,
-            deploy_status=consts.DEPLOY_STATE_PRE_DEPLOY)
+        # Check the migrate option from payload
+        migrate_str = payload.get('migrate', '')
+        migrate_flag = (migrate_str.lower() == 'true')
+        if migrate_flag:
+            subcloud = db_api.subcloud_update(
+                context, subcloud_id,
+                deploy_status=consts.DEPLOY_STATE_PRE_REHOME)
+        else:
+            subcloud = db_api.subcloud_update(
+                context, subcloud_id,
+                deploy_status=consts.DEPLOY_STATE_PRE_DEPLOY)
 
         # Populate the subcloud status table with all endpoints
         for endpoint in dcorch_consts.ENDPOINT_TYPES_LIST:
@@ -430,6 +449,12 @@ class SubcloudManager(manager.Manager):
                 payload['users'][user] = \
                     str(keyring.get_password(
                         user, dccommon_consts.SERVICES_USER_NAME))
+            # The password of smapi user is expected to the aligned during rehoming
+            # a subcloud. Add smapi into the user to replace list.
+            if migrate_flag:
+                payload['users']['smapi'] = \
+                    str(keyring.get_password(
+                        'smapi', dccommon_consts.SERVICES_USER_NAME))
 
             # Create the ansible inventory for the new subcloud
             utils.create_subcloud_inventory(payload,
@@ -442,19 +467,29 @@ class SubcloudManager(manager.Manager):
             # NOTE: This file should not be deleted if subcloud add fails
             # as it is used for debugging
             self._write_subcloud_ansible_config(context, payload)
-            install_command = None
-            if "install_values" in payload:
-                install_command = self.compose_install_command(
+
+            if migrate_flag:
+                rehome_command = self.compose_rehome_command(
                     subcloud.name,
                     ansible_subcloud_inventory_file)
-            apply_command = self.compose_apply_command(
-                subcloud.name,
-                ansible_subcloud_inventory_file)
+                apply_thread = threading.Thread(
+                    target=self.run_deploy,
+                    args=(subcloud, payload, context,
+                          None, None, None, None, None, rehome_command))
+            else:
+                install_command = None
+                if "install_values" in payload:
+                    install_command = self.compose_install_command(
+                        subcloud.name,
+                        ansible_subcloud_inventory_file)
+                apply_command = self.compose_apply_command(
+                    subcloud.name,
+                    ansible_subcloud_inventory_file)
+                apply_thread = threading.Thread(
+                    target=self.run_deploy,
+                    args=(subcloud, payload, context,
+                          install_command, apply_command, deploy_command))
 
-            apply_thread = threading.Thread(
-                target=self.run_deploy,
-                args=(subcloud, payload, context,
-                      install_command, apply_command, deploy_command))
             apply_thread.start()
 
             return db_api.subcloud_db_model_to_dict(subcloud)
@@ -463,9 +498,14 @@ class SubcloudManager(manager.Manager):
             LOG.exception("Failed to create subcloud %s" % payload['name'])
             # If we failed to create the subcloud, update the
             # deployment status
-            db_api.subcloud_update(
-                context, subcloud.id,
-                deploy_status=consts.DEPLOY_STATE_DEPLOY_PREP_FAILED)
+            if migrate_flag:
+                db_api.subcloud_update(
+                    context, subcloud.id,
+                    deploy_status=consts.DEPLOY_STATE_REHOME_PREP_FAILED)
+            else:
+                db_api.subcloud_update(
+                    context, subcloud.id,
+                    deploy_status=consts.DEPLOY_STATE_DEPLOY_PREP_FAILED)
 
     def reconfigure_subcloud(self, context, subcloud_id, payload):
         """Reconfigure subcloud
@@ -570,7 +610,7 @@ class SubcloudManager(manager.Manager):
             apply_thread = threading.Thread(
                 target=self.run_deploy,
                 args=(subcloud, payload, context,
-                      install_command, apply_command, None))
+                      install_command, apply_command))
             apply_thread.start()
             return db_api.subcloud_db_model_to_dict(subcloud)
         except Exception:
@@ -705,7 +745,7 @@ class SubcloudManager(manager.Manager):
     def run_deploy(subcloud, payload, context,
                    install_command=None, apply_command=None,
                    deploy_command=None, check_target_command=None,
-                   restore_command=None):
+                   restore_command=None, rehome_command=None):
 
         log_file = os.path.join(consts.DC_ANSIBLE_LOG_DIR, subcloud.name) + \
             '_playbook_output.log'
@@ -831,6 +871,29 @@ class SubcloudManager(manager.Manager):
                     deploy_status=consts.DEPLOY_STATE_RESTORE_FAILED)
                 return
             LOG.info("Successfully restored controller-0 of subcloud %s" %
+                     subcloud.name)
+
+        if rehome_command:
+            # Update the deploy status to rehoming
+            db_api.subcloud_update(
+                context, subcloud.id,
+                deploy_status=consts.DEPLOY_STATE_REHOMING)
+
+            # Run the rehome-subcloud playbook
+            try:
+                run_playbook(log_file, rehome_command)
+            except PlaybookExecutionFailed:
+                msg = "Failed to run the subcloud rehome playbook" \
+                      " for subcloud %s, check individual log at " \
+                      "%s for detailed output." % (
+                          subcloud.name,
+                          log_file)
+                LOG.error(msg)
+                db_api.subcloud_update(
+                    context, subcloud.id,
+                    deploy_status=consts.DEPLOY_STATE_REHOME_FAILED)
+                return
+            LOG.info("Successfully rehomed subcloud %s" %
                      subcloud.name)
 
         db_api.subcloud_update(
