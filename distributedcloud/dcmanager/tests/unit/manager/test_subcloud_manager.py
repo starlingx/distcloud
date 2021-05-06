@@ -1163,8 +1163,9 @@ class TestSubcloudManager(base.DCManagerTestCase):
             rehome_command,
             [
                 'ansible-playbook', subcloud_manager.ANSIBLE_SUBCLOUD_REHOME_PLAYBOOK, '-i',
-                '/opt/dc/ansible/subcloud1_inventory.yml', '--limit', 'subcloud1', '-e',
-                "override_files_dir='/opt/dc/ansible' region_name=subcloud1"
+                '/opt/dc/ansible/subcloud1_inventory.yml', '--limit', 'subcloud1',
+                '--timeout', subcloud_manager.REHOME_PLAYBOOK_TIMEOUT,
+                '-e', "override_files_dir='/opt/dc/ansible' region_name=subcloud1"
             ]
         )
 

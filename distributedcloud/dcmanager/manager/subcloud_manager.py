@@ -87,6 +87,10 @@ USERS_TO_REPLICATE = [
     'barbican',
     'dcmanager']
 
+# The timeout of the rehome playbook is set to 180 seconds as it takes a
+# long time for privilege escalation before resetting the host route and
+# LDAP server address in a subcloud.
+REHOME_PLAYBOOK_TIMEOUT = "180"  # 180 seconds
 SC_INTERMEDIATE_CERT_DURATION = "8760h"  # 1 year = 24 hours x 365
 SC_INTERMEDIATE_CERT_RENEW_BEFORE = "720h"  # 30 days
 CERT_NAMESPACE = "dc-cert"
@@ -263,6 +267,7 @@ class SubcloudManager(manager.Manager):
             "ansible-playbook", ANSIBLE_SUBCLOUD_REHOME_PLAYBOOK,
             "-i", ansible_subcloud_inventory_file,
             "--limit", subcloud_name,
+            "--timeout", REHOME_PLAYBOOK_TIMEOUT,
             "-e", str("override_files_dir='%s' region_name=%s") % (
                 consts.ANSIBLE_OVERRIDES_PATH, subcloud_name)]
         return rehome_command
