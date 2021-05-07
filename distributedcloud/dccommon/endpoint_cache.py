@@ -84,17 +84,17 @@ class EndpointCache(object):
         if (not auth_url and region_name and
                 region_name not in
                 [consts.CLOUD_0, consts.VIRTUAL_MASTER_CLOUD]):
-            identity_service = self.keystone_client.services.list(
-                name='keystone', type='identity')
-            sc_auth_url = self.keystone_client.endpoints.list(
-                service=identity_service[0].id,
-                interface=consts.KS_ENDPOINT_ADMIN,
-                region=region_name)
             try:
+                identity_service = self.keystone_client.services.list(
+                    name='keystone', type='identity')
+                sc_auth_url = self.keystone_client.endpoints.list(
+                    service=identity_service[0].id,
+                    interface=consts.KS_ENDPOINT_ADMIN,
+                    region=region_name)
                 sc_auth_url = sc_auth_url[0].url
-            except IndexError:
-                LOG.error("Cannot find identity auth_url for %s", region_name)
-                EndpointCache.master_keystone_client = None
+            except Exception:
+                LOG.error("Cannot find identity service or auth_url for %s", region_name)
+                self.re_initialize_master_keystone_client()
                 raise
 
             # We assume that the dcmanager user names and passwords are the
@@ -244,3 +244,9 @@ class EndpointCache(object):
                 EndpointCache.master_keystone_client = ks_client.Client(
                     session=self.admin_session,
                     region_name=consts.CLOUD_0)
+
+    @lockutils.synchronized(LOCK_NAME)
+    def re_initialize_master_keystone_client(self):
+        EndpointCache.master_keystone_client = ks_client.Client(
+            session=self.admin_session,
+            region_name=consts.CLOUD_0)
