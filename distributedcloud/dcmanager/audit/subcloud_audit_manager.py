@@ -228,6 +228,9 @@ class SubcloudAuditManager(manager.Manager):
                 audit_kubernetes = True
                 # Reset force_kubernetes_audit only when kubernetes audit has been fired
                 SubcloudAuditManager.reset_force_kubernetes_audit()
+            # the force_patch_audit flag is also used to evaluate audit_load
+            # so reset it here, even if it is not set
+            SubcloudAuditManager.reset_force_patch_audit()
 
         # Trigger a firmware audit as it is changed through proxy
         if SubcloudAuditManager.force_firmware_audit:
