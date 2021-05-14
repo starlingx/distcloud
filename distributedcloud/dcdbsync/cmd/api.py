@@ -66,8 +66,9 @@ def main():
 
     app.serve(service, CONF, workers)
 
-    LOG.info("Configuration:")
-    CONF.log_opt_values(LOG, std_logging.INFO)
+    LOG.info("Starting...")
+    LOG.debug("Configuration:")
+    CONF.log_opt_values(LOG, std_logging.DEBUG)
 
     app.wait()
 

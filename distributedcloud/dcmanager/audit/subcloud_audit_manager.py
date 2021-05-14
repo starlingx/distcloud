@@ -267,7 +267,7 @@ class SubcloudAuditManager(manager.Manager):
         """Audit availability of subclouds loop."""
 
         # We will be running in our own green thread here.
-        LOG.info('Triggered subcloud audit.')
+        LOG.debug('Triggered subcloud audit.')
         self.audit_count += 1
 
         # Determine whether to trigger a state update to each subcloud.
@@ -336,27 +336,29 @@ class SubcloudAuditManager(manager.Manager):
                 # It might make sense to split it out.
                 if audit.patch_audit_requested or audit.load_audit_requested:
                     audit_patch = True
-                    LOG.info("DB says patch audit needed")
+                    LOG.debug("DB says patch audit needed")
                     break
         if not audit_firmware:
             for audit in subcloud_audits:
                 if audit.firmware_audit_requested:
-                    LOG.info("DB says firmware audit needed")
+                    LOG.debug("DB says firmware audit needed")
                     audit_firmware = True
                     break
         if not audit_kubernetes:
             for audit in subcloud_audits:
                 if audit.kubernetes_audit_requested:
-                    LOG.info("DB says kubernetes audit needed")
+                    LOG.debug("DB says kubernetes audit needed")
                     audit_kubernetes = True
                     break
+        LOG.info("Triggered subcloud audit: patch=(%s) firmware=(%s) kube=(%s)"
+                 % (audit_patch, audit_firmware, audit_kubernetes))
         patch_audit_data, firmware_audit_data, kubernetes_audit_data = \
             self._get_audit_data(audit_patch, audit_firmware, audit_kubernetes)
-        LOG.info("patch_audit_data: %s, "
-                 "firmware_audit_data: %s, "
-                 "kubernetes_audit_data: %s, " % (patch_audit_data,
-                                                  firmware_audit_data,
-                                                  kubernetes_audit_data))
+        LOG.debug("patch_audit_data: %s, "
+                  "firmware_audit_data: %s, "
+                  "kubernetes_audit_data: %s, " % (patch_audit_data,
+                                                   firmware_audit_data,
+                                                   kubernetes_audit_data))
 
         # We want a chunksize of at least 1 so add the number of workers.
         chunksize = (len(subcloud_audits) + CONF.audit_worker_workers) / CONF.audit_worker_workers

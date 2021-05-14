@@ -31,7 +31,6 @@ from dccommon.drivers.openstack.sysinv_v1 import SysinvClient
 from dcorch.common import consts as dcorch_consts
 
 from dcmanager.common import consts
-from dcmanager.common.i18n import _
 from dcmanager.common import utils
 
 LOG = logging.getLogger(__name__)
@@ -65,7 +64,7 @@ class PatchAudit(object):
     """Manages tasks related to patch audits."""
 
     def __init__(self, context, dcmanager_rpc_client):
-        LOG.info(_('PatchAudit initialization...'))
+        LOG.debug('PatchAudit initialization...')
         self.context = context
         self.dcmanager_rpc_client = dcmanager_rpc_client
         self.audit_count = 0

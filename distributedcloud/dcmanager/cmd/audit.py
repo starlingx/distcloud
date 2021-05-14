@@ -54,8 +54,9 @@ def main():
     launcher = service.launch(cfg.CONF,
                               srv, workers=CONF.audit_workers)
 
-    LOG.info("Configuration:")
-    cfg.CONF.log_opt_values(LOG, logging.INFO)
+    LOG.info("Starting...")
+    LOG.debug("Configuration:")
+    cfg.CONF.log_opt_values(LOG, logging.DEBUG)
 
     launcher.wait()
 

@@ -57,8 +57,9 @@ def main():
     launcher = service.launch(cfg.CONF,
                               srv, workers=cfg.CONF.workers)
 
-    LOG.info("Configuration:")
-    cfg.CONF.log_opt_values(LOG, logging.INFO)
+    LOG.info("Starting...")
+    LOG.debug("Configuration:")
+    cfg.CONF.log_opt_values(LOG, logging.DEBUG)
 
     # the following periodic tasks are intended serve as HA checking
     # srv.create_periodic_tasks()

@@ -53,8 +53,9 @@ def main():
     launcher = service.launch(CONF,
                               srv, workers=cfg.CONF.orch_workers)
 
-    LOG.info("Configuration:")
-    CONF.log_opt_values(LOG, logging.INFO)
+    LOG.info("Starting...")
+    LOG.debug("Configuration:")
+    CONF.log_opt_values(LOG, logging.DEBUG)
 
     launcher.wait()
 

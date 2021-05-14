@@ -163,8 +163,9 @@ class DCManagerService(service.Service):
                                         SYNC_STATUS_OUT_OF_SYNC,
                                         alarmable=True):
         # Updates subcloud endpoint sync status
-        LOG.info("Handling update_subcloud_endpoint_status request for: %s" %
-                 subcloud_name)
+        LOG.info("Handling update_subcloud_endpoint_status request for "
+                 "subcloud: (%s) endpoint: (%s) status:(%s) "
+                 % (subcloud_name, endpoint_type, sync_status))
 
         self.subcloud_manager. \
             update_subcloud_endpoint_status(context,
