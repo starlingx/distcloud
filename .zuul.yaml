@@ -27,6 +27,7 @@
     name: stx-distcloud-tox-py27
     parent: tox
     description: Run py27 for distcloud
+    nodeset: ubuntu-xenial
     required-projects:
       - starlingx/fault
       - starlingx/nfv
@@ -40,6 +41,7 @@
     name: stx-distcloud-tox-py36
     parent: tox
     description: Run py36 for distcloud
+    nodeset: ubuntu-bionic
     required-projects:
       - starlingx/fault
       - starlingx/nfv
@@ -53,6 +55,7 @@
     name: stx-distcloud-tox-pylint
     parent: tox
     description: Run pylint for distcloud
+    nodeset: ubuntu-bionic
     required-projects:
       - starlingx/fault
       - starlingx/nfv
