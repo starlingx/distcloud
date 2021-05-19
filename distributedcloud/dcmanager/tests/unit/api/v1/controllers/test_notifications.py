@@ -46,3 +46,14 @@ class TestNotificationsController(testroot.DCManagerApiTest):
         self.assertEqual(response.status_code, http_client.OK)
         mock_audit_rpc_client().trigger_load_audit.assert_called_once_with(
             mock.ANY)
+
+    @mock.patch.object(audit_rpc_client, 'ManagerAuditClient')
+    def test_post_k8(self, mock_audit_rpc_client):
+        mock_audit_rpc_client().trigger_kubernetes_audit.return_value = None
+        post_url = FAKE_URL
+        params = json.dumps({'events': ['k8s-upgrade-completed']})
+        response = self.app.post(post_url, params=params, headers=FAKE_HEADERS)
+        self.assertEqual(response.content_type, 'application/json')
+        self.assertEqual(response.status_code, http_client.OK)
+        mock_audit_rpc_client().trigger_kubernetes_audit.assert_called_once_with(
+            mock.ANY)
