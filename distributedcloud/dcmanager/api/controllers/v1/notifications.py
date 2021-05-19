@@ -51,10 +51,15 @@ class NotificationsController(object):
 
         events = request.json_body['events']
         if 'platform-upgrade-completed' in events:
-            # We're being notified that an upgrade has completed, so
-            # we want to trigger a load audit of all subclouds on the
+            # We're being notified that a platform upgrade has completed,
+            # so we want to trigger a load audit of all subclouds on the
             # next audit cycle.
             context = restcomm.extract_context_from_environ()
             self.audit_rpc_client.trigger_load_audit(context)
-
+        if 'k8s-upgrade-completed' in events:
+            # We're being notified that a kubernetes upgrade has completed,
+            # so we want to trigger a kubernetes audit of all subclouds on
+            # the next audit cycle.
+            context = restcomm.extract_context_from_environ()
+            self.audit_rpc_client.trigger_kubernetes_audit(context)
         return
