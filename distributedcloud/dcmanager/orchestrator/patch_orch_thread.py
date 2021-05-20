@@ -645,6 +645,40 @@ class PatchOrchThread(threading.Thread):
             # Strategy doesn't exist yet
             subcloud_strategy = None
 
+        if subcloud_strategy is not None:
+            # if a strategy exists, it should be deleted and a new one created
+            LOG.info("Patch VIM strategy for: %s already exists with state: %s"
+                     % (region, subcloud_strategy.state))
+            # A VIM strategy in building/applying/aborting can not be deleted.
+            # Set as FAILED if we encounter a strategy in one of those states.
+            if subcloud_strategy.state in [vim.STATE_BUILDING,
+                                           vim.STATE_APPLYING,
+                                           vim.STATE_ABORTING]:
+                # Can't delete a strategy in these states
+                message = ("Failed to create a VIM strategy for %s. "
+                           "There already is an existing strategy in %s state"
+                           % (region, subcloud_strategy.state))
+                LOG.warn(message)
+                self.strategy_step_update(strategy_step.subcloud_id,
+                                          state=consts.STRATEGY_STATE_FAILED,
+                                          details=message)
+                return
+            else:
+                try:
+                    self.get_vim_client(region).delete_strategy(
+                        strategy_name=vim.STRATEGY_NAME_SW_PATCH)
+                    # If we get here, the delete worked, so set it to None
+                    subcloud_strategy = None
+                except Exception:
+                    # we were unable to delete (and set to None) the strategy
+                    message = ("Strategy delete for %s failed" % region)
+                    LOG.warn(message)
+                    self.strategy_step_update(
+                        strategy_step.subcloud_id,
+                        state=consts.STRATEGY_STATE_FAILED,
+                        details=message)
+                    return
+
         if subcloud_strategy is None:
             # Check whether any patch orchestration is actually required. We
             # always create a step for the SystemController and it may have
