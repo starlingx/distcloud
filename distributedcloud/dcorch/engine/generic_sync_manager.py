@@ -558,8 +558,8 @@ class GenericSyncManager(object):
         for sc in subclouds:
             if sc.region_name in self.sync_objs.keys():
                 for e in self.sync_objs[sc.region_name].keys():
-                    LOG.info("Attempt audit_subcloud: %s/%s/%s",
-                             engine_id, sc.region_name, e)
+                    LOG.debug("Attempt audit_subcloud: %s/%s/%s",
+                              engine_id, sc.region_name, e)
                     self.audit_subcloud(self.context, engine_id,
                                         sc.region_name, e, 'audit')
             else:
@@ -576,8 +576,8 @@ class GenericSyncManager(object):
                 # self.sync_objs stores the sync object per endpoint
                 if sc.region_name in self.sync_objs.keys():
                     for e in self.sync_objs[sc.region_name].keys():
-                        LOG.info("Attempt audit_subcloud: %s/%s/%s",
-                                 engine_id, sc.region_name, e)
+                        LOG.debug("Attempt audit_subcloud: %s/%s/%s",
+                                  engine_id, sc.region_name, e)
                         self.audit_subcloud(self.context, engine_id,
                                             sc.region_name, e, 'audit')
                 else:

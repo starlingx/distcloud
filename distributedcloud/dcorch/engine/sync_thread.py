@@ -309,8 +309,9 @@ class SyncThread(object):
             self.ctxt, self.endpoint_type,
             target_region_name=region_name,
             states=states)
-        LOG.info("Got " + str(len(sync_requests)) + " sync request(s)",
-                 extra=self.log_extra)
+        if(len(sync_requests) != 0):
+            LOG.info("Got " + str(len(sync_requests)) + " sync request(s)",
+                     extra=self.log_extra)
         # todo: for each request look up sync handler based on
         # resource type (I'm assuming here we're not storing a python
         # object in the DB)
@@ -483,7 +484,7 @@ class SyncThread(object):
 
                 if sc_resources is None or m_resources is None:
                     return
-                LOG.info("Audit {}".format(
+                LOG.debug("Audit {}".format(
                     resource_type),
                     extra=self.log_extra)
                 LOG.debug("Auditing {}: master={} db={} sc={}".format(
@@ -658,8 +659,9 @@ class SyncThread(object):
                 # Resource implementation should handle this.
                 num_of_audit_jobs += self.audit_dependants(
                     resource_type, m_r, None)
-        LOG.info("audit_find_missing {} num_of_audit_jobs".
-                 format(num_of_audit_jobs), extra=self.log_extra)
+        if(num_of_audit_jobs != 0):
+            LOG.info("audit_find_missing {} num_of_audit_jobs".
+                     format(num_of_audit_jobs), extra=self.log_extra)
         return num_of_audit_jobs
 
     def audit_find_extra(self, resource_type, m_resources,
