@@ -784,11 +784,14 @@ class TestSubcloudAPIOther(testroot.DCManagerApiTest):
     @mock.patch.object(subclouds.SubcloudsController,
                        '_get_oam_addresses')
     @mock.patch.object(rpc_client, 'ManagerClient')
-    def test_get_subcloud_with_additional_detail(self,
-                                                 mock_rpc_client,
-                                                 mock_get_oam_addresses):
+    def test_get_online_subcloud_with_additional_detail(self,
+                                                        mock_rpc_client,
+                                                        mock_get_oam_addresses):
         subcloud = fake_subcloud.create_fake_subcloud(self.ctx)
-        get_url = FAKE_URL + '/' + str(subcloud.id) + '/detail'
+        updated_subcloud = db_api.subcloud_update(
+            self.ctx, subcloud.id, availability_status=consts.AVAILABILITY_ONLINE)
+
+        get_url = FAKE_URL + '/' + str(updated_subcloud.id) + '/detail'
         oam_addresses = FakeOAMAddressPool('10.10.10.254',
                                            '10.10.10.1',
                                            '10.10.10.254',
@@ -802,6 +805,16 @@ class TestSubcloudAPIOther(testroot.DCManagerApiTest):
         self.assertEqual(response.status_code, http_client.OK)
         self.assertEqual('10.10.10.2', response.json['oam_floating_ip'])
 
+    @mock.patch.object(rpc_client, 'ManagerClient')
+    def test_get_offline_subcloud_with_additional_detail(self,
+                                                         mock_rpc_client):
+        subcloud = fake_subcloud.create_fake_subcloud(self.ctx)
+        get_url = FAKE_URL + '/' + str(subcloud.id) + '/detail'
+        response = self.app.get(get_url, headers=FAKE_HEADERS)
+        self.assertEqual(response.content_type, 'application/json')
+        self.assertEqual(response.status_code, http_client.OK)
+        self.assertEqual('unavailable', response.json['oam_floating_ip'])
+
     @mock.patch.object(subclouds.SubcloudsController,
                        '_get_oam_addresses')
     @mock.patch.object(rpc_client, 'ManagerClient')
@@ -809,7 +822,10 @@ class TestSubcloudAPIOther(testroot.DCManagerApiTest):
                                              mock_rpc_client,
                                              mock_get_oam_addresses):
         subcloud = fake_subcloud.create_fake_subcloud(self.ctx)
-        get_url = FAKE_URL + '/' + str(subcloud.id) + '/detail'
+        updated_subcloud = db_api.subcloud_update(
+            self.ctx, subcloud.id, availability_status=consts.AVAILABILITY_ONLINE)
+
+        get_url = FAKE_URL + '/' + str(updated_subcloud.id) + '/detail'
         mock_get_oam_addresses.return_value = None
         response = self.app.get(get_url, headers=FAKE_HEADERS)
         self.assertEqual(response.content_type, 'application/json')

@@ -784,12 +784,13 @@ class SubcloudsController(object):
             subcloud_dict.update(endpoint_sync_dict)
 
             if detail is not None:
-                oam_addresses = self._get_oam_addresses(context,
-                                                        subcloud_ref)
-                if oam_addresses is not None:
-                    oam_floating_ip = oam_addresses.oam_floating_ip
-                else:
-                    oam_floating_ip = "unavailable"
+                oam_floating_ip = "unavailable"
+                if subcloud.availability_status == consts.AVAILABILITY_ONLINE:
+                    oam_addresses = self._get_oam_addresses(context,
+                                                            subcloud.name)
+                    if oam_addresses is not None:
+                        oam_floating_ip = oam_addresses.oam_floating_ip
+
                 floating_ip_dict = {"oam_floating_ip":
                                     oam_floating_ip}
                 subcloud_dict.update(floating_ip_dict)
