@@ -6,10 +6,10 @@
 import mock
 
 from dcmanager.common import consts
+from dcmanager.db.sqlalchemy import api as db_api
 from dcmanager.orchestrator.states.upgrade import migrating_data
 
 from dcmanager.tests.unit.orchestrator.states.fakes import FakeController
-from dcmanager.tests.unit.orchestrator.states.fakes import FakeSubcloud
 from dcmanager.tests.unit.orchestrator.states.upgrade.test_base  \
     import TestSwUpgradeState
 
@@ -97,14 +97,11 @@ class TestSwUpgradeMigratingDataStage(TestSwUpgradeState):
     def test_upgrade_subcloud_migrating_data_skip_migration_done(self):
         """Test the migrating data step skipped (migration completed)"""
 
-        # Mock the db API call
-        p = mock.patch('dcmanager.db.api.subcloud_get')
-        self.mock_db_query = p.start()
-        self.addCleanup(p.stop)
-
         # online subcloud running N load
-        self.mock_db_query.return_value = FakeSubcloud(
-            deploy_status=consts.DEPLOY_STATE_MIGRATED)
+        # Update the subcloud to have deploy state as "migrated"
+        db_api.subcloud_update(self.ctx,
+                               self.subcloud.id,
+                               deploy_status=consts.DEPLOY_STATE_MIGRATED)
 
         # Invoke the strategy state operation on the orch thread
         self.worker.perform_state_action(self.strategy_step)
@@ -116,14 +113,11 @@ class TestSwUpgradeMigratingDataStage(TestSwUpgradeState):
     def test_upgrade_subcloud_migrating_data_skip_deployment_done(self):
         """Test the migrating data step skipped (deployment completed)"""
 
-        # Mock the db API call
-        p = mock.patch('dcmanager.db.api.subcloud_get')
-        self.mock_db_query = p.start()
-        self.addCleanup(p.stop)
-
         # online subcloud running N load
-        self.mock_db_query.return_value = FakeSubcloud(
-            deploy_status=consts.DEPLOY_STATE_DONE)
+        # Update the subcloud to have deploy state as "done"
+        db_api.subcloud_update(self.ctx,
+                               self.subcloud.id,
+                               deploy_status=consts.DEPLOY_STATE_DONE)
 
         # Invoke the strategy state operation on the orch thread
         self.worker.perform_state_action(self.strategy_step)
@@ -135,24 +129,15 @@ class TestSwUpgradeMigratingDataStage(TestSwUpgradeState):
     def test_upgrade_subcloud_migrating_data_interrupted_migration(self):
         """Test the migrating data step skipped"""
 
-        # Mock the db API calls
-        p1 = mock.patch('dcmanager.db.api.subcloud_get')
-        self.mock_db_query = p1.start()
-        self.addCleanup(p1.stop)
-
-        p2 = mock.patch('dcmanager.db.api.subcloud_update')
-        self.mock_db_update = p2.start()
-        self.addCleanup(p2.stop)
-
         # online subcloud running N load
-        self.mock_db_query.return_value = FakeSubcloud(
+        # Update the subcloud to have deploy state as "migrating data"
+        db_api.subcloud_update(
+            self.ctx,
+            self.subcloud.id,
             deploy_status=consts.DEPLOY_STATE_MIGRATING_DATA)
 
         # Invoke the strategy state operation on the orch thread
         self.worker.perform_state_action(self.strategy_step)
-
-        # verify the DB update was invoked
-        self.mock_db_update.assert_called()
 
         # Cannot resume the migration, the state goes to failed
         self.assert_step_updated(self.strategy_step.subcloud_id,

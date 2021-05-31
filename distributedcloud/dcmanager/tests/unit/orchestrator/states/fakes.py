@@ -7,10 +7,6 @@ import mock
 import uuid
 
 from dcmanager.common import consts
-from oslo_utils import timeutils
-
-from dcmanager.tests.unit.common.fake_subcloud \
-    import FAKE_SUBCLOUD_INSTALL_VALUES
 
 
 PREVIOUS_PREVIOUS_VERSION = '01.23'
@@ -160,41 +156,6 @@ class FakeLoad(object):
 
     def to_dict(self):
         return dict(self.__dict__)
-
-
-class FakeSubcloud(object):
-    def __init__(self,
-                 subcloud_id=1,
-                 name='subcloud1',
-                 group_id=1,
-                 description='subcloud',
-                 location='A location',
-                 software_version=PREVIOUS_VERSION,
-                 management_state=consts.MANAGEMENT_MANAGED,
-                 availability_status=consts.AVAILABILITY_ONLINE,
-                 deploy_status=consts.DEPLOY_STATE_DONE,
-                 data_install=FAKE_SUBCLOUD_INSTALL_VALUES):
-        self.id = subcloud_id
-        self.name = name
-        self.group_id = group_id
-        self.description = description
-        self.location = location
-        self.software_version = software_version
-        self.management_state = management_state
-        self.availability_status = availability_status
-        self.deploy_status = deploy_status
-        # todo(abailey): add these and re-factor other unit tests to use
-        # self.management_subnet = management_subnet
-        # self.management_gateway_ip = management_gateway_ip
-        # self.management_start_ip = management_start_ip
-        # self.management_end_ip = management_end_ip
-        # self.external_oam_subnet = external_oam_subnet
-        # self.external_oam_gateway_address = external_oam_gateway_address
-        # self.external_oam_floating_address = external_oam_floating_address
-        # self.systemcontroller_gateway_ip = systemcontroller_gateway_ip
-        self.data_install = data_install
-        self.created_at = timeutils.utcnow()
-        self.updated_at = timeutils.utcnow()
 
 
 class FakeSysinvClient(object):

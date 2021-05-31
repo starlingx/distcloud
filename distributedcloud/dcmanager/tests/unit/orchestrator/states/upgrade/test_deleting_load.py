@@ -7,13 +7,13 @@ import itertools
 import mock
 
 from dcmanager.common import consts
-from dcmanager.manager.states.upgrade import deleting_load
+from dcmanager.orchestrator.states.upgrade import deleting_load
 
-from dcmanager.tests.unit.manager.states.fakes import FakeLoad
-from dcmanager.tests.unit.manager.states.fakes import PREVIOUS_PREVIOUS_VERSION
-from dcmanager.tests.unit.manager.states.fakes import PREVIOUS_VERSION
-from dcmanager.tests.unit.manager.states.fakes import UPGRADED_VERSION
-from dcmanager.tests.unit.manager.states.upgrade.test_base  \
+from dcmanager.tests.unit.orchestrator.states.fakes import FakeLoad
+from dcmanager.tests.unit.orchestrator.states.fakes import PREVIOUS_PREVIOUS_VERSION
+from dcmanager.tests.unit.orchestrator.states.fakes import PREVIOUS_VERSION
+from dcmanager.tests.unit.orchestrator.states.fakes import UPGRADED_VERSION
+from dcmanager.tests.unit.orchestrator.states.upgrade.test_base  \
     import TestSwUpgradeState
 
 PREVIOUS_LOAD = FakeLoad(1, software_version=PREVIOUS_VERSION,
@@ -36,9 +36,9 @@ SUCCESS_DELETE_RESPONSE = {
 }
 
 
-@mock.patch("dcmanager.manager.states.upgrade.deleting_load.DEFAULT_MAX_QUERIES",
+@mock.patch("dcmanager.orchestrator.states.upgrade.deleting_load.DEFAULT_MAX_QUERIES",
             3)
-@mock.patch("dcmanager.manager.states.upgrade.deleting_load.DEFAULT_SLEEP_DURATION",
+@mock.patch("dcmanager.orchestrator.states.upgrade.deleting_load.DEFAULT_SLEEP_DURATION",
             1)
 class TestSwUpgradeDeletingLoadStage(TestSwUpgradeState):
 
@@ -47,6 +47,9 @@ class TestSwUpgradeDeletingLoadStage(TestSwUpgradeState):
 
         # next state after 'importing load' is 'starting upgrade'
         self.on_success_state = consts.STRATEGY_STATE_COMPLETE
+
+        # Add the subcloud being processed by this unit test
+        self.subcloud = self.setup_subcloud()
 
         # Add the strategy_step state being processed by this unit test
         self.strategy_step = \

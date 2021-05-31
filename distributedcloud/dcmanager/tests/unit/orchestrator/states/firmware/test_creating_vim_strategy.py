@@ -17,7 +17,7 @@ from dcmanager.tests.unit.orchestrator.states.firmware.test_base \
 
 STRATEGY_BUILDING = FakeVimStrategy(state=vim.STATE_BUILDING)
 STRATEGY_DONE_BUILDING = FakeVimStrategy(state=vim.STATE_READY_TO_APPLY)
-STRATEGY_FAILED_BUILDING = FakeVimStrategy(vim.STATE_BUILD_FAILED)
+STRATEGY_FAILED_BUILDING = FakeVimStrategy(state=vim.STATE_BUILD_FAILED)
 
 
 @mock.patch("dcmanager.orchestrator.states.firmware.creating_vim_strategy."
