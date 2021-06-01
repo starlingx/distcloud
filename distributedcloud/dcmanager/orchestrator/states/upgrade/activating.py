@@ -66,23 +66,48 @@ class ActivatingUpgradeState(BaseState):
                           "Already in an activating state:%s" % upgrade_state)
             return self.next_state
 
-        # invoke the API 'upgrade-activate'.
-        # Throws an exception on failure (no upgrade found, bad host state)
-        self.get_sysinv_client(strategy_step.subcloud.name).upgrade_activate()
-        # Need to loop until changed to a activating completed state
+        # Need to loop
+        # - attempt an initial activate one or more times
+        # - loop until state changed to a activating completed state
+        # - re-attempt activate if activation fails
         audit_counter = 0
         activate_retry_counter = 0
+        first_activate = True
         while True:
             # If event handler stop has been triggered, fail the state
             if self.stopped():
                 raise StrategyStoppedException()
-            upgrade_state = self.get_upgrade_state(strategy_step)
 
+            # if max retries have occurred, fail the state
+            if activate_retry_counter >= self.max_failed_retries:
+                raise Exception("Failed to activate upgrade. Please check "
+                                "sysinv.log on the subcloud for details.")
+
+            # We may need multiple attempts to issue the first activate
+            # if keystone is down, impacting the ability to send the activate
+            if first_activate:
+                # invoke the API 'upgrade-activate'.
+                # Normally only auth failures deserve retry
+                # (no upgrade found, bad host state, auth)
+                try:
+                    self.get_sysinv_client(
+                        strategy_step.subcloud.name).upgrade_activate()
+                    first_activate = False  # clear first activation flag
+                    activate_retry_counter = 0  # reset activation retries
+                except Exception as exception:
+                    # increment the retry counter on failure
+                    activate_retry_counter += 1
+                    self.warn_log(strategy_step,
+                                  "Encountered exception: %s, "
+                                  "retry upgrade activation for subcloud %s."
+                                  % (str(exception),
+                                     strategy_step.subcloud.name))
+                    # cannot flow into the remaining code. sleep  / continue
+                    time.sleep(self.sleep_duration)
+                    continue
+
+            upgrade_state = self.get_upgrade_state(strategy_step)
             if upgrade_state in ACTIVATING_RETRY_STATES:
-                if activate_retry_counter >= self.max_failed_retries:
-                    raise Exception("Failed to activate upgrade. Please "
-                                    "check sysinv.log on the subcloud for "
-                                    "details.")
                 # We failed.  Better try again
                 activate_retry_counter += 1
                 self.info_log(strategy_step,

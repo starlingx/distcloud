@@ -186,8 +186,8 @@ class TestSwUpgradeActivatingStage(TestSwUpgradeState):
         self.assertEqual(activating.MAX_FAILED_RETRIES + 1,
                          self.sysinv_client.upgrade_activate.call_count)
 
-        # verify the get_upgrades query was invoked: 2 + MAX_FAILED_RETRIES times
-        self.assertEqual(activating.MAX_FAILED_RETRIES + 2,
+        # verify get_upgrades query was invoked: 1 + MAX_FAILED_RETRIES times
+        self.assertEqual(activating.MAX_FAILED_RETRIES + 1,
                          self.sysinv_client.get_upgrades.call_count)
 
         # Exceeds maximum retries. state goes to failed
