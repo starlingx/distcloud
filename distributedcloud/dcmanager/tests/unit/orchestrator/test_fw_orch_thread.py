@@ -8,6 +8,7 @@ import mock
 from dccommon.drivers.openstack import vim
 from dcmanager.common import consts
 from dcmanager.common import exceptions as exception
+from dcmanager.common import scheduler
 from dcmanager.db.sqlalchemy import api as db_api
 from dcmanager.orchestrator.orch_thread import OrchThread
 
@@ -15,6 +16,11 @@ from dcmanager.tests.unit.common import fake_strategy
 from dcmanager.tests.unit.fakes import FakeVimClient
 from dcmanager.tests.unit.fakes import FakeVimStrategy
 from dcmanager.tests.unit.orchestrator.test_base import TestSwUpdate
+
+
+# rather than invoke a thread, we invoke the function immediately
+def non_threaded_start(some_function, some_arguments):
+    some_function(some_arguments)
 
 
 class TestFwOrchThread(TestSwUpdate):
@@ -60,7 +66,8 @@ class TestFwOrchThread(TestSwUpdate):
                           self.ctx,
                           consts.SW_UPDATE_TYPE_FIRMWARE)
 
-    def test_delete_strategy_single_step_no_vim_strategy(self):
+    @mock.patch.object(scheduler.ThreadGroupManager, 'start')
+    def test_delete_strategy_single_step_no_vim_strategy(self, mock_start):
         # The 'strategy' needs to be in 'deleting'
         self.strategy = self.setup_strategy(
             state=consts.SW_UPDATE_STATE_DELETING)
@@ -71,6 +78,8 @@ class TestFwOrchThread(TestSwUpdate):
 
         # If the subcloud does not have a vim strategy, it raises an exception
         self.vim_client.get_strategy.side_effect = Exception
+
+        mock_start.side_effect = non_threaded_start
 
         # invoke the strategy (not strategy step) operation on the orch thread
         self.worker.delete(self.strategy)
@@ -88,7 +97,11 @@ class TestFwOrchThread(TestSwUpdate):
         steps = db_api.strategy_step_get_all(self.ctx)
         self.assertEqual(steps, [])
 
-    def test_delete_strategy_single_step_with_vim_strategy(self):
+    @mock.patch.object(scheduler.ThreadGroupManager, 'start')
+    def test_delete_strategy_single_step_with_vim_strategy(self, mock_start):
+
+        mock_start.side_effect = non_threaded_start
+
         # The 'strategy' needs to be in 'deleting'
         self.strategy = self.setup_strategy(
             state=consts.SW_UPDATE_STATE_DELETING)

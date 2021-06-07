@@ -381,14 +381,36 @@ class OrchThread(threading.Thread):
         strategy_steps = db_api.strategy_step_get_all(self.context)
 
         for strategy_step in strategy_steps:
-            self.delete_subcloud_strategy(strategy_step)
+            region = self.get_region_name(strategy_step)
+            if region in self.subcloud_workers:
+                # A worker already exists. Let it finish whatever it
+                # was doing.
+                LOG.debug("Worker already exists for %s." % region)
+            else:
+                # Create a greenthread to delete the subcloud strategy
+                delete_thread = \
+                    self.thread_group_manager.start(
+                        self.delete_subcloud_strategy,
+                        strategy_step)
+                if delete_thread:
+                    self.subcloud_workers[region] = delete_thread
 
             if self.stopped():
                 LOG.info("(%s) Exiting because task is stopped"
                          % self.update_type)
                 return
 
-        # Remove the strategy from the database
+        # Wait for 180 seconds so that last 100 workers can
+        # complete their execution
+        counter = 0
+        while len(self.subcloud_workers) > 0:
+            time.sleep(10)
+            counter = counter + 1
+            if counter > 18:
+                break
+
+        # Remove the strategy from the database if all workers
+        # have completed their execution
         try:
             db_api.strategy_step_destroy_all(self.context)
             db_api.sw_update_strategy_destroy(self.context)
@@ -398,6 +420,22 @@ class OrchThread(threading.Thread):
             raise e
 
     def delete_subcloud_strategy(self, strategy_step):
+        """Delete the update strategy in this subcloud
+
+        Removes the worker reference after the operation is complete.
+        """
+
+        try:
+            self.do_delete_subcloud_strategy(strategy_step)
+        except Exception as e:
+            LOG.exception(e)
+        finally:
+            # The worker is done.
+            region = self.get_region_name(strategy_step)
+            if region in self.subcloud_workers:
+                del self.subcloud_workers[region]
+
+    def do_delete_subcloud_strategy(self, strategy_step):
         """Delete the vim strategy in this subcloud"""
         region = self.get_region_name(strategy_step)
 
@@ -411,11 +449,7 @@ class OrchThread(threading.Thread):
         except (keystone_exceptions.EndpointNotFound, IndexError):
             message = ("(%s) Endpoint for subcloud: %s not found." %
                        (self.update_type, region))
-            LOG.error(message)
-            self.strategy_step_update(
-                strategy_step.subcloud_id,
-                state=consts.STRATEGY_STATE_FAILED,
-                details=message)
+            LOG.warn(message)
             return
         except Exception:
             # Strategy doesn't exist so there is nothing to do
@@ -430,7 +464,7 @@ class OrchThread(threading.Thread):
                        % (self.update_type, self.vim_strategy_name, region,
                           subcloud_strategy.state))
             LOG.warn(message)
-            raise Exception(message)
+            return
 
         # If we are here, we need to delete the strategy
         try:
@@ -440,7 +474,7 @@ class OrchThread(threading.Thread):
             message = ("(%s) Vim strategy:(%s) delete failed for region:(%s)"
                        % (self.update_type, self.vim_strategy_name, region))
             LOG.warn(message)
-            raise
+            return
 
     def process_update_step(self, region, strategy_step, log_error=False):
         """manage the green thread for calling perform_state_action"""

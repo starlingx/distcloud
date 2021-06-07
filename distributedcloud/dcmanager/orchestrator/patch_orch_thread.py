@@ -973,6 +973,22 @@ class PatchOrchThread(threading.Thread):
             time.sleep(WAIT_INTERVAL)
 
     def delete_subcloud_strategy(self, strategy_step):
+        """Delete the patch strategy in this subcloud
+
+        Removes the worker reference after the operation is complete.
+        """
+
+        try:
+            self.do_delete_subcloud_strategy(strategy_step)
+        except Exception as e:
+            LOG.exception(e)
+        finally:
+            # The worker is done.
+            region = self.get_region_name(strategy_step)
+            if region in self.subcloud_workers:
+                del self.subcloud_workers[region]
+
+    def do_delete_subcloud_strategy(self, strategy_step):
         """Delete the patch strategy in this subcloud"""
 
         region = self.get_region_name(strategy_step)
@@ -986,11 +1002,7 @@ class PatchOrchThread(threading.Thread):
         except (keystone_exceptions.EndpointNotFound, IndexError):
             message = ("Endpoint for subcloud: %s not found." %
                        region)
-            LOG.error(message)
-            self.strategy_step_update(
-                strategy_step.subcloud_id,
-                state=consts.STRATEGY_STATE_FAILED,
-                details=message)
+            LOG.warn(message)
             return
         except Exception:
             # Strategy doesn't exist so there is nothing to do
@@ -1003,7 +1015,7 @@ class PatchOrchThread(threading.Thread):
             message = ("Strategy for %s in wrong state (%s)for delete" %
                        (region, subcloud_strategy.state))
             LOG.warn(message)
-            raise Exception(message)
+            return
 
         # If we are here, we need to delete the strategy
         try:
@@ -1012,7 +1024,7 @@ class PatchOrchThread(threading.Thread):
         except Exception:
             message = "Strategy delete failed for %s" % region
             LOG.warn(message)
-            raise
+            return
 
     def finish(self, strategy_step):
         """Clean up patches in this subcloud (commit, delete)
@@ -1162,13 +1174,33 @@ class PatchOrchThread(threading.Thread):
         strategy_steps = db_api.strategy_step_get_all(self.context)
 
         for strategy_step in strategy_steps:
-            self.delete_subcloud_strategy(strategy_step)
+            region = self.get_region_name(strategy_step)
+            if region in self.subcloud_workers:
+                # A worker already exists. Let it finish whatever it
+                # was doing.
+                LOG.debug("Worker already exists for %s." % region)
+            else:
+                # Create a greenthread to delete the subcloud strategy
+                self.subcloud_workers[region] = \
+                    self.thread_group_manager.start(
+                        self.delete_subcloud_strategy,
+                        strategy_step)
 
             if self.stopped():
                 LOG.info("Exiting because task is stopped")
                 return
 
-        # Remove the strategy from the database
+        # Wait for 180 seconds so that last 100 workers can
+        # complete their execution
+        counter = 0
+        while len(self.subcloud_workers) > 0:
+            time.sleep(10)
+            counter = counter + 1
+            if counter > 18:
+                break
+
+        # Remove the strategy from the database if all workers
+        # have completed their execution
         try:
             db_api.strategy_step_destroy_all(self.context)
             db_api.sw_update_strategy_destroy(self.context)
