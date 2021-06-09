@@ -82,6 +82,17 @@ SUBCLOUD_ADD_GET_FILE_CONTENTS = [
     INSTALL_VALUES,
 ]
 
+BOOTSTRAP_VALUES_ADDRESSES = [
+    'bootstrap-address', 'management_start_address', 'management_end_address',
+    'management_gateway_address', 'systemcontroller_gateway_address',
+    'external_oam_gateway_address', 'external_oam_floating_address'
+]
+
+INSTALL_VALUES_ADDRESSES = [
+    'bootstrap_address', 'bmc_address', 'nexthop_gateway',
+    'network_address'
+]
+
 # The following parameters can be provided by the user for
 # remote subcloud restore
 #   - initial_backup_dir (default to /opt/platform-backup)
@@ -444,6 +455,31 @@ class SubcloudsController(object):
             LOG.exception(e)
             pecan.abort(400, _("oam_floating_address invalid: %s") % e)
         self._validate_group_id(context, group_id)
+
+    def _format_ip_address(self, payload):
+        """Format IP addresses in 'bootstrap_values' and 'install_values'.
+
+           The IPv6 addresses can be represented in multiple ways. Format and
+           update the IP addresses in payload before saving it to database.
+        """
+        if INSTALL_VALUES in payload:
+            for k in INSTALL_VALUES_ADDRESSES:
+                if k in payload[INSTALL_VALUES]:
+                    try:
+                        address = IPAddress(payload[INSTALL_VALUES].get(k)).format()
+                    except AddrFormatError as e:
+                        LOG.exception(e)
+                        pecan.abort(400, _("%s invalid: %s") % (k, e))
+                    payload[INSTALL_VALUES].update({k: address})
+
+        for k in BOOTSTRAP_VALUES_ADDRESSES:
+            if k in payload:
+                try:
+                    address = IPAddress(payload.get(k)).format()
+                except AddrFormatError as e:
+                    LOG.exception(e)
+                    pecan.abort(400, _("%s invalid: %s") % (k, e))
+                payload.update({k: address})
 
     @staticmethod
     def _validate_install_values(payload):
@@ -895,6 +931,8 @@ class SubcloudsController(object):
                                            group_id)
 
             self._validate_install_values(payload)
+
+            self._format_ip_address(payload)
 
             # Upload the deploy config files if it is included in the request
             # It has a dependency on the subcloud name, and it is called after

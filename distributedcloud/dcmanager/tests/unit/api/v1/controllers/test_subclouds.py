@@ -334,6 +334,33 @@ class TestSubcloudPost(testroot.DCManagerApiTest,
                                  headers=self.get_api_headers())
         self._verify_post_success(response)
 
+    def test_post_subcloud_bad_bootstrap_address(self):
+        """Test POST operation with a bad bootstrap-address"""
+
+        param_key = "bootstrap-address"
+        # bootstrap-address must be valid IP address
+        bad_values = ["10.10.10.wut",  # including letters in the IP
+                      "10.10.10.276"   # 276 is invalid
+                      ]
+        good_values = "10.10.10.3"
+        self._test_post_param_inputs(param_key,
+                                     bad_values,
+                                     good_values)
+
+    def test_post_subcloud_bad_IPv6_bootstrap_address(self):
+        """Test POST operation with a bad bootstrap-address"""
+
+        param_key = "bootstrap-address"
+        # bootstrap-address must be valid IP address
+        bad_values = ["2620::10a:a103::1135",      # more than one double colons
+                      "2620:10a:a001:a103::wut",   # invalid letter
+                      "2620:10a:a001:a103:1135"    # Incomplete IP
+                      ]
+        good_values = "2620:10a:a001:a103::1135"
+        self._test_post_param_inputs(param_key,
+                                     bad_values,
+                                     good_values)
+
     def test_post_subcloud_bad_gateway(self):
         """Test POST with an invalid gateway."""
 
@@ -1166,6 +1193,35 @@ class TestSubcloudAPIOther(testroot.DCManagerApiTest):
         self.assertEqual(bootstrap_file, "/opt/dc/ansible/subcloud1.yml")
         self.assertEqual(install_values, "/opt/dc/ansible/subcloud1/install_values.yml")
         self.assertEqual(deploy_config, "/opt/dc/ansible/subcloud1_deploy_config.yml")
+
+    @mock.patch.object(rpc_client, 'ManagerClient')
+    def test_format_ip_address(self, mock_rpc_client):
+        sc = subclouds.SubcloudsController()
+        fake_payload = dict()
+        good_values = {
+            '10.10.10.3': '10.10.10.3',
+            '2620:10a:a001:a103::1135': '2620:10a:a001:a103::1135',
+            '2620:10A:A001:A103::1135': '2620:10a:a001:a103::1135',      # with upper case letters
+            '2620:010a:a001:a103::1135': '2620:10a:a001:a103::1135',     # with leading zeros
+            '2620:10a:a001:a103:0000::1135': '2620:10a:a001:a103::1135'  # with a string of zeros
+            }
+
+        for k, v in good_values.items():
+            fake_payload.update({'bootstrap-address': k})
+            sc._format_ip_address(fake_payload)
+            self.assertEqual(fake_payload['bootstrap-address'], v)
+
+        fake_payload[subclouds.INSTALL_VALUES] = dict()
+        for k, v in good_values.items():
+            fake_payload[subclouds.INSTALL_VALUES].update({'bmc_address': k})
+            sc._format_ip_address(fake_payload)
+            self.assertEqual(fake_payload[subclouds.INSTALL_VALUES]['bmc_address'], v)
+
+        fake_payload.update({'othervalues1': 'othervalues1'})
+        fake_payload[subclouds.INSTALL_VALUES].update({'othervalues2': 'othervalues2'})
+        sc._format_ip_address(fake_payload)
+        self.assertEqual(fake_payload['othervalues1'], 'othervalues1')
+        self.assertEqual(fake_payload[subclouds.INSTALL_VALUES]['othervalues2'], 'othervalues2')
 
     @mock.patch.object(rpc_client, 'ManagerClient')
     @mock.patch.object(keyring, 'get_password')
