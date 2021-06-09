@@ -18,6 +18,9 @@ DEFAULT_FAILED_SLEEP = 10
 DEFAULT_MAX_QUERIES = 60
 DEFAULT_SLEEP_DURATION = 10
 
+# After a swact, there is a sleep before proceeding to the next state
+DEFAULT_SWACT_SLEEP = 120
+
 
 class SwactHostState(BaseState):
     """Orchestration state for host swact"""
@@ -92,7 +95,10 @@ class SwactHostState(BaseState):
         # If we are here, the loop broke out cleanly and the action succeeded
         # When we return from this method without throwing an exception, the
         # state machine can proceed to the next state
-        # Adding a 2 minute delay before moving to the next state
-        self.info_log(strategy_step, "Waiting for 2 minutes before proceeding")
-        time.sleep(120)
+        # Adding a 2 minute delay (DEFAULT_SWACT_SLEEP) before moving to the
+        # next state
+        self.info_log(strategy_step,
+                      "Waiting %s seconds before proceeding"
+                      % DEFAULT_SWACT_SLEEP)
+        time.sleep(DEFAULT_SWACT_SLEEP)
         return self.next_state
