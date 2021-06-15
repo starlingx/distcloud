@@ -12,7 +12,7 @@
 # License for the specific language governing permissions and limitations
 # under the License.
 #
-# Copyright (c) 2017-2020 Wind River Systems, Inc.
+# Copyright (c) 2017-2021 Wind River Systems, Inc.
 #
 # The right to copy, distribute, modify, or otherwise make use
 # of this software may be licensed only pursuant to the terms
@@ -77,6 +77,8 @@ RESOURCE_TYPE_SYSINV_CERTIFICATE = "certificates"
 RESOURCE_TYPE_SYSINV_DNS = "idns"
 RESOURCE_TYPE_SYSINV_USER = "iuser"
 RESOURCE_TYPE_SYSINV_FERNET_REPO = "fernet_repo"
+RESOURCE_TYPE_SYSINV_LOAD = "loads"
+RESOURCE_TYPE_SYSINV_DEVICE_IMAGE = "device_image"
 
 # Compute Resources
 RESOURCE_TYPE_COMPUTE_FLAVOR = "flavor"
@@ -125,12 +127,18 @@ ENDPOINT_TYPE_IDENTITY = "identity"
 ENDPOINT_TYPE_FM = "faultmanagement"
 ENDPOINT_TYPE_NFV = "nfv"
 ENDPOINT_TYPE_LOAD = "load"
+ENDPOINT_TYPE_DC_CERT = 'dc-cert'
+ENDPOINT_TYPE_FIRMWARE = 'firmware'
+ENDPOINT_TYPE_KUBERNETES = 'kubernetes'
 
 # All endpoint types
 ENDPOINT_TYPES_LIST = [ENDPOINT_TYPE_PLATFORM,
                        ENDPOINT_TYPE_PATCHING,
                        ENDPOINT_TYPE_IDENTITY,
-                       ENDPOINT_TYPE_LOAD]
+                       ENDPOINT_TYPE_LOAD,
+                       ENDPOINT_TYPE_DC_CERT,
+                       ENDPOINT_TYPE_FIRMWARE,
+                       ENDPOINT_TYPE_KUBERNETES]
 
 # Dcorch sync endpoint types
 SYNC_ENDPOINT_TYPES_LIST = [ENDPOINT_TYPE_PLATFORM,
@@ -177,3 +185,16 @@ INITIAL_SYNC_STATE_REQUESTED = "requested"
 INITIAL_SYNC_STATE_IN_PROGRESS = "in-progress"
 INITIAL_SYNC_STATE_COMPLETED = "completed"
 INITIAL_SYNC_STATE_FAILED = "failed"
+
+# Subcloud sync status
+SYNC_STATUS_NONE = "none"
+SYNC_STATUS_REQUESTED = "requested"
+SYNC_STATUS_IN_PROGRESS = "in-progress"
+SYNC_STATUS_COMPLETED = "completed"
+SYNC_STATUS_FAILED = "failed"
+
+# Subcloud audit status
+AUDIT_STATUS_NONE = "none"
+AUDIT_STATUS_IN_PROGRESS = "in-progress"
+AUDIT_STATUS_COMPLETED = "completed"
+AUDIT_STATUS_FAILED = "failed"

@@ -29,6 +29,7 @@ import datetime
 import sys
 import threading
 
+from oslo_db import api as oslo_db_api
 from oslo_db import exception as db_exc
 from oslo_db.sqlalchemy import enginefacade
 
@@ -39,6 +40,7 @@ from oslo_utils import uuidutils
 
 from sqlalchemy import asc
 from sqlalchemy import desc
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm.exc import MultipleResultsFound
 from sqlalchemy.orm.exc import NoResultFound
 from sqlalchemy.orm import joinedload_all
@@ -451,7 +453,6 @@ def subcloud_get_all(context, region_name=None,
         query = query.filter_by(availability_status=availability_status)
     if initial_sync_state:
         query = query.filter_by(initial_sync_state=initial_sync_state)
-
     return query.all()
 
 
@@ -952,10 +953,144 @@ def purge_deleted_records(context, age_in_days):
         LOG.info('%d records were purged from orch_job table.', count)
 
         # Purging resource table
-        subquery = model_query(context, models.OrchJob.resource_id). \
+        orchjob_subquery = model_query(context, models.OrchJob.resource_id). \
             group_by(models.OrchJob.resource_id)
 
+        subcloud_resource_subquery = model_query(
+            context, models.SubcloudResource.resource_id). \
+            group_by(models.SubcloudResource.resource_id)
+
         count = session.query(models.Resource). \
-            filter(~models.Resource.id.in_(subquery)). \
+            filter(~models.Resource.id.in_(orchjob_subquery)). \
+            filter(~models.Resource.id.in_(subcloud_resource_subquery)). \
             delete(synchronize_session='fetch')
         LOG.info('%d records were purged from resource table.', count)
+
+
+def sync_lock_acquire(
+        context, engine_id, subcloud_name, endpoint_type, action):
+    LOG.debug("sync_lock_acquire: %s/%s/%s/%s" % (engine_id, subcloud_name,
+                                                  endpoint_type, action))
+    with write_session() as session:
+        lock = session.query(models.SyncLock). \
+            filter_by(deleted=0). \
+            filter_by(subcloud_name=subcloud_name). \
+            filter_by(endpoint_type=endpoint_type). \
+            filter_by(action=action).all()
+        if not lock:
+            lock_ref = models.SyncLock()
+            lock_ref.engine_id = engine_id
+            lock_ref.subcloud_name = subcloud_name
+            lock_ref.endpoint_type = endpoint_type
+            lock_ref.action = action
+            try:
+                session.add(lock_ref)
+                return True
+            except IntegrityError:
+                LOG.info("IntegrityError Engine id:%s, subcloud:%s, "
+                         "endpoint_type:%s" %
+                         (engine_id, subcloud_name, endpoint_type))
+            except db_exc.DBDuplicateEntry:
+                LOG.info("DBDuplicateEntry Engine id:%s, subcloud:%s, "
+                         "endpoint_type:%s" %
+                         (engine_id, subcloud_name, endpoint_type))
+            except Exception:
+                LOG.exception("Got session add exception")
+    return False
+
+
+# For robustness, this will attempt max_retries with inc_retry_interval
+# backoff to release the sync_lock.
+@oslo_db_api.wrap_db_retry(max_retries=3, retry_on_deadlock=True,
+                           retry_interval=0.5, inc_retry_interval=True)
+def sync_lock_release(context, subcloud_name, endpoint_type, action):
+    with write_session() as session:
+        session.query(models.SyncLock).filter_by(
+            subcloud_name=subcloud_name). \
+            filter_by(endpoint_type=endpoint_type). \
+            filter_by(action=action). \
+            delete(synchronize_session='fetch')
+
+
+def sync_lock_steal(context, engine_id, subcloud_name, endpoint_type, action):
+    sync_lock_release(context, subcloud_name, endpoint_type, action)
+    return sync_lock_acquire(context, engine_id, subcloud_name, endpoint_type,
+                             action)
+
+
+def sync_lock_delete_by_engine_id(context, engine_id):
+    """Delete all sync_lock entries for a given engine."""
+
+    with write_session() as session:
+        results = session.query(models.SyncLock). \
+            filter_by(engine_id=engine_id).all()
+        for result in results:
+            LOG.info("Deleted sync lock id=%s engine_id=%s" %
+                     (result.id, result.engine_id))
+            session.delete(result)
+
+
+def purge_stale_sync_lock(context):
+    """Delete all sync lock entries where service ID no longer exists."""
+    LOG.info('Purging stale sync_locks')
+    with write_session() as session:
+        # Purging sync_lock table
+        subquery = model_query(context, models.Service.id). \
+            group_by(models.Service.id)
+
+        count = session.query(models.SyncLock). \
+            filter(~models.SyncLock.engine_id.in_(subquery)). \
+            delete(synchronize_session='fetch')
+        LOG.info('%d records were purged from sync_lock table.', count)
+
+
+def _subcloud_sync_get(context, subcloud_name, endpoint_type, session=None):
+    query = model_query(context, models.SubcloudSync, session=session). \
+        filter_by(subcloud_name=subcloud_name). \
+        filter_by(endpoint_type=endpoint_type)
+    try:
+        return query.one()
+    except NoResultFound:
+        raise exception.SubcloudSyncNotFound(subcloud_name=subcloud_name,
+                                             endpoint_type=endpoint_type)
+    except MultipleResultsFound:
+        err = ("Multiple entries found for subcloud %s endpoint_type %s" %
+               (subcloud_name, endpoint_type))
+        raise exception.InvalidParameterValue(err=err)
+
+
+def subcloud_sync_get(context, subcloud_name, endpoint_type):
+    return _subcloud_sync_get(context, subcloud_name, endpoint_type)
+
+
+def subcloud_sync_create(context, subcloud_name, endpoint_type, values):
+    with write_session() as session:
+        result = models.SubcloudSync()
+        result.subcloud_name = subcloud_name
+        result.endpoint_type = endpoint_type
+        result.update(values)
+        try:
+            session.add(result)
+        except db_exc.DBDuplicateEntry:
+            raise exception.SubcloudSyncAlreadyExists(
+                subcloud_name=subcloud_name,
+                endpoint_type=endpoint_type)
+        return result
+
+
+def subcloud_sync_update(context, subcloud_name, endpoint_type, values):
+    with write_session() as session:
+        result = _subcloud_sync_get(context, subcloud_name, endpoint_type,
+                                    session)
+        result.update(values)
+        result.save(session)
+        return result
+
+
+def subcloud_sync_delete(context, subcloud_name, endpoint_type):
+    with write_session() as session:
+        results = session.query(models.SubcloudSync). \
+            filter_by(subcloud_name=subcloud_name). \
+            filter_by(endpoint_type=endpoint_type).all()
+        for result in results:
+            session.delete(result)

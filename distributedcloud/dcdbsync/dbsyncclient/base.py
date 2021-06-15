@@ -39,8 +39,9 @@ class ResourceManager(object):
         resource = []
         for json_object in json_objects:
             for resource_data in json_object:
-                resource.append(self.resource_class(self, resource_data,
-                                json_object[resource_data]))
+                resource.append(self.resource_class(  # pylint: disable=E1102
+                    self, resource_data,
+                    json_object[resource_data]))
         return resource
 
     def _list(self, url, response_key=None):
@@ -75,9 +76,10 @@ class ResourceManager(object):
         for json_object in json_objects:
             data = json_object.get('usage').keys()
             for values in data:
-                resource.append(self.resource_class(self, values,
-                                json_object['limits'][values],
-                                json_object['usage'][values]))
+                resource.append(self.resource_class(  # pylint: disable=E1102
+                    self, values,
+                    json_object['limits'][values],
+                    json_object['usage'][values]))
         return resource
 
     def _delete(self, url):

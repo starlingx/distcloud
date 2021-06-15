@@ -12,7 +12,7 @@
 # License for the specific language governing permissions and limitations
 # under the License.
 #
-# Copyright (c) 2017-2020 Wind River Systems, Inc.
+# Copyright (c) 2017-2021 Wind River Systems, Inc.
 #
 # The right to copy, distribute, modify, or otherwise make use
 # of this software may be licensed only pursuant to the terms
@@ -20,11 +20,10 @@
 #
 
 import hashlib
+import os
 
 from cgtsclient.exc import HTTPNotFound
 from oslo_log import log
-
-from sysinv.common import constants as sysinv_constants
 
 from dccommon import consts
 from dccommon.drivers import base
@@ -33,6 +32,55 @@ from dccommon import exceptions
 
 LOG = log.getLogger(__name__)
 API_VERSION = '1'
+
+CERT_CA_FILE = "ca-cert.pem"
+CERT_MODE_DOCKER_REGISTRY = 'docker_registry'
+CERT_MODE_SSL = 'ssl'
+CERT_MODE_SSL_CA = 'ssl_ca'
+CERT_MODE_TPM = 'tpm_mode'
+
+CONTROLLER = 'controller'
+
+NETWORK_TYPE_MGMT = 'mgmt'
+
+SSL_CERT_CA_DIR = "/etc/pki/ca-trust/source/anchors/"
+SSL_CERT_CA_FILE = os.path.join(SSL_CERT_CA_DIR, CERT_CA_FILE)
+SSL_CERT_DIR = "/etc/ssl/private/"
+SSL_CERT_FILE = "server-cert.pem"
+SSL_PEM_FILE = os.path.join(SSL_CERT_DIR, SSL_CERT_FILE)
+
+DOCKER_REGISTRY_CERT_FILE = os.path.join(SSL_CERT_DIR, "registry-cert.crt")
+DOCKER_REGISTRY_KEY_FILE = os.path.join(SSL_CERT_DIR, "registry-cert.key")
+
+# The following constants are declared in sysinv/common/kubernetes.py
+# Kubernetes upgrade states
+KUBE_UPGRADE_STARTED = 'upgrade-started'
+KUBE_UPGRADE_DOWNLOADING_IMAGES = 'downloading-images'
+KUBE_UPGRADE_DOWNLOADING_IMAGES_FAILED = 'downloading-images-failed'
+KUBE_UPGRADE_DOWNLOADED_IMAGES = 'downloaded-images'
+KUBE_UPGRADING_FIRST_MASTER = 'upgrading-first-master'
+KUBE_UPGRADING_FIRST_MASTER_FAILED = 'upgrading-first-master-failed'
+KUBE_UPGRADED_FIRST_MASTER = 'upgraded-first-master'
+KUBE_UPGRADING_NETWORKING = 'upgrading-networking'
+KUBE_UPGRADING_NETWORKING_FAILED = 'upgrading-networking-failed'
+KUBE_UPGRADED_NETWORKING = 'upgraded-networking'
+KUBE_UPGRADING_SECOND_MASTER = 'upgrading-second-master'
+KUBE_UPGRADING_SECOND_MASTER_FAILED = 'upgrading-second-master-failed'
+KUBE_UPGRADED_SECOND_MASTER = 'upgraded-second-master'
+KUBE_UPGRADING_KUBELETS = 'upgrading-kubelets'
+KUBE_UPGRADE_COMPLETE = 'upgrade-complete'
+
+# Kubernetes host upgrade statuses
+KUBE_HOST_UPGRADING_CONTROL_PLANE = 'upgrading-control-plane'
+KUBE_HOST_UPGRADING_CONTROL_PLANE_FAILED = 'upgrading-control-plane-failed'
+KUBE_HOST_UPGRADING_KUBELET = 'upgrading-kubelet'
+KUBE_HOST_UPGRADING_KUBELET_FAILED = 'upgrading-kubelet-failed'
+
+# The following is the name of the host filesystem 'scratch' which is used
+# by dcmanager upgrade orchestration for the load import operations.
+HOST_FS_NAME_SCRATCH = 'scratch'
+
+SYSINV_CLIENT_REST_DEFAULT_TIMEOUT = 600
 
 
 def make_sysinv_patch(update_dict):
@@ -53,7 +101,7 @@ def make_sysinv_patch(update_dict):
 class SysinvClient(base.DriverBase):
     """Sysinv V1 driver."""
 
-    def __init__(self, region, session):
+    def __init__(self, region, session, timeout=SYSINV_CLIENT_REST_DEFAULT_TIMEOUT):
         try:
             # TOX cannot import cgts_client and all the dependencies therefore
             # the client is being lazy loaded since TOX doesn't actually
@@ -70,15 +118,88 @@ class SysinvClient(base.DriverBase):
 
             self.sysinv_client = client.Client(API_VERSION,
                                                endpoint=endpoint,
-                                               token=token)
+                                               token=token,
+                                               timeout=timeout)
             self.region_name = region
         except exceptions.ServiceUnavailable:
             raise
 
+    def get_host(self, hostname_or_id):
+        """Get a host by its hostname or id."""
+        return self.sysinv_client.ihost.get(hostname_or_id)
+
     def get_controller_hosts(self):
         """Get a list of controller hosts."""
         return self.sysinv_client.ihost.list_personality(
-            sysinv_constants.CONTROLLER)
+            CONTROLLER)
+
+    def _do_host_action(self, host_id, action_value):
+        """Protected method to invoke an action on a host."""
+        patch = [{'op': 'replace',
+                  'path': '/action',
+                  'value': action_value}, ]
+        return self.sysinv_client.ihost.update(host_id, patch)
+
+    def lock_host(self, host_id, force=False):
+        """Lock a host"""
+        if force:
+            action_value = 'force-lock'
+        else:
+            action_value = 'lock'
+        return self._do_host_action(host_id, action_value)
+
+    def unlock_host(self, host_id, force=False):
+        """Unlock a host"""
+        if force:
+            action_value = 'force-unlock'
+        else:
+            action_value = 'unlock'
+        return self._do_host_action(host_id, action_value)
+
+    def swact_host(self, host_id, force=False):
+        """Perform host swact"""
+        if force:
+            action_value = 'force-swact'
+        else:
+            action_value = 'swact'
+        return self._do_host_action(host_id, action_value)
+
+    def configure_bmc_host(self,
+                           host_id,
+                           bm_username,
+                           bm_ip,
+                           bm_password,
+                           bm_type='ipmi'):
+        """Configure bmc of a host"""
+        patch = [
+            {'op': 'replace',
+             'path': '/bm_username',
+             'value': bm_username},
+            {'op': 'replace',
+             'path': '/bm_ip',
+             'value': bm_ip},
+            {'op': 'replace',
+             'path': '/bm_password',
+             'value': bm_password},
+            {'op': 'replace',
+             'path': '/bm_type',
+             'value': bm_type},
+        ]
+        return self.sysinv_client.ihost.update(host_id, patch)
+
+    def upgrade_host(self, host_id, force=False):
+        """Invoke the API for 'system host-upgrade'"""
+        return self.sysinv_client.ihost.upgrade(host_id, force)
+
+    def power_on_host(self, host_id):
+        """Power on a host"""
+        action_value = 'power-on'
+        return self._do_host_action(host_id, action_value)
+
+    def power_off_host(self, host_id):
+        """Power off a host"""
+        action_value = 'power-off'
+        return self._do_host_action(host_id, action_value)
 
     def get_management_interface(self, hostname):
         """Get the management interface for a host."""
@@ -87,7 +208,7 @@ class SysinvClient(base.DriverBase):
             interface_networks = self.sysinv_client.interface_network.\
                 list_by_interface(interface.uuid)
             for if_net in interface_networks:
-                if if_net.network_type == sysinv_constants.NETWORK_TYPE_MGMT:
+                if if_net.network_type == NETWORK_TYPE_MGMT:
                     return interface
 
         # This can happen if the host is still being installed and has not
@@ -99,7 +220,7 @@ class SysinvClient(base.DriverBase):
         """Get the management address pool for a host."""
         networks = self.sysinv_client.network.list()
         for network in networks:
-            if network.type == sysinv_constants.NETWORK_TYPE_MGMT:
+            if network.type == NETWORK_TYPE_MGMT:
                 address_pool_uuid = network.pool_uuid
                 break
         else:
@@ -151,13 +272,75 @@ class SysinvClient(base.DriverBase):
         """Get a list of service groups."""
         return self.sysinv_client.sm_servicegroup.list()
 
+    def get_license(self):
+        """Get the license."""
+        return self.sysinv_client.license.show()
+
+    def install_license(self, license_file):
+        """Install a license."""
+        return self.sysinv_client.license.install_license(license_file)
+
     def get_loads(self):
         """Get a list of loads."""
         return self.sysinv_client.load.list()
 
+    def get_load(self, load_id):
+        """Get a particular load."""
+        return self.sysinv_client.load.get(load_id)
+
+    def delete_load(self, load_id):
+        """Delete a load with the given id
+
+           :param: load id
+        """
+        try:
+            LOG.info("delete_load region {} load_id: {}".format(
+                     self.region_name, load_id))
+            self.sysinv_client.load.delete(load_id)
+        except HTTPNotFound:
+            LOG.info("delete_load NotFound {} for region: {}".format(
+                     load_id, self.region_name))
+            raise exceptions.LoadNotFound(region_name=self.region_name,
+                                          load_id=load_id)
+        except Exception as e:
+            LOG.error("delete_load exception={}".format(e))
+            raise e
+
+    def import_load(self, path_to_iso, path_to_sig):
+        """Import the particular software load."""
+        return self.sysinv_client.load.import_load(path_to_iso=path_to_iso,
+                                                   path_to_sig=path_to_sig)
+
+    def get_system_health(self):
+        """Get system health."""
+        return self.sysinv_client.health.get()
+
+    def import_load_metadata(self, load):
+        """Import the software load metadata."""
+        return self.sysinv_client.load.import_load_metadata(load=load)
+
+    def get_hosts(self):
+        """Get a list of hosts."""
+        return self.sysinv_client.ihost.list()
+
     def get_upgrades(self):
         """Get a list of upgrades."""
         return self.sysinv_client.upgrade.list()
+
+    def upgrade_activate(self):
+        """Invoke the API for 'system upgrade-activate', which is an update """
+        patch = [{'op': 'replace',
+                  'path': '/state',
+                  'value': 'activation-requested'}, ]
+        return self.sysinv_client.upgrade.update(patch)
+
+    def upgrade_complete(self):
+        """Invoke the API for 'system upgrade-complete', which is a delete"""
+        return self.sysinv_client.upgrade.delete()
+
+    def upgrade_start(self, force=False):
+        """Invoke the API for 'system upgrade-start', which is a create"""
+        return self.sysinv_client.upgrade.create(force)
 
     def get_applications(self):
         """Get a list of containerized applications"""
@@ -281,33 +464,30 @@ class SysinvClient(base.DriverBase):
         if not certificate:
             if data:
                 data['passphrase'] = None
-                mode = data.get('mode', sysinv_constants.CERT_MODE_SSL)
-                if mode == sysinv_constants.CERT_MODE_SSL_CA:
-                    certificate_files = [sysinv_constants.SSL_CERT_CA_FILE]
-                elif mode == sysinv_constants.CERT_MODE_SSL:
-                    certificate_files = [sysinv_constants.SSL_PEM_FILE]
-                elif mode == sysinv_constants.CERT_MODE_DOCKER_REGISTRY:
+                mode = data.get('mode', CERT_MODE_SSL)
+                if mode == CERT_MODE_SSL_CA:
+                    certificate_files = [SSL_CERT_CA_FILE]
+                elif mode == CERT_MODE_SSL:
+                    certificate_files = [SSL_PEM_FILE]
+                elif mode == CERT_MODE_DOCKER_REGISTRY:
                     certificate_files = \
-                        [sysinv_constants.DOCKER_REGISTRY_KEY_FILE,
-                         sysinv_constants.DOCKER_REGISTRY_CERT_FILE]
+                        [DOCKER_REGISTRY_KEY_FILE,
+                         DOCKER_REGISTRY_CERT_FILE]
                 else:
                     LOG.warn("update_certificate mode {} not supported".format(
                         mode))
                     return
-            elif signature and signature.startswith(
-                    sysinv_constants.CERT_MODE_SSL_CA):
-                data['mode'] = sysinv_constants.CERT_MODE_SSL_CA
-                certificate_files = [sysinv_constants.SSL_CERT_CA_FILE]
-            elif signature and signature.startswith(
-                    sysinv_constants.CERT_MODE_SSL):
-                data['mode'] = sysinv_constants.CERT_MODE_SSL
-                certificate_files = [sysinv_constants.SSL_PEM_FILE]
-            elif signature and signature.startswith(
-                    sysinv_constants.CERT_MODE_DOCKER_REGISTRY):
-                data['mode'] = sysinv_constants.CERT_MODE_DOCKER_REGISTRY
+            elif signature and signature.startswith(CERT_MODE_SSL_CA):
+                data['mode'] = CERT_MODE_SSL_CA
+                certificate_files = [SSL_CERT_CA_FILE]
+            elif signature and signature.startswith(CERT_MODE_SSL):
+                data['mode'] = CERT_MODE_SSL
+                certificate_files = [SSL_PEM_FILE]
+            elif signature and signature.startswith(CERT_MODE_DOCKER_REGISTRY):
+                data['mode'] = CERT_MODE_DOCKER_REGISTRY
                 certificate_files = \
-                    [sysinv_constants.DOCKER_REGISTRY_KEY_FILE,
-                     sysinv_constants.DOCKER_REGISTRY_CERT_FILE]
+                    [DOCKER_REGISTRY_KEY_FILE,
+                     DOCKER_REGISTRY_CERT_FILE]
             else:
                 LOG.warn("update_certificate signature {} "
                          "not supported".format(signature))
@@ -322,8 +502,8 @@ class SysinvClient(base.DriverBase):
                 signature, certificate_files))
 
         if (signature and
-                (signature.startswith(sysinv_constants.CERT_MODE_SSL) or
-                    (signature.startswith(sysinv_constants.CERT_MODE_TPM)))):
+                (signature.startswith(CERT_MODE_SSL) or
+                    (signature.startswith(CERT_MODE_TPM)))):
             # ensure https is enabled
             isystem = self.sysinv_client.isystem.list()[0]
             https_enabled = isystem.capabilities.get('https_enabled', False)
@@ -459,3 +639,92 @@ class SysinvClient(base.DriverBase):
             raise e
 
         return keys
+
+    def get_host_filesystems(self, host_uuid):
+        """Get the host filesystems for a host"""
+
+        return self.sysinv_client.host_fs.list(host_uuid)
+
+    def get_host_filesystem(self, host_uuid, name):
+        """Get the named filesystem for a host
+
+           :return: host_fs or None
+        """
+
+        host_fs = None
+        host_fs_list = self.get_host_filesystems(host_uuid)
+
+        for host_fs in host_fs_list or []:
+            if host_fs.name == name:
+                break
+
+        return host_fs
+
+    def get_host_device_list(self, host_name):
+        """Get a list of devices for a given host"""
+        return self.sysinv_client.pci_device.list(host_name)
+
+    def get_device_label_list(self):
+        """Get a list of device labels"""
+        return self.sysinv_client.device_label.list()
+
+    def get_device_images(self):
+        """Get a list of device images."""
+        return self.sysinv_client.device_image.list()
+
+    def get_device_image_states(self):
+        """Get a list of device image states."""
+        return self.sysinv_client.device_image_state.list()
+
+    def get_kube_upgrade(self, kube_upgrade_uuid):
+        """Retrieve the details of a given kubernetes upgrade
+
+        :param kube_upgrade_uuid: kube upgrade uuid
+        If the upgrade is not found, returns None
+        """
+        return self.sysinv_client.kube_upgrade.get(kube_upgrade_uuid)
+
+    def get_kube_upgrades(self):
+        """Retrieve the kubernetes upgrade if one is present."""
+        return self.sysinv_client.kube_upgrade.list()
+
+    def get_kube_version(self, version):
+        """Retrieve the details of a given kubernetes version
+
+        :param version: kubernetes version
+        If the version is not found, returns None
+        """
+        return self.sysinv_client.kube_version.get(version)
+
+    def get_kube_versions(self):
+        """Retrieve the list of kubernetes versions known to the system."""
+        return self.sysinv_client.kube_version.list()
+
+    def apply_device_image(self, device_image_id, labels=None):
+        """Apply a device image.
+
+           :param: device_image_id the image to apply
+           :param: labels the labels to pass as part of the apply
+        """
+        return self.sysinv_client.device_image.apply(device_image_id,
+                                                     labels=labels)
+
+    def remove_device_image(self, device_image_id, labels=None):
+        """Remove a device image.
+
+           :param: device_image_id the image to remove
+           :param: labels the labels to pass as part of the remove
+        """
+        return self.sysinv_client.device_image.remove(device_image_id,
+                                                      labels=labels)
+
+    def upload_device_image(self, device_image_file, fields):
+        """Upload a device image.
+
+           :param: device_image_file the file to upload
+           :param: fields can be: 'bitstream_type', 'pci_vendor', 'pci_device',
+           'bitstream_id', 'key_signature', 'revoke_key_id', 'name',
+           'description', 'image_version', 'uuid
+        """
+        return self.sysinv_client.device_image.upload(device_image_file,
+                                                      **fields)

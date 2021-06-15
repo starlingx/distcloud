@@ -13,7 +13,7 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 #
-# Copyright (c) 2017-2020 Wind River Systems, Inc.
+# Copyright (c) 2017-2021 Wind River Systems, Inc.
 #
 # The right to copy, distribute, modify, or otherwise make use
 # of this software may be licensed only pursuant to the terms
@@ -45,6 +45,60 @@ def get_session():
     return IMPL.get_session()
 
 
+# subcloud audit db methods
+
+##########################
+
+def subcloud_audits_get(context, subcloud_id):
+    """Get subcloud_audits info for a subcloud."""
+    return IMPL.subcloud_audits_get(context, subcloud_id)
+
+
+def subcloud_audits_get_all(context):
+    """Get subcloud_audits info for all subclouds."""
+    return IMPL.subcloud_audits_get_all(context)
+
+
+def subcloud_audits_update_all(context, values):
+    """"Mark sub-audits as needed for all subclouds."""
+    return IMPL.subcloud_audits_update_all(context, values)
+
+
+def subcloud_audits_create(context, subcloud_id):
+    """"Create subcloud_audits info for a subcloud."""
+    return IMPL.subcloud_audits_create(context, subcloud_id)
+
+
+def subcloud_audits_update(context, subcloud_id, values):
+    """Get all subcloud_audits that need auditing."""
+    return IMPL.subcloud_audits_update(context, subcloud_id, values)
+
+
+def subcloud_audits_get_all_need_audit(context, last_audit_threshold):
+    """Get all subcloud_audits that need auditing."""
+    return IMPL.subcloud_audits_get_all_need_audit(context, last_audit_threshold)
+
+
+# In the functions below it would be cleaner if the timestamp were calculated
+# by the DB server.  If server time is in UTC func.now() might work.
+
+def subcloud_audits_get_and_start_audit(context, subcloud_id):
+    """Set the 'audit started' timestamp for the main audit."""
+    return IMPL.subcloud_audits_get_and_start_audit(context, subcloud_id)
+
+
+def subcloud_audits_end_audit(context, subcloud_id, audits_done):
+    """Set the 'audit finished' timestamp for the main audit."""
+    return IMPL.subcloud_audits_end_audit(context, subcloud_id, audits_done)
+
+
+def subcloud_audits_fix_expired_audits(context, last_audit_threshold,
+                                       trigger_audits=False):
+    return IMPL.subcloud_audits_fix_expired_audits(context,
+                                                   last_audit_threshold,
+                                                   trigger_audits)
+
+
 # subcloud db methods
 
 ###################
@@ -66,6 +120,8 @@ def subcloud_db_model_to_dict(subcloud):
               "openstack-installed": subcloud.openstack_installed,
               "systemcontroller-gateway-ip":
                   subcloud.systemcontroller_gateway_ip,
+              "data_install": subcloud.data_install,
+              "data_upgrade": subcloud.data_upgrade,
               "created-at": subcloud.created_at,
               "updated-at": subcloud.updated_at,
               "group_id": subcloud.group_id}
@@ -76,14 +132,14 @@ def subcloud_create(context, name, description, location, software_version,
                     management_subnet, management_gateway_ip,
                     management_start_ip, management_end_ip,
                     systemcontroller_gateway_ip, deploy_status,
-                    openstack_installed, group_id):
+                    openstack_installed, group_id, data_install=None):
     """Create a subcloud."""
     return IMPL.subcloud_create(context, name, description, location,
                                 software_version,
                                 management_subnet, management_gateway_ip,
                                 management_start_ip, management_end_ip,
                                 systemcontroller_gateway_ip, deploy_status,
-                                openstack_installed, group_id)
+                                openstack_installed, group_id, data_install)
 
 
 def subcloud_get(context, subcloud_id):
@@ -115,12 +171,13 @@ def subcloud_update(context, subcloud_id, management_state=None,
                     availability_status=None, software_version=None,
                     description=None, location=None, audit_fail_count=None,
                     deploy_status=None, openstack_installed=None,
-                    group_id=None):
+                    group_id=None, data_install=None, data_upgrade=None):
     """Update a subcloud or raise if it does not exist."""
     return IMPL.subcloud_update(context, subcloud_id, management_state,
                                 availability_status, software_version,
                                 description, location, audit_fail_count,
-                                deploy_status, openstack_installed, group_id)
+                                deploy_status, openstack_installed, group_id,
+                                data_install, data_upgrade)
 
 
 def subcloud_destroy(context, subcloud_id):
@@ -283,19 +340,21 @@ def sw_update_strategy_create(context, type, subcloud_apply_type,
                                           stop_on_failure, state)
 
 
-def sw_update_strategy_get(context):
+def sw_update_strategy_get(context, update_type=None):
     """Retrieve a sw update or raise if it does not exist."""
-    return IMPL.sw_update_strategy_get(context)
+    return IMPL.sw_update_strategy_get(context, update_type=update_type)
 
 
-def sw_update_strategy_update(context, state=None):
+def sw_update_strategy_update(context, state=None, update_type=None):
     """Update a sw update or raise if it does not exist."""
-    return IMPL.sw_update_strategy_update(context, state)
+    return IMPL.sw_update_strategy_update(context,
+                                          state,
+                                          update_type=update_type)
 
 
-def sw_update_strategy_destroy(context):
+def sw_update_strategy_destroy(context, update_type=None):
     """Destroy the sw update or raise if it does not exist."""
-    return IMPL.sw_update_strategy_destroy(context)
+    return IMPL.sw_update_strategy_destroy(context, update_type=update_type)
 
 
 ###################

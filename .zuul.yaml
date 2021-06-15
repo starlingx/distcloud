@@ -4,6 +4,7 @@
       - publish-stx-docs
       - stx-api-ref-jobs
       - stx-release-notes-jobs
+      - stx-bandit-jobs
     check:
       jobs:
         - openstack-tox-linters
@@ -25,8 +26,8 @@
 - job:
     name: stx-distcloud-tox-py27
     parent: tox
-    nodeset: ubuntu-xenial
     description: Run py27 for distcloud
+    nodeset: ubuntu-xenial
     required-projects:
       - starlingx/fault
       - starlingx/nfv
@@ -38,9 +39,9 @@
 
 - job:
     name: stx-distcloud-tox-py36
-    nodeset: ubuntu-bionic
     parent: tox
     description: Run py36 for distcloud
+    nodeset: ubuntu-bionic
     required-projects:
       - starlingx/fault
       - starlingx/nfv
@@ -52,9 +53,9 @@
 
 - job:
     name: stx-distcloud-tox-pylint
-    nodeset: ubuntu-bionic
     parent: tox
     description: Run pylint for distcloud
+    nodeset: ubuntu-bionic
     required-projects:
       - starlingx/fault
       - starlingx/nfv
@@ -66,7 +67,6 @@
 
 - job:
     name: stx-distcloud-tox-pep8
-    nodeset: ubuntu-bionic
     parent: tox
     description: Run pep8 for distcloud
     required-projects:

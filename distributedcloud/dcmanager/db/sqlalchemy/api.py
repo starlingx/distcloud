@@ -13,7 +13,7 @@
 # License for the specific language governing permissions and limitations
 # under the License.
 #
-# Copyright (c) 2017-2020 Wind River Systems, Inc.
+# Copyright (c) 2017-2021 Wind River Systems, Inc.
 #
 # The right to copy, distribute, modify, or otherwise make use
 # of this software may be licensed only pursuant to the terms
@@ -24,6 +24,7 @@
 Implementation of SQLAlchemy backend.
 """
 
+import datetime
 import sqlalchemy
 import sys
 import threading
@@ -39,6 +40,8 @@ from sqlalchemy import desc
 from sqlalchemy.orm.exc import MultipleResultsFound
 from sqlalchemy.orm.exc import NoResultFound
 from sqlalchemy.orm import joinedload_all
+from sqlalchemy.orm import load_only
+from sqlalchemy.sql.expression import true
 
 from dcmanager.common import consts
 from dcmanager.common import exceptions as exception
@@ -146,6 +149,130 @@ def require_context(f):
 
 
 @require_context
+def subcloud_audits_get(context, subcloud_id):
+    result = model_query(context, models.SubcloudAudits). \
+        filter_by(deleted=0). \
+        filter_by(subcloud_id=subcloud_id). \
+        first()
+
+    if not result:
+        raise exception.SubcloudNotFound(subcloud_id=subcloud_id)
+
+    return result
+
+
+@require_context
+def subcloud_audits_get_all(context):
+    return model_query(context, models.SubcloudAudits). \
+        filter_by(deleted=0). \
+        all()
+
+
+@require_context
+def subcloud_audits_update_all(context, values):
+    with write_session() as session:
+        result = session.query(models.SubcloudAudits).\
+            filter_by(deleted=0).\
+            update(values)
+        return result
+
+
+@require_admin_context
+def subcloud_audits_create(context, subcloud_id):
+    with write_session() as session:
+        subcloud_audits_ref = models.SubcloudAudits()
+        subcloud_audits_ref.subcloud_id = subcloud_id
+        session.add(subcloud_audits_ref)
+        return subcloud_audits_ref
+
+
+@require_admin_context
+def subcloud_audits_update(context, subcloud_id, values):
+    with write_session() as session:
+        subcloud_audits_ref = subcloud_audits_get(context, subcloud_id)
+        subcloud_audits_ref.update(values)
+        subcloud_audits_ref.save(session)
+        return subcloud_audits_ref
+
+
+@require_context
+def subcloud_audits_get_all_need_audit(context, last_audit_threshold):
+    with read_session() as session:
+        result = session.query(models.SubcloudAudits).\
+            filter_by(deleted=0).\
+            filter(models.SubcloudAudits.audit_started_at <= models.SubcloudAudits.audit_finished_at).\
+            filter((models.SubcloudAudits.audit_finished_at < last_audit_threshold) |
+                   (models.SubcloudAudits.patch_audit_requested == true()) |
+                   (models.SubcloudAudits.firmware_audit_requested == true()) |
+                   (models.SubcloudAudits.load_audit_requested == true()) |
+                   (models.SubcloudAudits.kubernetes_audit_requested == true())).\
+            all()
+    return result
+
+
+# In the functions below it would be cleaner if the timestamp were calculated
+# by the DB server.  If server time is in UTC func.now() might work.
+
+@require_context
+def subcloud_audits_get_and_start_audit(context, subcloud_id):
+    with write_session() as session:
+        subcloud_audits_ref = subcloud_audits_get(context, subcloud_id)
+        subcloud_audits_ref.audit_started_at = datetime.datetime.utcnow()
+        subcloud_audits_ref.save(session)
+        return subcloud_audits_ref
+
+
+@require_context
+def subcloud_audits_end_audit(context, subcloud_id, audits_done):
+    with write_session() as session:
+        subcloud_audits_ref = subcloud_audits_get(context, subcloud_id)
+        subcloud_audits_ref.audit_finished_at = datetime.datetime.utcnow()
+        subcloud_audits_ref.state_update_requested = False
+        if 'patch' in audits_done:
+            subcloud_audits_ref.patch_audit_requested = False
+        if 'firmware' in audits_done:
+            subcloud_audits_ref.firmware_audit_requested = False
+        if 'load' in audits_done:
+            subcloud_audits_ref.load_audit_requested = False
+        if 'kubernetes' in audits_done:
+            subcloud_audits_ref.kubernetes_audit_requested = False
+        subcloud_audits_ref.save(session)
+        return subcloud_audits_ref
+
+
+# Find and fix up subcloud audits where the audit has taken too long.
+# We want to find subclouds that started an audit but never finished
+# it and update the "finished at" timestamp to be the same as
+# the "started at" timestamp.  Returns the number of rows updated.
+@require_context
+def subcloud_audits_fix_expired_audits(context, last_audit_threshold,
+                                       trigger_audits=False):
+    values = {
+        "audit_finished_at": models.SubcloudAudits.audit_started_at
+    }
+    if trigger_audits:
+        # request all the special audits
+        values['patch_audit_requested'] = True
+        values['firmware_audit_requested'] = True
+        values['load_audit_requested'] = True
+        values['kubernetes_audit_requested'] = True
+    with write_session() as session:
+        result = session.query(models.SubcloudAudits).\
+            options(load_only("deleted", "audit_started_at",
+                              "audit_finished_at")).\
+            filter_by(deleted=0).\
+            filter(models.SubcloudAudits.audit_finished_at <
+                   last_audit_threshold).\
+            filter(models.SubcloudAudits.audit_started_at >
+                   models.SubcloudAudits.audit_finished_at).\
+            update(values, synchronize_session=False)
+    return result
+
+
+###################
+
+
+@require_context
 def subcloud_get(context, subcloud_id):
     result = model_query(context, models.Subcloud). \
         filter_by(deleted=0). \
@@ -213,7 +340,7 @@ def subcloud_create(context, name, description, location, software_version,
                     management_subnet, management_gateway_ip,
                     management_start_ip, management_end_ip,
                     systemcontroller_gateway_ip, deploy_status,
-                    openstack_installed, group_id):
+                    openstack_installed, group_id, data_install=None):
     with write_session() as session:
         subcloud_ref = models.Subcloud()
         subcloud_ref.name = name
@@ -231,7 +358,11 @@ def subcloud_create(context, name, description, location, software_version,
         subcloud_ref.audit_fail_count = 0
         subcloud_ref.openstack_installed = openstack_installed
         subcloud_ref.group_id = group_id
+        if data_install is not None:
+            subcloud_ref.data_install = data_install
         session.add(subcloud_ref)
+        session.flush()
+        subcloud_audits_create(context, subcloud_ref.id)
         return subcloud_ref
 
 
@@ -239,8 +370,11 @@ def subcloud_create(context, name, description, location, software_version,
 def subcloud_update(context, subcloud_id, management_state=None,
                     availability_status=None, software_version=None,
                     description=None, location=None, audit_fail_count=None,
-                    deploy_status=None, openstack_installed=None,
-                    group_id=None):
+                    deploy_status=None,
+                    openstack_installed=None,
+                    group_id=None,
+                    data_install=None,
+                    data_upgrade=None):
     with write_session() as session:
         subcloud_ref = subcloud_get(context, subcloud_id)
         if management_state is not None:
@@ -255,8 +389,12 @@ def subcloud_update(context, subcloud_id, management_state=None,
             subcloud_ref.location = location
         if audit_fail_count is not None:
             subcloud_ref.audit_fail_count = audit_fail_count
+        if data_install is not None:
+            subcloud_ref.data_install = data_install
         if deploy_status is not None:
             subcloud_ref.deploy_status = deploy_status
+        if data_upgrade is not None:
+            subcloud_ref.data_upgrade = data_upgrade
         if openstack_installed is not None:
             subcloud_ref.openstack_installed = openstack_installed
         if group_id is not None:
@@ -352,11 +490,11 @@ def subcloud_status_destroy_all(context, subcloud_id):
 
 
 @require_context
-def sw_update_strategy_get(context):
-    result = model_query(context, models.SwUpdateStrategy). \
-        filter_by(deleted=0). \
-        first()
-
+def sw_update_strategy_get(context, update_type=None):
+    query = model_query(context, models.SwUpdateStrategy).filter_by(deleted=0)
+    if update_type is not None:
+        query = query.filter_by(type=update_type)
+    result = query.first()
     if not result:
         raise exception.NotFound()
 
@@ -379,9 +517,10 @@ def sw_update_strategy_create(context, type, subcloud_apply_type,
 
 
 @require_admin_context
-def sw_update_strategy_update(context, state=None):
+def sw_update_strategy_update(context, state=None, update_type=None):
     with write_session() as session:
-        sw_update_strategy_ref = sw_update_strategy_get(context)
+        sw_update_strategy_ref = \
+            sw_update_strategy_get(context, update_type=update_type)
         if state is not None:
             sw_update_strategy_ref.state = state
         sw_update_strategy_ref.save(session)
@@ -389,9 +528,10 @@ def sw_update_strategy_update(context, state=None):
 
 
 @require_admin_context
-def sw_update_strategy_destroy(context):
+def sw_update_strategy_destroy(context, update_type=None):
     with write_session() as session:
-        sw_update_strategy_ref = sw_update_strategy_get(context)
+        sw_update_strategy_ref = \
+            sw_update_strategy_get(context, update_type=update_type)
         session.delete(sw_update_strategy_ref)
 
 
@@ -659,7 +799,9 @@ def initialize_subcloud_group_default(engine):
         subcloud_group = sqlalchemy.Table('subcloud_group', meta, autoload=True)
         try:
             with engine.begin() as conn:
-                conn.execute(subcloud_group.insert(), default_group)
+                conn.execute(
+                    subcloud_group.insert(),  # pylint: disable=E1120
+                    default_group)
             LOG.info("Default Subcloud Group created")
         except DBDuplicateEntry:
             # The default already exists.
@@ -801,7 +943,7 @@ def _subcloud_alarms_get(context, name):
     try:
         return query.one()
     except NoResultFound:
-        raise exception.SubcloudNotFound(region_name=name)
+        raise exception.SubcloudNameNotFound(name=name)
     except MultipleResultsFound:
         raise exception.InvalidParameterValue(
             err="Multiple entries found for subcloud %s" % name)

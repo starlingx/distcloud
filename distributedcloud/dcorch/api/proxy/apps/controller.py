@@ -1,4 +1,4 @@
-# Copyright 2017-2019 Wind River
+# Copyright 2017-2021 Wind River
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -14,9 +14,17 @@
 # limitations under the License.
 
 import json
+import os
+import shutil
+import tempfile
+import tsconfig.tsconfig as tsc
 import webob.dec
 import webob.exc
 
+from dccommon.drivers.openstack.sdk_platform import OpenStackDriver
+from dccommon.drivers.openstack.sysinv_v1 import SysinvClient
+from dcmanager.common import consts as dcmanager_consts
+from dcmanager.rpc import client as dcmanager_rpc_client
 from dcorch.api.proxy.apps.dispatcher import APIDispatcher
 from dcorch.api.proxy.apps.proxy import Proxy
 from dcorch.api.proxy.common import constants as proxy_consts
@@ -27,11 +35,11 @@ from dcorch.common import consts
 import dcorch.common.context as k_context
 from dcorch.common import exceptions as exception
 from dcorch.common import utils
+from dcorch.rpc import client as rpc_client
 from oslo_config import cfg
 from oslo_log import log as logging
 from oslo_service.wsgi import Request
-
-from dcorch.rpc import client as rpc_client
+from oslo_utils._i18n import _
 
 
 LOG = logging.getLogger(__name__)
@@ -364,7 +372,7 @@ class ComputeAPIController(APIController):
                                operation_type,
                                resource_info)
         except exception.ResourceNotFound as e:
-            raise webob.exc.HTTPNotFound(explanation=e.format_message())
+            raise webob.exc.HTTPNotFound(explanation=str(e))
 
 
 class SysinvAPIController(APIController):
@@ -372,23 +380,228 @@ class SysinvAPIController(APIController):
     ENDPOINT_TYPE = consts.ENDPOINT_TYPE_PLATFORM
     OK_STATUS_CODE = [
         webob.exc.HTTPOk.code,
+        webob.exc.HTTPAccepted.code,
         webob.exc.HTTPNoContent.code
     ]
 
     def __init__(self, app, conf):
         super(SysinvAPIController, self).__init__(app, conf)
+        self.dcmanager_rpc_client = dcmanager_rpc_client.ManagerClient()
         self.response_hander_map = {
             self.ENDPOINT_TYPE: self._process_response
         }
 
-    def _process_response(self, environ, request_body, response):
-        if self.get_status_code(response) in self.OK_STATUS_CODE:
-            self._enqueue_work(environ, request_body, response)
-            self.notify(environ, self.ENDPOINT_TYPE)
+    @webob.dec.wsgify(RequestClass=Request)
+    def __call__(self, req):
+        if CONF.show_request:
+            self.print_request(req)
+        environ = req.environ
+        # copy the request and the request body
+        request = req
+        request.body = req.body
+        application = self.process_request(req)
+        response = req.get_response(application)
+        return self.process_response(environ, request, response)
+
+    def _notify_dcmanager(self, request, response, endpoint_type, sync_status):
+        # Send a RPC to dcmanager
+        LOG.info("Send RPC to dcmanager to set: %s sync status to: %s"
+                 % (endpoint_type, sync_status))
+        self.dcmanager_rpc_client.update_subcloud_endpoint_status(
+            self.ctxt,
+            endpoint_type=endpoint_type,
+            sync_status=sync_status)
         return response
 
-    def _enqueue_work(self, environ, request_body, response):
+    def _notify_dcmanager_firmware(self, request, response):
+        return self._notify_dcmanager(request,
+                                      response,
+                                      consts.ENDPOINT_TYPE_FIRMWARE,
+                                      dcmanager_consts.SYNC_STATUS_UNKNOWN)
+
+    def _process_response(self, environ, request, response):
+        try:
+            resource_type = self._get_resource_type_from_environ(environ)
+            operation_type = proxy_utils.get_operation_type(environ)
+            if self.get_status_code(response) in self.OK_STATUS_CODE:
+                if resource_type == consts.RESOURCE_TYPE_SYSINV_LOAD:
+                    if operation_type == consts.OPERATION_TYPE_POST:
+                        new_load = json.loads(response.body)
+                        self._save_load_to_vault(new_load['software_version'])
+                    else:
+                        sw_version = json.loads(response.body)['software_version']
+                        self._remove_load_from_vault(sw_version)
+                elif resource_type == consts.RESOURCE_TYPE_SYSINV_DEVICE_IMAGE:
+                    notify = True
+                    if operation_type == consts.OPERATION_TYPE_POST:
+                        resp = json.loads(response.body)
+                        if not resp.get('error'):
+                            self._device_image_upload_req(request, response)
+                        else:
+                            notify = False
+                    elif operation_type == consts.OPERATION_TYPE_DELETE:
+                        filename = self._get_device_image_filename(
+                            json.loads(response.body))
+                        self._delete_device_image_from_vault(filename)
+                    # PATCH operation for apply/remove commands fall through
+                    # as they only require to notify dcmanager
+                    if notify:
+                        self._notify_dcmanager_firmware(request, response)
+                else:
+                    self._enqueue_work(environ, request, response)
+                    self.notify(environ, self.ENDPOINT_TYPE)
+            else:
+                if resource_type == consts.RESOURCE_TYPE_SYSINV_LOAD and \
+                        operation_type == consts.OPERATION_TYPE_POST:
+                    self._check_load_in_vault()
+
+            return response
+        finally:
+            proxy_utils.cleanup(environ)
+
+    def _is_active_load(self, sw_version):
+        if sw_version == tsc.SW_VERSION:
+            return True
+        return False
+
+    def _save_load_to_vault(self, sw_version):
+        versioned_vault = os.path.join(proxy_consts.LOAD_VAULT_DIR,
+                                       sw_version)
+
+        try:
+            # Remove any existing loads in the vault. At this point sysinv has
+            # validated/added the load so we must match the DC vault to that.
+            LOG.info("_save_load_to_vault remove prior %s" % sw_version)
+            self._remove_load_from_vault(sw_version)
+
+            if not os.path.isdir(versioned_vault):
+                os.makedirs(versioned_vault)
+
+            # Copy the load files from staging directory
+            load_path = proxy_consts.LOAD_FILES_STAGING_DIR
+            load_files = [f for f in os.listdir(load_path)
+                          if os.path.isfile(os.path.join(load_path, f))]
+            if len(load_files) != len(proxy_consts.IMPORT_LOAD_FILES):
+                msg = _("Failed to store load in vault. Please check "
+                        "dcorch log for details.")
+                LOG.error("_save_load_to_vault failed to store load in vault")
+                raise webob.exc.HTTPInsufficientStorage(explanation=msg)
+
+            for lf in load_files:
+                shutil.copy(os.path.join(load_path, lf), versioned_vault)
+
+            if self._is_active_load(sw_version):
+                LOG.info("remove files from staging %s" %
+                         proxy_consts.LOAD_FILES_STAGING_DIR)
+                shutil.rmtree(proxy_consts.LOAD_FILES_STAGING_DIR)
+
+            LOG.info("Load (%s) saved to vault." % sw_version)
+        except Exception:
+            msg = _("Failed to store load in vault. Please check "
+                    "dcorch log for details.")
+            raise webob.exc.HTTPInsufficientStorage(explanation=msg)
+
+    def _remove_load_from_vault(self, sw_version):
+        versioned_vault = os.path.join(
+            proxy_consts.LOAD_VAULT_DIR, sw_version)
+
+        if os.path.isdir(versioned_vault):
+            shutil.rmtree(versioned_vault)
+            LOG.info("Load (%s) removed from vault." % sw_version)
+
+    def _check_load_in_vault(self):
+        if not os.path.exists(proxy_consts.LOAD_VAULT_DIR):
+            # The vault directory has not even been created. This must
+            # be the very first load-import request which failed.
+            return
+        elif len(os.listdir(proxy_consts.LOAD_VAULT_DIR)) == 0:
+            try:
+                ks_client = OpenStackDriver(
+                    region_name=dcmanager_consts.DEFAULT_REGION_NAME,
+                    region_clients=None).keystone_client
+                sysinv_client = SysinvClient(
+                    dcmanager_consts.DEFAULT_REGION_NAME, ks_client.session)
+                loads = sysinv_client.get_loads()
+            except Exception:
+                # Shouldn't be here
+                LOG.exception("Failed to get list of loads.")
+                return
+            else:
+                if len(loads) > proxy_consts.IMPORTED_LOAD_MAX_COUNT:
+                    # The previous load regardless of its current state
+                    # was mistakenly imported without the proxy.
+                    msg = _("Previous load was not imported in the right "
+                            "region. Please remove the previous load and "
+                            "re-import it using 'SystemController' region.")
+                    raise webob.exc.HTTPUnprocessableEntity(explanation=msg)
+
+    def _copy_device_image_to_vault(self, src_filepath, dst_filename):
+        try:
+            if not os.path.isdir(proxy_consts.DEVICE_IMAGE_VAULT_DIR):
+                os.makedirs(proxy_consts.DEVICE_IMAGE_VAULT_DIR)
+            image_file_path = os.path.join(proxy_consts.DEVICE_IMAGE_VAULT_DIR,
+                                           dst_filename)
+            shutil.copyfile(src_filepath, image_file_path)
+            LOG.info("copied %s to %s" % (src_filepath, image_file_path))
+        except Exception:
+            msg = _("Failed to store device image in vault. Please check "
+                    "dcorch log for details.")
+            raise webob.exc.HTTPInsufficientStorage(explanation=msg)
+
+    def _store_image_file(self, file_item, dst_filename):
+        # write the image to a temporary directory first
+        tempdir = tempfile.mkdtemp(prefix="device_image_", dir='/scratch')
+        fn = tempdir + '/' + os.path.basename(file_item.filename)
+        if hasattr(file_item.file, 'fileno'):
+            src = file_item.file.fileno()
+            dst = os.open(fn, os.O_WRONLY | os.O_CREAT | os.O_TRUNC)
+            size = 64 * 1024
+            n = size
+            while n >= size:
+                s = os.read(src, size)
+                n = os.write(dst, s)
+            os.close(dst)
+        else:
+            with open(fn, 'wb') as fd:
+                fd.write(file_item.file.read())
+
+        # copy the device image to the vault
+        try:
+            self._copy_device_image_to_vault(fn, dst_filename)
+        finally:
+            shutil.rmtree(tempdir)
+
+    def _device_image_upload_req(self, request, response):
+        # stores device image in the vault storage
+        file_item = request.POST['file']
+        try:
+            resource = json.loads(response.body)[consts.RESOURCE_TYPE_SYSINV_DEVICE_IMAGE]
+            dst_filename = self._get_device_image_filename(resource)
+            self._store_image_file(file_item, dst_filename)
+        except Exception:
+            LOG.exception("Failed to store the device image to vault")
+        proxy_utils.cleanup(request.environ)
+        return response
+
+    def _get_device_image_filename(self, resource):
+        filename = "{}-{}-{}-{}.bit".format(
+            resource.get('bitstream_type'),
+            resource.get('pci_vendor'),
+            resource.get('pci_device'),
+            resource.get('uuid'))
+        return filename
+
+    def _delete_device_image_from_vault(self, filename):
+        image_file_path = os.path.join(
+            proxy_consts.DEVICE_IMAGE_VAULT_DIR, filename)
+
+        if os.path.isfile(image_file_path):
+            os.remove(image_file_path)
+            LOG.info("Device image (%s) removed from vault." % filename)
+
+    def _enqueue_work(self, environ, request, response):
         LOG.info("enqueue_work")
+        request_body = request.body
         resource_info = {}
         request_header = self.get_request_header(environ)
         operation_type = proxy_utils.get_operation_type(environ)
@@ -409,6 +622,10 @@ class SysinvAPIController(APIController):
                                     for res in resource]
                 else:
                     resource_ids = [resource.get('signature')]
+        elif resource_type == consts.RESOURCE_TYPE_SYSINV_LOAD:
+            if operation_type == consts.OPERATION_TYPE_DELETE:
+                resource_id = json.loads(response.body)['software_version']
+                resource_ids = [resource_id]
         else:
             resource_id = self.get_resource_id_from_link(request_header)
             resource_ids = [resource_id]
@@ -427,7 +644,7 @@ class SysinvAPIController(APIController):
                                    operation_type,
                                    json.dumps(resource_info))
             except exception.ResourceNotFound as e:
-                raise webob.exc.HTTPNotFound(explanation=e.format_message())
+                raise webob.exc.HTTPNotFound(explanation=str(e))
 
 
 class IdentityAPIController(APIController):
@@ -544,7 +761,7 @@ class IdentityAPIController(APIController):
                                    operation_type,
                                    json.dumps(resource_info))
             except exception.ResourceNotFound as e:
-                raise webob.exc.HTTPNotFound(explanation=e.format_message())
+                raise webob.exc.HTTPNotFound(explanation=str(e))
         else:
             LOG.warning("Empty resource id for resource: %s", operation_type)
 
@@ -602,7 +819,7 @@ class CinderAPIController(APIController):
                                operation_type,
                                resource_info)
         except exception.ResourceNotFound as e:
-            raise webob.exc.HTTPNotFound(explanation=e.format_message())
+            raise webob.exc.HTTPNotFound(explanation=str(e))
 
 
 class NeutronAPIController(APIController):
@@ -670,7 +887,7 @@ class NeutronAPIController(APIController):
                                operation_type,
                                resource_info)
         except exception.ResourceNotFound as e:
-            raise webob.exc.HTTPNotFound(explanation=e.format_message())
+            raise webob.exc.HTTPNotFound(explanation=str(e))
 
 
 class OrchAPIController(APIController):

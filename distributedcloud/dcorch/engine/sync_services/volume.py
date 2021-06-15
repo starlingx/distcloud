@@ -31,8 +31,11 @@ LOG = logging.getLogger(__name__)
 class VolumeSyncThread(SyncThread):
     """Manages tasks related to resource management for cinder."""
 
-    def __init__(self, subcloud_engine):
-        super(VolumeSyncThread, self).__init__(subcloud_engine)
+    def __init__(self, subcloud_name, endpoint_type=None, engine_id=None):
+        super(VolumeSyncThread, self).__init__(subcloud_name,
+                                               endpoint_type=endpoint_type,
+                                               engine_id=engine_id)
+        self.region_name = subcloud_name
         self.endpoint_type = consts.ENDPOINT_TYPE_VOLUME
         self.sync_handler_map = {
             consts.RESOURCE_TYPE_VOLUME_QUOTA_SET: self.sync_volume_resource,
@@ -44,7 +47,7 @@ class VolumeSyncThread(SyncThread):
             # note: no audit here for quotas, that's handled separately
         ]
         self.log_extra = {"instance": "{}/{}: ".format(
-            self.subcloud_engine.subcloud.region_name,
+            self.region_name,
             self.endpoint_type)}
         # define the subcloud clients
         self.sc_cinder_client = None
@@ -57,7 +60,7 @@ class VolumeSyncThread(SyncThread):
             self.sc_cinder_client = cinderclient.Client(
                 "3.0", session=self.sc_admin_session,
                 endpoint_type=dccommon_consts.KS_ENDPOINT_ADMIN,
-                region_name=self.subcloud_engine.subcloud.region_name)
+                region_name=self.region_name)
 
     def initialize(self):
         # Subcloud may be enabled a while after being added.
@@ -86,7 +89,7 @@ class VolumeSyncThread(SyncThread):
             # an error.
             LOG.info("sync_volume_resource: {} does not have a volume "
                      "endpoint in keystone"
-                     .format(self.subcloud_engine.subcloud.region_name),
+                     .format(self.region_name),
                      extra=self.log_extra)
         except AttributeError:
             LOG.error("{} not implemented for {}"
@@ -96,7 +99,7 @@ class VolumeSyncThread(SyncThread):
         except (keystone_exceptions.connection.ConnectTimeout,
                 keystone_exceptions.ConnectFailure) as e:
             LOG.error("sync_volume_resource: {} is not reachable [{}]"
-                      .format(self.subcloud_engine.subcloud.region_name,
+                      .format(self.region_name,
                               str(e)), extra=self.log_extra)
             raise exceptions.SyncRequestTimeout
         except exceptions.SyncRequestFailed:
@@ -123,7 +126,7 @@ class VolumeSyncThread(SyncThread):
         quota_dict = \
             quota_manager.QuotaManager.calculate_subcloud_project_quotas(
                 project_id, user_id, quota_dict,
-                self.subcloud_engine.subcloud.region_name)
+                self.region_name)
 
         # Apply the limits to the subcloud.
         self.sc_cinder_client.quotas.update(project_id, **quota_dict)
@@ -153,7 +156,7 @@ class VolumeSyncThread(SyncThread):
         quota_dict = \
             quota_manager.QuotaManager.calculate_subcloud_project_quotas(
                 project_id, user_id, quota_dict,
-                self.subcloud_engine.subcloud.region_name)
+                self.region_name)
 
         # Apply the limits to the subcloud.
         self.sc_cinder_client.quotas.update(project_id, **quota_dict)
@@ -245,13 +248,13 @@ class VolumeSyncThread(SyncThread):
         except (keystone_exceptions.connection.ConnectTimeout,
                 keystone_exceptions.ConnectFailure) as e:
             LOG.info("get_quota_class: subcloud {} is not reachable [{}]"
-                     .format(self.subcloud_engine.subcloud.region_name,
+                     .format(self.region_name,
                              str(e)), extra=self.log_extra)
             return None
         except keystone_exceptions.EndpointNotFound:
             LOG.info("get_quota_class: subcloud {} does not have a volume "
                      "endpoint in keystone"
-                     .format(self.subcloud_engine.subcloud.region_name),
+                     .format(self.region_name),
                      extra=self.log_extra)
             return None
         except Exception as e:

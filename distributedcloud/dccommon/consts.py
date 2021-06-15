@@ -33,9 +33,13 @@ CLOUD_0 = "RegionOne"
 VIRTUAL_MASTER_CLOUD = "SystemController"
 
 SW_UPDATE_DEFAULT_TITLE = "all clouds default"
+LOAD_VAULT_DIR = '/opt/dc-vault/loads'
 
 USER_HEADER_VALUE = "distcloud"
 USER_HEADER = {'User-Header': USER_HEADER_VALUE}
 
 ADMIN_USER_NAME = "admin"
 ADMIN_PROJECT_NAME = "admin"
+SYSINV_USER_NAME = "sysinv"
+DCMANAGER_USER_NAME = "dcmanager"
+SERVICES_USER_NAME = "services"

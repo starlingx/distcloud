@@ -10,7 +10,7 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 #
-# Copyright (c) 2020 Wind River Systems, Inc.
+# Copyright (c) 2021 Wind River Systems, Inc.
 #
 # The right to copy, distribute, modify, or otherwise make use
 # of this software may be licensed only pursuant to the terms
@@ -54,8 +54,9 @@ def main():
     launcher = service.launch(cfg.CONF,
                               srv, workers=CONF.audit_workers)
 
-    LOG.info("Configuration:")
-    cfg.CONF.log_opt_values(LOG, logging.INFO)
+    LOG.info("Starting...")
+    LOG.debug("Configuration:")
+    cfg.CONF.log_opt_values(LOG, logging.DEBUG)
 
     launcher.wait()
 

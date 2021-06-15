@@ -34,6 +34,7 @@ from oslo_log import log as logging
 
 from dccommon import consts as dccommon_consts
 from dccommon.drivers.openstack import vim
+from dcmanager.common import consts
 from dcmanager.common import exceptions
 from dcmanager.db import api as db_api
 from dcorch.common import consts as dcorch_consts
@@ -207,3 +208,100 @@ def get_filename_by_prefix(dir_path, prefix):
         if filename.startswith(prefix):
             return filename
     return None
+
+
+def create_subcloud_inventory(subcloud, inventory_file):
+    """Create the ansible inventory file for the specified subcloud"""
+
+    # Delete the file if it already exists
+    delete_subcloud_inventory(inventory_file)
+
+    with open(inventory_file, 'w') as f_out_inventory:
+        f_out_inventory.write(
+            '---\n'
+            'all:\n'
+            '  vars:\n'
+            '    ansible_ssh_user: sysadmin\n'
+            '  hosts:\n'
+            '    ' + subcloud['name'] + ':\n'
+            '      ansible_host: ' +
+            subcloud['bootstrap-address'] + '\n'
+        )
+
+
+def delete_subcloud_inventory(inventory_file):
+    """Delete the ansible inventory file for the specified subcloud"""
+
+    # Delete the file if it exists
+    if os.path.isfile(inventory_file):
+        os.remove(inventory_file)
+
+
+def get_vault_load_files(target_version):
+    """Return a tuple for the ISO and SIG for this load version from the vault.
+
+    The files can be imported to the vault using any name, but must end
+    in 'iso' or 'sig'.
+    : param target_version: The software version to search under the vault
+    """
+    vault_dir = "{}/{}/".format(consts.LOADS_VAULT_DIR, target_version)
+
+    matching_iso = None
+    matching_sig = None
+
+    if os.path.isdir(vault_dir):
+        for a_file in os.listdir(vault_dir):
+            if a_file.lower().endswith(".iso"):
+                matching_iso = os.path.join(vault_dir, a_file)
+                continue
+            elif a_file.lower().endswith(".sig"):
+                matching_sig = os.path.join(vault_dir, a_file)
+                continue
+        # If no .iso or .sig is found, raise an exception
+        if matching_iso is None:
+            raise exceptions.VaultLoadMissingError(
+                file_type='.iso', vault_dir=vault_dir)
+        if matching_sig is None:
+            raise exceptions.VaultLoadMissingError(
+                file_type='.sig', vault_dir=vault_dir)
+
+    # return the iso and sig for this load
+    return (matching_iso, matching_sig)
+
+
+def get_active_kube_version(kube_versions):
+    """Returns the active version name for kubernetes from a list of versions"""
+
+    active_kube_version = None
+    for kube in kube_versions:
+        kube_dict = kube.to_dict()
+        if kube_dict.get('target') and kube_dict.get('state') == 'active':
+            active_kube_version = kube_dict.get('version')
+            break
+    return active_kube_version
+
+
+def get_loads_for_patching(loads):
+    """Filter the loads that can be patched. Return their software versions"""
+    valid_states = [
+        consts.ACTIVE_LOAD_STATE,
+        consts.IMPORTED_LOAD_STATE
+    ]
+    return [load.software_version for load in loads if load.state in valid_states]
+
+
+def subcloud_group_get_by_ref(context, group_ref):
+    # Handle getting a group by either name, or ID
+    if group_ref.isdigit():
+        # Lookup subcloud group as an ID
+        try:
+            group = db_api.subcloud_group_get(context, group_ref)
+        except exceptions.SubcloudGroupNotFound:
+            return None
+    else:
+        # Lookup subcloud group as a name
+        try:
+            group = db_api.subcloud_group_get_by_name(context, group_ref)
+        except exceptions.SubcloudGroupNameNotFound:
+            return None
+    return group

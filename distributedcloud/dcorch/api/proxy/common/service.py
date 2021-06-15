@@ -84,7 +84,7 @@ class Middleware(Application):
 
     @webob.dec.wsgify(RequestClass=Request)
     def __call__(self, req):
-        response = self.process_request(req)
+        response = self.process_request(req)  # pylint: disable=E1128
         if response:
             return response
         # call the next app on the stack to process the request

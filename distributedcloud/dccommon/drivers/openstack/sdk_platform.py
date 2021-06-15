@@ -16,29 +16,23 @@
 OpenStack Driver
 """
 import collections
-import random
 
 from oslo_concurrency import lockutils
 from oslo_log import log
-from oslo_utils import timeutils
 
 from dccommon import consts
+from dccommon.drivers.openstack.barbican import BarbicanClient
 from dccommon.drivers.openstack.fm import FmClient
 from dccommon.drivers.openstack.keystone_v3 import KeystoneClient
 from dccommon.drivers.openstack.sysinv_v1 import SysinvClient
 from dccommon import exceptions
+from dccommon.utils import is_token_expiring_soon
 
-
-# Gap, in seconds, to determine whether the given token is about to expire
-# These values are used to randomize the token early renewal duration and
-# to distribute the new keystone creation to different audit cycles
-STALE_TOKEN_DURATION_MIN = 40
-STALE_TOKEN_DURATION_MAX = 120
-STALE_TOKEN_DURATION_STEP = 20
 
 KEYSTONE_CLIENT_NAME = 'keystone'
 SYSINV_CLIENT_NAME = 'sysinv'
 FM_CLIENT_NAME = 'fm'
+BARBICAN_CLIENT_NAME = 'barbican'
 
 LOG = log.getLogger(__name__)
 
@@ -46,13 +40,15 @@ LOCK_NAME = 'dc-openstackdriver-platform'
 
 SUPPORTED_REGION_CLIENTS = [
     SYSINV_CLIENT_NAME,
-    FM_CLIENT_NAME
+    FM_CLIENT_NAME,
+    BARBICAN_CLIENT_NAME,
 ]
 
 # region client type and class mappings
 region_client_class_map = {
     SYSINV_CLIENT_NAME: SysinvClient,
     FM_CLIENT_NAME: FmClient,
+    BARBICAN_CLIENT_NAME: BarbicanClient,
 }
 
 
@@ -68,6 +64,7 @@ class OpenStackDriver(object):
         self.keystone_client = None
         self.sysinv_client = None
         self.fm_client = None
+        self.barbican_client = None
 
         if region_clients:
             # check if the requested clients are in the supported client list
@@ -80,15 +77,18 @@ class OpenStackDriver(object):
 
         self.get_cached_keystone_client(region_name)
         if self.keystone_client is None:
-            LOG.info("get new keystone client for subcloud %s", region_name)
+            LOG.debug("get new keystone client for subcloud %s", region_name)
             try:
                 self.keystone_client = KeystoneClient(region_name, auth_url)
                 OpenStackDriver.update_region_clients(region_name,
                                                       KEYSTONE_CLIENT_NAME,
                                                       self.keystone_client)
+                # Clear client object cache
+                OpenStackDriver.os_clients_dict[region_name] = \
+                    collections.defaultdict(dict)
             except Exception as exception:
                 LOG.error('keystone_client region %s error: %s' %
-                          (region_name, exception.message))
+                          (region_name, str(exception)))
                 raise exception
 
         if region_clients:
@@ -110,7 +110,7 @@ class OpenStackDriver(object):
                     except Exception as exception:
                         LOG.error('Region %s client %s thread %s error: %s' %
                                   (region_name, client_name, thread_name,
-                                   exception.message))
+                                   str(exception)))
                         raise exception
 
     @lockutils.synchronized(LOCK_NAME)
@@ -188,31 +188,35 @@ class OpenStackDriver(object):
                     OpenStackDriver._identity_tokens[region_name],
                     include_catalog=False)
                 if token != OpenStackDriver._identity_tokens[region_name]:
-                    LOG.debug("%s: updating token %s to %s" %
+                    LOG.debug("%s: AccessInfo changed %s to %s" %
                               (region_name,
                                OpenStackDriver._identity_tokens[region_name],
                                token))
-                    OpenStackDriver._identity_tokens[region_name] = token
+                    OpenStackDriver._identity_tokens[region_name] = None
+                    OpenStackDriver.os_clients_dict[region_name] = \
+                        collections.defaultdict(dict)
+                    return False
 
         except Exception as exception:
-            LOG.info('_is_token_valid handle: %s', exception.message)
+            LOG.info('_is_token_valid handle: region: %s error: %s',
+                     (region_name, str(exception)))
             # Reset the cached dictionary
             OpenStackDriver.os_clients_dict[region_name] = \
                 collections.defaultdict(dict)
             OpenStackDriver._identity_tokens[region_name] = None
             return False
 
-        expiry_time = timeutils.normalize_time(timeutils.parse_isotime(
-            self._identity_tokens[region_name]['expires_at']))
-        duration = random.randrange(STALE_TOKEN_DURATION_MIN,
-                                    STALE_TOKEN_DURATION_MAX,
-                                    STALE_TOKEN_DURATION_STEP)
-        if timeutils.is_soon(expiry_time, duration):
-            LOG.info("The cached keystone token for subcloud %s "
-                     "will expire soon %s" %
-                     (region_name,
-                      OpenStackDriver._identity_tokens[region_name]
-                      ['expires_at']))
+        token_expiring_soon = is_token_expiring_soon(
+            token=self._identity_tokens[region_name])
+
+        # If token is expiring soon, reset cached dictionaries and return False.
+        # Else return true.
+        if token_expiring_soon:
+            LOG.debug("The cached keystone token for subcloud %s "
+                      "will expire soon %s" %
+                      (region_name,
+                       OpenStackDriver._identity_tokens[region_name]
+                       ['expires_at']))
             # Reset the cached dictionary
             OpenStackDriver.os_clients_dict[region_name] = \
                 collections.defaultdict(dict)

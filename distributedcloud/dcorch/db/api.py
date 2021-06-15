@@ -308,3 +308,43 @@ def orch_request_delete_previous_failed_requests(context, delete_timestamp):
 # Periodic cleanup
 def purge_deleted_records(context, age_in_days=1):
     return IMPL.purge_deleted_records(context, age_in_days)
+
+
+def sync_lock_acquire(context, engine_id, subcloud_name, endpoint_type, action):
+    return IMPL.sync_lock_acquire(context, engine_id, subcloud_name,
+                                  endpoint_type, action)
+
+
+def sync_lock_release(context, subcloud_name, endpoint_type, action):
+    return IMPL.sync_lock_release(context, subcloud_name, endpoint_type, action)
+
+
+def sync_lock_steal(context, engine_id, subcloud_name, endpoint_type, action):
+    return IMPL.sync_lock_steal(context, engine_id, subcloud_name,
+                                endpoint_type, action)
+
+
+def sync_lock_delete_by_engine_id(context, engine_id):
+    return IMPL.sync_lock_delete_by_engine_id(context, engine_id)
+
+
+def purge_stale_sync_lock(context):
+    return IMPL.purge_stale_sync_lock(context)
+
+
+def subcloud_sync_get(context, subcloud_name, endpoint_type):
+    return IMPL.subcloud_sync_get(context, subcloud_name, endpoint_type)
+
+
+def subcloud_sync_update(context, subcloud_name, endpoint_type, values):
+    return IMPL.subcloud_sync_update(context, subcloud_name, endpoint_type,
+                                     values)
+
+
+def subcloud_sync_create(context, subcloud_name, endpoint_type, values):
+    return IMPL.subcloud_sync_create(context, subcloud_name, endpoint_type,
+                                     values)
+
+
+def subcloud_sync_delete(context, subcloud_name, endpoint_type):
+    return IMPL.subcloud_sync_delete(context, subcloud_name, endpoint_type)

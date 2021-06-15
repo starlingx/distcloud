@@ -1,4 +1,4 @@
-# Copyright 2018 Wind River
+# Copyright 2018-2020 Wind River
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -156,7 +156,7 @@ class PatchAPIController(Middleware):
         # write the patch to a temporary directory first
         tempdir = tempfile.mkdtemp(prefix="patch_proxy_", dir='/scratch')
         fn = tempdir + '/' + os.path.basename(filename)
-        dst = os.open(fn, os.O_WRONLY | os.O_CREAT)
+        dst = os.open(fn, os.O_WRONLY | os.O_CREAT | os.O_TRUNC)
         size = 64 * 1024
         n = size
         while n >= size:
@@ -165,13 +165,28 @@ class PatchAPIController(Middleware):
         os.close(dst)
 
         # copy the patch to the versioned vault
-        self.copy_patch_to_version_vault(fn)
-        shutil.rmtree(tempdir)
+        try:
+            self.copy_patch_to_version_vault(fn)
+        finally:
+            shutil.rmtree(tempdir)
 
     def patch_upload_req(self, request, response):
         # stores patch in the patch storage
         file_item = request.POST['file']
-        self.store_patch_file(file_item.filename, file_item.file.fileno())
+        try:
+            self.store_patch_file(file_item.filename, file_item.file.fileno())
+        except Exception:
+            LOG.exception("Failed to store the patch to vault")
+            # return a warning and prompt the user to try again
+            if hasattr(response, 'text'):
+                from builtins import str as text
+                data = json.loads(response.text)
+                if 'warning' in data:
+                    msg = _('The patch file could not be stored in the vault, '
+                            'please upload the patch again!')
+                    data['warning'] += msg
+                    response.text = text(json.dumps(data))
+        proxy_utils.cleanup(request.environ)
         return response
 
     def patch_upload_dir_req(self, request, response):
@@ -222,4 +237,5 @@ class PatchAPIController(Middleware):
             handler = self.response_hander_map[action]
             return handler(request, response)
         else:
+            proxy_utils.cleanup(request.environ)
             return response

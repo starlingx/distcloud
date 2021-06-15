@@ -13,7 +13,7 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 #
-# Copyright (c) 2017-2020 Wind River Systems, Inc.
+# Copyright (c) 2017-2021 Wind River Systems, Inc.
 #
 # The right to copy, distribute, modify, or otherwise make use
 # of this software may be licensed only pursuant to the terms
@@ -23,11 +23,13 @@
 SQLAlchemy models for dcmanager data.
 """
 
+import datetime
+
 from oslo_db.sqlalchemy import models
 
 from sqlalchemy.orm import backref, relationship
 from sqlalchemy.orm import session as orm_session
-from sqlalchemy import (Column, Integer, String, Boolean, DateTime)
+from sqlalchemy import (Column, Integer, String, Boolean, DateTime, Text)
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy import ForeignKey
 
@@ -99,7 +101,9 @@ class Subcloud(BASE, DCManagerBase):
     software_version = Column(String(255))
     management_state = Column(String(255))
     availability_status = Column(String(255))
+    data_install = Column(String())
     deploy_status = Column(String(255))
+    data_upgrade = Column(String())
     management_subnet = Column(String(255))
     management_gateway_ip = Column(String(255))
     management_start_ip = Column(String(255), unique=True)
@@ -107,11 +111,33 @@ class Subcloud(BASE, DCManagerBase):
     openstack_installed = Column(Boolean, nullable=False, default=False)
     systemcontroller_gateway_ip = Column(String(255))
     audit_fail_count = Column(Integer)
+
     # multiple subclouds can be in a particular group
     group_id = Column(Integer,
                       ForeignKey('subcloud_group.id'))
     group = relationship(SubcloudGroup,
                          backref=backref('subcloud'))
+
+
+class SubcloudAudits(BASE, DCManagerBase):
+    """Represents the various audits for a subcloud"""
+
+    __tablename__ = 'subcloud_audits'
+
+    id = Column(Integer, primary_key=True, nullable=False)
+    subcloud_id = Column(Integer,
+                         ForeignKey('subclouds.id', ondelete='CASCADE'),
+                         unique=True)
+    audit_started_at = Column(DateTime(timezone=False), default=datetime.datetime.min)
+    audit_finished_at = Column(DateTime(timezone=False), default=datetime.datetime.min)
+    state_update_requested = Column(Boolean, nullable=False, default=False)
+    patch_audit_requested = Column(Boolean, nullable=False, default=False)
+    load_audit_requested = Column(Boolean, nullable=False, default=False)
+    firmware_audit_requested = Column(Boolean, nullable=False, default=False)
+    kubernetes_audit_requested = Column(Boolean, nullable=False, default=False)
+    spare_audit_requested = Column(Boolean, nullable=False, default=False)
+    spare2_audit_requested = Column(Boolean, nullable=False, default=False)
+    reserved = Column(Text)
 
 
 class SubcloudStatus(BASE, DCManagerBase):

@@ -10,7 +10,7 @@
 # License for the specific language governing permissions and limitations
 # under the License.
 #
-# Copyright (c) 2017 Wind River Systems, Inc.
+# Copyright (c) 2017-2020 Wind River Systems, Inc.
 #
 # The right to copy, distribute, modify, or otherwise make use
 # of this software may be licensed only pursuant to the terms
@@ -18,7 +18,7 @@
 #
 
 import mock
-
+import os.path
 import sys
 sys.modules['fm_core'] = mock.Mock()
 
@@ -31,6 +31,12 @@ from oslo_config import cfg
 CONF = cfg.CONF
 FAKE_USER = utils.UUID1
 FAKE_JOB = utils.UUID2
+
+
+class FakeDCManagerAuditAPI(object):
+
+    def __init__(self):
+        self.trigger_patch_audit = mock.MagicMock()
 
 
 class TestDCManagerService(base.DCManagerTestCase):
@@ -46,49 +52,39 @@ class TestDCManagerService(base.DCManagerTestCase):
         self.user_id = FAKE_USER
         self.job_id = FAKE_JOB
 
+        os.path.isdir = mock.Mock(return_value=True)
+
+        # Mock the DCManager Audit API
+        self.fake_dcmanager_audit_api = FakeDCManagerAuditAPI()
+        p = mock.patch('dcmanager.audit.rpcapi.ManagerAuditClient')
+        self.mock_dcmanager_audit_api = p.start()
+        self.mock_dcmanager_audit_api.return_value = \
+            self.fake_dcmanager_audit_api
+        self.addCleanup(p.stop)
+
     def test_init(self):
         self.assertEqual(self.service_obj.host, 'localhost')
         self.assertEqual(self.service_obj.topic, 'dcmanager')
-        self.assertEqual(self.service_obj.periodic_enable,
-                         CONF.scheduler.periodic_enable)
 
     def test_init_tgm(self):
         self.service_obj.init_tgm()
         self.assertIsNotNone(self.service_obj.TG)
 
-    def test_init_audit_managers(self):
-        self.service_obj.init_audit_managers()
-        self.assertIsNotNone(self.service_obj.patch_audit_manager)
-
-    @mock.patch.object(service, 'SwUpdateManager')
     @mock.patch.object(service, 'SubcloudManager')
-    def test_init_managers(self, mock_subcloud_manager,
-                           mock_sw_update_manager):
+    def test_init_managers(self, mock_subcloud_manager):
         self.service_obj.init_managers()
         self.assertIsNotNone(self.service_obj.subcloud_manager)
-        self.assertIsNotNone(self.service_obj.sw_update_manager)
 
-    @mock.patch.object(service, 'SwUpdateManager')
     @mock.patch.object(service, 'SubcloudManager')
     @mock.patch.object(service, 'rpc_messaging')
-    def test_start(self, mock_rpc, mock_subcloud_manager,
-                   mock_sw_update_manager):
+    def test_start(self, mock_rpc, mock_subcloud_manager):
         self.service_obj.start()
         mock_rpc.get_rpc_server.assert_called_once_with(
             self.service_obj.target, self.service_obj)
         mock_rpc.get_rpc_server().start.assert_called_once_with()
 
-    @mock.patch.object(service, 'PatchAuditManager')
-    def test_periodic_audit_patches(self, mock_patch_audit_manager):
-        self.service_obj.init_tgm()
-        self.service_obj.init_audit_managers()
-        self.service_obj.patch_audit()
-        mock_patch_audit_manager().periodic_patch_audit.\
-            assert_called_once_with()
-
-    @mock.patch.object(service, 'SwUpdateManager')
     @mock.patch.object(service, 'SubcloudManager')
-    def test_add_subcloud(self, mock_subcloud_manager, mock_sw_update_manager):
+    def test_add_subcloud(self, mock_subcloud_manager):
         self.service_obj.init_tgm()
         self.service_obj.init_managers()
         self.service_obj.add_subcloud(
@@ -96,10 +92,8 @@ class TestDCManagerService(base.DCManagerTestCase):
         mock_subcloud_manager().add_subcloud.\
             assert_called_once_with(self.context, mock.ANY)
 
-    @mock.patch.object(service, 'SwUpdateManager')
     @mock.patch.object(service, 'SubcloudManager')
-    def test_delete_subcloud(self, mock_subcloud_manager,
-                             mock_sw_update_manager):
+    def test_delete_subcloud(self, mock_subcloud_manager):
         self.service_obj.init_tgm()
         self.service_obj.init_managers()
         self.service_obj.delete_subcloud(
@@ -107,10 +101,8 @@ class TestDCManagerService(base.DCManagerTestCase):
         mock_subcloud_manager().delete_subcloud.\
             assert_called_once_with(self.context, mock.ANY)
 
-    @mock.patch.object(service, 'SwUpdateManager')
     @mock.patch.object(service, 'SubcloudManager')
-    def test_update_subcloud(self, mock_subcloud_manager,
-                             mock_sw_update_manager):
+    def test_update_subcloud(self, mock_subcloud_manager):
         self.service_obj.init_tgm()
         self.service_obj.init_managers()
         self.service_obj.update_subcloud(
@@ -118,22 +110,19 @@ class TestDCManagerService(base.DCManagerTestCase):
         mock_subcloud_manager().update_subcloud.\
             assert_called_once_with(self.context, mock.ANY,
                                     mock.ANY, mock.ANY,
+                                    mock.ANY, mock.ANY,
                                     mock.ANY, mock.ANY)
 
-    @mock.patch.object(service, 'SwUpdateManager')
     @mock.patch.object(service, 'SubcloudManager')
     @mock.patch.object(service, 'rpc_messaging')
-    def test_stop_rpc_server(self, mock_rpc, mock_subcloud_manager,
-                             mock_sw_update_manager):
+    def test_stop_rpc_server(self, mock_rpc, mock_subcloud_manager):
         self.service_obj.start()
         self.service_obj._stop_rpc_server()
         mock_rpc.get_rpc_server().stop.assert_called_once_with()
 
-    @mock.patch.object(service, 'SwUpdateManager')
     @mock.patch.object(service, 'SubcloudManager')
     @mock.patch.object(service, 'rpc_messaging')
-    def test_stop(self, mock_rpc, mock_subcloud_manager,
-                  mock_sw_update_manager):
+    def test_stop(self, mock_rpc, mock_subcloud_manager):
         self.service_obj.start()
         self.service_obj.stop()
         mock_rpc.get_rpc_server().stop.assert_called_once_with()

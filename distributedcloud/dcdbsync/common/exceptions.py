@@ -67,6 +67,10 @@ class NotAuthorized(DBsyncException):
     message = _("Not authorized.")
 
 
+class Forbidden(DBsyncException):
+    message = _("Requested API is forbidden.")
+
+
 class AdminRequired(NotAuthorized):
     message = _("User does not have admin privileges: %(reason)s")
 

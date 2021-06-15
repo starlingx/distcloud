@@ -18,7 +18,7 @@
 from dcorch.common import exceptions
 from dcorch.db import api as db_api
 from dcorch.objects import base
-from oslo_versionedobjects import fields
+from oslo_versionedobjects import fields as ovo_fields
 
 
 @base.OrchestratorObjectRegistry.register
@@ -26,15 +26,15 @@ class OrchJob(base.OrchestratorObject, base.VersionedObjectDictCompat):
     """DC Orchestrator orchestration job object."""
 
     fields = {
-        'id': fields.IntegerField(),
-        'uuid': fields.UUIDField(),
-        'user_id': fields.StringField(),
-        'project_id': fields.StringField(),
-        'endpoint_type': fields.StringField(),
-        'source_resource_id': fields.StringField(),  # resource master_id
-        'operation_type': fields.StringField(),
-        'resource_id': fields.IntegerField(),
-        'resource_info': fields.StringField(nullable=True),
+        'id': ovo_fields.IntegerField(),
+        'uuid': ovo_fields.UUIDField(),
+        'user_id': ovo_fields.StringField(),
+        'project_id': ovo_fields.StringField(),
+        'endpoint_type': ovo_fields.StringField(),
+        'source_resource_id': ovo_fields.StringField(),  # resource master_id
+        'operation_type': ovo_fields.StringField(),
+        'resource_id': ovo_fields.IntegerField(),
+        'resource_info': ovo_fields.StringField(nullable=True),
     }
 
     def create(self):
@@ -82,9 +82,12 @@ class OrchJob(base.OrchestratorObject, base.VersionedObjectDictCompat):
         updates = self.obj_get_changes()
         updates.pop('id', None)
         updates.pop('uuid', None)
-        db_orch_job = db_api.orch_job_update(self._context, self.id, updates)
+        db_orch_job = db_api.orch_job_update(self._context,
+                                             self.id,  # pylint: disable=E1101
+                                             updates)
         self._from_db_object(self._context, self, db_orch_job)
         self.obj_reset_changes()
 
     def delete(self):
-        db_api.orch_job_delete(self._context, self.id)
+        db_api.orch_job_delete(self._context,
+                               self.id)  # pylint: disable=E1101

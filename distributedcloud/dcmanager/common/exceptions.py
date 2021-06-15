@@ -14,7 +14,7 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 #
-# Copyright (c) 2017 Wind River Systems, Inc.
+# Copyright (c) 2017-2021 Wind River Systems, Inc.
 #
 # The right to copy, distribute, modify, or otherwise make use
 # of this software may be licensed only pursuant to the terms
@@ -81,6 +81,10 @@ class Conflict(DCManagerException):
 
 class NotAuthorized(DCManagerException):
     message = _("Not authorized.")
+
+
+class Forbidden(DCManagerException):
+    message = _("Requested API is forbidden")
 
 
 class ServiceUnavailable(DCManagerException):
@@ -170,6 +174,31 @@ class InvalidInputError(DCManagerException):
     message = _("An invalid value was provided")
 
 
+class LicenseInstallError(DCManagerException):
+    message = _("Error while installing license on subcloud: %(subcloud_id)s")
+
+
+class LicenseMissingError(DCManagerException):
+    message = _("License does not exist on subcloud: %(subcloud_id)s")
+
+
+class KubeUpgradeFailedException(DCManagerException):
+    message = _("Subcloud: %(subcloud)s kube upgrade failed: %(details)s")
+
+
+class ManualRecoveryRequiredException(DCManagerException):
+    message = _("Subcloud: %(subcloud)s needs manual recovery from "
+                "%(error_message)s")
+
+
+class PreCheckFailedException(DCManagerException):
+    message = _("Subcloud: %(subcloud)s upgrade precheck failed: %(details)s")
+
+
+class VaultLoadMissingError(DCManagerException):
+    message = _("No matching: %(file_type)s found in vault: %(vault_dir)s")
+
+
 class StrategyStepNotFound(NotFound):
     message = _("StrategyStep with subcloud_id %(subcloud_id)s "
                 "doesn't exist.")
@@ -177,3 +206,7 @@ class StrategyStepNotFound(NotFound):
 
 class StrategyStepNameNotFound(NotFound):
     message = _("StrategyStep with name %(name)s doesn't exist.")
+
+
+class StrategyStoppedException(DCManagerException):
+    message = _("Strategy has been stopped")

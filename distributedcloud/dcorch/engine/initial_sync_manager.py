@@ -21,6 +21,8 @@ from dcorch.common import consts
 from dcorch.common import context
 from dcorch.db import api as db_api
 from dcorch.engine import scheduler
+from dcorch.engine import subcloud_lock
+
 
 LOG = logging.getLogger(__name__)
 
@@ -44,7 +46,7 @@ class InitialSyncManager(object):
         # Track greenthreads created for each subcloud.
         self.subcloud_threads = dict()
 
-    def init_actions(self):
+    def init_actions(self, engine_id):
         """Perform actions on initialization"""
 
         # Since we are starting up, any initial syncs that were in progress
@@ -52,8 +54,9 @@ class InitialSyncManager(object):
         for subcloud in db_api.subcloud_get_all(
                 self.context,
                 initial_sync_state=consts.INITIAL_SYNC_STATE_IN_PROGRESS):
-            LOG.info('Initial sync for subcloud %s was in progress and will '
-                     'be re-attempted' % subcloud.region_name)
+            LOG.info('Engine id:(%s): Initial sync for subcloud %s was in '
+                     'progress and will '
+                     'be re-attempted' % (engine_id, subcloud.region_name))
             self.gsm.update_subcloud_state(
                 subcloud.region_name,
                 initial_sync_state=consts.INITIAL_SYNC_STATE_REQUESTED)
@@ -69,23 +72,23 @@ class InitialSyncManager(object):
                 subcloud.region_name,
                 initial_sync_state=consts.INITIAL_SYNC_STATE_REQUESTED)
 
-    def initial_sync_thread(self):
+    def initial_sync_thread(self, engine_id):
         """Perform initial sync for subclouds as required."""
 
         while True:
             # Catch exceptions so the thread does not die.
             try:
                 eventlet.greenthread.sleep(SYNC_INTERVAL)
-                self._initial_sync_subclouds()
+                self._initial_sync_subclouds(engine_id)
             except eventlet.greenlet.GreenletExit:
                 # We have been told to exit
                 return
             except Exception as e:
                 LOG.exception(e)
 
-    def _initial_sync_subclouds(self):
+    def _initial_sync_subclouds(self, engine_id):
         """Perform initial sync for subclouds that require it."""
-        LOG.debug('Starting initial sync loop.')
+        LOG.debug('Engine id %s: Starting initial sync loop.' % engine_id)
 
         for subcloud in db_api.subcloud_get_all(
                 self.context,
@@ -96,7 +99,8 @@ class InitialSyncManager(object):
             # available.
             self.subcloud_threads[subcloud.region_name] = \
                 self.thread_group_manager.start(
-                    self._initial_sync_subcloud, subcloud.region_name)
+                    self._initial_sync_subcloud, self.context, engine_id,
+                    subcloud.region_name, 'none', 'none')
 
         # Wait for all greenthreads to complete. This both throttles the
         # initial syncs and ensures we don't attempt to do an initial sync
@@ -109,7 +113,9 @@ class InitialSyncManager(object):
         self.subcloud_threads = dict()
         LOG.debug('All subcloud initial syncs have completed.')
 
-    def _initial_sync_subcloud(self, subcloud_name):
+    @subcloud_lock.sync_subcloud
+    def _initial_sync_subcloud(self, context, engine_id, subcloud_name,
+                               endpoint_type, action):
         """Perform initial sync for a subcloud.
 
         This runs in a separate greenthread for each subcloud.
@@ -142,6 +148,7 @@ class InitialSyncManager(object):
         try:
             self.gsm.initial_sync(self.context, subcloud_name)
             self.fkm.distribute_keys(self.context, subcloud_name)
+            self.gsm.init_subcloud_sync_audit(subcloud_name)
         except Exception as e:
             LOG.exception('Initial sync failed for %s: %s', subcloud_name, e)
             # We need to try again

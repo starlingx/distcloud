@@ -23,7 +23,7 @@ from dcorch.common import exceptions
 from dcorch.db import api as db_api
 from dcorch.objects import base
 from oslo_versionedobjects import base as ovo_base
-from oslo_versionedobjects import fields
+from oslo_versionedobjects import fields as ovo_fields
 
 LOG = logging.getLogger(__name__)
 
@@ -33,14 +33,14 @@ class Subcloud(base.OrchestratorObject, base.VersionedObjectDictCompat):
     """DC Orchestrator subcloud object."""
 
     fields = {
-        'id': fields.IntegerField(),
-        'uuid': fields.UUIDField(),
-        'region_name': fields.StringField(),
-        'software_version': fields.StringField(),
-        'management_state': fields.StringField(nullable=True),
-        'availability_status': fields.StringField(),
-        'capabilities': fields.DictOfListOfStringsField(),
-        'initial_sync_state': fields.StringField(),
+        'id': ovo_fields.IntegerField(),
+        'uuid': ovo_fields.UUIDField(),
+        'region_name': ovo_fields.StringField(),
+        'software_version': ovo_fields.StringField(),
+        'management_state': ovo_fields.StringField(nullable=True),
+        'availability_status': ovo_fields.StringField(),
+        'capabilities': ovo_fields.DictOfListOfStringsField(),
+        'initial_sync_state': ovo_fields.StringField(),
     }
 
     def create(self):
@@ -60,12 +60,9 @@ class Subcloud(base.OrchestratorObject, base.VersionedObjectDictCompat):
                 self._context, region_name, updates)
             return self._from_db_object(self._context, self, db_subcloud)
         except Exception as e:
-            LOG.error("Failed to create subcloud %s: %s" % (self.region_name, e))
-            try:
-                db_api.subcloud_alarms_delete(self._context, self.region_name)
-            except Exception as e:
-                LOG.error("Failed to delete alarm entry for %s: %s"
-                          % (self.region_name, e))
+            LOG.error("Failed to create subcloud %s: %s" % (
+                self.region_name,  # pylint: disable=E1101
+                str(e)))
             raise e
 
     @classmethod
@@ -73,12 +70,22 @@ class Subcloud(base.OrchestratorObject, base.VersionedObjectDictCompat):
         db_subcloud = db_api.subcloud_get(context, subcloud_name)
         return cls._from_db_object(context, cls(), db_subcloud)
 
+    @classmethod
+    def delete_subcloud_by_name(cls, context, subcloud_name):
+        try:
+            db_api.subcloud_delete(context, subcloud_name)
+        except Exception as e:
+            LOG.error("Failed to delete subcloud entry for %s: %s"
+                      % (subcloud_name, e))
+
     def save(self):
         updates = self.obj_get_changes()
         updates.pop('id', None)
         updates.pop('uuid', None)
-        db_subcloud = db_api.subcloud_update(self._context, self.region_name,
-                                             updates)
+        db_subcloud = db_api.subcloud_update(
+            self._context,
+            self.region_name,  # pylint: disable=E1101
+            updates)
         self._from_db_object(self._context, self, db_subcloud)
         self.obj_reset_changes()
 
@@ -86,15 +93,20 @@ class Subcloud(base.OrchestratorObject, base.VersionedObjectDictCompat):
         # TODO(cfriesen): fix up to use delete cascade
         # delete the associated sync requests
         try:
-            db_api.orch_request_delete_by_subcloud(self._context, self.region_name)
+            db_api.orch_request_delete_by_subcloud(
+                self._context,
+                self.region_name)  # pylint: disable=E1101
         except Exception as e:
             LOG.error("Failed to delete orchestration request for %s: %s"
-                      % (self.region_name, e))
+                      % (self.region_name,  # pylint: disable=E1101
+                         str(e)))
         try:
-            db_api.subcloud_delete(self._context, self.region_name)
+            db_api.subcloud_delete(self._context,
+                                   self.region_name)  # pylint: disable=E1101
         except Exception as e:
             LOG.error("Failed to delete subcloud entry for %s: %s"
-                      % (self.region_name, e))
+                      % (self.region_name,  # pylint: disable=E1101
+                         str(e)))
 
 
 @base.OrchestratorObjectRegistry.register
@@ -103,7 +115,7 @@ class SubcloudList(ovo_base.ObjectListBase, base.OrchestratorObject):
     VERSION = '1.1'
 
     fields = {
-        'objects': fields.ListOfObjectsField('Subcloud'),
+        'objects': ovo_fields.ListOfObjectsField('Subcloud'),
     }
 
     @classmethod

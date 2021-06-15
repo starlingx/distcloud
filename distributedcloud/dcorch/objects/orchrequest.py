@@ -20,7 +20,7 @@ from dcorch.db import api as db_api
 from dcorch.objects import base
 from dcorch.objects import orchjob
 from oslo_versionedobjects import base as ovo_base
-from oslo_versionedobjects import fields
+from oslo_versionedobjects import fields as ovo_fields
 
 
 @base.OrchestratorObjectRegistry.register
@@ -28,17 +28,17 @@ class OrchRequest(base.OrchestratorObject, base.VersionedObjectDictCompat):
     """DC Orchestrator orchestration request object."""
 
     fields = {
-        'id': fields.IntegerField(),
-        'uuid': fields.UUIDField(),
-        'state': fields.StringField(),
-        'try_count': fields.IntegerField(),
-        'api_version': fields.StringField(nullable=True),
-        'target_region_name': fields.StringField(),
-        'orch_job_id': fields.IntegerField(),
-        'orch_job': fields.ObjectField('OrchJob'),
-        'updated_at': fields.DateTimeField(nullable=True),
-        'deleted_at': fields.DateTimeField(nullable=True),
-        'deleted': fields.IntegerField()
+        'id': ovo_fields.IntegerField(),
+        'uuid': ovo_fields.UUIDField(),
+        'state': ovo_fields.StringField(),
+        'try_count': ovo_fields.IntegerField(),
+        'api_version': ovo_fields.StringField(nullable=True),
+        'target_region_name': ovo_fields.StringField(),
+        'orch_job_id': ovo_fields.IntegerField(),
+        'orch_job': ovo_fields.ObjectField('OrchJob'),
+        'updated_at': ovo_fields.DateTimeField(nullable=True),
+        'deleted_at': ovo_fields.DateTimeField(nullable=True),
+        'deleted': ovo_fields.IntegerField()
     }
 
     def create(self):
@@ -103,12 +103,15 @@ class OrchRequest(base.OrchestratorObject, base.VersionedObjectDictCompat):
         updates.pop('id', None)
         updates.pop('uuid', None)
         db_orch_request = db_api.orch_request_update(
-            self._context, self.id, updates)
+            self._context,
+            self.id,  # pylint: disable=E1101
+            updates)
         self._from_db_object(self._context, self, db_orch_request)
         self.obj_reset_changes()
 
     def delete(self):
-        db_api.orch_request_destroy(self._context, self.id)
+        db_api.orch_request_destroy(self._context,
+                                    self.id)  # pylint: disable=E1101
 
     @classmethod
     def delete_previous_failed_requests(cls, context, delete_time):
@@ -122,7 +125,7 @@ class OrchRequestList(ovo_base.ObjectListBase, base.OrchestratorObject):
     VERSION = '1.1'
 
     fields = {
-        'objects': fields.ListOfObjectsField('OrchRequest'),
+        'objects': ovo_fields.ListOfObjectsField('OrchRequest'),
     }
 
     @classmethod

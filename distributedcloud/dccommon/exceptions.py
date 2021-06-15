@@ -61,6 +61,10 @@ class NotFound(DCCommonException):
     pass
 
 
+class Forbidden(DCCommonException):
+    message = _("Requested API is forbidden")
+
+
 class Conflict(DCCommonException):
     pass
 
@@ -77,6 +81,10 @@ class InternalError(DCCommonException):
     message = _("Error when performing operation")
 
 
+class ProjectNotFound(NotFound):
+    message = _("Project %(project_id)s doesn't exist")
+
+
 class OAMAddressesNotFound(NotFound):
     message = _("OAM Addresses Not Found")
 
@@ -84,3 +92,15 @@ class OAMAddressesNotFound(NotFound):
 class CertificateNotFound(NotFound):
     message = _("Certificate in region=%(region_name)s with signature "
                 "%(signature)s not found")
+
+
+class LoadNotFound(NotFound):
+    message = _("Load in region=%(region_name)s with id %(load_id)s not found")
+
+
+class LoadNotInVault(NotFound):
+    message = _("Load at path %(path)s not found")
+
+
+class PlaybookExecutionFailed(DCCommonException):
+    message = _("Playbook execution failed, command=%(playbook_cmd)s")

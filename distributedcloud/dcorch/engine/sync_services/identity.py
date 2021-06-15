@@ -38,9 +38,11 @@ LOG = logging.getLogger(__name__)
 class IdentitySyncThread(SyncThread):
     """Manages tasks related to resource management for keystone."""
 
-    def __init__(self, subcloud_engine, endpoint_type=None):
-        super(IdentitySyncThread, self).__init__(subcloud_engine,
-                                                 endpoint_type=endpoint_type)
+    def __init__(self, subcloud_name, endpoint_type=None, engine_id=None):
+        super(IdentitySyncThread, self).__init__(subcloud_name,
+                                                 endpoint_type=endpoint_type,
+                                                 engine_id=engine_id)
+        self.region_name = subcloud_name
         if not self.endpoint_type:
             self.endpoint_type = consts.ENDPOINT_TYPE_IDENTITY
         self.sync_handler_map = {
@@ -74,8 +76,8 @@ class IdentitySyncThread(SyncThread):
         # resources
         self.filtered_audit_resources = {
             consts.RESOURCE_TYPE_IDENTITY_USERS:
-                ['dcdbsync', 'dcorch', 'dcmanager', 'heat_admin', 'smapi',
-                 'fm', 'cinder' + self.subcloud_engine.subcloud.region_name],
+                ['dcdbsync', 'dcorch', 'heat_admin', 'smapi',
+                 'fm', 'cinder' + self.region_name],
             consts.RESOURCE_TYPE_IDENTITY_ROLES:
                 ['heat_stack_owner', 'heat_stack_user', 'ResellerAdmin'],
             consts.RESOURCE_TYPE_IDENTITY_PROJECTS:
@@ -83,7 +85,7 @@ class IdentitySyncThread(SyncThread):
         }
 
         self.log_extra = {"instance": "{}/{}: ".format(
-            self.subcloud_engine.subcloud.region_name, self.endpoint_type)}
+            self.region_name, self.endpoint_type)}
         self.sc_ks_client = None
         self.sc_dbs_client = None
         self.initialize()
@@ -96,47 +98,36 @@ class IdentitySyncThread(SyncThread):
             self.sc_ks_client = keystoneclient.Client(
                 session=self.sc_admin_session,
                 endpoint_type=dccommon_consts.KS_ENDPOINT_ADMIN,
-                region_name=self.subcloud_engine.subcloud.region_name)
+                region_name=self.region_name)
         # create a dbsync client for the subcloud
         if (not self.sc_dbs_client and self.sc_admin_session):
             self.sc_dbs_client = dbsyncclient.Client(
                 session=self.sc_admin_session,
                 endpoint_type=consts.DBS_ENDPOINT_ADMIN,
-                region_name=self.subcloud_engine.subcloud.region_name)
+                region_name=self.region_name)
 
     def reauthenticate_m_dbs_client(self):
         if self.m_dbs_client and self.admin_session:
             self.m_dbs_client.update(session=self.admin_session)
 
     def reauthenticate_m_ks_client(self):
-        if self.sc_ks_client and self.sc_admin_session:
-            self.sc_ks_client.authenticate(
-                auth_url=self.admin_session.auth.auth_url,
-                username=self.admin_session.auth._username,
-                password=self.admin_session.auth._password,
-                project_name=self.admin_session.auth._project_name,
-                user_domain_name=self.admin_session.auth._user_domain_name,
-                project_domain_name=self.admin_session.auth._project_domain_name,
-            )
+        if self.m_ks_client and self.admin_session:
+            self.m_ks_client.session.invalidate()
+            self.m_ks_client.session.get_auth_headers()
 
     def reauthenticate_sc_clients(self):
-        self.reauthenticate_sc_dbs_client()
         self.reauthenticate_sc_ks_client()
+        self.sc_dbs_client.update(session=self.sc_admin_session)
 
     def reauthenticate_sc_dbs_client(self):
-        if self.sc_dbs_client and self.sc_admin_session:
-            self.sc_dbs_client.update(session=self.sc_admin_session)
+        self.sc_admin_session = None
+        self.sc_dbs_client = None
+        self.initialize_sc_clients()
 
     def reauthenticate_sc_ks_client(self):
-        if self.sc_ks_client and self.sc_admin_session:
-            self.sc_ks_client.authenticate(
-                auth_url=self.sc_admin_session.auth.auth_url,
-                username=self.sc_admin_session.auth._username,
-                password=self.sc_admin_session.auth._password,
-                project_name=self.sc_admin_session.auth._project_name,
-                user_domain_name=self.sc_admin_session.auth._user_domain_name,
-                project_domain_name=self.sc_admin_session.auth._project_domain_name,
-            )
+        self.sc_admin_session = None
+        self.sc_ks_client = None
+        self.initialize_sc_clients()
 
     def initialize(self):
         # Subcloud may be enabled a while after being added.
@@ -157,10 +148,10 @@ class IdentitySyncThread(SyncThread):
                  extra=self.log_extra)
 
     def _initial_sync_users(self, m_users, sc_users):
-        # Particularly sync users with same name but different ID.  admin user
-        # is a special case as the id's will match (as this is forced during
-        # the subcloud deploy) but the details will not so we still need to
-        # sync it here.
+        # Particularly sync users with same name but different ID.  admin,
+        # sysinv, and dcmanager users are special cases as the id's will match
+        # (as this is forced during the subcloud deploy) but the details will
+        # not so we still need to sync them here.
         m_client = self.m_dbs_client.identity_manager
         sc_client = self.sc_dbs_client.identity_manager
 
@@ -169,8 +160,10 @@ class IdentitySyncThread(SyncThread):
                 if (m_user.local_user.name == sc_user.local_user.name and
                         m_user.domain_id == sc_user.domain_id and
                         (m_user.id != sc_user.id or
-                         sc_user.local_user.name ==
-                         dccommon_consts.ADMIN_USER_NAME)):
+                         sc_user.local_user.name in
+                         [dccommon_consts.ADMIN_USER_NAME,
+                          dccommon_consts.SYSINV_USER_NAME,
+                          dccommon_consts.DCMANAGER_USER_NAME])):
                     user_records = m_client.user_detail(m_user.id)
                     if not user_records:
                         LOG.error("No data retrieved from master cloud for"
@@ -186,8 +179,7 @@ class IdentitySyncThread(SyncThread):
                     except dbsync_exceptions.Unauthorized as e:
                         LOG.info("Update user {} request failed for {}: {}."
                                  .format(sc_user.id,
-                                         self.subcloud_engine.subcloud.
-                                         region_name, str(e)))
+                                         self.region_name, str(e)))
                         self.reauthenticate_sc_dbs_client()
                         user_ref = sc_client.update_user(sc_user.id,
                                                          user_records)
@@ -227,8 +219,7 @@ class IdentitySyncThread(SyncThread):
                     except dbsync_exceptions.Unauthorized as e:
                         LOG.info("Update project {} request failed for {}: {}."
                                  .format(sc_project.id,
-                                         self.subcloud_engine.subcloud.
-                                         region_name, str(e)))
+                                         self.region_name, str(e)))
                         self.reauthenticate_sc_dbs_client()
                         project_ref = sc_client.update_project(sc_project.id,
                                                                project_records)
@@ -268,8 +259,7 @@ class IdentitySyncThread(SyncThread):
                     except dbsync_exceptions.Unauthorized as e:
                         LOG.info("Update role {} request failed for {}: {}."
                                  .format(sc_role.id,
-                                         self.subcloud_engine.subcloud.
-                                         region_name, str(e)))
+                                         self.region_name, str(e)))
                         self.reauthenticate_sc_dbs_client()
                         role_ref = sc_client.update_role(sc_role.id,
                                                          role_record)
@@ -277,8 +267,7 @@ class IdentitySyncThread(SyncThread):
                     if not role_ref:
                         LOG.error("No role data returned when updating role {}"
                                   " in subcloud {}."
-                                  .format(sc_role.id, self.subcloud_engine.
-                                          subcloud.region_name))
+                                  .format(sc_role.id, self.region_name))
                         raise exceptions.SyncRequestFailed
 
     def initial_sync(self):
@@ -311,7 +300,7 @@ class IdentitySyncThread(SyncThread):
 
         if not sc_users:
             LOG.error("No users returned from subcloud {}".
-                      format(self.subcloud_engine.subcloud.region_name))
+                      format(self.region_name))
             raise exceptions.SyncRequestFailed
 
         self._initial_sync_users(m_users, sc_users)
@@ -331,7 +320,7 @@ class IdentitySyncThread(SyncThread):
 
         if not sc_projects:
             LOG.error("No projects returned from subcloud {}".
-                      format(self.subcloud_engine.subcloud.region_name))
+                      format(self.region_name))
             raise exceptions.SyncRequestFailed
 
         self._initial_sync_projects(m_projects, sc_projects)
@@ -351,7 +340,7 @@ class IdentitySyncThread(SyncThread):
 
         if not sc_roles:
             LOG.error("No roles returned from subcloud {}".
-                      format(self.subcloud_engine.subcloud.region_name))
+                      format(self.region_name))
             raise exceptions.SyncRequestFailed
 
         self._initial_sync_roles(m_roles, sc_roles)
@@ -384,16 +373,25 @@ class IdentitySyncThread(SyncThread):
                 dbsync_exceptions.ConnectTimeout,
                 dbsync_exceptions.ConnectFailure) as e:
             LOG.error("sync_identity_resource: {} is not reachable [{}]"
-                      .format(self.subcloud_engine.subcloud.region_name,
+                      .format(self.region_name,
                               str(e)), extra=self.log_extra)
             raise exceptions.SyncRequestTimeout
         except (dbsync_exceptions.Unauthorized,
                 keystone_exceptions.Unauthorized) as e:
-            LOG.info("Request [{}] failed for {}: {}"
+            LOG.info("Request [{} {}] failed for {}: {}"
                      .format(request.orch_job.operation_type,
-                             self.subcloud_engine.subcloud.region_name,
+                             rsrc.resource_type,
+                             self.region_name,
                              str(e)), extra=self.log_extra)
             self.reauthenticate_sc_clients()
+            raise exceptions.SyncRequestFailedRetry
+        except dbsync_exceptions.UnauthorizedMaster as e:
+            LOG.info("Request [{} {}] failed for {}: {}"
+                     .format(request.orch_job.operation_type,
+                             rsrc.resource_type,
+                             self.region_name,
+                             str(e)), extra=self.log_extra)
+            self.reauthenticate_m_dbs_client()
             raise exceptions.SyncRequestFailedRetry
         except exceptions.SyncRequestFailed:
             raise
@@ -415,7 +413,11 @@ class IdentitySyncThread(SyncThread):
 
         # Retrieve DB records of the user just created. The records is in JSON
         # format
-        user_records = self.m_dbs_client.identity_manager.user_detail(user_id)
+        try:
+            user_records = self.m_dbs_client.identity_manager.\
+                user_detail(user_id)
+        except dbsync_exceptions.Unauthorized:
+            raise dbsync_exceptions.UnauthorizedMaster
         if not user_records:
             LOG.error("No data retrieved from master cloud for user {} to"
                       " create its equivalent in subcloud.".format(user_id),
@@ -462,7 +464,11 @@ class IdentitySyncThread(SyncThread):
 
         # Retrieve DB records of the user. The records is in JSON
         # format
-        user_records = self.m_dbs_client.identity_manager.user_detail(user_id)
+        try:
+            user_records = self.m_dbs_client.identity_manager.\
+                user_detail(user_id)
+        except dbsync_exceptions.Unauthorized:
+            raise dbsync_exceptions.UnauthorizedMaster
         if not user_records:
             LOG.error("No data retrieved from master cloud for user {} to"
                       " update its equivalent in subcloud.".format(user_id),
@@ -557,7 +563,7 @@ class IdentitySyncThread(SyncThread):
             LOG.info("Delete user: user {} not found in {}, "
                      "considered as deleted.".
                      format(original_user_ref.id,
-                            self.subcloud_engine.subcloud.region_name),
+                            self.region_name),
                      extra=self.log_extra)
 
         # Master Resource can be deleted only when all subcloud resources
@@ -582,8 +588,11 @@ class IdentitySyncThread(SyncThread):
 
         # Retrieve DB records of the project just created.
         # The records is in JSON format.
-        project_records = self.m_dbs_client.project_manager.\
-            project_detail(project_id)
+        try:
+            project_records = self.m_dbs_client.project_manager.\
+                project_detail(project_id)
+        except dbsync_exceptions.Unauthorized:
+            raise dbsync_exceptions.UnauthorizedMaster
         if not project_records:
             LOG.error("No data retrieved from master cloud for project {} to"
                       " create its equivalent in subcloud.".format(project_id),
@@ -631,8 +640,11 @@ class IdentitySyncThread(SyncThread):
 
         # Retrieve DB records of the project. The records is in JSON
         # format
-        project_records = self.m_dbs_client.project_manager.\
-            project_detail(project_id)
+        try:
+            project_records = self.m_dbs_client.project_manager.\
+                project_detail(project_id)
+        except dbsync_exceptions.Unauthorized:
+            raise dbsync_exceptions.UnauthorizedMaster
         if not project_records:
             LOG.error("No data retrieved from master cloud for project {} to"
                       " update its equivalent in subcloud.".format(project_id),
@@ -722,7 +734,7 @@ class IdentitySyncThread(SyncThread):
             LOG.info("Delete project: project {} not found in {}, "
                      "considered as deleted.".
                      format(original_proj_ref.id,
-                            self.subcloud_engine.subcloud.region_name),
+                            self.region_name),
                      extra=self.log_extra)
 
         # Master Resource can be deleted only when all subcloud resources
@@ -747,8 +759,11 @@ class IdentitySyncThread(SyncThread):
 
         # Retrieve DB records of the role just created. The records is in JSON
         # format.
-        role_records = self.m_dbs_client.role_manager.\
-            role_detail(role_id)
+        try:
+            role_records = self.m_dbs_client.role_manager.\
+                role_detail(role_id)
+        except dbsync_exceptions.Unauthorized:
+            raise dbsync_exceptions.UnauthorizedMaster
         if not role_records:
             LOG.error("No data retrieved from master cloud for role {} to"
                       " create its equivalent in subcloud.".format(role_id),
@@ -796,8 +811,11 @@ class IdentitySyncThread(SyncThread):
 
         # Retrieve DB records of the role. The records is in JSON
         # format
-        role_records = self.m_dbs_client.role_manager.\
-            role_detail(role_id)
+        try:
+            role_records = self.m_dbs_client.role_manager.\
+                role_detail(role_id)
+        except dbsync_exceptions.Unauthorized:
+            raise dbsync_exceptions.UnauthorizedMaster
         if not role_records:
             LOG.error("No data retrieved from master cloud for role {} to"
                       " update its equivalent in subcloud.".format(role_id),
@@ -884,7 +902,7 @@ class IdentitySyncThread(SyncThread):
             LOG.info("Delete role: role {} not found in {}, "
                      "considered as deleted.".
                      format(original_role_ref.id,
-                            self.subcloud_engine.subcloud.region_name),
+                            self.region_name),
                      extra=self.log_extra)
 
         # Master Resource can be deleted only when all subcloud resources
@@ -1018,7 +1036,7 @@ class IdentitySyncThread(SyncThread):
             LOG.info("Revoke role assignment: (role {}, user {}, project {})"
                      " not found in {}, considered as deleted.".
                      format(role_id, user_id, project_id,
-                            self.subcloud_engine.subcloud.region_name),
+                            self.region_name),
                      extra=self.log_extra)
 
         role_ref = self.sc_ks_client.role_assignments.list(
@@ -1055,8 +1073,11 @@ class IdentitySyncThread(SyncThread):
 
         # Retrieve DB records of the revoke event just created. The records
         # is in JSON format.
-        revoke_event_records = self.m_dbs_client.revoke_event_manager.\
-            revoke_event_detail(audit_id=audit_id)
+        try:
+            revoke_event_records = self.m_dbs_client.revoke_event_manager.\
+                revoke_event_detail(audit_id=audit_id)
+        except dbsync_exceptions.Unauthorized:
+            raise dbsync_exceptions.UnauthorizedMaster
         if not revoke_event_records:
             LOG.error("No data retrieved from master cloud for token"
                       " revocation event with audit_id {} to create its"
@@ -1101,7 +1122,7 @@ class IdentitySyncThread(SyncThread):
             LOG.info("Delete token revocation event: event {} not found in {},"
                      " considered as deleted.".
                      format(revoke_event_subcloud_rsrc.subcloud_resource_id,
-                            self.subcloud_engine.subcloud.region_name),
+                            self.region_name),
                      extra=self.log_extra)
 
         # Master Resource can be deleted only when all subcloud resources
@@ -1126,8 +1147,11 @@ class IdentitySyncThread(SyncThread):
 
         # Retrieve DB records of the revoke event just created. The records
         # is in JSON format.
-        revoke_event_records = self.m_dbs_client.revoke_event_manager.\
-            revoke_event_detail(user_id=event_id)
+        try:
+            revoke_event_records = self.m_dbs_client.revoke_event_manager.\
+                revoke_event_detail(user_id=event_id)
+        except dbsync_exceptions.Unauthorized:
+            raise dbsync_exceptions.UnauthorizedMaster
         if not revoke_event_records:
             LOG.error("No data retrieved from master cloud for token"
                       " revocation event with event_id {} to create its"
@@ -1170,7 +1194,7 @@ class IdentitySyncThread(SyncThread):
             LOG.info("Delete token revocation event: event {} not found in {},"
                      " considered as deleted.".
                      format(revoke_event_subcloud_rsrc.subcloud_resource_id,
-                            self.subcloud_engine.subcloud.region_name),
+                            self.region_name),
                      extra=self.log_extra)
 
         # Master Resource can be deleted only when all subcloud resources
@@ -1248,7 +1272,7 @@ class IdentitySyncThread(SyncThread):
                 dbsync_exceptions.ConnectTimeout,
                 dbsync_exceptions.ConnectFailure) as e:
             LOG.info("User Audit: subcloud {} is not reachable [{}]"
-                     .format(self.subcloud_engine.subcloud.region_name,
+                     .format(self.region_name,
                              str(e)), extra=self.log_extra)
             # None will force skip of audit
             return None
@@ -1275,7 +1299,7 @@ class IdentitySyncThread(SyncThread):
                 dbsync_exceptions.ConnectTimeout,
                 dbsync_exceptions.ConnectFailure) as e:
             LOG.info("Role Audit: subcloud {} is not reachable [{}]"
-                     .format(self.subcloud_engine.subcloud.region_name,
+                     .format(self.region_name,
                              str(e)), extra=self.log_extra)
             # None will force skip of audit
             return None
@@ -1302,7 +1326,7 @@ class IdentitySyncThread(SyncThread):
                 dbsync_exceptions.ConnectTimeout,
                 dbsync_exceptions.ConnectFailure) as e:
             LOG.info("Project Audit: subcloud {} is not reachable [{}]"
-                     .format(self.subcloud_engine.subcloud.region_name,
+                     .format(self.region_name,
                              str(e)), extra=self.log_extra)
             # None will force skip of audit
             return None
@@ -1366,7 +1390,7 @@ class IdentitySyncThread(SyncThread):
                 dbsync_exceptions.ConnectTimeout,
                 dbsync_exceptions.ConnectFailure) as e:
             LOG.info("Assignment Audit: subcloud {} is not reachable [{}]"
-                     .format(self.subcloud_engine.subcloud.region_name,
+                     .format(self.region_name,
                              str(e)), extra=self.log_extra)
             # None will force skip of audit
             return None
@@ -1387,7 +1411,7 @@ class IdentitySyncThread(SyncThread):
                 dbsync_exceptions.ConnectTimeout,
                 dbsync_exceptions.ConnectFailure) as e:
             LOG.info("Token revoke events Audit: subcloud {} is not reachable"
-                     " [{}]".format(self.subcloud_engine.subcloud.region_name,
+                     " [{}]".format(self.region_name,
                                     str(e)), extra=self.log_extra)
             # None will force skip of audit
             return None
@@ -1408,7 +1432,7 @@ class IdentitySyncThread(SyncThread):
                 dbsync_exceptions.ConnectTimeout,
                 dbsync_exceptions.ConnectFailure) as e:
             LOG.info("Token revoke events Audit: subcloud {} is not reachable"
-                     " [{}]".format(self.subcloud_engine.subcloud.region_name,
+                     " [{}]".format(self.region_name,
                                     str(e)), extra=self.log_extra)
             # None will force skip of audit
             return None
@@ -1612,7 +1636,7 @@ class IdentitySyncThread(SyncThread):
             except dbsync_exceptions.Unauthorized as e:
                 LOG.info("Get subcloud resource [{}] request failed for {}: {}."
                          .format(resource_type,
-                                 self.subcloud_engine.subcloud.region_name,
+                                 self.region_name,
                                  str(e)), extra=self.log_extra)
 
                 # Token might be expired, re-authenticate dbsync client
@@ -1631,7 +1655,7 @@ class IdentitySyncThread(SyncThread):
             except keystone_exceptions.Unauthorized as e:
                 LOG.info("Get subcloud resource [{}] request failed for {}: {}."
                          .format(resource_type,
-                                 self.subcloud_engine.subcloud.region_name,
+                                 self.region_name,
                                  str(e)), extra=self.log_extra)
                 # Token might be expired, re-authenticate ks client
                 self.reauthenticate_sc_ks_client()
@@ -1766,7 +1790,8 @@ class IdentitySyncThread(SyncThread):
                         master_id=master_id)
                     rsrc.create()
                     LOG.info("Resource created in DB {}/{}/{}".format(
-                        rsrc.id, resource_type, master_id))
+                        rsrc.id,  # pylint: disable=E1101
+                        resource_type, master_id))
 
                 self.persist_db_subcloud_resource(rsrc.id,
                                                   self.get_resource_id(
@@ -1783,7 +1808,7 @@ class IdentitySyncThread(SyncThread):
             if subcloud_rsrc.subcloud_resource_id == sc_r.id:
                 LOG.debug("Resource {} exists in subcloud {}"
                           .format(subcloud_rsrc.subcloud_resource_id,
-                                  self.subcloud_engine.subcloud.region_name),
+                                  self.region_name),
                           extra=self.log_extra)
                 exist = True
                 break

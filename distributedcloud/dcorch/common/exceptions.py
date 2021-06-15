@@ -73,6 +73,10 @@ class NotAuthorized(OrchestratorException):
     message = _("Not authorized.")
 
 
+class Forbidden(OrchestratorException):
+    message = _("Requested API is forbidden")
+
+
 class ServiceUnavailable(OrchestratorException):
     message = _("The service is unavailable")
 
@@ -140,6 +144,11 @@ class InvalidParameterValue(Invalid):
     message = _("%(err)s")
 
 
+class SubcloudSyncAlreadyExists(Conflict):
+    message = _("SubcloudSync subcloud: %(subcloud_name)s "
+                "endpoint_type: %(endpoint_type)s already exists")
+
+
 class SubcloudAlreadyExists(Conflict):
     message = _("Subcloud with region_name=%(region_name)s already exists")
 
@@ -180,6 +189,11 @@ class ResourceNotFound(NotFound):
 
 class SubcloudNotFound(NotFound):
     message = _("Subcloud %(region_name)s not found")
+
+
+class SubcloudSyncNotFound(NotFound):
+    message = _("SubcloudSync subcloud: %(subcloud_name)s "
+                "endpoint_type: %(endpoint_type)s not found")
 
 
 class ThreadNotFound(NotFound):

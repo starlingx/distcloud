@@ -10,7 +10,7 @@
 # License for the specific language governing permissions and limitations
 # under the License.
 #
-# Copyright (c) 2020 Wind River Systems, Inc.
+# Copyright (c) 2021 Wind River Systems, Inc.
 #
 # The right to copy, distribute, modify, or otherwise make use
 # of this software may be licensed only pursuant to the terms
@@ -22,6 +22,8 @@ import mock
 from dccommon.drivers.openstack import sdk_platform as sdk
 from dcmanager.audit import alarm_aggregation
 from dcmanager.common import exceptions
+from dcmanager.db.sqlalchemy import api as db_api
+
 from dcmanager.tests import base
 from dcmanager.tests import utils
 
@@ -95,43 +97,57 @@ class TestAlarmAggregation(base.DCManagerTestCase):
         self.assertIsNotNone(aam)
         self.assertEqual(self.ctxt, aam.context)
 
+    @staticmethod
+    def alarms_to_dict(alarms):
+        return {'critical_alarms': alarms.critical_alarms,
+                'major_alarms': alarms.major_alarms,
+                'minor_alarms': alarms.minor_alarms,
+                'warnings': alarms.warnings,
+                'cloud_status': alarms.cloud_status,
+                }
+
     @mock.patch.object(alarm_aggregation, 'LOG')
     @mock.patch.object(sdk, 'OpenStackDriver')
-    @mock.patch.object(alarm_aggregation, 'db_api')
-    def test_update_alarm_summary(self, mock_db_api, mock_openstack_driver,
+    def test_update_alarm_summary(self, mock_openstack_driver,
                                   mock_logging):
         mock_openstack_driver.side_effect = FakeOpenStackDriver
         aam = alarm_aggregation.AlarmAggregation(self.ctxt)
 
         fake_openstackdriver = FakeOpenStackDriver('subcloud1')
+        db_api.subcloud_alarms_create(self.ctx, 'subcloud1', values={})
         aam.update_alarm_summary('subcloud1', fake_openstackdriver.fm_client)
-        expected_alarm_update = {'critical_alarms': 1,
-                                 'major_alarms': 2,
-                                 'minor_alarms': 3,
-                                 'warnings': 4,
-                                 'cloud_status': 'critical'}
-        mock_db_api.subcloud_alarms_update.assert_called_with(
-            self.ctxt, 'subcloud1', expected_alarm_update)
+        alarms = db_api.subcloud_alarms_get(self.ctx, 'subcloud1')
+        self.assertEqual(self.alarms_to_dict(alarms),
+                         {'critical_alarms': 1,
+                          'major_alarms': 2,
+                          'minor_alarms': 3,
+                          'warnings': 4,
+                          'cloud_status': 'critical'}
+                         )
 
         fake_openstackdriver = FakeOpenStackDriver('subcloud2')
+        db_api.subcloud_alarms_create(self.ctx, 'subcloud2', values={})
         aam.update_alarm_summary('subcloud2', fake_openstackdriver.fm_client)
-        expected_alarm_update = {'critical_alarms': 0,
-                                 'major_alarms': 1,
-                                 'minor_alarms': 2,
-                                 'warnings': 3,
-                                 'cloud_status': 'degraded'}
-        mock_db_api.subcloud_alarms_update.assert_called_with(
-            self.ctxt, 'subcloud2', expected_alarm_update)
+        alarms = db_api.subcloud_alarms_get(self.ctx, 'subcloud2')
+        self.assertEqual(self.alarms_to_dict(alarms),
+                         {'critical_alarms': 0,
+                          'major_alarms': 1,
+                          'minor_alarms': 2,
+                          'warnings': 3,
+                          'cloud_status': 'degraded'}
+                         )
 
         fake_openstackdriver = FakeOpenStackDriver('subcloud3')
+        db_api.subcloud_alarms_create(self.ctx, 'subcloud3', values={})
         aam.update_alarm_summary('subcloud3', fake_openstackdriver.fm_client)
-        expected_alarm_update = {'critical_alarms': 0,
-                                 'major_alarms': 0,
-                                 'minor_alarms': 0,
-                                 'warnings': 1,
-                                 'cloud_status': 'OK'}
-        mock_db_api.subcloud_alarms_update.assert_called_with(
-            self.ctxt, 'subcloud3', expected_alarm_update)
+        alarms = db_api.subcloud_alarms_get(self.ctx, 'subcloud3')
+        self.assertEqual(self.alarms_to_dict(alarms),
+                         {'critical_alarms': 0,
+                          'major_alarms': 0,
+                          'minor_alarms': 0,
+                          'warnings': 1,
+                          'cloud_status': 'OK'}
+                         )
 
         fake_openstackdriver = FakeOpenStackDriver('subcloud4')
         aam.update_alarm_summary('subcloud4', fake_openstackdriver.fm_client)

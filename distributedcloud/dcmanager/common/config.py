@@ -11,7 +11,7 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 #
-# Copyright (c) 2017-2020 Wind River Systems, Inc.
+# Copyright (c) 2017-2021 Wind River Systems, Inc.
 #
 # The right to copy, distribute, modify, or otherwise make use
 # of this software may be licensed only pursuant to the terms
@@ -44,6 +44,7 @@ keystone_opts = [
     cfg.StrOpt('username',
                help='Username of account'),
     cfg.StrOpt('password',
+               secret=True,
                help='Password of account'),
     cfg.StrOpt('project_name',
                help='Tenant name of account'),
@@ -82,7 +83,7 @@ pecan_opts = [
 ]
 
 
-# OpenStack credentials used for Endpoint Cache
+# OpenStack admin user credentials used for Endpoint Cache
 cache_opts = [
     cfg.StrOpt('auth_uri',
                help='Keystone authorization url'),
@@ -92,6 +93,7 @@ cache_opts = [
                help='Username of admin account, needed when'
                     ' auto_refresh_endpoint set to True'),
     cfg.StrOpt('admin_password',
+               secret=True,
                help='Password of admin account, needed when'
                     ' auto_refresh_endpoint set to True'),
     cfg.StrOpt('admin_tenant',
@@ -107,23 +109,51 @@ cache_opts = [
                     ' auto_refresh_endpoint set to True')
 ]
 
+# OpenStack credentials used for Endpoint Cache
+endpoint_cache_opts = [
+    cfg.StrOpt('auth_uri',
+               help='Keystone authorization url'),
+    cfg.StrOpt('auth_plugin',
+               help='Name of the plugin to load'),
+    cfg.StrOpt('username',
+               help='Username of account'),
+    cfg.StrOpt('password',
+               secret=True,
+               help='Password of account'),
+    cfg.StrOpt('project_name',
+               help='Project name of account'),
+    cfg.StrOpt('user_domain_name',
+               default='Default',
+               help='User domain name of account'),
+    cfg.StrOpt('project_domain_name',
+               default='Default',
+               help='Project domain name of account'),
+    cfg.IntOpt('http_connect_timeout',
+               help='Request timeout value for communicating with Identity'
+                    ' API server.'),
+]
+
 scheduler_opts = [
     cfg.BoolOpt('periodic_enable',
                 default=True,
                 help='boolean value for enable/disable periodic tasks'),
     cfg.IntOpt('subcloud_audit_interval',
-               default=20,
+               default=30,
                help='periodic time interval for subcloud audit'),
     cfg.IntOpt('patch_audit_interval',
-               default=10,
-               help='periodic time interval for patch audit')
+               default=900,
+               help='default time interval for patch audit')
 ]
 
 common_opts = [
     cfg.IntOpt('workers', default=1,
                help='number of workers'),
+    cfg.IntOpt('orch_workers', default=1,
+               help='number of orchestrator workers'),
     cfg.IntOpt('audit_workers', default=1,
                help='number of audit workers'),
+    cfg.IntOpt('audit_worker_workers', default=4,
+               help='number of audit-worker workers'),
     cfg.StrOpt('host',
                default='localhost',
                help='hostname of the machine')
@@ -138,11 +168,15 @@ pecan_group = cfg.OptGroup(name='pecan',
                            title='Pecan options')
 
 cache_opt_group = cfg.OptGroup(name='cache',
-                               title='OpenStack Credentials')
+                               title='OpenStack Admin Credentials')
+
+endpoint_cache_opt_group = cfg.OptGroup(name='endpoint_cache',
+                                        title='OpenStack Credentials')
 
 
 def list_opts():
     yield cache_opt_group.name, cache_opts
+    yield endpoint_cache_opt_group.name, endpoint_cache_opts
     yield scheduler_opt_group.name, scheduler_opts
     yield pecan_group.name, pecan_opts
     yield None, global_opts

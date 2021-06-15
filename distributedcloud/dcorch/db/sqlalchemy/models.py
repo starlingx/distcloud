@@ -27,7 +27,8 @@ import json
 from oslo_db.sqlalchemy import models
 
 from sqlalchemy.orm import session as orm_session
-from sqlalchemy import (Column, Integer, String, Boolean, Index, schema)
+from sqlalchemy import (Column, Integer, String, Boolean, Index, schema,
+                        DateTime)
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy import ForeignKey, UniqueConstraint
 from sqlalchemy.types import TypeDecorator, VARCHAR
@@ -298,3 +299,38 @@ class OrchRequest(BASE, OrchestratorBase):
 
     orch_job_id = Column('orch_job_id', Integer,
                          ForeignKey('orch_job.id'), primary_key=True)
+
+
+class SyncLock(BASE, OrchestratorBase):
+    """Store locks to avoid overlapping of audit
+
+    syncing during automatic periodic sync jobs with
+    multiple-engines.
+    """
+
+    __tablename__ = 'sync_lock'
+
+    id = Column(Integer, primary_key=True)
+    engine_id = Column(String(36), nullable=False)
+    subcloud_name = Column(String(255), nullable=False)
+    endpoint_type = Column(String(255), default="none")
+    action = Column(String(64), default="none")
+
+
+class SubcloudSync(BASE, OrchestratorBase):
+    """Store subcloud sync information to allow coordination of dcorch workload
+
+    """
+
+    __tablename__ = 'subcloud_sync'
+
+    id = Column(Integer, primary_key=True)
+    subcloud_id = Column('subcloud_id', Integer,
+                         ForeignKey('subcloud.id', ondelete='CASCADE'))
+    subcloud_name = Column(String(255), nullable=False)
+    endpoint_type = Column(String(255), default="none")
+    sync_request = Column(String(64), default=consts.SYNC_STATUS_NONE)
+    sync_status_reported = Column(String(64), default=consts.SYNC_STATUS_NONE)
+    sync_status_report_time = Column(DateTime(timezone=False))
+    audit_status = Column(String(64), default=consts.AUDIT_STATUS_NONE)
+    last_audit_time = Column(DateTime(timezone=False))

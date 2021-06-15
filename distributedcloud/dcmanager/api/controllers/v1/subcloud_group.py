@@ -32,8 +32,8 @@ from pecan import request
 
 from dcmanager.api.controllers import restcomm
 from dcmanager.common import consts
-from dcmanager.common import exceptions
 from dcmanager.common.i18n import _
+from dcmanager.common import utils
 from dcmanager.db import api as db_api
 from dcmanager.rpc import client as rpc_client
 
@@ -86,23 +86,6 @@ class SubcloudGroupsController(object):
         result['subcloud_groups'] = subcloud_group_list
         return result
 
-    def _get_by_ref(self, context, group_ref):
-        # Handle getting a group by either name, or ID
-        group = None
-        if group_ref.isdigit():
-            # Lookup subcloud group as an ID
-            try:
-                group = db_api.subcloud_group_get(context, group_ref)
-            except exceptions.SubcloudGroupNotFound:
-                return None
-        else:
-            # Lookup subcloud group as a name
-            try:
-                group = db_api.subcloud_group_get_by_name(context, group_ref)
-            except exceptions.SubcloudGroupNameNotFound:
-                return None
-        return group
-
     @index.when(method='GET', template='json')
     def get(self, group_ref=None, subclouds=False):
         """Get details about subcloud group.
@@ -115,7 +98,7 @@ class SubcloudGroupsController(object):
             # List of subcloud groups requested
             return self._get_subcloud_group_list(context)
 
-        group = self._get_by_ref(context, group_ref)
+        group = utils.subcloud_group_get_by_ref(context, group_ref)
         if group is None:
             pecan.abort(httpclient.NOT_FOUND, _('Subcloud Group not found'))
         if subclouds:
@@ -230,7 +213,7 @@ class SubcloudGroupsController(object):
         if not payload:
             pecan.abort(httpclient.BAD_REQUEST, _('Body required'))
 
-        group = self._get_by_ref(context, group_ref)
+        group = utils.subcloud_group_get_by_ref(context, group_ref)
         if group is None:
             pecan.abort(httpclient.NOT_FOUND, _('Subcloud Group not found'))
 
@@ -290,7 +273,7 @@ class SubcloudGroupsController(object):
         if group_ref is None:
             pecan.abort(httpclient.BAD_REQUEST,
                         _('Subcloud Group Name or ID required'))
-        group = self._get_by_ref(context, group_ref)
+        group = utils.subcloud_group_get_by_ref(context, group_ref)
         if group is None:
             pecan.abort(httpclient.NOT_FOUND, _('Subcloud Group not found'))
         if group.name == consts.DEFAULT_SUBCLOUD_GROUP_NAME:

@@ -20,11 +20,13 @@
 # of an applicable Wind River license agreement.
 #
 
+import json
 import sqlalchemy
 
 from oslo_config import cfg
 from oslo_db import options
 
+from dcmanager.common import consts
 from dcmanager.db import api as api
 from dcmanager.db.sqlalchemy import api as db_api
 
@@ -44,7 +46,7 @@ SUBCLOUD_SAMPLE_DATA_0 = [
     "subcloud-4",  # name
     "demo subcloud",   # description
     "Ottawa-Lab-Aisle_3-Rack_C",  # location
-    "20.01",  # software-version
+    "12.34",  # software-version
     "managed",   # management-state
     "online",  # availability-status
     "fd01:3::0/64",  # management_subnet
@@ -63,7 +65,9 @@ SUBCLOUD_SAMPLE_DATA_0 = [
     "10.10.10.1",  # external_oam_gateway_address
     "10.10.10.12",  # external_oam_floating_address
     "testpass",  # sysadmin_password
-    1  # group_id
+    1,  # group_id
+    consts.DEPLOY_STATE_DONE,  # deploy_status
+    json.dumps({'data_install': 'test data install values'}),  # data_install
 ]
 
 

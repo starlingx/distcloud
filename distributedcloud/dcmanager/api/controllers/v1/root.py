@@ -22,6 +22,7 @@
 import pecan
 
 from dcmanager.api.controllers.v1 import alarm_manager
+from dcmanager.api.controllers.v1 import notifications
 from dcmanager.api.controllers.v1 import subcloud_deploy
 from dcmanager.api.controllers.v1 import subcloud_group
 from dcmanager.api.controllers.v1 import subclouds
@@ -50,6 +51,8 @@ class Controller(object):
                 sw_update_options.SwUpdateOptionsController
             sub_controllers["subcloud-groups"] = \
                 subcloud_group.SubcloudGroupsController
+            sub_controllers["notifications"] = \
+                notifications.NotificationsController
 
         for name, ctrl in sub_controllers.items():
             setattr(self, name, ctrl)

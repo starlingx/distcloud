@@ -74,7 +74,9 @@ def upgrade(migrate_engine):
     # Inserting the GROUP as ID 1,
     # This should increment the pkey to 2
     with migrate_engine.begin() as conn:
-        conn.execute(subcloud_group.insert(), default_group)
+        conn.execute(
+            subcloud_group.insert(),  # pylint: disable=E1120
+            default_group)
 
     # postgres does not increment the subcloud group id sequence
     # after the insert above as part of the migrate.

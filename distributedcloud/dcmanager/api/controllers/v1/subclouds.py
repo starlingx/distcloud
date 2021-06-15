@@ -13,12 +13,15 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 #
-# Copyright (c) 2017-2020 Wind River Systems, Inc.
+# Copyright (c) 2017-2021 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
 
+from requests_toolbelt.multipart import decoder
+
 import base64
+import json
 import keyring
 from netaddr import AddrFormatError
 from netaddr import IPAddress
@@ -34,9 +37,10 @@ import pecan
 from pecan import expose
 from pecan import request
 
-from dccommon.drivers.openstack.keystone_v3 import KeystoneClient
+from dccommon.drivers.openstack.sdk_platform import OpenStackDriver
 from dccommon.drivers.openstack.sysinv_v1 import SysinvClient
 from dccommon import exceptions as dccommon_exceptions
+from dccommon import install_consts
 
 from keystoneauth1 import exceptions as keystone_exceptions
 
@@ -46,32 +50,60 @@ from dcmanager.api.controllers import restcomm
 from dcmanager.common import consts
 from dcmanager.common import exceptions
 from dcmanager.common.i18n import _
-from dcmanager.common import install_consts
 from dcmanager.common import utils
 from dcmanager.db import api as db_api
 
 from dcmanager.rpc import client as rpc_client
-
+from dcorch.common import consts as dcorch_consts
 
 CONF = cfg.CONF
 LOG = logging.getLogger(__name__)
-# System mode
-SYSTEM_MODE_DUPLEX = "duplex"
-SYSTEM_MODE_SIMPLEX = "simplex"
-SYSTEM_MODE_DUPLEX_DIRECT = "duplex-direct"
 
 LOCK_NAME = 'SubcloudsController'
 
 BOOTSTRAP_VALUES = 'bootstrap_values'
 INSTALL_VALUES = 'install_values'
+RESTORE_VALUES = 'restore_values'
 
 SUBCLOUD_ADD_MANDATORY_FILE = [
     BOOTSTRAP_VALUES,
 ]
 
+SUBCLOUD_RECONFIG_MANDATORY_FILE = [
+    consts.DEPLOY_CONFIG,
+]
+
+SUBCLOUD_RESTORE_MANDATORY_FILE = [
+    RESTORE_VALUES,
+]
+
 SUBCLOUD_ADD_GET_FILE_CONTENTS = [
     BOOTSTRAP_VALUES,
     INSTALL_VALUES,
+]
+
+BOOTSTRAP_VALUES_ADDRESSES = [
+    'bootstrap-address', 'management_start_address', 'management_end_address',
+    'management_gateway_address', 'systemcontroller_gateway_address',
+    'external_oam_gateway_address', 'external_oam_floating_address'
+]
+
+INSTALL_VALUES_ADDRESSES = [
+    'bootstrap_address', 'bmc_address', 'nexthop_gateway',
+    'network_address'
+]
+
+# The following parameters can be provided by the user for
+# remote subcloud restore
+#   - initial_backup_dir (default to /opt/platform-backup)
+#   - backup_filename (mandatory parameter)
+#   - ansible_ssh_pass (sysadmin_password)
+#   - ansible_become_pass (sysadmin_password)
+#   - on_box_data (default to true)
+#   - wipe_ceph_osds (default to false)
+#   - ansible_remote_tmp (default to /tmp)
+MANDATORY_RESTORE_VALUES = [
+    'backup_filename',
 ]
 
 
@@ -118,20 +150,13 @@ class SubcloudsController(object):
             file_item = request.POST[consts.DEPLOY_CONFIG]
             filename = getattr(file_item, 'filename', '')
             if not filename:
-                pecan.abort(400, _("No %s file uploaded" %
-                                   consts.DEPLOY_CONFIG))
+                pecan.abort(400, _("No %s file uploaded"
+                            % consts.DEPLOY_CONFIG))
             file_item.file.seek(0, os.SEEK_SET)
             contents = file_item.file.read()
             # the deploy config needs to upload to the override location
-            fn = os.path.join(consts.ANSIBLE_OVERRIDES_PATH, payload['name']
-                              + '_' + os.path.basename(filename))
-            try:
-                dst = os.open(fn, os.O_WRONLY | os.O_CREAT)
-                os.write(dst, contents)
-            except Exception:
-                msg = _("Failed to upload %s file" % consts.DEPLOY_CONFIG)
-                LOG.exception(msg)
-                pecan.abort(400, msg)
+            fn = self._get_config_file_path(payload['name'], consts.DEPLOY_CONFIG)
+            self._upload_config_file(contents, fn, consts.DEPLOY_CONFIG)
             payload.update({consts.DEPLOY_CONFIG: fn})
             self._get_common_deploy_files(payload)
 
@@ -153,6 +178,131 @@ class SubcloudsController(object):
                     payload.update({f: data})
                 del request.POST[f]
         payload.update(request.POST)
+        return payload
+
+    @staticmethod
+    def _get_patch_data(request):
+        fields = ['management-state', 'description', 'location', 'group_id',
+                  'bmc_password', INSTALL_VALUES, 'force']
+        payload = dict()
+        multipart_data = decoder.MultipartDecoder(
+            request.body, pecan.request.headers.get('Content-Type'))
+        for f in fields:
+            for part in multipart_data.parts:
+                header = part.headers.get('Content-Disposition')
+                if f in header:
+                    data = yaml.safe_load(part.content.decode('utf8'))
+                    payload.update({f: data})
+        return payload
+
+    def _upload_config_file(self, file_item, config_file, config_type):
+        try:
+            with open(config_file, "w") as f:
+                f.write(file_item)
+        except Exception:
+            msg = _("Failed to upload %s file" % config_type)
+            LOG.exception(msg)
+            pecan.abort(400, msg)
+
+    def _get_reconfig_payload(self, request, subcloud_name):
+        payload = dict()
+        multipart_data = decoder.MultipartDecoder(request.body,
+                                                  pecan.request.headers.get('Content-Type'))
+
+        for filename in SUBCLOUD_RECONFIG_MANDATORY_FILE:
+            for part in multipart_data.parts:
+                header = part.headers.get('Content-Disposition')
+                if filename in header:
+                    fn = self._get_config_file_path(subcloud_name, consts.DEPLOY_CONFIG)
+                    self._upload_config_file(part.content, fn, consts.DEPLOY_CONFIG)
+                    payload.update({consts.DEPLOY_CONFIG: fn})
+                elif "sysadmin_password" in header:
+                    payload.update({'sysadmin_password': part.content})
+        self._get_common_deploy_files(payload)
+        return payload
+
+    @staticmethod
+    def _get_restore_payload(request):
+        payload = dict()
+        for f in SUBCLOUD_RESTORE_MANDATORY_FILE:
+            if f not in request.POST:
+                pecan.abort(400, _("Missing required file for %s") % f)
+
+        multipart_data = decoder.MultipartDecoder(request.body,
+                                                  pecan.request.headers.get('Content-Type'))
+        for f in SUBCLOUD_RESTORE_MANDATORY_FILE:
+            for part in multipart_data.parts:
+                header = part.headers.get('Content-Disposition')
+                if f in header:
+                    file_item = request.POST[f]
+                    file_item.file.seek(0, os.SEEK_SET)
+                    data = yaml.safe_load(file_item.file.read().decode('utf8'))
+                    payload.update({RESTORE_VALUES: data})
+                elif "sysadmin_password" in header:
+                    payload.update({'sysadmin_password': part.content})
+                elif "with_install" in header:
+                    payload.update({'with_install': part.content})
+
+        return payload
+
+    def _get_config_file_path(self, subcloud_name, config_file_type=None):
+        if config_file_type == consts.DEPLOY_CONFIG:
+            file_path = os.path.join(
+                consts.ANSIBLE_OVERRIDES_PATH,
+                subcloud_name + '_' + config_file_type + '.yml'
+            )
+        elif config_file_type == INSTALL_VALUES:
+            file_path = os.path.join(
+                consts.ANSIBLE_OVERRIDES_PATH + '/' + subcloud_name,
+                config_file_type + '.yml'
+            )
+        else:
+            file_path = os.path.join(
+                consts.ANSIBLE_OVERRIDES_PATH,
+                subcloud_name + '.yml'
+            )
+        return file_path
+
+    def _get_subcloud_db_install_values(self, subcloud):
+        if not subcloud.data_install:
+            msg = _("Failed to read data install from db")
+            LOG.exception(msg)
+            pecan.abort(400, msg)
+
+        install_values = json.loads(subcloud.data_install)
+
+        # mandatory bootstrap parameters
+        mandatory_bootstrap_parameters = [
+            'bootstrap_interface',
+            'bootstrap_address',
+            'bootstrap_address_prefix',
+            'bmc_username',
+            'bmc_address',
+            'bmc_password',
+        ]
+        for p in mandatory_bootstrap_parameters:
+            if p not in install_values:
+                msg = _("Failed to get %s from data_install" % p)
+                LOG.exception(msg)
+                pecan.abort(400, msg)
+
+        install_values.update({
+            'ansible_become_pass': consts.TEMP_SYSADMIN_PASSWORD,
+            'ansible_ssh_pass': consts.TEMP_SYSADMIN_PASSWORD
+        })
+
+        return install_values
+
+    @staticmethod
+    def _get_updatestatus_payload(request):
+        """retrieve payload of a patch request for update_status
+
+        :param request: request from the http client
+        :return: dict object submitted from the http client
+        """
+
+        payload = dict()
+        payload.update(json.loads(request.body))
         return payload
 
     def _validate_subcloud_config(self,
@@ -306,14 +456,49 @@ class SubcloudsController(object):
             pecan.abort(400, _("oam_floating_address invalid: %s") % e)
         self._validate_group_id(context, group_id)
 
+    def _format_ip_address(self, payload):
+        """Format IP addresses in 'bootstrap_values' and 'install_values'.
+
+           The IPv6 addresses can be represented in multiple ways. Format and
+           update the IP addresses in payload before saving it to database.
+        """
+        if INSTALL_VALUES in payload:
+            for k in INSTALL_VALUES_ADDRESSES:
+                if k in payload[INSTALL_VALUES]:
+                    try:
+                        address = IPAddress(payload[INSTALL_VALUES].get(k)).format()
+                    except AddrFormatError as e:
+                        LOG.exception(e)
+                        pecan.abort(400, _("%s invalid: %s") % (k, e))
+                    payload[INSTALL_VALUES].update({k: address})
+
+        for k in BOOTSTRAP_VALUES_ADDRESSES:
+            if k in payload:
+                try:
+                    address = IPAddress(payload.get(k)).format()
+                except AddrFormatError as e:
+                    LOG.exception(e)
+                    pecan.abort(400, _("%s invalid: %s") % (k, e))
+                payload.update({k: address})
+
     @staticmethod
     def _validate_install_values(payload):
+        """Validate install values if 'install_values' is present in payload.
+
+           The image in payload install values is optional, and if not provided,
+           the image is set to the available active load image.
+
+           :return boolean: True if bmc install requested, otherwise False
+        """
         install_values = payload.get('install_values')
+        if not install_values:
+            return False
+
         bmc_password = payload.get('bmc_password')
         if not bmc_password:
             pecan.abort(400, _('subcloud bmc_password required'))
         try:
-            bmc_password = base64.b64decode(bmc_password).decode('utf-8')
+            base64.b64decode(bmc_password).decode('utf-8')
         except Exception:
             msg = _('Failed to decode subcloud bmc_password, verify'
                     ' the password is base64 encoded')
@@ -323,8 +508,14 @@ class SubcloudsController(object):
 
         for k in install_consts.MANDATORY_INSTALL_VALUES:
             if k not in install_values:
-                pecan.abort(400, _('Mandatory install value %s not present')
-                            % k)
+                if k == 'image':
+                    # check for the image at load vault load location
+                    matching_iso, matching_sig = \
+                        SubcloudsController.verify_active_load_in_vault()
+                    LOG.info("image was not in install_values: will reference %s" %
+                             matching_iso)
+                else:
+                    pecan.abort(400, _('Mandatory install value %s not present') % k)
 
         if (install_values['install_type'] not in
                 range(install_consts.SUPPORTED_INSTALL_TYPES)):
@@ -380,6 +571,27 @@ class SubcloudsController(object):
                 pecan.abort(400, _("network address and bootstrap address "
                                    "must be the same IP version"))
 
+        if 'rd.net.timeout.ipv6dad' in install_values:
+            try:
+                ipv6dad_timeout = int(install_values['rd.net.timeout.ipv6dad'])
+                if ipv6dad_timeout <= 0:
+                    pecan.abort(400, _("rd.net.timeout.ipv6dad must be greater "
+                                       "than 0: %d") % ipv6dad_timeout)
+            except ValueError as e:
+                LOG.exception(e)
+                pecan.abort(400, _("rd.net.timeout.ipv6dad invalid: %s") % e)
+
+        return True
+
+    @staticmethod
+    def _validate_restore_values(payload):
+        """Validate the restore values to ensure parameters for remote restore are present"""
+
+        restore_values = payload.get(RESTORE_VALUES)
+        for p in MANDATORY_RESTORE_VALUES:
+            if p not in restore_values:
+                pecan.abort(400, _('Mandatory restore value %s not present') % p)
+
     def _get_subcloud_users(self):
         """Get the subcloud users and passwords from keyring"""
         DEFAULT_SERVICE_PROJECT_NAME = 'services'
@@ -412,22 +624,24 @@ class SubcloudsController(object):
 
         return user_list
 
-    def _get_management_address_pool(self, context):
-        """Get the system controller's management address pool"""
-        session = KeystoneClient().endpoint_cache.get_session_from_token(
-            context.auth_token, context.project)
-        sysinv_client = SysinvClient(consts.DEFAULT_REGION_NAME, session)
-        return sysinv_client.get_management_address_pool()
-
     @staticmethod
-    def get_ks_client(region_name=None):
+    def get_ks_client(region_name=consts.DEFAULT_REGION_NAME):
         """This will get a new keystone client (and new token)"""
         try:
-            return KeystoneClient(region_name)
+            os_client = OpenStackDriver(region_name=region_name,
+                                        region_clients=None)
+            return os_client.keystone_client
         except Exception:
             LOG.warn('Failure initializing KeystoneClient '
                      'for region %s' % region_name)
             raise
+
+    def _get_management_address_pool(self, context):
+        """Get the system controller's management address pool"""
+        ks_client = self.get_ks_client()
+        sysinv_client = SysinvClient(consts.DEFAULT_REGION_NAME,
+                                     ks_client.session)
+        return sysinv_client.get_management_address_pool()
 
     def _get_oam_addresses(self, context, subcloud_name):
         """Get the subclouds oam addresses"""
@@ -464,6 +678,10 @@ class SubcloudsController(object):
         # if group_id has been omitted from payload, use 'Default'.
         group_id = payload.get('group_id',
                                consts.DEFAULT_SUBCLOUD_GROUP_ID)
+        data_install = None
+        if 'install_values' in payload:
+            data_install = json.dumps(payload['install_values'])
+
         subcloud = db_api.subcloud_create(
             context,
             payload['name'],
@@ -477,8 +695,25 @@ class SubcloudsController(object):
             payload['systemcontroller_gateway_address'],
             consts.DEPLOY_STATE_NONE,
             False,
-            group_id)
+            group_id,
+            data_install=data_install)
         return subcloud
+
+    @staticmethod
+    def verify_active_load_in_vault():
+        try:
+            matching_iso, matching_sig = utils.get_vault_load_files(tsc.SW_VERSION)
+            if not matching_iso:
+                msg = _('Failed to get active load image. Provide '
+                        'active load image via '
+                        '"system --os-region-name SystemController '
+                        'load-import --active"')
+                LOG.exception(msg)
+                pecan.abort(400, msg)
+            return matching_iso, matching_sig
+        except Exception as e:
+            LOG.exception(str(e))
+            pecan.abort(400, str(e))
 
     @index.when(method='GET', template='json')
     def get(self, subcloud_ref=None, detail=None):
@@ -585,12 +820,13 @@ class SubcloudsController(object):
             subcloud_dict.update(endpoint_sync_dict)
 
             if detail is not None:
-                oam_addresses = self._get_oam_addresses(context,
-                                                        subcloud_ref)
-                if oam_addresses is not None:
-                    oam_floating_ip = oam_addresses.oam_floating_ip
-                else:
-                    oam_floating_ip = "unavailable"
+                oam_floating_ip = "unavailable"
+                if subcloud.availability_status == consts.AVAILABILITY_ONLINE:
+                    oam_addresses = self._get_oam_addresses(context,
+                                                            subcloud.name)
+                    if oam_addresses is not None:
+                        oam_floating_ip = oam_addresses.oam_floating_ip
+
                 floating_ip_dict = {"oam_floating_ip":
                                     oam_floating_ip}
                 subcloud_dict.update(floating_ip_dict)
@@ -672,6 +908,12 @@ class SubcloudsController(object):
                 LOG.exception(msg)
                 pecan.abort(400, msg)
 
+            migrate_str = payload.get('migrate')
+            if migrate_str is not None:
+                if migrate_str not in ["true", "false"]:
+                    pecan.abort(400, _('The migrate option is invalid, '
+                                       'valid options are true and false.'))
+
             # If a subcloud group is not passed, use the default
             group_id = payload.get('group_id',
                                    consts.DEFAULT_SUBCLOUD_GROUP_ID)
@@ -688,8 +930,9 @@ class SubcloudsController(object):
                                            systemcontroller_gateway_ip,
                                            group_id)
 
-            if 'install_values' in payload:
-                self._validate_install_values(payload)
+            self._validate_install_values(payload)
+
+            self._format_ip_address(payload)
 
             # Upload the deploy config files if it is included in the request
             # It has a dependency on the subcloud name, and it is called after
@@ -706,17 +949,21 @@ class SubcloudsController(object):
             except RemoteError as e:
                 pecan.abort(422, e.value)
             except Exception:
-                LOG.exception("Unable to create subcloud %s" % name)
+                LOG.exception(
+                    "Unable to create subcloud %s" % payload.get('name'))
                 pecan.abort(500, _('Unable to create subcloud'))
         else:
             pecan.abort(400, _('Invalid request'))
 
     @utils.synchronized(LOCK_NAME)
     @index.when(method='PATCH', template='json')
-    def patch(self, subcloud_ref=None):
+    def patch(self, subcloud_ref=None, verb=None):
         """Update a subcloud.
 
         :param subcloud_ref: ID or name of subcloud to update
+
+        :param verb: Specifies the patch action to be taken
+        or subcloud update operation
         """
 
         context = restcomm.extract_context_from_environ()
@@ -724,10 +971,6 @@ class SubcloudsController(object):
 
         if subcloud_ref is None:
             pecan.abort(400, _('Subcloud ID required'))
-
-        payload = eval(request.body)
-        if not payload:
-            pecan.abort(400, _('Body required'))
 
         if subcloud_ref.isdigit():
             # Look up subcloud as an ID
@@ -745,40 +988,204 @@ class SubcloudsController(object):
 
         subcloud_id = subcloud.id
 
-        management_state = payload.get('management-state')
-        description = payload.get('description')
-        location = payload.get('location')
-        group_id = payload.get('group_id')
+        if verb is None:
+            payload = self._get_patch_data(request)
+            if not payload:
+                pecan.abort(400, _('Body required'))
 
-        if not (management_state or description or location or group_id):
-            pecan.abort(400, _('nothing to update'))
+            management_state = payload.get('management-state')
+            description = payload.get('description')
+            location = payload.get('location')
+            group_id = payload.get('group_id')
 
-        # Syntax checking
-        if management_state and \
-                management_state not in [consts.MANAGEMENT_UNMANAGED,
-                                         consts.MANAGEMENT_MANAGED]:
-            pecan.abort(400, _('Invalid management-state'))
+            # Syntax checking
+            if management_state and \
+                    management_state not in [consts.MANAGEMENT_UNMANAGED,
+                                             consts.MANAGEMENT_MANAGED]:
+                pecan.abort(400, _('Invalid management-state'))
 
-        # Verify the group_id is valid
-        if group_id:
+            force_flag = payload.get('force')
+            if force_flag is not None:
+                if force_flag not in [True, False]:
+                    pecan.abort(400, _('Invalid force value'))
+                elif management_state != consts.MANAGEMENT_MANAGED:
+                    pecan.abort(400, _('Invalid option: force'))
+
+            # Verify the group_id is valid
+            if group_id is not None:
+                try:
+                    # group_id may be passed in the payload as an int or str
+                    group_id = str(group_id)
+                    if group_id.isdigit():
+                        grp = db_api.subcloud_group_get(context, group_id)
+                    else:
+                        # replace the group_id (name) with the id
+                        grp = db_api.subcloud_group_get_by_name(context,
+                                                                group_id)
+                    group_id = grp.id
+                except exceptions.SubcloudGroupNameNotFound:
+                    pecan.abort(400, _('Invalid group'))
+                except exceptions.SubcloudGroupNotFound:
+                    pecan.abort(400, _('Invalid group'))
+
+            data_install = None
+            if self._validate_install_values(payload):
+                data_install = json.dumps(payload[INSTALL_VALUES])
+
             try:
-                db_api.subcloud_group_get(context, group_id)
-            except exceptions.SubcloudGroupNotFound:
-                pecan.abort(400, _('Invalid group-id'))
+                # Inform dcmanager-manager that subcloud has been updated.
+                # It will do all the real work...
+                subcloud = self.rpc_client.update_subcloud(
+                    context, subcloud_id, management_state=management_state,
+                    description=description, location=location, group_id=group_id,
+                    data_install=data_install, force=force_flag)
+                return subcloud
+            except RemoteError as e:
+                pecan.abort(422, e.value)
+            except Exception as e:
+                # additional exceptions.
+                LOG.exception(e)
+                pecan.abort(500, _('Unable to update subcloud'))
+        elif verb == 'reconfigure':
+            payload = self._get_reconfig_payload(request, subcloud.name)
+            if not payload:
+                pecan.abort(400, _('Body required'))
 
-        try:
-            # Inform dcmanager-manager that subcloud has been updated.
-            # It will do all the real work...
-            subcloud = self.rpc_client.update_subcloud(
-                context, subcloud_id, management_state=management_state,
-                description=description, location=location, group_id=group_id)
-            return subcloud
-        except RemoteError as e:
-            pecan.abort(422, e.value)
-        except Exception as e:
-            # additional exceptions.
-            LOG.exception(e)
-            pecan.abort(500, _('Unable to update subcloud'))
+            if subcloud.deploy_status not in [consts.DEPLOY_STATE_DONE,
+                                              consts.DEPLOY_STATE_DEPLOY_PREP_FAILED,
+                                              consts.DEPLOY_STATE_DEPLOY_FAILED]:
+                pecan.abort(400, _('Subcloud deploy status must be either '
+                                   'complete, deploy-prep-failed or deploy-failed'))
+            sysadmin_password = \
+                payload.get('sysadmin_password')
+            if not sysadmin_password:
+                pecan.abort(400, _('subcloud sysadmin_password required'))
+
+            try:
+                payload['sysadmin_password'] = base64.b64decode(
+                    sysadmin_password).decode('utf-8')
+            except Exception:
+                msg = _('Failed to decode subcloud sysadmin_password, '
+                        'verify the password is base64 encoded')
+                LOG.exception(msg)
+                pecan.abort(400, msg)
+
+            try:
+                subcloud = self.rpc_client.reconfigure_subcloud(context, subcloud_id,
+                                                                payload)
+                return subcloud
+            except RemoteError as e:
+                pecan.abort(422, e.value)
+            except Exception:
+                LOG.exception("Unable to reconfigure subcloud %s" % subcloud.name)
+                pecan.abort(500, _('Unable to reconfigure subcloud'))
+        elif verb == "reinstall":
+            install_values = self._get_subcloud_db_install_values(subcloud)
+            payload = db_api.subcloud_db_model_to_dict(subcloud)
+            for k in ['data_install', 'data_upgrade', 'created-at', 'updated-at']:
+                if k in payload:
+                    del payload[k]
+
+            payload.update({
+                'bmc_password': install_values.get('bmc_password'),
+                'install_values': install_values,
+            })
+
+            try:
+                self.rpc_client.reinstall_subcloud(
+                    context, subcloud_id, payload)
+
+                # Return deploy_status as pre-install
+                subcloud.deploy_status = consts.DEPLOY_STATE_PRE_INSTALL
+                return db_api.subcloud_db_model_to_dict(subcloud)
+            except RemoteError as e:
+                pecan.abort(422, e.value)
+            except Exception:
+                LOG.exception("Unable to reinstall subcloud %s" % subcloud.name)
+                pecan.abort(500, _('Unable to reinstall subcloud'))
+        elif verb == "restore":
+            payload = self._get_restore_payload(request)
+            if not payload:
+                pecan.abort(400, _('Body required'))
+
+            if subcloud.management_state != consts.MANAGEMENT_UNMANAGED:
+                pecan.abort(400, _('Subcloud can not be restored while it is still '
+                                   'in managed state. Please unmanage the subcloud '
+                                   'and try again.'))
+            elif subcloud.deploy_status in [consts.DEPLOY_STATE_INSTALLING,
+                                            consts.DEPLOY_STATE_BOOTSTRAPPING,
+                                            consts.DEPLOY_STATE_DEPLOYING]:
+                pecan.abort(400, _('This operation is not allowed while subcloud install, '
+                                   'bootstrap or deploy is in progress.'))
+            sysadmin_password = \
+                payload.get('sysadmin_password')
+            if not sysadmin_password:
+                pecan.abort(400, _('subcloud sysadmin_password required'))
+
+            try:
+                payload['sysadmin_password'] = base64.b64decode(
+                    sysadmin_password).decode('utf-8')
+            except Exception:
+                msg = _('Failed to decode subcloud sysadmin_password, '
+                        'verify the password is base64 encoded')
+                LOG.exception(msg)
+                pecan.abort(400, msg)
+
+            with_install = payload.get('with_install')
+
+            if with_install is not None:
+                if with_install == 'true' or with_install == 'True':
+                    payload.update({'with_install': True})
+                elif with_install == 'false' or with_install == 'False':
+                    payload.update({'with_install': False})
+                else:
+                    pecan.abort(400, _('Invalid with_install value'))
+
+            self._validate_restore_values(payload)
+
+            if with_install:
+                # Request to remote install as part of subcloud restore. Confirm the
+                # subcloud install data in the db still contain the required parameters
+                # for remote install.
+                install_values = self._get_subcloud_db_install_values(subcloud)
+                payload.update({
+                    'install_values': install_values,
+                })
+
+                # Confirm the active system controller load is still in dc-vault
+                SubcloudsController.verify_active_load_in_vault()
+            else:
+                # Not Redfish capable subcloud. The subcloud has been reinstalled
+                # and required patches have been applied.
+                #
+                # Pseudo code:
+                #   - Retrieve install_values of the subcloud from the database.
+                #     If it does not exist, try to retrieve the bootstrap address
+                #     from its ansible inventory file (/opt/dc/ansible).
+                #   - If the bootstrap address can be obtained, add install_values
+                #     to the payload and continue.
+                #   - If the bootstrap address cannot be obtained, abort with an
+                #     error message advising the user to run "dcmanager subcloud
+                #     update --bootstrap-address <bootstrap_address>" command
+                msg = _('This operation is not yet supported for subclouds without '
+                        'remote install capability.')
+                LOG.exception(msg)
+                pecan.abort(400, msg)
+
+            try:
+                self.rpc_client.restore_subcloud(context, subcloud_id,
+                                                 payload)
+                # Return deploy_status as pre-restore
+                subcloud.deploy_status = consts.DEPLOY_STATE_PRE_RESTORE
+                return db_api.subcloud_db_model_to_dict(subcloud)
+            except RemoteError as e:
+                pecan.abort(422, e.value)
+            except Exception:
+                LOG.exception("Unable to restore subcloud %s" % subcloud.name)
+                pecan.abort(500, _('Unable to restore subcloud'))
+        elif verb == 'update_status':
+            res = self.updatestatus(subcloud.name)
+            return res
 
     @utils.synchronized(LOCK_NAME)
     @index.when(method='delete', template='json')
@@ -815,3 +1222,40 @@ class SubcloudsController(object):
         except Exception as e:
             LOG.exception(e)
             pecan.abort(500, _('Unable to delete subcloud'))
+
+    def updatestatus(self, subcloud_name):
+        """Update subcloud sync status
+
+        :param subcloud_name: name of the subcloud
+        :return: json result object for the operation on success
+        """
+
+        payload = self._get_updatestatus_payload(request)
+        if not payload:
+            pecan.abort(400, _('Body required'))
+
+        endpoint = payload.get('endpoint')
+        if not endpoint:
+            pecan.abort(400, _('endpoint required'))
+        allowed_endpoints = [dcorch_consts.ENDPOINT_TYPE_DC_CERT]
+        if endpoint not in allowed_endpoints:
+            pecan.abort(400, _('updating endpoint %s status is not allowed'
+                               % endpoint))
+
+        status = payload.get('status')
+        if not status:
+            pecan.abort(400, _('status required'))
+
+        allowed_status = [consts.SYNC_STATUS_IN_SYNC,
+                          consts.SYNC_STATUS_OUT_OF_SYNC,
+                          consts.SYNC_STATUS_UNKNOWN]
+        if status not in allowed_status:
+            pecan.abort(400, _('status %s in invalid.' % status))
+
+        LOG.info('update %s set %s=%s' % (subcloud_name, endpoint, status))
+        context = restcomm.extract_context_from_environ()
+        self.rpc_client.update_subcloud_endpoint_status(
+            context, subcloud_name, endpoint, status)
+
+        result = {'result': 'OK'}
+        return result

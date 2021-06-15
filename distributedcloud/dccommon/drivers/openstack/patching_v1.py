@@ -35,6 +35,7 @@ PATCH_STATE_PARTIAL_APPLY = 'Partial-Apply'
 PATCH_STATE_PARTIAL_REMOVE = 'Partial-Remove'
 PATCH_STATE_COMMITTED = 'Committed'
 PATCH_STATE_UNKNOWN = 'n/a'
+PATCH_REST_DEFAULT_TIMEOUT = 600
 
 
 class PatchingClient(base.DriverBase):
@@ -48,7 +49,7 @@ class PatchingClient(base.DriverBase):
             interface=consts.KS_ENDPOINT_ADMIN)
         self.token = session.get_token()
 
-    def query(self, state=None, release=None,):
+    def query(self, state=None, release=None, timeout=PATCH_REST_DEFAULT_TIMEOUT):
         """Query patches"""
         url = self.endpoint + '/v1/query'
         if state is not None:
@@ -56,7 +57,7 @@ class PatchingClient(base.DriverBase):
         if release is not None:
             url += "&release=%s" % release
         headers = {"X-Auth-Token": self.token}
-        response = requests.get(url, headers=headers)
+        response = requests.get(url, headers=headers, timeout=timeout)
 
         if response.status_code == 200:
             data = response.json()
@@ -71,11 +72,11 @@ class PatchingClient(base.DriverBase):
             LOG.error(message)
             raise Exception(message)
 
-    def query_hosts(self):
+    def query_hosts(self, timeout=PATCH_REST_DEFAULT_TIMEOUT):
         """Query hosts"""
         url = self.endpoint + '/v1/query_hosts'
         headers = {"X-Auth-Token": self.token}
-        response = requests.get(url, headers=headers)
+        response = requests.get(url, headers=headers, timeout=timeout)
 
         if response.status_code == 200:
             data = response.json()
@@ -90,12 +91,12 @@ class PatchingClient(base.DriverBase):
             LOG.error(message)
             raise Exception(message)
 
-    def apply(self, patches):
+    def apply(self, patches, timeout=PATCH_REST_DEFAULT_TIMEOUT):
         """Apply patches"""
         patch_str = "/".join(patches)
         url = self.endpoint + '/v1/apply/%s' % patch_str
         headers = {"X-Auth-Token": self.token}
-        response = requests.post(url, headers=headers)
+        response = requests.post(url, headers=headers, timeout=timeout)
 
         if response.status_code == 200:
             data = response.json()
@@ -110,12 +111,12 @@ class PatchingClient(base.DriverBase):
             LOG.error(message)
             raise Exception(message)
 
-    def remove(self, patches):
+    def remove(self, patches, timeout=PATCH_REST_DEFAULT_TIMEOUT):
         """Remove patches"""
         patch_str = "/".join(patches)
         url = self.endpoint + '/v1/remove/%s' % patch_str
         headers = {"X-Auth-Token": self.token}
-        response = requests.post(url, headers=headers)
+        response = requests.post(url, headers=headers, timeout=timeout)
 
         if response.status_code == 200:
             data = response.json()
@@ -130,12 +131,12 @@ class PatchingClient(base.DriverBase):
             LOG.error(message)
             raise Exception(message)
 
-    def delete(self, patches):
+    def delete(self, patches, timeout=PATCH_REST_DEFAULT_TIMEOUT):
         """Delete patches"""
         patch_str = "/".join(patches)
         url = self.endpoint + '/v1/delete/%s' % patch_str
         headers = {"X-Auth-Token": self.token}
-        response = requests.post(url, headers=headers)
+        response = requests.post(url, headers=headers, timeout=timeout)
 
         if response.status_code == 200:
             data = response.json()
@@ -150,12 +151,12 @@ class PatchingClient(base.DriverBase):
             LOG.error(message)
             raise Exception(message)
 
-    def commit(self, patches):
+    def commit(self, patches, timeout=PATCH_REST_DEFAULT_TIMEOUT):
         """Commit patches"""
         patch_str = "/".join(patches)
         url = self.endpoint + '/v1/commit/%s' % patch_str
         headers = {"X-Auth-Token": self.token}
-        response = requests.post(url, headers=headers)
+        response = requests.post(url, headers=headers, timeout=timeout)
 
         if response.status_code == 200:
             data = response.json()
@@ -170,7 +171,7 @@ class PatchingClient(base.DriverBase):
             LOG.error(message)
             raise Exception(message)
 
-    def upload(self, files):
+    def upload(self, files, timeout=PATCH_REST_DEFAULT_TIMEOUT):
         """Upload patches"""
 
         for file in sorted(list(set(files))):
@@ -182,7 +183,8 @@ class PatchingClient(base.DriverBase):
                        'Content-Type': enc.content_type}
             response = requests.post(url,
                                      data=enc,
-                                     headers=headers)
+                                     headers=headers,
+                                     timeout=timeout)
 
             if response.status_code == 200:
                 data = response.json()
