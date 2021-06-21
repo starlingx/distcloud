@@ -17,6 +17,7 @@
 # of an applicable Wind River license agreement.
 #
 
+import copy
 import mock
 
 from oslo_concurrency import lockutils
@@ -1170,110 +1171,78 @@ class TestSubcloudManager(base.DCManagerTestCase):
         )
 
     @mock.patch.object(
+        subcloud_manager.SubcloudManager, '_write_subcloud_ansible_config')
+    @mock.patch.object(
         subcloud_manager.SubcloudManager, '_create_intermediate_ca_cert')
     @mock.patch.object(
         subcloud_manager.SubcloudManager, 'compose_install_command')
     @mock.patch.object(
         subcloud_manager.SubcloudManager, 'compose_apply_command')
     @mock.patch.object(cutils, 'create_subcloud_inventory')
+    @mock.patch.object(subcloud_manager.SubcloudManager, '_get_keystone_ids')
+    @mock.patch.object(subcloud_manager, 'OpenStackDriver')
     @mock.patch.object(threading.Thread, 'start')
     @mock.patch.object(subcloud_manager, 'keyring')
-    def test_reinstall_subcloud_with_image(
+    def test_reinstall_subcloud(
         self, mock_keyring, mock_thread_start,
-        mock_create_subcloud_inventory,
+        mock_keystone_client, mock_get_keystone_ids, mock_create_subcloud_inventory,
         mock_compose_apply_command, mock_compose_install_command,
-        mock_create_intermediate_ca_cert):
+        mock_create_intermediate_ca_cert, mock_write_subcloud_ansible_config):
 
         subcloud = self.create_subcloud_static(
             self.ctx,
             name='subcloud1',
-            deploy_status=consts.DEPLOY_STATE_PRE_DEPLOY)
+            deploy_status=consts.DEPLOY_STATE_PRE_INSTALL)
 
-        fake_install_values = fake_subcloud.FAKE_SUBCLOUD_INSTALL_VALUES
+        fake_install_values = \
+            copy.copy(fake_subcloud.FAKE_SUBCLOUD_INSTALL_VALUES)
         fake_install_values['software_version'] = SW_VERSION
-        fake_payload = {
-            "bmc_password": "bmc_pass",
-            "install_values": fake_install_values}
+        fake_payload = copy.copy(fake_subcloud.FAKE_SUBCLOUD_BOOTSTRAP_PAYLOAD)
+        fake_payload.update({
+            'bmc_password': 'bmc_pass',
+            'software_version': SW_VERSION,
+            'install_values': fake_install_values})
 
         sm = subcloud_manager.SubcloudManager()
         mock_keyring.get_password.return_value = "testpassword"
 
         sm.reinstall_subcloud(self.ctx, subcloud.id, payload=fake_payload)
-        mock_keyring.get_password.assert_called_once()
+        mock_keystone_client.assert_called_once()
+        mock_get_keystone_ids.assert_called_once()
         mock_create_subcloud_inventory.assert_called_once()
+        mock_create_intermediate_ca_cert.assert_called_once()
+        mock_write_subcloud_ansible_config.assert_called_once()
         mock_compose_install_command.assert_called_once()
         mock_compose_apply_command.assert_called_once()
         mock_thread_start.assert_called_once()
 
-    @mock.patch.object(
-        subcloud_manager.SubcloudManager, '_create_intermediate_ca_cert')
-    @mock.patch.object(cutils, "get_vault_load_files")
-    @mock.patch.object(
-        subcloud_manager.SubcloudManager, 'compose_install_command')
-    @mock.patch.object(
-        subcloud_manager.SubcloudManager, 'compose_apply_command')
-    @mock.patch.object(cutils, 'create_subcloud_inventory')
-    @mock.patch.object(threading.Thread, 'start')
-    @mock.patch.object(subcloud_manager, 'keyring')
-    def test_reinstall_subcloud_without_image(
-        self, mock_keyring, mock_thread_start, mock_create_subcloud_inventory,
-        mock_compose_apply_command, mock_compose_install_command,
-        mock_get_vault_load_files, mock_create_intermediate_ca_cert):
-
-        subcloud = self.create_subcloud_static(
-            self.ctx,
-            name='subcloud1',
-            deploy_status=consts.DEPLOY_STATE_PRE_DEPLOY)
-
-        fake_install_values = fake_subcloud.FAKE_SUBCLOUD_INSTALL_VALUES
-        fake_install_values['software_version'] = SW_VERSION
-        del fake_install_values['image']
-        fake_payload = {
-            "bmc_password": "bmc_pass",
-            "install_values": fake_install_values}
-
+    def test_get_keystone_get_keystone_ids(self):
+        keystone_client = FakeKeystoneClient()
+        payload = dict()
         sm = subcloud_manager.SubcloudManager()
-        mock_keyring.get_password.return_value = "testpassword"
-        mock_get_vault_load_files.return_value = ("iso file path", "sig file path")
-
-        sm.reinstall_subcloud(self.ctx, subcloud.id, payload=fake_payload)
-        mock_keyring.get_password.assert_called_once()
-        mock_create_subcloud_inventory.assert_called_once()
-        mock_compose_install_command.assert_called_once()
-        mock_compose_apply_command.assert_called_once()
-        mock_thread_start.assert_called_once()
-
-    def test_reinstall_online_subcloud(self):
-        subcloud = self.create_subcloud_static(
-            self.ctx,
-            name='subcloud1',
-            deploy_status=consts.DEPLOY_STATE_PRE_DEPLOY)
-        db_api.subcloud_update(self.ctx,
-                               subcloud.id,
-                               availability_status=consts.AVAILABILITY_ONLINE)
-
-        data = utils.create_subcloud_dict(base.SUBCLOUD_SAMPLE_DATA_0)
-        sm = subcloud_manager.SubcloudManager()
-        self.assertRaises(exceptions.SubcloudNotOffline,
-                          sm.reinstall_subcloud, self.ctx,
-                          subcloud.id, data)
-
-    def test_reinstall_subcloud_software_not_match(self):
-        subcloud = self.create_subcloud_static(
-            self.ctx,
-            name='subcloud1',
-            deploy_status=consts.DEPLOY_STATE_PRE_DEPLOY)
-        db_api.subcloud_update(self.ctx,
-                               subcloud.id,
-                               availability_status=consts.AVAILABILITY_OFFLINE)
-
-        fake_install_values = fake_subcloud.FAKE_SUBCLOUD_INSTALL_VALUES
-        data = utils.create_subcloud_dict(base.SUBCLOUD_SAMPLE_DATA_0)
-        data.update({'install_values': fake_install_values})
-        sm = subcloud_manager.SubcloudManager()
-        self.assertRaises(exceptions.BadRequest,
-                          sm.reinstall_subcloud, self.ctx,
-                          subcloud.id, data)
+        sm._get_keystone_ids(keystone_client, payload)
+        for fake_user in FAKE_USERS:
+            if fake_user.name == dccommon_consts.ADMIN_USER_NAME:
+                self.assertEqual(
+                    payload['system_controller_keystone_admin_user_id'],
+                    fake_user.id)
+            elif fake_user.name == dccommon_consts.SYSINV_USER_NAME:
+                self.assertEqual(
+                    payload['system_controller_keystone_sysinv_user_id'],
+                    fake_user.id)
+            elif fake_user.name == dccommon_consts.DCMANAGER_USER_NAME:
+                self.assertEqual(
+                    payload['system_controller_keystone_dcmanager_user_id'],
+                    fake_user.id)
+        for fake_project in FAKE_PROJECTS:
+            if fake_project.name == dccommon_consts.ADMIN_PROJECT_NAME:
+                self.assertEqual(
+                    payload['system_controller_keystone_admin_project_id'],
+                    fake_project.id)
+            elif fake_project.name == dccommon_consts.SERVICES_USER_NAME:
+                self.assertEqual(
+                    payload['system_controller_keystone_services_project_id'],
+                    fake_project.id)
 
     def test_handle_subcloud_operations_in_progress(self):
         subcloud1 = self.create_subcloud_static(

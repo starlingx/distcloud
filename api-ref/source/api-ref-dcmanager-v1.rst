@@ -642,6 +642,9 @@ serviceUnavailable (503)
    :widths: 20, 20, 20, 60
 
    "subcloud", "URI", "xsd:string", "The subcloud reference, name or id."
+   "sysadmin_password", "plain", "xsd:string", "The sysadmin password of the subcloud. Must be base64 encoded."
+   "bootstrap_values", "plain", "xsd:string", "The content of a file containing the bootstrap overrides such as subcloud name, management and OAM subnet."
+   "deploy_config (Optional)", "plain", "xsd:string", "The content of a file containing the resource definitions describing the desired subcloud configuration."
 
 **Response parameters**
 

@@ -428,6 +428,19 @@ class SubcloudsController(object):
                                "%(end)s") %
                         {'start': mgmt_address_start, 'end': mgmt_address_end})
 
+        self._validate_oam_network_config(external_oam_subnet_str,
+                                          external_oam_gateway_address_str,
+                                          external_oam_floating_address_str,
+                                          subcloud_subnets)
+        self._validate_group_id(context, group_id)
+
+    def _validate_oam_network_config(self,
+                                     external_oam_subnet_str,
+                                     external_oam_gateway_address_str,
+                                     external_oam_floating_address_str,
+                                     existing_networks):
+        """validate whether oam network configuration is valid"""
+
         # Parse/validate the oam subnet
         MIN_OAM_SUBNET_SIZE = 3
         oam_subnet = None
@@ -435,7 +448,7 @@ class SubcloudsController(object):
             oam_subnet = utils.validate_network_str(
                 external_oam_subnet_str,
                 minimum_size=MIN_OAM_SUBNET_SIZE,
-                existing_networks=subcloud_subnets)
+                existing_networks=existing_networks)
         except exceptions.ValidateFail as e:
             LOG.exception(e)
             pecan.abort(400, _("external_oam_subnet invalid: %s") % e)
@@ -454,7 +467,6 @@ class SubcloudsController(object):
         except exceptions.ValidateFail as e:
             LOG.exception(e)
             pecan.abort(400, _("oam_floating_address invalid: %s") % e)
-        self._validate_group_id(context, group_id)
 
     def _format_ip_address(self, payload):
         """Format IP addresses in 'bootstrap_values' and 'install_values'.
@@ -1080,23 +1092,154 @@ class SubcloudsController(object):
                 LOG.exception("Unable to reconfigure subcloud %s" % subcloud.name)
                 pecan.abort(500, _('Unable to reconfigure subcloud'))
         elif verb == "reinstall":
+            payload = self._get_request_data(request)
             install_values = self._get_subcloud_db_install_values(subcloud)
-            payload = db_api.subcloud_db_model_to_dict(subcloud)
-            for k in ['data_install', 'data_upgrade', 'created-at', 'updated-at']:
-                if k in payload:
-                    del payload[k]
 
+            if subcloud.availability_status == consts.AVAILABILITY_ONLINE:
+                msg = _('Cannot re-install an online subcloud')
+                LOG.exception(msg)
+                pecan.abort(400, msg)
+
+            # Validate the bootstrap values with the data in central cloud.
+            # Stop the process if the boostrap value is not equal to the data
+            # in DB. Re-use the data from DB if it is not passed.
+            name = payload.get('name', subcloud.name)
+            if name != subcloud.name:
+                pecan.abort(400, _('name is incorrect for the subcloud'))
+            else:
+                payload['name'] = name
+
+            system_mode = payload.get('system_mode')
+            if not system_mode:
+                pecan.abort(400, _('system_mode required'))
+
+            management_subnet = payload.get('management_subnet',
+                                            subcloud.management_subnet)
+            if management_subnet != subcloud.management_subnet:
+                pecan.abort(400, _('management_subnet is incorrect  for subcloud'))
+            else:
+                payload['management_subnet'] = management_subnet
+
+            management_start_ip = payload.get('management_start_address',
+                                              subcloud.management_start_ip)
+            if management_start_ip != subcloud.management_start_ip:
+                pecan.abort(400, _('management_start_address is incorrect for '
+                                   'the subcloud'))
+            else:
+                payload['management_start_address'] = management_start_ip
+
+            management_end_ip = payload.get('management_end_address',
+                                            subcloud.management_end_ip)
+            if management_end_ip != subcloud.management_end_ip:
+                pecan.abort(400, _('management_end_address is incorrect for '
+                                   'the subcloud'))
+            else:
+                payload['management_end_address'] = management_end_ip
+
+            management_gateway_ip = payload.get('management_gateway_address',
+                                                subcloud.management_gateway_ip)
+            if management_gateway_ip != subcloud.management_gateway_ip:
+                pecan.abort(400, _('management_gateway_address is incorrect for '
+                                   'the subcloud'))
+            else:
+                payload['management_gateway_address'] = management_gateway_ip
+
+            systemcontroller_gateway_ip = \
+                payload.get('systemcontroller_gateway_address',
+                            subcloud.systemcontroller_gateway_ip)
+            if systemcontroller_gateway_ip != subcloud.systemcontroller_gateway_ip:
+                pecan.abort(400, _('systemcontroller_gateway_address is incorrect '
+                                   'for the subcloud'))
+            else:
+                payload['systemcontroller_gateway_address'] = \
+                    systemcontroller_gateway_ip
+
+            external_oam_subnet = payload.get('external_oam_subnet')
+            if not external_oam_subnet:
+                pecan.abort(400, _('external_oam_subnet required'))
+
+            external_oam_gateway_ip = payload.get('external_oam_gateway_address')
+            if not external_oam_gateway_ip:
+                pecan.abort(400, _('external_oam_gateway_address required'))
+
+            external_oam_floating_ip = \
+                payload.get('external_oam_floating_address')
+            if not external_oam_floating_ip:
+                pecan.abort(400, _('external_oam_floating_address required'))
+
+            sysadmin_password = payload.get('sysadmin_password')
+            if not sysadmin_password:
+                pecan.abort(400, _('subcloud sysadmin_password required'))
+
+            try:
+                payload['sysadmin_password'] = base64.b64decode(
+                    sysadmin_password).decode('utf-8')
+            except Exception:
+                msg = _('Failed to decode subcloud sysadmin_password, '
+                        'verify the password is base64 encoded')
+                LOG.exception(msg)
+                pecan.abort(400, msg)
+
+            # Search existing subcloud subnets in db
+            subcloud_subnets = []
+            subclouds = db_api.subcloud_get_all(context)
+            for k in subclouds:
+                subcloud_subnets.append(IPNetwork(k.management_subnet))
+
+            self._validate_oam_network_config(external_oam_subnet,
+                                              external_oam_gateway_ip,
+                                              external_oam_floating_ip,
+                                              subcloud_subnets)
+
+            # If the software version of the subcloud is different from the
+            # central cloud, update the software version in install valuse and
+            # delete the image path in install values, then the subcloud will
+            # be reinstalled using the image in dc_vault.
+            if install_values.get('software_version') != tsc.SW_VERSION:
+                install_values['software_version'] = tsc.SW_VERSION
+                install_values.pop('image', None)
+
+            # Confirm the active system controller load is still in dc-vault if
+            # image not in install values, add the matching image into the
+            # install values.
+            if 'image' not in install_values:
+                matching_iso, matching_sig = \
+                    SubcloudsController.verify_active_load_in_vault()
+                LOG.info("image was not in install_values: will reference %s" %
+                         matching_iso)
+                install_values['image'] = matching_iso
+
+            # Update the install values in payload
             payload.update({
                 'bmc_password': install_values.get('bmc_password'),
                 'install_values': install_values,
             })
 
+            # Update data install(software version, image path)
+            data_install = None
+            if 'install_values' in payload:
+                data_install = json.dumps(payload['install_values'])
+
+            # Upload the deploy config files if it is included in the request
+            self._upload_deploy_config_file(request, payload)
+
             try:
+                # Align the software version of the subcloud with the central
+                # cloud. Update description, location and group id if offered,
+                # update the deploy status as pre-install.
+                db_api.subcloud_update(
+                    context,
+                    subcloud_id,
+                    description=payload.get('description', subcloud.description),
+                    location=payload.get('location', subcloud.location),
+                    software_version=tsc.SW_VERSION,
+                    management_state=consts.MANAGEMENT_UNMANAGED,
+                    deploy_status=consts.DEPLOY_STATE_PRE_INSTALL,
+                    data_install=data_install)
+
                 self.rpc_client.reinstall_subcloud(
                     context, subcloud_id, payload)
 
-                # Return deploy_status as pre-install
-                subcloud.deploy_status = consts.DEPLOY_STATE_PRE_INSTALL
                 return db_api.subcloud_db_model_to_dict(subcloud)
             except RemoteError as e:
                 pecan.abort(422, e.value)
