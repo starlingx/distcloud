@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2020 Wind River Systems, Inc.
+# Copyright (c) 2021 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -14,6 +14,7 @@ from dcmanager.tests.unit.orchestrator.states.upgrade.test_base \
     import TestSwUpgradeState
 
 
+@mock.patch("dcmanager.orchestrator.states.swact_host.DEFAULT_SWACT_SLEEP", 1)
 @mock.patch("dcmanager.orchestrator.states.swact_host.DEFAULT_MAX_QUERIES", 3)
 @mock.patch("dcmanager.orchestrator.states.swact_host.DEFAULT_SLEEP_DURATION", 1)
 class TestSwUpgradeSwactToController0Stage(TestSwUpgradeState):
