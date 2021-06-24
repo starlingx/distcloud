@@ -77,7 +77,7 @@ Distributed Cloud provides configuration and management of distributed clouds
 # DC Common
 %package dccommon
 Summary: DC common module
-Requires: python-kubernetes
+Requires: python3-kubernetes
 
 %description dccommon
 Distributed Cloud Common Module
