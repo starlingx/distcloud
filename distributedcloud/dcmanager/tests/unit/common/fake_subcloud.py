@@ -40,9 +40,27 @@ FAKE_BOOTSTRAP_VALUE = {
     'sysadmin_password': base64.b64encode('testpass'.encode("utf-8"))
 }
 
+FAKE_SUBCLOUD_BOOTSTRAP_PAYLOAD = {
+    'bootstrap-address': '10.10.10.12',
+    "system_mode": "simplex",
+    "name": "subcloud1",
+    "description": "subcloud1 description",
+    "location": "subcloud1 location",
+    "management_subnet": "192.168.101.0/24",
+    "management_gateway_address": "192.168.101.1",
+    "management_start_address": "192.168.101.2",
+    "management_end_address": "192.168.101.50",
+    "systemcontroller_gateway_address": "192.168.204.101",
+    "external_oam_subnet": "10.10.10.0/24",
+    "external_oam_gateway_address": "10.10.10.1",
+    "external_oam_floating_address": "10.10.10.12",
+    'sysadmin_password':
+        (base64.b64encode('testpass'.encode("utf-8"))).decode('ascii'),
+}
+
 FAKE_SUBCLOUD_INSTALL_VALUES = {
     "image": "http://192.168.101.2:8080/iso/bootimage.iso",
-    "software_version": "12.34",
+    "software_version": "18.03",
     "bootstrap_interface": "eno1",
     "bootstrap_address": "128.224.151.183",
     "bootstrap_address_prefix": 23,
@@ -68,8 +86,8 @@ def create_fake_subcloud(ctxt, **kwargs):
         'software_version': "18.03",
         "management_subnet": "192.168.101.0/24",
         "management_gateway_ip": "192.168.101.1",
-        "management_start_ip": "192.168.101.3",
-        "management_end_ip": "192.168.101.4",
+        "management_start_ip": "192.168.101.2",
+        "management_end_ip": "192.168.101.50",
         "systemcontroller_gateway_ip": "192.168.204.101",
         'deploy_status': consts.DEPLOY_STATE_DONE,
         'openstack_installed': False,

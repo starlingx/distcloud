@@ -392,38 +392,7 @@ class SubcloudManager(manager.Manager):
             # Query system controller keystone admin user/project IDs,
             # services project id, sysinv and dcmanager user id and store in
             # payload so they get copied to the override file
-            admin_user_id = None
-            sysinv_user_id = None
-            dcmanager_user_id = None
-            admin_project_id = None
-            services_project_id = None
-
-            user_list = m_ks_client.get_enabled_users(id_only=False)
-            for user in user_list:
-                if user.name == dccommon_consts.ADMIN_USER_NAME:
-                    admin_user_id = user.id
-                elif user.name == dccommon_consts.SYSINV_USER_NAME:
-                    sysinv_user_id = user.id
-                elif user.name == dccommon_consts.DCMANAGER_USER_NAME:
-                    dcmanager_user_id = user.id
-
-            project_list = m_ks_client.get_enabled_projects(id_only=False)
-            for project in project_list:
-                if project.name == dccommon_consts.ADMIN_PROJECT_NAME:
-                    admin_project_id = project.id
-                elif project.name == dccommon_consts.SERVICES_USER_NAME:
-                    services_project_id = project.id
-
-            payload['system_controller_keystone_admin_user_id'] = \
-                admin_user_id
-            payload['system_controller_keystone_admin_project_id'] = \
-                admin_project_id
-            payload['system_controller_keystone_services_project_id'] = \
-                services_project_id
-            payload['system_controller_keystone_sysinv_user_id'] = \
-                sysinv_user_id
-            payload['system_controller_keystone_dcmanager_user_id'] = \
-                dcmanager_user_id
+            self._get_keystone_ids(m_ks_client, payload)
 
             # Add the admin and service user passwords to the payload so they
             # get copied to the override file
@@ -550,6 +519,45 @@ class SubcloudManager(manager.Manager):
                 context, subcloud_id,
                 deploy_status=consts.DEPLOY_STATE_DEPLOY_PREP_FAILED)
 
+    def _get_keystone_ids(self, keystone_client, payload):
+        """Get keystone user_id and project_id
+
+        :param keystone_client: keystone client
+        :param payload: subcloud configuration
+        """
+        admin_user_id = None
+        sysinv_user_id = None
+        dcmanager_user_id = None
+        admin_project_id = None
+        services_project_id = None
+
+        user_list = keystone_client.get_enabled_users(id_only=False)
+        for user in user_list:
+            if user.name == dccommon_consts.ADMIN_USER_NAME:
+                admin_user_id = user.id
+            elif user.name == dccommon_consts.SYSINV_USER_NAME:
+                sysinv_user_id = user.id
+            elif user.name == dccommon_consts.DCMANAGER_USER_NAME:
+                dcmanager_user_id = user.id
+
+        project_list = keystone_client.get_enabled_projects(id_only=False)
+        for project in project_list:
+            if project.name == dccommon_consts.ADMIN_PROJECT_NAME:
+                admin_project_id = project.id
+            elif project.name == dccommon_consts.SERVICES_USER_NAME:
+                services_project_id = project.id
+
+        payload['system_controller_keystone_admin_user_id'] = \
+            admin_user_id
+        payload['system_controller_keystone_admin_project_id'] = \
+            admin_project_id
+        payload['system_controller_keystone_services_project_id'] = \
+            services_project_id
+        payload['system_controller_keystone_sysinv_user_id'] = \
+            sysinv_user_id
+        payload['system_controller_keystone_dcmanager_user_id'] = \
+            dcmanager_user_id
+
     def reinstall_subcloud(self, context, subcloud_id, payload):
         """Reinstall subcloud
 
@@ -561,50 +569,49 @@ class SubcloudManager(manager.Manager):
         # Retrieve the subcloud details from the database
         subcloud = db_api.subcloud_get(context, subcloud_id)
 
-        # Semantic checking
-        if subcloud.availability_status == \
-                consts.AVAILABILITY_ONLINE:
-            raise exceptions.SubcloudNotOffline()
-
-        software_version = str(payload['install_values'].get('software_version'))
-        LOG.info("The type of sw version is %s" % type(SW_VERSION))
-
-        if software_version != SW_VERSION:
-            raise exceptions.BadRequest(
-                resource='subcloud',
-                msg='Software version should match the system controller')
-
-        if 'image' not in payload['install_values']:
-            matching_iso, matching_sig = utils.get_vault_load_files(
-                SW_VERSION)
-            payload['install_values'].update({'image': matching_iso})
-
         LOG.info("Reinstalling subcloud %s." % subcloud_id)
-
-        subcloud = db_api.subcloud_update(
-            context, subcloud_id,
-            software_version=SW_VERSION,
-            deploy_status=consts.DEPLOY_STATE_PRE_INSTALL)
 
         try:
             ansible_subcloud_inventory_file = self._get_ansible_filename(
                 subcloud.name, INVENTORY_FILE_POSTFIX)
 
+            m_ks_client = OpenStackDriver(
+                region_name=consts.DEFAULT_REGION_NAME,
+                region_clients=None).keystone_client
+            self._get_keystone_ids(m_ks_client, payload)
+
             payload['admin_password'] = str(
                 keyring.get_password('CGCS', 'admin'))
-            payload['ansible_become_pass'] = payload['admin_password']
-            payload['ansible_ssh_pass'] = payload['admin_password']
+            payload['ansible_become_pass'] = payload['sysadmin_password']
+            payload['ansible_ssh_pass'] = payload['sysadmin_password']
             payload['install_values']['ansible_ssh_pass'] = \
-                payload['admin_password']
+                payload['sysadmin_password']
             payload['install_values']['ansible_become_pass'] = \
-                payload['admin_password']
+                payload['sysadmin_password']
             payload['bootstrap-address'] = \
                 payload['install_values']['bootstrap_address']
+
+            deploy_command = None
+            if "deploy_playbook" in payload:
+                self._prepare_for_deployment(payload, subcloud.name)
+                deploy_command = self.compose_deploy_command(
+                    subcloud.name,
+                    ansible_subcloud_inventory_file,
+                    payload)
+            del payload['sysadmin_password']
+
+            payload['users'] = dict()
+            for user in USERS_TO_REPLICATE:
+                payload['users'][user] = \
+                    str(keyring.get_password(
+                        user, dccommon_consts.SERVICES_USER_NAME))
 
             utils.create_subcloud_inventory(payload,
                                             ansible_subcloud_inventory_file)
 
             self._create_intermediate_ca_cert(payload)
+
+            self._write_subcloud_ansible_config(context, payload)
 
             install_command = self.compose_install_command(
                 subcloud.name,
@@ -615,7 +622,7 @@ class SubcloudManager(manager.Manager):
             apply_thread = threading.Thread(
                 target=self.run_deploy,
                 args=(subcloud, payload, context,
-                      install_command, apply_command))
+                      install_command, apply_command, deploy_command))
             apply_thread.start()
             return db_api.subcloud_db_model_to_dict(subcloud)
         except Exception:
@@ -624,7 +631,7 @@ class SubcloudManager(manager.Manager):
             # deployment status
             db_api.subcloud_update(
                 context, subcloud_id,
-                deploy_status=consts.DEPLOY_STATE_DEPLOY_PREP_FAILED)
+                deploy_status=consts.DEPLOY_STATE_PRE_INSTALL_FAILED)
 
     def _create_check_target_override_file(self, payload, subcloud_name):
         check_target_override_file = os.path.join(
