@@ -16,7 +16,7 @@
 OpenStack Driver
 """
 import collections
-
+from keystoneauth1 import exceptions as keystone_exceptions
 from oslo_concurrency import lockutils
 from oslo_log import log
 
@@ -86,6 +86,12 @@ class OpenStackDriver(object):
                 # Clear client object cache
                 OpenStackDriver.os_clients_dict[region_name] = \
                     collections.defaultdict(dict)
+
+            except keystone_exceptions.ConnectTimeout as exception:
+                LOG.debug('keystone_client region %s error: %s' %
+                          (region_name, str(exception)))
+                raise exception
+
             except Exception as exception:
                 LOG.error('keystone_client region %s error: %s' %
                           (region_name, str(exception)))

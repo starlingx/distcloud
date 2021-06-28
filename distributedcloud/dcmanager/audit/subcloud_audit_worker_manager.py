@@ -295,9 +295,19 @@ class SubcloudAuditWorkerManager(manager.Manager):
                                         thread_name='subcloud-audit')
             sysinv_client = os_client.sysinv_client
             fm_client = os_client.fm_client
+        except keystone_exceptions.ConnectTimeout:
+            if avail_status_current == consts.AVAILABILITY_OFFLINE:
+                LOG.debug("Identity or Platform endpoint for %s not "
+                          "found, ignoring for offline "
+                          "subcloud." % subcloud_name)
+                return audits_done
+            else:
+                # The subcloud will be marked as offline below.
+                LOG.error("Identity or Platform endpoint for online "
+                          "subcloud: %s not found." % subcloud_name)
+
         except (keystone_exceptions.EndpointNotFound,
                 keystone_exceptions.ConnectFailure,
-                keystone_exceptions.ConnectTimeout,
                 IndexError):
             if avail_status_current == consts.AVAILABILITY_OFFLINE:
                 LOG.info("Identity or Platform endpoint for %s not "
