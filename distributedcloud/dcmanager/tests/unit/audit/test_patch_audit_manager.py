@@ -272,6 +272,14 @@ class TestPatchAudit(base.DCManagerTestCase):
         self.mock_audit_worker_api.return_value = self.fake_audit_worker_api
         self.addCleanup(p.stop)
 
+    def get_patch_audit_data(self, am):
+        (patch_audit_data, firmware_audit_data,
+         kubernetes_audit_data, kube_rootca_data) = \
+            am._get_audit_data(True, True, True, True)
+        # Convert to dict like what would happen calling via RPC
+        patch_audit_data = patch_audit_data.to_dict()
+        return patch_audit_data
+
     def test_init(self):
         pm = patch_audit.PatchAudit(self.ctxt,
                                     self.fake_dcmanager_api)
@@ -297,10 +305,7 @@ class TestPatchAudit(base.DCManagerTestCase):
         am.patch_audit = pm
 
         do_load_audit = True
-        patch_audit_data, firmware_audit_data, kubernetes_audit_data = \
-            am._get_audit_data(True, True, True)
-        # Convert to dict like what would happen calling via RPC
-        patch_audit_data = patch_audit_data.to_dict()
+        patch_audit_data = self.get_patch_audit_data(am)
 
         for name in ['subcloud1', 'subcloud2']:
             pm.subcloud_patch_audit(name, patch_audit_data, do_load_audit)
@@ -334,10 +339,7 @@ class TestPatchAudit(base.DCManagerTestCase):
         mock_sysinv_client.side_effect = FakeSysinvClientOneLoad
 
         do_load_audit = True
-        patch_audit_data, firmware_audit_data, kubernetes_audit_data = \
-            am._get_audit_data(True, True, True)
-        # Convert to dict like what would happen calling via RPC
-        patch_audit_data = patch_audit_data.to_dict()
+        patch_audit_data = self.get_patch_audit_data(am)
 
         for name in ['subcloud1', 'subcloud2', 'subcloud3', 'subcloud4']:
             pm.subcloud_patch_audit(name, patch_audit_data, do_load_audit)
@@ -398,10 +400,7 @@ class TestPatchAudit(base.DCManagerTestCase):
         mock_sysinv_client.side_effect = FakeSysinvClientOneLoad
 
         do_load_audit = True
-        patch_audit_data, firmware_audit_data, kubernetes_audit_data = \
-            am._get_audit_data(True, True, True)
-        # Convert to dict like what would happen calling via RPC
-        patch_audit_data = patch_audit_data.to_dict()
+        patch_audit_data = self.get_patch_audit_data(am)
 
         for name in ['subcloud1', 'subcloud2']:
             pm.subcloud_patch_audit(name, patch_audit_data, do_load_audit)
@@ -435,10 +434,7 @@ class TestPatchAudit(base.DCManagerTestCase):
         mock_sysinv_client.side_effect = FakeSysinvClientOneLoadUnmatchedSoftwareVersion
 
         do_load_audit = True
-        patch_audit_data, firmware_audit_data, kubernetes_audit_data = \
-            am._get_audit_data(True, True, True)
-        # Convert to dict like what would happen calling via RPC
-        patch_audit_data = patch_audit_data.to_dict()
+        patch_audit_data = self.get_patch_audit_data(am)
 
         for name in ['subcloud1', 'subcloud2']:
             pm.subcloud_patch_audit(name, patch_audit_data, do_load_audit)
@@ -482,10 +478,7 @@ class TestPatchAudit(base.DCManagerTestCase):
         mock_sysinv_client.side_effect = FakeSysinvClientOneLoadUpgradeInProgress
 
         do_load_audit = True
-        patch_audit_data, firmware_audit_data, kubernetes_audit_data = \
-            am._get_audit_data(True, True, True)
-        # Convert to dict like what would happen calling via RPC
-        patch_audit_data = patch_audit_data.to_dict()
+        patch_audit_data = self.get_patch_audit_data(am)
 
         for name in ['subcloud1', 'subcloud2']:
             pm.subcloud_patch_audit(name, patch_audit_data, do_load_audit)

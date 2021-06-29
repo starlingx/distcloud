@@ -52,6 +52,12 @@ class FakeKubernetesAudit(object):
         self.get_regionone_audit_data = mock.MagicMock()
 
 
+class FakeKubeRootcaUpdateAudit(object):
+
+    def __init__(self):
+        self.get_regionone_audit_data = mock.MagicMock()
+
+
 class FakeServiceGroup(object):
     def __init__(self, status, desired_state, service_group_name, uuid,
                  node_name, state, condition, name):
@@ -248,6 +254,15 @@ class TestAuditManager(base.DCManagerTestCase):
             self.fake_kubernetes_audit
         self.addCleanup(p.stop)
 
+        # Mock kube rootca update audit
+        self.fake_kube_rootca_update_audit = FakeKubeRootcaUpdateAudit()
+        p = mock.patch.object(subcloud_audit_manager,
+                              'kube_rootca_update_audit')
+        self.mock_kube_rootca_update_audit = p.start()
+        self.mock_kubernetes_audit.KubeRootcaUpdateAudit.return_value = \
+            self.fake_kube_rootca_update_audit
+        self.addCleanup(p.stop)
+
     @staticmethod
     def create_subcloud_static(ctxt, **kwargs):
         values = {
@@ -288,6 +303,7 @@ class TestAuditManager(base.DCManagerTestCase):
         self.assertEqual(result['firmware_audit_requested'], True)
         self.assertEqual(result['load_audit_requested'], True)
         self.assertEqual(result['kubernetes_audit_requested'], True)
+        self.assertEqual(result['kube_rootca_update_audit_requested'], True)
 
     def test_trigger_load_audit(self):
         subcloud = self.create_subcloud_static(self.ctx)

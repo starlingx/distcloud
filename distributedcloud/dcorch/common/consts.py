@@ -130,6 +130,7 @@ ENDPOINT_TYPE_LOAD = "load"
 ENDPOINT_TYPE_DC_CERT = 'dc-cert'
 ENDPOINT_TYPE_FIRMWARE = 'firmware'
 ENDPOINT_TYPE_KUBERNETES = 'kubernetes'
+ENDPOINT_TYPE_KUBE_ROOTCA = 'kube-rootca'
 
 # All endpoint types
 ENDPOINT_TYPES_LIST = [ENDPOINT_TYPE_PLATFORM,
@@ -138,7 +139,8 @@ ENDPOINT_TYPES_LIST = [ENDPOINT_TYPE_PLATFORM,
                        ENDPOINT_TYPE_LOAD,
                        ENDPOINT_TYPE_DC_CERT,
                        ENDPOINT_TYPE_FIRMWARE,
-                       ENDPOINT_TYPE_KUBERNETES]
+                       ENDPOINT_TYPE_KUBERNETES,
+                       ENDPOINT_TYPE_KUBE_ROOTCA]
 
 # Dcorch sync endpoint types
 SYNC_ENDPOINT_TYPES_LIST = [ENDPOINT_TYPE_PLATFORM,

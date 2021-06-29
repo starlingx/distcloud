@@ -41,6 +41,7 @@ LOG = logging.getLogger(__name__)
 
 SUPPORTED_STRATEGY_TYPES = [
     consts.SW_UPDATE_TYPE_FIRMWARE,
+    consts.SW_UPDATE_TYPE_KUBE_ROOTCA_UPDATE,
     consts.SW_UPDATE_TYPE_KUBERNETES,
     consts.SW_UPDATE_TYPE_PATCH,
     consts.SW_UPDATE_TYPE_UPGRADE
@@ -166,10 +167,13 @@ class SwUpdateStrategyController(object):
             if force_flag is not None:
                 if force_flag not in ["true", "false"]:
                     pecan.abort(400, _('force invalid'))
-                elif payload.get('cloud_name') is None:
-                    pecan.abort(400, _('The --force option can only be applied for '
-                                       'a single subcloud. Please specify '
-                                       'the subcloud name.'))
+                elif strategy_type != consts.SW_UPDATE_TYPE_KUBE_ROOTCA_UPDATE:
+                    # kube rootca update allows force for all subclouds
+                    if payload.get('cloud_name') is None:
+                        pecan.abort(400,
+                                    _('The --force option can only be applied '
+                                      'for a single subcloud. Please specify '
+                                      'the subcloud name.'))
 
             subcloud_group = payload.get('subcloud_group')
             # prevents passing both cloud_name and subcloud_group options

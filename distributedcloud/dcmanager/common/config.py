@@ -140,6 +140,9 @@ scheduler_opts = [
     cfg.IntOpt('subcloud_audit_interval',
                default=30,
                help='periodic time interval for subcloud audit'),
+    cfg.IntOpt('kube_rootca_update_audit_expiry_days',
+               default=90,
+               help='Num days remaining for a kube rootca to be out-of-sync'),
     cfg.IntOpt('patch_audit_interval',
                default=900,
                help='default time interval for patch audit')

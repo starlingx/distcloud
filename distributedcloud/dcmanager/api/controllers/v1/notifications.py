@@ -62,4 +62,10 @@ class NotificationsController(object):
             # the next audit cycle.
             context = restcomm.extract_context_from_environ()
             self.audit_rpc_client.trigger_kubernetes_audit(context)
+        if 'kube-rootca-update-completed' in events:
+            # We're being notified that a kube rootca update has completed, so
+            # we want to trigger a kube rootca update audit of all subclouds on
+            # the next audit cycle.
+            context = restcomm.extract_context_from_environ()
+            self.audit_rpc_client.trigger_kube_rootca_update_audit(context)
         return

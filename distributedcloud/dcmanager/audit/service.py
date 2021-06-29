@@ -117,6 +117,14 @@ class DCManagerAuditService(service.Service):
         return self.subcloud_audit_manager.trigger_firmware_audit(context)
 
     @request_context
+    def trigger_kube_rootca_update_audit(self, context):
+        """Used to force a kube rootca update audit on the next interval"""
+
+        LOG.info("Trigger kube rootca update audit.")
+        return self.subcloud_audit_manager.trigger_kube_rootca_update_audit(
+            context)
+
+    @request_context
     def trigger_kubernetes_audit(self, context):
         """Used to force a kubernetes audit on the next interval"""
 
@@ -205,7 +213,8 @@ class DCManagerAuditWorkerService(service.Service):
                         patch_audit_data,
                         firmware_audit_data,
                         kubernetes_audit_data,
-                        do_openstack_audit):
+                        do_openstack_audit,
+                        kube_rootca_update_audit_data):
         """Used to trigger audits of the specified subcloud(s)"""
         self.subcloud_audit_worker_manager.audit_subclouds(
             context,
@@ -213,4 +222,5 @@ class DCManagerAuditWorkerService(service.Service):
             patch_audit_data,
             firmware_audit_data,
             kubernetes_audit_data,
-            do_openstack_audit)
+            do_openstack_audit,
+            kube_rootca_update_audit_data)

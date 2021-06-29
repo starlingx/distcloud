@@ -11,7 +11,7 @@
 # under the License.
 #
 #
-# Copyright (c) 2018-2020 Wind River Systems, Inc.
+# Copyright (c) 2018-2021 Wind River Systems, Inc.
 #
 # The right to copy, distribute, modify, or otherwise make use
 # of this software may be licensed only pursuant to the terms
@@ -54,6 +54,38 @@ class FmClient(base.DriverBase):
             alarms = self.fm.alarm.summary()
         except Exception as e:
             LOG.error("get_alarm_summary exception={}".format(e))
+            raise e
+        return alarms
+
+    def get_alarms_by_id(self, alarm_id):
+        """Get list of this region alarms for a particular alarm_id"""
+        try:
+            LOG.debug("get_alarms_by_id %s, region %s" % (alarm_id,
+                                                          self.region_name))
+            alarms = self.fm.alarm.list(
+                q=fmclient.common.options.cli_to_array('alarm_id=' + alarm_id),
+                include_suppress=True)
+        except Exception as e:
+            LOG.error("get_alarms_by_id exception={}".format(e))
+            raise e
+        return alarms
+
+    def get_alarms_by_ids(self, alarm_id_list):
+        """Get list of this region alarms for a list of alarm_ids"""
+        try:
+            LOG.debug("get_alarms_by_ids %s, region %s" % (alarm_id_list,
+                                                           self.region_name))
+            # fm api does not support querying two alarm IDs at once so make
+            # multiple calls and join the list
+            alarms = []
+            for alarm_id in alarm_id_list:
+                alarms.extend(self.fm.alarm.list(
+                    q=fmclient.common.options.cli_to_array(
+                        'alarm_id=' + alarm_id),
+                    include_suppress=True)
+                )
+        except Exception as e:
+            LOG.error("get_alarms_by_ids exception={}".format(e))
             raise e
         return alarms
 

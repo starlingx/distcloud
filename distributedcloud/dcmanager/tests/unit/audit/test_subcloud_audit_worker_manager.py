@@ -74,6 +74,13 @@ class FakeKubernetesAudit(object):
         self.get_regionone_audit_data = mock.MagicMock()
 
 
+class FakeKubeRootcaUpdateAudit(object):
+
+    def __init__(self):
+        self.subcloud_audit = mock.MagicMock()
+        self.get_regionone_audit_data = mock.MagicMock()
+
+
 class FakeServiceGroup(object):
     def __init__(self, status, desired_state, service_group_name, uuid,
                  node_name, state, condition, name):
@@ -324,6 +331,23 @@ class TestAuditWorkerManager(base.DCManagerTestCase):
             self.fake_kubernetes_audit2
         self.addCleanup(p.stop)
 
+        # Mock kube rootca update audit in Audit Worker and Audit Manager
+        self.fake_kube_rootca_update_audit = FakeKubeRootcaUpdateAudit()
+        p = mock.patch.object(subcloud_audit_worker_manager,
+                              'kube_rootca_update_audit')
+        self.mock_kube_rootca_update_audit = p.start()
+        self.mock_kube_rootca_update_audit.KubeRootcaUpdateAudit.return_value = \
+            self.fake_kube_rootca_update_audit
+        self.addCleanup(p.stop)
+
+        self.fake_kube_rootca_update_audit2 = FakeKubeRootcaUpdateAudit()
+        p = mock.patch.object(subcloud_audit_manager,
+                              'kube_rootca_update_audit')
+        self.mock_kube_rootca_update_audit2 = p.start()
+        self.mock_kube_rootca_update_audit2.KubeRootcaUpdateAudit.return_value = \
+            self.fake_kube_rootca_update_audit2
+        self.addCleanup(p.stop)
+
     @staticmethod
     def create_subcloud_static(ctxt, **kwargs):
         values = {
@@ -364,25 +388,34 @@ class TestAuditWorkerManager(base.DCManagerTestCase):
         wm = subcloud_audit_worker_manager.SubcloudAuditWorkerManager()
 
         # Audit the subcloud
+        update_subcloud_state = False
+        do_audit_openstack = False
         do_patch_audit = True
         do_load_audit = True
         do_firmware_audit = True
         do_kubernetes_audit = True
-        patch_audit_data, firmware_audit_data, kubernetes_audit_data = \
+        do_kube_rootca_update_audit = True
+        (patch_audit_data, firmware_audit_data,
+         kubernetes_audit_data, kube_rootca_update_audit_data) = \
             am._get_audit_data(do_patch_audit,
                                do_firmware_audit,
-                               do_kubernetes_audit)
+                               do_kubernetes_audit,
+                               do_kube_rootca_update_audit)
         # Convert to dict like what would happen calling via RPC
+        # Note: the other data should also be converted...
         patch_audit_data = patch_audit_data.to_dict()
-        wm._audit_subcloud(subcloud, update_subcloud_state=False,
-                           do_audit_openstack=False,
-                           patch_audit_data=patch_audit_data,
-                           firmware_audit_data=firmware_audit_data,
-                           kubernetes_audit_data=kubernetes_audit_data,
-                           do_patch_audit=do_patch_audit,
-                           do_load_audit=do_load_audit,
-                           do_firmware_audit=do_firmware_audit,
-                           do_kubernetes_audit=do_kubernetes_audit)
+        wm._audit_subcloud(subcloud,
+                           update_subcloud_state,
+                           do_audit_openstack,
+                           patch_audit_data,
+                           firmware_audit_data,
+                           kubernetes_audit_data,
+                           kube_rootca_update_audit_data,
+                           do_patch_audit,
+                           do_load_audit,
+                           do_firmware_audit,
+                           do_kubernetes_audit,
+                           do_kube_rootca_update_audit)
 
         # Verify the subcloud was set to online
         self.fake_dcmanager_api.update_subcloud_availability.assert_called_with(
@@ -414,6 +447,10 @@ class TestAuditWorkerManager(base.DCManagerTestCase):
         self.fake_kubernetes_audit.subcloud_kubernetes_audit.assert_called_with(
             subcloud.name, kubernetes_audit_data)
 
+        # Verify kube rootca update audit is called
+        self.fake_kube_rootca_update_audit.subcloud_audit.assert_called_with(
+            subcloud.name, kube_rootca_update_audit_data)
+
     def test_audit_subcloud_online_unmanaged(self):
 
         subcloud = self.create_subcloud_static(self.ctx, name='subcloud1')
@@ -423,25 +460,34 @@ class TestAuditWorkerManager(base.DCManagerTestCase):
         wm = subcloud_audit_worker_manager.SubcloudAuditWorkerManager()
 
         # Audit the subcloud
+        update_subcloud_state = False
+        do_audit_openstack = False
         do_patch_audit = True
         do_load_audit = True
         do_firmware_audit = True
         do_kubernetes_audit = True
-        patch_audit_data, firmware_audit_data, kubernetes_audit_data = \
+        do_kube_rootca_update_audit = True
+        (patch_audit_data, firmware_audit_data,
+         kubernetes_audit_data, kube_rootca_update_audit_data) = \
             am._get_audit_data(do_patch_audit,
                                do_firmware_audit,
-                               do_kubernetes_audit)
+                               do_kubernetes_audit,
+                               do_kube_rootca_update_audit)
         # Convert to dict like what would happen calling via RPC
+        # Note: the other data should also be converted...
         patch_audit_data = patch_audit_data.to_dict()
-        wm._audit_subcloud(subcloud, update_subcloud_state=False,
-                           do_audit_openstack=False,
-                           patch_audit_data=patch_audit_data,
-                           firmware_audit_data=firmware_audit_data,
-                           kubernetes_audit_data=kubernetes_audit_data,
-                           do_patch_audit=do_patch_audit,
-                           do_load_audit=do_load_audit,
-                           do_firmware_audit=do_firmware_audit,
-                           do_kubernetes_audit=do_kubernetes_audit)
+        wm._audit_subcloud(subcloud,
+                           update_subcloud_state,
+                           do_audit_openstack,
+                           patch_audit_data,
+                           firmware_audit_data,
+                           kubernetes_audit_data,
+                           kube_rootca_update_audit_data,
+                           do_patch_audit,
+                           do_load_audit,
+                           do_firmware_audit,
+                           do_kubernetes_audit,
+                           do_kube_rootca_update_audit)
 
         # Verify the subcloud was set to online
         self.fake_dcmanager_api.update_subcloud_availability.assert_called_with(
@@ -469,6 +515,9 @@ class TestAuditWorkerManager(base.DCManagerTestCase):
         # Verify kubernetes audit is not called
         self.fake_kubernetes_audit.subcloud_kubernetes_audit.assert_not_called()
 
+        # Verify kube rootca update audit is not called
+        self.fake_kube_rootca_update_audit.subcloud_audit.assert_not_called()
+
     def test_audit_subcloud_online_no_change(self):
 
         subcloud = self.create_subcloud_static(self.ctx, name='subcloud1')
@@ -482,15 +531,16 @@ class TestAuditWorkerManager(base.DCManagerTestCase):
             availability_status=consts.AVAILABILITY_ONLINE)
 
         # Audit the subcloud
-
         wm._audit_subcloud(subcloud, update_subcloud_state=False,
                            do_audit_openstack=False, patch_audit_data=None,
                            firmware_audit_data=None,
                            kubernetes_audit_data=None,
+                           kube_rootca_update_audit_data=None,
                            do_patch_audit=False,
                            do_load_audit=False,
                            do_firmware_audit=False,
-                           do_kubernetes_audit=False)
+                           do_kubernetes_audit=False,
+                           do_kube_rootca_update_audit=False)
 
         # Verify the subcloud state was not updated
         self.fake_dcmanager_api.update_subcloud_availability.\
@@ -528,10 +578,12 @@ class TestAuditWorkerManager(base.DCManagerTestCase):
                            do_audit_openstack=False, patch_audit_data=None,
                            firmware_audit_data=None,
                            kubernetes_audit_data=None,
+                           kube_rootca_update_audit_data=None,
                            do_patch_audit=False,
                            do_load_audit=False,
                            do_firmware_audit=False,
-                           do_kubernetes_audit=False)
+                           do_kubernetes_audit=False,
+                           do_kube_rootca_update_audit=False)
 
         # Verify the subcloud state was updated even though no change
         self.fake_dcmanager_api.update_subcloud_availability.assert_called_with(
@@ -559,6 +611,9 @@ class TestAuditWorkerManager(base.DCManagerTestCase):
         # Verify kubernetes audit is not called
         self.fake_kubernetes_audit.subcloud_kubernetes_audit.assert_not_called()
 
+        # Verify kube rootca update audit is not called
+        self.fake_kube_rootca_update_audit.subcloud_audit.assert_not_called()
+
     def test_audit_subcloud_go_offline(self):
 
         subcloud = self.create_subcloud_static(self.ctx, name='subcloud1')
@@ -584,10 +639,13 @@ class TestAuditWorkerManager(base.DCManagerTestCase):
         do_load_audit = True
         do_firmware_audit = True
         do_kubernetes_audit = True
-        patch_audit_data, firmware_audit_data, kubernetes_audit_data = \
+        do_kube_rootca_update_audit = True
+        (patch_audit_data, firmware_audit_data,
+         kubernetes_audit_data, kube_rootca_update_audit_data) = \
             am._get_audit_data(do_patch_audit,
                                do_firmware_audit,
-                               do_kubernetes_audit)
+                               do_kubernetes_audit,
+                               do_kube_rootca_update_audit)
         # Convert to dict like what would happen calling via RPC
         patch_audit_data = patch_audit_data.to_dict()
         wm._audit_subcloud(subcloud, update_subcloud_state=False,
@@ -595,10 +653,12 @@ class TestAuditWorkerManager(base.DCManagerTestCase):
                            patch_audit_data=patch_audit_data,
                            firmware_audit_data=firmware_audit_data,
                            kubernetes_audit_data=kubernetes_audit_data,
+                           kube_rootca_update_audit_data=kube_rootca_update_audit_data,
                            do_patch_audit=do_patch_audit,
                            do_load_audit=do_load_audit,
                            do_firmware_audit=do_firmware_audit,
-                           do_kubernetes_audit=do_kubernetes_audit)
+                           do_kubernetes_audit=do_kubernetes_audit,
+                           do_kube_rootca_update_audit=do_kube_rootca_update_audit)
 
         # Verify the audit fail count was updated in db
         audit_fail_count = 1
@@ -620,10 +680,12 @@ class TestAuditWorkerManager(base.DCManagerTestCase):
                            patch_audit_data=patch_audit_data,
                            firmware_audit_data=firmware_audit_data,
                            kubernetes_audit_data=kubernetes_audit_data,
+                           kube_rootca_update_audit_data=kube_rootca_update_audit_data,
                            do_patch_audit=do_patch_audit,
                            do_load_audit=do_load_audit,
                            do_firmware_audit=do_firmware_audit,
-                           do_kubernetes_audit=do_kubernetes_audit)
+                           do_kubernetes_audit=do_kubernetes_audit,
+                           do_kube_rootca_update_audit=do_kube_rootca_update_audit)
 
         audit_fail_count = audit_fail_count + 1
 
@@ -642,12 +704,16 @@ class TestAuditWorkerManager(base.DCManagerTestCase):
         self.fake_patch_audit.subcloud_patch_audit.assert_called_once_with(
             subcloud.name, mock.ANY, True)
 
-        # Verify firmware audit is called
+        # Verify firmware audit is only called once
         self.fake_firmware_audit.subcloud_firmware_audit.assert_called_once_with(
             subcloud.name, mock.ANY)
 
-        # Verify firmware audit is called
+        # Verify kubernetes audit is only called once
         self.fake_kubernetes_audit.subcloud_kubernetes_audit.assert_called_once_with(
+            subcloud.name, mock.ANY)
+
+        # Verify kube rootca update audit is only called once
+        self.fake_kube_rootca_update_audit.subcloud_audit.assert_called_once_with(
             subcloud.name, mock.ANY)
 
     def test_audit_subcloud_offline_no_change(self):
@@ -671,10 +737,13 @@ class TestAuditWorkerManager(base.DCManagerTestCase):
         do_load_audit = True
         do_firmware_audit = True
         do_kubernetes_audit = True
-        patch_audit_data, firmware_audit_data, kubernetes_audit_data = \
+        do_kube_rootca_update_audit = True
+        (patch_audit_data, firmware_audit_data,
+         kubernetes_audit_data, kube_rootca_update_audit_data) = \
             am._get_audit_data(do_patch_audit,
                                do_firmware_audit,
-                               do_kubernetes_audit)
+                               do_kubernetes_audit,
+                               do_kube_rootca_update_audit)
         # Convert to dict like what would happen calling via RPC
         patch_audit_data = patch_audit_data.to_dict()
         wm._audit_subcloud(subcloud, update_subcloud_state=False,
@@ -682,10 +751,12 @@ class TestAuditWorkerManager(base.DCManagerTestCase):
                            patch_audit_data=patch_audit_data,
                            firmware_audit_data=firmware_audit_data,
                            kubernetes_audit_data=kubernetes_audit_data,
+                           kube_rootca_update_audit_data=kube_rootca_update_audit_data,
                            do_patch_audit=do_patch_audit,
                            do_load_audit=do_load_audit,
                            do_firmware_audit=do_firmware_audit,
-                           do_kubernetes_audit=do_kubernetes_audit)
+                           do_kubernetes_audit=do_kubernetes_audit,
+                           do_kube_rootca_update_audit=do_kube_rootca_update_audit)
 
         # Verify the subcloud state was not updated
         self.fake_dcmanager_api.update_subcloud_availability.\
@@ -712,6 +783,9 @@ class TestAuditWorkerManager(base.DCManagerTestCase):
         # Verify kubernetes audit is not called
         self.fake_kubernetes_audit.subcloud_kubernetes_audit.assert_not_called()
 
+        # Verify kube rootca update audit is not called
+        self.fake_kube_rootca_update_audit.subcloud_audit.assert_not_called()
+
     def test_audit_subcloud_offline_update_audit_fail_count_only(self):
         subcloud = self.create_subcloud_static(self.ctx, name='subcloud1')
         self.assertIsNotNone(subcloud)
@@ -735,10 +809,13 @@ class TestAuditWorkerManager(base.DCManagerTestCase):
         do_load_audit = True
         do_firmware_audit = True
         do_kubernetes_audit = True
-        patch_audit_data, firmware_audit_data, kubernetes_audit_data = \
+        do_kube_rootca_update_audit = True
+        (patch_audit_data, firmware_audit_data,
+         kubernetes_audit_data, kube_rootca_update_audit_data) = \
             am._get_audit_data(do_patch_audit,
                                do_firmware_audit,
-                               do_kubernetes_audit)
+                               do_kubernetes_audit,
+                               do_kube_rootca_update_audit)
         # Convert to dict like what would happen calling via RPC
         patch_audit_data = patch_audit_data.to_dict()
         wm._audit_subcloud(subcloud, update_subcloud_state=False,
@@ -746,10 +823,12 @@ class TestAuditWorkerManager(base.DCManagerTestCase):
                            patch_audit_data=patch_audit_data,
                            firmware_audit_data=firmware_audit_data,
                            kubernetes_audit_data=kubernetes_audit_data,
+                           kube_rootca_update_audit_data=kube_rootca_update_audit_data,
                            do_patch_audit=do_patch_audit,
                            do_load_audit=do_load_audit,
                            do_firmware_audit=do_firmware_audit,
-                           do_kubernetes_audit=do_kubernetes_audit)
+                           do_kubernetes_audit=do_kubernetes_audit,
+                           do_kube_rootca_update_audit=do_kube_rootca_update_audit)
 
         # Verify the audit fail count was updated in the DB.
         subcloud = db_api.subcloud_get(self.ctx, subcloud.id)
@@ -775,6 +854,9 @@ class TestAuditWorkerManager(base.DCManagerTestCase):
 
         # Verify kubernetes audit is not called
         self.fake_kubernetes_audit.subcloud_kubernetes_audit.assert_not_called()
+
+        # Verify kube rootca update audit is not called
+        self.fake_kube_rootca_update_audit.subcloud_audit.assert_not_called()
 
     @mock.patch.object(subcloud_audit_worker_manager, 'LOG')
     def test_update_subcloud_audit_fail_count_subcloud_deleted(self, mock_logging):
@@ -807,13 +889,18 @@ class TestAuditWorkerManager(base.DCManagerTestCase):
             availability_status=consts.AVAILABILITY_ONLINE)
 
         # Audit the subcloud
-        wm._audit_subcloud(subcloud, update_subcloud_state=False,
-                           do_audit_openstack=True, patch_audit_data=None,
-                           firmware_audit_data=None,
-                           kubernetes_audit_data=None,
-                           do_patch_audit=False,
-                           do_load_audit=False, do_firmware_audit=False,
-                           do_kubernetes_audit=False)
+        wm._audit_subcloud(subcloud,
+                           False,  # update_subcloud_state
+                           True,  # do_audit_openstack
+                           None,  # patch_audit_data
+                           None,  # firmware_audit_data
+                           None,  # kubernetes_audit_data
+                           None,  # kube_rootca_update_audit_data
+                           False,  # do_patch_audit
+                           False,  # do_load_audit
+                           False,  # do_firmware_audit
+                           False,  # do_kubernetes_audit
+                           False)  # do_kube_rootca_audit
 
         # Verify the subcloud state was not updated
         self.fake_dcmanager_api.update_subcloud_availability.\
@@ -843,6 +930,9 @@ class TestAuditWorkerManager(base.DCManagerTestCase):
         # Verify kubernetes audit is not called
         self.fake_kubernetes_audit.subcloud_kubernetes_audit.assert_not_called()
 
+        # Verify kube rootca update audit is not called
+        self.fake_kube_rootca_update_audit.subcloud_audit.assert_not_called()
+
     def test_audit_subcloud_online_with_openstack_removed(self):
 
         subcloud = self.create_subcloud_static(self.ctx, name='subcloud1')
@@ -861,13 +951,18 @@ class TestAuditWorkerManager(base.DCManagerTestCase):
         FAKE_APPLICATIONS.pop(1)
 
         # Audit the subcloud
-        wm._audit_subcloud(subcloud, update_subcloud_state=False,
-                           do_audit_openstack=True, patch_audit_data=None,
-                           firmware_audit_data=None,
-                           kubernetes_audit_data=None,
-                           do_patch_audit=False,
-                           do_load_audit=False, do_firmware_audit=False,
-                           do_kubernetes_audit=False)
+        wm._audit_subcloud(subcloud,
+                           False,  # update_subcloud_state
+                           True,  # do_audit_openstack
+                           None,  # patch_audit_data
+                           None,  # firmware_audit_data
+                           None,  # kubernetes_audit_data
+                           None,  # kube_roota_update_audit_data
+                           False,  # do_patch_audit
+                           False,  # do_load_audit,
+                           False,  # do_firmware_audit
+                           False,  # do_kubernetes_audit
+                           False)  # do_kube_rootca_update_audit
 
         # Verify the subcloud state was not updated
         self.fake_dcmanager_api.update_subcloud_availability.\
@@ -895,6 +990,9 @@ class TestAuditWorkerManager(base.DCManagerTestCase):
 
         # Verify kubernetes audit is not called
         self.fake_kubernetes_audit.subcloud_kubernetes_audit.assert_not_called()
+
+        # Verify kube rootca update audit is not called
+        self.fake_kube_rootca_update_audit.subcloud_audit.assert_not_called()
 
     def test_audit_subcloud_online_with_openstack_inactive(self):
 
@@ -914,12 +1012,18 @@ class TestAuditWorkerManager(base.DCManagerTestCase):
         FAKE_APPLICATIONS[1].active = False
 
         # Audit the subcloud
-        wm._audit_subcloud(subcloud, update_subcloud_state=False,
-                           do_audit_openstack=True, patch_audit_data=None,
-                           firmware_audit_data=None,
-                           kubernetes_audit_data=None, do_patch_audit=False,
-                           do_load_audit=False, do_firmware_audit=False,
-                           do_kubernetes_audit=False)
+        wm._audit_subcloud(subcloud,
+                           False,  # update_subcloud_state
+                           True,  # do_audit_openstack
+                           None,  # patch_audit_data
+                           None,  # firmware_audit_data
+                           None,  # kubernetes_audit_data
+                           None,  # kube_rootca_update_audit_data
+                           False,  # do_patch_audit
+                           False,  # do_load_audit
+                           False,  # do_firmware_audit
+                           False,  # do_kubernetes_audit
+                           False)  # do_kube_rootca_update_audit
 
         # Verify the subcloud state was not updated
         self.fake_dcmanager_api.update_subcloud_availability.\
@@ -948,6 +1052,9 @@ class TestAuditWorkerManager(base.DCManagerTestCase):
         # Verify kubernetes audit is not called
         self.fake_kubernetes_audit.subcloud_kubernetes_audit.assert_not_called()
 
+        # Verify kube rootca update audit is not called
+        self.fake_kube_rootca_update_audit.subcloud_audit.assert_not_called()
+
     def test_audit_subcloud_partial_subaudits(self):
         subcloud = self.create_subcloud_static(self.ctx, name='subcloud1')
         self.assertIsNotNone(subcloud)
@@ -965,10 +1072,13 @@ class TestAuditWorkerManager(base.DCManagerTestCase):
         do_load_audit = False
         do_firmware_audit = False
         do_kubernetes_audit = False
-        patch_audit_data, firmware_audit_data, kubernetes_audit_data = \
+        do_kube_rootca_audit = False
+        (patch_audit_data, firmware_audit_data,
+         kubernetes_audit_data, kube_rootca_update_audit_data) = \
             am._get_audit_data(do_patch_audit,
                                do_firmware_audit,
-                               do_kubernetes_audit)
+                               do_kubernetes_audit,
+                               do_kube_rootca_audit)
         # Convert to dict like what would happen calling via RPC
         patch_audit_data = patch_audit_data.to_dict()
 
@@ -983,15 +1093,18 @@ class TestAuditWorkerManager(base.DCManagerTestCase):
         self.assertEqual(audits.firmware_audit_requested, True)
 
         # Do the actual audit
-        wm._do_audit_subcloud(subcloud, update_subcloud_state=False,
-                              do_audit_openstack=False,
-                              patch_audit_data=patch_audit_data,
-                              firmware_audit_data=firmware_audit_data,
-                              kubernetes_audit_data=kubernetes_audit_data,
-                              do_patch_audit=do_patch_audit,
-                              do_load_audit=do_load_audit,
-                              do_firmware_audit=do_firmware_audit,
-                              do_kubernetes_audit=do_kubernetes_audit)
+        wm._do_audit_subcloud(subcloud,
+                              False,  # update_subcloud_state
+                              False,  # do_audit_openstack
+                              patch_audit_data,
+                              firmware_audit_data,
+                              kubernetes_audit_data,
+                              kube_rootca_update_audit_data,
+                              do_patch_audit,
+                              do_load_audit,
+                              do_firmware_audit,
+                              do_kubernetes_audit,
+                              do_kube_rootca_audit)
 
         # Verify patch audit is called
         self.fake_patch_audit.subcloud_patch_audit.assert_called_with(
@@ -1008,9 +1121,13 @@ class TestAuditWorkerManager(base.DCManagerTestCase):
         # Verify kubernetes audit is not called
         self.fake_kubernetes_audit.subcloud_kubernetes_audit.assert_not_called()
 
+        # Verify kube rootca update audit is not called
+        self.fake_kube_rootca_update_audit.subcloud_audit.assert_not_called()
+
         # Ensure the subaudits that didn't run are still requested
         audits = db_api.subcloud_audits_get(self.ctx, subcloud.id)
         self.assertEqual(audits.patch_audit_requested, False)
         self.assertEqual(audits.load_audit_requested, True)
         self.assertEqual(audits.firmware_audit_requested, True)
         self.assertEqual(audits.kubernetes_audit_requested, True)
+        self.assertEqual(audits.kube_rootca_update_audit_requested, True)

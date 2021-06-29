@@ -135,6 +135,7 @@ class SubcloudAudits(BASE, DCManagerBase):
     load_audit_requested = Column(Boolean, nullable=False, default=False)
     firmware_audit_requested = Column(Boolean, nullable=False, default=False)
     kubernetes_audit_requested = Column(Boolean, nullable=False, default=False)
+    kube_rootca_update_audit_requested = Column(Boolean, nullable=False, default=False)
     spare_audit_requested = Column(Boolean, nullable=False, default=False)
     spare2_audit_requested = Column(Boolean, nullable=False, default=False)
     reserved = Column(Text)

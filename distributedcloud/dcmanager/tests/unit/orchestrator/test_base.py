@@ -96,7 +96,7 @@ class TestSwUpdate(base.DCManagerTestCase):
         worker = None
         mock_strategy_lock = mock.Mock()
         mock_dcmanager_audit_api = mock.Mock()
-        # There are 3 orch threads. Only one needs to be setup based on type
+        # There are many orch threads. Only one needs to be setup based on type
         if strategy_type == consts.SW_UPDATE_TYPE_UPGRADE:
             sw_update_manager.SwUpgradeOrchThread.stopped = lambda x: False
             worker = \
@@ -131,7 +131,7 @@ class TestSwUpdate(base.DCManagerTestCase):
                 sw_update_manager.FwUpdateOrchThread(mock_strategy_lock,
                                                      mock_dcmanager_audit_api)
         else:
-            # mock the patch orch thread
+            # mock the firmware orch thread
             self.fake_fw_update_orch_thread = FakeOrchThread()
             p = mock.patch.object(sw_update_manager, 'FwUpdateOrchThread')
             self.mock_fw_update_orch_thread = p.start()
@@ -145,12 +145,28 @@ class TestSwUpdate(base.DCManagerTestCase):
                 mock_strategy_lock,
                 mock_dcmanager_audit_api)
         else:
-            # mock the patch orch thread
+            # mock the kube upgrade orch thread
             self.fake_kube_upgrade_orch_thread = FakeOrchThread()
             p = mock.patch.object(sw_update_manager, 'KubeUpgradeOrchThread')
             self.mock_kube_upgrade_orch_thread = p.start()
             self.mock_kube_upgrade_orch_thread.return_value = \
                 self.fake_kube_upgrade_orch_thread
+            self.addCleanup(p.stop)
+
+        if strategy_type == consts.SW_UPDATE_TYPE_KUBE_ROOTCA_UPDATE:
+            sw_update_manager.KubeRootcaUpdateOrchThread.stopped = \
+                lambda x: False
+            worker = sw_update_manager.KubeRootcaUpdateOrchThread(
+                mock_strategy_lock,
+                mock_dcmanager_audit_api)
+        else:
+            # mock the kube rootca update orch thread
+            self.fake_kube_rootca_update_orch_thread = FakeOrchThread()
+            p = mock.patch.object(sw_update_manager,
+                                  'KubeRootcaUpdateOrchThread')
+            self.mock_kube_rootca_update_orch_thread = p.start()
+            self.mock_kube_rootca_update_orch_thread.return_value = \
+                self.fake_kube_rootca_update_orch_thread
             self.addCleanup(p.stop)
 
         return worker

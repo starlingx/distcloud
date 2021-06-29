@@ -147,6 +147,13 @@ class TestKubernetesAudit(base.DCManagerTestCase):
             dict_results.append(result.to_dict())
         return dict_results
 
+    def get_kube_audit_data(self, am):
+        patch_audit_data, firmware_audit_data, kubernetes_audit_data, kube_rootca = \
+            am._get_audit_data(True, True, True, True)
+        # Convert to dict like what would happen calling via RPC
+        kubernetes_audit_data = self._rpc_convert(kubernetes_audit_data)
+        return kubernetes_audit_data
+
     def test_init(self):
         audit = kubernetes_audit.KubernetesAudit(self.ctxt,
                                                  self.fake_dcmanager_api)
@@ -162,11 +169,7 @@ class TestKubernetesAudit(base.DCManagerTestCase):
                                                  self.fake_dcmanager_api)
         am = subcloud_audit_manager.SubcloudAuditManager()
         am.kubernetes_audit = audit
-
-        patch_audit_data, firmware_audit_data, kubernetes_audit_data = \
-            am._get_audit_data(True, True, True)
-        # Convert to dict like what would happen calling via RPC
-        kubernetes_audit_data = self._rpc_convert(kubernetes_audit_data)
+        kubernetes_audit_data = self.get_kube_audit_data(am)
 
         for name in ['subcloud1', 'subcloud2']:
             audit.subcloud_kubernetes_audit(name, kubernetes_audit_data)
@@ -190,11 +193,7 @@ class TestKubernetesAudit(base.DCManagerTestCase):
         self.kube_sysinv_client.get_kube_versions.return_value = [
             FakeKubeVersion(version=UPGRADED_KUBE_VERSION),
         ]
-
-        patch_audit_data, firmware_audit_data, kubernetes_audit_data = \
-            am._get_audit_data(True, True, True)
-        # Convert to dict like what would happen calling via RPC
-        kubernetes_audit_data = self._rpc_convert(kubernetes_audit_data)
+        kubernetes_audit_data = self.get_kube_audit_data(am)
 
         for name in ['subcloud1', 'subcloud2']:
             # return different kube versions in the subclouds
@@ -222,10 +221,7 @@ class TestKubernetesAudit(base.DCManagerTestCase):
         self.kube_sysinv_client.get_kube_versions.return_value = [
             FakeKubeVersion(version=PREVIOUS_KUBE_VERSION),
         ]
-        patch_audit_data, firmware_audit_data, kubernetes_audit_data = \
-            am._get_audit_data(True, True, True)
-        # Convert to dict like what would happen calling via RPC
-        kubernetes_audit_data = self._rpc_convert(kubernetes_audit_data)
+        kubernetes_audit_data = self.get_kube_audit_data(am)
 
         for name in ['subcloud1', 'subcloud2']:
             # return different kube versions in the subclouds
@@ -254,10 +250,7 @@ class TestKubernetesAudit(base.DCManagerTestCase):
         self.kube_sysinv_client.get_kube_versions.return_value = [
             FakeKubeVersion(version=UPGRADED_KUBE_VERSION),
         ]
-        patch_audit_data, firmware_audit_data, kubernetes_audit_data = \
-            am._get_audit_data(True, True, True)
-        # Convert to dict like what would happen calling via RPC
-        kubernetes_audit_data = self._rpc_convert(kubernetes_audit_data)
+        kubernetes_audit_data = self.get_kube_audit_data(am)
 
         for name in ['subcloud1', 'subcloud2']:
             # return same kube versions in the subclouds
@@ -292,10 +285,7 @@ class TestKubernetesAudit(base.DCManagerTestCase):
         self.kube_sysinv_client.get_kube_versions.return_value = [
             FakeKubeVersion(version=UPGRADED_KUBE_VERSION),
         ]
-        patch_audit_data, firmware_audit_data, kubernetes_audit_data = \
-            am._get_audit_data(True, True, True)
-        # Convert to dict like what would happen calling via RPC
-        kubernetes_audit_data = self._rpc_convert(kubernetes_audit_data)
+        kubernetes_audit_data = self.get_kube_audit_data(am)
 
         for name in ['subcloud1', 'subcloud2']:
             # return same kube versions in the subclouds

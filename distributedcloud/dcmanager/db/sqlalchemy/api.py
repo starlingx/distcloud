@@ -205,6 +205,7 @@ def subcloud_audits_get_all_need_audit(context, last_audit_threshold):
                    (models.SubcloudAudits.patch_audit_requested == true()) |
                    (models.SubcloudAudits.firmware_audit_requested == true()) |
                    (models.SubcloudAudits.load_audit_requested == true()) |
+                   (models.SubcloudAudits.kube_rootca_update_audit_requested == true()) |
                    (models.SubcloudAudits.kubernetes_audit_requested == true())).\
             all()
     return result
@@ -234,6 +235,8 @@ def subcloud_audits_end_audit(context, subcloud_id, audits_done):
             subcloud_audits_ref.firmware_audit_requested = False
         if 'load' in audits_done:
             subcloud_audits_ref.load_audit_requested = False
+        if 'kube_rootca' in audits_done:
+            subcloud_audits_ref.kube_rootca_update_audit_requested = False
         if 'kubernetes' in audits_done:
             subcloud_audits_ref.kubernetes_audit_requested = False
         subcloud_audits_ref.save(session)
@@ -256,6 +259,7 @@ def subcloud_audits_fix_expired_audits(context, last_audit_threshold,
         values['firmware_audit_requested'] = True
         values['load_audit_requested'] = True
         values['kubernetes_audit_requested'] = True
+        values['kube_rootca_update_audit_requested'] = True
     with write_session() as session:
         result = session.query(models.SubcloudAudits).\
             options(load_only("deleted", "audit_started_at",

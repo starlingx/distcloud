@@ -84,6 +84,7 @@ AVAIL_FAIL_COUNT_MAX = 9999
 
 # Software update strategy types
 SW_UPDATE_TYPE_FIRMWARE = "firmware"
+SW_UPDATE_TYPE_KUBE_ROOTCA_UPDATE = "kube-rootca-update"
 SW_UPDATE_TYPE_KUBERNETES = "kubernetes"
 SW_UPDATE_TYPE_PATCH = "patch"
 SW_UPDATE_TYPE_UPGRADE = "upgrade"
@@ -164,6 +165,13 @@ STRATEGY_STATE_KUBE_CREATING_VIM_KUBE_UPGRADE_STRATEGY = \
     "kube creating vim kube upgrade strategy"
 STRATEGY_STATE_KUBE_APPLYING_VIM_KUBE_UPGRADE_STRATEGY = \
     "kube applying vim kube upgrade strategy"
+
+# Kube Root CA Update orchestration states
+STRATEGY_STATE_CREATING_VIM_KUBE_ROOTCA_UPDATE_STRATEGY = \
+    "creating vim kube rootca update strategy"
+STRATEGY_STATE_APPLYING_VIM_KUBE_ROOTCA_UPDATE_STRATEGY = \
+    "applying vim kube rootca update strategy"
+
 
 # Subcloud deploy status states
 DEPLOY_STATE_NONE = 'not-deployed'

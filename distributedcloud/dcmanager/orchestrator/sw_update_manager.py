@@ -30,6 +30,8 @@ from dcmanager.common import manager
 from dcmanager.common import utils
 from dcmanager.db import api as db_api
 from dcmanager.orchestrator.fw_update_orch_thread import FwUpdateOrchThread
+from dcmanager.orchestrator.kube_rootca_update_orch_thread \
+    import KubeRootcaUpdateOrchThread
 from dcmanager.orchestrator.kube_upgrade_orch_thread \
     import KubeUpgradeOrchThread
 from dcmanager.orchestrator.patch_orch_thread import PatchOrchThread
@@ -53,6 +55,7 @@ class SwUpdateManager(manager.Manager):
         # Used to notify dcmanager-audit
         self.audit_rpc_client = dcmanager_audit_rpc_client.ManagerAuditClient()
 
+        # todo(abailey): refactor/decouple orch threads into a list
         # Start worker threads
         # - patch orchestration thread
         self.patch_orch_thread = PatchOrchThread(self.strategy_lock,
@@ -71,6 +74,12 @@ class SwUpdateManager(manager.Manager):
             KubeUpgradeOrchThread(self.strategy_lock, self.audit_rpc_client)
         self.kube_upgrade_orch_thread.start()
 
+        # - kube rootca update orchestration thread
+        self.kube_rootca_update_orch_thread = \
+            KubeRootcaUpdateOrchThread(self.strategy_lock,
+                                       self.audit_rpc_client)
+        self.kube_rootca_update_orch_thread.start()
+
     def stop(self):
         # Stop (and join) the worker threads
         # - patch orchestration thread
@@ -85,9 +94,13 @@ class SwUpdateManager(manager.Manager):
         # - kube upgrade  orchestration thread
         self.kube_upgrade_orch_thread.stop()
         self.kube_upgrade_orch_thread.join()
+        # - kube rootca update orchestration thread
+        self.kube_rootca_update_orch_thread.stop()
+        self.kube_rootca_update_orch_thread.join()
 
     def _validate_subcloud_status_sync(self, strategy_type,
-                                       subcloud_status, force):
+                                       subcloud_status, force,
+                                       availability_status):
         """Check the appropriate subcloud_status fields for the strategy_type
 
            Returns: True if out of sync.
@@ -98,7 +111,8 @@ class SwUpdateManager(manager.Manager):
                     subcloud_status.sync_status ==
                     consts.SYNC_STATUS_OUT_OF_SYNC)
         elif strategy_type == consts.SW_UPDATE_TYPE_UPGRADE:
-            if force:
+            # force option only has an effect in offline case for upgrade
+            if force and (availability_status != consts.AVAILABILITY_ONLINE):
                 return (subcloud_status.endpoint_type ==
                         dcorch_consts.ENDPOINT_TYPE_LOAD and
                         subcloud_status.sync_status !=
@@ -118,6 +132,18 @@ class SwUpdateManager(manager.Manager):
                     dcorch_consts.ENDPOINT_TYPE_KUBERNETES and
                     subcloud_status.sync_status ==
                     consts.SYNC_STATUS_OUT_OF_SYNC)
+        elif strategy_type == consts.SW_UPDATE_TYPE_KUBE_ROOTCA_UPDATE:
+            if force:
+                # run for in-sync and out-of-sync (but not unknown)
+                return (subcloud_status.endpoint_type ==
+                        dcorch_consts.ENDPOINT_TYPE_KUBE_ROOTCA and
+                        subcloud_status.sync_status !=
+                        consts.SYNC_STATUS_UNKNOWN)
+            else:
+                return (subcloud_status.endpoint_type ==
+                        dcorch_consts.ENDPOINT_TYPE_KUBE_ROOTCA and
+                        subcloud_status.sync_status ==
+                        consts.SYNC_STATUS_OUT_OF_SYNC)
         # Unimplemented strategy_type status check. Log an error
         LOG.error("_validate_subcloud_status_sync for %s not implemented" %
                   strategy_type)
@@ -175,6 +201,7 @@ class SwUpdateManager(manager.Manager):
             else:
                 max_parallel_subclouds = int(max_parallel_subclouds_str)
 
+        # todo(abailey): refactor common code in stop-on-failure and force
         stop_on_failure_str = payload.get('stop-on-failure')
 
         if not stop_on_failure_str:
@@ -195,6 +222,7 @@ class SwUpdateManager(manager.Manager):
                 force = False
 
         # Has the user specified a specific subcloud?
+        # todo(abailey): refactor this code to use classes
         cloud_name = payload.get('cloud_name')
         if cloud_name and cloud_name != consts.SYSTEM_CONTROLLER_NAME:
             # Make sure subcloud exists
@@ -229,6 +257,19 @@ class SwUpdateManager(manager.Manager):
                         resource='strategy',
                         msg='Subcloud %s does not require kubernetes update'
                             % cloud_name)
+            elif strategy_type == consts.SW_UPDATE_TYPE_KUBE_ROOTCA_UPDATE:
+                if force:
+                    # force means we do not care about the status
+                    pass
+                else:
+                    subcloud_status = db_api.subcloud_status_get(
+                        context, subcloud.id,
+                        dcorch_consts.ENDPOINT_TYPE_KUBE_ROOTCA)
+                    if subcloud_status.sync_status == consts.SYNC_STATUS_IN_SYNC:
+                        raise exceptions.BadRequest(
+                            resource='strategy',
+                            msg='Subcloud %s does not require kube rootca update'
+                                % cloud_name)
             elif strategy_type == consts.SW_UPDATE_TYPE_PATCH:
                 # Make sure subcloud requires patching
                 subcloud_status = db_api.subcloud_status_get(
@@ -301,6 +342,17 @@ class SwUpdateManager(manager.Manager):
                         resource='strategy',
                         msg='Kubernetes sync status is unknown for one or more '
                             'subclouds')
+            elif strategy_type == consts.SW_UPDATE_TYPE_KUBE_ROOTCA_UPDATE:
+                if subcloud.availability_status != consts.AVAILABILITY_ONLINE:
+                    continue
+                elif (subcloud_status.endpoint_type ==
+                      dcorch_consts.ENDPOINT_TYPE_KUBE_ROOTCA and
+                        subcloud_status.sync_status ==
+                        consts.SYNC_STATUS_UNKNOWN):
+                    raise exceptions.BadRequest(
+                        resource='strategy',
+                        msg='Kube rootca update sync status is unknown for '
+                            'one or more subclouds')
 
         # Create the strategy
         strategy = db_api.sw_update_strategy_create(
@@ -311,9 +363,9 @@ class SwUpdateManager(manager.Manager):
             stop_on_failure,
             consts.SW_UPDATE_STATE_INITIAL)
 
-        # For 'upgrade' do not create a strategy step for the system controller
-        # For 'firmware' do not create a strategy step for system controller
         # For 'patch', always create a strategy step for the system controller
+        # A strategy step for the system controller is not added for:
+        # 'upgrade', 'firmware', 'kube upgrade', 'kube rootca update'
         if strategy_type == consts.SW_UPDATE_TYPE_PATCH:
             db_api.strategy_step_create(
                 context,
@@ -324,6 +376,9 @@ class SwUpdateManager(manager.Manager):
 
         # Create a strategy step for each subcloud that is managed, online and
         # out of sync
+        # special cases:
+        #  - kube rootca update: the 'force' option allows in-sync subclouds
+        # todo(abailey): fix the current_stage numbering
         current_stage = 2
         stage_size = 0
         stage_updated = False
@@ -355,14 +410,13 @@ class SwUpdateManager(manager.Manager):
                     else:
                         continue
 
-                # force option only has an effect in offline case
-                forced_validate = force and (subcloud.availability_status !=
-                                             consts.AVAILABILITY_ONLINE)
-
-                subcloud_status = db_api.subcloud_status_get_all(context, subcloud.id)
+                subcloud_status = db_api.subcloud_status_get_all(context,
+                                                                 subcloud.id)
                 for status in subcloud_status:
                     if self._validate_subcloud_status_sync(strategy_type,
-                                                           status, forced_validate):
+                                                           status,
+                                                           force,
+                                                           subcloud.availability_status):
                         LOG.debug("Created for %s" % subcloud.id)
                         db_api.strategy_step_create(
                             context,

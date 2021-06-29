@@ -31,6 +31,7 @@ from dccommon import exceptions
 LOG = log.getLogger(__name__)
 
 STRATEGY_NAME_FW_UPDATE = 'fw-update'
+STRATEGY_NAME_KUBE_ROOTCA_UPDATE = 'kube-rootca-update'
 STRATEGY_NAME_KUBE_UPGRADE = 'kube-upgrade'
 STRATEGY_NAME_SW_PATCH = 'sw-patch'
 STRATEGY_NAME_SW_UPGRADE = 'sw-upgrade'

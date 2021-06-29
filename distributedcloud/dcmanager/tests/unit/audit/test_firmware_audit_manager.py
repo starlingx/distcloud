@@ -398,6 +398,14 @@ class TestFirmwareAudit(base.DCManagerTestCase):
             dict_results.append(result.to_dict())
         return dict_results
 
+    def get_fw_audit_data(self, am):
+        patch_audit_data, firmware_audit_data, kubernetes_audit_data, kube_root = \
+            am._get_audit_data(True, True, True, True)
+
+        # Convert to dict like what would happen calling via RPC
+        firmware_audit_data = self._rpc_convert(firmware_audit_data)
+        return firmware_audit_data
+
     def test_init(self):
         fm = firmware_audit.FirmwareAudit(self.ctxt,
                                           self.fake_dcmanager_api)
@@ -425,12 +433,7 @@ class TestFirmwareAudit(base.DCManagerTestCase):
                                           self.fake_dcmanager_api)
         am = subcloud_audit_manager.SubcloudAuditManager()
         am.firmware_audit = fm
-
-        patch_audit_data, firmware_audit_data, kubernetes_audit_data = \
-            am._get_audit_data(True, True, True)
-
-        # Convert to dict like what would happen calling via RPC
-        firmware_audit_data = self._rpc_convert(firmware_audit_data)
+        firmware_audit_data = self.get_fw_audit_data(am)
 
         for name in ['subcloud1', 'subcloud2']:
             fm.subcloud_firmware_audit(name, firmware_audit_data)
@@ -462,12 +465,7 @@ class TestFirmwareAudit(base.DCManagerTestCase):
                                           self.fake_dcmanager_api)
         am = subcloud_audit_manager.SubcloudAuditManager()
         am.firmware_audit = fm
-
-        patch_audit_data, firmware_audit_data, kubernetes_audit_data = \
-            am._get_audit_data(True, True, True)
-
-        # Convert to dict like what would happen calling via RPC
-        firmware_audit_data = self._rpc_convert(firmware_audit_data)
+        firmware_audit_data = self.get_fw_audit_data(am)
 
         for name in ['subcloud1', 'subcloud2']:
             fm.subcloud_firmware_audit(name, firmware_audit_data)
@@ -498,12 +496,7 @@ class TestFirmwareAudit(base.DCManagerTestCase):
                                           self.fake_dcmanager_api)
         am = subcloud_audit_manager.SubcloudAuditManager()
         am.firmware_audit = fm
-
-        patch_audit_data, firmware_audit_data, kubernetes_audit_data = \
-            am._get_audit_data(True, True, True)
-
-        # Convert to dict like what would happen calling via RPC
-        firmware_audit_data = self._rpc_convert(firmware_audit_data)
+        firmware_audit_data = self.get_fw_audit_data(am)
 
         for name in ['subcloud1', 'subcloud2']:
             fm.subcloud_firmware_audit(name, firmware_audit_data)
@@ -534,12 +527,7 @@ class TestFirmwareAudit(base.DCManagerTestCase):
                                           self.fake_dcmanager_api)
         am = subcloud_audit_manager.SubcloudAuditManager()
         am.firmware_audit = fm
-
-        patch_audit_data, firmware_audit_data, kubernetes_audit_data = \
-            am._get_audit_data(True, True, True)
-
-        # Convert to dict like what would happen calling via RPC
-        firmware_audit_data = self._rpc_convert(firmware_audit_data)
+        firmware_audit_data = self.get_fw_audit_data(am)
 
         for name in ['subcloud1', 'subcloud2']:
             fm.subcloud_firmware_audit(name, firmware_audit_data)
@@ -570,12 +558,7 @@ class TestFirmwareAudit(base.DCManagerTestCase):
                                           self.fake_dcmanager_api)
         am = subcloud_audit_manager.SubcloudAuditManager()
         am.firmware_audit = fm
-
-        patch_audit_data, firmware_audit_data, kubernetes_audit_data = \
-            am._get_audit_data(True, True, True)
-
-        # Convert to dict like what would happen calling via RPC
-        firmware_audit_data = self._rpc_convert(firmware_audit_data)
+        firmware_audit_data = self.get_fw_audit_data(am)
 
         for name in ['subcloud1', 'subcloud2']:
             fm.subcloud_firmware_audit(name, firmware_audit_data)
@@ -606,12 +589,7 @@ class TestFirmwareAudit(base.DCManagerTestCase):
                                           self.fake_dcmanager_api)
         am = subcloud_audit_manager.SubcloudAuditManager()
         am.firmware_audit = fm
-
-        patch_audit_data, firmware_audit_data, kubernetes_audit_data = \
-            am._get_audit_data(True, True, True)
-
-        # Convert to dict like what would happen calling via RPC
-        firmware_audit_data = self._rpc_convert(firmware_audit_data)
+        firmware_audit_data = self.get_fw_audit_data(am)
 
         for name in ['subcloud1', 'subcloud2']:
             fm.subcloud_firmware_audit(name, firmware_audit_data)
@@ -642,12 +620,7 @@ class TestFirmwareAudit(base.DCManagerTestCase):
                                           self.fake_dcmanager_api)
         am = subcloud_audit_manager.SubcloudAuditManager()
         am.firmware_audit = fm
-
-        patch_audit_data, firmware_audit_data, kubernetes_audit_data = \
-            am._get_audit_data(True, True, True)
-
-        # Convert to dict like what would happen calling via RPC
-        firmware_audit_data = self._rpc_convert(firmware_audit_data)
+        firmware_audit_data = self.get_fw_audit_data(am)
 
         for name in ['subcloud1', 'subcloud2']:
             fm.subcloud_firmware_audit(name, firmware_audit_data)
@@ -678,12 +651,7 @@ class TestFirmwareAudit(base.DCManagerTestCase):
                                           self.fake_dcmanager_api)
         am = subcloud_audit_manager.SubcloudAuditManager()
         am.firmware_audit = fm
-
-        patch_audit_data, firmware_audit_data, kubernetes_audit_data = \
-            am._get_audit_data(True, True, True)
-
-        # Convert to dict like what would happen calling via RPC
-        firmware_audit_data = self._rpc_convert(firmware_audit_data)
+        firmware_audit_data = self.get_fw_audit_data(am)
 
         for name in ['subcloud1', 'subcloud2']:
             fm.subcloud_firmware_audit(name, firmware_audit_data)

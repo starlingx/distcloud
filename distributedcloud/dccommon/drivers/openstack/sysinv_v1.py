@@ -77,6 +77,31 @@ KUBE_HOST_UPGRADING_CONTROL_PLANE_FAILED = 'upgrading-control-plane-failed'
 KUBE_HOST_UPGRADING_KUBELET = 'upgrading-kubelet'
 KUBE_HOST_UPGRADING_KUBELET_FAILED = 'upgrading-kubelet-failed'
 
+# Kubernetes rootca update states
+
+KUBE_ROOTCA_UPDATE_STARTED = 'update-started'
+KUBE_ROOTCA_UPDATE_CERT_UPLOADED = 'update-new-rootca-cert-uploaded'
+KUBE_ROOTCA_UPDATE_CERT_GENERATED = 'update-new-rootca-cert-generated'
+KUBE_ROOTCA_UPDATING_PODS_TRUSTBOTHCAS = 'updating-pods-trust-both-cas'
+KUBE_ROOTCA_UPDATED_PODS_TRUSTBOTHCAS = 'updated-pods-trust-both-cas'
+KUBE_ROOTCA_UPDATING_PODS_TRUSTBOTHCAS_FAILED = 'updating-pods-trust-both-cas-failed'
+KUBE_ROOTCA_UPDATING_PODS_TRUSTNEWCA = 'updating-pods-trust-new-ca'
+KUBE_ROOTCA_UPDATED_PODS_TRUSTNEWCA = 'updated-pods-trust-new-ca'
+KUBE_ROOTCA_UPDATING_PODS_TRUSTNEWCA_FAILED = 'updating-pods-trust-new-ca-failed'
+KUBE_ROOTCA_UPDATE_COMPLETED = 'update-completed'
+KUBE_ROOTCA_UPDATE_ABORTED = 'update-aborted'
+
+# Kubernetes rootca host update states
+KUBE_ROOTCA_UPDATING_HOST_TRUSTBOTHCAS = 'updating-host-trust-both-cas'
+KUBE_ROOTCA_UPDATED_HOST_TRUSTBOTHCAS = 'updated-host-trust-both-cas'
+KUBE_ROOTCA_UPDATING_HOST_TRUSTBOTHCAS_FAILED = 'updating-host-trust-both-cas-failed'
+KUBE_ROOTCA_UPDATING_HOST_UPDATECERTS = 'updating-host-update-certs'
+KUBE_ROOTCA_UPDATED_HOST_UPDATECERTS = 'updated-host-update-certs'
+KUBE_ROOTCA_UPDATING_HOST_UPDATECERTS_FAILED = 'updating-host-update-certs-failed'
+KUBE_ROOTCA_UPDATING_HOST_TRUSTNEWCA = 'updating-host-trust-new-ca'
+KUBE_ROOTCA_UPDATED_HOST_TRUSTNEWCA = 'updated-host-trust-new-ca'
+KUBE_ROOTCA_UPDATING_HOST_TRUSTNEWCA_FAILED = 'updating-host-trust-new-ca-failed'
+
 # The following is the name of the host filesystem 'scratch' which is used
 # by dcmanager upgrade orchestration for the load import operations.
 HOST_FS_NAME_SCRATCH = 'scratch'
@@ -680,6 +705,18 @@ class SysinvClient(base.DriverBase):
     def get_device_image_states(self):
         """Get a list of device image states."""
         return self.sysinv_client.device_image_state.list()
+
+    def get_kube_rootca_update(self, update_uuid):
+        """Retrieve the details of a given kubernetes rootca update
+
+        :param update_uuid: kube rootca update uuid
+        If the update is not found, returns None
+        """
+        return self.sysinv_client.kube_rootca_update.get(update_uuid)
+
+    def get_kube_rootca_updates(self):
+        """Retrieve the kubernetes rootca updates if one is present."""
+        return self.sysinv_client.kube_rootca_update.list()
 
     def get_kube_upgrade(self, kube_upgrade_uuid):
         """Retrieve the details of a given kubernetes upgrade
