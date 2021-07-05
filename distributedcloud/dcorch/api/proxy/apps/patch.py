@@ -18,15 +18,11 @@ import glob
 import json
 import os
 import shutil
-import tarfile
 import tempfile
 import webob.dec
 import webob.exc
 
-from cgcs_patch.exceptions import PatchMismatchFailure
-from cgcs_patch.exceptions import PatchValidationFailure
-from cgcs_patch.patch_functions import PatchData
-from cgcs_patch.patch_functions import PatchFile
+from cgcs_patch.patch_functions import get_release_from_patch
 from dcmanager.common import consts as dcmanager_consts
 from dcorch.api.proxy.apps.dispatcher import APIDispatcher
 from dcorch.api.proxy.common import constants as proxy_consts
@@ -98,31 +94,15 @@ class PatchAPIController(Middleware):
 
         return rc
 
-    def get_patch_sw_version(self, filename):
-        abs_patch = os.path.abspath(filename)
-        try:
-            PatchFile.read_patch(abs_patch, metadata_only=True)
-            patch_data = PatchData()
-            patch_id = patch_data.parse_metadata(self.PATCH_META_DATA)
-            sw_version = patch_data.query_line(patch_id, self.SOFTWARE_VERSION)
-        except PatchValidationFailure:
-            msg = _("Patch validation failed during extraction")
-            LOG.exception(msg)
-            raise webob.exc.HTTPUnprocessableEntity(explanation=msg)
-        except PatchMismatchFailure:
-            msg = _("Patch Mismatch during extraction")
-            LOG.exception(msg)
-            raise webob.exc.HTTPUnprocessableEntity(explanation=msg)
-        except tarfile.TarError:
-            msg = _("Failed during patch extraction")
-            LOG.exception(msg)
-            raise webob.exc.HTTPUnprocessableEntity(explanation=msg)
-
-        return sw_version
-
     def copy_patch_to_version_vault(self, patch):
+        try:
+            sw_version = get_release_from_patch(patch)
+        except Exception:
+            msg = "Unable to fetch release version from patch"
+            LOG.error(msg)
+            raise webob.exc.HTTPUnprocessableEntity(explanation=msg)
         versioned_vault = CONF.patching.patch_vault + \
-            self.get_patch_sw_version(patch)
+            sw_version
         if not os.path.isdir(versioned_vault):
             os.makedirs(versioned_vault)
         try:
