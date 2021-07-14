@@ -55,6 +55,7 @@ from dcmanager.db import api as db_api
 
 from dcmanager.rpc import client as rpc_client
 from dcorch.common import consts as dcorch_consts
+from six.moves import range
 
 CONF = cfg.CONF
 LOG = logging.getLogger(__name__)
@@ -518,7 +519,7 @@ class SubcloudsController(object):
                     pecan.abort(400, _('Mandatory install value %s not present') % k)
 
         if (install_values['install_type'] not in
-                range(install_consts.SUPPORTED_INSTALL_TYPES)):
+                list(range(install_consts.SUPPORTED_INSTALL_TYPES))):
             pecan.abort(400, _("install_type invalid: %s") %
                         install_values['install_type'])
 

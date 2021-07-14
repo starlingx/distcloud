@@ -230,8 +230,11 @@ def user_get_all(context):
         user_passwords = {'password': [password for password in passwords
                                        if password['local_user_id'] ==
                                        local_user['id']]}
-        user_consolidated = dict({'local_user': local_user}.items() +
-                                 user.items() + user_passwords.items())
+
+        user_consolidated = local_user
+        user_consolidated.update(user)
+        user_consolidated.update(user_passwords)
+
         result.append(user_consolidated)
 
     return result

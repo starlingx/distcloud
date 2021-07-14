@@ -136,7 +136,7 @@ class GenericSyncManager(object):
         random.shuffle(subclouds)
         sc_names = []
         for sc in subclouds:
-            if sc.region_name in self.sync_objs.keys():
+            if sc.region_name in self.sync_objs:
                 sc_names.append(sc.region_name)
                 for ept in self.sync_objs[sc.region_name].keys():
                     try:
@@ -556,7 +556,7 @@ class GenericSyncManager(object):
         # randomize to reduce likelihood of sync_lock contention
         random.shuffle(subclouds)
         for sc in subclouds:
-            if sc.region_name in self.sync_objs.keys():
+            if sc.region_name in list(self.sync_objs.keys()):
                 for e in self.sync_objs[sc.region_name].keys():
                     LOG.debug("Attempt audit_subcloud: %s/%s/%s",
                               engine_id, sc.region_name, e)
@@ -574,7 +574,7 @@ class GenericSyncManager(object):
                 capabilities.update({'endpoint_types': endpoint_type_list})
                 self.create_sync_objects(sc.region_name, capabilities)
                 # self.sync_objs stores the sync object per endpoint
-                if sc.region_name in self.sync_objs.keys():
+                if sc.region_name in list(self.sync_objs.keys()):
                     for e in self.sync_objs[sc.region_name].keys():
                         LOG.debug("Attempt audit_subcloud: %s/%s/%s",
                                   engine_id, sc.region_name, e)
