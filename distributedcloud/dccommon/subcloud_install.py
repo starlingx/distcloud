@@ -400,7 +400,7 @@ class SubcloudInstall(object):
         LOG.info("Prepare for %s remote install" % (self.name))
         iso_values = {}
         for k in install_consts.MANDATORY_INSTALL_VALUES:
-            if k in GEN_ISO_OPTIONS.keys():
+            if k in list(GEN_ISO_OPTIONS.keys()):
                 iso_values[k] = payload.get(k)
             if k not in BMC_OPTIONS:
                 iso_values[k] = payload.get(k)

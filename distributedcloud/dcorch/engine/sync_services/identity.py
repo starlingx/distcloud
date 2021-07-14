@@ -13,7 +13,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-
 import base64
 from collections import namedtuple
 
@@ -453,7 +452,7 @@ class IdentitySyncThread(SyncThread):
             raise exceptions.SyncRequestFailed
 
         user_dict = jsonutils.loads(request.orch_job.resource_info)
-        if 'user' in user_dict.keys():
+        if 'user' in user_dict:
             user_dict = user_dict['user']
 
         sc_user_id = user_dict.pop('id', None)
@@ -629,7 +628,7 @@ class IdentitySyncThread(SyncThread):
             raise exceptions.SyncRequestFailed
 
         project_dict = jsonutils.loads(request.orch_job.resource_info)
-        if 'project' in project_dict.keys():
+        if 'project' in list(project_dict.keys()):
             project_dict = project_dict['project']
 
         sc_project_id = project_dict.pop('id', None)
@@ -672,7 +671,7 @@ class IdentitySyncThread(SyncThread):
     def patch_projects(self, request, rsrc):
         # Update project on this subcloud
         project_update_dict = jsonutils.loads(request.orch_job.resource_info)
-        if not project_update_dict.keys():
+        if not list(project_update_dict.keys()):
             LOG.error("Received project update request "
                       "without any update fields", extra=self.log_extra)
             raise exceptions.SyncRequestFailed
@@ -800,7 +799,7 @@ class IdentitySyncThread(SyncThread):
             raise exceptions.SyncRequestFailed
 
         role_dict = jsonutils.loads(request.orch_job.resource_info)
-        if 'role' in role_dict.keys():
+        if 'role' in list(role_dict.keys()):
             role_dict = role_dict['role']
 
         sc_role_id = role_dict.pop('id', None)
@@ -843,7 +842,7 @@ class IdentitySyncThread(SyncThread):
     def patch_roles(self, request, rsrc):
         # Update this role on this subcloud
         role_update_dict = jsonutils.loads(request.orch_job.resource_info)
-        if not role_update_dict.keys():
+        if not list(role_update_dict.keys()):
             LOG.error("Received role update request "
                       "without any update fields", extra=self.log_extra)
             raise exceptions.SyncRequestFailed
@@ -1062,7 +1061,7 @@ class IdentitySyncThread(SyncThread):
         # JSON format by REST call to the DB synchronization service on this
         # subcloud, which then inserts the resource records into DB tables.
         revoke_event_dict = jsonutils.loads(request.orch_job.resource_info)
-        if 'token_revoke_event' in revoke_event_dict.keys():
+        if 'token_revoke_event' in list(revoke_event_dict.keys()):
             revoke_event_dict = revoke_event_dict['token_revoke_event']
 
         audit_id = revoke_event_dict.pop('audit_id', None)
@@ -1381,7 +1380,7 @@ class IdentitySyncThread(SyncThread):
                 # Build an opaque object wrapper for this RoleAssignment
                 refactored_assignment = namedtuple(
                     'RoleAssignmentWrapper',
-                    assignment_dict.keys())(*assignment_dict.values())
+                    list(assignment_dict.keys()))(*list(assignment_dict.values()))
                 refactored_assignments.append(refactored_assignment)
 
             return refactored_assignments

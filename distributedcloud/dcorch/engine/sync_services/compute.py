@@ -297,7 +297,7 @@ class ComputeSyncThread(SyncThread):
             consts.ACTION_EXTRASPECS_DELETE: self.unset_extra_specs,
         }
         action = list(action_dict.keys())[0]
-        if action not in switcher.keys():
+        if action not in list(switcher.keys()):
             LOG.error("Unsupported flavor action {}".format(action),
                       extra=self.log_extra)
             return
