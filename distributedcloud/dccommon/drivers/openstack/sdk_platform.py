@@ -28,11 +28,13 @@ from dccommon.drivers.openstack.sysinv_v1 import SysinvClient
 from dccommon import exceptions
 from dccommon.utils import is_token_expiring_soon
 
+from dcdbsync.dbsyncclient.client import Client as dbsyncclient
 
 KEYSTONE_CLIENT_NAME = 'keystone'
 SYSINV_CLIENT_NAME = 'sysinv'
 FM_CLIENT_NAME = 'fm'
 BARBICAN_CLIENT_NAME = 'barbican'
+DBSYNC_CLIENT_NAME = 'dbsync'
 
 LOG = log.getLogger(__name__)
 
@@ -42,6 +44,7 @@ SUPPORTED_REGION_CLIENTS = [
     SYSINV_CLIENT_NAME,
     FM_CLIENT_NAME,
     BARBICAN_CLIENT_NAME,
+    DBSYNC_CLIENT_NAME,
 ]
 
 # region client type and class mappings
@@ -49,6 +52,7 @@ region_client_class_map = {
     SYSINV_CLIENT_NAME: SysinvClient,
     FM_CLIENT_NAME: FmClient,
     BARBICAN_CLIENT_NAME: BarbicanClient,
+    DBSYNC_CLIENT_NAME: dbsyncclient,
 }
 
 
@@ -58,13 +62,15 @@ class OpenStackDriver(object):
     _identity_tokens = {}
 
     def __init__(self, region_name=consts.CLOUD_0, thread_name='dcorch',
-                 auth_url=None, region_clients=SUPPORTED_REGION_CLIENTS):
+                 auth_url=None, region_clients=SUPPORTED_REGION_CLIENTS,
+                 endpoint_type=consts.KS_ENDPOINT_DEFAULT):
         # Check if objects are cached and try to use those
         self.region_name = region_name
         self.keystone_client = None
         self.sysinv_client = None
         self.fm_client = None
         self.barbican_client = None
+        self.dbsync_client = None
 
         if region_clients:
             # check if the requested clients are in the supported client list
@@ -107,7 +113,9 @@ class OpenStackDriver(object):
                     # Create new client object and cache it
                     try:
                         client_object = region_client_class_map[client_name](
-                            region_name, self.keystone_client.session)
+                            region=region_name,
+                            session=self.keystone_client.session,
+                            endpoint_type=endpoint_type)
                         setattr(self, client_obj_name, client_object)
                         OpenStackDriver.update_region_clients(region_name,
                                                               client_name,

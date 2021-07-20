@@ -199,7 +199,6 @@ class SyncThread(object):
 
     def enable(self):
         # Called when DC manager thinks this subcloud is good to go.
-        self.initialize()
         self.run_sync_audit()
 
     def get_db_subcloud_resource(self, rsrc_id):

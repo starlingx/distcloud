@@ -79,15 +79,14 @@ class SysinvSyncThread(SyncThread):
             consts.RESOURCE_TYPE_SYSINV_FERNET_REPO,
         ]
 
-        # initialize the master clients
-        super(SysinvSyncThread, self).initialize()
         LOG.info("SysinvSyncThread initialized", extra=self.log_extra)
 
     def sync_platform_resource(self, request, rsrc):
         try:
             s_os_client = sdk.OpenStackDriver(
                 region_name=self.region_name,
-                thread_name='sync')
+                thread_name='sync',
+                region_clients=["sysinv"])
             # invoke the sync method for the requested resource_type
             # I.e. sync_idns
             s_func_name = "sync_" + rsrc.resource_type
@@ -439,7 +438,8 @@ class SysinvSyncThread(SyncThread):
         try:
             os_client = sdk.OpenStackDriver(
                 region_name=dccommon_consts.CLOUD_0,
-                thread_name='audit')
+                thread_name='audit',
+                region_clients=["sysinv"])
             if resource_type == consts.RESOURCE_TYPE_SYSINV_DNS:
                 return [self.get_dns_resource(os_client)]
             elif resource_type == consts.RESOURCE_TYPE_SYSINV_CERTIFICATE:
@@ -461,7 +461,8 @@ class SysinvSyncThread(SyncThread):
             threading.currentThread().getName()), extra=self.log_extra)
         try:
             os_client = sdk.OpenStackDriver(region_name=self.region_name,
-                                            thread_name='audit')
+                                            thread_name='audit',
+                                            region_clients=["sysinv"])
             if resource_type == consts.RESOURCE_TYPE_SYSINV_DNS:
                 return [self.get_dns_resource(os_client)]
             elif resource_type == consts.RESOURCE_TYPE_SYSINV_CERTIFICATE:

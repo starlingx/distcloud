@@ -101,7 +101,9 @@ def make_sysinv_patch(update_dict):
 class SysinvClient(base.DriverBase):
     """Sysinv V1 driver."""
 
-    def __init__(self, region, session, timeout=SYSINV_CLIENT_REST_DEFAULT_TIMEOUT):
+    def __init__(self, region, session,
+                 timeout=SYSINV_CLIENT_REST_DEFAULT_TIMEOUT,
+                 endpoint_type=consts.KS_ENDPOINT_ADMIN):
         try:
             # TOX cannot import cgts_client and all the dependencies therefore
             # the client is being lazy loaded since TOX doesn't actually
@@ -113,7 +115,7 @@ class SysinvClient(base.DriverBase):
             endpoint = session.get_endpoint(
                 service_type='platform',
                 region_name=region,
-                interface=consts.KS_ENDPOINT_ADMIN)
+                interface=endpoint_type)
             token = session.get_token()
 
             self.sysinv_client = client.Client(API_VERSION,
