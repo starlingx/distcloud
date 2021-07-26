@@ -86,12 +86,18 @@ class OpenStackDriver(object):
             LOG.debug("get new keystone client for subcloud %s", region_name)
             try:
                 self.keystone_client = KeystoneClient(region_name, auth_url)
-                OpenStackDriver.update_region_clients(region_name,
-                                                      KEYSTONE_CLIENT_NAME,
-                                                      self.keystone_client)
-                # Clear client object cache
-                OpenStackDriver.os_clients_dict[region_name] = \
-                    collections.defaultdict(dict)
+            except keystone_exceptions.ConnectFailure:
+                LOG.error("Failed to create keystone client for %s", region_name)
+                for i in range(3):
+                    try:
+                        self.keystone_client = KeystoneClient(region_name, auth_url)
+                    except Exception:
+                        LOG.error("Retrying to create keystone client for %s %s time" % (region_name, i))
+                    else:
+                        break
+                else:
+                    LOG.error("Exhausted connection failure retry for %s", region_name)
+                    raise
 
             except keystone_exceptions.ConnectTimeout as exception:
                 LOG.debug('keystone_client region %s error: %s' %
@@ -102,6 +108,13 @@ class OpenStackDriver(object):
                 LOG.error('keystone_client region %s error: %s' %
                           (region_name, str(exception)))
                 raise exception
+
+            OpenStackDriver.update_region_clients(region_name,
+                                                  KEYSTONE_CLIENT_NAME,
+                                                  self.keystone_client)
+            # Clear client object cache
+            OpenStackDriver.os_clients_dict[region_name] = \
+                collections.defaultdict(dict)
 
         if region_clients:
             self.get_cached_region_clients_for_thread(region_name,

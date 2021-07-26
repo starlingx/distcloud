@@ -23,6 +23,7 @@
 import collections
 import threading
 
+from keystoneauth1 import exceptions as keystone_exceptions
 from keystoneauth1 import loading
 from keystoneauth1 import session
 
@@ -47,6 +48,7 @@ class EndpointCache(object):
     plugin_loader = None
     plugin_lock = threading.Lock()
     master_keystone_client = None
+    master_token = {}
 
     def __init__(self, region_name=None, auth_url=None):
         self.endpoint_map = collections.defaultdict(dict)
@@ -92,8 +94,29 @@ class EndpointCache(object):
                     interface=consts.KS_ENDPOINT_ADMIN,
                     region=region_name)
                 sc_auth_url = sc_auth_url[0].url
-            except Exception:
+            except keystone_exceptions.ConnectFailure:
                 LOG.error("Cannot find identity service or auth_url for %s", region_name)
+                # todo : These retries wouldn't be required once we cache RegionOne endpoint
+                # list to reduce load to central cloud keystone (story 2008960, task 42938)
+                for i in range(3):
+                    try:
+                        identity_service = self.keystone_client.services.list(
+                            name='keystone', type='identity')
+                        sc_auth_url = self.keystone_client.endpoints.list(
+                            service=identity_service[0].id,
+                            interface=consts.KS_ENDPOINT_ADMIN,
+                            region=region_name)
+                        sc_auth_url = sc_auth_url[0].url
+                    except Exception:
+                        LOG.debug("Retrying to find identity service or auth_url for %s %s time" % (region_name, i))
+                    else:
+                        break
+                else:
+                    LOG.error("Exhausted connection failure retry for %s", region_name)
+                    raise
+
+            except Exception as e:
+                LOG.error(e)
                 self.re_initialize_master_keystone_client()
                 raise
 
@@ -107,9 +130,15 @@ class EndpointCache(object):
                 CONF.endpoint_cache.project_name,
                 CONF.endpoint_cache.project_domain_name)
 
-            self.keystone_client = ks_client.Client(
-                session=self.admin_session,
-                region_name=region_name)
+            try:
+                self.keystone_client = ks_client.Client(
+                    session=self.admin_session,
+                    region_name=region_name)
+            except Exception:
+                LOG.error("Retrying keystone client creation for %s" % region_name)
+                self.keystone_client = ks_client.Client(
+                    session=self.admin_session,
+                    region_name=region_name)
             self.external_auth_url = sc_auth_url
 
     @classmethod
@@ -225,28 +254,29 @@ class EndpointCache(object):
     @lockutils.synchronized(LOCK_NAME)
     def get_cached_master_keystone_client(self):
         if (EndpointCache.master_keystone_client is None):
-            EndpointCache.master_keystone_client = ks_client.Client(
-                session=self.admin_session,
-                region_name=consts.CLOUD_0)
+            self._create_master_client_and_master_token()
+            LOG.debug("Generated Master keystone client and master token when they were none")
         else:
-            token = EndpointCache.master_keystone_client.tokens.validate(
-                EndpointCache.master_keystone_client.session.get_token(),
-                include_catalog=False)
-
-            token_expiring_soon = is_token_expiring_soon(token=token)
+            token_expiring_soon = is_token_expiring_soon(token=EndpointCache.master_token)
 
             # If token is expiring soon, initialize a new master keystone
             # client
             if token_expiring_soon:
                 LOG.debug("The cached keystone token for %s "
                           "will expire soon %s" %
-                          (consts.CLOUD_0, token['expires_at']))
-                EndpointCache.master_keystone_client = ks_client.Client(
-                    session=self.admin_session,
-                    region_name=consts.CLOUD_0)
+                          (consts.CLOUD_0, EndpointCache.master_token['expires_at']))
+                self._create_master_client_and_master_token()
+                LOG.debug("Generated Master keystone client and master token as they are expiring soon")
 
     @lockutils.synchronized(LOCK_NAME)
     def re_initialize_master_keystone_client(self):
+        self._create_master_client_and_master_token()
+        LOG.debug("Generated Master keystone client and master token as they are re-initialized")
+
+    def _create_master_client_and_master_token(self):
         EndpointCache.master_keystone_client = ks_client.Client(
             session=self.admin_session,
             region_name=consts.CLOUD_0)
+        EndpointCache.master_token = EndpointCache.master_keystone_client.tokens.validate(
+            EndpointCache.master_keystone_client.session.get_token(),
+            include_catalog=False)

@@ -23,6 +23,7 @@ import hashlib
 import os
 
 from cgtsclient.exc import HTTPNotFound
+from keystoneauth1 import exceptions as keystone_exceptions
 from oslo_log import log
 
 from dccommon import consts
@@ -123,6 +124,31 @@ class SysinvClient(base.DriverBase):
                                                token=token,
                                                timeout=timeout)
             self.region_name = region
+        except keystone_exceptions.ConnectFailure:
+            LOG.error("Failed to fetch endpoint or token for %s", region)
+            # todo : These retries wouldn't be required once keystone sessions are
+            # added to cgtsclient
+            for i in range(3):
+                try:
+                    endpoint = session.get_endpoint(
+                        service_type='platform',
+                        region_name=region,
+                        interface=endpoint_type)
+                    token = session.get_token()
+
+                    self.sysinv_client = client.Client(API_VERSION,
+                                                       endpoint=endpoint,
+                                                       token=token,
+                                                       timeout=timeout)
+                    self.region_name = region
+                except Exception:
+                    LOG.error("Retrying to find endpoint or token for %s %s time" % (region, i))
+                else:
+                    break
+            else:
+                LOG.error("Exhausted connection failure retry for %s", region)
+                raise
+
         except exceptions.ServiceUnavailable:
             raise
 

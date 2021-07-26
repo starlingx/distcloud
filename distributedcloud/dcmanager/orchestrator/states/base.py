@@ -86,7 +86,7 @@ class BaseState(object):
 
         try:
             os_client = OpenStackDriver(region_name=region_name,
-                                        region_clients=None)
+                                        region_clients=['sysinv'])
             return os_client.keystone_client
         except Exception:
             LOG.warning('Failure initializing KeystoneClient for region: %s'
