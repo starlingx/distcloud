@@ -175,6 +175,11 @@ class SyncRequestFailed(OrchestratorException):
     message = _("The sync operation failed")
 
 
+class SyncRequestAbortedBySystem(OrchestratorException):
+    message = _("The sync operation was aborted by the system because"
+                " some condition was not met")
+
+
 class SyncRequestFailedRetry(OrchestratorException):
     message = _("The sync operation failed, will retry")
 
@@ -221,3 +226,7 @@ class OrchRequestAlreadyExists(Conflict):
 
 class ObjectActionError(OrchestratorException):
     msg_fmt = _('Object action %(action)s failed because: %(reason)s')
+
+
+class CertificateExpiredException(OrchestratorException):
+    message = _("Certificate is expired and will not be synced")

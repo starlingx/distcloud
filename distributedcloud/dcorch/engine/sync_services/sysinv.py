@@ -20,6 +20,7 @@ from requests_toolbelt import MultipartDecoder
 
 from oslo_log import log as logging
 from oslo_serialization import jsonutils
+from oslo_utils import timeutils
 
 from dccommon import consts as dccommon_consts
 from dccommon.drivers.openstack import sdk_platform as sdk
@@ -97,6 +98,11 @@ class SysinvSyncThread(SyncThread):
                       .format(request.orch_job.operation_type,
                               rsrc.resource_type))
             raise exceptions.SyncRequestFailed
+        except exceptions.CertificateExpiredException as e:
+            LOG.info("{} {} aborted: {}".format(
+                request.orch_job.operation_type, rsrc.resource_type,
+                str(e)), extra=self.log_extra)
+            raise exceptions.SyncRequestAbortedBySystem
         except (exceptions.ConnectionRefused, exceptions.TimeOut,
                 keystone_exceptions.connection.ConnectTimeout,
                 keystone_exceptions.ConnectFailure) as e:
@@ -210,7 +216,15 @@ class SysinvSyncThread(SyncThread):
         certificate_dict = jsonutils.loads(request.orch_job.resource_info)
         payload = certificate_dict.get('payload')
 
-        if not payload:
+        if payload and 'expiry_date' in payload:
+            expiry_datetime = timeutils.normalize_time(
+                timeutils.parse_isotime(payload['expiry_date']))
+
+            if timeutils.utcnow() > expiry_datetime:
+                LOG.info("create_certificate Certificate %s has expired at %s"
+                         % (payload['signature'], str(expiry_datetime)))
+                raise exceptions.CertificateExpiredException
+        else:
             LOG.info("create_certificate No payload found in resource_info"
                      "{}".format(request.orch_job.resource_info),
                      extra=self.log_extra)
@@ -304,6 +318,9 @@ class SysinvSyncThread(SyncThread):
                      .format(self.region_name,
                              str(e)), extra=self.log_extra)
             raise exceptions.SyncRequestTimeout
+        except exceptions.CertificateExpiredException as e:
+            LOG.exception(e)
+            raise exceptions.CertificateExpiredException
         except Exception as e:
             LOG.exception(e)
             raise exceptions.SyncRequestFailedRetry

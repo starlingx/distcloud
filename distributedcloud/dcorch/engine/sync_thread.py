@@ -295,7 +295,6 @@ class SyncThread(object):
         LOG.info("{}: starting sync routine".format(self.subcloud_name),
                  extra=self.log_extra)
         region_name = self.subcloud_name
-
         sync_requests = []
         # We want to check for pending work even if subcloud is disabled.
 
@@ -339,6 +338,8 @@ class SyncThread(object):
         else:
             # Subcloud is enabled and there are pending sync requests, so
             # we have work to do.
+
+            request_aborted = False
             try:
                 for request in actual_sync_requests:
                     if not self.is_subcloud_enabled() or \
@@ -398,6 +399,12 @@ class SyncThread(object):
                                 consts.ORCH_REQUEST_STATE_FAILED
                             request.save()
                             retry_count = self.MAX_RETRY
+                        except exceptions.SyncRequestAbortedBySystem:
+                            request.state = \
+                                consts.ORCH_REQUEST_STATE_FAILED
+                            request.save()
+                            retry_count = self.MAX_RETRY
+                            request_aborted = True
 
                     # If we fall out of the retry loop we either succeeded
                     # or failed multiple times and want to move to the next
@@ -415,13 +422,22 @@ class SyncThread(object):
                 target_region_name=region_name,
                 states=states)
 
-            if sync_requests and sync_status_start != dcm_consts.SYNC_STATUS_OUT_OF_SYNC:
+            if (sync_requests and
+                    sync_status_start != dcm_consts.SYNC_STATUS_OUT_OF_SYNC):
                 self.set_sync_status(dcm_consts.SYNC_STATUS_OUT_OF_SYNC)
-                LOG.info("End of resource sync out-of-sync" + str(len(sync_requests)) + " sync request(s)",
+                LOG.info("End of resource sync out-of-sync. " +
+                         str(len(sync_requests)) + " sync request(s)",
                          extra=self.log_extra)
+            elif sync_requests and request_aborted:
+                if sync_status_start != dcm_consts.SYNC_STATUS_OUT_OF_SYNC:
+                    self.set_sync_status(dcm_consts.SYNC_STATUS_OUT_OF_SYNC)
+                LOG.info("End of resource sync out-of-sync. " +
+                         str(len(sync_requests)) + " sync request(s)" +
+                         ": request_aborted", extra=self.log_extra)
             elif sync_status_start != dcm_consts.SYNC_STATUS_IN_SYNC:
                 self.set_sync_status(dcm_consts.SYNC_STATUS_IN_SYNC)
-                LOG.info("End of resource sync in-sync" + str(len(sync_requests)) + " sync request(s)",
+                LOG.info("End of resource sync in-sync. " +
+                         str(len(sync_requests)) + " sync request(s)",
                          extra=self.log_extra)
 
         LOG.info("Sync resources done for subcloud", extra=self.log_extra)
