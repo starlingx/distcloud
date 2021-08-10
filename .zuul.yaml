@@ -10,14 +10,14 @@
         - openstack-tox-linters
         - stx-distcloud-tox-pep8
         - stx-distcloud-tox-py27
-        - stx-distcloud-tox-py36
+        - stx-distcloud-tox-py39
         - stx-distcloud-tox-pylint
     gate:
       jobs:
         - openstack-tox-linters
         - stx-distcloud-tox-pep8
         - stx-distcloud-tox-py27
-        - stx-distcloud-tox-py36
+        - stx-distcloud-tox-py39
         - stx-distcloud-tox-pylint
     post:
       jobs:
@@ -38,17 +38,21 @@
       tox_extra_args: -c distributedcloud/tox.ini
 
 - job:
-    name: stx-distcloud-tox-py36
-    parent: tox
-    description: Run py36 for distcloud
-    nodeset: ubuntu-bionic
+    name: stx-distcloud-tox-py39
+    parent: tox-py39
+    description: Run py39 for distcloud
+    nodeset: ubuntu-focal
+    pre-run:
+      - tools/gate/playbooks/install-postgresql.yaml
     required-projects:
       - starlingx/fault
       - starlingx/nfv
       - starlingx/update
       - starlingx/config
+      - starlingx/root
     vars:
-      tox_envlist: py36
+      python_version: 3.9
+      tox_envlist: py39
       tox_extra_args: -c distributedcloud/tox.ini
 
 - job:

@@ -1,0 +1,8 @@
+---
+- name: Install postgresql
+  shell: |
+    set -xe
+    apt-get update -y
+    apt-get install -y libffi-dev libxml2-dev libxslt1-dev libldap2-dev \
+     libsasl2-dev libpq-dev libyaml-dev
+  become: true
