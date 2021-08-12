@@ -726,7 +726,7 @@ class SysinvClient(base.DriverBase):
            :param: device_image_file the file to upload
            :param: fields can be: 'bitstream_type', 'pci_vendor', 'pci_device',
            'bitstream_id', 'key_signature', 'revoke_key_id', 'name',
-           'description', 'image_version', 'uuid
+           'description', 'image_version', 'retimer_included', 'uuid
         """
         return self.sysinv_client.device_image.upload(device_image_file,
                                                       **fields)

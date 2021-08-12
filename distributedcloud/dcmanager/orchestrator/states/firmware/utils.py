@@ -101,7 +101,8 @@ def determine_image_fields(image):
                   'revoke_key_id',
                   'name',
                   'description',
-                  'image_version']
+                  'image_version',
+                  'retimer_included']
     fields = dict((k, str(v)) for (k, v) in vars(image).items()
                   if k in field_list and not (v is None))
     return fields
