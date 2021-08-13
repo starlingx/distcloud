@@ -15,7 +15,10 @@ DEFAULT_FORCE_FLAG = False
 # Max time 30 minutes = 180 attempts, with 10 seconds between
 DEFAULT_MAX_QUERIES = 180
 DEFAULT_SLEEP_DURATION = 10
+MAX_FAILED_RETRIES = 10
+UPGRADE_FAILED = 'upgrade-failed'
 UPGRADE_STARTED_STATES = ['started', ]
+UPGRADE_RETRY_STATES = [UPGRADE_FAILED, ]
 
 
 class StartingUpgradeState(BaseState):
@@ -34,10 +37,18 @@ class StartingUpgradeState(BaseState):
                 region_name=region_name)
         self.sleep_duration = DEFAULT_SLEEP_DURATION
         self.max_queries = DEFAULT_MAX_QUERIES
+        self.max_failed_retries = MAX_FAILED_RETRIES
 
     def get_upgrade_state(self, strategy_step):
-        upgrades = self.get_sysinv_client(
-            strategy_step.subcloud.name).get_upgrades()
+        try:
+            upgrades = self.get_sysinv_client(
+                strategy_step.subcloud.name).get_upgrades()
+        except Exception as exception:
+            self.warn_log(strategy_step,
+                          "Encountered exception: %s, "
+                          "retry upgrade start for subcloud %s."
+                          % (str(exception), strategy_step.subcloud.name))
+            return UPGRADE_FAILED
         if len(upgrades) == 0:
             raise Exception("Failed to generate upgrade data. Please "
                             "check sysinv.log on the subcloud for details.")
@@ -78,6 +89,7 @@ class StartingUpgradeState(BaseState):
 
         # Do not move to the next state until the upgrade state is correct
         counter = 0
+        retry_counter = 0
         while True:
             # If event handler stop has been triggered, fail the state
             if self.stopped():
@@ -87,6 +99,24 @@ class StartingUpgradeState(BaseState):
                 self.info_log(strategy_step,
                               "Upgrade started. State=%s" % upgrade_state)
                 break
+            if upgrade_state in UPGRADE_RETRY_STATES:
+                retry_counter += 1
+                if retry_counter >= self.max_failed_retries:
+                    raise Exception("Failed to start upgrade. Please "
+                                    "check sysinv.log on the subcloud for "
+                                    "details.")
+                self.warn_log(strategy_step,
+                              "Upgrade start failed, retrying... State=%s"
+                              % upgrade_state)
+                try:
+                    self.get_sysinv_client(
+                        strategy_step.subcloud.name).upgrade_start(force=force_flag)
+                except Exception as exception:
+                    self.warn_log(strategy_step,
+                                  "Encountered exception: %s, "
+                                  "during upgrade start for subcloud %s."
+                                  % (str(exception),
+                                     strategy_step.subcloud.name))
             counter += 1
             if counter >= self.max_queries:
                 raise Exception("Timeout waiting for upgrade to start")

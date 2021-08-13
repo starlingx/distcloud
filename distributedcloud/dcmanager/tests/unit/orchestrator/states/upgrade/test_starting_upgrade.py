@@ -23,6 +23,8 @@ UPGRADE_STARTED = FakeUpgrade(state='started')
             ".DEFAULT_MAX_QUERIES", 3)
 @mock.patch("dcmanager.orchestrator.states.upgrade.starting_upgrade"
             ".DEFAULT_SLEEP_DURATION", 1)
+@mock.patch("dcmanager.orchestrator.states.upgrade.starting_upgrade"
+            ".MAX_FAILED_RETRIES", 2)
 class TestSwUpgradeSimplexStartingUpgradeStage(TestSwUpgradeState):
 
     def setUp(self):
@@ -144,6 +146,33 @@ class TestSwUpgradeSimplexStartingUpgradeStage(TestSwUpgradeState):
         # Verify it failed and moves to the next step
         self.assert_step_updated(self.strategy_step.subcloud_id,
                                  self.on_success_state)
+
+    def test_upgrade_subcloud_upgrade_start_retry(self):
+        """Test upgrade_start where HTTP error occurs after successful API call."""
+
+        # Simulate an HTTP exception thrown after upgrade start
+        self.sysinv_client.get_upgrades.side_effect = itertools.chain(
+            [[], ],
+            itertools.repeat(Exception("HTTPBadRequest: this is a fake exception")))
+
+        self.sysinv_client.upgrade_start.return_value = UPGRADE_STARTING
+
+        # invoke the strategy state operation on the orch thread
+        self.worker.perform_state_action(self.strategy_step)
+
+        # verify the API call that succeeded was actually invoked
+        self.sysinv_client.upgrade_start.assert_called()
+
+        # verify default alarm-restriction-type (relaxed) is treated as 'force'
+        self.sysinv_client.upgrade_start.assert_called_with(force=True)
+
+        # verify the get_upgrades query was invoked: 1 + max_failed_retries times
+        self.assertEqual(starting_upgrade.MAX_FAILED_RETRIES + 1,
+                         self.sysinv_client.get_upgrades.call_count)
+
+        # Verify the timeout leads to a state failure
+        self.assert_step_updated(self.strategy_step.subcloud_id,
+                                 consts.STRATEGY_STATE_FAILED)
 
     def test_upgrade_subcloud_upgrade_start_timeout(self):
         """Test upgrade_start where the API call succeeds but times out."""
