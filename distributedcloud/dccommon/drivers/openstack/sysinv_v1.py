@@ -25,6 +25,7 @@ import os
 from cgtsclient.exc import HTTPNotFound
 from keystoneauth1 import exceptions as keystone_exceptions
 from oslo_log import log
+from oslo_utils import encodeutils
 
 from dccommon import consts
 from dccommon.drivers import base
@@ -465,7 +466,7 @@ class SysinvClient(base.DriverBase):
 
     def _validate_certificate(self, signature, certificate):
         # JKUNG need to look at the crypto public serial id
-        certificate_sig = hashlib.md5(certificate).hexdigest()
+        certificate_sig = hashlib.md5(encodeutils.safe_encode(certificate)).hexdigest()
 
         if certificate_sig == signature:
             return True
