@@ -23,7 +23,6 @@ import hashlib
 import os
 
 from cgtsclient.exc import HTTPNotFound
-from keystoneauth1 import exceptions as keystone_exceptions
 from oslo_log import log
 from oslo_utils import encodeutils
 
@@ -105,7 +104,8 @@ class SysinvClient(base.DriverBase):
 
     def __init__(self, region, session,
                  timeout=SYSINV_CLIENT_REST_DEFAULT_TIMEOUT,
-                 endpoint_type=consts.KS_ENDPOINT_ADMIN):
+                 endpoint_type=consts.KS_ENDPOINT_ADMIN,
+                 endpoint=None):
         try:
             # TOX cannot import cgts_client and all the dependencies therefore
             # the client is being lazy loaded since TOX doesn't actually
@@ -114,42 +114,18 @@ class SysinvClient(base.DriverBase):
 
             # The sysinv client doesn't support a session, so we need to
             # get an endpoint and token.
-            endpoint = session.get_endpoint(
-                service_type='platform',
-                region_name=region,
-                interface=endpoint_type)
-            token = session.get_token()
+            if endpoint is None:
+                endpoint = session.get_endpoint(
+                    service_type='platform',
+                    region_name=region,
+                    interface=endpoint_type)
 
+            token = session.get_token()
             self.sysinv_client = client.Client(API_VERSION,
                                                endpoint=endpoint,
                                                token=token,
                                                timeout=timeout)
             self.region_name = region
-        except keystone_exceptions.ConnectFailure:
-            LOG.error("Failed to fetch endpoint or token for %s", region)
-            # todo : These retries wouldn't be required once keystone sessions are
-            # added to cgtsclient
-            for i in range(3):
-                try:
-                    endpoint = session.get_endpoint(
-                        service_type='platform',
-                        region_name=region,
-                        interface=endpoint_type)
-                    token = session.get_token()
-
-                    self.sysinv_client = client.Client(API_VERSION,
-                                                       endpoint=endpoint,
-                                                       token=token,
-                                                       timeout=timeout)
-                    self.region_name = region
-                except Exception:
-                    LOG.error("Retrying to find endpoint or token for %s %s time" % (region, i))
-                else:
-                    break
-            else:
-                LOG.error("Exhausted connection failure retry for %s", region)
-                raise
-
         except exceptions.ServiceUnavailable:
             raise
 

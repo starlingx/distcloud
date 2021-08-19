@@ -1,4 +1,4 @@
-# Copyright 2017-2020 Wind River Inc
+# Copyright 2017-2021 Wind River Inc
 
 # Licensed under the Apache License, Version 2.0 (the "License"); you may
 # not use this file except in compliance with the License. You may obtain
@@ -86,19 +86,10 @@ class OpenStackDriver(object):
             LOG.debug("get new keystone client for subcloud %s", region_name)
             try:
                 self.keystone_client = KeystoneClient(region_name, auth_url)
-            except keystone_exceptions.ConnectFailure:
-                LOG.error("Failed to create keystone client for %s", region_name)
-                for i in range(3):
-                    try:
-                        self.keystone_client = KeystoneClient(region_name, auth_url)
-                    except Exception:
-                        LOG.error("Retrying to create keystone client for %s %s time" % (region_name, i))
-                    else:
-                        break
-                else:
-                    LOG.error("Exhausted connection failure retry for %s", region_name)
-                    raise
-
+            except keystone_exceptions.ConnectFailure as exception:
+                LOG.error('keystone_client region %s error: %s' %
+                          (region_name, str(exception)))
+                raise exception
             except keystone_exceptions.ConnectTimeout as exception:
                 LOG.debug('keystone_client region %s error: %s' %
                           (region_name, str(exception)))
@@ -113,8 +104,9 @@ class OpenStackDriver(object):
                                                   KEYSTONE_CLIENT_NAME,
                                                   self.keystone_client)
             # Clear client object cache
-            OpenStackDriver.os_clients_dict[region_name] = \
-                collections.defaultdict(dict)
+            if region_name != consts.CLOUD_0:
+                OpenStackDriver.os_clients_dict[region_name] = \
+                    collections.defaultdict(dict)
 
         if region_clients:
             self.get_cached_region_clients_for_thread(region_name,
@@ -125,10 +117,20 @@ class OpenStackDriver(object):
                 if getattr(self, client_obj_name) is None:
                     # Create new client object and cache it
                     try:
-                        client_object = region_client_class_map[client_name](
-                            region=region_name,
-                            session=self.keystone_client.session,
-                            endpoint_type=endpoint_type)
+                        # Since SysinvClient (cgtsclient) does not support session, also pass
+                        # the cached endpoint so it does not need to retrieve it from keystone.
+                        if client_name == "sysinv":
+                            sysinv_endpoint = self.keystone_client.endpoint_cache.get_endpoint('sysinv')
+                            client_object = region_client_class_map[client_name](
+                                region=region_name,
+                                session=self.keystone_client.session,
+                                endpoint_type=endpoint_type,
+                                endpoint=sysinv_endpoint)
+                        else:
+                            client_object = region_client_class_map[client_name](
+                                region=region_name,
+                                session=self.keystone_client.session,
+                                endpoint_type=endpoint_type)
                         setattr(self, client_obj_name, client_object)
                         OpenStackDriver.update_region_clients(region_name,
                                                               client_name,
@@ -210,22 +212,8 @@ class OpenStackDriver(object):
                          (region_name,
                           OpenStackDriver._identity_tokens[region_name]
                           ['expires_at']))
-            else:
-                token = keystone.tokens.validate(
-                    OpenStackDriver._identity_tokens[region_name],
-                    include_catalog=False)
-                if token != OpenStackDriver._identity_tokens[region_name]:
-                    LOG.debug("%s: AccessInfo changed %s to %s" %
-                              (region_name,
-                               OpenStackDriver._identity_tokens[region_name],
-                               token))
-                    OpenStackDriver._identity_tokens[region_name] = None
-                    OpenStackDriver.os_clients_dict[region_name] = \
-                        collections.defaultdict(dict)
-                    return False
-
         except Exception as exception:
-            LOG.info('_is_token_valid handle: region: %s error: %s',
+            LOG.info('_is_token_valid handle: region: %s error: %s' %
                      (region_name, str(exception)))
             # Reset the cached dictionary
             OpenStackDriver.os_clients_dict[region_name] = \
@@ -239,11 +227,11 @@ class OpenStackDriver(object):
         # If token is expiring soon, reset cached dictionaries and return False.
         # Else return true.
         if token_expiring_soon:
-            LOG.debug("The cached keystone token for subcloud %s "
-                      "will expire soon %s" %
-                      (region_name,
-                       OpenStackDriver._identity_tokens[region_name]
-                       ['expires_at']))
+            LOG.info("The cached keystone token for subcloud %s "
+                     "will expire soon %s" %
+                     (region_name,
+                      OpenStackDriver._identity_tokens[region_name]
+                      ['expires_at']))
             # Reset the cached dictionary
             OpenStackDriver.os_clients_dict[region_name] = \
                 collections.defaultdict(dict)

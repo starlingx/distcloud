@@ -12,7 +12,7 @@
 #   License for the specific language governing permissions and limitations
 #   under the License.
 #
-# Copyright (c) 2017-2020 Wind River Systems, Inc.
+# Copyright (c) 2017-2021 Wind River Systems, Inc.
 #
 # The right to copy, distribute, modify, or otherwise make use
 # of this software may be licensed only pursuant to the terms
@@ -23,6 +23,7 @@ from keystoneauth1 import exceptions as keystone_exceptions
 from keystoneclient.v3.contrib import endpoint_filter
 from oslo_utils import importutils
 
+from dccommon import consts
 from dccommon.drivers import base
 from dccommon.endpoint_cache import EndpointCache
 from dccommon import exceptions
@@ -39,8 +40,11 @@ class KeystoneClient(base.DriverBase):
             self.endpoint_cache = EndpointCache(region_name, auth_url)
             self.session = self.endpoint_cache.admin_session
             self.keystone_client = self.endpoint_cache.keystone_client
-            self.services_list = self.keystone_client.services.list()
-            self.endpoints_list = self.keystone_client.endpoints.list()
+            if region_name in [consts.CLOUD_0, consts.VIRTUAL_MASTER_CLOUD]:
+                self.services_list = EndpointCache.get_master_services_list()
+            else:
+                self.services_list = self.keystone_client.services.list()
+
         except exceptions.ServiceUnavailable:
             raise
 

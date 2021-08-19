@@ -12,7 +12,7 @@
 # License for the specific language governing permissions and limitations
 # under the License.
 #
-# Copyright (c) 2017-2020 Wind River Systems, Inc.
+# Copyright (c) 2017-2021 Wind River Systems, Inc.
 #
 # The right to copy, distribute, modify, or otherwise make use
 # of this software may be licensed only pursuant to the terms
@@ -41,12 +41,16 @@ PATCH_REST_DEFAULT_TIMEOUT = 600
 class PatchingClient(base.DriverBase):
     """Patching V1 driver."""
 
-    def __init__(self, region, session):
+    def __init__(self, region, session, endpoint=None):
         # Get an endpoint and token.
-        self.endpoint = session.get_endpoint(
-            service_type='patching',
-            region_name=region,
-            interface=consts.KS_ENDPOINT_ADMIN)
+        if endpoint is None:
+            self.endpoint = session.get_endpoint(
+                service_type='patching',
+                region_name=region,
+                interface=consts.KS_ENDPOINT_ADMIN)
+        else:
+            self.endpoint = endpoint
+
         self.token = session.get_token()
 
     def query(self, state=None, release=None, timeout=PATCH_REST_DEFAULT_TIMEOUT):

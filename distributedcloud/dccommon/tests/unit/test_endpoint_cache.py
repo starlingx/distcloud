@@ -20,26 +20,57 @@
 # of an applicable Wind River license agreement.
 #
 
+import mock
+
 from mock import patch
 
 from oslo_config import cfg
 
 from dccommon import endpoint_cache
 from dccommon.tests import base
-from dccommon.tests import utils
+from dccommon import utils
+from keystoneclient.v3 import services
+from keystoneclient.v3 import tokens
+# from dccommon.tests import utils
 
-FAKE_REGION = 'fake_region'
-FAKE_SERVICE = 'fake_service'
-FAKE_URL = 'fake_url'
+FAKE_REGIONONE_SYSINV_ENDPOINT = "http://[2620:10a:a001:a114::d00]:6385/v1"
+FAKE_REGIONONE_KEYSTONE_ENDPOINT = "http://[2620:10a:a001:a114::d00]:5000/v3"
+FAKE_SUBCLOUD1_SYSINV_ENDPOINT = "https://[2620:10a:a001:ac05::7d02]:6386/v1"
+FAKE_SUBCLOUD1_KEYSTONE_ENDPOINT = "https://[2620:10a:a001:ac05::7d02]:5001/v3"
 
-FAKE_REGION_2 = 'fake_region_2'
-FAKE_NOVA_SERVICE = 'fake_nova_service'
-FAKE_NEUTRON_SERVICE = 'fake_neutron_service'
-FAKE_CINDER_SERVICE = 'fake_cinder_service'
-FAKE_NOVA_URL_1 = 'fake_url_nova_1'
-FAKE_NOVA_URL_2 = 'fake_url_nova_2'
-FAKE_CINDER_URL_2 = 'fake_url_cinder_2'
-FAKE_NEUTRON_URL_1 = 'fake_url_neutron_1'
+CENTRAL_REGION = "RegionOne"
+SUBCLOUD1_REGION = "subcloud1"
+
+FAKE_MASTER_SERVICE_ENDPOINT_MAP = \
+    {CENTRAL_REGION: {"sysinv": FAKE_REGIONONE_SYSINV_ENDPOINT,
+                      "keystone": FAKE_REGIONONE_KEYSTONE_ENDPOINT},
+     SUBCLOUD1_REGION: {"sysinv": FAKE_SUBCLOUD1_SYSINV_ENDPOINT,
+                        "keystone": FAKE_SUBCLOUD1_KEYSTONE_ENDPOINT}}
+
+FAKE_SERVICE_ENDPOINT_MAP = {"sysinv": FAKE_REGIONONE_SYSINV_ENDPOINT,
+                             "keystone": FAKE_REGIONONE_KEYSTONE_ENDPOINT}
+
+
+class FakeKeystoneClient(object):
+    def __init__(self):
+        self.session = mock.MagicMock()
+        self.tokens = mock.MagicMock()
+
+
+class FakeService(object):
+    def __init__(self, id, name, type, enabled):
+        self.id = id
+        self.name = name
+        self.type = type
+        self.enabled = enabled
+
+FAKE_SERVICES_LIST = [FakeService(1, "keystone", "identity", True),
+                      FakeService(2, "sysinv", "platform", True),
+                      FakeService(3, "patching", "patching", True),
+                      FakeService(4, "barbican", "key-manager", True),
+                      FakeService(5, "vim", "nfv", True),
+                      FakeService(6, "dcmanager", "dcmanager", True),
+                      FakeService(7, "dcorch", "dcorch", True)]
 
 
 class EndpointCacheTest(base.DCCommonTestCase):
@@ -47,75 +78,50 @@ class EndpointCacheTest(base.DCCommonTestCase):
         super(EndpointCacheTest, self).setUp()
         auth_uri_opts = [
             cfg.StrOpt('auth_uri',
-                       default="fake_auth_uri")]
+                       default="fake_auth_uri"),
+            cfg.StrOpt('username',
+                       default="fake_user"),
+            cfg.StrOpt('password',
+                       default="fake_password"),
+            cfg.StrOpt('project_name',
+                       default="fake_project_name"),
+            cfg.StrOpt('user_domain_name',
+                       default="fake_user_domain_name"),
+            cfg.StrOpt('project_domain_name',
+                       default="fake_project_domain_name")]
         cfg.CONF.register_opts(auth_uri_opts, 'endpoint_cache')
 
-    @patch.object(endpoint_cache.EndpointCache, '_initialize_keystone_client')
-    @patch.object(endpoint_cache.EndpointCache, '_get_endpoint_from_keystone')
-    def test_get_endpoint(self, mock_method, mock_init):
-        endpoint_dict = utils.create_endpoint_dict(base.KEYSTONE_ENDPOINT_0)
-        mock_method.return_value = {endpoint_dict['region_id']: {
-            endpoint_dict['service_id']: endpoint_dict['url']}}
-        mock_init.return_value = None
-        cache = endpoint_cache.EndpointCache()
-        self.assertEqual(cache.get_endpoint(endpoint_dict['region_id'],
-                                            endpoint_dict['service_id']),
-                         endpoint_dict['url'])
+    @patch.object(endpoint_cache.EndpointCache, 'get_admin_session')
+    @patch.object(endpoint_cache.EndpointCache,
+                  'get_cached_master_keystone_client_and_region_endpoint_map')
+    def test_get_endpoint(self, mock_get_cached_data, mock_get_admin_session):
+        mock_get_cached_data.return_value = (FakeKeystoneClient(), FAKE_SERVICE_ENDPOINT_MAP)
+        cache = endpoint_cache.EndpointCache("RegionOne", None)
+        endpoint = cache.get_endpoint("sysinv")
+        self.assertEqual(endpoint, FAKE_REGIONONE_SYSINV_ENDPOINT)
 
-    @patch.object(endpoint_cache.EndpointCache, '_initialize_keystone_client')
-    @patch.object(endpoint_cache.EndpointCache, '_get_endpoint_from_keystone')
-    def test_get_endpoint_not_found(self, mock_method, mock_init):
-        endpoint_dict = utils.create_endpoint_dict(base.KEYSTONE_ENDPOINT_0)
-        mock_method.return_value = {endpoint_dict['region_id']: {
-            endpoint_dict['service_id']: endpoint_dict['url']}}
-        mock_init.return_value = None
-        cache = endpoint_cache.EndpointCache()
-        self.assertEqual(cache.get_endpoint('another_fake_region',
-                                            endpoint_dict['service_id']), '')
-        self.assertEqual(cache.get_endpoint(endpoint_dict['region_id'],
-                                            'another_fake_service'), '')
-
-    @patch.object(endpoint_cache.EndpointCache, '_initialize_keystone_client')
-    @patch.object(endpoint_cache.EndpointCache, '_get_endpoint_from_keystone')
-    def test_get_endpoint_retry(self, mock_method, mock_init):
-        endpoint_dict = utils.create_endpoint_dict(base.KEYSTONE_ENDPOINT_0)
-        mock_init.return_value = None
-        cache = endpoint_cache.EndpointCache()
-        mock_method.return_value = {'another_region': {
-            endpoint_dict['service_id']: 'another_fake_url'}}
-        self.assertEqual(cache.get_endpoint('another_region',
-                                            endpoint_dict['service_id']),
-                         'another_fake_url')
-
-    @patch.object(endpoint_cache.EndpointCache, '_initialize_keystone_client')
-    @patch.object(endpoint_cache.EndpointCache, '_get_endpoint_from_keystone')
-    def test_update_endpoint(self, mock_method, mock_init):
-        endpoint_dict = utils.create_endpoint_dict(base.KEYSTONE_ENDPOINT_0)
-        mock_method.return_value = {endpoint_dict['region_id']: {
-            endpoint_dict['service_id']: endpoint_dict['url']}}
-        mock_init.return_value = None
-        cache = endpoint_cache.EndpointCache()
-        mock_method.return_value = {endpoint_dict['region_id']: {
-            endpoint_dict['service_id']: 'another_fake_url'}}
-        self.assertEqual(cache.get_endpoint(endpoint_dict['region_id'],
-                                            endpoint_dict['service_id']),
-                         endpoint_dict['url'])
-        cache.update_endpoints()
-        self.assertEqual(cache.get_endpoint(endpoint_dict['region_id'],
-                                            endpoint_dict['service_id']),
-                         'another_fake_url')
-
-    @patch.object(endpoint_cache.EndpointCache, '_initialize_keystone_client')
-    @patch.object(endpoint_cache.EndpointCache, '_get_endpoint_from_keystone')
-    def test_get_all_regions(self, mock_method, mock_init):
-        mock_method.return_value = {
-            FAKE_REGION: {FAKE_NOVA_SERVICE: FAKE_NOVA_URL_1,
-                          FAKE_NEUTRON_SERVICE: FAKE_NEUTRON_URL_1},
-            FAKE_REGION_2: {FAKE_NOVA_SERVICE: FAKE_NOVA_URL_2,
-                            FAKE_CINDER_SERVICE: FAKE_CINDER_URL_2}
-            }
-        mock_init.return_value = None
-        cache = endpoint_cache.EndpointCache()
+    @patch.object(endpoint_cache.EndpointCache, 'get_admin_session')
+    @patch.object(tokens.TokenManager, 'validate')
+    @patch.object(endpoint_cache.EndpointCache,
+                  '_generate_master_service_endpoint_map')
+    def test_get_all_regions(self, mock_generate_cached_data, mock_tokens_validate,
+                             mock_admin_session):
+        mock_generate_cached_data.return_value = FAKE_MASTER_SERVICE_ENDPOINT_MAP
+        cache = endpoint_cache.EndpointCache("RegionOne", None)
         region_list = cache.get_all_regions()
-        self.assertIn(FAKE_REGION, region_list)
-        self.assertIn(FAKE_REGION_2, region_list)
+        self.assertIn(CENTRAL_REGION, region_list)
+        self.assertIn(SUBCLOUD1_REGION, region_list)
+
+    @patch.object(endpoint_cache.EndpointCache, 'get_admin_session')
+    @patch.object(utils, 'is_token_expiring_soon')
+    @patch.object(tokens.TokenManager, 'validate')
+    @patch.object(services.ServiceManager, 'list')
+    @patch.object(endpoint_cache.EndpointCache,
+                  '_generate_master_service_endpoint_map')
+    def test_get_services_list(self, mock_generate_cached_data, mock_services_list,
+                               mock_tokens_validate, mock_check_token, mock_admin_session):
+        mock_services_list.return_value = FAKE_SERVICES_LIST
+        mock_generate_cached_data.return_value = FAKE_MASTER_SERVICE_ENDPOINT_MAP
+        endpoint_cache.EndpointCache("RegionOne", None)
+        services_list = endpoint_cache.EndpointCache.get_master_services_list()
+        self.assertEqual(FAKE_SERVICES_LIST, services_list)

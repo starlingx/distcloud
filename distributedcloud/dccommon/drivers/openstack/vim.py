@@ -76,14 +76,18 @@ VIM_AUTHORIZATION_FAILED = "Authorization failed"
 class VimClient(base.DriverBase):
     """VIM driver."""
 
-    def __init__(self, region, session):
+    def __init__(self, region, session, endpoint=None):
         try:
             # The nfv_client doesn't support a session, so we need to
             # get an endpoint and token.
-            self.endpoint = session.get_endpoint(
-                service_type='nfv',
-                region_name=region,
-                interface=consts.KS_ENDPOINT_ADMIN)
+            if endpoint is None:
+                self.endpoint = session.get_endpoint(
+                    service_type='nfv',
+                    region_name=region,
+                    interface=consts.KS_ENDPOINT_ADMIN)
+            else:
+                self.endpoint = endpoint
+
             self.token = session.get_token()
 
         except exceptions.ServiceUnavailable:
