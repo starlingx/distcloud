@@ -14,7 +14,7 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 #
-# Copyright (c) 2019 Wind River Systems, Inc.
+# Copyright (c) 2019-2021 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -77,6 +77,10 @@ class AdminRequired(NotAuthorized):
 
 class UserNotFound(NotFound):
     message = _("User with id %(user_id)s doesn't exist.")
+
+
+class GroupNotFound(NotFound):
+    message = _("Group with id %(group_id)s doesn't exist.")
 
 
 class ProjectNotFound(NotFound):

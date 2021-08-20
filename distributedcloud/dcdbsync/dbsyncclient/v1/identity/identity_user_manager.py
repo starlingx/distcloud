@@ -84,7 +84,7 @@ class User(base.Resource):
         return resource_info
 
 
-class identity_manager(base.ResourceManager):
+class identity_user_manager(base.ResourceManager):
     resource_class = User
 
     def user_create(self, url, data):

@@ -14,7 +14,7 @@
 #    See the License for the specific language governing permissions and
 #    limitations under the License.
 #
-# Copyright (c) 2019 Wind River Systems, Inc.
+# Copyright (c) 2019-2021 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -23,7 +23,8 @@ import keystoneauth1.identity.generic as auth_plugin
 from keystoneauth1 import session as ks_session
 
 from dcdbsync.dbsyncclient import httpclient
-from dcdbsync.dbsyncclient.v1.identity import identity_manager as im
+from dcdbsync.dbsyncclient.v1.identity import identity_group_manager as igm
+from dcdbsync.dbsyncclient.v1.identity import identity_user_manager as ium
 from dcdbsync.dbsyncclient.v1.identity import project_manager as pm
 from dcdbsync.dbsyncclient.v1.identity import role_manager as rm
 from dcdbsync.dbsyncclient.v1.identity \
@@ -97,7 +98,8 @@ class Client(object):
         )
 
         # Create all managers
-        self.identity_manager = im.identity_manager(self.http_client)
+        self.identity_user_manager = ium.identity_user_manager(self.http_client)
+        self.identity_group_manager = igm.identity_group_manager(self.http_client)
         self.project_manager = pm.project_manager(self.http_client)
         self.role_manager = rm.role_manager(self.http_client)
         self.revoke_event_manager = trem.revoke_event_manager(self.http_client)
