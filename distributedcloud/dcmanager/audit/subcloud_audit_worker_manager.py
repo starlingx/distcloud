@@ -148,6 +148,27 @@ class SubcloudAuditWorkerManager(manager.Manager):
                                                 do_firmware_audit,
                                                 do_kubernetes_audit)
 
+    def _update_subcloud_audit_fail_count(self, subcloud,
+                                          audit_fail_count):
+        """Update the subcloud's audit_fail_count directly to db.
+
+        It's safe to update audit_fail_count because only the audit actually cares
+        about it, dcmanager itself doesn't do anything with the value. If
+        audit_fail_count is the only field to update, we want to update the db by
+        an audit worker directly to eliminate unnecessary notifications to dcmanager.
+        Note: this method should not be used for updating any other data.
+        param subcloud: the subcloud object to be updated.
+        param audit_fail_count: count of failed audit.
+        """
+        try:
+            db_api.subcloud_update(self.context, subcloud.id,
+                                   audit_fail_count=audit_fail_count)
+        except exceptions.SubcloudNotFound:
+            # Possibly subcloud could have been deleted since we found it in db,
+            # ignore this benign error.
+            LOG.info('Ignoring SubcloudNotFound when attempting update'
+                     'audit_fail_count for subcloud: %s' % subcloud.name)
+
     def _update_subcloud_availability(self, subcloud_name,
                                       availability_status=None,
                                       update_state_only=False,
@@ -356,9 +377,11 @@ class SubcloudAuditWorkerManager(manager.Manager):
                 audit_fail_count=audit_fail_count)
 
         elif audit_fail_count != subcloud.audit_fail_count:
-            self._update_subcloud_availability(
-                subcloud_name,
-                availability_status=None,
+            # The subcloud remains offline, we only need to update
+            # the audit_fail_count in db directly by an audit worker
+            # to eliminate unnecessary notification to the dcmanager
+            self._update_subcloud_audit_fail_count(
+                subcloud,
                 audit_fail_count=audit_fail_count)
 
         elif update_subcloud_state:
