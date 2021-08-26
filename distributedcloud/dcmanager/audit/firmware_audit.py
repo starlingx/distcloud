@@ -13,7 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-# Copyright (c) 2017-2020 Wind River Systems, Inc.
+# Copyright (c) 2017-2021 Wind River Systems, Inc.
 #
 # The right to copy, distribute, modify, or otherwise make use
 # of this software may be licensed only pursuant to the terms
@@ -88,8 +88,10 @@ class FirmwareAudit(object):
             m_os_ks_client = OpenStackDriver(
                 region_name=consts.DEFAULT_REGION_NAME,
                 region_clients=None).keystone_client
+            endpoint = m_os_ks_client.endpoint_cache.get_endpoint('sysinv')
             sysinv_client = SysinvClient(
-                consts.DEFAULT_REGION_NAME, m_os_ks_client.session)
+                consts.DEFAULT_REGION_NAME, m_os_ks_client.session,
+                endpoint=endpoint)
         except Exception:
             LOG.exception('Failure initializing OS Client, skip firmware audit.')
             return None
@@ -193,9 +195,10 @@ class FirmwareAudit(object):
             return
         try:
             sc_os_client = OpenStackDriver(region_name=subcloud_name,
-                                           region_clients=None)
-            session = sc_os_client.keystone_client.session
-            sysinv_client = SysinvClient(subcloud_name, session)
+                                           region_clients=None).keystone_client
+            endpoint = sc_os_client.endpoint_cache.get_endpoint('sysinv')
+            sysinv_client = SysinvClient(subcloud_name, sc_os_client.session,
+                                         endpoint=endpoint)
         except (keystone_exceptions.EndpointNotFound,
                 keystone_exceptions.ConnectFailure,
                 keystone_exceptions.ConnectTimeout,

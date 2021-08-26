@@ -520,7 +520,8 @@ class SysinvAPIController(APIController):
                     region_name=dcmanager_consts.DEFAULT_REGION_NAME,
                     region_clients=None).keystone_client
                 sysinv_client = SysinvClient(
-                    dcmanager_consts.DEFAULT_REGION_NAME, ks_client.session)
+                    dcmanager_consts.DEFAULT_REGION_NAME, ks_client.session,
+                    endpoint=ks_client.endpoint_cache.get_endpoint('sysinv'))
                 loads = sysinv_client.get_loads()
             except Exception:
                 # Shouldn't be here

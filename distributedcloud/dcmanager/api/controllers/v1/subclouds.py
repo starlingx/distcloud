@@ -652,8 +652,10 @@ class SubcloudsController(object):
     def _get_management_address_pool(self, context):
         """Get the system controller's management address pool"""
         ks_client = self.get_ks_client()
+        endpoint = ks_client.endpoint_cache.get_endpoint('sysinv')
         sysinv_client = SysinvClient(consts.DEFAULT_REGION_NAME,
-                                     ks_client.session)
+                                     ks_client.session,
+                                     endpoint=endpoint)
         return sysinv_client.get_management_address_pool()
 
     def _get_oam_addresses(self, context, subcloud_name):
@@ -662,8 +664,10 @@ class SubcloudsController(object):
         # First need to retrieve the Subcloud's Keystone session
         try:
             sc_ks_client = self.get_ks_client(subcloud_name)
+            endpoint = sc_ks_client.endpoint_cache.get_endpoint('sysinv')
             sysinv_client = SysinvClient(subcloud_name,
-                                         sc_ks_client.session)
+                                         sc_ks_client.session,
+                                         endpoint=endpoint)
             return sysinv_client.get_oam_addresses()
         except (keystone_exceptions.EndpointNotFound, IndexError) as e:
             message = ("Identity endpoint for subcloud: %s not found. %s" %

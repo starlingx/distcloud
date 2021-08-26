@@ -13,7 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-# Copyright (c) 2017-2020 Wind River Systems, Inc.
+# Copyright (c) 2017-2021 Wind River Systems, Inc.
 #
 # The right to copy, distribute, modify, or otherwise make use
 # of this software may be licensed only pursuant to the terms
@@ -101,15 +101,18 @@ class PatchOrchThread(threading.Thread):
 
     def get_sysinv_client(self, region_name=consts.DEFAULT_REGION_NAME):
         ks_client = self.get_ks_client(region_name)
-        return SysinvClient(region_name, ks_client.session)
+        return SysinvClient(region_name, ks_client.session,
+                            endpoint=ks_client.endpoint_cache.get_endpoint('sysinv'))
 
     def get_patching_client(self, region_name=consts.DEFAULT_REGION_NAME):
         ks_client = self.get_ks_client(region_name)
-        return PatchingClient(region_name, ks_client.session)
+        return PatchingClient(region_name, ks_client.session,
+                              endpoint=ks_client.endpoint_cache.get_endpoint('patching'))
 
     def get_vim_client(self, region_name=consts.DEFAULT_REGION_NAME):
         ks_client = self.get_ks_client(region_name)
-        return vim.VimClient(region_name, ks_client.session)
+        return vim.VimClient(region_name, ks_client.session,
+                             endpoint=ks_client.endpoint_cache.get_endpoint('vim'))
 
     @staticmethod
     def get_region_name(strategy_step):

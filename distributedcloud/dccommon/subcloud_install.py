@@ -89,10 +89,11 @@ class SubcloudInstall(object):
     """Class to encapsulate the subcloud install operations"""
 
     def __init__(self, context, subcloud_name):
-        ks_client = KeystoneClient()
+        ks_client = KeystoneClient(region_name=consts.CLOUD_0)
         session = ks_client.endpoint_cache.get_session_from_token(
             context.auth_token, context.project)
-        self.sysinv_client = SysinvClient(consts.CLOUD_0, session)
+        endpoint = ks_client.endpoint_cache.get_endpoint('sysinv')
+        self.sysinv_client = SysinvClient(consts.CLOUD_0, session, endpoint=endpoint)
         self.name = subcloud_name
         self.input_iso = None
         self.www_root = None

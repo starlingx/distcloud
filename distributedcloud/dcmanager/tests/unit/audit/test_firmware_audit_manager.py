@@ -166,10 +166,18 @@ DEVICE_IMAGE_STATE2 = DeviceImageState(PCI_DEVICE4.uuid,
                                        'pending')
 
 
+class FakeKeystoneClient(object):
+    def __init__(self):
+        self.keystone_client = mock.MagicMock()
+        self.session = mock.MagicMock()
+        self.endpoint_cache = mock.MagicMock()
+
+
 class FakeSysinvClientNoEnabledDevices(object):
-    def __init__(self, region, session):
+    def __init__(self, region, session, endpoint):
         self.region = region
         self.session = session
+        self.endpoint = endpoint
         self.device_images = [DEVICE_IMAGE1]
         self.pci_devices = [PCI_DEVICE1, PCI_DEVICE2]
         self.hosts = [HOST1]
@@ -185,9 +193,10 @@ class FakeSysinvClientNoEnabledDevices(object):
 
 
 class FakeSysinvClientNoAuditData(object):
-    def __init__(self, region, session):
+    def __init__(self, region, session, endpoint):
         self.region = region
         self.session = session
+        self.endpoint = endpoint
         self.device_images = [DEVICE_IMAGE2]
         self.pci_devices = [PCI_DEVICE1, PCI_DEVICE2]
 
@@ -199,9 +208,10 @@ class FakeSysinvClientNoAuditData(object):
 
 
 class FakeSysinvClientImageWithoutLabels(object):
-    def __init__(self, region, session):
+    def __init__(self, region, session, endpoint):
         self.region = region
         self.session = session
+        self.endpoint = endpoint
         self.device_images = [DEVICE_IMAGE1]
         self.pci_devices = [PCI_DEVICE2, PCI_DEVICE3]
         self.hosts = [HOST1]
@@ -225,9 +235,10 @@ class FakeSysinvClientImageWithoutLabels(object):
 
 
 class FakeSysinvClientImageNotApplied(object):
-    def __init__(self, region, session):
+    def __init__(self, region, session, endpoint):
         self.region = region
         self.session = session
+        self.endpoint = endpoint
         self.device_images = [DEVICE_IMAGE1]
         self.pci_devices = [PCI_DEVICE2, PCI_DEVICE3]
         self.hosts = [HOST1]
@@ -253,9 +264,10 @@ class FakeSysinvClientImageNotApplied(object):
 
 
 class FakeSysinvClientImageNotWritten(object):
-    def __init__(self, region, session):
+    def __init__(self, region, session, endpoint):
         self.region = region
         self.session = session
+        self.endpoint = endpoint
         self.device_images = [DEVICE_IMAGE1]
         self.pci_devices = [PCI_DEVICE2, PCI_DEVICE3]
         self.hosts = [HOST1]
@@ -279,9 +291,10 @@ class FakeSysinvClientImageNotWritten(object):
 
 
 class FakeSysinvClientImageWithLabels(object):
-    def __init__(self, region, session):
+    def __init__(self, region, session, endpoint):
         self.region = region
         self.session = session
+        self.endpoint = endpoint
         self.device_images = [DEVICE_IMAGE3]
         self.pci_devices = [PCI_DEVICE2, PCI_DEVICE3]
         self.hosts = [HOST1]
@@ -305,9 +318,10 @@ class FakeSysinvClientImageWithLabels(object):
 
 
 class FakeSysinvClientNoMatchingDeviceLabel(object):
-    def __init__(self, region, session):
+    def __init__(self, region, session, endpoint):
         self.region = region
         self.session = session
+        self.endpoint = endpoint
         self.device_images = [DEVICE_IMAGE3]
         self.pci_devices = [PCI_DEVICE2, PCI_DEVICE3]
         self.hosts = [HOST1]
@@ -332,9 +346,10 @@ class FakeSysinvClientNoMatchingDeviceLabel(object):
 
 
 class FakeSysinvClientNoMatchingDeviceId(object):
-    def __init__(self, region, session):
+    def __init__(self, region, session, endpoint):
         self.region = region
         self.session = session
+        self.endpoint = endpoint
         self.device_images = [DEVICE_IMAGE3]
         self.pci_devices = [PCI_DEVICE4]
         self.hosts = [HOST1]
@@ -402,6 +417,7 @@ class TestFirmwareAudit(base.DCManagerTestCase):
                                             mock_openstack_driver,
                                             mock_patching_client,
                                             mock_sysinv_client):
+
         mock_context.get_admin_context.return_value = self.ctxt
         mock_fw_sysinv_client.side_effect = FakeSysinvClientNoAuditData
 
@@ -438,6 +454,7 @@ class TestFirmwareAudit(base.DCManagerTestCase):
                                             mock_openstack_driver,
                                             mock_patching_client,
                                             mock_sysinv_client):
+
         mock_context.get_admin_context.return_value = self.ctxt
         mock_fw_sysinv_client.side_effect = FakeSysinvClientNoEnabledDevices
 

@@ -11,6 +11,12 @@
 # WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
 # License for the specific language governing permissions and limitations
 # under the License.
+#
+# Copyright (c) 2021 Wind River Systems, Inc.
+#
+# The right to copy, distribute, modify, or otherwise make use
+# of this software may be licensed only pursuant to the terms
+# of an applicable Wind River license agreement.
 
 """
 OpenStack Driver
@@ -70,8 +76,10 @@ class OpenStackDriver(object):
                 region_name] = collections.defaultdict(dict)
 
             try:
+                sysinv_endpoint = self.keystone_client.endpoint_cache.get_endpoint('sysinv')
                 self.sysinv_client = SysinvClient(region_name,
-                                                  self.keystone_client.session)
+                                                  self.keystone_client.session,
+                                                  endpoint=sysinv_endpoint)
                 OpenStackDriver.os_clients_dict[region_name][
                     'sysinv'] = self.sysinv_client
             except Exception as exception:

@@ -310,8 +310,10 @@ class SubcloudManager(manager.Manager):
                 region_name=consts.DEFAULT_REGION_NAME,
                 region_clients=None).keystone_client
             subcloud_subnet = netaddr.IPNetwork(payload['management_subnet'])
+            endpoint = m_ks_client.endpoint_cache.get_endpoint('sysinv')
             sysinv_client = SysinvClient(consts.DEFAULT_REGION_NAME,
-                                         m_ks_client.session)
+                                         m_ks_client.session,
+                                         endpoint=endpoint)
             controllers = sysinv_client.get_controller_hosts()
             for controller in controllers:
                 management_interface = sysinv_client.get_management_interface(
@@ -367,11 +369,20 @@ class SubcloudManager(manager.Manager):
                     msg='Missing service in SystemController')
 
             for endpoint in endpoint_config:
-                m_ks_client.keystone_client.endpoints.create(
-                    endpoint["id"],
-                    endpoint['admin_endpoint_url'],
-                    interface=dccommon_consts.KS_ENDPOINT_ADMIN,
-                    region=subcloud.name)
+                try:
+                    m_ks_client.keystone_client.endpoints.create(
+                        endpoint["id"],
+                        endpoint['admin_endpoint_url'],
+                        interface=dccommon_consts.KS_ENDPOINT_ADMIN,
+                        region=subcloud.name)
+                except Exception as e:
+                    # Keystone service must be temporarily busy, retry
+                    LOG.error(str(e))
+                    m_ks_client.keystone_client.endpoints.create(
+                        endpoint["id"],
+                        endpoint['admin_endpoint_url'],
+                        interface=dccommon_consts.KS_ENDPOINT_ADMIN,
+                        region=subcloud.name)
 
             # Inform orchestrator that subcloud has been added
             self.dcorch_rpc_client.add_subcloud(
@@ -944,7 +955,9 @@ class SubcloudManager(manager.Manager):
         m_ks_client = OpenStackDriver(
             region_name=consts.DEFAULT_REGION_NAME,
             region_clients=None).keystone_client
-        sysinv_client = SysinvClient(consts.DEFAULT_REGION_NAME, m_ks_client.session)
+        endpoint = m_ks_client.endpoint_cache.get_endpoint('sysinv')
+        sysinv_client = SysinvClient(consts.DEFAULT_REGION_NAME, m_ks_client.session,
+                                     endpoint=endpoint)
 
         mgmt_pool = sysinv_client.get_management_address_pool()
         mgmt_floating_ip = mgmt_pool.floating_address
@@ -1008,7 +1021,9 @@ class SubcloudManager(manager.Manager):
         # Delete the route to this subcloud on the management interface on
         # both controllers.
         management_subnet = netaddr.IPNetwork(subcloud.management_subnet)
-        sysinv_client = SysinvClient(consts.DEFAULT_REGION_NAME, keystone_client.session)
+        endpoint = keystone_client.endpoint_cache.get_endpoint('sysinv')
+        sysinv_client = SysinvClient(consts.DEFAULT_REGION_NAME, keystone_client.session,
+                                     endpoint=endpoint)
         controllers = sysinv_client.get_controller_hosts()
         for controller in controllers:
             management_interface = sysinv_client.get_management_interface(

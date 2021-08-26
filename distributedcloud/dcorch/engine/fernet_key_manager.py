@@ -1,4 +1,4 @@
-# Copyright 2018 Wind River
+# Copyright 2018-2021 Wind River
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -96,7 +96,8 @@ class FernetKeyManager(manager.Manager):
             # sync and after weekly key rotation
             ks_client = KeystoneClient(dccommon_consts.CLOUD_0)
             sysinv_client = SysinvClient(dccommon_consts.CLOUD_0,
-                                         ks_client.session)
+                                         ks_client.session,
+                                         ks_client.endpoint_cache.get_endpoint('sysinv'))
             keys = sysinv_client.get_fernet_keys()
         except (exceptions.ConnectionRefused, exceptions.NotAuthorized,
                 exceptions.TimeOut):
@@ -141,7 +142,8 @@ class FernetKeyManager(manager.Manager):
             # No cached client is required as it is only called during the
             # initial sync
             ks_client = KeystoneClient(subcloud_name)
-            sysinv_client = SysinvClient(subcloud_name, ks_client.session)
+            sysinv_client = SysinvClient(subcloud_name, ks_client.session,
+                                         ks_client.endpoint_cache.get_endpoint('sysinv'))
             sysinv_client.post_fernet_repo(key_list)
         except (exceptions.ConnectionRefused, exceptions.NotAuthorized,
                 exceptions.TimeOut):

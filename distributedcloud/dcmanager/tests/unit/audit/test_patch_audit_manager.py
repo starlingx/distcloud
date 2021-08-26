@@ -66,9 +66,10 @@ class System(object):
 
 
 class FakePatchingClientInSync(object):
-    def __init__(self, region, session):
+    def __init__(self, region, session, endpoint):
         self.region = region
         self.session = session
+        self.endpoint = endpoint
 
     def query(self):
         if self.region == 'RegionOne':
@@ -109,9 +110,10 @@ class FakePatchingClientInSync(object):
 
 
 class FakePatchingClientOutOfSync(object):
-    def __init__(self, region, session):
+    def __init__(self, region, session, endpoint):
         self.region = region
         self.session = session
+        self.endpoint = endpoint
 
     def query(self):
         if self.region == 'RegionOne':
@@ -151,9 +153,10 @@ class FakePatchingClientOutOfSync(object):
 
 
 class FakePatchingClientExtraPatches(object):
-    def __init__(self, region, session):
+    def __init__(self, region, session, endpoint):
         self.region = region
         self.session = session
+        self.endpoint = endpoint
 
     def query(self):
         if self.region == 'RegionOne':
@@ -188,7 +191,10 @@ class FakePatchingClientExtraPatches(object):
 
 
 class FakeSysinvClientOneLoad(object):
-    def __init__(self, region, session):
+    def __init__(self, region, session, endpoint):
+        self.region = region
+        self.session = session
+        self.endpoint = endpoint
         self.loads = [Load('17.07', 'active')]
         self.upgrades = []
         self.system = System('17.07')
@@ -204,8 +210,10 @@ class FakeSysinvClientOneLoad(object):
 
 
 class FakeSysinvClientOneLoadUnmatchedSoftwareVersion(object):
-    def __init__(self, region, session):
+    def __init__(self, region, session, endpoint):
         self.region = region
+        self.session = session
+        self.endpoint = endpoint
         self.loads = [Load('17.07', 'active')]
         self.upgrades = []
         self.system = System('17.07')
@@ -224,8 +232,10 @@ class FakeSysinvClientOneLoadUnmatchedSoftwareVersion(object):
 
 
 class FakeSysinvClientOneLoadUpgradeInProgress(object):
-    def __init__(self, region, session):
+    def __init__(self, region, session, endpoint):
         self.region = region
+        self.session = session
+        self.endpoint = endpoint
         self.loads = [Load('17.07', 'active')]
         self.upgrades = []
         self.system = System('17.07')

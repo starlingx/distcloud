@@ -96,11 +96,11 @@ class BaseState(object):
     def get_sysinv_client(self, region_name):
         """construct a sysinv client
 
-           todo(abailey): determine if this client can be cached
         """
         keystone_client = self.get_keystone_client(region_name)
-
-        return SysinvClient(region_name, keystone_client.session)
+        endpoint = keystone_client.endpoint_cache.get_endpoint('sysinv')
+        return SysinvClient(region_name, keystone_client.session,
+                            endpoint=endpoint)
 
     def get_fm_client(self, region_name):
         keystone_client = self.get_keystone_client(region_name)

@@ -10,7 +10,7 @@
 # License for the specific language governing permissions and limitations
 # under the License.
 #
-# Copyright (c) 2017-2020 Wind River Systems, Inc.
+# Copyright (c) 2017-2021 Wind River Systems, Inc.
 #
 # The right to copy, distribute, modify, or otherwise make use
 # of this software may be licensed only pursuant to the terms
@@ -138,6 +138,7 @@ class FakeKeystoneClient(object):
         self.services_list = FAKE_SERVICES
         self.keystone_client = mock.MagicMock()
         self.session = mock.MagicMock()
+        self.endpoint_cache = mock.MagicMock()
 
     def get_enabled_users(self, id_only):
         if not id_only:

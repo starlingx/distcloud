@@ -99,10 +99,11 @@ class Load(object):
 
 
 class FakePatchingClientOutOfSync(mock.Mock):
-    def __init__(self, region, session):
+    def __init__(self, region, session, endpoint):
         super(FakePatchingClientOutOfSync, self).__init__()
         self.region = region
         self.session = session
+        self.endpoint = endpoint
 
     def query(self):
         if self.region == 'RegionOne':
@@ -147,10 +148,11 @@ class FakePatchingClientOutOfSync(mock.Mock):
 
 
 class FakePatchingClientSubcloudCommitted(mock.Mock):
-    def __init__(self, region, session):
+    def __init__(self, region, session, endpoint):
         super(FakePatchingClientSubcloudCommitted, self).__init__()
         self.region = region
         self.session = session
+        self.endpoint = endpoint
 
     def query(self):
         if self.region == 'RegionOne':
@@ -195,10 +197,11 @@ class FakePatchingClientSubcloudCommitted(mock.Mock):
 
 
 class FakePatchingClientSubcloudUnknown(mock.Mock):
-    def __init__(self, region, session):
+    def __init__(self, region, session, endpoint):
         super(FakePatchingClientSubcloudUnknown, self).__init__()
         self.region = region
         self.session = session
+        self.endpoint = endpoint
 
     def query(self):
         if self.region == 'RegionOne':
@@ -243,10 +246,11 @@ class FakePatchingClientSubcloudUnknown(mock.Mock):
 
 
 class FakePatchingClientFinish(mock.Mock):
-    def __init__(self, region, session):
+    def __init__(self, region, session, endpoint):
         super(FakePatchingClientFinish, self).__init__()
         self.region = region
         self.session = session
+        self.endpoint = endpoint
 
     def query(self, state=None):
         if self.region == 'RegionOne':
@@ -306,7 +310,10 @@ class FakePatchingClientFinish(mock.Mock):
 
 
 class FakeSysinvClientOneLoad(object):
-    def __init__(self, region, session):
+    def __init__(self, region, session, endpoint):
+        self.region = region
+        self.session = session
+        self.endpoint = endpoint
         self.loads = [Load('17.07')]
 
     def get_loads(self):

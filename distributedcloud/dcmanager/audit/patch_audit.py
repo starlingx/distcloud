@@ -13,7 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-# Copyright (c) 2017-2020 Wind River Systems, Inc.
+# Copyright (c) 2017-2021 Wind River Systems, Inc.
 #
 # The right to copy, distribute, modify, or otherwise make use
 # of this software may be licensed only pursuant to the terms
@@ -99,10 +99,14 @@ class PatchAudit(object):
             m_os_ks_client = OpenStackDriver(
                 region_name=consts.DEFAULT_REGION_NAME,
                 region_clients=None).keystone_client
+            patching_endpoint = m_os_ks_client.endpoint_cache.get_endpoint('patching')
+            sysinv_endpoint = m_os_ks_client.endpoint_cache.get_endpoint('sysinv')
             patching_client = PatchingClient(
-                consts.DEFAULT_REGION_NAME, m_os_ks_client.session)
+                consts.DEFAULT_REGION_NAME, m_os_ks_client.session,
+                endpoint=patching_endpoint)
             sysinv_client = SysinvClient(
-                consts.DEFAULT_REGION_NAME, m_os_ks_client.session)
+                consts.DEFAULT_REGION_NAME, m_os_ks_client.session,
+                endpoint=sysinv_endpoint)
         except Exception:
             LOG.exception('Failure initializing OS Client, skip patch audit.')
             return None
@@ -139,10 +143,16 @@ class PatchAudit(object):
         LOG.info('Triggered patch audit for subcloud: %s.' % subcloud_name)
         try:
             sc_os_client = OpenStackDriver(region_name=subcloud_name,
-                                           region_clients=None)
-            session = sc_os_client.keystone_client.session
-            patching_client = PatchingClient(subcloud_name, session)
-            sysinv_client = SysinvClient(subcloud_name, session)
+                                           region_clients=None).keystone_client
+            session = sc_os_client.session
+            patching_endpoint = sc_os_client.endpoint_cache.get_endpoint('patching')
+            sysinv_endpoint = sc_os_client.endpoint_cache.get_endpoint('sysinv')
+            patching_client = PatchingClient(
+                subcloud_name, session,
+                endpoint=patching_endpoint)
+            sysinv_client = SysinvClient(
+                subcloud_name, session,
+                endpoint=sysinv_endpoint)
         except (keystone_exceptions.EndpointNotFound,
                 keystone_exceptions.ConnectFailure,
                 keystone_exceptions.ConnectTimeout,
