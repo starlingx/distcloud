@@ -27,38 +27,60 @@ class ImportingLoadState(BaseState):
         self.sleep_duration = DEFAULT_SLEEP_DURATION
         self.max_queries = DEFAULT_MAX_QUERIES
 
-    def _wait_for_request_to_complete(self, strategy_step, request_info):
+    def get_load(self, strategy_step, request_info):
+        self.info_log(strategy_step, "Checking load state...")
         load_id = request_info.get('load_id')
         load_version = request_info.get('load_version')
         request_type = request_info.get('type')
+
+        load = None
+        try:
+            if request_type == LOAD_DELETE_REQUEST_TYPE:
+                self.info_log(strategy_step, "Retrieving load list from subcloud...")
+                # success when only one load, the active load, remains
+                if len(self.subcloud_sysinv.get_loads()) == 1:
+                    msg = "Load: %s has been removed." % load_version
+                    self.info_log(strategy_step, msg)
+                    return True
+            else:
+                load = self.subcloud_sysinv.get_load(load_id)
+                if load.state == consts.IMPORTED_LOAD_STATE:
+                    # success when load is imported
+                    msg = "Load: %s is now: %s" % (load_version,
+                                                   load.state)
+                    self.info_log(strategy_step, msg)
+                    return True
+        except Exception as exception:
+            self.warn_log(strategy_step,
+                          "Encountered exception: %s, "
+                          "retry load operation %s."
+                          % (str(exception), request_type))
+
+        if load and load.state == consts.ERROR_LOAD_STATE:
+            self.error_log(strategy_step,
+                           "Load %s failed import" % load_version)
+            raise Exception("Failed to import load. Please check sysinv.log "
+                            "on the subcloud for details.")
+
+        # return False to allow for retry if not at limit
+        return False
+
+    def _wait_for_request_to_complete(self, strategy_step, request_info):
         counter = 0
+        request_type = request_info.get('type')
 
         while True:
             # If event handler stop has been triggered, fail the state
             if self.stopped():
                 raise StrategyStoppedException()
 
-            if request_type == LOAD_DELETE_REQUEST_TYPE:
-                # repeatedly query until only one load, the active load, remains
-                if len(self.subcloud_sysinv.get_loads()) == 1:
-                    msg = "Load: %s has been removed." % load_version
-                    self.info_log(strategy_step, msg)
-                    break
-            else:
-                # repeatedly query until load state changes to 'imported'
-                load = self.subcloud_sysinv.get_load(load_id)
-                if load.state == consts.IMPORTED_LOAD_STATE:
-                    msg = "Load: %s is now: %s" % (load_version,
-                                                   load.state)
-                    self.info_log(strategy_step, msg)
-                    break
-                elif load.state == consts.ERROR_LOAD_STATE:
-                    self.error_log(strategy_step,
-                                   "Load %s failed import" % load_version)
-                    raise Exception("Failed to import load. Please check sysinv.log "
-                                    "on the subcloud for details.")
+            # query for load operation success
+            if self.get_load(strategy_step, request_info):
+                break
 
             counter += 1
+            self.debug_log(strategy_step,
+                           "Waiting for load %s to complete, iter=%d" % (request_type, counter))
             if counter >= self.max_queries:
                 raise Exception("Timeout waiting for %s to complete"
                                 % request_type)
@@ -90,6 +112,8 @@ class ImportingLoadState(BaseState):
         load_id_to_be_deleted = req_info.get('load_id')
 
         if load_id_to_be_deleted is not None:
+            self.info_log(strategy_step,
+                          "Deleting load %s..." % load_id_to_be_deleted)
             self.subcloud_sysinv.delete_load(load_id_to_be_deleted)
             req_info['type'] = LOAD_DELETE_REQUEST_TYPE
             self._wait_for_request_to_complete(strategy_step, req_info)
@@ -109,6 +133,7 @@ class ImportingLoadState(BaseState):
                               "Load: %s is now: %s" % (load.software_version, load.state))
             else:
                 # ISO and SIG files are found in the vault under a version directory
+                self.info_log(strategy_step, "Getting vault load files...")
                 iso_path, sig_path = utils.get_vault_load_files(target_version)
                 if not iso_path:
                     message = ("Failed to get upgrade load info for subcloud %s" %
@@ -116,6 +141,7 @@ class ImportingLoadState(BaseState):
                     raise Exception(message)
 
                 # Call the API. import_load blocks until the load state is 'importing'
+                self.info_log(strategy_step, "Sending load import request...")
                 new_load = self.subcloud_sysinv.import_load(iso_path, sig_path)
                 if new_load.software_version != target_version:
                     raise Exception("The imported load was not the expected version.")
@@ -126,6 +152,8 @@ class ImportingLoadState(BaseState):
                 req_info['load_id'] = new_load.id
                 req_info['load_version'] = target_version
                 req_info['type'] = LOAD_IMPORT_REQUEST_TYPE
+                self.info_log(strategy_step,
+                              "Waiting for state to change from importing to imported...")
                 self._wait_for_request_to_complete(strategy_step, req_info)
         except Exception as e:
             self.error_log(strategy_step, str(e))

@@ -155,6 +155,32 @@ class TestSwUpgradeImportingLoadStage(TestSwUpgradeState):
         self.assert_step_updated(self.strategy_step.subcloud_id,
                                  self.on_success_state)
 
+    def test_upgrade_subcloud_importing_load_retry(self):
+        """Test importing load where HTTP error occurs after successful API call."""
+
+        # Simulate the target load has not been imported yet on the subcloud
+        self.sysinv_client.get_loads.return_value = DEST_LOAD_MISSING
+
+        # Simulate an API success on the subcloud.
+        self.sysinv_client.import_load.return_value = \
+            SUCCESS_IMPORTING_RESPONSE
+
+        # Simulate an HTTP exception thrown
+        self.sysinv_client.get_load.side_effect = \
+            [IMPORTING_LOAD,
+             Exception("HTTPBadRequest: this is a fake exception"),
+             IMPORTED_LOAD]
+
+        # invoke the strategy state operation on the orch thread
+        self.worker.perform_state_action(self.strategy_step)
+
+        # verify the import load API call was invoked
+        self.sysinv_client.import_load.assert_called()
+
+        # On success, should have moved to the next state
+        self.assert_step_updated(self.strategy_step.subcloud_id,
+                                 self.on_success_state)
+
     def test_upgrade_subcloud_importing_load_with_old_load_success(self):
         """Test the importing load step succeeds with existing old load
 
