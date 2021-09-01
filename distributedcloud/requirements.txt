@@ -50,3 +50,4 @@ pycrypto>=2.6 # Public Domain
 requests_toolbelt
 keyring
 kubernetes  # Apache-2.0
+psutil
