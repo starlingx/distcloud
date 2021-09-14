@@ -19,6 +19,7 @@
 
 import copy
 import mock
+import random
 
 import sys
 sys.modules['fm_core'] = mock.Mock()
@@ -388,6 +389,11 @@ class TestAuditWorkerManager(base.DCManagerTestCase):
             mock.ANY, subcloud.name, consts.AVAILABILITY_ONLINE,
             False, 0)
 
+        # Verify the _update_subcloud_audit_fail_count is not called
+        with mock.patch.object(wm, '_update_subcloud_audit_fail_count') as \
+            mock_update_subcloud_audit_fail_count:
+            mock_update_subcloud_audit_fail_count.assert_not_called()
+
         # Verify the openstack endpoints were not updated
         self.fake_dcmanager_api.update_subcloud_sync_endpoint_type.\
             assert_not_called()
@@ -442,6 +448,11 @@ class TestAuditWorkerManager(base.DCManagerTestCase):
             mock.ANY, subcloud.name, consts.AVAILABILITY_ONLINE,
             False, 0)
 
+        # Verify the _update_subcloud_audit_fail_count is not called
+        with mock.patch.object(wm, '_update_subcloud_audit_fail_count') as \
+            mock_update_subcloud_audit_fail_count:
+            mock_update_subcloud_audit_fail_count.assert_not_called()
+
         # Verify the openstack endpoints were not added
         self.fake_dcmanager_api.update_subcloud_sync_endpoint_type.\
             assert_not_called()
@@ -485,6 +496,11 @@ class TestAuditWorkerManager(base.DCManagerTestCase):
         self.fake_dcmanager_api.update_subcloud_availability.\
             assert_not_called()
 
+        # Verify the _update_subcloud_audit_fail_count is not called
+        with mock.patch.object(wm, '_update_subcloud_audit_fail_count') as \
+            mock_update_subcloud_audit_fail_count:
+            mock_update_subcloud_audit_fail_count.assert_not_called()
+
         # Verify the openstack endpoints were not added
         self.fake_dcmanager_api.update_subcloud_sync_endpoint_type.\
             assert_not_called()
@@ -521,6 +537,11 @@ class TestAuditWorkerManager(base.DCManagerTestCase):
         self.fake_dcmanager_api.update_subcloud_availability.assert_called_with(
             mock.ANY, subcloud.name, consts.AVAILABILITY_ONLINE,
             True, None)
+
+        # Verify the _update_subcloud_audit_fail_count is not called
+        with mock.patch.object(wm, '_update_subcloud_audit_fail_count') as \
+            mock_update_subcloud_audit_fail_count:
+            mock_update_subcloud_audit_fail_count.assert_not_called()
 
         # Verify the openstack endpoints were not updated
         self.fake_dcmanager_api.update_subcloud_sync_endpoint_type.\
@@ -579,11 +600,13 @@ class TestAuditWorkerManager(base.DCManagerTestCase):
                            do_firmware_audit=do_firmware_audit,
                            do_kubernetes_audit=do_kubernetes_audit)
 
-        # Verify the audit fail count was updated
+        # Verify the audit fail count was updated in db
         audit_fail_count = 1
-        self.fake_dcmanager_api.update_subcloud_availability.\
-            assert_called_with(mock.ANY, subcloud.name,
-                               None, False, audit_fail_count)
+        subcloud = db_api.subcloud_get(self.ctx, subcloud.id)
+        self.assertEqual(subcloud.audit_fail_count, audit_fail_count)
+
+        # Verify the update_subcloud_availability was not called
+        self.fake_dcmanager_api.update_subcloud_availability.assert_not_called()
 
         # Update the DB like dcmanager would do.
         subcloud = db_api.subcloud_update(
@@ -604,11 +627,12 @@ class TestAuditWorkerManager(base.DCManagerTestCase):
 
         audit_fail_count = audit_fail_count + 1
 
-        # Verify the subcloud goes offline
-        self.fake_dcmanager_api.update_subcloud_availability.\
-            assert_called_with(mock.ANY, subcloud.name,
-                               None, False,
-                               audit_fail_count)
+        # Verify the audit fail count was updated in db
+        subcloud = db_api.subcloud_get(self.ctx, subcloud.id)
+        self.assertEqual(subcloud.audit_fail_count, audit_fail_count)
+
+        # Verify the update_subcloud_availability was not called
+        self.fake_dcmanager_api.update_subcloud_availability.assert_not_called()
 
         # Verify alarm update is called only once
         self.fake_alarm_aggr.update_alarm_summary.assert_called_once_with(
@@ -667,6 +691,11 @@ class TestAuditWorkerManager(base.DCManagerTestCase):
         self.fake_dcmanager_api.update_subcloud_availability.\
             assert_not_called()
 
+        # Verify the _update_subcloud_audit_fail_count is not called
+        with mock.patch.object(wm, '_update_subcloud_audit_fail_count') as \
+            mock_update_subcloud_audit_fail_count:
+            mock_update_subcloud_audit_fail_count.assert_not_called()
+
         # Verify the openstack endpoints were not updated
         self.fake_dcmanager_api.update_subcloud_sync_endpoint_type.\
             assert_not_called()
@@ -682,6 +711,87 @@ class TestAuditWorkerManager(base.DCManagerTestCase):
 
         # Verify kubernetes audit is not called
         self.fake_kubernetes_audit.subcloud_kubernetes_audit.assert_not_called()
+
+    def test_audit_subcloud_offline_update_audit_fail_count_only(self):
+        subcloud = self.create_subcloud_static(self.ctx, name='subcloud1')
+        self.assertIsNotNone(subcloud)
+
+        am = subcloud_audit_manager.SubcloudAuditManager()
+        wm = subcloud_audit_worker_manager.SubcloudAuditWorkerManager()
+
+        audit_fail_count = random.randint(
+            consts.AVAIL_FAIL_COUNT_TO_ALARM, consts.AVAIL_FAIL_COUNT_MAX - 1)
+        subcloud = db_api.subcloud_update(
+            self.ctx, subcloud.id, audit_fail_count=audit_fail_count)
+
+        # Mark a service group as inactive
+        self.fake_openstack_client.sysinv_client.get_service_groups_result = \
+            copy.deepcopy(FAKE_SERVICE_GROUPS)
+        self.fake_openstack_client.sysinv_client. \
+            get_service_groups_result[3].state = 'inactive'
+
+        # Audit the subcloud
+        do_patch_audit = True
+        do_load_audit = True
+        do_firmware_audit = True
+        do_kubernetes_audit = True
+        patch_audit_data, firmware_audit_data, kubernetes_audit_data = \
+            am._get_audit_data(do_patch_audit,
+                               do_firmware_audit,
+                               do_kubernetes_audit)
+        # Convert to dict like what would happen calling via RPC
+        patch_audit_data = patch_audit_data.to_dict()
+        wm._audit_subcloud(subcloud, update_subcloud_state=False,
+                           do_audit_openstack=True,
+                           patch_audit_data=patch_audit_data,
+                           firmware_audit_data=firmware_audit_data,
+                           kubernetes_audit_data=kubernetes_audit_data,
+                           do_patch_audit=do_patch_audit,
+                           do_load_audit=do_load_audit,
+                           do_firmware_audit=do_firmware_audit,
+                           do_kubernetes_audit=do_kubernetes_audit)
+
+        # Verify the audit fail count was updated in the DB.
+        subcloud = db_api.subcloud_get(self.ctx, subcloud.id)
+        self.assertEqual(
+            subcloud.audit_fail_count, audit_fail_count + 1)
+
+        # Verify the subcloud state was not updated
+        self.fake_dcmanager_api.update_subcloud_availability.\
+            assert_not_called()
+
+        # Verify the openstack endpoints were not updated
+        self.fake_dcmanager_api.update_subcloud_sync_endpoint_type.\
+            assert_not_called()
+
+        # Verify alarm update is not called
+        self.fake_alarm_aggr.update_alarm_summary.assert_not_called()
+
+        # Verify patch audit is not called
+        self.fake_patch_audit.subcloud_patch_audit.assert_not_called()
+
+        # Verify firmware audit is not called
+        self.fake_firmware_audit.subcloud_firmware_audit.assert_not_called()
+
+        # Verify kubernetes audit is not called
+        self.fake_kubernetes_audit.subcloud_kubernetes_audit.assert_not_called()
+
+    @mock.patch.object(subcloud_audit_worker_manager, 'LOG')
+    def test_update_subcloud_audit_fail_count_subcloud_deleted(self, mock_logging):
+        subcloud = self.create_subcloud_static(self.ctx, name='subcloud1')
+        self.assertIsNotNone(subcloud)
+
+        wm = subcloud_audit_worker_manager.SubcloudAuditWorkerManager()
+
+        audit_fail_count = random.randint(
+            consts.AVAIL_FAIL_COUNT_TO_ALARM, consts.AVAIL_FAIL_COUNT_MAX - 1)
+        subcloud = db_api.subcloud_update(
+            self.ctx, subcloud.id, audit_fail_count=audit_fail_count)
+        db_api.subcloud_destroy(self.ctx, subcloud.id)
+        wm._update_subcloud_audit_fail_count(subcloud, audit_fail_count)
+        mock_logging.info.assert_called_with(
+            'Ignoring SubcloudNotFound when attempting update'
+            'audit_fail_count for subcloud: %s' % subcloud.name)
 
     def test_audit_subcloud_online_with_openstack_installed(self):
 
@@ -708,6 +818,11 @@ class TestAuditWorkerManager(base.DCManagerTestCase):
         # Verify the subcloud state was not updated
         self.fake_dcmanager_api.update_subcloud_availability.\
             assert_not_called()
+
+        # Verify the _update_subcloud_audit_fail_count is not called
+        with mock.patch.object(wm, '_update_subcloud_audit_fail_count') as \
+            mock_update_subcloud_audit_fail_count:
+            mock_update_subcloud_audit_fail_count.assert_not_called()
 
         # Verify the openstack endpoints were added
         # self.fake_dcmanager_api.update_subcloud_sync_endpoint_type.\
@@ -758,6 +873,11 @@ class TestAuditWorkerManager(base.DCManagerTestCase):
         self.fake_dcmanager_api.update_subcloud_availability.\
             assert_not_called()
 
+        # Verify the _update_subcloud_audit_fail_count is not called
+        with mock.patch.object(wm, '_update_subcloud_audit_fail_count') as \
+            mock_update_subcloud_audit_fail_count:
+            mock_update_subcloud_audit_fail_count.assert_not_called()
+
         # Verify the openstack endpoints were removed
         self.fake_dcmanager_api.update_subcloud_sync_endpoint_type.\
             assert_called_with(mock.ANY, 'subcloud1',
@@ -804,6 +924,11 @@ class TestAuditWorkerManager(base.DCManagerTestCase):
         # Verify the subcloud state was not updated
         self.fake_dcmanager_api.update_subcloud_availability.\
             assert_not_called()
+
+        # Verify the _update_subcloud_audit_fail_count is not called
+        with mock.patch.object(wm, '_update_subcloud_audit_fail_count') as \
+            mock_update_subcloud_audit_fail_count:
+            mock_update_subcloud_audit_fail_count.assert_not_called()
 
         # Verify the openstack endpoints were removed
         self.fake_dcmanager_api.update_subcloud_sync_endpoint_type.\
@@ -871,6 +996,11 @@ class TestAuditWorkerManager(base.DCManagerTestCase):
         # Verify patch audit is called
         self.fake_patch_audit.subcloud_patch_audit.assert_called_with(
             subcloud.name, patch_audit_data, do_load_audit)
+
+        # Verify the _update_subcloud_audit_fail_count is not called
+        with mock.patch.object(wm, '_update_subcloud_audit_fail_count') as \
+            mock_update_subcloud_audit_fail_count:
+            mock_update_subcloud_audit_fail_count.assert_not_called()
 
         # Verify firmware audit is not called
         self.fake_firmware_audit.subcloud_firmware_audit.assert_not_called()
