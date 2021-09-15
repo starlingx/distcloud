@@ -1364,16 +1364,20 @@ class SubcloudManager(manager.Manager):
                          "ignore_endpoints: %s" %
                          (subcloud.name, sync_status, ignore_endpoints))
 
+                # TODO(yuxing): The following code can be further optimized when
+                # batch alarm clearance APIs are available, so we don't need to
+                # loop over all the endpoints of a given subcloud, e.g.
+                # if not ignore_endpoints:
+                #    db_api.subcloud_status_update_endpoints_all(...)
+                # else:
+                #    db_api.subcloud_status_update_endpoints(...)
+                endpoint_to_update_list = []
                 for entry in subcloud_status_list:
                     endpoint = entry[consts.ENDPOINT_TYPE]
                     if endpoint in ignore_endpoints:
                         # Do not update this endpoint
                         continue
-
-                    db_api.subcloud_status_update(context,
-                                                  subcloud_id,
-                                                  endpoint,
-                                                  sync_status)
+                    endpoint_to_update_list.append(endpoint)
 
                     entity_instance_id = "subcloud=%s.resource=%s" % \
                                          (subcloud.name, endpoint)
@@ -1382,6 +1386,8 @@ class SubcloudManager(manager.Manager):
                         fm_const.FM_ALARM_ID_DC_SUBCLOUD_RESOURCE_OUT_OF_SYNC,
                         entity_instance_id)
 
+                    # TODO(yuxing): batch clear all the out-of-sync alarms of
+                    # a given subcloud if fm_api support it.
                     if (sync_status != consts.SYNC_STATUS_OUT_OF_SYNC) \
                             and fault:
                         try:
@@ -1414,6 +1420,14 @@ class SubcloudManager(manager.Manager):
                             self.fm_api.set_fault(fault)
                         except Exception as e:
                             LOG.exception(e)
+
+                if endpoint_to_update_list:
+                    try:
+                        db_api.subcloud_status_update_endpoints(context, subcloud_id,
+                                                                endpoint_to_update_list,
+                                                                sync_status)
+                    except Exception as e:
+                        LOG.exception(e)
 
         else:
             LOG.error("Subcloud not found:%s" % subcloud_id)

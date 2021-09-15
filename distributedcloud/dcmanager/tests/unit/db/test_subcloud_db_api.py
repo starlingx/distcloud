@@ -326,6 +326,72 @@ class DBAPISubcloudTest(base.DCManagerTestCase):
         self.assertEqual(endpoint_type, updated_subcloud_status.endpoint_type)
         self.assertEqual(sync_status, updated_subcloud_status.sync_status)
 
+    def test_update_subcloud_status_endpoints(self):
+        fake_subcloud = utils.create_subcloud_dict(base.SUBCLOUD_SAMPLE_DATA_0)
+        subcloud = self.create_subcloud(self.ctx, fake_subcloud)
+        self.assertIsNotNone(subcloud)
+
+        endpoint_type1 = 'testendpoint1'
+        subcloud_status = self.create_subcloud_status(
+            self.ctx, endpoint_type=endpoint_type1)
+        self.assertIsNotNone(subcloud_status)
+
+        endpoint_type2 = 'testendpoint2'
+        subcloud_status = self.create_subcloud_status(
+            self.ctx, endpoint_type=endpoint_type2)
+        self.assertIsNotNone(subcloud_status)
+
+        endpoint_type3 = 'testendpoint3'
+        subcloud_status = self.create_subcloud_status(
+            self.ctx, endpoint_type=endpoint_type3)
+        self.assertIsNotNone(subcloud_status)
+
+        sync_status = consts.SYNC_STATUS_IN_SYNC
+        endpoint_type_list = [endpoint_type1, endpoint_type2]
+        db_api.subcloud_status_update_endpoints(self.ctx, subcloud.id,
+                                                endpoint_type_list=endpoint_type_list,
+                                                sync_status=sync_status)
+
+        updated_endpoint1_status = db_api.subcloud_status_get(self.ctx,
+                                                              subcloud.id,
+                                                              endpoint_type1)
+        self.assertIsNotNone(updated_endpoint1_status)
+        self.assertEqual(endpoint_type1, updated_endpoint1_status.endpoint_type)
+        self.assertEqual(sync_status, updated_endpoint1_status.sync_status)
+
+        updated_endpoint2_status = db_api.subcloud_status_get(self.ctx,
+                                                              subcloud.id,
+                                                              endpoint_type2)
+        self.assertIsNotNone(updated_endpoint2_status)
+        self.assertEqual(endpoint_type2, updated_endpoint2_status.endpoint_type)
+        self.assertEqual(sync_status, updated_endpoint2_status.sync_status)
+
+        updated_endpoint3_status = db_api.subcloud_status_get(self.ctx,
+                                                              subcloud.id,
+                                                              endpoint_type3)
+        self.assertIsNotNone(updated_endpoint3_status)
+        self.assertEqual(endpoint_type3, updated_endpoint3_status.endpoint_type)
+        self.assertNotEqual(sync_status, updated_endpoint3_status.sync_status)
+
+    def test_update_subcloud_status_endpints_not_exists(self):
+        fake_subcloud = utils.create_subcloud_dict(base.SUBCLOUD_SAMPLE_DATA_0)
+        subcloud = self.create_subcloud(self.ctx, fake_subcloud)
+        self.assertIsNotNone(subcloud)
+
+        endpoint_type1 = 'testendpoint1'
+        subcloud_status = self.create_subcloud_status(
+            self.ctx, endpoint_type=endpoint_type1)
+        self.assertIsNotNone(subcloud_status)
+
+        endpoint_type2 = 'testendpoint2'
+
+        sync_status = consts.SYNC_STATUS_IN_SYNC
+        endpoint_type_list = [endpoint_type2]
+        self.assertRaises(exceptions.SubcloudStatusNotFound,
+                          db_api.subcloud_status_update_endpoints,
+                          self.ctx, subcloud.id,
+                          endpoint_type_list, sync_status)
+
     def test_delete_subcloud_status(self):
         fake_subcloud = utils.create_subcloud_dict(base.SUBCLOUD_SAMPLE_DATA_0)
         subcloud = self.create_subcloud(self.ctx, fake_subcloud)
