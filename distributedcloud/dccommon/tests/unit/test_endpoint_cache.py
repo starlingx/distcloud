@@ -20,18 +20,16 @@
 # of an applicable Wind River license agreement.
 #
 
+import collections
 import mock
-
 from mock import patch
 
 from oslo_config import cfg
 
 from dccommon import endpoint_cache
 from dccommon.tests import base
-from dccommon import utils
 from keystoneclient.v3 import services
 from keystoneclient.v3 import tokens
-# from dccommon.tests import utils
 
 FAKE_REGIONONE_SYSINV_ENDPOINT = "http://[2620:10a:a001:a114::d00]:6385/v1"
 FAKE_REGIONONE_KEYSTONE_ENDPOINT = "http://[2620:10a:a001:a114::d00]:5000/v3"
@@ -91,6 +89,28 @@ class EndpointCacheTest(base.DCCommonTestCase):
                        default="fake_project_domain_name")]
         cfg.CONF.register_opts(auth_uri_opts, 'endpoint_cache')
 
+        # Mock the token validator (which is confusing so here is the info)
+        # endpoint_cache.py has an import:
+        #    from dccommon.utils import is_token_expiring_soon
+        # so to patch where that function is called we use this syntax:
+        #    patch.object(endpoint_cache, 'is_token_expiring_soon')
+        # instead of:
+        #    patch.object(dccommon.utils, 'is_token_expiring_soon')
+        p = mock.patch.object(endpoint_cache, 'is_token_expiring_soon')
+        self.mock_is_token_expiring_soon = p.start()
+        self.mock_is_token_expiring_soon.return_value = True
+        self.addCleanup(p.stop)
+
+    def tearDown(self):
+        super(EndpointCacheTest, self).tearDown()
+        # purge the cache values (except the lock)
+        endpoint_cache.EndpointCache.plugin_loader = None
+        endpoint_cache.EndpointCache.master_keystone_client = None
+        endpoint_cache.EndpointCache.master_token = {}
+        endpoint_cache.EndpointCache.master_services_list = None
+        endpoint_cache.EndpointCache.master_service_endpoint_map = \
+            collections.defaultdict(dict)
+
     @patch.object(endpoint_cache.EndpointCache, 'get_admin_session')
     @patch.object(endpoint_cache.EndpointCache,
                   'get_cached_master_keystone_client_and_region_endpoint_map')
@@ -113,13 +133,12 @@ class EndpointCacheTest(base.DCCommonTestCase):
         self.assertIn(SUBCLOUD1_REGION, region_list)
 
     @patch.object(endpoint_cache.EndpointCache, 'get_admin_session')
-    @patch.object(utils, 'is_token_expiring_soon')
     @patch.object(tokens.TokenManager, 'validate')
     @patch.object(services.ServiceManager, 'list')
     @patch.object(endpoint_cache.EndpointCache,
                   '_generate_master_service_endpoint_map')
     def test_get_services_list(self, mock_generate_cached_data, mock_services_list,
-                               mock_tokens_validate, mock_check_token, mock_admin_session):
+                               mock_tokens_validate, mock_admin_session):
         mock_services_list.return_value = FAKE_SERVICES_LIST
         mock_generate_cached_data.return_value = FAKE_MASTER_SERVICE_ENDPOINT_MAP
         endpoint_cache.EndpointCache("RegionOne", None)
