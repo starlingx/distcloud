@@ -22,6 +22,7 @@
 import hashlib
 import os
 
+from cgtsclient.exc import HTTPBadRequest
 from cgtsclient.exc import HTTPNotFound
 from oslo_log import log
 from oslo_utils import encodeutils
@@ -338,16 +339,21 @@ class SysinvClient(base.DriverBase):
 
     def import_load(self, path_to_iso, path_to_sig):
         """Import the particular software load."""
-        return self.sysinv_client.load.import_load(path_to_iso=path_to_iso,
-                                                   path_to_sig=path_to_sig)
-
-    def get_system_health(self):
-        """Get system health."""
-        return self.sysinv_client.health.get()
+        try:
+            return self.sysinv_client.load.import_load(path_to_iso=path_to_iso,
+                                                       path_to_sig=path_to_sig)
+        except HTTPBadRequest as e:
+            if "Max number of loads" in str(e):
+                raise exceptions.LoadMaxReached(region_name=self.region_name)
+            raise
 
     def import_load_metadata(self, load):
         """Import the software load metadata."""
         return self.sysinv_client.load.import_load_metadata(load=load)
+
+    def get_system_health(self):
+        """Get system health."""
+        return self.sysinv_client.health.get()
 
     def get_hosts(self):
         """Get a list of hosts."""

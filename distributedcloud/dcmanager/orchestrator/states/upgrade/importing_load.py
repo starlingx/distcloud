@@ -3,16 +3,20 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 #
+from dccommon.exceptions import LoadMaxReached
 import time
 
 from dcmanager.common import consts
 from dcmanager.common.exceptions import StrategyStoppedException
+from dcmanager.common.exceptions import VaultLoadMissingError
+
 from dcmanager.common import utils
 from dcmanager.orchestrator.states.base import BaseState
 
 # Max time: 30 minutes = 180 queries x 10 seconds between
 DEFAULT_MAX_QUERIES = 180
 DEFAULT_SLEEP_DURATION = 10
+MAX_FAILED_RETRIES = 5
 LOAD_IMPORT_REQUEST_TYPE = 'import'
 LOAD_DELETE_REQUEST_TYPE = 'delete'
 
@@ -26,6 +30,7 @@ class ImportingLoadState(BaseState):
         # max time to wait (in seconds) is: sleep_duration * max_queries
         self.sleep_duration = DEFAULT_SLEEP_DURATION
         self.max_queries = DEFAULT_MAX_QUERIES
+        self.max_load_import_retries = MAX_FAILED_RETRIES
 
     def get_load(self, strategy_step, request_info):
         self.info_log(strategy_step, "Checking load state...")
@@ -38,12 +43,14 @@ class ImportingLoadState(BaseState):
             if request_type == LOAD_DELETE_REQUEST_TYPE:
                 self.info_log(strategy_step, "Retrieving load list from subcloud...")
                 # success when only one load, the active load, remains
-                if len(self.subcloud_sysinv.get_loads()) == 1:
+                if len(self.get_sysinv_client(
+                        strategy_step.subcloud.name).get_loads()) == 1:
                     msg = "Load: %s has been removed." % load_version
                     self.info_log(strategy_step, msg)
                     return True
             else:
-                load = self.subcloud_sysinv.get_load(load_id)
+                load = self.get_sysinv_client(
+                    strategy_step.subcloud.name).get_load(load_id)
                 if load.state == consts.IMPORTED_LOAD_STATE:
                     # success when load is imported
                     msg = "Load: %s is now: %s" % (load_version,
@@ -86,79 +93,140 @@ class ImportingLoadState(BaseState):
                                 % request_type)
             time.sleep(self.sleep_duration)
 
+    def _get_subcloud_load_info(self, strategy_step, target_version):
+        load_info = {}
+        # Check if the load is already imported by checking the version
+        current_loads = self.get_sysinv_client(
+            strategy_step.subcloud.name).get_loads()
+
+        for load in current_loads:
+            if load.software_version == target_version:
+                load_info['load_id'] = load.id
+                load_info['load_version'] = load.software_version
+                self.info_log(strategy_step,
+                              "Load:%s already found" % target_version)
+                return True, load_info
+            elif load.state == consts.IMPORTED_LOAD_STATE or load.state == consts.ERROR_LOAD_STATE:
+                load_info['load_id'] = load.id
+                load_info['load_version'] = load.software_version
+
+        return False, load_info
+
     def perform_state_action(self, strategy_step):
         """Import a load on a subcloud
 
         Returns the next state in the state machine on success.
         Any exceptions raised by this method set the strategy to FAILED.
         """
-        req_info = {}
 
         # determine the version of the system controller in region one
-        target_version = self.local_sysinv.get_system().software_version
+        target_version = self.get_sysinv_client(
+            consts.DEFAULT_REGION_NAME).get_system().software_version
 
-        # Check if the load is already imported by checking the version
-        current_loads = self.subcloud_sysinv.get_loads()
+        load_applied, req_info =\
+            self._get_subcloud_load_info(strategy_step, target_version)
 
-        for load in current_loads:
-            if load.software_version == target_version:
-                self.info_log(strategy_step,
-                              "Load:%s already found" % target_version)
-                return self.next_state
-            elif load.state == consts.IMPORTED_LOAD_STATE or load.state == consts.ERROR_LOAD_STATE:
-                req_info['load_id'] = load.id
-                req_info['load_version'] = load.software_version
+        if load_applied:
+            return self.next_state
 
         load_id_to_be_deleted = req_info.get('load_id')
 
         if load_id_to_be_deleted is not None:
             self.info_log(strategy_step,
                           "Deleting load %s..." % load_id_to_be_deleted)
-            self.subcloud_sysinv.delete_load(load_id_to_be_deleted)
+            self.get_sysinv_client(
+                strategy_step.subcloud.name).delete_load(load_id_to_be_deleted)
             req_info['type'] = LOAD_DELETE_REQUEST_TYPE
             self._wait_for_request_to_complete(strategy_step, req_info)
 
-        try:
-            subcloud_type = self.subcloud_sysinv.get_system().system_mode
-            if subcloud_type == consts.SYSTEM_MODE_SIMPLEX:
-                # For simplex we only import the load record, not the entire ISO
-                loads = self.local_sysinv.get_loads()
-                matches = [load for load in loads if load.software_version == target_version]
-                target_load = matches[0].to_dict()
-                # Send only the required fields
-                creation_keys = ['software_version', 'compatible_version', 'required_patches']
-                target_load = {key: target_load[key] for key in creation_keys}
-                load = self.subcloud_sysinv.import_load_metadata(target_load)
-                self.info_log(strategy_step,
-                              "Load: %s is now: %s" % (load.software_version, load.state))
+        subcloud_type = self.get_sysinv_client(
+            strategy_step.subcloud.name).get_system().system_mode
+        load_import_retry_counter = 0
+        load = None
+        if subcloud_type == consts.SYSTEM_MODE_SIMPLEX:
+            # For simplex we only import the load record, not the entire ISO
+            loads = self.get_sysinv_client(consts.DEFAULT_REGION_NAME).get_loads()
+            matches = [load for load in loads if load.software_version == target_version]
+            target_load = matches[0].to_dict()
+            # Send only the required fields
+            creation_keys = ['software_version', 'compatible_version', 'required_patches']
+            target_load = {key: target_load[key] for key in creation_keys}
+            load = self.get_sysinv_client(
+                strategy_step.subcloud.name).import_load_metadata(target_load)
+            self.info_log(strategy_step,
+                          "Load: %s is now: %s" % (
+                              load.software_version, load.state))
+        else:
+            while True:
+                # If event handler stop has been triggered, fail the state
+                if self.stopped():
+                    raise StrategyStoppedException()
+
+                load_import_retry_counter += 1
+                try:
+                    # ISO and SIG files are found in the vault under a version directory
+                    self.info_log(strategy_step, "Getting vault load files...")
+                    iso_path, sig_path = utils.get_vault_load_files(target_version)
+
+                    if not iso_path:
+                        message = ("Failed to get upgrade load info for subcloud %s" %
+                                   strategy_step.subcloud.name)
+                        raise Exception(message)
+
+                    # Call the API. import_load blocks until the load state is 'importing'
+                    self.info_log(strategy_step, "Sending load import request...")
+                    load = self.get_sysinv_client(
+                        strategy_step.subcloud.name).import_load(iso_path, sig_path)
+
+                    break
+                except VaultLoadMissingError:
+                    raise
+                except LoadMaxReached:
+                    # A prior import request may have encountered an exception but the request actually
+                    # continued with the import operation in the subcloud. This has been observed when performing
+                    # multiple parallel upgrade in which resource/link may be saturated. In such case allow continue
+                    # for further checks (i.e. at wait_for_request_to_complete)
+                    self.info_log(strategy_step,
+                                  "Load at max number of loads")
+                    break
+                except Exception as e:
+                    self.warn_log(strategy_step,
+                                  "load import retry required due to %s iter: %d" %
+                                  (e, load_import_retry_counter))
+                    if load_import_retry_counter >= self.max_load_import_retries:
+                        self.error_log(strategy_step, str(e))
+                        raise Exception("Failed to import load. Please check sysinv.log on "
+                                        "the subcloud for details.")
+
+                time.sleep(self.sleep_duration)
+
+            if load is None:
+                _, load_info = self._get_subcloud_load_info(strategy_step, target_version)
+                load_id = load_info.get('load_id')
+                software_version = load_info['load_version']
             else:
-                # ISO and SIG files are found in the vault under a version directory
-                self.info_log(strategy_step, "Getting vault load files...")
-                iso_path, sig_path = utils.get_vault_load_files(target_version)
-                if not iso_path:
-                    message = ("Failed to get upgrade load info for subcloud %s" %
-                               strategy_step.subcloud.name)
-                    raise Exception(message)
+                load_id = load.id
+                software_version = load.software_version
 
-                # Call the API. import_load blocks until the load state is 'importing'
-                self.info_log(strategy_step, "Sending load import request...")
-                new_load = self.subcloud_sysinv.import_load(iso_path, sig_path)
-                if new_load.software_version != target_version:
-                    raise Exception("The imported load was not the expected version.")
+            if not load_id:
+                raise Exception("The subcloud load was not found.")
 
+            if software_version != target_version:
+                raise Exception("The imported load was not the expected version.")
+            try:
                 self.info_log(strategy_step,
                               "Load import request accepted, load software version = %s"
-                              % new_load.software_version)
-                req_info['load_id'] = new_load.id
+                              % software_version)
+                req_info['load_id'] = load_id
                 req_info['load_version'] = target_version
                 req_info['type'] = LOAD_IMPORT_REQUEST_TYPE
                 self.info_log(strategy_step,
                               "Waiting for state to change from importing to imported...")
                 self._wait_for_request_to_complete(strategy_step, req_info)
-        except Exception as e:
-            self.error_log(strategy_step, str(e))
-            raise Exception("Failed to import load. Please check sysinv.log on "
-                            "the subcloud for details.")
+            except Exception as e:
+                self.error_log(strategy_step, str(e))
+                raise Exception("Failed to import load. Please check sysinv.log on "
+                                "the subcloud for details.")
 
         # When we return from this method without throwing an exception, the
         # state machine can proceed to the next state
