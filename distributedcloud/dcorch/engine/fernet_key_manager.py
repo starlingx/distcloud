@@ -97,7 +97,7 @@ class FernetKeyManager(manager.Manager):
             ks_client = KeystoneClient(dccommon_consts.CLOUD_0)
             sysinv_client = SysinvClient(dccommon_consts.CLOUD_0,
                                          ks_client.session,
-                                         ks_client.endpoint_cache.get_endpoint('sysinv'))
+                                         endpoint=ks_client.endpoint_cache.get_endpoint('sysinv'))
             keys = sysinv_client.get_fernet_keys()
         except (exceptions.ConnectionRefused, exceptions.NotAuthorized,
                 exceptions.TimeOut):
@@ -142,8 +142,9 @@ class FernetKeyManager(manager.Manager):
             # No cached client is required as it is only called during the
             # initial sync
             ks_client = KeystoneClient(subcloud_name)
-            sysinv_client = SysinvClient(subcloud_name, ks_client.session,
-                                         ks_client.endpoint_cache.get_endpoint('sysinv'))
+            sysinv_client = SysinvClient(subcloud_name,
+                                         ks_client.session,
+                                         endpoint=ks_client.endpoint_cache.get_endpoint('sysinv'))
             sysinv_client.post_fernet_repo(key_list)
         except (exceptions.ConnectionRefused, exceptions.NotAuthorized,
                 exceptions.TimeOut):
