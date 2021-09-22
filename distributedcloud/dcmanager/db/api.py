@@ -336,16 +336,19 @@ def sw_update_strategy_db_model_to_dict(sw_update_strategy):
               "stop-on-failure": sw_update_strategy.stop_on_failure,
               "state": sw_update_strategy.state,
               "created-at": sw_update_strategy.created_at,
-              "updated-at": sw_update_strategy.updated_at}
+              "updated-at": sw_update_strategy.updated_at,
+              "extra-args": sw_update_strategy.extra_args}
     return result
 
 
 def sw_update_strategy_create(context, type, subcloud_apply_type,
-                              max_parallel_subclouds, stop_on_failure, state):
+                              max_parallel_subclouds, stop_on_failure, state,
+                              extra_args=None):
     """Create a sw update."""
     return IMPL.sw_update_strategy_create(context, type, subcloud_apply_type,
                                           max_parallel_subclouds,
-                                          stop_on_failure, state)
+                                          stop_on_failure, state,
+                                          extra_args=extra_args)
 
 
 def sw_update_strategy_get(context, update_type=None):

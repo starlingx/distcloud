@@ -14,13 +14,15 @@ def create_fake_strategy(
         subcloud_apply_type=consts.SUBCLOUD_APPLY_TYPE_PARALLEL,
         state=consts.SW_UPDATE_STATE_INITIAL,
         max_parallel_subclouds=2,
-        stop_on_failure=True):
+        stop_on_failure=True,
+        extra_args=None):
     values = {
         "type": strategy_type,
         "subcloud_apply_type": subcloud_apply_type,
         "max_parallel_subclouds": max_parallel_subclouds,
         "stop_on_failure": stop_on_failure,
         "state": state,
+        "extra_args": extra_args
     }
     return db_api.sw_update_strategy_create(ctxt, **values)
 

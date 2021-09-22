@@ -25,6 +25,20 @@ class CreatingVIMKubeRootcaUpdateStrategyState(CreatingVIMStrategyState):
         self.info_log(strategy_step,
                       "Creating (%s) VIM strategy" % self.strategy_name)
 
+        # This strategy supports the following additional kwargs.
+        #     cert_file
+        #     expiry_date
+        #     subject
+        # These kwargs are retrieved from the extra_args of the strategy
+        extra_args = \
+            dcmanager_utils.get_sw_update_strategy_extra_args(self.context)
+        if extra_args is None:
+            extra_args = {}
+        # Note that extra_args use "-" and not "_" in their keys
+        cert_file = extra_args.get('cert-file', None)
+        expiry_date = extra_args.get('expiry-date', None)
+        subject = extra_args.get('subject', None)
+
         # Get the update options
         opts_dict = dcmanager_utils.get_sw_update_opts(
             self.context,
@@ -38,7 +52,10 @@ class CreatingVIMKubeRootcaUpdateStrategyState(CreatingVIMStrategyState):
             opts_dict['worker-apply-type'],
             opts_dict['max-parallel-workers'],
             opts_dict['default-instance-action'],
-            opts_dict['alarm-restriction-type'])
+            opts_dict['alarm-restriction-type'],
+            cert_file=cert_file,
+            expiry_date=expiry_date,
+            subject=subject)
 
         # a successful API call to create MUST set the state be 'building'
         if subcloud_strategy.state != vim.STATE_BUILDING:

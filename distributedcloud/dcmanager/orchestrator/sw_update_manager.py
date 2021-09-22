@@ -19,6 +19,8 @@
 # of this software may be licensed only pursuant to the terms
 # of an applicable Wind River license agreement.
 #
+import os
+import shutil
 import threading
 
 from oslo_log import log as logging
@@ -148,6 +150,62 @@ class SwUpdateManager(manager.Manager):
         LOG.error("_validate_subcloud_status_sync for %s not implemented" %
                   strategy_type)
         return False
+
+    # todo(abailey): dc-vault actions are normally done by dcorch-api-proxy
+    # However this situation is unique since the strategy drives vault contents
+    def _vault_upload(self, vault_dir, src_file):
+        """Copies the file to the dc-vault, and returns the new path"""
+        # make sure the vault directory exists, create, if it is missing
+        if not os.path.isdir(vault_dir):
+            os.makedirs(vault_dir)
+        # determine the destination name for the file
+        dest_file = os.path.join(vault_dir, os.path.basename(src_file))
+        # copy the file to the vault dir
+        # use 'copy' to preserve file system permissions
+        # note: if the dest and src are the same file, this operation fails
+        shutil.copy(src_file, dest_file)
+        return dest_file
+
+    def _vault_remove(self, vault_dir, vault_file):
+        """Removes the the file from the dc-vault."""
+        # no point in deleting if the file does not exist
+        if os.path.isfile(vault_file):
+            # no point in deleting if the file is not under a vault path
+            if vault_file.startswith(os.path.abspath(vault_dir) + os.sep):
+                # remove it
+                os.remove(vault_file)
+
+    def _process_extra_args_creation(self, strategy_type, extra_args):
+        if extra_args:
+            # cert-file extra_arg needs vault handling for kube rootca update
+            if strategy_type == consts.SW_UPDATE_TYPE_KUBE_ROOTCA_UPDATE:
+                # extra_args can be 'cert-file'  or 'subject / expiry_date'
+                # but combining both is not supported
+                cert_file = extra_args.get(consts.EXTRA_ARGS_CERT_FILE)
+                expiry_date = extra_args.get(consts.EXTRA_ARGS_EXPIRY_DATE)
+                subject = extra_args.get(consts.EXTRA_ARGS_SUBJECT)
+                if cert_file:
+                    if expiry_date or subject:
+                        raise exceptions.BadRequest(
+                            resource='strategy',
+                            msg='Invalid extra args.'
+                                ' <cert-file> cannot be specified'
+                                ' along with <subject> or <expiry-date>.')
+                    # copy the cert-file to the vault
+                    vault_file = self._vault_upload(consts.CERTS_VAULT_DIR,
+                                                    cert_file)
+                    # update extra_args with the new path (in the vault)
+                    extra_args[consts.EXTRA_ARGS_CERT_FILE] = vault_file
+
+    def _process_extra_args_deletion(self, strategy):
+        if strategy.extra_args:
+            # cert-file extra_arg needs vault handling for kube rootca update
+            if strategy.type == consts.SW_UPDATE_TYPE_KUBE_ROOTCA_UPDATE:
+                cert_file = strategy.extra_args.get(
+                    consts.EXTRA_ARGS_CERT_FILE)
+                if cert_file:
+                    # remove this cert file from the vault
+                    self._vault_remove(consts.CERTS_VAULT_DIR, cert_file)
 
     def create_sw_update_strategy(self, context, payload):
         """Create software update strategy.
@@ -279,6 +337,20 @@ class SwUpdateManager(manager.Manager):
                         resource='strategy',
                         msg='Subcloud %s does not require patching' % cloud_name)
 
+        extra_args = None
+        # kube rootca update orchestration supports extra creation args
+        if strategy_type == consts.SW_UPDATE_TYPE_KUBE_ROOTCA_UPDATE:
+            # payload fields use "-" rather than "_"
+            # some of these payloads may be 'None'
+            extra_args = {
+                consts.EXTRA_ARGS_EXPIRY_DATE:
+                    payload.get(consts.EXTRA_ARGS_EXPIRY_DATE),
+                consts.EXTRA_ARGS_SUBJECT:
+                    payload.get(consts.EXTRA_ARGS_SUBJECT),
+                consts.EXTRA_ARGS_CERT_FILE:
+                    payload.get(consts.EXTRA_ARGS_CERT_FILE),
+            }
+
         # Don't create a strategy if any of the subclouds is online and the
         # relevant sync status is unknown. Offline subcloud is skipped unless
         # --force option is specified and strategy type is upgrade.
@@ -354,6 +426,9 @@ class SwUpdateManager(manager.Manager):
                         msg='Kube rootca update sync status is unknown for '
                             'one or more subclouds')
 
+        # handle extra_args processing such as staging to the vault
+        self._process_extra_args_creation(strategy_type, extra_args)
+
         # Create the strategy
         strategy = db_api.sw_update_strategy_create(
             context,
@@ -361,7 +436,8 @@ class SwUpdateManager(manager.Manager):
             subcloud_apply_type,
             max_parallel_subclouds,
             stop_on_failure,
-            consts.SW_UPDATE_STATE_INITIAL)
+            consts.SW_UPDATE_STATE_INITIAL,
+            extra_args=extra_args)
 
         # For 'patch', always create a strategy step for the system controller
         # A strategy step for the system controller is not added for:
@@ -484,6 +560,8 @@ class SwUpdateManager(manager.Manager):
                 context,
                 state=consts.SW_UPDATE_STATE_DELETING,
                 update_type=update_type)
+            # handle extra_args processing such as removing from the vault
+        self._process_extra_args_deletion(sw_update_strategy)
 
         strategy_dict = db_api.sw_update_strategy_db_model_to_dict(
             sw_update_strategy)

@@ -229,13 +229,15 @@ def subcloud_audits_end_audit(context, subcloud_id, audits_done):
         subcloud_audits_ref = subcloud_audits_get(context, subcloud_id)
         subcloud_audits_ref.audit_finished_at = datetime.datetime.utcnow()
         subcloud_audits_ref.state_update_requested = False
+        # todo(abailey): define new constants for these audit strings
+        # and update subcloud_audit_worker_manager to use them as well
         if 'patch' in audits_done:
             subcloud_audits_ref.patch_audit_requested = False
         if 'firmware' in audits_done:
             subcloud_audits_ref.firmware_audit_requested = False
         if 'load' in audits_done:
             subcloud_audits_ref.load_audit_requested = False
-        if 'kube_rootca' in audits_done:
+        if 'kube-rootca-update' in audits_done:
             subcloud_audits_ref.kube_rootca_update_audit_requested = False
         if 'kubernetes' in audits_done:
             subcloud_audits_ref.kubernetes_audit_requested = False
@@ -527,7 +529,8 @@ def sw_update_strategy_get(context, update_type=None):
 
 @require_admin_context
 def sw_update_strategy_create(context, type, subcloud_apply_type,
-                              max_parallel_subclouds, stop_on_failure, state):
+                              max_parallel_subclouds, stop_on_failure, state,
+                              extra_args=None):
     with write_session() as session:
         sw_update_strategy_ref = models.SwUpdateStrategy()
         sw_update_strategy_ref.type = type
@@ -535,6 +538,7 @@ def sw_update_strategy_create(context, type, subcloud_apply_type,
         sw_update_strategy_ref.max_parallel_subclouds = max_parallel_subclouds
         sw_update_strategy_ref.stop_on_failure = stop_on_failure
         sw_update_strategy_ref.state = state
+        sw_update_strategy_ref.extra_args = extra_args
 
         session.add(sw_update_strategy_ref)
         return sw_update_strategy_ref
