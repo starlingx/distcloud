@@ -102,6 +102,7 @@ class DCManagerTestCase(base.BaseTestCase):
     def setUp(self):
         super(DCManagerTestCase, self).setUp()
 
-        self.setup_dummy_db()
+        # register cleanup of DB before setup, in case setup fails
         self.addCleanup(self.reset_dummy_db)
+        self.setup_dummy_db()
         self.ctx = utils.dummy_context()

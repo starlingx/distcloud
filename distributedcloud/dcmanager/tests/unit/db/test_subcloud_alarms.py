@@ -16,42 +16,18 @@
 # of this software may be licensed only pursuant to the terms
 # of an applicable Wind River license agreement.
 #
-
-import sqlalchemy
-
-from oslo_config import cfg
 from oslo_db import exception as db_exception
-from oslo_db import options
 
 from dcmanager.common import consts
 from dcmanager.common import exceptions as exception
 from dcmanager.db import api as api
 from dcmanager.db.sqlalchemy import api as db_api
 from dcmanager.tests import base
-from dcmanager.tests import utils
 
 get_engine = api.get_engine
 
 
 class DBAPISubcloudAlarm(base.DCManagerTestCase):
-    def setup_dummy_db(self):
-        options.cfg.set_defaults(options.database_opts,
-                                 sqlite_synchronous=False)
-        options.set_defaults(cfg.CONF, connection="sqlite://")
-        engine = get_engine()
-        db_api.db_sync(engine)
-        engine.connect()
-
-    @staticmethod
-    def reset_dummy_db():
-        engine = get_engine()
-        meta = sqlalchemy.MetaData()
-        meta.reflect(bind=engine)
-
-        for table in reversed(meta.sorted_tables):
-            if table.name == 'migrate_version':
-                continue
-            engine.execute(table.delete())
 
     @staticmethod
     def create_subcloud_alarms(ctxt, name):
@@ -64,74 +40,71 @@ class DBAPISubcloudAlarm(base.DCManagerTestCase):
 
     def setUp(self):
         super(DBAPISubcloudAlarm, self).setUp()
-
-        self.setup_dummy_db()
-        self.addCleanup(self.reset_dummy_db)
-        self.ctxt = utils.dummy_context()
+        # calling setUp for the superclass sets up the DB and context
 
     def test_subcloud_alarms_create(self):
-        result = self.create_subcloud_alarms(self.ctxt, 'subcloud1')
+        result = self.create_subcloud_alarms(self.ctx, 'subcloud1')
         self.assertIsNotNone(result)
         self.assertEqual(result['name'], 'subcloud1')
         self.assertEqual(result['cloud_status'], 'disabled')
 
     def test_subcloud_alarms_create_duplicate(self):
-        result = self.create_subcloud_alarms(self.ctxt, 'subcloud1')
+        result = self.create_subcloud_alarms(self.ctx, 'subcloud1')
         self.assertIsNotNone(result)
         self.assertRaises(db_exception.DBDuplicateEntry,
                           self.create_subcloud_alarms,
                           self.ctx, 'subcloud1')
 
     def test_subcloud_alarms_get(self):
-        result = self.create_subcloud_alarms(self.ctxt, 'subcloud1')
+        result = self.create_subcloud_alarms(self.ctx, 'subcloud1')
         self.assertIsNotNone(result)
-        subcloud = db_api.subcloud_alarms_get(self.ctxt, 'subcloud1')
+        subcloud = db_api.subcloud_alarms_get(self.ctx, 'subcloud1')
         self.assertIsNotNone(subcloud)
         self.assertEqual(subcloud['name'], 'subcloud1')
 
     def test_subcloud_alarms_get_not_found(self):
-        result = self.create_subcloud_alarms(self.ctxt, 'subcloud1')
+        result = self.create_subcloud_alarms(self.ctx, 'subcloud1')
         self.assertIsNotNone(result)
         self.assertRaises(exception.SubcloudNameNotFound,
                           db_api.subcloud_alarms_get,
                           self.ctx, 'subcloud2')
 
     def test_subcloud_alarms_get_all(self):
-        result = self.create_subcloud_alarms(self.ctxt, 'subcloud1')
+        result = self.create_subcloud_alarms(self.ctx, 'subcloud1')
         self.assertIsNotNone(result)
-        result = self.create_subcloud_alarms(self.ctxt, 'subcloud2')
+        result = self.create_subcloud_alarms(self.ctx, 'subcloud2')
         self.assertIsNotNone(result)
-        subclouds = db_api.subcloud_alarms_get_all(self.ctxt)
+        subclouds = db_api.subcloud_alarms_get_all(self.ctx)
         self.assertEqual(len(subclouds), 2)
         self.assertEqual(subclouds[0]['name'], 'subcloud2')
         self.assertEqual(subclouds[1]['name'], 'subcloud1')
 
     def test_subcloud_alarms_get_one(self):
-        result = self.create_subcloud_alarms(self.ctxt, 'subcloud1')
+        result = self.create_subcloud_alarms(self.ctx, 'subcloud1')
         self.assertIsNotNone(result)
-        result = self.create_subcloud_alarms(self.ctxt, 'subcloud2')
+        result = self.create_subcloud_alarms(self.ctx, 'subcloud2')
         self.assertIsNotNone(result)
-        subclouds = db_api.subcloud_alarms_get_all(self.ctxt, 'subcloud1')
+        subclouds = db_api.subcloud_alarms_get_all(self.ctx, 'subcloud1')
         self.assertEqual(subclouds[0]['name'], 'subcloud1')
 
     def test_subcloud_alarms_update(self):
-        result = self.create_subcloud_alarms(self.ctxt, 'subcloud1')
+        result = self.create_subcloud_alarms(self.ctx, 'subcloud1')
         self.assertIsNotNone(result)
         values = {'critical_alarms': 0,
                   'major_alarms': 1,
                   'minor_alarms': 2,
                   'warnings': 3,
                   'cloud_status': consts.ALARM_DEGRADED_STATUS}
-        result = db_api.subcloud_alarms_update(self.ctxt, 'subcloud1', values)
+        result = db_api.subcloud_alarms_update(self.ctx, 'subcloud1', values)
         self.assertIsNotNone(result)
         self.assertEqual(result['major_alarms'], 1)
-        subcloud = db_api.subcloud_alarms_get(self.ctxt, 'subcloud1')
+        subcloud = db_api.subcloud_alarms_get(self.ctx, 'subcloud1')
         self.assertIsNotNone(subcloud)
         self.assertEqual(subcloud['major_alarms'], 1)
 
     def test_subcloud_alarms_delete(self):
-        result = self.create_subcloud_alarms(self.ctxt, 'subcloud1')
+        result = self.create_subcloud_alarms(self.ctx, 'subcloud1')
         self.assertIsNotNone(result)
-        db_api.subcloud_alarms_delete(self.ctxt, 'subcloud1')
-        subclouds = db_api.subcloud_alarms_get_all(self.ctxt)
+        db_api.subcloud_alarms_delete(self.ctx, 'subcloud1')
+        subclouds = db_api.subcloud_alarms_get_all(self.ctx)
         self.assertEqual(len(subclouds), 0)
