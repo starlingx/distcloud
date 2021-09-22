@@ -35,6 +35,9 @@ global_opts = [
     cfg.IntOpt('report_interval',
                default=60,
                help='Seconds between running periodic reporting tasks.'),
+    cfg.IntOpt('worker_rlimit_nofile',
+               default=4096,
+               help='Maximum number of open files per worker process.'),
 ]
 
 # OpenStack credentials used for Endpoint Cache

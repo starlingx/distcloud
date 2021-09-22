@@ -18,9 +18,10 @@
 # of an applicable Wind River license agreement.
 #
 
+import functools
+import resource
 import six
 
-import functools
 from oslo_config import cfg
 from oslo_log import log as logging
 import oslo_messaging
@@ -171,6 +172,7 @@ class DCManagerAuditWorkerService(service.Service):
 
     def start(self):
         self.init_tgm()
+        self.set_resource_limit()
         self.init_audit_managers()
         target = oslo_messaging.Target(version=self.rpc_api_version,
                                        server=self.host,
@@ -185,6 +187,29 @@ class DCManagerAuditWorkerService(service.Service):
 
     def init_audit_managers(self):
         self.subcloud_audit_worker_manager = SubcloudAuditWorkerManager()
+
+    @staticmethod
+    def set_resource_limit():
+        """Adjust the maximum number open files for this process (soft limit)"""
+        try:
+            (current_soft,
+             current_hard) = resource.getrlimit(resource.RLIMIT_NOFILE)
+            new_soft = cfg.CONF.worker_rlimit_nofile
+            if new_soft > current_hard:
+                LOG.error('New process open file soft limit [%s] '
+                          'exceeds the hard limit [%s]. '
+                          'Setting to hard limit instead.' % (new_soft,
+                                                              current_hard))
+                new_soft = current_hard
+            if new_soft != current_soft:
+                LOG.info('Setting process open file limit to %s (from %s)',
+                         new_soft, current_soft)
+                resource.setrlimit(resource.RLIMIT_NOFILE,
+                                   (new_soft, current_hard))
+        except Exception as ex:
+            LOG.exception(
+                'Failed to set the audit worker NOFILE resource limit: %s' %
+                ex)
 
     def _stop_rpc_server(self):
         # Stop RPC connection to prevent new requests

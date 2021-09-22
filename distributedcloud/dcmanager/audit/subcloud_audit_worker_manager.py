@@ -347,7 +347,7 @@ class SubcloudAuditWorkerManager(manager.Manager):
         try:
             os_client = OpenStackDriver(region_name=subcloud_name,
                                         thread_name='subcloud-audit',
-                                        region_clients=['sysinv'])
+                                        region_clients=['fm', 'sysinv'])
             sysinv_client = os_client.sysinv_client
             fm_client = os_client.fm_client
         except keystone_exceptions.ConnectTimeout:
