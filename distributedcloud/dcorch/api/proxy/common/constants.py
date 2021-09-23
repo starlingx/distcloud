@@ -361,5 +361,6 @@ ROUTE_METHOD_MAP = {
 }
 
 LOAD_VAULT_DIR = '/opt/dc-vault/loads'
+LOAD_VAULT_TMP_DIR = '/opt/dc-vault/loads/load_tmpdir'
 ENDPOINT_TYPE_PATCHING_TMPDIR = "/scratch/patch-api-proxy-tmpdir"
 ENDPOINT_TYPE_PLATFORM_TMPDIR = "/scratch/platform-api-proxy-tmpdir"

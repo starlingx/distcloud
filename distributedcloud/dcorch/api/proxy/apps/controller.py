@@ -13,10 +13,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import grp
 import json
 import os
+import psutil
+import pwd
 import shutil
-import tempfile
 import tsconfig.tsconfig as tsc
 import webob.dec
 import webob.exc
@@ -36,6 +38,7 @@ import dcorch.common.context as k_context
 from dcorch.common import exceptions as exception
 from dcorch.common import utils
 from dcorch.rpc import client as rpc_client
+from eventlet.green import subprocess
 from oslo_config import cfg
 from oslo_log import log as logging
 from oslo_service.wsgi import Request
@@ -399,6 +402,19 @@ class SysinvAPIController(APIController):
         # copy the request and the request body
         request = req
         request.body = req.body
+
+        # load-import is stored in dc-vault and on /scratch temporary
+        # folder to be processed by sysinv
+        if self._is_load_import(request.path):
+            req_body = self._store_load_to_vault(req)
+            if 'active' in request.POST:
+                req_body['active'] = request.POST['active']
+
+            # sysinv will handle a simple application/json request
+            # with the file location
+            req.content_type = "application/json"
+            req.body = json.dumps(req_body)
+
         application = self.process_request(req)
         response = req.get_response(application)
         return self.process_response(environ, request, response)
@@ -459,6 +475,9 @@ class SysinvAPIController(APIController):
         finally:
             proxy_utils.cleanup(environ)
 
+    def _is_load_import(self, path):
+        return path in proxy_consts.LOAD_PATHS
+
     def _is_active_load(self, sw_version):
         if sw_version == tsc.SW_VERSION:
             return True
@@ -475,25 +494,26 @@ class SysinvAPIController(APIController):
             self._remove_load_from_vault(sw_version)
 
             if not os.path.isdir(versioned_vault):
-                os.makedirs(versioned_vault)
+                # Check if the temporary folder exists
+                if not os.path.isdir(proxy_consts.LOAD_VAULT_TMP_DIR):
+                    msg = _("Failed to store load in vault. Please check "
+                            "dcorch log for details.")
+                    LOG.error("_save_load_to_vault failed: %s does not exist."
+                              % proxy_consts.LOAD_VAULT_TMP_DIR)
+                    raise webob.exc.HTTPInternalServerError(explanation=msg)
 
-            # Copy the load files from staging directory
-            load_path = proxy_consts.LOAD_FILES_STAGING_DIR
-            load_files = [f for f in os.listdir(load_path)
-                          if os.path.isfile(os.path.join(load_path, f))]
-            if len(load_files) != len(proxy_consts.IMPORT_LOAD_FILES):
-                msg = _("Failed to store load in vault. Please check "
-                        "dcorch log for details.")
-                LOG.error("_save_load_to_vault failed to store load in vault")
-                raise webob.exc.HTTPInsufficientStorage(explanation=msg)
+                # Check the number of files in the temp folder
+                load_path = proxy_consts.LOAD_VAULT_TMP_DIR
+                load_files = [f for f in os.listdir(load_path)
+                              if os.path.isfile(os.path.join(load_path, f))]
+                if len(load_files) != len(proxy_consts.IMPORT_LOAD_FILES):
+                    msg = _("Failed to store load in vault. Please check "
+                            "dcorch log for details.")
+                    LOG.error("_save_load_to_vault failed to store load in vault")
+                    raise webob.exc.HTTPInsufficientStorage(explanation=msg)
 
-            for lf in load_files:
-                shutil.copy(os.path.join(load_path, lf), versioned_vault)
-
-            if self._is_active_load(sw_version):
-                LOG.info("remove files from staging %s" %
-                         proxy_consts.LOAD_FILES_STAGING_DIR)
-                shutil.rmtree(proxy_consts.LOAD_FILES_STAGING_DIR)
+                # Move the folder to the final location
+                shutil.move(proxy_consts.LOAD_VAULT_TMP_DIR, versioned_vault)
 
             LOG.info("Load (%s) saved to vault." % sw_version)
         except Exception:
@@ -535,6 +555,10 @@ class SysinvAPIController(APIController):
                             "region. Please remove the previous load and "
                             "re-import it using 'SystemController' region.")
                     raise webob.exc.HTTPUnprocessableEntity(explanation=msg)
+        else:
+            # Remove temp load dir
+            if os.path.exists(proxy_consts.LOAD_VAULT_TMP_DIR):
+                shutil.rmtree(proxy_consts.LOAD_VAULT_TMP_DIR)
 
     def _copy_device_image_to_vault(self, src_filepath, dst_filename):
         try:
@@ -549,28 +573,118 @@ class SysinvAPIController(APIController):
                     "dcorch log for details.")
             raise webob.exc.HTTPInsufficientStorage(explanation=msg)
 
+    def _copy_load_to_vault_for_validation(self, src_filepath):
+        try:
+            validation_vault_dir = proxy_consts.LOAD_VAULT_TMP_DIR
+            if not os.path.isdir(validation_vault_dir):
+                os.makedirs(validation_vault_dir)
+            load_file_path = os.path.join(validation_vault_dir,
+                                          os.path.basename(src_filepath))
+            shutil.copyfile(src_filepath, load_file_path)
+            LOG.info("copied %s to %s" % (src_filepath, load_file_path))
+        except Exception:
+            msg = _("Failed to store load in vault. Please check "
+                    "dcorch log for details.")
+            raise webob.exc.HTTPInsufficientStorage(explanation=msg)
+        return load_file_path
+
+    def _upload_file(self, file_item):
+        try:
+            staging_dir = proxy_consts.LOAD_FILES_STAGING_DIR
+            # Need to change the permission on temporary folder to sysinv,
+            # sysinv might need to remove the temporary folder
+            sysinv_user_id = pwd.getpwnam('sysinv').pw_uid
+            sysinv_group_id = grp.getgrnam('sysinv').gr_gid
+            if not os.path.isdir(staging_dir):
+                os.makedirs(staging_dir)
+                os.chown(staging_dir, sysinv_user_id, sysinv_group_id)
+
+            source_file = file_item.file
+            staging_file = os.path.join(staging_dir,
+                                        os.path.basename(file_item.filename))
+
+            if source_file is None:
+                LOG.error("Failed to upload load file %s, invalid file object"
+                          % staging_file)
+                return None
+
+            if hasattr(source_file, 'fileno'):
+                # Only proceed if there is space available for copying
+                file_size = os.fstat(source_file.fileno()).st_size
+                avail_space = psutil.disk_usage('/scratch').free
+                if (avail_space < file_size):
+                    LOG.error("Failed to upload load file %s, not enough space on /scratch"
+                              " partition: %d bytes available "
+                              % (staging_file, avail_space))
+                    return None
+
+                # Large iso file, allocate the required space
+                subprocess.check_call(["/usr/bin/fallocate",  # pylint: disable=not-callable
+                                       "-l " + str(file_size), staging_file])
+
+            with open(staging_file, 'wb') as destination_file:
+                shutil.copyfileobj(source_file, destination_file)
+                os.chown(staging_file, sysinv_user_id, sysinv_group_id)
+
+        except subprocess.CalledProcessError as e:
+            LOG.error("Failed to upload load file %s, /usr/bin/fallocate error: %s"
+                      % (staging_file, e.output))
+            if os.path.isfile(staging_file):
+                os.remove(staging_file)
+            return None
+        except Exception:
+            if os.path.isfile(staging_file):
+                os.remove(staging_file)
+            LOG.exception("Failed to upload load file %s" % file_item.filename)
+            return None
+
+        return staging_file
+
+    def _store_load_to_vault(self, request):
+        load_files = dict()
+        try:
+            for file in proxy_consts.IMPORT_LOAD_FILES:
+                if file not in request.POST:
+                    msg = _("Missing required file for %s" % file)
+                    raise webob.exc.HTTPInternalServerError(explanation=msg)
+
+                file_item = request.POST[file]
+                if not file_item.filename:
+                    msg = _("No %s file uploaded" % file)
+                    raise webob.exc.HTTPInternalServerError(explanation=msg)
+
+                staging_file = self._upload_file(file_item)
+                request.POST[file] = staging_file
+                if staging_file:
+                    self._copy_load_to_vault_for_validation(staging_file)
+                    load_files.update({file: staging_file})
+                else:
+                    msg = _("Failed to save file %s to disk. Please check dcorch"
+                            " logs for details." % file_item.filename)
+                    raise webob.exc.HTTPInternalServerError(explanation=msg)
+
+            LOG.info("Load files: %s saved to disk." % load_files)
+        except Exception:
+            if os.path.exists(proxy_consts.LOAD_FILES_STAGING_DIR):
+                shutil.rmtree(proxy_consts.LOAD_FILES_STAGING_DIR)
+            msg = _("Unexpected error copying load to vault")
+            raise webob.exc.HTTPInternalServerError(explanation=msg)
+        return load_files
+
     def _store_image_file(self, file_item, dst_filename):
-        # write the image to a temporary directory first
-        tempdir = tempfile.mkdtemp(prefix="device_image_", dir='/scratch')
-        fn = tempdir + '/' + os.path.basename(file_item.filename)
-        if hasattr(file_item.file, 'fileno'):
-            src = file_item.file.fileno()
-            dst = os.open(fn, os.O_WRONLY | os.O_CREAT | os.O_TRUNC)
-            size = 64 * 1024
-            n = size
-            while n >= size:
-                s = os.read(src, size)
-                n = os.write(dst, s)
-            os.close(dst)
-        else:
-            with open(fn, 'wb') as fd:
-                fd.write(file_item.file.read())
+        # First, upload file to a temporary location
+        fn = self._upload_file(file_item)
 
         # copy the device image to the vault
         try:
-            self._copy_device_image_to_vault(fn, dst_filename)
+            if fn:
+                self._copy_device_image_to_vault(fn, dst_filename)
+            else:
+                msg = _("Failed to save file %s to disk. Please check dcorch"
+                        " logs for details." % file_item.filename)
+                raise webob.exc.HTTPInternalServerError(explanation=msg)
         finally:
-            shutil.rmtree(tempdir)
+            shutil.rmtree(proxy_consts.LOAD_FILES_STAGING_DIR)
 
     def _device_image_upload_req(self, request, response):
         # stores device image in the vault storage
