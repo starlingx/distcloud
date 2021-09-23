@@ -50,7 +50,7 @@ LOG = logging.getLogger(__name__)
 # We will update the state of each subcloud in the dcorch about once per hour.
 # Calculate how many iterations that will be.
 SUBCLOUD_STATE_UPDATE_ITERATIONS = \
-    dccommon_consts.SECONDS_IN_HOUR / CONF.scheduler.subcloud_audit_interval
+    dccommon_consts.SECONDS_IN_HOUR // CONF.scheduler.subcloud_audit_interval
 
 
 class SubcloudAuditWorkerManager(manager.Manager):

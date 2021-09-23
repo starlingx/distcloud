@@ -50,7 +50,7 @@ LOG = logging.getLogger(__name__)
 # We will update the state of each subcloud in the dcorch about once per hour.
 # Calculate how many iterations that will be.
 SUBCLOUD_STATE_UPDATE_ITERATIONS = \
-    dccommon_consts.SECONDS_IN_HOUR / CONF.scheduler.subcloud_audit_interval
+    dccommon_consts.SECONDS_IN_HOUR // CONF.scheduler.subcloud_audit_interval
 
 # Patch audit normally happens every CONF.scheduler.patch_audit_interval
 # seconds, but can be forced to happen on the next audit interval by calling
@@ -422,7 +422,7 @@ class SubcloudAuditManager(manager.Manager):
                      kube_rootca_update_audit_data))
 
         # We want a chunksize of at least 1 so add the number of workers.
-        chunksize = (len(subcloud_audits) + CONF.audit_worker_workers) / CONF.audit_worker_workers
+        chunksize = (len(subcloud_audits) + CONF.audit_worker_workers) // CONF.audit_worker_workers
         for audit in subcloud_audits:
             subcloud_ids.append(audit.subcloud_id)
             if len(subcloud_ids) == chunksize:
