@@ -1,10 +1,12 @@
 #
-# Copyright (c) 2020 Wind River Systems, Inc.
+# Copyright (c) 2020-2021 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
 import itertools
 import mock
+
+from dccommon.exceptions import LoadMaxReached
 
 from dcmanager.common import consts
 from dcmanager.common.exceptions import VaultLoadMissingError
@@ -37,6 +39,7 @@ IMPORTED_LOAD = FakeLoad(UPGRADED_LOAD.id,
                          compatible_version=UPGRADED_LOAD.compatible_version,
                          software_version=UPGRADED_LOAD.software_version)
 
+DEST_LOAD_IMPORTED = [IMPORTED_LOAD, ]
 DEST_LOAD_EXISTS = [UPGRADED_LOAD, ]
 DEST_LOAD_MISSING = [PREVIOUS_LOAD, ]
 DEST_LOAD_MISSING_2_LOADS = [PREVIOUS_LOAD, PREVIOUS_PREVIOUS_LOAD, ]
@@ -155,7 +158,7 @@ class TestSwUpgradeImportingLoadStage(TestSwUpgradeState):
         self.assert_step_updated(self.strategy_step.subcloud_id,
                                  self.on_success_state)
 
-    def test_upgrade_subcloud_importing_load_retry(self):
+    def test_upgrade_subcloud_importing_get_load_retry(self):
         """Test importing load where HTTP error occurs after successful API call."""
 
         # Simulate the target load has not been imported yet on the subcloud
@@ -170,6 +173,79 @@ class TestSwUpgradeImportingLoadStage(TestSwUpgradeState):
             [IMPORTING_LOAD,
              Exception("HTTPBadRequest: this is a fake exception"),
              IMPORTED_LOAD]
+
+        # invoke the strategy state operation on the orch thread
+        self.worker.perform_state_action(self.strategy_step)
+
+        # verify the import load API call was invoked
+        self.sysinv_client.import_load.assert_called()
+
+        # On success, should have moved to the next state
+        self.assert_step_updated(self.strategy_step.subcloud_id,
+                                 self.on_success_state)
+
+    def test_upgrade_sx_subcloud_import_load_vault_load_abort(self):
+        """Test import_load_metadata retry invoked and strategy continues as expected"""
+        system_values = FakeSystem()
+        system_values.system_mode = consts.SYSTEM_MODE_SIMPLEX
+        self.sysinv_client.get_system.return_value = system_values
+
+        # Two get load calls. One to the subcloud one to the system controller
+        self.sysinv_client.get_loads.side_effect = [
+            DEST_LOAD_MISSING, DEST_LOAD_EXISTS, ]
+
+        self.sysinv_client.import_load_metadata.side_effect = \
+            [SUCCESS_IMPORT_METADATA_RESPONSE,
+             Exception("HTTPBadRequest: this is a fake exception"),
+             VaultLoadMissingError(file_type='.iso', vault_dir='/mock/vault/'),
+             SUCCESS_IMPORT_METADATA_RESPONSE]
+
+        # invoke the strategy state operation on the orch thread
+        self.worker.perform_state_action(self.strategy_step)
+
+        # verify the import load metadata API call was invoked
+        self.sysinv_client.import_load_metadata.assert_called()
+
+        # On success, should have moved to the next state
+        self.assert_step_updated(self.strategy_step.subcloud_id,
+                                 self.on_success_state)
+
+    def test_upgrade_subcloud_dx_importing_import_load_retry(self):
+        """Test importing load on AIO-DX where import_load HTTP error requires retry."""
+
+        # Simulate the target load has not been imported yet on the subcloud
+        self.sysinv_client.get_loads.return_value = DEST_LOAD_MISSING
+
+        self.sysinv_client.import_load.side_effect = \
+            [Exception("HTTPBadRequest: this is a fake exception"),
+             SUCCESS_IMPORTING_RESPONSE]
+
+        # mock the get_load queries to return 'imported' and not 'importing'
+        self.sysinv_client.get_load.return_value = IMPORTED_LOAD
+
+        # invoke the strategy state operation on the orch thread
+        self.worker.perform_state_action(self.strategy_step)
+
+        # verify the import load API call was invoked
+        self.sysinv_client.import_load.assert_called()
+
+        # On success, should have moved to the next state
+        self.assert_step_updated(self.strategy_step.subcloud_id,
+                                 self.on_success_state)
+
+    def test_upgrade_subcloud_dx_import_load_max_retry(self):
+        """Test importing load on AIO-DX after import maximum load."""
+
+        # Get load calls to the subcloud and systemcontroller
+        self.sysinv_client.get_loads.side_effect = [
+            DEST_LOAD_MISSING, DEST_LOAD_IMPORTED, DEST_LOAD_IMPORTED]
+
+        self.sysinv_client.import_load.side_effect = \
+            [Exception("HTTPBadRequest: this is a fake exception"),
+             LoadMaxReached(region_name='subcloud1')]
+
+        # mock the get_load queries to return 'imported' and not 'importing'
+        self.sysinv_client.get_load.return_value = IMPORTED_LOAD
 
         # invoke the strategy state operation on the orch thread
         self.worker.perform_state_action(self.strategy_step)

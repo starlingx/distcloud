@@ -102,5 +102,9 @@ class LoadNotInVault(NotFound):
     message = _("Load at path %(path)s not found")
 
 
+class LoadMaxReached(Conflict):
+    message = _("Load in region=%(region_name)s at maximum number of loads")
+
+
 class PlaybookExecutionFailed(DCCommonException):
     message = _("Playbook execution failed, command=%(playbook_cmd)s")
