@@ -13,7 +13,7 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 #
-# Copyright (c) 2019 Wind River Systems, Inc.
+# Copyright (c) 2019-2021 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -67,6 +67,32 @@ def user_create(context, payload):
 def user_update(context, user_ref, payload):
     """Update a user"""
     return IMPL.user_update(context, user_ref, payload)
+
+
+###################
+
+# group db methods
+
+###################
+
+def group_get_all(context):
+    """Retrieve all groups."""
+    return IMPL.group_get_all(context)
+
+
+def group_get(context, group_id):
+    """Retrieve details of a group."""
+    return IMPL.group_get(context, group_id)
+
+
+def group_create(context, payload):
+    """Create a group."""
+    return IMPL.group_create(context, payload)
+
+
+def group_update(context, group_ref, payload):
+    """Update a group"""
+    return IMPL.group_update(context, group_ref, payload)
 
 
 ###################

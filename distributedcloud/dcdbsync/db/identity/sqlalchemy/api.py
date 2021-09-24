@@ -13,7 +13,7 @@
 # License for the specific language governing permissions and limitations
 # under the License.
 #
-# Copyright (c) 2019-2020 Wind River Systems, Inc.
+# Copyright (c) 2019-2021 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -230,8 +230,9 @@ def user_get_all(context):
         user_passwords = {'password': [password for password in passwords
                                        if password['local_user_id'] ==
                                        local_user['id']]}
-        user_consolidated = dict({'local_user': local_user}.items() +
-                                 user.items() + user_passwords.items())
+        user_consolidated = dict(list({'local_user': local_user}.items()) +
+                                 list(user.items()) +
+                                 list(user_passwords.items()))
         result.append(user_consolidated)
 
     return result
@@ -328,13 +329,129 @@ def user_update(context, user_id, payload):
                         updated_local_users[0]['id']
                     insert(conn, table, password)
         # Need to update the actor_id in assignment and system_assignment
-        # tables if the user id is updated
+        # along with the user_id in user_group_membership tables if the
+        # user id is updated
         if user_id != new_user_id:
             assignment = {'actor_id': new_user_id}
+            user_group_membership = {'user_id': new_user_id}
             update(conn, 'assignment', 'actor_id', user_id, assignment)
             update(conn, 'system_assignment', 'actor_id', user_id, assignment)
+            update(conn, 'user_group_membership', 'user_id', user_id, user_group_membership)
 
     return user_get(context, new_user_id)
+
+
+###################
+
+# identity groups
+
+###################
+
+@require_context
+def group_get_all(context):
+    result = []
+
+    with get_read_connection() as conn:
+        # groups table
+        groups = query(conn, 'group')
+        # user_group_membership table
+        user_group_memberships = query(conn, 'user_group_membership')
+
+    for group in groups:
+        local_user_id_list = [membership['user_id'] for membership
+                              in user_group_memberships if
+                              membership['group_id'] == group['id']]
+        local_user_id_list.sort()
+        local_user_ids = {'local_user_ids': local_user_id_list}
+        group_consolidated = dict(list({'group': group}.items()) +
+                                  list(local_user_ids.items()))
+        result.append(group_consolidated)
+
+    return result
+
+
+@require_context
+def group_get(context, group_id):
+    result = {}
+
+    with get_read_connection() as conn:
+        local_user_id_list = []
+
+        # group table
+        group = query(conn, 'group', 'id', group_id)
+        if not group:
+            raise exception.GroupNotFound(group_id=group_id)
+        result['group'] = group[0]
+
+        # user_group_membership table
+        user_group_memberships = query(conn, 'user_group_membership', 'group_id', group_id)
+
+        for user_group_membership in user_group_memberships:
+            local_user = query(conn, 'local_user', 'user_id', user_group_membership.get('user_id'))
+            if not local_user:
+                raise exception.UserNotFound(user_id=user_group_membership.get('user_id'))
+            local_user_id_list.append(local_user[0]['user_id'])
+
+        result['local_user_ids'] = local_user_id_list
+
+    return result
+
+
+@require_admin_context
+def group_create(context, payload):
+    group = payload['group']
+    local_user_ids = payload['local_user_ids']
+    with get_write_connection() as conn:
+
+        insert(conn, 'group', group)
+
+        for local_user_id in local_user_ids:
+            user_group_membership = {'user_id': local_user_id, 'group_id': group['id']}
+            insert(conn, 'user_group_membership', user_group_membership)
+
+    return group_get(context, payload['group']['id'])
+
+
+@require_admin_context
+def group_update(context, group_id, payload):
+    with get_write_connection() as conn:
+        new_group_id = group_id
+        if 'group' in payload and 'local_user_ids' in payload:
+            group = payload['group']
+            new_group_id = group.get('id')
+            # local_user_id_list is a sorted list of user IDs that
+            # belong to this group
+            local_user_id_list = payload['local_user_ids']
+            user_group_memberships = query(conn, 'user_group_membership',
+                                           'group_id', group_id)
+            existing_user_list = [user_group_membership['user_id'] for user_group_membership
+                                  in user_group_memberships]
+            existing_user_list.sort()
+            deleted = False
+            if (group_id != new_group_id) or (local_user_id_list != existing_user_list):
+                # Foreign key constraint exists on 'group_id' of user_group_membership table
+                # and 'id' of group table. So delete user group membership records before
+                # updating group if groups IDs are different
+                # Alternatively, if there is a discrepency in the user group memberships,
+                # delete and re-create them
+                delete(conn, 'user_group_membership', 'group_id', group_id)
+                deleted = True
+            # Update group table
+            update(conn, 'group', 'id', group_id, group)
+
+            if deleted:
+                for local_user_id in local_user_id_list:
+                    item = {'user_id': local_user_id, 'group_id': new_group_id}
+                    insert(conn, 'user_group_membership', item)
+
+        # Need to update the actor_id in assignment and system_assignment
+        # tables if the group id is updated
+        if group_id != new_group_id:
+            assignment = {'actor_id': new_group_id}
+            update(conn, 'assignment', 'actor_id', group_id, assignment)
+            update(conn, 'system_assignment', 'actor_id', group_id, assignment)
+
+    return group_get(context, new_group_id)
 
 
 ###################

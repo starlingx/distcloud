@@ -1,4 +1,4 @@
-# Copyright 2018-2020 Wind River
+# Copyright 2018-2021 Wind River
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -46,6 +46,8 @@ class IdentitySyncThread(SyncThread):
         self.sync_handler_map = {
             consts.RESOURCE_TYPE_IDENTITY_USERS:
                 self.sync_identity_resource,
+            consts.RESOURCE_TYPE_IDENTITY_GROUPS:
+                self.sync_identity_resource,
             consts.RESOURCE_TYPE_IDENTITY_USERS_PASSWORD:
                 self.sync_identity_resource,
             consts.RESOURCE_TYPE_IDENTITY_ROLES:
@@ -63,6 +65,7 @@ class IdentitySyncThread(SyncThread):
         # that users are replicated prior to assignment data (roles/projects)
         self.audit_resources = [
             consts.RESOURCE_TYPE_IDENTITY_USERS,
+            consts.RESOURCE_TYPE_IDENTITY_GROUPS,
             consts.RESOURCE_TYPE_IDENTITY_PROJECTS,
             consts.RESOURCE_TYPE_IDENTITY_ROLES,
             consts.RESOURCE_TYPE_IDENTITY_PROJECT_ROLE_ASSIGNMENTS,
@@ -79,6 +82,8 @@ class IdentitySyncThread(SyncThread):
             consts.RESOURCE_TYPE_IDENTITY_ROLES:
                 ['heat_stack_owner', 'heat_stack_user', 'ResellerAdmin'],
             consts.RESOURCE_TYPE_IDENTITY_PROJECTS:
+                [],
+            consts.RESOURCE_TYPE_IDENTITY_GROUPS:
                 []
         }
 
@@ -109,8 +114,8 @@ class IdentitySyncThread(SyncThread):
         # sysinv, and dcmanager users are special cases as the id's will match
         # (as this is forced during the subcloud deploy) but the details will
         # not so we still need to sync them here.
-        m_client = self.get_dbs_client(self.master_region_name).identity_manager
-        sc_client = self.get_dbs_client(self.region_name).identity_manager
+        m_client = self.get_dbs_client(self.master_region_name).identity_user_manager
+        sc_client = self.get_dbs_client(self.region_name).identity_user_manager
 
         for m_user in m_users:
             for sc_user in sc_users:
@@ -141,12 +146,51 @@ class IdentitySyncThread(SyncThread):
                         sdk.OpenStackDriver.delete_region_clients(self.region_name)
                         # Retry with a new token
                         sc_client = self.get_dbs_client(
-                            self.region_name).identity_manager
+                            self.region_name).identity_user_manager
                         user_ref = sc_client.update_user(sc_user.id,
                                                          user_records)
                     if not user_ref:
                         LOG.error("No user data returned when updating user {}"
                                   " in subcloud.".format(sc_user.id))
+                        raise exceptions.SyncRequestFailed
+
+    def _initial_sync_groups(self, m_groups, sc_groups):
+        # Particularly sync groups with same name but different ID.
+        m_client = self.get_dbs_client(self.master_region_name).identity_group_manager
+        sc_client = self.get_dbs_client(self.region_name).identity_group_manager
+
+        for m_group in m_groups:
+            for sc_group in sc_groups:
+                if (m_group.name == sc_group.name and
+                        m_group.domain_id == sc_group.domain_id and
+                        m_group.id != sc_group.id):
+                    group_records = m_client.group_detail(m_group.id)
+                    if not group_records:
+                        LOG.error("No data retrieved from master cloud for"
+                                  " group {} to update its equivalent in"
+                                  " subcloud.".format(m_group.id))
+                        raise exceptions.SyncRequestFailed
+                    # update the group by pushing down the DB records to
+                    # subcloud
+                    try:
+                        group_ref = sc_client.update_group(sc_group.id,
+                                                           group_records)
+                    # Retry once if unauthorized
+                    except dbsync_exceptions.Unauthorized as e:
+                        LOG.info("Update group {} request failed for {}: {}."
+                                 .format(sc_group.id,
+                                         self.region_name, str(e)))
+                        # Clear the cache so that the old token will not be validated
+                        sdk.OpenStackDriver.delete_region_clients(self.region_name)
+                        sc_client = self.get_dbs_client(
+                            self.region_name).identity_group_manager
+                        group_ref = sc_client.update_group(sc_group.id,
+                                                           group_records)
+
+                    if not group_ref:
+                        LOG.error("No group data returned when updating"
+                                  " group {} in subcloud.".
+                                  format(sc_group.id))
                         raise exceptions.SyncRequestFailed
 
     def _initial_sync_projects(self, m_projects, sc_projects):
@@ -232,10 +276,10 @@ class IdentitySyncThread(SyncThread):
         # before dcorch starts to audit resources. Later on when dcorch audits
         # and sync them over(including their IDs) to the subcloud, running
         # services at the subcloud with tokens issued before their ID are
-        # changed will get user/project not found error since their IDs are
+        # changed will get user/group/project not found error since their IDs are
         # changed. This will continue until their tokens expire in up to
         # 1 hour. Before that these services basically stop working.
-        # By an initial synchronization on existing users/projects,
+        # By an initial synchronization on existing users/groups/projects,
         # synchronously followed by a fernet keys synchronization, existing
         # tokens at subcloud are revoked and services are forced to
         # re-authenticate to get new tokens. This significantly decreases
@@ -260,6 +304,25 @@ class IdentitySyncThread(SyncThread):
             raise exceptions.SyncRequestFailed
 
         self._initial_sync_users(m_users, sc_users)
+
+        # get groups from master cloud
+        m_groups = self.get_master_resources(
+            consts.RESOURCE_TYPE_IDENTITY_GROUPS)
+
+        if not m_groups:
+            LOG.info("No groups returned from {}".
+                     format(dccommon_consts.VIRTUAL_MASTER_CLOUD))
+
+        # get groups from the subcloud
+        sc_groups = self.get_subcloud_resources(
+            consts.RESOURCE_TYPE_IDENTITY_GROUPS)
+
+        if not sc_groups:
+            LOG.info("No groups returned from subcloud {}".
+                     format(self.region_name))
+
+        if m_groups and sc_groups:
+            self._initial_sync_groups(m_groups, sc_groups)
 
         # get projects from master cloud
         m_projects = self.get_master_resources(
@@ -368,7 +431,7 @@ class IdentitySyncThread(SyncThread):
         # format
         try:
             user_records = self.get_dbs_client(self.master_region_name).\
-                identity_manager.user_detail(user_id)
+                identity_user_manager.user_detail(user_id)
         except dbsync_exceptions.Unauthorized:
             raise dbsync_exceptions.UnauthorizedMaster
         if not user_records:
@@ -379,7 +442,7 @@ class IdentitySyncThread(SyncThread):
 
         # Create the user on subcloud by pushing the DB records to subcloud
         user_ref = self.get_dbs_client(
-            self.region_name).identity_manager.add_user(
+            self.region_name).identity_user_manager.add_user(
             user_records)
         if not user_ref:
             LOG.error("No user data returned when creating user {} in"
@@ -421,7 +484,7 @@ class IdentitySyncThread(SyncThread):
         # format
         try:
             user_records = self.get_dbs_client(self.master_region_name).\
-                identity_manager.user_detail(user_id)
+                identity_user_manager.user_detail(user_id)
         except dbsync_exceptions.Unauthorized:
             raise dbsync_exceptions.UnauthorizedMaster
         if not user_records:
@@ -432,7 +495,7 @@ class IdentitySyncThread(SyncThread):
 
         # Update the corresponding user on subcloud by pushing the DB records
         # to subcloud
-        user_ref = self.get_dbs_client(self.region_name).identity_manager.\
+        user_ref = self.get_dbs_client(self.region_name).identity_user_manager.\
             update_user(sc_user_id, user_records)
         if not user_ref:
             LOG.error("No user data returned when updating user {} in"
@@ -530,6 +593,180 @@ class IdentitySyncThread(SyncThread):
                          user_subcloud_rsrc.subcloud_resource_id),
                  extra=self.log_extra)
         user_subcloud_rsrc.delete()
+
+    def post_groups(self, request, rsrc):
+        # Create this group on this subcloud
+        # The DB level resource creation process is, retrieve the resource
+        # records from master cloud by its ID, send the records in its original
+        # JSON format by REST call to the DB synchronization service on this
+        # subcloud, which then inserts the resource records into DB tables.
+        group_id = request.orch_job.source_resource_id
+        if not group_id:
+            LOG.error("Received group create request without required "
+                      "'source_resource_id' field", extra=self.log_extra)
+            raise exceptions.SyncRequestFailed
+
+        # Retrieve DB records of the group just created. The records is in JSON
+        # format
+        try:
+            group_records = self.get_dbs_client(self.master_region_name).\
+                identity_group_manager.group_detail(group_id)
+        except dbsync_exceptions.Unauthorized:
+            raise dbsync_exceptions.UnauthorizedMaster
+        if not group_records:
+            LOG.error("No data retrieved from master cloud for group {} to"
+                      " create its equivalent in subcloud.".format(group_id),
+                      extra=self.log_extra)
+            raise exceptions.SyncRequestFailed
+
+        # Create the group on subcloud by pushing the DB records to subcloud
+        group_ref = self.get_dbs_client(
+            self.region_name).identity_group_manager.add_group(
+            group_records)
+        if not group_ref:
+            LOG.error("No group data returned when creating group {} in"
+                      " subcloud.".format(group_id), extra=self.log_extra)
+            raise exceptions.SyncRequestFailed
+
+        # Persist the subcloud resource.
+        group_ref_id = group_ref.get('group').get('id')
+        subcloud_rsrc_id = self.persist_db_subcloud_resource(rsrc.id,
+                                                             group_ref_id)
+        groupname = group_ref.get('group').get('name')
+        LOG.info("Created Keystone group {}:{} [{}]"
+                 .format(rsrc.id, subcloud_rsrc_id, groupname),
+                 extra=self.log_extra)
+
+    def put_groups(self, request, rsrc):
+        # Update this group on this subcloud
+        # The DB level resource update process is, retrieve the resource
+        # records from master cloud by its ID, send the records in its original
+        # JSON format by REST call to the DB synchronization service on this
+        # subcloud, which then updates the resource records in its DB tables.
+        group_id = request.orch_job.source_resource_id
+        if not group_id:
+            LOG.error("Received group update request without required "
+                      "source resource id", extra=self.log_extra)
+            raise exceptions.SyncRequestFailed
+
+        group_dict = jsonutils.loads(request.orch_job.resource_info)
+        if 'group' in group_dict:
+            group_dict = group_dict['group']
+
+        sc_group_id = group_dict.pop('id', None)
+        if not sc_group_id:
+            LOG.error("Received group update request without required "
+                      "subcloud resource id", extra=self.log_extra)
+            raise exceptions.SyncRequestFailed
+
+        # Retrieve DB records of the group. The records is in JSON
+        # format
+        try:
+            group_records = self.get_dbs_client(self.master_region_name).\
+                identity_group_manager.group_detail(group_id)
+        except dbsync_exceptions.Unauthorized:
+            raise dbsync_exceptions.UnauthorizedMaster
+        if not group_records:
+            LOG.error("No data retrieved from master cloud for group {} to"
+                      " update its equivalent in subcloud.".format(group_id),
+                      extra=self.log_extra)
+            raise exceptions.SyncRequestFailed
+
+        # Update the corresponding group on subcloud by pushing the DB records
+        # to subcloud
+        group_ref = self.get_dbs_client(self.region_name).identity_group_manager.\
+            update_group(sc_group_id, group_records)
+        if not group_ref:
+            LOG.error("No group data returned when updating group {} in"
+                      " subcloud.".format(sc_group_id), extra=self.log_extra)
+            raise exceptions.SyncRequestFailed
+
+        # Persist the subcloud resource.
+        group_ref_id = group_ref.get('group').get('id')
+        subcloud_rsrc_id = self.persist_db_subcloud_resource(rsrc.id,
+                                                             group_ref_id)
+        groupname = group_ref.get('group').get('name')
+        LOG.info("Updated Keystone group {}:{} [{}]"
+                 .format(rsrc.id, subcloud_rsrc_id, groupname),
+                 extra=self.log_extra)
+
+    def patch_groups(self, request, rsrc):
+        # Update group reference on this subcloud
+        group_update_dict = jsonutils.loads(request.orch_job.resource_info)
+        if not group_update_dict.keys():
+            LOG.error("Received group update request "
+                      "without any update fields", extra=self.log_extra)
+            raise exceptions.SyncRequestFailed
+
+        group_update_dict = group_update_dict['group']
+        group_subcloud_rsrc = self.get_db_subcloud_resource(rsrc.id)
+        if not group_subcloud_rsrc:
+            LOG.error("Unable to update group reference {}:{}, "
+                      "cannot find equivalent Keystone group in subcloud."
+                      .format(rsrc, group_update_dict),
+                      extra=self.log_extra)
+            return
+
+        # instead of stowing the entire group reference or
+        # retrieving it, we build an opaque wrapper for the
+        # v3 Group Manager, containing the ID field which is
+        # needed to update this group reference
+        GroupReferenceWrapper = namedtuple('GroupReferenceWrapper',
+                                           'id')
+        group_id = group_subcloud_rsrc.subcloud_resource_id
+        original_group_ref = GroupReferenceWrapper(id=group_id)
+
+        sc_ks_client = self.get_ks_client(self.region_name)
+        # Update the group in the subcloud
+        group_ref = sc_ks_client.groups.update(
+            original_group_ref,
+            name=group_update_dict.pop('name', None),
+            domain=group_update_dict.pop('domain', None),
+            description=group_update_dict.pop('description', None))
+
+        if group_ref.id == group_id:
+            LOG.info("Updated Keystone group: {}:{}"
+                     .format(rsrc.id, group_ref.id), extra=self.log_extra)
+        else:
+            LOG.error("Unable to update Keystone group {}:{} for subcloud"
+                      .format(rsrc.id, group_id), extra=self.log_extra)
+
+    def delete_groups(self, request, rsrc):
+        # Delete group reference on this subcloud
+        group_subcloud_rsrc = self.get_db_subcloud_resource(rsrc.id)
+        if not group_subcloud_rsrc:
+            LOG.error("Unable to delete group reference {}, "
+                      "cannot find equivalent Keystone group in subcloud."
+                      .format(rsrc), extra=self.log_extra)
+            return
+
+        # instead of stowing the entire group reference or
+        # retrieving it, we build an opaque wrapper for the
+        # v3 User Manager, containing the ID field which is
+        # needed to delete this group reference
+        GroupReferenceWrapper = namedtuple('GroupReferenceWrapper',
+                                           'id')
+        group_id = group_subcloud_rsrc.subcloud_resource_id
+        original_group_ref = GroupReferenceWrapper(id=group_id)
+
+        # Delete the group in the subcloud
+        try:
+            sc_ks_client = self.get_ks_client(self.region_name)
+            sc_ks_client.groups.delete(original_group_ref)
+        except keystone_exceptions.NotFound:
+            LOG.info("Delete group: group {} not found in {}, "
+                     "considered as deleted.".
+                     format(original_group_ref.id,
+                            self.region_name),
+                     extra=self.log_extra)
+
+        # Master Resource can be deleted only when all subcloud resources
+        # are deleted along with corresponding orch_job and orch_requests.
+        LOG.info("Keystone group {}:{} [{}] deleted"
+                 .format(rsrc.id, group_subcloud_rsrc.id,
+                         group_subcloud_rsrc.subcloud_resource_id),
+                 extra=self.log_extra)
+        group_subcloud_rsrc.delete()
 
     def post_projects(self, request, rsrc):
         # Create this project on this subcloud
@@ -881,7 +1118,7 @@ class IdentitySyncThread(SyncThread):
         role_subcloud_rsrc.delete()
 
     def post_project_role_assignments(self, request, rsrc):
-        # Assign this role to user on project on this subcloud
+        # Assign this role to user/group on project on this subcloud
         # Project role assignments creation is still using keystone APIs since
         # the APIs can be used to sync them.
         resource_tags = rsrc.master_id.split('_')
@@ -892,7 +1129,8 @@ class IdentitySyncThread(SyncThread):
             raise exceptions.SyncRequestFailed
 
         project_id = resource_tags[0]
-        user_id = resource_tags[1]
+        # actor_id can be either user_id or group_id
+        actor_id = resource_tags[1]
         role_id = resource_tags[2]
 
         # Ensure that we have already synced the project, user and role
@@ -928,31 +1166,50 @@ class IdentitySyncThread(SyncThread):
         sc_user = None
         sc_user_list = self._get_all_users(sc_ks_client)
         for user in sc_user_list:
-            if user.id == user_id:
+            if user.id == actor_id:
                 sc_user = user
                 break
-        if not sc_user:
-            LOG.error("Unable to assign role to user on project reference {}:"
-                      "{}, cannot find equivalent Keystone User in subcloud."
-                      .format(rsrc, user_id),
+        sc_group = None
+        sc_group_list = self._get_all_groups(sc_ks_client)
+        for group in sc_group_list:
+            if group.id == actor_id:
+                sc_group = group
+                break
+        if not sc_user and not sc_group:
+            LOG.error("Unable to assign role to user/group on project reference {}:"
+                      "{}, cannot find equivalent Keystone User/Group in subcloud."
+                      .format(rsrc, actor_id),
                       extra=self.log_extra)
             raise exceptions.SyncRequestFailed
 
         # Create role assignment
-        sc_ks_client.roles.grant(
-            sc_role,
-            user=sc_user,
-            project=sc_proj)
-        role_ref = sc_ks_client.role_assignments.list(
-            user=sc_user,
-            project=sc_proj,
-            role=sc_role)
+        if sc_user:
+            sc_ks_client.roles.grant(
+                sc_role,
+                user=sc_user,
+                project=sc_proj)
+            role_ref = sc_ks_client.role_assignments.list(
+                user=sc_user,
+                project=sc_proj,
+                role=sc_role)
+        elif sc_group:
+            sc_ks_client.roles.grant(
+                sc_role,
+                group=sc_group,
+                project=sc_proj)
+            role_ref = sc_ks_client.role_assignments.list(
+                group=sc_group,
+                project=sc_proj,
+                role=sc_role)
 
         if role_ref:
             LOG.info("Added Keystone role assignment: {}:{}"
                      .format(rsrc.id, role_ref), extra=self.log_extra)
             # Persist the subcloud resource.
-            sc_rid = sc_proj.id + '_' + sc_user.id + '_' + sc_role.id
+            if sc_user:
+                sc_rid = sc_proj.id + '_' + sc_user.id + '_' + sc_role.id
+            elif sc_group:
+                sc_rid = sc_proj.id + '_' + sc_group.id + '_' + sc_role.id
             subcloud_rsrc_id = self.persist_db_subcloud_resource(rsrc.id,
                                                                  sc_rid)
             LOG.info("Created Keystone role assignment {}:{} [{}]"
@@ -986,33 +1243,55 @@ class IdentitySyncThread(SyncThread):
         resource_tags = subcloud_rid.split('_')
         if len(resource_tags) < 3:
             LOG.error("Malformed subcloud resource tag {}, expected to be in "
-                      "format: ProjectID_UserID_RoleID."
+                      "format: ProjectID_UserID_RoleID or ProjectID_GroupID_RoleID."
                       .format(assignment_subcloud_rsrc), extra=self.log_extra)
             assignment_subcloud_rsrc.delete()
             return
 
         project_id = resource_tags[0]
-        user_id = resource_tags[1]
+        actor_id = resource_tags[1]
         role_id = resource_tags[2]
 
         # Revoke role assignment
+        actor = None
         try:
             sc_ks_client = self.get_ks_client(self.region_name)
             sc_ks_client.roles.revoke(
                 role_id,
-                user=user_id,
+                user=actor_id,
                 project=project_id)
+            actor = 'user'
         except keystone_exceptions.NotFound:
             LOG.info("Revoke role assignment: (role {}, user {}, project {})"
                      " not found in {}, considered as deleted.".
-                     format(role_id, user_id, project_id,
+                     format(role_id, actor_id, project_id,
                             self.region_name),
                      extra=self.log_extra)
+            try:
+                sc_ks_client = self.get_ks_client(self.region_name)
+                sc_ks_client.roles.revoke(
+                    role_id,
+                    group=actor_id,
+                    project=project_id)
+                actor = 'group'
+            except keystone_exceptions.NotFound:
+                LOG.info("Revoke role assignment: (role {}, group {}, project {})"
+                         " not found in {}, considered as deleted.".
+                         format(role_id, actor_id, project_id,
+                                self.region_name),
+                         extra=self.log_extra)
 
-        role_ref = sc_ks_client.role_assignments.list(
-            user=user_id,
-            project=project_id,
-            role=role_id)
+        role_ref = None
+        if actor == 'user':
+            role_ref = sc_ks_client.role_assignments.list(
+                user=actor_id,
+                project=project_id,
+                role=role_id)
+        elif actor == 'group':
+            role_ref = sc_ks_client.role_assignments.list(
+                group=actor_id,
+                project=project_id,
+                role=role_id)
 
         if not role_ref:
             LOG.info("Deleted Keystone role assignment: {}:{}"
@@ -1182,7 +1461,9 @@ class IdentitySyncThread(SyncThread):
     # ---- Override common audit functions ----
     def _get_resource_audit_handler(self, resource_type, client):
         if resource_type == consts.RESOURCE_TYPE_IDENTITY_USERS:
-            return self._get_users_resource(client.identity_manager)
+            return self._get_users_resource(client.identity_user_manager)
+        if resource_type == consts.RESOURCE_TYPE_IDENTITY_GROUPS:
+            return self._get_groups_resource(client.identity_group_manager)
         elif resource_type == consts.RESOURCE_TYPE_IDENTITY_ROLES:
             return self._get_roles_resource(client.role_manager)
         elif resource_type == consts.RESOURCE_TYPE_IDENTITY_PROJECTS:
@@ -1210,6 +1491,14 @@ class IdentitySyncThread(SyncThread):
             domain_users = client.users.list(domain=domain)
             users = users + domain_users
         return users
+
+    def _get_all_groups(self, client):
+        domains = client.domains.list()
+        groups = []
+        for domain in domains:
+            domain_groups = client.groups.list(domain=domain)
+            groups = groups + domain_groups
+        return groups
 
     def _get_users_resource(self, client):
         try:
@@ -1246,6 +1535,33 @@ class IdentitySyncThread(SyncThread):
                 dbsync_exceptions.ConnectTimeout,
                 dbsync_exceptions.ConnectFailure) as e:
             LOG.info("User Audit: subcloud {} is not reachable [{}]"
+                     .format(self.region_name,
+                             str(e)), extra=self.log_extra)
+            # None will force skip of audit
+            return None
+
+    def _get_groups_resource(self, client):
+        try:
+            # get groups from DB API
+            if hasattr(client, 'list_groups'):
+                groups = client.list_groups()
+            # get groups from keystone API
+            else:
+                groups = client.groups.list()
+
+            # Filter out admin or services projects
+            filtered_list = self.filtered_audit_resources[
+                consts.RESOURCE_TYPE_IDENTITY_GROUPS]
+
+            filtered_groups = [group for group in groups if
+                               all(group.name != filtered for
+                                   filtered in filtered_list)]
+            return filtered_groups
+        except (keystone_exceptions.connection.ConnectTimeout,
+                keystone_exceptions.ConnectFailure,
+                dbsync_exceptions.ConnectTimeout,
+                dbsync_exceptions.ConnectFailure) as e:
+            LOG.info("Group Audit: subcloud {} is not reachable [{}]"
                      .format(self.region_name,
                              str(e)), extra=self.log_extra)
             # None will force skip of audit
@@ -1316,22 +1632,28 @@ class IdentitySyncThread(SyncThread):
             roles = self._get_roles_resource(client)
             projects = self._get_projects_resource(client)
             users = self._get_users_resource(client)
+            groups = self._get_groups_resource(client)
             for assignment in assignments:
                 if 'project' not in assignment.scope:
                     # this is a domain scoped role, we don't care
                     # about syncing or auditing them for now
                     continue
                 role_id = assignment.role['id']
-                user_id = assignment.user['id']
+                actor_id = assignment.user['id'] if hasattr(assignment, 'user') else assignment.group['id']
                 project_id = assignment.scope['project']['id']
                 assignment_dict = {}
 
                 for user in users:
-                    if user.id == user_id:
-                        assignment_dict['user'] = user
+                    if user.id == actor_id:
+                        assignment_dict['actor'] = user
                         break
                 else:
-                    continue
+                    for group in groups:
+                        if group.id == actor_id:
+                            assignment_dict['actor'] = group
+                            break
+                    else:
+                        continue
 
                 for role in roles:
                     if role.id == role_id:
@@ -1350,7 +1672,7 @@ class IdentitySyncThread(SyncThread):
                 # The id of a Role Assigment is:
                 # projectID_userID_roleID
                 assignment_dict['id'] = "{}_{}_{}".format(
-                    project_id, user_id, role_id)
+                    project_id, actor_id, role_id)
 
                 # Build an opaque object wrapper for this RoleAssignment
                 refactored_assignment = namedtuple(
@@ -1411,15 +1733,15 @@ class IdentitySyncThread(SyncThread):
             # None will force skip of audit
             return None
 
-    def _same_identity_resource(self, m, sc):
+    def _same_identity_user_resource(self, m, sc):
         LOG.debug("master={}, subcloud={}".format(m, sc),
                   extra=self.log_extra)
         # For user the comparison is DB records by DB records.
         # The user DB records are from multiple tables, including user,
         # local_user, and password tables. If any of them are not matched,
-        # it is considered not a same identity resource.
-        # Note that the user id is compared, since user id is to be synced
-        # to subcloud too.
+        # it is considered as a different identity resource.
+        # Note that the user id is compared, since user id has to be synced
+        # to the subcloud too.
         same_user = (m.id == sc.id and
                      m.domain_id == sc.domain_id and
                      m.default_project_id == sc.default_project_id and
@@ -1451,13 +1773,45 @@ class IdentitySyncThread(SyncThread):
                 result = True
         return result
 
-    def _has_same_identity_ids(self, m, sc):
+    def _same_identity_group_resource(self, m, sc):
+        LOG.debug("master={}, subcloud={}".format(m, sc),
+                  extra=self.log_extra)
+        # For group the comparison is DB records by DB records.
+        # The group DB records are from two tables - group and
+        # user_group_membership tables. If any of them are not matched,
+        # it is considered as different identity resource.
+        # Note that the group id is compared, since group id has to be synced
+        # to the subcloud too.
+        same_group = (m.id == sc.id and
+                      m.domain_id == sc.domain_id and
+                      m.description == sc.description and
+                      m.name == sc.name and
+                      m.extra == sc.extra)
+        if not same_group:
+            return False
+
+        same_local_user_ids = (m.local_user_ids ==
+                               sc.local_user_ids)
+        if not same_local_user_ids:
+            return False
+
+        return True
+
+    def _has_same_identity_user_ids(self, m, sc):
         # If (user name + domain name) or use id is the same,
         # the resources are considered to be the same resource.
         # Any difference in other attributes will trigger an update (PUT)
         # to that resource in subcloud.
         return ((m.local_user.name == sc.local_user.name and
                  m.domain_id == sc.domain_id) or m.id == sc.id)
+
+    def _has_same_identity_group_ids(self, m, sc):
+        # If (group name + domain name) or group id is the same,
+        # then the resources are considered to be the same.
+        # Any difference in other attributes will trigger an update (PUT)
+        # to that resource in subcloud.
+        return ((m.name == sc.name and m.domain_id == sc.domain_id)
+                or m.id == sc.id)
 
     def _same_project_resource(self, m, sc):
         LOG.debug("master={}, subcloud={}".format(m, sc),
@@ -1510,7 +1864,7 @@ class IdentitySyncThread(SyncThread):
         LOG.debug("same_assignment master={}, subcloud={}".format(m, sc),
                   extra=self.log_extra)
         # For an assignment to be the same, all 3 of its role, project and
-        # user information must match up.
+        # actor (user/group) information must match up.
         # Compare by names here is fine, since this comparison gets called
         # only if the mapped subcloud assignment is found by id in subcloud
         # resources just retrieved. In another word, the ids are guaranteed
@@ -1518,8 +1872,8 @@ class IdentitySyncThread(SyncThread):
         # audit_find_missing(). same_resource() in audit_find_missing() is
         # actually redundant for assignment but it's the generic algorithm
         # for all types of resources.
-        return((m.user.name == sc.user.name and
-                m.user.domain_id == sc.user.domain_id) and
+        return((m.actor.name == sc.actor.name and
+                m.actor.domain_id == sc.actor.domain_id) and
                (m.role.name == sc.role.name and
                 m.role.domain_id == sc.role.domain_id) and
                (m.project.name == sc.project.name and
@@ -1558,7 +1912,7 @@ class IdentitySyncThread(SyncThread):
 
     def get_master_resources(self, resource_type):
         # Retrieve master resources from DB or through Keystone.
-        # users, projects, roles, and token revocation events use
+        # users, groups, projects, roles, and token revocation events use
         # dbsync client, other resources use keystone client.
         if self.is_resource_handled_by_dbs_client(resource_type):
             try:
@@ -1642,7 +1996,10 @@ class IdentitySyncThread(SyncThread):
     def same_resource(self, resource_type, m_resource, sc_resource):
         if (resource_type ==
                 consts.RESOURCE_TYPE_IDENTITY_USERS):
-            return self._same_identity_resource(m_resource, sc_resource)
+            return self._same_identity_user_resource(m_resource, sc_resource)
+        elif (resource_type ==
+                consts.RESOURCE_TYPE_IDENTITY_GROUPS):
+            return self._same_identity_group_resource(m_resource, sc_resource)
         elif (resource_type ==
                 consts.RESOURCE_TYPE_IDENTITY_PROJECTS):
             return self._same_project_resource(m_resource, sc_resource)
@@ -1662,7 +2019,10 @@ class IdentitySyncThread(SyncThread):
     def has_same_ids(self, resource_type, m_resource, sc_resource):
         if (resource_type ==
                 consts.RESOURCE_TYPE_IDENTITY_USERS):
-            return self._has_same_identity_ids(m_resource, sc_resource)
+            return self._has_same_identity_user_ids(m_resource, sc_resource)
+        elif (resource_type ==
+                consts.RESOURCE_TYPE_IDENTITY_GROUPS):
+            return self._has_same_identity_group_ids(m_resource, sc_resource)
         elif (resource_type ==
                 consts.RESOURCE_TYPE_IDENTITY_PROJECTS):
             return self._has_same_project_ids(m_resource, sc_resource)
@@ -1790,6 +2150,7 @@ class IdentitySyncThread(SyncThread):
     def is_resource_handled_by_dbs_client(resource_type):
         if resource_type in [
                 consts.RESOURCE_TYPE_IDENTITY_USERS,
+                consts.RESOURCE_TYPE_IDENTITY_GROUPS,
                 consts.RESOURCE_TYPE_IDENTITY_PROJECTS,
                 consts.RESOURCE_TYPE_IDENTITY_ROLES,
                 consts.RESOURCE_TYPE_IDENTITY_TOKEN_REVOKE_EVENTS,

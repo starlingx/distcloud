@@ -13,7 +13,7 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 #
-# Copyright (c) 2019 Wind River Systems, Inc.
+# Copyright (c) 2019-2021 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -131,3 +131,99 @@ class UsersController(object):
         except Exception as e:
             LOG.exception(e)
             pecan.abort(500, _('Unable to update user'))
+
+
+class GroupsController(object):
+    VERSION_ALIASES = {
+        'Stein': '1.0',
+    }
+
+    def __init__(self):
+        super(GroupsController, self).__init__()
+
+    # to do the version compatibility for future purpose
+    def _determine_version_cap(self, target):
+        version_cap = 1.0
+        return version_cap
+
+    @expose(generic=True, template='json')
+    def index(self):
+        # Route the request to specific methods with parameters
+        pass
+
+    @index.when(method='GET', template='json')
+    def get(self, group_ref=None):
+        """Get a list of groups."""
+        context = restcomm.extract_context_from_environ()
+        try:
+            if group_ref is None:
+                return db_api.group_get_all(context)
+
+            else:
+                group = db_api.group_get(context, group_ref)
+                return group
+
+        except exceptions.GroupNotFound as e:
+            pecan.abort(404, _("Group not found: %s") % e)
+
+        except Exception as e:
+            LOG.exception(e)
+            pecan.abort(500, _('Unable to get group'))
+
+    @index.when(method='POST', template='json')
+    def post(self):
+        """Create a new group."""
+
+        context = restcomm.extract_context_from_environ()
+
+        # Convert JSON string in request to Python dict
+        try:
+            payload = json.loads(request.body)
+        except ValueError:
+            pecan.abort(400, _('Request body decoding error'))
+
+        if not payload:
+            pecan.abort(400, _('Body required'))
+        group_name = payload.get('group').get('name')
+
+        if not group_name:
+            pecan.abort(400, _('Group name required'))
+
+        try:
+            # Insert the group into DB tables
+            group_ref = db_api.group_create(context, payload)
+            response.status = 201
+            return (group_ref)
+
+        except Exception as e:
+            LOG.exception(e)
+            pecan.abort(500, _('Unable to create group'))
+
+    @index.when(method='PUT', template='json')
+    def put(self, group_ref=None):
+        """Update a existing group."""
+
+        context = restcomm.extract_context_from_environ()
+
+        if group_ref is None:
+            pecan.abort(400, _('Group ID required'))
+
+        # Convert JSON string in request to Python dict
+        try:
+            payload = json.loads(request.body)
+        except ValueError:
+            pecan.abort(400, _('Request body decoding error'))
+
+        if not payload:
+            pecan.abort(400, _('Body required'))
+
+        try:
+            # Update the group in DB tables
+            return db_api.group_update(context, group_ref, payload)
+
+        except exceptions.GroupNotFound as e:
+            pecan.abort(404, _("Group not found: %s") % e)
+
+        except Exception as e:
+            LOG.exception(e)
+            pecan.abort(500, _('Unable to update group'))

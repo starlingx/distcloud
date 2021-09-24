@@ -789,16 +789,20 @@ class IdentityAPIController(APIController):
     def _generate_assignment_rid(self, url, environ):
         resource_id = None
         # for role assignment or revocation, the URL is of format:
-        # /v3/projects/{project_id}/users/{user_id}/roles/{role_id}
+        # /v3/projects/{project_id}/users/{user_id}/roles/{role_id} or
+        # /v3/projects/{project_id}/groups/{group_id}/roles/{role_id}
         # We need to extract all ID parameters from the URL
         role_id = proxy_utils.get_routing_match_value(environ, 'role_id')
         proj_id = proxy_utils.get_routing_match_value(environ, 'project_id')
-        user_id = proxy_utils.get_routing_match_value(environ, 'user_id')
+        if 'user_id' in proxy_utils.get_routing_match_arguments(environ):
+            actor_id = proxy_utils.get_routing_match_value(environ, 'user_id')
+        else:
+            actor_id = proxy_utils.get_routing_match_value(environ, 'group_id')
 
-        if (not role_id or not proj_id or not user_id):
+        if (not role_id or not proj_id or not actor_id):
             LOG.error("Malformed Role Assignment or Revocation URL: %s", url)
         else:
-            resource_id = "{}_{}_{}".format(proj_id, user_id, role_id)
+            resource_id = "{}_{}_{}".format(proj_id, actor_id, role_id)
         return resource_id
 
     def _retrieve_token_revoke_event_rid(self, url, environ):
@@ -826,7 +830,7 @@ class IdentityAPIController(APIController):
         resource_type = self._get_resource_type_from_environ(environ)
 
         # if this is a Role Assignment or Revocation request then
-        # we need to extract Project ID, User ID and Role ID from the
+        # we need to extract Project ID, User ID/Group ID and Role ID from the
         # URL, and not just the Role ID
         if (resource_type ==
                 consts.RESOURCE_TYPE_IDENTITY_PROJECT_ROLE_ASSIGNMENTS):
@@ -852,6 +856,20 @@ class IdentityAPIController(APIController):
             if operation_type == consts.OPERATION_TYPE_POST:
                 operation_type = consts.OPERATION_TYPE_PATCH
                 resource_type = consts.RESOURCE_TYPE_IDENTITY_USERS
+        elif (resource_type == consts.RESOURCE_TYPE_IDENTITY_GROUPS
+              and operation_type != consts.OPERATION_TYPE_POST):
+            if("users" in request_header):
+                # Requests for adding a user (PUT) and removing a user (DELETE)
+                # should be converted to a PUT request
+                # The url in this case looks like /groups/{group_id}/users/{user_id}
+                # We need to extract the group_id and assign that to resource_id
+                index = request_header.find("/users")
+                resource_id = self.get_resource_id_from_link(request_header[0:index])
+                resource_info = {'group':
+                                 {'id': resource_id}}
+                operation_type = consts.OPERATION_TYPE_PUT
+            else:
+                resource_id = self.get_resource_id_from_link(request_header)
         else:
             if operation_type == consts.OPERATION_TYPE_POST:
                 # Retrieve the ID from the response
