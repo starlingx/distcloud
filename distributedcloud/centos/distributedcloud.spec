@@ -94,7 +94,7 @@ Distributed Cloud Manager
 Summary: DC Orchestrator
 # TODO(John): should we add Requires lines?
 Requires: openstack-ras
-Requires: python-psutils
+Requires: python-psutil
 
 %description dcorch
 Distributed Cloud Orchestrator
