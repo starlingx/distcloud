@@ -479,6 +479,26 @@ def subcloud_status_update(context, subcloud_id, endpoint_type, sync_status):
 
 
 @require_admin_context
+def subcloud_status_update_endpoints(context, subcloud_id,
+                                     endpoint_type_list, sync_status):
+    """Update all statuses of endpoints in endpoint_type_list of a subcloud.
+
+    Will raise if subcloud status does not exist.
+    """
+    value = {"sync_status": sync_status}
+    with write_session() as session:
+        result = session.query(models.SubcloudStatus). \
+            filter_by(subcloud_id=subcloud_id). \
+            filter(models.SubcloudStatus.endpoint_type.in_(endpoint_type_list)). \
+            update(value, synchronize_session=False)
+    if not result:
+        raise exception.SubcloudStatusNotFound(subcloud_id=subcloud_id,
+                                               endpoint_type="any")
+
+    return result
+
+
+@require_admin_context
 def subcloud_status_destroy_all(context, subcloud_id):
     with write_session() as session:
         subcloud_statuses = subcloud_status_get_all(context, subcloud_id)
