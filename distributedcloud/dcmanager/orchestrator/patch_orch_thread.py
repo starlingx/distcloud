@@ -73,6 +73,13 @@ class PatchOrchThread(threading.Thread):
             thread_pool_size=100)
         # Track worker created for each subcloud.
         self.subcloud_workers = dict()
+        # Used to store RegionOne patches.
+        self.regionone_patches = dict()
+        # Used to store the list of patch ids that should be applied, based on
+        # their state in the central region.
+        self.regionone_applied_patch_ids = list()
+        # Used to store the list patch ids are committed in the central region.
+        self.regionone_committed_patch_ids = list()
 
     def stopped(self):
         return self._stop.isSet()
@@ -143,6 +150,36 @@ class PatchOrchThread(threading.Thread):
             details=details,
             started_at=started_at,
             finished_at=finished_at)
+
+    def get_region_one_patches(self):
+        """Query the RegionOne to determine what patches should be applied/committed."""
+
+        self.regionone_patches = \
+            self.get_patching_client(consts.DEFAULT_REGION_NAME).query()
+        LOG.debug("regionone_patches: %s" % self.regionone_patches)
+
+        # Build lists of patches that should be applied in this subcloud,
+        # based on their state in RegionOne. Check repostate (not patchstate)
+        # as we only care if the patch has been applied to the repo (not
+        # whether it is installed on the hosts). If we were to check the
+        # patchstate, we could end up removing patches from this subcloud
+        # just because a single host in RegionOne reported that it was not
+        # patch current.
+        self.regionone_applied_patch_ids = [
+            patch_id for patch_id in self.regionone_patches.keys()
+            if self.regionone_patches[patch_id]['repostate'] in [
+                patching_v1.PATCH_STATE_APPLIED,
+                patching_v1.PATCH_STATE_COMMITTED]]
+
+        # Then query RegionOne to determine what patches should be committed.
+        regionone_committed_patches = self.get_patching_client(
+            consts.DEFAULT_REGION_NAME).query(
+                state=patching_v1.PATCH_STATE_COMMITTED)
+        LOG.debug("regionone_committed_patches: %s" %
+                  regionone_committed_patches)
+
+        self.regionone_committed_patch_ids = [
+            patch_id for patch_id in regionone_committed_patches.keys()]
 
     def patch_orch(self):
         while not self.stopped():
@@ -273,6 +310,12 @@ class PatchOrchThread(threading.Thread):
 
                 if strategy_step.state == \
                         consts.STRATEGY_STATE_INITIAL:
+
+                    # Retrieve the list of patches from RegionOne once. This list
+                    # will be referenced when the subcloud patch strategy is executed.
+                    if strategy_step.subcloud_id is None:
+                        self.get_region_one_patches()
+
                     # Don't start patching this subcloud if it has been
                     # unmanaged by the user. If orchestration was already
                     # started, it will be allowed to complete.
@@ -384,25 +427,6 @@ class PatchOrchThread(threading.Thread):
         LOG.info("Updating patches for subcloud %s" %
                  strategy_step.subcloud.name)
 
-        # First query RegionOne to determine what patches should be applied.
-        regionone_patches = self.get_patching_client(consts.DEFAULT_REGION_NAME).query()
-        LOG.debug("regionone_patches: %s" % regionone_patches)
-
-        # Build lists of patches that should be applied in this subcloud,
-        # based on their state in RegionOne. Check repostate (not patchstate)
-        # as we only care if the patch has been applied to the repo (not
-        # whether it is installed on the hosts). If we were to check the
-        # patchstate, we could end up removing patches from this subcloud
-        # just because a single host in RegionOne reported that it was not
-        # patch current.
-        applied_patch_ids = list()
-        for patch_id in regionone_patches.keys():
-            if regionone_patches[patch_id]['repostate'] in [
-                    patching_v1.PATCH_STATE_APPLIED,
-                    patching_v1.PATCH_STATE_COMMITTED]:
-                applied_patch_ids.append(patch_id)
-        LOG.debug("RegionOne applied_patch_ids: %s" % applied_patch_ids)
-
         # Retrieve all the patches that are present in this subcloud.
         try:
             subcloud_patches = self.get_patching_client(
@@ -447,13 +471,13 @@ class PatchOrchThread(threading.Thread):
         for patch_id in subcloud_patch_ids:
             if subcloud_patches[patch_id]['repostate'] == \
                     patching_v1.PATCH_STATE_APPLIED:
-                if patch_id not in applied_patch_ids:
+                if patch_id not in self.regionone_applied_patch_ids:
                     LOG.info("Patch %s will be removed from subcloud %s" %
                              (patch_id, strategy_step.subcloud.name))
                     patches_to_remove.append(patch_id)
             elif subcloud_patches[patch_id]['repostate'] == \
                     patching_v1.PATCH_STATE_COMMITTED:
-                if patch_id not in applied_patch_ids:
+                if patch_id not in self.regionone_applied_patch_ids:
                     message = ("Patch %s is committed in subcloud %s but "
                                "not applied in SystemController" %
                                (patch_id, strategy_step.subcloud.name))
@@ -465,7 +489,7 @@ class PatchOrchThread(threading.Thread):
                     return
             elif subcloud_patches[patch_id]['repostate'] == \
                     patching_v1.PATCH_STATE_AVAILABLE:
-                if patch_id in applied_patch_ids:
+                if patch_id in self.regionone_applied_patch_ids:
                     LOG.info("Patch %s will be applied to subcloud %s" %
                              (patch_id, strategy_step.subcloud.name))
                     patches_to_apply.append(patch_id)
@@ -483,8 +507,8 @@ class PatchOrchThread(threading.Thread):
 
         # Check that all applied patches in RegionOne are present in the
         # subcloud.
-        for patch_id in applied_patch_ids:
-            if regionone_patches[patch_id]['sw_version'] in \
+        for patch_id in self.regionone_applied_patch_ids:
+            if self.regionone_patches[patch_id]['sw_version'] in \
                     installed_loads and patch_id not in subcloud_patch_ids:
                 LOG.info("Patch %s missing from %s" %
                          (patch_id, strategy_step.subcloud.name))
@@ -511,7 +535,7 @@ class PatchOrchThread(threading.Thread):
             LOG.info("Uploading patches %s to subcloud %s" %
                      (patches_to_upload, strategy_step.subcloud.name))
             for patch in patches_to_upload:
-                patch_sw_version = regionone_patches[patch]['sw_version']
+                patch_sw_version = self.regionone_patches[patch]['sw_version']
                 patch_file = "%s/%s/%s.patch" % (consts.PATCH_VAULT_DIR,
                                                  patch_sw_version,
                                                  patch)
@@ -1059,17 +1083,6 @@ class PatchOrchThread(threading.Thread):
         LOG.info("Finishing patch strategy for %s" %
                  strategy_step.subcloud.name)
 
-        regionone_committed_patches = self.get_patching_client(
-            consts.DEFAULT_REGION_NAME).query(
-                state=patching_v1.PATCH_STATE_COMMITTED)
-        LOG.debug("regionone_committed_patches: %s" %
-                  regionone_committed_patches)
-
-        committed_patch_ids = list()
-        for patch_id in regionone_committed_patches.keys():
-            committed_patch_ids.append(patch_id)
-        LOG.debug("RegionOne committed_patch_ids: %s" % committed_patch_ids)
-
         try:
             subcloud_patches = self.get_patching_client(
                 strategy_step.subcloud.name).query()
@@ -1101,7 +1114,7 @@ class PatchOrchThread(threading.Thread):
                 patches_to_delete.append(patch_id)
             elif subcloud_patches[patch_id]['patchstate'] == \
                     patching_v1.PATCH_STATE_APPLIED:
-                if patch_id in committed_patch_ids:
+                if patch_id in self.regionone_committed_patch_ids:
                     LOG.info("Patch %s will be committed in subcloud %s" %
                              (patch_id, strategy_step.subcloud.name))
                     patches_to_commit.append(patch_id)

@@ -105,43 +105,52 @@ class FakePatchingClientOutOfSync(mock.Mock):
         self.session = session
         self.endpoint = endpoint
 
-    def query(self):
-        if self.region == 'RegionOne':
-            return {'DC.1': {'sw_version': '17.07',
-                             'repostate': 'Applied',
-                             'patchstate': 'Applied'},
-                    'DC.2': {'sw_version': '17.07',
-                             'repostate': 'Applied',
-                             'patchstate': 'Applied'},
-                    'DC.3': {'sw_version': '17.07',
-                             'repostate': 'Committed',
-                             'patchstate': 'Committed'},
-                    'DC.4': {'sw_version': '17.07',
-                             'repostate': 'Available',
-                             'patchstate': 'Available'},
-                    'DC.8': {'sw_version': '17.07',
-                             'repostate': 'Applied',
-                             'patchstate': 'Applied'},
-                    }
-        elif self.region == 'subcloud1':
-            return {'DC.1': {'sw_version': '17.07',
-                             'repostate': 'Applied',
-                             'patchstate': 'Applied'},
-                    'DC.2': {'sw_version': '17.07',
-                             'repostate': 'Available',
-                             'patchstate': 'Available'},
-                    'DC.3': {'sw_version': '17.07',
-                             'repostate': 'Available',
-                             'patchstate': 'Partial-Remove'},
-                    'DC.5': {'sw_version': '17.07',
-                             'repostate': 'Applied',
-                             'patchstate': 'Applied'},
-                    'DC.6': {'sw_version': '17.07',
-                             'repostate': 'Applied',
-                             'patchstate': 'Partial-Apply'},
-                    }
+    def query(self, state=None):
+        if state == 'Committed':
+            if self.region == consts.DEFAULT_REGION_NAME:
+                return {'DC.3': {'sw_version': '17.07',
+                                 'repostate': 'Committed',
+                                 'patchstate': 'Committed'}
+                        }
+            else:
+                return {}
         else:
-            return {}
+            if self.region == consts.DEFAULT_REGION_NAME:
+                return {'DC.1': {'sw_version': '17.07',
+                                 'repostate': 'Applied',
+                                 'patchstate': 'Applied'},
+                        'DC.2': {'sw_version': '17.07',
+                                 'repostate': 'Applied',
+                                 'patchstate': 'Applied'},
+                        'DC.3': {'sw_version': '17.07',
+                                 'repostate': 'Committed',
+                                 'patchstate': 'Committed'},
+                        'DC.4': {'sw_version': '17.07',
+                                 'repostate': 'Available',
+                                 'patchstate': 'Available'},
+                        'DC.8': {'sw_version': '17.07',
+                                 'repostate': 'Applied',
+                                 'patchstate': 'Applied'},
+                        }
+            elif self.region == 'subcloud1':
+                return {'DC.1': {'sw_version': '17.07',
+                                 'repostate': 'Applied',
+                                 'patchstate': 'Applied'},
+                        'DC.2': {'sw_version': '17.07',
+                                 'repostate': 'Available',
+                                 'patchstate': 'Available'},
+                        'DC.3': {'sw_version': '17.07',
+                                 'repostate': 'Available',
+                                 'patchstate': 'Partial-Remove'},
+                        'DC.5': {'sw_version': '17.07',
+                                 'repostate': 'Applied',
+                                 'patchstate': 'Applied'},
+                        'DC.6': {'sw_version': '17.07',
+                                 'repostate': 'Applied',
+                                 'patchstate': 'Partial-Apply'},
+                        }
+            else:
+                return {}
 
     def query_hosts(self):
         return []
@@ -154,43 +163,58 @@ class FakePatchingClientSubcloudCommitted(mock.Mock):
         self.session = session
         self.endpoint = endpoint
 
-    def query(self):
-        if self.region == 'RegionOne':
-            return {'DC.1': {'sw_version': '17.07',
-                             'repostate': 'Applied',
-                             'patchstate': 'Applied'},
-                    'DC.2': {'sw_version': '17.07',
-                             'repostate': 'Applied',
-                             'patchstate': 'Applied'},
-                    'DC.3': {'sw_version': '17.07',
-                             'repostate': 'Committed',
-                             'patchstate': 'Committed'},
-                    'DC.4': {'sw_version': '17.07',
-                             'repostate': 'Available',
-                             'patchstate': 'Available'},
-                    'DC.8': {'sw_version': '17.07',
-                             'repostate': 'Applied',
-                             'patchstate': 'Applied'},
-                    }
-        elif self.region == 'subcloud1':
-            return {'DC.1': {'sw_version': '17.07',
-                             'repostate': 'Applied',
-                             'patchstate': 'Applied'},
-                    'DC.2': {'sw_version': '17.07',
-                             'repostate': 'Available',
-                             'patchstate': 'Available'},
-                    'DC.3': {'sw_version': '17.07',
-                             'repostate': 'Available',
-                             'patchstate': 'Partial-Remove'},
-                    'DC.5': {'sw_version': '17.07',
-                             'repostate': 'Committed',
-                             'patchstate': 'Committed'},
-                    'DC.6': {'sw_version': '17.07',
-                             'repostate': 'Applied',
-                             'patchstate': 'Partial-Apply'},
-                    }
+    def query(self, state=None):
+        if state == 'Committed':
+            if self.region == consts.DEFAULT_REGION_NAME:
+                return {'DC.3': {'sw_version': '17.07',
+                                 'repostate': 'Committed',
+                                 'patchstate': 'Committed'}
+                        }
+            elif self.region == 'subcloud1':
+                return {'DC.5': {'sw_version': '17.07',
+                                 'repostate': 'Committed',
+                                 'patchstate': 'Committed'},
+
+                        }
+            else:
+                return {}
         else:
-            return {}
+            if self.region == consts.DEFAULT_REGION_NAME:
+                return {'DC.1': {'sw_version': '17.07',
+                                 'repostate': 'Applied',
+                                 'patchstate': 'Applied'},
+                        'DC.2': {'sw_version': '17.07',
+                                 'repostate': 'Applied',
+                                 'patchstate': 'Applied'},
+                        'DC.3': {'sw_version': '17.07',
+                                 'repostate': 'Committed',
+                                 'patchstate': 'Committed'},
+                        'DC.4': {'sw_version': '17.07',
+                                 'repostate': 'Available',
+                                 'patchstate': 'Available'},
+                        'DC.8': {'sw_version': '17.07',
+                                 'repostate': 'Applied',
+                                 'patchstate': 'Applied'},
+                        }
+            elif self.region == 'subcloud1':
+                return {'DC.1': {'sw_version': '17.07',
+                                 'repostate': 'Applied',
+                                 'patchstate': 'Applied'},
+                        'DC.2': {'sw_version': '17.07',
+                                 'repostate': 'Available',
+                                 'patchstate': 'Available'},
+                        'DC.3': {'sw_version': '17.07',
+                                 'repostate': 'Available',
+                                 'patchstate': 'Partial-Remove'},
+                        'DC.5': {'sw_version': '17.07',
+                                 'repostate': 'Committed',
+                                 'patchstate': 'Committed'},
+                        'DC.6': {'sw_version': '17.07',
+                                 'repostate': 'Applied',
+                                 'patchstate': 'Partial-Apply'},
+                        }
+            else:
+                return {}
 
     def query_hosts(self):
         return []
@@ -203,43 +227,52 @@ class FakePatchingClientSubcloudUnknown(mock.Mock):
         self.session = session
         self.endpoint = endpoint
 
-    def query(self):
-        if self.region == 'RegionOne':
-            return {'DC.1': {'sw_version': '17.07',
-                             'repostate': 'Applied',
-                             'patchstate': 'Applied'},
-                    'DC.2': {'sw_version': '17.07',
-                             'repostate': 'Applied',
-                             'patchstate': 'Applied'},
-                    'DC.3': {'sw_version': '17.07',
-                             'repostate': 'Committed',
-                             'patchstate': 'Committed'},
-                    'DC.4': {'sw_version': '17.07',
-                             'repostate': 'Available',
-                             'patchstate': 'Available'},
-                    'DC.8': {'sw_version': '17.07',
-                             'repostate': 'Applied',
-                             'patchstate': 'Applied'},
-                    }
-        elif self.region == 'subcloud1':
-            return {'DC.1': {'sw_version': '17.07',
-                             'repostate': 'Applied',
-                             'patchstate': 'Applied'},
-                    'DC.2': {'sw_version': '17.07',
-                             'repostate': 'Available',
-                             'patchstate': 'Available'},
-                    'DC.3': {'sw_version': '17.07',
-                             'repostate': 'Available',
-                             'patchstate': 'Partial-Remove'},
-                    'DC.5': {'sw_version': '17.07',
-                             'repostate': 'Unknown',
-                             'patchstate': 'Unknown'},
-                    'DC.6': {'sw_version': '17.07',
-                             'repostate': 'Applied',
-                             'patchstate': 'Partial-Apply'},
-                    }
+    def query(self, state=None):
+        if state == 'Committed':
+            if self.region == consts.DEFAULT_REGION_NAME:
+                return {'DC.3': {'sw_version': '17.07',
+                                 'repostate': 'Committed',
+                                 'patchstate': 'Committed'}
+                        }
+            else:
+                return {}
         else:
-            return {}
+            if self.region == consts.DEFAULT_REGION_NAME:
+                return {'DC.1': {'sw_version': '17.07',
+                                 'repostate': 'Applied',
+                                 'patchstate': 'Applied'},
+                        'DC.2': {'sw_version': '17.07',
+                                 'repostate': 'Applied',
+                                 'patchstate': 'Applied'},
+                        'DC.3': {'sw_version': '17.07',
+                                 'repostate': 'Committed',
+                                 'patchstate': 'Committed'},
+                        'DC.4': {'sw_version': '17.07',
+                                 'repostate': 'Available',
+                                 'patchstate': 'Available'},
+                        'DC.8': {'sw_version': '17.07',
+                                 'repostate': 'Applied',
+                                 'patchstate': 'Applied'},
+                        }
+            elif self.region == 'subcloud1':
+                return {'DC.1': {'sw_version': '17.07',
+                                 'repostate': 'Applied',
+                                 'patchstate': 'Applied'},
+                        'DC.2': {'sw_version': '17.07',
+                                 'repostate': 'Available',
+                                 'patchstate': 'Available'},
+                        'DC.3': {'sw_version': '17.07',
+                                 'repostate': 'Available',
+                                 'patchstate': 'Partial-Remove'},
+                        'DC.5': {'sw_version': '17.07',
+                                 'repostate': 'Unknown',
+                                 'patchstate': 'Unknown'},
+                        'DC.6': {'sw_version': '17.07',
+                                 'repostate': 'Applied',
+                                 'patchstate': 'Partial-Apply'},
+                        }
+            else:
+                return {}
 
     def query_hosts(self):
         return []
@@ -253,8 +286,8 @@ class FakePatchingClientFinish(mock.Mock):
         self.endpoint = endpoint
 
     def query(self, state=None):
-        if self.region == 'RegionOne':
-            if state == 'committed':
+        if self.region == consts.DEFAULT_REGION_NAME:
+            if state == 'Committed':
                 return {'DC.2': {'sw_version': '17.07',
                                  'repostate': 'Committed',
                                  'patchstate': 'Committed'},
@@ -283,25 +316,31 @@ class FakePatchingClientFinish(mock.Mock):
                                  'patchstate': 'Available'},
                         }
         elif self.region == 'subcloud1':
-            return {'DC.1': {'sw_version': '17.07',
-                             'repostate': 'Applied',
-                             'patchstate': 'Applied'},
-                    'DC.2': {'sw_version': '17.07',
-                             'repostate': 'Applied',
-                             'patchstate': 'Applied'},
-                    'DC.3': {'sw_version': '17.07',
-                             'repostate': 'Applied',
-                             'patchstate': 'Applied'},
-                    'DC.4': {'sw_version': '17.07',
-                             'repostate': 'Committed',
-                             'patchstate': 'Committed'},
-                    'DC.5': {'sw_version': '17.07',
-                             'repostate': 'Available',
-                             'patchstate': 'Available'},
-                    'DC.6': {'sw_version': '17.07',
-                             'repostate': 'Available',
-                             'patchstate': 'Available'},
-                    }
+            if state == 'Committed':
+                return {'DC.4': {'sw_version': '17.07',
+                                 'repostate': 'Committed',
+                                 'patchstate': 'Committed'},
+                        }
+            else:
+                return {'DC.1': {'sw_version': '17.07',
+                                 'repostate': 'Applied',
+                                 'patchstate': 'Applied'},
+                        'DC.2': {'sw_version': '17.07',
+                                 'repostate': 'Applied',
+                                 'patchstate': 'Applied'},
+                        'DC.3': {'sw_version': '17.07',
+                                 'repostate': 'Applied',
+                                 'patchstate': 'Applied'},
+                        'DC.4': {'sw_version': '17.07',
+                                 'repostate': 'Committed',
+                                 'patchstate': 'Committed'},
+                        'DC.5': {'sw_version': '17.07',
+                                 'repostate': 'Available',
+                                 'patchstate': 'Available'},
+                        'DC.6': {'sw_version': '17.07',
+                                 'repostate': 'Available',
+                                 'patchstate': 'Available'},
+                        }
         else:
             return {}
 
@@ -1320,6 +1359,8 @@ class TestSwUpdateManager(base.DCManagerTestCase):
         pot = sw_update_manager.PatchOrchThread(mock_strategy_lock,
                                                 self.fake_dcmanager_audit_api)
         pot.get_ks_client = mock.Mock()
+        # invoke get_region_one_patches once to update required attributes
+        pot.get_region_one_patches()
         pot.update_subcloud_patches(strategy_step)
 
         assert(compare_call_with_unsorted_list(
@@ -1369,6 +1410,8 @@ class TestSwUpdateManager(base.DCManagerTestCase):
         pot = sw_update_manager.PatchOrchThread(mock_strategy_lock,
                                                 self.fake_dcmanager_audit_api)
         pot.get_ks_client = mock.Mock()
+        # invoke get_region_one_patches once to update required attributes
+        pot.get_region_one_patches()
         pot.update_subcloud_patches(strategy_step)
 
         # Verify that strategy step was updated
@@ -1407,6 +1450,8 @@ class TestSwUpdateManager(base.DCManagerTestCase):
         pot = sw_update_manager.PatchOrchThread(mock_strategy_lock,
                                                 self.fake_dcmanager_audit_api)
         pot.get_ks_client = mock.Mock()
+        # invoke get_region_one_patches once to update required attributes
+        pot.get_region_one_patches()
         pot.update_subcloud_patches(strategy_step)
 
         # Verify that strategy step was updated
@@ -1442,6 +1487,8 @@ class TestSwUpdateManager(base.DCManagerTestCase):
         pot = sw_update_manager.PatchOrchThread(mock_strategy_lock,
                                                 self.fake_dcmanager_audit_api)
         pot.get_ks_client = mock.Mock()
+        # invoke get_region_one_patches once to update required attributes
+        pot.get_region_one_patches()
         pot.finish(strategy_step)
 
         assert(compare_call_with_unsorted_list(
@@ -1457,3 +1504,37 @@ class TestSwUpdateManager(base.DCManagerTestCase):
         updated_strategy_steps = db_api.strategy_step_get_all(self.ctx)
         self.assertEqual(updated_strategy_steps[0]['state'],
                          consts.STRATEGY_STATE_COMPLETE)
+
+    @mock.patch.object(patch_orch_thread, 'PatchingClient')
+    def test_get_region_one_patches(self, mock_patching_client):
+        mock_strategy_lock = mock.Mock()
+        mock_patching_client.side_effect = FakePatchingClientOutOfSync
+        pot = patch_orch_thread.PatchOrchThread(mock_strategy_lock,
+                                                self.fake_dcmanager_audit_api)
+        pot.get_ks_client = mock.Mock()
+        pot.get_region_one_patches()
+
+        regionone_patches = dict()
+        regionone_patches = \
+            FakePatchingClientOutOfSync(
+                consts.DEFAULT_REGION_NAME, mock.Mock(), mock.Mock()).query()
+        regionone_applied_patch_ids = [
+            patch_id for patch_id in regionone_patches.keys()
+            if regionone_patches[patch_id]['repostate'] in [
+                'Applied', 'Committed']]
+
+        # Verify the update of regionone_patches attribute
+        self.assertEqual(pot.regionone_patches, regionone_patches)
+        # Verify the update of regionone_applied_patch_ids attribute
+        self.assertEqual(pot.regionone_applied_patch_ids,
+                         regionone_applied_patch_ids)
+
+        regionone_committed_patches = \
+            FakePatchingClientOutOfSync(
+                consts.DEFAULT_REGION_NAME, mock.Mock(), mock.Mock()
+            ).query('Committed')
+        regionone_committed_patch_ids = [
+            patch_id for patch_id in regionone_committed_patches]
+        # Verify the update of regionone_committed_patch_ids attribute
+        self.assertEqual(pot.regionone_committed_patch_ids,
+                         regionone_committed_patch_ids)
