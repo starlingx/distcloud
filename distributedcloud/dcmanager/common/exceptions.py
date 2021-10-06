@@ -174,6 +174,10 @@ class InvalidInputError(DCManagerException):
     message = _("An invalid value was provided")
 
 
+class CertificateUploadError(DCManagerException):
+    message = _("Error while uploading rootca certificate. %(err)s")
+
+
 class LicenseInstallError(DCManagerException):
     message = _("Error while installing license on subcloud: %(subcloud_id)s")
 

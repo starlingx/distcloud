@@ -712,6 +712,22 @@ class SysinvClient(base.DriverBase):
         """Get a list of device image states."""
         return self.sysinv_client.device_image_state.list()
 
+    def kube_rootca_update_start(self, force=False, alarm_ignore_list=None):
+        """Ask System Inventory to start a kube rootca update
+
+        :param force: boolean to force the start
+        :alarm_ignore_list: a list of alarms to ignore
+        """
+        # todo(abailey): sysinv client endpoint needs to add alarm_ignore_list
+        return self.sysinv_client.kube_rootca_update.create(force)
+
+    def kube_rootca_update_upload_cert(self, pem_file):
+        """Ask System Inventory to upload a cert.
+
+        :param pem_file: a file handle to a pem file containing key and cert
+        """
+        return self.sysinv_client.kube_rootca_update.rootCA_upload(pem_file)
+
     def get_kube_rootca_update(self, update_uuid):
         """Retrieve the details of a given kubernetes rootca update
 
@@ -722,7 +738,7 @@ class SysinvClient(base.DriverBase):
 
     def get_kube_rootca_updates(self):
         """Retrieve the kubernetes rootca updates if one is present."""
-        return self.sysinv_client.kube_rootca_update.list()
+        return self.sysinv_client.kube_rootca_update.get_list()
 
     def get_kube_upgrade(self, kube_upgrade_uuid):
         """Retrieve the details of a given kubernetes upgrade

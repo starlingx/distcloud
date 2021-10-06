@@ -256,7 +256,7 @@ class SubcloudAuditManager(manager.Manager):
                 LOG.info("Trigger kube rootca update audit")
                 audit_kube_rootca_updates = True
                 # Reset force_kube_rootca_update_audit only if audit is fired
-                SubcloudAuditManager.reset_force_kubernetes_audit()
+                SubcloudAuditManager.reset_force_kube_rootca_update_audit()
             # the force_patch_audit flag is also used to evaluate audit_load
             # so reset it here, even if it is not set
             SubcloudAuditManager.reset_force_patch_audit()
@@ -399,7 +399,7 @@ class SubcloudAuditManager(manager.Manager):
         if not audit_kube_rootca_update:
             for audit in subcloud_audits:
                 if audit.kube_rootca_update_audit_requested:
-                    LOG.debug("DB says kub rootca update audit needed")
+                    LOG.debug("DB says kube-rootca-update audit needed")
                     audit_kube_rootca_update = True
                     break
         LOG.info("Triggered subcloud audit: patch=(%s) firmware=(%s) "

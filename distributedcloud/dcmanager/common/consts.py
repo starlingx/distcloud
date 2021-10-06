@@ -29,8 +29,8 @@ TOPIC_DC_MANAGER_AUDIT_WORKER = "dcmanager-audit-worker"
 
 TOPIC_DC_MANAGER_ORCHESTRATOR = "dcmanager-orchestrator"
 
+CERTS_VAULT_DIR = "/opt/dc-vault/certs"
 LOADS_VAULT_DIR = "/opt/dc-vault/loads"
-
 PATCH_VAULT_DIR = "/opt/dc-vault/patches"
 
 # Well known region names
@@ -166,12 +166,17 @@ STRATEGY_STATE_KUBE_CREATING_VIM_KUBE_UPGRADE_STRATEGY = \
 STRATEGY_STATE_KUBE_APPLYING_VIM_KUBE_UPGRADE_STRATEGY = \
     "kube applying vim kube upgrade strategy"
 
-# Kube Root CA Update orchestration states
+# Kube Root CA Update orchestration states (ordered)
+STRATEGY_STATE_KUBE_ROOTCA_UPDATE_PRE_CHECK = \
+    "kube rootca update pre check"
+STRATEGY_STATE_KUBE_ROOTCA_UPDATE_START = \
+    "kube rootca update start"
+STRATEGY_STATE_KUBE_ROOTCA_UPDATE_UPLOAD_CERT = \
+    "kube rootca update upload cert"
 STRATEGY_STATE_CREATING_VIM_KUBE_ROOTCA_UPDATE_STRATEGY = \
     "creating vim kube rootca update strategy"
 STRATEGY_STATE_APPLYING_VIM_KUBE_ROOTCA_UPDATE_STRATEGY = \
     "applying vim kube rootca update strategy"
-
 
 # Subcloud deploy status states
 DEPLOY_STATE_NONE = 'not-deployed'
@@ -254,3 +259,8 @@ IMPORTED_LOAD_STATES = [
     IMPORTED_LOAD_STATE,
     IMPORTED_METADATA_LOAD_STATE
 ]
+
+# extra_args for kube rootca update
+EXTRA_ARGS_CERT_FILE = 'cert-file'
+EXTRA_ARGS_EXPIRY_DATE = 'expiry-date'
+EXTRA_ARGS_SUBJECT = 'subject'

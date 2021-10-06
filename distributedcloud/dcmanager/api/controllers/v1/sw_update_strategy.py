@@ -195,6 +195,7 @@ class SwUpdateStrategyController(object):
                 if group is None:
                     pecan.abort(400, _('Invalid group_id'))
 
+            # Not adding validation for extra args. Passing them through.
             try:
                 # Ask dcmanager-manager to create the strategy.
                 # It will do all the real work...

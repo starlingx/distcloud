@@ -24,14 +24,26 @@ SQLAlchemy models for dcmanager data.
 """
 
 import datetime
+import json
 
 from oslo_db.sqlalchemy import models
 
-from sqlalchemy.orm import backref, relationship
+from sqlalchemy.orm import backref
+from sqlalchemy.orm import relationship
 from sqlalchemy.orm import session as orm_session
-from sqlalchemy import (Column, Integer, String, Boolean, DateTime, Text)
-from sqlalchemy.ext.declarative import declarative_base
+
+from sqlalchemy import Boolean
+from sqlalchemy import Column
+from sqlalchemy import DateTime
 from sqlalchemy import ForeignKey
+from sqlalchemy import Integer
+from sqlalchemy import String
+from sqlalchemy import Text
+
+from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy.types import TypeDecorator
+from sqlalchemy.types import VARCHAR
+
 
 # from dcmanager.common import consts
 
@@ -42,6 +54,22 @@ def get_session():
     from dcmanager.db.sqlalchemy import api as db_api
 
     return db_api.get_session()
+
+
+class JSONEncodedDict(TypeDecorator):
+    """Represents an immutable structure as a json-encoded string."""
+
+    impl = VARCHAR
+
+    def process_bind_param(self, value, dialect):
+        if value is not None:
+            value = json.dumps(value)
+        return value
+
+    def process_result_value(self, value, dialect):
+        if value is not None:
+            value = json.loads(value)
+        return value
 
 
 class DCManagerBase(models.ModelBase,
@@ -164,6 +192,7 @@ class SwUpdateStrategy(BASE, DCManagerBase):
     max_parallel_subclouds = Column(Integer)
     stop_on_failure = Column(Boolean)
     state = Column(String(255))
+    extra_args = Column(JSONEncodedDict)
 
 
 class SwUpdateOpts(BASE, DCManagerBase):

@@ -100,6 +100,15 @@ class FakeKeystoneClient(object):
         self.session = mock.MagicMock()
 
 
+class FakeKubeRootCaUpdate(object):
+    def __init__(self,
+                 obj_id=1,
+                 state='update-started'):
+        self.id = obj_id
+        self.uuid = str(uuid.uuid4())
+        self.state = state
+
+
 class FakeKubeUpgrade(object):
     def __init__(self,
                  obj_id=1,
