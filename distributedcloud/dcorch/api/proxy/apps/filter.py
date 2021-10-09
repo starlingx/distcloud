@@ -1,4 +1,4 @@
-# Copyright 2018 Wind River
+# Copyright 2018, 2021 Wind River
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -19,6 +19,7 @@ import webob.exc
 from oslo_config import cfg
 from oslo_log import log as logging
 from oslo_service.wsgi import Request
+from oslo_utils._i18n import _
 
 from dccommon import consts as dccommon_consts
 from dcorch.api.proxy.apps.proxy import Proxy
@@ -38,10 +39,23 @@ CONF = cfg.CONF
 CONF.register_opts(filter_opts)
 
 
+def is_load_import(content_type, url_path):
+    if (content_type == "multipart/form-data" and
+            url_path == "/v1/loads/import_load"):
+        return True
+    else:
+        return False
+
+
 class ApiFiller(Middleware):
     """WSGI middleware that filters the API requests from the
 
-    pipeline via an application specific header
+    pipeline via an application specific header, also it checks
+
+    disk space available for multipart form-data import_load
+
+    request, this can be extended for other multipart form-data
+
 
     """
 
@@ -53,6 +67,17 @@ class ApiFiller(Middleware):
 
     @webob.dec.wsgify(RequestClass=Request)
     def __call__(self, req):
+        # Only check space for load-import request
+        if is_load_import(req.content_type, req.path):
+            # 3 times the file size is needed:
+            # 2 times on webob temporary copies
+            # 1 time on internal temporary copy to be shared with sysinv
+            if not utils.is_space_available("/scratch",
+                                            3 * req.content_length):
+                msg = _("Insufficient space on /scratch for request %s"
+                        % req.path)
+                raise webob.exc.HTTPInternalServerError(explanation=msg)
+
         if ('HTTP_USER_HEADER' in req.environ and
                 req.environ['HTTP_USER_HEADER'] == CONF.user_header):
             utils.set_request_forward_environ(req, self._remote_host,

@@ -1,4 +1,4 @@
-# Copyright 2017 Wind River
+# Copyright 2017, 2021 Wind River
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -16,6 +16,7 @@
 import base64
 from cryptography import fernet
 import msgpack
+import psutil
 import six
 from six.moves.urllib.parse import urlparse
 
@@ -27,6 +28,11 @@ from dccommon.drivers.openstack import sdk_platform as sdk
 from dcorch.common import consts
 
 LOG = logging.getLogger(__name__)
+
+
+def is_space_available(partition, size):
+    available_space = psutil.disk_usage(partition).free
+    return False if available_space < size else True
 
 
 def get_host_port_options(cfg):
