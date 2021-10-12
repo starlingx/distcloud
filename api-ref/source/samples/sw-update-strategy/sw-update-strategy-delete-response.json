@@ -1,0 +1,11 @@
+{
+    "max-parallel-subclouds": null,
+    "extra-args": {"to-version": null},
+    "created-at": "2022-01-12T19:13:20.462279",
+    "updated-at": "2022-01-12T19:15:22.167975",
+    "subcloud-apply-type": null,
+    "state": "deleting",
+    "stop-on-failure": false,
+    "type": "kubernetes",
+    "id": 5
+}

@@ -1,0 +1,8 @@
+{
+    "subcloud_deploy":
+       {
+         "deploy_chart": "deployment-manager.tgz",
+         "deploy_playbook": "deployment-manager-playbook.yaml",
+         "deploy_overrides": "deployment-manager-overrides-subcloud.yaml"
+       }
+}

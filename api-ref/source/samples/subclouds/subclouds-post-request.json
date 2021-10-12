@@ -1,0 +1,17 @@
+{
+    "name": "subcloud1",
+    "system_mode": "simplex",
+    "management_subnet": "192.168.101.0/24",
+    "management_start_address": "192.168.101.2",
+    "management_end_address": "192.168.101.50",
+    "management_gateway_address": "192.168.101.1",
+    "systemcontroller_gateway_address": "192.168.204.101"
+    "external_oam_subnet": "10.10.10.0/24",
+    "external_oam_gateway_address": "10.10.10.1",
+    "external_oam_floating_address": "10.10.10.12",
+    "sysadmin_password": "XXXXXXX",
+    "bootstrap-address": "10.10.10.12",
+    "description": "Subcloud 1"
+    "location": "Somewhere"
+}
+

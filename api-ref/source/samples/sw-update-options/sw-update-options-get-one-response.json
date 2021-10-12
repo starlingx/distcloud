@@ -1,0 +1,12 @@
+{
+  "id": 1,
+  "name": "all clouds default",
+  "subcloud-id": null,
+  "worker-apply-type": "parallel",
+  "default-instance-action": "migrate",
+  "created-at": null,
+  "updated-at": null,
+  "max-parallel-workers": 10,
+  "alarm-restriction-type": "relaxed",
+  "storage-apply-type": "parallel"
+}

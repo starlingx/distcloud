@@ -1,0 +1,6 @@
+{
+  "name": "GroupX",
+  "description": "A new group",
+  "update_apply_type": "parallel",
+  "max_parallel_subclouds": 3
+}

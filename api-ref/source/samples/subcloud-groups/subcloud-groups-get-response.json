@@ -1,0 +1,13 @@
+{
+  "subcloud_groups": [
+    {
+      "id": 1,
+      "name": "Default",
+      "description": "Default Subcloud Group",
+      "max_parallel_subclouds": 2,
+      "update_apply_type": "parallel",
+      "created-at": null,
+      "updated-at": null
+    },
+  ]
+}

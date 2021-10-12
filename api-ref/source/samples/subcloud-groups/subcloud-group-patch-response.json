@@ -1,0 +1,9 @@
+{
+  "id": 2,
+  "name": "GroupX",
+  "description": "A new group description",
+  "max_parallel_subclouds": "5",
+  "update_apply_type": "serial",
+  "created-at": "2020-04-08 15:15:10.750592",
+  "updated-at": "2020-04-08 15:21:01.527101"
+}

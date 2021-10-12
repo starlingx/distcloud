@@ -1,0 +1,7 @@
+{
+  "alarm-restriction-type": "strict",
+  "default-instance-action": "migrate",
+  "max-parallel-workers": 2,
+  "storage-apply-type": "parallel",
+  "worker-apply-type": "parallel"
+}

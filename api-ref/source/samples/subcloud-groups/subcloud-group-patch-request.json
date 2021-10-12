@@ -1,0 +1,5 @@
+{
+  "description": "A new group description",
+  "update_apply_type": "serial",
+  "max_parallel_subclouds": 5
+}

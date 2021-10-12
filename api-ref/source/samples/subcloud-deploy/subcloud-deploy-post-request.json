@@ -1,0 +1,5 @@
+{
+    "deploy_chart": "deployment manager contents",
+    "deploy_playbook": "deployment manager playbook contents",
+    "deploy_overrides": "deployment manager overrides contents"
+}
