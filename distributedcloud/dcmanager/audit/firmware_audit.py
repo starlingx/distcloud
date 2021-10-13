@@ -186,7 +186,7 @@ class FirmwareAudit(object):
         return True
 
     def subcloud_firmware_audit(self, subcloud_name, audit_data):
-        LOG.info('Triggered firmware audit for subcloud: %s.' % subcloud_name)
+        LOG.info('Triggered firmware audit for: %s.' % subcloud_name)
         if not audit_data:
             self._update_subcloud_sync_status(
                 subcloud_name, dcorch_consts.ENDPOINT_TYPE_FIRMWARE,
@@ -276,4 +276,4 @@ class FirmwareAudit(object):
             self._update_subcloud_sync_status(
                 subcloud_name, dcorch_consts.ENDPOINT_TYPE_FIRMWARE,
                 consts.SYNC_STATUS_IN_SYNC)
-        LOG.info('Firmware audit completed for subcloud: %s.' % subcloud_name)
+        LOG.info('Firmware audit completed for: %s.' % subcloud_name)

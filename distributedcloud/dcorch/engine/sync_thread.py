@@ -292,8 +292,8 @@ class SyncThread(object):
                     'sync_status_report_time': timeutils.utcnow()})
 
     def sync(self, engine_id):
-        LOG.info("{}: starting sync routine".format(self.subcloud_name),
-                 extra=self.log_extra)
+        LOG.debug("{}: starting sync routine".format(self.subcloud_name),
+                  extra=self.log_extra)
         region_name = self.subcloud_name
         sync_requests = []
         # We want to check for pending work even if subcloud is disabled.
@@ -446,13 +446,13 @@ class SyncThread(object):
         if self.endpoint_type in cfg.CONF.disable_audit_endpoints:
             LOG.warn("Audit disabled!", extra=self.log_extra)
             return
-        LOG.info("{}: sync_audit started".format(engine_id),
+        LOG.info("Engine id={}: sync_audit started".format(engine_id),
                  extra=self.log_extra)
         self.sync_audit(engine_id)
 
     def sync_audit(self, engine_id):
-        LOG.info("Engine id={}: starting sync audit".format(engine_id),
-                 extra=self.log_extra)
+        LOG.debug("Engine id={}: starting sync audit".format(engine_id),
+                  extra=self.log_extra)
 
         most_recent_failed_request = \
             orchrequest.OrchRequest.get_most_recent_failed_request(self.ctxt)
@@ -546,7 +546,7 @@ class SyncThread(object):
                 self.ctxt, self.subcloud_name, self.endpoint_type,
                 values={'sync_request': consts.SYNC_STATUS_REQUESTED})
 
-        LOG.info("{}: done sync audit".format(
+        LOG.debug("{}: done sync audit".format(
             threading.currentThread().getName()), extra=self.log_extra)
         from dcorch.engine.generic_sync_manager import GenericSyncManager
         GenericSyncManager.set_sync_request(self.ctxt, self.subcloud_name,

@@ -140,7 +140,7 @@ class PatchAudit(object):
                               committed_patch_ids, regionone_software_version)
 
     def subcloud_patch_audit(self, subcloud_name, audit_data, do_load_audit):
-        LOG.info('Triggered patch audit for subcloud: %s.' % subcloud_name)
+        LOG.info('Triggered patch audit for: %s.' % subcloud_name)
         try:
             sc_os_client = OpenStackDriver(region_name=subcloud_name,
                                            region_clients=None).keystone_client
@@ -243,11 +243,11 @@ class PatchAudit(object):
 
         # Check subcloud software version every other audit cycle
         if do_load_audit:
-            LOG.info('Auditing load of subcloud %s' % subcloud_name)
+            LOG.info('Auditing load of %s' % subcloud_name)
             try:
                 upgrades = sysinv_client.get_upgrades()
             except Exception:
-                LOG.warn('Cannot retrieve upgrade info for subcloud: %s, skip '
+                LOG.warn('Cannot retrieve upgrade info for: %s, skip '
                          'software version audit' % subcloud_name)
                 return
 
@@ -270,4 +270,4 @@ class PatchAudit(object):
                 self._update_subcloud_sync_status(
                     subcloud_name, dcorch_consts.ENDPOINT_TYPE_LOAD,
                     consts.SYNC_STATUS_OUT_OF_SYNC)
-        LOG.info('Patch audit completed for subcloud: %s.' % subcloud_name)
+        LOG.info('Patch audit completed for: %s.' % subcloud_name)

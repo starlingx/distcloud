@@ -99,7 +99,7 @@ class KubernetesAudit(object):
         return region_one_data
 
     def subcloud_kubernetes_audit(self, subcloud_name, audit_data):
-        LOG.info('Triggered kubernetes audit for subcloud:%s' % subcloud_name)
+        LOG.info('Triggered kubernetes audit for: %s' % subcloud_name)
         if not audit_data:
             self._update_subcloud_sync_status(
                 subcloud_name, dcorch_consts.ENDPOINT_TYPE_KUBERNETES,
@@ -166,4 +166,4 @@ class KubernetesAudit(object):
             self._update_subcloud_sync_status(
                 subcloud_name, dcorch_consts.ENDPOINT_TYPE_KUBERNETES,
                 consts.SYNC_STATUS_IN_SYNC)
-        LOG.info('Kubernetes audit completed for:(%s)' % subcloud_name)
+        LOG.info('Kubernetes audit completed for: %s' % subcloud_name)

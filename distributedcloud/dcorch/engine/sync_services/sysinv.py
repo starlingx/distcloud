@@ -450,7 +450,7 @@ class SysinvSyncThread(SyncThread):
 
     # SysInv Audit Related
     def get_master_resources(self, resource_type):
-        LOG.info("get_master_resources thread:{}".format(
+        LOG.debug("get_master_resources thread:{}".format(
             threading.currentThread().getName()), extra=self.log_extra)
         try:
             os_client = sdk.OpenStackDriver(
@@ -474,7 +474,7 @@ class SysinvSyncThread(SyncThread):
             return None
 
     def get_subcloud_resources(self, resource_type):
-        LOG.info("get_subcloud_resources thread:{}".format(
+        LOG.debug("get_subcloud_resources thread:{}".format(
             threading.currentThread().getName()), extra=self.log_extra)
         try:
             os_client = sdk.OpenStackDriver(region_name=self.region_name,

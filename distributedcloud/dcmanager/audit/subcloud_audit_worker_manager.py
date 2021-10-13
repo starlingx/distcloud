@@ -401,9 +401,9 @@ class SubcloudAuditWorkerManager(manager.Manager):
             if avail_to_set == consts.AVAILABILITY_ONLINE:
                 audit_fail_count = 0
 
-            LOG.info('Setting new availability status: %s '
-                     'on subcloud: %s' %
-                     (avail_to_set, subcloud_name))
+            LOG.debug('Setting new availability status: %s '
+                      'on subcloud: %s' %
+                      (avail_to_set, subcloud_name))
             self._update_subcloud_availability(
                 subcloud_name,
                 availability_status=avail_to_set,

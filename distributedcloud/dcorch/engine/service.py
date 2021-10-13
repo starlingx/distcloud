@@ -177,7 +177,7 @@ class EngineService(service.Service):
                 continue
             if timeutils.is_older_than(svc['updated_at'], time_window):
                 # delete the stale sync lock if any
-                LOG.info("To delete the stale locks")
+                LOG.debug("To delete the stale locks")
                 db_api.sync_lock_delete_by_engine_id(ctx, svc['id'])
 
     def set_resource_limit(self):

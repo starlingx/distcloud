@@ -52,8 +52,8 @@ class KubeRootcaUpdateAudit(Auditor):
         :param subcloud_name: the name of the subcloud
         :param region_one_audit_data: ignored. Always an empty list
         """
-        LOG.info("Triggered %s audit for subcloud:%s" % (self.audit_type,
-                                                         subcloud_name))
+        LOG.info("Triggered %s audit for: %s" % (self.audit_type,
+                                                 subcloud_name))
         # check for a particular alarm in the subcloud
         try:
             sc_os_client = OpenStackDriver(region_name=subcloud_name,
@@ -75,5 +75,5 @@ class KubeRootcaUpdateAudit(Auditor):
             self.set_subcloud_endpoint_out_of_sync(subcloud_name)
         else:
             self.set_subcloud_endpoint_in_sync(subcloud_name)
-        LOG.info("%s audit completed for:(%s)" % (self.audit_type,
-                                                  subcloud_name))
+        LOG.info("%s audit completed for: %s" % (self.audit_type,
+                                                 subcloud_name))
