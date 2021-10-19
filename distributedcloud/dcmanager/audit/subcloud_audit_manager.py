@@ -57,7 +57,7 @@ SUBCLOUD_STATE_UPDATE_ITERATIONS = \
 # trigger_patch_audit.
 
 # Name of starlingx openstack helm application
-HELM_APP_OPENSTACK = 'stx-openstack'
+HELM_APP_OPENSTACK = 'openstack'
 
 # Every 4 audits triggers a kubernetes audit
 KUBERNETES_AUDIT_RATE = 4
@@ -346,7 +346,7 @@ class SubcloudAuditManager(manager.Manager):
         # would require changes to handle this gracefully.
         # apps = sysinv_client.get_applications()
         # for app in apps:
-        #    if app.name == HELM_APP_OPENSTACK and app.active:
+        #    if app.name.endswith(HELM_APP_OPENSTACK):
         #        do_openstack_audit = True
         #        break
 
