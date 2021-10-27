@@ -825,7 +825,7 @@ class PatchOrchThread(threading.Thread):
                 return
 
             wait_count += 1
-            if wait_count >= (WAIT_LIMIT / WAIT_INTERVAL):
+            if wait_count >= (WAIT_LIMIT // WAIT_INTERVAL):
                 # We have waited too long.
                 message = ("Too much time expired after creating strategy for "
                            "%s." % region)
@@ -920,7 +920,7 @@ class PatchOrchThread(threading.Thread):
                 # when the controller reboots.
                 get_fail_count += 1
                 wait_count += 1
-                if get_fail_count >= (GET_FAIL_LIMIT / WAIT_INTERVAL):
+                if get_fail_count >= (GET_FAIL_LIMIT // WAIT_INTERVAL):
                     # We have waited too long.
                     message = ("Failed to get patch strategy for %s" %
                                region)
@@ -982,7 +982,7 @@ class PatchOrchThread(threading.Thread):
                 return
 
             wait_count += 1
-            if wait_count >= (WAIT_LIMIT / WAIT_INTERVAL):
+            if wait_count >= (WAIT_LIMIT // WAIT_INTERVAL):
                 # We have waited too long.
                 message = ("Too much time expired while applying strategy for "
                            "%s." % region)

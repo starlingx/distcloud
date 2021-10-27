@@ -42,14 +42,14 @@ class DBsyncException(Exception):
 
     def __init__(self, **kwargs):
         try:
-            super(DBsyncException, self).__init__(self.message % kwargs)
-            self.msg = self.message % kwargs
+            super(DBsyncException, self).__init__(self.message % kwargs)  # pylint: disable=exception-message-attribute
+            self.msg = self.message % kwargs  # pylint: disable=exception-message-attribute
         except Exception:
             with excutils.save_and_reraise_exception() as ctxt:
                 if not self.use_fatal_exceptions():
                     ctxt.reraise = False
                     # at least get the core message out if something happened
-                    super(DBsyncException, self).__init__(self.message)
+                    super(DBsyncException, self).__init__(self.message)  # pylint: disable=exception-message-attribute
 
     if six.PY2:
         def __unicode__(self):

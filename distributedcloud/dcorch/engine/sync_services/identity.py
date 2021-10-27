@@ -1554,7 +1554,7 @@ class IdentitySyncThread(SyncThread):
                 consts.RESOURCE_TYPE_IDENTITY_GROUPS]
 
             filtered_groups = [group for group in groups if
-                               all(group.name != filtered for
+                               all(group.name != filtered for  # pylint: disable=comprehension-escape
                                    filtered in filtered_list)]
             return filtered_groups
         except (keystone_exceptions.connection.ConnectTimeout,
@@ -1581,7 +1581,7 @@ class IdentitySyncThread(SyncThread):
                 consts.RESOURCE_TYPE_IDENTITY_ROLES]
 
             filtered_roles = [role for role in roles if
-                              (all(role.name != filtered for
+                              (all(role.name != filtered for  # pylint: disable=comprehension-escape
                                    filtered in filtered_list))]
             return filtered_roles
         except (keystone_exceptions.connection.ConnectTimeout,
@@ -1608,7 +1608,7 @@ class IdentitySyncThread(SyncThread):
                 consts.RESOURCE_TYPE_IDENTITY_PROJECTS]
 
             filtered_projects = [project for project in projects if
-                                 all(project.name != filtered for
+                                 all(project.name != filtered for  # pylint: disable=comprehension-escape
                                      filtered in filtered_list)]
             return filtered_projects
         except (keystone_exceptions.connection.ConnectTimeout,

@@ -40,14 +40,14 @@ class OrchestratorException(Exception):
 
     def __init__(self, **kwargs):
         try:
-            super(OrchestratorException, self).__init__(self.message % kwargs)
-            self.msg = self.message % kwargs
+            super(OrchestratorException, self).__init__(self.message % kwargs)  # pylint: disable=W1645
+            self.msg = self.message % kwargs  # pylint: disable=W1645
         except Exception:
             with excutils.save_and_reraise_exception() as ctxt:
                 if not self.use_fatal_exceptions():
                     ctxt.reraise = False
                     # at least get the core message out if something happened
-                    super(OrchestratorException, self).__init__(self.message)
+                    super(OrchestratorException, self).__init__(self.message)  # pylint: disable=W1645
 
     if six.PY2:
         def __unicode__(self):
