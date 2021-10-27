@@ -22,12 +22,8 @@
 
 import eventlet
 import random
-import sqlalchemy
 import string
 import uuid
-
-from oslo_config import cfg
-from oslo_db import options
 
 from dcmanager.common import context
 from dcmanager.db import api as db_api
@@ -56,25 +52,6 @@ UUIDs = (UUID1, UUID2, UUID3, UUID4, UUID5) = sorted([str(uuid.uuid4())
 def random_name():
     return ''.join(random.choice(string.ascii_uppercase)
                    for x in range(10))
-
-
-def setup_dummy_db():
-    options.cfg.set_defaults(options.database_opts, sqlite_synchronous=False)
-    options.set_defaults(cfg.CONF, connection="sqlite://")
-    engine = get_engine()
-    db_api.db_sync(engine)
-    engine.connect()
-
-
-def reset_dummy_db():
-    engine = get_engine()
-    meta = sqlalchemy.MetaData()
-    meta.reflect(bind=engine)
-
-    for table in reversed(meta.sorted_tables):
-        if table.name == 'migrate_version':
-            continue
-        engine.execute(table.delete())
 
 
 def dummy_context(user='test_username', tenant='test_project_id',

@@ -19,12 +19,7 @@
 # of this software may be licensed only pursuant to the terms
 # of an applicable Wind River license agreement.
 #
-
-import sqlalchemy
-
-from oslo_config import cfg
 from oslo_db import exception as db_exception
-from oslo_db import options
 
 from dcmanager.common import config
 from dcmanager.common import consts
@@ -51,23 +46,6 @@ def set_sqlite_pragma(dbapi_connection, connection_record):
 
 
 class DBAPISubcloudTest(base.DCManagerTestCase):
-    def setup_dummy_db(self):
-        options.cfg.set_defaults(options.database_opts,
-                                 sqlite_synchronous=False)
-        options.set_defaults(cfg.CONF, connection="sqlite://")
-        engine = get_engine()
-        db_api.db_sync(engine)
-
-    @staticmethod
-    def reset_dummy_db():
-        engine = get_engine()
-        meta = sqlalchemy.MetaData()
-        meta.reflect(bind=engine)
-
-        for table in reversed(meta.sorted_tables):
-            if table.name == 'migrate_version':
-                continue
-            engine.execute(table.delete())
 
     @staticmethod
     def create_subcloud_static(ctxt, **kwargs):
@@ -141,10 +119,7 @@ class DBAPISubcloudTest(base.DCManagerTestCase):
 
     def setUp(self):
         super(DBAPISubcloudTest, self).setUp()
-
-        self.setup_dummy_db()
-        self.addCleanup(self.reset_dummy_db)
-        self.ctx = utils.dummy_context()
+        # calling setUp for the superclass sets up the DB and context
 
     def test_create_subcloud(self):
         fake_subcloud = utils.create_subcloud_dict(base.SUBCLOUD_SAMPLE_DATA_0)
