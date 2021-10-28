@@ -19,9 +19,9 @@ from dcmanager.audit.auditor import Auditor
 CONF = cfg.CONF
 LOG = logging.getLogger(__name__)
 
-
 KUBE_ROOTCA_ALARM_LIST = [FM_ALARM_ID_CERT_EXPIRED,
-                          FM_ALARM_ID_CERT_EXPIRING_SOON]
+                          FM_ALARM_ID_CERT_EXPIRING_SOON, ]
+MONITORED_ALARM_ENTITIES = ['system.certificate.kubernetes-root-ca', ]
 
 
 class KubeRootcaUpdateAudit(Auditor):
@@ -67,11 +67,14 @@ class KubeRootcaUpdateAudit(Auditor):
             LOG.exception("Endpoint for online subcloud:(%s) not found, skip "
                           "%s audit." % (subcloud_name, self.audit_type))
             return
+        out_of_sync = False
         detected_alarms = fm_client.get_alarms_by_ids(KUBE_ROOTCA_ALARM_LIST)
         if detected_alarms:
-            # todo(abailey): determine if the same alarm id is being shared
-            # for other certificates, and examine the list for the appropriate
-            # alarm if necessary
+            for alarm in detected_alarms:
+                if alarm.entity_instance_id in MONITORED_ALARM_ENTITIES:
+                    out_of_sync = True
+                    break
+        if out_of_sync:
             self.set_subcloud_endpoint_out_of_sync(subcloud_name)
         else:
             self.set_subcloud_endpoint_in_sync(subcloud_name)
