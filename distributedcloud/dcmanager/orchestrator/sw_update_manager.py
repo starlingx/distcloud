@@ -184,6 +184,17 @@ class SwUpdateManager(manager.Manager):
                 cert_file = extra_args.get(consts.EXTRA_ARGS_CERT_FILE)
                 expiry_date = extra_args.get(consts.EXTRA_ARGS_EXPIRY_DATE)
                 subject = extra_args.get(consts.EXTRA_ARGS_SUBJECT)
+                if expiry_date:
+                    is_valid, reason = utils.validate_expiry_date(expiry_date)
+                    if not is_valid:
+                        raise exceptions.BadRequest(resource='strategy',
+                                                    msg=reason)
+                if subject:
+                    is_valid, reason = \
+                        utils.validate_certificate_subject(subject)
+                    if not is_valid:
+                        raise exceptions.BadRequest(resource='strategy',
+                                                    msg=reason)
                 if cert_file:
                     if expiry_date or subject:
                         raise exceptions.BadRequest(
