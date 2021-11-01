@@ -429,6 +429,8 @@ class SwUpdateManager(manager.Manager):
         # handle extra_args processing such as staging to the vault
         self._process_extra_args_creation(strategy_type, extra_args)
 
+        current_stage_counter = 0
+        strategy_step_created = False
         # Create the strategy
         strategy = db_api.sw_update_strategy_create(
             context,
@@ -443,19 +445,20 @@ class SwUpdateManager(manager.Manager):
         # A strategy step for the system controller is not added for:
         # 'upgrade', 'firmware', 'kube upgrade', 'kube rootca update'
         if strategy_type == consts.SW_UPDATE_TYPE_PATCH:
+            current_stage_counter += 1
             db_api.strategy_step_create(
                 context,
                 None,  # None means not a subcloud. ie: SystemController
-                stage=1,
+                stage=current_stage_counter,
                 state=consts.STRATEGY_STATE_INITIAL,
                 details='')
+            strategy_step_created = True
 
         # Create a strategy step for each subcloud that is managed, online and
         # out of sync
         # special cases:
         #  - kube rootca update: the 'force' option allows in-sync subclouds
-        # todo(abailey): fix the current_stage numbering
-        current_stage = 2
+        current_stage_counter += 1
         stage_size = 0
         stage_updated = False
 
@@ -497,36 +500,50 @@ class SwUpdateManager(manager.Manager):
                         db_api.strategy_step_create(
                             context,
                             subcloud.id,
-                            stage=current_stage,
+                            stage=current_stage_counter,
                             state=consts.STRATEGY_STATE_INITIAL,
                             details='')
+                        strategy_step_created = True
 
                         # We have added a subcloud to this stage
                         stage_size += 1
                         if consts.SUBCLOUD_APPLY_TYPE_SERIAL in subcloud_apply_type:
                             # For serial apply type always move to next stage
                             stage_updated = True
-                            current_stage += 1
+                            current_stage_counter += 1
                         elif stage_size >= max_parallel_subclouds:
                             # For parallel apply type, move to next stage if we have
                             # reached the maximum subclouds for this stage
                             stage_updated = True
-                            current_stage += 1
+                            current_stage_counter += 1
                             stage_size = 0
 
             # Reset the stage_size before iterating through a new subcloud group
             stage_size = 0
-            # current_stage value is updated only when subcloud_apply_type is serial
+            # current_stage_counter value is updated only when subcloud_apply_type is serial
             # or the max_parallel_subclouds limit is reached. If the value is updated
             # for either one of these reasons and it also happens to be the last
             # iteration for this particular group, the following check will prevent
-            # the current_stage value from being updated twice
+            # the current_stage_counter value from being updated twice
             if not stage_updated:
-                current_stage += 1
+                current_stage_counter += 1
 
-        strategy_dict = db_api.sw_update_strategy_db_model_to_dict(
-            strategy)
-        return strategy_dict
+        if strategy_step_created:
+            strategy_dict = db_api.sw_update_strategy_db_model_to_dict(
+                strategy)
+            return strategy_dict
+        else:
+            # Set the state to deleting, which will trigger the orchestration
+            # to delete it...
+            strategy = db_api.sw_update_strategy_update(
+                context,
+                state=consts.SW_UPDATE_STATE_DELETING,
+                update_type=strategy_type)
+            # handle extra_args processing such as removing from the vault
+            self._process_extra_args_deletion(strategy)
+            raise exceptions.BadRequest(
+                resource='strategy',
+                msg='Strategy has no steps to apply')
 
     def delete_sw_update_strategy(self, context, update_type=None):
         """Delete software update strategy.

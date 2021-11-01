@@ -555,6 +555,9 @@ class TestSwUpdateManager(base.DCManagerTestCase):
                          '')
         self.assertEqual(strategy_steps[0]['subcloud_id'],
                          None)
+        self.assertRaises(exceptions.BadRequest,
+                          um.create_sw_update_strategy,
+                          self.ctxt, payload=FAKE_SW_UPDATE_DATA)
 
     @mock.patch.object(sw_update_manager, 'PatchOrchThread')
     def test_create_sw_update_strategy_for_a_single_group(
@@ -603,12 +606,14 @@ class TestSwUpdateManager(base.DCManagerTestCase):
         fake_subcloud1 = self.create_subcloud(self.ctxt, 'subcloud1',
                                               self.fake_group3.id,
                                               is_managed=True, is_online=True)
-        self.create_subcloud_status(self.ctxt, fake_subcloud1.id)
+        self.create_subcloud_status(self.ctxt, fake_subcloud1.id,
+                                    endpoint=dcorch_consts.ENDPOINT_TYPE_LOAD)
 
         fake_subcloud2 = self.create_subcloud(self.ctxt, 'subcloud2',
                                               self.fake_group3.id,
                                               is_managed=True, is_online=True)
-        self.create_subcloud_status(self.ctxt, fake_subcloud2.id)
+        self.create_subcloud_status(self.ctxt, fake_subcloud2.id,
+                                    endpoint=dcorch_consts.ENDPOINT_TYPE_LOAD)
 
         data = copy.copy(FAKE_SW_UPDATE_DATA)
         data["type"] = consts.SW_UPDATE_TYPE_UPGRADE
@@ -624,8 +629,8 @@ class TestSwUpdateManager(base.DCManagerTestCase):
         self.assertEqual(response['type'], consts.SW_UPDATE_TYPE_UPGRADE)
 
         # Verify the strategy step list
-        subcloud_ids = [None, 1, 2]
-        stage = [1, 2, 3, 4, 5, 6]
+        subcloud_ids = [1, 2]
+        stage = [1, 1]
         strategy_step_list = db_api.strategy_step_get_all(self.ctxt)
         for index, strategy_step in enumerate(strategy_step_list):
             self.assertEqual(subcloud_ids[index], strategy_step.subcloud_id)
@@ -1104,7 +1109,6 @@ class TestSwUpdateManager(base.DCManagerTestCase):
 
         um = sw_update_manager.SwUpdateManager()
         data = copy.copy(FAKE_SW_UPDATE_DATA)
-        data["type"] = consts.SW_UPDATE_TYPE_UPGRADE
         data["max-parallel-subclouds"] = 10
         strategy_dict = um.create_sw_update_strategy(self.ctxt, payload=data)
 
@@ -1112,11 +1116,11 @@ class TestSwUpdateManager(base.DCManagerTestCase):
         self.assertEqual(strategy_dict['max-parallel-subclouds'], 10)
         self.assertEqual(strategy_dict['subcloud-apply-type'],
                          consts.SUBCLOUD_APPLY_TYPE_PARALLEL)
-        self.assertEqual(strategy_dict['type'], consts.SW_UPDATE_TYPE_UPGRADE)
+        self.assertEqual(strategy_dict['type'], consts.SW_UPDATE_TYPE_PATCH)
 
         # Verify the strategy step list
         subcloud_ids = [None, 2, 3, 4]
-        stage = [1, 2]
+        stage = [1, 2, 2, 2]
         strategy_step_list = db_api.strategy_step_get_all(self.ctxt)
         for index, strategy_step in enumerate(strategy_step_list):
             self.assertEqual(subcloud_ids[index], strategy_step.subcloud_id)
@@ -1138,7 +1142,7 @@ class TestSwUpdateManager(base.DCManagerTestCase):
         um = sw_update_manager.SwUpdateManager()
         data = copy.copy(FAKE_SW_UPDATE_DATA)
         data["type"] = consts.SW_UPDATE_TYPE_UPGRADE
-        data["force"] = True
+        data["force"] = "true"
         data["cloud_name"] = 'subcloud1'
 
         strategy_dict = um.create_sw_update_strategy(self.ctxt, payload=data)
@@ -1149,8 +1153,8 @@ class TestSwUpdateManager(base.DCManagerTestCase):
         self.assertEqual(strategy_dict['type'], consts.SW_UPDATE_TYPE_UPGRADE)
 
         # Verify the strategy step list
-        subcloud_ids = [None, 1]
-        stage = [1, 2]
+        subcloud_ids = [1]
+        stage = [1]
         strategy_step_list = db_api.strategy_step_get_all(self.ctxt)
         for index, strategy_step in enumerate(strategy_step_list):
             self.assertEqual(subcloud_ids[index], strategy_step.subcloud_id)
