@@ -1084,7 +1084,7 @@ class TestAuditWorkerManager(base.DCManagerTestCase):
 
         # Now pretend someone triggered all the subaudits in the DB
         # after the subcloud audit was triggered but before it ran.
-        am.trigger_subcloud_audits(self.ctx, subcloud.id)
+        am.trigger_subcloud_audits(self.ctx, subcloud.id, None)
 
         # Make sure all subaudits are requested in DB
         audits = db_api.subcloud_audits_get(self.ctx, subcloud.id)

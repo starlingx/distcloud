@@ -1253,9 +1253,13 @@ class SubcloudManager(manager.Manager):
                 LOG.info('Request for managed audit for %s' % subcloud.name)
                 dc_notification = rpc_client.DCManagerNotifications()
                 dc_notification.subcloud_managed(context, subcloud.name)
-                # Trigger all the audits for the subcloud so it can update the
-                # sync status ASAP.
-                self.audit_rpc_client.trigger_subcloud_audits(context, subcloud_id)
+                # Since sysinv user is sync'ed during bootstrap, trigger the
+                # related audits. Patch and load audits are delayed until the
+                # identity resource synchronized by dcdbsync is complete.
+                exclude_endpoints = [dcorch_consts.ENDPOINT_TYPE_PATCHING,
+                                     dcorch_consts.ENDPOINT_TYPE_LOAD]
+                self.audit_rpc_client.trigger_subcloud_audits(
+                    context, subcloud_id, exclude_endpoints)
 
         return db_api.subcloud_db_model_to_dict(subcloud)
 
@@ -1278,6 +1282,7 @@ class SubcloudManager(manager.Manager):
 
         subcloud_status_list = []
         subcloud = None
+        original_identity_status = None
         # retrieve the info from the db for this subcloud.
         # subcloud_id should not be None
         try:
@@ -1287,6 +1292,9 @@ class SubcloudManager(manager.Manager):
                     subcloud_status_list.append(
                         db_api.subcloud_endpoint_status_db_model_to_dict(
                             subcloud_status))
+                    if subcloud_status.endpoint_type == \
+                        dcorch_consts.ENDPOINT_TYPE_IDENTITY:
+                        original_identity_status = subcloud_status.sync_status
         except Exception as e:
             LOG.exception(e)
             raise e
@@ -1317,6 +1325,16 @@ class SubcloudManager(manager.Manager):
                                               subcloud_id,
                                               endpoint_type,
                                               sync_status)
+
+                # Trigger subcloud patch and load audits for the subcloud after
+                # its identity endpoint turns to other status from unknown
+                if endpoint_type == dcorch_consts.ENDPOINT_TYPE_IDENTITY \
+                    and sync_status != consts.SYNC_STATUS_UNKNOWN \
+                    and original_identity_status == consts.SYNC_STATUS_UNKNOWN:
+                    LOG.debug('Request for patch and load audit for %s after updating '
+                              'identity out of unknown' % subcloud.name)
+                    self.audit_rpc_client.trigger_subcloud_patch_load_audits(
+                        context, subcloud_id)
 
                 entity_instance_id = "subcloud=%s.resource=%s" % \
                                      (subcloud.name, endpoint_type)

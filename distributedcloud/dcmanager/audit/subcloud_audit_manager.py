@@ -186,7 +186,7 @@ class SubcloudAuditManager(manager.Manager):
     def reset_force_patch_audit(cls):
         cls.force_patch_audit = False
 
-    def trigger_subcloud_audits(self, context, subcloud_id):
+    def trigger_subcloud_audits(self, context, subcloud_id, exclude_endpoints):
         """Trigger all subcloud audits for one subcloud."""
         values = {
             'patch_audit_requested': True,
@@ -194,6 +194,22 @@ class SubcloudAuditManager(manager.Manager):
             'load_audit_requested': True,
             'kubernetes_audit_requested': True,
             'kube_rootca_update_audit_requested': True,
+        }
+        # For the endpoints excluded in the audit, set it to False in db
+        # to disable the audit explicitly.
+        if exclude_endpoints:
+            for exclude_endpoint in exclude_endpoints:
+                exclude_request = dcorch_consts.ENDPOINT_AUDIT_REQUESTS.get(
+                    exclude_endpoint)
+                if exclude_request:
+                    values.update({exclude_request: False})
+        db_api.subcloud_audits_update(context, subcloud_id, values)
+
+    def trigger_subcloud_patch_load_audits(self, context, subcloud_id):
+        """Trigger subcloud patch and load audits for one subcloud."""
+        values = {
+            "patch_audit_requested": True,
+            "load_audit_requested": True,
         }
         db_api.subcloud_audits_update(context, subcloud_id, values)
 

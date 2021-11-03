@@ -143,6 +143,17 @@ ENDPOINT_TYPES_LIST = [ENDPOINT_TYPE_PLATFORM,
                        ENDPOINT_TYPE_KUBERNETES,
                        ENDPOINT_TYPE_KUBE_ROOTCA]
 
+# All endpoint audit requests
+# TODO(yuxing): move some constants to dccommon as part of general refactoring
+# for maintainability in a future commit.
+ENDPOINT_AUDIT_REQUESTS = {
+    ENDPOINT_TYPE_FIRMWARE: 'firmware_audit_requested',
+    ENDPOINT_TYPE_KUBERNETES: 'kubernetes_audit_requested',
+    ENDPOINT_TYPE_KUBE_ROOTCA: 'kube_rootca_update_audit_requested',
+    ENDPOINT_TYPE_LOAD: 'load_audit_requested',
+    ENDPOINT_TYPE_PATCHING: 'patch_audit_requested',
+}
+
 # Dcorch sync endpoint types
 SYNC_ENDPOINT_TYPES_LIST = [ENDPOINT_TYPE_PLATFORM,
                             ENDPOINT_TYPE_IDENTITY]

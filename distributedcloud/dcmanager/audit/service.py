@@ -147,10 +147,18 @@ class DCManagerAuditService(service.Service):
         return self.subcloud_audit_manager.trigger_load_audit(context)
 
     @request_context
-    def trigger_subcloud_audits(self, context, subcloud_id):
+    def trigger_subcloud_audits(self, context, subcloud_id, exclude_endpoints):
         """Trigger all subcloud audits for one subcloud."""
-        LOG.info("Trigger all audits for subcloud %s", subcloud_id)
+        LOG.info("Trigger all audits for subcloud %s except endpoints %s" %
+                 (subcloud_id, exclude_endpoints))
         return self.subcloud_audit_manager.trigger_subcloud_audits(
+            context, subcloud_id, exclude_endpoints)
+
+    @request_context
+    def trigger_subcloud_patch_load_audits(self, context, subcloud_id):
+        """Trigger patch and load audits for one subcloud."""
+        LOG.info("Trigger patch and load audits for subcloud %s", subcloud_id)
+        return self.subcloud_audit_manager.trigger_subcloud_patch_load_audits(
             context, subcloud_id)
 
 
