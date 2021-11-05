@@ -48,15 +48,19 @@ class ApplyingVIMStrategyState(BaseState):
         """
         region = self.get_region_name(strategy_step)
 
-        # query the vim strategy.
-        # Do not raise the default exception if there is no strategy
-        # because the default exception is unclear: ie: "Get strategy failed"
+        # query the vim strategy. Check if it is None
         subcloud_strategy = self.get_vim_client(region).get_strategy(
             strategy_name=self.strategy_name,
             raise_error_if_missing=False)
 
+        # Do not raise the default exception if there is no strategy
+        # because the default exception is unclear: ie: "Get strategy failed"
+        if subcloud_strategy is None:
+            raise Exception("(%s) VIM Strategy not found."
+                            % self.strategy_name)
+
         # We have a VIM strategy, but need to check if it is ready to apply
-        if subcloud_strategy.state == vim.STATE_READY_TO_APPLY:
+        elif subcloud_strategy.state == vim.STATE_READY_TO_APPLY:
             # An exception here will fail this state
             subcloud_strategy = self.get_vim_client(region).apply_strategy(
                 strategy_name=self.strategy_name)
@@ -83,7 +87,7 @@ class ApplyingVIMStrategyState(BaseState):
                                 % (self.strategy_name,
                                    subcloud_strategy.state))
 
-        # wait for the new strategy to apply or an existing strategy.
+        # wait for new strategy to apply or the existing strategy to complete.
         # Loop until the strategy applies. Repeatedly query the API
         # This can take a long time.
         # Waits for up to 60 minutes for the current phase or completion
@@ -117,8 +121,8 @@ class ApplyingVIMStrategyState(BaseState):
             except Exception:
                 # When applying the strategy to a subcloud, the VIM can
                 # be unreachable for a significant period of time when
-                # there is a controller swact, or in the case of AIO-SX,
-                # when the controller reboots.
+                # there is a controller swact, the VIM service restarts,
+                # or in the case of AIO-SX, when the controller reboots.
                 get_fail_count += 1
                 if get_fail_count >= self.max_failed_queries:
                     # We have waited too long.
@@ -129,11 +133,12 @@ class ApplyingVIMStrategyState(BaseState):
                                "Unable to get (%s) vim strategy - attempt %d"
                                % (self.strategy_name, get_fail_count))
                 continue
-            # The loop gets here if the API is able to respond
-            # Check if the strategy no longer exists. This should not happen.
+            # If an external actor has deleted the strategy, the only option
+            # is to fail this state.
             if subcloud_strategy is None:
-                raise Exception("(%s) vim strategy not found."
+                raise Exception("(%s) VIM Strategy no longer exists."
                                 % self.strategy_name)
+
             elif subcloud_strategy.state == vim.STATE_APPLYING:
                 # Still applying. Update details if it has changed
                 new_details = ("%s phase is %s%% complete" % (
