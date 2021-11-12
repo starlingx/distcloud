@@ -495,7 +495,7 @@ class SubcloudsController(object):
                 payload.update({k: address})
 
     @staticmethod
-    def _validate_install_values(payload):
+    def _validate_install_values(payload, subcloud=None):
         """Validate install values if 'install_values' is present in payload.
 
            The image in payload install values is optional, and if not provided,
@@ -506,6 +506,11 @@ class SubcloudsController(object):
         install_values = payload.get('install_values')
         if not install_values:
             return False
+
+        original_install_values = None
+        if subcloud:
+            if subcloud.data_install:
+                original_install_values = json.loads(subcloud.data_install)
 
         bmc_password = payload.get('bmc_password')
         if not bmc_password:
@@ -519,16 +524,37 @@ class SubcloudsController(object):
             pecan.abort(400, msg)
         payload['install_values'].update({'bmc_password': bmc_password})
 
+        if 'software_version' in install_values:
+            software_version = str(install_values.get('software_version'))
+        else:
+            if original_install_values:
+                pecan.abort(400, _("Mandatory install value software_version not present, "
+                                   "existing software_version in DB: %s") %
+                            original_install_values.get("software_version"))
+            else:
+                pecan.abort(400, _("Mandatory install value software_version not present"))
+
         for k in install_consts.MANDATORY_INSTALL_VALUES:
             if k not in install_values:
                 if k == 'image':
-                    # check for the image at load vault load location
-                    matching_iso, matching_sig = \
-                        SubcloudsController.verify_active_load_in_vault()
-                    LOG.info("image was not in install_values: will reference %s" %
-                             matching_iso)
+                    if software_version == tsc.SW_VERSION:
+                        # check for the image at load vault load location
+                        matching_iso, matching_sig = \
+                            SubcloudsController.verify_active_load_in_vault()
+                        LOG.info("image was not in install_values: will reference %s" %
+                                 matching_iso)
+                    else:
+                        pecan.abort(400, _("Image was not in install_values, and "
+                                           "software version %s in install values "
+                                           "did not match the active load %s") %
+                                    (software_version, tsc.SW_VERSION))
                 else:
-                    pecan.abort(400, _('Mandatory install value %s not present') % k)
+                    if original_install_values:
+                        pecan.abort(400, _("Mandatory install value %s not present, "
+                                           "existing %s in DB: %s") %
+                                    (k, k, original_install_values.get(k)))
+                    else:
+                        pecan.abort(400, _("Mandatory install value %s not present") % k)
 
         if (install_values['install_type'] not in
                 list(range(install_consts.SUPPORTED_INSTALL_TYPES))):
@@ -697,6 +723,7 @@ class SubcloudsController(object):
                                consts.DEFAULT_SUBCLOUD_GROUP_ID)
         data_install = None
         if 'install_values' in payload:
+            software_version = payload['install_values']['software_version']
             data_install = json.dumps(payload['install_values'])
 
         subcloud = db_api.subcloud_create(
@@ -1046,7 +1073,7 @@ class SubcloudsController(object):
                     pecan.abort(400, _('Invalid group'))
 
             data_install = None
-            if self._validate_install_values(payload):
+            if self._validate_install_values(payload, subcloud):
                 data_install = json.dumps(payload[INSTALL_VALUES])
 
             try:
