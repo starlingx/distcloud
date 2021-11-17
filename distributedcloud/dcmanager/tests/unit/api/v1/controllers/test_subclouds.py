@@ -958,9 +958,45 @@ class TestSubcloudAPIOther(testroot.DCManagerApiTest):
     @mock.patch.object(subclouds.SubcloudsController, '_get_patch_data')
     def test_patch_subcloud_install_values(self, mock_get_patch_data,
                                            mock_rpc_client):
-        subcloud = fake_subcloud.create_fake_subcloud(self.ctx)
+        subcloud = fake_subcloud.create_fake_subcloud(self.ctx, data_install=None)
         payload = {}
         install_data = copy.copy(FAKE_SUBCLOUD_INSTALL_VALUES)
+        encoded_password = base64.b64encode(
+            'bmc_password'.encode("utf-8")).decode('utf-8')
+        data = {'bmc_password': encoded_password}
+        payload.update({'install_values': install_data})
+        payload.update(data)
+        mock_rpc_client().update_subcloud.return_value = True
+        mock_get_patch_data.return_value = payload
+
+        fake_content = "fake content".encode("utf-8")
+        response = self.app.patch(FAKE_URL + '/' + str(subcloud.id),
+                                  headers=FAKE_HEADERS,
+                                  params=data,
+                                  upload_files=[("install_values",
+                                                 "fake_name",
+                                                 fake_content)])
+        install_data.update({'bmc_password': encoded_password})
+        mock_rpc_client().update_subcloud.assert_called_once_with(
+            mock.ANY,
+            subcloud.id,
+            management_state=None,
+            description=None,
+            location=None,
+            group_id=None,
+            data_install=json.dumps(install_data),
+            force=None)
+        self.assertEqual(response.status_int, 200)
+
+    @mock.patch.object(rpc_client, 'ManagerClient')
+    @mock.patch.object(subclouds.SubcloudsController, '_get_patch_data')
+    def test_patch_subcloud_install_values_with_existing_data_install(
+        self, mock_get_patch_data, mock_rpc_client):
+        install_data = copy.copy(FAKE_SUBCLOUD_INSTALL_VALUES)
+        subcloud = fake_subcloud.create_fake_subcloud(
+            self.ctx, data_install=json.dumps(install_data))
+        install_data.update({"software_version": "18.04"})
+        payload = {}
         encoded_password = base64.b64encode(
             'bmc_password'.encode("utf-8")).decode('utf-8')
         data = {'bmc_password': encoded_password}
