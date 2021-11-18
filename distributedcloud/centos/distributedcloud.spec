@@ -95,6 +95,7 @@ Summary: DC Orchestrator
 # TODO(John): should we add Requires lines?
 Requires: openstack-ras
 Requires: python-psutil
+Requires: python-retrying
 
 %description dcorch
 Distributed Cloud Orchestrator
