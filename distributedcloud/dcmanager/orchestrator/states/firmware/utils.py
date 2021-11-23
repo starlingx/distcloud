@@ -102,6 +102,7 @@ def determine_image_fields(image):
                   'name',
                   'description',
                   'image_version',
+                  'bmc',
                   'retimer_included']
     fields = dict((k, str(v)) for (k, v) in vars(image).items()
                   if k in field_list and not (v is None))
