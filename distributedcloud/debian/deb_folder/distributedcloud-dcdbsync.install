@@ -1,0 +1,7 @@
+etc/dcdbsync/dcdbsync.conf
+usr/bin/dcdbsync-api
+usr/lib/ocf/resource.d/openstack/dcdbsync-*
+usr/lib/python3/dist-packages/dcdbsync/*
+usr/lib/systemd/system/dcdbsync-api.service
+usr/lib/systemd/system/dcdbsync-openstack-api.service
+usr/lib/tmpfiles.d/dcdbsync.conf

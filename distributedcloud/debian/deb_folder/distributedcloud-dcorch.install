@@ -1,0 +1,13 @@
+etc/dcorch/dcorch.conf
+usr/bin/clean-dcorch
+usr/bin/dcorch-api
+usr/bin/dcorch-api-proxy
+usr/bin/dcorch-engine
+usr/bin/dcorch-manage
+usr/lib/ocf/resource.d/openstack/dcorch-*
+usr/lib/python3/dist-packages/dcorch/*
+usr/lib/systemd/system/dcorch-api.service
+usr/lib/systemd/system/dcorch-engine.service
+usr/lib/systemd/system/dcorch-sysinv-api-proxy.service
+usr/lib/systemd/system/dcorch-identity-api-proxy.service
+usr/lib/tmpfiles.d/dcorch.conf

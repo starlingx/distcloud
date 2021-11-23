@@ -1,0 +1,89 @@
+Source: distributedcloud
+Section: admin
+Priority: optional
+Maintainer: StarlingX Developers <starlingx-discuss@lists.starlingx.io>
+Build-Depends:
+ debhelper-compat (= 13),
+ dh-python,
+ python3-openssl,
+ python3-babel,
+ python3-cryptography,
+ python3-dev,
+ python3-eventlet,
+ python3-jsonschema (>= 2.0.0),
+ python3-keyring,
+ python3-keystoneauth1 (>= 3.1.0),
+ python3-keystonemiddleware,
+ python3-netaddr,
+ python3-oslo.concurrency (>= 3.29.1),
+ python3-oslo.config,
+ python3-oslo.context,
+ python3-oslo.db,
+ python3-oslo.i18n,
+ python3-oslo.log,
+ python3-oslo.messaging,
+ python3-oslo.middleware,
+ python3-oslo.policy,
+ python3-oslo.rootwrap,
+ python3-oslo.serialization,
+ python3-oslo.service,
+ python3-oslo.utils,
+ python3-oslo.versionedobjects,
+ python3-pbr (>= 1.8),
+ python3-pecan (>= 1.0.0),
+ python3-pip,
+ python3-routes (>= 1.12.3),
+ python3-setuptools,
+ python3-sphinx,
+ python3-sphinxcontrib.httpdomain,
+ python3-wheel
+Standards-Version: 4.1.2
+Homepage: https://www.starlingx.io
+
+Package: distributedcloud-dccommon
+Architecture: any
+Depends:
+ ${misc:Depends},
+ ${python3:Depends},
+ python3:any,
+ python3-kubernetes
+Description: Distributed Cloud Common Module
+ Distributed Cloud Common Module
+
+Package: distributedcloud-dcmanager
+Architecture: any
+Depends:
+ ${misc:Depends},
+ ${python3:Depends},
+ python3:any,
+Description: Distributed Cloud Manager
+ Distributed Cloud Manager
+
+Package: distributedcloud-dcorch
+Architecture: any
+Depends:
+ ${misc:Depends},
+ ${python3:Depends},
+ openstack-resource-agents,
+ python3:any,
+ python3-psutil
+Description: Distributed Cloud Orchestrator
+ Distributed Cloud Orchestrator
+
+Package: distributedcloud-dcdbsync
+Architecture: any
+Depends:
+ ${misc:Depends},
+ ${python3:Depends},
+ python3:any
+Description: Distributed Cloud DCorch DBsync Agent
+ Distributed Cloud DCorch DBsync Agent
+
+Package: distributedcloud-wheels
+Architecture: any
+Depends:
+ ${misc:Depends},
+ ${python3:Depends},
+ python3:any
+Description: Distributed Cloud wheels
+ Contains python wheels for distributedcloud

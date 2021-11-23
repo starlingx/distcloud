@@ -1,0 +1,103 @@
+#!/usr/bin/make -f
+#export DH_VERBOSE = 1
+
+export PBR_VERSION = 1.0.0
+export PYBUILD_NAME = distributedcloud
+
+ROOT = $(CURDIR)/debian/tmp
+SYSTEMD_DIR = $(ROOT)/usr/lib/systemd/system
+TMP_DIR = $(ROOT)/usr/lib/tmpfiles.d
+OCF_DIR = $(ROOT)/usr/lib/ocf/resource.d/openstack
+SYS_CONF_DIR = $(ROOT)/etc
+BIN_DIR = $(ROOT)/usr/bin
+
+%:
+	dh $@ --with python3 --buildsystem=pybuild
+
+override_dh_install:
+    # install systemd unit files
+	install -p -D -m 644 files/dcmanager-api.service $(SYSTEMD_DIR)/dcmanager-api.service
+	install -p -D -m 644 files/dcmanager-manager.service $(SYSTEMD_DIR)/dcmanager-manager.service
+	install -p -D -m 644 files/dcmanager-audit.service $(SYSTEMD_DIR)/dcmanager-audit.service
+	install -p -D -m 644 files/dcmanager-audit-worker.service $(SYSTEMD_DIR)/dcmanager-audit-worker.service
+	install -p -D -m 644 files/dcmanager-orchestrator.service $(SYSTEMD_DIR)/dcmanager-orchestrator.service
+
+	install -p -D -m 644 files/dcorch-api.service $(SYSTEMD_DIR)/dcorch-api.service
+	install -p -D -m 644 files/dcorch-engine.service $(SYSTEMD_DIR)/dcorch-engine.service
+	install -p -D -m 644 files/dcorch-sysinv-api-proxy.service $(SYSTEMD_DIR)/dcorch-sysinv-api-proxy.service
+	install -p -D -m 644 files/dcorch-identity-api-proxy.service $(SYSTEMD_DIR)/dcorch-identity-api-proxy.service
+
+	install -p -D -m 644 files/dcdbsync-api.service $(SYSTEMD_DIR)/dcdbsync-api.service
+
+	install -p -D -m 644 files/dcorch.conf $(TMP_DIR)/dcorch.conf
+	install -p -D -m 644 files/dcmanager.conf $(TMP_DIR)/dcmanager.conf
+
+    # install systemd unit files for optional second instance
+	install -p -D -m 644 files/dcdbsync-openstack-api.service $(SYSTEMD_DIR)/dcdbsync-openstack-api.service
+	install -p -D -m 644 files/dcdbsync.conf $(TMP_DIR)/dcdbsync.conf
+
+	install -p -D -m 644 files/distcloud-syslog.conf $(SYS_CONF_DIR)/syslog-ng/conf.d/distcloud.conf
+	install -p -D -m 644 files/distcloud-logrotate.conf $(SYS_CONF_DIR)/logrotate.d/distcloud.conf
+
+    # install ocf scripts
+	install -d -m 755 $(OCF_DIR)
+	install -p -D -m 755 ocf/* $(OCF_DIR)/
+
+    # install dcorch cleaner
+	install -m 755 -D -p files/clean-dcorch $(BIN_DIR)/clean-dcorch
+
+    # install ansible overrides dir
+	install -d -m 600 $(ROOT)/opt/dc/ansible
+
+    # Generate sample config and add the current directory to PYTHONPATH so
+    # oslo-config-generator doesn't skip heat's entry points.
+	PYTHONPATH=. oslo-config-generator --config-file=./dcmanager/config-generator.conf
+	PYTHONPATH=. oslo-config-generator --config-file=./dcorch/config-generator.conf
+	PYTHONPATH=. oslo-config-generator --config-file=./dcdbsync/config-generator.conf
+
+    # install default config files
+	oslo-config-generator \
+		--config-file ./dcmanager/config-generator.conf \
+		--output-file ./dcmanager/dcmanager.conf.sample
+	install -p -D -m 640 ./dcmanager/dcmanager.conf.sample $(SYS_CONF_DIR)/dcmanager/dcmanager.conf
+
+	oslo-config-generator \
+		--config-file ./dcorch/config-generator.conf \
+		--output-file ./dcorch/dcorch.conf.sample
+	install -p -D -m 640 ./dcorch/dcorch.conf.sample $(SYS_CONF_DIR)/dcorch/dcorch.conf
+
+	oslo-config-generator \
+		--config-file ./dcdbsync/config-generator.conf \
+		--output-file ./dcdbsync/dcdbsync.conf.sample
+	install -p -D -m 640 ./dcdbsync/dcdbsync.conf.sample $(SYS_CONF_DIR)/dcdbsync/dcdbsync.conf
+
+	python3 setup.py install \
+		--root=$(ROOT) \
+		--prefix=/usr \
+		--install-data=/usr/share \
+		--install-layout=deb \
+		--single-version-externally-managed
+
+	rm -rf $(ROOT)/usr/lib/python3/dist-packages/dcmanagerclient/tests
+	rm -rf $(ROOT)/usr/lib/python3/dist-packages/dccommon/tests
+	rm -rf $(ROOT)/usr/lib/python3/dist-packages/dcmanager/tests
+	rm -rf $(ROOT)/usr/lib/python3/dist-packages/dcorch/tests
+
+	python3 setup.py bdist_wheel \
+		--universal \
+		-d $(ROOT)/wheels
+
+	dh_install
+
+override_dh_auto_test:
+	echo "do nothing..."
+
+override_dh_fixperms:
+	dh_fixperms \
+		--exclude etc/dcdbsync/dcdbsync.conf \
+		--exclude etc/dcmanager/dcmanager.conf \
+		--exclude etc/dcorch/dcorch.conf
+
+execute_after_dh_fixperms:
+	# forcing 600 for /opt/dc/ansible
+	chmod 600 debian/distributedcloud-dcmanager/opt/dc/ansible
