@@ -256,7 +256,7 @@ class SubcloudAuditWorkerManager(manager.Manager):
             return
 
         for app in apps:
-            if app.name == HELM_APP_OPENSTACK and app.active:
+            if app.name.endswith(HELM_APP_OPENSTACK) and app.active:
                 # audit find openstack app is installed and active in
                 # the subcloud
                 openstack_installed_current = True
