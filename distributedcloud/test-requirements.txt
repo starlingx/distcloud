@@ -21,4 +21,4 @@ pylint==1.9.2;python_version<"3.0" # GPLv2
 pylint==2.3.1;python_version>="3.0" # GPLv2
 PyYAML>=3.1.0
 yamllint<1.26.1;python_version>="3.0" # GPLv2
-python-dev-tools;python_version>="3.0"
+#python-dev-tools;python_version>="3.0"

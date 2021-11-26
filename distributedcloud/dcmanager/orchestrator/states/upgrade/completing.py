@@ -1,8 +1,9 @@
 #
-# Copyright (c) 2020 Wind River Systems, Inc.
+# Copyright (c) 2020-2021 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
+import retrying
 import time
 
 from dcmanager.common import consts
@@ -15,6 +16,12 @@ from dcmanager.orchestrator.states.base import BaseState
 DEFAULT_MAX_QUERIES = 60
 DEFAULT_SLEEP_DURATION = 10
 
+# There are additional retry loops for actions that should never fail
+# The sleep duration and number of retries are shorter, since these should
+# only occur if a service is being restarted
+RETRY_MAX_ATTEMPTS = 5
+RETRY_SLEEP_MILLIS = 5000
+
 
 class CompletingUpgradeState(BaseState):
     """Upgrade state actions for completing an upgrade"""
@@ -26,10 +33,43 @@ class CompletingUpgradeState(BaseState):
         self.sleep_duration = DEFAULT_SLEEP_DURATION
         self.max_queries = DEFAULT_MAX_QUERIES
 
-    def finalize_upgrade(self, strategy_step):
-        sysinv_client = self.get_sysinv_client(strategy_step.subcloud.name)
+    @retrying.retry(stop_max_attempt_number=RETRY_MAX_ATTEMPTS,
+                    wait_fixed=RETRY_SLEEP_MILLIS)
+    def _get_software_version(self, strategy_step):
+        """Internal utility method to query software version from a subcloud
 
-        software_version = sysinv_client.get_system().software_version
+        This method is 'retry' wrapped to attempt multiple times with a
+        small wait period between attempts if any exception is raised
+        """
+        region = self.get_region_name(strategy_step)
+        return self.get_sysinv_client(region).get_system().software_version
+
+    @retrying.retry(stop_max_attempt_number=RETRY_MAX_ATTEMPTS,
+                    wait_fixed=RETRY_SLEEP_MILLIS)
+    def _get_upgrades(self, strategy_step):
+        """Internal utility method to query a subcloud for its upgrades
+
+        This method is 'retry' wrapped to attempt multiple times with a
+        small wait period between attempts if any exception is raised
+        """
+        region = self.get_region_name(strategy_step)
+        return self.get_sysinv_client(region).get_upgrades()
+
+    @retrying.retry(stop_max_attempt_number=RETRY_MAX_ATTEMPTS,
+                    wait_fixed=RETRY_SLEEP_MILLIS)
+    def _upgrade_complete(self, strategy_step):
+        """Internal utility method to complete an upgrade in a subcloud
+
+        This method is 'retry' wrapped to attempt multiple times with a
+        small wait period between attempts if any exception is raised
+
+        returns None
+        """
+        region = self.get_region_name(strategy_step)
+        return self.get_sysinv_client(region).upgrade_complete()
+
+    def finalize_upgrade(self, strategy_step):
+        software_version = self._get_software_version(strategy_step)
 
         db_api.subcloud_update(
             self.context, strategy_step.subcloud_id,
@@ -37,27 +77,33 @@ class CompletingUpgradeState(BaseState):
             software_version=software_version)
         return self.next_state
 
+    # todo(abailey): determine if service restarts can be made predictable
+    # todo(abailey): other states should have similar retry decorators and
+    # this may also be reasonable to add within the client API calls.
     def perform_state_action(self, strategy_step):
         """Complete an upgrade on a subcloud
 
+        We should never cache the client. re-query it.
         Returns the next state in the state machine on success.
         Any exceptions raised by this method set the strategy to FAILED.
+
+        This state runs during a time when manifests are applying and services
+        are restarting, and therefore any API call in this method can randomly
+        fail.  To accomodate this, every call is wrapped with retries.
         """
-        # get the sysinv client for the subcloud
-        sysinv_client = self.get_sysinv_client(strategy_step.subcloud.name)
 
         # upgrade-complete causes the upgrade to be deleted.
         # if no upgrade exists, there is no need to call it.
         # The API should always return a list
-        upgrades = sysinv_client.get_upgrades()
+        upgrades = self._get_upgrades(strategy_step)
         if len(upgrades) == 0:
             self.info_log(strategy_step,
                           "No upgrades exist. Nothing needs completing")
             return self.finalize_upgrade(strategy_step)
-
         # invoke the API 'upgrade-complete'
         # This is a partially blocking call that raises exception on failure.
-        sysinv_client.upgrade_complete()
+        # We will re-attempt even if that failure is encountered
+        self._upgrade_complete(strategy_step)
 
         # 'completion' deletes the upgrade. Need to loop until it is deleted
         counter = 0
@@ -66,11 +112,9 @@ class CompletingUpgradeState(BaseState):
             if self.stopped():
                 raise StrategyStoppedException()
 
-            upgrades = self.get_sysinv_client(
-                strategy_step.subcloud.name).get_upgrades()
+            upgrades = self._get_upgrades(strategy_step)
             if len(upgrades) == 0:
-                self.info_log(strategy_step,
-                              "Upgrade completed.")
+                self.info_log(strategy_step, "Upgrade completed.")
                 break
             counter += 1
             if counter >= self.max_queries:
