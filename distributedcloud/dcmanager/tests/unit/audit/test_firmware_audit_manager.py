@@ -63,9 +63,19 @@ class PCIDevice(object):
 
 
 class DeviceImage(object):
-    def __init__(self, uuid, applied, pci_vendor,
-                 pci_device, applied_labels):
-        self.uuid = uuid
+    def __init__(self, bitstream_type,
+                 bitstream_id, bmc,
+                 retimer_included,
+                 key_signature,
+                 revoke_key_id, applied,
+                 pci_vendor, pci_device,
+                 applied_labels):
+        self.bitstream_type = bitstream_type
+        self.bitstream_id = bitstream_id
+        self.bmc = bmc
+        self.retimer_included = retimer_included
+        self.key_signature = key_signature
+        self.revoke_key_id = revoke_key_id
         self.applied = applied
         self.pci_vendor = pci_vendor
         self.pci_device = pci_device
@@ -130,21 +140,36 @@ PCI_DEVICE4 = PCIDevice('06789e01-13b6-2347',
                         True)
 
 # Device image has been applied
-DEVICE_IMAGE1 = DeviceImage('04ae0e01-13b6-4105',
+DEVICE_IMAGE1 = DeviceImage('functional',
+                            '0x2383a62a010504',
+                            True,
+                            True,
+                            '',
+                            '',
                             True,
                             '1111',
                             '2222',
                             [{}])
 
 # Device image has not been applied
-DEVICE_IMAGE2 = DeviceImage('04ae0e01-13b6-4106',
+DEVICE_IMAGE2 = DeviceImage('functional',
+                            '0x2383a62a010504',
+                            True,
+                            True,
+                            '',
+                            '',
                             False,
                             '1111',
                             '2222',
                             [{}])
 
 # Device image has been applied
-DEVICE_IMAGE3 = DeviceImage('04ae0e01-13b6-4105',
+DEVICE_IMAGE3 = DeviceImage('functional',
+                            '0x2383a62a010504',
+                            True,
+                            True,
+                            '',
+                            '',
                             True,
                             '1111',
                             '2222',
@@ -213,6 +238,7 @@ class FakeSysinvClientImageWithoutLabels(object):
         self.session = session
         self.endpoint = endpoint
         self.device_images = [DEVICE_IMAGE1]
+        self.device_image = DEVICE_IMAGE1
         self.pci_devices = [PCI_DEVICE2, PCI_DEVICE3]
         self.hosts = [HOST1]
         self.device_image_states = [DEVICE_IMAGE_STATE1]
@@ -223,6 +249,9 @@ class FakeSysinvClientImageWithoutLabels(object):
 
     def get_host_device_list(self, host_name):
         return self.pci_devices
+
+    def get_device_image(self, device_image_uuid):
+        return self.device_image
 
     def get_device_images(self):
         return self.device_images
@@ -295,6 +324,7 @@ class FakeSysinvClientImageWithLabels(object):
         self.region = region
         self.session = session
         self.endpoint = endpoint
+        self.device_image = DEVICE_IMAGE3
         self.device_images = [DEVICE_IMAGE3]
         self.pci_devices = [PCI_DEVICE2, PCI_DEVICE3]
         self.hosts = [HOST1]
@@ -306,6 +336,9 @@ class FakeSysinvClientImageWithLabels(object):
 
     def get_host_device_list(self, host_name):
         return self.pci_devices
+
+    def get_device_image(self, device_image_uuid):
+        return self.device_image
 
     def get_device_images(self):
         return self.device_images
