@@ -130,10 +130,17 @@ class SwUpdateManager(manager.Manager):
                     subcloud_status.sync_status ==
                     consts.SYNC_STATUS_OUT_OF_SYNC)
         elif strategy_type == consts.SW_UPDATE_TYPE_KUBERNETES:
-            return (subcloud_status.endpoint_type ==
-                    dcorch_consts.ENDPOINT_TYPE_KUBERNETES and
-                    subcloud_status.sync_status ==
-                    consts.SYNC_STATUS_OUT_OF_SYNC)
+            if force:
+                # run for in-sync and out-of-sync (but not unknown)
+                return (subcloud_status.endpoint_type ==
+                        dcorch_consts.ENDPOINT_TYPE_KUBERNETES and
+                        subcloud_status.sync_status !=
+                        consts.SYNC_STATUS_UNKNOWN)
+            else:
+                return (subcloud_status.endpoint_type ==
+                        dcorch_consts.ENDPOINT_TYPE_KUBERNETES and
+                        subcloud_status.sync_status ==
+                        consts.SYNC_STATUS_OUT_OF_SYNC)
         elif strategy_type == consts.SW_UPDATE_TYPE_KUBE_ROOTCA_UPDATE:
             if force:
                 # run for in-sync and out-of-sync (but not unknown)
@@ -319,13 +326,18 @@ class SwUpdateManager(manager.Manager):
                         msg='Subcloud %s does not require firmware update'
                             % cloud_name)
             elif strategy_type == consts.SW_UPDATE_TYPE_KUBERNETES:
-                subcloud_status = db_api.subcloud_status_get(
-                    context, subcloud.id, dcorch_consts.ENDPOINT_TYPE_KUBERNETES)
-                if subcloud_status.sync_status == consts.SYNC_STATUS_IN_SYNC:
-                    raise exceptions.BadRequest(
-                        resource='strategy',
-                        msg='Subcloud %s does not require kubernetes update'
-                            % cloud_name)
+                if force:
+                    # force means we do not care about the status
+                    pass
+                else:
+                    subcloud_status = db_api.subcloud_status_get(
+                        context, subcloud.id,
+                        dcorch_consts.ENDPOINT_TYPE_KUBERNETES)
+                    if subcloud_status.sync_status == consts.SYNC_STATUS_IN_SYNC:
+                        raise exceptions.BadRequest(
+                            resource='strategy',
+                            msg='Subcloud %s does not require kubernetes update'
+                                % cloud_name)
             elif strategy_type == consts.SW_UPDATE_TYPE_KUBE_ROOTCA_UPDATE:
                 if force:
                     # force means we do not care about the status
@@ -360,6 +372,11 @@ class SwUpdateManager(manager.Manager):
                     payload.get(consts.EXTRA_ARGS_SUBJECT),
                 consts.EXTRA_ARGS_CERT_FILE:
                     payload.get(consts.EXTRA_ARGS_CERT_FILE),
+            }
+        elif strategy_type == consts.SW_UPDATE_TYPE_KUBERNETES:
+            extra_args = {
+                consts.EXTRA_ARGS_TO_VERSION:
+                    payload.get(consts.EXTRA_ARGS_TO_VERSION),
             }
 
         # Don't create a strategy if any of the subclouds is online and the
