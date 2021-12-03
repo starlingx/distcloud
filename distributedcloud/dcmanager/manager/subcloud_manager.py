@@ -996,20 +996,20 @@ class SubcloudManager(manager.Manager):
             json.dump(payload['deploy_values'], f_out_deploy_values_file)
 
     def _prepare_for_deployment(self, payload, subcloud_name):
-            payload['deploy_values'] = dict()
-            payload['deploy_values']['ansible_become_pass'] = \
-                payload['sysadmin_password']
-            payload['deploy_values']['ansible_ssh_pass'] = \
-                payload['sysadmin_password']
-            payload['deploy_values']['admin_password'] = \
-                str(keyring.get_password('CGCS', 'admin'))
-            payload['deploy_values']['deployment_config'] = \
-                payload[consts.DEPLOY_CONFIG]
-            payload['deploy_values']['deployment_manager_chart'] = \
-                payload[consts.DEPLOY_CHART]
-            payload['deploy_values']['deployment_manager_overrides'] = \
-                payload[consts.DEPLOY_OVERRIDES]
-            self._write_deploy_files(payload, subcloud_name)
+        payload['deploy_values'] = dict()
+        payload['deploy_values']['ansible_become_pass'] = \
+            payload['sysadmin_password']
+        payload['deploy_values']['ansible_ssh_pass'] = \
+            payload['sysadmin_password']
+        payload['deploy_values']['admin_password'] = \
+            str(keyring.get_password('CGCS', 'admin'))
+        payload['deploy_values']['deployment_config'] = \
+            payload[consts.DEPLOY_CONFIG]
+        payload['deploy_values']['deployment_manager_chart'] = \
+            payload[consts.DEPLOY_CHART]
+        payload['deploy_values']['deployment_manager_overrides'] = \
+            payload[consts.DEPLOY_OVERRIDES]
+        self._write_deploy_files(payload, subcloud_name)
 
     def _delete_subcloud_routes(self, context, subcloud):
         """Delete the routes to this subcloud"""
@@ -1125,24 +1125,32 @@ class SubcloudManager(manager.Manager):
                                       subcloud,
                                       ansible_subcloud_inventory_file)
 
-        # Clear the offline fault associated with this subcloud as we
-        # are deleting it. Note that endpoint out-of-sync alarms should
-        # have been cleared when the subcloud was unmanaged and the endpoint
-        # sync statuses were set to unknown.
-        entity_instance_id = "subcloud=%s" % subcloud.name
-
-        try:
-            subcloud_offline = fm_const.FM_ALARM_ID_DC_SUBCLOUD_OFFLINE
-            fault = self.fm_api.get_fault(subcloud_offline,
-                                          entity_instance_id)
-
-            if fault:
-                self.fm_api.clear_fault(subcloud_offline,
-                                        entity_instance_id)
-        except Exception as e:
-            LOG.info("Problem clearing offline fault for "
-                     "subcloud %s" % subcloud.name)
-            LOG.exception(e)
+        # Clear any subcloud alarms.
+        # Note that endpoint out-of-sync alarms should have been cleared when
+        # the subcloud was unmanaged and the endpoint sync statuses were set to
+        # unknown.
+        #
+        # TODO(kmacleod): Until an API is available to clear all alarms
+        # for a subcloud, we manually clear the following:
+        # - subcloud offline
+        # - subloud resource out of sync
+        for alarm_id, entity_instance_id in (
+                (fm_const.FM_ALARM_ID_DC_SUBCLOUD_OFFLINE,
+                 "subcloud=%s" % subcloud.name),
+                (fm_const.FM_ALARM_ID_DC_SUBCLOUD_RESOURCE_OUT_OF_SYNC,
+                 "subcloud=%s.resource=%s" %
+                 (subcloud.name, dcorch_consts.ENDPOINT_TYPE_DC_CERT))):
+            try:
+                fault = self.fm_api.get_fault(alarm_id,
+                                              entity_instance_id)
+                if fault:
+                    self.fm_api.clear_fault(alarm_id,
+                                            entity_instance_id)
+            except Exception as e:
+                LOG.info(
+                    "Problem clearing fault for subcloud %s, alarm_id=%s" %
+                    (subcloud.name, alarm_id))
+                LOG.exception(e)
 
     def update_subcloud(self,
                         context,
@@ -1263,9 +1271,9 @@ class SubcloudManager(manager.Manager):
 
         return db_api.subcloud_db_model_to_dict(subcloud)
 
-    def _update_online_managed_subcloud(self, context, subcloud_id,
-                                        endpoint_type, sync_status,
-                                        alarmable, ignore_endpoints=None):
+    def _do_update_subcloud_endpoint_status(self, context, subcloud_id,
+                                            endpoint_type, sync_status,
+                                            alarmable, ignore_endpoints=None):
         """Update online/managed subcloud endpoint status
 
         :param context: request context object
@@ -1404,8 +1412,10 @@ class SubcloudManager(manager.Manager):
                         fm_const.FM_ALARM_ID_DC_SUBCLOUD_RESOURCE_OUT_OF_SYNC,
                         entity_instance_id)
 
-                    # TODO(yuxing): batch clear all the out-of-sync alarms of
-                    # a given subcloud if fm_api support it.
+                    # TODO(yuxing): batch clear all the out-of-sync alarms of a
+                    # given subcloud if fm_api support it. Be careful with the
+                    # dc-cert endpoint when adding the above; the endpoint
+                    # alarm must remain for offline subclouds.
                     if (sync_status != consts.SYNC_STATUS_OUT_OF_SYNC) \
                             and fault:
                         try:
@@ -1483,26 +1493,32 @@ class SubcloudManager(manager.Manager):
             LOG.exception(e)
             raise e
 
-        # Only allow updating the sync status if managed and online.
-        # except dc-cert endpoint is audit only when subcloud is online
-        # this could happen before subcloud is being managed.
+        # Rules for updating sync status:
+        #
+        # Always update if not in-sync.
+        #
+        # Otherwise, only update the sync status if managed and online
+        # (unless dc-cert).
+        #
+        # Most endpoints are audited only when the subcloud is managed and
+        # online. An exception is the dc-cert endpoint, which is audited
+        # whenever the subcloud is online (managed or unmanaged).
+        #
         # This means if a subcloud is going offline or unmanaged, then
         # the sync status update must be done first.
-        if (((subcloud.availability_status ==
-              consts.AVAILABILITY_ONLINE)
-            and (subcloud.management_state ==
-                 consts.MANAGEMENT_MANAGED or
-                 endpoint_type == dcorch_consts.ENDPOINT_TYPE_DC_CERT))
-                or (sync_status != consts.SYNC_STATUS_IN_SYNC)):
-
+        #
+        if (sync_status != consts.SYNC_STATUS_IN_SYNC or
+            ((subcloud.availability_status == consts.AVAILABILITY_ONLINE) and
+             (subcloud.management_state == consts.MANAGEMENT_MANAGED
+              or endpoint_type == dcorch_consts.ENDPOINT_TYPE_DC_CERT))):
             # update a single subcloud
             try:
-                self._update_online_managed_subcloud(context,
-                                                     subcloud.id,
-                                                     endpoint_type,
-                                                     sync_status,
-                                                     alarmable,
-                                                     ignore_endpoints)
+                self._do_update_subcloud_endpoint_status(context,
+                                                         subcloud.id,
+                                                         endpoint_type,
+                                                         sync_status,
+                                                         alarmable,
+                                                         ignore_endpoints)
             except Exception as e:
                 LOG.exception(e)
                 raise e
