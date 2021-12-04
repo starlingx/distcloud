@@ -154,8 +154,7 @@ class SwUpdateStrategyController(object):
                     max_parallel_subclouds = int(max_parallel_subclouds_str)
                 except ValueError:
                     pecan.abort(400, _('max-parallel-subclouds invalid'))
-                # TODO(Bart): Decide on a maximum
-                if max_parallel_subclouds < 1 or max_parallel_subclouds > 100:
+                if max_parallel_subclouds < 1 or max_parallel_subclouds > 500:
                     pecan.abort(400, _('max-parallel-subclouds invalid'))
 
             stop_on_failure = payload.get('stop-on-failure')

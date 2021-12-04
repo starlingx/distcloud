@@ -178,10 +178,10 @@ class TestSubcloudGroupPost(testroot.DCManagerApiTest,
 
     @mock.patch.object(rpc_client, 'ManagerClient')
     def test_create_with_bad_max_parallel_subclouds(self, mock_client):
-        # max_parallel_subclouds must be an integer between 1 and 100
+        # max_parallel_subclouds must be an integer between 1 and 500
         ndict = self.get_post_object()
         # All the entries in bad_values should be considered invalid
-        bad_values = [0, 101, -1, 'abc']
+        bad_values = [0, 501, -1, 'abc']
         for bad_value in bad_values:
             ndict['max_parallel_subclouds'] = bad_value
             response = self.app.post_json(self.get_api_prefix(),

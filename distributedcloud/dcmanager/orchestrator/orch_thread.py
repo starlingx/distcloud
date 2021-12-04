@@ -79,7 +79,7 @@ class OrchThread(threading.Thread):
         self._stop = threading.Event()
         # Keeps track of greenthreads we create to do work.
         self.thread_group_manager = scheduler.ThreadGroupManager(
-            thread_pool_size=100)
+            thread_pool_size=500)
         # Track worker created for each subcloud.
         self.subcloud_workers = dict()
 
