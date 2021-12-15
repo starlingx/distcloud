@@ -46,7 +46,7 @@ RVMC_IMAGE_NAME = 'docker.io/starlingx/rvmc'
 RVMC_IMAGE_TAG = 'stx.5.0-v1.0.0'
 
 SUBCLOUD_ISO_PATH = '/opt/platform/iso'
-SUBCLOUD_ISO_DOWNLOAD_PATH = '/www/pages/iso'
+SUBCLOUD_ISO_DOWNLOAD_PATH = '/var/www/pages/iso'
 GEN_ISO_COMMAND = '/usr/local/bin/gen-bootloader-iso.sh'
 NETWORK_SCRIPTS = '/etc/sysconfig/network-scripts'
 NETWORK_INTERFACE_PREFIX = 'ifcfg'
