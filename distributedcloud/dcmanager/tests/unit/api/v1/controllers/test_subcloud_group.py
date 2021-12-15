@@ -1,4 +1,5 @@
 # Copyright (c) 2017 Ericsson AB
+# Copyright (c) 2020-2021 Wind River Systems, Inc.
 # All Rights Reserved.
 #
 #    Licensed under the Apache License, Version 2.0 (the "License"); you may
@@ -12,12 +13,6 @@
 #    WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
 #    License for the specific language governing permissions and limitations
 #    under the License.
-#
-# Copyright (c) 2020 Wind River Systems, Inc.
-#
-# The right to copy, distribute, modify, or otherwise make use
-# of this software may be licensed only pursuant to the terms
-# of an applicable Wind River license agreement.
 #
 
 import mock
