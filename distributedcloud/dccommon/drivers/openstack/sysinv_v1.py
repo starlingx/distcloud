@@ -39,7 +39,6 @@ CERT_CA_FILE = "ca-cert.pem"
 CERT_MODE_DOCKER_REGISTRY = 'docker_registry'
 CERT_MODE_SSL = 'ssl'
 CERT_MODE_SSL_CA = 'ssl_ca'
-CERT_MODE_TPM = 'tpm_mode'
 
 CONTROLLER = 'controller'
 
@@ -537,9 +536,7 @@ class SysinvClient(base.DriverBase):
             LOG.info("update_certificate from shared file {} {}".format(
                 signature, certificate_files))
 
-        if (signature and
-                (signature.startswith(CERT_MODE_SSL) or
-                    (signature.startswith(CERT_MODE_TPM)))):
+        if signature and signature.startswith(CERT_MODE_SSL):
             # ensure https is enabled
             isystem = self.sysinv_client.isystem.list()[0]
             https_enabled = isystem.capabilities.get('https_enabled', False)
