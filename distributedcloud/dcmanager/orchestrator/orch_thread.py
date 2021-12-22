@@ -162,6 +162,14 @@ class OrchThread(threading.Thread):
                                            started_at=started_at,
                                            finished_at=finished_at)
 
+    def _delete_subcloud_worker(self, region):
+        if region in self.subcloud_workers:
+            # The orchestration for this subcloud has either
+            # completed/failed/aborted, remove it from the
+            # dictionary.
+            LOG.debug("Remove %s from subcloud_workers dict" % region)
+            del self.subcloud_workers[region]
+
     def run_orch(self):
         while not self.stopped():
             try:
@@ -211,13 +219,16 @@ class OrchThread(threading.Thread):
         for strategy_step in strategy_steps:
             if strategy_step.state == consts.STRATEGY_STATE_COMPLETE:
                 # This step is complete
+                self._delete_subcloud_worker(strategy_step.subcloud.name)
                 continue
             elif strategy_step.state == consts.STRATEGY_STATE_ABORTED:
                 # This step was aborted
+                self._delete_subcloud_worker(strategy_step.subcloud.name)
                 abort_detected = True
                 continue
             elif strategy_step.state == consts.STRATEGY_STATE_FAILED:
                 failure_detected = True
+                self._delete_subcloud_worker(strategy_step.subcloud.name)
                 # This step has failed and needs no further action
                 if strategy_step.subcloud_id is None:
                     # Strategy on SystemController failed. We are done.
@@ -269,6 +280,8 @@ class OrchThread(threading.Thread):
                         self.context,
                         state=consts.SW_UPDATE_STATE_COMPLETE,
                         update_type=self.update_type)
+
+            self.subcloud_workers.clear()
             # Trigger audit to update the sync status for each subcloud.
             self.trigger_audit()
             return
@@ -306,16 +319,19 @@ class OrchThread(threading.Thread):
                 if self.stopped():
                     LOG.info("(%s) Exiting because task is stopped"
                              % self.update_type)
+                    self.subcloud_workers.clear()
                     return
                 if strategy_step.state == \
                         consts.STRATEGY_STATE_FAILED:
                     LOG.debug("(%s) Intermediate step is failed"
                               % self.update_type)
+                    self._delete_subcloud_worker(region)
                     continue
                 elif strategy_step.state == \
                         consts.STRATEGY_STATE_COMPLETE:
                     LOG.debug("(%s) Intermediate step is complete"
                               % self.update_type)
+                    self._delete_subcloud_worker(region)
                     continue
                 elif strategy_step.state == \
                         consts.STRATEGY_STATE_INITIAL:
@@ -479,19 +495,30 @@ class OrchThread(threading.Thread):
     def process_update_step(self, region, strategy_step, log_error=False):
         """manage the green thread for calling perform_state_action"""
         if region in self.subcloud_workers:
-            # A worker already exists. Let it finish whatever it was doing.
-            if log_error:
-                LOG.error("(%s) Worker should not exist for %s."
-                          % (self.update_type, region))
+            if self.subcloud_workers[region][0] == strategy_step.state:
+                # A worker already exists. Let it finish whatever it was doing.
+                if log_error:
+                    LOG.error("(%s) Worker should not exist for %s."
+                              % (self.update_type, region))
+                else:
+                    LOG.debug("(%s) Update worker exists for %s."
+                              % (self.update_type, region))
             else:
-                LOG.debug("(%s) Update worker exists for %s."
-                          % (self.update_type, region))
+                LOG.debug("Starting a new worker for region %s at state %s (update)"
+                          % (region, strategy_step.state))
+                # Advance to the next state. The previous greenthread has exited,
+                # create a new one.
+                self.subcloud_workers[region] = \
+                    (strategy_step.state, self.thread_group_manager.start(
+                     self.perform_state_action, strategy_step))
         else:
-            # Create a greenthread to start processing the update for the
-            # subcloud and invoke the perform_state_action method
+            # This is the first state. create a greenthread to start processing
+            # the update for the subcloud and invoke the perform_state_action method.
+            LOG.debug("Starting a new worker for region %s at state %s"
+                      % (region, strategy_step.state))
             self.subcloud_workers[region] = \
-                self.thread_group_manager.start(self.perform_state_action,
-                                                strategy_step)
+                (strategy_step.state, self.thread_group_manager.start(
+                 self.perform_state_action, strategy_step))
 
     def perform_state_action(self, strategy_step):
         """Extensible state handler for processing and transitioning states """
@@ -519,8 +546,3 @@ class OrchThread(threading.Thread):
             self.strategy_step_update(strategy_step.subcloud_id,
                                       state=consts.STRATEGY_STATE_FAILED,
                                       details=details)
-        finally:
-            # The worker is done.
-            region = self.get_region_name(strategy_step)
-            if region in self.subcloud_workers:
-                del self.subcloud_workers[region]
