@@ -21,23 +21,25 @@ class CreatingVIMKubeUpgradeStrategyState(CreatingVIMStrategyState):
             region_name=region_name,
             strategy_name=vim.STRATEGY_NAME_KUBE_UPGRADE)
 
-    def get_target_kube_version(self, strategy_step):
-        kube_versions = self.get_sysinv_client(
-            consts.DEFAULT_REGION_NAME).get_kube_versions()
-        active_kube_version = dcmanager_utils.get_active_kube_version(
-            kube_versions)
-        if active_kube_version is None:
-            message = "Active kube version in RegionOne not found"
-            self.warn_log(strategy_step, message)
-            raise Exception(message)
-        return active_kube_version
-
     def _create_vim_strategy(self, strategy_step, region):
         self.info_log(strategy_step,
                       "Creating (%s) VIM strategy" % self.strategy_name)
+        target_kube_version = None
 
-        # determine the target for the vim kube strategy
-        active_kube_version = self.get_target_kube_version(strategy_step)
+        # If there is an existing kube upgrade object, its to_version is used
+        # This is to allow resume for a kube upgrade
+        subcloud_kube_upgrades = \
+            self.get_sysinv_client(region).get_kube_upgrades()
+        if len(subcloud_kube_upgrades) > 0:
+            target_kube_version = subcloud_kube_upgrades[0].to_version
+        else:
+            # Creating a new kube upgrade, rather than resuming.
+            # Subcloud can only be upgraded to its available version
+            # Pre-Check does rejection logic.
+            kube_versions = \
+                self.get_sysinv_client(region).get_kube_versions()
+            target_kube_version = \
+                dcmanager_utils.get_available_kube_version(kube_versions)
 
         # Get the update options
         opts_dict = dcmanager_utils.get_sw_update_opts(
@@ -53,7 +55,7 @@ class CreatingVIMKubeUpgradeStrategyState(CreatingVIMStrategyState):
             opts_dict['max-parallel-workers'],
             opts_dict['default-instance-action'],
             opts_dict['alarm-restriction-type'],
-            to_version=active_kube_version)
+            to_version=target_kube_version)
 
         # a successful API call to create MUST set the state be 'building'
         if subcloud_strategy.state != vim.STATE_BUILDING:

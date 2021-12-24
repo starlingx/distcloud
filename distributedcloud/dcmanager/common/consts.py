@@ -146,15 +146,9 @@ STRATEGY_STATE_CREATING_FW_UPDATE_STRATEGY = "creating fw update strategy"
 STRATEGY_STATE_APPLYING_FW_UPDATE_STRATEGY = "applying fw update strategy"
 STRATEGY_STATE_FINISHING_FW_UPDATE = "finishing fw update"
 
-# Kubernetes update orchestration states
-STRATEGY_STATE_KUBE_UPDATING_PATCHES = \
-    "kube updating patches"
-STRATEGY_STATE_KUBE_CREATING_VIM_PATCH_STRATEGY = \
-    "kube creating vim patch strategy"
-STRATEGY_STATE_KUBE_APPLYING_VIM_PATCH_STRATEGY = \
-    "kube applying vim patch strategy"
-STRATEGY_STATE_KUBE_DELETING_VIM_PATCH_STRATEGY = \
-    "kube deleting vim patch strategy"
+# Kubernetes update orchestration states (ordered)
+STRATEGY_STATE_KUBE_UPGRADE_PRE_CHECK = \
+    "kube upgrade pre check"
 STRATEGY_STATE_KUBE_CREATING_VIM_KUBE_UPGRADE_STRATEGY = \
     "kube creating vim kube upgrade strategy"
 STRATEGY_STATE_KUBE_APPLYING_VIM_KUBE_UPGRADE_STRATEGY = \
@@ -254,6 +248,8 @@ IMPORTED_LOAD_STATES = [
     IMPORTED_METADATA_LOAD_STATE
 ]
 
+# extra_args for kube upgrade
+EXTRA_ARGS_TO_VERSION = 'to-version'
 # extra_args for kube rootca update
 EXTRA_ARGS_CERT_FILE = 'cert-file'
 EXTRA_ARGS_EXPIRY_DATE = 'expiry-date'

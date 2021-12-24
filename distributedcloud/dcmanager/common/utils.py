@@ -350,15 +350,54 @@ def get_vault_load_files(target_version):
 
 
 def get_active_kube_version(kube_versions):
-    """Returns the active version name for kubernetes from a list of versions"""
+    """Returns the active (target) kubernetes from a list of versions"""
 
-    active_kube_version = None
+    matching_kube_version = None
     for kube in kube_versions:
         kube_dict = kube.to_dict()
         if kube_dict.get('target') and kube_dict.get('state') == 'active':
-            active_kube_version = kube_dict.get('version')
+            matching_kube_version = kube_dict.get('version')
             break
-    return active_kube_version
+    return matching_kube_version
+
+
+def get_available_kube_version(kube_versions):
+    """Returns first available kubernetes version from a list of versions"""
+
+    matching_kube_version = None
+    for kube in kube_versions:
+        kube_dict = kube.to_dict()
+        if kube_dict.get('state') == 'available':
+            matching_kube_version = kube_dict.get('version')
+            break
+    return matching_kube_version
+
+
+def kube_version_compare(left, right):
+    """Performs a cmp operation for two kubernetes versions
+
+    Return -1, 0, or 1 if left is less, equal, or greater than right
+
+    left and right are semver strings starting with the letter 'v'
+    If either value is None, an exception is raised
+    If the strings are not 'v'major.minor.micro, an exception is raised
+    Note: This method supports shorter versions.  ex: v1.22
+    When comparing different length tuples, additional fields are ignored.
+    For example: v1.19 and v1.19.1 would be the same.
+    """
+    if left is None or right is None or left[0] != 'v' or right[0] != 'v':
+        raise Exception("Invalid kube version(s), left: (%s), right: (%s)" %
+                        (left, right))
+    # start the split at index 1 ('after' the 'v' character)
+    l_val = tuple(map(int, (left[1:].split("."))))
+    r_val = tuple(map(int, (right[1:].split("."))))
+    # If the tuples are different length, convert both to the same length
+    min_tuple = min(len(l_val), len(r_val))
+    l_val = l_val[0:min_tuple]
+    r_val = r_val[0:min_tuple]
+    # The following is the same as cmp. Verified in python2 and python3
+    # cmp does not exist in python3.
+    return (l_val > r_val) - (l_val < r_val)
 
 
 def get_loads_for_patching(loads):

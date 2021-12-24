@@ -19,30 +19,19 @@ from dcmanager.common import consts
 from dcmanager.orchestrator.orch_thread import OrchThread
 from dcmanager.orchestrator.states.kube.applying_vim_kube_upgrade_strategy \
     import ApplyingVIMKubeUpgradeStrategyState
-from dcmanager.orchestrator.states.kube.applying_vim_patch_strategy \
-    import ApplyingVIMPatchStrategyState
 from dcmanager.orchestrator.states.kube.creating_vim_kube_upgrade_strategy \
     import CreatingVIMKubeUpgradeStrategyState
-from dcmanager.orchestrator.states.kube.creating_vim_patch_strategy \
-    import CreatingVIMPatchStrategyState
-from dcmanager.orchestrator.states.kube.deleting_vim_patch_strategy \
-    import DeletingVIMPatchStrategyState
-from dcmanager.orchestrator.states.kube.updating_kube_patches \
-    import UpdatingKubePatchesState
+from dcmanager.orchestrator.states.kube.pre_check \
+    import KubeUpgradePreCheckState
 
 
 class KubeUpgradeOrchThread(OrchThread):
     """Kube Upgrade Orchestration Thread"""
     # every state in kube orchestration must have an operator
+    # The states are listed here in their typical execution order
     STATE_OPERATORS = {
-        consts.STRATEGY_STATE_KUBE_UPDATING_PATCHES:
-            UpdatingKubePatchesState,
-        consts.STRATEGY_STATE_KUBE_CREATING_VIM_PATCH_STRATEGY:
-            CreatingVIMPatchStrategyState,
-        consts.STRATEGY_STATE_KUBE_APPLYING_VIM_PATCH_STRATEGY:
-            ApplyingVIMPatchStrategyState,
-        consts.STRATEGY_STATE_KUBE_DELETING_VIM_PATCH_STRATEGY:
-            DeletingVIMPatchStrategyState,
+        consts.STRATEGY_STATE_KUBE_UPGRADE_PRE_CHECK:
+            KubeUpgradePreCheckState,
         consts.STRATEGY_STATE_KUBE_CREATING_VIM_KUBE_UPGRADE_STRATEGY:
             CreatingVIMKubeUpgradeStrategyState,
         consts.STRATEGY_STATE_KUBE_APPLYING_VIM_KUBE_UPGRADE_STRATEGY:
@@ -55,7 +44,7 @@ class KubeUpgradeOrchThread(OrchThread):
             audit_rpc_client,
             consts.SW_UPDATE_TYPE_KUBERNETES,
             vim.STRATEGY_NAME_KUBE_UPGRADE,
-            consts.STRATEGY_STATE_KUBE_UPDATING_PATCHES)
+            consts.STRATEGY_STATE_KUBE_UPGRADE_PRE_CHECK)
 
     def trigger_audit(self):
         """Trigger an audit for kubernetes"""

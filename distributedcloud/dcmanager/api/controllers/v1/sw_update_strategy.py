@@ -42,6 +42,12 @@ SUPPORTED_STRATEGY_TYPES = [
     consts.SW_UPDATE_TYPE_UPGRADE
 ]
 
+# some strategies allow force for all subclouds
+FORCE_ALL_TYPES = [
+    consts.SW_UPDATE_TYPE_KUBE_ROOTCA_UPDATE,
+    consts.SW_UPDATE_TYPE_KUBERNETES
+]
+
 
 class SwUpdateStrategyController(object):
 
@@ -161,8 +167,7 @@ class SwUpdateStrategyController(object):
             if force_flag is not None:
                 if force_flag not in ["true", "false"]:
                     pecan.abort(400, _('force invalid'))
-                elif strategy_type != consts.SW_UPDATE_TYPE_KUBE_ROOTCA_UPDATE:
-                    # kube rootca update allows force for all subclouds
+                elif strategy_type not in FORCE_ALL_TYPES:
                     if payload.get('cloud_name') is None:
                         pecan.abort(400,
                                     _('The --force option can only be applied '
