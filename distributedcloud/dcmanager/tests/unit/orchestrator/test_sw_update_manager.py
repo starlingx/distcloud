@@ -273,6 +273,40 @@ class FakePatchingClientSubcloudUnknown(mock.Mock):
         return []
 
 
+class FakePatchingClientAvailable(mock.Mock):
+    def __init__(self, region, session, endpoint):
+        super(FakePatchingClientAvailable, self).__init__()
+        self.region = region
+        self.session = session
+        self.endpoint = endpoint
+
+    def query(self, state=None):
+        if self.region == consts.DEFAULT_REGION_NAME:
+            if state == 'Committed':
+                return {'DC.1': {'sw_version': '17.07',
+                                 'repostate': 'Committed',
+                                 'patchstate': 'Committed'},
+                        }
+            else:
+                return {'DC.1': {'sw_version': '17.07',
+                                 'repostate': 'Applied',
+                                 'patchstate': 'Applied'},
+                        }
+
+        elif self.region == 'subcloud1':
+            if state != 'Committed':
+                return {'DC.1': {'sw_version': '17.07',
+                                 'repostate': 'Available',
+                                 'patchstate': 'Available'},
+                        }
+
+        else:
+            return {}
+
+    def query_hosts(self):
+        return []
+
+
 class FakePatchingClientFinish(mock.Mock):
     def __init__(self, region, session, endpoint):
         super(FakePatchingClientFinish, self).__init__()
@@ -349,9 +383,76 @@ class FakeSysinvClientOneLoad(object):
         self.session = session
         self.endpoint = endpoint
         self.loads = [Load('17.07')]
+        self.health_report =   \
+            "System Health:\n \
+            All hosts are provisioned: [Fail]\n \
+            1 Unprovisioned hosts\n \
+            All hosts are unlocked/enabled: [OK]\n \
+            All hosts have current configurations: [OK]\n \
+            All hosts are patch current: [OK]\n \
+            No alarms: [OK]\n \
+            All kubernetes nodes are ready: [OK]\n \
+            All kubernetes control plane pods are ready: [OK]"
 
     def get_loads(self):
         return self.loads
+
+    def get_system_health(self):
+        return self.health_report
+
+
+class FakeSysinvClientNoMgmtAffectAlarm(object):
+    def __init__(self, region, session, endpoint):
+        self.region = region
+        self.session = session
+        self.endpoint = endpoint
+        self.loads = [Load('17.07')]
+        self.no_mgmt_alarm = True
+
+        self.health_report =   \
+            "System Health:\n" \
+            "All hosts are provisioned: [OK]\n" \
+            "All hosts are unlocked/enabled: [OK]\n" \
+            "All hosts have current configurations: [OK]\n" \
+            "All hosts are patch current: [OK]\n" \
+            "Ceph Storage Healthy: [OK]\n" \
+            "No alarms: [Fail]\n" \
+            "[1] alarms found, [0] of which are management affecting\n" \
+            "All kubernetes nodes are ready: [OK]\n" \
+            "All kubernetes control plane pods are ready: [OK]"
+
+    def get_loads(self):
+        return self.loads
+
+    def get_system_health(self):
+        return self.health_report
+
+
+class FakeSysinvClientMgmtAffectAlarm(object):
+    def __init__(self, region, session, endpoint):
+        self.region = region
+        self.session = session
+        self.endpoint = endpoint
+        self.loads = [Load('17.07')]
+        self.no_mgmt_alarm = True
+
+        self.health_report =   \
+            "System Health:\n" \
+            "All hosts are provisioned: [OK]\n" \
+            "All hosts are unlocked/enabled: [OK]\n" \
+            "All hosts have current configurations: [OK]\n" \
+            "All hosts are patch current: [OK]\n" \
+            "Ceph Storage Healthy: [OK]\n" \
+            "No alarms: [Fail]\n" \
+            "[1] alarms found, [1] of which are management affecting\n" \
+            "All kubernetes nodes are ready: [OK]\n" \
+            "All kubernetes control plane pods are ready: [OK]"
+
+    def get_loads(self):
+        return self.loads
+
+    def get_system_health(self):
+        return self.health_report
 
 
 class Controller(object):
@@ -1326,6 +1427,129 @@ class TestSwUpdateManager(base.DCManagerTestCase):
         self.assertRaises(exceptions.BadRequest,
                           um.apply_sw_update_strategy,
                           self.ctxt)
+
+    @mock.patch.object(patch_orch_thread, 'SysinvClient')
+    @mock.patch.object(os_path, 'isfile')
+    @mock.patch.object(patch_orch_thread, 'PatchingClient')
+    @mock.patch.object(threading, 'Thread')
+    def test_update_subcloud_patches_no_management_affected_alarm(
+            self, mock_threading,
+            mock_patching_client, mock_os_path_isfile, mock_sysinv_client):
+
+        subcloud_id = fake_subcloud.create_fake_subcloud(self.ctx).id
+        subcloud = db_api.subcloud_update(
+            self.ctx,
+            subcloud_id,
+            management_state=consts.MANAGEMENT_MANAGED,
+            availability_status=consts.AVAILABILITY_ONLINE)
+        fake_strategy.create_fake_strategy_step(
+            self.ctx,
+            subcloud_id=subcloud.id,
+            state=consts.STRATEGY_STATE_UPDATING_PATCHES)
+        strategy_step = db_api.strategy_step_get_by_name(self.ctx, subcloud.name)
+
+        mock_os_path_isfile.return_value = True
+        mock_patching_client.side_effect = FakePatchingClientAvailable
+        mock_sysinv_client.side_effect = FakeSysinvClientNoMgmtAffectAlarm
+
+        FakePatchingClientAvailable.apply = mock.Mock()
+
+        sw_update_manager.PatchOrchThread.stopped = lambda x: False
+        mock_strategy_lock = mock.Mock()
+        pot = sw_update_manager.PatchOrchThread(mock_strategy_lock,
+                                                self.fake_dcmanager_audit_api)
+        pot.get_ks_client = mock.Mock()
+
+        # invoke get_region_one_patches once t update required attributes
+        pot.get_region_one_patches()
+        pot.update_subcloud_patches(strategy_step)
+
+        # Verify that strategy step was updated
+        updated_strategy_steps = db_api.strategy_step_get_all(self.ctx)
+        self.assertEqual(updated_strategy_steps[0]['state'],
+                         consts.STRATEGY_STATE_CREATING_STRATEGY)
+
+    @mock.patch.object(patch_orch_thread, 'SysinvClient')
+    @mock.patch.object(os_path, 'isfile')
+    @mock.patch.object(patch_orch_thread, 'PatchingClient')
+    @mock.patch.object(threading, 'Thread')
+    def test_update_subcloud_patches_no_alarm(
+            self, mock_threading,
+            mock_patching_client, mock_os_path_isfile, mock_sysinv_client):
+
+        subcloud_id = fake_subcloud.create_fake_subcloud(self.ctx).id
+        subcloud = db_api.subcloud_update(
+            self.ctx,
+            subcloud_id,
+            management_state=consts.MANAGEMENT_MANAGED,
+            availability_status=consts.AVAILABILITY_ONLINE)
+        fake_strategy.create_fake_strategy_step(
+            self.ctx,
+            subcloud_id=subcloud.id,
+            state=consts.STRATEGY_STATE_UPDATING_PATCHES)
+        strategy_step = db_api.strategy_step_get_by_name(self.ctx, subcloud.name)
+
+        mock_os_path_isfile.return_value = True
+        mock_patching_client.side_effect = FakePatchingClientAvailable
+        mock_sysinv_client.side_effect = FakeSysinvClientOneLoad
+
+        FakePatchingClientAvailable.apply = mock.Mock()
+
+        sw_update_manager.PatchOrchThread.stopped = lambda x: False
+        mock_strategy_lock = mock.Mock()
+        pot = sw_update_manager.PatchOrchThread(mock_strategy_lock,
+                                                self.fake_dcmanager_audit_api)
+        pot.get_ks_client = mock.Mock()
+
+        # invoke get_region_one_patches once t update required attributes
+        pot.get_region_one_patches()
+        pot.update_subcloud_patches(strategy_step)
+
+        # Verify that strategy step was updated
+        updated_strategy_steps = db_api.strategy_step_get_all(self.ctx)
+        self.assertEqual(updated_strategy_steps[0]['state'],
+                         consts.STRATEGY_STATE_CREATING_STRATEGY)
+
+    @mock.patch.object(patch_orch_thread, 'SysinvClient')
+    @mock.patch.object(os_path, 'isfile')
+    @mock.patch.object(patch_orch_thread, 'PatchingClient')
+    @mock.patch.object(threading, 'Thread')
+    def test_update_subcloud_patches_management_affected_alarm(
+            self, mock_threading,
+            mock_patching_client, mock_os_path_isfile, mock_sysinv_client):
+
+        subcloud_id = fake_subcloud.create_fake_subcloud(self.ctx).id
+        subcloud = db_api.subcloud_update(
+            self.ctx,
+            subcloud_id,
+            management_state=consts.MANAGEMENT_MANAGED,
+            availability_status=consts.AVAILABILITY_ONLINE)
+        fake_strategy.create_fake_strategy_step(
+            self.ctx,
+            subcloud_id=subcloud.id,
+            state=consts.STRATEGY_STATE_UPDATING_PATCHES)
+        strategy_step = db_api.strategy_step_get_by_name(self.ctx, subcloud.name)
+
+        mock_os_path_isfile.return_value = True
+        mock_patching_client.side_effect = FakePatchingClientAvailable
+        mock_sysinv_client.side_effect = FakeSysinvClientMgmtAffectAlarm
+
+        FakePatchingClientAvailable.apply = mock.Mock()
+
+        sw_update_manager.PatchOrchThread.stopped = lambda x: False
+        mock_strategy_lock = mock.Mock()
+        pot = sw_update_manager.PatchOrchThread(mock_strategy_lock,
+                                                self.fake_dcmanager_audit_api)
+        pot.get_ks_client = mock.Mock()
+
+        # invoke get_region_one_patches once t update required attributes
+        pot.get_region_one_patches()
+        pot.update_subcloud_patches(strategy_step)
+
+        # Verify that strategy step was updated
+        updated_strategy_steps = db_api.strategy_step_get_all(self.ctx)
+        self.assertEqual(updated_strategy_steps[0]['state'],
+                         consts.STRATEGY_STATE_FAILED)
 
     @mock.patch.object(patch_orch_thread, 'SysinvClient')
     @mock.patch.object(os_path, 'isfile')
