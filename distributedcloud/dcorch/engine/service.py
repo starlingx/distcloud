@@ -109,17 +109,18 @@ class EngineService(service.Service):
 
     def start(self):
         self.engine_id = uuidutils.generate_uuid()
-        self.init_tgm()
-        self.init_qm()
-        self.init_gsm()
-        self.init_fkm()
-        self.init_ism()
         target = oslo_messaging.Target(version=self.rpc_api_version,
                                        server=self.host,
                                        topic=self.topic)
         self.target = target
         self._rpc_server = rpc_messaging.get_rpc_server(self.target, self)
         self._rpc_server.start()
+
+        self.init_tgm()
+        self.init_qm()
+        self.init_gsm()
+        self.init_fkm()
+        self.init_ism()
 
         self.service_registry_cleanup()
 
