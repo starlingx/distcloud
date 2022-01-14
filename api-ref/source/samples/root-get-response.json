@@ -1,0 +1,15 @@
+{
+  "versions": [
+    {
+      "status": "CURRENT",
+      "updated": "2017-10-2",
+      "id": "v1.0",
+      "links": [
+        {
+          "href": "http://192.168.204.2:8119/v1.0/",
+          "rel": "self"
+        }
+      ]
+    }
+  ]
+}

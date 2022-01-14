@@ -1,0 +1,556 @@
+---
+# variables in path
+subcloud_group_uri:
+  description: |
+    The subcloud group reference, name or id.
+  in: path
+  required: true
+  type: string
+subcloud_options_uri:
+  description: |
+    The name of the subcloud to which the options apply.
+    Use `RegionOne` for querying the default.
+  in: path
+  required: true
+  type: string
+subcloud_uri:
+  description: |
+    The subcloud reference, name or id.
+  in: path
+  required: true
+  type: string
+sw_update_strategy_type:
+  description: |
+    Filter to query a particular type of update strategy if it exists.
+    One of: `firmware`, `kube-rootca-update`, `kubernetes`, `patch`, `upgrade`
+  in: path
+  required: false
+  type: string
+# variables in body
+alarm_restriction_type:
+  description: |
+    Whether to allow update if subcloud alarms are present or not.
+    Valid values are `strict` or `relaxed`.
+  in: body
+  required: true
+  type: string
+alarm_summary:
+  description: |
+    The list of alarm summaries.
+  in: body
+  required: false
+  type: array
+alarm_summary_uuid:
+  description: |
+    The unique identifier for this object.
+  in: body
+  required: true
+  type: string
+availability_status:
+  description: |
+    The availability status of the subcloud.
+  in: body
+  required: true
+  type: string
+bmc_password:
+  description: |
+    The BMC password of the subcloud. Must be base64 encoded.
+  in: body
+  required: false
+  type: string
+bootstrap_address:
+  description: |
+    An OAM IP address of the subcloud controller-0.
+  in: body
+  required: true
+  type: string
+bootstrap_values:
+  description: |
+    The content of a file containing the bootstrap overrides such as subcloud
+    name, management and OAM subnet.The sysadmin password of the subcloud.
+    Must be base64 encoded.
+  in: body
+  required: true
+  type: string
+cloud_status:
+  description: |
+    The overall alarm status of the subcloud.
+  in: body
+  required: true
+  type: string
+created_at:
+  description: |
+    The time when the object was created.
+  in: body
+  required: true
+  type: string
+critical_alarms:
+  description: |
+    Number of critical alarms for subcloud (-1 when cloud_status is disabled).
+  in: body
+  required: true
+  type: integer
+data_install:
+  description: |
+    The installation data for the subcloud.
+  in: body
+  required: true
+  type: string
+data_upgrade:
+  description: |
+    The upgrade data for the subcloud.
+  in: body
+  required: true
+  type: string
+default_instance_action:
+  description: |
+    How instances should be handled.
+    Valid values are `stop-start` or `migrate`.
+  in: body
+  required: true
+  type: string
+deploy_config:
+  description: |
+    The content of a file containing the resource definitions describing
+    the desired subcloud configuration.
+  in: body
+  required: true
+  type: string
+deploy_status:
+  description: |
+    The deploy status of the subcloud.
+  in: body
+  required: true
+  type: string
+endpoint_sync_status:
+  description: |
+    A list of endpoint sync status.
+  in: body
+  required: true
+  type: list
+external_oam_floating_address:
+  description: |
+    The external OAM Floating IP of the subcloud.
+  in: body
+  required: false
+  type: string
+external_oam_gateway_address:
+  description: |
+    The external OAM Gateway address of the subcloud.
+  in: body
+  required: false
+  type: string
+external_oam_subnet:
+  description: |
+    The external OAM subnet of the subcloud.
+  in: body
+  required: false
+  type: string
+extra_args:
+  description: |
+    The dictionary of extra arguments passed to a sw-update-strategy.
+  in: body
+  required: false
+  type: dictionary
+group_id:
+  description: |
+    The ID of a subcloud group. Default is 1.
+  in: body
+  required: true
+  type: integer
+install_values:
+  description: |
+    The content of a file containing install variables such as subcloud
+    bootstrap interface and BMC information.
+  in: body
+  required: false
+  type: string
+major_alarms:
+  description: |
+    Number of major alarms for subcloud (-1 when cloud_status is disabled).
+  in: body
+  required: true
+  type: integer
+management_end_ip:
+  description: |
+    End of management IP address range for subcloud.
+  in: body
+  required: true
+  type: string
+management_gateway_ip:
+  description: |
+    Management gateway IP for subcloud.
+  in: body
+  required: true
+  type: string
+management_start_ip:
+  description: |
+    Start of management IP address range for subcloud.
+  in: body
+  required: true
+  type: string
+management_state:
+  description: |
+    Management state of the subcloud.
+  in: body
+  required: true
+  type: string
+management_subnet:
+  description: |
+    The management subnet for subcloud.
+  in: body
+  required: true
+  type: string
+max_parallel_subclouds:
+  description: |
+    The maximum number of subclouds to update in parallel.
+  in: body
+  required: false
+  type: integer
+max_parallel_workers:
+  description: |
+    The maximum number of workers within a subcloud to update in parallel.
+  in: body
+  required: true
+  type: integer
+migrate:
+  description: |
+    A flag indicating if the subcloud is migrated
+  in: body
+  required: false
+  type: boolean
+minor_alarms:
+  description: |
+    Number of minor alarms for subcloud (-1 when cloud_status is disabled).
+  in: body
+  required: true
+  type: integer
+oam_floating_ip:
+  description: |
+    The OAM Floating IP of the subcloud.
+  in: body
+  required: false
+  type: string
+openstack_installed:
+  description: |
+    A flag indicating if openstack is installed in the subcloud.
+  in: body
+  required: true
+  type: boolean
+region_name:
+  description: |
+    The name provisioned for the subcloud (synonym for subcloud name).
+  in: body
+  required: true
+  type: string
+restore_values:
+  description: |
+    The content of a file containing restore parameters (e.g. backup_filename).
+  in: body
+  required: true
+  type: string
+software_version:
+  description: |
+    The software version for the subcloud.
+  in: body
+  required: true
+  type: string
+stop_on_failure:
+  description: |
+    Flag to indicate if the update should stop updating additional subclouds
+    if a failure is encountered.
+  in: body
+  required: false
+  type: boolean
+storage_apply_type:
+  description: |
+    The apply type for the update on storage nodes in a subcloud.
+    Valid values are:  `serial` or `parallel`.
+  in: body
+  required: true
+  type: string
+strategy_step_details:
+  description: |
+    The details associated with the strategy step.
+  in: body
+  required: false
+  type: string
+strategy_step_finished_at:
+  description: |
+    The time when the strategy_step finished.
+  in: body
+  required: true
+  type: string
+strategy_step_id:
+  description: |
+    The ID of the strategy step.
+  in: body
+  required: false
+  type: integer
+strategy_step_stage:
+  description: |
+    The stage associated with the strategy step.
+  in: body
+  required: false
+  type: integer
+strategy_step_started_at:
+  description: |
+    The time when the strategy_step finished.
+  in: body
+  required: true
+  type: string
+strategy_step_state:
+  description: |
+    The state of the strategy step.
+  in: body
+  required: false
+  type: string
+strategy_steps:
+  description: |
+    The list of strategy steps.
+  in: body
+  required: false
+  type: array
+subcloud_apply_type:
+  description: |
+    The apply type for the update.  `serial` or `parallel`.
+  in: body
+  required: false
+  type: string
+subcloud_deploy:
+  description: |
+    The dictionary of subcloud deploy files.
+  in: body
+  required: false
+  type: dictionary
+subcloud_deploy_chart:
+  description: |
+    The file name of the deployment manager helm charts.
+  in: body
+  required: false
+  type: string
+subcloud_deploy_chart_content:
+  description: |
+    The content of the deployment manager helm charts.
+  in: body
+  required: false
+  type: string
+subcloud_deploy_overrides:
+  description: |
+    The file name of the deployment manager overrides.
+  in: body
+  required: false
+  type: string
+subcloud_deploy_overrides_content:
+  description: |
+    The content of the deployment manager overrides.
+  in: body
+  required: false
+  type: string
+subcloud_deploy_playbook:
+  description: |
+    The file name of the deployment manager playbook.
+  in: body
+  required: false
+  type: string
+subcloud_deploy_playbook_content:
+  description: |
+    The content of the deployment manager playbook.
+  in: body
+  required: false
+  type: string
+subcloud_description:
+  description: |
+    The description of a subcloud.
+  in: body
+  required: false
+  type: string
+subcloud_endpoint:
+  description: |
+    The endpoint that is being updated. Only supported value is: `dc-cert`.
+  in: body
+  required: true
+  type: string
+subcloud_endpoint_status:
+  description: |
+    The endpoint sync status. `in-sync`, `out-of-sync`, `unknown`.
+  in: body
+  required: true
+  type: string
+subcloud_endpoint_update_result:
+  description: |
+    The result of a subcloud endpoint being updated. `OK`
+  in: body
+  required: true
+  type: string
+subcloud_group_description:
+  description: |
+    The description of the subcloud group.
+  in: body
+  required: false
+  type: integer
+subcloud_group_id:
+  description: |
+    The ID of the subcloud group associated with this object.
+  in: body
+  required: false
+  type: integer
+subcloud_group_max_parallel_subclouds:
+  description: |
+    The maximum number of subclouds in the subcloud group to update in parallel.
+  in: body
+  required: false
+  type: integer
+subcloud_group_name:
+  description: |
+    The name of the subcloud group.
+  in: body
+  required: true
+  type: integer
+subcloud_group_update_apply_type:
+  description: |
+    The method for applying an update to this subcloud group.
+    `serial` or `parallel`.
+  in: body
+  required: false
+  type: string
+subcloud_groups:
+  description: |
+    The list of ``subcloud-group`` objects.
+  in: body
+  required: true
+  type: array
+subcloud_id:
+  description: |
+    The ID of a subcloud as an integer.
+  in: body
+  required: true
+  type: integer
+subcloud_location:
+  description: |
+    The location of a subcloud.
+  in: body
+  required: false
+  type: string
+subcloud_management_state:
+  description: |
+    Management state of the subcloud.
+  in: body
+  required: false
+  type: string
+subcloud_name:
+  description: |
+    The name of a subcloud.
+  in: body
+  required: true
+  type: string
+subcloud_uuid:
+  description: |
+    The ID of a subcloud as a uuid.
+  in: body
+  required: true
+  type: string
+subclouds:
+  description: |
+    The list of ``subcloud`` objects.
+  in: body
+  required: true
+  type: array
+sw_update_options:
+  description: |
+    The list of ``sw-update-options`` objects.
+  in: body
+  required: false
+  type: array
+sw_update_options_id:
+  description: |
+    A numerical ID for sw-update-options. This ID is invalid.
+  in: body
+  required: false
+  type: integer
+sw_update_options_name:
+  description: |
+    The name of the subcloud to which the sw update options apply.
+  in: body
+  required: false
+  type: string
+sw_update_options_subcloud_id:
+  description: |
+    The id of the subcloud (will be 0 for: all clouds default).
+  in: body
+  required: false
+  type: integer
+sw_update_strategy_action:
+  description: |
+    Perform an action on the update strategy.
+    Valid values are: `apply`, or `abort`.
+  in: body
+  required: true
+  type: string
+sw_update_strategy_id:
+  description: |
+    The ID of the sw-update-strategy associated with this object.
+  in: body
+  required: false
+  type: integer
+sw_update_strategy_state:
+  description: |
+    The internal state of the sw-update-strategy.
+  in: body
+  required: false
+  type: string
+sync_status:
+  description: |
+    The sync status for the endpoint.
+  in: body
+  required: true
+  type: string
+sync_status_type:
+  description: |
+    The type for the sync status endpoint.
+  in: body
+  required: true
+  type: string
+sysadmin_password:
+  description: |
+    The sysadmin password of the subcloud. Must be base64 encoded.
+  in: body
+  required: true
+  type: string
+system_mode:
+  description: |
+    The system mode for the subcloud. (simplex, duplex, duplex-direct)
+  in: body
+  required: true
+  type: string
+systemcontroller_gateway_ip:
+  description: |
+    The gateway IP address of the system controller of the subcloud.
+  in: body
+  required: true
+  type: string
+updated_at:
+  description: |
+    The time when the object was updated.
+  in: body
+  required: true
+  type: string
+warnings:
+  description: |
+    Number of warnings for subcloud (-1 when cloud_status is disabled).
+  in: body
+  required: true
+  type: integer
+with_install:
+  description: |
+    The flag to indicate whether remote install is required or not (e.g. true).
+  in: body
+  required: false
+  type: boolean
+worker_apply_type:
+  description: |
+    The apply type for the update on worker nodes in a subcloud.
+    Valid values are:  `serial` or `parallel`.
+  in: body
+  required: true
+  type: string

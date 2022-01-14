@@ -1,0 +1,55 @@
+{
+  "id": 1,
+  "group_id": 1,
+  "name": "subcloud1",
+  "description": "Ottawa Site",
+  "location": "YOW",
+  "software-version": "21.12",
+  "availability-status": "online",
+  "deploy-status": "complete",
+  "openstack-installed": false,
+  "management-state": "managed",
+  "systemcontroller-gateway-ip": "192.168.204.101",
+  "management-start-ip": "192.168.101.2",
+  "management-end-ip": "192.168.101.50",
+  "management-subnet": "192.168.101.0/24",
+  "management-gateway-ip": "192.168.101.1",
+  "created-at": "2021-10-04 15:04:13.045076",
+  "updated-at": "2021-10-25 21:16:23.713858",
+  "data_install": null,
+  "data_upgrade": null,
+  "endpoint_sync_status": [
+    {
+      "sync_status": "in-sync",
+      "endpoint_type": "dc-cert"
+    },
+    {
+      "sync_status": "in-sync",
+       "endpoint_type": "load"
+    },
+    {
+      "sync_status": "in-sync",
+      "endpoint_type": "firmware"
+    },
+    {
+      "sync_status": "in-sync",
+      "endpoint_type": "kubernetes"
+    },
+    {
+      "sync_status": "in-sync",
+      "endpoint_type": "kube-rootca"
+    },
+    {
+      "sync_status": "in-sync",
+      "endpoint_type": "platform"
+    },
+    {
+      "sync_status": "in-sync",
+      "endpoint_type": "identity"
+    },
+    {
+      "sync_status": "out-of-sync",
+      "endpoint_type": "patching"
+    }
+  ],
+}

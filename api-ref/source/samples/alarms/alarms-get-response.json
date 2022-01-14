@@ -1,0 +1,13 @@
+{
+    "alarm_summary": [
+        {
+            "cloud_status": "disabled",
+            "region_name": "subcloud1",
+            "warnings": -1,
+            "minor_alarms": -1,
+            "critical_alarms": -1,
+            "major_alarms": -1,
+            "uuid": "fd1e38dc-ed76-4b82-906e-e593ed0f8ac8"
+        }
+    ]
+}

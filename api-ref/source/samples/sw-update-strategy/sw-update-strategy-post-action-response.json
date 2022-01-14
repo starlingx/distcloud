@@ -1,0 +1,13 @@
+{
+    "id": 7,
+    "type": "kubernetes",
+    "state": "applying",
+    "max-parallel-subclouds": null,
+    "extra-args": {
+        "to-version": null
+    },
+    "created-at": "2022-01-12T20:39:08.036660",
+    "updated-at": "2022-01-13T14:19:14.717456",
+    "subcloud-apply-type": null,
+    "stop-on-failure": false
+}

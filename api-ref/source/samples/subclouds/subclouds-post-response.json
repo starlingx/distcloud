@@ -1,0 +1,17 @@
+{
+    "description": "A subcloud",
+    "management-start-ip": "192.168.205.110",
+    "created-at": "2018-02-25T22:17:11.845596",
+    "updated-at": null,
+    "software-version": "18.01",
+    "management-state": "unmanaged",
+    "availability-status": "offline",
+    "systemcontroller-gateway-ip": "192.168.204.102",
+    "location": "Somewhere",
+    "group_id": 1,
+    "management-subnet": "192.168.205.0/24",
+    "management-gateway-ip": "192.168.205.1",
+    "management-end-ip": "192.168.205.160",
+    "id": 4,
+    "name": "subcloud7"
+}

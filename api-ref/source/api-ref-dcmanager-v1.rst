@@ -18,35 +18,24 @@ Lists information about all dcmanager API versions
 
 .. rest_method:: GET /
 
+This operation does not accept a request body.
+
 **Normal response codes**
 
 200, 300
 
 **Error response codes**
 
-itemNotFound (404), badRequest (400), unauthorized (401), forbidden
-(403), badMethod (405), HTTPUnprocessableEntity (422),
+badRequest (400), unauthorized (401), forbidden (403), 
+itemNotFound (404), badMethod (405), HTTPUnprocessableEntity (422),
 internalServerError (500), serviceUnavailable (503)
 
-::
 
-   {
-     "versions": [
-       {
-         "status": "CURRENT",
-         "updated": "2017-10-2",
-         "id": "v1.0",
-         "links": [
-           {
-             "href": "http://192.168.204.2:8119/v1.0/",
-             "rel": "self"
-           }
-         ]
-       }
-     ]
-   }
+Response Example
+----------------
 
-This operation does not accept a request body.
+.. literalinclude:: samples/root-get-response.json
+      :language: json
 
 ----------
 Subclouds
@@ -60,129 +49,53 @@ Lists all subclouds
 
 .. rest_method:: GET /v1.0/subclouds
 
+This operation does not accept a request body.
+
 **Normal response codes**
 
 200
 
 **Error response codes**
 
-itemNotFound (404), badRequest (400), unauthorized (401), forbidden
-(403), badMethod (405), HTTPUnprocessableEntity (422),
+badRequest (400), unauthorized (401), forbidden (403), 
+itemNotFound (404), badMethod (405), HTTPUnprocessableEntity (422),
 internalServerError (500), serviceUnavailable (503)
 
-**Response parameters**
+Response
+--------
 
-.. csv-table::
-   :header: "Parameter", "Style", "Type", "Description"
-   :widths: 20, 20, 20, 60
+.. rest_parameters:: parameters.yaml
 
-   "subclouds (Optional)", "plain", "xsd:list", "The list of subclouds."
-   "id (Optional)", "plain", "xsd:int", "The unique identifier for this object."
-   "created_at (Optional)", "plain", "xsd:dateTime", "The time when the object was created."
-   "updated_at (Optional)", "plain", "xsd:dateTime", "The time when the object was last updated."
-   "name (Optional)", "plain", "xsd:string", "The name provisioned for the subcloud."
-   "management (Optional)", "plain", "xsd:string", "Management state of the subcloud."
-   "availability (Optional)", "plain", "xsd:string", "Availability status of the subcloud."
-   "management-subnet (Optional)", "plain", "xsd:string", "Management subnet for subcloud in CIDR format."
-   "management-start-ip (Optional)", "plain", "xsd:string", "Start of management IP address range for subcloud."
-   "management-end-ip (Optional)", "plain", "xsd:string", "End of management IP address range for subcloud."
-   "systemcontroller-gateway-ip (Optional)", "plain", "xsd:string", "Systemcontroller gateway IP Address."
-   "endpoint_sync_status (Optional)", "plain", "xsd:list", "The list of endpoint sync statuses."
-   "platform_sync_status (Optional)", "plain", "xsd:string", "The platform sync status of the subcloud."
-   "volume_sync_status (Optional)", "plain", "xsd:string", "The volume sync status of the subcloud."
-   "compute_sync_status (Optional)", "plain", "xsd:string", "The compute sync status of the subcloud."
-   "network_sync_status (Optional)", "plain", "xsd:string", "The network sync status of the subcloud."
-   "patching_sync_status (Optional)", "plain", "xsd:string", "The patching sync status of the subcloud."
-   "group_id (Optional)", "plain", "xsd:int", "The unique identifier for the subcloud group for this subcloud."
+  - subclouds: subclouds
+  - id: subcloud_id
+  - group_id: group_id
+  - name: subcloud_name
+  - description: subcloud_description
+  - location: subcloud_location
+  - software-version: software_version
+  - availability-status: availability_status
+  - deploy-status: deploy_status
+  - openstack-installed: openstack_installed
+  - management-state: management_state
+  - systemcontroller-gateway-ip: systemcontroller_gateway_ip
+  - management-start-ip: management_start_ip
+  - management-end-ip: management_end_ip
+  - management-subnet: management_subnet
+  - management-gateway-ip: management_gateway_ip
+  - created-at: created_at
+  - updated-at: updated_at
+  - data_install: data_install
+  - data_upgrade: data_upgrade
+  - endpoint_sync_status: endpoint_sync_status
+  - sync_status: sync_status
+  - endpoint_type: sync_status_type
 
-::
+Response Example
+----------------
 
-   {
-     "subclouds": [
-       {
-          "description": None,
-          "management-start-ip": "192.168.204.50",
-          "sync_status": "unknown",
-          "updated-at": None,
-          "software-version": "18.01",
-          "management-state": "unmanaged",
-          "availability-status": "offline",
-          "management-subnet": "192.168.204.0/24",
-          "systemcontroller-gateway-ip": "192.168.204.101",
-          "subcloud_id": 1,
-          "location": None,
-          "endpoint_sync_status": [
-            {
-              "sync_status": "unknown",
-              "endpoint_type": "platform"
-            },
-            {
-              "sync_status": "unknown",
-              "endpoint_type": "volume"
-            },
-            {
-              "sync_status":  "unknown",
-              "endpoint_type":  "compute"
-            },
-            {
-              "sync_status": "unknown",
-              "endpoint_type": "network"
-            },
-            {
-              "sync_status": "unknown",
-              "endpoint_type": "patching"
-            },
-          "created-at": u"2018-02-25 19:06:35.208505",
-          "group_id": 1,
-          "management-gateway-ip": u"192.168.204.1",
-          "management-end-ip": u"192.168.204.100",
-          "id": 1,
-          "name": "subcloud6"
-       },
-       {
-          "description": "test subcloud",
-          "management-start-ip": "192.168.205.50",
-          "sync_status": "in-sync",
-          "updated-at": None,
-          "software-version": "18.01",
-          "management-state": "managed",
-          "availability-status": "online",
-          "management-subnet": "192.168.205.0/24",
-          "systemcontroller-gateway-ip": "192.168.205.101",
-          "subcloud_id": 2,
-          "location": "Ottawa,
-          "endpoint_sync_status": [
-            {
-              "sync_status": "in-sync",
-              "endpoint_type": "platform"
-            },
-            {
-              "sync_status": "in-sync",
-              "endpoint_type": "volume"
-            },
-            {
-              "sync_status":  "in-sync",
-              "endpoint_type":  "compute"
-            },
-            {
-              "sync_status": "in-sync",
-              "endpoint_type": "network"
-            },
-            {
-              "sync_status": "out-of-sync",
-              "endpoint_type": "patching"
-            },
-          "created-at": "2018-02-25 19:06:35.208505",
-          "group_id": 1,
-          "management-gateway-ip": "192.168.205.1",
-          "management-end-ip": "192.168.205.100",
-          "id": 2,
-          "name": "subcloud7"
-       },
-     ]
-   }
+.. literalinclude:: samples/subclouds/subclouds-get-response.json
+      :language: json
 
-This operation does not accept a request body.
 
 ********************
 Creates a subcloud
@@ -205,69 +118,63 @@ serviceUnavailable (503)
 
 **Request parameters**
 
-.. csv-table::
-   :header: "Parameter", "Style", "Type", "Description"
-   :widths: 20, 20, 20, 60
+.. rest_parameters:: parameters.yaml
 
-   "bootstrap-address", "plain", "xsd:string", "An OAM IP address of the subcloud controller-0."
-   "sysadmin_password", "plain", "xsd:string", "The sysadmin password of the subcloud. Must be base64 encoded."
-   "bmc_password (optional)", "plain", "xsd:string", "The BMC password of the subcloud. Must be base64 encoded."
-   "bootstrap_values", "plain", "xsd:string", "The content of a file containing the bootstrap overrides such as subcloud name, management and OAM subnet."
-   "install_values (Optional)", "plain", "xsd:string", "The content of a file containing install variables such as subcloud bootstrap interface and BMC information."
-   "deploy_config (Optional)", "plain", "xsd:string", "The content of a file containing the resource definitions describing the desired subcloud configuration."
-   "group_id", "plain", "xsd:int", "Id of the subcloud group. Defaults to 1."
+  - bmc_password: bmc_password
+  - bootstrap-address: bootstrap_address
+  - bootstrap_values: bootstrap_values
+  - deploy_config: deploy_config
+  - description: subcloud_description
+  - external_oam_floating_address: external_oam_floating_address
+  - external_oam_gateway_address: external_oam_gateway_address
+  - external_oam_subnet: external_oam_subnet
+  - group_id: group_id
+  - install_values: install_values
+  - location: subcloud_location
+  - management_gateway_address: management_gateway_ip
+  - management_end_ip: management_end_ip
+  - management_start_address: management_start_ip
+  - management_subnet: management_subnet
+  - migrate: migrate
+  - name: subcloud_name
+  - sysadmin_password: sysadmin_password
+  - systemcontroller_gateway_address: systemcontroller_gateway_ip
+  - system_mode: system_mode
+
+Request Example
+----------------
+
+.. literalinclude:: samples/subclouds/subclouds-post-request.json
+      :language: json
+
 
 **Response parameters**
 
-.. csv-table::
-   :header: "Parameter", "Style", "Type", "Description"
-   :widths: 20, 20, 20, 60
+.. rest_parameters:: parameters.yaml
 
-   "id (Optional)", "plain", "xsd:int", "The unique identifier for this object."
-   "created_at (Optional)", "plain", "xsd:dateTime", "The time when the object was created."
-   "updated_at (Optional)", "plain", "xsd:dateTime", "The time when the object was last updated."
-   "name (Optional)", "plain", "xsd:string", "The name provisioned for the subcloud."
-   "management (Optional)", "plain", "xsd:string", "Management state of the subcloud."
-   "availability (Optional)", "plain", "xsd:string", "Availability status of the subcloud."
-   "management-subnet (Optional)", "plain", "xsd:string", "Management subnet for subcloud in CIDR format."
-   "management-start-ip (Optional)", "plain", "xsd:string", "Start of management IP address range for subcloud."
-   "management-end-ip (Optional)", "plain", "xsd:string", "End of management IP address range for subcloud."
-   "systemcontroller-gateway-ip (Optional)", "plain", "xsd:string", "Systemcontroller gateway IP Address."
-   "group_id (Optional)", "plain", "xsd:int", "Id of the subcloud group."
+  - id: subcloud_id
+  - name: subcloud_name
+  - description: subcloud_description
+  - management-start-ip: management_start_ip
+  - created-at: created_at
+  - updated-at: updated_at
+  - software-version: software_version
+  - management-state: management_state
+  - availability-status: availability_status
+  - systemcontroller-gateway-ip: systemcontroller_gateway_ip
+  - location: subcloud_location
+  - group_id: group_id
+  - management-subnet: management_subnet
+  - management-gateway-ip: management_gateway_ip
+  - management-start-ip: management_start_ip
+  - management-end-ip: management_end_ip
+  
+Response Example
+----------------
 
-::
+.. literalinclude:: samples/subclouds/subclouds-post-response.json
+      :language: json
 
-   {
-     "name": "subcloud7",
-     "management-start-ip": "192.168.205.110",
-     "systemcontroller-gateway-ip": "192.168.204.102",
-     "location": "West Ottawa",
-     "management-subnet": "192.168.205.0/24",
-     "management-gateway-ip": "192.168.205.1",
-     "management-end-ip": "192.168.205.160",
-     "group_id": 1,
-     "description": "new subcloud"
-   }
-
-::
-
-   {
-     "description": None,
-     "management-start-ip": "192.168.205.110",
-     "created-at": "2018-02-25T22:17:11.845596",
-     "updated-at": None,
-     "software-version": "18.01",
-     "management-state": "unmanaged",
-     "availability-status": "offline",
-     "systemcontroller-gateway-ip": "192.168.204.102",
-     "location": None,
-     "group_id": 1,
-     "management-subnet": "192.168.205.0/24",
-     "management-gateway-ip": "192.168.205.1",
-     "management-end-ip": "192.168.205.160",
-     "id": 4,
-     "name": "subcloud7"
-   }
 
 *********************************************
 Shows information about a specific subcloud
@@ -281,83 +188,52 @@ Shows information about a specific subcloud
 
 **Error response codes**
 
-itemNotFound (404), badRequest (400), unauthorized (401), forbidden
-(403), badMethod (405), HTTPUnprocessableEntity (422),
+badRequest (400), unauthorized (401), forbidden (403), 
+itemNotFound (404), badMethod (405), HTTPUnprocessableEntity (422),
 internalServerError (500), serviceUnavailable (503)
 
 **Request parameters**
 
-.. csv-table::
-   :header: "Parameter", "Style", "Type", "Description"
-   :widths: 20, 20, 20, 60
+.. rest_parameters:: parameters.yaml
 
-   "subcloud", "URI", "xsd:string", "The subcloud reference, name or id."
+  - subcloud: subcloud_uri
+
+This operation does not accept a request body.
 
 **Response parameters**
 
-.. csv-table::
-   :header: "Parameter", "Style", "Type", "Description"
-   :widths: 20, 20, 20, 60
+.. rest_parameters:: parameters.yaml
 
-   "id (Optional)", "plain", "xsd:int", "The unique identifier for this object."
-   "created_at (Optional)", "plain", "xsd:dateTime", "The time when the object was created."
-   "updated_at (Optional)", "plain", "xsd:dateTime", "The time when the object was last updated."
-   "name (Optional)", "plain", "xsd:string", "The name provisioned for the subcloud."
-   "management (Optional)", "plain", "xsd:string", "Management state of the subcloud."
-   "availability (Optional)", "plain", "xsd:string", "Availability status of the subcloud."
-   "management-subnet (Optional)", "plain", "xsd:string", "Management subnet for subcloud in CIDR format."
-   "management-start-ip (Optional)", "plain", "xsd:string", "Start of management IP address range for subcloud."
-   "management-end-ip (Optional)", "plain", "xsd:string", "End of management IP address range for subcloud."
-   "systemcontroller-gateway-ip (Optional)", "plain", "xsd:string", "Systemcontroller gateway IP Address."
-   "endpoint_sync_status (Optional)", "plain", "xsd:list", "The list of endpoint sync statuses."
-   "platform_sync_status (Optional)", "plain", "xsd:string", "The platform sync status of the subcloud."
-   "volume_sync_status (Optional)", "plain", "xsd:string", "The volume sync status of the subcloud."
-   "compute_sync_status (Optional)", "plain", "xsd:string", "The compute sync status of the subcloud."
-   "network_sync_status (Optional)", "plain", "xsd:string", "The network sync status of the subcloud."
-   "patching_sync_status (Optional)", "plain", "xsd:string", "The patching sync status of the subcloud."
-   "group_id (Optional)", "plain", "xsd:int", "Id of the subcloud group."
+  - id: subcloud_id
+  - group_id: group_id
+  - name: subcloud_name
+  - description: subcloud_description
+  - location: subcloud_location
+  - software-version: software_version
+  - availability-status: availability_status
+  - deploy-status: deploy_status
+  - openstack-installed: openstack_installed
+  - management-state: management_state
+  - systemcontroller-gateway-ip: systemcontroller_gateway_ip
+  - management-start-ip: management_start_ip
+  - management-end-ip: management_end_ip
+  - management-subnet: management_subnet
+  - management-gateway-ip: management_gateway_ip
+  - created-at: created_at
+  - updated-at: updated_at
+  - data_install: data_install
+  - data_upgrade: data_upgrade
+  - endpoint_sync_status: endpoint_sync_status
+  - sync_status: sync_status
+  - endpoint_type: sync_status_type
 
-::
 
-   {
-     "description": "test subcloud",
-     "management-start-ip": "192.168.204.50",
-     "created-at": "2018-02-25 19:06:35.208505",
-     "updated-at": "2018-02-25 21:35:59.771779",
-     "software-version": "18.01",
-     "deploy-status": "not-deployed",
-     "management-state": "unmanaged",
-     "availability-status": "offline",
-     "management-subnet": "192.168.204.0/24",
-     "systemcontroller-gateway-ip": "192.168.204.101",
-     "openstack-installed": false,
-     "location": "ottawa",
-     "endpoint_sync_status": [
-       {
-         "sync_status": "in-sync",
-         "endpoint_type": "identity"
-       },
-       {
-         "sync_status": "in-sync",
-         "endpoint_type": "load"
-       },
-       {
-         "sync_status": "in-sync",
-         "endpoint_type": "patching"
-       },
-       {
-         "sync_status": "in-sync",
-         "endpoint_type": "platform"
-       }
-     ],
-     "management-gateway-ip": "192.168.204.1",
-     "management-end-ip": "192.168.204.100",
-     "group_id": 1,
-     "id": 1,
-     "name": "subcloud6"
-   }
+Response Example
+----------------
 
-This operation does not accept a request body.
+.. literalinclude:: samples/subclouds/subcloud-get-response.json
+      :language: json
+
 
 ********************************************************
 Shows additional information about a specific subcloud
@@ -371,89 +247,51 @@ Shows additional information about a specific subcloud
 
 **Error response codes**
 
-itemNotFound (404), badRequest (400), unauthorized (401), forbidden
-(403), badMethod (405), HTTPUnprocessableEntity (422),
+badRequest (400), unauthorized (401), forbidden (403), 
+itemNotFound (404), badMethod (405), HTTPUnprocessableEntity (422),
 internalServerError (500), serviceUnavailable (503)
 
 **Request parameters**
 
-.. csv-table::
-   :header: "Parameter", "Style", "Type", "Description"
-   :widths: 20, 20, 20, 60
+.. rest_parameters:: parameters.yaml
 
-   "subcloud", "URI", "xsd:string", "The subcloud reference, name or id."
+  - subcloud: subcloud_uri
+
+This operation does not accept a request body.
 
 **Response parameters**
 
-.. csv-table::
-   :header: "Parameter", "Style", "Type", "Description"
-   :widths: 20, 20, 20, 60
+.. rest_parameters:: parameters.yaml
 
-   "id (Optional)", "plain", "xsd:int", "The unique identifier for this object."
-   "created_at (Optional)", "plain", "xsd:dateTime", "The time when the object was created."
-   "updated_at (Optional)", "plain", "xsd:dateTime", "The time when the object was last updated."
-   "name (Optional)", "plain", "xsd:string", "The name provisioned for the subcloud."
-   "management (Optional)", "plain", "xsd:string", "Management state of the subcloud."
-   "availability (Optional)", "plain", "xsd:string", "Availability status of the subcloud."
-   "management-subnet (Optional)", "plain", "xsd:string", "Management subnet for subcloud in CIDR format."
-   "management-start-ip (Optional)", "plain", "xsd:string", "Start of management IP address range for subcloud."
-   "management-end-ip (Optional)", "plain", "xsd:string", "End of management IP address range for subcloud."
-   "systemcontroller-gateway-ip (Optional)", "plain", "xsd:string", "Systemcontroller gateway IP Address."
-   "endpoint_sync_status (Optional)", "plain", "xsd:list", "The list of endpoint sync statuses."
-   "platform_sync_status (Optional)", "plain", "xsd:string", "The platform sync status of the subcloud."
-   "volume_sync_status (Optional)", "plain", "xsd:string", "The volume sync status of the subcloud."
-   "compute_sync_status (Optional)", "plain", "xsd:string", "The compute sync status of the subcloud."
-   "network_sync_status (Optional)", "plain", "xsd:string", "The network sync status of the subcloud."
-   "patching_sync_status (Optional)", "plain", "xsd:string", "The patching sync status of the subcloud."
-   "oam_floating_ip (Optional)", "plain", "xsd:string", "OAM Floating IP of the subcloud."
-   "group_id (Optional)", "plain", "xsd:int", "Id of the subcloud group."
-   "data_install (Optional)", "plain", "xsd:string", "The values of the subcloud installation."
-   "data_upgrade (Optional)", "plain", "xsd:string", "The values of the subcloud upgrade."
+  - id: subcloud_id
+  - group_id: group_id
+  - name: subcloud_name
+  - description: subcloud_description
+  - location: subcloud_location
+  - software-version: software_version
+  - availability-status: availability_status
+  - deploy-status: deploy_status
+  - openstack-installed: openstack_installed
+  - management-state: management_state
+  - systemcontroller-gateway-ip: systemcontroller_gateway_ip
+  - management-start-ip: management_start_ip
+  - management-end-ip: management_end_ip
+  - management-subnet: management_subnet
+  - management-gateway-ip: management_gateway_ip
+  - oam_floating_ip: oam_floating_ip
+  - created-at: created_at
+  - updated-at: updated_at
+  - data_install: data_install
+  - data_upgrade: data_upgrade
+  - endpoint_sync_status: endpoint_sync_status
+  - sync_status: sync_status
+  - endpoint_type: sync_status_type
 
-::
+Response Example
+----------------
+.. literalinclude:: samples/subclouds/subcloud-get-detail-response.json
+      :language: json
 
-   {
-     "description": "test subcloud",
-     "management-start-ip": "192.168.204.50",
-     "created-at": "2018-02-25 19:06:35.208505",
-     "updated-at": "2018-02-25 21:35:59.771779",
-     "software-version": "18.01",
-     "management-state": "unmanaged",
-     "availability-status": "offline",
-     "deploy-status": "not-deployed",
-     "management-subnet": "192.168.204.0/24",
-     "systemcontroller-gateway-ip": "192.168.204.101",
-     "openstack-installed": false,
-     "location": "ottawa",
-     "endpoint_sync_status": [
-       {
-         "sync_status": "in-sync",
-         "endpoint_type": "identity"
-       },
-       {
-         "sync_status": "in-sync",
-         "endpoint_type": "load"
-       },
-       {
-         "sync_status": "in-sync",
-         "endpoint_type": "patching"
-       },
-       {
-         "sync_status": "in-sync",
-         "endpoint_type": "platform"
-       }
-     ],
-     "management-gateway-ip": "192.168.204.1",
-     "management-end-ip": "192.168.204.100",
-     "group_id": 1,
-     "id": 1,
-     "name": "subcloud6",
-     "oam_floating_ip": "10.10.10.12",
-     "data_install": "{"bootstrap_interface": "eno1", "bootstrap_address": ...}",
-     "data_upgrade": null
-   }
-
-This operation does not accept a request body.
 
 ******************************
 Modifies a specific subcloud
@@ -469,6 +307,8 @@ The attributes of a subcloud which are modifiable:
 
 -  management-state
 
+-  group_id
+
 **Normal response codes**
 
 200
@@ -481,64 +321,53 @@ serviceUnavailable (503)
 
 **Request parameters**
 
-.. csv-table::
-   :header: "Parameter", "Style", "Type", "Description"
-   :widths: 20, 20, 20, 60
+.. rest_parameters:: parameters.yaml
 
-   "subcloud", "URI", "xsd:string", "The subcloud reference, name or id."
-   "description (Optional)", "plain", "xsd:string", "The description of the subcloud."
-   "location (Optional)", "plain", "xsd:string", "The location of the subcloud."
-   "management-state (Optional)", "plain", "xsd:string", "The management-state of the subcloud, ``managed`` or ``unmanaged``. The subcloud must be online before this can be modified to managed."
-   "group_id (Optional)", "plain", "xsd:int", "Id of the subcloud group. The group must exist."
+  - subcloud: subcloud_uri
+  - description: subcloud_description
+  - location: subcloud_location
+  - management-state: subcloud_management_state
+  - group_id: subcloud_group_id
+
+Request Example
+----------------
+
+.. literalinclude:: samples/subclouds/subcloud-patch-request.json
+      :language: json
 
 **Response parameters**
 
-.. csv-table::
-   :header: "Parameter", "Style", "Type", "Description"
-   :widths: 20, 20, 20, 60
+.. rest_parameters:: parameters.yaml
 
-   "id (Optional)", "plain", "xsd:int", "The unique identifier for this object."
-   "created_at (Optional)", "plain", "xsd:dateTime", "The time when the object was created."
-   "updated_at (Optional)", "plain", "xsd:dateTime", "The time when the object was last updated."
-   "name (Optional)", "plain", "xsd:string", "The name provisioned for the subcloud."
-   "management (Optional)", "plain", "xsd:string", "Management state of the subcloud."
-   "availability (Optional)", "plain", "xsd:string", "Availability status of the subcloud."
-   "management-subnet (Optional)", "plain", "xsd:string", "Management subnet for subcloud in CIDR format."
-   "management-start-ip (Optional)", "plain", "xsd:string", "Start of management IP address range for subcloud."
-   "management-end-ip (Optional)", "plain", "xsd:string", "End of management IP address range for subcloud."
-   "systemcontroller-gateway-ip (Optional)", "plain", "xsd:string", "Systemcontroller gateway IP Address."
-   "group_id (Optional)", "plain", "xsd:int", "Id of the subcloud group."
+  - id: subcloud_id
+  - group_id: group_id
+  - name: subcloud_name
+  - description: subcloud_description
+  - location: subcloud_location
+  - software-version: software_version
+  - availability-status: availability_status
+  - deploy-status: deploy_status
+  - openstack-installed: openstack_installed
+  - management-state: management_state
+  - systemcontroller-gateway-ip: systemcontroller_gateway_ip
+  - management-start-ip: management_start_ip
+  - management-end-ip: management_end_ip
+  - management-subnet: management_subnet
+  - management-gateway-ip: management_gateway_ip
+  - created-at: created_at
+  - updated-at: updated_at
+  - data_install: data_install
+  - data_upgrade: data_upgrade
+  - endpoint_sync_status: endpoint_sync_status
+  - sync_status: sync_status
+  - endpoint_type: sync_status_type
 
-::
+Response Example
+----------------
 
-   {
-     "description": "new description",
-     "location": "new location",
-     "management-state": "managed"
-     "group_id": 2,
-   }
+.. literalinclude:: samples/subclouds/subcloud-patch-response.json
+      :language: json
 
-::
-
-   {
-     "description": "new description",
-     "management-start-ip": "192.168.204.50",
-     "created-at": "2018-02-25T19:06:35.208505",
-     "updated-at": "2018-02-25T23:01:17.490090",
-     "software-version": "18.01",
-     "management-state": "unmanaged",
-     "openstack-installed": false,
-     "availability-status": "offline",
-     "deploy-status": "not-deployed",
-     "systemcontroller-gateway-ip": "192.168.204.101",
-     "location": "new location",
-     "management-subnet": "192.168.204.0/24",
-     "management-gateway-ip": "192.168.204.1",
-     "management-end-ip": "192.168.204.100",
-     "group_id": 2,
-     "id": 1,
-     "name": "subcloud6"
-   }
 
 **********************************
 Reconfigures a specific subcloud
@@ -562,59 +391,53 @@ serviceUnavailable (503)
 
 **Request parameters**
 
-.. csv-table::
-   :header: "Parameter", "Style", "Type", "Description"
-   :widths: 20, 20, 20, 60
+.. rest_parameters:: parameters.yaml
 
-   "subcloud", "URI", "xsd:string", "The subcloud reference, name or id."
-   "deploy_config", "plain", "xsd:string", "The content of a file containing the resource definitions describing the desired subcloud configuration."
-   "sysadmin_password", "plain", "xsd:string", "The sysadmin password of the subcloud. Must be base64 encoded."
-
-**Response parameters**
-
-.. csv-table::
-   :header: "Parameter", "Style", "Type", "Description"
-   :widths: 20, 20, 20, 60
-
-   "id", "plain", "xsd:int", "The unique identifier for this object."
-   "created_at", "plain", "xsd:dateTime", "The time when the object was created."
-   "updated_at", "plain", "xsd:dateTime", "The time when the object was last updated."
-   "name", "plain", "xsd:string", "The name provisioned for the subcloud."
-   "description", "plain", "xsd:string", "The description of the subcloud."
-   "location", "plain", "xsd:string", "The location of the subcloud."
-   "software-version", "plain", "xsd:string", "The software version of the subcloud."
-   "deploy_status", "plain", "xsd:string", "The deployment status of the subcloud."
-   "management (Optional)", "plain", "xsd:string", "Management state of the subcloud."
-   "availability", "plain", "xsd:string", "Availability status of the subcloud."
-   "management-subnet", "plain", "xsd:string", "Management subnet for subcloud in CIDR format."
-   "management-start-ip", "plain", "xsd:string", "Start of management IP address range for subcloud."
-   "management-end-ip", "plain", "xsd:string", "End of management IP address range for subcloud."
-   "systemcontroller-gateway-ip", "plain", "xsd:string", "Systemcontroller gateway IP Address."
-   "group_id", "plain", "xsd:int", "Id of the subcloud group."
+  - subcloud: subcloud_uri
+  - deploy_config: deploy_config
+  - sysadmin_password: sysadmin_password
 
 Accepts Content-Type multipart/form-data
 
-::
+Request Example
+----------------
 
-   {
-     "description": "subcloud description",
-     "management-start-ip": "192.168.204.50",
-     "created-at": "2018-02-25T19:06:35.208505",
-     "updated-at": "2018-02-25T23:01:17.490090",
-     "software-version": "20.06",
-     "management-state": "unmanaged",
-     "availability-status": "offline",
-     "openstack-installed": false,
-     "deploy-status": "pre-deploy",
-     "systemcontroller-gateway-ip": "192.168.204.101",
-     "location": "location",
-     "management-subnet": "192.168.204.0/24",
-     "management-gateway-ip": "192.168.204.1",
-     "management-end-ip": "192.168.204.100",
-     "group_id": 2,
-     "id": 1,
-     "name": "subcloud6"
-   }
+.. literalinclude:: samples/subclouds/subcloud-patch-reconfigure-request.json
+      :language: json
+
+**Response parameters**
+
+.. rest_parameters:: parameters.yaml
+
+  - id: subcloud_id
+  - group_id: group_id
+  - name: subcloud_name
+  - description: subcloud_description
+  - location: subcloud_location
+  - software-version: software_version
+  - availability-status: availability_status
+  - deploy-status: deploy_status
+  - openstack-installed: openstack_installed
+  - management-state: management_state
+  - systemcontroller-gateway-ip: systemcontroller_gateway_ip
+  - management-start-ip: management_start_ip
+  - management-end-ip: management_end_ip
+  - management-subnet: management_subnet
+  - management-gateway-ip: management_gateway_ip
+  - created-at: created_at
+  - updated-at: updated_at
+  - data_install: data_install
+  - data_upgrade: data_upgrade
+  - endpoint_sync_status: endpoint_sync_status
+  - sync_status: sync_status
+  - endpoint_type: sync_status_type
+
+Response Example
+----------------
+
+.. literalinclude:: samples/subclouds/subcloud-patch-reconfigure-response.json
+      :language: json
+
 
 ********************************
 Reinstalls a specific subcloud
@@ -623,7 +446,8 @@ Reinstalls a specific subcloud
 .. rest_method:: PATCH /v1.0/subclouds/{subcloud}/reinstall
 
 Reinstall and bootstrap a subcloud based on its previous install configurations.
-After reinstall, a reconfigure operation with deploy_config file is expected to deploy the subcloud.
+After reinstall, a reconfigure operation with deploy_config file is expected
+to deploy the subcloud.
 
 **Normal response codes**
 
@@ -637,64 +461,51 @@ serviceUnavailable (503)
 
 **Request parameters**
 
-.. csv-table::
-   :header: "Parameter", "Style", "Type", "Description"
-   :widths: 20, 20, 20, 60
+.. rest_parameters:: parameters.yaml
 
-   "subcloud", "URI", "xsd:string", "The subcloud reference, name or id."
-   "sysadmin_password", "plain", "xsd:string", "The sysadmin password of the subcloud. Must be base64 encoded."
-   "bootstrap_values", "plain", "xsd:string", "The content of a file containing the bootstrap overrides such as subcloud name, management and OAM subnet."
-   "deploy_config (Optional)", "plain", "xsd:string", "The content of a file containing the resource definitions describing the desired subcloud configuration."
+  - subcloud: subcloud_uri
+  - bootstrap_values: bootstrap_values
+  - deploy_config: deploy_config
+  - sysadmin_password: sysadmin_password
+
+Request Example
+----------------
+
+.. literalinclude:: samples/subclouds/subcloud-patch-reinstall-request.json
+      :language: json
 
 **Response parameters**
 
-.. csv-table::
-   :header: "Parameter", "Style", "Type", "Description"
-   :widths: 20, 20, 20, 60
+.. rest_parameters:: parameters.yaml
 
-   "id", "plain", "xsd:int", "The unique identifier for this object."
-   "created_at", "plain", "xsd:dateTime", "The time when the object was created."
-   "updated_at", "plain", "xsd:dateTime", "The time when the object was last updated."
-   "name", "plain", "xsd:string", "The name provisioned for the subcloud."
-   "description(Optional)", "plain", "xsd:string", "The description of the subcloud."
-   "location(Optional)", "plain", "xsd:string", "The location of the subcloud."
-   "software-version", "plain", "xsd:string", "The software version of the subcloud."
-   "deploy_status", "plain", "xsd:string", "The deployment status of the subcloud."
-   "management-state", "plain", "xsd:string", "Management state of the subcloud."
-   "availability-status (Optional)", "plain", "xsd:string", "Availability status of the subcloud."
-   "management-subnet", "plain", "xsd:string", "Management subnet for subcloud in CIDR format."
-   "management-start-ip", "plain", "xsd:string", "Start of management IP address range for subcloud."
-   "management-end-ip", "plain", "xsd:string", "End of management IP address range for subcloud."
-   "systemcontroller-gateway-ip", "plain", "xsd:string", "Systemcontroller gateway IP Address."
-   "openstack-installed (Optional)", "plain", "xsd:boolean", "Whether openstack is installed on the subcloud."
-   "group_id (Optional)", "plain", "xsd:int", "Id of the subcloud group."
-   "data_install", "plain", "xsd:string", "The values of the subcloud installation."
-   "data_upgrade (Optional)", "plain", "xsd:string", "The values of the subcloud upgrade."
+  - id: subcloud_id
+  - group_id: group_id
+  - name: subcloud_name
+  - description: subcloud_description
+  - location: subcloud_location
+  - software-version: software_version
+  - availability-status: availability_status
+  - deploy-status: deploy_status
+  - openstack-installed: openstack_installed
+  - management-state: management_state
+  - systemcontroller-gateway-ip: systemcontroller_gateway_ip
+  - management-start-ip: management_start_ip
+  - management-end-ip: management_end_ip
+  - management-subnet: management_subnet
+  - management-gateway-ip: management_gateway_ip
+  - created-at: created_at
+  - updated-at: updated_at
+  - data_install: data_install
+  - data_upgrade: data_upgrade
+  - endpoint_sync_status: endpoint_sync_status
+  - sync_status: sync_status
+  - endpoint_type: sync_status_type
 
-::
+Response Example
+----------------
 
-   {
-     "description": "subcloud description",
-     "management-start-ip": "192.168.204.50",
-     "created-at": "2018-02-25T19:06:35.208505",
-     "updated-at": "2018-02-25T23:01:17.490090",
-     "software-version": "20.06",
-     "management-state": "unmanaged",
-     "availability-status": "offline",
-     "openstack-installed": false,
-     "deploy-status": "pre-install",
-     "systemcontroller-gateway-ip": "192.168.204.101",
-     "location": "location",
-     "management-subnet": "192.168.204.0/24",
-     "management-gateway-ip": "192.168.204.1",
-     "management-end-ip": "192.168.204.100",
-     "group_id": 2,
-     "id": 1,
-     "name": "subcloud6",
-     "data_install": "{"bootstrap_interface": "eno1", "bootstrap_address": ...}",
-     "data_upgrade": null,
-     "deploy_status": "pre-deploy"
-   }
+.. literalinclude:: samples/subclouds/subcloud-patch-reinstall-response.json
+      :language: json
 
 ********************************************************
 Restores a specific subcloud from platform backup data
@@ -717,64 +528,96 @@ serviceUnavailable (503)
 
 **Request parameters**
 
-.. csv-table::
-      :header: "Parameter", "Style", "Type", "Description"
-   :widths: 20, 20, 20, 60
+.. rest_parameters:: parameters.yaml
 
-   "subcloud", "URI", "xsd:string", "The subcloud reference, name or id."
-   "restore_values", "plain", "xsd:string", "The content of a file containing restore parameters (e.g. backup_filename)."
-   "sysadmin_password", "plain", "xsd:string", "The sysadmin password of the subcloud. Must be base64 encoded."
-   "with_install", "plain", "xsd:string", "The flag which indicates whether remote install is required or not (e.g. true)."
+  - subcloud: subcloud_uri
+  - restore_values: restore_values
+  - sysadmin_password: sysadmin_password
+  - with_install: with_install
+
+Request Example
+----------------
+
+.. literalinclude:: samples/subclouds/subcloud-patch-restore-request.json
+         :language: json
+
 
 **Response parameters**
 
-.. csv-table::
-      :header: "Parameter", "Style", "Type", "Description"
-   :widths: 20, 20, 20, 60
+.. rest_parameters:: parameters.yaml
 
-   "id", "plain", "xsd:int", "The unique identifier for this object."
-   "created_at", "plain", "xsd:dateTime", "The time when the object was created."
-   "updated_at", "plain", "xsd:dateTime", "The time when the object was last updated."
-   "name", "plain", "xsd:string", "The name provisioned for the subcloud."
-   "description(Optional)", "plain", "xsd:string", "The description of the subcloud."
-   "location(Optional)", "plain", "xsd:string", "The location of the subcloud."
-   "software-version", "plain", "xsd:string", "The software version of the subcloud."
-   "deploy_status", "plain", "xsd:string", "The deployment status of the subcloud."
-   "management-state", "plain", "xsd:string", "Management state of the subcloud."
-   "availability-status (Optional)", "plain", "xsd:string", "Availability status of the subcloud."
-   "management-subnet", "plain", "xsd:string", "Management subnet for subcloud in CIDR format."
-   "management-start-ip", "plain", "xsd:string", "Start of management IP address range for subcloud."
-   "management-end-ip", "plain", "xsd:string", "End of management IP address range for subcloud."
-   "systemcontroller-gateway-ip", "plain", "xsd:string", "Systemcontroller gateway IP Address."
-   "openstack-installed (Optional)", "plain", "xsd:boolean", "Whether openstack is installed on the subcloud."
-   "group_id (Optional)", "plain", "xsd:int", "Id of the subcloud group."
-   "data_install", "plain", "xsd:string", "The values of the subcloud installation."
-   "data_upgrade (Optional)", "plain", "xsd:string", "The values of the subcloud upgrade."
+  - id: subcloud_id
+  - group_id: group_id
+  - name: subcloud_name
+  - description: subcloud_description
+  - location: subcloud_location
+  - software-version: software_version
+  - availability-status: availability_status
+  - deploy-status: deploy_status
+  - openstack-installed: openstack_installed
+  - management-state: management_state
+  - systemcontroller-gateway-ip: systemcontroller_gateway_ip
+  - management-start-ip: management_start_ip
+  - management-end-ip: management_end_ip
+  - management-subnet: management_subnet
+  - management-gateway-ip: management_gateway_ip
+  - created-at: created_at
+  - updated-at: updated_at
+  - data_install: data_install
+  - data_upgrade: data_upgrade
+  - endpoint_sync_status: endpoint_sync_status
+  - sync_status: sync_status
+  - endpoint_type: sync_status_type
 
-::
+Response Example
+----------------
 
-   {
-     "description": "subcloud description",
-     "management-start-ip": "192.168.204.50",
-     "created-at": "2018-02-25T19:06:35.208505",
-     "updated-at": "2018-02-25T23:01:17.490090",
-     "software-version": "20.06",
-     "management-state": "unmanaged",
-     "availability-status": "offline",
-     "openstack-installed": false,
-     "deploy-status": "pre-install",
-     "systemcontroller-gateway-ip": "192.168.204.101",
-     "location": "location",
-     "management-subnet": "192.168.204.0/24",
-     "management-gateway-ip": "192.168.204.1",
-     "management-end-ip": "192.168.204.100",
-     "group_id": 1,
-     "id": 1,
-     "name": "subcloud1",
-     "data_install": "{"bootstrap_interface": "eno1", "bootstrap_address": ...}",
-     "data_upgrade": null,
-     "deploy_status": "pre-restore"
-   }
+.. literalinclude:: samples/subclouds/subcloud-patch-restore-response.json
+         :language: json
+
+*****************************************
+Update the status of a specific subcloud 
+*****************************************
+
+.. rest_method:: PATCH /v1.0/subclouds/{subcloud}/update_status
+
+This is an internal API.
+
+**Normal response codes**
+
+200
+
+**Error response codes**
+
+badRequest (400), unauthorized (401), forbidden (403), badMethod (405),
+HTTPUnprocessableEntity (422), internalServerError (500),
+serviceUnavailable (503)
+
+**Request parameters**
+
+.. rest_parameters:: parameters.yaml
+
+  - subcloud: subcloud_uri
+  - endpoint: subcloud_endpoint
+  - status: subcloud_endpoint_status
+
+Request Example
+----------------
+
+.. literalinclude:: samples/subclouds/subcloud-patch-update_status-request.json
+         :language: json
+
+**Response parameters**
+
+.. rest_parameters:: parameters.yaml
+
+  - result: subcloud_endpoint_update_result
+
+Response Example
+----------------
+
+.. literalinclude:: samples/subclouds/subcloud-patch-update_status-response.json
+         :language: json
 
 *****************************
 Deletes a specific subcloud
@@ -784,15 +627,13 @@ Deletes a specific subcloud
 
 **Normal response codes**
 
-204
+200
 
 **Request parameters**
 
-.. csv-table::
-   :header: "Parameter", "Style", "Type", "Description"
-   :widths: 20, 20, 20, 60
+.. rest_parameters:: parameters.yaml
 
-   "subcloud", "URI", "xsd:string", "The subcloud reference, name or id."
+  - subcloud: subcloud_uri
 
 This operation does not accept a request body.
 
@@ -810,48 +651,38 @@ Lists all subcloud groups
 
 .. rest_method:: GET /v1.0/subcloud-groups
 
+This operation does not accept a request body.
+
 **Normal response codes**
 
 200
 
 **Error response codes**
 
-itemNotFound (404), badRequest (400), unauthorized (401), forbidden
-(403), badMethod (405), HTTPUnprocessableEntity (422),
+badRequest (400), unauthorized (401), forbidden (403), 
+badMethod (405), HTTPUnprocessableEntity (422),
 internalServerError (500), serviceUnavailable (503)
+
 
 **Response parameters**
 
-.. csv-table::
-   :header: "Parameter", "Style", "Type", "Description"
-   :widths: 20, 20, 20, 60
+.. rest_parameters:: parameters.yaml
 
-   "subcloud_groups (Optional)", "plain", "xsd:list", "The list of subcloud groups."
-   "id (Optional)", "plain", "xsd:int", "The unique identifier for this object."
-   "name (Optional)", "plain", "xsd:string", "The unique name for the subcloud group."
-   "description (Optional)", "plain", "xsd:string", "The description of the subcloud group."
-   "update_apply_type (Optional)", "plain", "xsd:string", "The method for applying an update. ```serial``` or ```parallel```."
-   "max_parallel_subclouds (Optional)", "plain", "xsd:int", "The maximum number of subclouds to update in parallel."
-   "created_at (Optional)", "plain", "xsd:dateTime", "The time when the object was created."
-   "updated_at (Optional)", "plain", "xsd:dateTime", "The time when the object was last updated."
+  - subcloud_groups: subcloud_groups
+  - id: subcloud_group_id
+  - name: subcloud_group_name
+  - description: subcloud_group_description
+  - max_parallel_subclouds: subcloud_group_max_parallel_subclouds
+  - update_apply_type: subcloud_group_update_apply_type
+  - created_at: created_at
+  - updated_at: updated_at
 
-::
+Response Example
+----------------
 
-   {
-     "subcloud_groups": [
-       {
-         "update_apply_type": "parallel",
-         "description": "Default Subcloud Group",
-         "updated-at": null,
-         "created-at": null,
-         "max_parallel_subclouds": 2,
-         "id": 1,
-         "name": "Default"
-       },
-     ]
-   }
+.. literalinclude:: samples/subcloud-groups/subcloud-groups-get-response.json
+         :language: json
 
-This operation does not accept a request body.
 
 **************************
 Creates a subcloud group
@@ -871,47 +702,37 @@ serviceUnavailable (503)
 
 **Request parameters**
 
-.. csv-table::
-   :header: "Parameter", "Style", "Type", "Description"
-   :widths: 20, 20, 20, 60
+.. rest_parameters:: parameters.yaml
 
-   "name (Optional)", "plain", "xsd:string", "The name for the subcloud group. Must be unique."
-   "description (Optional)", "plain", "xsd:string", "The description of the subcloud group."
-   "update_apply_type (Optional)", "plain", "xsd:string", "The method for applying an update. Must be ```serial``` or ```parallel```."
-   "max_parallel_subclouds (Optional)", "plain", "xsd:int", "The maximum number of subclouds to update in parallel. Must be greater than 0."
+  - name: subcloud_group_name
+  - description: subcloud_group_description
+  - max_parallel_subclouds: subcloud_group_max_parallel_subclouds
+  - update_apply_type: subcloud_group_update_apply_type
+
+Request Example
+----------------
+
+.. literalinclude:: samples/subcloud-groups/subcloud-groups-post-request.json
+         :language: json
 
 **Response parameters**
 
-.. csv-table::
-   :header: "Parameter", "Style", "Type", "Description"
-   :widths: 20, 20, 20, 60
+.. rest_parameters:: parameters.yaml
 
-   "id (Optional)", "plain", "xsd:int", "The unique identifier for this object."
-   "name (Optional)", "plain", "xsd:string", "The unique name for the subcloud group."
-   "description (Optional)", "plain", "xsd:string", "The description of the subcloud group."
-   "update_apply_type (Optional)", "plain", "xsd:string", "The method for applying an update. ```serial``` or ```parallel```."
-   "max_parallel_subclouds (Optional)", "plain", "xsd:int", "The maximum number of subclouds to update in parallel."
+  - id: subcloud_group_id
+  - name: subcloud_group_name
+  - description: subcloud_group_description
+  - max_parallel_subclouds: subcloud_group_max_parallel_subclouds
+  - update_apply_type: subcloud_group_update_apply_type
+  - created_at: created_at
+  - updated_at: updated_at
 
-::
+Response Example
+----------------
 
-   {
-     "name": "GroupX",
-     "description": "A new group",
-     "update_apply_type": "parallel",
-     "max_parallel_subclouds": 3
-   }
+.. literalinclude:: samples/subcloud-groups/subcloud-groups-post-response.json
+         :language: json
 
-::
-
-   {
-     "id": 2,
-     "name": "GroupX",
-     "description": "A new group",
-     "update_apply_type": "parallel",
-     "max_parallel_subclouds": "3",
-     "updated-at": null,
-     "created-at": "2020-04-08 15:15:10.750592",
-   }
 
 ***************************************************
 Shows information about a specific subcloud group
@@ -925,45 +746,36 @@ Shows information about a specific subcloud group
 
 **Error response codes**
 
-itemNotFound (404), badRequest (400), unauthorized (401), forbidden
-(403), badMethod (405), HTTPUnprocessableEntity (422),
+badRequest (400), unauthorized (401), forbidden (403), 
+itemNotFound (404), badMethod (405), HTTPUnprocessableEntity (422),
 internalServerError (500), serviceUnavailable (503)
 
 **Request parameters**
 
-.. csv-table::
-   :header: "Parameter", "Style", "Type", "Description"
-   :widths: 20, 20, 20, 60
+.. rest_parameters:: parameters.yaml
 
-   "subcloud-group", "URI", "xsd:string", "The subcloud group reference, name or id."
+  - subcloud-group: subcloud_group_uri
+
+This operation does not accept a request body.
 
 **Response parameters**
 
-.. csv-table::
-   :header: "Parameter", "Style", "Type", "Description"
-   :widths: 20, 20, 20, 60
+.. rest_parameters:: parameters.yaml
 
-   "id (Optional)", "plain", "xsd:int", "The unique identifier for this object."
-   "name (Optional)", "plain", "xsd:string", "The name provisioned for the subcloud group."
-   "description (Optional)", "plain", "xsd:string", "The description for the subcloud group."
-   "max_parallel_subclouds (Optional)", "plain", "xsd:int", "The maximum number of subclouds to update in parallel."
-   "update_apply_type (Optional)", "plain", "xsd:string", "The update apply type for the subcloud group: ```serial``` or ```parallel```."
-   "created_at (Optional)", "plain", "xsd:dateTime", "The time when the object was created."
-   "updated_at (Optional)", "plain", "xsd:dateTime", "The time when the object was last updated."
+  - id: subcloud_group_id
+  - name: subcloud_group_name
+  - description: subcloud_group_description
+  - max_parallel_subclouds: subcloud_group_max_parallel_subclouds
+  - update_apply_type: subcloud_group_update_apply_type
+  - created_at: created_at
+  - updated_at: updated_at
 
-::
+Response Example
+----------------
 
-   {
-     "id": 2,
-     "name": "GroupX",
-     "description": "A new group",
-     "max_parallel_subclouds": 3,
-     "update_apply_type": "parallel",
-     "created-at": "2020-04-08 15:15:10.750592",
-     "updated-at": null
-   }
+.. literalinclude:: samples/subcloud-groups/subcloud-groups-post-response.json
+         :language: json
 
-This operation does not accept a request body.
 
 ***************************************************
 Shows subclouds that are part of a subcloud group
@@ -977,69 +789,49 @@ Shows subclouds that are part of a subcloud group
 
 **Error response codes**
 
-itemNotFound (404), badRequest (400), unauthorized (401), forbidden
-(403), badMethod (405), HTTPUnprocessableEntity (422),
+badRequest (400), unauthorized (401), forbidden (403), 
+itemNotFound (404), badMethod (405), HTTPUnprocessableEntity (422),
 internalServerError (500), serviceUnavailable (503)
 
 **Request parameters**
 
-.. csv-table::
-   :header: "Parameter", "Style", "Type", "Description"
-   :widths: 20, 20, 20, 60
+.. rest_parameters:: parameters.yaml
 
-   "subcloud-group", "URI", "xsd:string", "The subcloud group reference, name or id."
+  - subcloud-group: subcloud_group_uri
+
+This operation does not accept a request body.
 
 **Response parameters**
 
-.. csv-table::
-   :header: "Parameter", "Style", "Type", "Description"
-   :widths: 20, 20, 20, 60
+.. rest_parameters:: parameters.yaml
 
-   "subclouds (Optional)", "plain", "xsd:list", "The list of subclouds."
-   "id (Optional)", "plain", "xsd:int", "The unique identifier for a subcloud."
-   "group_id (Optional)", "plain", "xsd:int", "The unique identifier for the subcloud group."
-   "created_at (Optional)", "plain", "xsd:dateTime", "The time when the object was created."
-   "updated_at (Optional)", "plain", "xsd:dateTime", "The time when the object was last updated."
-   "name (Optional)", "plain", "xsd:string", "The name provisioned for the subcloud."
-   "management-state (Optional)", "plain", "xsd:string", "Management state of the subcloud."
-   "management-start-ip (Optional)", "plain", "xsd:string", "Start of management IP address range for subcloud."
-   "software-version (Optional)", "plain", "xsd:string", "Software version for subcloud."
-   "availability-status (Optional)", "plain", "xsd:string", "Availability status of the subcloud."
-   "systemcontroller-gateway-ip (Optional)", "plain", "xsd:string", "Systemcontroller gateway IP Address."
-   "location (Optional)", "plain", "xsd:string", "The location provisioned for the subcloud."
-   "openstack-installed (Optional)", "plain", "xsd:boolean", "Whether openstack is installed on the subcloud."
-   "management-subnet (Optional)", "plain", "xsd:string", "Management subnet for subcloud in CIDR format."
-   "management-gateway-ip (Optional)", "plain", "xsd:string", "Management gateway IP for subcloud."
-   "management-end-ip (Optional)", "plain", "xsd:string", "End of management IP address range for subcloud."
-   "description (Optional)", "plain", "xsd:string", "The description provisioned for the subcloud."
+  - subclouds: subclouds
+  - id: subcloud_id
+  - group_id: group_id
+  - name: subcloud_name
+  - description: subcloud_description
+  - location: subcloud_location
+  - software-version: software_version
+  - availability-status: availability_status
+  - deploy-status: deploy_status
+  - openstack-installed: openstack_installed
+  - management-state: management_state
+  - systemcontroller-gateway-ip: systemcontroller_gateway_ip
+  - management-start-ip: management_start_ip
+  - management-end-ip: management_end_ip
+  - management-subnet: management_subnet
+  - management-gateway-ip: management_gateway_ip
+  - created-at: created_at
+  - updated-at: updated_at
+  - data_install: data_install
+  - data_upgrade: data_upgrade
 
-::
+Response Example
+----------------
 
-   {
-     "subclouds": [
-       {
-         "deploy-status": "complete",
-         "id": 1,
-         "group_id": 2,
-         "created-at": "2020-04-13 13:16:21.903294",
-         "updated-at": "2020-04-13 13:36:27.494056",
-         "name": "subcloud1",
-         "management-state": "unmanaged",
-         "management-start-ip": "192.168.101.2",
-         "software-version": "20.01",
-         "availability-status": "offline",
-         "systemcontroller-gateway-ip": "192.168.204.101",
-         "location": "YOW",
-         "openstack-installed": false,
-         "management-subnet": "192.168.101.0/24",
-         "management-gateway-ip": "192.168.101.1",
-         "management-end-ip": "192.168.101.50",
-         "description": "Ottawa Site"
-      }
-     ]
-   }
+.. literalinclude:: samples/subcloud-groups/subcloud-groups-get-subclouds-response.json
+         :language: json
 
-This operation does not accept a request body.
 
 ************************************
 Modifies a specific subcloud group
@@ -1057,6 +849,7 @@ The attributes of a subcloud group which are modifiable:
 
 -  max_parallel_subclouds
 
+
 **Normal response codes**
 
 200
@@ -1069,47 +862,37 @@ serviceUnavailable (503)
 
 **Request parameters**
 
-.. csv-table::
-   :header: "Parameter", "Style", "Type", "Description"
-   :widths: 20, 20, 20, 60
+.. rest_parameters:: parameters.yaml
 
-   "subcloud-group", "URI", "xsd:string", "The subcloud group reference, name or id."
-   "name (Optional)", "plain", "xsd:string", "The name of the subcloud group. Must be unique."
-   "description (Optional)", "plain", "xsd:string", "The description of the subcloud group."
-   "update_apply_type (Optional)", "plain", "xsd:string", "The update apply type for the subcloud group. Either ```serial``` or ```parallel```."
-   "max_parallel_subclouds (Optional)", "plain", "xsd:int", "The number of subclouds to update in parallel. Must be greater than 0."
+  - subcloud-group: subcloud_group_uri
+  - name: subcloud_group_name
+  - description: subcloud_group_description
+  - max_parallel_subclouds: subcloud_group_max_parallel_subclouds
+  - update_apply_type: subcloud_group_update_apply_type
+
+Request Example
+----------------
+.. literalinclude:: samples/subcloud-groups/subcloud-group-patch-request.json
+         :language: json
 
 **Response parameters**
 
-.. csv-table::
-   :header: "Parameter", "Style", "Type", "Description"
-   :widths: 20, 20, 20, 60
+.. rest_parameters:: parameters.yaml
 
-   "id (Optional)", "plain", "xsd:int", "The unique identifier for this object."
-   "name (Optional)", "plain", "xsd:string", "The name provisioned for the subcloud group."
-   "description (Optional)", "plain", "xsd:string", "The description for the subcloud group."
-   "created_at (Optional)", "plain", "xsd:dateTime", "The time when the object was created."
-   "updated_at (Optional)", "plain", "xsd:dateTime", "The time when the object was last updated."
+  - id: subcloud_group_id
+  - name: subcloud_group_name
+  - description: subcloud_group_description
+  - max_parallel_subclouds: subcloud_group_max_parallel_subclouds
+  - update_apply_type: subcloud_group_update_apply_type
+  - created_at: created_at
+  - updated_at: updated_at
 
-::
+Response Example
+----------------
 
-   {
-     "description": "new description",
-     "update_apply_type": "serial",
-     "max_parallel_subclouds": 5
-   }
+.. literalinclude:: samples/subcloud-groups/subcloud-group-patch-response.json
+         :language: json
 
-::
-
-   {
-     "id": 2,
-     "name": "GroupX",
-     "description": "new description",
-     "update_apply_type": "serial",
-     "max_parallel_subclouds": 5,
-     "created-at": "2020-04-08 15:15:10.750592",
-     "updated-at": "2020-04-08 15:21:01.527101"
-   }
 
 ***********************************
 Deletes a specific subcloud group
@@ -1121,13 +904,17 @@ Deletes a specific subcloud group
 
 204
 
+**Error response codes**
+
+badRequest (400), unauthorized (401), forbidden (403), 
+itemNotFound (404), badMethod (405), HTTPUnprocessableEntity (422),
+internalServerError (500), serviceUnavailable (503)
+
 **Request parameters**
 
-.. csv-table::
-   :header: "Parameter", "Style", "Type", "Description"
-   :widths: 20, 20, 20, 60
+.. rest_parameters:: parameters.yaml
 
-   "subcloud-group", "URI", "xsd:string", "The subcloud group reference, name or id."
+  - subcloud-group: subcloud_group_uri
 
 This operation does not accept a request body.
 
@@ -1143,57 +930,45 @@ Summarizes alarms from all subclouds
 
 .. rest_method:: GET /v1.0/alarms
 
+This operation does not accept a request body.
+
 **Normal response codes**
 
 200
 
 **Error response codes**
 
-itemNotFound (404), badRequest (400), unauthorized (401), forbidden
+badRequest (400), unauthorized (401), forbidden
 (403), badMethod (405), HTTPUnprocessableEntity (422),
 internalServerError (500), serviceUnavailable (503)
 
 **Response parameters**
 
-.. csv-table::
-   :header: "Parameter", "Style", "Type", "Description"
-   :widths: 20, 20, 20, 60
+.. rest_parameters:: parameters.yaml
 
-   "alarm_summary (Optional)", "plain", "xsd:list", "The list of alarm summaries."
-   "uuid (Optional)", "plain", "csapi:UUID", "The unique identifier for this object."
-   "region_name (Optional)", "plain", "xsd:string", "The name provisioned for the subcloud (synonym for subcloud name)."
-   "cloud_status (Optional)", "plain", "xsd:string", "The overall alarm status of the cloud."
-   "warnings (Optional)", "plain", "xsd:int", "The number of warnings for the cloud (-1 when the cloud_status is disabled)."
-   "minor_alarms (Optional)", "plain", "xsd:int", "The number of minor alarms for the cloud (-1 when the cloud_status is disabled)."
-   "critical_alarms (Optional)", "plain", "xsd:int", "The number of critical alarms for the cloud (-1 when the cloud_status is disabled)."
-   "major_alarms (Optional)", "plain", "xsd:int", "The number of major alarms for the cloud (-1 when the cloud_status is disabled)."
+  - alarm_summary: alarm_summary
+  - uuid: alarm_summary_uuid
+  - region_name: region_name
+  - cloud_status: cloud_status
+  - warnings: warnings
+  - critical_alarms: critical_alarms
+  - major_alarms: major_alarms
+  - minor_alarms: minor_alarms
 
-::
+Response Example
+----------------
 
-   {
-     "alarm_summary": [
-       {
-         "cloud_status": "disabled",
-         "region_name": "subcloud6",
-         "warnings": -1,
-         "minor_alarms": -1,
-         "critical_alarms": -1,
-         "major_alarms": -1,
-         "uuid": "32b9233e-d993-45fb-96eb-5bfa9b1cad5d"
-       }
-     ]
-   }
-
-This operation does not accept a request body.
+.. literalinclude:: samples/alarms/alarms-get-response.json
+         :language: json
 
 ------------------------
-Subcloud Patch Strategy
+Subcloud Update Strategy
 ------------------------
 
-The Subcloud patch strategy is configurable.
+The Subcloud update strategy is configurable.
 
 *****************************************
-Shows the details of the patch strategy
+Shows the details of the update strategy
 *****************************************
 
 .. rest_method:: GET /v1.0/sw-update-strategy
@@ -1204,42 +979,40 @@ Shows the details of the patch strategy
 
 **Error response codes**
 
-itemNotFound (404), badRequest (400), unauthorized (401), forbidden
-(403), badMethod (405), HTTPUnprocessableEntity (422),
+badRequest (400), unauthorized (401), forbidden (403), 
+itemNotFound (404), badMethod (405), HTTPUnprocessableEntity (422),
 internalServerError (500), serviceUnavailable (503)
 
-**Response parameters**
+**Request parameters**
 
-.. csv-table::
-   :header: "Parameter", "Style", "Type", "Description"
-   :widths: 20, 20, 20, 60
+.. rest_parameters:: parameters.yaml
 
-   "subcloud-apply-type (Optional)", "plain", "xsd:string", "Subcloud apply type"
-   "state (Optional)", "plain", "xsd:string", "The state of patching."
-   "stop-on-failure (Optional)", "plain", "xsd:string", "Whether to stop patching on failure or not."
-   "type (Optional)", "plain", "xsd:string", "Will be set to: ``patch``."
-   "max-parallel-subclouds (Optional)", "plain", "xsd:int", "The number of subclouds to patch in parallel."
-   "id (Optional)", "plain", "xsd:int", "The unique identifier for this object."
-   "created_at (Optional)", "plain", "xsd:dateTime", "The time when the object was created."
-   "updated_at (Optional)", "plain", "xsd:dateTime", "The time when the object was last updated."
-
-::
-
-   {
-     "max-parallel-subclouds": 2,
-     "updated-at": None,
-     "created-at": "2018-02-25T23:23:53.852473",
-     "subcloud-apply-type": "serial",
-     "state": "initial",
-     "stop-on-failure": True,
-     "type": "patch",
-     "id": 2
-   }
+  - type: sw_update_strategy_type
 
 This operation does not accept a request body.
 
+**Response parameters**
+
+.. rest_parameters:: parameters.yaml
+
+  - type: sw_update_strategy_type
+  - id: sw_update_strategy_id
+  - state: sw_update_strategy_state
+  - extra-args: extra_args
+  - stop-on-failure: stop_on_failure
+  - subcloud-apply-type: subcloud_apply_type
+  - max-parallel-subclouds: max_parallel_subclouds
+  - created_at: created_at
+  - updated_at: updated_at
+
+Response Example
+----------------
+
+.. literalinclude:: samples/sw-update-strategy/sw-update-strategy-get-response.json
+         :language: json
+
 ****************************
-Creates the patch strategy
+Creates the update strategy
 ****************************
 
 .. rest_method:: POST /v1.0/sw-update-strategy
@@ -1264,67 +1037,87 @@ serviceUnavailable (503)
 
 **Request parameters**
 
-.. csv-table::
-   :header: "Parameter", "Style", "Type", "Description"
-   :widths: 20, 20, 20, 60
+.. rest_parameters:: parameters.yaml
 
-   "subcloud-apply-type (Optional)", "plain", "xsd:string", "Subcloud apply type, ``parallel`` or ``serial``."
-   "max-parallel-subclouds (Optional)", "plain", "xsd:string", "Maximum number of parallel subclouds."
-   "stop-on-failure (Optional)", "plain", "xsd:string", "Whether stop patching any additional subclouds after a failure or not, ``True`` or ``False``."
-   "cloud_name (Optional)", "plain", "xsd:string", "Name of a single cloud to patch."
-   "type (Optional)", "plain", "xsd:string", "Must be set to: ``patch``."
+  - cloud_name: subcloud_name
+  - max-parallel-subclouds: max_parallel_subclouds
+  - stop-on-failure: stop_on_failure
+  - subcloud-apply-type: subcloud_apply_type
+  - type: sw_update_strategy_type
+
+Request Example
+----------------
+
+.. literalinclude:: samples/sw-update-strategy/sw-update-strategy-post-request.json
+         :language: json
 
 **Response parameters**
 
-.. csv-table::
-   :header: "Parameter", "Style", "Type", "Description"
-   :widths: 20, 20, 20, 60
+.. rest_parameters:: parameters.yaml
 
-   "subcloud-apply-type (Optional)", "plain", "xsd:string", "Subcloud apply type"
-   "state (Optional)", "plain", "xsd:string", "The state of patching."
-   "stop-on-failure (Optional)", "plain", "xsd:string", "Whether to stop patching on failure or not."
-   "type (Optional)", "plain", "xsd:string", "Will be set to: ``patch``."
-   "max-parallel-subclouds (Optional)", "plain", "xsd:int", "The number of subclouds to patch in parallel."
-   "id (Optional)", "plain", "xsd:int", "The unique identifier for this object."
-   "created_at (Optional)", "plain", "xsd:dateTime", "The time when the object was created."
-   "updated_at (Optional)", "plain", "xsd:dateTime", "The time when the object was last updated."
+  - type: sw_update_strategy_type
+  - id: sw_update_strategy_id
+  - state: sw_update_strategy_state
+  - extra-args: extra_args
+  - stop-on-failure: stop_on_failure
+  - subcloud-apply-type: subcloud_apply_type
+  - max-parallel-subclouds: max_parallel_subclouds
+  - created_at: created_at
+  - updated_at: updated_at
 
-::
+Response Example
+----------------
 
-   {
-     "subcloud-apply-type": "serial",
-     "type": "patch",
-     "stop-on-failure": "true",
-     "max-parallel-subclouds": 2
-   }
+.. literalinclude:: samples/sw-update-strategy/sw-update-strategy-post-response.json
+         :language: json
 
-::
 
-   {
-     "max-parallel-subclouds": 2,
-     "updated-at": None,
-     "created-at": "2018-02-25T23:23:53.852473",
-     "subcloud-apply-type": "serial",
-     "state": "initial",
-     "stop-on-failure": True,
-     "type": "patch",
-     "id": 2
-   }
-
-**********************************************
-Deletes the patch strategy from the database
-**********************************************
+***************************
+Deletes the update strategy
+***************************
 
 .. rest_method:: DELETE /v1.0/sw-update-strategy
 
 **Normal response codes**
 
-204
+200
+
+**Error response codes**
+
+badRequest (400), unauthorized (401), forbidden (403), 
+itemNotFound (404), badMethod (405), HTTPUnprocessableEntity (422),
+internalServerError (500), serviceUnavailable (503)
+
+**Request parameters**
+
+.. rest_parameters:: parameters.yaml
+
+  - type: sw_update_strategy_type
 
 This operation does not accept a request body.
 
+**Response parameters**
+
+.. rest_parameters:: parameters.yaml
+
+  - type: sw_update_strategy_type
+  - id: sw_update_strategy_id
+  - state: sw_update_strategy_state
+  - extra-args: extra_args
+  - stop-on-failure: stop_on_failure
+  - subcloud-apply-type: subcloud_apply_type
+  - max-parallel-subclouds: max_parallel_subclouds
+  - created_at: created_at
+  - updated_at: updated_at
+
+Response Example
+----------------
+
+.. literalinclude:: samples/sw-update-strategy/sw-update-strategy-delete-response.json
+         :language: json
+
 --------------------------------
-Subcloud Patch Strategy Actions
+Subcloud Update Strategy Actions
 --------------------------------
 
 Subcloud patch strategy can be actioned.
@@ -1347,57 +1140,50 @@ serviceUnavailable (503)
 
 **Request parameters**
 
-.. csv-table::
-   :header: "Parameter", "Style", "Type", "Description"
-   :widths: 20, 20, 20, 60
+.. rest_parameters:: parameters.yaml
 
-   "action (Optional)", "plain", "xsd:string", "Perform one of the following actions on the patch strategy: Valid values are: ``apply``, or ``abort``."
+  - type: sw_update_strategy_type
+  - action: sw_update_strategy_action
+
+Request Example
+----------------
+
+.. literalinclude:: samples/sw-update-strategy/sw-update-strategy-post-action-request.json
+         :language: json
 
 **Response parameters**
 
-.. csv-table::
-   :header: "Parameter", "Style", "Type", "Description"
-   :widths: 20, 20, 20, 60
+.. rest_parameters:: parameters.yaml
 
-   "subcloud-apply-type (Optional)", "plain", "xsd:string", "Subcloud apply type"
-   "state (Optional)", "plain", "xsd:string", "The state of patching."
-   "stop-on-failure (Optional)", "plain", "xsd:string", "Whether to stop patching on failure or not."
-   "type (Optional)", "plain", "xsd:string", "Will be set to: ``patch``."
-   "max-parallel-subclouds (Optional)", "plain", "xsd:int", "The number of subclouds to patch in parallel."
-   "id (Optional)", "plain", "xsd:int", "The unique identifier for this object."
-   "created_at (Optional)", "plain", "xsd:dateTime", "The time when the object was created."
-   "updated_at (Optional)", "plain", "xsd:dateTime", "The time when the object was last updated."
+  - id: sw_update_strategy_id
+  - type: sw_update_strategy_type
+  - state: sw_update_strategy_state
+  - extra-args: extra_args
+  - stop-on-failure: stop_on_failure
+  - subcloud-apply-type: subcloud_apply_type
+  - max-parallel-subclouds: max_parallel_subclouds
+  - created_at: created_at
+  - updated_at: updated_at
 
-::
+Response Example
+----------------
 
-   {
-     "action": "apply",
-   }
+.. literalinclude:: samples/sw-update-strategy/sw-update-strategy-post-action-response.json
+         :language: json
 
-::
-
-   {
-     "max-parallel-subclouds": 2,
-     "updated-at": None,
-     "created-at": "2018-02-25T23:23:53.852473",
-     "subcloud-apply-type": "serial",
-     "state": "applying",
-     "stop-on-failure": True,
-     "type": "patch",
-     "id": 2
-   }
-
-------------------------------
-Subcloud Patch Strategy Steps
-------------------------------
+---------------------------------------
+Subcloud Software Update Strategy Steps
+---------------------------------------
 
 Subcloud patch strategy steps can be retrieved.
 
-***********************************************
-Lists all patch strategy steps for all clouds
-***********************************************
+*******************************************************
+Lists all software update strategy steps for all clouds
+*******************************************************
 
 .. rest_method:: GET /v1.0/sw-update-strategy/steps
+
+This operation does not accept a request body.
 
 **Normal response codes**
 
@@ -1405,57 +1191,31 @@ Lists all patch strategy steps for all clouds
 
 **Error response codes**
 
-itemNotFound (404), badRequest (400), unauthorized (401), forbidden
-(403), badMethod (405), HTTPUnprocessableEntity (422),
+badRequest (400), unauthorized (401), forbidden (403), 
+itemNotFound (404), badMethod (405), HTTPUnprocessableEntity (422),
 internalServerError (500), serviceUnavailable (503)
+
 
 **Response parameters**
 
-.. csv-table::
-   :header: "Parameter", "Style", "Type", "Description"
-   :widths: 20, 20, 20, 60
+.. rest_parameters:: parameters.yaml
 
-   "strategy-steps (Optional)", "plain", "xsd:list", "The list of patch strategy steps."
-   "cloud (Optional)", "plain", "xsd:string", "The name of the cloud to which the patch strategy steps apply."
-   "state (Optional)", "plain", "xsd:string", "The state of patching."
-   "details (Optional)", "plain", "xsd:string", "Details about patching."
-   "stage (Optional)", "plain", "xsd:int", "The stage of patching."
+  - strategy-steps: strategy_steps
+  - id: strategy_step_id
+  - cloud: subcloud_name
+  - stage: strategy_step_stage
+  - state: strategy_step_state
+  - details: strategy_step_details
+  - started-at: strategy_step_started_at
+  - finished-at: strategy_step_finished_at
+  - created-at: created_at
+  - updated-at: updated_at
 
-::
+Response Example
+----------------
 
-   {
-     "strategy-steps": [
-       {
-         "updated-at": None,
-         "created-at": "2018-02-25T23:23:53.852473",
-         "state": "initial",
-         "details": "",
-         "id": 1,
-         "cloud": "subcloud6",
-         "stage": 1
-       },
-       {
-         "updated-at": None,
-         "created-at": "2018-02-25T23:23:53.852473",
-         "state": "initial",
-         "details": "",
-         "id": 2,
-         "cloud": "subcloud7",
-         "stage": 1
-       },
-       {
-         "updated-at": None,
-         "created-at": "2018-02-25T23:23:53.852473",
-         "state": "initial",
-         "details": "",
-         "id": 3,
-         "cloud": "subcloud8",
-         "stage": 1
-       },
-     ]
-   }
-
-This operation does not accept a request body.
+.. literalinclude:: samples/sw-update-strategy/sw-update-strategy-get-steps-response.json
+            :language: json
 
 ******************************************************************
 Shows the details of patch strategy steps for a particular cloud
@@ -1469,49 +1229,51 @@ Shows the details of patch strategy steps for a particular cloud
 
 **Error response codes**
 
-itemNotFound (404), badRequest (400), unauthorized (401), forbidden
-(403), badMethod (405), HTTPUnprocessableEntity (422),
+badRequest (400), unauthorized (401), forbidden (403), 
+itemNotFound (404), badMethod (405), HTTPUnprocessableEntity (422),
 internalServerError (500), serviceUnavailable (503)
 
-**Response parameters**
+**Request parameters**
 
-.. csv-table::
-   :header: "Parameter", "Style", "Type", "Description"
-   :widths: 20, 20, 20, 60
+.. rest_parameters:: parameters.yaml
 
-   "cloud (Optional)", "plain", "xsd:string", "The name of the cloud to which the patch strategy steps apply."
-   "state (Optional)", "plain", "xsd:string", "The state of patching."
-   "details (Optional)", "plain", "xsd:string", "Details about patching."
-   "stage (Optional)", "plain", "xsd:int", "The stage of patching."
-   "id (Optional)", "plain", "xsd:int", "The unique identifier for this object."
-   "created_at (Optional)", "plain", "xsd:dateTime", "The time when the object was created."
-   "updated_at (Optional)", "plain", "xsd:dateTime", "The time when the object was last updated."
-
-::
-
-   {
-     "updated-at": None,
-     "created-at": None,
-     "state": "initial",
-     "details": "",
-     "id": 1,
-     "cloud": "subcloud6",
-     "stage": 1
-   }
+  - cloud_name: subcloud_name
 
 This operation does not accept a request body.
 
------------------------
-Subcloud Patch Options
------------------------
+**Response parameters**
 
-Subcloud Patch Options are configurable.
+.. rest_parameters:: parameters.yaml
 
-*************************
-Lists all patch options
-*************************
+  - id: strategy_step_id
+  - cloud: subcloud_name
+  - stage: strategy_step_stage
+  - state: strategy_step_state
+  - details: strategy_step_details
+  - started-at: strategy_step_started_at
+  - finished-at: strategy_step_finished_at
+  - created-at: created_at
+  - updated-at: updated_at
+
+Response Example
+----------------
+
+.. literalinclude:: samples/sw-update-strategy/sw-update-strategy-get-step-subcloud-response.json
+            :language: json
+
+--------------------------------
+Subcloud Software Update Options
+--------------------------------
+
+Subcloud Software Update Options are configurable.
+
+***************************
+Lists all sw-update options
+***************************
 
 .. rest_method:: GET /v1.0/sw-update-options
+
+This operation does not accept a request body.
 
 **Normal response codes**
 
@@ -1519,64 +1281,36 @@ Lists all patch options
 
 **Error response codes**
 
-itemNotFound (404), badRequest (400), unauthorized (401), forbidden
-(403), badMethod (405), HTTPUnprocessableEntity (422),
+badRequest (400), unauthorized (401), forbidden (403), 
+itemNotFound (404), badMethod (405), HTTPUnprocessableEntity (422),
 internalServerError (500), serviceUnavailable (503)
 
 **Response parameters**
 
-.. csv-table::
-   :header: "Parameter", "Style", "Type", "Description"
-   :widths: 20, 20, 20, 60
+.. rest_parameters:: parameters.yaml
 
-   "sw-update-options (Optional)", "plain", "xsd:list", "The list of patch options."
-   "name (Optional)", "plain", "xsd:string", "The name of the cloud to which the patch options apply."
-   "compute-apply-type (Optional)", "plain", "xsd:string", "Compute host apply type, ``parallel`` or ``serial``"
-   "subcloud-id (Optional)", "plain", "xsd:int", "The id of the cloud (will be 0 for the all clouds default)."
-   "max-parallel-computes (Optional)", "plain", "xsd:int", "The number of compute hosts to patch in parallel."
-   "alarm-restriction-type (Optional)", "plain", "xsd:string", "Whether to allow patching if subcloud alarms are present or not, ``strict`` or ``relaxed``."
-   "storage-apply-type (Optional)", "plain", "xsd:string", "Storage host apply type, ``parallel`` or ``serial``."
-   "default-instance-action (Optional)", "plain", "xsd:string", "How instances should be handled, ``stop-start`` or ``migrate``."
-   "id (Optional)", "plain", "xsd:int", "The unique identifier for this object."
-   "created_at (Optional)", "plain", "xsd:dateTime", "The time when the object was created."
-   "updated_at (Optional)", "plain", "xsd:dateTime", "The time when the object was last updated."
+  - sw-update-options: sw_update_options
+  - id: sw_update_options_id
+  - name: sw_update_options_name
+  - alarm-restriction-type: alarm_restriction_type
+  - default-instance-action: default_instance_action
+  - max-parallel-workers: max_parallel_workers
+  - storage-apply-type: storage_apply_type
+  - subcloud-id: subcloud_id
+  - worker-apply-type: worker_apply_type
+  - created-at: created_at
+  - updated-at: updated_at
 
-::
+Response Example
+----------------
 
-   {
-     "sw-update-options": [
-       {
-         "name": "all clouds default",
-         "compute-apply-type": "parallel",
-         "subcloud-id": None,
-         "updated-at": "2018-02-25 23:34:03.099691",
-         "created-at": None,
-         "alarm-restriction-type": "relaxed",
-         "storage-apply-type": "parallel",
-         "max-parallel-computes": 3,
-         "default-instance-action": "migrate",
-         "id": 1
-       },
-       {
-         "name": "subcloud6",
-         "compute-apply-type": "parallel",
-         "subcloud-id": 1,
-         "updated-at": "2018-02-25 23:41:42.877013",
-         "created-at": "2018-02-25 19:07:20.767609",
-         "alarm-restriction-type": "relaxed",
-         "storage-apply-type": "parallel",
-         "max-parallel-computes": 3,
-         "default-instance-action": "migrate",
-         "id": 1
-       }
-     ]
-   }
+.. literalinclude:: samples/sw-update-options/sw-update-options-get-response.json
+            :language: json
 
-This operation does not accept a request body.
 
-***************************************************************************************************************************
-Shows patch options, defaults or per subcloud. Use ``RegionOne`` as subcloud for default options which are pre-configured
-***************************************************************************************************************************
+******************************************************************************************************************************
+Shows sw-update options (defaults or per subcloud). Use ``RegionOne`` as subcloud for default options which are pre-configured
+******************************************************************************************************************************
 
 .. rest_method:: GET /v1.0/sw-update-options/​{subcloud}​
 
@@ -1586,67 +1320,45 @@ Shows patch options, defaults or per subcloud. Use ``RegionOne`` as subcloud for
 
 **Error response codes**
 
-itemNotFound (404), badRequest (400), unauthorized (401), forbidden
-(403), badMethod (405), HTTPUnprocessableEntity (422),
+badRequest (400), unauthorized (401), forbidden (403), 
+itemNotFound (404), badMethod (405), HTTPUnprocessableEntity (422),
 internalServerError (500), serviceUnavailable (503)
 
 **Request parameters**
 
-.. csv-table::
-   :header: "Parameter", "Style", "Type", "Description"
-   :widths: 20, 20, 20, 60
+.. rest_parameters:: parameters.yaml
 
-   "subcloud", "URI", "xsd:string", "The subcloud reference, name or id."
-
-**Response parameters**
-
-.. csv-table::
-   :header: "Parameter", "Style", "Type", "Description"
-   :widths: 20, 20, 20, 60
-
-   "name (Optional)", "plain", "xsd:string", "The name of the cloud to which the patch options apply."
-   "compute-apply-type (Optional)", "plain", "xsd:string", "Compute host apply type, ``parallel`` or ``serial``"
-   "subcloud-id (Optional)", "plain", "xsd:int", "The id of the cloud (will be 0 for the all clouds default)."
-   "max-parallel-computes (Optional)", "plain", "xsd:int", "The number of compute hosts to patch in parallel."
-   "alarm-restriction-type (Optional)", "plain", "xsd:string", "Whether to allow patching if subcloud alarms are present or not, ``strict`` or ``relaxed``."
-   "storage-apply-type (Optional)", "plain", "xsd:string", "Storage host apply type, ``parallel`` or ``serial``."
-   "default-instance-action (Optional)", "plain", "xsd:string", "How instances should be handled, ``stop-start`` or ``migrate``."
-   "id (Optional)", "plain", "xsd:int", "The unique identifier for this object."
-   "created_at (Optional)", "plain", "xsd:dateTime", "The time when the object was created."
-   "updated_at (Optional)", "plain", "xsd:dateTime", "The time when the object was last updated."
-
-::
-
-   {
-     "name": "subcloud6",
-     "compute-apply-type": "parallel",
-     "subcloud-id": 1,
-     "updated-at": "2018-02-25 23:41:42.877013",
-     "created-at": "2018-02-25 19:07:20.767609",
-     "alarm-restriction-type": "relaxed",
-     "storage-apply-type": "parallel",
-     "max-parallel-computes": 3,
-     "default-instance-action": "migrate",
-     "id": 1
-   }
+  - subcloud: subcloud_options_uri
 
 This operation does not accept a request body.
 
-****************************************************************************************************
-Updates patch options, defaults or per subcloud. Use ``RegionOne`` as subcloud for default options
-****************************************************************************************************
+**Response parameters**
+
+.. rest_parameters:: parameters.yaml
+
+  - id: sw_update_options_id
+  - name: sw_update_options_name
+  - alarm-restriction-type: alarm_restriction_type
+  - default-instance-action: default_instance_action
+  - max-parallel-workers: max_parallel_workers
+  - storage-apply-type: storage_apply_type
+  - subcloud-id: sw_update_options_subcloud_id
+  - worker-apply-type: worker_apply_type
+  - created-at: created_at
+  - updated-at: updated_at
+
+Response Example
+----------------
+
+.. literalinclude:: samples/sw-update-options/sw-update-options-get-one-response.json
+            :language: json
+
+
+******************************************************************************************************
+Updates sw-update options, defaults or per subcloud. Use ``RegionOne`` as subcloud for default options
+******************************************************************************************************
 
 .. rest_method:: POST /v1.0/sw-update-options/​{subcloud}​
-
--  storage-apply-type,
-
--  compute-apply-type,
-
--  max-parallel-computes,
-
--  alarm-restriction-type,
-
--  default-instance-action,
 
 **Normal response codes**
 
@@ -1660,78 +1372,61 @@ serviceUnavailable (503)
 
 **Request parameters**
 
-.. csv-table::
-   :header: "Parameter", "Style", "Type", "Description"
-   :widths: 20, 20, 20, 60
+.. rest_parameters:: parameters.yaml
 
-   "subcloud", "URI", "xsd:string", "The subcloud reference, name or id."
-   "storage-apply-type (Optional)", "plain", "xsd:string", "Storage host apply type, ``parallel`` or ``serial``."
-   "compute-apply-type (Optional)", "plain", "xsd:string", "Compute host apply type, ``parallel`` or ``serial``."
-   "max-parallel-computes (Optional)", "plain", "xsd:string", "The number of compute hosts to patch in parallel."
-   "alarm-restriction-type (Optional)", "plain", "xsd:string", "Whether to allow patching if subcloud alarms are present or not, ``strict`` or ``relaxed``."
-   "default-instance-action (Optional)", "plain", "xsd:string", "How instances should be handled, ``stop-start`` or ``migrate``."
+  - subcloud: subcloud_options_uri
+  - alarm-restriction-type: alarm_restriction_type
+  - default-instance-action: default_instance_action
+  - max-parallel-workers: max_parallel_workers
+  - storage-apply-type: storage_apply_type
+  - worker-apply-type: worker_apply_type
+
+Request Example
+----------------
+
+.. literalinclude:: samples/sw-update-options/sw-update-options-post-request.json
+         :language: json
 
 **Response parameters**
 
-.. csv-table::
-   :header: "Parameter", "Style", "Type", "Description"
-   :widths: 20, 20, 20, 60
+.. rest_parameters:: parameters.yaml
 
-   "name (Optional)", "plain", "xsd:string", "The name of the cloud to which the patch options apply."
-   "compute-apply-type (Optional)", "plain", "xsd:string", "Compute host apply type, ``parallel`` or ``serial``"
-   "subcloud-id (Optional)", "plain", "xsd:int", "The id of the cloud (will be 0 for the all clouds default)."
-   "max-parallel-computes (Optional)", "plain", "xsd:int", "The number of compute hosts to patch in parallel."
-   "alarm-restriction-type (Optional)", "plain", "xsd:string", "Whether to allow patching if subcloud alarms are present or not, ``strict`` or ``relaxed``."
-   "storage-apply-type (Optional)", "plain", "xsd:string", "Storage host apply type, ``parallel`` or ``serial``."
-   "default-instance-action (Optional)", "plain", "xsd:string", "How instances should be handled, ``stop-start`` or ``migrate``."
-   "id (Optional)", "plain", "xsd:int", "The unique identifier for this object."
-   "created_at (Optional)", "plain", "xsd:dateTime", "The time when the object was created."
-   "updated_at (Optional)", "plain", "xsd:dateTime", "The time when the object was last updated."
+  - id: sw_update_options_id
+  - name: sw_update_options_name
+  - alarm-restriction-type: alarm_restriction_type
+  - default-instance-action: default_instance_action
+  - max-parallel-workers: max_parallel_workers
+  - storage-apply-type: storage_apply_type
+  - subcloud-id: sw_update_options_subcloud_id
+  - worker-apply-type: worker_apply_type
+  - created-at: created_at
+  - updated-at: updated_at
 
-::
+Response Example
+----------------
 
-   {
-     "max-parallel-computes": 3,
-     "default-instance-action": "migrate",
-     "alarm-restriction-type": "relaxed",
-     "storage-apply-type": "parallel",
-     "compute-apply-type": "parallel"
-   }
+.. literalinclude:: samples/sw-update-options/sw-update-options-post-response.json
+            :language: json
 
-::
 
-   {
-     "name": "all clouds default",
-     "compute-apply-type": "parallel",
-     "subcloud-id": None,
-     "updated-at": "2018-02-25 23:34:03.099691",
-     "created-at": None,
-     "alarm-restriction-type": "relaxed",
-     "storage-apply-type": "parallel",
-     "max-parallel-computes": 3,
-     "default-instance-action": "migrate",
-     "id": 1
-   }
-
-***********************************
-Delete per subcloud patch options
-***********************************
+*************************************
+Delete per subcloud sw-update options
+*************************************
 
 .. rest_method:: DELETE /v1.0/sw-update-options/​{subcloud}​
 
+This operation does not accept a request body.
+
 **Normal response codes**
 
-204
+200
 
 **Request parameters**
 
-.. csv-table::
-   :header: "Parameter", "Style", "Type", "Description"
-   :widths: 20, 20, 20, 60
+.. rest_parameters:: parameters.yaml
 
-   "subcloud", "URI", "xsd:string", "The subcloud reference, name or id."
+  - subcloud: subcloud_options_uri
 
-This operation does not accept a request body.
 
 ----------------
 Subcloud Deploy
@@ -1741,12 +1436,13 @@ These APIs allow for the display and upload of the deployment manager common
 files which include deploy playbook, deploy overrides, and deploy helm charts.
 
 
-****************************
+**************************
 Show Subcloud Deploy Files
-****************************
+**************************
 
 .. rest_method:: GET /v1.0/subcloud-deploy
 
+This operation does not accept a request body.
 
 **Normal response codes**
 
@@ -1758,33 +1454,26 @@ badRequest (400), unauthorized (401), forbidden
 (403), badMethod (405), HTTPUnprocessableEntity (422),
 internalServerError (500), serviceUnavailable (503)
 
+
 **Response parameters**
 
-.. csv-table::
-   :header: "Parameter", "Style", "Type", "Description"
-   :widths: 20, 20, 20, 60
+.. rest_parameters:: parameters.yaml
 
-   "subcloud_deploy", "plain", "xsd:dict", "The dictionary of subcloud deploy files."
-   "deploy_chart", "plain", "xsd:string", "The file name of the deployment manager helm charts."
-   "deploy_playbook", "plain", "xsd:string", "The file name of the deployment manager playbook."
-   "deploy_overrides", "plain", "xsd:string", "The file name of the deployment manager overrides."
+  - subcloud_deploy: subcloud_deploy
+  - deploy_chart: subcloud_deploy_chart
+  - deploy_playbook: subcloud_deploy_playbook
+  - deploy_overrides: subcloud_deploy_overrides
 
-::
+Response Example
+----------------
 
-   {
-     "subcloud_deploy":
-       {
-         "deploy_chart": "deployment-manager.tgz",
-         "deploy_playbook": "deployment-manager-playbook.yaml",
-         "deploy_overrides": "deployment-manager-overrides-subcloud.yaml"
-       }
-   }
+.. literalinclude:: samples/subcloud-deploy/subcloud-deploy-get-response.json
+         :language: json
 
-This operation does not accept a request body.
 
-******************************
+****************************
 Upload Subcloud Deploy Files
-******************************
+****************************
 
 .. rest_method:: POST /v1.0/subcloud-deploy
 
@@ -1802,28 +1491,28 @@ serviceUnavailable (503)
 
 **Request parameters**
 
-.. csv-table::
-   :header: "Parameter", "Style", "Type", "Description"
-   :widths: 20, 20, 20, 60
+.. rest_parameters:: parameters.yaml
 
-   "deploy_chart", "plain", "xsd:string", "The content of a file containing the deployment manager helm charts."
-   "deploy_playbook", "plain", "xsd:string", "The content of a file containing the deployment manager playbook."
-   "deploy_overrides", "plain", "xsd:string", "The content of a file containing the deployment manager overrides."
+  - deploy_chart: subcloud_deploy_chart_content
+  - deploy_playbook: subcloud_deploy_playbook_content
+  - deploy_overrides: subcloud_deploy_overrides_content
+
+Request Example
+----------------
+
+.. literalinclude:: samples/subcloud-deploy/subcloud-deploy-post-request.json
+         :language: json
 
 **Response parameters**
 
-.. csv-table::
-   :header: "Parameter", "Style", "Type", "Description"
-   :widths: 20, 20, 20, 60
+.. rest_parameters:: parameters.yaml
 
-   "deploy_chart", "plain", "xsd:string", "The file name of the deployment manager helm charts."
-   "deploy_playbook", "plain", "xsd:string", "The file name of the deployment manager playbook."
-   "deploy_overrides", "plain", "xsd:string", "The file name of the deployment manager overrides."
+  - deploy_chart: subcloud_deploy_chart
+  - deploy_playbook: subcloud_deploy_playbook
+  - deploy_overrides: subcloud_deploy_overrides
 
-::
+Response Example
+----------------
 
-   {
-     "deploy_chart": "deployment-manager.tgz",
-     "deploy_playbook": "deployment-manager-playbook.yaml",
-     "deploy_overrides": "deployment-manager-overrides-subcloud.yaml"
-   }
+.. literalinclude:: samples/subcloud-deploy/subcloud-deploy-post-response.json
+         :language: json

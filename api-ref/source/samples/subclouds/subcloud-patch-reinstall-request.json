@@ -1,0 +1,5 @@
+{
+    "sysadmin_password": "XXXXXXX",
+    "bootstrap_values": "path to boostrap file",
+    "deploy_config": "path to deploy file"
+}

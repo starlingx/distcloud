@@ -1,0 +1,6 @@
+{
+     "subcloud-apply-type": "serial",
+     "type": "patch",
+     "stop-on-failure": "true",
+     "max-parallel-subclouds": 2
+}
