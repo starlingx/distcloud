@@ -56,6 +56,56 @@ class RPCClient(object):
         return client.cast(ctxt, method, **kwargs)
 
 
+class SubcloudStateClient(RPCClient):
+    """Client to update subcloud availability."""
+
+    BASE_RPC_API_VERSION = '1.0'
+
+    def __init__(self):
+        super(SubcloudStateClient, self).__init__(
+            consts.TOPIC_DC_MANAGER_STATE,
+            self.BASE_RPC_API_VERSION)
+
+    def update_subcloud_availability(self, ctxt,
+                                     subcloud_name,
+                                     availability_status,
+                                     update_state_only=False,
+                                     audit_fail_count=None):
+        # Note: synchronous
+        return self.call(
+            ctxt,
+            self.make_msg('update_subcloud_availability',
+                          subcloud_name=subcloud_name,
+                          availability_status=availability_status,
+                          update_state_only=update_state_only,
+                          audit_fail_count=audit_fail_count))
+
+    def update_subcloud_endpoint_status(self, ctxt, subcloud_name=None,
+                                        endpoint_type=None,
+                                        sync_status=consts.
+                                        SYNC_STATUS_OUT_OF_SYNC,
+                                        ignore_endpoints=None):
+        # Note: This is an asynchronous operation.
+        # See below for synchronous method call
+        return self.cast(ctxt, self.make_msg('update_subcloud_endpoint_status',
+                                             subcloud_name=subcloud_name,
+                                             endpoint_type=endpoint_type,
+                                             sync_status=sync_status,
+                                             ignore_endpoints=ignore_endpoints))
+
+    def update_subcloud_endpoint_status_sync(self, ctxt, subcloud_name=None,
+                                             endpoint_type=None,
+                                             sync_status=consts.
+                                             SYNC_STATUS_OUT_OF_SYNC,
+                                             ignore_endpoints=None):
+        # Note: synchronous
+        return self.call(ctxt, self.make_msg('update_subcloud_endpoint_status',
+                                             subcloud_name=subcloud_name,
+                                             endpoint_type=endpoint_type,
+                                             sync_status=sync_status,
+                                             ignore_endpoints=ignore_endpoints))
+
+
 class ManagerClient(RPCClient):
     """Client side of the DC Manager rpc API.
 
@@ -104,28 +154,6 @@ class ManagerClient(RPCClient):
         return self.cast(ctxt, self.make_msg('restore_subcloud',
                                              subcloud_id=subcloud_id,
                                              payload=payload))
-
-    def update_subcloud_endpoint_status(self, ctxt, subcloud_name=None,
-                                        endpoint_type=None,
-                                        sync_status=consts.
-                                        SYNC_STATUS_OUT_OF_SYNC):
-        return self.cast(ctxt, self.make_msg('update_subcloud_endpoint_status',
-                                             subcloud_name=subcloud_name,
-                                             endpoint_type=endpoint_type,
-                                             sync_status=sync_status))
-
-    def update_subcloud_availability(self, ctxt,
-                                     subcloud_name,
-                                     availability_status,
-                                     update_state_only=False,
-                                     audit_fail_count=None):
-        return self.call(
-            ctxt,
-            self.make_msg('update_subcloud_availability',
-                          subcloud_name=subcloud_name,
-                          availability_status=availability_status,
-                          update_state_only=update_state_only,
-                          audit_fail_count=audit_fail_count))
 
     def update_subcloud_sync_endpoint_type(self, ctxt,
                                            subcloud_name,

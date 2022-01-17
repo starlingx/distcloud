@@ -27,10 +27,10 @@ MONITORED_ALARM_ENTITIES = ['system.certificate.kubernetes-root-ca', ]
 class KubeRootcaUpdateAudit(Auditor):
     """Manages tasks related to kube rootca update audits."""
 
-    def __init__(self, context, dcmanager_rpc_client):
+    def __init__(self, context, dcmanager_state_rpc_client):
         super(KubeRootcaUpdateAudit, self).__init__(
             context,
-            dcmanager_rpc_client,
+            dcmanager_state_rpc_client,
             dcorch_consts.ENDPOINT_TYPE_KUBE_ROOTCA
         )
         self.audit_type = "kube rootca update"

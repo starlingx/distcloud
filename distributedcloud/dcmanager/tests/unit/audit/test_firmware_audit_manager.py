@@ -32,15 +32,13 @@ from dcorch.common import consts as dcorch_consts
 CONF = cfg.CONF
 
 
-class FakeDCManagerAPI(object):
-
+class FakeDCManagerStateAPI(object):
     def __init__(self):
         self.update_subcloud_availability = mock.MagicMock()
         self.update_subcloud_endpoint_status = mock.MagicMock()
 
 
 class FakeAuditWorkerAPI(object):
-
     def __init__(self):
         self.audit_subclouds = mock.MagicMock()
 
@@ -405,11 +403,12 @@ class TestFirmwareAudit(base.DCManagerTestCase):
         super(TestFirmwareAudit, self).setUp()
         self.ctxt = utils.dummy_context()
 
-        # Mock the DCManager API
-        self.fake_dcmanager_api = FakeDCManagerAPI()
-        p = mock.patch('dcmanager.rpc.client.ManagerClient')
-        self.mock_dcmanager_api = p.start()
-        self.mock_dcmanager_api.return_value = self.fake_dcmanager_api
+        # Mock the DCManager subcloud state API
+        self.fake_dcmanager_state_api = FakeDCManagerStateAPI()
+        p = mock.patch('dcmanager.rpc.client.SubcloudStateClient')
+        self.mock_dcmanager_state_api = p.start()
+        self.mock_dcmanager_state_api.return_value = \
+            self.fake_dcmanager_state_api
         self.addCleanup(p.stop)
 
         # Mock the Audit Worker API
@@ -436,10 +435,10 @@ class TestFirmwareAudit(base.DCManagerTestCase):
 
     def test_init(self):
         fm = firmware_audit.FirmwareAudit(self.ctxt,
-                                          self.fake_dcmanager_api)
+                                          self.fake_dcmanager_state_api)
         self.assertIsNotNone(fm)
         self.assertEqual(self.ctxt, fm.context)
-        self.assertEqual(self.fake_dcmanager_api, fm.dcmanager_rpc_client)
+        self.assertEqual(self.fake_dcmanager_state_api, fm.state_rpc_client)
 
     @mock.patch.object(patch_audit, 'SysinvClient')
     @mock.patch.object(patch_audit, 'PatchingClient')
@@ -458,7 +457,7 @@ class TestFirmwareAudit(base.DCManagerTestCase):
         mock_fw_sysinv_client.side_effect = FakeSysinvClientNoAuditData
 
         fm = firmware_audit.FirmwareAudit(self.ctxt,
-                                          self.fake_dcmanager_api)
+                                          self.fake_dcmanager_state_api)
         am = subcloud_audit_manager.SubcloudAuditManager()
         am.firmware_audit = fm
         firmware_audit_data = self.get_fw_audit_data(am)
@@ -470,7 +469,7 @@ class TestFirmwareAudit(base.DCManagerTestCase):
                           subcloud_name=name,
                           endpoint_type=dcorch_consts.ENDPOINT_TYPE_FIRMWARE,
                           sync_status=consts.SYNC_STATUS_IN_SYNC)]
-            self.fake_dcmanager_api.update_subcloud_endpoint_status. \
+            self.fake_dcmanager_state_api.update_subcloud_endpoint_status. \
                 assert_has_calls(expected_calls)
 
     @mock.patch.object(patch_audit, 'SysinvClient')
@@ -490,7 +489,7 @@ class TestFirmwareAudit(base.DCManagerTestCase):
         mock_fw_sysinv_client.side_effect = FakeSysinvClientNoEnabledDevices
 
         fm = firmware_audit.FirmwareAudit(self.ctxt,
-                                          self.fake_dcmanager_api)
+                                          self.fake_dcmanager_state_api)
         am = subcloud_audit_manager.SubcloudAuditManager()
         am.firmware_audit = fm
         firmware_audit_data = self.get_fw_audit_data(am)
@@ -502,7 +501,7 @@ class TestFirmwareAudit(base.DCManagerTestCase):
                           subcloud_name=name,
                           endpoint_type=dcorch_consts.ENDPOINT_TYPE_FIRMWARE,
                           sync_status=consts.SYNC_STATUS_IN_SYNC)]
-            self.fake_dcmanager_api.update_subcloud_endpoint_status. \
+            self.fake_dcmanager_state_api.update_subcloud_endpoint_status. \
                 assert_has_calls(expected_calls)
 
     @mock.patch.object(patch_audit, 'SysinvClient')
@@ -521,7 +520,7 @@ class TestFirmwareAudit(base.DCManagerTestCase):
         mock_fw_sysinv_client.side_effect = FakeSysinvClientImageWithoutLabels
 
         fm = firmware_audit.FirmwareAudit(self.ctxt,
-                                          self.fake_dcmanager_api)
+                                          self.fake_dcmanager_state_api)
         am = subcloud_audit_manager.SubcloudAuditManager()
         am.firmware_audit = fm
         firmware_audit_data = self.get_fw_audit_data(am)
@@ -533,7 +532,7 @@ class TestFirmwareAudit(base.DCManagerTestCase):
                           subcloud_name=name,
                           endpoint_type=dcorch_consts.ENDPOINT_TYPE_FIRMWARE,
                           sync_status=consts.SYNC_STATUS_IN_SYNC)]
-            self.fake_dcmanager_api.update_subcloud_endpoint_status. \
+            self.fake_dcmanager_state_api.update_subcloud_endpoint_status. \
                 assert_has_calls(expected_calls)
 
     @mock.patch.object(patch_audit, 'SysinvClient')
@@ -552,7 +551,7 @@ class TestFirmwareAudit(base.DCManagerTestCase):
         mock_fw_sysinv_client.side_effect = FakeSysinvClientImageNotApplied
 
         fm = firmware_audit.FirmwareAudit(self.ctxt,
-                                          self.fake_dcmanager_api)
+                                          self.fake_dcmanager_state_api)
         am = subcloud_audit_manager.SubcloudAuditManager()
         am.firmware_audit = fm
         firmware_audit_data = self.get_fw_audit_data(am)
@@ -564,7 +563,7 @@ class TestFirmwareAudit(base.DCManagerTestCase):
                           subcloud_name=name,
                           endpoint_type=dcorch_consts.ENDPOINT_TYPE_FIRMWARE,
                           sync_status=consts.SYNC_STATUS_OUT_OF_SYNC)]
-            self.fake_dcmanager_api.update_subcloud_endpoint_status. \
+            self.fake_dcmanager_state_api.update_subcloud_endpoint_status. \
                 assert_has_calls(expected_calls)
 
     @mock.patch.object(patch_audit, 'SysinvClient')
@@ -583,7 +582,7 @@ class TestFirmwareAudit(base.DCManagerTestCase):
         mock_fw_sysinv_client.side_effect = FakeSysinvClientImageNotWritten
 
         fm = firmware_audit.FirmwareAudit(self.ctxt,
-                                          self.fake_dcmanager_api)
+                                          self.fake_dcmanager_state_api)
         am = subcloud_audit_manager.SubcloudAuditManager()
         am.firmware_audit = fm
         firmware_audit_data = self.get_fw_audit_data(am)
@@ -595,7 +594,7 @@ class TestFirmwareAudit(base.DCManagerTestCase):
                           subcloud_name=name,
                           endpoint_type=dcorch_consts.ENDPOINT_TYPE_FIRMWARE,
                           sync_status=consts.SYNC_STATUS_OUT_OF_SYNC)]
-            self.fake_dcmanager_api.update_subcloud_endpoint_status. \
+            self.fake_dcmanager_state_api.update_subcloud_endpoint_status. \
                 assert_has_calls(expected_calls)
 
     @mock.patch.object(patch_audit, 'SysinvClient')
@@ -614,7 +613,7 @@ class TestFirmwareAudit(base.DCManagerTestCase):
         mock_fw_sysinv_client.side_effect = FakeSysinvClientImageWithLabels
 
         fm = firmware_audit.FirmwareAudit(self.ctxt,
-                                          self.fake_dcmanager_api)
+                                          self.fake_dcmanager_state_api)
         am = subcloud_audit_manager.SubcloudAuditManager()
         am.firmware_audit = fm
         firmware_audit_data = self.get_fw_audit_data(am)
@@ -626,7 +625,7 @@ class TestFirmwareAudit(base.DCManagerTestCase):
                           subcloud_name=name,
                           endpoint_type=dcorch_consts.ENDPOINT_TYPE_FIRMWARE,
                           sync_status=consts.SYNC_STATUS_IN_SYNC)]
-            self.fake_dcmanager_api.update_subcloud_endpoint_status. \
+            self.fake_dcmanager_state_api.update_subcloud_endpoint_status. \
                 assert_has_calls(expected_calls)
 
     @mock.patch.object(patch_audit, 'SysinvClient')
@@ -645,7 +644,7 @@ class TestFirmwareAudit(base.DCManagerTestCase):
         mock_fw_sysinv_client.side_effect = FakeSysinvClientNoMatchingDeviceLabel
 
         fm = firmware_audit.FirmwareAudit(self.ctxt,
-                                          self.fake_dcmanager_api)
+                                          self.fake_dcmanager_state_api)
         am = subcloud_audit_manager.SubcloudAuditManager()
         am.firmware_audit = fm
         firmware_audit_data = self.get_fw_audit_data(am)
@@ -657,7 +656,7 @@ class TestFirmwareAudit(base.DCManagerTestCase):
                           subcloud_name=name,
                           endpoint_type=dcorch_consts.ENDPOINT_TYPE_FIRMWARE,
                           sync_status=consts.SYNC_STATUS_IN_SYNC)]
-            self.fake_dcmanager_api.update_subcloud_endpoint_status. \
+            self.fake_dcmanager_state_api.update_subcloud_endpoint_status. \
                 assert_has_calls(expected_calls)
 
     @mock.patch.object(patch_audit, 'SysinvClient')
@@ -676,7 +675,7 @@ class TestFirmwareAudit(base.DCManagerTestCase):
         mock_fw_sysinv_client.side_effect = FakeSysinvClientNoMatchingDeviceId
 
         fm = firmware_audit.FirmwareAudit(self.ctxt,
-                                          self.fake_dcmanager_api)
+                                          self.fake_dcmanager_state_api)
         am = subcloud_audit_manager.SubcloudAuditManager()
         am.firmware_audit = fm
         firmware_audit_data = self.get_fw_audit_data(am)
@@ -688,5 +687,5 @@ class TestFirmwareAudit(base.DCManagerTestCase):
                           subcloud_name=name,
                           endpoint_type=dcorch_consts.ENDPOINT_TYPE_FIRMWARE,
                           sync_status=consts.SYNC_STATUS_IN_SYNC)]
-            self.fake_dcmanager_api.update_subcloud_endpoint_status. \
+            self.fake_dcmanager_state_api.update_subcloud_endpoint_status. \
                 assert_has_calls(expected_calls)

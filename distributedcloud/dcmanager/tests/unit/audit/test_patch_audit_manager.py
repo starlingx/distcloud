@@ -31,8 +31,7 @@ from dcorch.common import consts as dcorch_consts
 CONF = cfg.CONF
 
 
-class FakeDCManagerAPI(object):
-
+class FakeDCManagerStateAPI(object):
     def __init__(self):
         self.update_subcloud_availability = mock.MagicMock()
         self.update_subcloud_endpoint_status = mock.MagicMock()
@@ -253,11 +252,12 @@ class TestPatchAudit(base.DCManagerTestCase):
         super(TestPatchAudit, self).setUp()
         self.ctxt = utils.dummy_context()
 
-        # Mock the DCManager API
-        self.fake_dcmanager_api = FakeDCManagerAPI()
-        p = mock.patch('dcmanager.rpc.client.ManagerClient')
-        self.mock_dcmanager_api = p.start()
-        self.mock_dcmanager_api.return_value = self.fake_dcmanager_api
+        # Mock the DCManager subcloud state API
+        self.fake_dcmanager_state_api = FakeDCManagerStateAPI()
+        p = mock.patch('dcmanager.rpc.client.SubcloudStateClient')
+        self.mock_dcmanager_state_api = p.start()
+        self.mock_dcmanager_state_api.return_value = \
+            self.fake_dcmanager_state_api
         self.addCleanup(p.stop)
 
         # Mock the Audit Worker API
@@ -277,10 +277,10 @@ class TestPatchAudit(base.DCManagerTestCase):
 
     def test_init(self):
         pm = patch_audit.PatchAudit(self.ctxt,
-                                    self.fake_dcmanager_api)
+                                    self.fake_dcmanager_state_api)
         self.assertIsNotNone(pm)
         self.assertEqual(self.ctxt, pm.context)
-        self.assertEqual(self.fake_dcmanager_api, pm.dcmanager_rpc_client)
+        self.assertEqual(self.fake_dcmanager_state_api, pm.state_rpc_client)
 
     @mock.patch.object(patch_audit, 'SysinvClient')
     @mock.patch.object(patch_audit, 'PatchingClient')
@@ -295,7 +295,7 @@ class TestPatchAudit(base.DCManagerTestCase):
         mock_sysinv_client.side_effect = FakeSysinvClientOneLoad
 
         pm = patch_audit.PatchAudit(self.ctxt,
-                                    self.fake_dcmanager_api)
+                                    self.fake_dcmanager_state_api)
         am = subcloud_audit_manager.SubcloudAuditManager()
         am.patch_audit = pm
 
@@ -313,7 +313,7 @@ class TestPatchAudit(base.DCManagerTestCase):
                           subcloud_name=name,
                           endpoint_type=dcorch_consts.ENDPOINT_TYPE_LOAD,
                           sync_status=consts.SYNC_STATUS_IN_SYNC)]
-            self.fake_dcmanager_api.update_subcloud_endpoint_status. \
+            self.fake_dcmanager_state_api.update_subcloud_endpoint_status. \
                 assert_has_calls(expected_calls)
 
     @mock.patch.object(patch_audit, 'SysinvClient')
@@ -326,7 +326,7 @@ class TestPatchAudit(base.DCManagerTestCase):
                                               mock_sysinv_client):
         mock_context.get_admin_context.return_value = self.ctxt
         pm = patch_audit.PatchAudit(self.ctxt,
-                                    self.fake_dcmanager_api)
+                                    self.fake_dcmanager_state_api)
         am = subcloud_audit_manager.SubcloudAuditManager()
         am.patch_audit = pm
 
@@ -374,7 +374,7 @@ class TestPatchAudit(base.DCManagerTestCase):
                       sync_status=consts.SYNC_STATUS_IN_SYNC),
             ]
 
-        self.fake_dcmanager_api.update_subcloud_endpoint_status.\
+        self.fake_dcmanager_state_api.update_subcloud_endpoint_status.\
             assert_has_calls(expected_calls)
 
     @mock.patch.object(patch_audit, 'SysinvClient')
@@ -387,7 +387,7 @@ class TestPatchAudit(base.DCManagerTestCase):
                                                 mock_sysinv_client):
         mock_context.get_admin_context.return_value = self.ctxt
         pm = patch_audit.PatchAudit(self.ctxt,
-                                    self.fake_dcmanager_api)
+                                    self.fake_dcmanager_state_api)
         am = subcloud_audit_manager.SubcloudAuditManager()
         am.patch_audit = pm
 
@@ -408,7 +408,7 @@ class TestPatchAudit(base.DCManagerTestCase):
                           subcloud_name=name,
                           endpoint_type=dcorch_consts.ENDPOINT_TYPE_LOAD,
                           sync_status=consts.SYNC_STATUS_IN_SYNC)]
-            self.fake_dcmanager_api.update_subcloud_endpoint_status.\
+            self.fake_dcmanager_state_api.update_subcloud_endpoint_status.\
                 assert_has_calls(expected_calls)
 
     @mock.patch.object(patch_audit, 'SysinvClient')
@@ -422,7 +422,7 @@ class TestPatchAudit(base.DCManagerTestCase):
             mock_sysinv_client):
         mock_context.get_admin_context.return_value = self.ctxt
         pm = patch_audit.PatchAudit(self.ctxt,
-                                    self.fake_dcmanager_api)
+                                    self.fake_dcmanager_state_api)
         am = subcloud_audit_manager.SubcloudAuditManager()
         am.patch_audit = pm
         mock_patching_client.side_effect = FakePatchingClientInSync
@@ -452,7 +452,7 @@ class TestPatchAudit(base.DCManagerTestCase):
                       endpoint_type=dcorch_consts.ENDPOINT_TYPE_LOAD,
                       sync_status=consts.SYNC_STATUS_OUT_OF_SYNC),
         ]
-        self.fake_dcmanager_api.update_subcloud_endpoint_status.\
+        self.fake_dcmanager_state_api.update_subcloud_endpoint_status.\
             assert_has_calls(expected_calls)
 
     @mock.patch.object(patch_audit, 'SysinvClient')
@@ -466,7 +466,7 @@ class TestPatchAudit(base.DCManagerTestCase):
             mock_sysinv_client):
         mock_context.get_admin_context.return_value = self.ctxt
         pm = patch_audit.PatchAudit(self.ctxt,
-                                    self.fake_dcmanager_api)
+                                    self.fake_dcmanager_state_api)
         am = subcloud_audit_manager.SubcloudAuditManager()
         am.patch_audit = pm
         mock_patching_client.side_effect = FakePatchingClientInSync
@@ -496,5 +496,5 @@ class TestPatchAudit(base.DCManagerTestCase):
                       endpoint_type=dcorch_consts.ENDPOINT_TYPE_LOAD,
                       sync_status=consts.SYNC_STATUS_OUT_OF_SYNC),
         ]
-        self.fake_dcmanager_api.update_subcloud_endpoint_status.\
+        self.fake_dcmanager_state_api.update_subcloud_endpoint_status.\
             assert_has_calls(expected_calls)

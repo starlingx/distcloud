@@ -58,15 +58,15 @@ class PatchAuditData(object):
 class PatchAudit(object):
     """Manages tasks related to patch audits."""
 
-    def __init__(self, context, dcmanager_rpc_client):
+    def __init__(self, context, dcmanager_state_rpc_client):
         LOG.debug('PatchAudit initialization...')
         self.context = context
-        self.dcmanager_rpc_client = dcmanager_rpc_client
+        self.state_rpc_client = dcmanager_state_rpc_client
         self.audit_count = 0
 
     def _update_subcloud_sync_status(self, sc_name, sc_endpoint_type,
                                      sc_status):
-        self.dcmanager_rpc_client.update_subcloud_endpoint_status(
+        self.state_rpc_client.update_subcloud_endpoint_status(
             self.context,
             subcloud_name=sc_name,
             endpoint_type=sc_endpoint_type,

@@ -43,6 +43,9 @@ def main():
     messaging.setup()
     dmanager_messaging.setup()
 
+    LOG.info("Launching dcorch-engine, host=%s, workers=%s ...",
+             cfg.CONF.host, cfg.CONF.workers)
+
     srv = engine.EngineService(cfg.CONF.host,
                                consts.TOPIC_ORCH_ENGINE)
     launcher = service.launch(cfg.CONF,

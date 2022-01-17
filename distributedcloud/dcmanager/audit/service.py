@@ -66,14 +66,15 @@ class DCManagerAuditService(service.Service):
         self.subcloud_audit_manager = None
 
     def start(self):
-        self.init_tgm()
-        self.init_audit_managers()
         target = oslo_messaging.Target(version=self.rpc_api_version,
                                        server=self.host,
                                        topic=self.topic)
         self.target = target
         self._rpc_server = rpc_messaging.get_rpc_server(self.target, self)
         self._rpc_server.start()
+
+        self.init_tgm()
+        self.init_audit_managers()
         super(DCManagerAuditService, self).start()
 
     def init_tgm(self):
@@ -99,7 +100,8 @@ class DCManagerAuditService(service.Service):
     def stop(self):
         self._stop_rpc_server()
 
-        self.TG.stop()
+        if self.TG:
+            self.TG.stop()
 
         # Terminate the engine process
         LOG.info("All threads were gone, terminating engine")
@@ -228,7 +230,8 @@ class DCManagerAuditWorkerService(service.Service):
     def stop(self):
         self._stop_rpc_server()
 
-        self.TG.stop()
+        if self.TG:
+            self.TG.stop()
 
         # Terminate the engine process
         LOG.info("All threads were gone, terminating audit-worker engine")

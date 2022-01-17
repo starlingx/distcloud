@@ -30,8 +30,7 @@ PREVIOUS_KUBE_VERSION = 'v1.2.3'
 UPGRADED_KUBE_VERSION = 'v1.2.3-a'
 
 
-class FakeDCManagerAPI(object):
-
+class FakeDCManagerStateAPI(object):
     def __init__(self):
         self.update_subcloud_availability = mock.MagicMock()
         self.update_subcloud_endpoint_status = mock.MagicMock()
@@ -80,11 +79,12 @@ class TestKubernetesAudit(base.DCManagerTestCase):
         super(TestKubernetesAudit, self).setUp()
         self.ctxt = utils.dummy_context()
 
-        # Mock the DCManager API
-        self.fake_dcmanager_api = FakeDCManagerAPI()
-        p = mock.patch('dcmanager.rpc.client.ManagerClient')
-        self.mock_dcmanager_api = p.start()
-        self.mock_dcmanager_api.return_value = self.fake_dcmanager_api
+        # Mock the DCManager subcloud state API
+        self.fake_dcmanager_state_api = FakeDCManagerStateAPI()
+        p = mock.patch('dcmanager.rpc.client.SubcloudStateClient')
+        self.mock_dcmanager_state_api = p.start()
+        self.mock_dcmanager_state_api.return_value = \
+            self.fake_dcmanager_state_api
         self.addCleanup(p.stop)
 
         # Mock the Audit Worker API
@@ -151,17 +151,18 @@ class TestKubernetesAudit(base.DCManagerTestCase):
 
     def test_init(self):
         audit = kubernetes_audit.KubernetesAudit(self.ctxt,
-                                                 self.fake_dcmanager_api)
+                                                 self.fake_dcmanager_state_api)
         self.assertIsNotNone(audit)
         self.assertEqual(self.ctxt, audit.context)
-        self.assertEqual(self.fake_dcmanager_api, audit.dcmanager_rpc_client)
+        self.assertEqual(self.fake_dcmanager_state_api,
+                         audit.state_rpc_client)
 
     @mock.patch.object(subcloud_audit_manager, 'context')
     def test_no_kubernetes_audit_data_to_sync(self, mock_context):
         mock_context.get_admin_context.return_value = self.ctxt
 
         audit = kubernetes_audit.KubernetesAudit(self.ctxt,
-                                                 self.fake_dcmanager_api)
+                                                 self.fake_dcmanager_state_api)
         am = subcloud_audit_manager.SubcloudAuditManager()
         am.kubernetes_audit = audit
         kubernetes_audit_data = self.get_kube_audit_data(am)
@@ -173,14 +174,14 @@ class TestKubernetesAudit(base.DCManagerTestCase):
                           subcloud_name=name,
                           endpoint_type=dcorch_consts.ENDPOINT_TYPE_KUBERNETES,
                           sync_status=consts.SYNC_STATUS_IN_SYNC)]
-            self.fake_dcmanager_api.update_subcloud_endpoint_status. \
+            self.fake_dcmanager_state_api.update_subcloud_endpoint_status. \
                 assert_has_calls(expected_calls)
 
     @mock.patch.object(subcloud_audit_manager, 'context')
     def test_kubernetes_audit_data_out_of_sync_older(self, mock_context):
         mock_context.get_admin_context.return_value = self.ctxt
         audit = kubernetes_audit.KubernetesAudit(self.ctxt,
-                                                 self.fake_dcmanager_api)
+                                                 self.fake_dcmanager_state_api)
         am = subcloud_audit_manager.SubcloudAuditManager()
         am.kubernetes_audit = audit
 
@@ -201,14 +202,14 @@ class TestKubernetesAudit(base.DCManagerTestCase):
                           subcloud_name=name,
                           endpoint_type=dcorch_consts.ENDPOINT_TYPE_KUBERNETES,
                           sync_status=consts.SYNC_STATUS_OUT_OF_SYNC)]
-            self.fake_dcmanager_api.update_subcloud_endpoint_status. \
+            self.fake_dcmanager_state_api.update_subcloud_endpoint_status. \
                 assert_has_calls(expected_calls)
 
     @mock.patch.object(subcloud_audit_manager, 'context')
     def test_kubernetes_audit_data_out_of_sync_newer(self, mock_context):
         mock_context.get_admin_context.return_value = self.ctxt
         audit = kubernetes_audit.KubernetesAudit(self.ctxt,
-                                                 self.fake_dcmanager_api)
+                                                 self.fake_dcmanager_state_api)
         am = subcloud_audit_manager.SubcloudAuditManager()
         am.kubernetes_audit = audit
 
@@ -229,7 +230,7 @@ class TestKubernetesAudit(base.DCManagerTestCase):
                           subcloud_name=name,
                           endpoint_type=dcorch_consts.ENDPOINT_TYPE_KUBERNETES,
                           sync_status=consts.SYNC_STATUS_OUT_OF_SYNC)]
-            self.fake_dcmanager_api.update_subcloud_endpoint_status. \
+            self.fake_dcmanager_state_api.update_subcloud_endpoint_status. \
                 assert_has_calls(expected_calls)
 
     @mock.patch.object(subcloud_audit_manager, 'context')
@@ -237,7 +238,7 @@ class TestKubernetesAudit(base.DCManagerTestCase):
                                            mock_context):
         mock_context.get_admin_context.return_value = self.ctxt
         audit = kubernetes_audit.KubernetesAudit(self.ctxt,
-                                                 self.fake_dcmanager_api)
+                                                 self.fake_dcmanager_state_api)
         am = subcloud_audit_manager.SubcloudAuditManager()
         am.kubernetes_audit = audit
 
@@ -258,7 +259,7 @@ class TestKubernetesAudit(base.DCManagerTestCase):
                           subcloud_name=name,
                           endpoint_type=dcorch_consts.ENDPOINT_TYPE_KUBERNETES,
                           sync_status=consts.SYNC_STATUS_IN_SYNC)]
-            self.fake_dcmanager_api.update_subcloud_endpoint_status. \
+            self.fake_dcmanager_state_api.update_subcloud_endpoint_status. \
                 assert_has_calls(expected_calls)
 
     @mock.patch.object(subcloud_audit_manager, 'context')
@@ -268,7 +269,7 @@ class TestKubernetesAudit(base.DCManagerTestCase):
         # even if the kube versions match
         mock_context.get_admin_context.return_value = self.ctxt
         audit = kubernetes_audit.KubernetesAudit(self.ctxt,
-                                                 self.fake_dcmanager_api)
+                                                 self.fake_dcmanager_state_api)
         am = subcloud_audit_manager.SubcloudAuditManager()
         am.kubernetes_audit = audit
 
@@ -293,5 +294,5 @@ class TestKubernetesAudit(base.DCManagerTestCase):
                           subcloud_name=name,
                           endpoint_type=dcorch_consts.ENDPOINT_TYPE_KUBERNETES,
                           sync_status=consts.SYNC_STATUS_OUT_OF_SYNC)]
-            self.fake_dcmanager_api.update_subcloud_endpoint_status. \
+            self.fake_dcmanager_state_api.update_subcloud_endpoint_status. \
                 assert_has_calls(expected_calls)
