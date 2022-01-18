@@ -254,3 +254,8 @@ EXTRA_ARGS_TO_VERSION = 'to-version'
 EXTRA_ARGS_CERT_FILE = 'cert-file'
 EXTRA_ARGS_EXPIRY_DATE = 'expiry-date'
 EXTRA_ARGS_SUBJECT = 'subject'
+
+# Device Image Bitstream Types
+BITSTREAM_TYPE_ROOT_KEY = 'root-key'
+BITSTREAM_TYPE_FUNCTIONAL = 'functional'
+BITSTREAM_TYPE_KEY_REVOCATION = 'key-revocation'

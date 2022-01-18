@@ -699,6 +699,10 @@ class SysinvClient(base.DriverBase):
         """Get a list of device images."""
         return self.sysinv_client.device_image.list()
 
+    def get_device_image(self, image_uuid):
+        """Get device image from uuid."""
+        return self.sysinv_client.device_image.get(image_uuid)
+
     def get_device_image_states(self):
         """Get a list of device image states."""
         return self.sysinv_client.device_image_state.list()
