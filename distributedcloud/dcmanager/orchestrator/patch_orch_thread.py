@@ -16,6 +16,7 @@
 #
 import datetime
 import os
+import re
 import threading
 import time
 
@@ -209,6 +210,22 @@ class PatchOrchThread(threading.Thread):
             time.sleep(10)
 
         LOG.info("PatchOrchThread ended main loop")
+
+    def pre_check_management_affected_alarm(self, strategy_step):
+        # The health conditions acceptable for subcloud patching are:
+        # a) subcloud is completely healthy (i.e. no failed checks)
+        # b) there is alarm but no management affected alarm
+        # c) subcloud fails alarm check and it only has non-management
+        #    affecting alarm(s)
+
+        system_health = self.get_sysinv_client(strategy_step.subcloud.name).get_system_health()
+        failed_alarm_check = re.findall("No alarms: \[Fail\]", system_health)
+        no_mgmt_alarms = re.findall("\[0\] of which are management affecting",
+                                    system_health)
+        if not failed_alarm_check or no_mgmt_alarms:
+            return True
+        else:
+            return False
 
     def apply(self, sw_update_strategy):
         """Apply a patch strategy"""
@@ -417,6 +434,19 @@ class PatchOrchThread(threading.Thread):
             self.strategy_step_update(
                 strategy_step.subcloud_id,
                 state=consts.STRATEGY_STATE_CREATING_STRATEGY)
+            return
+
+        # Don't start patching if the subcloud contains management
+        # affected alarm. Continue patching on the next subcloud
+        if not self.pre_check_management_affected_alarm(strategy_step):
+            message = ("Subcloud %s contains one or multiple management \
+                       affected alarm. Will not be patched." %
+                       strategy_step.subcloud.name)
+            LOG.warn(message)
+            self.strategy_step_update(
+                strategy_step.subcloud_id,
+                state=consts.STRATEGY_STATE_FAILED,
+                details=message)
             return
 
         LOG.info("Updating patches for subcloud %s" %
