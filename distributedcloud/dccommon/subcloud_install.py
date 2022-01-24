@@ -57,7 +57,8 @@ OPTIONAL_INSTALL_VALUES = [
     'rootfs_device',
     'boot_device',
     'rd.net.timeout.ipv6dad',
-    'no_check_certificate'
+    'no_check_certificate',
+    'persistent_size'
 ]
 
 GEN_ISO_OPTIONS = {
@@ -70,7 +71,8 @@ GEN_ISO_OPTIONS = {
     'boot_device': '--param',
     'rd.net.timeout.ipv6dad': '--param',
     'bootstrap_vlan': '--param',
-    'no_check_certificate': '--param'
+    'no_check_certificate': '--param',
+    'persistent_size': '--param'
 }
 
 BMC_OPTIONS = {
@@ -344,6 +346,9 @@ class SubcloudInstall(object):
                     boot_interface = "%s.%s" % (values['bootstrap_interface'],
                                                 values['bootstrap_vlan'])
                     update_iso_cmd += [GEN_ISO_OPTIONS[k], boot_interface]
+                elif k == 'persistent_size':
+                    update_iso_cmd += [GEN_ISO_OPTIONS[k],
+                                       ('persistent_size' + '=' + str(values[k]))]
                 else:
                     update_iso_cmd += [GEN_ISO_OPTIONS[k],
                                        str(values[k])]
