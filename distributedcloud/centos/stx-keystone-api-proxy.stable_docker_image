@@ -24,3 +24,4 @@ PIP_PACKAGES="
         oslo.versionedobjects \
         keystonemiddleware \
         "
+PYTHON3=no
