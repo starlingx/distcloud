@@ -359,6 +359,18 @@ subcloud_deploy_playbook_content:
   in: body
   required: false
   type: string
+subcloud_deploy_prestage_images:
+  description: |
+    The file name of the deployment manager prestage images.
+  in: body
+  required: false
+  type: string
+subcloud_deploy_prestage_images_content:
+  description: |
+    The content of the deployment manager prestage images.
+  in: body
+  required: false
+  type: string
 subcloud_description:
   description: |
     The description of a subcloud.

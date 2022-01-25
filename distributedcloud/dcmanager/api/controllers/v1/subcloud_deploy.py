@@ -12,7 +12,7 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 #
-# Copyright (c) 2020 Wind River Systems, Inc.
+# Copyright (c) 2020, 2022 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -47,6 +47,7 @@ class SubcloudDeployController(object):
 
     @staticmethod
     def _upload_files(dir_path, file_option, file_item, binary):
+
         prefix = file_option + '_'
         # create the version directory if it does not exist
         if not os.path.isdir(dir_path):
@@ -78,18 +79,37 @@ class SubcloudDeployController(object):
     @index.when(method='POST', template='json')
     def post(self):
         deploy_dicts = dict()
+        missing_options = set()
         for f in consts.DEPLOY_COMMON_FILE_OPTIONS:
             if f not in request.POST:
-                pecan.abort(httpclient.BAD_REQUEST,
-                            _("Missing required file for %s") % f)
+                missing_options.add(f)
+
+        # The API will only accept three types of input scenarios:
+        # 1. DEPLOY_PLAYBOOK, DEPLOY_OVERRIDES, and DEPLOY_CHART
+        # 2. DEPLOY_PLAYBOOK, DEPLOY_OVERRIDES, DEPLOY_CHART, and DEPLOY_PRESTAGE
+        # 3. DEPLOY_PRESTAGE
+        size = len(missing_options)
+        if len(missing_options) > 0:
+            if ((consts.DEPLOY_PRESTAGE in missing_options and size != 1) or
+                    (consts.DEPLOY_PRESTAGE not in missing_options and size != 3)):
+                        missing_str = str()
+                        for missing in missing_options:
+                            if missing is not consts.DEPLOY_PRESTAGE:
+                                missing_str += '--%s ' % missing
+                        error_msg = "error: argument %s is required" % missing_str.rstrip()
+                        pecan.abort(httpclient.BAD_REQUEST, error_msg)
+
+        for f in consts.DEPLOY_COMMON_FILE_OPTIONS:
+            if f not in request.POST:
+                continue
 
             file_item = request.POST[f]
             filename = getattr(file_item, 'filename', '')
             if not filename:
                 pecan.abort(httpclient.BAD_REQUEST,
                             _("No %s file uploaded" % f))
-
             dir_path = tsc.DEPLOY_PATH
+
             binary = False
             if f == consts.DEPLOY_CHART:
                 binary = True

@@ -1433,7 +1433,7 @@ Subcloud Deploy
 ----------------
 
 These APIs allow for the display and upload of the deployment manager common
-files which include deploy playbook, deploy overrides, and deploy helm charts.
+files which include deploy playbook, deploy overrides, deploy helm charts, and prestage images list.
 
 
 **************************
@@ -1463,6 +1463,7 @@ internalServerError (500), serviceUnavailable (503)
   - deploy_chart: subcloud_deploy_chart
   - deploy_playbook: subcloud_deploy_playbook
   - deploy_overrides: subcloud_deploy_overrides
+  - prestage_images: subcloud_deploy_prestage_images
 
 Response Example
 ----------------
@@ -1496,6 +1497,7 @@ serviceUnavailable (503)
   - deploy_chart: subcloud_deploy_chart_content
   - deploy_playbook: subcloud_deploy_playbook_content
   - deploy_overrides: subcloud_deploy_overrides_content
+  - prestage_images: subcloud_deploy_prestage_images_content
 
 Request Example
 ----------------
@@ -1510,6 +1512,7 @@ Request Example
   - deploy_chart: subcloud_deploy_chart
   - deploy_playbook: subcloud_deploy_playbook
   - deploy_overrides: subcloud_deploy_overrides
+  - prestage_images: subcloud_deploy_prestage_images
 
 Response Example
 ----------------

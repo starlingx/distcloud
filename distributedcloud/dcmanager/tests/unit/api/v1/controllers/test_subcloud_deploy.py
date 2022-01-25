@@ -1,4 +1,4 @@
-# Copyright (c) 2020-2021 Wind River Systems, Inc.
+# Copyright (c) 2020-2022 Wind River Systems, Inc.
 # All Rights Reserved.
 #
 #    Licensed under the Apache License, Version 2.0 (the "License"); you may
@@ -50,7 +50,23 @@ class TestSubcloudDeploy(testroot.DCManagerApiTest):
 
     @mock.patch.object(subcloud_deploy.SubcloudDeployController,
                        '_upload_files')
-    def test_post_subcloud_deploy_missing_file(self, mock_upload_files):
+    def test_post_subcloud_deploy_missing_chart(self, mock_upload_files):
+        opts = [consts.DEPLOY_PLAYBOOK, consts.DEPLOY_OVERRIDES, consts.DEPLOY_PRESTAGE]
+        fields = list()
+        for opt in opts:
+            fake_name = opt + "_fake"
+            fake_content = "fake content".encode('utf-8')
+            fields.append((opt, fake_name, fake_content))
+        mock_upload_files.return_value = True
+        response = self.app.post(FAKE_URL,
+                                 headers=FAKE_HEADERS,
+                                 upload_files=fields,
+                                 expect_errors=True)
+        self.assertEqual(response.status_code, http_client.BAD_REQUEST)
+
+    @mock.patch.object(subcloud_deploy.SubcloudDeployController,
+                       '_upload_files')
+    def test_post_subcloud_deploy_missing_chart_prestages(self, mock_upload_files):
         opts = [consts.DEPLOY_PLAYBOOK, consts.DEPLOY_OVERRIDES]
         fields = list()
         for opt in opts:
@@ -63,6 +79,68 @@ class TestSubcloudDeploy(testroot.DCManagerApiTest):
                                  upload_files=fields,
                                  expect_errors=True)
         self.assertEqual(response.status_code, http_client.BAD_REQUEST)
+
+    @mock.patch.object(subcloud_deploy.SubcloudDeployController,
+                       '_upload_files')
+    def test_post_subcloud_deploy_missing_playbook_overrides(self, mock_upload_files):
+        opts = [consts.DEPLOY_CHART, consts.DEPLOY_PRESTAGE]
+        fields = list()
+        for opt in opts:
+            fake_name = opt + "_fake"
+            fake_content = "fake content".encode('utf-8')
+            fields.append((opt, fake_name, fake_content))
+        mock_upload_files.return_value = True
+        response = self.app.post(FAKE_URL,
+                                 headers=FAKE_HEADERS,
+                                 upload_files=fields,
+                                 expect_errors=True)
+        self.assertEqual(response.status_code, http_client.BAD_REQUEST)
+
+    @mock.patch.object(subcloud_deploy.SubcloudDeployController,
+                       '_upload_files')
+    def test_post_subcloud_deploy_missing_prestage(self, mock_upload_files):
+        opts = [consts.DEPLOY_PLAYBOOK, consts.DEPLOY_OVERRIDES, consts.DEPLOY_CHART]
+        fields = list()
+        for opt in opts:
+            fake_name = opt + "_fake"
+            fake_content = "fake content".encode('utf-8')
+            fields.append((opt, fake_name, fake_content))
+        mock_upload_files.return_value = True
+        response = self.app.post(FAKE_URL,
+                                 headers=FAKE_HEADERS,
+                                 upload_files=fields)
+        self.assertEqual(response.status_code, http_client.OK)
+
+    @mock.patch.object(subcloud_deploy.SubcloudDeployController,
+                       '_upload_files')
+    def test_post_subcloud_deploy_all_input(self, mock_upload_files):
+        opts = [consts.DEPLOY_PLAYBOOK, consts.DEPLOY_OVERRIDES,
+                consts.DEPLOY_CHART, consts.DEPLOY_PRESTAGE]
+        fields = list()
+        for opt in opts:
+            fake_name = opt + "_fake"
+            fake_content = "fake content".encode('utf-8')
+            fields.append((opt, fake_name, fake_content))
+        mock_upload_files.return_value = True
+        response = self.app.post(FAKE_URL,
+                                 headers=FAKE_HEADERS,
+                                 upload_files=fields)
+        self.assertEqual(response.status_code, http_client.OK)
+
+    @mock.patch.object(subcloud_deploy.SubcloudDeployController,
+                       '_upload_files')
+    def test_post_subcloud_deploy_prestage(self, mock_upload_files):
+        opts = [consts.DEPLOY_PRESTAGE]
+        fields = list()
+        for opt in opts:
+            fake_name = opt + "_fake"
+            fake_content = "fake content".encode('utf-8')
+            fields.append((opt, fake_name, fake_content))
+        mock_upload_files.return_value = True
+        response = self.app.post(FAKE_URL,
+                                 headers=FAKE_HEADERS,
+                                 upload_files=fields)
+        self.assertEqual(response.status_code, http_client.OK)
 
     @mock.patch.object(subcloud_deploy.SubcloudDeployController,
                        '_upload_files')

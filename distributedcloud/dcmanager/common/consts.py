@@ -1,5 +1,5 @@
 # Copyright (c) 2016 Ericsson AB.
-# Copyright (c) 2017-2021 Wind River Systems, Inc.
+# Copyright (c) 2017-2022 Wind River Systems, Inc.
 # Licensed under the Apache License, Version 2.0 (the "License"); you may
 # not use this file except in compliance with the License. You may obtain
 # a copy of the License at
@@ -212,11 +212,13 @@ DEPLOY_PLAYBOOK = "deploy_playbook"
 DEPLOY_OVERRIDES = "deploy_overrides"
 DEPLOY_CHART = "deploy_chart"
 DEPLOY_CONFIG = 'deploy_config'
+DEPLOY_PRESTAGE = "prestage_images"
 
 DEPLOY_COMMON_FILE_OPTIONS = [
     DEPLOY_PLAYBOOK,
     DEPLOY_OVERRIDES,
-    DEPLOY_CHART
+    DEPLOY_CHART,
+    DEPLOY_PRESTAGE
 ]
 
 
