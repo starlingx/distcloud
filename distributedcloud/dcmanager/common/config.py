@@ -147,10 +147,15 @@ scheduler_opts = [
 ]
 
 common_opts = [
+    # TODO(kmacleod): these worker parameters should be added to puppet
+    # in order that they make it into /etc/dcmanager/dcmanager.conf
+    # for system engineering purposes
     cfg.IntOpt('workers', default=1,
                help='number of workers'),
     cfg.IntOpt('orch_workers', default=1,
                help='number of orchestrator workers'),
+    cfg.IntOpt('state_workers', default=4,
+               help='number of state workers'),
     cfg.IntOpt('audit_workers', default=1,
                help='number of audit workers'),
     cfg.IntOpt('audit_worker_workers', default=4,

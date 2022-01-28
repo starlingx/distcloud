@@ -240,6 +240,10 @@ class TestSubcloudPost(testroot.DCManagerApiTest,
         self.mock_rpc_client = p.start()
         self.addCleanup(p.stop)
 
+        p = mock.patch.object(rpc_client, 'SubcloudStateClient')
+        self.mock_rpc_state_client = p.start()
+        self.addCleanup(p.stop)
+
     def _verify_post_failure(self, response, param, value):
         self.assertEqual(http_client.BAD_REQUEST,
                          response.status_code,
@@ -773,6 +777,10 @@ class TestSubcloudAPIOther(testroot.DCManagerApiTest):
         super(TestSubcloudAPIOther, self).setUp()
         self.ctx = utils.dummy_context()
 
+        p = mock.patch.object(rpc_client, 'SubcloudStateClient')
+        self.mock_rpc_state_client = p.start()
+        self.addCleanup(p.stop)
+
     @mock.patch.object(rpc_client, 'ManagerClient')
     def test_delete_subcloud(self, mock_rpc_client):
         subcloud = fake_subcloud.create_fake_subcloud(self.ctx)
@@ -1162,19 +1170,20 @@ class TestSubcloudAPIOther(testroot.DCManagerApiTest):
                               headers=FAKE_HEADERS, params=data)
 
     @mock.patch.object(rpc_client, 'ManagerClient')
+    @mock.patch.object(rpc_client, 'SubcloudStateClient')
     @mock.patch.object(subclouds.SubcloudsController, '_get_updatestatus_payload')
     def test_subcloud_updatestatus(self, mock_get_updatestatus_payload,
-                                   mock_rpc_client):
+                                   mock_rpc_state_client, _):
         subcloud = fake_subcloud.create_fake_subcloud(self.ctx)
         data = {'endpoint': 'dc-cert', 'status': 'in-sync'}
         mock_get_updatestatus_payload.return_value = data
 
-        mock_rpc_client().update_subcloud_endpoint_status.return_value = True
+        mock_rpc_state_client().update_subcloud_endpoint_status.return_value = True
         response = self.app.patch_json(
             FAKE_URL + '/' + str(subcloud.id) + '/update_status',
             data, headers=FAKE_HEADERS)
 
-        mock_rpc_client().update_subcloud_endpoint_status.assert_called_once_with(
+        mock_rpc_state_client().update_subcloud_endpoint_status.assert_called_once_with(
             mock.ANY,
             subcloud.name,
             'dc-cert',

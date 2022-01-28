@@ -16,11 +16,9 @@
 RPC_API_VERSION = "1.0"
 
 TOPIC_DC_MANAGER = "dcmanager"
-
+TOPIC_DC_MANAGER_STATE = "dcmanager-state"
 TOPIC_DC_MANAGER_AUDIT = "dcmanager-audit"
-
 TOPIC_DC_MANAGER_AUDIT_WORKER = "dcmanager-audit-worker"
-
 TOPIC_DC_MANAGER_ORCHESTRATOR = "dcmanager-orchestrator"
 
 CERTS_VAULT_DIR = "/opt/dc-vault/certs"

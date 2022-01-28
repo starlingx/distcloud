@@ -108,6 +108,7 @@ class EngineService(service.Service):
         self.TG.start(self.ism.initial_sync_thread, self.engine_id)
 
     def start(self):
+        LOG.info("Starting %s", self.__class__.__name__)
         self.engine_id = uuidutils.generate_uuid()
         target = oslo_messaging.Target(version=self.rpc_api_version,
                                        server=self.host,
@@ -303,9 +304,10 @@ class EngineService(service.Service):
         # Stop RPC connection to prevent new requests
         LOG.debug(_("Attempting to stop engine service..."))
         try:
-            self._rpc_server.stop()
-            self._rpc_server.wait()
-            LOG.info('Engine service stopped successfully')
+            if self._rpc_server:
+                self._rpc_server.stop()
+                self._rpc_server.wait()
+                LOG.info('Engine service stopped successfully')
         except Exception as ex:
             LOG.error('Failed to stop engine service: %s',
                       six.text_type(ex))
@@ -313,7 +315,9 @@ class EngineService(service.Service):
     def stop(self):
         self._stop_rpc_server()
 
-        self.TG.stop()
+        if self.TG:
+            self.TG.stop()
+
         # Terminate the engine process
         LOG.info("All threads were gone, terminating engine")
         super(EngineService, self).stop()

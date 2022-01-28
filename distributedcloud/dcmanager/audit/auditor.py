@@ -15,14 +15,14 @@ class Auditor(object):
     # todo(abailey): determine if add_metaclass is still required
     six.add_metaclass(abc.ABCMeta)
 
-    def __init__(self, context, dcmanager_rpc_client, endpoint_type):
+    def __init__(self, context, dcmanager_state_rpc_client, endpoint_type):
         self.context = context
-        self.dcmanager_rpc_client = dcmanager_rpc_client
+        self.state_rpc_client = dcmanager_state_rpc_client
         self.endpoint_type = endpoint_type
 
     def _set_subcloud_sync_status(self, sc_name, sc_sync_status):
         """Update the sync status for endpoint."""
-        self.dcmanager_rpc_client.update_subcloud_endpoint_status(
+        self.state_rpc_client.update_subcloud_endpoint_status(
             self.context,
             subcloud_name=sc_name,
             endpoint_type=self.endpoint_type,

@@ -389,7 +389,7 @@ class SysinvAPIController(APIController):
 
     def __init__(self, app, conf):
         super(SysinvAPIController, self).__init__(app, conf)
-        self.dcmanager_rpc_client = dcmanager_rpc_client.ManagerClient()
+        self.dcmanager_state_rpc_client = dcmanager_rpc_client.SubcloudStateClient()
         self.response_hander_map = {
             self.ENDPOINT_TYPE: self._process_response
         }
@@ -423,7 +423,7 @@ class SysinvAPIController(APIController):
         # Send a RPC to dcmanager
         LOG.info("Send RPC to dcmanager to set: %s sync status to: %s"
                  % (endpoint_type, sync_status))
-        self.dcmanager_rpc_client.update_subcloud_endpoint_status(
+        self.dcmanager_state_rpc_client.update_subcloud_endpoint_status(
             self.ctxt,
             endpoint_type=endpoint_type,
             sync_status=sync_status)

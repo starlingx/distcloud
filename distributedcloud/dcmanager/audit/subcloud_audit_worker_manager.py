@@ -58,6 +58,7 @@ class SubcloudAuditWorkerManager(manager.Manager):
             service_name="subcloud_audit_worker_manager")
         self.context = context.get_admin_context()
         self.dcmanager_rpc_client = dcmanager_rpc_client.ManagerClient()
+        self.state_rpc_client = dcmanager_rpc_client.SubcloudStateClient()
         # Keeps track of greenthreads we create to do work.
         self.thread_group_manager = scheduler.ThreadGroupManager(
             thread_pool_size=100)
@@ -66,15 +67,15 @@ class SubcloudAuditWorkerManager(manager.Manager):
         self.alarm_aggr = alarm_aggregation.AlarmAggregation(self.context)
         # todo(abailey): refactor the design pattern for adding new audits
         self.patch_audit = patch_audit.PatchAudit(
-            self.context, self.dcmanager_rpc_client)
+            self.context, self.state_rpc_client)
         self.firmware_audit = firmware_audit.FirmwareAudit(
-            self.context, self.dcmanager_rpc_client)
+            self.context, self.state_rpc_client)
         self.kubernetes_audit = kubernetes_audit.KubernetesAudit(
-            self.context, self.dcmanager_rpc_client)
+            self.context, self.state_rpc_client)
         self.kube_rootca_update_audit = \
             kube_rootca_update_audit.KubeRootcaUpdateAudit(
                 self.context,
-                self.dcmanager_rpc_client)
+                self.state_rpc_client)
         self.pid = os.getpid()
 
     def audit_subclouds(self,
@@ -184,14 +185,14 @@ class SubcloudAuditWorkerManager(manager.Manager):
                                       update_state_only=False,
                                       audit_fail_count=None):
         try:
-            self.dcmanager_rpc_client.update_subcloud_availability(
+            self.state_rpc_client.update_subcloud_availability(
                 self.context, subcloud_name, availability_status,
                 update_state_only, audit_fail_count)
-            LOG.info('Notifying dcmanager, subcloud:%s, availability:%s' %
+            LOG.info('Notifying dcmanager-state, subcloud:%s, availability:%s' %
                      (subcloud_name,
                       availability_status))
         except Exception:
-            LOG.exception('Problem informing dcmanager of subcloud '
+            LOG.exception('Problem informing dcmanager-state of subcloud '
                           'availability state change, subcloud: %s'
                           % subcloud_name)
 

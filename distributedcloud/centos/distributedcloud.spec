@@ -134,6 +134,7 @@ install -d -m 755 %{buildroot}%{_tmpfilesdir}
 install -d -m 755 %{buildroot}/var/log/dcmanager
 install -d -m 755 %{buildroot}/var/cache/dcmanager
 install -d -m 755 %{buildroot}%{_sysconfdir}/dcmanager/
+# TODO(kmacleod) Remove systemd unit files, they are not used:
 # install systemd unit files
 install -p -D -m 644 %{SOURCE1} %{buildroot}%{_unitdir}/dcmanager-api.service
 install -p -D -m 644 %{SOURCE2} %{buildroot}%{_unitdir}/dcmanager-manager.service
@@ -151,6 +152,7 @@ install -p -D -m 644 %{SOURCE16} %{buildroot}%{_sysconfdir}/logrotate.d/distclou
 install -d -m 755 %{buildroot}/var/log/dcorch
 install -d -m 755 %{buildroot}/var/cache/dcorch
 install -d -m 755 %{buildroot}%{_sysconfdir}/dcorch/
+# TODO(kmacleod) Remove systemd unit files, they are not used:
 # install systemd unit files
 install -p -D -m 644 %{SOURCE3} %{buildroot}%{_unitdir}/dcorch-api.service
 install -p -D -m 644 %{SOURCE4} %{buildroot}%{_unitdir}/dcorch-engine.service
@@ -208,6 +210,7 @@ install -m 755 -D -p %{SOURCE12} %{buildroot}/%{_bindir}/clean-dcorch
 %{_bindir}/dcmanager-manager
 %{_unitdir}/dcmanager-manager.service
 %{_bindir}/dcmanager-manage
+%{_bindir}/dcmanager-state
 %{_tmpfilesdir}/dcmanager.conf
 %dir %attr(0755,root,root) %{_localstatedir}/log/dcmanager
 %dir %attr(0755,root,root) %{_localstatedir}/cache/dcmanager

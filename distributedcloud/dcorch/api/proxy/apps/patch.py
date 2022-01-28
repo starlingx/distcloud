@@ -64,7 +64,7 @@ class PatchAPIController(Middleware):
         super(PatchAPIController, self).__init__(app)
         self.ctxt = context.get_admin_context()
         self._default_dispatcher = APIDispatcher(app)
-        self.rpc_client = dcmanager_rpc_client.ManagerClient()
+        self.dcmanager_state_rpc_client = dcmanager_rpc_client.SubcloudStateClient()
         self.response_hander_map = {
             proxy_consts.PATCH_ACTION_UPLOAD: self.patch_upload_req,
             proxy_consts.PATCH_ACTION_UPLOAD_DIR: self.patch_upload_dir_req,
@@ -186,7 +186,7 @@ class PatchAPIController(Middleware):
         # Send a RPC to dcmanager
         LOG.info("Send RPC to dcmanager to set patching sync status to "
                  "unknown")
-        self.rpc_client.update_subcloud_endpoint_status(
+        self.dcmanager_state_rpc_client.update_subcloud_endpoint_status(
             self.ctxt,
             endpoint_type=self.ENDPOINT_TYPE,
             sync_status=dcmanager_consts.SYNC_STATUS_UNKNOWN)

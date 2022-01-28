@@ -75,6 +75,7 @@ class GenericSyncManager(object):
             self.create_sync_objects(sc.region_name, sc.capabilities)
             LOG.info('Engine id:(%s) create_sync_objects for'
                      'subcloud:%s.' % (self.engine_id, sc.region_name))
+            eventlet.sleep(0)  # cooperative yield
 
     def create_sync_objects(self, subcloud_name, capabilities):
         """Create sync object objects for the subcloud

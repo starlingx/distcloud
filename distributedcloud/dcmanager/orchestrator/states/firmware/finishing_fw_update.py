@@ -32,9 +32,9 @@ class FinishingFwUpdateState(BaseState):
                       "Setting endpoint status of %s to %s"
                       % (dcorch_consts.ENDPOINT_TYPE_FIRMWARE,
                          consts.SYNC_STATUS_IN_SYNC))
-        rpc_client = dcmanager_rpc_client.ManagerClient()
+        dcmanager_state_rpc_client = dcmanager_rpc_client.SubcloudStateClient()
         # The subcloud name is the same as the region in the strategy_step
-        rpc_client.update_subcloud_endpoint_status(
+        dcmanager_state_rpc_client.update_subcloud_endpoint_status(
             self.context,
             subcloud_name=self.get_region_name(strategy_step),
             endpoint_type=dcorch_consts.ENDPOINT_TYPE_FIRMWARE,

@@ -115,7 +115,8 @@ class SubcloudsController(object):
 
     def __init__(self):
         super(SubcloudsController, self).__init__()
-        self.rpc_client = rpc_client.ManagerClient()
+        self.dcmanager_rpc_client = rpc_client.ManagerClient()
+        self.dcmanager_state_rpc_client = rpc_client.SubcloudStateClient()
 
     # to do the version compatibility for future purpose
     def _determine_version_cap(self, target):
@@ -988,7 +989,7 @@ class SubcloudsController(object):
                 subcloud = self._add_subcloud_to_database(context, payload)
                 # Ask dcmanager-manager to add the subcloud.
                 # It will do all the real work...
-                self.rpc_client.add_subcloud(context, payload)
+                self.dcmanager_rpc_client.add_subcloud(context, payload)
                 return db_api.subcloud_db_model_to_dict(subcloud)
             except RemoteError as e:
                 pecan.abort(422, e.value)
@@ -1077,9 +1078,9 @@ class SubcloudsController(object):
                 data_install = json.dumps(payload[INSTALL_VALUES])
 
             try:
-                # Inform dcmanager-manager that subcloud has been updated.
+                # Inform dcmanager that subcloud has been updated.
                 # It will do all the real work...
-                subcloud = self.rpc_client.update_subcloud(
+                subcloud = self.dcmanager_rpc_client.update_subcloud(
                     context, subcloud_id, management_state=management_state,
                     description=description, location=location, group_id=group_id,
                     data_install=data_install, force=force_flag)
@@ -1115,8 +1116,8 @@ class SubcloudsController(object):
                 pecan.abort(400, msg)
 
             try:
-                subcloud = self.rpc_client.reconfigure_subcloud(context, subcloud_id,
-                                                                payload)
+                subcloud = self.dcmanager_rpc_client.reconfigure_subcloud(
+                    context, subcloud_id, payload)
                 return subcloud
             except RemoteError as e:
                 pecan.abort(422, e.value)
@@ -1269,7 +1270,7 @@ class SubcloudsController(object):
                     deploy_status=consts.DEPLOY_STATE_PRE_INSTALL,
                     data_install=data_install)
 
-                self.rpc_client.reinstall_subcloud(
+                self.dcmanager_rpc_client.reinstall_subcloud(
                     context, subcloud_id, payload)
 
                 return db_api.subcloud_db_model_to_dict(subcloud)
@@ -1348,8 +1349,9 @@ class SubcloudsController(object):
                 pecan.abort(400, msg)
 
             try:
-                self.rpc_client.restore_subcloud(context, subcloud_id,
-                                                 payload)
+                self.dcmanager_rpc_client.restore_subcloud(context,
+                                                           subcloud_id,
+                                                           payload)
                 # Return deploy_status as pre-restore
                 subcloud.deploy_status = consts.DEPLOY_STATE_PRE_RESTORE
                 return db_api.subcloud_db_model_to_dict(subcloud)
@@ -1391,7 +1393,8 @@ class SubcloudsController(object):
         try:
             # Ask dcmanager-manager to delete the subcloud.
             # It will do all the real work...
-            return self.rpc_client.delete_subcloud(context, subcloud_id)
+            return self.dcmanager_rpc_client.delete_subcloud(context,
+                                                             subcloud_id)
         except RemoteError as e:
             pecan.abort(422, e.value)
         except Exception as e:
@@ -1429,7 +1432,7 @@ class SubcloudsController(object):
 
         LOG.info('update %s set %s=%s' % (subcloud_name, endpoint, status))
         context = restcomm.extract_context_from_environ()
-        self.rpc_client.update_subcloud_endpoint_status(
+        self.dcmanager_state_rpc_client.update_subcloud_endpoint_status(
             context, subcloud_name, endpoint, status)
 
         result = {'result': 'OK'}

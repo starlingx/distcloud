@@ -61,10 +61,6 @@ class TestDCManagerService(base.DCManagerTestCase):
         self.assertEqual(self.service_obj.host, 'localhost')
         self.assertEqual(self.service_obj.topic, 'dcmanager')
 
-    def test_init_tgm(self):
-        self.service_obj.init_tgm()
-        self.assertIsNotNone(self.service_obj.TG)
-
     @mock.patch.object(service, 'SubcloudManager')
     def test_init_managers(self, mock_subcloud_manager):
         self.service_obj.init_managers()
@@ -80,7 +76,6 @@ class TestDCManagerService(base.DCManagerTestCase):
 
     @mock.patch.object(service, 'SubcloudManager')
     def test_add_subcloud(self, mock_subcloud_manager):
-        self.service_obj.init_tgm()
         self.service_obj.init_managers()
         self.service_obj.add_subcloud(
             self.context, payload={'name': 'testname'})
@@ -89,7 +84,6 @@ class TestDCManagerService(base.DCManagerTestCase):
 
     @mock.patch.object(service, 'SubcloudManager')
     def test_delete_subcloud(self, mock_subcloud_manager):
-        self.service_obj.init_tgm()
         self.service_obj.init_managers()
         self.service_obj.delete_subcloud(
             self.context, subcloud_id=1)
@@ -98,7 +92,6 @@ class TestDCManagerService(base.DCManagerTestCase):
 
     @mock.patch.object(service, 'SubcloudManager')
     def test_update_subcloud(self, mock_subcloud_manager):
-        self.service_obj.init_tgm()
         self.service_obj.init_managers()
         self.service_obj.update_subcloud(
             self.context, subcloud_id=1, management_state='testmgmtstatus')

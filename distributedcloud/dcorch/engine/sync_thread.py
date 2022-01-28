@@ -76,7 +76,7 @@ class SyncThread(object):
 
         self.log_extra = {
             "instance": self.subcloud_name + ": "}
-        self.dcmanager_rpc_client = dcmanager_rpc_client.ManagerClient()
+        self.dcmanager_state_rpc_client = dcmanager_rpc_client.SubcloudStateClient()
 
         self.sc_admin_session = None
         self.admin_session = None
@@ -282,7 +282,7 @@ class SyncThread(object):
         LOG.info("{}: set_sync_status {}".format(self.subcloud_name, sync_status),
                  extra=self.log_extra)
 
-        self.dcmanager_rpc_client.update_subcloud_endpoint_status(
+        self.dcmanager_state_rpc_client.update_subcloud_endpoint_status(
             self.ctxt, self.subcloud_name,
             self.endpoint_type, sync_status)
 
