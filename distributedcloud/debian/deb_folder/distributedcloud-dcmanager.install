@@ -4,6 +4,7 @@ usr/bin/dcmanager-audit
 usr/bin/dcmanager-audit-worker
 usr/bin/dcmanager-manage
 usr/bin/dcmanager-manager
+usr/bin/dcmanager-state
 usr/bin/dcmanager-orchestrator
 usr/lib/ocf/resource.d/openstack/dcmanager-*
 usr/lib/python3/dist-packages/dcmanager/*
