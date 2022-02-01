@@ -259,3 +259,6 @@ EXTRA_ARGS_SUBJECT = 'subject'
 BITSTREAM_TYPE_ROOT_KEY = 'root-key'
 BITSTREAM_TYPE_FUNCTIONAL = 'functional'
 BITSTREAM_TYPE_KEY_REVOCATION = 'key-revocation'
+
+# Platform Backup size default in MB
+DEFAULT_PERSISTENT_SIZE = 30000
