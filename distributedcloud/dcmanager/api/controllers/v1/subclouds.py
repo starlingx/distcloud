@@ -139,6 +139,10 @@ class SubcloudsController(object):
     @staticmethod
     def _get_common_deploy_files(payload):
         for f in consts.DEPLOY_COMMON_FILE_OPTIONS:
+            # Skip the prestage_images option as it is not relevant in this
+            # context
+            if f == consts.DEPLOY_PRESTAGE:
+                continue
             filename = None
             dir_path = tsc.DEPLOY_PATH
             if os.path.isdir(dir_path):
