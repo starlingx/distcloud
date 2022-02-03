@@ -1,9 +1,10 @@
 #
-# Copyright (c) 2020 Wind River Systems, Inc.
+# Copyright (c) 2020-2022 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
 
+from kubernetes import __version__ as K8S_MODULE_VERSION
 from kubernetes import client
 from kubernetes.client import Configuration
 from kubernetes.client.rest import ApiException
@@ -13,6 +14,7 @@ from six.moves import http_client as httplib
 
 LOG = logging.getLogger(__name__)
 
+K8S_MODULE_MAJOR_VERSION = int(K8S_MODULE_VERSION.split('.')[0])
 KUBE_CONFIG_PATH = '/etc/kubernetes/admin.conf'
 
 CERT_MANAGER_GROUP = 'cert-manager.io'
@@ -29,9 +31,11 @@ class KubeOperator(object):
 
     def _load_kube_config(self):
         config.load_kube_config(KUBE_CONFIG_PATH)
-
+        if K8S_MODULE_MAJOR_VERSION < 12:
+            c = Configuration()
+        else:
+            c = Configuration().get_default_copy()
         # Workaround: Turn off SSL/TLS verification
-        c = Configuration()
         c.verify_ssl = False
         Configuration.set_default(c)
 
