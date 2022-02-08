@@ -439,9 +439,10 @@ class PatchOrchThread(threading.Thread):
         # Don't start patching if the subcloud contains management
         # affected alarm. Continue patching on the next subcloud
         if not self.pre_check_management_affected_alarm(strategy_step):
-            message = ("Subcloud %s contains one or multiple management \
-                       affected alarm. Will not be patched." %
-                       strategy_step.subcloud.name)
+            message = ("Subcloud %s contains one or more management "
+                       "affecting alarm(s). It will not be patched. "
+                       "Please resolve the alarm condition(s) and try again."
+                       % strategy_step.subcloud.name)
             LOG.warn(message)
             self.strategy_step_update(
                 strategy_step.subcloud_id,
