@@ -1,6 +1,6 @@
 # Copyright 2015 Huawei Technologies Co., Ltd.
 # Copyright 2015 Ericsson AB.
-# Copyright (c) 2017-2021 Wind River Systems, Inc.
+# Copyright (c) 2017-2022 Wind River Systems, Inc.
 # All Rights Reserved.
 #
 #    Licensed under the Apache License, Version 2.0 (the "License"); you may
@@ -191,7 +191,11 @@ class ManualRecoveryRequiredException(DCManagerException):
 
 
 class PreCheckFailedException(DCManagerException):
-    message = _("Subcloud: %(subcloud)s upgrade precheck failed: %(details)s")
+    message = _("Subcloud %(subcloud)s upgrade precheck failed: %(details)s")
+
+
+class PrestagePreCheckFailedException(DCManagerException):
+    message = _("Subcloud %(subcloud)s prestage precheck failed: %(details)s")
 
 
 class VaultLoadMissingError(DCManagerException):

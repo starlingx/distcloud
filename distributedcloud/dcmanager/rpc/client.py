@@ -1,4 +1,4 @@
-# Copyright (c) 2017-2021 Wind River Systems, Inc.
+# Copyright (c) 2017-2022 Wind River Systems, Inc.
 # Licensed under the Apache License, Version 2.0 (the "License"); you may
 # not use this file except in compliance with the License. You may obtain
 # a copy of the License at
@@ -165,6 +165,10 @@ class ManagerClient(RPCClient):
                           subcloud_name=subcloud_name,
                           endpoint_type_list=endpoint_type_list,
                           openstack_installed=openstack_installed))
+
+    def prestage_subcloud(self, ctxt, payload):
+        return self.call(ctxt, self.make_msg('prestage_subcloud',
+                                             payload=payload))
 
 
 class DCManagerNotifications(RPCClient):

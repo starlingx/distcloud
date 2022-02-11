@@ -1,5 +1,5 @@
 # Copyright 2017 Ericsson AB.
-# Copyright (c) 2017-2021 Wind River Systems, Inc.
+# Copyright (c) 2017-2022 Wind River Systems, Inc.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -43,10 +43,11 @@ from dcorch.rpc import client as dcorch_rpc_client
 from dcmanager.audit import rpcapi as dcmanager_audit_rpc_client
 from dcmanager.common import consts
 from dcmanager.common.consts import INVENTORY_FILE_POSTFIX
-from dcmanager.common import context
+from dcmanager.common import context as dcmanager_context
 from dcmanager.common import exceptions
 from dcmanager.common.i18n import _
 from dcmanager.common import manager
+from dcmanager.common import prestage
 from dcmanager.common import utils
 from dcmanager.db import api as db_api
 from dcmanager.rpc import client as dcmanager_rpc_client
@@ -98,6 +99,9 @@ TRANSITORY_STATES = {consts.DEPLOY_STATE_NONE: consts.DEPLOY_STATE_DEPLOY_PREP_F
                      consts.DEPLOY_STATE_MIGRATING_DATA: consts.DEPLOY_STATE_DATA_MIGRATION_FAILED,
                      consts.DEPLOY_STATE_PRE_RESTORE: consts.DEPLOY_STATE_RESTORE_PREP_FAILED,
                      consts.DEPLOY_STATE_RESTORING: consts.DEPLOY_STATE_RESTORE_FAILED,
+                     consts.PRESTAGE_STATE_PREPARE: consts.PRESTAGE_STATE_FAILED,
+                     consts.PRESTAGE_STATE_PACKAGES: consts.PRESTAGE_STATE_FAILED,
+                     consts.PRESTAGE_STATE_IMAGES: consts.PRESTAGE_STATE_FAILED,
                      }
 
 
@@ -109,7 +113,7 @@ class SubcloudManager(manager.Manager):
 
         super(SubcloudManager, self).__init__(service_name="subcloud_manager",
                                               *args, **kwargs)
-        self.context = context.get_admin_context()
+        self.context = dcmanager_context.get_admin_context()
         self.dcorch_rpc_client = dcorch_rpc_client.EngineClient()
         self.fm_api = fm_api.FaultAPIs()
         self.audit_rpc_client = dcmanager_audit_rpc_client.ManagerAuditClient()
@@ -180,7 +184,9 @@ class SubcloudManager(manager.Manager):
 
         raise Exception("Secret for certificate %s is not ready." % cert_name)
 
-    def _get_ansible_filename(self, subcloud_name, postfix='.yml'):
+    # TODO(kmacleod) switch to using utils.get_ansible_filename
+    @staticmethod
+    def _get_ansible_filename(subcloud_name, postfix='.yml'):
         ansible_filename = os.path.join(
             consts.ANSIBLE_OVERRIDES_PATH,
             subcloud_name + postfix)
@@ -742,6 +748,9 @@ class SubcloudManager(manager.Manager):
                 context, subcloud_id,
                 deploy_status=consts.DEPLOY_STATE_RESTORE_PREP_FAILED)
 
+    # TODO(kmacleod) add outer try/except here to catch and log unexpected
+    # exception. As this stands, any uncaught exception is a silent (unlogged)
+    # failure
     @staticmethod
     def run_deploy(subcloud, payload, context,
                    install_command=None, apply_command=None,
@@ -1172,7 +1181,9 @@ class SubcloudManager(manager.Manager):
                         resource='subcloud',
                         msg='Subcloud is already managed')
                 elif not force:
-                    if subcloud.deploy_status != consts.DEPLOY_STATE_DONE:
+                    if (subcloud.deploy_status != consts.DEPLOY_STATE_DONE and
+                            not prestage.is_deploy_status_prestage(
+                                subcloud.deploy_status)):
                         LOG.warning("Subcloud %s can be managed only when"
                                     "deploy_status is complete" % subcloud_id)
                         raise exceptions.BadRequest(
@@ -1308,3 +1319,8 @@ class SubcloudManager(manager.Manager):
                 self.context,
                 subcloud.id,
                 deploy_status=new_deploy_status)
+
+    @staticmethod
+    def prestage_subcloud(context, payload):
+        """Subcloud prestaging"""
+        return prestage.prestage_subcloud(context, payload)

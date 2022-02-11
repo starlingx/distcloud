@@ -1,4 +1,4 @@
-# Copyright (c) 2017-2021 Wind River Systems, Inc.
+# Copyright (c) 2017-2022 Wind River Systems, Inc.
 # Licensed under the Apache License, Version 2.0 (the "License"); you may
 # not use this file except in compliance with the License. You may obtain
 # a copy of the License at
@@ -255,7 +255,7 @@ class TestSubcloudManager(base.DCManagerTestCase):
         self.addCleanup(p.stop)
 
         # Mock the context
-        p = mock.patch.object(subcloud_manager, 'context')
+        p = mock.patch.object(subcloud_manager, 'dcmanager_context')
         self.mock_context = p.start()
         self.mock_context.get_admin_context.return_value = self.ctx
         self.addCleanup(p.stop)

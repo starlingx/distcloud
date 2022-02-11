@@ -1,5 +1,5 @@
 # Copyright 2015 Huawei Technologies Co., Ltd.
-# Copyright (c) 2017-2021 Wind River Systems, Inc.
+# Copyright (c) 2017-2022 Wind River Systems, Inc.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -290,7 +290,8 @@ def get_filename_by_prefix(dir_path, prefix):
     return None
 
 
-def create_subcloud_inventory(subcloud, inventory_file):
+def create_subcloud_inventory(subcloud,
+                              inventory_file):
     """Create the ansible inventory file for the specified subcloud"""
 
     # Delete the file if it already exists
@@ -306,6 +307,34 @@ def create_subcloud_inventory(subcloud, inventory_file):
             '    ' + subcloud['name'] + ':\n'
             '      ansible_host: ' +
             subcloud['bootstrap-address'] + '\n'
+        )
+
+
+def create_subcloud_inventory_with_admin_creds(subcloud_name,
+                                               inventory_file,
+                                               subcloud_bootstrap_address,
+                                               ansible_pass):
+    """Create the ansible inventory file for the specified subcloud.
+
+    Includes ansible_become_pass attribute.
+    """
+
+    # Delete the file if it already exists
+    delete_subcloud_inventory(inventory_file)
+
+    with open(inventory_file, 'w') as f_out_inventory:
+        f_out_inventory.write(
+            ('---\n'
+             'all:\n'
+             '  vars:\n'
+             '    ansible_ssh_user: sysadmin\n'
+             '    ansible_ssh_pass: {0}\n'
+             '    ansible_become_pass: {0}\n'
+             '  hosts:\n'
+             '    {1}:\n'
+             '      ansible_host: {2}\n').format(ansible_pass,
+                                                 subcloud_name,
+                                                 subcloud_bootstrap_address)
         )
 
 
@@ -424,3 +453,26 @@ def subcloud_group_get_by_ref(context, group_ref):
         except exceptions.SubcloudGroupNameNotFound:
             return None
     return group
+
+
+def get_ansible_filename(subcloud_name, postfix='.yml'):
+    """Build ansible filename using subcloud and given postfix"""
+    ansible_filename = os.path.join(consts.ANSIBLE_OVERRIDES_PATH,
+                                    subcloud_name + postfix)
+    return ansible_filename
+
+
+def pre_check_management_affected_alarm(system_health):
+    """Acceptable health conditions:
+
+    a) subcloud is completely healthy (i.e. no failed checks)
+    b) there is alarm but no management affecting alarm
+    c) subcloud fails alarm check and it only has non-management
+       affecting alarm(s)
+    """
+    failed_alarm_check = re.findall("No alarms: \[Fail\]", system_health)
+    no_mgmt_alarms = re.findall("\[0\] of which are management affecting",
+                                system_health)
+    if failed_alarm_check and not no_mgmt_alarms:
+        return False
+    return True

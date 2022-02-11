@@ -200,6 +200,14 @@ UPGRADE_STATE_UPGRADING_HOSTS = 'upgrading-hosts'
 UPGRADE_STATE_ACTIVATION_FAILED = 'activation-failed'
 UPGRADE_STATE_ACTIVATION_COMPLETE = 'activation-complete'
 
+# Prestage States
+PRESTAGE_STATE_PREPARE = 'prestage-prepare'
+PRESTAGE_STATE_PACKAGES = 'prestaging-packages'
+PRESTAGE_STATE_IMAGES = 'prestaging-images'
+PRESTAGE_STATE_FAILED = 'prestage-failed'
+PRESTAGE_STATE_COMPLETE = 'prestage-complete'
+PRESTAGE_FILE_POSTFIX = '_prestage.yml'
+
 # Alarm aggregation
 ALARMS_DISABLED = "disabled"
 ALARM_OK_STATUS = "OK"

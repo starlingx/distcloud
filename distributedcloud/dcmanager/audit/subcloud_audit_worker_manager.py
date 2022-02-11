@@ -1,5 +1,5 @@
 # Copyright 2017 Ericsson AB.
-# Copyright (c) 2017-2021 Wind River Systems, Inc.
+# Copyright (c) 2017-2022 Wind River Systems, Inc.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -35,6 +35,7 @@ from dcmanager.common import context
 from dcmanager.common import exceptions
 from dcmanager.common.i18n import _
 from dcmanager.common import manager
+from dcmanager.common import prestage
 from dcmanager.common import scheduler
 from dcmanager.db import api as db_api
 from dcmanager.rpc import client as dcmanager_rpc_client
@@ -119,7 +120,9 @@ class SubcloudAuditWorkerManager(manager.Manager):
                      consts.DEPLOY_STATE_MIGRATED,
                      consts.DEPLOY_STATE_RESTORING,
                      consts.DEPLOY_STATE_RESTORE_PREP_FAILED,
-                     consts.DEPLOY_STATE_RESTORE_FAILED]):
+                     consts.DEPLOY_STATE_RESTORE_FAILED]
+                    and not prestage.is_deploy_status_prestage(
+                        subcloud.deploy_status)):
                 LOG.debug("Skip subcloud %s audit, deploy_status: %s" %
                           (subcloud.name, subcloud.deploy_status))
                 # This DB API call will set the "audit_finished_at" timestamp

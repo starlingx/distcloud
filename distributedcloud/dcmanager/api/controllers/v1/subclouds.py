@@ -13,7 +13,7 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 #
-# Copyright (c) 2017-2021 Wind River Systems, Inc.
+# Copyright (c) 2017-2022 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -50,6 +50,7 @@ from dcmanager.api.controllers import restcomm
 from dcmanager.common import consts
 from dcmanager.common import exceptions
 from dcmanager.common.i18n import _
+from dcmanager.common import prestage
 from dcmanager.common import utils
 from dcmanager.db import api as db_api
 
@@ -199,6 +200,40 @@ class SubcloudsController(object):
                 if f in header:
                     data = yaml.safe_load(part.content.decode('utf8'))
                     payload.update({f: data})
+        return payload
+
+    @staticmethod
+    def _get_prestage_payload(request):
+        fields = ['sysadmin_password', 'force']
+        payload = {
+            'force': False
+        }
+        try:
+            body = json.loads(request.body)
+        except Exception:
+            pecan.abort(400, _('Request body is malformed.'))
+
+        for field in fields:
+            val = body.get(field)
+            if val is None:
+                if field == 'sysadmin_password':
+                    pecan.abort(400, _("%s is required." % field))
+            else:
+                if field == 'sysadmin_password':
+                    try:
+                        payload['sysadmin_password'] = base64.b64decode(
+                            val).decode('utf-8')
+                    except Exception:
+                        pecan.abort(
+                            400,
+                            _('Failed to decode subcloud sysadmin_password, '
+                              'verify the password is base64 encoded'))
+                elif field == 'force':
+                    if val.lower() in ('true', 'false', 't', 'f'):
+                        payload['force'] = val.lower() in ('true', 't')
+                    else:
+                        pecan.abort(
+                            400, _('Invalid value for force option: %s' % val))
         return payload
 
     def _upload_config_file(self, file_item, config_file, config_type):
@@ -968,6 +1003,7 @@ class SubcloudsController(object):
                 LOG.exception(msg)
                 pecan.abort(400, msg)
 
+            # TODO(yuxing): this is not used, should it be removed?
             migrate_str = payload.get('migrate')
             if migrate_str is not None:
                 if migrate_str not in ["true", "false"]:
@@ -1111,11 +1147,16 @@ class SubcloudsController(object):
             if not payload:
                 pecan.abort(400, _('Body required'))
 
-            if subcloud.deploy_status not in [consts.DEPLOY_STATE_DONE,
-                                              consts.DEPLOY_STATE_DEPLOY_PREP_FAILED,
-                                              consts.DEPLOY_STATE_DEPLOY_FAILED]:
-                pecan.abort(400, _('Subcloud deploy status must be either '
-                                   'complete, deploy-prep-failed or deploy-failed'))
+            if (subcloud.deploy_status
+                    not in [consts.DEPLOY_STATE_DONE,
+                            consts.DEPLOY_STATE_DEPLOY_PREP_FAILED,
+                            consts.DEPLOY_STATE_DEPLOY_FAILED]
+                    and not prestage.is_deploy_status_prestage(
+                        subcloud.deploy_status)):
+                pecan.abort(400,
+                            _('Subcloud deploy status must be either '
+                              'complete, deploy-prep-failed, deploy-failed, '
+                              'or prestage-...'))
             sysadmin_password = \
                 payload.get('sysadmin_password')
             if not sysadmin_password:
@@ -1378,6 +1419,27 @@ class SubcloudsController(object):
         elif verb == 'update_status':
             res = self.updatestatus(subcloud.name)
             return res
+        elif verb == 'prestage':
+            payload = self._get_prestage_payload(request)
+            payload['subcloud_name'] = subcloud.name
+            try:
+                payload['oam_floating_ip'] = \
+                    prestage.validate_prestage_subcloud(subcloud, payload)
+            except exceptions.PrestagePreCheckFailedException as exc:
+                LOG.exception("validate_prestage_subcloud failed")
+                pecan.abort(400, _(str(exc)))
+
+            try:
+                self.dcmanager_rpc_client.prestage_subcloud(context, payload)
+                # local update to deploy_status - this is just for CLI response:
+                subcloud.deploy_status = consts.PRESTAGE_STATE_PREPARE
+                return db_api.subcloud_db_model_to_dict(subcloud)
+
+            except RemoteError as e:
+                pecan.abort(422, e.value)
+            except Exception:
+                LOG.exception("Unable to prestage subcloud %s" % subcloud.name)
+                pecan.abort(500, _('Unable to prestage subcloud'))
 
     @utils.synchronized(LOCK_NAME)
     @index.when(method='delete', template='json')
