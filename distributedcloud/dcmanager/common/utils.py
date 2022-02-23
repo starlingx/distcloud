@@ -284,6 +284,10 @@ def synchronized(name, external=True, fair=False):
 
 
 def get_filename_by_prefix(dir_path, prefix):
+    """Returns the first filename found matching 'prefix' within 'dir_path'
+
+    Note: returns base filename only - result does not include dir_path
+    """
     for filename in os.listdir(dir_path):
         if filename.startswith(prefix):
             return filename

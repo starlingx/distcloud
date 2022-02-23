@@ -1,4 +1,4 @@
-# Copyright (c) 2017-2021 Wind River Systems, Inc.
+# Copyright (c) 2017-2022 Wind River Systems, Inc.
 # Licensed under the Apache License, Version 2.0 (the "License"); you may
 # not use this file except in compliance with the License. You may obtain
 # a copy of the License at
@@ -162,6 +162,20 @@ class TestSwUpdate(base.DCManagerTestCase):
             self.mock_kube_rootca_update_orch_thread = p.start()
             self.mock_kube_rootca_update_orch_thread.return_value = \
                 self.fake_kube_rootca_update_orch_thread
+            self.addCleanup(p.stop)
+
+        if strategy_type == consts.SW_UPDATE_TYPE_PRESTAGE:
+            sw_update_manager.PrestageOrchThread.stopped = lambda x: False
+            worker = \
+                sw_update_manager.PrestageOrchThread(mock_strategy_lock,
+                                                     mock_dcmanager_audit_api)
+        else:
+            # mock the prestage orch thread
+            self.fake_prestage_orch_thread = FakeOrchThread()
+            p = mock.patch.object(sw_update_manager, 'PrestageOrchThread')
+            self.mock_prestage_orch_thread = p.start()
+            self.mock_prestage_orch_thread.return_value = \
+                self.fake_prestage_orch_thread
             self.addCleanup(p.stop)
 
         return worker

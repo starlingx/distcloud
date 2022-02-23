@@ -24,6 +24,7 @@ from dcmanager.audit import rpcapi as dcmanager_audit_rpc_client
 from dcmanager.common import consts
 from dcmanager.common import exceptions
 from dcmanager.common import manager
+from dcmanager.common import prestage
 from dcmanager.common import utils
 from dcmanager.db import api as db_api
 from dcmanager.orchestrator.fw_update_orch_thread import FwUpdateOrchThread
@@ -32,6 +33,7 @@ from dcmanager.orchestrator.kube_rootca_update_orch_thread \
 from dcmanager.orchestrator.kube_upgrade_orch_thread \
     import KubeUpgradeOrchThread
 from dcmanager.orchestrator.patch_orch_thread import PatchOrchThread
+from dcmanager.orchestrator.prestage_orch_thread import PrestageOrchThread
 from dcmanager.orchestrator.sw_upgrade_orch_thread import SwUpgradeOrchThread
 from dcorch.common import consts as dcorch_consts
 
@@ -77,6 +79,10 @@ class SwUpdateManager(manager.Manager):
                                        self.audit_rpc_client)
         self.kube_rootca_update_orch_thread.start()
 
+        self.prestage_orch_thread = PrestageOrchThread(self.strategy_lock,
+                                                       self.audit_rpc_client)
+        self.prestage_orch_thread.start()
+
     def stop(self):
         # Stop (and join) the worker threads
         # - patch orchestration thread
@@ -88,12 +94,15 @@ class SwUpdateManager(manager.Manager):
         # - fw update orchestration thread
         self.fw_update_orch_thread.stop()
         self.fw_update_orch_thread.join()
-        # - kube upgrade  orchestration thread
+        # - kube upgrade orchestration thread
         self.kube_upgrade_orch_thread.stop()
         self.kube_upgrade_orch_thread.join()
         # - kube rootca update orchestration thread
         self.kube_rootca_update_orch_thread.stop()
         self.kube_rootca_update_orch_thread.join()
+        # - prestage orchestration thread
+        self.prestage_orch_thread.stop()
+        self.prestage_orch_thread.join()
 
     def _validate_subcloud_status_sync(self, strategy_type,
                                        subcloud_status, force,
@@ -148,6 +157,12 @@ class SwUpdateManager(manager.Manager):
                         dcorch_consts.ENDPOINT_TYPE_KUBE_ROOTCA and
                         subcloud_status.sync_status ==
                         consts.SYNC_STATUS_OUT_OF_SYNC)
+        elif strategy_type == consts.SW_UPDATE_TYPE_PRESTAGE:
+            # For prestage we reuse the ENDPOINT_TYPE_LOAD.
+            # We just need to key off a unique endpoint,
+            # so that the strategy is created only once.
+            return (subcloud_status.endpoint_type
+                    == dcorch_consts.ENDPOINT_TYPE_LOAD)
         # Unimplemented strategy_type status check. Log an error
         LOG.error("_validate_subcloud_status_sync for %s not implemented" %
                   strategy_type)
@@ -295,6 +310,7 @@ class SwUpdateManager(manager.Manager):
         # Has the user specified a specific subcloud?
         # todo(abailey): refactor this code to use classes
         cloud_name = payload.get('cloud_name')
+        prestage_global_validated = False
         if cloud_name and cloud_name != consts.SYSTEM_CONTROLLER_NAME:
             # Make sure subcloud exists
             try:
@@ -354,6 +370,15 @@ class SwUpdateManager(manager.Manager):
                     raise exceptions.BadRequest(
                         resource='strategy',
                         msg='Subcloud %s does not require patching' % cloud_name)
+            elif strategy_type == consts.SW_UPDATE_TYPE_PRESTAGE:
+                # Do initial validation for subcloud
+                try:
+                    prestage.global_prestage_validate(payload)
+                    prestage_global_validated = True
+                    prestage.initial_subcloud_validate(subcloud)
+                except exceptions.PrestagePreCheckFailedException as ex:
+                    raise exceptions.BadRequest(resource='strategy',
+                                                msg=str(ex))
 
         extra_args = None
         # kube rootca update orchestration supports extra creation args
@@ -373,6 +398,20 @@ class SwUpdateManager(manager.Manager):
                 consts.EXTRA_ARGS_TO_VERSION:
                     payload.get(consts.EXTRA_ARGS_TO_VERSION),
             }
+        elif strategy_type == consts.SW_UPDATE_TYPE_PRESTAGE:
+            if not prestage_global_validated:
+                try:
+                    prestage.global_prestage_validate(payload)
+                except exceptions.PrestagePreCheckFailedException as ex:
+                    raise exceptions.BadRequest(
+                        resource='strategy',
+                        msg=str(ex))
+
+            extra_args = {
+                consts.EXTRA_ARGS_SYSADMIN_PASSWORD:
+                    payload.get(consts.EXTRA_ARGS_SYSADMIN_PASSWORD),
+                consts.EXTRA_ARGS_FORCE: force
+            }
 
         # Don't create a strategy if any of the subclouds is online and the
         # relevant sync status is unknown. Offline subcloud is skipped unless
@@ -386,6 +425,7 @@ class SwUpdateManager(manager.Manager):
         else:
             subclouds = db_api.subcloud_get_all_with_status(context)
 
+        subclouds_processed = list()
         for subcloud, subcloud_status in subclouds:
             if (cloud_name and subcloud.name != cloud_name or
                     subcloud.management_state != consts.MANAGEMENT_MANAGED):
@@ -448,6 +488,16 @@ class SwUpdateManager(manager.Manager):
                         resource='strategy',
                         msg='Kube rootca update sync status is unknown for '
                             'one or more subclouds')
+            elif strategy_type == consts.SW_UPDATE_TYPE_PRESTAGE:
+                if subcloud.name not in subclouds_processed:
+                    # Do initial validation for subcloud
+                    try:
+                        prestage.initial_subcloud_validate(subcloud)
+                    except exceptions.PrestagePreCheckFailedException:
+                        LOG.warn("Excluding subcloud from prestage strategy: %s",
+                                 subcloud.name)
+                        continue
+            subclouds_processed.append(subcloud.name)
 
         # handle extra_args processing such as staging to the vault
         self._process_extra_args_creation(strategy_type, extra_args)
@@ -519,7 +569,10 @@ class SwUpdateManager(manager.Manager):
                                                            status,
                                                            force,
                                                            subcloud.availability_status):
-                        LOG.debug("Created for %s" % subcloud.id)
+                        LOG.debug("Creating strategy_step for endpoint_type: %s, "
+                                  "sync_status: %s, subcloud: %s, id: %s",
+                                  status.endpoint_type, status.sync_status,
+                                  subcloud.name, subcloud.id)
                         db_api.strategy_step_create(
                             context,
                             subcloud.id,

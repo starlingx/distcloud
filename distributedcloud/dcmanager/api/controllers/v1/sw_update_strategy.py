@@ -1,5 +1,5 @@
 # Copyright (c) 2017 Ericsson AB.
-# Copyright (c) 2017-2021 Wind River Systems, Inc.
+# Copyright (c) 2017-2022 Wind River Systems, Inc.
 # All Rights Reserved.
 #
 #    Licensed under the Apache License, Version 2.0 (the "License"); you may
@@ -39,13 +39,15 @@ SUPPORTED_STRATEGY_TYPES = [
     consts.SW_UPDATE_TYPE_KUBE_ROOTCA_UPDATE,
     consts.SW_UPDATE_TYPE_KUBERNETES,
     consts.SW_UPDATE_TYPE_PATCH,
+    consts.SW_UPDATE_TYPE_PRESTAGE,
     consts.SW_UPDATE_TYPE_UPGRADE
 ]
 
 # some strategies allow force for all subclouds
 FORCE_ALL_TYPES = [
     consts.SW_UPDATE_TYPE_KUBE_ROOTCA_UPDATE,
-    consts.SW_UPDATE_TYPE_KUBERNETES
+    consts.SW_UPDATE_TYPE_KUBERNETES,
+    consts.SW_UPDATE_TYPE_PRESTAGE
 ]
 
 

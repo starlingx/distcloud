@@ -20,8 +20,8 @@ Common prestaging operations.
 These are shared across dcmanager (SubcloudManager) and orchestration.
 """
 
+import base64
 import os
-import subprocess
 import threading
 
 from oslo_log import log as logging
@@ -35,23 +35,25 @@ from dccommon.exceptions import PlaybookExecutionFailed
 from dccommon.utils import run_playbook
 
 from dcmanager.common import consts
-from dcmanager.common.consts import PRESTAGE_FILE_POSTFIX
 from dcmanager.common import exceptions
 from dcmanager.common import utils
 from dcmanager.db import api as db_api
 
 LOG = logging.getLogger(__name__)
 
-PREPARE_PRESTAGE_PACKAGES_SCRIPT = \
-    '/usr/local/bin/prepare-prestage-packages.sh'
 DEPLOY_BASE_DIR = DEPLOY_DIR + '/' + SW_VERSION
 PREPARE_PRESTAGE_PACKAGES_OUTPUT_PATH = DEPLOY_BASE_DIR + '/prestage/shared'
-PREPARE_PRESTAGE_PACKAGES_IMAGES_LIST \
-    = DEPLOY_BASE_DIR + '/prestage_images_image_list.txt'
+PRESTAGE_PREPARATION_COMPLETED_FILE = os.path.join(
+    PREPARE_PRESTAGE_PACKAGES_OUTPUT_PATH, '.prestage_preparation_completed')
+PRESTAGE_PREPARATION_FAILED_FILE = os.path.join(
+    DEPLOY_BASE_DIR, '.prestage_preparation_failed')
+ANSIBLE_PREPARE_PRESTAGE_PACKAGES_PLAYBOOK = \
+    "/usr/share/ansible/stx-ansible/playbooks/prepare_prestage_packages.yml"
 ANSIBLE_PRESTAGE_SUBCLOUD_PACKAGES_PLAYBOOK = \
     "/usr/share/ansible/stx-ansible/playbooks/prestage_sw_packages.yml"
 ANSIBLE_PRESTAGE_SUBCLOUD_IMAGES_PLAYBOOK = \
     "/usr/share/ansible/stx-ansible/playbooks/prestage_images.yml"
+ANSIBLE_PRESTAGE_INVENTORY_SUFFIX = '_prestage_inventory.yml'
 
 
 def is_deploy_status_prestage(deploy_status):
@@ -85,7 +87,69 @@ def is_system_controller_upgrading():
     return len(_get_system_controller_upgrades()) != 0
 
 
-def validate_prestage_subcloud(subcloud, payload):
+def global_prestage_validate(payload):
+    """Global prestage validation (not subcloud-specific)"""
+
+    if is_system_controller_upgrading():
+        raise exceptions.PrestagePreCheckFailedException(
+            subcloud=consts.SYSTEM_CONTROLLER_NAME,
+            details='Prestage operations not allowed while system'
+                    ' controller upgrade is in progress.')
+
+    if ('sysadmin_password' not in payload
+            or payload['sysadmin_password'] is None
+            or payload['sysadmin_password'] == ''):
+        raise exceptions.PrestagePreCheckFailedException(
+            subcloud=None,
+            orch_skip=False,
+            details="Missing required parameter 'sysadmin_password'")
+
+    # Ensure we can decode the sysadmin_password
+    # (we decode again when running ansible)
+    try:
+        base64.b64decode(payload['sysadmin_password']).decode('utf-8')
+    except Exception as ex:
+        raise exceptions.PrestagePreCheckFailedException(
+            subcloud=None,
+            orch_skip=False,
+            details="Failed to decode subcloud sysadmin_password,"
+                    " verify the password is base64 encoded."
+                    " Details: %s" % ex)
+
+
+def initial_subcloud_validate(subcloud):
+    """Basic validation a subcloud prestage operation.
+
+    Raises a PrestageCheckFailedException on failure.
+    """
+    LOG.debug("Validating subcloud prestage '%s'", subcloud.name)
+
+    if subcloud.availability_status != consts.AVAILABILITY_ONLINE:
+        raise exceptions.PrestagePreCheckFailedException(
+            subcloud=subcloud.name,
+            orch_skip=True,
+            details="Subcloud is offline.")
+
+    if subcloud.management_state != consts.MANAGEMENT_MANAGED:
+        raise exceptions.PrestagePreCheckFailedException(
+            subcloud=subcloud.name,
+            orch_skip=True,
+            details="Subcloud is not managed.")
+
+    allowed_deploy_states = [consts.DEPLOY_STATE_DONE,
+                             consts.PRESTAGE_STATE_FAILED,
+                             consts.PRESTAGE_STATE_COMPLETE]
+    if subcloud.deploy_status not in allowed_deploy_states:
+        raise exceptions.PrestagePreCheckFailedException(
+            subcloud=subcloud.name,
+            orch_skip=True,
+            details="Prestage operation is only allowed while"
+                    " subcloud deploy status is one of: %s."
+                    " The current deploy status is %s."
+            % (', '.join(allowed_deploy_states), subcloud.deploy_status))
+
+
+def validate_prestage(subcloud, payload):
     """Validate a subcloud prestage operation.
 
     Prestage conditions validation
@@ -96,59 +160,69 @@ def validate_prestage_subcloud(subcloud, payload):
       - Subcloud has no management-affecting alarms (unless force=true)
 
     Raises a PrestageCheckFailedException on failure.
-
-    Returns the oam_floating_ip for subsequent use by ansible.
     """
-    force = payload['force']
-    LOG.debug("Validating subcloud prestage '%s', force=%s",
-              subcloud.name, force)
+    LOG.debug("Validating subcloud prestage '%s'", subcloud.name)
 
-    if subcloud.availability_status != consts.AVAILABILITY_ONLINE:
-        raise exceptions.PrestagePreCheckFailedException(
-            subcloud=subcloud.name, details="Subcloud is offline")
+    # re-run the initial validation
+    initial_subcloud_validate(subcloud)
 
     subcloud_type, system_health, oam_floating_ip = \
         _get_prestage_subcloud_info(subcloud.name)
 
-    # TODO(kmacleod) for orchestration, make sure we check this
-    # as part of strategy create
-    if is_system_controller_upgrading():
+    if subcloud_type != consts.SYSTEM_MODE_SIMPLEX:
         raise exceptions.PrestagePreCheckFailedException(
             subcloud=subcloud.name,
-            details='Prestage operations not allowed while system'
-                    ' controller upgrade is in progress.')
+            orch_skip=True,
+            details="Prestage operation is only accepted for a simplex"
+                    " subcloud.")
 
-    if (subcloud_type != consts.SYSTEM_MODE_SIMPLEX or
-            subcloud.management_state != consts.MANAGEMENT_MANAGED):
-        raise exceptions.PrestagePreCheckFailedException(
-            subcloud=subcloud.name,
-            details='Prestage operation is only accepted for a simplex'
-                    ' subcloud that is currently online and managed.')
-
-    if (not force
+    if (not payload['force']
             and not utils.pre_check_management_affected_alarm(system_health)):
         raise exceptions.PrestagePreCheckFailedException(
             subcloud=subcloud.name,
-            details='There is management affecting alarm(s) in the'
-                    ' subcloud. Please resolve the alarm condition(s)'
-                    ' or use --force option and try again.')
-
-    allowed_deploy_states = [consts.DEPLOY_STATE_DONE,
-                             consts.PRESTAGE_STATE_FAILED,
-                             consts.PRESTAGE_STATE_COMPLETE]
-    if subcloud.deploy_status not in allowed_deploy_states:
-        raise exceptions.PrestagePreCheckFailedException(
-            subcloud=subcloud.name,
-            details='Prestage operation is only allowed while'
-                    ' subcloud deploy status is one of: %s.'
-                    ' The current deploy status is %s.'
-            % (', '.join(allowed_deploy_states), subcloud.deploy_status))
+            orch_skip=False,
+            details="Subcloud has management affecting alarm(s)."
+                    " Please resolve the alarm condition(s)"
+                    " or use --force option and try again.")
 
     return oam_floating_ip
 
 
+@utils.synchronized('prestage-prepare-cleanup', external=True)
+def cleanup_failed_preparation():
+    """Remove the preparation failed file if it exists from a previous run"""
+    if os.path.exists(PRESTAGE_PREPARATION_FAILED_FILE):
+        LOG.debug("Cleanup: removing %s", PRESTAGE_PREPARATION_FAILED_FILE)
+        os.remove(PRESTAGE_PREPARATION_FAILED_FILE)
+
+
+def prestage_start(context, subcloud_id):
+    subcloud = db_api.subcloud_update(
+        context, subcloud_id,
+        deploy_status=consts.PRESTAGE_STATE_PREPARE)
+    return subcloud
+
+
+def prestage_complete(context, subcloud_id):
+    db_api.subcloud_update(
+        context, subcloud_id,
+        deploy_status=consts.PRESTAGE_STATE_COMPLETE)
+
+
+def prestage_fail(context, subcloud_id):
+    db_api.subcloud_update(
+        context, subcloud_id,
+        deploy_status=consts.PRESTAGE_STATE_FAILED)
+
+
+def is_upgrade(subcloud_version):
+    return SW_VERSION != subcloud_version
+
+
 def prestage_subcloud(context, payload):
     """Subcloud prestaging
+
+    This is the standalone (not orchestrated) prestage implementation.
 
     4 phases:
     1. Prestage validation (already done by this point)
@@ -173,14 +247,12 @@ def prestage_subcloud(context, payload):
             subcloud=subcloud_name,
             details="Subcloud does not exist")
 
-    # TODO(kmacleod) fail if prestaging orchestration in progress
-
-    subcloud = db_api.subcloud_update(
-        context, subcloud.id,
-        deploy_status=consts.PRESTAGE_STATE_PREPARE)
+    cleanup_failed_preparation()
+    subcloud = prestage_start(context, subcloud.id)
     try:
         apply_thread = threading.Thread(
-            target=run_prestage_thread, args=(context, subcloud, payload))
+            target=_prestage_standalone_thread,
+            args=(context, subcloud, payload))
 
         apply_thread.start()
 
@@ -188,50 +260,83 @@ def prestage_subcloud(context, payload):
 
     except Exception:
         LOG.exception("Subcloud prestaging failed %s" % subcloud_name)
-        db_api.subcloud_update(
-            context, subcloud_name,
-            deploy_status=consts.PRESTAGE_STATE_FAILED)
+        prestage_fail(context, subcloud.id)
 
 
-def run_prestage_thread(context, subcloud, payload):
+def _sync_run_prestage_prepare_packages(context, subcloud, payload):
+    """Run prepare prestage packages ansible script."""
+
+    if os.path.exists(PRESTAGE_PREPARATION_FAILED_FILE):
+        LOG.warn("Subcloud %s prestage preparation aborted due to "
+                 "previous %s failure", subcloud.name,
+                 consts.PRESTAGE_STATE_PREPARE)
+        raise Exception("Aborted due to previous %s failure"
+                        % consts.PRESTAGE_STATE_PREPARE)
+
+    LOG.info("Running prepare prestage ansible script, version=%s "
+             "(subcloud_id=%s)", SW_VERSION, subcloud.id)
+    db_api.subcloud_update(context,
+                           subcloud.id,
+                           deploy_status=consts.PRESTAGE_STATE_PREPARE)
+
+    # Ansible inventory filename for the specified subcloud
+    ansible_subcloud_inventory_file = \
+        utils.get_ansible_filename(subcloud.name,
+                                   ANSIBLE_PRESTAGE_INVENTORY_SUFFIX)
+
+    extra_vars_str = "current_software_version=%s previous_software_version=%s" \
+        % (SW_VERSION, subcloud.software_version)
+
+    try:
+        _run_ansible(context,
+                     ["ansible-playbook",
+                      ANSIBLE_PREPARE_PRESTAGE_PACKAGES_PLAYBOOK,
+                      "--inventory", ansible_subcloud_inventory_file,
+                      "--extra-vars", extra_vars_str],
+                     "prepare",
+                     subcloud,
+                     consts.PRESTAGE_STATE_PREPARE,
+                     payload['sysadmin_password'],
+                     payload['oam_floating_ip'],
+                     ansible_subcloud_inventory_file)
+    except Exception:
+        # Flag the failure on file system so that other orchestrated
+        # strategy steps in this run fail immediately. This file is
+        # removed at the start of each orchestrated/standalone run.
+        # This creates the file if it doesn't exist:
+        with open(PRESTAGE_PREPARATION_FAILED_FILE, 'a'):
+            pass
+        raise
+
+    LOG.info("Prepare prestage ansible successful")
+
+
+@utils.synchronized('prestage-prepare-packages', external=True)
+def prestage_prepare(context, subcloud, payload):
+    """Run the prepare prestage packages playbook if required."""
+    if is_upgrade(subcloud.software_version):
+        if not os.path.exists(PRESTAGE_PREPARATION_COMPLETED_FILE):
+            _sync_run_prestage_prepare_packages(context, subcloud, payload)
+        else:
+            LOG.info(
+                "Skipping prestage package preparation (not required)")
+    else:
+        LOG.info("Skipping prestage package preparation (reinstall)")
+
+
+def _prestage_standalone_thread(context, subcloud, payload):
     """Run the prestage operations inside a separate thread"""
     try:
-        is_upgrade = SW_VERSION != subcloud.software_version
+        prestage_prepare(context, subcloud, payload)
+        prestage_packages(context, subcloud, payload)
+        prestage_images(context, subcloud, payload)
 
-        if is_upgrade:
-            # TODO(kmacleod): check for '.prestage_prepation_completed' file instead
-            # of Packages directory (not in place yet)
-            if not os.path.exists(
-                    os.path.join(PREPARE_PRESTAGE_PACKAGES_OUTPUT_PATH,
-                                 'Packages')):
-                if not _run_prestage_prepare_packages(
-                        context, subcloud.id):
-                    db_api.subcloud_update(
-                        context, subcloud.id,
-                        deploy_status=consts.PRESTAGE_STATE_FAILED)
-                    return
-            else:
-                LOG.info(
-                    "Skipping prestage package preparation (not required)")
-        else:
-            LOG.info("Skipping prestage package preparation (reinstall)")
-
-        if _run_prestage_ansible(
-                context, subcloud, payload['oam_floating_ip'],
-                payload['sysadmin_password'], is_upgrade):
-            db_api.subcloud_update(
-                context, subcloud.id,
-                deploy_status=consts.PRESTAGE_STATE_COMPLETE)
-            LOG.info("Prestage complete: %s", subcloud.name)
-        else:
-            db_api.subcloud_update(
-                context, subcloud.id,
-                deploy_status=consts.PRESTAGE_STATE_FAILED)
+        prestage_complete(context, subcloud.id)
+        LOG.info("Prestage complete: %s", subcloud.name)
 
     except Exception:
-        LOG.exception("Unexpected exception")
-        db_api.subcloud_update(context, subcloud.id,
-                               deploy_status=consts.PRESTAGE_STATE_FAILED)
+        prestage_fail(context, subcloud.id)
+        raise
 
 
 def _get_prestage_subcloud_info(subcloud_name):
@@ -257,116 +362,115 @@ def _get_prestage_subcloud_info(subcloud_name):
         LOG.exception(e)
         raise exceptions.PrestagePreCheckFailedException(
             subcloud=subcloud_name,
-            details='Failed to retrieve subcloud system mode and system health.')
+            details="Failed to retrieve subcloud system mode and system health.")
 
 
-@utils.synchronized('prestage-prepare-packages', external=True)
-def _run_prestage_prepare_packages(context, subcloud_id):
+def _run_ansible(context, prestage_command, phase,
+                 subcloud, deploy_status,
+                 sysadmin_password, oam_floating_ip,
+                 ansible_subcloud_inventory_file):
 
-    LOG.info("Running prestage prepare packages script, version=%s "
-             "(subcloud_id=%s)", SW_VERSION, subcloud_id)
+    if deploy_status == consts.PRESTAGE_STATE_PREPARE:
+        LOG.info("Preparing prestage shared packages for subcloud: %s, version: %s",
+                 subcloud.name, SW_VERSION)
+    else:
+        LOG.info("Prestaging %s for subcloud: %s, version: %s",
+                 phase, subcloud.name, SW_VERSION)
+
     db_api.subcloud_update(context,
-                           subcloud_id,
-                           deploy_status=consts.PRESTAGE_STATE_PREPARE)
-
-    if not os.path.exists(PREPARE_PRESTAGE_PACKAGES_SCRIPT):
-        LOG.error("Prepare prestage packages script does not exist: %s",
-                  PREPARE_PRESTAGE_PACKAGES_SCRIPT)
-        return False
-
-    LOG.info("Executing script: %s --release-id %s",
-             PREPARE_PRESTAGE_PACKAGES_SCRIPT, SW_VERSION)
-    try:
-        output = subprocess.check_output(
-            [PREPARE_PRESTAGE_PACKAGES_SCRIPT, "--release-id", SW_VERSION],
-            stderr=subprocess.STDOUT)
-        LOG.info("%s output:\n%s", PREPARE_PRESTAGE_PACKAGES_SCRIPT, output)
-    except subprocess.CalledProcessError:
-        LOG.exception("Failed to prepare prestage packages for  %s", SW_VERSION)
-        return False
-
-    LOG.info("Prestage prepare packages successful")
-    return True
-
-
-def _run_prestage_ansible(context, subcloud, oam_floating_ip,
-                          sysadmin_password, is_upgrade):
-
+                           subcloud.id,
+                           deploy_status=deploy_status)
     log_file = os.path.join(consts.DC_ANSIBLE_LOG_DIR, subcloud.name) + \
-        '_prestage_playbook_output.log'
-
-    # Ansible inventory filename for the specified subcloud
-    ansible_subcloud_inventory_file = \
-        utils.get_ansible_filename(subcloud.name, PRESTAGE_FILE_POSTFIX)
+        '_playbook_output.log'
 
     # Create the ansible inventory for the new subcloud
     utils.create_subcloud_inventory_with_admin_creds(
         subcloud.name,
         ansible_subcloud_inventory_file,
         oam_floating_ip,
-        ansible_pass=sysadmin_password)
-
-    def _run_ansible(prestage_command, phase, deploy_status):
-        LOG.info("Prestaging %s for subcloud: %s, version: %s",
-                 phase, subcloud.name, SW_VERSION)
-        db_api.subcloud_update(context,
-                               subcloud.id,
-                               deploy_status=deploy_status)
-        try:
-            run_playbook(log_file, prestage_command)
-        except PlaybookExecutionFailed:
-            LOG.error("Failed to run the prestage %s playbook"
-                      " for subcloud %s, check individual log at "
-                      "%s for detailed output.",
-                      phase, subcloud.name, log_file)
-            return False
-
-        LOG.info("Prestage %s successful for subcloud %s",
-                 phase, subcloud.name)
-        return True
-
-    # Always run prestage_packages.yml playbook.
-    #
-    # Pass the image_list_file to the prestage_images.yml playbook if the
-    # prestage images file has been uploaded for the target software
-    # version. If this file does not exist and the prestage is for upgrade,
-    # skip calling prestage_images.yml playbook.
-    #
-    # Ensure the final state is either prestage-failed or prestage-complete
-    # regardless whether prestage_images.yml playbook is skipped or not.
-    #
+        ansible_pass=base64.b64decode(sysadmin_password).decode('utf-8'))
     try:
-        extra_vars_str = "software_version=%s" % SW_VERSION
-        if not _run_ansible(["ansible-playbook",
-                             ANSIBLE_PRESTAGE_SUBCLOUD_PACKAGES_PLAYBOOK,
-                             "--inventory", ansible_subcloud_inventory_file,
-                             "--extra-vars", extra_vars_str],
-                            "packages",
-                            consts.PRESTAGE_STATE_PACKAGES):
-            return False
-
-        image_list_exists = \
-            os.path.exists(PREPARE_PRESTAGE_PACKAGES_IMAGES_LIST)
-        LOG.debug("prestage images list: %s, exists: %s",
-                  PREPARE_PRESTAGE_PACKAGES_IMAGES_LIST, image_list_exists)
-        if is_upgrade and image_list_exists:
-            extra_vars_str += (" image_list_file=%s" %
-                               PREPARE_PRESTAGE_PACKAGES_IMAGES_LIST)
-
-        if not is_upgrade or (is_upgrade and image_list_exists):
-            if not _run_ansible(["ansible-playbook",
-                                 ANSIBLE_PRESTAGE_SUBCLOUD_IMAGES_PLAYBOOK,
-                                 "--inventory",
-                                 ansible_subcloud_inventory_file,
-                                 "--extra-vars", extra_vars_str],
-                                "images",
-                                consts.PRESTAGE_STATE_IMAGES):
-                return False
-        else:
-            LOG.info("Skipping ansible prestage images step, upgrade: %s,"
-                     " image_list_exists: %s",
-                     is_upgrade, image_list_exists)
-        return True
-
+        run_playbook(log_file, prestage_command)
+    except PlaybookExecutionFailed as ex:
+        msg = ("Prestaging %s failed for subcloud %s,"
+               " check individual log at %s for detailed output."
+               % (phase, subcloud.name, log_file))
+        LOG.exception("%s: %s", msg, ex)
+        raise Exception(msg)
     finally:
         utils.delete_subcloud_inventory(ansible_subcloud_inventory_file)
+
+    LOG.info("Prestage %s successful for subcloud %s",
+             phase, subcloud.name)
+
+
+def prestage_packages(context, subcloud, payload):
+    """Run the prestage packages ansible script."""
+
+    # Ansible inventory filename for the specified subcloud
+    ansible_subcloud_inventory_file = \
+        utils.get_ansible_filename(subcloud.name,
+                                   ANSIBLE_PRESTAGE_INVENTORY_SUFFIX)
+
+    extra_vars_str = "software_version=%s" % SW_VERSION
+    _run_ansible(context,
+                 ["ansible-playbook",
+                  ANSIBLE_PRESTAGE_SUBCLOUD_PACKAGES_PLAYBOOK,
+                  "--inventory", ansible_subcloud_inventory_file,
+                  "--extra-vars", extra_vars_str],
+                 "packages",
+                 subcloud,
+                 consts.PRESTAGE_STATE_PACKAGES,
+                 payload['sysadmin_password'],
+                 payload['oam_floating_ip'],
+                 ansible_subcloud_inventory_file)
+
+
+def prestage_images(context, subcloud, payload):
+    """Run the prestage images ansible script.
+
+    Approach:
+
+    If the prestage images file has been uploaded for the target software
+    version then pass the image_list_file to the prestage_images.yml playbook
+    If this file does not exist and the prestage is for upgrade,
+    skip calling prestage_images.yml playbook.
+
+    Ensure the final state is either prestage-failed or prestage-complete
+    regardless whether prestage_images.yml playbook is skipped or not.
+    """
+    image_list_file = os.path.join(DEPLOY_BASE_DIR,
+                                   utils.get_filename_by_prefix(
+                                       DEPLOY_BASE_DIR, 'prestage_images'))
+    image_list_exists = \
+        image_list_file is not None and os.path.exists(image_list_file)
+    LOG.debug("prestage images list: %s, exists: %s",
+              image_list_file, image_list_exists)
+
+    upgrade = is_upgrade(subcloud.software_version)
+
+    extra_vars_str = "software_version=%s" % SW_VERSION
+    if upgrade and image_list_exists:
+        extra_vars_str += (" image_list_file=%s" % image_list_file)
+
+    # Ansible inventory filename for the specified subcloud
+    ansible_subcloud_inventory_file = \
+        utils.get_ansible_filename(subcloud.name,
+                                   ANSIBLE_PRESTAGE_INVENTORY_SUFFIX)
+
+    if not upgrade or (upgrade and image_list_exists):
+        _run_ansible(context,
+                     ["ansible-playbook",
+                      ANSIBLE_PRESTAGE_SUBCLOUD_IMAGES_PLAYBOOK,
+                      "--inventory", ansible_subcloud_inventory_file,
+                      "--extra-vars", extra_vars_str],
+                     "images",
+                     subcloud,
+                     consts.PRESTAGE_STATE_IMAGES,
+                     payload['sysadmin_password'],
+                     payload['oam_floating_ip'],
+                     ansible_subcloud_inventory_file)
+    else:
+        LOG.info("Skipping ansible prestage images step, upgrade: %s,"
+                 " image_list_exists: %s",
+                 upgrade, image_list_exists)

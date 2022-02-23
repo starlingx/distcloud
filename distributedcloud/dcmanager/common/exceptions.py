@@ -195,7 +195,25 @@ class PreCheckFailedException(DCManagerException):
 
 
 class PrestagePreCheckFailedException(DCManagerException):
-    message = _("Subcloud %(subcloud)s prestage precheck failed: %(details)s")
+    """PrestagePreCheckFailedException
+
+    Extended to include 'orch_skip' property, indicating that
+    the subcloud can be skipped during orchestrated prestage
+    operations.
+    """
+    def __init__(self, subcloud, details, orch_skip=False):
+        self.orch_skip = orch_skip
+        # Subcloud can be none if we are failing
+        # during global prestage validation
+        if subcloud is None:
+            self.message = _("Prestage failed: %s" % details)
+        elif orch_skip:
+            self.message = _("Prestage skipped '%s': %s"
+                             % (subcloud, details))
+        else:
+            self.message = _("Prestage failed '%s': %s"
+                             % (subcloud, details))
+        super(PrestagePreCheckFailedException, self).__init__()
 
 
 class VaultLoadMissingError(DCManagerException):
