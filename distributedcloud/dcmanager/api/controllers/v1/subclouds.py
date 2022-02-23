@@ -540,7 +540,7 @@ class SubcloudsController(object):
                 pecan.abort(400, _("Mandatory install value software_version not present"))
         if 'persistent_size' in install_values:
             persistent_size = install_values.get('persistent_size')
-            if not str(persistent_size).isnumeric():
+            if not isinstance(persistent_size, int):
                 pecan.abort(400, _("The install value persistent_size (in MB) must be a"
                                    " whole number greater than or equal to %s") %
                             consts.DEFAULT_PERSISTENT_SIZE)
