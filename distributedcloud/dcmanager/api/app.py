@@ -55,7 +55,10 @@ def setup_app(*args, **kwargs):
         debug=False,
         wrap_app=_wrap_app,
         force_canonical=False,
-        hooks=lambda: [ctx.AuthHook()],
+        hooks=lambda: [
+            ctx.AuthHook(),
+            ctx.AuditLoggingHook()
+        ],
         guess_content_type_from_ext=True
     )
 

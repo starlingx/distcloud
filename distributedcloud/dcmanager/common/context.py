@@ -1,4 +1,4 @@
-# Copyright (c) 2017, 2019, 2021 Wind River Systems, Inc.
+# Copyright (c) 2017, 2019, 2021, 2022 Wind River Systems, Inc.
 # Licensed under the Apache License, Version 2.0 (the "License"); you may
 # not use this file except in compliance with the License. You may obtain
 # a copy of the License at
@@ -14,14 +14,26 @@
 
 import pecan
 from pecan import hooks
+import re
+from six.moves.urllib.parse import urlparse
+import time
 
 from oslo_context import context as base_context
+from oslo_log import log
 from oslo_utils import encodeutils
+from oslo_utils import uuidutils
 
 from dcmanager.common import policy
 from dcmanager.db import api as db_api
 
 ALLOWED_WITHOUT_AUTH = '/'
+
+audit_log_name = "{}.{}".format(__name__, "auditor")
+auditLOG = log.getLogger(audit_log_name)
+
+
+def generate_request_id():
+    return 'req-%s' % uuidutils.generate_uuid()
 
 
 class RequestContext(base_context.RequestContext):
@@ -147,3 +159,102 @@ class AuthHook(hooks.PecanHook):
             msg = 'Authentication required'
         msg = "Failed to validate access token: %s" % str(msg)
         pecan.abort(status_code=401, detail=msg)
+
+
+class AuditLoggingHook(hooks.PecanHook):
+    """Request data logging.
+
+    Performs audit logging of all Distributed Cloud Manager
+    ["POST", "PUT", "PATCH", "DELETE"] REST requests.
+    """
+
+    def __init__(self):
+        self.log_methods = ["POST", "PUT", "PATCH", "DELETE"]
+
+    def before(self, state):
+        state.request.start_time = time.time()
+
+    def __after(self, state):
+
+        method = state.request.method
+        if method not in self.log_methods:
+            return
+
+        now = time.time()
+        try:
+            elapsed = now - state.request.start_time
+        except AttributeError:
+            auditLOG.info("Start time is not in request, setting it to 0.")
+            elapsed = 0
+
+        environ = state.request.environ
+        server_protocol = environ["SERVER_PROTOCOL"]
+
+        response_content_length = state.response.content_length
+
+        user_id = state.request.headers.get('X-User-Id')
+        user_name = state.request.headers.get('X-User', user_id)
+        tenant_id = state.request.headers.get('X-Tenant-Id')
+        tenant = state.request.headers.get('X-Tenant', tenant_id)
+        domain_name = state.request.headers.get('X-User-Domain-Name')
+        try:
+            request_id = state.request.context.request_id
+        except AttributeError:
+            auditLOG.info("Request id is not in request, setting it to an "
+                          "auto generated id.")
+            request_id = generate_request_id()
+
+        url_path = urlparse(state.request.path_qs).path
+
+        def json_post_data(rest_state):
+            if 'form-data' in rest_state.request.headers.get('Content-Type'):
+                return " POST: {}".format(rest_state.request.params)
+            if not hasattr(rest_state.request, 'json'):
+                return ""
+            return " POST: {}".format(rest_state.request.json)
+
+        # Filter password from log
+        filtered_json = re.sub(r'{[^{}]*(passwd_hash|community|password)[^{}]*},*',
+                               '',
+                               json_post_data(state))
+
+        log_data = \
+            "{} \"{} {} {}\" status: {} len: {} time: {}{} host:{}" \
+            " agent:{} user: {} tenant: {} domain: {}".format(
+                state.request.remote_addr,
+                state.request.method,
+                url_path,
+                server_protocol,
+                state.response.status_int,
+                response_content_length,
+                elapsed,
+                filtered_json,
+                state.request.host,
+                state.request.user_agent,
+                user_name,
+                tenant,
+                domain_name)
+
+        # The following ctx object will be output in the logger as
+        # something like this:
+        # [req-088ed3b6-a2c9-483e-b2ad-f1b2d03e06e6
+        #  3d76d3c1376744e8ad9916a6c3be3e5f
+        #  ca53e70c76d847fd860693f8eb301546]
+        # When the ctx is defined, the formatter (defined in common/log.py) requires that keys
+        # request_id, user, tenant be defined within the ctx
+        ctx = {'request_id': request_id,
+               'user': user_id,
+               'tenant': tenant_id}
+
+        auditLOG.info("{}".format(log_data), context=ctx)
+
+    def after(self, state):
+        try:
+            self.__after(state)
+        except Exception:
+            # Logging and then swallowing exception to ensure
+            # rest service does not fail even if audit logging fails
+            auditLOG.exception("Exception in AuditLoggingHook on event 'after'")
+
+    def on_error(self, state, e):
+        auditLOG.exception("Exception in AuditLoggingHook passed to event 'on_error': " + str(e))
