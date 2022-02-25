@@ -48,6 +48,8 @@ FAKE_HEADERS = fake_subcloud.FAKE_HEADERS
 FAKE_SUBCLOUD_DATA = fake_subcloud.FAKE_SUBCLOUD_DATA
 FAKE_BOOTSTRAP_VALUE = fake_subcloud.FAKE_BOOTSTRAP_VALUE
 FAKE_SUBCLOUD_INSTALL_VALUES = fake_subcloud.FAKE_SUBCLOUD_INSTALL_VALUES
+FAKE_SUBCLOUD_INSTALL_VALUES_WITH_PERSISTENT_SIZE = \
+    fake_subcloud.FAKE_SUBCLOUD_INSTALL_VALUES_WITH_PERSISTENT_SIZE
 FAKE_SUBCLOUD_BOOTSTRAP_PAYLOAD = fake_subcloud.FAKE_SUBCLOUD_BOOTSTRAP_PAYLOAD
 
 
@@ -637,6 +639,21 @@ class TestSubcloudPost(testroot.DCManagerApiTest,
         self._test_post_input_value_inputs(setup_overrides, required_overrides,
                                            install_key, bad_values, good_value)
 
+    def test_post_subcloud_install_bad_persistent_size(self):
+        """Test POST with invalid persistent_size specified in install values."""
+
+        setup_overrides = {}
+        required_overrides = {}
+        install_key = "persistent_size"
+        bad_values = ["4000o",   # not an integer
+                      "20000",   # less than 30000
+                      40000.1,   # fraction
+                      None,      # None
+                      ]
+        good_value = 40000
+        self._test_post_input_value_inputs(setup_overrides, required_overrides,
+                                           install_key, bad_values, good_value)
+
     def test_post_subcloud_install_bad_nexthop_gateway(self):
         """Test POST with invalid nexthop_gateway in install values."""
 
@@ -956,6 +973,41 @@ class TestSubcloudAPIOther(testroot.DCManagerApiTest):
                                            params=data,
                                            expect_errors=True)
             self.assertEqual(response.status_int, 400)
+
+    @mock.patch.object(rpc_client, 'ManagerClient')
+    @mock.patch.object(subclouds.SubcloudsController, '_get_patch_data')
+    def test_update_subcloud_install_values_persistent_size(self,
+                                                            mock_get_patch_data,
+                                                            mock_rpc_client):
+        subcloud = fake_subcloud.create_fake_subcloud(self.ctx, data_install=None)
+        payload = {}
+        install_data = copy.copy(FAKE_SUBCLOUD_INSTALL_VALUES_WITH_PERSISTENT_SIZE)
+        encoded_password = base64.b64encode(
+            'bmc_password'.encode("utf-8")).decode('utf-8')
+        data = {'bmc_password': encoded_password}
+        payload.update({'install_values': install_data})
+        payload.update(data)
+        mock_rpc_client().update_subcloud.return_value = True
+        mock_get_patch_data.return_value = payload
+
+        fake_content = "fake content".encode("utf-8")
+        response = self.app.patch(FAKE_URL + '/' + str(subcloud.id),
+                                  headers=FAKE_HEADERS,
+                                  params=data,
+                                  upload_files=[("install_values",
+                                                 "fake_name",
+                                                 fake_content)])
+        install_data.update({'bmc_password': encoded_password})
+        mock_rpc_client().update_subcloud.assert_called_once_with(
+            mock.ANY,
+            subcloud.id,
+            management_state=None,
+            description=None,
+            location=None,
+            group_id=None,
+            data_install=json.dumps(install_data),
+            force=None)
+        self.assertEqual(response.status_int, 200)
 
     @mock.patch.object(rpc_client, 'ManagerClient')
     @mock.patch.object(subclouds.SubcloudsController, '_get_patch_data')
