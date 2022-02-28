@@ -231,6 +231,10 @@ class UpgradingSimplexState(BaseState):
             'bmc_password': data_install.get('bmc_password'),
         })
 
+        persistent_size = data_install.get('persistent_size')
+        if persistent_size is not None:
+            upgrade_data_install.update({'persistent_size': persistent_size})
+
         # optional bootstrap parameters
         optional_bootstrap_parameters = [
             'nexthop_gateway',  # default route address
