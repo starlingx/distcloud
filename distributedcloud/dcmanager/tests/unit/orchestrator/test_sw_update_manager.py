@@ -595,6 +595,13 @@ class TestSwUpdateManager(base.DCManagerTestCase):
             self.fake_kube_rootca_update_orch_thread
         self.addCleanup(p.stop)
 
+        self.fake_prestage_orch_thread = FakeOrchThread()
+        p = mock.patch.object(sw_update_manager, 'PrestageOrchThread')
+        self.mock_prestage_orch_thread = p.start()
+        self.mock_prestage_orch_thread.return_value = \
+            self.fake_prestage_orch_thread
+        self.addCleanup(p.stop)
+
         # Mock the dcmanager audit API
         self.fake_dcmanager_audit_api = FakeDCManagerAuditAPI()
         p = mock.patch('dcmanager.audit.rpcapi.ManagerAuditClient')

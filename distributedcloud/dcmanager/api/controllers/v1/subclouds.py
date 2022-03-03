@@ -221,8 +221,8 @@ class SubcloudsController(object):
             else:
                 if field == 'sysadmin_password':
                     try:
-                        payload['sysadmin_password'] = base64.b64decode(
-                            val).decode('utf-8')
+                        base64.b64decode(val).decode('utf-8')
+                        payload['sysadmin_password'] = val
                     except Exception:
                         pecan.abort(
                             400,
@@ -1423,10 +1423,16 @@ class SubcloudsController(object):
             payload = self._get_prestage_payload(request)
             payload['subcloud_name'] = subcloud.name
             try:
-                payload['oam_floating_ip'] = \
-                    prestage.validate_prestage_subcloud(subcloud, payload)
+                prestage.global_prestage_validate(payload)
             except exceptions.PrestagePreCheckFailedException as exc:
-                LOG.exception("validate_prestage_subcloud failed")
+                LOG.exception("global_prestage_validate failed")
+                pecan.abort(400, _(str(exc)))
+
+            try:
+                payload['oam_floating_ip'] = \
+                    prestage.validate_prestage(subcloud, payload)
+            except exceptions.PrestagePreCheckFailedException as exc:
+                LOG.exception("validate_prestage failed")
                 pecan.abort(400, _(str(exc)))
 
             try:

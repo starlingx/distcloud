@@ -429,6 +429,7 @@ class OrchThread(threading.Thread):
             LOG.exception("(%s) exception during delete"
                           % self.update_type)
             raise e
+        LOG.info("(%s) Finished deleting update strategy" % self.update_type)
 
     def delete_subcloud_strategy(self, strategy_step):
         """Delete the update strategy in this subcloud
@@ -448,6 +449,10 @@ class OrchThread(threading.Thread):
 
     def do_delete_subcloud_strategy(self, strategy_step):
         """Delete the vim strategy in this subcloud"""
+
+        if self.vim_strategy_name is None:
+            return
+
         region = self.get_region_name(strategy_step)
 
         LOG.info("(%s) Deleting vim strategy:(%s) for region:(%s)"

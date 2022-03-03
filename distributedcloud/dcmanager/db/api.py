@@ -351,11 +351,13 @@ def sw_update_strategy_get(context, update_type=None):
     return IMPL.sw_update_strategy_get(context, update_type=update_type)
 
 
-def sw_update_strategy_update(context, state=None, update_type=None):
+def sw_update_strategy_update(context, state=None,
+                              update_type=None, additional_args=None):
     """Update a sw update or raise if it does not exist."""
     return IMPL.sw_update_strategy_update(context,
                                           state,
-                                          update_type=update_type)
+                                          update_type=update_type,
+                                          additional_args=additional_args)
 
 
 def sw_update_strategy_destroy(context, update_type=None):

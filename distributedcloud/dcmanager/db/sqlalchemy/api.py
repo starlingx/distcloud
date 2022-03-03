@@ -540,12 +540,20 @@ def sw_update_strategy_create(context, type, subcloud_apply_type,
 
 
 @require_admin_context
-def sw_update_strategy_update(context, state=None, update_type=None):
+def sw_update_strategy_update(context, state=None,
+                              update_type=None, additional_args=None):
     with write_session() as session:
         sw_update_strategy_ref = \
             sw_update_strategy_get(context, update_type=update_type)
         if state is not None:
             sw_update_strategy_ref.state = state
+        if additional_args is not None:
+            if sw_update_strategy_ref.extra_args is None:
+                sw_update_strategy_ref.extra_args = additional_args
+            else:
+                # extend the existing dictionary
+                sw_update_strategy_ref.extra_args = dict(
+                    sw_update_strategy_ref.extra_args, **additional_args)
         sw_update_strategy_ref.save(session)
         return sw_update_strategy_ref
 

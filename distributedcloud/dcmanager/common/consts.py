@@ -79,6 +79,7 @@ SW_UPDATE_TYPE_FIRMWARE = "firmware"
 SW_UPDATE_TYPE_KUBE_ROOTCA_UPDATE = "kube-rootca-update"
 SW_UPDATE_TYPE_KUBERNETES = "kubernetes"
 SW_UPDATE_TYPE_PATCH = "patch"
+SW_UPDATE_TYPE_PRESTAGE = "prestage"
 SW_UPDATE_TYPE_UPGRADE = "upgrade"
 
 # Software update states
@@ -164,6 +165,12 @@ STRATEGY_STATE_CREATING_VIM_KUBE_ROOTCA_UPDATE_STRATEGY = \
 STRATEGY_STATE_APPLYING_VIM_KUBE_ROOTCA_UPDATE_STRATEGY = \
     "applying vim kube rootca update strategy"
 
+# Prestage orchestration states (ordered)
+STRATEGY_STATE_PRESTAGE_PRE_CHECK = "prestage-precheck"
+STRATEGY_STATE_PRESTAGE_PREPARE = "prestage-prepare"
+STRATEGY_STATE_PRESTAGE_PACKAGES = "prestaging-packages"
+STRATEGY_STATE_PRESTAGE_IMAGES = "prestaging-images"
+
 # Subcloud deploy status states
 DEPLOY_STATE_NONE = 'not-deployed'
 DEPLOY_STATE_PRE_DEPLOY = 'pre-deploy'
@@ -201,12 +208,11 @@ UPGRADE_STATE_ACTIVATION_FAILED = 'activation-failed'
 UPGRADE_STATE_ACTIVATION_COMPLETE = 'activation-complete'
 
 # Prestage States
-PRESTAGE_STATE_PREPARE = 'prestage-prepare'
-PRESTAGE_STATE_PACKAGES = 'prestaging-packages'
-PRESTAGE_STATE_IMAGES = 'prestaging-images'
+PRESTAGE_STATE_PREPARE = STRATEGY_STATE_PRESTAGE_PREPARE
+PRESTAGE_STATE_PACKAGES = STRATEGY_STATE_PRESTAGE_PACKAGES
+PRESTAGE_STATE_IMAGES = STRATEGY_STATE_PRESTAGE_IMAGES
 PRESTAGE_STATE_FAILED = 'prestage-failed'
 PRESTAGE_STATE_COMPLETE = 'prestage-complete'
-PRESTAGE_FILE_POSTFIX = '_prestage.yml'
 
 # Alarm aggregation
 ALARMS_DISABLED = "disabled"
@@ -262,6 +268,8 @@ EXTRA_ARGS_TO_VERSION = 'to-version'
 EXTRA_ARGS_CERT_FILE = 'cert-file'
 EXTRA_ARGS_EXPIRY_DATE = 'expiry-date'
 EXTRA_ARGS_SUBJECT = 'subject'
+EXTRA_ARGS_SYSADMIN_PASSWORD = 'sysadmin_password'
+EXTRA_ARGS_FORCE = 'force'
 
 # Device Image Bitstream Types
 BITSTREAM_TYPE_ROOT_KEY = 'root-key'
