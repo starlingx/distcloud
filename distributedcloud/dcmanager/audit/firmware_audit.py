@@ -143,13 +143,13 @@ class FirmwareAudit(object):
                            subcloud_image,
                            system_controller_image):
         if ((system_controller_image.bitstream_type == consts.BITSTREAM_TYPE_ROOT_KEY and
-             system_controller_image.root_key == subcloud_image.root_key) or
+             system_controller_image.key_signature == subcloud_image.key_signature) or
             (system_controller_image.bitstream_type == consts.BITSTREAM_TYPE_FUNCTIONAL and
              system_controller_image.bitstream_id == subcloud_image.bitstream_id and
              system_controller_image.bmc == subcloud_image.bmc and
              system_controller_image.retimer_included == subcloud_image.retimer_included) or
             (system_controller_image.bitstream_type == consts.BITSTREAM_TYPE_KEY_REVOCATION and
-             system_controller_image.revoked_key_ids == subcloud_image.revoked_key_ids)):
+             system_controller_image.revoke_key_id == subcloud_image.revoke_key_id)):
                 return True
         return False
 
