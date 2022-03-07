@@ -122,8 +122,12 @@ class OrchThread(threading.Thread):
 
     @staticmethod
     def format_update_details(last_state, info):
-        # include the last state, since the current state is likely 'failed'
-        details = "%s: %s" % (last_state, info)
+        # Optionally include the last state, since the current state
+        # is likely 'failed'
+        if last_state:
+            details = "%s: %s" % (last_state, info)
+        else:
+            details = str(info)
         # details cannot exceed 255 chars. truncate and add '..'
         if len(details) > 255:
             details = details[:253] + '..'
@@ -535,14 +539,26 @@ class OrchThread(threading.Thread):
             self.strategy_step_update(strategy_step.subcloud_id,
                                       state=next_state,
                                       details="")
-        except Exception as e:
+        except exceptions.StrategySkippedException as ex:
+            LOG.info("(%s) Skipping subcloud, Stage: %s, State: %s, Subcloud: %s"
+                     % (self.update_type,
+                        strategy_step.stage,
+                        strategy_step.state,
+                        self.get_region_name(strategy_step)))
+            # Transition immediately to complete. Update the details to show
+            # that this subcloud has been skipped
+            details = self.format_update_details(None, str(ex))
+            self.strategy_step_update(strategy_step.subcloud_id,
+                                      state=consts.STRATEGY_STATE_COMPLETE,
+                                      details=details)
+        except Exception as ex:
             # Catch ALL exceptions and set the strategy to failed
             LOG.exception("(%s) Failed! Stage: %s, State: %s, Subcloud: %s"
                           % (self.update_type,
                              strategy_step.stage,
                              strategy_step.state,
                              self.get_region_name(strategy_step)))
-            details = self.format_update_details(strategy_step.state, str(e))
+            details = self.format_update_details(strategy_step.state, str(ex))
             self.strategy_step_update(strategy_step.subcloud_id,
                                       state=consts.STRATEGY_STATE_FAILED,
                                       details=details)

@@ -32,7 +32,12 @@ class PrestageState(BaseState):
         """Wrapper to ensure proper error handling"""
         try:
             self._do_state_action(strategy_step)
-
+        except exceptions.StrategySkippedException:
+            # Move deploy_status back to complete (nothing has changed)
+            db_api.subcloud_update(
+                self.context, strategy_step.subcloud.id,
+                deploy_status=consts.DEPLOY_STATE_DONE)
+            raise
         except Exception:
             prestage.prestage_fail(self.context, strategy_step.subcloud.id)
             raise
@@ -95,19 +100,14 @@ class PrestagePreCheckState(PrestageState):
             prestage.prestage_start(self.context, strategy_step.subcloud.id)
 
         except exceptions.PrestagePreCheckFailedException as ex:
+            # We've either failed precheck or we want to skip this subcloud.
+            # Either way, we'll re-raise up to the base class for status
+            # update, and then let OrchThread take it from here
             if ex.orch_skip:
-                self.info_log(strategy_step,
-                              "Pre-check: skipping subcloud: %s" % ex)
+                raise exceptions.StrategySkippedException(details=str(ex))
 
-                # Update the details to show that this subcloud has been skipped
-                db_api.strategy_step_update(self.context,
-                                            strategy_step.subcloud.id,
-                                            details=str(ex))
-
-                self.override_next_state(consts.STRATEGY_STATE_COMPLETE)
-            else:
-                self.info_log(strategy_step, "Pre-check failed: %s" % ex)
-                raise
+            self.error_log(strategy_step, "Pre-check failed: %s" % ex)
+            raise
         else:
             self.info_log(strategy_step, "Pre-check pass")
 

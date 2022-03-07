@@ -229,5 +229,12 @@ class StrategyStepNameNotFound(NotFound):
     message = _("StrategyStep with name %(name)s doesn't exist.")
 
 
+class StrategySkippedException(DCManagerException):
+    def __init__(self, details):
+        self.details = details
+        self.message = _(details)
+        super(StrategySkippedException, self).__init__()
+
+
 class StrategyStoppedException(DCManagerException):
     message = _("Strategy has been stopped")
