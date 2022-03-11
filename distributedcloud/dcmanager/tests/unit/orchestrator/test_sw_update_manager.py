@@ -1,4 +1,4 @@
-# Copyright (c) 2017-2021 Wind River Systems, Inc.
+# Copyright (c) 2017-2022 Wind River Systems, Inc.
 # Licensed under the Apache License, Version 2.0 (the "License"); you may
 # not use this file except in compliance with the License. You may obtain
 # a copy of the License at
@@ -11,6 +11,8 @@
 # License for the specific language governing permissions and limitations
 # under the License.
 #
+
+import base64
 import copy
 import mock
 from os import path as os_path
@@ -21,6 +23,7 @@ from oslo_config import cfg
 from dcmanager.common import consts
 from dcmanager.common import context
 from dcmanager.common import exceptions
+from dcmanager.common import prestage
 from dcmanager.db.sqlalchemy import api as db_api
 from dcmanager.orchestrator import patch_orch_thread
 from dcmanager.orchestrator import sw_update_manager
@@ -32,6 +35,7 @@ from dcmanager.tests import utils
 from dcorch.common import consts as dcorch_consts
 
 
+OAM_FLOATING_IP = '10.10.10.12'
 CONF = cfg.CONF
 FAKE_ID = '1'
 FAKE_SW_UPDATE_DATA = {
@@ -43,6 +47,15 @@ FAKE_SW_UPDATE_DATA = {
     "state": consts.SW_UPDATE_STATE_INITIAL
 }
 
+FAKE_SW_PRESTAGE_DATA = {
+    "type": consts.SW_UPDATE_TYPE_PRESTAGE,
+    "subcloud-apply-type": consts.SUBCLOUD_APPLY_TYPE_PARALLEL,
+    "max-parallel-subclouds": "2",
+    "stop-on-failure": "true",
+    "force": "false",
+    "state": consts.SW_UPDATE_STATE_INITIAL,
+}
+
 FAKE_STRATEGY_STEP_DATA = {
     "id": 1,
     "subcloud_id": 1,
@@ -51,6 +64,17 @@ FAKE_STRATEGY_STEP_DATA = {
     "details": '',
     "subcloud": None
 }
+
+health_report_no_mgmt_alarm = \
+    "System Health:\n \
+    All hosts are provisioned: [Fail]\n \
+    1 Unprovisioned hosts\n \
+    All hosts are unlocked/enabled: [OK]\n \
+    All hosts have current configurations: [OK]\n \
+    All hosts are patch current: [OK]\n \
+    No alarms: [OK]\n \
+    All kubernetes nodes are ready: [OK]\n \
+    All kubernetes control plane pods are ready: [OK]"
 
 
 def compare_call_with_unsorted_list(call, unsorted_list):
@@ -739,9 +763,157 @@ class TestSwUpdateManager(base.DCManagerTestCase):
             self.assertEqual(subcloud_ids[index], strategy_step.subcloud_id)
             self.assertEqual(stage[index], strategy_step.stage)
 
+    @mock.patch.object(prestage, 'initial_subcloud_validate')
+    @mock.patch.object(prestage, 'global_prestage_validate')
     @mock.patch.object(sw_update_manager, 'PatchOrchThread')
-    def test_create_sw_update_strategy_with_cloud_name_not_exists(
-            self, mock_patch_orch_thread):
+    def test_create_sw_prestage_strategy_parallel_for_a_single_group(
+            self,
+            mock_patch_orch_thread,
+            mock_global_prestage_validate,
+            mock_initial_subcloud_validate):
+
+        # Create fake subclouds and respective status
+        fake_subcloud1 = self.create_subcloud(self.ctxt, 'subcloud1',
+                                              self.fake_group3.id,
+                                              is_managed=True, is_online=True)
+        self.create_subcloud_status(self.ctxt, fake_subcloud1.id,
+                                    endpoint=dcorch_consts.ENDPOINT_TYPE_LOAD)
+
+        fake_subcloud2 = self.create_subcloud(self.ctxt, 'subcloud2',
+                                              self.fake_group3.id,
+                                              is_managed=True, is_online=True)
+        self.create_subcloud_status(self.ctxt, fake_subcloud2.id,
+                                    endpoint=dcorch_consts.ENDPOINT_TYPE_LOAD)
+
+        mock_global_prestage_validate.return_value = None
+        mock_initial_subcloud_validate.return_value = None
+
+        data = copy.copy(FAKE_SW_PRESTAGE_DATA)
+        fake_password = (base64.b64encode('testpass'.encode("utf-8"))).decode('ascii')
+        data['sysadmin_password'] = fake_password
+
+        data['subcloud_group'] = str(self.fake_group3.id)
+        um = sw_update_manager.SwUpdateManager()
+        response = um.create_sw_update_strategy(
+            self.ctxt, payload=data)
+
+        # Verify strategy was created as expected using group values
+        self.assertEqual(response['max-parallel-subclouds'], 2)
+        self.assertEqual(response['subcloud-apply-type'],
+                         consts.SUBCLOUD_APPLY_TYPE_PARALLEL)
+        self.assertEqual(response['type'], consts.SW_UPDATE_TYPE_PRESTAGE)
+
+        # Verify the strategy step list
+        subcloud_ids = [1, 2]
+        stage = [1, 1]
+        strategy_step_list = db_api.strategy_step_get_all(self.ctxt)
+        for index, strategy_step in enumerate(strategy_step_list):
+            self.assertEqual(subcloud_ids[index], strategy_step.subcloud_id)
+            self.assertEqual(stage[index], strategy_step.stage)
+
+    @mock.patch.object(prestage, 'initial_subcloud_validate')
+    @mock.patch.object(prestage, 'global_prestage_validate')
+    @mock.patch.object(sw_update_manager, 'PatchOrchThread')
+    def test_create_sw_prestage_strategy_load_in_sync_out_of_sync_unknown_and_no_load(
+            self,
+            mock_patch_orch_thread,
+            mock_global_prestage_validate,
+            mock_initial_subcloud_validate):
+
+        # Create fake subclouds and respective status
+        # Subcloud1 will be prestaged load in sync
+        fake_subcloud1 = self.create_subcloud(self.ctxt, 'subcloud1', 1,
+                                              is_managed=True, is_online=True)
+        self.create_subcloud_status(self.ctxt,
+                                    fake_subcloud1.id,
+                                    dcorch_consts.ENDPOINT_TYPE_LOAD,
+                                    consts.SYNC_STATUS_IN_SYNC)
+
+        # Subcloud2 will not be prestaged because endpoint is None
+        fake_subcloud2 = self.create_subcloud(self.ctxt, 'subcloud2', 1,
+                                              is_managed=True, is_online=True)
+        self.create_subcloud_status(self.ctxt,
+                                    fake_subcloud2.id,
+                                    None,
+                                    consts.SYNC_STATUS_IN_SYNC)
+
+        # Subcloud3 will be prestaged load out of sync
+        fake_subcloud3 = self.create_subcloud(self.ctxt, 'subcloud3', 1,
+                                              is_managed=True, is_online=True)
+        self.create_subcloud_status(self.ctxt,
+                                    fake_subcloud3.id,
+                                    dcorch_consts.ENDPOINT_TYPE_LOAD,
+                                    consts.SYNC_STATUS_OUT_OF_SYNC)
+
+        # Subcloud2 will be prestaged sync unknown
+        fake_subcloud4 = self.create_subcloud(self.ctxt, 'subcloud4', 2,
+                                              is_managed=True, is_online=True)
+        self.create_subcloud_status(self.ctxt,
+                                    fake_subcloud4.id,
+                                    dcorch_consts.ENDPOINT_TYPE_LOAD,
+                                    consts.SYNC_STATUS_UNKNOWN)
+
+        mock_global_prestage_validate.return_value = None
+        mock_initial_subcloud_validate.return_value = None
+
+        data = copy.copy(FAKE_SW_PRESTAGE_DATA)
+        fake_password = (base64.b64encode('testpass'.encode("utf-8"))).decode('ascii')
+        data['sysadmin_password'] = fake_password
+
+        um = sw_update_manager.SwUpdateManager()
+        response = um.create_sw_update_strategy(
+            self.ctxt, payload=data)
+
+        # Verify strategy was created as expected using group values
+        self.assertEqual(response['max-parallel-subclouds'], 2)
+        self.assertEqual(response['subcloud-apply-type'],
+                         consts.SUBCLOUD_APPLY_TYPE_PARALLEL)
+        self.assertEqual(response['type'], consts.SW_UPDATE_TYPE_PRESTAGE)
+
+        # Verify the strategy step list
+        subcloud_ids = [1, 3, 4]
+        stage = [1, 1, 2]
+        strategy_step_list = db_api.strategy_step_get_all(self.ctxt)
+        for index, strategy_step in enumerate(strategy_step_list):
+            self.assertEqual(subcloud_ids[index], strategy_step.subcloud_id)
+            self.assertEqual(stage[index], strategy_step.stage)
+
+    @mock.patch.object(prestage, 'initial_subcloud_validate')
+    @mock.patch.object(prestage, '_get_system_controller_upgrades')
+    @mock.patch.object(sw_update_manager, 'PatchOrchThread')
+    def test_create_sw_prestage_strategy_no_password(self,
+                                                     mock_patch_orch_thread,
+                                                     mock_controller_upgrade,
+                                                     mock_initial_subcloud_validate):
+
+        # Create fake subclouds and respective status
+        fake_subcloud1 = self.create_subcloud(self.ctxt, 'subcloud1',
+                                              self.fake_group3.id,
+                                              is_managed=True, is_online=True)
+        self.create_subcloud_status(self.ctxt, fake_subcloud1.id,
+                                    endpoint=dcorch_consts.ENDPOINT_TYPE_LOAD)
+
+        fake_subcloud2 = self.create_subcloud(self.ctxt, 'subcloud2',
+                                              self.fake_group3.id,
+                                              is_managed=True, is_online=True)
+        self.create_subcloud_status(self.ctxt, fake_subcloud2.id,
+                                    endpoint=dcorch_consts.ENDPOINT_TYPE_LOAD)
+
+        mock_initial_subcloud_validate.return_value = None
+        mock_controller_upgrade.return_value = list()
+
+        data = copy.copy(FAKE_SW_PRESTAGE_DATA)
+        data['sysadmin_password'] = ''
+        data['subcloud_group'] = str(self.fake_group3.id)
+        um = sw_update_manager.SwUpdateManager()
+
+        self.assertRaises(exceptions.BadRequest,
+                          um.create_sw_update_strategy,
+                          self.ctxt, payload=data)
+
+    @mock.patch.object(sw_update_manager, 'PatchOrchThread')
+    def test_create_sw_update_strategy_cloud_name_not_exists(self,
+                                                             mock_patch_orch_thread):
         # Create fake subclouds and respective status
         fake_subcloud1 = self.create_subcloud(self.ctxt, 'subcloud1',
                                               self.fake_group3.id,
@@ -814,6 +986,85 @@ class TestSwUpdateManager(base.DCManagerTestCase):
         for index, strategy_step in enumerate(strategy_step_list):
             self.assertEqual(subcloud_ids[index], strategy_step.subcloud_id)
             self.assertEqual(stage[index], strategy_step.stage)
+
+    @mock.patch.object(prestage, 'initial_subcloud_validate')
+    @mock.patch.object(prestage, '_get_system_controller_upgrades')
+    @mock.patch.object(sw_update_manager, 'PatchOrchThread')
+    def test_create_sw_prestage_strategy_parallel(self,
+                                                  mock_patch_orch_thread,
+                                                  mock_controller_upgrade,
+                                                  mock_initial_subcloud_validate):
+
+        # Create fake subclouds and respective status
+        # Subcloud1 will be prestaged
+        fake_subcloud1 = self.create_subcloud(self.ctxt, 'subcloud1', 1,
+                                              is_managed=True, is_online=True)
+        self.create_subcloud_status(self.ctxt, fake_subcloud1.id,
+                                    endpoint=dcorch_consts.ENDPOINT_TYPE_LOAD)
+
+        # Subcloud2 will not be prestaged because not managed
+        fake_subcloud2 = self.create_subcloud(self.ctxt, 'subcloud2', 1,
+                                              is_managed=False, is_online=True)
+        self.create_subcloud_status(self.ctxt, fake_subcloud2.id,
+                                    endpoint=dcorch_consts.ENDPOINT_TYPE_LOAD)
+
+        # Subcloud3 will be prestaged
+        fake_subcloud3 = self.create_subcloud(self.ctxt, 'subcloud3', 1,
+                                              is_managed=True, is_online=True)
+        self.create_subcloud_status(self.ctxt, fake_subcloud3.id,
+                                    endpoint=dcorch_consts.ENDPOINT_TYPE_LOAD)
+
+        # Subcloud4 will not be prestaged because endpoint is None
+        fake_subcloud4 = self.create_subcloud(self.ctxt, 'subcloud4', 2,
+                                              is_managed=True, is_online=True)
+        self.create_subcloud_status(self.ctxt,
+                                    fake_subcloud4.id,
+                                    None,
+                                    consts.SYNC_STATUS_IN_SYNC)
+        # Subcloud5 will be prestaged
+        fake_subcloud5 = self.create_subcloud(self.ctxt, 'subcloud5', 2,
+                                              is_managed=True, is_online=True)
+        self.create_subcloud_status(self.ctxt, fake_subcloud5.id,
+                                    endpoint=dcorch_consts.ENDPOINT_TYPE_LOAD)
+
+        # Subcloud6 will be prestaged
+        fake_subcloud6 = self.create_subcloud(self.ctxt, 'subcloud6', 3,
+                                              is_managed=True, is_online=True)
+        self.create_subcloud_status(self.ctxt, fake_subcloud6.id,
+                                    endpoint=dcorch_consts.ENDPOINT_TYPE_LOAD)
+
+        # Subcloud7 will be prestaged
+        fake_subcloud7 = self.create_subcloud(self.ctxt, 'subcloud7', 3,
+                                              is_managed=True, is_online=True)
+        self.create_subcloud_status(self.ctxt, fake_subcloud7.id,
+                                    endpoint=dcorch_consts.ENDPOINT_TYPE_LOAD)
+
+        data = copy.copy(FAKE_SW_PRESTAGE_DATA)
+        fake_password = (base64.b64encode('testpass'.encode("utf-8"))).decode('ascii')
+        data['sysadmin_password'] = fake_password
+
+        um = sw_update_manager.SwUpdateManager()
+        strategy_dict = um.create_sw_update_strategy(self.ctxt, payload=data)
+
+        mock_initial_subcloud_validate.return_value = None
+        mock_controller_upgrade.return_value = list()
+
+        # Assert that values passed through CLI are used instead of group values
+        self.assertEqual(strategy_dict['max-parallel-subclouds'], 2)
+        self.assertEqual(strategy_dict['subcloud-apply-type'],
+                         consts.SUBCLOUD_APPLY_TYPE_PARALLEL)
+
+        # Verify the strategy step list
+        subcloud_ids = [1, 3, 5, 6, 7]
+        stage = [1, 1, 2, 3, 3]
+        strategy_step_list = db_api.strategy_step_get_all(self.ctxt)
+        subcloud_id_processed = []
+        stage_processed = []
+        for index, strategy_step in enumerate(strategy_step_list):
+                subcloud_id_processed.append(strategy_step.subcloud_id)
+                stage_processed.append(strategy_step.stage)
+        self.assertEqual(subcloud_ids, subcloud_id_processed)
+        self.assertEqual(stage, stage_processed)
 
     @mock.patch.object(sw_update_manager, 'PatchOrchThread')
     def test_create_sw_update_strategy_serial(
@@ -1172,7 +1423,7 @@ class TestSwUpdateManager(base.DCManagerTestCase):
                                               is_managed=True, is_online=True)
         self.create_subcloud_status(self.ctxt, fake_subcloud3.id)
 
-        # Subcloud4 will not be patched because patching is in sync
+        # Subcloud4 will not be patched because patching is not in sync
         fake_subcloud4 = self.create_subcloud(self.ctxt, 'subcloud4', 2,
                                               is_managed=True, is_online=True)
         self.create_subcloud_status(self.ctxt,
@@ -1184,6 +1435,81 @@ class TestSwUpdateManager(base.DCManagerTestCase):
         self.assertRaises(exceptions.BadRequest,
                           um.create_sw_update_strategy,
                           self.ctxt, payload=FAKE_SW_UPDATE_DATA)
+
+    @mock.patch.object(prestage, '_get_prestage_subcloud_info')
+    @mock.patch.object(prestage, '_get_system_controller_upgrades')
+    @mock.patch.object(sw_update_manager, 'PatchOrchThread')
+    def test_create_sw_prestage_strategy_unknown_sync_status(
+            self,
+            mock_patch_orch_thread,
+            mock_controller_upgrade,
+            mock_prestage_subcloud_info):
+
+        # Create fake subclouds and respective status
+        # Subcloud1 will be prestaged
+        fake_subcloud1 = self.create_subcloud(self.ctxt, 'subcloud1', 1,
+                                              is_managed=True, is_online=True)
+        self.create_subcloud_status(self.ctxt, fake_subcloud1.id)
+
+        # Subcloud2 will not be prestaged because not managed
+        fake_subcloud2 = self.create_subcloud(self.ctxt, 'subcloud2', 1,
+                                              is_managed=False, is_online=True)
+        self.create_subcloud_status(self.ctxt, fake_subcloud2.id)
+
+        # Subcloud3 will be prestaged
+        fake_subcloud3 = self.create_subcloud(self.ctxt, 'subcloud3', 1,
+                                              is_managed=True, is_online=True)
+        self.create_subcloud_status(self.ctxt, fake_subcloud3.id)
+
+        # Subcloud4 will not be prestaged because endpoint is None
+        fake_subcloud4 = self.create_subcloud(self.ctxt, 'subcloud4', 2,
+                                              is_managed=True, is_online=True)
+        self.create_subcloud_status(self.ctxt,
+                                    fake_subcloud4.id,
+                                    None,
+                                    consts.SYNC_STATUS_UNKNOWN)
+
+        data = copy.copy(FAKE_SW_PRESTAGE_DATA)
+        fake_password = (base64.b64encode('testpass'.encode("utf-8"))).decode('ascii')
+        data['sysadmin_password'] = fake_password
+
+        mock_controller_upgrade.return_value = list()
+        mock_prestage_subcloud_info.return_value = consts.SYSTEM_MODE_SIMPLEX, \
+            health_report_no_mgmt_alarm, \
+            OAM_FLOATING_IP
+
+        um = sw_update_manager.SwUpdateManager()
+        self.assertRaises(exceptions.BadRequest,
+                          um.create_sw_update_strategy,
+                          self.ctxt, payload=data)
+
+    @mock.patch.object(prestage, '_get_prestage_subcloud_info')
+    @mock.patch.object(prestage, '_get_system_controller_upgrades')
+    @mock.patch.object(sw_update_manager, 'PatchOrchThread')
+    def test_create_sw_prestage_strategy_duplex(self,
+                                                mock_patch_orch_thread,
+                                                mock_controller_upgrade,
+                                                mock_prestage_subcloud_info):
+
+        # Create fake subclouds and respective status
+        # Subcloud1 will not be prestaged because later find out it is a duplex
+        fake_subcloud = self.create_subcloud(self.ctxt, 'subcloud1', 1,
+                                             is_managed=True, is_online=True)
+        self.create_subcloud_status(self.ctxt, fake_subcloud.id)
+
+        data = copy.copy(FAKE_SW_PRESTAGE_DATA)
+        fake_password = (base64.b64encode('testpass'.encode("utf-8"))).decode('ascii')
+        data['sysadmin_password'] = fake_password
+
+        mock_controller_upgrade.return_value = list()
+        mock_prestage_subcloud_info.return_value = consts.SYSTEM_MODE_DUPLEX, \
+            health_report_no_mgmt_alarm, \
+            OAM_FLOATING_IP
+
+        um = sw_update_manager.SwUpdateManager()
+        self.assertRaises(exceptions.BadRequest,
+                          um.create_sw_update_strategy,
+                          self.ctxt, payload=data)
 
     @mock.patch.object(sw_update_manager, 'PatchOrchThread')
     def test_create_sw_update_strategy_offline_subcloud_no_force(
