@@ -433,32 +433,36 @@ def prestage_images(context, subcloud, payload):
 
     If the prestage images file has been uploaded for the target software
     version then pass the image_list_file to the prestage_images.yml playbook
-    If this file does not exist and the prestage is for upgrade,
+    If the images file does not exist and the prestage is for upgrade,
     skip calling prestage_images.yml playbook.
 
     Ensure the final state is either prestage-failed or prestage-complete
-    regardless whether prestage_images.yml playbook is skipped or not.
+    regardless of whether prestage_images.yml playbook is executed or skipped.
     """
-    image_list_file = os.path.join(DEPLOY_BASE_DIR,
-                                   utils.get_filename_by_prefix(
-                                       DEPLOY_BASE_DIR, 'prestage_images'))
-    image_list_exists = \
-        image_list_file is not None and os.path.exists(image_list_file)
-    LOG.debug("prestage images list: %s, exists: %s",
-              image_list_file, image_list_exists)
-
     upgrade = is_upgrade(subcloud.software_version)
-
     extra_vars_str = "software_version=%s" % SW_VERSION
-    if upgrade and image_list_exists:
-        extra_vars_str += (" image_list_file=%s" % image_list_file)
 
-    # Ansible inventory filename for the specified subcloud
-    ansible_subcloud_inventory_file = \
-        utils.get_ansible_filename(subcloud.name,
-                                   ANSIBLE_PRESTAGE_INVENTORY_SUFFIX)
+    image_list_file = None
+    if upgrade:
+        image_list_filename = utils.get_filename_by_prefix(DEPLOY_BASE_DIR,
+                                                           'prestage_images')
+        if image_list_filename:
+            image_list_file = os.path.join(DEPLOY_BASE_DIR, image_list_filename)
+            # include this file in the ansible args:
+            extra_vars_str += (" image_list_file=%s" % image_list_file)
+            LOG.debug("prestage images list file: %s", image_list_file)
+        else:
+            LOG.debug("prestage images list file does not exist")
 
-    if not upgrade or (upgrade and image_list_exists):
+    # There are only two scenarios where we want to run ansible
+    # for prestating images:
+    # 1. reinstall
+    # 2. upgrade, with supplied image list
+    if not upgrade or (upgrade and image_list_file):
+        # Ansible inventory filename for the specified subcloud
+        ansible_subcloud_inventory_file = \
+            utils.get_ansible_filename(subcloud.name,
+                                       ANSIBLE_PRESTAGE_INVENTORY_SUFFIX)
         _run_ansible(context,
                      ["ansible-playbook",
                       ANSIBLE_PRESTAGE_SUBCLOUD_IMAGES_PLAYBOOK,
@@ -472,5 +476,4 @@ def prestage_images(context, subcloud, payload):
                      ansible_subcloud_inventory_file)
     else:
         LOG.info("Skipping ansible prestage images step, upgrade: %s,"
-                 " image_list_exists: %s",
-                 upgrade, image_list_exists)
+                 " image_list_file: %s", upgrade, image_list_file)
