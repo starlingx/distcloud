@@ -1,5 +1,5 @@
 # Copyright (c) 2017 Ericsson AB
-# Copyright (c) 2017-2021 Wind River Systems, Inc.
+# Copyright (c) 2017-2022 Wind River Systems, Inc.
 # All Rights Reserved.
 #
 #    Licensed under the Apache License, Version 2.0 (the "License"); you may
@@ -28,6 +28,7 @@ import webtest
 
 from dcmanager.api.controllers.v1 import subclouds
 from dcmanager.common import consts
+from dcmanager.common import prestage
 from dcmanager.common import utils as cutils
 from dcmanager.db.sqlalchemy import api as db_api
 from dcmanager.rpc import client as rpc_client
@@ -51,6 +52,44 @@ FAKE_SUBCLOUD_INSTALL_VALUES = fake_subcloud.FAKE_SUBCLOUD_INSTALL_VALUES
 FAKE_SUBCLOUD_INSTALL_VALUES_WITH_PERSISTENT_SIZE = \
     fake_subcloud.FAKE_SUBCLOUD_INSTALL_VALUES_WITH_PERSISTENT_SIZE
 FAKE_SUBCLOUD_BOOTSTRAP_PAYLOAD = fake_subcloud.FAKE_SUBCLOUD_BOOTSTRAP_PAYLOAD
+OAM_FLOATING_IP = '10.10.10.12'
+
+health_report_no_alarm = \
+    "System Health:\n \
+    All hosts are provisioned: [Fail]\n \
+    1 Unprovisioned hosts\n \
+    All hosts are unlocked/enabled: [OK]\n \
+    All hosts have current configurations: [OK]\n \
+    All hosts are patch current: [OK]\n \
+    No alarms: [OK]\n \
+    All kubernetes nodes are ready: [OK]\n \
+    All kubernetes control plane pods are ready: [OK]"
+
+
+health_report_no_mgmt_alarm = \
+    "System Health:\n" \
+    "All hosts are provisioned: [OK]\n" \
+    "All hosts are unlocked/enabled: [OK]\n" \
+    "All hosts have current configurations: [OK]\n" \
+    "All hosts are patch current: [OK]\n" \
+    "Ceph Storage Healthy: [OK]\n" \
+    "No alarms: [Fail]\n" \
+    "[1] alarms found, [0] of which are management affecting\n" \
+    "All kubernetes nodes are ready: [OK]\n" \
+    "All kubernetes control plane pods are ready: [OK]"
+
+
+health_report_mgmt_alarm = \
+    "System Health:\n" \
+    "All hosts are provisioned: [OK]\n" \
+    "All hosts are unlocked/enabled: [OK]\n" \
+    "All hosts have current configurations: [OK]\n" \
+    "All hosts are patch current: [OK]\n" \
+    "Ceph Storage Healthy: [OK]\n" \
+    "No alarms: [Fail]\n" \
+    "[1] alarms found, [1] of which are management affecting\n" \
+    "All kubernetes nodes are ready: [OK]\n" \
+    "All kubernetes control plane pods are ready: [OK]"
 
 
 class Subcloud(object):
@@ -1676,3 +1715,298 @@ class TestSubcloudAPIOther(testroot.DCManagerApiTest):
             subcloud.id,
             mock.ANY)
         self.assertEqual(response.status_int, 200)
+
+    @mock.patch.object(rpc_client, 'ManagerClient')
+    @mock.patch.object(prestage, '_get_system_controller_upgrades')
+    @mock.patch.object(prestage, '_get_prestage_subcloud_info')
+    @mock.patch.object(subclouds.SubcloudsController, '_get_prestage_payload')
+    def test_prestage_subcloud_validate_detailed(self, mock_get_prestage_payload,
+                                                 mock_prestage_subcloud_info,
+                                                 mock_controller_upgrade,
+                                                 mock_rpc_client):
+        subcloud = fake_subcloud.create_fake_subcloud(self.ctx)
+        subcloud = db_api.subcloud_update(
+            self.ctx, subcloud.id, availability_status=consts.AVAILABILITY_ONLINE,
+            management_state=consts.MANAGEMENT_MANAGED)
+
+        fake_password = (base64.b64encode('testpass'.encode("utf-8"))).decode('ascii')
+        data = {'sysadmin_password': fake_password,
+                'force': False}
+        mock_controller_upgrade.return_value = list()
+        mock_prestage_subcloud_info.return_value = consts.SYSTEM_MODE_SIMPLEX, \
+            health_report_no_alarm, \
+            OAM_FLOATING_IP
+
+        mock_rpc_client().prestage_subcloud.return_value = True
+        mock_get_prestage_payload.return_value = data
+
+        response = self.app.patch_json(FAKE_URL + '/' + str(subcloud.id) +
+                                       '/prestage',
+                                       headers=FAKE_HEADERS,
+                                       params=data)
+        mock_rpc_client().prestage_subcloud.assert_called_once_with(
+            mock.ANY,
+            mock.ANY)
+        self.assertEqual(response.status_int, 200)
+
+    @mock.patch.object(rpc_client, 'ManagerClient')
+    @mock.patch.object(subclouds.SubcloudsController, '_get_prestage_payload')
+    @mock.patch.object(prestage, '_get_system_controller_upgrades')
+    def test_prestage_subcloud_unmanaged(self, mock_controller_upgrade,
+                                         mock_get_prestage_payload,
+                                         mock_rpc_client):
+
+        subcloud = fake_subcloud.create_fake_subcloud(self.ctx)
+        subcloud = db_api.subcloud_update(
+            self.ctx, subcloud.id, availability_status=consts.AVAILABILITY_ONLINE,
+            management_state=consts.MANAGEMENT_UNMANAGED)
+        fake_password = (base64.b64encode('testpass'.encode("utf-8"))).decode('ascii')
+        data = {'sysadmin_password': fake_password}
+        mock_controller_upgrade.return_value = list()
+
+        mock_rpc_client().prestage_subcloud.return_value = True
+        mock_get_prestage_payload.return_value = data
+
+        six.assertRaisesRegex(self, webtest.app.AppError, "400 *",
+                              self.app.patch_json, FAKE_URL + '/' +
+                              str(subcloud.id) + '/prestage',
+                              headers=FAKE_HEADERS, params=data)
+
+    @mock.patch.object(rpc_client, 'ManagerClient')
+    @mock.patch.object(subclouds.SubcloudsController, '_get_prestage_payload')
+    @mock.patch.object(prestage, '_get_system_controller_upgrades')
+    def test_prestage_subcloud_offline(self, mock_controller_upgrade,
+                                       mock_get_prestage_payload,
+                                       mock_rpc_client):
+
+        subcloud = fake_subcloud.create_fake_subcloud(self.ctx)
+        subcloud = db_api.subcloud_update(
+            self.ctx, subcloud.id, availability_status=consts.AVAILABILITY_OFFLINE,
+            management_state=consts.MANAGEMENT_MANAGED)
+        fake_password = (base64.b64encode('testpass'.encode("utf-8"))).decode('ascii')
+        data = {'sysadmin_password': fake_password}
+        mock_controller_upgrade.return_value = list()
+
+        mock_rpc_client().prestage_subcloud.return_value = True
+        mock_get_prestage_payload.return_value = data
+
+        six.assertRaisesRegex(self, webtest.app.AppError, "400 *",
+                              self.app.patch_json, FAKE_URL + '/' +
+                              str(subcloud.id) + '/prestage',
+                              headers=FAKE_HEADERS, params=data)
+
+    @mock.patch.object(rpc_client, 'ManagerClient')
+    @mock.patch.object(prestage, '_get_system_controller_upgrades')
+    @mock.patch.object(prestage, '_get_prestage_subcloud_info')
+    @mock.patch.object(subclouds.SubcloudsController, '_get_prestage_payload')
+    def test_prestage_subcloud_duplex(self, mock_get_prestage_payload,
+                                      mock_prestage_subcloud_info,
+                                      mock_controller_upgrade,
+                                      mock_rpc_client):
+        subcloud = fake_subcloud.create_fake_subcloud(self.ctx)
+        subcloud = db_api.subcloud_update(
+            self.ctx, subcloud.id, availability_status=consts.AVAILABILITY_ONLINE,
+            management_state=consts.MANAGEMENT_MANAGED)
+
+        fake_password = (base64.b64encode('testpass'.encode("utf-8"))).decode('ascii')
+        data = {'sysadmin_password': fake_password,
+                'force': False}
+        mock_controller_upgrade.return_value = list()
+        mock_prestage_subcloud_info.return_value = consts.SYSTEM_MODE_DUPLEX, \
+            health_report_no_alarm, \
+            OAM_FLOATING_IP
+
+        mock_rpc_client().prestage_subcloud.return_value = True
+        mock_get_prestage_payload.return_value = data
+
+        six.assertRaisesRegex(self, webtest.app.AppError, "400 *",
+                              self.app.patch_json, FAKE_URL + '/' +
+                              str(subcloud.id) + '/prestage',
+                              headers=FAKE_HEADERS, params=data)
+
+    @mock.patch.object(rpc_client, 'ManagerClient')
+    @mock.patch.object(prestage, '_get_system_controller_upgrades')
+    @mock.patch.object(prestage, '_get_prestage_subcloud_info')
+    @mock.patch.object(subclouds.SubcloudsController, '_get_prestage_payload')
+    def test_prestage_subcloud_non_mgmt_alarm(self, mock_get_prestage_payload,
+                                              mock_prestage_subcloud_info,
+                                              mock_controller_upgrade,
+                                              mock_rpc_client):
+
+        subcloud = fake_subcloud.create_fake_subcloud(self.ctx)
+        subcloud = db_api.subcloud_update(
+            self.ctx, subcloud.id, availability_status=consts.AVAILABILITY_ONLINE,
+            management_state=consts.MANAGEMENT_MANAGED)
+
+        fake_password = (base64.b64encode('testpass'.encode("utf-8"))).decode('ascii')
+        data = {'sysadmin_password': fake_password,
+                'force': False}
+        mock_controller_upgrade.return_value = list()
+        mock_prestage_subcloud_info.return_value = consts.SYSTEM_MODE_SIMPLEX, \
+            health_report_no_mgmt_alarm, \
+            OAM_FLOATING_IP
+
+        mock_rpc_client().prestage_subcloud.return_value = True
+        mock_get_prestage_payload.return_value = data
+
+        response = self.app.patch_json(FAKE_URL + '/' + str(subcloud.id) +
+                                       '/prestage',
+                                       headers=FAKE_HEADERS,
+                                       params=data)
+        mock_rpc_client().prestage_subcloud.assert_called_once_with(
+            mock.ANY,
+            mock.ANY)
+        self.assertEqual(response.status_int, 200)
+
+    @mock.patch.object(rpc_client, 'ManagerClient')
+    @mock.patch.object(prestage, '_get_system_controller_upgrades')
+    @mock.patch.object(prestage, '_get_prestage_subcloud_info')
+    @mock.patch.object(subclouds.SubcloudsController, '_get_prestage_payload')
+    def test_prestage_subcloud_mgmt_alarm(self, mock_get_prestage_payload,
+                                          mock_prestage_subcloud_info,
+                                          mock_controller_upgrade,
+                                          mock_rpc_client):
+
+        subcloud = fake_subcloud.create_fake_subcloud(self.ctx)
+        subcloud = db_api.subcloud_update(
+            self.ctx, subcloud.id, availability_status=consts.AVAILABILITY_ONLINE,
+            management_state=consts.MANAGEMENT_MANAGED)
+
+        fake_password = (base64.b64encode('testpass'.encode("utf-8"))).decode('ascii')
+        data = {'sysadmin_password': fake_password,
+                'force': False}
+        mock_controller_upgrade.return_value = list()
+        mock_prestage_subcloud_info.return_value = consts.SYSTEM_MODE_SIMPLEX, \
+            health_report_mgmt_alarm, \
+            OAM_FLOATING_IP
+
+        mock_rpc_client().prestage_subcloud.return_value = True
+        mock_get_prestage_payload.return_value = data
+
+        six.assertRaisesRegex(self, webtest.app.AppError, "400 *",
+                              self.app.patch_json, FAKE_URL + '/' +
+                              str(subcloud.id) + '/prestage',
+                              headers=FAKE_HEADERS, params=data)
+
+    @mock.patch.object(rpc_client, 'ManagerClient')
+    @mock.patch.object(prestage, '_get_system_controller_upgrades')
+    @mock.patch.object(prestage, '_get_prestage_subcloud_info')
+    @mock.patch.object(subclouds.SubcloudsController, '_get_prestage_payload')
+    def test_prestage_subcloud_mgmt_alarm_force(self, mock_get_prestage_payload,
+                                                mock_prestage_subcloud_info,
+                                                mock_controller_upgrade,
+                                                mock_rpc_client):
+
+        subcloud = fake_subcloud.create_fake_subcloud(self.ctx)
+        subcloud = db_api.subcloud_update(
+            self.ctx, subcloud.id, availability_status=consts.AVAILABILITY_ONLINE,
+            management_state=consts.MANAGEMENT_MANAGED)
+
+        fake_password = (base64.b64encode('testpass'.encode("utf-8"))).decode('ascii')
+        data = {'sysadmin_password': fake_password,
+                'force': True}
+        mock_controller_upgrade.return_value = list()
+        mock_prestage_subcloud_info.return_value = consts.SYSTEM_MODE_SIMPLEX, \
+            health_report_mgmt_alarm, \
+            OAM_FLOATING_IP
+
+        mock_rpc_client().prestage_subcloud.return_value = True
+        mock_get_prestage_payload.return_value = data
+
+        response = self.app.patch_json(FAKE_URL + '/' + str(subcloud.id) +
+                                       '/prestage',
+                                       headers=FAKE_HEADERS,
+                                       params=data)
+        mock_rpc_client().prestage_subcloud.assert_called_once_with(
+            mock.ANY,
+            mock.ANY)
+        self.assertEqual(response.status_int, 200)
+
+    @mock.patch.object(rpc_client, 'ManagerClient')
+    @mock.patch.object(prestage, '_get_system_controller_upgrades')
+    @mock.patch.object(prestage, '_get_prestage_subcloud_info')
+    @mock.patch.object(subclouds.SubcloudsController, '_get_prestage_payload')
+    def test_prestage_subcloud_not_allowed_state(self, mock_get_prestage_payload,
+                                                 mock_prestage_subcloud_info,
+                                                 mock_controller_upgrade,
+                                                 mock_rpc_client):
+
+        subcloud = fake_subcloud.create_fake_subcloud(self.ctx)
+        subcloud = db_api.subcloud_update(self.ctx, subcloud.id,
+                                          availability_status=consts.AVAILABILITY_ONLINE,
+                                          management_state=consts.MANAGEMENT_MANAGED,
+                                          deploy_status='NotAllowedState')
+
+        fake_password = (base64.b64encode('testpass'.encode("utf-8"))).decode('ascii')
+        data = {'sysadmin_password': fake_password,
+                'force': False}
+        mock_controller_upgrade.return_value = list()
+        mock_prestage_subcloud_info.return_value = consts.SYSTEM_MODE_SIMPLEX, \
+            health_report_no_alarm, \
+            OAM_FLOATING_IP
+
+        mock_rpc_client().prestage_subcloud.return_value = True
+        mock_get_prestage_payload.return_value = data
+
+        six.assertRaisesRegex(self, webtest.app.AppError, "400 *",
+                              self.app.patch_json, FAKE_URL + '/' +
+                              str(subcloud.id) + '/prestage',
+                              headers=FAKE_HEADERS, params=data)
+
+    @mock.patch.object(rpc_client, 'ManagerClient')
+    @mock.patch.object(prestage, '_get_system_controller_upgrades')
+    @mock.patch.object(subclouds.SubcloudsController, '_get_prestage_payload')
+    def test_prestage_subcloud_controller_upgrading(self, mock_get_prestage_payload,
+                                                    mock_controller_upgrade,
+                                                    mock_rpc_client):
+
+        subcloud = fake_subcloud.create_fake_subcloud(self.ctx)
+        fake_password = (base64.b64encode('testpass'.encode("utf-8"))).decode('ascii')
+        data = {'sysadmin_password': fake_password}
+        mock_controller_upgrade.return_value = list('upgrade')
+
+        mock_rpc_client().prestage_subcloud.return_value = True
+        mock_get_prestage_payload.return_value = data
+
+        six.assertRaisesRegex(self, webtest.app.AppError, "400 *",
+                              self.app.patch_json, FAKE_URL + '/' +
+                              str(subcloud.id) + '/prestage',
+                              headers=FAKE_HEADERS, params=data)
+
+    @mock.patch.object(rpc_client, 'ManagerClient')
+    @mock.patch.object(prestage, '_get_system_controller_upgrades')
+    @mock.patch.object(subclouds.SubcloudsController, '_get_prestage_payload')
+    def test_prestage_subcloud_no_password(self, mock_get_prestage_payload,
+                                           mock_controller_upgrade,
+                                           mock_rpc_client):
+
+        subcloud = fake_subcloud.create_fake_subcloud(self.ctx)
+        data = {}
+        mock_controller_upgrade.return_value = list()
+
+        mock_rpc_client().prestage_subcloud.return_value = True
+        mock_get_prestage_payload.return_value = data
+
+        six.assertRaisesRegex(self, webtest.app.AppError, "400 *",
+                              self.app.patch_json, FAKE_URL + '/' +
+                              str(subcloud.id) + '/prestage',
+                              headers=FAKE_HEADERS, params=data)
+
+    @mock.patch.object(rpc_client, 'ManagerClient')
+    @mock.patch.object(prestage, '_get_system_controller_upgrades')
+    @mock.patch.object(subclouds.SubcloudsController, '_get_prestage_payload')
+    def test_prestage_subcloud_password_not_encoded(self, mock_get_prestage_payload,
+                                                    mock_controller_upgrade,
+                                                    mock_rpc_client):
+
+        subcloud = fake_subcloud.create_fake_subcloud(self.ctx)
+        data = {'sysadmin_password': 'notencoded'}
+        mock_controller_upgrade.return_value = list()
+
+        mock_rpc_client().prestage_subcloud.return_value = True
+        mock_get_prestage_payload.return_value = data
+
+        six.assertRaisesRegex(self, webtest.app.AppError, "400 *",
+                              self.app.patch_json, FAKE_URL + '/' +
+                              str(subcloud.id) + '/prestage',
+                              headers=FAKE_HEADERS, params=data)
