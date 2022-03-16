@@ -5,6 +5,8 @@
 #
 import time
 
+import retrying
+
 from dcmanager.common import consts
 from dcmanager.common.exceptions import StrategyStoppedException
 from dcmanager.orchestrator.states.base import BaseState
@@ -47,10 +49,9 @@ class UnlockHostState(BaseState):
     def check_host_ready(self, host):
         """Returns True if host is unlocked, enabled and available."""
 
-        if (host.administrative == consts.ADMIN_UNLOCKED and
+        return (host.administrative == consts.ADMIN_UNLOCKED and
                 host.operational == consts.OPERATIONAL_ENABLED and
-                host.availability == consts.AVAILABILITY_AVAILABLE):
-            return True
+                host.availability == consts.AVAILABILITY_AVAILABLE)
 
     def perform_state_action(self, strategy_step):
         """Unlocks a host on the subcloud
@@ -59,10 +60,8 @@ class UnlockHostState(BaseState):
         Any exceptions raised by this method set the strategy to FAILED.
         """
 
-        # Create a sysinv client on the subcloud
-        sysinv_client = self.get_sysinv_client(strategy_step.subcloud.name)
-
-        host = sysinv_client.get_host(self.target_hostname)
+        # Retrieve host from sysinv client on the subcloud
+        host = self._get_host_with_retry(strategy_step.subcloud.name)
 
         # if the host is already in the desired state, no need for action
         if self.check_host_ready(host):
@@ -139,3 +138,8 @@ class UnlockHostState(BaseState):
         # When we return from this method without throwing an exception, the
         # state machine can proceed to the next state
         return self.next_state
+
+    @retrying.retry(stop_max_attempt_number=consts.PLATFORM_RETRY_MAX_ATTEMPTS,
+                    wait_fixed=consts.PLATFORM_RETRY_SLEEP_MILLIS)
+    def _get_host_with_retry(self, subcloud_name):
+        return self.get_sysinv_client(subcloud_name).get_host(self.target_hostname)

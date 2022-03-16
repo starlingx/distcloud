@@ -278,3 +278,9 @@ BITSTREAM_TYPE_KEY_REVOCATION = 'key-revocation'
 
 # Platform Backup size default in MB
 DEFAULT_PERSISTENT_SIZE = 30000
+
+# Retry values to be used when platform requests fail due to temporary unavailability, which
+# may occur during some orchestration steps. The sleep duration and number of retries are shorter,
+# since these should only occur if a service is being restarted
+PLATFORM_RETRY_MAX_ATTEMPTS = 5
+PLATFORM_RETRY_SLEEP_MILLIS = 5000

@@ -16,12 +16,6 @@ from dcmanager.orchestrator.states.base import BaseState
 DEFAULT_MAX_QUERIES = 60
 DEFAULT_SLEEP_DURATION = 10
 
-# There are additional retry loops for actions that should never fail
-# The sleep duration and number of retries are shorter, since these should
-# only occur if a service is being restarted
-RETRY_MAX_ATTEMPTS = 5
-RETRY_SLEEP_MILLIS = 5000
-
 
 class CompletingUpgradeState(BaseState):
     """Upgrade state actions for completing an upgrade"""
@@ -33,8 +27,8 @@ class CompletingUpgradeState(BaseState):
         self.sleep_duration = DEFAULT_SLEEP_DURATION
         self.max_queries = DEFAULT_MAX_QUERIES
 
-    @retrying.retry(stop_max_attempt_number=RETRY_MAX_ATTEMPTS,
-                    wait_fixed=RETRY_SLEEP_MILLIS)
+    @retrying.retry(stop_max_attempt_number=consts.PLATFORM_RETRY_MAX_ATTEMPTS,
+                    wait_fixed=consts.PLATFORM_RETRY_SLEEP_MILLIS)
     def _get_software_version(self, strategy_step):
         """Internal utility method to query software version from a subcloud
 
@@ -44,8 +38,8 @@ class CompletingUpgradeState(BaseState):
         region = self.get_region_name(strategy_step)
         return self.get_sysinv_client(region).get_system().software_version
 
-    @retrying.retry(stop_max_attempt_number=RETRY_MAX_ATTEMPTS,
-                    wait_fixed=RETRY_SLEEP_MILLIS)
+    @retrying.retry(stop_max_attempt_number=consts.PLATFORM_RETRY_MAX_ATTEMPTS,
+                    wait_fixed=consts.PLATFORM_RETRY_SLEEP_MILLIS)
     def _get_upgrades(self, strategy_step):
         """Internal utility method to query a subcloud for its upgrades
 
@@ -55,8 +49,8 @@ class CompletingUpgradeState(BaseState):
         region = self.get_region_name(strategy_step)
         return self.get_sysinv_client(region).get_upgrades()
 
-    @retrying.retry(stop_max_attempt_number=RETRY_MAX_ATTEMPTS,
-                    wait_fixed=RETRY_SLEEP_MILLIS)
+    @retrying.retry(stop_max_attempt_number=consts.PLATFORM_RETRY_MAX_ATTEMPTS,
+                    wait_fixed=consts.PLATFORM_RETRY_SLEEP_MILLIS)
     def _upgrade_complete(self, strategy_step):
         """Internal utility method to complete an upgrade in a subcloud
 
