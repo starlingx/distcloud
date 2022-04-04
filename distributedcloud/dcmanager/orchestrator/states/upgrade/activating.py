@@ -57,8 +57,12 @@ class ActivatingUpgradeState(BaseState):
         Returns the next state in the state machine on success.
         Any exceptions raised by this method set the strategy to FAILED.
         """
-
-        upgrade_state = self.get_upgrade_state(strategy_step)
+        try:
+            upgrade_state = self.get_upgrade_state(strategy_step)
+        except Exception as ex:
+            self.info_log(strategy_step, "%s for %s."
+                          % (str(ex), strategy_step.subcloud.name))
+            return self.next_state
 
         # Check if an existing upgrade is already activated
         if upgrade_state in ACTIVATING_COMPLETED_STATES:
