@@ -1,12 +1,13 @@
 #
-# Copyright (c) 2020-2021 Wind River Systems, Inc.
+# Copyright (c) 2020-2022 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
 from dccommon.drivers.openstack import patching_v1
 from dcmanager.common import consts
 from dcmanager.common.exceptions import StrategyStoppedException
-from dcmanager.orchestrator.states.base import BaseState
+
+from dcmanager.orchestrator.states.upgrade.patching import PatchingState
 
 # Max time: 30 minutes = 180 queries x 10 seconds between
 DEFAULT_MAX_QUERIES = 180
@@ -14,7 +15,7 @@ DEFAULT_SLEEP_DURATION = 10
 
 
 # todo(jcasteli): Refactor instead of duplicating code from patch_orch_thread.py
-class FinishingPatchStrategyState(BaseState):
+class FinishingPatchStrategyState(PatchingState):
     """Upgrade state for finishing patch strategy"""
 
     def __init__(self, region_name):
@@ -38,9 +39,7 @@ class FinishingPatchStrategyState(BaseState):
             self.info_log(strategy_step, "Skipping finish for SystemController")
             return self.next_state
 
-        regionone_committed_patches = self.get_patching_client(
-            consts.DEFAULT_REGION_NAME).query(
-                state=patching_v1.PATCH_STATE_COMMITTED)
+        regionone_committed_patches = self.get_region_one_patches(patching_v1.PATCH_STATE_COMMITTED)
         self.debug_log(strategy_step,
                        "regionone_committed_patches: %s" % regionone_committed_patches)
 
