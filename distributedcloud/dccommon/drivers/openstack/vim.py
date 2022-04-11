@@ -1,5 +1,5 @@
 # Copyright 2016 Ericsson AB
-# Copyright (c) 2017-2021 Wind River Systems, Inc.
+# Copyright (c) 2017-2022 Wind River Systems, Inc.
 # Licensed under the Apache License, Version 2.0 (the "License"); you may
 # not use this file except in compliance with the License. You may obtain
 # a copy of the License at
@@ -84,6 +84,15 @@ class VimClient(base.DriverBase):
                 self.endpoint = endpoint
 
             self.token = session.get_token()
+            # session.get_user_id() returns a UUID
+            # that always corresponds to 'dcmanager'
+            self.username = consts.DCMANAGER_USER_NAME
+            # session object does not provide a domain query
+            # The only domain used for dcmanager is 'default'
+            self.user_domain_name = 'default'
+            # session.get_project_id() returns a UUID
+            # that always corresponds to 'services'
+            self.tenant = consts.SERVICES_USER_NAME
 
         except exceptions.ServiceUnavailable:
             raise
@@ -109,6 +118,9 @@ class VimClient(base.DriverBase):
             max_parallel_worker_hosts=max_parallel_worker_hosts,
             default_instance_action=default_instance_action,
             alarm_restrictions=alarm_restrictions,
+            username=self.username,
+            user_domain_name=self.user_domain_name,
+            tenant=self.tenant,
             **kwargs)
         if not strategy:
             raise Exception("Strategy:(%s) creation failed" % strategy_name)
@@ -122,7 +134,10 @@ class VimClient(base.DriverBase):
         url = self.endpoint
         strategy = sw_update.get_strategies(
             self.token, url,
-            strategy_name=strategy_name)
+            strategy_name=strategy_name,
+            username=self.username,
+            user_domain_name=self.user_domain_name,
+            tenant=self.tenant)
         if not strategy:
             if raise_error_if_missing:
                 raise Exception("Get strategy failed")
@@ -136,7 +151,10 @@ class VimClient(base.DriverBase):
         url = self.endpoint
         success = sw_update.delete_strategy(
             self.token, url,
-            strategy_name=strategy_name)
+            strategy_name=strategy_name,
+            username=self.username,
+            user_domain_name=self.user_domain_name,
+            tenant=self.tenant)
         if not success:
             raise Exception("Delete strategy failed")
 
@@ -148,7 +166,10 @@ class VimClient(base.DriverBase):
         url = self.endpoint
         strategy = sw_update.apply_strategy(
             self.token, url,
-            strategy_name=strategy_name)
+            strategy_name=strategy_name,
+            username=self.username,
+            user_domain_name=self.user_domain_name,
+            tenant=self.tenant)
         if not strategy:
             raise Exception("Strategy apply failed")
 
@@ -162,7 +183,10 @@ class VimClient(base.DriverBase):
         strategy = sw_update.abort_strategy(
             self.token, url,
             strategy_name=strategy_name,
-            stage_id=None)
+            stage_id=None,
+            username=self.username,
+            user_domain_name=self.user_domain_name,
+            tenant=self.tenant)
         if not strategy:
             raise Exception("Strategy abort failed")
 
