@@ -56,6 +56,15 @@ FAKE_SW_PRESTAGE_DATA = {
     "state": consts.SW_UPDATE_STATE_INITIAL,
 }
 
+FAKE_SW_PATCH_DATA = {
+    "type": consts.SW_UPDATE_TYPE_PATCH,
+    "subcloud-apply-type": consts.SUBCLOUD_APPLY_TYPE_PARALLEL,
+    "max-parallel-subclouds": "2",
+    "stop-on-failure": "true",
+    "force": "false",
+    "state": consts.SW_UPDATE_STATE_INITIAL,
+}
+
 FAKE_STRATEGY_STEP_DATA = {
     "id": 1,
     "subcloud_id": 1,
@@ -986,6 +995,74 @@ class TestSwUpdateManager(base.DCManagerTestCase):
         for index, strategy_step in enumerate(strategy_step_list):
             self.assertEqual(subcloud_ids[index], strategy_step.subcloud_id)
             self.assertEqual(stage[index], strategy_step.stage)
+
+    @mock.patch.object(sw_update_manager, 'PatchOrchThread')
+    def test_create_sw_patching_subcloud_in_sync_out_of_sync(
+            self, mock_patch_orch_thread):
+
+        # Subcloud 1 will be patched
+        fake_subcloud1 = self.create_subcloud(self.ctxt, 'subcloud1',
+                                              self.fake_group3.id,
+                                              is_managed=True, is_online=True)
+
+        self.create_subcloud_status(self.ctxt,
+                                    fake_subcloud1.id,
+                                    dcorch_consts.ENDPOINT_TYPE_PATCHING,
+                                    consts.SYNC_STATUS_OUT_OF_SYNC)
+
+        # Subcloud 2 will not be patched because it is offline
+        fake_subcloud2 = self.create_subcloud(self.ctxt, 'subcloud2',
+                                              self.fake_group3.id,
+                                              is_managed=True, is_online=False)
+
+        self.create_subcloud_status(self.ctxt, fake_subcloud2.id,
+                                    dcorch_consts.ENDPOINT_TYPE_PATCHING,
+                                    consts.SYNC_STATUS_OUT_OF_SYNC)
+
+        # Subcloud 3 will be patched
+        fake_subcloud3 = self.create_subcloud(self.ctxt, 'subcloud3',
+                                              self.fake_group3.id,
+                                              is_managed=True, is_online=True)
+
+        self.create_subcloud_status(self.ctxt, fake_subcloud3.id,
+                                    dcorch_consts.ENDPOINT_TYPE_PATCHING,
+                                    consts.SYNC_STATUS_OUT_OF_SYNC)
+
+        # Subcloud 4 will not be patched because it is in sync
+        fake_subcloud4 = self.create_subcloud(self.ctxt, 'subcloud4',
+                                              self.fake_group3.id,
+                                              is_managed=True, is_online=True)
+
+        self.create_subcloud_status(self.ctxt, fake_subcloud4.id,
+                                    dcorch_consts.ENDPOINT_TYPE_PATCHING,
+                                    consts.SYNC_STATUS_IN_SYNC)
+
+        data = copy.copy(FAKE_SW_PATCH_DATA)
+        data["type"] = consts.SW_UPDATE_TYPE_PATCH
+        data['subcloud_group'] = str(self.fake_group3.id)
+        um = sw_update_manager.SwUpdateManager()
+        response = um.create_sw_update_strategy(
+            self.ctxt, payload=data)
+
+        # Verify strategy was created as expected using group values
+        self.assertEqual(response['max-parallel-subclouds'], 2)
+        self.assertEqual(response['subcloud-apply-type'],
+                         consts.SUBCLOUD_APPLY_TYPE_PARALLEL)
+        self.assertEqual(response['type'], consts.SW_UPDATE_TYPE_PATCH)
+
+        # Verify the strategy step list
+        # System Controller denoted as ID None was added to strategy list in patching
+        # System Controller will be patched prior to all other subclouds
+        subcloud_ids = [None, 1, 3]
+        stage = [1, 2, 2]
+        strategy_step_list = db_api.strategy_step_get_all(self.ctxt)
+        subcloud_id_processed = []
+        stage_processed = []
+        for index, strategy_step in enumerate(strategy_step_list):
+                subcloud_id_processed.append(strategy_step.subcloud_id)
+                stage_processed.append(strategy_step.stage)
+        self.assertEqual(subcloud_ids, subcloud_id_processed)
+        self.assertEqual(stage, stage_processed)
 
     @mock.patch.object(prestage, 'initial_subcloud_validate')
     @mock.patch.object(prestage, '_get_system_controller_upgrades')
