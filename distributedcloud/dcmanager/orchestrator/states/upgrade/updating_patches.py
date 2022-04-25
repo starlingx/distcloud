@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2020-2021 Wind River Systems, Inc.
+# Copyright (c) 2020-2022 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -10,14 +10,15 @@ from dccommon.drivers.openstack import patching_v1
 from dcmanager.common import consts
 from dcmanager.common.exceptions import StrategyStoppedException
 from dcmanager.common import utils
-from dcmanager.orchestrator.states.base import BaseState
+
+from dcmanager.orchestrator.states.upgrade.patching import PatchingState
 
 # Max time: 30 minutes = 180 queries x 10 seconds between
 DEFAULT_MAX_QUERIES = 180
 DEFAULT_SLEEP_DURATION = 10
 
 
-class UpdatingPatchesState(BaseState):
+class UpdatingPatchesState(PatchingState):
     """Upgrade state for updating patches"""
 
     def __init__(self, region_name):
@@ -50,7 +51,7 @@ class UpdatingPatchesState(BaseState):
             return self.next_state
 
         # First query RegionOne to determine what patches should be applied.
-        regionone_patches = self.get_patching_client(consts.DEFAULT_REGION_NAME).query()
+        regionone_patches = self.get_region_one_patches()
         self.debug_log(strategy_step, "regionone_patches: %s" % regionone_patches)
 
         # Build lists of patches that should be applied in this subcloud,

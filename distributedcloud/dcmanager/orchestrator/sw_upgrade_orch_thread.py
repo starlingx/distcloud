@@ -1,5 +1,5 @@
 # Copyright 2017 Ericsson AB.
-# Copyright (c) 2017-2021 Wind River Systems, Inc.
+# Copyright (c) 2017-2022 Wind River Systems, Inc.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -22,6 +22,8 @@ from dcmanager.orchestrator.states.upgrade.activating \
     import ActivatingUpgradeState
 from dcmanager.orchestrator.states.upgrade.applying_vim_upgrade_strategy \
     import ApplyingVIMUpgradeStrategyState
+from dcmanager.orchestrator.states.upgrade.cache.region_one_patching_cache \
+    import RegionOnePatchingCache
 from dcmanager.orchestrator.states.upgrade.completing \
     import CompletingUpgradeState
 from dcmanager.orchestrator.states.upgrade.creating_vim_upgrade_strategy \
@@ -40,6 +42,7 @@ from dcmanager.orchestrator.states.upgrade.lock_simplex \
     import LockSimplexState
 from dcmanager.orchestrator.states.upgrade.migrating_data \
     import MigratingDataState
+from dcmanager.orchestrator.states.upgrade.patching import PatchingState
 from dcmanager.orchestrator.states.upgrade.pre_check \
     import PreCheckState
 from dcmanager.orchestrator.states.upgrade.starting_upgrade \
@@ -113,6 +116,23 @@ class SwUpgradeOrchThread(OrchThread):
             vim.STRATEGY_NAME_SW_UPGRADE,     # strategy type used by vim
             consts.STRATEGY_STATE_PRE_CHECK)  # starting state
 
+        # Add region one patching cache to orch thread, so that the same instance is accessible to
+        # all states that require it
+        self.region_one_patching_cache = RegionOnePatchingCache()
+
     def trigger_audit(self):
         """Trigger an audit for upgrade (which is combined with patch audit)"""
         self.audit_rpc_client.trigger_patch_audit(self.context)
+
+    def delete(self, sw_update_strategy):
+        self.region_one_patching_cache = RegionOnePatchingCache()
+        super(SwUpgradeOrchThread, self).delete(sw_update_strategy)
+
+    def determine_state_operator(self, strategy_step):
+        state = super(SwUpgradeOrchThread, self).determine_state_operator(strategy_step)
+
+        # Add RegionOne patching cache to patching states to avoid repeated client calls
+        if isinstance(state, PatchingState):
+            state.region_one_patching_cache = self.region_one_patching_cache
+
+        return state
