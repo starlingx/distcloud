@@ -1,5 +1,5 @@
 # Copyright 2017 Ericsson AB.
-# Copyright (c) 2017-2021 Wind River Systems, Inc.
+# Copyright (c) 2017-2022 Wind River Systems, Inc.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -217,8 +217,9 @@ class PatchOrchThread(threading.Thread):
         # b) there is alarm but no management affected alarm
         # c) subcloud fails alarm check and it only has non-management
         #    affecting alarm(s)
+        system_health = self.get_sysinv_client(
+            strategy_step.subcloud.name).get_system_health()
 
-        system_health = self.get_sysinv_client(strategy_step.subcloud.name).get_system_health()
         failed_alarm_check = re.findall("No alarms: \[Fail\]", system_health)
         no_mgmt_alarms = re.findall("\[0\] of which are management affecting",
                                     system_health)
@@ -357,17 +358,22 @@ class PatchOrchThread(threading.Thread):
                             self.thread_group_manager.start(
                                 self.update_subcloud_patches,
                                 strategy_step)
+                        LOG.debug("Worker is created for %s in %s."
+                                  % region, strategy_step.state)
+
                 elif strategy_step.state == \
                         consts.STRATEGY_STATE_UPDATING_PATCHES:
                     if region in self.subcloud_workers:
                         # The update is in progress
                         LOG.debug("Update worker exists for %s." % region)
                     else:
-                        # Create a greenthread to do the update patches
-                        self.subcloud_workers[region] = \
-                            self.thread_group_manager.start(
-                                self.update_subcloud_patches,
-                                strategy_step)
+                        # When the batch size is large, the subcloud state retrieved
+                        # at the beginning of the loop and stored in memory may be
+                        # stale for a subcloud by the time it processes that subcloud
+                        # The next time will update the state to its successor state
+                        LOG.debug("Updating patches step is complete for %s. "
+                                  "Orch thread has not caught up." % region)
+
                 elif strategy_step.state == \
                         consts.STRATEGY_STATE_CREATING_STRATEGY:
                     if region in self.subcloud_workers:
@@ -438,16 +444,26 @@ class PatchOrchThread(threading.Thread):
 
         # Don't start patching if the subcloud contains management
         # affected alarm. Continue patching on the next subcloud
-        if not self.pre_check_management_affected_alarm(strategy_step):
-            message = ("Subcloud %s contains one or more management "
-                       "affecting alarm(s). It will not be patched. "
-                       "Please resolve the alarm condition(s) and try again."
-                       % strategy_step.subcloud.name)
-            LOG.warn(message)
+        error_msg = None
+        try:
+            # If management affected alarm check failed
+            if not self.pre_check_management_affected_alarm(strategy_step):
+                error_msg = ("Subcloud %s contains one or more management "
+                             "affecting alarm(s). It will not be patched. "
+                             "Please resolve the alarm condition(s) and try again."
+                             % strategy_step.subcloud.name)
+                LOG.warn(error_msg)
+
+        except Exception as ex:
+            # If the system health report was not obtained
+            error_msg = ("Failed to obtain health report for %s due to %s"
+                         % (strategy_step.subcloud.name, str(ex)))
+            LOG.exception(error_msg)
+        if error_msg:
             self.strategy_step_update(
                 strategy_step.subcloud_id,
                 state=consts.STRATEGY_STATE_FAILED,
-                details=message)
+                details=error_msg)
             return
 
         LOG.info("Updating patches for subcloud %s" %
@@ -652,6 +668,9 @@ class PatchOrchThread(threading.Thread):
 
             # Wait 10 seconds before doing another query.
             time.sleep(10)
+
+        LOG.info("Updating patches completed for %s "
+                 % strategy_step.subcloud.name)
 
         # Move on to the next state
         self.strategy_step_update(

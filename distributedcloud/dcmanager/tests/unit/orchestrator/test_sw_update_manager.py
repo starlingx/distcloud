@@ -461,6 +461,21 @@ class FakeSysinvClientNoMgmtAffectAlarm(object):
         return self.health_report
 
 
+class FakeSysinvClientReportTimeOut(object):
+    def __init__(self, region, session, endpoint):
+        self.region = region
+        self.session = session
+        self.endpoint = endpoint
+        self.loads = [Load('17.07')]
+        self.no_mgmt_alarm = True
+
+    def get_loads(self):
+        return self.loads
+
+    def get_system_health(self):
+        raise ValueError('Fake Sysinv Time Out')
+
+
 class FakeSysinvClientMgmtAffectAlarm(object):
     def __init__(self, region, session, endpoint):
         self.region = region
@@ -1893,7 +1908,7 @@ class TestSwUpdateManager(base.DCManagerTestCase):
         fake_strategy.create_fake_strategy_step(
             self.ctx,
             subcloud_id=subcloud.id,
-            state=consts.STRATEGY_STATE_UPDATING_PATCHES)
+            state=consts.STRATEGY_STATE_INITIAL)
         strategy_step = db_api.strategy_step_get_by_name(self.ctx, subcloud.name)
 
         mock_os_path_isfile.return_value = True
@@ -1934,7 +1949,7 @@ class TestSwUpdateManager(base.DCManagerTestCase):
         fake_strategy.create_fake_strategy_step(
             self.ctx,
             subcloud_id=subcloud.id,
-            state=consts.STRATEGY_STATE_UPDATING_PATCHES)
+            state=consts.STRATEGY_STATE_INITIAL)
         strategy_step = db_api.strategy_step_get_by_name(self.ctx, subcloud.name)
 
         mock_os_path_isfile.return_value = True
@@ -1975,12 +1990,53 @@ class TestSwUpdateManager(base.DCManagerTestCase):
         fake_strategy.create_fake_strategy_step(
             self.ctx,
             subcloud_id=subcloud.id,
-            state=consts.STRATEGY_STATE_UPDATING_PATCHES)
+            state=consts.STRATEGY_STATE_INITIAL)
         strategy_step = db_api.strategy_step_get_by_name(self.ctx, subcloud.name)
 
         mock_os_path_isfile.return_value = True
         mock_patching_client.side_effect = FakePatchingClientAvailable
         mock_sysinv_client.side_effect = FakeSysinvClientMgmtAffectAlarm
+
+        FakePatchingClientAvailable.apply = mock.Mock()
+
+        sw_update_manager.PatchOrchThread.stopped = lambda x: False
+        mock_strategy_lock = mock.Mock()
+        pot = sw_update_manager.PatchOrchThread(mock_strategy_lock,
+                                                self.fake_dcmanager_audit_api)
+        pot.get_ks_client = mock.Mock()
+
+        # invoke get_region_one_patches once t update required attributes
+        pot.get_region_one_patches()
+        pot.update_subcloud_patches(strategy_step)
+
+        # Verify that strategy step was updated
+        updated_strategy_steps = db_api.strategy_step_get_all(self.ctx)
+        self.assertEqual(updated_strategy_steps[0]['state'],
+                         consts.STRATEGY_STATE_FAILED)
+
+    @mock.patch.object(patch_orch_thread, 'SysinvClient')
+    @mock.patch.object(os_path, 'isfile')
+    @mock.patch.object(patch_orch_thread, 'PatchingClient')
+    @mock.patch.object(threading, 'Thread')
+    def test_update_subcloud_patches_sysinv_get_report_timeout(
+            self, mock_threading,
+            mock_patching_client, mock_os_path_isfile, mock_sysinv_client):
+
+        subcloud_id = fake_subcloud.create_fake_subcloud(self.ctx).id
+        subcloud = db_api.subcloud_update(
+            self.ctx,
+            subcloud_id,
+            management_state=consts.MANAGEMENT_MANAGED,
+            availability_status=consts.AVAILABILITY_ONLINE)
+        fake_strategy.create_fake_strategy_step(
+            self.ctx,
+            subcloud_id=subcloud.id,
+            state=consts.STRATEGY_STATE_INITIAL)
+        strategy_step = db_api.strategy_step_get_by_name(self.ctx, subcloud.name)
+
+        mock_os_path_isfile.return_value = True
+        mock_patching_client.side_effect = FakePatchingClientAvailable
+        mock_sysinv_client.side_effect = FakeSysinvClientReportTimeOut
 
         FakePatchingClientAvailable.apply = mock.Mock()
 
@@ -2016,7 +2072,7 @@ class TestSwUpdateManager(base.DCManagerTestCase):
         fake_strategy.create_fake_strategy_step(
             self.ctx,
             subcloud_id=subcloud.id,
-            state=consts.STRATEGY_STATE_UPDATING_PATCHES)
+            state=consts.STRATEGY_STATE_INITIAL)
         strategy_step = db_api.strategy_step_get_by_name(self.ctx, subcloud.name)
 
         mock_patching_client.side_effect = FakePatchingClientOutOfSync
@@ -2067,7 +2123,7 @@ class TestSwUpdateManager(base.DCManagerTestCase):
         fake_strategy.create_fake_strategy_step(
             self.ctx,
             subcloud_id=subcloud.id,
-            state=consts.STRATEGY_STATE_UPDATING_PATCHES)
+            state=consts.STRATEGY_STATE_INITIAL)
         strategy_step = db_api.strategy_step_get_by_name(self.ctx, subcloud.name)
 
         mock_os_path_isfile.return_value = True
@@ -2107,7 +2163,7 @@ class TestSwUpdateManager(base.DCManagerTestCase):
         fake_strategy.create_fake_strategy_step(
             self.ctx,
             subcloud_id=subcloud.id,
-            state=consts.STRATEGY_STATE_UPDATING_PATCHES)
+            state=consts.STRATEGY_STATE_INITIAL)
         strategy_step = db_api.strategy_step_get_by_name(self.ctx, subcloud.name)
 
         mock_os_path_isfile.return_value = True
@@ -2146,7 +2202,7 @@ class TestSwUpdateManager(base.DCManagerTestCase):
         fake_strategy.create_fake_strategy_step(
             self.ctx,
             subcloud_id=subcloud.id,
-            state=consts.STRATEGY_STATE_UPDATING_PATCHES)
+            state=consts.STRATEGY_STATE_INITIAL)
         strategy_step = db_api.strategy_step_get_by_name(self.ctx, subcloud.name)
 
         mock_os_path_isfile.return_value = True
