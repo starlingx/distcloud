@@ -137,7 +137,8 @@ class SubcloudManager(manager.Manager):
             subcloud_name)
 
         cert = {
-            "apiVersion": "cert-manager.io/v1alpha2",
+            "apiVersion": "%s/%s" % (kubeoperator.CERT_MANAGER_GROUP,
+                                     kubeoperator.CERT_MANAGER_VERSION),
             "kind": "Certificate",
             "metadata": {
                 "namespace": CERT_NAMESPACE,

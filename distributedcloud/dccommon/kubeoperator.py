@@ -18,7 +18,7 @@ K8S_MODULE_MAJOR_VERSION = int(K8S_MODULE_VERSION.split('.')[0])
 KUBE_CONFIG_PATH = '/etc/kubernetes/admin.conf'
 
 CERT_MANAGER_GROUP = 'cert-manager.io'
-CERT_MANAGER_VERSION = 'v1alpha2'
+CERT_MANAGER_VERSION = 'v1'
 CERT_MANAGER_CERTIFICATE = 'certificates'
 
 
