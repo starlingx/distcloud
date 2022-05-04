@@ -108,3 +108,8 @@ class LoadMaxReached(Conflict):
 
 class PlaybookExecutionFailed(DCCommonException):
     message = _("Playbook execution failed, command=%(playbook_cmd)s")
+
+
+class PlaybookExecutionTimeout(PlaybookExecutionFailed):
+    message = _("Playbook execution failed [TIMEOUT (%(timeout)s)], "
+                "command=%(playbook_cmd)s")

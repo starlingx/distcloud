@@ -1,5 +1,5 @@
 # Copyright 2016 Ericsson AB
-# Copyright (c) 2017-2021 Wind River Systems, Inc.
+# Copyright (c) 2017-2022 Wind River Systems, Inc.
 # Licensed under the Apache License, Version 2.0 (the "License"); you may
 # not use this file except in compliance with the License. You may obtain
 # a copy of the License at
@@ -147,9 +147,6 @@ scheduler_opts = [
 ]
 
 common_opts = [
-    # TODO(kmacleod): these worker parameters should be added to puppet
-    # in order that they make it into /etc/dcmanager/dcmanager.conf
-    # for system engineering purposes
     cfg.IntOpt('workers', default=1,
                help='number of workers'),
     cfg.IntOpt('orch_workers', default=1,
@@ -162,7 +159,9 @@ common_opts = [
                help='number of audit-worker workers'),
     cfg.StrOpt('host',
                default='localhost',
-               help='hostname of the machine')
+               help='hostname of the machine'),
+    cfg.IntOpt('playbook_timeout', default=3600,
+               help='global ansible playbook timeout (seconds)'),
 ]
 
 scheduler_opt_group = cfg.OptGroup(name='scheduler',

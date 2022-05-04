@@ -24,6 +24,7 @@ import base64
 import os
 import threading
 
+from oslo_config import cfg
 from oslo_log import log as logging
 
 from tsconfig.tsconfig import SW_VERSION
@@ -32,7 +33,8 @@ from dccommon.consts import DEPLOY_DIR
 from dccommon.drivers.openstack.sdk_platform import OpenStackDriver
 from dccommon.drivers.openstack.sysinv_v1 import SysinvClient
 from dccommon.exceptions import PlaybookExecutionFailed
-from dccommon.utils import run_playbook
+from dccommon.exceptions import PlaybookExecutionTimeout
+from dccommon.utils import run_playbook_with_timeout
 
 from dcmanager.common import consts
 from dcmanager.common import exceptions
@@ -40,6 +42,7 @@ from dcmanager.common import utils
 from dcmanager.db import api as db_api
 
 LOG = logging.getLogger(__name__)
+CONF = cfg.CONF
 
 DEPLOY_BASE_DIR = DEPLOY_DIR + '/' + SW_VERSION
 PREPARE_PRESTAGE_PACKAGES_OUTPUT_PATH = DEPLOY_BASE_DIR + '/prestage/shared'
@@ -298,7 +301,8 @@ def _sync_run_prestage_prepare_packages(context, subcloud, payload):
                      consts.PRESTAGE_STATE_PREPARE,
                      payload['sysadmin_password'],
                      payload['oam_floating_ip'],
-                     ansible_subcloud_inventory_file)
+                     ansible_subcloud_inventory_file,
+                     consts.PRESTAGE_PREPARE_TIMEOUT)
     except Exception:
         # Flag the failure on file system so that other orchestrated
         # strategy steps in this run fail immediately. This file is
@@ -368,14 +372,19 @@ def _get_prestage_subcloud_info(subcloud_name):
 def _run_ansible(context, prestage_command, phase,
                  subcloud, deploy_status,
                  sysadmin_password, oam_floating_ip,
-                 ansible_subcloud_inventory_file):
+                 ansible_subcloud_inventory_file,
+                 timeout_seconds=None):
+    if not timeout_seconds:
+        # We always want to set a timeout in prestaging operations. Use default:
+        timeout_seconds = CONF.playbook_timeout
 
     if deploy_status == consts.PRESTAGE_STATE_PREPARE:
-        LOG.info("Preparing prestage shared packages for subcloud: %s, version: %s",
-                 subcloud.name, SW_VERSION)
+        LOG.info(("Preparing prestage shared packages for subcloud: %s, "
+                  "version: %s, timeout: %ss"),
+                 subcloud.name, SW_VERSION, timeout_seconds)
     else:
-        LOG.info("Prestaging %s for subcloud: %s, version: %s",
-                 phase, subcloud.name, SW_VERSION)
+        LOG.info("Prestaging %s for subcloud: %s, version: %s, timeout: %ss",
+                 phase, subcloud.name, SW_VERSION, timeout_seconds)
 
     db_api.subcloud_update(context,
                            subcloud.id,
@@ -390,11 +399,16 @@ def _run_ansible(context, prestage_command, phase,
         oam_floating_ip,
         ansible_pass=base64.b64decode(sysadmin_password).decode('utf-8'))
     try:
-        run_playbook(log_file, prestage_command)
+        run_playbook_with_timeout(log_file,
+                                  prestage_command,
+                                  timeout=timeout_seconds)
     except PlaybookExecutionFailed as ex:
-        msg = ("Prestaging %s failed for subcloud %s,"
+        timeout_msg = ''
+        if isinstance(ex, PlaybookExecutionTimeout):
+            timeout_msg = ' (TIMEOUT)'
+        msg = ("Prestaging %s failed%s for subcloud %s,"
                " check individual log at %s for detailed output."
-               % (phase, subcloud.name, log_file))
+               % (phase, timeout_msg, subcloud.name, log_file))
         LOG.exception("%s: %s", msg, ex)
         raise Exception(msg)
     finally:
@@ -455,7 +469,7 @@ def prestage_images(context, subcloud, payload):
             LOG.debug("prestage images list file does not exist")
 
     # There are only two scenarios where we want to run ansible
-    # for prestating images:
+    # for prestaging images:
     # 1. reinstall
     # 2. upgrade, with supplied image list
     if not upgrade or (upgrade and image_list_file):
