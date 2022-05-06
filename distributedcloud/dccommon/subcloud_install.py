@@ -448,6 +448,8 @@ class SubcloudInstall(object):
         log_file = os.path.join(log_file_dir, self.name) + '_playbook_output.log'
 
         try:
+            # Since this is a long-running task we want to register
+            # for cleanup on process restart/SWACT.
             run_playbook(log_file, install_command)
         except exceptions.PlaybookExecutionFailed:
             msg = ("Failed to install the subcloud %s, check individual "

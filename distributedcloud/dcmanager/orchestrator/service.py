@@ -21,6 +21,7 @@ from oslo_log import log as logging
 import oslo_messaging
 from oslo_service import service
 
+from dccommon.subprocess_cleanup import SubprocessCleanup
 from dcmanager.common import consts
 from dcmanager.common import context
 from dcmanager.common import exceptions
@@ -80,19 +81,20 @@ class DCManagerOrchestratorService(service.Service):
 
     def _stop_rpc_server(self):
         # Stop RPC connection to prevent new requests
-        LOG.debug("Attempting to stop engine service...")
+        LOG.debug("Attempting to stop RPC service...")
         if self._rpc_server is not None:
             try:
                 self._rpc_server.stop()
                 self._rpc_server.wait()
                 self._rpc_server = None
-                LOG.info('Engine service stopped successfully')
+                LOG.info('RPC service stopped successfully')
             except Exception as ex:
                 LOG.error('Failed to stop engine service: %s',
                           six.text_type(ex))
 
     def stop(self):
         """Stop anything initiated by start"""
+        SubprocessCleanup.shutdown_cleanup(origin="service")
         self._stop_rpc_server()
         if self.TG is not None:
             self.TG.stop()

@@ -92,10 +92,11 @@ class OrchThread(threading.Thread):
         self._stop.set()
 
     def run(self):
+        LOG.info("(%s) OrchThread Starting" % self.update_type)
         self.run_orch()
         # Stop any greenthreads that are still running
+        LOG.info("(%s) OrchThread Stopping" % self.update_type)
         self.thread_group_manager.stop()
-        LOG.info("(%s) OrchThread Stopped" % self.update_type)
 
     @staticmethod
     def get_ks_client(region_name=consts.DEFAULT_REGION_NAME):

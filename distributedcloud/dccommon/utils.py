@@ -23,6 +23,7 @@ from oslo_utils import timeutils
 
 from dccommon.exceptions import PlaybookExecutionFailed
 from dccommon.exceptions import PlaybookExecutionTimeout
+from dccommon.subprocess_cleanup import SubprocessCleanup
 
 LOG = logging.getLogger(__name__)
 ANSIBLE_PASSWD_PARMS = ['ansible_ssh_pass', 'ansible_become_pass']
@@ -59,40 +60,14 @@ def _strip_password_from_command(script_command):
     return logged_command
 
 
-def run_playbook(log_file, playbook_command):
-    """Run ansible playbook via subprocess"""
-    exec_env = os.environ.copy()
-    exec_env["ANSIBLE_LOG_PATH"] = "/dev/null"
-
-    with open(log_file, "a+") as f_out_log:
-        try:
-            logged_playbook_command = \
-                _strip_password_from_command(playbook_command)
-            txt = "%s Executing playbook command: %s\n" \
-                % (datetime.today().strftime('%Y-%m-%d-%H:%M:%S'),
-                   logged_playbook_command)
-            f_out_log.write(txt)
-            f_out_log.flush()
-
-            subprocess.check_call(  # pylint: disable=E1102
-                playbook_command,
-                stdout=f_out_log,
-                stderr=f_out_log,
-                env=exec_env)
-        except subprocess.CalledProcessError:
-            raise PlaybookExecutionFailed(playbook_cmd=playbook_command)
-        except Exception as ex:
-            LOG.error(str(ex))
-            raise
-
-
-def run_playbook_with_timeout(log_file,
-                              playbook_command,
-                              timeout=None):
+def run_playbook(log_file, playbook_command,
+                 timeout=None, register_cleanup=True):
     """Run ansible playbook via subprocess.
 
     log_file: Logs output to file
     timeout: Timeout in seconds. Raises PlaybookExecutionTimeout on timeout
+    register_cleanup: Register the subprocess group for cleanup on shutdown,
+                      if the underlying service supports cleanup.
     """
     exec_env = os.environ.copy()
     exec_env["ANSIBLE_LOG_PATH"] = "/dev/null"
@@ -100,7 +75,7 @@ def run_playbook_with_timeout(log_file,
     if timeout:
         # Invoke ansible-playbook via the 'timeout' command.
         # Using --kill-after=5s which will force a kill -9 if the process
-        # hasn't terminated within 10s:
+        # hasn't terminated within 5s:
         timeout_log_str = " (timeout: %ss)" % timeout
         playbook_command = ["/usr/bin/timeout", "--kill-after=5s",
                             "%ss" % timeout] + playbook_command
@@ -118,6 +93,14 @@ def run_playbook_with_timeout(log_file,
             f_out_log.write(txt)
             f_out_log.flush()
 
+            if register_cleanup:
+                # Use the same process group / session for all children
+                # This makes it easier to kill the entire process group
+                # on cleanup
+                preexec_fn = os.setsid
+            else:
+                preexec_fn = None
+
             # TODO(kmacleod) future considerations:
             # - In python3, this code can be simplified to use the new
             #   subprocess.run(timeout=val) method or Popen with
@@ -128,8 +111,12 @@ def run_playbook_with_timeout(log_file,
             subp = subprocess.Popen(playbook_command,
                                     stdout=f_out_log,
                                     stderr=f_out_log,
-                                    env=exec_env)
+                                    env=exec_env,
+                                    preexec_fn=preexec_fn)
             try:
+                if register_cleanup:
+                    SubprocessCleanup.register_subprocess_group(subp)
+
                 subp.communicate()  # wait for process to exit
 
                 if timeout and subp.returncode == TIMEOUT_EXITCODE:
@@ -143,6 +130,8 @@ def run_playbook_with_timeout(log_file,
                     raise PlaybookExecutionFailed(playbook_cmd=playbook_command)
             finally:
                 f_out_log.flush()
+                if register_cleanup:
+                    SubprocessCleanup.unregister_subprocess_group(subp)
 
         except PlaybookExecutionFailed:
             raise

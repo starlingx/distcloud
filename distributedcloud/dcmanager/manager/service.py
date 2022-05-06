@@ -22,6 +22,7 @@ import oslo_messaging
 from oslo_service import service
 from oslo_utils import uuidutils
 
+from dccommon.subprocess_cleanup import SubprocessCleanup
 from dcmanager.audit import rpcapi as dcmanager_audit_rpc_client
 from dcmanager.common import consts
 from dcmanager.common import context
@@ -161,16 +162,17 @@ class DCManagerService(service.Service):
 
     def _stop_rpc_server(self):
         # Stop RPC connection to prevent new requests
-        LOG.debug(_("Attempting to stop engine service..."))
+        LOG.debug(_("Attempting to stop RPC service..."))
         try:
             self._rpc_server.stop()
             self._rpc_server.wait()
-            LOG.info('Engine service stopped successfully')
+            LOG.info('RPC service stopped successfully')
         except Exception as ex:
-            LOG.error('Failed to stop engine service: %s',
+            LOG.error('Failed to stop RPC service: %s',
                       six.text_type(ex))
 
     def stop(self):
+        SubprocessCleanup.shutdown_cleanup(origin="service")
         self._stop_rpc_server()
         # Terminate the engine process
         LOG.info("All threads were gone, terminating engine")

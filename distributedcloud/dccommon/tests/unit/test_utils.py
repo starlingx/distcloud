@@ -25,7 +25,7 @@ class TestUtils(base.DCCommonTestCase):
     def test_run_playbook_timeout(self):
         testscript = ['dccommon/tests/unit/test_utils_script.sh', '30']
         self.assertRaises(PlaybookExecutionTimeout,
-                          utils.run_playbook_with_timeout,
+                          utils.run_playbook,
                           '/dev/null',
                           testscript,
                           timeout=2)
@@ -36,7 +36,7 @@ class TestUtils(base.DCCommonTestCase):
         # a hung process
         script = ['dccommon/tests/unit/test_utils_script.sh', '30', 'TERM']
         self.assertRaises(PlaybookExecutionTimeout,
-                          utils.run_playbook_with_timeout,
+                          utils.run_playbook,
                           '/dev/null',
                           script,
                           timeout=2)
