@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2020-2021 Wind River Systems, Inc.
+# Copyright (c) 2020-2022 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -7,12 +7,13 @@ import copy
 import re
 
 from dccommon.drivers.openstack.sysinv_v1 import HOST_FS_NAME_SCRATCH
-
 from dcmanager.common import consts
 from dcmanager.common.exceptions import ManualRecoveryRequiredException
 from dcmanager.common.exceptions import PreCheckFailedException
 from dcmanager.db import api as db_api
 from dcmanager.orchestrator.states.base import BaseState
+from dcmanager.orchestrator.states.upgrade.cache.cache_specifications import \
+    REGION_ONE_SYSTEM_INFO_CACHE_TYPE
 
 # These deploy states should transition to the 'upgrading' state
 VALID_UPGRADE_STATES = [consts.DEPLOY_STATE_PRE_INSTALL_FAILED,
@@ -277,8 +278,9 @@ class PreCheckState(BaseState):
                         # Otherwise, we resume from create the VIM strategy state.
 
                         # determine the version of the system controller in region one
-                        target_version = self.get_sysinv_client(consts.DEFAULT_REGION_NAME).\
-                            get_system().software_version
+                        target_version = \
+                            self._read_from_cache(REGION_ONE_SYSTEM_INFO_CACHE_TYPE)\
+                                .software_version
 
                         all_hosts_upgraded = True
                         subcloud_hosts = self.get_sysinv_client(

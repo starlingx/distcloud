@@ -1,11 +1,13 @@
 #
-# Copyright (c) 2020 Wind River Systems, Inc.
+# Copyright (c) 2020, 2022 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
 from dcmanager.common import consts
 from dcmanager.common import exceptions
 from dcmanager.orchestrator.states.base import BaseState
+from dcmanager.orchestrator.states.upgrade.cache.cache_specifications import \
+    REGION_ONE_LICENSE_CACHE_TYPE
 
 # When a license is not installed, this will be part of the API error string
 LICENSE_FILE_NOT_FOUND_SUBSTRING = "License file not found"
@@ -29,10 +31,9 @@ class InstallingLicenseState(BaseState):
         Any exceptions raised by this method set the strategy to FAILED.
         """
 
-        # check if the the system controller has a license
-        local_sysinv_client = \
-            self.get_sysinv_client(consts.DEFAULT_REGION_NAME)
-        system_controller_license = local_sysinv_client.get_license()
+        # check if the system controller has a license
+        system_controller_license = self._read_from_cache(
+            REGION_ONE_LICENSE_CACHE_TYPE)
         # get_license returns a dictionary with keys: content and error
         # 'content' can be an empty string in success or failure case.
         # 'error' is an empty string only in success case.

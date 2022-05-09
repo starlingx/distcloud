@@ -6,8 +6,9 @@
 from dccommon.drivers.openstack import patching_v1
 from dcmanager.common import consts
 from dcmanager.common.exceptions import StrategyStoppedException
-
-from dcmanager.orchestrator.states.upgrade.patching import PatchingState
+from dcmanager.orchestrator.states.base import BaseState
+from dcmanager.orchestrator.states.upgrade.cache.cache_specifications import \
+    REGION_ONE_PATCHING_CACHE_TYPE
 
 # Max time: 30 minutes = 180 queries x 10 seconds between
 DEFAULT_MAX_QUERIES = 180
@@ -15,12 +16,13 @@ DEFAULT_SLEEP_DURATION = 10
 
 
 # todo(jcasteli): Refactor instead of duplicating code from patch_orch_thread.py
-class FinishingPatchStrategyState(PatchingState):
+class FinishingPatchStrategyState(BaseState):
     """Upgrade state for finishing patch strategy"""
 
     def __init__(self, region_name):
         super(FinishingPatchStrategyState, self).__init__(
-            next_state=consts.STRATEGY_STATE_STARTING_UPGRADE, region_name=region_name)
+            next_state=consts.STRATEGY_STATE_STARTING_UPGRADE,
+            region_name=region_name)
         # max time to wait (in seconds) is: sleep_duration * max_queries
         self.sleep_duration = DEFAULT_SLEEP_DURATION
         self.max_queries = DEFAULT_MAX_QUERIES
@@ -39,7 +41,11 @@ class FinishingPatchStrategyState(PatchingState):
             self.info_log(strategy_step, "Skipping finish for SystemController")
             return self.next_state
 
-        regionone_committed_patches = self.get_region_one_patches(patching_v1.PATCH_STATE_COMMITTED)
+        regionone_committed_patches = self._read_from_cache(
+            REGION_ONE_PATCHING_CACHE_TYPE,
+            state=patching_v1.PATCH_STATE_COMMITTED
+        )
+
         self.debug_log(strategy_step,
                        "regionone_committed_patches: %s" % regionone_committed_patches)
 
