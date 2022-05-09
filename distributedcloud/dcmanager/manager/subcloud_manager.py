@@ -14,7 +14,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-
+import collections
+import datetime
 import filecmp
 import json
 import keyring
@@ -107,6 +108,8 @@ TRANSITORY_STATES = {consts.DEPLOY_STATE_NONE: consts.DEPLOY_STATE_DEPLOY_PREP_F
 
 class SubcloudManager(manager.Manager):
     """Manages tasks related to subclouds."""
+
+    regionone_data = collections.defaultdict(dict)
 
     def __init__(self, *args, **kwargs):
         LOG.debug(_('SubcloudManager initialization...'))
@@ -299,17 +302,14 @@ class SubcloudManager(manager.Manager):
             sysinv_client = SysinvClient(consts.DEFAULT_REGION_NAME,
                                          m_ks_client.session,
                                          endpoint=endpoint)
-            controllers = sysinv_client.get_controller_hosts()
-            for controller in controllers:
-                management_interface = sysinv_client.get_management_interface(
-                    controller.hostname)
-                if management_interface is not None:
-                    sysinv_client.create_route(
-                        management_interface.uuid,
-                        str(subcloud_subnet.ip),
-                        subcloud_subnet.prefixlen,
-                        payload['systemcontroller_gateway_address'],
-                        1)
+            LOG.debug("Getting cached regionone data for %s" % subcloud.name)
+            cached_regionone_data = self._get_cached_regionone_data(m_ks_client, sysinv_client)
+            for mgmt_if_uuid in cached_regionone_data['mgmt_interface_uuids']:
+                sysinv_client.create_route(mgmt_if_uuid,
+                                           str(subcloud_subnet.ip),
+                                           subcloud_subnet.prefixlen,
+                                           payload['systemcontroller_gateway_address'],
+                                           1)
 
             # Create endpoints to this subcloud on the
             # management-start-ip of the subcloud which will be allocated
@@ -385,17 +385,8 @@ class SubcloudManager(manager.Manager):
             # Regenerate the addn_hosts_dc file
             self._create_addn_hosts_dc(context)
 
-            # Query system controller keystone admin user/project IDs,
-            # services project id, sysinv and dcmanager user id and store in
-            # payload so they get copied to the override file
-            self._get_keystone_ids(m_ks_client, payload)
-
-            # Add the admin and service user passwords to the payload so they
-            # get copied to the override file
-            payload['ansible_become_pass'] = payload['sysadmin_password']
-            payload['ansible_ssh_pass'] = payload['sysadmin_password']
-            payload['admin_password'] = str(keyring.get_password('CGCS',
-                                                                 'admin'))
+            self._populate_payload_with_cached_keystone_data(
+                cached_regionone_data, payload)
 
             if "install_values" in payload:
                 payload['install_values']['ansible_ssh_pass'] = \
@@ -515,45 +506,6 @@ class SubcloudManager(manager.Manager):
                 context, subcloud_id,
                 deploy_status=consts.DEPLOY_STATE_DEPLOY_PREP_FAILED)
 
-    def _get_keystone_ids(self, keystone_client, payload):
-        """Get keystone user_id and project_id
-
-        :param keystone_client: keystone client
-        :param payload: subcloud configuration
-        """
-        admin_user_id = None
-        sysinv_user_id = None
-        dcmanager_user_id = None
-        admin_project_id = None
-        services_project_id = None
-
-        user_list = keystone_client.get_enabled_users(id_only=False)
-        for user in user_list:
-            if user.name == dccommon_consts.ADMIN_USER_NAME:
-                admin_user_id = user.id
-            elif user.name == dccommon_consts.SYSINV_USER_NAME:
-                sysinv_user_id = user.id
-            elif user.name == dccommon_consts.DCMANAGER_USER_NAME:
-                dcmanager_user_id = user.id
-
-        project_list = keystone_client.get_enabled_projects(id_only=False)
-        for project in project_list:
-            if project.name == dccommon_consts.ADMIN_PROJECT_NAME:
-                admin_project_id = project.id
-            elif project.name == dccommon_consts.SERVICES_USER_NAME:
-                services_project_id = project.id
-
-        payload['system_controller_keystone_admin_user_id'] = \
-            admin_user_id
-        payload['system_controller_keystone_admin_project_id'] = \
-            admin_project_id
-        payload['system_controller_keystone_services_project_id'] = \
-            services_project_id
-        payload['system_controller_keystone_sysinv_user_id'] = \
-            sysinv_user_id
-        payload['system_controller_keystone_dcmanager_user_id'] = \
-            dcmanager_user_id
-
     def reinstall_subcloud(self, context, subcloud_id, payload):
         """Reinstall subcloud
 
@@ -574,12 +526,10 @@ class SubcloudManager(manager.Manager):
             m_ks_client = OpenStackDriver(
                 region_name=consts.DEFAULT_REGION_NAME,
                 region_clients=None).keystone_client
-            self._get_keystone_ids(m_ks_client, payload)
+            cached_regionone_data = self._get_cached_regionone_data(m_ks_client)
+            self._populate_payload_with_cached_keystone_data(
+                cached_regionone_data, payload)
 
-            payload['admin_password'] = str(
-                keyring.get_password('CGCS', 'admin'))
-            payload['ansible_become_pass'] = payload['sysadmin_password']
-            payload['ansible_ssh_pass'] = payload['sysadmin_password']
             payload['install_values']['ansible_ssh_pass'] = \
                 payload['sysadmin_password']
             payload['install_values']['ansible_become_pass'] = \
@@ -1012,18 +962,13 @@ class SubcloudManager(manager.Manager):
         endpoint = keystone_client.endpoint_cache.get_endpoint('sysinv')
         sysinv_client = SysinvClient(consts.DEFAULT_REGION_NAME, keystone_client.session,
                                      endpoint=endpoint)
-        controllers = sysinv_client.get_controller_hosts()
-        for controller in controllers:
-            management_interface = sysinv_client.get_management_interface(
-                controller.hostname)
-            if management_interface is not None:
-                sysinv_client.delete_route(
-                    management_interface.uuid,
-                    str(management_subnet.ip),
-                    management_subnet.prefixlen,
-                    str(netaddr.IPAddress(
-                        subcloud.systemcontroller_gateway_ip)),
-                    1)
+        cached_regionone_data = self._get_cached_regionone_data(keystone_client, sysinv_client)
+        for mgmt_if_uuid in cached_regionone_data['mgmt_interface_uuids']:
+            sysinv_client.delete_route(mgmt_if_uuid,
+                                       str(management_subnet.ip),
+                                       management_subnet.prefixlen,
+                                       str(netaddr.IPAddress(subcloud.systemcontroller_gateway_ip)),
+                                       1)
 
     @staticmethod
     def _delete_subcloud_cert(subcloud_name):
@@ -1325,3 +1270,64 @@ class SubcloudManager(manager.Manager):
     def prestage_subcloud(context, payload):
         """Subcloud prestaging"""
         return prestage.prestage_subcloud(context, payload)
+
+    @utils.synchronized("regionone-data-cache", external=False)
+    def _get_cached_regionone_data(self, regionone_keystone_client, regionone_sysinv_client=None):
+        if (not SubcloudManager.regionone_data or
+                SubcloudManager.regionone_data['expiry'] <= datetime.datetime.utcnow()):
+            user_list = regionone_keystone_client.get_enabled_users(id_only=False)
+            for user in user_list:
+                if user.name == dccommon_consts.ADMIN_USER_NAME:
+                    SubcloudManager.regionone_data['admin_user_id'] = user.id
+                elif user.name == dccommon_consts.SYSINV_USER_NAME:
+                    SubcloudManager.regionone_data['sysinv_user_id'] = user.id
+                elif user.name == dccommon_consts.DCMANAGER_USER_NAME:
+                    SubcloudManager.regionone_data['dcmanager_user_id'] = user.id
+
+            project_list = regionone_keystone_client.get_enabled_projects(id_only=False)
+            for project in project_list:
+                if project.name == dccommon_consts.ADMIN_PROJECT_NAME:
+                    SubcloudManager.regionone_data['admin_project_id'] = project.id
+                elif project.name == dccommon_consts.SERVICES_USER_NAME:
+                    SubcloudManager.regionone_data['services_project_id'] = project.id
+
+            if regionone_sysinv_client is None:
+                endpoint = regionone_keystone_client.endpoint_cache.get_endpoint('sysinv')
+                regionone_sysinv_client = SysinvClient(consts.DEFAULT_REGION_NAME,
+                                                       regionone_keystone_client.session,
+                                                       endpoint=endpoint)
+
+            controllers = regionone_sysinv_client.get_controller_hosts()
+            mgmt_interface_uuids = []
+            for controller in controllers:
+                mgmt_interface = regionone_sysinv_client.get_management_interface(
+                    controller.hostname)
+                if mgmt_interface is not None:
+                    mgmt_interface_uuids.append(mgmt_interface.uuid)
+            SubcloudManager.regionone_data['mgmt_interface_uuids'] = mgmt_interface_uuids
+
+            SubcloudManager.regionone_data['expiry'] = \
+                datetime.datetime.utcnow() + datetime.timedelta(hours=1)
+            LOG.info("RegionOne cached data updated %s" % SubcloudManager.regionone_data)
+
+        cached_regionone_data = SubcloudManager.regionone_data
+        return cached_regionone_data
+
+    def _populate_payload_with_cached_keystone_data(self, cached_data, payload):
+        payload['system_controller_keystone_admin_user_id'] = \
+            cached_data['admin_user_id']
+        payload['system_controller_keystone_admin_project_id'] = \
+            cached_data['admin_project_id']
+        payload['system_controller_keystone_services_project_id'] = \
+            cached_data['services_project_id']
+        payload['system_controller_keystone_sysinv_user_id'] = \
+            cached_data['sysinv_user_id']
+        payload['system_controller_keystone_dcmanager_user_id'] = \
+            cached_data['dcmanager_user_id']
+
+        # While at it, add the admin and service user passwords to the payload so
+        # they get copied to the overrides file
+        payload['ansible_become_pass'] = payload['sysadmin_password']
+        payload['ansible_ssh_pass'] = payload['sysadmin_password']
+        payload['admin_password'] = str(keyring.get_password('CGCS',
+                                                             'admin'))

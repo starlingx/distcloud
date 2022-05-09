@@ -13,6 +13,7 @@
 #
 
 import copy
+import datetime
 import mock
 
 from os import path as os_path
@@ -37,6 +38,13 @@ from dcmanager.tests.unit.common import fake_subcloud
 from dcmanager.tests import utils
 from dcorch.common import consts as dcorch_consts
 from tsconfig.tsconfig import SW_VERSION
+
+
+FAKE_ADMIN_USER_ID = 1
+FAKE_SYSINV_USER_ID = 2
+FAKE_DCMANAGER_USER_ID = 3
+FAKE_ADMIN_PROJECT_ID = 1
+FAKE_SERVICE_PROJECT_ID = 2
 
 
 class FakeDCManagerAuditAPI(object):
@@ -76,13 +84,13 @@ class FakeUser(object):
 FAKE_USERS = [
     FakeUser(
         dccommon_consts.ADMIN_USER_NAME,
-        1),
+        FAKE_ADMIN_USER_ID),
     FakeUser(
         dccommon_consts.SYSINV_USER_NAME,
-        2),
+        FAKE_SYSINV_USER_ID),
     FakeUser(
         dccommon_consts.DCMANAGER_USER_NAME,
-        3)
+        FAKE_DCMANAGER_USER_ID)
 ]
 
 
@@ -94,10 +102,10 @@ class FakeProject(object):
 FAKE_PROJECTS = [
     FakeProject(
         dccommon_consts.ADMIN_PROJECT_NAME,
-        1),
+        FAKE_ADMIN_PROJECT_ID),
     FakeProject(
         dccommon_consts.SERVICES_USER_NAME,
-        2)
+        FAKE_SERVICE_PROJECT_ID)
 ]
 
 
@@ -178,6 +186,39 @@ FAKE_CONTROLLERS = [
 ]
 
 
+class FakeManagementInterface(object):
+    def __init__(self, hostname):
+        if hostname == 'controller-0':
+            self.uuid = '47cb1222-21a9-4ee0-b1f9-0b37de345f65'
+        else:
+            self.uuid = '0106bdf0-1662-48cc-b6b3-664c91147843'
+
+
+FAKE_MGMT_INTERFACES = [
+    FakeManagementInterface(
+        'controller-0'
+    ),
+    FakeManagementInterface(
+        'controller-1'
+    ),
+]
+
+
+class FakeSysinvClient(object):
+    def __init__(self):
+        self.hosts = FAKE_CONTROLLERS
+        self.interfaces = FAKE_MGMT_INTERFACES
+
+    def get_controller_hosts(self):
+        return self.hosts
+
+    def get_management_interface(self, hostname):
+        if hostname == 'controller-0':
+            return self.interfaces[0]
+        else:
+            return self.interfaces[1]
+
+
 class FakeException(Exception):
         pass
 
@@ -214,6 +255,21 @@ FAKE_PRESTAGE_PAYLOAD = {
     "oam_floating_ip": "10.10.10.12",
     "sysadmin_password": 'testpassword',
     "force": False
+}
+
+FAKE_MGMT_IF_UUIDS = [
+    '47cb1222-21a9-4ee0-b1f9-0b37de345f65',
+    '0106bdf0-1662-48cc-b6b3-664c91147843'
+]
+
+FAKE_CACHED_REGIONONE_DATA = {
+    "admin_user_id": FAKE_USERS[0].id,
+    "sysinv_user_id": FAKE_USERS[1].id,
+    "dcmanager_user_id": FAKE_USERS[2].id,
+    "admin_project_id": FAKE_PROJECTS[0].id,
+    "services_project_id": FAKE_PROJECTS[1].id,
+    "mgmt_interface_uuids": FAKE_MGMT_IF_UUIDS,
+    "expiry": datetime.datetime.utcnow() + datetime.timedelta(seconds=3600)
 }
 
 
@@ -314,6 +370,8 @@ class TestSubcloudManager(base.DCManagerTestCase):
     @mock.patch.object(subcloud_manager, 'OpenStackDriver')
     @mock.patch.object(subcloud_manager, 'SysinvClient')
     @mock.patch.object(subcloud_manager.SubcloudManager,
+                       '_get_cached_regionone_data')
+    @mock.patch.object(subcloud_manager.SubcloudManager,
                        '_create_addn_hosts_dc')
     @mock.patch.object(cutils, 'create_subcloud_inventory')
     @mock.patch.object(subcloud_manager.SubcloudManager,
@@ -325,24 +383,26 @@ class TestSubcloudManager(base.DCManagerTestCase):
     def test_add_subcloud(self, mock_thread_start, mock_keyring,
                           mock_write_subcloud_ansible_config,
                           mock_create_subcloud_inventory,
-                          mock_create_addn_hosts, mock_sysinv_client,
+                          mock_create_addn_hosts,
+                          mock_get_cached_regionone_data,
+                          mock_sysinv_client,
                           mock_keystone_client,
                           mock_delete_subcloud_inventory,
                           mock_create_intermediate_ca_cert,
                           mock_compose_rehome_command):
         values = utils.create_subcloud_dict(base.SUBCLOUD_SAMPLE_DATA_0)
         values['deploy_status'] = consts.DEPLOY_STATE_NONE
-        controllers = FAKE_CONTROLLERS
 
         # dcmanager add_subcloud queries the data from the db
         self.create_subcloud_static(self.ctx, name=values['name'])
 
-        mock_sysinv_client().get_controller_hosts.return_value = controllers
         mock_keystone_client().keystone_client = FakeKeystoneClient()
         mock_keyring.get_password.return_value = "testpassword"
+        mock_get_cached_regionone_data.return_value = FAKE_CACHED_REGIONONE_DATA
 
         sm = subcloud_manager.SubcloudManager()
         subcloud_dict = sm.add_subcloud(self.ctx, payload=values)
+        mock_get_cached_regionone_data.assert_called_once()
         mock_sysinv_client().create_route.assert_called()
         self.fake_dcorch_api.add_subcloud.assert_called_once()
         mock_create_addn_hosts.assert_called_once()
@@ -370,6 +430,8 @@ class TestSubcloudManager(base.DCManagerTestCase):
     @mock.patch.object(subcloud_manager, 'OpenStackDriver')
     @mock.patch.object(subcloud_manager, 'SysinvClient')
     @mock.patch.object(subcloud_manager.SubcloudManager,
+                       '_get_cached_regionone_data')
+    @mock.patch.object(subcloud_manager.SubcloudManager,
                        '_create_addn_hosts_dc')
     @mock.patch.object(cutils, 'create_subcloud_inventory')
     @mock.patch.object(subcloud_manager.SubcloudManager,
@@ -382,7 +444,9 @@ class TestSubcloudManager(base.DCManagerTestCase):
         self, mock_thread_start, mock_keyring,
         mock_write_subcloud_ansible_config,
         mock_create_subcloud_inventory,
-        mock_create_addn_hosts, mock_sysinv_client,
+        mock_create_addn_hosts,
+        mock_get_cached_regionone_data,
+        mock_sysinv_client,
         mock_keystone_client,
         mock_delete_subcloud_inventory,
         mock_create_intermediate_ca_cert,
@@ -390,17 +454,17 @@ class TestSubcloudManager(base.DCManagerTestCase):
         values = utils.create_subcloud_dict(base.SUBCLOUD_SAMPLE_DATA_0)
         values['deploy_status'] = consts.DEPLOY_STATE_NONE
         values['migrate'] = 'true'
-        controllers = FAKE_CONTROLLERS
 
         # dcmanager add_subcloud queries the data from the db
         self.create_subcloud_static(self.ctx, name=values['name'])
 
-        mock_sysinv_client().get_controller_hosts.return_value = controllers
         mock_keystone_client().keystone_client = FakeKeystoneClient()
         mock_keyring.get_password.return_value = "testpassword"
+        mock_get_cached_regionone_data.return_value = FAKE_CACHED_REGIONONE_DATA
 
         sm = subcloud_manager.SubcloudManager()
         subcloud_dict = sm.add_subcloud(self.ctx, payload=values)
+        mock_get_cached_regionone_data.assert_called_once()
         mock_sysinv_client().create_route.assert_called()
         self.fake_dcorch_api.add_subcloud.assert_called_once()
         mock_create_addn_hosts.assert_called_once()
@@ -422,22 +486,24 @@ class TestSubcloudManager(base.DCManagerTestCase):
 
     @mock.patch.object(subcloud_manager, 'OpenStackDriver')
     @mock.patch.object(subcloud_manager, 'SysinvClient')
+    @mock.patch.object(subcloud_manager.SubcloudManager, '_get_cached_regionone_data')
     def test_add_subcloud_deploy_prep_failed(self,
+                                             mock_get_cached_regionone_data,
                                              mock_sysinv_client,
                                              mock_keystone_client):
         values = utils.create_subcloud_dict(base.SUBCLOUD_SAMPLE_DATA_0)
-        controllers = FAKE_CONTROLLERS
         services = FAKE_SERVICES
 
         # dcmanager add_subcloud queries the data from the db
         self.create_subcloud_static(self.ctx, name=values['name'])
 
         self.fake_dcorch_api.add_subcloud.side_effect = FakeException('boom')
-        mock_sysinv_client().get_controller_hosts.return_value = controllers
+        mock_get_cached_regionone_data.return_value = FAKE_CACHED_REGIONONE_DATA
         mock_keystone_client().services_list = services
 
         sm = subcloud_manager.SubcloudManager()
         sm.add_subcloud(self.ctx, payload=values)
+        mock_get_cached_regionone_data.assert_called_once()
         mock_sysinv_client().create_route.assert_called()
 
         # Verify subcloud was updated with correct values
@@ -447,22 +513,23 @@ class TestSubcloudManager(base.DCManagerTestCase):
 
     @mock.patch.object(subcloud_manager, 'OpenStackDriver')
     @mock.patch.object(subcloud_manager, 'SysinvClient')
+    @mock.patch.object(subcloud_manager.SubcloudManager, '_get_cached_regionone_data')
     def test_add_subcloud_with_migrate_option_prep_failed(
-        self, mock_sysinv_client, mock_keystone_client):
+        self, mock_get_cached_regionone_data, mock_sysinv_client, mock_keystone_client):
         values = utils.create_subcloud_dict(base.SUBCLOUD_SAMPLE_DATA_0)
         values['migrate'] = 'true'
-        controllers = FAKE_CONTROLLERS
         services = FAKE_SERVICES
 
         # dcmanager add_subcloud queries the data from the db
         self.create_subcloud_static(self.ctx, name=values['name'])
 
         self.fake_dcorch_api.add_subcloud.side_effect = FakeException('boom')
-        mock_sysinv_client().get_controller_hosts.return_value = controllers
+        mock_get_cached_regionone_data.return_value = FAKE_CACHED_REGIONONE_DATA
         mock_keystone_client().services_list = services
 
         sm = subcloud_manager.SubcloudManager()
         sm.add_subcloud(self.ctx, payload=values)
+        mock_get_cached_regionone_data.assert_called_once()
         mock_sysinv_client().create_route.assert_called()
 
         # Verify subcloud was updated with correct values
@@ -472,6 +539,7 @@ class TestSubcloudManager(base.DCManagerTestCase):
 
     @mock.patch.object(subcloud_manager.SubcloudManager,
                        '_delete_subcloud_cert')
+    @mock.patch.object(subcloud_manager.SubcloudManager, '_get_cached_regionone_data')
     @mock.patch.object(subcloud_manager, 'SysinvClient')
     @mock.patch.object(subcloud_manager, 'OpenStackDriver')
     @mock.patch.object(subcloud_manager.SubcloudManager,
@@ -479,13 +547,14 @@ class TestSubcloudManager(base.DCManagerTestCase):
     def test_delete_subcloud(self, mock_create_addn_hosts,
                              mock_keystone_client,
                              mock_sysinv_client,
+                             mock_get_cached_regionone_data,
                              mock_delete_subcloud_cert):
-        controllers = FAKE_CONTROLLERS
         subcloud = self.create_subcloud_static(self.ctx)
         mock_keystone_client().keystone_client = FakeKeystoneClient()
-        mock_sysinv_client().get_controller_hosts.return_value = controllers
+        mock_get_cached_regionone_data.return_value = FAKE_CACHED_REGIONONE_DATA
         sm = subcloud_manager.SubcloudManager()
         sm.delete_subcloud(self.ctx, subcloud_id=subcloud.id)
+        mock_get_cached_regionone_data.assert_called_once()
         mock_sysinv_client().delete_route.assert_called()
         mock_create_addn_hosts.assert_called_once()
         mock_delete_subcloud_cert.assert_called_once()
@@ -1268,13 +1337,13 @@ class TestSubcloudManager(base.DCManagerTestCase):
     @mock.patch.object(
         subcloud_manager.SubcloudManager, 'compose_apply_command')
     @mock.patch.object(cutils, 'create_subcloud_inventory')
-    @mock.patch.object(subcloud_manager.SubcloudManager, '_get_keystone_ids')
+    @mock.patch.object(subcloud_manager.SubcloudManager, '_get_cached_regionone_data')
     @mock.patch.object(subcloud_manager, 'OpenStackDriver')
     @mock.patch.object(threading.Thread, 'start')
     @mock.patch.object(subcloud_manager, 'keyring')
     def test_reinstall_subcloud(
         self, mock_keyring, mock_thread_start,
-        mock_keystone_client, mock_get_keystone_ids, mock_create_subcloud_inventory,
+        mock_keystone_client, mock_get_cached_regionone_data, mock_create_subcloud_inventory,
         mock_compose_apply_command, mock_compose_install_command,
         mock_create_intermediate_ca_cert, mock_write_subcloud_ansible_config):
 
@@ -1294,44 +1363,17 @@ class TestSubcloudManager(base.DCManagerTestCase):
 
         sm = subcloud_manager.SubcloudManager()
         mock_keyring.get_password.return_value = "testpassword"
+        mock_get_cached_regionone_data.return_value = FAKE_CACHED_REGIONONE_DATA
 
         sm.reinstall_subcloud(self.ctx, subcloud.id, payload=fake_payload)
         mock_keystone_client.assert_called_once()
-        mock_get_keystone_ids.assert_called_once()
+        mock_get_cached_regionone_data.assert_called_once()
         mock_create_subcloud_inventory.assert_called_once()
         mock_create_intermediate_ca_cert.assert_called_once()
         mock_write_subcloud_ansible_config.assert_called_once()
         mock_compose_install_command.assert_called_once()
         mock_compose_apply_command.assert_called_once()
         mock_thread_start.assert_called_once()
-
-    def test_get_keystone_get_keystone_ids(self):
-        keystone_client = FakeKeystoneClient()
-        payload = dict()
-        sm = subcloud_manager.SubcloudManager()
-        sm._get_keystone_ids(keystone_client, payload)
-        for fake_user in FAKE_USERS:
-            if fake_user.name == dccommon_consts.ADMIN_USER_NAME:
-                self.assertEqual(
-                    payload['system_controller_keystone_admin_user_id'],
-                    fake_user.id)
-            elif fake_user.name == dccommon_consts.SYSINV_USER_NAME:
-                self.assertEqual(
-                    payload['system_controller_keystone_sysinv_user_id'],
-                    fake_user.id)
-            elif fake_user.name == dccommon_consts.DCMANAGER_USER_NAME:
-                self.assertEqual(
-                    payload['system_controller_keystone_dcmanager_user_id'],
-                    fake_user.id)
-        for fake_project in FAKE_PROJECTS:
-            if fake_project.name == dccommon_consts.ADMIN_PROJECT_NAME:
-                self.assertEqual(
-                    payload['system_controller_keystone_admin_project_id'],
-                    fake_project.id)
-            elif fake_project.name == dccommon_consts.SERVICES_USER_NAME:
-                self.assertEqual(
-                    payload['system_controller_keystone_services_project_id'],
-                    fake_project.id)
 
     def test_handle_subcloud_operations_in_progress(self):
         subcloud1 = self.create_subcloud_static(
@@ -1722,3 +1764,26 @@ class TestSubcloudManager(base.DCManagerTestCase):
         updated_subcloud = db_api.subcloud_get_by_name(self.ctx, subcloud.name)
         self.assertEqual(consts.PRESTAGE_STATE_PREPARE,
                          updated_subcloud.deploy_status)
+
+    def test_get_cached_regionone_data(self):
+        mock_keystone_client = FakeKeystoneClient()
+        mock_sysinv_client = FakeSysinvClient()
+        sm = subcloud_manager.SubcloudManager()
+        cached_regionone_data = sm._get_cached_regionone_data(
+            mock_keystone_client, mock_sysinv_client)
+        expiry1 = cached_regionone_data['expiry']
+        self.assertEqual(cached_regionone_data['dcmanager_user_id'],
+                         FAKE_DCMANAGER_USER_ID)
+        self.assertEqual(cached_regionone_data['admin_project_id'],
+                         FAKE_ADMIN_PROJECT_ID)
+        self.assertEqual(cached_regionone_data['mgmt_interface_uuids'],
+                         FAKE_MGMT_IF_UUIDS)
+        # The expiry timestamp is likely a couple of seconds less than the time
+        # the cache is set when it gets here so check if the expiry is greater than
+        # 59m55s from now.
+        self.assertGreater(cached_regionone_data['expiry'],
+                           datetime.datetime.utcnow() + datetime.timedelta(seconds=3595))
+        cached_regionone_data = sm._get_cached_regionone_data(
+            mock_keystone_client, mock_sysinv_client)
+        expiry2 = cached_regionone_data['expiry']
+        self.assertEqual(expiry1, expiry2)
