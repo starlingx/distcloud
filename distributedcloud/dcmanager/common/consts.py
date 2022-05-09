@@ -214,6 +214,9 @@ PRESTAGE_STATE_IMAGES = STRATEGY_STATE_PRESTAGE_IMAGES
 PRESTAGE_STATE_FAILED = 'prestage-failed'
 PRESTAGE_STATE_COMPLETE = 'prestage-complete'
 
+# Prestage preparation timeout
+PRESTAGE_PREPARE_TIMEOUT = 900  # 15 minutes
+
 # Alarm aggregation
 ALARMS_DISABLED = "disabled"
 ALARM_OK_STATUS = "OK"
