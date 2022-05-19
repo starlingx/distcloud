@@ -1,4 +1,4 @@
-# Copyright (c) 2020-2021 Wind River Systems, Inc.
+# Copyright (c) 2021-2022 Wind River Systems, Inc.
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -18,6 +18,7 @@ import json
 import netaddr
 import os
 from oslo_log import log as logging
+import shutil
 from six.moves.urllib import error as urllib_error
 from six.moves.urllib import parse
 from six.moves.urllib import request
@@ -42,6 +43,7 @@ RVMC_IMAGE_TAG = 'stx.5.0-v1.0.0'
 
 SUBCLOUD_ISO_PATH = '/opt/platform/iso'
 SUBCLOUD_ISO_DOWNLOAD_PATH = '/var/www/pages/iso'
+SUBCLOUD_PKG_CKSUM_PATH = '/var/www/pages/feed'
 GEN_ISO_COMMAND = '/usr/local/bin/gen-bootloader-iso.sh'
 NETWORK_SCRIPTS = '/etc/sysconfig/network-scripts'
 NETWORK_INTERFACE_PREFIX = 'ifcfg'
@@ -435,6 +437,21 @@ class SubcloudInstall(object):
         for k in BMC_OPTIONS:
             if k in payload:
                 del payload[k]
+
+        # when adding a new subcloud, the subcloud will pull
+        # the file "package_checksums" from the controller.
+        # The subcloud pulls from /var/www/pages/iso/<version>/.
+        # The file needs to be copied from /var/www/pages/feed to
+        # this location.
+        pkg_file_dest = os.path.join(SUBCLOUD_ISO_DOWNLOAD_PATH,
+                                     software_version, 'nodes',
+                                     self.name, 'package_checksums')
+
+        pkg_file_src = os.path.join(SUBCLOUD_PKG_CKSUM_PATH,
+                                    "rel-{version}".format(version=software_version),
+                                    'package_checksums')
+
+        shutil.copy(pkg_file_src, pkg_file_dest)
 
         # remove the boot image url from the payload
         if 'image' in payload:
