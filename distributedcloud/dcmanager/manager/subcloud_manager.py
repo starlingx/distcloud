@@ -281,12 +281,6 @@ class SubcloudManager(manager.Manager):
                 context, subcloud_id,
                 deploy_status=consts.DEPLOY_STATE_PRE_DEPLOY)
 
-        # Populate the subcloud status table with all endpoints
-        for endpoint in dcorch_consts.ENDPOINT_TYPES_LIST:
-            db_api.subcloud_status_create(context,
-                                          subcloud.id,
-                                          endpoint)
-
         try:
             # Ansible inventory filename for the specified subcloud
             ansible_subcloud_inventory_file = self._get_ansible_filename(
@@ -711,6 +705,7 @@ class SubcloudManager(manager.Manager):
         log_file = os.path.join(consts.DC_ANSIBLE_LOG_DIR, subcloud.name) + \
             '_playbook_output.log'
         if install_command:
+            LOG.info("Preparing remote install of %s" % subcloud.name)
             db_api.subcloud_update(
                 context, subcloud.id,
                 deploy_status=consts.DEPLOY_STATE_PRE_INSTALL)
@@ -728,6 +723,7 @@ class SubcloudManager(manager.Manager):
                 return
 
             # Run the remote install playbook
+            LOG.info("Starting remote install of %s" % subcloud.name)
             db_api.subcloud_update(
                 context, subcloud.id,
                 deploy_status=consts.DEPLOY_STATE_INSTALLING)
@@ -741,7 +737,7 @@ class SubcloudManager(manager.Manager):
                 install.cleanup()
                 return
             install.cleanup()
-            LOG.info("Successfully installed subcloud %s" % subcloud.name)
+            LOG.info("Successfully installed %s" % subcloud.name)
 
         # Leave the following block here in case there is another use
         # case besides subcloud restore where validating host post
@@ -775,6 +771,7 @@ class SubcloudManager(manager.Manager):
                 raise e
 
             # Run the ansible boostrap-subcloud playbook
+            LOG.info("Starting bootstrap of %s" % subcloud.name)
             try:
                 run_playbook(log_file, apply_command)
             except PlaybookExecutionFailed:
@@ -788,11 +785,11 @@ class SubcloudManager(manager.Manager):
                     context, subcloud.id,
                     deploy_status=consts.DEPLOY_STATE_BOOTSTRAP_FAILED)
                 return
-            LOG.info("Successfully bootstrapped subcloud %s" %
-                     subcloud.name)
+            LOG.info("Successfully bootstrapped %s" % subcloud.name)
 
         if deploy_command:
             # Run the custom deploy playbook
+            LOG.info("Starting deploy of %s" % subcloud.name)
             db_api.subcloud_update(
                 context, subcloud.id,
                 deploy_status=consts.DEPLOY_STATE_DEPLOYING)
@@ -810,8 +807,7 @@ class SubcloudManager(manager.Manager):
                     context, subcloud.id,
                     deploy_status=consts.DEPLOY_STATE_DEPLOY_FAILED)
                 return
-            LOG.info("Successfully deployed subcloud %s" %
-                     subcloud.name)
+            LOG.info("Successfully deployed %s" % subcloud.name)
         elif restore_command:
             db_api.subcloud_update(
                 context, subcloud.id,

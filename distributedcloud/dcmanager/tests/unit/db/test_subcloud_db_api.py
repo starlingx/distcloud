@@ -1,5 +1,5 @@
 # Copyright (c) 2015 Ericsson AB
-# Copyright (c) 2017-2021 Wind River Systems, Inc.
+# Copyright (c) 2017-2022 Wind River Systems, Inc.
 # All Rights Reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License"); you may
@@ -23,6 +23,7 @@ from dcmanager.db import api as api
 from dcmanager.db.sqlalchemy import api as db_api
 from dcmanager.tests import base
 from dcmanager.tests import utils
+from dcorch.common import consts as dcorch_consts
 
 config.register_options()
 get_engine = api.get_engine
@@ -243,6 +244,12 @@ class DBAPISubcloudTest(base.DCManagerTestCase):
         subcloud = self.create_subcloud(self.ctx, fake_subcloud)
         self.assertIsNotNone(subcloud)
 
+        default_subcloud_statuses = db_api.subcloud_status_get_all(self.ctx,
+                                                                   subcloud.id)
+        num_default_subcloud_statuses = len(default_subcloud_statuses)
+        self.assertEqual(num_default_subcloud_statuses,
+                         len(dcorch_consts.ENDPOINT_TYPES_LIST))
+
         endpoint_type1 = 'testendpoint1'
         subcloud_status1 = self.create_subcloud_status(
             self.ctx, endpoint_type=endpoint_type1)
@@ -261,16 +268,28 @@ class DBAPISubcloudTest(base.DCManagerTestCase):
         new_subcloud_statuses = db_api.subcloud_status_get_all(self.ctx,
                                                                subcloud.id)
         self.assertIsNotNone(new_subcloud_statuses)
-        self.assertEqual(3, len(new_subcloud_statuses))
+        self.assertEqual(num_default_subcloud_statuses + 3,
+                         len(new_subcloud_statuses))
         self.assertEqual(endpoint_type1,
-                         new_subcloud_statuses[0].endpoint_type)
-        self.assertEqual(1, new_subcloud_statuses[0].id)
-        self.assertEqual(endpoint_type2,
-                         new_subcloud_statuses[1].endpoint_type)
-        self.assertEqual(2, new_subcloud_statuses[1].id)
-        self.assertEqual(endpoint_type3,
-                         new_subcloud_statuses[2].endpoint_type)
-        self.assertEqual(3, new_subcloud_statuses[2].id)
+                         new_subcloud_statuses[num_default_subcloud_statuses]
+                         .endpoint_type)
+        self.assertEqual(
+            num_default_subcloud_statuses + 1,
+            new_subcloud_statuses[num_default_subcloud_statuses].id)
+        self.assertEqual(
+            endpoint_type2,
+            new_subcloud_statuses[num_default_subcloud_statuses +
+                                  1].endpoint_type)
+        self.assertEqual(
+            num_default_subcloud_statuses + 2,
+            new_subcloud_statuses[num_default_subcloud_statuses + 1].id)
+        self.assertEqual(
+            endpoint_type3,
+            new_subcloud_statuses[num_default_subcloud_statuses +
+                                  2].endpoint_type)
+        self.assertEqual(
+            num_default_subcloud_statuses + 3,
+            new_subcloud_statuses[num_default_subcloud_statuses + 2].id)
 
     def test_update_subcloud_status(self):
         fake_subcloud = utils.create_subcloud_dict(base.SUBCLOUD_SAMPLE_DATA_0)
@@ -401,6 +420,12 @@ class DBAPISubcloudTest(base.DCManagerTestCase):
         subcloud = self.create_subcloud(self.ctx, fake_subcloud)
         self.assertIsNotNone(subcloud)
 
+        default_subcloud_statuses = db_api.subcloud_status_get_all(self.ctx,
+                                                                   subcloud.id)
+        num_default_subcloud_statuses = len(default_subcloud_statuses)
+        self.assertEqual(num_default_subcloud_statuses,
+                         len(dcorch_consts.ENDPOINT_TYPES_LIST))
+
         endpoint_type1 = 'testendpoint1'
         subcloud_status1 = self.create_subcloud_status(
             self.ctx, endpoint_type=endpoint_type1)
@@ -419,16 +444,28 @@ class DBAPISubcloudTest(base.DCManagerTestCase):
         new_subcloud_statuses = db_api.subcloud_status_get_all_by_name(
             self.ctx, name)
         self.assertIsNotNone(new_subcloud_statuses)
-        self.assertEqual(3, len(new_subcloud_statuses))
-        self.assertEqual(endpoint_type1,
-                         new_subcloud_statuses[0].endpoint_type)
-        self.assertEqual(1, new_subcloud_statuses[0].id)
-        self.assertEqual(endpoint_type2,
-                         new_subcloud_statuses[1].endpoint_type)
-        self.assertEqual(2, new_subcloud_statuses[1].id)
-        self.assertEqual(endpoint_type3,
-                         new_subcloud_statuses[2].endpoint_type)
-        self.assertEqual(3, new_subcloud_statuses[2].id)
+        self.assertEqual(num_default_subcloud_statuses + 3,
+                         len(new_subcloud_statuses))
+        self.assertEqual(
+            endpoint_type1,
+            new_subcloud_statuses[num_default_subcloud_statuses].endpoint_type)
+        self.assertEqual(
+            num_default_subcloud_statuses + 1,
+            new_subcloud_statuses[num_default_subcloud_statuses + 0].id)
+        self.assertEqual(
+            endpoint_type2,
+            new_subcloud_statuses[num_default_subcloud_statuses +
+                                  1].endpoint_type)
+        self.assertEqual(
+            num_default_subcloud_statuses + 2,
+            new_subcloud_statuses[num_default_subcloud_statuses + 1].id)
+        self.assertEqual(
+            endpoint_type3,
+            new_subcloud_statuses[num_default_subcloud_statuses +
+                                  2].endpoint_type)
+        self.assertEqual(
+            num_default_subcloud_statuses + 3,
+            new_subcloud_statuses[num_default_subcloud_statuses + 2].id)
 
     def test_subcloud_status_get_all_by_non_existing_name(self):
         fake_subcloud = utils.create_subcloud_dict(base.SUBCLOUD_SAMPLE_DATA_0)

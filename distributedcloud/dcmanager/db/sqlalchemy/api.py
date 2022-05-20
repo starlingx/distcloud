@@ -1,5 +1,5 @@
 # Copyright (c) 2015 Ericsson AB.
-# Copyright (c) 2017-2021 Wind River Systems, Inc.
+# Copyright (c) 2017-2022 Wind River Systems, Inc.
 # All Rights Reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License"); you may
@@ -43,6 +43,7 @@ from dcmanager.common import exceptions as exception
 from dcmanager.common.i18n import _
 from dcmanager.db.sqlalchemy import migration
 from dcmanager.db.sqlalchemy import models
+from dcorch.common import consts as dcorch_consts
 
 LOG = logging.getLogger(__name__)
 
@@ -363,6 +364,7 @@ def subcloud_create(context, name, description, location, software_version,
             subcloud_ref.data_install = data_install
         session.add(subcloud_ref)
         session.flush()
+        subcloud_status_create_all(context, subcloud_ref.id)
         subcloud_audits_create(context, subcloud_ref.id)
         return subcloud_ref
 
@@ -455,6 +457,17 @@ def subcloud_status_create(context, subcloud_id, endpoint_type):
         subcloud_status_ref.sync_status = consts.SYNC_STATUS_UNKNOWN
         session.add(subcloud_status_ref)
         return subcloud_status_ref
+
+
+@require_admin_context
+def subcloud_status_create_all(context, subcloud_id):
+    with write_session() as session:
+        for endpoint_type in dcorch_consts.ENDPOINT_TYPES_LIST:
+            subcloud_status_ref = models.SubcloudStatus()
+            subcloud_status_ref.subcloud_id = subcloud_id
+            subcloud_status_ref.endpoint_type = endpoint_type
+            subcloud_status_ref.sync_status = consts.SYNC_STATUS_UNKNOWN
+            session.add(subcloud_status_ref)
 
 
 @require_admin_context

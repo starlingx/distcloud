@@ -1,5 +1,5 @@
 # Copyright (c) 2015 Ericsson AB.
-# Copyright (c) 2017-2021 Wind River Systems, Inc.
+# Copyright (c) 2017-2022 Wind River Systems, Inc.
 # All Rights Reserved.
 #
 #    Licensed under the Apache License, Version 2.0 (the "License"); you may
@@ -185,6 +185,11 @@ def subcloud_destroy(context, subcloud_id):
 def subcloud_status_create(context, subcloud_id, endpoint_type):
     """Create a subcloud status for an endpoint_type."""
     return IMPL.subcloud_status_create(context, subcloud_id, endpoint_type)
+
+
+def subcloud_status_create_all(context, subcloud_id):
+    """Create a subcloud status for all endpoint_types."""
+    return IMPL.subcloud_status_create_all(context, subcloud_id)
 
 
 def subcloud_status_delete(context, subcloud_id, endpoint_type):

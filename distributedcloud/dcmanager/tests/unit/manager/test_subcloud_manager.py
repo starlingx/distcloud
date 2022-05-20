@@ -1140,6 +1140,12 @@ class TestSubcloudManager(base.DCManagerTestCase):
     def test_update_subcloud_identity_endpoint(self):
         subcloud = self.create_subcloud_static(self.ctx, name='subcloud1')
         self.assertIsNotNone(subcloud)
+        for endpoint_type in dcorch_consts.ENDPOINT_TYPES_LIST:
+            subcloud_status = db_api.subcloud_status_get(
+                self.ctx, subcloud.id, endpoint_type)
+            self.assertIsNotNone(subcloud_status)
+            self.assertEqual(subcloud_status.sync_status,
+                             consts.SYNC_STATUS_UNKNOWN)
 
         ssm = subcloud_state_manager.SubcloudStateManager()
 
@@ -1148,11 +1154,8 @@ class TestSubcloudManager(base.DCManagerTestCase):
                                management_state=consts.MANAGEMENT_MANAGED,
                                availability_status=consts.AVAILABILITY_ONLINE)
 
-        # Create identity endpoints statuses
+        # Update identity endpoints statuses
         endpoint = dcorch_consts.ENDPOINT_TYPE_IDENTITY
-        db_api.subcloud_status_create(
-            self.ctx, subcloud.id, endpoint)
-
         for original_sync_status in [consts.SYNC_STATUS_IN_SYNC,
                                      consts.SYNC_STATUS_OUT_OF_SYNC,
                                      consts.SYNC_STATUS_UNKNOWN]:
