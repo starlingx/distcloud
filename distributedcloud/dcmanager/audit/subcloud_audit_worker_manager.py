@@ -288,10 +288,11 @@ class SubcloudAuditWorkerManager(manager.Manager):
                            do_firmware_audit,
                            do_kubernetes_audit,
                            do_kube_rootca_update_audit):
-        audits_done = []
+        audits_done = list()
+        failures = list()
         # Do the actual subcloud audit.
         try:
-            audits_done = self._audit_subcloud(
+            audits_done, failures = self._audit_subcloud(
                 subcloud,
                 update_subcloud_state,
                 do_audit_openstack,
@@ -306,6 +307,12 @@ class SubcloudAuditWorkerManager(manager.Manager):
                 do_kube_rootca_update_audit)
         except Exception:
             LOG.exception("Got exception auditing subcloud: %s" % subcloud.name)
+
+        if failures and len(failures) > 1:
+            # extra log for multiple failures:
+            LOG.error("Multiple failures auditing subcloud %s: "
+                      "for endpoints: %s",
+                      subcloud.name, ", ".join(sorted(failures)))
 
         # Update the audit completion timestamp so it doesn't get
         # audited again for a while.
@@ -334,7 +341,8 @@ class SubcloudAuditWorkerManager(manager.Manager):
         avail_status_current = subcloud.availability_status
         audit_fail_count = subcloud.audit_fail_count
         subcloud_name = subcloud.name
-        audits_done = []
+        audits_done = list()
+        failures = list()
 
         # Set defaults to None and disabled so we will still set disabled
         # status if we encounter an error.
@@ -354,7 +362,7 @@ class SubcloudAuditWorkerManager(manager.Manager):
                 LOG.debug("Identity or Platform endpoint for %s not "
                           "found, ignoring for offline "
                           "subcloud." % subcloud_name)
-                return audits_done
+                return audits_done, failures
             else:
                 # The subcloud will be marked as offline below.
                 LOG.error("Identity or Platform endpoint for online "
@@ -367,7 +375,7 @@ class SubcloudAuditWorkerManager(manager.Manager):
                 LOG.info("Identity or Platform endpoint for %s not "
                          "found, ignoring for offline "
                          "subcloud." % subcloud_name)
-                return audits_done
+                return audits_done, failures
             else:
                 # The subcloud will be marked as offline below.
                 LOG.error("Identity or Platform endpoint for online "
@@ -433,33 +441,62 @@ class SubcloudAuditWorkerManager(manager.Manager):
             if fm_client:
                 self.alarm_aggr.update_alarm_summary(subcloud_name, fm_client)
 
+            failmsg = "Audit failure subcloud: %s, endpoint: %s"
+
             # If we have patch audit data, audit the subcloud
             if do_patch_audit and patch_audit_data:
-                self.patch_audit.subcloud_patch_audit(subcloud_name,
-                                                      patch_audit_data,
-                                                      do_load_audit)
-                audits_done.append('patch')
-                if do_load_audit:
-                    audits_done.append('load')
+                try:
+                    self.patch_audit.subcloud_patch_audit(subcloud_name,
+                                                          patch_audit_data,
+                                                          do_load_audit)
+                    audits_done.append('patch')
+                    if do_load_audit:
+                        audits_done.append('load')
+                except Exception:
+                    LOG.exception(failmsg % (subcloud.name, 'patch/load'))
+                    failures.append('patch')
+                    if do_load_audit:
+                        # Currently there's no way to differentiate,
+                        # so include same under 'load':
+                        failures.append('load')
             # Perform firmware audit
             if do_firmware_audit:
-                self.firmware_audit.subcloud_firmware_audit(subcloud_name,
-                                                            firmware_audit_data)
-                audits_done.append('firmware')
+                try:
+                    self.firmware_audit.subcloud_firmware_audit(subcloud_name,
+                                                                firmware_audit_data)
+                    audits_done.append('firmware')
+                except Exception:
+                    LOG.exception(failmsg % (subcloud.name, 'firmware'))
+                    failures.append('firmware')
             # Perform kubernetes audit
             if do_kubernetes_audit:
-                self.kubernetes_audit.subcloud_kubernetes_audit(
-                    subcloud_name,
-                    kubernetes_audit_data)
-                audits_done.append('kubernetes')
+                try:
+                    self.kubernetes_audit.subcloud_kubernetes_audit(
+                        subcloud_name,
+                        kubernetes_audit_data)
+                    audits_done.append('kubernetes')
+                except Exception:
+                    LOG.exception(failmsg % (subcloud.name, 'kubernetes'))
+                    failures.append('kubernetes')
             # Perform kube rootca update audit
             if do_kube_rootca_update_audit:
-                self.kube_rootca_update_audit.subcloud_audit(
-                    subcloud_name,
-                    kube_rootca_update_audit_data)
-                audits_done.append('kube-rootca-update')
+                try:
+                    self.kube_rootca_update_audit.subcloud_audit(
+                        subcloud_name,
+                        kube_rootca_update_audit_data)
+                    audits_done.append('kube-rootca-update')
+                except Exception:
+                    LOG.exception(failmsg % (subcloud.name,
+                                             'kube-rootca-update'))
+                    failures.append('kube-rootca-update')
             # Audit openstack application in the subcloud
             if do_audit_openstack and sysinv_client:
-                self._audit_subcloud_openstack_app(
-                    subcloud_name, sysinv_client, subcloud.openstack_installed)
-        return audits_done
+                # We don't want an exception here to cause our
+                # audits_done to be empty:
+                try:
+                    self._audit_subcloud_openstack_app(
+                        subcloud_name, sysinv_client, subcloud.openstack_installed)
+                except Exception:
+                    LOG.exception(failmsg % (subcloud.name, 'openstack'))
+                    failures.append('openstack')
+        return audits_done, failures
