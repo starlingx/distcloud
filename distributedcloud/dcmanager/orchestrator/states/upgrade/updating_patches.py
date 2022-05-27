@@ -8,17 +8,19 @@ import time
 
 from dccommon.drivers.openstack import patching_v1
 from dcmanager.common import consts
-from dcmanager.common.exceptions import StrategyStoppedException
 from dcmanager.common import utils
 
-from dcmanager.orchestrator.states.upgrade.patching import PatchingState
+from dcmanager.common.exceptions import StrategyStoppedException
+from dcmanager.orchestrator.states.base import BaseState
+from dcmanager.orchestrator.states.upgrade.cache.cache_specifications import \
+    REGION_ONE_PATCHING_CACHE_TYPE
 
 # Max time: 30 minutes = 180 queries x 10 seconds between
 DEFAULT_MAX_QUERIES = 180
 DEFAULT_SLEEP_DURATION = 10
 
 
-class UpdatingPatchesState(PatchingState):
+class UpdatingPatchesState(BaseState):
     """Upgrade state for updating patches"""
 
     def __init__(self, region_name):
@@ -51,7 +53,7 @@ class UpdatingPatchesState(PatchingState):
             return self.next_state
 
         # First query RegionOne to determine what patches should be applied.
-        regionone_patches = self.get_region_one_patches()
+        regionone_patches = self._read_from_cache(REGION_ONE_PATCHING_CACHE_TYPE)
         self.debug_log(strategy_step, "regionone_patches: %s" % regionone_patches)
 
         # Build lists of patches that should be applied in this subcloud,

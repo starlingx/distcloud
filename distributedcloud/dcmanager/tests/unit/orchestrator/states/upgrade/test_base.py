@@ -8,6 +8,8 @@ import mock
 from dcmanager.common import consts
 from dcmanager.tests.unit.orchestrator.test_base import TestSwUpdate
 
+CACHE_CLIENT_PATH = 'dcmanager.orchestrator.states.upgrade.cache.clients'
+
 
 class TestSwUpgradeState(TestSwUpdate):
     # Setting DEFAULT_STRATEGY_TYPE to upgrade will setup the upgrade
@@ -16,12 +18,18 @@ class TestSwUpgradeState(TestSwUpdate):
 
     def setUp(self):
         super(TestSwUpgradeState, self).setUp()
-        self.region_one_client_patch = mock.patch('dcmanager.orchestrator.states.upgrade.cache.'
-                                                  'region_one_patching_cache.'
-                                                  'RegionOnePatchingCache._get_patching_client',
+
+        # Modify cache helpers to return client mocks
+        self.patch_cache_client_mock = mock.patch('%s.get_patching_client' %
+                                                  CACHE_CLIENT_PATH,
                                                   return_value=self.patching_client)
-        self.region_one_client_patch.start()
+        self.sysinv_cache_client_mock = mock.patch('%s.get_sysinv_client' %
+                                                   CACHE_CLIENT_PATH,
+                                                   return_value=self.sysinv_client)
+        self.patch_cache_client_mock.start()
+        self.sysinv_cache_client_mock.start()
 
     def tearDown(self):
-        self.region_one_client_patch.stop()
+        self.patch_cache_client_mock.stop()
+        self.sysinv_cache_client_mock.stop()
         super(TestSwUpgradeState, self).tearDown()

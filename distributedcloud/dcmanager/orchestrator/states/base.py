@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2020-2021 Wind River Systems, Inc.
+# Copyright (c) 2020-2022 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -16,6 +16,7 @@ from dccommon.drivers.openstack.sysinv_v1 import SysinvClient
 from dccommon.drivers.openstack.vim import VimClient
 from dcmanager.common import consts
 from dcmanager.common import context
+from dcmanager.common.exceptions import InvalidParameterValue
 
 LOG = logging.getLogger(__name__)
 
@@ -29,6 +30,7 @@ class BaseState(object):
         self.context = context.get_admin_context()
         self._stop = None
         self.region_name = region_name
+        self._shared_caches = None
 
     def override_next_state(self, next_state):
         self.next_state = next_state
@@ -131,6 +133,17 @@ class BaseState(object):
         keystone_client = self.get_keystone_client(region_name)
         return VimClient(region_name,
                          keystone_client.session)
+
+    def add_shared_caches(self, shared_caches):
+        # Shared caches not required by all states, so instantiate only if necessary
+        self._shared_caches = shared_caches
+
+    def _read_from_cache(self, cache_type, **filter_params):
+        if self._shared_caches is not None:
+            return self._shared_caches.read(cache_type, **filter_params)
+        else:
+            InvalidParameterValue(err="Specified cache type '%s' not "
+                                      "present" % cache_type)
 
     @abc.abstractmethod
     def perform_state_action(self, strategy_step):

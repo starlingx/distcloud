@@ -1,17 +1,21 @@
 #
-# Copyright (c) 2020-2021 Wind River Systems, Inc.
+# Copyright (c) 2020-2022 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
-from dccommon.exceptions import LoadMaxReached
 import time
 
+from dccommon.exceptions import LoadMaxReached
 from dcmanager.common import consts
+from dcmanager.common import utils
+
 from dcmanager.common.exceptions import StrategyStoppedException
 from dcmanager.common.exceptions import VaultLoadMissingError
-
-from dcmanager.common import utils
 from dcmanager.orchestrator.states.base import BaseState
+from dcmanager.orchestrator.states.upgrade.cache.cache_specifications import \
+    REGION_ONE_SYSTEM_INFO_CACHE_TYPE
+from dcmanager.orchestrator.states.upgrade.cache.cache_specifications import \
+    REGION_ONE_SYSTEM_LOAD_CACHE_TYPE
 
 # Max time: 30 minutes = 180 queries x 10 seconds between
 DEFAULT_MAX_QUERIES = 180
@@ -120,8 +124,8 @@ class ImportingLoadState(BaseState):
         """
 
         # determine the version of the system controller in region one
-        target_version = self.get_sysinv_client(
-            consts.DEFAULT_REGION_NAME).get_system().software_version
+        target_version = self._read_from_cache(REGION_ONE_SYSTEM_INFO_CACHE_TYPE)\
+            .software_version
 
         load_applied, req_info =\
             self._get_subcloud_load_info(strategy_step, target_version)
@@ -145,7 +149,7 @@ class ImportingLoadState(BaseState):
         load = None
         if subcloud_type == consts.SYSTEM_MODE_SIMPLEX:
             # For simplex we only import the load record, not the entire ISO
-            loads = self.get_sysinv_client(consts.DEFAULT_REGION_NAME).get_loads()
+            loads = self._read_from_cache(REGION_ONE_SYSTEM_LOAD_CACHE_TYPE)
             matches = [load for load in loads if load.software_version == target_version]
             target_load = matches[0].to_dict()
             # Send only the required fields
