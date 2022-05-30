@@ -421,7 +421,7 @@ class SubcloudManager(manager.Manager):
             # Write this subclouds overrides to file
             # NOTE: This file should not be deleted if subcloud add fails
             # as it is used for debugging
-            self._write_subcloud_ansible_config(context, payload)
+            self._write_subcloud_ansible_config(cached_regionone_data, payload)
 
             if migrate_flag:
                 rehome_command = self.compose_rehome_command(
@@ -551,7 +551,7 @@ class SubcloudManager(manager.Manager):
 
             self._create_intermediate_ca_cert(payload)
 
-            self._write_subcloud_ansible_config(context, payload)
+            self._write_subcloud_ansible_config(cached_regionone_data, payload)
 
             install_command = self.compose_install_command(
                 subcloud.name,
@@ -880,24 +880,17 @@ class SubcloudManager(manager.Manager):
             # restart dnsmasq so it can re-read our addn_hosts file.
             os.system("pkill -HUP dnsmasq")
 
-    def _write_subcloud_ansible_config(self, context, payload):
+    def _write_subcloud_ansible_config(self, cached_regionone_data, payload):
         """Create the override file for usage with the specified subcloud"""
 
         overrides_file = os.path.join(consts.ANSIBLE_OVERRIDES_PATH,
                                       payload['name'] + '.yml')
 
-        m_ks_client = OpenStackDriver(
-            region_name=consts.DEFAULT_REGION_NAME,
-            region_clients=None).keystone_client
-        endpoint = m_ks_client.endpoint_cache.get_endpoint('sysinv')
-        sysinv_client = SysinvClient(consts.DEFAULT_REGION_NAME, m_ks_client.session,
-                                     endpoint=endpoint)
-
-        mgmt_pool = sysinv_client.get_management_address_pool()
+        mgmt_pool = cached_regionone_data['mgmt_pool']
         mgmt_floating_ip = mgmt_pool.floating_address
         mgmt_subnet = "%s/%d" % (mgmt_pool.network, mgmt_pool.prefix)
 
-        oam_addresses = sysinv_client.get_oam_addresses()
+        oam_addresses = cached_regionone_data['oam_addresses']
         oam_floating_ip = oam_addresses.oam_floating_ip
         oam_subnet = oam_addresses.oam_subnet
 
@@ -1301,6 +1294,11 @@ class SubcloudManager(manager.Manager):
                 if mgmt_interface is not None:
                     mgmt_interface_uuids.append(mgmt_interface.uuid)
             SubcloudManager.regionone_data['mgmt_interface_uuids'] = mgmt_interface_uuids
+
+            SubcloudManager.regionone_data['mgmt_pool'] = \
+                regionone_sysinv_client.get_management_address_pool()
+            SubcloudManager.regionone_data['oam_addresses'] = \
+                regionone_sysinv_client.get_oam_addresses()
 
             SubcloudManager.regionone_data['expiry'] = \
                 datetime.datetime.utcnow() + datetime.timedelta(hours=1)

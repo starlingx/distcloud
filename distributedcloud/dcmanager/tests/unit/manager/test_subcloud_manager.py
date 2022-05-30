@@ -203,11 +203,33 @@ FAKE_MGMT_INTERFACES = [
     ),
 ]
 
+FAKE_MGMT_FLOATING_ADDRESS = 'fdff:719a:bf60:233::2'
+FAKE_MGMT_NETWORK = 'fdff:719a:bf60:233::'
+
+
+class FakeManagementPool(object):
+    def __init__(self):
+        self.floating_address = FAKE_MGMT_FLOATING_ADDRESS
+        self.network = FAKE_MGMT_NETWORK
+        self.prefix = 64
+
+
+FAKE_OAM_FLOATING_IP = '2620:10a:a001:d41::260'
+FAKE_OAM_SUBNET = '2620:10a:a001:d41::/64'
+
+
+class FakeOamAddresses(object):
+    def __init__(self):
+        self.oam_floating_ip = FAKE_OAM_FLOATING_IP
+        self.oam_subnet = FAKE_OAM_SUBNET
+
 
 class FakeSysinvClient(object):
     def __init__(self):
         self.hosts = FAKE_CONTROLLERS
         self.interfaces = FAKE_MGMT_INTERFACES
+        self.mgmt_pool = FakeManagementPool()
+        self.oam_addresses = FakeOamAddresses()
 
     def get_controller_hosts(self):
         return self.hosts
@@ -217,6 +239,12 @@ class FakeSysinvClient(object):
             return self.interfaces[0]
         else:
             return self.interfaces[1]
+
+    def get_management_address_pool(self):
+        return self.mgmt_pool
+
+    def get_oam_addresses(self):
+        return self.oam_addresses
 
 
 class FakeException(Exception):
@@ -1781,6 +1809,10 @@ class TestSubcloudManager(base.DCManagerTestCase):
                          FAKE_ADMIN_PROJECT_ID)
         self.assertEqual(cached_regionone_data['mgmt_interface_uuids'],
                          FAKE_MGMT_IF_UUIDS)
+        self.assertEqual(cached_regionone_data['mgmt_pool'].floating_address,
+                         FAKE_MGMT_FLOATING_ADDRESS)
+        self.assertEqual(cached_regionone_data['oam_addresses'].oam_floating_ip,
+                         FAKE_OAM_FLOATING_IP)
         # The expiry timestamp is likely a couple of seconds less than the time
         # the cache is set when it gets here so check if the expiry is greater than
         # 59m55s from now.
