@@ -23,6 +23,7 @@ from six.moves.urllib import error as urllib_error
 from six.moves.urllib import parse
 from six.moves.urllib import request
 import socket
+import tempfile
 
 from dccommon import consts
 from dccommon.drivers.openstack.keystone_v3 import KeystoneClient
@@ -30,6 +31,7 @@ from dccommon.drivers.openstack.sysinv_v1 import SysinvClient
 from dccommon import exceptions
 from dccommon import install_consts
 from dccommon.utils import run_playbook
+from dcmanager.common import utils
 
 LOG = logging.getLogger(__name__)
 
@@ -44,6 +46,8 @@ RVMC_IMAGE_TAG = 'stx.5.0-v1.0.0'
 SUBCLOUD_ISO_PATH = '/opt/platform/iso'
 SUBCLOUD_ISO_DOWNLOAD_PATH = '/var/www/pages/iso'
 SUBCLOUD_PKG_CKSUM_PATH = '/var/www/pages/feed'
+DCVAULT_BOOTIMAGE_PATH = '/opt/dc-vault/loads/'
+PACKAGE_LIST_PATH = '/usr/local/share/pkg-list'
 GEN_ISO_COMMAND = '/usr/local/bin/gen-bootloader-iso.sh'
 NETWORK_SCRIPTS = '/etc/sysconfig/network-scripts'
 NETWORK_INTERFACE_PREFIX = 'ifcfg'
@@ -398,6 +402,55 @@ class SubcloudInstall(object):
             except subprocess.CalledProcessError:
                 LOG.error("Failed to delete boot files.")
 
+    @utils.synchronized("packages-list-from-bootimage", external=True)
+    def _copy_packages_list_from_bootimage(self, software_version, pkg_file_src):
+        # The source file (pkg_file_src) is not available.
+        # So create a temporary directory in /mnt, mount the bootimage.iso
+        # from /opt/dc-vault/rel-<version>/. Then copy the file from there to
+        # the pkg_file_src location.
+
+        if os.path.exists(pkg_file_src):
+            return
+
+        temp_bootimage_mnt_dir = tempfile.mkdtemp()
+        bootimage_path = os.path.join(DCVAULT_BOOTIMAGE_PATH, software_version,
+                                      'bootimage.iso')
+
+        with open(os.devnull, "w") as fnull:
+            try:
+                subprocess.check_call(['mount', '-r', '-o', 'loop',  # pylint: disable=not-callable
+                                      bootimage_path,
+                                      temp_bootimage_mnt_dir],
+                                      stdout=fnull,
+                                      stderr=fnull)
+            except Exception:
+                os.rmdir(temp_bootimage_mnt_dir)
+                raise Exception("Unable to mount bootimage.iso")
+
+        # Now that the bootimage.iso has been mounted, copy package_checksums to
+        # pkg_file_src.
+        try:
+            pkg_file = os.path.join(temp_bootimage_mnt_dir,
+                                    'package_checksums')
+            LOG.info("Copying %s to %s", pkg_file, pkg_file_src)
+            shutil.copy(pkg_file, pkg_file_src)
+
+            # now copy package_checksums to /usr/local/share/pkg-list/packages_list
+            # This will only be done once by the first thread to access this code.
+            os.mkdir(PACKAGE_LIST_PATH, 0o755)
+            package_list_file = os.path.join(PACKAGE_LIST_PATH,
+                                             'packages_list')
+            shutil.copy(pkg_file_src, package_list_file)
+        except IOError:
+            # bootimage.iso in /opt/dc-vault/<release-id>/ does not have the file.
+            # this is an issue in bootimage.iso.
+            msg = "Package_checksums not found in bootimage.iso"
+            LOG.error(msg)
+            raise Exception(msg)
+        finally:
+            subprocess.check_call(['umount', '-l', temp_bootimage_mnt_dir])  # pylint: disable=not-callable
+            os.rmdir(temp_bootimage_mnt_dir)
+
     def prep(self, override_path, payload):
         """Update the iso image and create the config files for the subcloud"""
         LOG.info("Prepare for %s remote install" % (self.name))
@@ -439,18 +492,24 @@ class SubcloudInstall(object):
                 del payload[k]
 
         # when adding a new subcloud, the subcloud will pull
-        # the file "package_checksums" from the controller.
+        # the file "packages_list" from the controller.
         # The subcloud pulls from /var/www/pages/iso/<version>/.
         # The file needs to be copied from /var/www/pages/feed to
-        # this location.
+        # this location, as packages_list.
         pkg_file_dest = os.path.join(SUBCLOUD_ISO_DOWNLOAD_PATH,
                                      software_version, 'nodes',
-                                     self.name, 'package_checksums')
+                                     self.name, 'packages_list')
 
         pkg_file_src = os.path.join(SUBCLOUD_PKG_CKSUM_PATH,
                                     "rel-{version}".format(version=software_version),
                                     'package_checksums')
 
+        if not os.path.exists(pkg_file_src):
+            # the file does not exist. copy it from the bootimage.
+            self._copy_packages_list_from_bootimage(software_version,
+                                                    pkg_file_src)
+
+        # since we now have package_checksums, copy to destination.
         shutil.copy(pkg_file_src, pkg_file_dest)
 
         # remove the boot image url from the payload
