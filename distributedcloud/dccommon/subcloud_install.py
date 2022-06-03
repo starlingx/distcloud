@@ -278,8 +278,6 @@ class SubcloudInstall(object):
             raise e
 
     def update_iso(self, override_path, values):
-        self.www_root = os.path.join(SUBCLOUD_ISO_PATH,
-                                     str(values['software_version']))
         if not os.path.isdir(self.www_root):
             os.mkdir(self.www_root, 0o755)
 
@@ -410,6 +408,7 @@ class SubcloudInstall(object):
         # the pkg_file_src location.
 
         if os.path.exists(pkg_file_src):
+            LOG.info("Found existing package_checksums file at %s", pkg_file_src)
             return
 
         temp_bootimage_mnt_dir = tempfile.mkdtemp()
@@ -468,6 +467,17 @@ class SubcloudInstall(object):
         override_path = os.path.join(override_path, self.name)
         if not os.path.isdir(override_path):
             os.mkdir(override_path, 0o755)
+
+        self.www_root = os.path.join(SUBCLOUD_ISO_PATH,
+                                     str(iso_values['software_version']))
+
+        # Clean up iso directory if it already exists
+        # This may happen if a previous installation attempt was abruptly terminated
+        iso_dir_path = os.path.join(self.www_root, 'nodes', self.name)
+        if os.path.isdir(iso_dir_path):
+            LOG.info("Found preexisting iso dir for subcloud %s, cleaning up",
+                     self.name)
+            self.cleanup()
 
         # update the default iso image based on the install values
         self.update_iso(override_path, iso_values)
