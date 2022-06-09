@@ -359,7 +359,7 @@ class PatchOrchThread(threading.Thread):
                                 self.update_subcloud_patches,
                                 strategy_step)
                         LOG.debug("Worker is created for %s in %s."
-                                  % region, strategy_step.state)
+                                  % (region, strategy_step.state))
 
                 elif strategy_step.state == \
                         consts.STRATEGY_STATE_UPDATING_PATCHES:
