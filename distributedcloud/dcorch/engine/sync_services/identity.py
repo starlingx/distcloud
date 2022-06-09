@@ -1,4 +1,4 @@
-# Copyright 2018-2021 Wind River
+# Copyright 2018-2022 Wind River
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -61,40 +61,16 @@ class IdentitySyncThread(SyncThread):
             consts.RESOURCE_TYPE_IDENTITY_TOKEN_REVOKE_EVENTS_FOR_USER:
                 self.sync_identity_resource,
         }
-        # Since services may use unscoped tokens, it is essential to ensure
-        # that users are replicated prior to assignment data (roles/projects)
 
-        # todo(jcasteli) This code is added to support upgrades to stx.6.0
-        # This code should be removed in a future release.
-        software_version = None
-        try:
-            s_os_client = sdk.OpenStackDriver(
-                region_name=subcloud_name,
-                region_clients=["sysinv"])
-
-            software_version = s_os_client.sysinv_client.get_system().software_version
-        except Exception:
-            LOG.error("Could not fetch software version for %s" % subcloud_name)
-
-        if software_version == '21.05':
-            self.audit_resources = [
-                consts.RESOURCE_TYPE_IDENTITY_USERS,
-                consts.RESOURCE_TYPE_IDENTITY_PROJECTS,
-                consts.RESOURCE_TYPE_IDENTITY_ROLES,
-                consts.RESOURCE_TYPE_IDENTITY_PROJECT_ROLE_ASSIGNMENTS,
-                consts.RESOURCE_TYPE_IDENTITY_TOKEN_REVOKE_EVENTS,
-                consts.RESOURCE_TYPE_IDENTITY_TOKEN_REVOKE_EVENTS_FOR_USER
-            ]
-        else:
-            self.audit_resources = [
-                consts.RESOURCE_TYPE_IDENTITY_USERS,
-                consts.RESOURCE_TYPE_IDENTITY_GROUPS,
-                consts.RESOURCE_TYPE_IDENTITY_PROJECTS,
-                consts.RESOURCE_TYPE_IDENTITY_ROLES,
-                consts.RESOURCE_TYPE_IDENTITY_PROJECT_ROLE_ASSIGNMENTS,
-                consts.RESOURCE_TYPE_IDENTITY_TOKEN_REVOKE_EVENTS,
-                consts.RESOURCE_TYPE_IDENTITY_TOKEN_REVOKE_EVENTS_FOR_USER
-            ]
+        self.audit_resources = [
+            consts.RESOURCE_TYPE_IDENTITY_USERS,
+            consts.RESOURCE_TYPE_IDENTITY_GROUPS,
+            consts.RESOURCE_TYPE_IDENTITY_PROJECTS,
+            consts.RESOURCE_TYPE_IDENTITY_ROLES,
+            consts.RESOURCE_TYPE_IDENTITY_PROJECT_ROLE_ASSIGNMENTS,
+            consts.RESOURCE_TYPE_IDENTITY_TOKEN_REVOKE_EVENTS,
+            consts.RESOURCE_TYPE_IDENTITY_TOKEN_REVOKE_EVENTS_FOR_USER
+        ]
 
         # For all the resource types, we need to filter out certain
         # resources
