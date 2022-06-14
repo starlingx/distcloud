@@ -387,8 +387,15 @@ class SubcloudAuditWorkerManager(manager.Manager):
 
         # Check availability of the subcloud
         if sysinv_client:
-            avail_to_set = self._get_subcloud_availability_status(
-                subcloud_name, sysinv_client)
+            # Avoid a network call to sysinv here if possible:
+            # If prestaging is active we can assume that the subcloud
+            # is online (otherwise prestaging will fail):
+            if subcloud.deploy_status in (consts.PRESTAGE_STATE_PACKAGES,
+                                          consts.PRESTAGE_STATE_IMAGES):
+                avail_to_set = consts.AVAILABILITY_ONLINE
+            else:
+                avail_to_set = self._get_subcloud_availability_status(
+                    subcloud_name, sysinv_client)
 
         if avail_to_set == consts.AVAILABILITY_OFFLINE:
             if audit_fail_count < consts.AVAIL_FAIL_COUNT_MAX:
