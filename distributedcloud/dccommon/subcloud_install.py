@@ -434,11 +434,19 @@ class SubcloudInstall(object):
             LOG.info("Copying %s to %s", pkg_file, pkg_file_src)
             shutil.copy(pkg_file, pkg_file_src)
 
-            # now copy package_checksums to /usr/local/share/pkg-list/packages_list
+            # now copy package_checksums to
+            # /usr/local/share/pkg-list/<software_version>_packages_list.txt
             # This will only be done once by the first thread to access this code.
-            os.mkdir(PACKAGE_LIST_PATH, 0o755)
+
+            # The directory PACKAGE_LIST_PATH may exist from a previous invocation
+            # of this function (artifacts due to a previous failure).
+            # Create the directory if it does not exist.
+
+            if not os.path.exists(PACKAGE_LIST_PATH):
+                os.mkdir(PACKAGE_LIST_PATH, 0o755)
+
             package_list_file = os.path.join(PACKAGE_LIST_PATH,
-                                             'packages_list')
+                                             software_version + "_packages_list.txt")
             shutil.copy(pkg_file_src, package_list_file)
         except IOError:
             # bootimage.iso in /opt/dc-vault/<release-id>/ does not have the file.
@@ -508,7 +516,7 @@ class SubcloudInstall(object):
         # this location, as packages_list.
         pkg_file_dest = os.path.join(SUBCLOUD_ISO_DOWNLOAD_PATH,
                                      software_version, 'nodes',
-                                     self.name, 'packages_list')
+                                     self.name, software_version + "_packages_list.txt")
 
         pkg_file_src = os.path.join(SUBCLOUD_PKG_CKSUM_PATH,
                                     "rel-{version}".format(version=software_version),
