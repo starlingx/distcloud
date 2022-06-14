@@ -375,7 +375,7 @@ def _run_ansible(context, prestage_command, phase,
                  ansible_subcloud_inventory_file,
                  timeout_seconds=None):
     if not timeout_seconds:
-        # We always want to set a timeout in prestaging operations. Use default:
+        # We always want to set a timeout in prestaging operations:
         timeout_seconds = CONF.playbook_timeout
 
     if deploy_status == consts.PRESTAGE_STATE_PREPARE:
@@ -486,7 +486,8 @@ def prestage_images(context, subcloud, payload):
                      consts.PRESTAGE_STATE_IMAGES,
                      payload['sysadmin_password'],
                      payload['oam_floating_ip'],
-                     ansible_subcloud_inventory_file)
+                     ansible_subcloud_inventory_file,
+                     timeout_seconds=CONF.playbook_timeout * 2)
     else:
         LOG.info("Skipping ansible prestage images step, upgrade: %s,"
                  " image_list_file: %s", upgrade, image_list_file)
