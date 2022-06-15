@@ -454,10 +454,11 @@ class PatchOrchThread(threading.Thread):
                              % strategy_step.subcloud.name)
                 LOG.warn(error_msg)
 
-        except Exception as ex:
+        except Exception:
             # If the system health report was not obtained
-            error_msg = ("Failed to obtain health report for %s due to %s"
-                         % (strategy_step.subcloud.name, str(ex)))
+            error_msg = ("Failed to obtain health report for %s. "
+                         "Please see logs for details."
+                         % strategy_step.subcloud.name)
             LOG.exception(error_msg)
         if error_msg:
             self.strategy_step_update(
