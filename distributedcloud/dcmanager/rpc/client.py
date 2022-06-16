@@ -18,6 +18,7 @@ Client side of the DC Manager RPC API.
 
 from oslo_log import log as logging
 
+from dccommon import consts as dccommon_consts
 from dcmanager.common import consts
 from dcmanager.common import messaging
 
@@ -82,8 +83,7 @@ class SubcloudStateClient(RPCClient):
 
     def update_subcloud_endpoint_status(self, ctxt, subcloud_name=None,
                                         endpoint_type=None,
-                                        sync_status=consts.
-                                        SYNC_STATUS_OUT_OF_SYNC,
+                                        sync_status=dccommon_consts.SYNC_STATUS_OUT_OF_SYNC,
                                         ignore_endpoints=None):
         # Note: This is an asynchronous operation.
         # See below for synchronous method call
@@ -95,8 +95,7 @@ class SubcloudStateClient(RPCClient):
 
     def update_subcloud_endpoint_status_sync(self, ctxt, subcloud_name=None,
                                              endpoint_type=None,
-                                             sync_status=consts.
-                                             SYNC_STATUS_OUT_OF_SYNC,
+                                             sync_status=dccommon_consts.SYNC_STATUS_OUT_OF_SYNC,
                                              ignore_endpoints=None):
         # Note: synchronous
         return self.call(ctxt, self.make_msg('update_subcloud_endpoint_status',

@@ -1,5 +1,5 @@
 # Copyright (c) 2015 Ericsson AB
-# Copyright (c) 2017-2021 Wind River Systems, Inc.
+# Copyright (c) 2017-2022 Wind River Systems, Inc.
 # All Rights Reserved.
 #
 #    Licensed under the Apache License, Version 2.0 (the "License"); you may
@@ -28,7 +28,7 @@ from sqlalchemy import ForeignKey, UniqueConstraint
 from sqlalchemy.types import TypeDecorator, VARCHAR
 from sqlalchemy.orm import relationship
 
-from dcmanager.common import consts as dcm_consts
+from dccommon import consts as dccommon_consts
 from dcorch.common import consts
 
 BASE = declarative_base()
@@ -175,7 +175,7 @@ class Subcloud(BASE, OrchestratorBase):
     # default management_state is None; could be set to 'deleting'
     management_state = Column('management_state', String(64))
     availability_status = Column('availability_status', String(64),
-                                 default=dcm_consts.AVAILABILITY_OFFLINE)
+                                 default=dccommon_consts.AVAILABILITY_OFFLINE)
     capabilities = Column(JSONEncodedDict)
     initial_sync_state = Column('initial_sync_state', String(64),
                                 default=consts.INITIAL_SYNC_STATE_NONE)

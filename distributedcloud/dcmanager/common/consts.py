@@ -25,18 +25,6 @@ CERTS_VAULT_DIR = "/opt/dc-vault/certs"
 LOADS_VAULT_DIR = "/opt/dc-vault/loads"
 PATCH_VAULT_DIR = "/opt/dc-vault/patches"
 
-# Well known region names
-SYSTEM_CONTROLLER_NAME = "SystemController"
-DEFAULT_REGION_NAME = "RegionOne"
-
-# Subcloud management state
-MANAGEMENT_UNMANAGED = "unmanaged"
-MANAGEMENT_MANAGED = "managed"
-
-# Subcloud availability status
-AVAILABILITY_OFFLINE = "offline"
-AVAILABILITY_ONLINE = "online"
-
 # Admin status for hosts
 ADMIN_LOCKED = 'locked'
 ADMIN_UNLOCKED = 'unlocked'
@@ -52,11 +40,6 @@ AVAILABILITY_DEGRADED = 'degraded'
 # Personality of hosts
 PERSONALITY_CONTROLLER_ACTIVE = 'Controller-Active'
 PERSONALITY_CONTROLLER_STANDBY = 'Controller-Standby'
-
-# Subcloud sync status
-SYNC_STATUS_UNKNOWN = "unknown"
-SYNC_STATUS_IN_SYNC = "in-sync"
-SYNC_STATUS_OUT_OF_SYNC = "out-of-sync"
 
 # Subcloud endpoint related database fields
 ENDPOINT_SYNC_STATUS = "endpoint_sync_status"

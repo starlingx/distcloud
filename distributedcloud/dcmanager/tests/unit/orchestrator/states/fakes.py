@@ -1,11 +1,12 @@
 #
-# Copyright (c) 2020-2021 Wind River Systems, Inc.
+# Copyright (c) 2020-2022 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
 import mock
 import uuid
 
+from dccommon import consts as dccommon_consts
 from dcmanager.common import consts
 
 
@@ -26,7 +27,7 @@ class FakeController(object):
                  hostname='controller-0',
                  administrative=consts.ADMIN_UNLOCKED,
                  operational=consts.OPERATIONAL_ENABLED,
-                 availability=consts.AVAILABILITY_ONLINE,
+                 availability=dccommon_consts.AVAILABILITY_ONLINE,
                  ihost_action=None,
                  target_load=UPGRADED_VERSION,
                  software_load=PREVIOUS_VERSION,

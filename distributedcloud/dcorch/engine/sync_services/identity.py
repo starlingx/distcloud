@@ -42,7 +42,7 @@ class IdentitySyncThread(SyncThread):
                                                  engine_id=engine_id)
         self.region_name = subcloud_name
         if not self.endpoint_type:
-            self.endpoint_type = consts.ENDPOINT_TYPE_IDENTITY
+            self.endpoint_type = dccommon_consts.ENDPOINT_TYPE_IDENTITY
         self.sync_handler_map = {
             consts.RESOURCE_TYPE_IDENTITY_USERS:
                 self.sync_identity_resource,

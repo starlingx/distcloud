@@ -1,5 +1,5 @@
 # Copyright (c) 2016 Ericsson AB.
-# Copyright (c) 2017-2021 Wind River Systems, Inc.
+# Copyright (c) 2017-2022 Wind River Systems, Inc.
 # Licensed under the Apache License, Version 2.0 (the "License"); you may
 # not use this file except in compliance with the License. You may obtain
 # a copy of the License at
@@ -12,44 +12,7 @@
 # License for the specific language governing permissions and limitations
 # under the License.
 #
-
-
-NOVA_QUOTA_FIELDS = ("metadata_items",
-                     "cores",
-                     "instances",
-                     "ram",
-                     "key_pairs",
-                     "injected_files",
-                     "injected_file_path_bytes",
-                     "injected_file_content_bytes",
-                     "server_group_members",
-                     "server_groups",)
-
-CINDER_QUOTA_FIELDS = ("volumes",
-                       "volumes_iscsi",
-                       "volumes_ceph",
-                       "per_volume_gigabytes",
-                       "groups",
-                       "snapshots",
-                       "snapshots_iscsi",
-                       "snapshots_ceph",
-                       "gigabytes",
-                       "gigabytes_iscsi",
-                       "gigabytes_ceph",
-                       "backups",
-                       "backup_gigabytes")
-
-NEUTRON_QUOTA_FIELDS = ("network",
-                        "subnet",
-                        "subnetpool",
-                        "rbac_policy",
-                        "trunk",
-                        "port",
-                        "router",
-                        "floatingip",
-                        "security_group",
-                        "security_group_rule",
-                        )
+from dccommon import consts as dccommon_consts
 
 JOB_PROGRESS = "IN_PROGRESS"
 
@@ -113,49 +76,18 @@ KEYPAIR_ID_DELIM = "/"
 SHARED_CONFIG_STATE_MANAGED = "managed"
 SHARED_CONFIG_STATE_UNMANAGED = "unmanaged"
 
-ENDPOINT_TYPE_PLATFORM = "platform"
 ENDPOINT_TYPE_VOLUME = "volume"
 ENDPOINT_TYPE_COMPUTE = "compute"
 ENDPOINT_TYPE_NETWORK = "network"
-ENDPOINT_TYPE_PATCHING = "patching"
-ENDPOINT_TYPE_IDENTITY = "identity"
-ENDPOINT_TYPE_FM = "faultmanagement"
-ENDPOINT_TYPE_NFV = "nfv"
-ENDPOINT_TYPE_LOAD = "load"
-ENDPOINT_TYPE_DC_CERT = 'dc-cert'
-ENDPOINT_TYPE_FIRMWARE = 'firmware'
-ENDPOINT_TYPE_KUBERNETES = 'kubernetes'
-ENDPOINT_TYPE_KUBE_ROOTCA = 'kube-rootca'
-
-# All endpoint types
-ENDPOINT_TYPES_LIST = [ENDPOINT_TYPE_PLATFORM,
-                       ENDPOINT_TYPE_PATCHING,
-                       ENDPOINT_TYPE_IDENTITY,
-                       ENDPOINT_TYPE_LOAD,
-                       ENDPOINT_TYPE_DC_CERT,
-                       ENDPOINT_TYPE_FIRMWARE,
-                       ENDPOINT_TYPE_KUBERNETES,
-                       ENDPOINT_TYPE_KUBE_ROOTCA]
-
-# All endpoint audit requests
-# TODO(yuxing): move some constants to dccommon as part of general refactoring
-# for maintainability in a future commit.
-ENDPOINT_AUDIT_REQUESTS = {
-    ENDPOINT_TYPE_FIRMWARE: 'firmware_audit_requested',
-    ENDPOINT_TYPE_KUBERNETES: 'kubernetes_audit_requested',
-    ENDPOINT_TYPE_KUBE_ROOTCA: 'kube_rootca_update_audit_requested',
-    ENDPOINT_TYPE_LOAD: 'load_audit_requested',
-    ENDPOINT_TYPE_PATCHING: 'patch_audit_requested',
-}
 
 # Dcorch sync endpoint types
-SYNC_ENDPOINT_TYPES_LIST = [ENDPOINT_TYPE_PLATFORM,
-                            ENDPOINT_TYPE_IDENTITY]
+SYNC_ENDPOINT_TYPES_LIST = [dccommon_consts.ENDPOINT_TYPE_PLATFORM,
+                            dccommon_consts.ENDPOINT_TYPE_IDENTITY]
 
 ENDPOINT_QUOTA_MAPPING = {
-    ENDPOINT_TYPE_COMPUTE: NOVA_QUOTA_FIELDS,
-    ENDPOINT_TYPE_NETWORK: NEUTRON_QUOTA_FIELDS,
-    ENDPOINT_TYPE_VOLUME: CINDER_QUOTA_FIELDS,
+    ENDPOINT_TYPE_COMPUTE: dccommon_consts.NOVA_QUOTA_FIELDS,
+    ENDPOINT_TYPE_NETWORK: dccommon_consts.NEUTRON_QUOTA_FIELDS,
+    ENDPOINT_TYPE_VOLUME: dccommon_consts.CINDER_QUOTA_FIELDS,
 }
 
 # DB sync agent endpoint

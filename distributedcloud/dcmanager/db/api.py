@@ -23,7 +23,7 @@ SQLAlchemy is currently the only supported backend.
 from oslo_config import cfg
 from oslo_db import api
 
-from dcmanager.common import consts
+from dccommon import consts as dccommon_consts
 
 CONF = cfg.CONF
 
@@ -377,7 +377,7 @@ def strategy_step_db_model_to_dict(strategy_step):
     if strategy_step.subcloud is not None:
         cloud = strategy_step.subcloud.name
     else:
-        cloud = consts.SYSTEM_CONTROLLER_NAME
+        cloud = dccommon_consts.SYSTEM_CONTROLLER_NAME
     result = {"id": strategy_step.id,
               "cloud": cloud,
               "stage": strategy_step.stage,

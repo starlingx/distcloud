@@ -1,9 +1,9 @@
 #
-# Copyright (c) 2021 Wind River Systems, Inc.
+# Copyright (c) 2021-2022 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
-from dcmanager.common.consts import DEFAULT_REGION_NAME
+from dccommon.consts import DEFAULT_REGION_NAME
 from dcmanager.common.consts import STRATEGY_STATE_COMPLETE
 from dcmanager.common.consts \
     import STRATEGY_STATE_KUBE_CREATING_VIM_KUBE_UPGRADE_STRATEGY

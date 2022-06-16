@@ -1,4 +1,4 @@
-# Copyright (c) 2017-2021 Wind River Systems, Inc.
+# Copyright (c) 2017-2022 Wind River Systems, Inc.
 # Licensed under the Apache License, Version 2.0 (the "License"); you may
 # not use this file except in compliance with the License. You may obtain
 # a copy of the License at
@@ -14,10 +14,10 @@
 
 import mock
 
+from dccommon import consts as dccommon_consts
 from dccommon.drivers.openstack import sysinv_v1
 from dccommon.tests import base
 from dccommon.tests import utils
-from dcmanager.common import consts
 
 
 class FakeInterface(object):
@@ -61,7 +61,7 @@ class TestSysinvClient(base.DCCommonTestCase):
     def test_get_controller_hosts(self, mock_sysinvclient_init):
         controller_list = ['controller-0', 'controller-1']
         mock_sysinvclient_init.return_value = None
-        sysinv_client = sysinv_v1.SysinvClient(consts.DEFAULT_REGION_NAME,
+        sysinv_client = sysinv_v1.SysinvClient(dccommon_consts.DEFAULT_REGION_NAME,
                                                None)
         sysinv_client.sysinv_client = mock.MagicMock()
         sysinv_client.sysinv_client.ihost.list_personality = mock.MagicMock()
@@ -75,7 +75,7 @@ class TestSysinvClient(base.DCCommonTestCase):
         interface = FakeInterface('interface', 'uuid')
         interface_network = FakeInterfaceNetwork('mgmt', 'interface')
         mock_sysinvclient_init.return_value = None
-        sysinv_client = sysinv_v1.SysinvClient(consts.DEFAULT_REGION_NAME,
+        sysinv_client = sysinv_v1.SysinvClient(dccommon_consts.DEFAULT_REGION_NAME,
                                                None)
         sysinv_client.sysinv_client = mock.MagicMock()
         sysinv_client.sysinv_client.iinterface.list = mock.MagicMock()
@@ -91,7 +91,7 @@ class TestSysinvClient(base.DCCommonTestCase):
         network = FakeNetwork('mgmt', 'uuid')
         pool = FakeAddressPool('uuid')
         mock_sysinvclient_init.return_value = None
-        sysinv_client = sysinv_v1.SysinvClient(consts.DEFAULT_REGION_NAME,
+        sysinv_client = sysinv_v1.SysinvClient(dccommon_consts.DEFAULT_REGION_NAME,
                                                None)
         sysinv_client.sysinv_client = mock.MagicMock()
         sysinv_client.sysinv_client.network.list = mock.MagicMock()
@@ -105,7 +105,7 @@ class TestSysinvClient(base.DCCommonTestCase):
     def test_create_route(self, mock_sysinvclient_init):
         fake_route = utils.create_route_dict(base.ROUTE_0)
         mock_sysinvclient_init.return_value = None
-        sysinv_client = sysinv_v1.SysinvClient(consts.DEFAULT_REGION_NAME,
+        sysinv_client = sysinv_v1.SysinvClient(dccommon_consts.DEFAULT_REGION_NAME,
                                                None)
         sysinv_client.sysinv_client = mock.MagicMock()
         sysinv_client.sysinv_client.route.create = mock.MagicMock()

@@ -1,12 +1,12 @@
 #
-# Copyright (c) 2021 Wind River Systems, Inc.
+# Copyright (c) 2021-2022 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
 import abc
 import six
 
-from dcmanager.common import consts
+from dccommon import consts as dccommon_consts
 
 
 class Auditor(object):
@@ -30,11 +30,12 @@ class Auditor(object):
 
     def set_subcloud_endpoint_in_sync(self, sc_name):
         """Set the endpoint sync status of this subcloud to be in sync"""
-        self._set_subcloud_sync_status(sc_name, consts.SYNC_STATUS_IN_SYNC)
+        self._set_subcloud_sync_status(sc_name, dccommon_consts.SYNC_STATUS_IN_SYNC)
 
     def set_subcloud_endpoint_out_of_sync(self, sc_name):
         """Set the endpoint sync status of this subcloud to be out of sync"""
-        self._set_subcloud_sync_status(sc_name, consts.SYNC_STATUS_OUT_OF_SYNC)
+        self._set_subcloud_sync_status(sc_name,
+                                       dccommon_consts.SYNC_STATUS_OUT_OF_SYNC)
 
     @abc.abstractmethod
     def get_regionone_audit_data(self):

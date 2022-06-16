@@ -1,4 +1,4 @@
-# Copyright (c) 2017-2021 Wind River Systems, Inc.
+# Copyright (c) 2017-2022 Wind River Systems, Inc.
 # Licensed under the Apache License, Version 2.0 (the "License"); you may
 # not use this file except in compliance with the License. You may obtain
 # a copy of the License at
@@ -17,6 +17,7 @@ import mock
 import random
 
 import sys
+
 sys.modules['fm_core'] = mock.Mock()
 
 from dccommon import consts as dccommon_consts
@@ -426,7 +427,7 @@ class TestAuditWorkerManager(base.DCManagerTestCase):
 
         # Verify the subcloud was set to online
         self.fake_dcmanager_state_api.update_subcloud_availability.assert_called_with(
-            mock.ANY, subcloud.name, consts.AVAILABILITY_ONLINE,
+            mock.ANY, subcloud.name, dccommon_consts.AVAILABILITY_ONLINE,
             False, 0)
 
         # Verify the _update_subcloud_audit_fail_count is not called
@@ -498,7 +499,7 @@ class TestAuditWorkerManager(base.DCManagerTestCase):
 
         # Verify the subcloud was set to online
         self.fake_dcmanager_state_api.update_subcloud_availability.assert_called_with(
-            mock.ANY, subcloud.name, consts.AVAILABILITY_ONLINE,
+            mock.ANY, subcloud.name, dccommon_consts.AVAILABILITY_ONLINE,
             False, 0)
 
         # Verify the _update_subcloud_audit_fail_count is not called
@@ -535,7 +536,7 @@ class TestAuditWorkerManager(base.DCManagerTestCase):
         # Set the subcloud to online
         subcloud = db_api.subcloud_update(
             self.ctx, subcloud.id,
-            availability_status=consts.AVAILABILITY_ONLINE)
+            availability_status=dccommon_consts.AVAILABILITY_ONLINE)
 
         # Audit the subcloud
         wm._audit_subcloud(subcloud, update_subcloud_state=False,
@@ -578,7 +579,7 @@ class TestAuditWorkerManager(base.DCManagerTestCase):
         # Set the subcloud to online
         subcloud = db_api.subcloud_update(
             self.ctx, subcloud.id,
-            availability_status=consts.AVAILABILITY_ONLINE)
+            availability_status=dccommon_consts.AVAILABILITY_ONLINE)
 
         # Audit the subcloud and force a state update
         wm._audit_subcloud(subcloud, update_subcloud_state=True,
@@ -594,7 +595,7 @@ class TestAuditWorkerManager(base.DCManagerTestCase):
 
         # Verify the subcloud state was updated even though no change
         self.fake_dcmanager_state_api.update_subcloud_availability.assert_called_with(
-            mock.ANY, subcloud.name, consts.AVAILABILITY_ONLINE,
+            mock.ANY, subcloud.name, dccommon_consts.AVAILABILITY_ONLINE,
             True, None)
 
         # Verify the _update_subcloud_audit_fail_count is not called
@@ -633,7 +634,7 @@ class TestAuditWorkerManager(base.DCManagerTestCase):
         subcloud = db_api.subcloud_update(
             self.ctx, subcloud.id,
             management_state='managed',
-            availability_status=consts.AVAILABILITY_ONLINE)
+            availability_status=dccommon_consts.AVAILABILITY_ONLINE)
 
         # Mark a service group as inactive
         self.fake_openstack_client.sysinv_client.get_service_groups_result = \
@@ -678,7 +679,7 @@ class TestAuditWorkerManager(base.DCManagerTestCase):
         # Update the DB like dcmanager would do.
         subcloud = db_api.subcloud_update(
             self.ctx, subcloud.id,
-            availability_status=consts.AVAILABILITY_OFFLINE,
+            availability_status=dccommon_consts.AVAILABILITY_OFFLINE,
             audit_fail_count=audit_fail_count)
 
         # Audit the subcloud again
@@ -893,7 +894,7 @@ class TestAuditWorkerManager(base.DCManagerTestCase):
         subcloud = db_api.subcloud_update(
             self.ctx, subcloud.id,
             management_state='managed',
-            availability_status=consts.AVAILABILITY_ONLINE)
+            availability_status=dccommon_consts.AVAILABILITY_ONLINE)
 
         # Audit the subcloud
         wm._audit_subcloud(subcloud,
@@ -951,7 +952,7 @@ class TestAuditWorkerManager(base.DCManagerTestCase):
         subcloud = db_api.subcloud_update(
             self.ctx, subcloud.id,
             management_state='managed',
-            availability_status=consts.AVAILABILITY_ONLINE,
+            availability_status=dccommon_consts.AVAILABILITY_ONLINE,
             openstack_installed=True)
 
         # Remove stx-openstack application
@@ -1012,7 +1013,7 @@ class TestAuditWorkerManager(base.DCManagerTestCase):
         subcloud = db_api.subcloud_update(
             self.ctx, subcloud.id,
             management_state='managed',
-            availability_status=consts.AVAILABILITY_ONLINE,
+            availability_status=dccommon_consts.AVAILABILITY_ONLINE,
             openstack_installed=True)
 
         # stx-openstack application is not active

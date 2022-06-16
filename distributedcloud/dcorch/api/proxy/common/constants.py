@@ -1,4 +1,4 @@
-# Copyright 2017-2020 Wind River
+# Copyright 2017-2022 Wind River
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,7 +12,7 @@
 # implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
+from dccommon import consts as dccommon_consts
 from dcorch.common import consts
 
 # Version could be any of the following: /, /v1, /v1/
@@ -319,7 +319,7 @@ ROUTE_METHOD_MAP = {
         QUOTA_RESOURCE_TAG: ['PUT', 'DELETE', 'GET'],
         QUOTA_CLASS_RESOURCE_TAG: ['PUT'],
     },
-    consts.ENDPOINT_TYPE_PLATFORM: {
+    dccommon_consts.ENDPOINT_TYPE_PLATFORM: {
         consts.RESOURCE_TYPE_SYSINV_DNS: ['PATCH', 'PUT'],
         consts.RESOURCE_TYPE_SYSINV_CERTIFICATE: ['POST', 'DELETE'],
         consts.RESOURCE_TYPE_SYSINV_USER: ['PATCH', 'PUT'],
@@ -332,7 +332,7 @@ ROUTE_METHOD_MAP = {
         consts.RESOURCE_TYPE_NETWORK_QUOTA_SET: ['PUT', 'DELETE'],
         consts.RESOURCE_TYPE_QOS_POLICY: ['POST', 'PUT', 'DELETE'],
     },
-    consts.ENDPOINT_TYPE_PATCHING: {
+    dccommon_consts.ENDPOINT_TYPE_PATCHING: {
         PATCH_ACTION_GET_VERSION: ['GET'],
         PATCH_ACTION_UPLOAD: ['POST'],
         PATCH_ACTION_UPLOAD_DIR: ['POST'],
@@ -345,7 +345,7 @@ ROUTE_METHOD_MAP = {
         PATCH_ACTION_WHAT_REQS: ['GET'],
         PATCH_ACTION_QUERY_DEPS: ['GET'],
     },
-    consts.ENDPOINT_TYPE_IDENTITY: {
+    dccommon_consts.ENDPOINT_TYPE_IDENTITY: {
         consts.RESOURCE_TYPE_IDENTITY_USERS:
             ['POST', 'PATCH', 'DELETE'],
         consts.RESOURCE_TYPE_IDENTITY_GROUPS:

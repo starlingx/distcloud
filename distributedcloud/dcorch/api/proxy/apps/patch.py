@@ -1,4 +1,4 @@
-# Copyright 2018-2020 Wind River
+# Copyright 2018-2022 Wind River
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -23,12 +23,12 @@ import webob.dec
 import webob.exc
 
 from cgcs_patch.patch_functions import get_release_from_patch
-from dcmanager.common import consts as dcmanager_consts
+
+from dccommon import consts as dccommon_consts
 from dcorch.api.proxy.apps.dispatcher import APIDispatcher
 from dcorch.api.proxy.common import constants as proxy_consts
 from dcorch.api.proxy.common.service import Middleware
 from dcorch.api.proxy.common import utils as proxy_utils
-from dcorch.common import consts
 from dcorch.common import context
 from oslo_config import cfg
 from oslo_log import log as logging
@@ -52,7 +52,7 @@ CONF.register_opts(patch_opts, CONF.type)
 
 class PatchAPIController(Middleware):
 
-    ENDPOINT_TYPE = consts.ENDPOINT_TYPE_PATCHING
+    ENDPOINT_TYPE = dccommon_consts.ENDPOINT_TYPE_PATCHING
     OK_STATUS_CODE = [
         webob.exc.HTTPOk.code,
     ]
@@ -189,7 +189,7 @@ class PatchAPIController(Middleware):
         self.dcmanager_state_rpc_client.update_subcloud_endpoint_status(
             self.ctxt,
             endpoint_type=self.ENDPOINT_TYPE,
-            sync_status=dcmanager_consts.SYNC_STATUS_UNKNOWN)
+            sync_status=dccommon_consts.SYNC_STATUS_UNKNOWN)
         return response
 
     def patch_delete_req(self, request, response):

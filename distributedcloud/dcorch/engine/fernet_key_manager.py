@@ -1,4 +1,4 @@
-# Copyright 2018-2021 Wind River
+# Copyright 2018-2022 Wind River
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -49,7 +49,7 @@ class FernetKeyManager(manager.Manager):
                                                *args, **kwargs)
         self.gsm = gsm
         self.context = context.get_admin_context()
-        self.endpoint_type = consts.ENDPOINT_TYPE_PLATFORM
+        self.endpoint_type = dccommon_consts.ENDPOINT_TYPE_PLATFORM
         self.resource_type = consts.RESOURCE_TYPE_SYSINV_FERNET_REPO
 
     @classmethod

@@ -16,6 +16,7 @@
 #
 from oslo_db import exception as db_exception
 
+from dccommon import consts as dccommon_consts
 from dcmanager.common import config
 from dcmanager.common import consts
 from dcmanager.common import exceptions
@@ -23,7 +24,6 @@ from dcmanager.db import api as api
 from dcmanager.db.sqlalchemy import api as db_api
 from dcmanager.tests import base
 from dcmanager.tests import utils
-from dcorch.common import consts as dcorch_consts
 
 config.register_options()
 get_engine = api.get_engine
@@ -236,7 +236,7 @@ class DBAPISubcloudTest(base.DCManagerTestCase):
                                                          endpoint_type)
         self.assertIsNotNone(new_subcloud_status)
         self.assertEqual(endpoint_type, new_subcloud_status.endpoint_type)
-        self.assertEqual(consts.SYNC_STATUS_UNKNOWN,
+        self.assertEqual(dccommon_consts.SYNC_STATUS_UNKNOWN,
                          new_subcloud_status.sync_status)
 
     def test_create_multiple_subcloud_statuses(self):
@@ -248,7 +248,7 @@ class DBAPISubcloudTest(base.DCManagerTestCase):
                                                                    subcloud.id)
         num_default_subcloud_statuses = len(default_subcloud_statuses)
         self.assertEqual(num_default_subcloud_statuses,
-                         len(dcorch_consts.ENDPOINT_TYPES_LIST))
+                         len(dccommon_consts.ENDPOINT_TYPES_LIST))
 
         endpoint_type1 = 'testendpoint1'
         subcloud_status1 = self.create_subcloud_status(
@@ -301,7 +301,7 @@ class DBAPISubcloudTest(base.DCManagerTestCase):
             self.ctx, endpoint_type=endpoint_type)
         self.assertIsNotNone(subcloud_status)
 
-        sync_status = consts.SYNC_STATUS_IN_SYNC
+        sync_status = dccommon_consts.SYNC_STATUS_IN_SYNC
         updated = db_api.subcloud_status_update(self.ctx, subcloud.id,
                                                 endpoint_type=endpoint_type,
                                                 sync_status=sync_status)
@@ -335,7 +335,7 @@ class DBAPISubcloudTest(base.DCManagerTestCase):
             self.ctx, endpoint_type=endpoint_type3)
         self.assertIsNotNone(subcloud_status)
 
-        sync_status = consts.SYNC_STATUS_IN_SYNC
+        sync_status = dccommon_consts.SYNC_STATUS_IN_SYNC
         endpoint_type_list = [endpoint_type1, endpoint_type2]
         db_api.subcloud_status_update_endpoints(self.ctx, subcloud.id,
                                                 endpoint_type_list=endpoint_type_list,
@@ -374,7 +374,7 @@ class DBAPISubcloudTest(base.DCManagerTestCase):
 
         endpoint_type2 = 'testendpoint2'
 
-        sync_status = consts.SYNC_STATUS_IN_SYNC
+        sync_status = dccommon_consts.SYNC_STATUS_IN_SYNC
         endpoint_type_list = [endpoint_type2]
         self.assertRaises(exceptions.SubcloudStatusNotFound,
                           db_api.subcloud_status_update_endpoints,
@@ -424,7 +424,7 @@ class DBAPISubcloudTest(base.DCManagerTestCase):
                                                                    subcloud.id)
         num_default_subcloud_statuses = len(default_subcloud_statuses)
         self.assertEqual(num_default_subcloud_statuses,
-                         len(dcorch_consts.ENDPOINT_TYPES_LIST))
+                         len(dccommon_consts.ENDPOINT_TYPES_LIST))
 
         endpoint_type1 = 'testendpoint1'
         subcloud_status1 = self.create_subcloud_status(

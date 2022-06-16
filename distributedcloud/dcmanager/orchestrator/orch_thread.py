@@ -1,5 +1,5 @@
 # Copyright 2017 Ericsson AB.
-# Copyright (c) 2017-2021 Wind River Systems, Inc.
+# Copyright (c) 2017-2022 Wind River Systems, Inc.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -22,6 +22,7 @@ import time
 from keystoneauth1 import exceptions as keystone_exceptions
 from oslo_log import log as logging
 
+from dccommon import consts as dccommon_consts
 from dccommon.drivers.openstack.sdk_platform import OpenStackDriver
 from dccommon.drivers.openstack import vim
 from dcmanager.common import consts
@@ -99,7 +100,7 @@ class OrchThread(threading.Thread):
         self.thread_group_manager.stop()
 
     @staticmethod
-    def get_ks_client(region_name=consts.DEFAULT_REGION_NAME):
+    def get_ks_client(region_name=dccommon_consts.DEFAULT_REGION_NAME):
         """This will get a cached keystone client (and token)
 
         throws an exception if keystone client cannot be initialized
@@ -109,7 +110,7 @@ class OrchThread(threading.Thread):
         return os_client.keystone_client
 
     @staticmethod
-    def get_vim_client(region_name=consts.DEFAULT_REGION_NAME):
+    def get_vim_client(region_name=dccommon_consts.DEFAULT_REGION_NAME):
         ks_client = OrchThread.get_ks_client(region_name)
         return vim.VimClient(region_name, ks_client.session)
 
@@ -118,7 +119,7 @@ class OrchThread(threading.Thread):
         """Get the region name for a strategy step"""
         if strategy_step.subcloud_id is None:
             # This is the SystemController.
-            return consts.DEFAULT_REGION_NAME
+            return dccommon_consts.DEFAULT_REGION_NAME
         return strategy_step.subcloud.name
 
     @staticmethod
@@ -340,7 +341,7 @@ class OrchThread(threading.Thread):
                     # started, it will be allowed to complete.
                     if strategy_step.subcloud_id is not None and \
                             strategy_step.subcloud.management_state == \
-                            consts.MANAGEMENT_UNMANAGED:
+                            dccommon_consts.MANAGEMENT_UNMANAGED:
                         message = ("Subcloud %s is unmanaged." %
                                    strategy_step.subcloud.name)
                         LOG.warn(message)

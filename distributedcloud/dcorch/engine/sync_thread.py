@@ -1,4 +1,4 @@
-# Copyright 2017-2020 Wind River
+# Copyright 2017-2022 Wind River
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -24,7 +24,6 @@ from oslo_utils import timeutils
 from dccommon import consts as dccommon_consts
 from dccommon.endpoint_cache import EndpointCache
 from dcdbsync.dbsyncclient import client as dbsyncclient
-from dcmanager.common import consts as dcm_consts
 from dcmanager.rpc import client as dcmanager_rpc_client
 from dcorch.common import consts
 from dcorch.common import context
@@ -97,7 +96,7 @@ class SyncThread(object):
     def is_subcloud_managed(self):
         # is this subcloud managed
         subcloud = Subcloud.get_by_name(self.ctxt, self.subcloud_name)
-        return subcloud.management_state == dcm_consts.MANAGEMENT_MANAGED
+        return subcloud.management_state == dccommon_consts.MANAGEMENT_MANAGED
 
     def is_subcloud_enabled(self):
         # is this subcloud enabled
@@ -105,7 +104,7 @@ class SyncThread(object):
 
         # We only enable syncing if the subcloud is online and the initial
         # sync has completed.
-        if subcloud.availability_status == dcm_consts.AVAILABILITY_ONLINE and \
+        if subcloud.availability_status == dccommon_consts.AVAILABILITY_ONLINE and \
             subcloud.initial_sync_state == consts.INITIAL_SYNC_STATE_COMPLETED:
             return True
         else:
@@ -115,7 +114,7 @@ class SyncThread(object):
         # base implementation of initializing the master client.
         # The specific SyncThread subclasses may extend this.
 
-        if self.endpoint_type in consts.ENDPOINT_TYPES_LIST:
+        if self.endpoint_type in dccommon_consts.ENDPOINT_TYPES_LIST:
             config = cfg.CONF.endpoint_cache
             self.admin_session = EndpointCache.get_admin_session(
                 config.auth_uri,
@@ -172,7 +171,7 @@ class SyncThread(object):
                 return
 
             config = None
-            if self.endpoint_type in consts.ENDPOINT_TYPES_LIST:
+            if self.endpoint_type in dccommon_consts.ENDPOINT_TYPES_LIST:
                 config = cfg.CONF.endpoint_cache
                 self.sc_admin_session = EndpointCache.get_admin_session(
                     sc_auth_url,
@@ -316,11 +315,11 @@ class SyncThread(object):
         # Update dcmanager with the current sync status.
         subcloud_enabled = self.is_subcloud_enabled()
         if sync_requests:
-            self.set_sync_status(dcm_consts.SYNC_STATUS_OUT_OF_SYNC)
-            sync_status_start = dcm_consts.SYNC_STATUS_OUT_OF_SYNC
+            self.set_sync_status(dccommon_consts.SYNC_STATUS_OUT_OF_SYNC)
+            sync_status_start = dccommon_consts.SYNC_STATUS_OUT_OF_SYNC
         else:
-            self.set_sync_status(dcm_consts.SYNC_STATUS_IN_SYNC)
-            sync_status_start = dcm_consts.SYNC_STATUS_IN_SYNC
+            self.set_sync_status(dccommon_consts.SYNC_STATUS_IN_SYNC)
+            sync_status_start = dccommon_consts.SYNC_STATUS_IN_SYNC
 
         # Failed orch requests were taken into consideration when reporting
         # sync status to the dcmanager. They need to be removed from the
@@ -423,19 +422,19 @@ class SyncThread(object):
                 states=states)
 
             if (sync_requests and
-                    sync_status_start != dcm_consts.SYNC_STATUS_OUT_OF_SYNC):
-                self.set_sync_status(dcm_consts.SYNC_STATUS_OUT_OF_SYNC)
+                    sync_status_start != dccommon_consts.SYNC_STATUS_OUT_OF_SYNC):
+                self.set_sync_status(dccommon_consts.SYNC_STATUS_OUT_OF_SYNC)
                 LOG.info("End of resource sync out-of-sync. " +
                          str(len(sync_requests)) + " sync request(s)",
                          extra=self.log_extra)
             elif sync_requests and request_aborted:
-                if sync_status_start != dcm_consts.SYNC_STATUS_OUT_OF_SYNC:
-                    self.set_sync_status(dcm_consts.SYNC_STATUS_OUT_OF_SYNC)
+                if sync_status_start != dccommon_consts.SYNC_STATUS_OUT_OF_SYNC:
+                    self.set_sync_status(dccommon_consts.SYNC_STATUS_OUT_OF_SYNC)
                 LOG.info("End of resource sync out-of-sync. " +
                          str(len(sync_requests)) + " sync request(s)" +
                          ": request_aborted", extra=self.log_extra)
-            elif sync_status_start != dcm_consts.SYNC_STATUS_IN_SYNC:
-                self.set_sync_status(dcm_consts.SYNC_STATUS_IN_SYNC)
+            elif sync_status_start != dccommon_consts.SYNC_STATUS_IN_SYNC:
+                self.set_sync_status(dccommon_consts.SYNC_STATUS_IN_SYNC)
                 LOG.info("End of resource sync in-sync. " +
                          str(len(sync_requests)) + " sync request(s)",
                          extra=self.log_extra)

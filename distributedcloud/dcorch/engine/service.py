@@ -10,7 +10,7 @@
 # License for the specific language governing permissions and limitations
 # under the License.
 #
-# Copyright (c) 2020 Wind River Systems, Inc.
+# Copyright (c) 2020-2022 Wind River Systems, Inc.
 #
 
 import six
@@ -23,7 +23,6 @@ import oslo_messaging
 import resource
 
 from dccommon import consts as dccommon_consts
-from dcmanager.common import consts as dcm_consts
 from dcorch.common import consts
 from dcorch.common import context
 from dcorch.common import exceptions
@@ -248,8 +247,8 @@ class EngineService(service.Service):
             return
 
         # Check if the subcloud is ready to sync.
-        if (management_state == dcm_consts.MANAGEMENT_MANAGED) and \
-                (availability_status == dcm_consts.AVAILABILITY_ONLINE):
+        if (management_state == dccommon_consts.MANAGEMENT_MANAGED) and \
+                (availability_status == dccommon_consts.AVAILABILITY_ONLINE):
             # Update the subcloud state and schedule an initial sync
             self.gsm.update_subcloud_state(
                 subcloud_name,

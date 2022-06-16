@@ -23,6 +23,7 @@ import pecan
 from pecan import expose
 from pecan import request
 
+from dccommon import consts as dccommon_consts
 from dcmanager.api.controllers import restcomm
 from dcmanager.common import consts
 from dcmanager.common import exceptions
@@ -109,7 +110,7 @@ class SwUpdateStrategyController(object):
             else:
                 # Single step requested
                 strategy_step = None
-                if cloud_name == consts.SYSTEM_CONTROLLER_NAME:
+                if cloud_name == dccommon_consts.SYSTEM_CONTROLLER_NAME:
                     # The system controller step does not map to a subcloud,
                     # so has no name.
                     try:

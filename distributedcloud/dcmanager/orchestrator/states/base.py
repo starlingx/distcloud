@@ -8,13 +8,13 @@ import six
 
 from oslo_log import log as logging
 
+from dccommon import consts as dccommon_consts
 from dccommon.drivers.openstack.barbican import BarbicanClient
 from dccommon.drivers.openstack.fm import FmClient
 from dccommon.drivers.openstack.patching_v1 import PatchingClient
 from dccommon.drivers.openstack.sdk_platform import OpenStackDriver
 from dccommon.drivers.openstack.sysinv_v1 import SysinvClient
 from dccommon.drivers.openstack.vim import VimClient
-from dcmanager.common import consts
 from dcmanager.common import context
 from dcmanager.common.exceptions import InvalidParameterValue
 
@@ -79,11 +79,11 @@ class BaseState(object):
         """Get the region name for a strategy step"""
         if strategy_step.subcloud_id is None:
             # This is the SystemController.
-            return consts.DEFAULT_REGION_NAME
+            return dccommon_consts.DEFAULT_REGION_NAME
         return strategy_step.subcloud.name
 
     @staticmethod
-    def get_keystone_client(region_name=consts.DEFAULT_REGION_NAME):
+    def get_keystone_client(region_name=dccommon_consts.DEFAULT_REGION_NAME):
         """Construct a (cached) keystone client (and token)"""
 
         try:
@@ -108,13 +108,13 @@ class BaseState(object):
         keystone_client = self.get_keystone_client(region_name)
         return FmClient(region_name, keystone_client.session)
 
-    def get_patching_client(self, region_name=consts.DEFAULT_REGION_NAME):
+    def get_patching_client(self, region_name=dccommon_consts.DEFAULT_REGION_NAME):
         keystone_client = self.get_keystone_client(region_name)
         return PatchingClient(region_name, keystone_client.session)
 
     @property
     def local_sysinv(self):
-        return self.get_sysinv_client(consts.DEFAULT_REGION_NAME)
+        return self.get_sysinv_client(dccommon_consts.DEFAULT_REGION_NAME)
 
     @property
     def subcloud_sysinv(self):

@@ -38,7 +38,6 @@ from dccommon import kubeoperator
 from dccommon.subcloud_install import SubcloudInstall
 from dccommon.utils import run_playbook
 
-from dcorch.common import consts as dcorch_consts
 from dcorch.rpc import client as dcorch_rpc_client
 
 from dcmanager.audit import rpcapi as dcmanager_audit_rpc_client
@@ -289,11 +288,11 @@ class SubcloudManager(manager.Manager):
             # Create a new route to this subcloud on the management interface
             # on both controllers.
             m_ks_client = OpenStackDriver(
-                region_name=consts.DEFAULT_REGION_NAME,
+                region_name=dccommon_consts.DEFAULT_REGION_NAME,
                 region_clients=None).keystone_client
             subcloud_subnet = netaddr.IPNetwork(payload['management_subnet'])
             endpoint = m_ks_client.endpoint_cache.get_endpoint('sysinv')
-            sysinv_client = SysinvClient(consts.DEFAULT_REGION_NAME,
+            sysinv_client = SysinvClient(dccommon_consts.DEFAULT_REGION_NAME,
                                          m_ks_client.session,
                                          endpoint=endpoint)
             LOG.debug("Getting cached regionone data for %s" % subcloud.name)
@@ -321,23 +320,23 @@ class SubcloudManager(manager.Manager):
                 endpoint_ip = '[' + endpoint_ip + ']'
 
             for service in m_ks_client.services_list:
-                if service.type == dcorch_consts.ENDPOINT_TYPE_PLATFORM:
+                if service.type == dccommon_consts.ENDPOINT_TYPE_PLATFORM:
                     admin_endpoint_url = "https://{}:6386/v1".format(endpoint_ip)
                     endpoint_config.append({"id": service.id,
                                             "admin_endpoint_url": admin_endpoint_url})
-                elif service.type == dcorch_consts.ENDPOINT_TYPE_IDENTITY:
+                elif service.type == dccommon_consts.ENDPOINT_TYPE_IDENTITY:
                     admin_endpoint_url = "https://{}:5001/v3".format(endpoint_ip)
                     endpoint_config.append({"id": service.id,
                                             "admin_endpoint_url": admin_endpoint_url})
-                elif service.type == dcorch_consts.ENDPOINT_TYPE_PATCHING:
+                elif service.type == dccommon_consts.ENDPOINT_TYPE_PATCHING:
                     admin_endpoint_url = "https://{}:5492".format(endpoint_ip)
                     endpoint_config.append({"id": service.id,
                                             "admin_endpoint_url": admin_endpoint_url})
-                elif service.type == dcorch_consts.ENDPOINT_TYPE_FM:
+                elif service.type == dccommon_consts.ENDPOINT_TYPE_FM:
                     admin_endpoint_url = "https://{}:18003".format(endpoint_ip)
                     endpoint_config.append({"id": service.id,
                                             "admin_endpoint_url": admin_endpoint_url})
-                elif service.type == dcorch_consts.ENDPOINT_TYPE_NFV:
+                elif service.type == dccommon_consts.ENDPOINT_TYPE_NFV:
                     admin_endpoint_url = "https://{}:4546".format(endpoint_ip)
                     endpoint_config.append({"id": service.id,
                                             "admin_endpoint_url": admin_endpoint_url})
@@ -518,7 +517,7 @@ class SubcloudManager(manager.Manager):
                 subcloud.name, INVENTORY_FILE_POSTFIX)
 
             m_ks_client = OpenStackDriver(
-                region_name=consts.DEFAULT_REGION_NAME,
+                region_name=dccommon_consts.DEFAULT_REGION_NAME,
                 region_clients=None).keystone_client
             cached_regionone_data = self._get_cached_regionone_data(m_ks_client)
             self._populate_payload_with_cached_keystone_data(
@@ -630,7 +629,7 @@ class SubcloudManager(manager.Manager):
         # Retrieve the subcloud details from the database
         subcloud = db_api.subcloud_get(context, subcloud_id)
 
-        if subcloud.management_state != consts.MANAGEMENT_UNMANAGED:
+        if subcloud.management_state != dccommon_consts.MANAGEMENT_UNMANAGED:
             raise exceptions.SubcloudNotUnmanaged()
 
         db_api.subcloud_update(context, subcloud_id,
@@ -942,14 +941,14 @@ class SubcloudManager(manager.Manager):
         """Delete the routes to this subcloud"""
 
         keystone_client = OpenStackDriver(
-            region_name=consts.DEFAULT_REGION_NAME,
+            region_name=dccommon_consts.DEFAULT_REGION_NAME,
             region_clients=None).keystone_client
 
         # Delete the route to this subcloud on the management interface on
         # both controllers.
         management_subnet = netaddr.IPNetwork(subcloud.management_subnet)
         endpoint = keystone_client.endpoint_cache.get_endpoint('sysinv')
-        sysinv_client = SysinvClient(consts.DEFAULT_REGION_NAME, keystone_client.session,
+        sysinv_client = SysinvClient(dccommon_consts.DEFAULT_REGION_NAME, keystone_client.session,
                                      endpoint=endpoint)
         cached_regionone_data = self._get_cached_regionone_data(keystone_client, sysinv_client)
         for mgmt_if_uuid in cached_regionone_data['mgmt_interface_uuids']:
@@ -994,7 +993,7 @@ class SubcloudManager(manager.Manager):
         # down so is not accessible. Therefore set up a session with the
         # Central Region Keystone ONLY.
         keystone_client = OpenStackDriver(
-            region_name=consts.DEFAULT_REGION_NAME,
+            region_name=dccommon_consts.DEFAULT_REGION_NAME,
             region_clients=None).keystone_client
 
         # Delete keystone endpoints for subcloud
@@ -1032,11 +1031,11 @@ class SubcloudManager(manager.Manager):
         subcloud = db_api.subcloud_get(context, subcloud_id)
 
         # Semantic checking
-        if subcloud.management_state != consts.MANAGEMENT_UNMANAGED:
+        if subcloud.management_state != dccommon_consts.MANAGEMENT_UNMANAGED:
             raise exceptions.SubcloudNotUnmanaged()
 
         if subcloud.availability_status == \
-                consts.AVAILABILITY_ONLINE:
+                dccommon_consts.AVAILABILITY_ONLINE:
             raise exceptions.SubcloudNotOffline()
 
         # Ansible inventory filename for the specified subcloud
@@ -1061,7 +1060,7 @@ class SubcloudManager(manager.Manager):
                  "subcloud=%s" % subcloud.name),
                 (fm_const.FM_ALARM_ID_DC_SUBCLOUD_RESOURCE_OUT_OF_SYNC,
                  "subcloud=%s.resource=%s" %
-                 (subcloud.name, dcorch_consts.ENDPOINT_TYPE_DC_CERT))):
+                 (subcloud.name, dccommon_consts.ENDPOINT_TYPE_DC_CERT))):
             try:
                 fault = self.fm_api.get_fault(alarm_id,
                                               entity_instance_id)
@@ -1103,14 +1102,14 @@ class SubcloudManager(manager.Manager):
 
         # Semantic checking
         if management_state:
-            if management_state == consts.MANAGEMENT_UNMANAGED:
-                if subcloud.management_state == consts.MANAGEMENT_UNMANAGED:
+            if management_state == dccommon_consts.MANAGEMENT_UNMANAGED:
+                if subcloud.management_state == dccommon_consts.MANAGEMENT_UNMANAGED:
                     LOG.warning("Subcloud %s already unmanaged" % subcloud_id)
                     raise exceptions.BadRequest(
                         resource='subcloud',
                         msg='Subcloud is already unmanaged')
-            elif management_state == consts.MANAGEMENT_MANAGED:
-                if subcloud.management_state == consts.MANAGEMENT_MANAGED:
+            elif management_state == dccommon_consts.MANAGEMENT_MANAGED:
+                if subcloud.management_state == dccommon_consts.MANAGEMENT_MANAGED:
                     LOG.warning("Subcloud %s already managed" % subcloud_id)
                     raise exceptions.BadRequest(
                         resource='subcloud',
@@ -1125,7 +1124,7 @@ class SubcloudManager(manager.Manager):
                             resource='subcloud',
                             msg='Subcloud can be managed only if deploy status is complete')
                     if subcloud.availability_status != \
-                            consts.AVAILABILITY_ONLINE:
+                            dccommon_consts.AVAILABILITY_ONLINE:
                         LOG.warning("Subcloud %s is not online" % subcloud_id)
                         raise exceptions.SubcloudNotOnline()
             else:
@@ -1168,7 +1167,7 @@ class SubcloudManager(manager.Manager):
                                            description=description,
                                            location=location)
 
-            if management_state == consts.MANAGEMENT_UNMANAGED:
+            if management_state == dccommon_consts.MANAGEMENT_UNMANAGED:
                 # set all endpoint statuses to unknown, except the dc-cert
                 # endpoint which continues to be audited for unmanaged
                 # subclouds
@@ -1176,9 +1175,9 @@ class SubcloudManager(manager.Manager):
                     context,
                     subcloud_name=subcloud.name,
                     endpoint_type=None,
-                    sync_status=consts.SYNC_STATUS_UNKNOWN,
-                    ignore_endpoints=[dcorch_consts.ENDPOINT_TYPE_DC_CERT])
-            elif management_state == consts.MANAGEMENT_MANAGED:
+                    sync_status=dccommon_consts.SYNC_STATUS_UNKNOWN,
+                    ignore_endpoints=[dccommon_consts.ENDPOINT_TYPE_DC_CERT])
+            elif management_state == dccommon_consts.MANAGEMENT_MANAGED:
                 # Subcloud is managed
                 # Tell cert-mon to audit endpoint certificate
                 LOG.info('Request for managed audit for %s' % subcloud.name)
@@ -1187,8 +1186,8 @@ class SubcloudManager(manager.Manager):
                 # Since sysinv user is sync'ed during bootstrap, trigger the
                 # related audits. Patch and load audits are delayed until the
                 # identity resource synchronized by dcdbsync is complete.
-                exclude_endpoints = [dcorch_consts.ENDPOINT_TYPE_PATCHING,
-                                     dcorch_consts.ENDPOINT_TYPE_LOAD]
+                exclude_endpoints = [dccommon_consts.ENDPOINT_TYPE_PATCHING,
+                                     dccommon_consts.ENDPOINT_TYPE_LOAD]
                 self.audit_rpc_client.trigger_subcloud_audits(
                     context, subcloud_id, exclude_endpoints)
 
@@ -1282,9 +1281,10 @@ class SubcloudManager(manager.Manager):
 
             if regionone_sysinv_client is None:
                 endpoint = regionone_keystone_client.endpoint_cache.get_endpoint('sysinv')
-                regionone_sysinv_client = SysinvClient(consts.DEFAULT_REGION_NAME,
-                                                       regionone_keystone_client.session,
-                                                       endpoint=endpoint)
+                regionone_sysinv_client = SysinvClient(
+                    dccommon_consts.DEFAULT_REGION_NAME,
+                    regionone_keystone_client.session,
+                    endpoint=endpoint)
 
             controllers = regionone_sysinv_client.get_controller_hosts()
             mgmt_interface_uuids = []

@@ -1,4 +1,5 @@
 # Copyright (c) 2017 Ericsson AB.
+# Copyright (c) 2018-2022 Wind River Systems, Inc.
 # All Rights Reserved.
 #
 #    Licensed under the Apache License, Version 2.0 (the "License"); you may
@@ -37,6 +38,7 @@ import pecan
 from pecan import expose
 from pecan import request
 
+from dccommon import consts as dccommon_consts
 from dccommon.drivers.openstack.sdk_platform import OpenStackDriver
 from dccommon.drivers.openstack.sysinv_v1 import SysinvClient
 from dccommon import exceptions as dccommon_exceptions
@@ -55,7 +57,6 @@ from dcmanager.common import utils
 from dcmanager.db import api as db_api
 
 from dcmanager.rpc import client as rpc_client
-from dcorch.common import consts as dcorch_consts
 from six.moves import range
 
 CONF = cfg.CONF
@@ -364,11 +365,11 @@ class SubcloudsController(object):
         if name.isdigit():
             pecan.abort(400, _("name must contain alphabetic characters"))
 
-        if name in [consts.DEFAULT_REGION_NAME,
-                    consts.SYSTEM_CONTROLLER_NAME]:
+        if name in [dccommon_consts.DEFAULT_REGION_NAME,
+                    dccommon_consts.SYSTEM_CONTROLLER_NAME]:
             pecan.abort(400, _("name cannot be %(bad_name1)s or %(bad_name2)s")
-                        % {'bad_name1': consts.DEFAULT_REGION_NAME,
-                           'bad_name2': consts.SYSTEM_CONTROLLER_NAME})
+                        % {'bad_name1': dccommon_consts.DEFAULT_REGION_NAME,
+                           'bad_name2': dccommon_consts.SYSTEM_CONTROLLER_NAME})
 
         # Parse/validate the management subnet
         subcloud_subnets = []
@@ -715,7 +716,7 @@ class SubcloudsController(object):
         return user_list
 
     @staticmethod
-    def get_ks_client(region_name=consts.DEFAULT_REGION_NAME):
+    def get_ks_client(region_name=dccommon_consts.DEFAULT_REGION_NAME):
         """This will get a new keystone client (and new token)"""
         try:
             os_client = OpenStackDriver(region_name=region_name,
@@ -730,7 +731,7 @@ class SubcloudsController(object):
         """Get the system controller's management address pool"""
         ks_client = self.get_ks_client()
         endpoint = ks_client.endpoint_cache.get_endpoint('sysinv')
-        sysinv_client = SysinvClient(consts.DEFAULT_REGION_NAME,
+        sysinv_client = SysinvClient(dccommon_consts.DEFAULT_REGION_NAME,
                                      ks_client.session,
                                      endpoint=endpoint)
         return sysinv_client.get_management_address_pool()
@@ -845,7 +846,7 @@ class SubcloudsController(object):
                         if subcloud_list[-1][consts.SYNC_STATUS] != \
                                 subcloud_dict[consts.SYNC_STATUS]:
                             subcloud_list[-1][consts.SYNC_STATUS] = \
-                                consts.SYNC_STATUS_OUT_OF_SYNC
+                                dccommon_consts.SYNC_STATUS_OUT_OF_SYNC
 
                         if subcloud_status:
                             subcloud_status_list.append(
@@ -916,7 +917,7 @@ class SubcloudsController(object):
 
             if detail is not None:
                 oam_floating_ip = "unavailable"
-                if subcloud.availability_status == consts.AVAILABILITY_ONLINE:
+                if subcloud.availability_status == dccommon_consts.AVAILABILITY_ONLINE:
                     oam_addresses = self._get_oam_addresses(context,
                                                             subcloud.name)
                     if oam_addresses is not None:
@@ -1096,15 +1097,15 @@ class SubcloudsController(object):
 
             # Syntax checking
             if management_state and \
-                    management_state not in [consts.MANAGEMENT_UNMANAGED,
-                                             consts.MANAGEMENT_MANAGED]:
+                    management_state not in [dccommon_consts.MANAGEMENT_UNMANAGED,
+                                             dccommon_consts.MANAGEMENT_MANAGED]:
                 pecan.abort(400, _('Invalid management-state'))
 
             force_flag = payload.get('force')
             if force_flag is not None:
                 if force_flag not in [True, False]:
                     pecan.abort(400, _('Invalid force value'))
-                elif management_state != consts.MANAGEMENT_MANAGED:
+                elif management_state != dccommon_consts.MANAGEMENT_MANAGED:
                     pecan.abort(400, _('Invalid option: force'))
 
             # Verify the group_id is valid
@@ -1184,7 +1185,7 @@ class SubcloudsController(object):
             payload = self._get_request_data(request)
             install_values = self._get_subcloud_db_install_values(subcloud)
 
-            if subcloud.availability_status == consts.AVAILABILITY_ONLINE:
+            if subcloud.availability_status == dccommon_consts.AVAILABILITY_ONLINE:
                 msg = _('Cannot re-install an online subcloud')
                 LOG.exception(msg)
                 pecan.abort(400, msg)
@@ -1322,7 +1323,7 @@ class SubcloudsController(object):
                     description=payload.get('description', subcloud.description),
                     location=payload.get('location', subcloud.location),
                     software_version=tsc.SW_VERSION,
-                    management_state=consts.MANAGEMENT_UNMANAGED,
+                    management_state=dccommon_consts.MANAGEMENT_UNMANAGED,
                     deploy_status=consts.DEPLOY_STATE_PRE_INSTALL,
                     data_install=data_install)
 
@@ -1340,7 +1341,7 @@ class SubcloudsController(object):
             if not payload:
                 pecan.abort(400, _('Body required'))
 
-            if subcloud.management_state != consts.MANAGEMENT_UNMANAGED:
+            if subcloud.management_state != dccommon_consts.MANAGEMENT_UNMANAGED:
                 pecan.abort(400, _('Subcloud can not be restored while it is still '
                                    'in managed state. Please unmanage the subcloud '
                                    'and try again.'))
@@ -1498,7 +1499,7 @@ class SubcloudsController(object):
         endpoint = payload.get('endpoint')
         if not endpoint:
             pecan.abort(400, _('endpoint required'))
-        allowed_endpoints = [dcorch_consts.ENDPOINT_TYPE_DC_CERT]
+        allowed_endpoints = [dccommon_consts.ENDPOINT_TYPE_DC_CERT]
         if endpoint not in allowed_endpoints:
             pecan.abort(400, _('updating endpoint %s status is not allowed'
                                % endpoint))
@@ -1507,9 +1508,9 @@ class SubcloudsController(object):
         if not status:
             pecan.abort(400, _('status required'))
 
-        allowed_status = [consts.SYNC_STATUS_IN_SYNC,
-                          consts.SYNC_STATUS_OUT_OF_SYNC,
-                          consts.SYNC_STATUS_UNKNOWN]
+        allowed_status = [dccommon_consts.SYNC_STATUS_IN_SYNC,
+                          dccommon_consts.SYNC_STATUS_OUT_OF_SYNC,
+                          dccommon_consts.SYNC_STATUS_UNKNOWN]
         if status not in allowed_status:
             pecan.abort(400, _('status %s in invalid.' % status))
 

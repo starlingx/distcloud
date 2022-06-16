@@ -1,5 +1,5 @@
 # Copyright 2017 Ericsson AB.
-# Copyright (c) 2017-2021 Wind River Systems, Inc.
+# Copyright (c) 2017-2022 Wind River Systems, Inc.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -18,14 +18,12 @@
 from keystoneauth1 import exceptions as keystone_exceptions
 from oslo_log import log as logging
 
+from dccommon import consts as dccommon_consts
 from dccommon.drivers.openstack import patching_v1
 from dccommon.drivers.openstack.patching_v1 import PatchingClient
 from dccommon.drivers.openstack.sdk_platform import OpenStackDriver
 from dccommon.drivers.openstack.sysinv_v1 import SysinvClient
 
-from dcorch.common import consts as dcorch_consts
-
-from dcmanager.common import consts
 from dcmanager.common import utils
 
 LOG = logging.getLogger(__name__)
@@ -92,15 +90,15 @@ class PatchAudit(object):
         """
         try:
             m_os_ks_client = OpenStackDriver(
-                region_name=consts.DEFAULT_REGION_NAME,
+                region_name=dccommon_consts.DEFAULT_REGION_NAME,
                 region_clients=None).keystone_client
             patching_endpoint = m_os_ks_client.endpoint_cache.get_endpoint('patching')
             sysinv_endpoint = m_os_ks_client.endpoint_cache.get_endpoint('sysinv')
             patching_client = PatchingClient(
-                consts.DEFAULT_REGION_NAME, m_os_ks_client.session,
+                dccommon_consts.DEFAULT_REGION_NAME, m_os_ks_client.session,
                 endpoint=patching_endpoint)
             sysinv_client = SysinvClient(
-                consts.DEFAULT_REGION_NAME, m_os_ks_client.session,
+                dccommon_consts.DEFAULT_REGION_NAME, m_os_ks_client.session,
                 endpoint=sysinv_endpoint)
         except Exception:
             LOG.exception('Failure initializing OS Client, skip patch audit.')
@@ -229,12 +227,12 @@ class PatchAudit(object):
 
         if out_of_sync:
             self._update_subcloud_sync_status(
-                subcloud_name, dcorch_consts.ENDPOINT_TYPE_PATCHING,
-                consts.SYNC_STATUS_OUT_OF_SYNC)
+                subcloud_name, dccommon_consts.ENDPOINT_TYPE_PATCHING,
+                dccommon_consts.SYNC_STATUS_OUT_OF_SYNC)
         else:
             self._update_subcloud_sync_status(
-                subcloud_name, dcorch_consts.ENDPOINT_TYPE_PATCHING,
-                consts.SYNC_STATUS_IN_SYNC)
+                subcloud_name, dccommon_consts.ENDPOINT_TYPE_PATCHING,
+                dccommon_consts.SYNC_STATUS_IN_SYNC)
 
         # Check subcloud software version every other audit cycle
         if do_load_audit:
@@ -253,16 +251,16 @@ class PatchAudit(object):
 
                 if subcloud_software_version == audit_data.software_version:
                     self._update_subcloud_sync_status(
-                        subcloud_name, dcorch_consts.ENDPOINT_TYPE_LOAD,
-                        consts.SYNC_STATUS_IN_SYNC)
+                        subcloud_name, dccommon_consts.ENDPOINT_TYPE_LOAD,
+                        dccommon_consts.SYNC_STATUS_IN_SYNC)
                 else:
                     self._update_subcloud_sync_status(
-                        subcloud_name, dcorch_consts.ENDPOINT_TYPE_LOAD,
-                        consts.SYNC_STATUS_OUT_OF_SYNC)
+                        subcloud_name, dccommon_consts.ENDPOINT_TYPE_LOAD,
+                        dccommon_consts.SYNC_STATUS_OUT_OF_SYNC)
             else:
                 # As upgrade is still in progress, set the subcloud load
                 # status as out-of-sync.
                 self._update_subcloud_sync_status(
-                    subcloud_name, dcorch_consts.ENDPOINT_TYPE_LOAD,
-                    consts.SYNC_STATUS_OUT_OF_SYNC)
+                    subcloud_name, dccommon_consts.ENDPOINT_TYPE_LOAD,
+                    dccommon_consts.SYNC_STATUS_OUT_OF_SYNC)
         LOG.info('Patch audit completed for: %s.' % subcloud_name)

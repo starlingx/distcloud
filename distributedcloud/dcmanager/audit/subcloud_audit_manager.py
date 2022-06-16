@@ -1,5 +1,5 @@
 # Copyright 2017 Ericsson AB.
-# Copyright (c) 2017-2021 Wind River Systems, Inc.
+# Copyright (c) 2017-2022 Wind River Systems, Inc.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -37,7 +37,6 @@ from dcmanager.common import context
 from dcmanager.common.i18n import _
 from dcmanager.common import manager
 from dcmanager.db import api as db_api
-from dcorch.common import consts as dcorch_consts
 
 CONF = cfg.CONF
 LOG = logging.getLogger(__name__)
@@ -113,7 +112,7 @@ class SubcloudAuditManager(manager.Manager):
                     db_api.subcloud_status_get_all(self.context,
                                                    subcloud.id)
                 # Use set difference to find missing endpoints
-                endpoint_type_set = set(dcorch_consts.ENDPOINT_TYPES_LIST)
+                endpoint_type_set = set(dccommon_consts.ENDPOINT_TYPES_LIST)
                 subcloud_set = set()
                 for subcloud_status in subcloud_statuses:
                     subcloud_set.add(subcloud_status.endpoint_type)
@@ -194,7 +193,7 @@ class SubcloudAuditManager(manager.Manager):
         # to disable the audit explicitly.
         if exclude_endpoints:
             for exclude_endpoint in exclude_endpoints:
-                exclude_request = dcorch_consts.ENDPOINT_AUDIT_REQUESTS.get(
+                exclude_request = dccommon_consts.ENDPOINT_AUDIT_REQUESTS.get(
                     exclude_endpoint)
                 if exclude_request:
                     values.update({exclude_request: False})

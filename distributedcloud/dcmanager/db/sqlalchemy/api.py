@@ -38,12 +38,12 @@ from sqlalchemy.orm import joinedload_all
 from sqlalchemy.orm import load_only
 from sqlalchemy.sql.expression import true
 
+from dccommon import consts as dccommon_consts
 from dcmanager.common import consts
 from dcmanager.common import exceptions as exception
 from dcmanager.common.i18n import _
 from dcmanager.db.sqlalchemy import migration
 from dcmanager.db.sqlalchemy import models
-from dcorch.common import consts as dcorch_consts
 
 LOG = logging.getLogger(__name__)
 
@@ -349,8 +349,8 @@ def subcloud_create(context, name, description, location, software_version,
         subcloud_ref.description = description
         subcloud_ref.location = location
         subcloud_ref.software_version = software_version
-        subcloud_ref.management_state = consts.MANAGEMENT_UNMANAGED
-        subcloud_ref.availability_status = consts.AVAILABILITY_OFFLINE
+        subcloud_ref.management_state = dccommon_consts.MANAGEMENT_UNMANAGED
+        subcloud_ref.availability_status = dccommon_consts.AVAILABILITY_OFFLINE
         subcloud_ref.management_subnet = management_subnet
         subcloud_ref.management_gateway_ip = management_gateway_ip
         subcloud_ref.management_start_ip = management_start_ip
@@ -454,7 +454,7 @@ def subcloud_status_create(context, subcloud_id, endpoint_type):
         subcloud_status_ref = models.SubcloudStatus()
         subcloud_status_ref.subcloud_id = subcloud_id
         subcloud_status_ref.endpoint_type = endpoint_type
-        subcloud_status_ref.sync_status = consts.SYNC_STATUS_UNKNOWN
+        subcloud_status_ref.sync_status = dccommon_consts.SYNC_STATUS_UNKNOWN
         session.add(subcloud_status_ref)
         return subcloud_status_ref
 
@@ -462,11 +462,11 @@ def subcloud_status_create(context, subcloud_id, endpoint_type):
 @require_admin_context
 def subcloud_status_create_all(context, subcloud_id):
     with write_session() as session:
-        for endpoint_type in dcorch_consts.ENDPOINT_TYPES_LIST:
+        for endpoint_type in dccommon_consts.ENDPOINT_TYPES_LIST:
             subcloud_status_ref = models.SubcloudStatus()
             subcloud_status_ref.subcloud_id = subcloud_id
             subcloud_status_ref.endpoint_type = endpoint_type
-            subcloud_status_ref.sync_status = consts.SYNC_STATUS_UNKNOWN
+            subcloud_status_ref.sync_status = dccommon_consts.SYNC_STATUS_UNKNOWN
             session.add(subcloud_status_ref)
 
 

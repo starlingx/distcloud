@@ -1,4 +1,4 @@
-# Copyright (c) 2017-2021 Wind River Systems, Inc.
+# Copyright (c) 2017-2022 Wind River Systems, Inc.
 # Licensed under the Apache License, Version 2.0 (the "License"); you may
 # not use this file except in compliance with the License. You may obtain
 # a copy of the License at
@@ -17,15 +17,15 @@ import mock
 from oslo_config import cfg
 
 import sys
+
+from dccommon import consts as dccommon_consts
+
 sys.modules['fm_core'] = mock.Mock()
 
 from dcmanager.audit import patch_audit
 from dcmanager.audit import subcloud_audit_manager
-from dcmanager.common import consts
 from dcmanager.tests import base
 from dcmanager.tests import utils
-
-from dcorch.common import consts as dcorch_consts
 
 
 CONF = cfg.CONF
@@ -307,12 +307,12 @@ class TestPatchAudit(base.DCManagerTestCase):
             expected_calls = [
                 mock.call(mock.ANY,
                           subcloud_name=name,
-                          endpoint_type=dcorch_consts.ENDPOINT_TYPE_PATCHING,
-                          sync_status=consts.SYNC_STATUS_IN_SYNC),
+                          endpoint_type=dccommon_consts.ENDPOINT_TYPE_PATCHING,
+                          sync_status=dccommon_consts.SYNC_STATUS_IN_SYNC),
                 mock.call(mock.ANY,
                           subcloud_name=name,
-                          endpoint_type=dcorch_consts.ENDPOINT_TYPE_LOAD,
-                          sync_status=consts.SYNC_STATUS_IN_SYNC)]
+                          endpoint_type=dccommon_consts.ENDPOINT_TYPE_LOAD,
+                          sync_status=dccommon_consts.SYNC_STATUS_IN_SYNC)]
             self.fake_dcmanager_state_api.update_subcloud_endpoint_status. \
                 assert_has_calls(expected_calls)
 
@@ -342,36 +342,36 @@ class TestPatchAudit(base.DCManagerTestCase):
         expected_calls = [
             mock.call(mock.ANY,
                       subcloud_name='subcloud1',
-                      endpoint_type=dcorch_consts.ENDPOINT_TYPE_PATCHING,
-                      sync_status=consts.SYNC_STATUS_OUT_OF_SYNC),
+                      endpoint_type=dccommon_consts.ENDPOINT_TYPE_PATCHING,
+                      sync_status=dccommon_consts.SYNC_STATUS_OUT_OF_SYNC),
             mock.call(mock.ANY,
                       subcloud_name='subcloud1',
-                      endpoint_type=dcorch_consts.ENDPOINT_TYPE_LOAD,
-                      sync_status=consts.SYNC_STATUS_IN_SYNC),
+                      endpoint_type=dccommon_consts.ENDPOINT_TYPE_LOAD,
+                      sync_status=dccommon_consts.SYNC_STATUS_IN_SYNC),
             mock.call(mock.ANY,
                       subcloud_name='subcloud2',
-                      endpoint_type=dcorch_consts.ENDPOINT_TYPE_PATCHING,
-                      sync_status=consts.SYNC_STATUS_OUT_OF_SYNC),
+                      endpoint_type=dccommon_consts.ENDPOINT_TYPE_PATCHING,
+                      sync_status=dccommon_consts.SYNC_STATUS_OUT_OF_SYNC),
             mock.call(mock.ANY,
                       subcloud_name='subcloud2',
-                      endpoint_type=dcorch_consts.ENDPOINT_TYPE_LOAD,
-                      sync_status=consts.SYNC_STATUS_IN_SYNC),
+                      endpoint_type=dccommon_consts.ENDPOINT_TYPE_LOAD,
+                      sync_status=dccommon_consts.SYNC_STATUS_IN_SYNC),
             mock.call(mock.ANY,
                       subcloud_name='subcloud3',
-                      endpoint_type=dcorch_consts.ENDPOINT_TYPE_PATCHING,
-                      sync_status=consts.SYNC_STATUS_IN_SYNC),
+                      endpoint_type=dccommon_consts.ENDPOINT_TYPE_PATCHING,
+                      sync_status=dccommon_consts.SYNC_STATUS_IN_SYNC),
             mock.call(mock.ANY,
                       subcloud_name='subcloud3',
-                      endpoint_type=dcorch_consts.ENDPOINT_TYPE_LOAD,
-                      sync_status=consts.SYNC_STATUS_IN_SYNC),
+                      endpoint_type=dccommon_consts.ENDPOINT_TYPE_LOAD,
+                      sync_status=dccommon_consts.SYNC_STATUS_IN_SYNC),
             mock.call(mock.ANY,
                       subcloud_name='subcloud4',
-                      endpoint_type=dcorch_consts.ENDPOINT_TYPE_PATCHING,
-                      sync_status=consts.SYNC_STATUS_OUT_OF_SYNC),
+                      endpoint_type=dccommon_consts.ENDPOINT_TYPE_PATCHING,
+                      sync_status=dccommon_consts.SYNC_STATUS_OUT_OF_SYNC),
             mock.call(mock.ANY,
                       subcloud_name='subcloud4',
-                      endpoint_type=dcorch_consts.ENDPOINT_TYPE_LOAD,
-                      sync_status=consts.SYNC_STATUS_IN_SYNC),
+                      endpoint_type=dccommon_consts.ENDPOINT_TYPE_LOAD,
+                      sync_status=dccommon_consts.SYNC_STATUS_IN_SYNC),
             ]
 
         self.fake_dcmanager_state_api.update_subcloud_endpoint_status.\
@@ -402,12 +402,12 @@ class TestPatchAudit(base.DCManagerTestCase):
             expected_calls = [
                 mock.call(mock.ANY,
                           subcloud_name=name,
-                          endpoint_type=dcorch_consts.ENDPOINT_TYPE_PATCHING,
-                          sync_status=consts.SYNC_STATUS_OUT_OF_SYNC),
+                          endpoint_type=dccommon_consts.ENDPOINT_TYPE_PATCHING,
+                          sync_status=dccommon_consts.SYNC_STATUS_OUT_OF_SYNC),
                 mock.call(mock.ANY,
                           subcloud_name=name,
-                          endpoint_type=dcorch_consts.ENDPOINT_TYPE_LOAD,
-                          sync_status=consts.SYNC_STATUS_IN_SYNC)]
+                          endpoint_type=dccommon_consts.ENDPOINT_TYPE_LOAD,
+                          sync_status=dccommon_consts.SYNC_STATUS_IN_SYNC)]
             self.fake_dcmanager_state_api.update_subcloud_endpoint_status.\
                 assert_has_calls(expected_calls)
 
@@ -437,20 +437,20 @@ class TestPatchAudit(base.DCManagerTestCase):
         expected_calls = [
             mock.call(mock.ANY,
                       subcloud_name='subcloud1',
-                      endpoint_type=dcorch_consts.ENDPOINT_TYPE_PATCHING,
-                      sync_status=consts.SYNC_STATUS_IN_SYNC),
+                      endpoint_type=dccommon_consts.ENDPOINT_TYPE_PATCHING,
+                      sync_status=dccommon_consts.SYNC_STATUS_IN_SYNC),
             mock.call(mock.ANY,
                       subcloud_name='subcloud1',
-                      endpoint_type=dcorch_consts.ENDPOINT_TYPE_LOAD,
-                      sync_status=consts.SYNC_STATUS_IN_SYNC),
+                      endpoint_type=dccommon_consts.ENDPOINT_TYPE_LOAD,
+                      sync_status=dccommon_consts.SYNC_STATUS_IN_SYNC),
             mock.call(mock.ANY,
                       subcloud_name='subcloud2',
-                      endpoint_type=dcorch_consts.ENDPOINT_TYPE_PATCHING,
-                      sync_status=consts.SYNC_STATUS_IN_SYNC),
+                      endpoint_type=dccommon_consts.ENDPOINT_TYPE_PATCHING,
+                      sync_status=dccommon_consts.SYNC_STATUS_IN_SYNC),
             mock.call(mock.ANY,
                       subcloud_name='subcloud2',
-                      endpoint_type=dcorch_consts.ENDPOINT_TYPE_LOAD,
-                      sync_status=consts.SYNC_STATUS_OUT_OF_SYNC),
+                      endpoint_type=dccommon_consts.ENDPOINT_TYPE_LOAD,
+                      sync_status=dccommon_consts.SYNC_STATUS_OUT_OF_SYNC),
         ]
         self.fake_dcmanager_state_api.update_subcloud_endpoint_status.\
             assert_has_calls(expected_calls)
@@ -481,20 +481,20 @@ class TestPatchAudit(base.DCManagerTestCase):
         expected_calls = [
             mock.call(mock.ANY,
                       subcloud_name='subcloud1',
-                      endpoint_type=dcorch_consts.ENDPOINT_TYPE_PATCHING,
-                      sync_status=consts.SYNC_STATUS_IN_SYNC),
+                      endpoint_type=dccommon_consts.ENDPOINT_TYPE_PATCHING,
+                      sync_status=dccommon_consts.SYNC_STATUS_IN_SYNC),
             mock.call(mock.ANY,
                       subcloud_name='subcloud1',
-                      endpoint_type=dcorch_consts.ENDPOINT_TYPE_LOAD,
-                      sync_status=consts.SYNC_STATUS_IN_SYNC),
+                      endpoint_type=dccommon_consts.ENDPOINT_TYPE_LOAD,
+                      sync_status=dccommon_consts.SYNC_STATUS_IN_SYNC),
             mock.call(mock.ANY,
                       subcloud_name='subcloud2',
-                      endpoint_type=dcorch_consts.ENDPOINT_TYPE_PATCHING,
-                      sync_status=consts.SYNC_STATUS_IN_SYNC),
+                      endpoint_type=dccommon_consts.ENDPOINT_TYPE_PATCHING,
+                      sync_status=dccommon_consts.SYNC_STATUS_IN_SYNC),
             mock.call(mock.ANY,
                       subcloud_name='subcloud2',
-                      endpoint_type=dcorch_consts.ENDPOINT_TYPE_LOAD,
-                      sync_status=consts.SYNC_STATUS_OUT_OF_SYNC),
+                      endpoint_type=dccommon_consts.ENDPOINT_TYPE_LOAD,
+                      sync_status=dccommon_consts.SYNC_STATUS_OUT_OF_SYNC),
         ]
         self.fake_dcmanager_state_api.update_subcloud_endpoint_status.\
             assert_has_calls(expected_calls)

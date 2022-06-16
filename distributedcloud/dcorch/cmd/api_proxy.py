@@ -1,4 +1,5 @@
 # Copyright 2015 Huawei Technologies Co., Ltd.
+# Copyright (c) 2018-2022 Wind River Systems, Inc.
 # All Rights Reserved.
 #
 #    Licensed under the Apache License, Version 2.0 (the "License"); you may
@@ -18,6 +19,7 @@
 
 
 import eventlet
+
 eventlet.monkey_patch(os=False)
 
 import os
@@ -30,13 +32,13 @@ from oslo_service import wsgi
 
 import logging as std_logging
 
+from dccommon import consts
 from dcmanager.common import messaging as dcmanager_messaging
 from dcorch.api import api_config
 from dcorch.api import app
 from dcorch.api.proxy.common import constants
 
 from dcorch.common import config
-from dcorch.common import consts
 from dcorch.common import messaging
 
 from dcorch.api.proxy.common import utils
