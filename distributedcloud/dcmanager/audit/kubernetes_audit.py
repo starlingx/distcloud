@@ -1,5 +1,5 @@
 # Copyright 2017 Ericsson AB.
-# Copyright (c) 2017-2021 Wind River Systems, Inc.
+# Copyright (c) 2017-2022 Wind River Systems, Inc.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -18,12 +18,9 @@
 from keystoneauth1 import exceptions as keystone_exceptions
 from oslo_log import log as logging
 
+from dccommon import consts as dccommon_consts
 from dccommon.drivers.openstack.sdk_platform import OpenStackDriver
 from dccommon.drivers.openstack.sysinv_v1 import SysinvClient
-
-from dcorch.common import consts as dcorch_consts
-
-from dcmanager.common import consts
 
 
 LOG = logging.getLogger(__name__)
@@ -74,11 +71,11 @@ class KubernetesAudit(object):
         """
         try:
             m_os_ks_client = OpenStackDriver(
-                region_name=consts.DEFAULT_REGION_NAME,
+                region_name=dccommon_consts.DEFAULT_REGION_NAME,
                 region_clients=None).keystone_client
             endpoint = m_os_ks_client.endpoint_cache.get_endpoint('sysinv')
             sysinv_client = SysinvClient(
-                consts.DEFAULT_REGION_NAME, m_os_ks_client.session,
+                dccommon_consts.DEFAULT_REGION_NAME, m_os_ks_client.session,
                 endpoint=endpoint)
         except Exception:
             LOG.exception('Failed init OS Client, skip kubernetes audit.')
@@ -97,8 +94,8 @@ class KubernetesAudit(object):
         LOG.info('Triggered kubernetes audit for: %s' % subcloud_name)
         if not audit_data:
             self._update_subcloud_sync_status(
-                subcloud_name, dcorch_consts.ENDPOINT_TYPE_KUBERNETES,
-                consts.SYNC_STATUS_IN_SYNC)
+                subcloud_name, dccommon_consts.ENDPOINT_TYPE_KUBERNETES,
+                dccommon_consts.SYNC_STATUS_IN_SYNC)
             LOG.debug('No region one audit data, exiting kubernetes audit')
             return
         try:
@@ -155,10 +152,10 @@ class KubernetesAudit(object):
 
         if out_of_sync:
             self._update_subcloud_sync_status(
-                subcloud_name, dcorch_consts.ENDPOINT_TYPE_KUBERNETES,
-                consts.SYNC_STATUS_OUT_OF_SYNC)
+                subcloud_name, dccommon_consts.ENDPOINT_TYPE_KUBERNETES,
+                dccommon_consts.SYNC_STATUS_OUT_OF_SYNC)
         else:
             self._update_subcloud_sync_status(
-                subcloud_name, dcorch_consts.ENDPOINT_TYPE_KUBERNETES,
-                consts.SYNC_STATUS_IN_SYNC)
+                subcloud_name, dccommon_consts.ENDPOINT_TYPE_KUBERNETES,
+                dccommon_consts.SYNC_STATUS_IN_SYNC)
         LOG.info('Kubernetes audit completed for: %s' % subcloud_name)

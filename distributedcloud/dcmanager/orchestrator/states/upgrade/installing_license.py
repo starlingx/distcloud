@@ -3,6 +3,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 #
+from dccommon import consts as dccommon_consts
 from dcmanager.common import consts
 from dcmanager.common import exceptions
 from dcmanager.orchestrator.states.base import BaseState
@@ -51,7 +52,7 @@ class InstallingLicenseState(BaseState):
             else:
                 # An unexpected error occurred querying the license
                 raise exceptions.LicenseInstallError(
-                    subcloud_id=consts.SYSTEM_CONTROLLER_NAME)
+                    subcloud_id=dccommon_consts.SYSTEM_CONTROLLER_NAME)
 
         # retrieve the keystone session for the subcloud and query its license
         subcloud_sysinv_client = \

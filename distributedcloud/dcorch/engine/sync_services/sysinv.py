@@ -1,4 +1,4 @@
-# Copyright 2017-2020 Wind River
+# Copyright 2017-2022 Wind River
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -58,7 +58,7 @@ class SysinvSyncThread(SyncThread):
                                                endpoint_type=endpoint_type,
                                                engine_id=engine_id)
         if not self.endpoint_type:
-            self.endpoint_type = consts.ENDPOINT_TYPE_PLATFORM
+            self.endpoint_type = dccommon_consts.ENDPOINT_TYPE_PLATFORM
         self.sync_handler_map = {
             consts.RESOURCE_TYPE_SYSINV_DNS:
                 self.sync_platform_resource,

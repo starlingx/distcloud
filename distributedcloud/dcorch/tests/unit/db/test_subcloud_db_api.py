@@ -1,5 +1,5 @@
 # Copyright (c) 2015 Ericsson AB
-# Copyright (c) 2017, 2019, 2021 Wind River Systems, Inc.
+# Copyright (c) 2017-2022 Wind River Systems, Inc.
 # All Rights Reserved.
 #
 #  Licensed under the Apache License, Version 2.0 (the "License"); you may
@@ -20,7 +20,7 @@ from oslo_config import cfg
 from oslo_db import exception as db_exc
 from oslo_db import options
 
-from dcmanager.common import consts as dcm_consts
+from dccommon import consts as dccommon_consts
 from dcorch.common import config
 from dcorch.common import exceptions
 from dcorch.db import api as api
@@ -61,7 +61,7 @@ class DBAPISubcloudTest(base.OrchestratorTestCase):
     def create_default_subcloud(self, ctxt):
         region_name = 'RegionOne'
         software_version = '17.07'
-        availability_status = dcm_consts.AVAILABILITY_ONLINE
+        availability_status = dccommon_consts.AVAILABILITY_ONLINE
         subcloud = self.create_subcloud(
             ctxt, region_name,
             software_version=software_version,
@@ -86,7 +86,7 @@ class DBAPISubcloudTest(base.OrchestratorTestCase):
     def test_update_subcloud(self):
         subcloud = self.create_default_subcloud(self.ctx)
 
-        availability_status_update = dcm_consts.AVAILABILITY_OFFLINE
+        availability_status_update = dccommon_consts.AVAILABILITY_OFFLINE
         software_version_update = subcloud.software_version + '1'
         values = {'availability_status': availability_status_update,
                   'software_version': software_version_update}
@@ -112,7 +112,7 @@ class DBAPISubcloudTest(base.OrchestratorTestCase):
     def test_delete_all_subcloud(self):
         region_names = ['RegionOne', 'RegionTwo']
         software_version = '17.07'
-        availability_status = dcm_consts.AVAILABILITY_ONLINE
+        availability_status = dccommon_consts.AVAILABILITY_ONLINE
 
         for region_name in region_names:
             subcloud = self.create_subcloud(
@@ -156,7 +156,7 @@ class DBAPISubcloudTest(base.OrchestratorTestCase):
     def test_subcloud_get_by_availability_status(self):
         region_names = ['RegionOne', 'RegionTwo']
         software_version = '17.07'
-        availability_status = dcm_consts.AVAILABILITY_ONLINE
+        availability_status = dccommon_consts.AVAILABILITY_ONLINE
         for region_name in region_names:
             subcloud = self.create_subcloud(
                 self.ctx, region_name,
@@ -166,7 +166,7 @@ class DBAPISubcloudTest(base.OrchestratorTestCase):
 
         region_names = ['RegionThree', 'RegionFour']
         software_version = '17.07'
-        availability_status = dcm_consts.AVAILABILITY_OFFLINE
+        availability_status = dccommon_consts.AVAILABILITY_OFFLINE
         for region_name in region_names:
             subcloud = self.create_subcloud(
                 self.ctx, region_name,
@@ -176,20 +176,20 @@ class DBAPISubcloudTest(base.OrchestratorTestCase):
 
         by_statuses = db_api.subcloud_get_all(
             self.ctx,
-            availability_status=dcm_consts.AVAILABILITY_ONLINE)
+            availability_status=dccommon_consts.AVAILABILITY_ONLINE)
         self.assertIsNotNone(by_statuses)
 
         for by_status in by_statuses:
-            self.assertEqual(dcm_consts.AVAILABILITY_ONLINE,
+            self.assertEqual(dccommon_consts.AVAILABILITY_ONLINE,
                              by_status.availability_status)
 
         by_statuses = db_api.subcloud_get_all(
             self.ctx,
-            availability_status=dcm_consts.AVAILABILITY_OFFLINE)
+            availability_status=dccommon_consts.AVAILABILITY_OFFLINE)
         self.assertIsNotNone(by_statuses)
 
         for by_status in by_statuses:
-            self.assertEqual(dcm_consts.AVAILABILITY_OFFLINE,
+            self.assertEqual(dccommon_consts.AVAILABILITY_OFFLINE,
                              by_status.availability_status)
 
     def test_subcloud_duplicate_region_names(self):

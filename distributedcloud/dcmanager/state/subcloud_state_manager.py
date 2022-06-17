@@ -19,7 +19,7 @@
 
 from oslo_log import log as logging
 
-from dcorch.common import consts as dcorch_consts
+from dccommon import consts as dccommon_consts
 from dcorch.rpc import client as dcorch_rpc_client
 
 from dcmanager.audit import rpcapi as dcmanager_audit_rpc_client
@@ -98,7 +98,7 @@ class SubcloudStateManager(manager.Manager):
                         db_api.subcloud_endpoint_status_db_model_to_dict(
                             subcloud_status))
                     if subcloud_status.endpoint_type == \
-                        dcorch_consts.ENDPOINT_TYPE_IDENTITY:
+                            dccommon_consts.ENDPOINT_TYPE_IDENTITY:
                         original_identity_status = subcloud_status.sync_status
         except Exception as e:
             LOG.exception(e)
@@ -133,9 +133,9 @@ class SubcloudStateManager(manager.Manager):
 
                 # Trigger subcloud patch and load audits for the subcloud after
                 # its identity endpoint turns to other status from unknown
-                if endpoint_type == dcorch_consts.ENDPOINT_TYPE_IDENTITY \
-                    and sync_status != consts.SYNC_STATUS_UNKNOWN \
-                    and original_identity_status == consts.SYNC_STATUS_UNKNOWN:
+                if endpoint_type == dccommon_consts.ENDPOINT_TYPE_IDENTITY \
+                        and sync_status != dccommon_consts.SYNC_STATUS_UNKNOWN \
+                        and original_identity_status == dccommon_consts.SYNC_STATUS_UNKNOWN:
                     LOG.debug('Request for patch and load audit for %s after updating '
                               'identity out of unknown' % subcloud.name)
                     self.audit_rpc_client.trigger_subcloud_patch_load_audits(
@@ -147,7 +147,7 @@ class SubcloudStateManager(manager.Manager):
                     fm_const.FM_ALARM_ID_DC_SUBCLOUD_RESOURCE_OUT_OF_SYNC,
                     entity_instance_id)
 
-                if (sync_status != consts.SYNC_STATUS_OUT_OF_SYNC) \
+                if (sync_status != dccommon_consts.SYNC_STATUS_OUT_OF_SYNC) \
                         and fault:
                     try:
                         self.fm_api.clear_fault(
@@ -157,7 +157,7 @@ class SubcloudStateManager(manager.Manager):
                         LOG.exception(e)
 
                 elif not fault and alarmable and \
-                        (sync_status == consts.SYNC_STATUS_OUT_OF_SYNC):
+                        (sync_status == dccommon_consts.SYNC_STATUS_OUT_OF_SYNC):
                     entity_type_id = fm_const.FM_ENTITY_TYPE_SUBCLOUD
                     try:
                         fault = fm_api.Fault(
@@ -213,7 +213,7 @@ class SubcloudStateManager(manager.Manager):
                     # given subcloud if fm_api support it. Be careful with the
                     # dc-cert endpoint when adding the above; the endpoint
                     # alarm must remain for offline subclouds.
-                    if (sync_status != consts.SYNC_STATUS_OUT_OF_SYNC) \
+                    if (sync_status != dccommon_consts.SYNC_STATUS_OUT_OF_SYNC) \
                             and fault:
                         try:
                             self.fm_api.clear_fault(
@@ -223,7 +223,7 @@ class SubcloudStateManager(manager.Manager):
                             LOG.exception(e)
 
                     elif not fault and alarmable and \
-                            (sync_status == consts.SYNC_STATUS_OUT_OF_SYNC):
+                            (sync_status == dccommon_consts.SYNC_STATUS_OUT_OF_SYNC):
                         entity_type_id = fm_const.FM_ENTITY_TYPE_SUBCLOUD
                         try:
                             fault = fm_api.Fault(
@@ -262,7 +262,7 @@ class SubcloudStateManager(manager.Manager):
             self, context,
             subcloud_name,
             endpoint_type=None,
-            sync_status=consts.SYNC_STATUS_OUT_OF_SYNC,
+            sync_status=dccommon_consts.SYNC_STATUS_OUT_OF_SYNC,
             alarmable=True,
             ignore_endpoints=None):
         """Update subcloud endpoint status
@@ -304,10 +304,10 @@ class SubcloudStateManager(manager.Manager):
         # This means if a subcloud is going offline or unmanaged, then
         # the sync status update must be done first.
         #
-        if (sync_status != consts.SYNC_STATUS_IN_SYNC or
-            ((subcloud.availability_status == consts.AVAILABILITY_ONLINE) and
-             (subcloud.management_state == consts.MANAGEMENT_MANAGED
-              or endpoint_type == dcorch_consts.ENDPOINT_TYPE_DC_CERT))):
+        if (sync_status != dccommon_consts.SYNC_STATUS_IN_SYNC or
+            ((subcloud.availability_status == dccommon_consts.AVAILABILITY_ONLINE) and
+             (subcloud.management_state == dccommon_consts.MANAGEMENT_MANAGED
+              or endpoint_type == dccommon_consts.ENDPOINT_TYPE_DC_CERT))):
             # update a single subcloud
             try:
                 self._do_update_subcloud_endpoint_status(context,
@@ -329,7 +329,7 @@ class SubcloudStateManager(manager.Manager):
             self, context,
             subcloud_name=None,
             endpoint_type=None,
-            sync_status=consts.SYNC_STATUS_OUT_OF_SYNC,
+            sync_status=dccommon_consts.SYNC_STATUS_OUT_OF_SYNC,
             alarmable=True,
             ignore_endpoints=None):
         """Update subcloud endpoint status
@@ -380,7 +380,7 @@ class SubcloudStateManager(manager.Manager):
             fm_const.FM_ALARM_ID_DC_SUBCLOUD_OFFLINE,
             entity_instance_id)
 
-        if fault and (availability_status == consts.AVAILABILITY_ONLINE):
+        if fault and (availability_status == dccommon_consts.AVAILABILITY_ONLINE):
             try:
                 self.fm_api.clear_fault(
                     fm_const.FM_ALARM_ID_DC_SUBCLOUD_OFFLINE,
@@ -390,7 +390,7 @@ class SubcloudStateManager(manager.Manager):
                               subcloud_name)
 
         elif not fault and \
-                (availability_status == consts.AVAILABILITY_OFFLINE):
+                (availability_status == dccommon_consts.AVAILABILITY_OFFLINE):
             try:
                 fault = fm_api.Fault(
                     alarm_id=fm_const.FM_ALARM_ID_DC_SUBCLOUD_OFFLINE,
@@ -444,12 +444,12 @@ class SubcloudStateManager(manager.Manager):
             self._raise_or_clear_subcloud_status_alarm(subcloud_name,
                                                        availability_status)
 
-            if availability_status == consts.AVAILABILITY_OFFLINE:
+            if availability_status == dccommon_consts.AVAILABILITY_OFFLINE:
                 # Subcloud is going offline, set all endpoint statuses to
                 # unknown.
                 self._update_subcloud_endpoint_status(
                     context, subcloud_name, endpoint_type=None,
-                    sync_status=consts.SYNC_STATUS_UNKNOWN)
+                    sync_status=dccommon_consts.SYNC_STATUS_UNKNOWN)
 
             try:
                 updated_subcloud = db_api.subcloud_update(
@@ -464,7 +464,7 @@ class SubcloudStateManager(manager.Manager):
                          ' update: %s' % subcloud_name)
                 return
 
-            if availability_status == consts.AVAILABILITY_ONLINE:
+            if availability_status == dccommon_consts.AVAILABILITY_ONLINE:
                 # Subcloud is going online
                 # Tell cert-mon to audit endpoint certificate.
                 LOG.info('Request for online audit for %s' % subcloud_name)

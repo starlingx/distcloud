@@ -1,4 +1,4 @@
-# Copyright 2017, 2021 Wind River
+# Copyright 2017-2022 Wind River
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -38,15 +38,15 @@ def is_space_available(partition, size):
 def get_host_port_options(cfg):
     if cfg.type == consts.ENDPOINT_TYPE_COMPUTE:
         return cfg.compute.bind_host, cfg.compute.bind_port
-    elif cfg.type == consts.ENDPOINT_TYPE_PLATFORM:
+    elif cfg.type == dccommon_consts.ENDPOINT_TYPE_PLATFORM:
         return cfg.platform.bind_host, cfg.platform.bind_port
     elif cfg.type == consts.ENDPOINT_TYPE_NETWORK:
         return cfg.network.bind_host, cfg.network.bind_port
-    elif cfg.type == consts.ENDPOINT_TYPE_PATCHING:
+    elif cfg.type == dccommon_consts.ENDPOINT_TYPE_PATCHING:
         return cfg.patching.bind_host, cfg.patching.bind_port
     elif cfg.type == consts.ENDPOINT_TYPE_VOLUME:
         return cfg.volume.bind_host, cfg.volume.bind_port
-    elif cfg.type == consts.ENDPOINT_TYPE_IDENTITY:
+    elif cfg.type == dccommon_consts.ENDPOINT_TYPE_IDENTITY:
         return cfg.identity.bind_host, cfg.identity.bind_port
     else:
         LOG.error("Type: %s is undefined! Ignoring", cfg.type)
@@ -56,15 +56,15 @@ def get_host_port_options(cfg):
 def get_remote_host_port_options(cfg):
     if cfg.type == consts.ENDPOINT_TYPE_COMPUTE:
         return cfg.compute.remote_host, cfg.compute.remote_port
-    elif cfg.type == consts.ENDPOINT_TYPE_PLATFORM:
+    elif cfg.type == dccommon_consts.ENDPOINT_TYPE_PLATFORM:
         return cfg.platform.remote_host, cfg.platform.remote_port
     elif cfg.type == consts.ENDPOINT_TYPE_NETWORK:
         return cfg.network.remote_host, cfg.network.remote_port
-    elif cfg.type == consts.ENDPOINT_TYPE_PATCHING:
+    elif cfg.type == dccommon_consts.ENDPOINT_TYPE_PATCHING:
         return cfg.patching.remote_host, cfg.patching.remote_port
     elif cfg.type == consts.ENDPOINT_TYPE_VOLUME:
         return cfg.volume.remote_host, cfg.volume.remote_port
-    elif cfg.type == consts.ENDPOINT_TYPE_IDENTITY:
+    elif cfg.type == dccommon_consts.ENDPOINT_TYPE_IDENTITY:
         return cfg.identity.remote_host, cfg.identity.remote_port
     else:
         LOG.error("Type: %s is undefined! Ignoring", cfg.type)
@@ -74,15 +74,15 @@ def get_remote_host_port_options(cfg):
 def get_sync_endpoint(cfg):
     if cfg.type == consts.ENDPOINT_TYPE_COMPUTE:
         return cfg.compute.sync_endpoint
-    elif cfg.type == consts.ENDPOINT_TYPE_PLATFORM:
+    elif cfg.type == dccommon_consts.ENDPOINT_TYPE_PLATFORM:
         return cfg.platform.sync_endpoint
     elif cfg.type == consts.ENDPOINT_TYPE_NETWORK:
         return cfg.network.sync_endpoint
-    elif cfg.type == consts.ENDPOINT_TYPE_PATCHING:
+    elif cfg.type == dccommon_consts.ENDPOINT_TYPE_PATCHING:
         return cfg.patching.sync_endpoint
     elif cfg.type == consts.ENDPOINT_TYPE_VOLUME:
         return cfg.volume.sync_endpoint
-    elif cfg.type == consts.ENDPOINT_TYPE_IDENTITY:
+    elif cfg.type == dccommon_consts.ENDPOINT_TYPE_IDENTITY:
         return cfg.identity.sync_endpoint
     else:
         LOG.error("Type: %s is undefined! Ignoring", cfg.type)

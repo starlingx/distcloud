@@ -1,4 +1,4 @@
-# Copyright 2017-2021 Wind River
+# Copyright 2017-2022 Wind River
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -23,9 +23,9 @@ import tsconfig.tsconfig as tsc
 import webob.dec
 import webob.exc
 
+from dccommon import consts as dccommon_consts
 from dccommon.drivers.openstack.sdk_platform import OpenStackDriver
 from dccommon.drivers.openstack.sysinv_v1 import SysinvClient
-from dcmanager.common import consts as dcmanager_consts
 from dcmanager.rpc import client as dcmanager_rpc_client
 from dcorch.api.proxy.apps.dispatcher import APIDispatcher
 from dcorch.api.proxy.apps.proxy import Proxy
@@ -380,7 +380,7 @@ class ComputeAPIController(APIController):
 
 class SysinvAPIController(APIController):
 
-    ENDPOINT_TYPE = consts.ENDPOINT_TYPE_PLATFORM
+    ENDPOINT_TYPE = dccommon_consts.ENDPOINT_TYPE_PLATFORM
     OK_STATUS_CODE = [
         webob.exc.HTTPOk.code,
         webob.exc.HTTPAccepted.code,
@@ -432,8 +432,8 @@ class SysinvAPIController(APIController):
     def _notify_dcmanager_firmware(self, request, response):
         return self._notify_dcmanager(request,
                                       response,
-                                      consts.ENDPOINT_TYPE_FIRMWARE,
-                                      dcmanager_consts.SYNC_STATUS_UNKNOWN)
+                                      dccommon_consts.ENDPOINT_TYPE_FIRMWARE,
+                                      dccommon_consts.SYNC_STATUS_UNKNOWN)
 
     def _process_response(self, environ, request, response):
         try:
@@ -537,10 +537,10 @@ class SysinvAPIController(APIController):
         elif len(os.listdir(proxy_consts.LOAD_VAULT_DIR)) == 0:
             try:
                 ks_client = OpenStackDriver(
-                    region_name=dcmanager_consts.DEFAULT_REGION_NAME,
+                    region_name=dccommon_consts.DEFAULT_REGION_NAME,
                     region_clients=None).keystone_client
                 sysinv_client = SysinvClient(
-                    dcmanager_consts.DEFAULT_REGION_NAME, ks_client.session,
+                    dccommon_consts.DEFAULT_REGION_NAME, ks_client.session,
                     endpoint=ks_client.endpoint_cache.get_endpoint('sysinv'))
                 loads = sysinv_client.get_loads()
             except Exception:
@@ -764,7 +764,7 @@ class SysinvAPIController(APIController):
 
 class IdentityAPIController(APIController):
 
-    ENDPOINT_TYPE = consts.ENDPOINT_TYPE_IDENTITY
+    ENDPOINT_TYPE = dccommon_consts.ENDPOINT_TYPE_IDENTITY
     OK_STATUS_CODE = [
         webob.exc.HTTPOk.code,
         webob.exc.HTTPCreated.code,

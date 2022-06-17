@@ -1,4 +1,5 @@
 # Copyright (c) 2017 Ericsson AB
+# Copyright (c) 2018-2022 Wind River Systems, Inc.
 # All Rights Reserved.
 #
 #  Licensed under the Apache License, Version 2.0 (the "License"); you may
@@ -22,6 +23,7 @@ from oslo_db import options
 from oslo_utils import timeutils
 from oslo_utils import uuidutils
 
+from dccommon import consts as dccommon_consts
 from dcorch.common import config
 from dcorch.common import consts
 from dcorch.common import exceptions
@@ -114,14 +116,14 @@ class DBAPIOrchRequestTest(base.OrchestratorTestCase):
     def test_create_orch_job(self):
         resource = self.create_resource(self.ctx,
                                         consts.RESOURCE_TYPE_SYSINV_DNS)
-        endpoint_type = consts.ENDPOINT_TYPE_PLATFORM
+        endpoint_type = dccommon_consts.ENDPOINT_TYPE_PLATFORM
         operation_type = consts.OPERATION_TYPE_PATCH
         orch_job = self.create_orch_job(self.ctx,
                                         resource.id,
                                         endpoint_type,
                                         operation_type)
         self.assertIsNotNone(orch_job)
-        self.assertEqual(consts.ENDPOINT_TYPE_PLATFORM,
+        self.assertEqual(dccommon_consts.ENDPOINT_TYPE_PLATFORM,
                          orch_job.endpoint_type)
 
         created_orch_jobs = db_api.orch_job_get_all(
@@ -139,7 +141,7 @@ class DBAPIOrchRequestTest(base.OrchestratorTestCase):
     def no_test_unique_key_orch_job_uuid(self):
         resource = self.create_resource(self.ctx,
                                         consts.RESOURCE_TYPE_SYSINV_DNS)
-        endpoint_type = consts.ENDPOINT_TYPE_PLATFORM
+        endpoint_type = dccommon_consts.ENDPOINT_TYPE_PLATFORM
         operation_type = consts.OPERATION_TYPE_PATCH
         orch_job = self.create_orch_job(self.ctx,
                                         resource.id,
@@ -173,7 +175,7 @@ class DBAPIOrchRequestTest(base.OrchestratorTestCase):
             consts.RESOURCE_TYPE_SYSINV_DNS)
         target_region_name = "RegionOne"
 
-        endpoint_type = consts.ENDPOINT_TYPE_PLATFORM
+        endpoint_type = dccommon_consts.ENDPOINT_TYPE_PLATFORM
         operation_type = consts.OPERATION_TYPE_PATCH
         values = {}
         orch_job = self.create_orch_job(self.ctx,
@@ -211,7 +213,7 @@ class DBAPIOrchRequestTest(base.OrchestratorTestCase):
         resource = self.create_default_resource(
             consts.RESOURCE_TYPE_SYSINV_DNS)
 
-        endpoint_type = consts.ENDPOINT_TYPE_PLATFORM
+        endpoint_type = dccommon_consts.ENDPOINT_TYPE_PLATFORM
         operation_type = consts.OPERATION_TYPE_PATCH
         values = {}
         orch_job = self.create_orch_job(self.ctx,
@@ -234,7 +236,7 @@ class DBAPIOrchRequestTest(base.OrchestratorTestCase):
         resource_sysinv = self.create_default_resource(
             consts.RESOURCE_TYPE_SYSINV_DNS)
 
-        endpoint_type = consts.ENDPOINT_TYPE_PLATFORM
+        endpoint_type = dccommon_consts.ENDPOINT_TYPE_PLATFORM
         operation_type = consts.OPERATION_TYPE_PATCH
         values = {}
         orch_job_sysinv = self.create_orch_job(self.ctx,
@@ -327,7 +329,7 @@ class DBAPIOrchRequestTest(base.OrchestratorTestCase):
         resource_sysinv = self.create_default_resource(
             consts.RESOURCE_TYPE_SYSINV_DNS)
 
-        endpoint_type = consts.ENDPOINT_TYPE_PLATFORM
+        endpoint_type = dccommon_consts.ENDPOINT_TYPE_PLATFORM
         operation_type = consts.OPERATION_TYPE_PATCH
         values = {}
         orch_job_sysinv = self.create_orch_job(self.ctx,
@@ -386,7 +388,7 @@ class DBAPIOrchRequestTest(base.OrchestratorTestCase):
         resource_sysinv = self.create_default_resource(
             consts.RESOURCE_TYPE_SYSINV_DNS)
 
-        endpoint_type = consts.ENDPOINT_TYPE_PLATFORM
+        endpoint_type = dccommon_consts.ENDPOINT_TYPE_PLATFORM
         operation_type = consts.OPERATION_TYPE_PATCH
         values = {}
         orch_job_sysinv = self.create_orch_job(self.ctx,
@@ -429,7 +431,7 @@ class DBAPIOrchRequestTest(base.OrchestratorTestCase):
             orch_job_flavor.id,
             target_region_name)
 
-        attrs_endpoint_type = consts.ENDPOINT_TYPE_PLATFORM
+        attrs_endpoint_type = dccommon_consts.ENDPOINT_TYPE_PLATFORM
         attrs_resource_type = consts.RESOURCE_TYPE_SYSINV_DNS
         orch_requests_attrs_1 = db_api.orch_request_get_by_attrs(
             self.ctx,

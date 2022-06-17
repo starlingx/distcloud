@@ -6,6 +6,7 @@
 import copy
 import re
 
+from dccommon import consts as dccommon_consts
 from dccommon.drivers.openstack.sysinv_v1 import HOST_FS_NAME_SCRATCH
 from dcmanager.common import consts
 from dcmanager.common.exceptions import ManualRecoveryRequiredException
@@ -172,7 +173,7 @@ class PreCheckState(BaseState):
 
         subcloud = db_api.subcloud_get(self.context, strategy_step.subcloud.id)
 
-        if subcloud.availability_status == consts.AVAILABILITY_ONLINE:
+        if subcloud.availability_status == dccommon_consts.AVAILABILITY_ONLINE:
             subcloud_sysinv_client = None
             try:
                 subcloud_sysinv_client = self.get_sysinv_client(strategy_step.subcloud.name)

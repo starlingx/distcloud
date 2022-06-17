@@ -1,4 +1,4 @@
-# Copyright (c) 2017-2021 Wind River Systems, Inc.
+# Copyright (c) 2017-2022 Wind River Systems, Inc.
 # Licensed under the Apache License, Version 2.0 (the "License"); you may
 # not use this file except in compliance with the License. You may obtain
 # a copy of the License at
@@ -15,13 +15,15 @@
 import mock
 
 import sys
+
+from dccommon import consts as dccommon_consts
+
 sys.modules['fm_core'] = mock.Mock()
 
 from dcmanager.audit import subcloud_audit_manager
 from dcmanager.db.sqlalchemy import api as db_api
 
 from dcmanager.tests import base
-from dcorch.common import consts as dcorch_consts
 
 
 class FakeAuditWorkerAPI(object):
@@ -304,8 +306,8 @@ class TestAuditManager(base.DCManagerTestCase):
     def test_audit_one_subcloud_exclude_endpoints(self):
         subcloud = self.create_subcloud_static(self.ctx)
         am = subcloud_audit_manager.SubcloudAuditManager()
-        exclude_endpoints = [dcorch_consts.ENDPOINT_TYPE_PATCHING,
-                             dcorch_consts.ENDPOINT_TYPE_LOAD]
+        exclude_endpoints = [dccommon_consts.ENDPOINT_TYPE_PATCHING,
+                             dccommon_consts.ENDPOINT_TYPE_LOAD]
         am.trigger_subcloud_audits(self.ctx, subcloud.id, exclude_endpoints)
         # Verify subaudits be requested.
         result = db_api.subcloud_audits_get(self.ctx, subcloud.id)

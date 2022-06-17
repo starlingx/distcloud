@@ -29,7 +29,7 @@ from oslo_log import log as logging
 
 from tsconfig.tsconfig import SW_VERSION
 
-from dccommon.consts import DEPLOY_DIR
+from dccommon import consts as dccommon_consts
 from dccommon.drivers.openstack.sdk_platform import OpenStackDriver
 from dccommon.drivers.openstack.sysinv_v1 import SysinvClient
 from dccommon.exceptions import PlaybookExecutionFailed
@@ -44,7 +44,7 @@ from dcmanager.db import api as db_api
 LOG = logging.getLogger(__name__)
 CONF = cfg.CONF
 
-DEPLOY_BASE_DIR = DEPLOY_DIR + '/' + SW_VERSION
+DEPLOY_BASE_DIR = dccommon_consts.DEPLOY_DIR + '/' + SW_VERSION
 PREPARE_PRESTAGE_PACKAGES_OUTPUT_PATH = DEPLOY_BASE_DIR + '/prestage/shared'
 PRESTAGE_PREPARATION_COMPLETED_FILE = os.path.join(
     PREPARE_PRESTAGE_PACKAGES_OUTPUT_PATH, '.prestage_preparation_completed')
@@ -71,16 +71,16 @@ def _get_system_controller_upgrades():
     # get a cached keystone client (and token)
     try:
         os_client = OpenStackDriver(
-            region_name=consts.SYSTEM_CONTROLLER_NAME,
+            region_name=dccommon_consts.SYSTEM_CONTROLLER_NAME,
             region_clients=None)
     except Exception:
         LOG.exception("Failed to get keystone client for %s",
-                      consts.SYSTEM_CONTROLLER_NAME)
+                      dccommon_consts.SYSTEM_CONTROLLER_NAME)
         raise
 
     ks_client = os_client.keystone_client
     sysinv_client = SysinvClient(
-        consts.SYSTEM_CONTROLLER_NAME, ks_client.session,
+        dccommon_consts.SYSTEM_CONTROLLER_NAME, ks_client.session,
         endpoint=ks_client.endpoint_cache.get_endpoint('sysinv'))
 
     return sysinv_client.get_upgrades()
@@ -95,7 +95,7 @@ def global_prestage_validate(payload):
 
     if is_system_controller_upgrading():
         raise exceptions.PrestagePreCheckFailedException(
-            subcloud=consts.SYSTEM_CONTROLLER_NAME,
+            subcloud=dccommon_consts.SYSTEM_CONTROLLER_NAME,
             details='Prestage operations not allowed while system'
                     ' controller upgrade is in progress.')
 
@@ -127,13 +127,13 @@ def initial_subcloud_validate(subcloud):
     """
     LOG.debug("Validating subcloud prestage '%s'", subcloud.name)
 
-    if subcloud.availability_status != consts.AVAILABILITY_ONLINE:
+    if subcloud.availability_status != dccommon_consts.AVAILABILITY_ONLINE:
         raise exceptions.PrestagePreCheckFailedException(
             subcloud=subcloud.name,
             orch_skip=True,
             details="Subcloud is offline.")
 
-    if subcloud.management_state != consts.MANAGEMENT_MANAGED:
+    if subcloud.management_state != dccommon_consts.MANAGEMENT_MANAGED:
         raise exceptions.PrestagePreCheckFailedException(
             subcloud=subcloud.name,
             orch_skip=True,

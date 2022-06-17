@@ -15,6 +15,7 @@ import mock
 
 from oslo_config import cfg
 
+from dccommon import consts as dccommon_consts
 from dcmanager.common import consts
 from dcmanager.common import context
 from dcmanager.db.sqlalchemy import api as db_api
@@ -188,8 +189,8 @@ class TestSwUpdate(base.DCManagerTestCase):
         return db_api.subcloud_update(
             self.ctx,
             subcloud_id,
-            management_state=consts.MANAGEMENT_MANAGED,
-            availability_status=consts.AVAILABILITY_ONLINE)
+            management_state=dccommon_consts.MANAGEMENT_MANAGED,
+            availability_status=dccommon_consts.AVAILABILITY_ONLINE)
 
     def setup_strategy_step(self, strategy_state):
         fake_strategy.create_fake_strategy_step(

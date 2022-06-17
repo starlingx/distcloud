@@ -1,4 +1,4 @@
-# Copyright (c) 2017-2021 Wind River Systems, Inc.
+# Copyright (c) 2017-2022 Wind River Systems, Inc.
 # Licensed under the Apache License, Version 2.0 (the "License"); you may
 # not use this file except in compliance with the License. You may obtain
 # a copy of the License at
@@ -15,12 +15,11 @@
 import mock
 import uuid
 
+from dccommon import consts as dccommon_consts
 from dcmanager.audit import firmware_audit
 from dcmanager.audit import kubernetes_audit
 from dcmanager.audit import patch_audit
 from dcmanager.audit import subcloud_audit_manager
-from dcmanager.common import consts
-from dcorch.common import consts as dcorch_consts
 
 from dcmanager.tests import base
 from dcmanager.tests import utils
@@ -172,8 +171,8 @@ class TestKubernetesAudit(base.DCManagerTestCase):
             expected_calls = [
                 mock.call(mock.ANY,
                           subcloud_name=name,
-                          endpoint_type=dcorch_consts.ENDPOINT_TYPE_KUBERNETES,
-                          sync_status=consts.SYNC_STATUS_IN_SYNC)]
+                          endpoint_type=dccommon_consts.ENDPOINT_TYPE_KUBERNETES,
+                          sync_status=dccommon_consts.SYNC_STATUS_IN_SYNC)]
             self.fake_dcmanager_state_api.update_subcloud_endpoint_status. \
                 assert_has_calls(expected_calls)
 
@@ -200,8 +199,8 @@ class TestKubernetesAudit(base.DCManagerTestCase):
             expected_calls = [
                 mock.call(mock.ANY,
                           subcloud_name=name,
-                          endpoint_type=dcorch_consts.ENDPOINT_TYPE_KUBERNETES,
-                          sync_status=consts.SYNC_STATUS_OUT_OF_SYNC)]
+                          endpoint_type=dccommon_consts.ENDPOINT_TYPE_KUBERNETES,
+                          sync_status=dccommon_consts.SYNC_STATUS_OUT_OF_SYNC)]
             self.fake_dcmanager_state_api.update_subcloud_endpoint_status. \
                 assert_has_calls(expected_calls)
 
@@ -228,8 +227,8 @@ class TestKubernetesAudit(base.DCManagerTestCase):
             expected_calls = [
                 mock.call(mock.ANY,
                           subcloud_name=name,
-                          endpoint_type=dcorch_consts.ENDPOINT_TYPE_KUBERNETES,
-                          sync_status=consts.SYNC_STATUS_OUT_OF_SYNC)]
+                          endpoint_type=dccommon_consts.ENDPOINT_TYPE_KUBERNETES,
+                          sync_status=dccommon_consts.SYNC_STATUS_OUT_OF_SYNC)]
             self.fake_dcmanager_state_api.update_subcloud_endpoint_status. \
                 assert_has_calls(expected_calls)
 
@@ -257,8 +256,8 @@ class TestKubernetesAudit(base.DCManagerTestCase):
             expected_calls = [
                 mock.call(mock.ANY,
                           subcloud_name=name,
-                          endpoint_type=dcorch_consts.ENDPOINT_TYPE_KUBERNETES,
-                          sync_status=consts.SYNC_STATUS_IN_SYNC)]
+                          endpoint_type=dccommon_consts.ENDPOINT_TYPE_KUBERNETES,
+                          sync_status=dccommon_consts.SYNC_STATUS_IN_SYNC)]
             self.fake_dcmanager_state_api.update_subcloud_endpoint_status. \
                 assert_has_calls(expected_calls)
 
@@ -292,7 +291,7 @@ class TestKubernetesAudit(base.DCManagerTestCase):
             expected_calls = [
                 mock.call(mock.ANY,
                           subcloud_name=name,
-                          endpoint_type=dcorch_consts.ENDPOINT_TYPE_KUBERNETES,
-                          sync_status=consts.SYNC_STATUS_OUT_OF_SYNC)]
+                          endpoint_type=dccommon_consts.ENDPOINT_TYPE_KUBERNETES,
+                          sync_status=dccommon_consts.SYNC_STATUS_OUT_OF_SYNC)]
             self.fake_dcmanager_state_api.update_subcloud_endpoint_status. \
                 assert_has_calls(expected_calls)

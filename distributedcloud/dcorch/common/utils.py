@@ -1,4 +1,5 @@
 # Copyright 2015 Huawei Technologies Co., Ltd.
+# Copyright (c) 2018-2022 Wind River Systems, Inc.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -16,6 +17,7 @@
 import itertools
 import six.moves
 
+from dccommon import consts as dccommon_consts
 from dcorch.common import consts
 from dcorch.common import exceptions
 from dcorch.objects import orchjob
@@ -42,9 +44,9 @@ def get_batch_projects(batch_size, project_list, fillvalue=None):
 def validate_quota_limits(payload):
     for rsrc in payload:
         # Check valid resource name
-        if rsrc not in itertools.chain(consts.CINDER_QUOTA_FIELDS,
-                                       consts.NOVA_QUOTA_FIELDS,
-                                       consts.NEUTRON_QUOTA_FIELDS):
+        if rsrc not in itertools.chain(dccommon_consts.CINDER_QUOTA_FIELDS,
+                                       dccommon_consts.NOVA_QUOTA_FIELDS,
+                                       dccommon_consts.NEUTRON_QUOTA_FIELDS):
             raise exceptions.InvalidInputError
         # Check valid quota limit value in case for put/post
         if isinstance(payload, dict) and (not isinstance(

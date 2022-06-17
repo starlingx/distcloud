@@ -1,4 +1,4 @@
-# Copyright 2017-2019 Wind River
+# Copyright 2017-2022 Wind River
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -15,6 +15,7 @@
 
 import routes
 
+from dccommon import consts as dccommon_consts
 from dcorch.api.proxy.apps.controller import CinderAPIController
 from dcorch.api.proxy.apps.controller import ComputeAPIController
 from dcorch.api.proxy.apps.controller import IdentityAPIController
@@ -44,10 +45,10 @@ class Acceptor(Router):
         self._default_dispatcher = APIDispatcher(app)
         self.forwarder_map = {
             consts.ENDPOINT_TYPE_COMPUTE: self._default_dispatcher,
-            consts.ENDPOINT_TYPE_PLATFORM: self._default_dispatcher,
+            dccommon_consts.ENDPOINT_TYPE_PLATFORM: self._default_dispatcher,
             consts.ENDPOINT_TYPE_VOLUME: self._default_dispatcher,
             consts.ENDPOINT_TYPE_NETWORK: self._default_dispatcher,
-            consts.ENDPOINT_TYPE_IDENTITY: self._default_dispatcher,
+            dccommon_consts.ENDPOINT_TYPE_IDENTITY: self._default_dispatcher,
         }
         if CONF.type in self.forwarder_map:
             forwarder = self.forwarder_map[CONF.type]
@@ -56,11 +57,11 @@ class Acceptor(Router):
 
         self.route_map = {
             consts.ENDPOINT_TYPE_COMPUTE: self.add_compute_routes,
-            consts.ENDPOINT_TYPE_PLATFORM: self.add_platform_routes,
+            dccommon_consts.ENDPOINT_TYPE_PLATFORM: self.add_platform_routes,
             consts.ENDPOINT_TYPE_VOLUME: self.add_volume_routes,
             consts.ENDPOINT_TYPE_NETWORK: self.add_network_routes,
-            consts.ENDPOINT_TYPE_PATCHING: self.add_patch_routes,
-            consts.ENDPOINT_TYPE_IDENTITY: self.add_identity_routes,
+            dccommon_consts.ENDPOINT_TYPE_PATCHING: self.add_patch_routes,
+            dccommon_consts.ENDPOINT_TYPE_IDENTITY: self.add_identity_routes,
         }
         self._conf = conf
         mapper = routes.Mapper()

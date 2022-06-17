@@ -23,6 +23,7 @@ import time
 from keystoneauth1 import exceptions as keystone_exceptions
 from oslo_log import log as logging
 
+from dccommon import consts as dccommon_consts
 from dccommon.drivers.openstack import patching_v1
 from dccommon.drivers.openstack.patching_v1 import PatchingClient
 from dccommon.drivers.openstack.sdk_platform import OpenStackDriver
@@ -91,7 +92,7 @@ class PatchOrchThread(threading.Thread):
         LOG.info("PatchOrchThread Stopped")
 
     @staticmethod
-    def get_ks_client(region_name=consts.DEFAULT_REGION_NAME):
+    def get_ks_client(region_name=dccommon_consts.DEFAULT_REGION_NAME):
         """This will get a cached keystone client (and token)"""
         try:
             os_client = OpenStackDriver(
@@ -102,17 +103,17 @@ class PatchOrchThread(threading.Thread):
             LOG.warn('Failure initializing KeystoneClient %s' % region_name)
             raise
 
-    def get_sysinv_client(self, region_name=consts.DEFAULT_REGION_NAME):
+    def get_sysinv_client(self, region_name=dccommon_consts.DEFAULT_REGION_NAME):
         ks_client = self.get_ks_client(region_name)
         return SysinvClient(region_name, ks_client.session,
                             endpoint=ks_client.endpoint_cache.get_endpoint('sysinv'))
 
-    def get_patching_client(self, region_name=consts.DEFAULT_REGION_NAME):
+    def get_patching_client(self, region_name=dccommon_consts.DEFAULT_REGION_NAME):
         ks_client = self.get_ks_client(region_name)
         return PatchingClient(region_name, ks_client.session,
                               endpoint=ks_client.endpoint_cache.get_endpoint('patching'))
 
-    def get_vim_client(self, region_name=consts.DEFAULT_REGION_NAME):
+    def get_vim_client(self, region_name=dccommon_consts.DEFAULT_REGION_NAME):
         ks_client = self.get_ks_client(region_name)
         return vim.VimClient(region_name, ks_client.session,
                              endpoint=ks_client.endpoint_cache.get_endpoint('vim'))
@@ -122,7 +123,7 @@ class PatchOrchThread(threading.Thread):
         """Get the region name for a strategy step"""
         if strategy_step.subcloud_id is None:
             # This is the SystemController.
-            return consts.DEFAULT_REGION_NAME
+            return dccommon_consts.DEFAULT_REGION_NAME
         else:
             return strategy_step.subcloud.name
 
@@ -151,7 +152,7 @@ class PatchOrchThread(threading.Thread):
         """Query the RegionOne to determine what patches should be applied/committed."""
 
         self.regionone_patches = \
-            self.get_patching_client(consts.DEFAULT_REGION_NAME).query()
+            self.get_patching_client(dccommon_consts.DEFAULT_REGION_NAME).query()
         LOG.debug("regionone_patches: %s" % self.regionone_patches)
 
         # Build lists of patches that should be applied in this subcloud,
@@ -169,7 +170,7 @@ class PatchOrchThread(threading.Thread):
 
         # Then query RegionOne to determine what patches should be committed.
         regionone_committed_patches = self.get_patching_client(
-            consts.DEFAULT_REGION_NAME).query(
+            dccommon_consts.DEFAULT_REGION_NAME).query(
                 state=patching_v1.PATCH_STATE_COMMITTED)
         LOG.debug("regionone_committed_patches: %s" %
                   regionone_committed_patches)
@@ -334,7 +335,7 @@ class PatchOrchThread(threading.Thread):
                     # started, it will be allowed to complete.
                     if strategy_step.subcloud_id is not None and \
                             strategy_step.subcloud.management_state == \
-                            consts.MANAGEMENT_UNMANAGED:
+                            dccommon_consts.MANAGEMENT_UNMANAGED:
                         message = ("Subcloud %s is unmanaged." %
                                    strategy_step.subcloud.name)
                         LOG.warn(message)

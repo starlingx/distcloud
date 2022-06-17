@@ -1,5 +1,5 @@
 # Copyright 2017 Ericsson AB.
-# Copyright (c) 2017-2021 Wind River Systems, Inc.
+# Copyright (c) 2017-2022 Wind River Systems, Inc.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -20,6 +20,7 @@ import threading
 
 from oslo_log import log as logging
 
+from dccommon import consts as dccommon_consts
 from dcmanager.audit import rpcapi as dcmanager_audit_rpc_client
 from dcmanager.common import consts
 from dcmanager.common import exceptions
@@ -35,7 +36,6 @@ from dcmanager.orchestrator.kube_upgrade_orch_thread \
 from dcmanager.orchestrator.patch_orch_thread import PatchOrchThread
 from dcmanager.orchestrator.prestage_orch_thread import PrestageOrchThread
 from dcmanager.orchestrator.sw_upgrade_orch_thread import SwUpgradeOrchThread
-from dcorch.common import consts as dcorch_consts
 
 LOG = logging.getLogger(__name__)
 
@@ -113,56 +113,56 @@ class SwUpdateManager(manager.Manager):
         """
         if strategy_type == consts.SW_UPDATE_TYPE_PATCH:
             return (subcloud_status.endpoint_type ==
-                    dcorch_consts.ENDPOINT_TYPE_PATCHING and
+                    dccommon_consts.ENDPOINT_TYPE_PATCHING and
                     subcloud_status.sync_status ==
-                    consts.SYNC_STATUS_OUT_OF_SYNC)
+                    dccommon_consts.SYNC_STATUS_OUT_OF_SYNC)
         elif strategy_type == consts.SW_UPDATE_TYPE_UPGRADE:
             # force option only has an effect in offline case for upgrade
-            if force and (availability_status != consts.AVAILABILITY_ONLINE):
+            if force and (availability_status != dccommon_consts.AVAILABILITY_ONLINE):
                 return (subcloud_status.endpoint_type ==
-                        dcorch_consts.ENDPOINT_TYPE_LOAD and
+                        dccommon_consts.ENDPOINT_TYPE_LOAD and
                         subcloud_status.sync_status !=
-                        consts.SYNC_STATUS_IN_SYNC)
+                        dccommon_consts.SYNC_STATUS_IN_SYNC)
             else:
                 return (subcloud_status.endpoint_type ==
-                        dcorch_consts.ENDPOINT_TYPE_LOAD and
+                        dccommon_consts.ENDPOINT_TYPE_LOAD and
                         subcloud_status.sync_status ==
-                        consts.SYNC_STATUS_OUT_OF_SYNC)
+                        dccommon_consts.SYNC_STATUS_OUT_OF_SYNC)
         elif strategy_type == consts.SW_UPDATE_TYPE_FIRMWARE:
             return (subcloud_status.endpoint_type ==
-                    dcorch_consts.ENDPOINT_TYPE_FIRMWARE and
+                    dccommon_consts.ENDPOINT_TYPE_FIRMWARE and
                     subcloud_status.sync_status ==
-                    consts.SYNC_STATUS_OUT_OF_SYNC)
+                    dccommon_consts.SYNC_STATUS_OUT_OF_SYNC)
         elif strategy_type == consts.SW_UPDATE_TYPE_KUBERNETES:
             if force:
                 # run for in-sync and out-of-sync (but not unknown)
                 return (subcloud_status.endpoint_type ==
-                        dcorch_consts.ENDPOINT_TYPE_KUBERNETES and
+                        dccommon_consts.ENDPOINT_TYPE_KUBERNETES and
                         subcloud_status.sync_status !=
-                        consts.SYNC_STATUS_UNKNOWN)
+                        dccommon_consts.SYNC_STATUS_UNKNOWN)
             else:
                 return (subcloud_status.endpoint_type ==
-                        dcorch_consts.ENDPOINT_TYPE_KUBERNETES and
+                        dccommon_consts.ENDPOINT_TYPE_KUBERNETES and
                         subcloud_status.sync_status ==
-                        consts.SYNC_STATUS_OUT_OF_SYNC)
+                        dccommon_consts.SYNC_STATUS_OUT_OF_SYNC)
         elif strategy_type == consts.SW_UPDATE_TYPE_KUBE_ROOTCA_UPDATE:
             if force:
                 # run for in-sync and out-of-sync (but not unknown)
                 return (subcloud_status.endpoint_type ==
-                        dcorch_consts.ENDPOINT_TYPE_KUBE_ROOTCA and
+                        dccommon_consts.ENDPOINT_TYPE_KUBE_ROOTCA and
                         subcloud_status.sync_status !=
-                        consts.SYNC_STATUS_UNKNOWN)
+                        dccommon_consts.SYNC_STATUS_UNKNOWN)
             else:
                 return (subcloud_status.endpoint_type ==
-                        dcorch_consts.ENDPOINT_TYPE_KUBE_ROOTCA and
+                        dccommon_consts.ENDPOINT_TYPE_KUBE_ROOTCA and
                         subcloud_status.sync_status ==
-                        consts.SYNC_STATUS_OUT_OF_SYNC)
+                        dccommon_consts.SYNC_STATUS_OUT_OF_SYNC)
         elif strategy_type == consts.SW_UPDATE_TYPE_PRESTAGE:
             # For prestage we reuse the ENDPOINT_TYPE_LOAD.
             # We just need to key off a unique endpoint,
             # so that the strategy is created only once.
             return (subcloud_status.endpoint_type
-                    == dcorch_consts.ENDPOINT_TYPE_LOAD)
+                    == dccommon_consts.ENDPOINT_TYPE_LOAD)
         # Unimplemented strategy_type status check. Log an error
         LOG.error("_validate_subcloud_status_sync for %s not implemented" %
                   strategy_type)
@@ -311,7 +311,7 @@ class SwUpdateManager(manager.Manager):
         # todo(abailey): refactor this code to use classes
         cloud_name = payload.get('cloud_name')
         prestage_global_validated = False
-        if cloud_name and cloud_name != consts.SYSTEM_CONTROLLER_NAME:
+        if cloud_name and cloud_name != dccommon_consts.SYSTEM_CONTROLLER_NAME:
             # Make sure subcloud exists
             try:
                 subcloud = db_api.subcloud_get_by_name(context, cloud_name)
@@ -323,15 +323,15 @@ class SwUpdateManager(manager.Manager):
             if strategy_type == consts.SW_UPDATE_TYPE_UPGRADE:
                 # Make sure subcloud requires upgrade
                 subcloud_status = db_api.subcloud_status_get(
-                    context, subcloud.id, dcorch_consts.ENDPOINT_TYPE_LOAD)
-                if subcloud_status.sync_status == consts.SYNC_STATUS_IN_SYNC:
+                    context, subcloud.id, dccommon_consts.ENDPOINT_TYPE_LOAD)
+                if subcloud_status.sync_status == dccommon_consts.SYNC_STATUS_IN_SYNC:
                     raise exceptions.BadRequest(
                         resource='strategy',
                         msg='Subcloud %s does not require upgrade' % cloud_name)
             elif strategy_type == consts.SW_UPDATE_TYPE_FIRMWARE:
                 subcloud_status = db_api.subcloud_status_get(
-                    context, subcloud.id, dcorch_consts.ENDPOINT_TYPE_FIRMWARE)
-                if subcloud_status.sync_status == consts.SYNC_STATUS_IN_SYNC:
+                    context, subcloud.id, dccommon_consts.ENDPOINT_TYPE_FIRMWARE)
+                if subcloud_status.sync_status == dccommon_consts.SYNC_STATUS_IN_SYNC:
                     raise exceptions.BadRequest(
                         resource='strategy',
                         msg='Subcloud %s does not require firmware update'
@@ -343,8 +343,8 @@ class SwUpdateManager(manager.Manager):
                 else:
                     subcloud_status = db_api.subcloud_status_get(
                         context, subcloud.id,
-                        dcorch_consts.ENDPOINT_TYPE_KUBERNETES)
-                    if subcloud_status.sync_status == consts.SYNC_STATUS_IN_SYNC:
+                        dccommon_consts.ENDPOINT_TYPE_KUBERNETES)
+                    if subcloud_status.sync_status == dccommon_consts.SYNC_STATUS_IN_SYNC:
                         raise exceptions.BadRequest(
                             resource='strategy',
                             msg='Subcloud %s does not require kubernetes update'
@@ -356,8 +356,8 @@ class SwUpdateManager(manager.Manager):
                 else:
                     subcloud_status = db_api.subcloud_status_get(
                         context, subcloud.id,
-                        dcorch_consts.ENDPOINT_TYPE_KUBE_ROOTCA)
-                    if subcloud_status.sync_status == consts.SYNC_STATUS_IN_SYNC:
+                        dccommon_consts.ENDPOINT_TYPE_KUBE_ROOTCA)
+                    if subcloud_status.sync_status == dccommon_consts.SYNC_STATUS_IN_SYNC:
                         raise exceptions.BadRequest(
                             resource='strategy',
                             msg='Subcloud %s does not require kube rootca update'
@@ -365,8 +365,8 @@ class SwUpdateManager(manager.Manager):
             elif strategy_type == consts.SW_UPDATE_TYPE_PATCH:
                 # Make sure subcloud requires patching
                 subcloud_status = db_api.subcloud_status_get(
-                    context, subcloud.id, dcorch_consts.ENDPOINT_TYPE_PATCHING)
-                if subcloud_status.sync_status == consts.SYNC_STATUS_IN_SYNC:
+                    context, subcloud.id, dccommon_consts.ENDPOINT_TYPE_PATCHING)
+                if subcloud_status.sync_status == dccommon_consts.SYNC_STATUS_IN_SYNC:
                     raise exceptions.BadRequest(
                         resource='strategy',
                         msg='Subcloud %s does not require patching' % cloud_name)
@@ -428,62 +428,62 @@ class SwUpdateManager(manager.Manager):
         subclouds_processed = list()
         for subcloud, subcloud_status in subclouds:
             if (cloud_name and subcloud.name != cloud_name or
-                    subcloud.management_state != consts.MANAGEMENT_MANAGED):
+                    subcloud.management_state != dccommon_consts.MANAGEMENT_MANAGED):
                 # We are not updating this subcloud
                 continue
 
             if strategy_type == consts.SW_UPDATE_TYPE_UPGRADE:
-                if subcloud.availability_status != consts.AVAILABILITY_ONLINE:
+                if subcloud.availability_status != dccommon_consts.AVAILABILITY_ONLINE:
                     if not force:
                         continue
                 elif (subcloud_status.endpoint_type ==
-                      dcorch_consts.ENDPOINT_TYPE_LOAD and
+                      dccommon_consts.ENDPOINT_TYPE_LOAD and
                         subcloud_status.sync_status ==
-                        consts.SYNC_STATUS_UNKNOWN):
+                      dccommon_consts.SYNC_STATUS_UNKNOWN):
                     raise exceptions.BadRequest(
                         resource='strategy',
                         msg='Upgrade sync status is unknown for one or more '
                             'subclouds')
             elif strategy_type == consts.SW_UPDATE_TYPE_PATCH:
-                if subcloud.availability_status != consts.AVAILABILITY_ONLINE:
+                if subcloud.availability_status != dccommon_consts.AVAILABILITY_ONLINE:
                     continue
                 elif (subcloud_status.endpoint_type ==
-                      dcorch_consts.ENDPOINT_TYPE_PATCHING and
+                      dccommon_consts.ENDPOINT_TYPE_PATCHING and
                         subcloud_status.sync_status ==
-                        consts.SYNC_STATUS_UNKNOWN):
+                      dccommon_consts.SYNC_STATUS_UNKNOWN):
                     raise exceptions.BadRequest(
                         resource='strategy',
                         msg='Patching sync status is unknown for one or more '
                             'subclouds')
             elif strategy_type == consts.SW_UPDATE_TYPE_FIRMWARE:
-                if subcloud.availability_status != consts.AVAILABILITY_ONLINE:
+                if subcloud.availability_status != dccommon_consts.AVAILABILITY_ONLINE:
                     continue
                 elif (subcloud_status.endpoint_type ==
-                      dcorch_consts.ENDPOINT_TYPE_FIRMWARE and
+                      dccommon_consts.ENDPOINT_TYPE_FIRMWARE and
                         subcloud_status.sync_status ==
-                        consts.SYNC_STATUS_UNKNOWN):
+                      dccommon_consts.SYNC_STATUS_UNKNOWN):
                     raise exceptions.BadRequest(
                         resource='strategy',
                         msg='Firmware sync status is unknown for one or more '
                             'subclouds')
             elif strategy_type == consts.SW_UPDATE_TYPE_KUBERNETES:
-                if subcloud.availability_status != consts.AVAILABILITY_ONLINE:
+                if subcloud.availability_status != dccommon_consts.AVAILABILITY_ONLINE:
                     continue
                 elif (subcloud_status.endpoint_type ==
-                      dcorch_consts.ENDPOINT_TYPE_KUBERNETES and
+                      dccommon_consts.ENDPOINT_TYPE_KUBERNETES and
                         subcloud_status.sync_status ==
-                        consts.SYNC_STATUS_UNKNOWN):
+                      dccommon_consts.SYNC_STATUS_UNKNOWN):
                     raise exceptions.BadRequest(
                         resource='strategy',
                         msg='Kubernetes sync status is unknown for one or more '
                             'subclouds')
             elif strategy_type == consts.SW_UPDATE_TYPE_KUBE_ROOTCA_UPDATE:
-                if subcloud.availability_status != consts.AVAILABILITY_ONLINE:
+                if subcloud.availability_status != dccommon_consts.AVAILABILITY_ONLINE:
                     continue
                 elif (subcloud_status.endpoint_type ==
-                      dcorch_consts.ENDPOINT_TYPE_KUBE_ROOTCA and
+                      dccommon_consts.ENDPOINT_TYPE_KUBE_ROOTCA and
                         subcloud_status.sync_status ==
-                        consts.SYNC_STATUS_UNKNOWN):
+                      dccommon_consts.SYNC_STATUS_UNKNOWN):
                     raise exceptions.BadRequest(
                         resource='strategy',
                         msg='Kube rootca update sync status is unknown for '
@@ -551,11 +551,11 @@ class SwUpdateManager(manager.Manager):
             for subcloud in subclouds_list:
                 stage_updated = False
                 if (cloud_name and subcloud.name != cloud_name or
-                        subcloud.management_state != consts.MANAGEMENT_MANAGED):
+                        subcloud.management_state != dccommon_consts.MANAGEMENT_MANAGED):
                     # We are not targeting for update this subcloud
                     continue
 
-                if subcloud.availability_status != consts.AVAILABILITY_ONLINE:
+                if subcloud.availability_status != dccommon_consts.AVAILABILITY_ONLINE:
                     if strategy_type == consts.SW_UPDATE_TYPE_UPGRADE:
                         if not force:
                             continue

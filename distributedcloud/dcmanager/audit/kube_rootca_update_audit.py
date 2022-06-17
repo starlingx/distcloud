@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2021 Wind River Systems, Inc.
+# Copyright (c) 2021-2022 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -10,9 +10,9 @@ from oslo_log import log as logging
 from fm_api.constants import FM_ALARM_ID_CERT_EXPIRED
 from fm_api.constants import FM_ALARM_ID_CERT_EXPIRING_SOON
 
+from dccommon import consts as dccommon_consts
 from dccommon.drivers.openstack.fm import FmClient
 from dccommon.drivers.openstack.sdk_platform import OpenStackDriver
-from dcorch.common import consts as dcorch_consts
 
 from dcmanager.audit.auditor import Auditor
 
@@ -31,7 +31,7 @@ class KubeRootcaUpdateAudit(Auditor):
         super(KubeRootcaUpdateAudit, self).__init__(
             context,
             dcmanager_state_rpc_client,
-            dcorch_consts.ENDPOINT_TYPE_KUBE_ROOTCA
+            dccommon_consts.ENDPOINT_TYPE_KUBE_ROOTCA
         )
         self.audit_type = "kube rootca update"
         LOG.debug("%s audit initialized" % self.audit_type)

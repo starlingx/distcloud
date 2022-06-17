@@ -13,7 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-# Copyright (c) 2020 Wind River Systems, Inc.
+# Copyright (c) 2020-2022 Wind River Systems, Inc.
 #
 
 import eventlet
@@ -23,7 +23,6 @@ from oslo_utils import timeutils
 import random
 
 from dccommon import consts as dccommon_consts
-from dcmanager.common import consts as dcm_consts
 from dcorch.common import consts as dco_consts
 from dcorch.common import context
 from dcorch.common import exceptions
@@ -43,8 +42,8 @@ AUDIT_INTERVAL = 1200  # Default audit interval
 
 # sync object endpoint type and subclass mappings
 sync_object_class_map = {
-    dco_consts.ENDPOINT_TYPE_PLATFORM: SysinvSyncThread,
-    dco_consts.ENDPOINT_TYPE_IDENTITY: IdentitySyncThread,
+    dccommon_consts.ENDPOINT_TYPE_PLATFORM: SysinvSyncThread,
+    dccommon_consts.ENDPOINT_TYPE_IDENTITY: IdentitySyncThread,
     dccommon_consts.ENDPOINT_TYPE_IDENTITY_OS: IdentitySyncThread
 }
 
@@ -130,8 +129,8 @@ class GenericSyncManager(object):
         #
         subclouds = db_api.subcloud_get_all(
             self.context,
-            management_state=dcm_consts.MANAGEMENT_MANAGED,
-            availability_status=dcm_consts.AVAILABILITY_ONLINE,
+            management_state=dccommon_consts.MANAGEMENT_MANAGED,
+            availability_status=dccommon_consts.AVAILABILITY_ONLINE,
             initial_sync_state=dco_consts.INITIAL_SYNC_STATE_COMPLETED)
         # randomize to reduce likelihood of sync_lock contention
         random.shuffle(subclouds)
@@ -238,8 +237,8 @@ class GenericSyncManager(object):
         # first update the state of the subcloud
         self.update_subcloud_state(
             subcloud_name,
-            management_state=dcm_consts.MANAGEMENT_UNMANAGED,
-            availability_status=dcm_consts.AVAILABILITY_OFFLINE)
+            management_state=dccommon_consts.MANAGEMENT_UNMANAGED,
+            availability_status=dccommon_consts.AVAILABILITY_OFFLINE)
         # shutdown, optionally deleting queued work
         if subcloud_name not in self.sync_objs:
             LOG.error("Subcloud %s sync_objs do not exist" % subcloud_name)
@@ -255,7 +254,7 @@ class GenericSyncManager(object):
         # Someone has enqueued a sync job. set the endpoint sync_request to
         # requested
         subclouds = db_api.subcloud_get_all(
-            ctxt, management_state=dcm_consts.MANAGEMENT_MANAGED)
+            ctxt, management_state=dccommon_consts.MANAGEMENT_MANAGED)
         for sc in subclouds:
             GenericSyncManager.set_sync_request(ctxt, sc.region_name,
                                                 endpoint_type)
@@ -337,14 +336,14 @@ class GenericSyncManager(object):
     def is_subcloud_managed(self, subcloud_name):
         # is this subcloud managed
         sc = subcloud.Subcloud.get_by_name(self.context, subcloud_name)
-        return sc.management_state == dcm_consts.MANAGEMENT_MANAGED
+        return sc.management_state == dccommon_consts.MANAGEMENT_MANAGED
 
     def is_subcloud_enabled(self, subcloud_name):
         # is this subcloud enabled
         sc = subcloud.Subcloud.get_by_name(self.context, subcloud_name)
         # We only enable syncing if the subcloud is online and the initial
         # sync has completed.
-        if (sc.availability_status == dcm_consts.AVAILABILITY_ONLINE and
+        if (sc.availability_status == dccommon_consts.AVAILABILITY_ONLINE and
            sc.initial_sync_state == dco_consts.INITIAL_SYNC_STATE_COMPLETED):
             return True
         else:
@@ -550,8 +549,8 @@ class GenericSyncManager(object):
         # get a list of subclouds that are enabled
         subclouds = db_api.subcloud_get_all(
             self.context,
-            management_state=dcm_consts.MANAGEMENT_MANAGED,
-            availability_status=dcm_consts.AVAILABILITY_ONLINE,
+            management_state=dccommon_consts.MANAGEMENT_MANAGED,
+            availability_status=dccommon_consts.AVAILABILITY_ONLINE,
             initial_sync_state=dco_consts.INITIAL_SYNC_STATE_COMPLETED)
 
         # randomize to reduce likelihood of sync_lock contention

@@ -34,7 +34,6 @@ from dccommon.drivers.openstack import vim
 from dcmanager.common import consts
 from dcmanager.common import exceptions
 from dcmanager.db import api as db_api
-from dcorch.common import consts as dcorch_consts
 
 LOG = logging.getLogger(__name__)
 
@@ -175,9 +174,9 @@ def validate_expiry_date(expiry_date):
 def validate_quota_limits(payload):
     for resource in payload:
         # Check valid resource name
-        if resource not in itertools.chain(dcorch_consts.CINDER_QUOTA_FIELDS,
-                                           dcorch_consts.NOVA_QUOTA_FIELDS,
-                                           dcorch_consts.NEUTRON_QUOTA_FIELDS):
+        if resource not in itertools.chain(dccommon_consts.CINDER_QUOTA_FIELDS,
+                                           dccommon_consts.NOVA_QUOTA_FIELDS,
+                                           dccommon_consts.NEUTRON_QUOTA_FIELDS):
             raise exceptions.InvalidInputError
         # Check valid quota limit value in case for put/post
         if isinstance(payload, dict) and (not isinstance(

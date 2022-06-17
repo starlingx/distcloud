@@ -26,6 +26,7 @@ import six
 from six.moves import http_client
 import webtest
 
+from dccommon import consts as dccommon_consts
 from dcmanager.api.controllers.v1 import subclouds
 from dcmanager.common import consts
 from dcmanager.common import prestage
@@ -98,11 +99,11 @@ class Subcloud(object):
         self.name = data['name']
         self.description = data['description']
         self.location = data['location']
-        self.management_state = consts.MANAGEMENT_UNMANAGED
+        self.management_state = dccommon_consts.MANAGEMENT_UNMANAGED
         if is_online:
-            self.availability_status = consts.AVAILABILITY_ONLINE
+            self.availability_status = dccommon_consts.AVAILABILITY_ONLINE
         else:
-            self.availability_status = consts.AVAILABILITY_OFFLINE
+            self.availability_status = dccommon_consts.AVAILABILITY_OFFLINE
         self.deploy_status = data['deploy_status']
         self.management_subnet = data['management_subnet']
         self.management_gateway_ip = data['management_gateway_address']
@@ -876,7 +877,7 @@ class TestSubcloudAPIOther(testroot.DCManagerApiTest):
                                                         mock_get_oam_addresses):
         subcloud = fake_subcloud.create_fake_subcloud(self.ctx)
         updated_subcloud = db_api.subcloud_update(
-            self.ctx, subcloud.id, availability_status=consts.AVAILABILITY_ONLINE)
+            self.ctx, subcloud.id, availability_status=dccommon_consts.AVAILABILITY_ONLINE)
 
         get_url = FAKE_URL + '/' + str(updated_subcloud.id) + '/detail'
         oam_addresses = FakeOAMAddressPool('10.10.10.254',
@@ -910,7 +911,7 @@ class TestSubcloudAPIOther(testroot.DCManagerApiTest):
                                              mock_get_oam_addresses):
         subcloud = fake_subcloud.create_fake_subcloud(self.ctx)
         updated_subcloud = db_api.subcloud_update(
-            self.ctx, subcloud.id, availability_status=consts.AVAILABILITY_ONLINE)
+            self.ctx, subcloud.id, availability_status=dccommon_consts.AVAILABILITY_ONLINE)
 
         get_url = FAKE_URL + '/' + str(updated_subcloud.id) + '/detail'
         mock_get_oam_addresses.return_value = None
@@ -938,7 +939,7 @@ class TestSubcloudAPIOther(testroot.DCManagerApiTest):
     def test_patch_subcloud(self, mock_get_patch_data,
                             mock_rpc_client):
         subcloud = fake_subcloud.create_fake_subcloud(self.ctx)
-        data = {'management-state': consts.MANAGEMENT_UNMANAGED}
+        data = {'management-state': dccommon_consts.MANAGEMENT_UNMANAGED}
         mock_rpc_client().update_subcloud.return_value = True
         mock_get_patch_data.return_value = data
         response = self.app.patch_json(FAKE_URL + '/' + str(subcloud.id),
@@ -948,7 +949,7 @@ class TestSubcloudAPIOther(testroot.DCManagerApiTest):
 
         # Verify subcloud was updated with correct values
         updated_subcloud = db_api.subcloud_get_by_name(self.ctx, subcloud.name)
-        self.assertEqual(consts.MANAGEMENT_UNMANAGED,
+        self.assertEqual(dccommon_consts.MANAGEMENT_UNMANAGED,
                          updated_subcloud.management_state)
 
     @mock.patch.object(rpc_client, 'ManagerClient')
@@ -1147,7 +1148,7 @@ class TestSubcloudAPIOther(testroot.DCManagerApiTest):
     def test_patch_subcloud_bad_force_value(self, mock_get_patch_data,
                                             mock_rpc_client):
         subcloud = fake_subcloud.create_fake_subcloud(self.ctx)
-        data = {'management-state': consts.MANAGEMENT_MANAGED,
+        data = {'management-state': dccommon_consts.MANAGEMENT_MANAGED,
                 'force': 'bad-value'}
         mock_get_patch_data.return_value = data
         six.assertRaisesRegex(self, webtest.app.AppError, "400 *",
@@ -1160,7 +1161,7 @@ class TestSubcloudAPIOther(testroot.DCManagerApiTest):
     def test_patch_subcloud_forced_unmanaged(self, mock_get_patch_data,
                                              mock_rpc_client):
         subcloud = fake_subcloud.create_fake_subcloud(self.ctx)
-        data = {'management-state': consts.MANAGEMENT_UNMANAGED,
+        data = {'management-state': dccommon_consts.MANAGEMENT_UNMANAGED,
                 'force': True}
         mock_get_patch_data.return_value = data
         six.assertRaisesRegex(self, webtest.app.AppError, "400 *",
@@ -1173,7 +1174,7 @@ class TestSubcloudAPIOther(testroot.DCManagerApiTest):
     def test_patch_subcloud_forced_manage(self, mock_get_patch_data,
                                           mock_rpc_client):
         subcloud = fake_subcloud.create_fake_subcloud(self.ctx)
-        data = {'management-state': consts.MANAGEMENT_MANAGED,
+        data = {'management-state': dccommon_consts.MANAGEMENT_MANAGED,
                 'force': True}
         mock_rpc_client().update_subcloud.return_value = True
         mock_get_patch_data.return_value = data
@@ -1183,7 +1184,7 @@ class TestSubcloudAPIOther(testroot.DCManagerApiTest):
         mock_rpc_client().update_subcloud.assert_called_once_with(
             mock.ANY,
             mock.ANY,
-            management_state=consts.MANAGEMENT_MANAGED,
+            management_state=dccommon_consts.MANAGEMENT_MANAGED,
             description=None,
             location=None,
             group_id=None,
@@ -1469,7 +1470,7 @@ class TestSubcloudAPIOther(testroot.DCManagerApiTest):
         subcloud = fake_subcloud.create_fake_subcloud(self.ctx)
         db_api.subcloud_update(self.ctx,
                                subcloud.id,
-                               availability_status=consts.AVAILABILITY_ONLINE)
+                               availability_status=dccommon_consts.AVAILABILITY_ONLINE)
         install_data = copy.copy(FAKE_SUBCLOUD_INSTALL_VALUES)
         reinstall_data = copy.copy(FAKE_SUBCLOUD_BOOTSTRAP_PAYLOAD)
         mock_get_request_data.return_value = reinstall_data
@@ -1614,7 +1615,7 @@ class TestSubcloudAPIOther(testroot.DCManagerApiTest):
         subcloud = fake_subcloud.create_fake_subcloud(self.ctx)
         db_api.subcloud_update(self.ctx,
                                subcloud.id,
-                               management_state=consts.MANAGEMENT_MANAGED)
+                               management_state=dccommon_consts.MANAGEMENT_MANAGED)
         restore_payload = copy.copy(self.FAKE_RESTORE_PAYLOAD)
 
         mock_rpc_client().restore_subcloud.return_value = True
@@ -1726,8 +1727,8 @@ class TestSubcloudAPIOther(testroot.DCManagerApiTest):
                                                  mock_rpc_client):
         subcloud = fake_subcloud.create_fake_subcloud(self.ctx)
         subcloud = db_api.subcloud_update(
-            self.ctx, subcloud.id, availability_status=consts.AVAILABILITY_ONLINE,
-            management_state=consts.MANAGEMENT_MANAGED)
+            self.ctx, subcloud.id, availability_status=dccommon_consts.AVAILABILITY_ONLINE,
+            management_state=dccommon_consts.MANAGEMENT_MANAGED)
 
         fake_password = (base64.b64encode('testpass'.encode("utf-8"))).decode('ascii')
         data = {'sysadmin_password': fake_password,
@@ -1758,8 +1759,8 @@ class TestSubcloudAPIOther(testroot.DCManagerApiTest):
 
         subcloud = fake_subcloud.create_fake_subcloud(self.ctx)
         subcloud = db_api.subcloud_update(
-            self.ctx, subcloud.id, availability_status=consts.AVAILABILITY_ONLINE,
-            management_state=consts.MANAGEMENT_UNMANAGED)
+            self.ctx, subcloud.id, availability_status=dccommon_consts.AVAILABILITY_ONLINE,
+            management_state=dccommon_consts.MANAGEMENT_UNMANAGED)
         fake_password = (base64.b64encode('testpass'.encode("utf-8"))).decode('ascii')
         data = {'sysadmin_password': fake_password}
         mock_controller_upgrade.return_value = list()
@@ -1781,8 +1782,8 @@ class TestSubcloudAPIOther(testroot.DCManagerApiTest):
 
         subcloud = fake_subcloud.create_fake_subcloud(self.ctx)
         subcloud = db_api.subcloud_update(
-            self.ctx, subcloud.id, availability_status=consts.AVAILABILITY_OFFLINE,
-            management_state=consts.MANAGEMENT_MANAGED)
+            self.ctx, subcloud.id, availability_status=dccommon_consts.AVAILABILITY_OFFLINE,
+            management_state=dccommon_consts.MANAGEMENT_MANAGED)
         fake_password = (base64.b64encode('testpass'.encode("utf-8"))).decode('ascii')
         data = {'sysadmin_password': fake_password}
         mock_controller_upgrade.return_value = list()
@@ -1805,8 +1806,8 @@ class TestSubcloudAPIOther(testroot.DCManagerApiTest):
                                       mock_rpc_client):
         subcloud = fake_subcloud.create_fake_subcloud(self.ctx)
         subcloud = db_api.subcloud_update(
-            self.ctx, subcloud.id, availability_status=consts.AVAILABILITY_ONLINE,
-            management_state=consts.MANAGEMENT_MANAGED)
+            self.ctx, subcloud.id, availability_status=dccommon_consts.AVAILABILITY_ONLINE,
+            management_state=dccommon_consts.MANAGEMENT_MANAGED)
 
         fake_password = (base64.b64encode('testpass'.encode("utf-8"))).decode('ascii')
         data = {'sysadmin_password': fake_password,
@@ -1835,8 +1836,8 @@ class TestSubcloudAPIOther(testroot.DCManagerApiTest):
 
         subcloud = fake_subcloud.create_fake_subcloud(self.ctx)
         subcloud = db_api.subcloud_update(
-            self.ctx, subcloud.id, availability_status=consts.AVAILABILITY_ONLINE,
-            management_state=consts.MANAGEMENT_MANAGED)
+            self.ctx, subcloud.id, availability_status=dccommon_consts.AVAILABILITY_ONLINE,
+            management_state=dccommon_consts.MANAGEMENT_MANAGED)
 
         fake_password = (base64.b64encode('testpass'.encode("utf-8"))).decode('ascii')
         data = {'sysadmin_password': fake_password,
@@ -1869,8 +1870,8 @@ class TestSubcloudAPIOther(testroot.DCManagerApiTest):
 
         subcloud = fake_subcloud.create_fake_subcloud(self.ctx)
         subcloud = db_api.subcloud_update(
-            self.ctx, subcloud.id, availability_status=consts.AVAILABILITY_ONLINE,
-            management_state=consts.MANAGEMENT_MANAGED)
+            self.ctx, subcloud.id, availability_status=dccommon_consts.AVAILABILITY_ONLINE,
+            management_state=dccommon_consts.MANAGEMENT_MANAGED)
 
         fake_password = (base64.b64encode('testpass'.encode("utf-8"))).decode('ascii')
         data = {'sysadmin_password': fake_password,
@@ -1899,8 +1900,8 @@ class TestSubcloudAPIOther(testroot.DCManagerApiTest):
 
         subcloud = fake_subcloud.create_fake_subcloud(self.ctx)
         subcloud = db_api.subcloud_update(
-            self.ctx, subcloud.id, availability_status=consts.AVAILABILITY_ONLINE,
-            management_state=consts.MANAGEMENT_MANAGED)
+            self.ctx, subcloud.id, availability_status=dccommon_consts.AVAILABILITY_ONLINE,
+            management_state=dccommon_consts.MANAGEMENT_MANAGED)
 
         fake_password = (base64.b64encode('testpass'.encode("utf-8"))).decode('ascii')
         data = {'sysadmin_password': fake_password,
@@ -1933,8 +1934,8 @@ class TestSubcloudAPIOther(testroot.DCManagerApiTest):
 
         subcloud = fake_subcloud.create_fake_subcloud(self.ctx)
         subcloud = db_api.subcloud_update(self.ctx, subcloud.id,
-                                          availability_status=consts.AVAILABILITY_ONLINE,
-                                          management_state=consts.MANAGEMENT_MANAGED,
+                                          availability_status=dccommon_consts.AVAILABILITY_ONLINE,
+                                          management_state=dccommon_consts.MANAGEMENT_MANAGED,
                                           deploy_status='NotAllowedState')
 
         fake_password = (base64.b64encode('testpass'.encode("utf-8"))).decode('ascii')

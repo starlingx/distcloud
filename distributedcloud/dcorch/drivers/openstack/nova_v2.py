@@ -1,5 +1,6 @@
 # Copyright 2016 Ericsson AB
-
+# Copyright (c) 2018-2022 Wind River Systems, Inc.
+#
 # Licensed under the Apache License, Version 2.0 (the "License"); you may
 # not use this file except in compliance with the License. You may obtain
 # a copy of the License at
@@ -15,7 +16,7 @@ import collections
 
 from oslo_log import log
 
-from dcorch.common import consts
+from dccommon import consts
 from dcorch.common import exceptions
 from dcorch.drivers import base
 

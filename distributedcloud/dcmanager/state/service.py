@@ -25,7 +25,7 @@ from oslo_log import log as logging
 import oslo_messaging
 from oslo_service import service
 
-from dcorch.common import consts as dcorch_consts
+from dccommon import consts as dccommon_consts
 
 from dcmanager.audit import rpcapi as dcmanager_audit_rpc_client
 from dcmanager.common import consts
@@ -112,8 +112,7 @@ class DCManagerStateService(service.Service):
     @request_context
     def update_subcloud_endpoint_status(self, context, subcloud_name=None,
                                         endpoint_type=None,
-                                        sync_status=consts.
-                                        SYNC_STATUS_OUT_OF_SYNC,
+                                        sync_status=dccommon_consts.SYNC_STATUS_OUT_OF_SYNC,
                                         alarmable=True,
                                         ignore_endpoints=None):
         # Updates subcloud endpoint sync status
@@ -131,20 +130,20 @@ class DCManagerStateService(service.Service):
 
         # If the patching sync status is being set to unknown, trigger the
         # patching audit so it can update the sync status ASAP.
-        if endpoint_type == dcorch_consts.ENDPOINT_TYPE_PATCHING and \
-                sync_status == consts.SYNC_STATUS_UNKNOWN:
+        if endpoint_type == dccommon_consts.ENDPOINT_TYPE_PATCHING and \
+                sync_status == dccommon_consts.SYNC_STATUS_UNKNOWN:
             self.audit_rpc_client.trigger_patch_audit(context)
 
         # If the firmware sync status is being set to unknown, trigger the
         # firmware audit so it can update the sync status ASAP.
-        if endpoint_type == dcorch_consts.ENDPOINT_TYPE_FIRMWARE and \
-                sync_status == consts.SYNC_STATUS_UNKNOWN:
+        if endpoint_type == dccommon_consts.ENDPOINT_TYPE_FIRMWARE and \
+                sync_status == dccommon_consts.SYNC_STATUS_UNKNOWN:
             self.audit_rpc_client.trigger_firmware_audit(context)
 
         # If the kubernetes sync status is being set to unknown, trigger the
         # kubernetes audit so it can update the sync status ASAP.
-        if endpoint_type == dcorch_consts.ENDPOINT_TYPE_KUBERNETES and \
-                sync_status == consts.SYNC_STATUS_UNKNOWN:
+        if endpoint_type == dccommon_consts.ENDPOINT_TYPE_KUBERNETES and \
+                sync_status == dccommon_consts.SYNC_STATUS_UNKNOWN:
             self.audit_rpc_client.trigger_kubernetes_audit(context)
 
         return

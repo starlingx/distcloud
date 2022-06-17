@@ -1,5 +1,5 @@
 # Copyright (c) 2017 Ericsson AB.
-# Copyright (c) 2017-2021 Wind River Systems, Inc.
+# Copyright (c) 2017-2022 Wind River Systems, Inc.
 # All Rights Reserved.
 #
 #    Licensed under the Apache License, Version 2.0 (the "License"); you may
@@ -24,7 +24,6 @@ from pecan import request
 
 from dccommon import consts as dccommon_consts
 from dcmanager.api.controllers import restcomm
-from dcmanager.common import consts
 from dcmanager.common import exceptions
 from dcmanager.common.i18n import _
 from dcmanager.common import utils
@@ -77,7 +76,7 @@ class SwUpdateOptionsController(object):
 
             return result
 
-        elif subcloud_ref == consts.DEFAULT_REGION_NAME:
+        elif subcloud_ref == dccommon_consts.DEFAULT_REGION_NAME:
             # Default options requested, guaranteed to succeed
 
             return utils.get_sw_update_opts(context)
@@ -121,7 +120,7 @@ class SwUpdateOptionsController(object):
         if not payload:
             pecan.abort(400, _('Body required'))
 
-        if subcloud_ref == consts.DEFAULT_REGION_NAME:
+        if subcloud_ref == dccommon_consts.DEFAULT_REGION_NAME:
 
             # update default options
             subcloud_name = dccommon_consts.SW_UPDATE_DEFAULT_TITLE
@@ -207,7 +206,7 @@ class SwUpdateOptionsController(object):
 
         context = restcomm.extract_context_from_environ()
 
-        if subcloud_ref == consts.DEFAULT_REGION_NAME:
+        if subcloud_ref == dccommon_consts.DEFAULT_REGION_NAME:
             # Delete defaults.
             # Note by deleting these, the next get will repopulate with
             # the global constants.

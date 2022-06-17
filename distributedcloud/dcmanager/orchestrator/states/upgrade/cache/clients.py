@@ -8,10 +8,10 @@ import socket
 from keystoneauth1 import exceptions as keystone_exceptions
 from oslo_log import log as logging
 
+from dccommon import consts as dccommon_consts
 from dccommon.drivers.openstack.patching_v1 import PatchingClient
 from dccommon.drivers.openstack.sdk_platform import OpenStackDriver
 from dccommon.drivers.openstack.sysinv_v1 import SysinvClient
-from dcmanager.common import consts
 
 LOG = logging.getLogger(__name__)
 
@@ -26,18 +26,18 @@ CLIENT_READ_MAX_ATTEMPTS = 2
 
 def get_sysinv_client():
     ks_client = get_keystone_client()
-    return SysinvClient(consts.DEFAULT_REGION_NAME, ks_client.session,
+    return SysinvClient(dccommon_consts.DEFAULT_REGION_NAME, ks_client.session,
                         endpoint=ks_client.endpoint_cache.get_endpoint('sysinv'),
                         timeout=CLIENT_READ_TIMEOUT_SECONDS)
 
 
 def get_patching_client():
     ks_client = get_keystone_client()
-    return PatchingClient(consts.DEFAULT_REGION_NAME, ks_client.session,
+    return PatchingClient(dccommon_consts.DEFAULT_REGION_NAME, ks_client.session,
                           endpoint=ks_client.endpoint_cache.get_endpoint('patching'))
 
 
-def get_keystone_client(region_name=consts.DEFAULT_REGION_NAME):
+def get_keystone_client(region_name=dccommon_consts.DEFAULT_REGION_NAME):
     """Construct a (cached) keystone client (and token)"""
 
     try:

@@ -1,10 +1,11 @@
 #
-# Copyright (c) 2020 Wind River Systems, Inc.
+# Copyright (c) 2020-2022 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
 import mock
 
+from dccommon import consts as dccommon_consts
 from dcmanager.common import consts
 from dcmanager.db.sqlalchemy import api as db_api
 from dcmanager.tests.unit.common import fake_strategy
@@ -452,7 +453,7 @@ class TestSwUpgradePreCheckSimplexStage(TestSwUpgradePreCheckStage):
         # Update the subcloud to be online
         db_api.subcloud_update(self.ctx,
                                self.subcloud.id,
-                               availability_status=consts.AVAILABILITY_ONLINE)
+                               availability_status=dccommon_consts.AVAILABILITY_ONLINE)
 
         # Create a fake strategy
         fake_strategy.create_fake_strategy_step(
@@ -561,7 +562,7 @@ class TestSwUpgradePreCheckSimplexStage(TestSwUpgradePreCheckStage):
         db_api.subcloud_update(self.ctx,
                                self.subcloud.id,
                                deploy_status=consts.DEPLOY_STATE_INSTALLED,
-                               availability_status=consts.AVAILABILITY_OFFLINE)
+                               availability_status=dccommon_consts.AVAILABILITY_OFFLINE)
 
         # invoke the strategy state operation on the orch thread
         self.worker.perform_state_action(self.strategy_step)
@@ -583,7 +584,7 @@ class TestSwUpgradePreCheckSimplexStage(TestSwUpgradePreCheckStage):
         db_api.subcloud_update(self.ctx,
                                self.subcloud.id,
                                deploy_status=consts.DEPLOY_STATE_DATA_MIGRATION_FAILED,
-                               availability_status=consts.AVAILABILITY_OFFLINE)
+                               availability_status=dccommon_consts.AVAILABILITY_OFFLINE)
 
         # invoke the strategy state operation on the orch thread
         self.worker.perform_state_action(self.strategy_step)
@@ -605,7 +606,7 @@ class TestSwUpgradePreCheckSimplexStage(TestSwUpgradePreCheckStage):
         db_api.subcloud_update(self.ctx,
                                self.subcloud.id,
                                deploy_status=consts.DEPLOY_STATE_BOOTSTRAP_FAILED,
-                               availability_status=consts.AVAILABILITY_OFFLINE)
+                               availability_status=dccommon_consts.AVAILABILITY_OFFLINE)
 
         # invoke the strategy state operation on the orch thread
         self.worker.perform_state_action(self.strategy_step)

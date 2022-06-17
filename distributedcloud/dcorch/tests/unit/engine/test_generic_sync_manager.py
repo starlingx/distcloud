@@ -1,4 +1,4 @@
-# Copyright (c) 2020-2021 Wind River Systems, Inc.
+# Copyright (c) 2020-2022 Wind River Systems, Inc.
 # Licensed under the Apache License, Version 2.0 (the "License"); you may
 # not use this file except in compliance with the License. You may obtain
 # a copy of the License at
@@ -14,7 +14,7 @@
 
 import mock
 
-from dcmanager.common import consts as dcm_consts
+from dccommon import consts as dccommon_consts
 from dcorch.common import consts
 from dcorch.common import exceptions
 from dcorch.db.sqlalchemy import api as db_api
@@ -46,8 +46,8 @@ class TestGenericSyncManager(base.OrchestratorTestCase):
     def create_subcloud_static(ctxt, name, **kwargs):
         values = {
             'software_version': '10.04',
-            'management_state': dcm_consts.MANAGEMENT_MANAGED,
-            'availability_status': dcm_consts.AVAILABILITY_ONLINE,
+            'management_state': dccommon_consts.MANAGEMENT_MANAGED,
+            'availability_status': dccommon_consts.AVAILABILITY_ONLINE,
             'initial_sync_state': '',
             'capabilities': {},
         }
@@ -85,8 +85,8 @@ class TestGenericSyncManager(base.OrchestratorTestCase):
         self.create_subcloud_static(
             self.ctx,
             name='subcloud1',
-            management_state=dcm_consts.MANAGEMENT_MANAGED,
-            availability_status=dcm_consts.AVAILABILITY_ONLINE,
+            management_state=dccommon_consts.MANAGEMENT_MANAGED,
+            availability_status=dccommon_consts.AVAILABILITY_ONLINE,
             initial_sync_state=consts.INITIAL_SYNC_STATE_REQUESTED)
 
         gsm = generic_sync_manager.GenericSyncManager(self.engine_id)
@@ -97,23 +97,23 @@ class TestGenericSyncManager(base.OrchestratorTestCase):
         # Compare all states (match)
         match = gsm.subcloud_state_matches(
             'subcloud1',
-            management_state=dcm_consts.MANAGEMENT_MANAGED,
-            availability_status=dcm_consts.AVAILABILITY_ONLINE,
+            management_state=dccommon_consts.MANAGEMENT_MANAGED,
+            availability_status=dccommon_consts.AVAILABILITY_ONLINE,
             initial_sync_state=consts.INITIAL_SYNC_STATE_REQUESTED)
         self.assertTrue(match)
 
         # Compare all states (not a match)
         match = gsm.subcloud_state_matches(
             'subcloud1',
-            management_state=dcm_consts.MANAGEMENT_MANAGED,
-            availability_status=dcm_consts.AVAILABILITY_OFFLINE,
+            management_state=dccommon_consts.MANAGEMENT_MANAGED,
+            availability_status=dccommon_consts.AVAILABILITY_OFFLINE,
             initial_sync_state=consts.INITIAL_SYNC_STATE_REQUESTED)
         self.assertFalse(match)
 
         # Compare one state (match)
         match = gsm.subcloud_state_matches(
             'subcloud1',
-            availability_status=dcm_consts.AVAILABILITY_ONLINE)
+            availability_status=dccommon_consts.AVAILABILITY_ONLINE)
         self.assertTrue(match)
 
         # Compare one state (not a match)
@@ -127,8 +127,8 @@ class TestGenericSyncManager(base.OrchestratorTestCase):
         self.create_subcloud_static(
             self.ctx,
             name='subcloud1',
-            management_state=dcm_consts.MANAGEMENT_MANAGED,
-            availability_status=dcm_consts.AVAILABILITY_ONLINE,
+            management_state=dccommon_consts.MANAGEMENT_MANAGED,
+            availability_status=dccommon_consts.AVAILABILITY_ONLINE,
             initial_sync_state=consts.INITIAL_SYNC_STATE_REQUESTED)
 
         gsm = generic_sync_manager.GenericSyncManager(self.engine_id)
@@ -141,8 +141,8 @@ class TestGenericSyncManager(base.OrchestratorTestCase):
             exceptions.SubcloudNotFound,
             gsm.subcloud_state_matches,
             'subcloud2',
-            management_state=dcm_consts.MANAGEMENT_MANAGED,
-            availability_status=dcm_consts.AVAILABILITY_ONLINE,
+            management_state=dccommon_consts.MANAGEMENT_MANAGED,
+            availability_status=dccommon_consts.AVAILABILITY_ONLINE,
             initial_sync_state=consts.INITIAL_SYNC_STATE_REQUESTED)
 
     def test_update_subcloud_state(self):
@@ -150,8 +150,8 @@ class TestGenericSyncManager(base.OrchestratorTestCase):
         self.create_subcloud_static(
             self.ctx,
             name='subcloud1',
-            management_state=dcm_consts.MANAGEMENT_MANAGED,
-            availability_status=dcm_consts.AVAILABILITY_ONLINE,
+            management_state=dccommon_consts.MANAGEMENT_MANAGED,
+            availability_status=dccommon_consts.AVAILABILITY_ONLINE,
             initial_sync_state=consts.INITIAL_SYNC_STATE_REQUESTED)
 
         gsm = generic_sync_manager.GenericSyncManager(self.engine_id)
@@ -162,28 +162,28 @@ class TestGenericSyncManager(base.OrchestratorTestCase):
         # Update all states
         gsm.update_subcloud_state(
             'subcloud1',
-            management_state=dcm_consts.MANAGEMENT_UNMANAGED,
-            availability_status=dcm_consts.AVAILABILITY_OFFLINE,
+            management_state=dccommon_consts.MANAGEMENT_UNMANAGED,
+            availability_status=dccommon_consts.AVAILABILITY_OFFLINE,
             initial_sync_state=consts.INITIAL_SYNC_STATE_COMPLETED)
 
         # Compare all states (match)
         match = gsm.subcloud_state_matches(
             'subcloud1',
-            management_state=dcm_consts.MANAGEMENT_UNMANAGED,
-            availability_status=dcm_consts.AVAILABILITY_OFFLINE,
+            management_state=dccommon_consts.MANAGEMENT_UNMANAGED,
+            availability_status=dccommon_consts.AVAILABILITY_OFFLINE,
             initial_sync_state=consts.INITIAL_SYNC_STATE_COMPLETED)
         self.assertTrue(match)
 
         # Update one state
         gsm.update_subcloud_state(
             'subcloud1',
-            availability_status=dcm_consts.AVAILABILITY_ONLINE)
+            availability_status=dccommon_consts.AVAILABILITY_ONLINE)
 
         # Compare all states (match)
         match = gsm.subcloud_state_matches(
             'subcloud1',
-            management_state=dcm_consts.MANAGEMENT_UNMANAGED,
-            availability_status=dcm_consts.AVAILABILITY_ONLINE,
+            management_state=dccommon_consts.MANAGEMENT_UNMANAGED,
+            availability_status=dccommon_consts.AVAILABILITY_ONLINE,
             initial_sync_state=consts.INITIAL_SYNC_STATE_COMPLETED)
         self.assertTrue(match)
 
@@ -192,8 +192,8 @@ class TestGenericSyncManager(base.OrchestratorTestCase):
         self.create_subcloud_static(
             self.ctx,
             name='subcloud1',
-            management_state=dcm_consts.MANAGEMENT_MANAGED,
-            availability_status=dcm_consts.AVAILABILITY_ONLINE,
+            management_state=dccommon_consts.MANAGEMENT_MANAGED,
+            availability_status=dccommon_consts.AVAILABILITY_ONLINE,
             initial_sync_state=consts.INITIAL_SYNC_STATE_REQUESTED)
 
         gsm = generic_sync_manager.GenericSyncManager(self.engine_id)
@@ -206,6 +206,6 @@ class TestGenericSyncManager(base.OrchestratorTestCase):
             exceptions.SubcloudNotFound,
             gsm.update_subcloud_state,
             'subcloud2',
-            management_state=dcm_consts.MANAGEMENT_MANAGED,
-            availability_status=dcm_consts.AVAILABILITY_ONLINE,
+            management_state=dccommon_consts.MANAGEMENT_MANAGED,
+            availability_status=dccommon_consts.AVAILABILITY_ONLINE,
             initial_sync_state=consts.INITIAL_SYNC_STATE_REQUESTED)

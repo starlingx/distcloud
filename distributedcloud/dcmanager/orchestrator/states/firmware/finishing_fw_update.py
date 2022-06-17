@@ -1,16 +1,16 @@
 #
-# Copyright (c) 2020-2021 Wind River Systems, Inc.
+# Copyright (c) 2020-2022 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
 import time
 
+from dccommon import consts as dccommon_consts
 from dcmanager.common import consts
 from dcmanager.common.exceptions import StrategyStoppedException
 from dcmanager.orchestrator.states.base import BaseState
 from dcmanager.orchestrator.states.firmware import utils
 from dcmanager.rpc import client as dcmanager_rpc_client
-from dcorch.common import consts as dcorch_consts
 
 # When an unlock occurs, a reboot is triggered. During reboot, API calls fail.
 # The max time allowed here is 30 minutes (ie: 30 queries with 1 minute sleep)
@@ -30,15 +30,15 @@ class FinishingFwUpdateState(BaseState):
     def align_subcloud_status(self, strategy_step):
         self.info_log(strategy_step,
                       "Setting endpoint status of %s to %s"
-                      % (dcorch_consts.ENDPOINT_TYPE_FIRMWARE,
-                         consts.SYNC_STATUS_IN_SYNC))
+                      % (dccommon_consts.ENDPOINT_TYPE_FIRMWARE,
+                         dccommon_consts.SYNC_STATUS_IN_SYNC))
         dcmanager_state_rpc_client = dcmanager_rpc_client.SubcloudStateClient()
         # The subcloud name is the same as the region in the strategy_step
         dcmanager_state_rpc_client.update_subcloud_endpoint_status(
             self.context,
             subcloud_name=self.get_region_name(strategy_step),
-            endpoint_type=dcorch_consts.ENDPOINT_TYPE_FIRMWARE,
-            sync_status=consts.SYNC_STATUS_IN_SYNC)
+            endpoint_type=dccommon_consts.ENDPOINT_TYPE_FIRMWARE,
+            sync_status=dccommon_consts.SYNC_STATUS_IN_SYNC)
 
     def perform_state_action(self, strategy_step):
         """Finish the firmware update.

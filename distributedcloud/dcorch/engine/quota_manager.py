@@ -1,4 +1,5 @@
 # Copyright 2016 Ericsson AB
+# Copyright (c) 2018-2022 Wind River Systems, Inc.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -270,13 +271,13 @@ class QuotaManager(manager.Manager):
         resource_with_service['cinder'] = collections.defaultdict(dict)
         resource_with_service['neutron'] = collections.defaultdict(dict)
         for limit in region_new_limit:
-            if limit in consts.NOVA_QUOTA_FIELDS:
+            if limit in dccommon_consts.NOVA_QUOTA_FIELDS:
                 resource_with_service['nova'].update(
                     {limit: region_new_limit[limit]})
-            elif limit in consts.CINDER_QUOTA_FIELDS:
+            elif limit in dccommon_consts.CINDER_QUOTA_FIELDS:
                 resource_with_service['cinder'].update(
                     {limit: region_new_limit[limit]})
-            elif limit in consts.NEUTRON_QUOTA_FIELDS:
+            elif limit in dccommon_consts.NEUTRON_QUOTA_FIELDS:
                 resource_with_service['neutron'].update(
                     {limit: region_new_limit[limit]})
         return resource_with_service

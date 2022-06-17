@@ -205,7 +205,7 @@ class SubcloudAuditWorkerManager(manager.Manager):
 
         service of servicegroup-list then declare the subcloud online.
         """
-        avail_to_set = consts.AVAILABILITY_OFFLINE
+        avail_to_set = dccommon_consts.AVAILABILITY_OFFLINE
         svc_groups = None
 
         # get a list of service groups in the subcloud
@@ -236,7 +236,7 @@ class SubcloudAuditWorkerManager(manager.Manager):
             # means we're good to go.
             if not inactive_only and active_sgs:
                 avail_to_set = \
-                    consts.AVAILABILITY_ONLINE
+                    dccommon_consts.AVAILABILITY_ONLINE
             else:
                 LOG.info("Subcloud:%s has non-active "
                          "service groups: %s" %
@@ -349,7 +349,7 @@ class SubcloudAuditWorkerManager(manager.Manager):
 
         sysinv_client = None
         fm_client = None
-        avail_to_set = consts.AVAILABILITY_OFFLINE
+        avail_to_set = dccommon_consts.AVAILABILITY_OFFLINE
 
         try:
             os_client = OpenStackDriver(region_name=subcloud_name,
@@ -358,7 +358,7 @@ class SubcloudAuditWorkerManager(manager.Manager):
             sysinv_client = os_client.sysinv_client
             fm_client = os_client.fm_client
         except keystone_exceptions.ConnectTimeout:
-            if avail_status_current == consts.AVAILABILITY_OFFLINE:
+            if avail_status_current == dccommon_consts.AVAILABILITY_OFFLINE:
                 LOG.debug("Identity or Platform endpoint for %s not "
                           "found, ignoring for offline "
                           "subcloud." % subcloud_name)
@@ -371,7 +371,7 @@ class SubcloudAuditWorkerManager(manager.Manager):
         except (keystone_exceptions.EndpointNotFound,
                 keystone_exceptions.ConnectFailure,
                 IndexError):
-            if avail_status_current == consts.AVAILABILITY_OFFLINE:
+            if avail_status_current == dccommon_consts.AVAILABILITY_OFFLINE:
                 LOG.info("Identity or Platform endpoint for %s not "
                          "found, ignoring for offline "
                          "subcloud." % subcloud_name)
@@ -392,19 +392,19 @@ class SubcloudAuditWorkerManager(manager.Manager):
             # is online (otherwise prestaging will fail):
             if subcloud.deploy_status in (consts.PRESTAGE_STATE_PACKAGES,
                                           consts.PRESTAGE_STATE_IMAGES):
-                avail_to_set = consts.AVAILABILITY_ONLINE
+                avail_to_set = dccommon_consts.AVAILABILITY_ONLINE
             else:
                 avail_to_set = self._get_subcloud_availability_status(
                     subcloud_name, sysinv_client)
 
-        if avail_to_set == consts.AVAILABILITY_OFFLINE:
+        if avail_to_set == dccommon_consts.AVAILABILITY_OFFLINE:
             if audit_fail_count < consts.AVAIL_FAIL_COUNT_MAX:
                 audit_fail_count = audit_fail_count + 1
-            if (avail_status_current == consts.AVAILABILITY_ONLINE) and \
+            if (avail_status_current == dccommon_consts.AVAILABILITY_ONLINE) and \
                     (audit_fail_count < consts.AVAIL_FAIL_COUNT_TO_ALARM):
                 # Do not set offline until we have failed audit
                 # the requisite number of times
-                avail_to_set = consts.AVAILABILITY_ONLINE
+                avail_to_set = dccommon_consts.AVAILABILITY_ONLINE
         else:
             # In the case of a one off blip, we may need to set the
             # fail count back to 0
@@ -412,7 +412,7 @@ class SubcloudAuditWorkerManager(manager.Manager):
 
         if avail_to_set != avail_status_current:
 
-            if avail_to_set == consts.AVAILABILITY_ONLINE:
+            if avail_to_set == dccommon_consts.AVAILABILITY_ONLINE:
                 audit_fail_count = 0
 
             LOG.debug('Setting new availability status: %s '
@@ -442,8 +442,8 @@ class SubcloudAuditWorkerManager(manager.Manager):
                 update_state_only=True)
 
         # If subcloud is managed and online, audit additional resources
-        if (subcloud.management_state == consts.MANAGEMENT_MANAGED and
-                avail_to_set == consts.AVAILABILITY_ONLINE):
+        if (subcloud.management_state == dccommon_consts.MANAGEMENT_MANAGED and
+                avail_to_set == dccommon_consts.AVAILABILITY_ONLINE):
             # Get alarm summary and store in db,
             if fm_client:
                 self.alarm_aggr.update_alarm_summary(subcloud_name, fm_client)
