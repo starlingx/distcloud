@@ -16,8 +16,8 @@ ACTIVATING_RETRY_STATES = ['activation-failed', ]
 
 ACTIVATING_IN_PROGRESS_STATES = ['activating', 'activating-hosts', ]
 
-# Max time: 45 minutes = 45 queries x 60 seconds sleep between queries
-DEFAULT_MAX_QUERIES = 45
+# Max time: 60 minutes = 60 queries x 60 seconds sleep between queries
+DEFAULT_MAX_QUERIES = 60
 DEFAULT_SLEEP_DURATION = 60
 MAX_FAILED_RETRIES = 10
 

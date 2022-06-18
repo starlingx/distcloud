@@ -77,19 +77,26 @@ class UnlockHostState(BaseState):
         # handle possible unlock failures that can occur in corner cases
         unlock_counter = 0
 
-        while True:
-            try:
-                response = self.get_sysinv_client(
-                    strategy_step.subcloud.name).unlock_host(host.id)
-                if (response.ihost_action != 'unlock' or response.task != 'Unlocking'):
-                    raise Exception("Unable to unlock host %s" % self.target_hostname)
-                break
-            except Exception as e:
-                if unlock_counter >= self.max_unlock_retries:
-                    raise
-                unlock_counter += 1
-                self.error_log(strategy_step, str(e))
-                time.sleep(self.unlock_sleep_duration)
+        # For simplex subcloud upgrade, the host unlock is already done
+        # in data migration step. If it gets here, the host is still
+        # in degraded state, skip the unlock and proceed to the wait loop
+        # below.
+        if host.administrative != consts.ADMIN_UNLOCKED:
+            while True:
+                try:
+                    response = self.get_sysinv_client(
+                        strategy_step.subcloud.name).unlock_host(host.id)
+                    if (response.ihost_action != 'unlock' or
+                            response.task != 'Unlocking'):
+                        raise Exception("Unable to unlock host %s"
+                                        % self.target_hostname)
+                    break
+                except Exception as e:
+                    if unlock_counter >= self.max_unlock_retries:
+                        raise
+                    unlock_counter += 1
+                    self.error_log(strategy_step, str(e))
+                    time.sleep(self.unlock_sleep_duration)
 
         # unlock triggers a reboot.
         # must ignore certain errors until the system completes the reboot
