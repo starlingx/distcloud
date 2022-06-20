@@ -86,6 +86,7 @@ class PatchOrchThread(threading.Thread):
         self._stop.set()
 
     def run(self):
+        LOG.info("PatchOrchThread Starting")
         self.patch_orch()
         # Stop any greenthreads that are still running
         self.thread_group_manager.stop()
@@ -291,6 +292,9 @@ class PatchOrchThread(threading.Thread):
                         self.context, state=consts.SW_UPDATE_STATE_COMPLETE)
             # Trigger patch audit to update the sync status for each subcloud.
             self.audit_rpc_client.trigger_patch_audit(self.context)
+            self.subcloud_workers.clear()
+            LOG.info("subcloud_workers list is cleared, workers_num: %d"
+                     % len(self.subcloud_workers))
             return
 
         if stop_after_stage is not None:
@@ -317,7 +321,8 @@ class PatchOrchThread(threading.Thread):
                 self.audit_rpc_client.trigger_patch_audit(self.context)
                 return
 
-        LOG.debug("Working on stage %d" % current_stage)
+        LOG.debug("Working on stage %d, num_workers: %d"
+                  % (current_stage, len(self.subcloud_workers)))
         for strategy_step in strategy_steps:
             if strategy_step.stage == current_stage:
                 region = self.get_region_name(strategy_step)
@@ -349,67 +354,49 @@ class PatchOrchThread(threading.Thread):
                     self.strategy_step_update(
                         strategy_step.subcloud_id,
                         state=consts.STRATEGY_STATE_UPDATING_PATCHES)
-                    if region in self.subcloud_workers:
-                        # A worker already exists. Let it finish whatever it
-                        # was doing.
-                        LOG.error("Worker should not exist for %s." % region)
-                    else:
-                        # Create a greenthread to do the update patches
-                        self.subcloud_workers[region] = \
-                            self.thread_group_manager.start(
-                                self.update_subcloud_patches,
-                                strategy_step)
-                        LOG.debug("Worker is created for %s in %s."
-                                  % (region, strategy_step.state))
+
+                    # Create a greenthread to do the update patches
+                    self._create_worker_thread(
+                        region, consts.STRATEGY_STATE_UPDATING_PATCHES,
+                        strategy_step, self.update_subcloud_patches)
 
                 elif strategy_step.state == \
                         consts.STRATEGY_STATE_UPDATING_PATCHES:
                     if region in self.subcloud_workers:
                         # The update is in progress
-                        LOG.debug("Update worker exists for %s." % region)
-                    else:
-                        # When the batch size is large, the subcloud state retrieved
-                        # at the beginning of the loop and stored in memory may be
-                        # stale for a subcloud by the time it processes that subcloud
-                        # The next time will update the state to its successor state
-                        LOG.debug("Updating patches step is complete for %s. "
-                                  "Orch thread has not caught up." % region)
+                        LOG.debug("Update patches is in progress for %s."
+                                  % region)
 
                 elif strategy_step.state == \
                         consts.STRATEGY_STATE_CREATING_STRATEGY:
-                    if region in self.subcloud_workers:
-                        # The create is in progress
-                        LOG.debug("Create strategy worker exists for %s." %
-                                  region)
+                    if self.subcloud_workers[region][0] != \
+                            consts.STRATEGY_STATE_CREATING_STRATEGY:
+                        self._create_worker_thread(
+                            region, consts.STRATEGY_STATE_CREATING_STRATEGY,
+                            strategy_step, self.create_subcloud_strategy)
                     else:
-                        # Create a greenthread to do the create strategy
-                        self.subcloud_workers[region] = \
-                            self.thread_group_manager.start(
-                                self.create_subcloud_strategy,
-                                strategy_step)
+                        LOG.debug("Creating strategy is in progress for %s."
+                                  % region)
                 elif strategy_step.state == \
                         consts.STRATEGY_STATE_APPLYING_STRATEGY:
-                    if region in self.subcloud_workers:
-                        # The apply is in progress
-                        LOG.debug("Apply strategy worker exists for %s." %
-                                  region)
+                    if self.subcloud_workers[region][0] != \
+                            consts.STRATEGY_STATE_APPLYING_STRATEGY:
+                        self._create_worker_thread(
+                            region, consts.STRATEGY_STATE_APPLYING_STRATEGY,
+                            strategy_step, self.apply_subcloud_strategy)
                     else:
-                        # Create a greenthread to do the apply strategy
-                        self.subcloud_workers[region] = \
-                            self.thread_group_manager.start(
-                                self.apply_subcloud_strategy,
-                                strategy_step)
+                        LOG.debug("Applying strategy is in progress for %s."
+                                  % region)
                 elif strategy_step.state == \
                         consts.STRATEGY_STATE_FINISHING:
-                    if region in self.subcloud_workers:
-                        # The finish is in progress
-                        LOG.debug("Finish worker exists for %s." % region)
+                    if self.subcloud_workers[region][0] != \
+                            consts.STRATEGY_STATE_FINISHING:
+                        self._create_worker_thread(
+                            region, consts.STRATEGY_STATE_FINISHING,
+                            strategy_step, self.finish)
                     else:
-                        # Create a greenthread to do the finish
-                        self.subcloud_workers[region] = \
-                            self.thread_group_manager.start(
-                                self.finish,
-                                strategy_step)
+                        LOG.debug("Finishing strategy is in progress for %s."
+                                  % region)
 
                 if self.stopped():
                     LOG.info("Exiting because task is stopped")
@@ -424,12 +411,7 @@ class PatchOrchThread(threading.Thread):
         try:
             self.do_update_subcloud_patches(strategy_step)
         except Exception as e:
-            LOG.exception(e)
-        finally:
-            # The worker is done.
-            region = self.get_region_name(strategy_step)
-            if region in self.subcloud_workers:
-                del self.subcloud_workers[region]
+            self._handle_unexpected_error(e, strategy_step)
 
     def do_update_subcloud_patches(self, strategy_step):
         """Upload/Apply/Remove patches in this subcloud"""
@@ -558,6 +540,12 @@ class PatchOrchThread(threading.Thread):
                          (patch_id, strategy_step.subcloud.name))
                 patches_to_upload.append(patch_id)
                 patches_to_apply.append(patch_id)
+
+        LOG.info("%s: patches_to_upload=%s, patches_to_remove=%s, "
+                 "patches_to_apply=%s" % (strategy_step.subcloud.name,
+                                          patches_to_upload,
+                                          patches_to_remove,
+                                          patches_to_apply))
 
         if patches_to_remove:
             LOG.info("Removing patches %s from subcloud %s" %
@@ -688,12 +676,7 @@ class PatchOrchThread(threading.Thread):
         try:
             self.do_create_subcloud_strategy(strategy_step)
         except Exception as e:
-            LOG.exception(e)
-        finally:
-            # The worker is done.
-            region = self.get_region_name(strategy_step)
-            if region in self.subcloud_workers:
-                del self.subcloud_workers[region]
+            self._handle_unexpected_error(e, strategy_step)
 
     def do_create_subcloud_strategy(self, strategy_step):
         """Create the patch strategy in this subcloud"""
@@ -814,7 +797,7 @@ class PatchOrchThread(threading.Thread):
                 return
 
             if subcloud_strategy.state == vim.STATE_BUILDING:
-                LOG.info("Strategy build in progress for %s" % region)
+                LOG.debug("Strategy build in progress for %s" % region)
             else:
                 message = ("Strategy build failed - unexpected strategy state "
                            "%s for %s" %
@@ -847,10 +830,12 @@ class PatchOrchThread(threading.Thread):
                 self.strategy_step_update(
                     strategy_step.subcloud_id,
                     state=consts.STRATEGY_STATE_APPLYING_STRATEGY)
+                LOG.info("Vim strategy created for %s, state updated to %s"
+                         % (region, consts.STRATEGY_STATE_APPLYING_STRATEGY))
                 return
             elif subcloud_strategy.state == vim.STATE_BUILDING:
                 # Strategy is being built
-                LOG.debug("Strategy build in progress for %s" % region)
+                LOG.info("Strategy build in progress for %s" % region)
             elif subcloud_strategy.state in [vim.STATE_BUILD_FAILED,
                                              vim.STATE_BUILD_TIMEOUT]:
                 # Build failed
@@ -898,12 +883,7 @@ class PatchOrchThread(threading.Thread):
         try:
             self.do_apply_subcloud_strategy(strategy_step)
         except Exception as e:
-            LOG.exception(e)
-        finally:
-            # The worker is done.
-            region = self.get_region_name(strategy_step)
-            if region in self.subcloud_workers:
-                del self.subcloud_workers[region]
+            self._handle_unexpected_error(e, strategy_step)
 
     def do_apply_subcloud_strategy(self, strategy_step):
         """Apply the patch strategy in this subcloud"""
@@ -1109,12 +1089,7 @@ class PatchOrchThread(threading.Thread):
         try:
             self.do_finish(strategy_step)
         except Exception as e:
-            LOG.exception(e)
-        finally:
-            # The worker is done.
-            region = self.get_region_name(strategy_step)
-            if region in self.subcloud_workers:
-                del self.subcloud_workers[region]
+            self._handle_unexpected_error(e, strategy_step)
 
     def do_finish(self, strategy_step):
         """Clean up patches in this subcloud (commit, delete)."""
@@ -1251,10 +1226,11 @@ class PatchOrchThread(threading.Thread):
 
             if self.stopped():
                 LOG.info("Exiting because task is stopped")
+                self.subcloud_workers.clear()
                 return
 
-        # Wait for 180 seconds so that last 100 workers can
-        # complete their execution
+        # Wait up to 180 seconds for the worker threads to complete
+        # their execution
         counter = 0
         while len(self.subcloud_workers) > 0:
             time.sleep(10)
@@ -1270,3 +1246,24 @@ class PatchOrchThread(threading.Thread):
         except Exception as e:
             LOG.exception(e)
             raise e
+        finally:
+            # Make sure the dictionary is reset for the next strategy apply
+            self.subcloud_workers.clear()
+
+    def _create_worker_thread(self, region, state, strategy_step, state_op):
+        if region in self.subcloud_workers:
+            del self.subcloud_workers[region]
+
+        self.subcloud_workers[region] = \
+            (state, self.thread_group_manager.start(state_op,
+                                                    strategy_step))
+        LOG.info("Worker thread created for %s in %s."
+                 % (region, strategy_step.state))
+
+    def _handle_unexpected_error(self, ex_obj, strategy_step):
+        LOG.exception(ex_obj)
+        message = "Unexpected error occurred while in %s" % strategy_step.state
+        if strategy_step.subcloud_id is not None:
+            self.strategy_step_update(strategy_step.subcloud_id,
+                                      state=consts.STRATEGY_STATE_FAILED,
+                                      details=message)
