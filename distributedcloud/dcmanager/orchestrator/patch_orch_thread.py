@@ -24,6 +24,7 @@ from keystoneauth1 import exceptions as keystone_exceptions
 from oslo_log import log as logging
 
 from dccommon import consts as dccommon_consts
+from dccommon.drivers.openstack.fm import FmClient
 from dccommon.drivers.openstack import patching_v1
 from dccommon.drivers.openstack.patching_v1 import PatchingClient
 from dccommon.drivers.openstack.sdk_platform import OpenStackDriver
@@ -38,6 +39,8 @@ from dcmanager.common import utils
 from dcmanager.db import api as db_api
 
 LOG = logging.getLogger(__name__)
+
+IGNORE_ALARMS = ['900.001', ]  # Patch in progress
 
 
 class PatchOrchThread(threading.Thread):
@@ -87,6 +90,8 @@ class PatchOrchThread(threading.Thread):
 
     def run(self):
         LOG.info("PatchOrchThread Starting")
+        # Build region one patches cache whenever the service is reloaded
+        self.get_region_one_patches()
         self.patch_orch()
         # Stop any greenthreads that are still running
         self.thread_group_manager.stop()
@@ -118,6 +123,12 @@ class PatchOrchThread(threading.Thread):
         ks_client = self.get_ks_client(region_name)
         return vim.VimClient(region_name, ks_client.session,
                              endpoint=ks_client.endpoint_cache.get_endpoint('vim'))
+
+    # TODO(yuxing) need to remove this function after the ctgs client accept
+    # alarm_ignore_list.
+    def get_fm_client(self, region_name):
+        ks_client = self.get_ks_client(region_name)
+        return FmClient(region_name, ks_client.session)
 
     @staticmethod
     def get_region_name(strategy_step):
@@ -190,8 +201,8 @@ class PatchOrchThread(threading.Thread):
 
                 if sw_update_strategy.type == consts.SW_UPDATE_TYPE_PATCH:
                     if sw_update_strategy.state in [
-                            consts.SW_UPDATE_STATE_APPLYING,
-                            consts.SW_UPDATE_STATE_ABORTING]:
+                        consts.SW_UPDATE_STATE_APPLYING,
+                        consts.SW_UPDATE_STATE_ABORTING]:
                         self.apply(sw_update_strategy)
                     elif sw_update_strategy.state == \
                             consts.SW_UPDATE_STATE_ABORT_REQUESTED:
@@ -213,14 +224,17 @@ class PatchOrchThread(threading.Thread):
 
         LOG.info("PatchOrchThread ended main loop")
 
-    def pre_check_management_affected_alarm(self, strategy_step):
+    def pre_check_management_affected_alarm(self, subcloud_name):
         # The health conditions acceptable for subcloud patching are:
         # a) subcloud is completely healthy (i.e. no failed checks)
         # b) there is alarm but no management affected alarm
         # c) subcloud fails alarm check and it only has non-management
         #    affecting alarm(s)
-        system_health = self.get_sysinv_client(
-            strategy_step.subcloud.name).get_system_health()
+        # d) subcloud fails alarm check but the alarms are in the
+        #    IGNORE_ALARMS list
+        # TODO(yuxing) Update the cgtsclient and the sysinv client driver to
+        # accept alarm_ignore_list to avoid retrieving alarms from FM client.
+        system_health = self.get_sysinv_client(subcloud_name).get_system_health()
 
         failed_alarm_check = re.findall("No alarms: \[Fail\]", system_health)
         no_mgmt_alarms = re.findall("\[0\] of which are management affecting",
@@ -228,7 +242,16 @@ class PatchOrchThread(threading.Thread):
         if not failed_alarm_check or no_mgmt_alarms:
             return True
         else:
-            return False
+            alarms = self.get_fm_client(subcloud_name).get_alarms()
+            for alarm in alarms:
+                # This alarm cannot be ignored
+
+                if (alarm.mgmt_affecting == "True") and (
+                    alarm.alarm_id not in IGNORE_ALARMS):
+                    return False
+            # Either the non-management affecting alarms or the skippable alarm
+            # can be ignored, return true
+            return True
 
     def apply(self, sw_update_strategy):
         """Apply a patch strategy"""
@@ -362,14 +385,26 @@ class PatchOrchThread(threading.Thread):
 
                 elif strategy_step.state == \
                         consts.STRATEGY_STATE_UPDATING_PATCHES:
-                    if region in self.subcloud_workers:
+                    if region not in self.subcloud_workers:
+                        # The worker is missed, caused by host swact or service
+                        # reload.
+                        self._create_worker_thread(
+                            region, strategy_step.state, strategy_step,
+                            self.update_subcloud_patches)
+                    else:
                         # The update is in progress
                         LOG.debug("Update patches is in progress for %s."
                                   % region)
 
                 elif strategy_step.state == \
                         consts.STRATEGY_STATE_CREATING_STRATEGY:
-                    if self.subcloud_workers[region][0] != \
+                    if region not in self.subcloud_workers:
+                        # The worker is missed, caused by host swact or service
+                        # reload.
+                        self._create_worker_thread(
+                            region, consts.STRATEGY_STATE_CREATING_STRATEGY,
+                            strategy_step, self.create_subcloud_strategy)
+                    elif self.subcloud_workers[region][0] != \
                             consts.STRATEGY_STATE_CREATING_STRATEGY:
                         self._create_worker_thread(
                             region, consts.STRATEGY_STATE_CREATING_STRATEGY,
@@ -379,7 +414,13 @@ class PatchOrchThread(threading.Thread):
                                   % region)
                 elif strategy_step.state == \
                         consts.STRATEGY_STATE_APPLYING_STRATEGY:
-                    if self.subcloud_workers[region][0] != \
+                    if region not in self.subcloud_workers:
+                        # The worker is missed, caused by host swact or service
+                        # reload.
+                        self._create_worker_thread(
+                            region, consts.STRATEGY_STATE_APPLYING_STRATEGY,
+                            strategy_step, self.apply_subcloud_strategy)
+                    elif self.subcloud_workers[region][0] != \
                             consts.STRATEGY_STATE_APPLYING_STRATEGY:
                         self._create_worker_thread(
                             region, consts.STRATEGY_STATE_APPLYING_STRATEGY,
@@ -389,7 +430,13 @@ class PatchOrchThread(threading.Thread):
                                   % region)
                 elif strategy_step.state == \
                         consts.STRATEGY_STATE_FINISHING:
-                    if self.subcloud_workers[region][0] != \
+                    if region not in self.subcloud_workers:
+                        # The worker is missed, caused by host swact or service
+                        # reload.
+                        self._create_worker_thread(
+                            region, consts.STRATEGY_STATE_FINISHING,
+                            strategy_step, self.finish)
+                    elif self.subcloud_workers[region][0] != \
                             consts.STRATEGY_STATE_FINISHING:
                         self._create_worker_thread(
                             region, consts.STRATEGY_STATE_FINISHING,
@@ -430,7 +477,8 @@ class PatchOrchThread(threading.Thread):
         error_msg = None
         try:
             # If management affected alarm check failed
-            if not self.pre_check_management_affected_alarm(strategy_step):
+            if not self.pre_check_management_affected_alarm(
+                strategy_step.subcloud.name):
                 error_msg = ("Subcloud %s contains one or more management "
                              "affecting alarm(s). It will not be patched. "
                              "Please resolve the alarm condition(s) and try again."
@@ -1252,6 +1300,7 @@ class PatchOrchThread(threading.Thread):
 
     def _create_worker_thread(self, region, state, strategy_step, state_op):
         if region in self.subcloud_workers:
+            # Worker is not in the right state, delete it.
             del self.subcloud_workers[region]
 
         self.subcloud_workers[region] = \

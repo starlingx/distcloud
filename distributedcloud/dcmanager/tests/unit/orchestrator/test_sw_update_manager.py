@@ -32,6 +32,7 @@ from dcmanager.orchestrator import sw_update_manager
 from dcmanager.tests import base
 from dcmanager.tests.unit.common import fake_strategy
 from dcmanager.tests.unit.common import fake_subcloud
+from dcmanager.tests.unit.orchestrator.states.fakes import FakeAlarm
 from dcmanager.tests import utils
 
 
@@ -501,6 +502,26 @@ class FakeSysinvClientMgmtAffectAlarm(object):
 
     def get_system_health(self):
         return self.health_report
+
+
+class FakeFMClientIgnoredAlarm(object):
+    def __init__(self, region, session):
+        self.region = region
+        self.session = session
+        self.alarm_list = [FakeAlarm('900.001', 'True')]
+
+    def get_alarms(self):
+        return self.alarm_list
+
+
+class FakeFMClientAlarm(object):
+    def __init__(self, region, session):
+        self.region = region
+        self.session = session
+        self.alarm_list = [FakeAlarm('100.001', 'True'), FakeAlarm('100.002', 'True')]
+
+    def get_alarms(self):
+        return self.alarm_list
 
 
 class Controller(object):
@@ -1973,13 +1994,14 @@ class TestSwUpdateManager(base.DCManagerTestCase):
         self.assertEqual(updated_strategy_steps[0]['state'],
                          consts.STRATEGY_STATE_CREATING_STRATEGY)
 
+    @mock.patch.object(patch_orch_thread, 'FmClient')
     @mock.patch.object(patch_orch_thread, 'SysinvClient')
     @mock.patch.object(os_path, 'isfile')
     @mock.patch.object(patch_orch_thread, 'PatchingClient')
     @mock.patch.object(threading, 'Thread')
     def test_update_subcloud_patches_management_affected_alarm(
-            self, mock_threading,
-            mock_patching_client, mock_os_path_isfile, mock_sysinv_client):
+            self, mock_threading, mock_patching_client, mock_os_path_isfile,
+            mock_sysinv_client, mock_fm_client):
 
         subcloud_id = fake_subcloud.create_fake_subcloud(self.ctx).id
         subcloud = db_api.subcloud_update(
@@ -1996,6 +2018,7 @@ class TestSwUpdateManager(base.DCManagerTestCase):
         mock_os_path_isfile.return_value = True
         mock_patching_client.side_effect = FakePatchingClientAvailable
         mock_sysinv_client.side_effect = FakeSysinvClientMgmtAffectAlarm
+        mock_fm_client.return_value = FakeFMClientAlarm('fake_region', 'fake_session')
 
         FakePatchingClientAvailable.apply = mock.Mock()
 
@@ -2013,6 +2036,49 @@ class TestSwUpdateManager(base.DCManagerTestCase):
         updated_strategy_steps = db_api.strategy_step_get_all(self.ctx)
         self.assertEqual(updated_strategy_steps[0]['state'],
                          consts.STRATEGY_STATE_FAILED)
+
+    @mock.patch.object(patch_orch_thread, 'FmClient')
+    @mock.patch.object(patch_orch_thread, 'SysinvClient')
+    @mock.patch.object(os_path, 'isfile')
+    @mock.patch.object(patch_orch_thread, 'PatchingClient')
+    @mock.patch.object(threading, 'Thread')
+    def test_update_subcloud_patches_ignored_alarm(
+            self, mock_threading, mock_patching_client, mock_os_path_isfile,
+            mock_sysinv_client, mock_fm_client):
+
+        subcloud_id = fake_subcloud.create_fake_subcloud(self.ctx).id
+        subcloud = db_api.subcloud_update(
+            self.ctx,
+            subcloud_id,
+            management_state=dccommon_consts.MANAGEMENT_MANAGED,
+            availability_status=dccommon_consts.AVAILABILITY_ONLINE)
+        fake_strategy.create_fake_strategy_step(
+            self.ctx,
+            subcloud_id=subcloud.id,
+            state=consts.STRATEGY_STATE_INITIAL)
+        strategy_step = db_api.strategy_step_get_by_name(self.ctx, subcloud.name)
+
+        mock_os_path_isfile.return_value = True
+        mock_patching_client.side_effect = FakePatchingClientAvailable
+        mock_sysinv_client.side_effect = FakeSysinvClientMgmtAffectAlarm
+        mock_fm_client.return_value = FakeFMClientIgnoredAlarm('fake_region', 'fake_session')
+
+        FakePatchingClientAvailable.apply = mock.Mock()
+
+        sw_update_manager.PatchOrchThread.stopped = lambda x: False
+        mock_strategy_lock = mock.Mock()
+        pot = sw_update_manager.PatchOrchThread(mock_strategy_lock,
+                                                self.fake_dcmanager_audit_api)
+        pot.get_ks_client = mock.Mock()
+
+        # invoke get_region_one_patches once t update required attributes
+        pot.get_region_one_patches()
+        pot.update_subcloud_patches(strategy_step)
+
+        # Verify that strategy step was updated
+        updated_strategy_steps = db_api.strategy_step_get_all(self.ctx)
+        self.assertEqual(updated_strategy_steps[0]['state'],
+                         consts.STRATEGY_STATE_CREATING_STRATEGY)
 
     @mock.patch.object(patch_orch_thread, 'SysinvClient')
     @mock.patch.object(os_path, 'isfile')
