@@ -530,7 +530,8 @@ class SysinvClient(base.DriverBase):
             LOG.info("update_certificate from shared file {} {}".format(
                 signature, certificate_files))
 
-        if signature and signature.startswith(CERT_MODE_SSL):
+        if (signature and signature.startswith(CERT_MODE_SSL) and
+                not signature.startswith(CERT_MODE_SSL_CA)):
             # ensure https is enabled
             isystem = self.sysinv_client.isystem.list()[0]
             https_enabled = isystem.capabilities.get('https_enabled', False)
