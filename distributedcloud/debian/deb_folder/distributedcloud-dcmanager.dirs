@@ -1,1 +1,2 @@
-/opt/dc/ansible
+opt/dc/ansible
+var/log/dcmanager
