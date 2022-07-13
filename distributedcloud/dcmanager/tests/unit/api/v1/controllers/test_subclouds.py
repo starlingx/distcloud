@@ -1323,9 +1323,12 @@ class TestSubcloudAPIOther(testroot.DCManagerApiTest):
         bootstrap_file = sc._get_config_file_path("subcloud1")
         install_values = sc._get_config_file_path("subcloud1", "install_values")
         deploy_config = sc._get_config_file_path("subcloud1", consts.DEPLOY_CONFIG)
-        self.assertEqual(bootstrap_file, "/opt/dc/ansible/subcloud1.yml")
-        self.assertEqual(install_values, "/opt/dc/ansible/subcloud1/install_values.yml")
-        self.assertEqual(deploy_config, "/opt/dc/ansible/subcloud1_deploy_config.yml")
+        self.assertEqual(bootstrap_file,
+                         "/var/opt/dc/ansible/subcloud1.yml")
+        self.assertEqual(install_values,
+                         "/var/opt/dc/ansible/subcloud1/install_values.yml")
+        self.assertEqual(deploy_config,
+                         "/var/opt/dc/ansible/subcloud1_deploy_config.yml")
 
     @mock.patch.object(rpc_client, 'ManagerClient')
     def test_format_ip_address(self, mock_rpc_client):

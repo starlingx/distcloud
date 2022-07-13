@@ -1394,7 +1394,7 @@ class SubcloudsController(object):
                 # Pseudo code:
                 #   - Retrieve install_values of the subcloud from the database.
                 #     If it does not exist, try to retrieve the bootstrap address
-                #     from its ansible inventory file (/opt/dc/ansible).
+                #     from its ansible inventory file (/var/opt/dc/ansible).
                 #   - If the bootstrap address can be obtained, add install_values
                 #     to the payload and continue.
                 #   - If the bootstrap address cannot be obtained, abort with an
