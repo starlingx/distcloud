@@ -978,14 +978,17 @@ class SubcloudManager(manager.Manager):
         try:
             self.dcorch_rpc_client.del_subcloud(context, subcloud.name)
         except RemoteError as e:
-            if "SubcloudNotFound" in e:
+            # TODO(kmacleod): this should be caught as explicit remote exception
+            # Fix when centos/python2 is no longer supported
+            if "SubcloudNotFound" in str(e):
                 pass
 
         # delete the associated alarm entry
         try:
             db_api.subcloud_alarms_delete(context, subcloud.name)
         except RemoteError as e:
-            if "SubcloudNotFound" in e:
+            # TODO(kmacleod): fix same with above
+            if "SubcloudNotFound" in str(e):
                 pass
 
         # We only delete subcloud endpoints, region and user information
