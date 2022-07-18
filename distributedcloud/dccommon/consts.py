@@ -123,3 +123,14 @@ AVAILABILITY_ONLINE = "online"
 SYNC_STATUS_UNKNOWN = "unknown"
 SYNC_STATUS_IN_SYNC = "in-sync"
 SYNC_STATUS_OUT_OF_SYNC = "out-of-sync"
+
+# OS type
+OS_RELEASE_FILE = '/etc/os-release'
+OS_CENTOS = 'centos'
+OS_DEBIAN = 'debian'
+SUPPORTED_OS_TYPES = [OS_CENTOS, OS_DEBIAN]
+
+# SSL cert
+CERT_CA_FILE_CENTOS = "ca-cert.pem"
+CERT_CA_FILE_DEBIAN = "ca-cert.crt"
+SSL_CERT_CA_DIR = "/etc/pki/ca-trust/source/anchors/"
