@@ -1299,31 +1299,36 @@ class TestSubcloudManager(base.DCManagerTestCase):
         sm = subcloud_manager.SubcloudManager()
         filename = sm._get_ansible_filename('subcloud1',
                                             consts.INVENTORY_FILE_POSTFIX)
-        self.assertEqual(filename, '/opt/dc/ansible/subcloud1_inventory.yml')
+        self.assertEqual(filename,
+                         '/var/opt/dc/ansible/subcloud1_inventory.yml')
 
     def test_compose_install_command(self):
         sm = subcloud_manager.SubcloudManager()
         install_command = sm.compose_install_command(
-            'subcloud1', '/opt/dc/ansible/subcloud1_inventory.yml')
+            'subcloud1', '/var/opt/dc/ansible/subcloud1_inventory.yml')
         self.assertEqual(
             install_command,
             [
-                'ansible-playbook', subcloud_manager.ANSIBLE_SUBCLOUD_INSTALL_PLAYBOOK,
-                '-i', '/opt/dc/ansible/subcloud1_inventory.yml', '--limit', 'subcloud1',
-                '-e', "@/opt/dc/ansible/subcloud1/install_values.yml"
+                'ansible-playbook',
+                subcloud_manager.ANSIBLE_SUBCLOUD_INSTALL_PLAYBOOK,
+                '-i', '/var/opt/dc/ansible/subcloud1_inventory.yml',
+                '--limit', 'subcloud1',
+                '-e', "@/var/opt/dc/ansible/subcloud1/install_values.yml"
             ]
         )
 
     def test_compose_apply_command(self):
         sm = subcloud_manager.SubcloudManager()
         apply_command = sm.compose_apply_command(
-            'subcloud1', '/opt/dc/ansible/subcloud1_inventory.yml')
+            'subcloud1', '/var/opt/dc/ansible/subcloud1_inventory.yml')
         self.assertEqual(
             apply_command,
             [
-                'ansible-playbook', subcloud_manager.ANSIBLE_SUBCLOUD_PLAYBOOK, '-i',
-                '/opt/dc/ansible/subcloud1_inventory.yml', '--limit', 'subcloud1', '-e',
-                "override_files_dir='/opt/dc/ansible' region_name=subcloud1"
+                'ansible-playbook',
+                subcloud_manager.ANSIBLE_SUBCLOUD_PLAYBOOK, '-i',
+                '/var/opt/dc/ansible/subcloud1_inventory.yml',
+                '--limit', 'subcloud1', '-e',
+                "override_files_dir='/var/opt/dc/ansible' region_name=subcloud1"
             ]
         )
 
@@ -1335,27 +1340,33 @@ class TestSubcloudManager(base.DCManagerTestCase):
                         "deploy_chart": "test_chart.yaml",
                         "deploy_config": "subcloud1.yaml"}
         deploy_command = sm.compose_deploy_command(
-            'subcloud1', '/opt/dc/ansible/subcloud1_inventory.yml', fake_payload)
+            'subcloud1',
+            '/var/opt/dc/ansible/subcloud1_inventory.yml',
+            fake_payload)
         self.assertEqual(
             deploy_command,
             [
                 'ansible-playbook', 'test_playbook.yaml', '-e',
-                '@/opt/dc/ansible/subcloud1_deploy_values.yml', '-i',
-                '/opt/dc/ansible/subcloud1_inventory.yml', '--limit', 'subcloud1'
+                '@/var/opt/dc/ansible/subcloud1_deploy_values.yml', '-i',
+                '/var/opt/dc/ansible/subcloud1_inventory.yml',
+                '--limit', 'subcloud1'
             ]
         )
 
     def test_compose_rehome_command(self):
         sm = subcloud_manager.SubcloudManager()
         rehome_command = sm.compose_rehome_command(
-            'subcloud1', '/opt/dc/ansible/subcloud1_inventory.yml')
+            'subcloud1', '/var/opt/dc/ansible/subcloud1_inventory.yml')
         self.assertEqual(
             rehome_command,
             [
-                'ansible-playbook', subcloud_manager.ANSIBLE_SUBCLOUD_REHOME_PLAYBOOK, '-i',
-                '/opt/dc/ansible/subcloud1_inventory.yml', '--limit', 'subcloud1',
+                'ansible-playbook',
+                subcloud_manager.ANSIBLE_SUBCLOUD_REHOME_PLAYBOOK, '-i',
+                '/var/opt/dc/ansible/subcloud1_inventory.yml',
+                '--limit', 'subcloud1',
                 '--timeout', subcloud_manager.REHOME_PLAYBOOK_TIMEOUT,
-                '-e', "override_files_dir='/opt/dc/ansible' region_name=subcloud1"
+                '-e',
+                "override_files_dir='/var/opt/dc/ansible' region_name=subcloud1"
             ]
         )
 
@@ -1579,28 +1590,32 @@ class TestSubcloudManager(base.DCManagerTestCase):
     def test_compose_check_target_command(self):
         sm = subcloud_manager.SubcloudManager()
         check_target_command = sm.compose_check_target_command(
-            'subcloud1', '/opt/dc/ansible/subcloud1_inventory.yml',
+            'subcloud1', '/var/opt/dc/ansible/subcloud1_inventory.yml',
             FAKE_SUBCLOUD_RESTORE_PAYLOAD)
         self.assertEqual(
             check_target_command,
             [
-                'ansible-playbook', subcloud_manager.ANSIBLE_HOST_VALIDATION_PLAYBOOK,
-                '-i', '/opt/dc/ansible/subcloud1_inventory.yml', '--limit', 'subcloud1',
-                '-e', '@/opt/dc/ansible/subcloud1_check_target_values.yml'
+                'ansible-playbook',
+                subcloud_manager.ANSIBLE_HOST_VALIDATION_PLAYBOOK,
+                '-i', '/var/opt/dc/ansible/subcloud1_inventory.yml',
+                '--limit', 'subcloud1',
+                '-e', '@/var/opt/dc/ansible/subcloud1_check_target_values.yml'
             ]
         )
 
     def test_compose_restore_command(self):
         sm = subcloud_manager.SubcloudManager()
         restore_command = sm.compose_restore_command(
-            'subcloud1', '/opt/dc/ansible/subcloud1_inventory.yml',
+            'subcloud1', '/var/opt/dc/ansible/subcloud1_inventory.yml',
             FAKE_SUBCLOUD_RESTORE_PAYLOAD)
         self.assertEqual(
             restore_command,
             [
-                'ansible-playbook', subcloud_manager.ANSIBLE_SUBCLOUD_RESTORE_PLAYBOOK,
-                '-i', '/opt/dc/ansible/subcloud1_inventory.yml', '--limit', 'subcloud1',
-                '-e', '@/opt/dc/ansible/subcloud1_restore_values.yml'
+                'ansible-playbook',
+                subcloud_manager.ANSIBLE_SUBCLOUD_RESTORE_PLAYBOOK,
+                '-i', '/var/opt/dc/ansible/subcloud1_inventory.yml',
+                '--limit', 'subcloud1',
+                '-e', '@/var/opt/dc/ansible/subcloud1_restore_values.yml'
             ]
         )
 

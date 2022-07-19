@@ -47,7 +47,7 @@ override_dh_install:
 	install -m 755 -D -p files/clean-dcorch $(BIN_DIR)/clean-dcorch
 
     # install ansible overrides dir
-	install -d -m 600 $(ROOT)/opt/dc/ansible
+	install -d -m 600 $(ROOT)/var/opt/dc/ansible
 
     # Generate sample config and add the current directory to PYTHONPATH so
     # oslo-config-generator doesn't skip heat's entry points.
@@ -99,5 +99,5 @@ override_dh_fixperms:
 		--exclude etc/dcorch/dcorch.conf
 
 execute_after_dh_fixperms:
-	# forcing 600 for /opt/dc/ansible
-	chmod 600 debian/distributedcloud-dcmanager/opt/dc/ansible
+	# forcing 600 for /var/opt/dc/ansible
+	chmod 600 debian/distributedcloud-dcmanager/var/opt/dc/ansible
