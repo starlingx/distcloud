@@ -1,5 +1,5 @@
 # Copyright 2016 Ericsson AB
-# Copyright (c) 2017-2021 Wind River Systems, Inc.
+# Copyright (c) 2017-2022 Wind River Systems, Inc.
 # Licensed under the Apache License, Version 2.0 (the "License"); you may
 # not use this file except in compliance with the License. You may obtain
 # a copy of the License at
@@ -24,12 +24,12 @@ from oslo_utils import encodeutils
 from dccommon import consts
 from dccommon.drivers import base
 from dccommon import exceptions
+from dccommon import utils
 
 
 LOG = log.getLogger(__name__)
 API_VERSION = '1'
 
-CERT_CA_FILE = "ca-cert.pem"
 CERT_MODE_DOCKER_REGISTRY = 'docker_registry'
 CERT_MODE_SSL = 'ssl'
 CERT_MODE_SSL_CA = 'ssl_ca'
@@ -38,8 +38,6 @@ CONTROLLER = 'controller'
 
 NETWORK_TYPE_MGMT = 'mgmt'
 
-SSL_CERT_CA_DIR = "/etc/pki/ca-trust/source/anchors/"
-SSL_CERT_CA_FILE = os.path.join(SSL_CERT_CA_DIR, CERT_CA_FILE)
 SSL_CERT_DIR = "/etc/ssl/private/"
 SSL_CERT_FILE = "server-cert.pem"
 SSL_PEM_FILE = os.path.join(SSL_CERT_DIR, SSL_CERT_FILE)
@@ -491,11 +489,12 @@ class SysinvClient(base.DriverBase):
         LOG.info("update_certificate signature {} data {}".format(
             signature, data))
         if not certificate:
+            ssl_cert_ca_file = utils.get_ssl_cert_ca_file()
             if data:
                 data['passphrase'] = None
                 mode = data.get('mode', CERT_MODE_SSL)
                 if mode == CERT_MODE_SSL_CA:
-                    certificate_files = [SSL_CERT_CA_FILE]
+                    certificate_files = [ssl_cert_ca_file]
                 elif mode == CERT_MODE_SSL:
                     certificate_files = [SSL_PEM_FILE]
                 elif mode == CERT_MODE_DOCKER_REGISTRY:
@@ -508,7 +507,7 @@ class SysinvClient(base.DriverBase):
                     return
             elif signature and signature.startswith(CERT_MODE_SSL_CA):
                 data['mode'] = CERT_MODE_SSL_CA
-                certificate_files = [SSL_CERT_CA_FILE]
+                certificate_files = [ssl_cert_ca_file]
             elif signature and signature.startswith(CERT_MODE_SSL):
                 data['mode'] = CERT_MODE_SSL
                 certificate_files = [SSL_PEM_FILE]
