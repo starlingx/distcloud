@@ -80,7 +80,7 @@ class KubeOperator(object):
 
         c = self._get_kubernetesclient_core()
         try:
-            c.delete_namespaced_secret(name, namespace, body)
+            c.delete_namespaced_secret(name, namespace, body=body)
         except ApiException as e:
             if e.status == httplib.NOT_FOUND:
                 LOG.warn("Secret %s under Namespace %s "
@@ -143,7 +143,7 @@ class KubeOperator(object):
                 namespace,
                 CERT_MANAGER_CERTIFICATE,
                 name,
-                {}
+                body={}
             )
         except ApiException as e:
             if e.status != httplib.NOT_FOUND:
