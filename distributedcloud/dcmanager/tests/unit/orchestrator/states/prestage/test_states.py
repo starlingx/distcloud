@@ -56,7 +56,7 @@ class TestPrestagePreCheckState(TestPrestage):
 
         # Add the strategy_step state being processed by this unit test
         self.strategy_step = \
-            self.setup_strategy_step(STRATEGY_STATE_PRESTAGE_PRE_CHECK)
+            self.setup_strategy_step(self.subcloud.id, STRATEGY_STATE_PRESTAGE_PRE_CHECK)
 
     def test_prestage_prepare(self):
         next_state = STRATEGY_STATE_PRESTAGE_PREPARE
@@ -169,7 +169,7 @@ class TestPrestagePrepareState(TestPrestage):
 
         # Add the strategy_step state being processed by this unit test
         self.strategy_step = \
-            self.setup_strategy_step(STRATEGY_STATE_PRESTAGE_PREPARE)
+            self.setup_strategy_step(self.subcloud.id, STRATEGY_STATE_PRESTAGE_PREPARE)
 
     def test_prestage_prestage_prepare(self):
 
@@ -236,7 +236,7 @@ class TestPrestagePackageState(TestPrestage):
 
         # Add the strategy_step state being processed by this unit test
         self.strategy_step = \
-            self.setup_strategy_step(STRATEGY_STATE_PRESTAGE_PACKAGES)
+            self.setup_strategy_step(self.subcloud.id, STRATEGY_STATE_PRESTAGE_PACKAGES)
 
     def test_prestage_prestage_package(self):
 
@@ -279,7 +279,7 @@ class TestPrestageImagesState(TestPrestage):
 
         # Add the strategy_step state being processed by this unit test
         self.strategy_step = \
-            self.setup_strategy_step(STRATEGY_STATE_PRESTAGE_IMAGES)
+            self.setup_strategy_step(self.subcloud.id, STRATEGY_STATE_PRESTAGE_IMAGES)
 
     def test_prestage_prestage_images(self):
 

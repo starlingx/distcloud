@@ -13,10 +13,14 @@
 # License for the specific language governing permissions and limitations
 # under the License.
 #
-# Copyright (c) 2019 Wind River Systems, Inc.
+# Copyright (c) 2019, 2022 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
+
+from oslo_config import cfg
+
+CONF = cfg.CONF
 
 
 class LazyPluggable(object):
@@ -29,7 +33,7 @@ class LazyPluggable(object):
 
     def __get_backend(self):
         if not self.__backend:
-            backend_name = 'sqlalchemy'
+            backend_name = CONF[self.__pivot]
             backend = self.__backends[backend_name]
             if isinstance(backend, tuple):
                 name = backend[0]

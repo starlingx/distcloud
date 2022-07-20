@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2020 Wind River Systems, Inc.
+# Copyright (c) 2020, 2022 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -103,7 +103,7 @@ class TestSwUpgradeUpdatingPatchesStage(TestSwUpgradeState):
 
         # Add the strategy_step state being processed by this unit test
         self.strategy_step = \
-            self.setup_strategy_step(consts.STRATEGY_STATE_UPDATING_PATCHES)
+            self.setup_strategy_step(self.subcloud.id, consts.STRATEGY_STATE_UPDATING_PATCHES)
 
         # Add mock API endpoints for patching and sysinv client calls invoked by this state
         self.patching_client.query = mock.MagicMock()

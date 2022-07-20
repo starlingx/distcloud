@@ -1,4 +1,4 @@
-# Copyright 2017-2018 Wind River
+# Copyright 2017-2018, 2022 Wind River
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -208,6 +208,7 @@ class NetworkSyncThread(SyncThread):
         subcloud_rsrc.delete()
         # Master Resource can be deleted only when all subcloud resources
         # are deleted along with corresponding orch_job and orch_requests.
+        # pylint: disable=E1101
         LOG.info("Security group {}:{} [{}] deleted"
                  .format(rsrc.id, subcloud_rsrc.id,
                          subcloud_rsrc.subcloud_resource_id),
@@ -265,6 +266,7 @@ class NetworkSyncThread(SyncThread):
         subcloud_rsrc.delete()
         # Master Resource can be deleted only when all subcloud resources
         # are deleted along with corresponding orch_job and orch_requests.
+        # pylint: disable=E1101
         LOG.info("Security group rule {}:{} [{}] deleted"
                  .format(rsrc.id, subcloud_rsrc.id,
                          subcloud_rsrc.subcloud_resource_id),
@@ -391,7 +393,7 @@ class NetworkSyncThread(SyncThread):
                     self.ctxt, consts.RESOURCE_TYPE_NETWORK_SECURITY_GROUP,
                     master_sec_group_id)
                 sec_group_subcloud_rsrc = self.get_db_subcloud_resource(
-                    sec_group_rsrc.id)
+                    sec_group_rsrc.id)  # pylint: disable=E1101
                 if sec_group_subcloud_rsrc:
                     m_r['security_group_id'] = \
                         sec_group_subcloud_rsrc.subcloud_resource_id
@@ -401,7 +403,7 @@ class NetworkSyncThread(SyncThread):
                         "cannot find equivalent security group in subcloud."
                         .format(m_r), extra=self.log_extra)
                     raise exceptions.SubcloudResourceNotFound(
-                        resource=sec_group_rsrc.id)
+                        resource=sec_group_rsrc.id)  # pylint: disable=E1101
 
             if m_r.get('remote_group_id') is not None:
                 # If the remote group id is in the dict then it is for the
@@ -413,7 +415,7 @@ class NetworkSyncThread(SyncThread):
                         self.ctxt, consts.RESOURCE_TYPE_NETWORK_SECURITY_GROUP,
                         master_remote_group_id)
                 remote_group_subcloud_rsrc = self.get_db_subcloud_resource(
-                    remote_group_rsrc.id)
+                    remote_group_rsrc.id)  # pylint: disable=E1101
                 if remote_group_subcloud_rsrc:
                     m_r['remote_group_id'] = \
                         remote_group_subcloud_rsrc.subcloud_resource_id
@@ -423,7 +425,7 @@ class NetworkSyncThread(SyncThread):
                         "cannot find equivalent remote group in subcloud."
                         .format(m_r), extra=self.log_extra)
                     raise exceptions.SubcloudResourceNotFound(
-                        resource=sec_group_rsrc.id)
+                        resource=sec_group_rsrc.id)  # pylint: disable=E1101
         return m_r
 
     # This will only be called by the audit code.

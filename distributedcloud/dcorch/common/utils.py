@@ -150,7 +150,7 @@ def enqueue_work(context, endpoint_type,
             rsrc = resource.Resource.get_by_type_and_master_id(
                 context, resource_type, source_resource_id)
             LOG.info("Resource already in DB {}/{}/{}/{}".format(
-                rsrc.id, resource_type, source_resource_id, operation_type))
+                rsrc.id, resource_type, source_resource_id, operation_type))  # pylint: disable=E1101
         except Exception as e:
             LOG.exception(e)
             return
@@ -168,6 +168,7 @@ def enqueue_work(context, endpoint_type,
             rsrc.create()
 
     # todo: user_id and project_id are not used, to be removed from model
+    # pylint: disable=E1101
     orch_job = orchjob.OrchJob(
         context=context, user_id='', project_id='',
         endpoint_type=endpoint_type, source_resource_id=source_resource_id,
@@ -185,4 +186,4 @@ def enqueue_work(context, endpoint_type,
             orch_job_id=orch_job.id)  # pylint: disable=E1101
         orch_req.create()
     LOG.info("Work order created for {}:{}/{}/{}/{}".format(
-        subcloud, rsrc.id, resource_type, source_resource_id, operation_type))
+        subcloud, rsrc.id, resource_type, source_resource_id, operation_type))  # pylint: disable=E1101

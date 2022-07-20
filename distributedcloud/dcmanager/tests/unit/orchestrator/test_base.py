@@ -192,12 +192,12 @@ class TestSwUpdate(base.DCManagerTestCase):
             management_state=dccommon_consts.MANAGEMENT_MANAGED,
             availability_status=dccommon_consts.AVAILABILITY_ONLINE)
 
-    def setup_strategy_step(self, strategy_state):
+    def setup_strategy_step(self, subcloud_id, strategy_state):
         fake_strategy.create_fake_strategy_step(
             self.ctx,
-            subcloud_id=self.subcloud.id,
+            subcloud_id=subcloud_id,
             state=strategy_state)
-        return db_api.strategy_step_get(self.ctx, self.subcloud.id)
+        return db_api.strategy_step_get(self.ctx, subcloud_id)
 
     def assert_step_updated(self, subcloud_id, update_state):
         step = db_api.strategy_step_get(self.ctx, subcloud_id)

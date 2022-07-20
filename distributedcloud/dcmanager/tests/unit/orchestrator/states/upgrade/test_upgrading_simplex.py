@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2020 Wind River Systems, Inc.
+# Copyright (c) 2020, 2022 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -39,7 +39,7 @@ class TestSwUpgradeUpgradingSimplexStage(TestSwUpgradeState):
 
         # Add the strategy_step state being processed by this unit test
         self.strategy_step = \
-            self.setup_strategy_step(consts.STRATEGY_STATE_UPGRADING_SIMPLEX)
+            self.setup_strategy_step(self.subcloud.id, consts.STRATEGY_STATE_UPGRADING_SIMPLEX)
 
         # simulate get_vault_load_files finding the iso and sig in the vault
         p = mock.patch('dcmanager.common.utils.get_vault_load_files')

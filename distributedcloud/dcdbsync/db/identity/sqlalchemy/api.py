@@ -106,7 +106,6 @@ def index2column(r_table, index_name):
 
 
 def query(connection, table, index_name=None, index_value=None):
-    global registry
     r_table = registry.get(connection, table)
 
     if index_name and index_value:
@@ -126,7 +125,6 @@ def query(connection, table, index_name=None, index_value=None):
 
 
 def insert(connection, table, data):
-    global registry
     r_table = registry.get(connection, table)
     stmt = r_table.insert()
 
@@ -134,7 +132,6 @@ def insert(connection, table, data):
 
 
 def delete(connection, table, index_name, index_value):
-    global registry
     r_table = registry.get(connection, table)
 
     c = index2column(r_table, index_name)
@@ -143,7 +140,6 @@ def delete(connection, table, index_name, index_value):
 
 
 def update(connection, table, index_name, index_value, data):
-    global registry
     r_table = registry.get(connection, table)
 
     c = index2column(r_table, index_name)

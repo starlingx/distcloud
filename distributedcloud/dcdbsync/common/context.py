@@ -10,7 +10,7 @@
 # License for the specific language governing permissions and limitations
 # under the License.
 #
-# Copyright (c) 2019 Wind River Systems, Inc.
+# Copyright (c) 2019, 2022 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -45,6 +45,7 @@ class RequestContext(base_context.RequestContext):
 
         # Initializer of request context.
         # We still have 'tenant' param because oslo_context still use it.
+        # pylint: disable=E1123
         super(RequestContext, self).__init__(
             auth_token=auth_token, user=user, tenant=project,
             domain=domain, user_domain=user_domain,

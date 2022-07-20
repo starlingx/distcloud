@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2020-2021 Wind River Systems, Inc.
+# Copyright (c) 2020-2022 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -74,7 +74,7 @@ class TestFwOrchThread(TestSwUpdate):
 
         self.subcloud = self.setup_subcloud()
         self.setup_strategy_step(
-            consts.STRATEGY_STATE_CREATING_FW_UPDATE_STRATEGY)
+            self.subcloud.id, consts.STRATEGY_STATE_CREATING_FW_UPDATE_STRATEGY)
 
         # If the subcloud does not have a vim strategy, it raises an exception
         self.vim_client.get_strategy.side_effect = Exception
@@ -108,7 +108,7 @@ class TestFwOrchThread(TestSwUpdate):
 
         self.subcloud = self.setup_subcloud()
         self.setup_strategy_step(
-            consts.STRATEGY_STATE_CREATING_FW_UPDATE_STRATEGY)
+            self.subcloud.id, consts.STRATEGY_STATE_CREATING_FW_UPDATE_STRATEGY)
 
         # the subcloud returns a vim strategy
         vim_strategy = FakeVimStrategy(state=vim.STATE_APPLIED)

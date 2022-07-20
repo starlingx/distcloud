@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2020 Wind River Systems, Inc.
+# Copyright (c) 2020, 2022 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -63,7 +63,7 @@ class TestFwUpdateImportingFirmwareStage(TestFwUpdateState):
 
         # Add the strategy_step state being processed by this unit test
         self.strategy_step = \
-            self.setup_strategy_step(consts.STRATEGY_STATE_IMPORTING_FIRMWARE)
+            self.setup_strategy_step(self.subcloud.id, consts.STRATEGY_STATE_IMPORTING_FIRMWARE)
 
         # Add mock API endpoints for sysinv client calls invcked by this state
         self.sysinv_client.get_device_images = mock.MagicMock()

@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2021 Wind River Systems, Inc.
+# Copyright (c) 2021-2022 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -32,7 +32,7 @@ class TestUploadCertStage(TestKubeRootCaUpgradeState):
 
         # Add the strategy_step state being processed by this unit test
         self.strategy_step = self.setup_strategy_step(
-            STRATEGY_STATE_KUBE_ROOTCA_UPDATE_UPLOAD_CERT)
+            self.subcloud.id, STRATEGY_STATE_KUBE_ROOTCA_UPDATE_UPLOAD_CERT)
 
         self.sysinv_client.kube_rootca_update_upload_cert = mock.MagicMock()
 

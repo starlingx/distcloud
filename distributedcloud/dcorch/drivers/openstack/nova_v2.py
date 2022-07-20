@@ -88,7 +88,11 @@ class NovaClient(base.DriverBase):
         except exceptions.InternalError:
             raise
 
-    def update_quota_limits(self, project_id, user_id, **new_quota):
+    # Since additional parameter variables are added on top of abc class previously defined
+    # Pylint will raise a warning (W0237) saying parameter got renamed. Added suppress to ignore
+    # Since alarm W0237 was not introduced until pylint 2.1x, the CentOS pylint (running 2.3) will
+    # raise an alarm (E0012) on W0237 suggesting it is invalid, Another suppress is added for E0012
+    def update_quota_limits(self, project_id, user_id, **new_quota):  # pylint: disable=E0012,W0237
         """Update quota limits for a given project.
 
         :params: project_id, dictionary with the quota limits to update

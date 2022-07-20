@@ -13,7 +13,7 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 #
-# Copyright (c) 2019 Wind River Systems, Inc.
+# Copyright (c) 2019, 2022 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -38,8 +38,8 @@ def extract_context_from_environ():
 
     environ = request.environ
 
-    for key in context_paras:
-        context_paras[key] = environ.get(context_paras[key])
+    for key, val in context_paras.items():
+        context_paras[key] = environ.get(val)
     role = environ.get('HTTP_X_ROLE')
 
     context_paras['is_admin'] = 'admin' in role.split(',')

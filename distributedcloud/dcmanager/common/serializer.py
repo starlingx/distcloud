@@ -1,5 +1,5 @@
 # Copyright 2015 Huawei Technologies Co., Ltd.
-# Copyright (c) 2017, 2019, 2021 Wind River Systems, Inc.
+# Copyright (c) 2017, 2019, 2021, 2022 Wind River Systems, Inc.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -37,48 +37,48 @@ class DCManagerSerializer(oslo_messaging.Serializer):
         super(DCManagerSerializer, self).__init__()
         self._base = base
 
-    def serialize_entity(self, context, entity):
+    def serialize_entity(self, ctxt, entity):
         if isinstance(entity, dict):
             for key, value in entity.items():
-                entity[key] = self.serialize_entity(context, value)
+                entity[key] = self.serialize_entity(ctxt, value)
 
         elif isinstance(entity, list):
             for i, item in enumerate(entity):
-                entity[i] = self.serialize_entity(context, item)
+                entity[i] = self.serialize_entity(ctxt, item)
 
         elif entity in _SINGLETON_MAPPING.direct_mapping:
             entity = _SINGLETON_MAPPING.direct_mapping[entity]
 
         if self._base is not None:
-            entity = self._base.serialize_entity(context, entity)
+            entity = self._base.serialize_entity(ctxt, entity)
 
         return entity
 
-    def deserialize_entity(self, context, entity):
+    def deserialize_entity(self, ctxt, entity):
         if isinstance(entity, dict):
             for key, value in entity.items():
-                entity[key] = self.deserialize_entity(context, value)
+                entity[key] = self.deserialize_entity(ctxt, value)
 
         elif isinstance(entity, list):
             for i, item in enumerate(entity):
-                entity[i] = self.deserialize_entity(context, item)
+                entity[i] = self.deserialize_entity(ctxt, item)
 
         elif entity in _SINGLETON_MAPPING.reverse_mapping:
             entity = _SINGLETON_MAPPING.reverse_mapping[entity]
 
         if self._base is not None:
-            entity = self._base.deserialize_entity(context, entity)
+            entity = self._base.deserialize_entity(ctxt, entity)
 
         return entity
 
-    def serialize_context(self, context):
+    def serialize_context(self, ctxt):
         if self._base is not None:
-            context = self._base.serialize_context(context)
+            context = self._base.serialize_context(ctxt)
 
         return context
 
-    def deserialize_context(self, context):
+    def deserialize_context(self, ctxt):
         if self._base is not None:
-            context = self._base.deserialize_context(context)
+            context = self._base.deserialize_context(ctxt)
 
         return context

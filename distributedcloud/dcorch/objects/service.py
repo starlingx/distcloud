@@ -1,4 +1,5 @@
 # Copyright (c) 2015 Ericsson AB.
+# Copyright (c) 2020-2022 Wind River Systems, Inc.
 # All Rights Reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License"); you may
@@ -53,8 +54,14 @@ class Service(base.OrchestratorObject, base.VersionedObjectDictCompat):
         objs = db_api.service_get_all(context)
         return [cls._from_db_object(context, cls(), obj) for obj in objs]
 
+    # A function named update has been defined inside the base class (oslo_versionedobjects)
+    # which was defined with different parameters and served a different purpose
+    # Pylint was not able to distinguish the two thus raised an warning (W0237) suggesting
+    # undesired parameter name change. Added suppress to ignore this check
+    # Since alarm W0237 was not introduced until pylint 2.1x, the CentOS pylint (running 2.3) will
+    # raise an alarm (E0012) on W0237 suggesting it is invalid, Another suppress is added for E0012
     @classmethod
-    def update(cls, context, obj_id, values=None):
+    def update(cls, context, obj_id, values=None):  # pylint: disable=E0012,W0237
         obj = db_api.service_update(context, obj_id, values=values)
         return cls._from_db_object(context, cls(), obj)
 

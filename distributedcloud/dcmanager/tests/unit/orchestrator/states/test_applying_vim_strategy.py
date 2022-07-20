@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2020-2021 Wind River Systems, Inc.
+# Copyright (c) 2020-2022 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -36,7 +36,7 @@ class ApplyingVIMStrategyMixin(object):
         self.subcloud = self.setup_subcloud()
 
         # Add the strategy_step state being processed by this unit test
-        self.strategy_step = self.setup_strategy_step(self.state)
+        self.strategy_step = self.setup_strategy_step(self.subcloud.id, self.state)
 
         # Add mock API endpoints for client calls invcked by this state
         self.vim_client.get_strategy = mock.MagicMock()

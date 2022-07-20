@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2020 Wind River Systems, Inc.
+# Copyright (c) 2020, 2022 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -40,7 +40,7 @@ class TestFwUpdateApplyingVIMStrategyStage(TestFwUpdateState):
 
         # Add the strategy_step state being processed by this unit test
         self.strategy_step = self.setup_strategy_step(
-            consts.STRATEGY_STATE_APPLYING_FW_UPDATE_STRATEGY)
+            self.subcloud.id, consts.STRATEGY_STATE_APPLYING_FW_UPDATE_STRATEGY)
 
         # Add mock API endpoints for client calls invcked by this state
         self.vim_client.get_strategy = mock.MagicMock()

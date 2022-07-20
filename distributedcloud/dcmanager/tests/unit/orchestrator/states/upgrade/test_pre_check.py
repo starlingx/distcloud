@@ -133,7 +133,7 @@ class TestSwUpgradePreCheckStage(TestSwUpgradeState):
 
         # Add the strategy_step state being processed by this unit test
         self.strategy_step = \
-            self.setup_strategy_step(consts.STRATEGY_STATE_PRE_CHECK)
+            self.setup_strategy_step(self.subcloud.id, consts.STRATEGY_STATE_PRE_CHECK)
 
         self.sysinv_client.get_host = mock.MagicMock()
         self.sysinv_client.get_host_filesystem = mock.MagicMock()
