@@ -197,10 +197,11 @@ class SubcloudsController(object):
             request.body, pecan.request.headers.get('Content-Type'))
         for f in fields:
             for part in multipart_data.parts:
-                header = part.headers.get('Content-Disposition')
-                if f in header:
-                    data = yaml.safe_load(part.content.decode('utf8'))
-                    payload.update({f: data})
+                for hk, hv in part.headers.items():
+                    if (hk.decode('utf8') == 'Content-Disposition' and
+                            f in hv.decode('utf8')):
+                        data = yaml.safe_load(part.content.decode('utf8'))
+                        payload.update({f: data})
         return payload
 
     @staticmethod
@@ -248,18 +249,22 @@ class SubcloudsController(object):
 
     def _get_reconfig_payload(self, request, subcloud_name):
         payload = dict()
-        multipart_data = decoder.MultipartDecoder(request.body,
-                                                  pecan.request.headers.get('Content-Type'))
+        multipart_data = decoder.MultipartDecoder(
+            request.body, pecan.request.headers.get('Content-Type'))
 
         for filename in SUBCLOUD_RECONFIG_MANDATORY_FILE:
             for part in multipart_data.parts:
-                header = part.headers.get('Content-Disposition')
-                if filename in header:
-                    fn = self._get_config_file_path(subcloud_name, consts.DEPLOY_CONFIG)
-                    self._upload_config_file(part.content, fn, consts.DEPLOY_CONFIG)
-                    payload.update({consts.DEPLOY_CONFIG: fn})
-                elif "sysadmin_password" in header:
-                    payload.update({'sysadmin_password': part.content})
+                for hk, hv in part.headers.items():
+                    hv = hv.decode('utf8')
+                    if hk.decode('utf8') == 'Content-Disposition':
+                        if filename in hv:
+                            fn = self._get_config_file_path(
+                                subcloud_name, consts.DEPLOY_CONFIG)
+                            self._upload_config_file(
+                                part.content, fn, consts.DEPLOY_CONFIG)
+                            payload.update({consts.DEPLOY_CONFIG: fn})
+                        elif "sysadmin_password" in hv:
+                            payload.update({'sysadmin_password': part.content})
         self._get_common_deploy_files(payload)
         return payload
 
@@ -270,21 +275,23 @@ class SubcloudsController(object):
             if f not in request.POST:
                 pecan.abort(400, _("Missing required file for %s") % f)
 
-        multipart_data = decoder.MultipartDecoder(request.body,
-                                                  pecan.request.headers.get('Content-Type'))
+        multipart_data = decoder.MultipartDecoder(
+            request.body, pecan.request.headers.get('Content-Type'))
         for f in SUBCLOUD_RESTORE_MANDATORY_FILE:
             for part in multipart_data.parts:
-                header = part.headers.get('Content-Disposition')
-                if f in header:
-                    file_item = request.POST[f]
-                    file_item.file.seek(0, os.SEEK_SET)
-                    data = yaml.safe_load(file_item.file.read().decode('utf8'))
-                    payload.update({RESTORE_VALUES: data})
-                elif "sysadmin_password" in header:
-                    payload.update({'sysadmin_password': part.content})
-                elif "with_install" in header:
-                    payload.update({'with_install': part.content})
-
+                for hk, hv in part.headers.items():
+                    hv = hv.decode('utf8')
+                    if hk.decode('utf8') == 'Content-Disposition':
+                        if f in hv:
+                            file_item = request.POST[f]
+                            file_item.file.seek(0, os.SEEK_SET)
+                            data = yaml.safe_load(
+                                file_item.file.read().decode('utf8'))
+                            payload.update({RESTORE_VALUES: data})
+                        elif "sysadmin_password" in hv:
+                            payload.update({'sysadmin_password': part.content})
+                        elif "with_install" in hv:
+                            payload.update({'with_install': part.content})
         return payload
 
     def _get_config_file_path(self, subcloud_name, config_file_type=None):
