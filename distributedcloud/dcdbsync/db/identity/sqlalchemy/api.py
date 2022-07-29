@@ -13,7 +13,7 @@
 # License for the specific language governing permissions and limitations
 # under the License.
 #
-# Copyright (c) 2019-2021 Wind River Systems, Inc.
+# Copyright (c) 2019-2022 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -301,9 +301,22 @@ def user_update(context, user_id, payload):
         table = 'user'
         new_user_id = user_id
         if table in payload:
+            user_options = []
             user = payload[table]
-            update(conn, table, 'id', user_id, user)
             new_user_id = user.get('id')
+            if user_id != new_user_id:
+                # Delete the user_option record referencing to the old user_id
+                # to avoid the foreign key constraint violation when we update
+                # the user table in the next step.
+                user_options = query(conn, 'user_option', 'user_id', user_id)
+                delete(conn, 'user_option', 'user_id', user_id)
+            else:
+                user.pop('id', None)
+            update(conn, table, 'id', user_id, user)
+            if user_options:
+                for user_option in user_options:
+                    user_option['user_id'] = new_user_id
+                insert(conn, 'user_option', user_option)
         # local_user table
         table = 'local_user'
         if table in payload:
@@ -616,6 +629,7 @@ def role_update(context, role_id, payload):
         if table in payload:
             prior_roles = []
             implied_roles = []
+            role_options = []
             role = payload[table]
             new_role_id = role.get('id')
             if role_id != new_role_id:
@@ -630,6 +644,13 @@ def role_update(context, role_id, payload):
                 implied_roles = query(conn, 'implied_role', 'implied_role_id',
                                       role_id)
                 delete(conn, 'implied_role', 'implied_role_id', role_id)
+                # Delete the role_option record referencing to the old role_id
+                # to avoid the foreign key constraint violation when we update
+                # the role table in the next step.
+                role_options = query(conn, 'role_option', 'role_id', role_id)
+                delete(conn, 'role_option', 'role_id', role_id)
+            else:
+                role.pop('id', None)
             # Update role table
             update(conn, table, 'id', role_id, role)
             # Update saved records from implied_role table and insert them back
@@ -641,6 +662,10 @@ def role_update(context, role_id, payload):
                 for implied_role in implied_roles:
                     implied_role['implied_role_id'] = new_role_id
                 insert(conn, 'implied_role', implied_roles)
+            if role_options:
+                for role_option in role_options:
+                    role_option['role_id'] = new_role_id
+                insert(conn, 'role_option', role_option)
 
         # Need to update the role_id in assignment and system_assignment tables
         # if the role id is updated
