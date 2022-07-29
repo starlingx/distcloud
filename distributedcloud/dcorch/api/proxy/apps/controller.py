@@ -641,20 +641,54 @@ class SysinvAPIController(APIController):
         return staging_file
 
     def _store_load_to_vault(self, request):
+        class LocalLoadFile(object):
+            def __init__(self, filename):
+                self._filename = filename
+                self._file = open(filename, "rb")
+
+            def __del__(self):
+                self._file.close()
+
+            @property
+            def filename(self):
+                return self._filename
+
+            @property
+            def file(self):
+                return self._file
+
         load_files = dict()
+
+        # Flag to cleanup staging files in case of errors
+        error = True
         try:
             for file in proxy_consts.IMPORT_LOAD_FILES:
-                if file not in request.POST:
-                    msg = _("Missing required file for %s" % file)
-                    raise webob.exc.HTTPInternalServerError(explanation=msg)
+                if request.content_type == "application/json":
+                    request_body = dict(json.loads(request.body))
 
-                file_item = request.POST[file]
-                if not file_item.filename:
-                    msg = _("No %s file uploaded" % file)
-                    raise webob.exc.HTTPInternalServerError(explanation=msg)
+                    if file not in request_body:
+                        msg = _("Missing required file for %s" % file)
+                        raise webob.exc.HTTPInternalServerError(explanation=msg)
+
+                    if not os.path.exists(request_body[file]):
+                        msg = _("File %s does not exist on the active"
+                                " controller" % request_body[file])
+                        raise webob.exc.HTTPInternalServerError(explanation=msg)
+
+                    file_item = LocalLoadFile(request_body[file])
+                else:
+                    if file not in request.POST:
+                        msg = _("Missing required file for %s" % file)
+                        raise webob.exc.HTTPInternalServerError(explanation=msg)
+
+                    file_item = request.POST[file]
+                    if not file_item.filename:
+                        msg = _("No %s file uploaded" % file)
+                        raise webob.exc.HTTPInternalServerError(explanation=msg)
 
                 staging_file = self._upload_file(file_item)
-                request.POST[file] = staging_file
+                if file in request.POST:
+                    request.POST[file] = staging_file
                 if staging_file:
                     self._copy_load_to_vault_for_validation(staging_file)
                     load_files.update({file: staging_file})
@@ -664,11 +698,15 @@ class SysinvAPIController(APIController):
                     raise webob.exc.HTTPInternalServerError(explanation=msg)
 
             LOG.info("Load files: %s saved to disk." % load_files)
+            error = False
+        except webob.exc.HTTPInternalServerError:
+            raise
         except Exception:
-            if os.path.exists(proxy_consts.LOAD_FILES_STAGING_DIR):
-                shutil.rmtree(proxy_consts.LOAD_FILES_STAGING_DIR)
             msg = _("Unexpected error copying load to vault")
             raise webob.exc.HTTPInternalServerError(explanation=msg)
+        finally:
+            if error and os.path.exists(proxy_consts.LOAD_FILES_STAGING_DIR):
+                shutil.rmtree(proxy_consts.LOAD_FILES_STAGING_DIR)
         return load_files
 
     def _store_image_file(self, file_item, dst_filename):
