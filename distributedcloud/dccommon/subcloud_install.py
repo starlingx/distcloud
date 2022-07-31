@@ -30,7 +30,7 @@ from dccommon.drivers.openstack.keystone_v3 import KeystoneClient
 from dccommon.drivers.openstack.sysinv_v1 import SysinvClient
 from dccommon import exceptions
 from dccommon import install_consts
-from dccommon.utils import run_playbook
+from dccommon import utils as common_utils
 from dcmanager.common import utils
 
 LOG = logging.getLogger(__name__)
@@ -45,10 +45,11 @@ RVMC_IMAGE_TAG = 'stx.5.0-v1.0.0'
 
 SUBCLOUD_ISO_PATH = '/opt/platform/iso'
 SUBCLOUD_ISO_DOWNLOAD_PATH = '/var/www/pages/iso'
-SUBCLOUD_PKG_CKSUM_PATH = '/var/www/pages/feed'
+SUBCLOUD_FEED_PATH = '/var/www/pages/feed'
 DCVAULT_BOOTIMAGE_PATH = '/opt/dc-vault/loads/'
 PACKAGE_LIST_PATH = '/usr/local/share/pkg-list'
 GEN_ISO_COMMAND = '/usr/local/bin/gen-bootloader-iso.sh'
+GEN_ISO_COMMAND_CENTOS = '/usr/local/bin/gen-bootloader-iso-centos.sh'
 NETWORK_SCRIPTS = '/etc/sysconfig/network-scripts'
 NETWORK_INTERFACE_PREFIX = 'ifcfg'
 NETWORK_ROUTE_PREFIX = 'route'
@@ -96,7 +97,8 @@ class SubcloudInstall(object):
         session = ks_client.endpoint_cache.get_session_from_token(
             context.auth_token, context.project)
         endpoint = ks_client.endpoint_cache.get_endpoint('sysinv')
-        self.sysinv_client = SysinvClient(consts.CLOUD_0, session, endpoint=endpoint)
+        self.sysinv_client = SysinvClient(consts.CLOUD_0,
+                                          session, endpoint=endpoint)
         self.name = subcloud_name
         self.input_iso = None
         self.www_root = None
@@ -197,7 +199,8 @@ class SubcloudInstall(object):
     @staticmethod
     def create_rvmc_config_file(override_path, payload):
 
-        LOG.debug("create rvmc config file")
+        LOG.debug("create rvmc config file, path: %s, payload: %s",
+                  override_path, payload)
         rvmc_config_file = os.path.join(override_path, 'rvmc-config.yaml')
 
         with open(rvmc_config_file, 'w') as f_out_rvmc_config_file:
@@ -318,58 +321,77 @@ class SubcloudInstall(object):
                 resource=self.name,
                 msg=msg)
 
-        update_iso_cmd = [
-            GEN_ISO_COMMAND,
-            "--input", self.input_iso,
-            "--www-root", self.www_root,
-            "--id", self.name,
-            "--boot-hostname", self.name,
-            "--timeout", BOOT_MENU_TIMEOUT,
-
-        ]
-        for k in GEN_ISO_OPTIONS.keys():
-            if k in values:
-                if k == 'bootstrap_address' or k == 'nexthop_gateway':
-                    update_iso_cmd += [GEN_ISO_OPTIONS[k],
-                                       self.format_address(values[k])]
-                elif (k == 'no_check_certificate' and str(values[k]) == 'True'
-                      and self.get_https_enabled()):
-                    update_iso_cmd += [GEN_ISO_OPTIONS[k],
-                                       'inst.noverifyssl=True']
-                elif k == 'rootfs_device' or k == 'boot_device' or k == 'rd.net.timeout.ipv6dad':
-                    update_iso_cmd += [GEN_ISO_OPTIONS[k],
-                                       (k + '=' + str(values[k]))]
-                elif k == 'bootstrap_vlan':
+        if common_utils.is_debian():
+            update_iso_cmd = [
+                GEN_ISO_COMMAND,
+                "--input", self.input_iso,
+                "--www-root", self.www_root,
+                "--id", self.name,
+                "--boot-hostname", self.name,
+                "--timeout", BOOT_MENU_TIMEOUT,
+            ]
+        else:
+            update_iso_cmd = [
+                GEN_ISO_COMMAND_CENTOS,
+                "--input", self.input_iso,
+                "--www-root", self.www_root,
+                "--id", self.name,
+                "--boot-hostname", self.name,
+                "--timeout", BOOT_MENU_TIMEOUT,
+            ]
+        for key in GEN_ISO_OPTIONS:
+            if key in values:
+                LOG.debug("Setting option from key=%s, option=%s, value=%s",
+                          key, GEN_ISO_OPTIONS[key], values[key])
+                if key in ('bootstrap_address', 'nexthop_gateway'):
+                    update_iso_cmd += [GEN_ISO_OPTIONS[key],
+                                       self.format_address(values[key])]
+                elif key == 'no_check_certificate':
+                    if str(values[key]) == 'True' and self.get_https_enabled():
+                        update_iso_cmd += [GEN_ISO_OPTIONS[key],
+                                           'inst.noverifyssl=True']
+                elif key in ('rootfs_device', 'boot_device',
+                             'rd.net.timeout.ipv6dad'):
+                    update_iso_cmd += [GEN_ISO_OPTIONS[key],
+                                       (key + '=' + str(values[key]))]
+                elif key == 'bootstrap_vlan':
                     vlan_inteface = "%s.%s:%s" % \
                                     (values['bootstrap_interface'],
                                      values['bootstrap_vlan'],
                                      values['bootstrap_interface'])
-                    update_iso_cmd += [GEN_ISO_OPTIONS[k],
+                    update_iso_cmd += [GEN_ISO_OPTIONS[key],
                                        ('vlan' + '=' + vlan_inteface)]
-                elif k == 'bootstrap_interface' and 'bootstrap_vlan' in values:
+                elif (key == 'bootstrap_interface'
+                      and 'bootstrap_vlan' in values):
                     boot_interface = "%s.%s" % (values['bootstrap_interface'],
                                                 values['bootstrap_vlan'])
-                    update_iso_cmd += [GEN_ISO_OPTIONS[k], boot_interface]
-                elif k == 'persistent_size':
-                    update_iso_cmd += [GEN_ISO_OPTIONS[k],
-                                       ('persistent_size' + '=' + str(values[k]))]
+                    update_iso_cmd += [GEN_ISO_OPTIONS[key], boot_interface]
+                elif key == 'persistent_size':
+                    update_iso_cmd += [GEN_ISO_OPTIONS[key],
+                                       ('persistent_size=%s'
+                                        % str(values[key]))]
                 else:
-                    update_iso_cmd += [GEN_ISO_OPTIONS[k],
-                                       str(values[k])]
+                    update_iso_cmd += [GEN_ISO_OPTIONS[key], str(values[key])]
 
-        # create ks-addon.cfg
-        addon_cfg = os.path.join(override_path, 'ks-addon.cfg')
-        self.create_ks_conf_file(addon_cfg, values)
+        if common_utils.is_centos():
+            # create ks-addon.cfg
+            addon_cfg = os.path.join(override_path, 'ks-addon.cfg')
+            self.create_ks_conf_file(addon_cfg, values)
 
-        update_iso_cmd += ['--addon', addon_cfg]
+            update_iso_cmd += ['--addon', addon_cfg]
 
-        # get the base URL
-        base_url = os.path.join(self.get_image_base_url(), 'iso',
-                                str(values['software_version']))
+            # Get the base URL
+            base_url = os.path.join(self.get_image_base_url(), 'iso',
+                                    str(values['software_version']))
+        else:
+            # Get the base URL. ostree_repo is located within this path
+            base_url = os.path.join(self.get_image_base_url(), 'iso',
+                                    str(values['software_version']))
+
         update_iso_cmd += ['--base-url', base_url]
 
         str_cmd = ' '.join(x for x in update_iso_cmd)
-        LOG.debug("update_iso_cmd:(%s)", str_cmd)
+        LOG.info("Running update_iso_cmd: %s", str_cmd)
         try:
             with open(os.devnull, "w") as fnull:
                 subprocess.check_call(  # pylint: disable=E1102
@@ -385,8 +407,7 @@ class SubcloudInstall(object):
                 os.path.exists(self.input_iso)):
             os.remove(self.input_iso)
 
-        if (self.www_root is not None and
-                os.path.isdir(self.www_root)):
+        if (self.www_root is not None and os.path.isdir(self.www_root)):
             cleanup_cmd = [
                 GEN_ISO_COMMAND,
                 "--id", self.name,
@@ -400,6 +421,7 @@ class SubcloudInstall(object):
             except subprocess.CalledProcessError:
                 LOG.error("Failed to delete boot files.")
 
+    # TODO(kmacleod): utils.synchronized should be moved into dccommon
     @utils.synchronized("packages-list-from-bootimage", external=True)
     def _copy_packages_list_from_bootimage(self, software_version, pkg_file_src):
         # The source file (pkg_file_src) is not available.
@@ -458,6 +480,33 @@ class SubcloudInstall(object):
             subprocess.check_call(['umount', '-l', temp_bootimage_mnt_dir])  # pylint: disable=not-callable
             os.rmdir(temp_bootimage_mnt_dir)
 
+    def check_ostree_mount(self, source_path):
+        """Mount the ostree_repo at ostree_repo_mount_path if necessary.
+
+        Note that ostree_repo is mounted in a location not specific to a
+        subcloud. We never unmount this directory once the mount path is
+        established.
+        """
+        ostree_mount_dir = os.path.join(self.www_root, 'ostree_repo')
+        LOG.debug("Checking mount: %s", ostree_mount_dir)
+        check_path = os.path.join(ostree_mount_dir, 'config')
+        if not os.path.exists(check_path):
+            self._do_ostree_mount(ostree_mount_dir, check_path, source_path)
+
+    # TODO(kmacleod): utils.synchronized should be moved into dccommon
+    @utils.synchronized("ostree-mount-subclouds", external=True)
+    def _do_ostree_mount(self, ostree_repo_mount_path,
+                         check_path, source_path):
+        # check again while locked:
+        if not os.path.exists(check_path):
+            LOG.info("Mounting ostree_repo at %s", ostree_repo_mount_path)
+            if not os.path.exists(ostree_repo_mount_path):
+                os.makedirs(ostree_repo_mount_path, mode=0o755)
+            subprocess.check_call(  # pylint: disable=not-callable
+                ["mount", "--bind",
+                 "%s/ostree_repo" % source_path,
+                 ostree_repo_mount_path])
+
     def prep(self, override_path, payload):
         """Update the iso image and create the config files for the subcloud"""
         LOG.info("Prepare for %s remote install" % (self.name))
@@ -479,17 +528,26 @@ class SubcloudInstall(object):
         self.www_root = os.path.join(SUBCLOUD_ISO_PATH,
                                      str(iso_values['software_version']))
 
+        software_version = str(payload['software_version'])
+
+        feed_path_rel_version = os.path.join(SUBCLOUD_FEED_PATH,
+                                             "rel-{version}".format(
+                                                 version=software_version))
+        if common_utils.is_debian():
+            self.check_ostree_mount(feed_path_rel_version)
+
         # Clean up iso directory if it already exists
-        # This may happen if a previous installation attempt was abruptly terminated
+        # This may happen if a previous installation attempt was abruptly
+        # terminated
         iso_dir_path = os.path.join(self.www_root, 'nodes', self.name)
         if os.path.isdir(iso_dir_path):
             LOG.info("Found preexisting iso dir for subcloud %s, cleaning up",
                      self.name)
             self.cleanup()
 
-        # update the default iso image based on the install values
+        # Update the default iso image based on the install values
+        # Runs gen-bootloader-iso.sh
         self.update_iso(override_path, iso_values)
-        software_version = str(payload['software_version'])
 
         # remove the iso values from the payload
         for k in iso_values:
@@ -509,26 +567,31 @@ class SubcloudInstall(object):
             if k in payload:
                 del payload[k]
 
-        # when adding a new subcloud, the subcloud will pull
-        # the file "packages_list" from the controller.
-        # The subcloud pulls from /var/www/pages/iso/<version>/.
-        # The file needs to be copied from /var/www/pages/feed to
-        # this location, as packages_list.
-        pkg_file_dest = os.path.join(SUBCLOUD_ISO_DOWNLOAD_PATH,
-                                     software_version, 'nodes',
-                                     self.name, software_version + "_packages_list.txt")
+        if common_utils.is_centos():
+            # when adding a new subcloud, the subcloud will pull
+            # the file "packages_list" from the controller.
+            # The subcloud pulls from /var/www/pages/iso/<version>/.
+            # The file needs to be copied from /var/www/pages/feed to
+            # this location, as packages_list.
+            pkg_file_dest = os.path.join(
+                SUBCLOUD_ISO_DOWNLOAD_PATH,
+                software_version,
+                'nodes',
+                self.name,
+                software_version + "_packages_list.txt")
 
-        pkg_file_src = os.path.join(SUBCLOUD_PKG_CKSUM_PATH,
-                                    "rel-{version}".format(version=software_version),
-                                    'package_checksums')
+            pkg_file_src = os.path.join(SUBCLOUD_FEED_PATH,
+                                        "rel-{version}".format(
+                                            version=software_version),
+                                        'package_checksums')
 
-        if not os.path.exists(pkg_file_src):
-            # the file does not exist. copy it from the bootimage.
-            self._copy_packages_list_from_bootimage(software_version,
-                                                    pkg_file_src)
+            if not os.path.exists(pkg_file_src):
+                # the file does not exist. copy it from the bootimage.
+                self._copy_packages_list_from_bootimage(software_version,
+                                                        pkg_file_src)
 
-        # since we now have package_checksums, copy to destination.
-        shutil.copy(pkg_file_src, pkg_file_dest)
+            # since we now have package_checksums, copy to destination.
+            shutil.copy(pkg_file_src, pkg_file_dest)
 
         # remove the boot image url from the payload
         if 'image' in payload:
@@ -544,7 +607,7 @@ class SubcloudInstall(object):
         try:
             # Since this is a long-running task we want to register
             # for cleanup on process restart/SWACT.
-            run_playbook(log_file, install_command)
+            common_utils.run_playbook(log_file, install_command)
         except exceptions.PlaybookExecutionFailed:
             msg = ("Failed to install the subcloud %s, check individual "
                    "log at %s for detailed output."
