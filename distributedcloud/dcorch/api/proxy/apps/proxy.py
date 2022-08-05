@@ -1,4 +1,4 @@
-# Copyright 2017 Wind River
+# Copyright 2017-2022 Wind River
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -20,6 +20,8 @@ from paste.proxy import TransparentProxy
 
 LOG = logging.getLogger(__name__)
 
+HEADERS = ['HTTP_X_DOMAIN_ID', 'HTTP_X_DOMAIN_NAME', 'HTTP_OPENSTACK_SYSTEM_SCOPE']
+
 
 class Proxy(Application):
     """A proxy that sends the request just as it was given,
@@ -33,5 +35,14 @@ class Proxy(Application):
     def __call__(self, environ, start_response):
         LOG.debug("Proxy the request to the remote host: (%s)", environ[
             'HTTP_HOST'])
+        # The http/client.py added validation for illegal headers in python3
+        # which doesn't allow None values. If we don't inject these headers
+        # and set them to empty string here,
+        # the keystonemiddleware/auth-token/_request.py will inject them and
+        # set them to None, then the validation for illegal headers will raise
+        # an TypeError due to the None values.
+        for header in HEADERS:
+            if not environ.get(header):
+                environ[header] = ''
         result = self.proxy_app(environ, start_response)
         return result
