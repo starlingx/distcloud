@@ -1,5 +1,5 @@
-# Copyright 2017-2018 Wind River
-#
+# Copyright 2017-2018, 2022 Wind River
+
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -399,37 +399,37 @@ class ComputeSyncThread(SyncThread):
                 f1.is_public == f2.is_public and
                 f1.ephemeral == f2.ephemeral)
 
-    def audit_dependants(self, resource_type, m_flavor, sc_flavor):
+    def audit_dependants(self, resource_type, m_resource, sc_resource):
         num_of_audit_jobs = 0
         if not self.is_subcloud_enabled() or self.should_exit():
             return num_of_audit_jobs
         if resource_type == consts.RESOURCE_TYPE_COMPUTE_FLAVOR:
             num_of_audit_jobs += self.audit_flavor_access(
-                resource_type, m_flavor, sc_flavor)
+                resource_type, m_resource, sc_resource)
             num_of_audit_jobs += self.audit_extra_specs(
-                resource_type, m_flavor, sc_flavor)
+                resource_type, m_resource, sc_resource)
         return num_of_audit_jobs
 
-    def audit_flavor_access(self, resource_type, m_flavor, sc_flavor):
+    def audit_flavor_access(self, resource_type, m_resource, sc_resource):
         num_of_audit_jobs = 0
         sc_fa_attachment = []  # Subcloud flavor-access attachment
-        if sc_flavor:
-            sc_fa_attachment = sc_flavor.attach_fa
+        if sc_resource:
+            sc_fa_attachment = sc_resource.attach_fa
 
         # Flavor-access needs to be audited. flavor-access details are
         # filled in m_resources and sc_resources during query.
-        for m_fa in m_flavor.attach_fa:
+        for m_fa in m_resource.attach_fa:
             found = False
             for sc_fa in sc_fa_attachment:
                 if m_fa.tenant_id == sc_fa.tenant_id:
                     found = True
-                    sc_flavor.attach_fa.remove(sc_fa)
+                    sc_resource.attach_fa.remove(sc_fa)
                     break
             if not found:
                 action_dict = {
                     consts.ACTION_ADDTENANTACCESS: {"tenant": m_fa.tenant_id}}
                 self.schedule_work(
-                    self.endpoint_type, resource_type, m_flavor.id,
+                    self.endpoint_type, resource_type, m_resource.id,
                     consts.OPERATION_TYPE_ACTION,
                     jsonutils.dumps(action_dict))
                 num_of_audit_jobs += 1
@@ -438,19 +438,19 @@ class ComputeSyncThread(SyncThread):
             action_dict = {
                 consts.ACTION_REMOVETENANTACCESS: {"tenant": sc_fa.tenant_id}}
             self.schedule_work(
-                self.endpoint_type, resource_type, m_flavor.id,
+                self.endpoint_type, resource_type, m_resource.id,
                 consts.OPERATION_TYPE_ACTION,
                 jsonutils.dumps(action_dict))
             num_of_audit_jobs += 1
 
         return num_of_audit_jobs
 
-    def audit_extra_specs(self, resource_type, m_flavor, sc_flavor):
+    def audit_extra_specs(self, resource_type, m_flavor, sc_resource):
         num_of_audit_jobs = 0
         sc_es_attachment = {}  # Subcloud extra-spec attachment
-        if sc_flavor:
-            # sc_flavor could be None.
-            sc_es_attachment = sc_flavor.attach_es
+        if sc_resource:
+            # sc_resource could be None.
+            sc_es_attachment = sc_resource.attach_es
 
         # Extra-spec needs to be audited. Extra-spec details are
         # filled in m_resources and sc_resources during query.
@@ -550,6 +550,7 @@ class ComputeSyncThread(SyncThread):
         subcloud_rsrc.delete()
         # Master Resource can be deleted only when all subcloud resources
         # are deleted along with corresponding orch_job and orch_requests.
+        # pylint: disable=E1101
         LOG.info("Keypair {}:{} [{}] deleted".format(rsrc.id, subcloud_rsrc.id,
                  log_str), extra=self.log_extra)
 

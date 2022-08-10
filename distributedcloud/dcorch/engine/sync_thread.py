@@ -206,7 +206,7 @@ class SyncThread(object):
             subcloud_rsrc = \
                 subcloud_resource.SubcloudResource. \
                 get_by_resource_and_subcloud(
-                    self.ctxt, rsrc_id, subcloud.id)
+                    self.ctxt, rsrc_id, subcloud.id)  # pylint: disable=E1101
             return subcloud_rsrc
         except exceptions.SubcloudResourceNotFound:
             LOG.info("{} not found in subcloud {} resource table".format(
@@ -228,7 +228,7 @@ class SyncThread(object):
             subcloud_rsrc = subcloud_resource.SubcloudResource(
                 self.ctxt, subcloud_resource_id=subcloud_rsrc_id,
                 resource_id=db_rsrc_id,
-                subcloud_id=subcloud.id)
+                subcloud_id=subcloud.id)  # pylint: disable=E1101
             # There is no race condition for creation of
             # subcloud_resource as it is always done from the same thread.
             subcloud_rsrc.create()
@@ -250,6 +250,7 @@ class SyncThread(object):
     def sync_resource(self, sync_request):
         rsrc = resource.Resource.get_by_id(self.ctxt,
                                            sync_request.orch_job.resource_id)
+        # pylint: disable=E1101
         handler = self.sync_handler_map[rsrc.resource_type]
         LOG.info("{} Invoking {} for {} [{}]".format(
             self.engine_id, handler.__name__, rsrc.resource_type,

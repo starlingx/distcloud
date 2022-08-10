@@ -1,4 +1,5 @@
 # Copyright (c) 2015 Ericsson AB.
+# Copyright (c) 2020-2022 Wind River Systems, Inc.
 # All Rights Reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License"); you may
@@ -13,6 +14,10 @@
 # License for the specific language governing permissions and limitations
 # under the License.
 
+from oslo_config import cfg
+
+CONF = cfg.CONF
+
 
 class LazyPluggable(object):
     """A pluggable backend loaded lazily based on some value."""
@@ -24,7 +29,7 @@ class LazyPluggable(object):
 
     def __get_backend(self):
         if not self.__backend:
-            backend_name = 'sqlalchemy'
+            backend_name = CONF[self.__pivot]
             backend = self.__backends[backend_name]
             if isinstance(backend, tuple):
                 name = backend[0]

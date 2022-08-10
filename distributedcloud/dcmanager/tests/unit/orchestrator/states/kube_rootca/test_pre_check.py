@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2021 Wind River Systems, Inc.
+# Copyright (c) 2021-2022 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -23,7 +23,7 @@ class TestPreCheckStage(TestKubeRootCaUpgradeState):
 
         # Add the strategy_step state being processed by this unit test
         self.strategy_step = self.setup_strategy_step(
-            STRATEGY_STATE_KUBE_ROOTCA_UPDATE_PRE_CHECK)
+            self.subcloud.id, STRATEGY_STATE_KUBE_ROOTCA_UPDATE_PRE_CHECK)
 
     def test_pre_check_no_extra_args(self):
         """Test pre check step where there are no extra args

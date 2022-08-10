@@ -159,10 +159,6 @@ class GenericSyncManager(object):
         LOG.debug('Engine id:(%s): All subcloud syncs have completed.'
                   % engine_id)
 
-    def _get_endpoint_sync_request(self, subcloud_name, endpoint_type):
-        sc = subcloud.Subcloud.get_by_name(self.context, subcloud_name)
-        return sc.sync_request.get(endpoint_type)
-
     @subcloud_lock.sync_subcloud
     def mutex_start_thread(self, context, engine_id, subcloud_name,
                            endpoint_type, action):
@@ -413,7 +409,7 @@ class GenericSyncManager(object):
                 # create the subcloud_sync !!!
                 db_api.subcloud_sync_create(
                     context, subcloud_name, endpoint_type,
-                    values={'subcloud_id': sc.id})
+                    values={'subcloud_id': sc.id})  # pylint: disable=E1101
 
                 if self.is_subcloud_ready(subcloud_name):
                     sync_obj.enable()

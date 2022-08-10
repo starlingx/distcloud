@@ -1377,6 +1377,7 @@ class IdentitySyncThread(SyncThread):
 
         # Master Resource can be deleted only when all subcloud resources
         # are deleted along with corresponding orch_job and orch_requests.
+        # pylint: disable=E1101
         LOG.info("Keystone token revocation event {}:{} [{}] deleted"
                  .format(rsrc.id, revoke_event_subcloud_rsrc.id,
                          revoke_event_subcloud_rsrc.subcloud_resource_id),
@@ -1451,6 +1452,7 @@ class IdentitySyncThread(SyncThread):
 
         # Master Resource can be deleted only when all subcloud resources
         # are deleted along with corresponding orch_job and orch_requests.
+        # pylint: disable=E1101
         LOG.info("Keystone token revocation event {}:{} [{}] deleted"
                  .format(rsrc.id, revoke_event_subcloud_rsrc.id,
                          revoke_event_subcloud_rsrc.subcloud_resource_id),

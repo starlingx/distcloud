@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2021 Wind River Systems, Inc.
+# Copyright (c) 2021-2022 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -32,7 +32,7 @@ class TestSwUpgradeSwactToController0Stage(TestSwUpgradeState):
 
         # Add the strategy_step state being processed by this unit test
         self.strategy_step = \
-            self.setup_strategy_step(self.state)
+            self.setup_strategy_step(self.subcloud.id, self.state)
 
         # Add mock API endpoints for sysinv client calls invoked by this state
         self.sysinv_client.get_host = mock.MagicMock()

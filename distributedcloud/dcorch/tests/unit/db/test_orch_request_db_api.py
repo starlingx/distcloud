@@ -87,9 +87,6 @@ class DBAPIOrchRequestTest(base.OrchestratorTestCase):
                         operation_type, values=None):
         if values is None:
             values = {}
-        endpoint_type = endpoint_type
-        operation_type = operation_type
-        values = values
         orch_job = db_api.orch_job_create(ctxt,
                                           resource_id,
                                           endpoint_type,

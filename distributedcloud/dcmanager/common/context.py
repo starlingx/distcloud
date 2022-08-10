@@ -54,6 +54,7 @@ class RequestContext(base_context.RequestContext):
 
         """Initializer of request context."""
         # We still have 'tenant' param because oslo_context still use it.
+        # pylint: disable=E1123
         super(RequestContext, self).__init__(
             auth_token=auth_token, user=user, tenant=project,
             domain=domain, user_domain=user_domain,

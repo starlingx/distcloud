@@ -1,3 +1,4 @@
+# Copyright (c) 2020-2022 Wind River Systems, Inc.
 # Licensed under the Apache License, Version 2.0 (the "License"); you may
 # not use this file except in compliance with the License. You may obtain
 # a copy of the License at
@@ -40,6 +41,7 @@ class RequestContext(base_context.RequestContext):
 
         """Initializer of request context."""
         # We still have 'tenant' param because oslo_context still use it.
+        # pylint: disable=E1123
         super(RequestContext, self).__init__(
             auth_token=auth_token, user=user, tenant=project,
             domain=domain, user_domain=user_domain,

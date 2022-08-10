@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2020 Wind River Systems, Inc.
+# Copyright (c) 2020, 2022 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -35,7 +35,7 @@ class TestKubeUpgradePreCheckStage(TestKubeUpgradeState):
 
         # Add the strategy_step state being processed by this unit test
         self.strategy_step = \
-            self.setup_strategy_step(STRATEGY_STATE_KUBE_UPGRADE_PRE_CHECK)
+            self.setup_strategy_step(self.subcloud.id, STRATEGY_STATE_KUBE_UPGRADE_PRE_CHECK)
 
         # mock there not being a kube upgrade in progress
         self.sysinv_client.get_kube_upgrades = mock.MagicMock()
