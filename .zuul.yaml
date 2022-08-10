@@ -12,6 +12,8 @@
         - stx-distcloud-tox-py27
         - stx-distcloud-tox-py39
         - stx-distcloud-tox-pylint
+        - stx-distcloud-tox-pep8-debian
+        - stx-distcloud-tox-pylint-debian
     gate:
       jobs:
         - openstack-tox-linters
@@ -19,6 +21,8 @@
         - stx-distcloud-tox-py27
         - stx-distcloud-tox-py39
         - stx-distcloud-tox-pylint
+        - stx-distcloud-tox-pep8-debian
+        - stx-distcloud-tox-pylint-debian
     post:
       jobs:
         - stx-distcloud-upload-git-mirror
@@ -70,6 +74,21 @@
       tox_extra_args: -c distributedcloud/tox.ini
 
 - job:
+    name: stx-distcloud-tox-pylint-debian
+    parent: tox
+    description: Run pylint for distcloud
+    nodeset: ubuntu-focal
+    required-projects:
+      - starlingx/fault
+      - starlingx/nfv
+      - starlingx/update
+      - starlingx/config
+    vars:
+      python_version: 3.9
+      tox_envlist: pylint_Debian
+      tox_extra_args: -c distributedcloud/tox.ini
+
+- job:
     name: stx-distcloud-tox-pep8
     parent: tox
     description: Run pep8 for distcloud
@@ -80,6 +99,20 @@
       - starlingx/config
     vars:
       tox_envlist: pep8
+      tox_extra_args: -c distributedcloud/tox.ini
+
+- job:
+    name: stx-distcloud-tox-pep8-debian
+    parent: tox
+    description: Run pep8 for distcloud
+    required-projects:
+      - starlingx/fault
+      - starlingx/nfv
+      - starlingx/update
+      - starlingx/config
+    vars:
+      python_version: 3.9
+      tox_envlist: pep8_Debian
       tox_extra_args: -c distributedcloud/tox.ini
 
 - job:
