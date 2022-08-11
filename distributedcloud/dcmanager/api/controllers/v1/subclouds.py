@@ -241,7 +241,7 @@ class SubcloudsController(object):
     def _upload_config_file(self, file_item, config_file, config_type):
         try:
             with open(config_file, "w") as f:
-                f.write(file_item)
+                f.write(file_item.decode('utf8'))
         except Exception:
             msg = _("Failed to upload %s file" % config_type)
             LOG.exception(msg)
