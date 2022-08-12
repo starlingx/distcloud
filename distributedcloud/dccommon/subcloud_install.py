@@ -408,12 +408,21 @@ class SubcloudInstall(object):
             os.remove(self.input_iso)
 
         if (self.www_root is not None and os.path.isdir(self.www_root)):
-            cleanup_cmd = [
-                GEN_ISO_COMMAND,
-                "--id", self.name,
-                "--www-root", self.www_root,
-                "--delete"
-            ]
+            if common_utils.is_debian():
+                cleanup_cmd = [
+                    GEN_ISO_COMMAND,
+                    "--id", self.name,
+                    "--www-root", self.www_root,
+                    "--delete"
+                ]
+            else:
+                cleanup_cmd = [
+                    GEN_ISO_COMMAND_CENTOS,
+                    "--id", self.name,
+                    "--www-root", self.www_root,
+                    "--delete"
+                ]
+
             try:
                 with open(os.devnull, "w") as fnull:
                     subprocess.check_call(  # pylint: disable=E1102
