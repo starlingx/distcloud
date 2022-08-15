@@ -13,7 +13,6 @@
 #
 
 import datetime
-import sqlalchemy
 
 from oslo_db import exception as db_exception
 
@@ -143,42 +142,6 @@ class DBAPISubcloudAuditsTest(base.DCManagerTestCase):
         audits = db_api.subcloud_audits_get_all_need_audit(
             self.ctx, last_audit_threshold)
         self.assertEqual(len(audits), 3)
-
-    def test_db_migration(self):
-        # todo(abailey): this is not maintainable long term.  This unit test
-        # can likely be dropped since it was meant to protect a mid-release
-        # schema change.
-        #
-        # Manually revert back to schema version 7 (pre-dates audit table)
-        # The schema changes for 8, 9, 10 need to be manually un-done here
-        # 8 adds subcloud_audits table
-        # 9 changes subcloud_audits table (undone as part of dropping table)
-        # 10 adds a column to sw_update_strategy
-        engine = get_engine()
-        with engine.connect() as conn:
-            conn.execute('drop table subcloud_audits;')
-            conn.execute('update migrate_version set version=7;')
-        # sqlite does not support drop column for un-doing schema change 10
-        meta = sqlalchemy.MetaData()
-        meta.bind = engine
-        sw_update_strategy = sqlalchemy.Table('sw_update_strategy',
-                                              meta,
-                                              autoload=True)
-        sw_update_strategy.drop_column('extra_args')
-
-        # Now sync the DB again to test the auto-creation of subcloud-audit
-        # entries during migration.
-        db_api.db_sync(get_engine())
-        # Add another subcloud after the DB migration to test auto-creation
-        # of subcloud-audit entries during subcloud creation.
-        self.create_subcloud(self.ctx, "subcloud4")
-        # Now make sure all four get detected as needing audits.
-        last_audit_threshold = (datetime.datetime.utcnow() -
-                                datetime.timedelta(seconds=1000))
-        audits = db_api.subcloud_audits_get_all_need_audit(
-            self.ctx, last_audit_threshold)
-        # They should all need audits.
-        self.assertEqual(len(audits), 4)
 
     def test_subcloud_audits_start_and_end(self):
         audit = db_api.subcloud_audits_get_and_start_audit(self.ctx, 3)

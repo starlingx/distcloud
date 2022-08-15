@@ -59,15 +59,8 @@ class SubcloudGroupsController(object):
         pass
 
     def _get_subcloud_list_for_group(self, context, group_id):
-        subcloud_list = []
         subclouds = db_api.subcloud_get_for_group(context, group_id)
-
-        for subcloud in subclouds:
-            subcloud_dict = db_api.subcloud_db_model_to_dict(subcloud)
-            subcloud_list.append(subcloud_dict)
-        result = dict()
-        result['subclouds'] = subcloud_list
-        return result
+        return utils.subcloud_db_list_to_dict(subclouds)
 
     def _get_subcloud_group_list(self, context):
         groups = db_api.subcloud_group_get_all(context)

@@ -18,6 +18,7 @@ import pecan
 
 from dcmanager.api.controllers.v1 import alarm_manager
 from dcmanager.api.controllers.v1 import notifications
+from dcmanager.api.controllers.v1 import subcloud_backup
 from dcmanager.api.controllers.v1 import subcloud_deploy
 from dcmanager.api.controllers.v1 import subcloud_group
 from dcmanager.api.controllers.v1 import subclouds
@@ -48,6 +49,8 @@ class Controller(object):
                 subcloud_group.SubcloudGroupsController
             sub_controllers["notifications"] = \
                 notifications.NotificationsController
+            sub_controllers["subcloud-backup"] = subcloud_backup.\
+                SubcloudBackupController
 
         for name, ctrl in sub_controllers.items():
             setattr(self, name, ctrl)
