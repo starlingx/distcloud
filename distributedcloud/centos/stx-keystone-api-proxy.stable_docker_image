@@ -13,6 +13,8 @@ PIP_PACKAGES="
         cgtsclient \
         sysinv \
         psycopg2 \
+        fmclient \
+        python-barbicanclient \
         oslo.concurrency \
         oslo.config \
         oslo.db \

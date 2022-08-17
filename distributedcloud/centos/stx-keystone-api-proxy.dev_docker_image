@@ -11,6 +11,8 @@ PIP_PACKAGES="
         SQLAlchemy \
         pycrypto \
         psycopg2 \
+        fmclient \
+        python-barbicanclient \
         oslo.concurrency \
         oslo.config \
         oslo.db \
