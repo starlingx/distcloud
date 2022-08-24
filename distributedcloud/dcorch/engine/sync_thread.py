@@ -96,7 +96,7 @@ class SyncThread(object):
     def is_subcloud_managed(self):
         # is this subcloud managed
         subcloud = Subcloud.get_by_name(self.ctxt, self.subcloud_name)
-        return subcloud.management_state == dccommon_consts.MANAGEMENT_MANAGED
+        return subcloud.management_state == dccommon_consts.MANAGEMENT_MANAGED  # pylint: disable=E1101
 
     def is_subcloud_enabled(self):
         # is this subcloud enabled
@@ -105,7 +105,7 @@ class SyncThread(object):
         # We only enable syncing if the subcloud is online and the initial
         # sync has completed.
         if subcloud.availability_status == dccommon_consts.AVAILABILITY_ONLINE and \
-            subcloud.initial_sync_state == consts.INITIAL_SYNC_STATE_COMPLETED:
+            subcloud.initial_sync_state == consts.INITIAL_SYNC_STATE_COMPLETED:  # pylint: disable=E1101
             return True
         else:
             return False

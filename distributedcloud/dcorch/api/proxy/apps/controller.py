@@ -413,7 +413,7 @@ class SysinvAPIController(APIController):
             # sysinv will handle a simple application/json request
             # with the file location
             req.content_type = "application/json"
-            req.body = json.dumps(req_body)
+            req.body = json.dumps(req_body).encode('utf8')
 
         application = self.process_request(req)
         response = req.get_response(application)
@@ -608,9 +608,19 @@ class SysinvAPIController(APIController):
                           % staging_file)
                 return None
 
-            if hasattr(source_file, 'fileno'):
-                # Only proceed if there is space available for copying
+            # This try block is to get only the iso file size as the signature
+            # file object type is different in Debian than CentOS and and
+            # has fileno() attribute but is not a supported operation on Debian
+            #
+            # The check for st_size is required to determine the file size of iso image
+            # It is not applicable to its signature file
+            try:
                 file_size = os.fstat(source_file.fileno()).st_size
+            except Exception:
+                file_size = -1
+
+            if file_size >= 0:
+                # Only proceed if there is space available for copying
                 avail_space = psutil.disk_usage('/scratch').free
                 if (avail_space < file_size):
                     LOG.error("Failed to upload load file %s, not enough space on /scratch"
