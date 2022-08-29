@@ -25,8 +25,8 @@ from dcmanager.tests import utils
 FAKE_TENANT = utils.UUID1
 FAKE_ID = '1'
 FAKE_URL = '/v1.0/subcloud-deploy'
-FAKE_HEADERS = {'X-Tenant-Id': FAKE_TENANT, 'X_ROLE': 'admin',
-                'X-Identity-Status': 'Confirmed'}
+FAKE_HEADERS = {'X-Tenant-Id': FAKE_TENANT, 'X_ROLE': 'admin,member,reader',
+                'X-Identity-Status': 'Confirmed', 'X-Project-Name': 'admin'}
 
 
 class TestSubcloudDeploy(testroot.DCManagerApiTest):

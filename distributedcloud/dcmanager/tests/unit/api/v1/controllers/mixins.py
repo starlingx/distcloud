@@ -1,5 +1,5 @@
 # Copyright (c) 2017 Ericsson AB
-# Copyright (c) 2020-2021 Wind River Systems, Inc.
+# Copyright (c) 2020-2022 Wind River Systems, Inc.
 # All Rights Reserved.
 #
 #    Licensed under the Apache License, Version 2.0 (the "License"); you may
@@ -29,8 +29,9 @@ class APIMixin(object):
 
     api_headers = {
         'X-Tenant-Id': FAKE_TENANT,
-        'X_ROLE': 'admin',
-        'X-Identity-Status': 'Confirmed'
+        'X_ROLE': 'admin,member,reader',
+        'X-Identity-Status': 'Confirmed',
+        'X-Project-Name': 'admin'
     }
 
     # subclasses should provide methods

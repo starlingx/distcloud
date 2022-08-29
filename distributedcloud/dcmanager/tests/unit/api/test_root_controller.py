@@ -1,5 +1,5 @@
 # Copyright (c) 2015 Huawei Technologies Co., Ltd.
-# Copyright (c) 2017-2021 Wind River Systems, Inc.
+# Copyright (c) 2017-2022 Wind River Systems, Inc.
 # All Rights Reserved.
 #
 #    Licensed under the Apache License, Version 2.0 (the "License"); you may
@@ -47,7 +47,9 @@ class DCManagerApiTest(base.DCManagerTestCase):
 
         api_config.test_init()
 
-        self.CONF = self.useFixture(fixture_config.Config()).conf
+        config = fixture_config.Config()
+        self.CONF = self.useFixture(config).conf
+        config.set_config_dirs([])
 
         # self.setup_messaging(self.CONF)
         self.CONF.set_override('auth_strategy', 'noauth')

@@ -17,7 +17,8 @@ from pecan import hooks
 from oslo_context import context as base_context
 from oslo_utils import encodeutils
 
-from dcorch.common import policy
+from dcorch.api.policies import base as base_policy
+from dcorch.api import policy
 from dcorch.db import api as db_api
 
 ALLOWED_WITHOUT_AUTH = '/'
@@ -74,9 +75,9 @@ class RequestContext(base_context.RequestContext):
 
         # Check user is admin or not
         if is_admin is None:
-            self.is_admin = policy.enforce(self, 'context_is_admin',
-                                           target={'project': self.project},
-                                           do_raise=False)
+            self.is_admin = policy.authorize(
+                base_policy.ADMIN_IN_SYSTEM_PROJECTS, {}, self.to_dict(),
+                do_raise=False)
         else:
             self.is_admin = is_admin
 

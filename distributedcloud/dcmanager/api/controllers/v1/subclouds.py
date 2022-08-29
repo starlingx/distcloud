@@ -49,6 +49,8 @@ from keystoneauth1 import exceptions as keystone_exceptions
 import tsconfig.tsconfig as tsc
 
 from dcmanager.api.controllers import restcomm
+from dcmanager.api.policies import subclouds as subclouds_policy
+from dcmanager.api import policy
 from dcmanager.common import consts
 from dcmanager.common import exceptions
 from dcmanager.common.i18n import _
@@ -826,6 +828,8 @@ class SubcloudsController(object):
 
         :param subcloud_ref: ID or name of subcloud
         """
+        policy.authorize(subclouds_policy.POLICY_ROOT % "get", {},
+                         restcomm.extract_credentials_for_policy())
         context = restcomm.extract_context_from_environ()
 
         if subcloud_ref is None:
@@ -947,6 +951,8 @@ class SubcloudsController(object):
                              config)
         """
 
+        policy.authorize(subclouds_policy.POLICY_ROOT % "create", {},
+                         restcomm.extract_credentials_for_policy())
         context = restcomm.extract_context_from_environ()
 
         if subcloud_ref is None:
@@ -1076,6 +1082,8 @@ class SubcloudsController(object):
         or subcloud update operation
         """
 
+        policy.authorize(subclouds_policy.POLICY_ROOT % "modify", {},
+                         restcomm.extract_credentials_for_policy())
         context = restcomm.extract_context_from_environ()
         subcloud = None
 
@@ -1468,6 +1476,8 @@ class SubcloudsController(object):
 
         :param subcloud_ref: ID or name of subcloud to delete.
         """
+        policy.authorize(subclouds_policy.POLICY_ROOT % "delete", {},
+                         restcomm.extract_credentials_for_policy())
         context = restcomm.extract_context_from_environ()
         subcloud = None
 

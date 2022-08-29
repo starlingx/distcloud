@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2020 Wind River Systems, Inc.
+# Copyright (c) 2020-2022 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -16,8 +16,8 @@ FAKE_ID = '1'
 FAKE_URL = '/v1.0/subclouds'
 WRONG_URL = '/v1.0/wrong'
 
-FAKE_HEADERS = {'X-Tenant-Id': FAKE_TENANT, 'X_ROLE': 'admin',
-                'X-Identity-Status': 'Confirmed'}
+FAKE_HEADERS = {'X-Tenant-Id': FAKE_TENANT, 'X_ROLE': 'admin,member,reader',
+                'X-Identity-Status': 'Confirmed', 'X-Project-Name': 'admin'}
 
 FAKE_SUBCLOUD_DATA = {"id": FAKE_ID,
                       "name": "subcloud1",

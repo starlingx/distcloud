@@ -1,4 +1,4 @@
-# Copyright (c) 2017, 2019, 2021, 2022 Wind River Systems, Inc.
+# Copyright (c) 2017-2022 Wind River Systems, Inc.
 # Licensed under the Apache License, Version 2.0 (the "License"); you may
 # not use this file except in compliance with the License. You may obtain
 # a copy of the License at
@@ -23,7 +23,8 @@ from oslo_log import log
 from oslo_utils import encodeutils
 from oslo_utils import uuidutils
 
-from dcmanager.common import policy
+from dcmanager.api.policies import base as base_policy
+from dcmanager.api import policy
 from dcmanager.db import api as db_api
 
 ALLOWED_WITHOUT_AUTH = '/'
@@ -87,9 +88,9 @@ class RequestContext(base_context.RequestContext):
 
         # Check user is admin or not
         if is_admin is None:
-            self.is_admin = policy.enforce(self, 'context_is_admin',
-                                           target={'project': self.project},
-                                           do_raise=False)
+            self.is_admin = policy.authorize(
+                base_policy.ADMIN_IN_SYSTEM_PROJECTS, {}, self.to_dict(),
+                do_raise=False)
         else:
             self.is_admin = is_admin
 

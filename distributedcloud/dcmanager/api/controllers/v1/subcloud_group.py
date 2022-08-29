@@ -1,5 +1,5 @@
 # Copyright (c) 2017 Ericsson AB.
-# Copyright (c) 2020-2021 Wind River Systems, Inc.
+# Copyright (c) 2020-2022 Wind River Systems, Inc.
 # All Rights Reserved.
 #
 #    Licensed under the Apache License, Version 2.0 (the "License"); you may
@@ -26,6 +26,8 @@ from pecan import expose
 from pecan import request
 
 from dcmanager.api.controllers import restcomm
+from dcmanager.api.policies import subcloud_group as subcloud_group_policy
+from dcmanager.api import policy
 from dcmanager.common import consts
 from dcmanager.common.i18n import _
 from dcmanager.common import utils
@@ -80,6 +82,8 @@ class SubcloudGroupsController(object):
 
         :param group_ref: ID or name of subcloud group
         """
+        policy.authorize(subcloud_group_policy.POLICY_ROOT % "get", {},
+                         restcomm.extract_credentials_for_policy())
         context = restcomm.extract_context_from_environ()
 
         if group_ref is None:
@@ -144,6 +148,8 @@ class SubcloudGroupsController(object):
     @index.when(method='POST', template='json')
     def post(self):
         """Create a new subcloud group."""
+        policy.authorize(subcloud_group_policy.POLICY_ROOT % "create", {},
+                         restcomm.extract_credentials_for_policy())
         context = restcomm.extract_context_from_environ()
 
         payload = eval(request.body)
@@ -192,6 +198,8 @@ class SubcloudGroupsController(object):
         :param group_ref: ID or name of subcloud group to update
         """
 
+        policy.authorize(subcloud_group_policy.POLICY_ROOT % "modify", {},
+                         restcomm.extract_credentials_for_policy())
         context = restcomm.extract_context_from_environ()
         if group_ref is None:
             pecan.abort(httpclient.BAD_REQUEST,
@@ -256,6 +264,8 @@ class SubcloudGroupsController(object):
     @index.when(method='delete', template='json')
     def delete(self, group_ref):
         """Delete the subcloud group."""
+        policy.authorize(subcloud_group_policy.POLICY_ROOT % "delete", {},
+                         restcomm.extract_credentials_for_policy())
         context = restcomm.extract_context_from_environ()
 
         if group_ref is None:

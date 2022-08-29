@@ -12,7 +12,7 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 #
-# Copyright (c) 2020, 2022 Wind River Systems, Inc.
+# Copyright (c) 2020-2022 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -27,6 +27,9 @@ import pecan
 from pecan import expose
 from pecan import request
 
+from dcmanager.api.controllers import restcomm
+from dcmanager.api.policies import subcloud_deploy as subcloud_deploy_policy
+from dcmanager.api import policy
 from dcmanager.common import consts
 from dcmanager.common.i18n import _
 from dcmanager.common import utils
@@ -78,6 +81,8 @@ class SubcloudDeployController(object):
     @utils.synchronized(LOCK_NAME)
     @index.when(method='POST', template='json')
     def post(self):
+        policy.authorize(subcloud_deploy_policy.POLICY_ROOT % "upload", {},
+                         restcomm.extract_credentials_for_policy())
         deploy_dicts = dict()
         missing_options = set()
         for f in consts.DEPLOY_COMMON_FILE_OPTIONS:
@@ -126,6 +131,8 @@ class SubcloudDeployController(object):
     def get(self):
         """Get the subcloud deploy files that has been uploaded and stored"""
 
+        policy.authorize(subcloud_deploy_policy.POLICY_ROOT % "get", {},
+                         restcomm.extract_credentials_for_policy())
         deploy_dicts = dict()
         for f in consts.DEPLOY_COMMON_FILE_OPTIONS:
             dir_path = tsc.DEPLOY_PATH

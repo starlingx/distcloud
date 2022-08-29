@@ -22,6 +22,8 @@ from yaml.scanner import ScannerError
 from dccommon import consts as dccommon_consts
 
 from dcmanager.api.controllers import restcomm
+from dcmanager.api.policies import subcloud_backup as subcloud_backup_policy
+from dcmanager.api import policy
 from dcmanager.common import consts
 from dcmanager.common.i18n import _
 from dcmanager.common import utils
@@ -212,6 +214,9 @@ class SubcloudBackupController(object):
     @index.when(method='POST', template='json')
     def post(self):
         """Create a new subcloud backup."""
+
+        policy.authorize(subcloud_backup_policy.POLICY_ROOT % "create", {},
+                         restcomm.extract_credentials_for_policy())
 
         context = restcomm.extract_context_from_environ()
 

@@ -1,4 +1,4 @@
-# Copyright (c) 2021 Wind River Systems, Inc.
+# Copyright (c) 2021-2022 Wind River Systems, Inc.
 # Licensed under the Apache License, Version 2.0 (the "License"); you may
 # not use this file except in compliance with the License. You may obtain
 # a copy of the License at
@@ -22,8 +22,8 @@ from dcmanager.tests import utils
 
 FAKE_URL = '/v1.0/notifications'
 FAKE_TENANT = utils.UUID1
-FAKE_HEADERS = {'X-Tenant-Id': FAKE_TENANT, 'X_ROLE': 'admin',
-                'X-Identity-Status': 'Confirmed'}
+FAKE_HEADERS = {'X-Tenant-Id': FAKE_TENANT, 'X_ROLE': 'admin,member,reader',
+                'X-Identity-Status': 'Confirmed', 'X-Project-Name': 'admin'}
 
 
 class TestNotificationsController(testroot.DCManagerApiTest):

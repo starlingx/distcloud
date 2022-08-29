@@ -1,5 +1,5 @@
 # Copyright 2015 Huawei Technologies Co., Ltd.
-# Copyright (c) 2017, 2019, 2021 Wind River Systems, Inc.
+# Copyright (c) 2017-2022 Wind River Systems, Inc.
 # All Rights Reserved.
 #
 #    Licensed under the Apache License, Version 2.0 (the "License"); you may
@@ -27,9 +27,6 @@ from oslo_config import cfg
 from oslo_log import log as logging
 
 from dcmanager.common.i18n import _
-
-
-# from dcmanager import policy
 from dcmanager.common import version
 
 LOG = logging.getLogger(__name__)
@@ -98,7 +95,10 @@ def reset_service():
 def test_init():
     # Register the configuration options
     cfg.CONF.register_opts(common_opts)
-    logging.register_options(cfg.CONF)
+    try:
+        logging.register_options(cfg.CONF)
+    except cfg.ArgsAlreadyParsedError:
+        pass
     setup_logging()
 
 

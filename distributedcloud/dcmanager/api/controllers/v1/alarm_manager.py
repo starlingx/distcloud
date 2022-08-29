@@ -1,5 +1,5 @@
 # Copyright (c) 2017 Ericsson AB.
-# Copyright (c) 2017-2021 Wind River Systems, Inc.
+# Copyright (c) 2017-2022 Wind River Systems, Inc.
 # All Rights Reserved.
 #
 #    Licensed under the Apache License, Version 2.0 (the "License"); you may
@@ -16,6 +16,8 @@
 #
 
 from dcmanager.api.controllers import restcomm
+from dcmanager.api.policies import alarm_manager as alarm_manager_policy
+from dcmanager.api import policy
 from dcmanager.common import consts
 from dcmanager.db import api as db_api
 
@@ -63,6 +65,8 @@ class SubcloudAlarmController(object):
         """Get List of alarm summarys
 
         """
+        policy.authorize(alarm_manager_policy.POLICY_ROOT % "get", {},
+                         restcomm.extract_credentials_for_policy())
         return self._get_alarm_aggregates()
 
     def _get_alarm_summary(self):
@@ -79,4 +83,6 @@ class SubcloudAlarmController(object):
         """Get an agregate of all subcloud status
 
         """
+        policy.authorize(alarm_manager_policy.POLICY_ROOT % "get", {},
+                         restcomm.extract_credentials_for_policy())
         return self._get_alarm_summary()

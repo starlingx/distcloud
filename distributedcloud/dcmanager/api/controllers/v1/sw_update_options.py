@@ -24,6 +24,8 @@ from pecan import request
 
 from dccommon import consts as dccommon_consts
 from dcmanager.api.controllers import restcomm
+from dcmanager.api.policies import sw_update_options as sw_update_options_policy
+from dcmanager.api import policy
 from dcmanager.common import exceptions
 from dcmanager.common.i18n import _
 from dcmanager.common import utils
@@ -51,6 +53,8 @@ class SwUpdateOptionsController(object):
 
         :param subcloud: name or id of subcloud (optional)
         """
+        policy.authorize(sw_update_options_policy.POLICY_ROOT % "get", {},
+                         restcomm.extract_credentials_for_policy())
         context = restcomm.extract_context_from_environ()
 
         if subcloud_ref is None:
@@ -114,6 +118,8 @@ class SwUpdateOptionsController(object):
         # Note creating or updating subcloud specific options require
         # setting all options.
 
+        policy.authorize(sw_update_options_policy.POLICY_ROOT % "update", {},
+                         restcomm.extract_credentials_for_policy())
         context = restcomm.extract_context_from_environ()
 
         payload = eval(request.body)
@@ -204,6 +210,8 @@ class SwUpdateOptionsController(object):
     def delete(self, subcloud_ref):
         """Delete the software update options."""
 
+        policy.authorize(sw_update_options_policy.POLICY_ROOT % "delete", {},
+                         restcomm.extract_credentials_for_policy())
         context = restcomm.extract_context_from_environ()
 
         if subcloud_ref == dccommon_consts.DEFAULT_REGION_NAME:

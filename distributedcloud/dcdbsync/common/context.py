@@ -10,7 +10,7 @@
 # License for the specific language governing permissions and limitations
 # under the License.
 #
-# Copyright (c) 2019, 2022 Wind River Systems, Inc.
+# Copyright (c) 2019-2022 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -21,7 +21,8 @@ from pecan import hooks
 from oslo_context import context as base_context
 from oslo_utils import encodeutils
 
-from dcdbsync.common import policy
+from dcdbsync.api.policies import base as base_policy
+from dcdbsync.api import policy
 from dcdbsync.db.identity import api as db_api
 
 ALLOWED_WITHOUT_AUTH = '/'
@@ -78,9 +79,9 @@ class RequestContext(base_context.RequestContext):
 
         # Check user is admin or not
         if is_admin is None:
-            self.is_admin = policy.enforce(self, 'context_is_admin',
-                                           target={'project': self.project},
-                                           do_raise=False)
+            self.is_admin = policy.authorize(
+                base_policy.ADMIN_IN_SYSTEM_PROJECTS, {}, self.to_dict(),
+                do_raise=False)
         else:
             self.is_admin = is_admin
 

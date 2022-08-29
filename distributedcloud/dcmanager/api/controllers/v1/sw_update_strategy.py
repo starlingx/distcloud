@@ -25,6 +25,8 @@ from pecan import request
 
 from dccommon import consts as dccommon_consts
 from dcmanager.api.controllers import restcomm
+from dcmanager.api.policies import sw_update_strategy as sw_update_strat_policy
+from dcmanager.api import policy
 from dcmanager.common import consts
 from dcmanager.common import exceptions
 from dcmanager.common.i18n import _
@@ -71,6 +73,8 @@ class SwUpdateStrategyController(object):
         :param steps: get the steps for this strategy (optional)
         :param cloud_name: name of cloud (optional)
         """
+        policy.authorize(sw_update_strat_policy.POLICY_ROOT % "get", {},
+                         restcomm.extract_credentials_for_policy())
         context = restcomm.extract_context_from_environ()
 
         # If 'type' is in the request params, filter the update_type
@@ -138,6 +142,9 @@ class SwUpdateStrategyController(object):
             pecan.abort(400, _('Body required'))
 
         if actions is None:
+            policy.authorize(sw_update_strat_policy.POLICY_ROOT % "create", {},
+                             restcomm.extract_credentials_for_policy())
+
             # Validate any options that were supplied
             strategy_type = payload.get('type')
             if not strategy_type:
@@ -218,6 +225,8 @@ class SwUpdateStrategyController(object):
             if not action:
                 pecan.abort(400, _('action required'))
             if action == consts.SW_UPDATE_ACTION_APPLY:
+                policy.authorize(sw_update_strat_policy.POLICY_ROOT % "apply",
+                                 {}, restcomm.extract_credentials_for_policy())
                 try:
                     # Ask dcmanager-manager to apply the strategy.
                     # It will do all the real work...
@@ -230,6 +239,8 @@ class SwUpdateStrategyController(object):
                     LOG.exception(e)
                     pecan.abort(500, _('Unable to apply strategy'))
             elif action == consts.SW_UPDATE_ACTION_ABORT:
+                policy.authorize(sw_update_strat_policy.POLICY_ROOT % "abort",
+                                 {}, restcomm.extract_credentials_for_policy())
                 try:
                     # Ask dcmanager-manager to abort the strategy.
                     # It will do all the real work...
@@ -245,6 +256,8 @@ class SwUpdateStrategyController(object):
     @index.when(method='delete', template='json')
     def delete(self):
         """Delete the software update strategy."""
+        policy.authorize(sw_update_strat_policy.POLICY_ROOT % "delete", {},
+                         restcomm.extract_credentials_for_policy())
         context = restcomm.extract_context_from_environ()
 
         # If 'type' is in the request params, filter the update_type

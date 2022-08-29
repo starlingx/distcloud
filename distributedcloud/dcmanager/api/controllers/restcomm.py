@@ -1,5 +1,5 @@
 # Copyright (c) 2015 Huawei Tech. Co., Ltd.
-# Copyright (c) 2017, 2019, 2021, 2022 Wind River Systems, Inc.
+# Copyright (c) 2017-2022 Wind River Systems, Inc.
 # All Rights Reserved.
 #
 #    Licensed under the Apache License, Version 2.0 (the "License"); you may
@@ -41,3 +41,13 @@ def extract_context_from_environ():
 
     context_paras['is_admin'] = 'admin' in role.split(',')
     return k_context.RequestContext(**context_paras)
+
+
+def extract_credentials_for_policy():
+    context_paras = {'project_name': 'HTTP_X_PROJECT_NAME',
+                     'roles': 'HTTP_X_ROLE'}
+    environ = request.environ
+    for key, val in context_paras.items():
+        context_paras[key] = environ.get(val)
+    context_paras['roles'] = context_paras['roles'].split(',')
+    return context_paras
