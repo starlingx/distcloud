@@ -902,11 +902,11 @@ Deletes a specific subcloud group
 
 **Normal response codes**
 
-204
+200
 
 **Error response codes**
 
-badRequest (400), unauthorized (401), forbidden (403), 
+badRequest (400), unauthorized (401), forbidden (403),
 itemNotFound (404), badMethod (405), HTTPUnprocessableEntity (422),
 internalServerError (500), serviceUnavailable (503)
 
