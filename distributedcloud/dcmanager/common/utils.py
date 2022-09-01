@@ -23,6 +23,7 @@ import os
 import pwd
 import re
 import six.moves
+import subprocess
 import tsconfig.tsconfig as tsc
 
 from oslo_concurrency import lockutils
@@ -39,6 +40,9 @@ LOG = logging.getLogger(__name__)
 
 DC_MANAGER_USERNAME = "root"
 DC_MANAGER_GRPNAME = "root"
+
+# Max lines output msg from logs
+MAX_LINES_MSG = 10
 
 
 def get_import_path(cls):
@@ -481,3 +485,149 @@ def pre_check_management_affected_alarm(system_health):
     if failed_alarm_check and not no_mgmt_alarms:
         return False
     return True
+
+
+def find_ansible_error_msg(subcloud_name, log_file, stage=None):
+    """Find errors into ansible logs.
+
+    It will search into ansible log for a fatal error expression.
+
+    If fatal error is found, it will capture the message
+    until the final expression. It will get always the more recent
+    fatal error from the log files.
+    If the error message is longer than N lines, it will be summarized.
+    Also, the last task is provided.
+
+    Returns the error message found
+    Returns generic error message if not found or there is failures
+    during search
+    """
+
+    error_found = False
+    error_msg = []
+    failed_task = ''
+    files_for_search = []
+
+    cmd_1 = 'awk'
+    # awk command to get the information iside the last match found
+    # starting with 'fatal: [' and ending with 'PLAY RECAP'.
+    cmd_2 = ('''BEGIN {f=""}                # initialize f
+        /fatal: \[/ {f=""}                  # reset f on first match
+        /fatal: \[/,/PLAY RECAP/ {          # capture text between two delimiters
+            if ($0 ~ /PLAY RECAP/) next     # exclude last delimiter
+            if ($0 == "") next              # exclude blank line
+            f = f ? (f "\\n" $0) : $0}      # assign or append to f
+            END {print f}
+            ''')
+
+    # necessary check since is possible to have
+    # the error in rotated ansible log
+    log_file_temp = log_file + '.1'
+    if os.path.exists(log_file_temp):
+        files_for_search.append(log_file_temp)
+        if os.path.exists(log_file):
+            files_for_search.append(log_file)
+    else:
+        files_for_search.append(log_file)
+
+    if (len(files_for_search) < 2):
+        cmd_list = ([cmd_1, cmd_2, files_for_search[0]])
+    else:
+        cmd_list = ([cmd_1, cmd_2, files_for_search[0], files_for_search[1]])
+
+    try:
+        error_msg_raw = subprocess.check_output(
+            cmd_list,
+            stderr=subprocess.STDOUT).decode('utf-8')
+        if len(error_msg_raw) > 1:
+            error_found = True
+            error_msg = [elem for elem in error_msg_raw.split("\n") if elem]
+            failed_task = get_failed_task(files_for_search)
+    except Exception as exc:
+        LOG.error("Failed getting info from ansible log file :%s" % exc)
+
+    if error_found and (len(error_msg) > MAX_LINES_MSG):
+        error_msg = summarize_message(error_msg)
+    error_msg = '\n'.join(str(element) for element in error_msg)
+    error_msg = error_msg.replace("\'", "\"")
+
+    if error_found:
+        msg = "FAILED %s playbook of (%s).\n" \
+            " detail: %s \n" \
+            "FAILED TASK: %s " % (
+                stage,
+                subcloud_name,
+                error_msg,
+                failed_task)
+    else:
+        msg = "FAILED %s playbook of (%s).\n" \
+            "check individual log at " \
+            "%s for detailed output " % (
+                stage,
+                subcloud_name,
+                log_file)
+    return msg
+
+
+def get_failed_task(files):
+    """Get last task failed
+
+    It receives an ansible log file (or a couple of files)
+    and search for the last failed task with its date
+
+    Returns a string with the task and date
+    """
+
+    cmd_1 = 'awk'
+    # awk command to get the information about last failed task.
+    # Match expression starting with 'TASK [' and ending with
+    # 'fatal: ['
+    cmd_2 = ('''BEGIN {f=""}            # initialize f
+        /TASK \[/ {f=""}                # reset f on first match
+        /TASK \[/,/fatal: \[/ {         # capture text between two delimiters
+            if ($0 ~ /fatal: \[/) next  # exclude last delimiter
+            if ($0 == "") next          # exclude blank line
+            f = f ? (f "\\n" $0) : $0}  # assign or append to f
+            END {print f}
+            ''')
+    # necessary check since is possible to have
+    # the error in rotated ansible log
+    if (len(files) < 2):
+        awk_cmd = ([cmd_1, cmd_2, files[0]])
+    else:
+        awk_cmd = ([cmd_1, cmd_2, files[0], files[1]])
+
+    try:
+        failed_task = subprocess.check_output(
+            awk_cmd,
+            stderr=subprocess.STDOUT).decode('utf-8')
+        if len(failed_task) < 1:
+            return None
+    except Exception as exc:
+        LOG.error("Failed getting failed task :%s" % exc)
+        return None
+    failed_task = failed_task.replace("*", "")
+    failed_task = failed_task.replace("\'", "\"")
+    return failed_task
+
+
+def summarize_message(error_msg):
+    """Summarize message.
+
+    This function receives a long error message and
+    greps it using key words to return a summarized
+    error message.
+
+    Returns a brief message.
+    """
+    list_of_strings_to_search_for = ['msg:', 'fail', 'error']
+    brief_message = []
+    for line in error_msg:
+        for s in list_of_strings_to_search_for:
+            if re.search(s, line, re.IGNORECASE):
+                if len(brief_message) >= MAX_LINES_MSG:
+                    break
+                # append avoiding duplicated items
+                if line not in brief_message:
+                    brief_message.append(line)
+    return brief_message

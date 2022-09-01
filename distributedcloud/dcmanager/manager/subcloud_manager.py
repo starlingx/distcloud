@@ -729,10 +729,13 @@ class SubcloudManager(manager.Manager):
             try:
                 install.install(consts.DC_ANSIBLE_LOG_DIR, install_command)
             except Exception as e:
+                msg = utils.find_ansible_error_msg(
+                    subcloud.name, log_file, consts.DEPLOY_STATE_INSTALLING)
                 db_api.subcloud_update(
                     context, subcloud.id,
                     deploy_status=consts.DEPLOY_STATE_INSTALL_FAILED)
                 LOG.error(str(e))
+                LOG.error(msg)
                 install.cleanup()
                 return
             install.cleanup()
@@ -774,11 +777,8 @@ class SubcloudManager(manager.Manager):
             try:
                 run_playbook(log_file, apply_command)
             except PlaybookExecutionFailed:
-                msg = "Failed to run the subcloud bootstrap playbook" \
-                      " for subcloud %s, check individual log at " \
-                      "%s for detailed output." % (
-                          subcloud.name,
-                          log_file)
+                msg = utils.find_ansible_error_msg(
+                    subcloud.name, log_file, consts.DEPLOY_STATE_BOOTSTRAPPING)
                 LOG.error(msg)
                 db_api.subcloud_update(
                     context, subcloud.id,
@@ -796,11 +796,8 @@ class SubcloudManager(manager.Manager):
             try:
                 run_playbook(log_file, deploy_command)
             except PlaybookExecutionFailed:
-                msg = "Failed to run the subcloud deploy playbook" \
-                      " for subcloud %s, check individual log at " \
-                      "%s for detailed output." % (
-                          subcloud.name,
-                          log_file)
+                msg = utils.find_ansible_error_msg(
+                    subcloud.name, log_file, consts.DEPLOY_STATE_DEPLOYING)
                 LOG.error(msg)
                 db_api.subcloud_update(
                     context, subcloud.id,
