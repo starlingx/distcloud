@@ -1,0 +1,7 @@
+{
+    "subcloud": 1,
+    "local_only": false,
+    "registry_images": false,
+    "backup_values": "path to some file",
+    "sysadmin_password": "XXXXXXX"
+}

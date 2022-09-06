@@ -7,6 +7,8 @@
   "software-version": "21.12",
   "availability-status": "online",
   "deploy-status": "complete",
+  "backup-status": "complete",
+  "backup-datetime": "2022-07-08 11:23:58.132134",
   "openstack-installed": false,
   "management-state": "managed",
   "systemcontroller-gateway-ip": "192.168.204.101",

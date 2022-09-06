@@ -53,6 +53,54 @@ availability_status:
   in: body
   required: true
   type: string
+backup_datetime:
+  description: |
+    Date and time of the last successful subcloud backup.
+  in: body
+  required: true
+  type: string
+backup_local_only:
+  description: |
+    Flag to indicate whether the platform backup is to be saved locally within
+    the subcloud.
+    Defaults to False.
+  in: body
+  required: false
+  type: boolean
+backup_registry_images:
+  description: |
+    Flag to indicate whether registry images backup should also be
+    generated (local only).
+    Defaults to False.
+  in: body
+  required: false
+  type: boolean
+backup_status:
+  description: |
+    The backup status of the subcloud.
+  in: body
+  required: true
+  type: string
+backup_subcloud_group_name_or_id:
+  description: |
+    Name or ID of the group of subclouds to be backed up.
+    To be specified if and only if 'subcloud' is not provided.
+  in: body
+  required: true
+  type: string
+backup_subcloud_name_or_id:
+  description: |
+    Name or ID of the subcloud to be backed up.
+    To be specified if and only if 'group' is not provided.
+  in: body
+  required: true
+  type: string
+backup_values:
+  description: |
+    Content of a backup playbook overrides file, if needed (e.g. backup_dir).
+  in: body
+  required: false
+  type: multipart
 bmc_password:
   description: |
     The BMC password of the subcloud. Must be base64 encoded.
@@ -246,7 +294,8 @@ region_name:
   type: string
 restore_values:
   description: |
-    The content of a file containing restore parameters (e.g. backup_filename).
+    The content of a file containing restore parameters (e.g.
+    backup_filename).
   in: body
   required: true
   type: string
