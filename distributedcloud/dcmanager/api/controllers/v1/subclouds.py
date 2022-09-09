@@ -1018,6 +1018,10 @@ class SubcloudsController(object):
                     pecan.abort(400, _('The migrate option is invalid, '
                                        'valid options are true and false.'))
 
+                if consts.DEPLOY_CONFIG in request.POST:
+                    pecan.abort(400, _('migrate with deploy-config is '
+                                       'not allowed'))
+
             # If a subcloud group is not passed, use the default
             group_id = payload.get('group_id',
                                    consts.DEFAULT_SUBCLOUD_GROUP_ID)
