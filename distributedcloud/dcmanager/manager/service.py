@@ -137,6 +137,14 @@ class DCManagerService(service.Service):
                                                         payload)
 
     @request_context
+    def backup_subclouds(self, context, payload):
+        # Backup a subcloud or group of subclouds
+        entity = 'subcloud' if payload.get('subcloud') else 'group'
+        LOG.info("Handling backup_subclouds request for %s ID: %s" %
+                 (entity, (payload.get('subcloud') or payload.get('group'))))
+        return self.subcloud_manager.create_subcloud_backups(context, payload)
+
+    @request_context
     def restore_subcloud(self, context, subcloud_id, payload):
         # Restore a subcloud
         LOG.info("Handling restore_subcloud request for: %s" % subcloud_id)

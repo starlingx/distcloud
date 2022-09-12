@@ -25,15 +25,20 @@ import re
 import six.moves
 import tsconfig.tsconfig as tsc
 
+from keystoneauth1 import exceptions as keystone_exceptions
 from oslo_concurrency import lockutils
 from oslo_config import cfg
 from oslo_log import log as logging
 
 from dccommon import consts as dccommon_consts
-from dccommon.drivers.openstack import vim
+from dccommon import exceptions as dccommon_exceptions
 from dcmanager.common import consts
 from dcmanager.common import exceptions
 from dcmanager.db import api as db_api
+
+from dccommon.drivers.openstack import vim
+
+from dccommon.drivers.openstack.sysinv_v1 import SysinvClient
 
 LOG = logging.getLogger(__name__)
 
@@ -443,6 +448,20 @@ def get_loads_for_patching(loads):
     return [load.software_version for load in loads if load.state in valid_states]
 
 
+def subcloud_get_by_ref(context, subcloud_ref):
+    """Handle getting a subcloud by either name, or ID
+
+    :param context: The request context
+    :param subcloud_ref: Reference to the subcloud, either a name or an ID
+    """
+    try:
+        return db_api.subcloud_get(context, subcloud_ref) \
+            if subcloud_ref.isdigit() \
+            else db_api.subcloud_get_by_name(context, subcloud_ref)
+    except (exceptions.SubcloudNotFound, exceptions.SubcloudNameNotFound):
+        return None
+
+
 def subcloud_group_get_by_ref(context, group_ref):
     # Handle getting a group by either name, or ID
     if group_ref.isdigit():
@@ -458,6 +477,32 @@ def subcloud_group_get_by_ref(context, group_ref):
         except exceptions.SubcloudGroupNameNotFound:
             return None
     return group
+
+
+def subcloud_db_list_to_dict(subclouds):
+    return {'subclouds': [db_api.subcloud_db_model_to_dict(subcloud)
+            for subcloud in subclouds]}
+
+
+def get_oam_addresses(subcloud_name, sc_ks_client):
+    """Get the subclouds oam addresses"""
+
+    # First need to retrieve the Subcloud's Keystone session
+    try:
+        endpoint = sc_ks_client.endpoint_cache.get_endpoint('sysinv')
+        sysinv_client = SysinvClient(subcloud_name,
+                                     sc_ks_client.session,
+                                     endpoint=endpoint)
+        return sysinv_client.get_oam_addresses()
+    except (keystone_exceptions.EndpointNotFound, IndexError) as e:
+        message = ("Identity endpoint for subcloud: %s not found. %s" %
+                   (subcloud_name, e))
+        LOG.error(message)
+    except dccommon_exceptions.OAMAddressesNotFound:
+        message = ("OAM addresses for subcloud: %s not found." %
+                   subcloud_name)
+        LOG.error(message)
+    return None
 
 
 def get_ansible_filename(subcloud_name, postfix='.yml'):

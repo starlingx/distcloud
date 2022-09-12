@@ -180,6 +180,19 @@ DEPLOY_STATE_REHOME_FAILED = 'rehome-failed'
 DEPLOY_STATE_REHOME_PREP_FAILED = 'rehome-prep-failed'
 DEPLOY_STATE_DONE = 'complete'
 
+# States to discard while backing up subclouds
+INVALID_DEPLOY_STATES_FOR_BACKUP = [DEPLOY_STATE_INSTALLING,
+                                    DEPLOY_STATE_BOOTSTRAPPING,
+                                    DEPLOY_STATE_DEPLOYING]
+
+# Subcloud backup status states
+BACKUP_STATE_VALIDATING = 'validating'
+BACKUP_STATE_VALIDATE_FAILED = 'validate-failed'
+BACKUP_STATE_PRE_BACKUP = 'pre-backup'
+BACKUP_STATE_PREP_FAILED = 'backup-prep-failed'
+BACKUP_STATE_IN_PROGRESS = 'backing-up'
+BACKUP_STATE_FAILED = 'failed'
+BACKUP_STATE_COMPLETE = 'complete'
 
 # Upgrades States
 UPGRADE_STATE_DATA_MIGRATION = 'data-migration'

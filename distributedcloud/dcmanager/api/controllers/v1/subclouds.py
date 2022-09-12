@@ -743,6 +743,7 @@ class SubcloudsController(object):
                                      endpoint=endpoint)
         return sysinv_client.get_management_address_pool()
 
+    # TODO(gsilvatr): refactor to use implementation from common/utils and test
     def _get_oam_addresses(self, context, subcloud_name):
         """Get the subclouds oam addresses"""
 

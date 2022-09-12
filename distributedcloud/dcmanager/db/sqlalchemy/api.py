@@ -373,7 +373,7 @@ def subcloud_create(context, name, description, location, software_version,
 def subcloud_update(context, subcloud_id, management_state=None,
                     availability_status=None, software_version=None,
                     description=None, location=None, audit_fail_count=None,
-                    deploy_status=None,
+                    deploy_status=None, backup_status=None, backup_datetime=None,
                     openstack_installed=None,
                     group_id=None,
                     data_install=None,
@@ -396,6 +396,10 @@ def subcloud_update(context, subcloud_id, management_state=None,
             subcloud_ref.data_install = data_install
         if deploy_status is not None:
             subcloud_ref.deploy_status = deploy_status
+        if backup_status is not None:
+            subcloud_ref.backup_status = backup_status
+        if backup_datetime is not None:
+            subcloud_ref.backup_datetime = backup_datetime
         if data_upgrade is not None:
             subcloud_ref.data_upgrade = data_upgrade
         if openstack_installed is not None:
@@ -404,6 +408,15 @@ def subcloud_update(context, subcloud_id, management_state=None,
             subcloud_ref.group_id = group_id
         subcloud_ref.save(session)
         return subcloud_ref
+
+
+@require_admin_context
+def subcloud_bulk_update_by_ids(context, subcloud_ids, update_form):
+    with write_session():
+        model_query(context, models.Subcloud). \
+            filter_by(deleted=0). \
+            filter(models.Subcloud.id.in_(subcloud_ids)). \
+            update(update_form, synchronize_session="fetch")
 
 
 @require_admin_context

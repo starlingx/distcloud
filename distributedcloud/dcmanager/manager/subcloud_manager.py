@@ -14,9 +14,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+from __future__ import division
+
 import collections
 import datetime
 import filecmp
+import functools
 import json
 import keyring
 import netaddr
@@ -24,6 +27,7 @@ import os
 import threading
 import time
 
+from eventlet import greenpool
 from oslo_log import log as logging
 from oslo_messaging import RemoteError
 
@@ -37,6 +41,8 @@ from dccommon.exceptions import PlaybookExecutionFailed
 from dccommon import kubeoperator
 from dccommon.subcloud_install import SubcloudInstall
 from dccommon.utils import run_playbook
+from dcmanager.common.exceptions import DCManagerException
+from dcmanager.db.sqlalchemy.models import Subcloud
 
 from dcorch.rpc import client as dcorch_rpc_client
 
@@ -62,16 +68,18 @@ LOG = logging.getLogger(__name__)
 ADDN_HOSTS_DC = 'dnsmasq.addn_hosts_dc'
 
 # Subcloud configuration paths
+ANSIBLE_SUBCLOUD_BACKUP_WRAPPER_PLAYBOOK = \
+    '/usr/share/ansible/stx-ansible/playbooks/backup_subcloud.yml'
+ANSIBLE_HOST_VALIDATION_PLAYBOOK = \
+    '/usr/share/ansible/stx-ansible/playbooks/validate_host.yml'
 ANSIBLE_SUBCLOUD_PLAYBOOK = \
     '/usr/share/ansible/stx-ansible/playbooks/bootstrap.yml'
 ANSIBLE_SUBCLOUD_INSTALL_PLAYBOOK = \
     '/usr/share/ansible/stx-ansible/playbooks/install.yml'
-ANSIBLE_SUBCLOUD_RESTORE_PLAYBOOK = \
-    '/usr/share/ansible/stx-ansible/playbooks/restore_platform.yml'
-ANSIBLE_HOST_VALIDATION_PLAYBOOK = \
-    '/usr/share/ansible/stx-ansible/playbooks/validate_host.yml'
 ANSIBLE_SUBCLOUD_REHOME_PLAYBOOK = \
     '/usr/share/ansible/stx-ansible/playbooks/rehome_subcloud.yml'
+ANSIBLE_SUBCLOUD_RESTORE_PLAYBOOK = \
+    '/usr/share/ansible/stx-ansible/playbooks/restore_platform.yml'
 
 USERS_TO_REPLICATE = [
     'sysinv',
@@ -90,19 +98,28 @@ SC_INTERMEDIATE_CERT_DURATION = "8760h"  # 1 year = 24 hours x 365
 SC_INTERMEDIATE_CERT_RENEW_BEFORE = "720h"  # 30 days
 CERT_NAMESPACE = "dc-cert"
 
-TRANSITORY_STATES = {consts.DEPLOY_STATE_NONE: consts.DEPLOY_STATE_DEPLOY_PREP_FAILED,
-                     consts.DEPLOY_STATE_PRE_DEPLOY: consts.DEPLOY_STATE_DEPLOY_PREP_FAILED,
-                     consts.DEPLOY_STATE_PRE_INSTALL: consts.DEPLOY_STATE_PRE_INSTALL_FAILED,
-                     consts.DEPLOY_STATE_INSTALLING: consts.DEPLOY_STATE_INSTALL_FAILED,
-                     consts.DEPLOY_STATE_BOOTSTRAPPING: consts.DEPLOY_STATE_BOOTSTRAP_FAILED,
-                     consts.DEPLOY_STATE_DEPLOYING: consts.DEPLOY_STATE_DEPLOY_FAILED,
-                     consts.DEPLOY_STATE_MIGRATING_DATA: consts.DEPLOY_STATE_DATA_MIGRATION_FAILED,
-                     consts.DEPLOY_STATE_PRE_RESTORE: consts.DEPLOY_STATE_RESTORE_PREP_FAILED,
-                     consts.DEPLOY_STATE_RESTORING: consts.DEPLOY_STATE_RESTORE_FAILED,
-                     consts.PRESTAGE_STATE_PREPARE: consts.PRESTAGE_STATE_FAILED,
-                     consts.PRESTAGE_STATE_PACKAGES: consts.PRESTAGE_STATE_FAILED,
-                     consts.PRESTAGE_STATE_IMAGES: consts.PRESTAGE_STATE_FAILED,
-                     }
+TRANSITORY_STATES = {
+    consts.DEPLOY_STATE_NONE: consts.DEPLOY_STATE_DEPLOY_PREP_FAILED,
+    consts.DEPLOY_STATE_PRE_DEPLOY: consts.DEPLOY_STATE_DEPLOY_PREP_FAILED,
+    consts.DEPLOY_STATE_PRE_INSTALL: consts.DEPLOY_STATE_PRE_INSTALL_FAILED,
+    consts.DEPLOY_STATE_INSTALLING: consts.DEPLOY_STATE_INSTALL_FAILED,
+    consts.DEPLOY_STATE_BOOTSTRAPPING: consts.DEPLOY_STATE_BOOTSTRAP_FAILED,
+    consts.DEPLOY_STATE_DEPLOYING: consts.DEPLOY_STATE_DEPLOY_FAILED,
+    consts.DEPLOY_STATE_MIGRATING_DATA: consts.DEPLOY_STATE_DATA_MIGRATION_FAILED,
+    consts.DEPLOY_STATE_PRE_RESTORE: consts.DEPLOY_STATE_RESTORE_PREP_FAILED,
+    consts.DEPLOY_STATE_RESTORING: consts.DEPLOY_STATE_RESTORE_FAILED,
+    consts.PRESTAGE_STATE_PREPARE: consts.PRESTAGE_STATE_FAILED,
+    consts.PRESTAGE_STATE_PACKAGES: consts.PRESTAGE_STATE_FAILED,
+    consts.PRESTAGE_STATE_IMAGES: consts.PRESTAGE_STATE_FAILED,
+}
+
+TRANSITORY_BACKUP_STATES = {
+    consts.BACKUP_STATE_VALIDATING: consts.BACKUP_STATE_VALIDATE_FAILED,
+    consts.BACKUP_STATE_PRE_BACKUP: consts.BACKUP_STATE_PREP_FAILED,
+    consts.BACKUP_STATE_IN_PROGRESS: consts.BACKUP_STATE_FAILED
+}
+
+MAX_PARALLEL_SUBCLOUD_BACKUPS = 10
 
 
 class SubcloudManager(manager.Manager):
@@ -248,6 +265,16 @@ class SubcloudManager(manager.Manager):
             subcloud_name + "_restore_values.yml"]
 
         return restore_command
+
+    def compose_backup_command(self, subcloud_name, ansible_subcloud_inventory_file):
+        backup_command = [
+            "ansible-playbook", ANSIBLE_SUBCLOUD_BACKUP_WRAPPER_PLAYBOOK,
+            "-i", ansible_subcloud_inventory_file,
+            "--limit", subcloud_name,
+            "-e", "subcloud_bnr_overrides=%s" % consts.ANSIBLE_OVERRIDES_PATH + "/" +
+            subcloud_name + "_backup_values.yml"]
+
+        return backup_command
 
     def compose_rehome_command(self, subcloud_name, ansible_subcloud_inventory_file):
         rehome_command = [
@@ -617,6 +644,250 @@ class SubcloudManager(manager.Manager):
         payload['restore_values']['skip_patches_restore'] = 'true'
 
         self._create_restore_override_file(payload, subcloud_name)
+
+    def create_subcloud_backups(self, context, payload):
+        """Backup subcloud or group of subclouds
+
+        :param context: request context object
+        :param payload: subcloud backup detail
+        """
+
+        subcloud_id = payload.get('subcloud')
+        group_id = payload.get('group')
+
+        # Retrieve either a single subcloud or all subclouds in a group
+        subclouds = [db_api.subcloud_get(context, subcloud_id)] if subcloud_id\
+            else db_api.subcloud_get_for_group(context, group_id)
+
+        # Validate the subclouds and filter the ones applicable for backup
+        self._update_backup_status(context, subclouds,
+                                   consts.BACKUP_STATE_VALIDATING)
+        subclouds_to_backup = self._validate_subclouds_for_backup(context,
+                                                                  subclouds)
+
+        self._update_backup_status(context, subclouds_to_backup,
+                                   consts.BACKUP_STATE_PRE_BACKUP)
+
+        # Use thread pool to limit number of operations in parallel
+        backup_pool = greenpool.GreenPool(size=MAX_PARALLEL_SUBCLOUD_BACKUPS)
+
+        # Spawn threads to back up each applicable subcloud
+        processed = 0
+        backup_function = functools.partial(self._backup_subcloud, context,
+                                            payload)
+        for subcloud in backup_pool.imap(backup_function, subclouds_to_backup):
+            processed += 1
+            completion = float(processed) / float(len(subclouds_to_backup)) * 100
+            remaining = len(subclouds_to_backup) - processed
+            LOG.info("Processed subcloud %s for backup (operation %.0f%% complete,"
+                     " %d subcloud(s) remaining)" %
+                     (subcloud.name, completion, remaining))
+
+        LOG.info("Subcloud backup operation finished")
+
+    @staticmethod
+    def _validate_subclouds_for_backup(context, subclouds):
+        try:
+            valid_subclouds = [subcloud for subcloud in subclouds
+                               if SubcloudManager.__is_valid_for_backup(subcloud)]
+
+            SubcloudManager._mark_invalid_subclouds_for_backup(
+                context, subclouds,
+                valid_subclouds)
+
+        except DCManagerException as ex:
+            LOG.exception("Subcloud backup validation failed")
+            raise ex
+
+        return valid_subclouds
+
+    @staticmethod
+    def __is_valid_for_backup(subcloud):
+        return (subcloud.availability_status == dccommon_consts.AVAILABILITY_ONLINE
+                and subcloud.management_state == dccommon_consts.MANAGEMENT_MANAGED
+                and subcloud.deploy_status not in
+                consts.INVALID_DEPLOY_STATES_FOR_BACKUP)
+
+    @staticmethod
+    def _mark_invalid_subclouds_for_backup(context, subclouds, valid):
+        subcloud_refs = {subcloud.id: subcloud.name for subcloud in subclouds}
+        valid_refs = {subcloud.id: subcloud.name for subcloud in valid}
+
+        invalid_ids = set(subcloud_refs.keys()) - set(valid_refs.keys())
+        invalid_names = set(subcloud_refs.values()) - set(valid_refs.values())
+
+        # Set state on subclouds that failed validation
+        if invalid_names:
+            LOG.warn('The following subclouds are not online and/or managed and/or '
+                     'in a valid deploy state, and will not be backed up: %s',
+                     ', '.join(list(invalid_names)))
+            SubcloudManager._update_backup_status_by_ids(
+                context, invalid_ids,
+                consts.BACKUP_STATE_VALIDATE_FAILED)
+
+    @staticmethod
+    def _update_backup_status(context, subclouds, backup_status):
+        subcloud_ids = [subcloud.id for subcloud in subclouds]
+        return SubcloudManager.\
+            _update_backup_status_by_ids(context, subcloud_ids,
+                                         backup_status)
+
+    @staticmethod
+    def _update_backup_status_by_ids(context, subcloud_ids, backup_status):
+        validate_state_form = {
+            Subcloud.backup_status.name: backup_status
+        }
+        db_api.subcloud_bulk_update_by_ids(context, subcloud_ids,
+                                           validate_state_form)
+
+    def _backup_subcloud(self, context, payload, subcloud):
+        try:
+            subcloud_inventory_file = self._create_subcloud_inventory_file(subcloud)
+
+            # Prepare for backup
+            self._create_overrides_for_backup(payload, subcloud.name)
+            backup_command = self.compose_backup_command(
+                subcloud.name, subcloud_inventory_file)
+
+            self._clear_subcloud_backup_failure_alarm_if_exists(subcloud)
+        except Exception:
+            self._fail_subcloud_backup_prep(context, subcloud)
+            return subcloud
+
+        self._run_backup_wrapper_playbook(subcloud, backup_command, context)
+        return subcloud
+
+    def _create_subcloud_inventory_file(self, subcloud):
+        # Ansible inventory filename for the specified subcloud
+        ansible_subcloud_inventory_file = self._get_ansible_filename(
+            subcloud.name, INVENTORY_FILE_POSTFIX)
+
+        # Create inventory file for subcloud if it does not exist yet
+        if not os.path.exists(ansible_subcloud_inventory_file):
+            # Use subcloud floating IP for host reachability
+            keystone_client = OpenStackDriver(
+                region_name=subcloud.name,
+                region_clients=None).keystone_client
+            oam_fip = utils.get_oam_addresses(subcloud.name, keystone_client)\
+                .oam_floating_ip
+
+            # Add parameters used to generate inventory
+            subcloud_params = {'name': subcloud.name,
+                               'bootstrap-address': oam_fip}
+
+            utils.create_subcloud_inventory(subcloud_params,
+                                            ansible_subcloud_inventory_file)
+        return ansible_subcloud_inventory_file
+
+    def _create_overrides_for_backup(self, payload, subcloud_name):
+        # Set override names as expected by the wrapper playbook
+        if not payload.get('backup_values'):
+            payload['backup_values'] = {}
+
+        payload['backup_values']['local'] = \
+            payload['local_only'] or False
+        payload['backup_values']['backup_user_local_registry'] = \
+            payload['registry_images'] or False
+
+        payload['backup_values']['central_backup_dir'] = \
+            '/opt/dc-vault/backups' if not payload['local_only'] else None
+
+        payload['backup_values']['ansible_ssh_pass'] = \
+            payload['sysadmin_password']
+        payload['backup_values']['ansible_become_pass'] = \
+            payload['sysadmin_password']
+        payload['backup_values']['admin_password'] = \
+            str(keyring.get_password('CGCS', 'admin'))
+
+        self._create_backup_overrides_file(payload, subcloud_name)
+
+    def _create_backup_overrides_file(self, payload, subcloud_name):
+        backup_overrides_file = os.path.join(
+            consts.ANSIBLE_OVERRIDES_PATH, subcloud_name +
+            '_backup_values.yml')
+
+        with open(backup_overrides_file, 'w') as f_out:
+            f_out.write(
+                '---\n'
+            )
+            for k, v in payload['backup_values'].items():
+                f_out.write("%s: %s\n" % (k, json.dumps(v)))
+
+    def _run_backup_wrapper_playbook(self, subcloud, backup_command, context):
+        log_file = os.path.join(consts.DC_ANSIBLE_LOG_DIR, subcloud.name) + \
+            '_playbook_output.log'
+
+        db_api.subcloud_update(
+            context, subcloud.id,
+            backup_status=consts.BACKUP_STATE_IN_PROGRESS)
+
+        # Run the subcloud backup playbook
+        try:
+            run_playbook(log_file, backup_command)
+            db_api.subcloud_update(
+                context, subcloud.id,
+                backup_status=consts.BACKUP_STATE_COMPLETE,
+                backup_datetime=datetime.datetime.utcnow())
+
+            LOG.info("Successfully backed up subcloud %s" % subcloud.name)
+
+        except PlaybookExecutionFailed:
+            self._fail_subcloud_backup_operation(context, log_file, subcloud)
+
+    @staticmethod
+    def _fail_subcloud_backup_prep(context, subcloud):
+        LOG.exception("Failed to prepare subcloud %s for backup" % subcloud.name)
+
+        db_api.subcloud_update(
+            context, subcloud.id,
+            backup_status=consts.BACKUP_STATE_PREP_FAILED)
+
+    def _fail_subcloud_backup_operation(self, context, log_file, subcloud):
+        msg = "Failed to backup subcloud %s, check individual log at %s for " \
+              "detailed output." % (subcloud.name, log_file)
+        LOG.error(msg)
+
+        db_api.subcloud_update(
+            context, subcloud.id,
+            backup_status=consts.BACKUP_STATE_FAILED)
+
+        self._set_subcloud_backup_failure_alarm(subcloud)
+
+    def _clear_subcloud_backup_failure_alarm_if_exists(self, subcloud):
+        entity_instance_id = "subcloud=%s" % subcloud.name
+
+        try:
+            fault = self.fm_api.get_fault(
+                fm_const.FM_ALARM_ID_DC_SUBCLOUD_BACKUP_FAILED,
+                entity_instance_id)
+            if fault:
+                self.fm_api.clear_fault(
+                    fm_const.FM_ALARM_ID_DC_SUBCLOUD_BACKUP_FAILED,  # noqa
+                    entity_instance_id)
+        except Exception as e:
+            LOG.exception(e)
+
+    def _set_subcloud_backup_failure_alarm(self, subcloud):
+        entity_instance_id = "subcloud=%s" % subcloud.name
+
+        try:
+            fault = fm_api.Fault(
+                alarm_id=fm_const.FM_ALARM_ID_DC_SUBCLOUD_BACKUP_FAILED,  # noqa
+                alarm_state=fm_const.FM_ALARM_STATE_SET,
+                entity_type_id=fm_const.FM_ENTITY_TYPE_SUBCLOUD,
+                entity_instance_id=entity_instance_id,
+                severity=fm_const.FM_ALARM_SEVERITY_MINOR,
+                reason_text=("Subcloud Backup Failure (subcloud=%s)"
+                             % subcloud.name),
+                alarm_type=fm_const.FM_ALARM_TYPE_3,
+                probable_cause=fm_const.ALARM_PROBABLE_CAUSE_UNKNOWN,
+                proposed_repair_action="Retry subcloud backup after checking input "
+                                       "file. If problem persists, please contact "
+                                       "next level of support.",
+                service_affecting=False)
+            self.fm_api.set_fault(fault)
+        except Exception as e:
+            LOG.exception(e)
 
     def restore_subcloud(self, context, subcloud_id, payload):
         """Restore subcloud
@@ -1238,24 +1509,37 @@ class SubcloudManager(manager.Manager):
                           ' type change, subcloud: %s' % subcloud_name)
 
     def handle_subcloud_operations_in_progress(self):
-        """Identify subclouds in transitory stages and update subcloud deploy state to failure."""
+        """Identify subclouds in transitory stages and update subcloud
+
+        state to failure.
+        """
 
         LOG.info('Identifying subclouds in transitory stages.')
 
-        # identify subclouds in transitory states
-        subclouds_in_transitory_states = [subcloud for subcloud in
-                                          db_api.subcloud_get_all(self.context)
-                                          if subcloud.deploy_status in TRANSITORY_STATES.keys()]
+        subclouds = db_api.subcloud_get_all(self.context)
 
-        # update the deploy_state to the corresponding failure state
-        for subcloud in subclouds_in_transitory_states:
-            new_deploy_status = TRANSITORY_STATES[subcloud.deploy_status]
-            LOG.info("Changing subcloud %s deploy status from %s to %s."
-                     % (subcloud.name, subcloud.deploy_status, new_deploy_status))
-            db_api.subcloud_update(
-                self.context,
-                subcloud.id,
-                deploy_status=new_deploy_status)
+        for subcloud in subclouds:
+            # Identify subclouds in transitory states
+            new_deploy_status = TRANSITORY_STATES.get(subcloud.deploy_status)
+            new_backup_status = TRANSITORY_BACKUP_STATES.get(subcloud.backup_status)
+
+            # update deploy and backup states to the corresponding failure states
+            if new_deploy_status or new_backup_status:
+                if new_deploy_status:
+                    LOG.info("Changing subcloud %s deploy status from %s to %s."
+                             % (subcloud.name, subcloud.deploy_status,
+                                new_deploy_status))
+                if new_backup_status:
+                    LOG.info("Changing subcloud %s backup status from %s to %s."
+                             % (subcloud.name, subcloud.backup_status,
+                                new_backup_status))
+
+                db_api.subcloud_update(
+                    self.context,
+                    subcloud.id,
+                    deploy_status=new_deploy_status or subcloud.deploy_status,
+                    backup_status=new_backup_status or subcloud.backup_status
+                )
 
     @staticmethod
     def prestage_subcloud(context, payload):
