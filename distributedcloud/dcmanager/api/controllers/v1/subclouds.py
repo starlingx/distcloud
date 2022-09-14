@@ -200,7 +200,8 @@ class SubcloudsController(object):
                 for hk, hv in part.headers.items():
                     if (hk.decode('utf8') == 'Content-Disposition' and
                             f in hv.decode('utf8')):
-                        data = yaml.safe_load(part.content.decode('utf8'))
+                        content = '"%s"' % part.content.decode('utf8')
+                        data = yaml.safe_load(content)
                         payload.update({f: data})
         return payload
 
