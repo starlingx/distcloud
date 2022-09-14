@@ -653,6 +653,8 @@ def get_failed_task(files):
         return None
     failed_task = failed_task.replace("*", "")
     failed_task = failed_task.replace("\'", "\"")
+    failed_task = [elem for elem in failed_task.split("\n") if elem]
+    failed_task = "%s %s" % (failed_task[0], failed_task[1])
     return failed_task
 
 

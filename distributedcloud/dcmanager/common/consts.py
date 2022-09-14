@@ -180,6 +180,12 @@ DEPLOY_STATE_REHOME_FAILED = 'rehome-failed'
 DEPLOY_STATE_REHOME_PREP_FAILED = 'rehome-prep-failed'
 DEPLOY_STATE_DONE = 'complete'
 
+# Subcloud errors
+ERROR_DESC_EMPTY = 'No errors present'
+
+# error_description max length
+ERROR_DESCRIPTION_LENGTH = 2048
+
 # States to discard while backing up subclouds
 INVALID_DEPLOY_STATES_FOR_BACKUP = [DEPLOY_STATE_INSTALLING,
                                     DEPLOY_STATE_BOOTSTRAPPING,

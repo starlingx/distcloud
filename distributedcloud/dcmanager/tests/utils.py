@@ -1,5 +1,5 @@
 # Copyright (c) 2015 Ericsson AB
-# Copyright (c) 2017-2021 Wind River Systems, Inc.
+# Copyright (c) 2017-2022 Wind River Systems, Inc.
 # All Rights Reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License"); you may
@@ -92,4 +92,5 @@ def create_subcloud_dict(data_list):
             'sysadmin_password': data_list[22],
             'group_id': data_list[23],
             'deploy_status': data_list[24],
-            'data_install': data_list[25]}
+            'error_description': data_list[25],
+            'data_install': data_list[26]}

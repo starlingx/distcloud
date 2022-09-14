@@ -369,6 +369,7 @@ class TestAuditWorkerManager(base.DCManagerTestCase):
             'management_end_ip': "192.168.101.50",
             'systemcontroller_gateway_ip': "192.168.204.101",
             'deploy_status': "not-deployed",
+            'error_description': 'No errors present',
             'openstack_installed': False,
             'group_id': 1,
         }

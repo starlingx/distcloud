@@ -996,17 +996,19 @@ class SubcloudManager(manager.Manager):
             LOG.info("Starting remote install of %s" % subcloud.name)
             db_api.subcloud_update(
                 context, subcloud.id,
-                deploy_status=consts.DEPLOY_STATE_INSTALLING)
+                deploy_status=consts.DEPLOY_STATE_INSTALLING,
+                error_description=consts.ERROR_DESC_EMPTY)
             try:
                 install.install(consts.DC_ANSIBLE_LOG_DIR, install_command)
             except Exception as e:
                 msg = utils.find_ansible_error_msg(
                     subcloud.name, log_file, consts.DEPLOY_STATE_INSTALLING)
-                db_api.subcloud_update(
-                    context, subcloud.id,
-                    deploy_status=consts.DEPLOY_STATE_INSTALL_FAILED)
                 LOG.error(str(e))
                 LOG.error(msg)
+                db_api.subcloud_update(
+                    context, subcloud.id,
+                    deploy_status=consts.DEPLOY_STATE_INSTALL_FAILED,
+                    error_description=msg[0:consts.ERROR_DESCRIPTION_LENGTH])
                 install.cleanup()
                 return
             install.cleanup()
@@ -1038,7 +1040,8 @@ class SubcloudManager(manager.Manager):
                 # Update the subcloud to bootstrapping
                 db_api.subcloud_update(
                     context, subcloud.id,
-                    deploy_status=consts.DEPLOY_STATE_BOOTSTRAPPING)
+                    deploy_status=consts.DEPLOY_STATE_BOOTSTRAPPING,
+                    error_description=consts.ERROR_DESC_EMPTY)
             except Exception as e:
                 LOG.exception(e)
                 raise e
@@ -1053,7 +1056,8 @@ class SubcloudManager(manager.Manager):
                 LOG.error(msg)
                 db_api.subcloud_update(
                     context, subcloud.id,
-                    deploy_status=consts.DEPLOY_STATE_BOOTSTRAP_FAILED)
+                    deploy_status=consts.DEPLOY_STATE_BOOTSTRAP_FAILED,
+                    error_description=msg[0:consts.ERROR_DESCRIPTION_LENGTH])
                 return
             LOG.info("Successfully bootstrapped %s" % subcloud.name)
 
@@ -1062,7 +1066,8 @@ class SubcloudManager(manager.Manager):
             LOG.info("Starting deploy of %s" % subcloud.name)
             db_api.subcloud_update(
                 context, subcloud.id,
-                deploy_status=consts.DEPLOY_STATE_DEPLOYING)
+                deploy_status=consts.DEPLOY_STATE_DEPLOYING,
+                error_description=consts.ERROR_DESC_EMPTY)
 
             try:
                 run_playbook(log_file, deploy_command)
@@ -1072,7 +1077,8 @@ class SubcloudManager(manager.Manager):
                 LOG.error(msg)
                 db_api.subcloud_update(
                     context, subcloud.id,
-                    deploy_status=consts.DEPLOY_STATE_DEPLOY_FAILED)
+                    deploy_status=consts.DEPLOY_STATE_DEPLOY_FAILED,
+                    error_description=msg[0:consts.ERROR_DESCRIPTION_LENGTH])
                 return
             LOG.info("Successfully deployed %s" % subcloud.name)
         elif restore_command:
@@ -1122,7 +1128,8 @@ class SubcloudManager(manager.Manager):
 
         db_api.subcloud_update(
             context, subcloud.id,
-            deploy_status=consts.DEPLOY_STATE_DONE)
+            deploy_status=consts.DEPLOY_STATE_DONE,
+            error_description=consts.ERROR_DESC_EMPTY)
 
     def _create_addn_hosts_dc(self, context):
         """Generate the addn_hosts_dc file for hostname/ip translation"""

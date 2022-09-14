@@ -110,6 +110,7 @@ def subcloud_db_model_to_dict(subcloud):
               "deploy-status": subcloud.deploy_status,
               "backup-status": subcloud.backup_status,
               "backup-datetime": subcloud.backup_datetime,
+              "error-description": subcloud.error_description,
               "management-subnet": subcloud.management_subnet,
               "management-start-ip": subcloud.management_start_ip,
               "management-end-ip": subcloud.management_end_ip,
@@ -128,7 +129,7 @@ def subcloud_db_model_to_dict(subcloud):
 def subcloud_create(context, name, description, location, software_version,
                     management_subnet, management_gateway_ip,
                     management_start_ip, management_end_ip,
-                    systemcontroller_gateway_ip, deploy_status,
+                    systemcontroller_gateway_ip, deploy_status, error_description,
                     openstack_installed, group_id, data_install=None):
     """Create a subcloud."""
     return IMPL.subcloud_create(context, name, description, location,
@@ -136,7 +137,8 @@ def subcloud_create(context, name, description, location, software_version,
                                 management_subnet, management_gateway_ip,
                                 management_start_ip, management_end_ip,
                                 systemcontroller_gateway_ip, deploy_status,
-                                openstack_installed, group_id, data_install)
+                                error_description, openstack_installed, group_id,
+                                data_install)
 
 
 def subcloud_get(context, subcloud_id):
@@ -167,16 +169,17 @@ def subcloud_get_all_with_status(context):
 def subcloud_update(context, subcloud_id, management_state=None,
                     availability_status=None, software_version=None,
                     description=None, location=None, audit_fail_count=None,
-                    deploy_status=None, backup_status=None, backup_datetime=None,
-                    openstack_installed=None, group_id=None, data_install=None,
-                    data_upgrade=None):
+                    deploy_status=None, backup_status=None,
+                    backup_datetime=None, error_description=None,
+                    openstack_installed=None, group_id=None,
+                    data_install=None, data_upgrade=None):
     """Update a subcloud or raise if it does not exist."""
     return IMPL.subcloud_update(context, subcloud_id, management_state,
                                 availability_status, software_version,
                                 description, location, audit_fail_count,
                                 deploy_status, backup_status, backup_datetime,
-                                openstack_installed, group_id,
-                                data_install, data_upgrade)
+                                error_description, openstack_installed,
+                                group_id, data_install, data_upgrade)
 
 
 def subcloud_bulk_update_by_ids(context, subcloud_ids, update_form):

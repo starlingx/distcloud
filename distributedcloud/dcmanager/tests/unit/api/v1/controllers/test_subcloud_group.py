@@ -1,5 +1,5 @@
 # Copyright (c) 2017 Ericsson AB
-# Copyright (c) 2020-2021 Wind River Systems, Inc.
+# Copyright (c) 2020-2022 Wind River Systems, Inc.
 # All Rights Reserved.
 #
 #    Licensed under the Apache License, Version 2.0 (the "License"); you may
@@ -238,6 +238,7 @@ class TestSubcloudGroupGet(testroot.DCManagerApiTest,
             'systemcontroller_gateway_ip':
                 FAKE_SUBCLOUD_DATA.get('systemcontroller_gateway_ip'),
             'deploy_status': FAKE_SUBCLOUD_DATA.get('deploy_status'),
+            'error_description': FAKE_SUBCLOUD_DATA.get('error_description'),
             'openstack_installed':
                 FAKE_SUBCLOUD_DATA.get('openstack_installed'),
             'group_id': FAKE_SUBCLOUD_DATA.get('group_id', 1)
