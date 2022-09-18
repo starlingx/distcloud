@@ -21,6 +21,17 @@ subcloud_backup_rules = [
                 'path': '/v1.0/subcloud-backup'
             }
         ]
+    ),
+    policy.DocumentedRuleDefault(
+        name=POLICY_ROOT % 'delete',
+        check_str='rule:' + base.ADMIN_IN_SYSTEM_PROJECTS,
+        description="Delete a subcloud backup.",
+        operations=[
+            {
+                'method': 'PATCH',
+                'path': '/v1.0/subcloud-backup/delete/{release_version}'
+            }
+        ]
     )
 ]
 

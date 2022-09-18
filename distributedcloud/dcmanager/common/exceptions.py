@@ -153,6 +153,10 @@ class SubcloudGroupDefaultNotDeletable(DCManagerException):
     message = _("Default Subcloud Group %(group_id)s may not be deleted.")
 
 
+class SubcloudBackupDeleteOperationFailed(DCManagerException):
+    message = _("Unable to delete subcloud backups, check dcmanager logs")
+
+
 class ConnectionRefused(DCManagerException):
     message = _("Connection to the service endpoint is refused")
 

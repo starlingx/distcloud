@@ -42,6 +42,7 @@ from dccommon import kubeoperator
 from dccommon.subcloud_install import SubcloudInstall
 from dccommon.utils import run_playbook
 from dcmanager.common.exceptions import DCManagerException
+from dcmanager.common.exceptions import SubcloudBackupDeleteOperationFailed
 from dcmanager.db.sqlalchemy.models import Subcloud
 
 from dcorch.rpc import client as dcorch_rpc_client
@@ -68,8 +69,10 @@ LOG = logging.getLogger(__name__)
 ADDN_HOSTS_DC = 'dnsmasq.addn_hosts_dc'
 
 # Subcloud configuration paths
-ANSIBLE_SUBCLOUD_BACKUP_WRAPPER_PLAYBOOK = \
-    '/usr/share/ansible/stx-ansible/playbooks/backup_subcloud.yml'
+ANSIBLE_SUBCLOUD_BACKUP_CREATE_PLAYBOOK = \
+    '/usr/share/ansible/stx-ansible/playbooks/create_subcloud_backup.yml'
+ANSIBLE_SUBCLOUD_BACKUP_DELETE_PLAYBOOK = \
+    '/usr/share/ansible/stx-ansible/playbooks/delete_subcloud_backup.yml'
 ANSIBLE_HOST_VALIDATION_PLAYBOOK = \
     '/usr/share/ansible/stx-ansible/playbooks/validate_host.yml'
 ANSIBLE_SUBCLOUD_PLAYBOOK = \
@@ -113,13 +116,16 @@ TRANSITORY_STATES = {
     consts.PRESTAGE_STATE_IMAGES: consts.PRESTAGE_STATE_FAILED,
 }
 
+
 TRANSITORY_BACKUP_STATES = {
     consts.BACKUP_STATE_VALIDATING: consts.BACKUP_STATE_VALIDATE_FAILED,
     consts.BACKUP_STATE_PRE_BACKUP: consts.BACKUP_STATE_PREP_FAILED,
     consts.BACKUP_STATE_IN_PROGRESS: consts.BACKUP_STATE_FAILED
 }
 
-MAX_PARALLEL_SUBCLOUD_BACKUPS = 10
+MAX_PARALLEL_SUBCLOUD_BACKUP_CREATE = 50
+MAX_PARALLEL_SUBCLOUD_BACKUP_DELETE = 250
+CENTRAL_BACKUP_DIR = '/opt/dc-vault/backups'
 
 
 class SubcloudManager(manager.Manager):
@@ -268,11 +274,22 @@ class SubcloudManager(manager.Manager):
 
     def compose_backup_command(self, subcloud_name, ansible_subcloud_inventory_file):
         backup_command = [
-            "ansible-playbook", ANSIBLE_SUBCLOUD_BACKUP_WRAPPER_PLAYBOOK,
+            "ansible-playbook", ANSIBLE_SUBCLOUD_BACKUP_CREATE_PLAYBOOK,
             "-i", ansible_subcloud_inventory_file,
             "--limit", subcloud_name,
             "-e", "subcloud_bnr_overrides=%s" % consts.ANSIBLE_OVERRIDES_PATH + "/" +
-            subcloud_name + "_backup_values.yml"]
+            subcloud_name + "_backup_create_values.yml"]
+
+        return backup_command
+
+    def compose_backup_delete_command(self, subcloud_name,
+                                      ansible_subcloud_inventory_file):
+        backup_command = [
+            "ansible-playbook", ANSIBLE_SUBCLOUD_BACKUP_DELETE_PLAYBOOK,
+            "-i", ansible_subcloud_inventory_file,
+            "--limit", subcloud_name,
+            "-e", "subcloud_bnr_overrides=%s" % consts.ANSIBLE_OVERRIDES_PATH + "/" +
+            subcloud_name + "_backup_delete_values.yml"]
 
         return backup_command
 
@@ -649,7 +666,7 @@ class SubcloudManager(manager.Manager):
         """Backup subcloud or group of subclouds
 
         :param context: request context object
-        :param payload: subcloud backup detail
+        :param payload: subcloud backup create detail
         """
 
         subcloud_id = payload.get('subcloud')
@@ -662,44 +679,113 @@ class SubcloudManager(manager.Manager):
         # Validate the subclouds and filter the ones applicable for backup
         self._update_backup_status(context, subclouds,
                                    consts.BACKUP_STATE_VALIDATING)
-        subclouds_to_backup = self._validate_subclouds_for_backup(context,
-                                                                  subclouds)
 
+        subclouds_to_backup, invalid_subclouds = \
+            self._validate_subclouds_for_backup(subclouds)
+
+        self._mark_invalid_subclouds_for_backup(context, invalid_subclouds)
         self._update_backup_status(context, subclouds_to_backup,
                                    consts.BACKUP_STATE_PRE_BACKUP)
 
         # Use thread pool to limit number of operations in parallel
-        backup_pool = greenpool.GreenPool(size=MAX_PARALLEL_SUBCLOUD_BACKUPS)
+        backup_pool = greenpool.GreenPool(size=MAX_PARALLEL_SUBCLOUD_BACKUP_CREATE)
 
         # Spawn threads to back up each applicable subcloud
-        processed = 0
         backup_function = functools.partial(self._backup_subcloud, context,
                                             payload)
-        for subcloud in backup_pool.imap(backup_function, subclouds_to_backup):
-            processed += 1
-            completion = float(processed) / float(len(subclouds_to_backup)) * 100
-            remaining = len(subclouds_to_backup) - processed
-            LOG.info("Processed subcloud %s for backup (operation %.0f%% complete,"
-                     " %d subcloud(s) remaining)" %
-                     (subcloud.name, completion, remaining))
+
+        self._run_parallel_group_operation('backup create',
+                                           backup_function,
+                                           backup_pool,
+                                           subclouds_to_backup)
 
         LOG.info("Subcloud backup operation finished")
 
-    @staticmethod
-    def _validate_subclouds_for_backup(context, subclouds):
-        try:
-            valid_subclouds = [subcloud for subcloud in subclouds
-                               if SubcloudManager.__is_valid_for_backup(subcloud)]
+    def delete_subcloud_backups(self, context, release_version, payload):
+        """Delete backups for subcloud or group of subclouds for a given release
 
-            SubcloudManager._mark_invalid_subclouds_for_backup(
-                context, subclouds,
-                valid_subclouds)
+        :param context: request context object
+        :param release_version Backup release version to be deleted
+        :param payload: subcloud backup delete detail
+        """
+
+        local_delete = payload.get('local_only')
+
+        subclouds_to_delete_backup, invalid_subclouds = \
+            self._filter_subclouds_for_backup_delete(context, payload, local_delete)
+
+        # Spawn threads to back up each applicable subcloud
+        backup_delete_function = functools.partial(
+            self._delete_subcloud_backup, context, payload, release_version)
+
+        # Use thread pool to limit number of operations in parallel
+        max_parallel_operations = MAX_PARALLEL_SUBCLOUD_BACKUP_DELETE
+        backup_delete_pool = greenpool.GreenPool(size=max_parallel_operations)
+
+        failed_subclouds = self._run_parallel_group_operation(
+            'backup delete', backup_delete_function, backup_delete_pool,
+            subclouds_to_delete_backup)
+
+        all_failed = not set(subclouds_to_delete_backup) - set(failed_subclouds)
+        if subclouds_to_delete_backup and all_failed:
+            LOG.error("Backup delete operation failed for all applied subclouds")
+            raise SubcloudBackupDeleteOperationFailed()
+
+        if invalid_subclouds:
+            self._warn_for_invalid_subclouds_on_backup_delete(invalid_subclouds)
+        if failed_subclouds:
+            self._warn_for_failed_subclouds_on_backup_delete(failed_subclouds)
+
+        LOG.info("Subcloud backup delete operation finished")
+
+        if invalid_subclouds or failed_subclouds:
+            return self._build_subcloud_delete_notice(failed_subclouds,
+                                                      invalid_subclouds)
+
+    @staticmethod
+    def _validate_subclouds_for_backup(subclouds):
+        valid_subclouds = []
+        invalid_subclouds = []
+        for subcloud in subclouds:
+            if SubcloudManager.__is_valid_for_backup(subcloud):
+                valid_subclouds.append(subcloud)
+            else:
+                invalid_subclouds.append(subcloud)
+
+        return valid_subclouds, invalid_subclouds
+
+    @staticmethod
+    def _mark_invalid_subclouds_for_backup(context, invalid_subclouds):
+        try:
+            invalid_ids = {subcloud.id for subcloud in invalid_subclouds}
+            invalid_names = {subcloud.name for subcloud in invalid_subclouds}
+
+            if invalid_ids:
+                # Set state on subclouds that failed validation
+                LOG.warn('The following subclouds are not online and/or managed '
+                         'and/or in a valid deploy state, and will not be backed '
+                         'up: %s', ', '.join(list(invalid_names)))
+                SubcloudManager._update_backup_status_by_ids(
+                    context, invalid_ids,
+                    consts.BACKUP_STATE_VALIDATE_FAILED)
 
         except DCManagerException as ex:
             LOG.exception("Subcloud backup validation failed")
             raise ex
 
-        return valid_subclouds
+    @staticmethod
+    def _warn_for_invalid_subclouds_on_backup_delete(invalid_subclouds):
+        invalid_names = {subcloud.name for subcloud in invalid_subclouds}
+        LOG.warn('The following subclouds were not online and/or managed '
+                 'and/or in a valid deploy state, and thus were not be reached '
+                 'for backup delete: %s', ', '.join(list(invalid_names)))
+
+    @staticmethod
+    def _warn_for_failed_subclouds_on_backup_delete(failed_subclouds):
+        failed_subcloud_names = {subcloud.name for subcloud in failed_subclouds}
+        LOG.warn('Backup delete operation failed for some subclouds, '
+                 'check previous logs for details. Failed subclouds: %s',
+                 ', '.join(list(failed_subcloud_names)))
 
     @staticmethod
     def __is_valid_for_backup(subcloud):
@@ -707,23 +793,6 @@ class SubcloudManager(manager.Manager):
                 and subcloud.management_state == dccommon_consts.MANAGEMENT_MANAGED
                 and subcloud.deploy_status not in
                 consts.INVALID_DEPLOY_STATES_FOR_BACKUP)
-
-    @staticmethod
-    def _mark_invalid_subclouds_for_backup(context, subclouds, valid):
-        subcloud_refs = {subcloud.id: subcloud.name for subcloud in subclouds}
-        valid_refs = {subcloud.id: subcloud.name for subcloud in valid}
-
-        invalid_ids = set(subcloud_refs.keys()) - set(valid_refs.keys())
-        invalid_names = set(subcloud_refs.values()) - set(valid_refs.values())
-
-        # Set state on subclouds that failed validation
-        if invalid_names:
-            LOG.warn('The following subclouds are not online and/or managed and/or '
-                     'in a valid deploy state, and will not be backed up: %s',
-                     ', '.join(list(invalid_names)))
-            SubcloudManager._update_backup_status_by_ids(
-                context, invalid_ids,
-                consts.BACKUP_STATE_VALIDATE_FAILED)
 
     @staticmethod
     def _update_backup_status(context, subclouds, backup_status):
@@ -740,6 +809,25 @@ class SubcloudManager(manager.Manager):
         db_api.subcloud_bulk_update_by_ids(context, subcloud_ids,
                                            validate_state_form)
 
+    @staticmethod
+    def _run_parallel_group_operation(op_type, op_function, thread_pool, subclouds):
+        failed_subclouds = []
+        processed = 0
+
+        for subcloud, success in thread_pool.imap(op_function, subclouds):
+            processed += 1
+
+            if not success:
+                failed_subclouds.append(subcloud)
+
+            completion = float(processed) / float(len(subclouds)) * 100
+            remaining = len(subclouds) - processed
+            LOG.info("Processed subcloud %s for %s (operation %.0f%% "
+                     "complete, %d subcloud(s) remaining)" %
+                     (subcloud.name, op_type, completion, remaining))
+
+        return failed_subclouds
+
     def _backup_subcloud(self, context, payload, subcloud):
         try:
             subcloud_inventory_file = self._create_subcloud_inventory_file(subcloud)
@@ -752,68 +840,143 @@ class SubcloudManager(manager.Manager):
             self._clear_subcloud_backup_failure_alarm_if_exists(subcloud)
         except Exception:
             self._fail_subcloud_backup_prep(context, subcloud)
-            return subcloud
+            return subcloud, False
 
-        self._run_backup_wrapper_playbook(subcloud, backup_command, context)
-        return subcloud
+        success = self._run_subcloud_backup_create_playbook(subcloud, backup_command,
+                                                            context)
+        return subcloud, success
+
+    def _filter_subclouds_for_backup_delete(self, context, payload, local_delete):
+        subcloud_id = payload.get('subcloud')
+        group_id = payload.get('group')
+
+        # Retrieve either a single subcloud or all subclouds in a group
+        subclouds = [db_api.subcloud_get(context, subcloud_id)] if subcloud_id \
+            else db_api.subcloud_get_for_group(context, group_id)
+        invalid_subclouds = []
+
+        # Subcloud state validation only required for local delete
+        if local_delete:
+            # Use same criteria defined for subcloud backup create
+            subclouds_to_delete_backup, invalid_subclouds = \
+                self._validate_subclouds_for_backup(subclouds)
+
+        else:
+            # Otherwise, validation is unnecessary, since connection is not required
+            subclouds_to_delete_backup = subclouds
+
+        return subclouds_to_delete_backup, invalid_subclouds
+
+    def _delete_subcloud_backup(self, context, payload, release_version, subcloud):
+        try:
+            self._create_overrides_for_backup_delete(payload, subcloud.name,
+                                                     release_version)
+            inventory_file = self._create_subcloud_inventory_file(subcloud)
+            delete_command = self.compose_backup_delete_command(
+                subcloud.name, inventory_file)
+
+        except Exception:
+            LOG.exception("Failed to prepare subcloud %s for backup delete"
+                          % subcloud.name)
+            return subcloud, False
+
+        success = self._run_subcloud_backup_delete_playbook(context, subcloud,
+                                                            delete_command)
+        return subcloud, success
+
+    @staticmethod
+    def _build_subcloud_delete_notice(failed_subclouds, invalid_subclouds):
+        invalid_subcloud_names = [subcloud.name for subcloud in invalid_subclouds]
+        failed_subcloud_names = [subcloud.name for subcloud in failed_subclouds]
+
+        notice = "Subcloud backup delete operation completed with warnings:\n"
+        if invalid_subclouds:
+            notice += ("The following subclouds were skipped for local backup "
+                       "delete: %s." % ' ,'.join(invalid_subcloud_names))
+        if failed_subclouds:
+            notice += ("The following subclouds failed during backup delete "
+                       "operation: %s." % ' ,'.join(failed_subcloud_names))
+        return notice
 
     def _create_subcloud_inventory_file(self, subcloud):
         # Ansible inventory filename for the specified subcloud
         ansible_subcloud_inventory_file = self._get_ansible_filename(
             subcloud.name, INVENTORY_FILE_POSTFIX)
 
-        # Create inventory file for subcloud if it does not exist yet
-        if not os.path.exists(ansible_subcloud_inventory_file):
-            # Use subcloud floating IP for host reachability
-            keystone_client = OpenStackDriver(
-                region_name=subcloud.name,
-                region_clients=None).keystone_client
-            oam_fip = utils.get_oam_addresses(subcloud.name, keystone_client)\
-                .oam_floating_ip
+        # Use subcloud floating IP for host reachability
+        keystone_client = OpenStackDriver(
+            region_name=subcloud.name,
+            region_clients=None).keystone_client
+        oam_fip = utils.get_oam_addresses(subcloud.name, keystone_client)\
+            .oam_floating_ip
 
-            # Add parameters used to generate inventory
-            subcloud_params = {'name': subcloud.name,
-                               'bootstrap-address': oam_fip}
+        # Add parameters used to generate inventory
+        subcloud_params = {'name': subcloud.name,
+                           'bootstrap-address': oam_fip}
 
-            utils.create_subcloud_inventory(subcloud_params,
-                                            ansible_subcloud_inventory_file)
+        utils.create_subcloud_inventory(subcloud_params,
+                                        ansible_subcloud_inventory_file)
         return ansible_subcloud_inventory_file
 
     def _create_overrides_for_backup(self, payload, subcloud_name):
-        # Set override names as expected by the wrapper playbook
-        if not payload.get('backup_values'):
-            payload['backup_values'] = {}
+        # Set override names as expected by the playbook
+        if not payload.get('override_values'):
+            payload['override_values'] = {}
 
-        payload['backup_values']['local'] = \
+        payload['override_values']['local'] = \
             payload['local_only'] or False
-        payload['backup_values']['backup_user_local_registry'] = \
+        payload['override_values']['backup_user_local_registry'] = \
             payload['registry_images'] or False
 
-        payload['backup_values']['central_backup_dir'] = \
-            '/opt/dc-vault/backups' if not payload['local_only'] else None
+        if not payload['local_only']:
+            payload['override_values']['central_backup_dir'] = CENTRAL_BACKUP_DIR
 
-        payload['backup_values']['ansible_ssh_pass'] = \
+        payload['override_values']['ansible_ssh_pass'] = \
             payload['sysadmin_password']
-        payload['backup_values']['ansible_become_pass'] = \
+        payload['override_values']['ansible_become_pass'] = \
             payload['sysadmin_password']
-        payload['backup_values']['admin_password'] = \
+        payload['override_values']['admin_password'] = \
             str(keyring.get_password('CGCS', 'admin'))
 
-        self._create_backup_overrides_file(payload, subcloud_name)
+        self._create_backup_overrides_file(payload, subcloud_name, 'backup_create_values')
 
-    def _create_backup_overrides_file(self, payload, subcloud_name):
+    def _create_overrides_for_backup_delete(self, payload, subcloud_name,
+                                            release_version):
+        # Set override names as expected by the playbook
+        if not payload.get('override_values'):
+            payload['override_values'] = {}
+
+        payload['override_values']['software_version'] = release_version
+
+        payload['override_values']['local'] = \
+            payload['local_only'] or False
+
+        if not payload['local_only']:
+            payload['override_values']['central_backup_dir'] = CENTRAL_BACKUP_DIR
+
+        # payload['override_values']['backup_dir'] = \
+        #     '/opt/platform-backup/backups' if payload['local_only'] else None
+
+        payload['override_values']['ansible_ssh_pass'] = \
+            payload['sysadmin_password']
+        payload['override_values']['ansible_become_pass'] = \
+            payload['sysadmin_password']
+
+        self._create_backup_overrides_file(payload, subcloud_name, 'backup_delete_values')
+
+    def _create_backup_overrides_file(self, payload, subcloud_name, filename_suffix):
         backup_overrides_file = os.path.join(
-            consts.ANSIBLE_OVERRIDES_PATH, subcloud_name +
-            '_backup_values.yml')
+            consts.ANSIBLE_OVERRIDES_PATH, subcloud_name + '_' +
+            filename_suffix + '.yml')
 
         with open(backup_overrides_file, 'w') as f_out:
             f_out.write(
                 '---\n'
             )
-            for k, v in payload['backup_values'].items():
+            for k, v in payload['override_values'].items():
                 f_out.write("%s: %s\n" % (k, json.dumps(v)))
 
-    def _run_backup_wrapper_playbook(self, subcloud, backup_command, context):
+    def _run_subcloud_backup_create_playbook(self, subcloud, backup_command, context):
         log_file = os.path.join(consts.DC_ANSIBLE_LOG_DIR, subcloud.name) + \
             '_playbook_output.log'
 
@@ -830,9 +993,35 @@ class SubcloudManager(manager.Manager):
                 backup_datetime=datetime.datetime.utcnow())
 
             LOG.info("Successfully backed up subcloud %s" % subcloud.name)
+            return True
 
         except PlaybookExecutionFailed:
             self._fail_subcloud_backup_operation(context, log_file, subcloud)
+            return False
+
+    @staticmethod
+    def _run_subcloud_backup_delete_playbook(context, subcloud, delete_command):
+        log_file = os.path.join(consts.DC_ANSIBLE_LOG_DIR, subcloud.name) + \
+            '_playbook_output.log'
+
+        try:
+            # Run the subcloud backup delete playbook
+            run_playbook(log_file, delete_command)
+
+            # Set backup status to unknown after delete, since most recent backup may
+            # have been deleted
+            db_api.subcloud_bulk_update_by_ids(
+                context, [subcloud.id],
+                {Subcloud.backup_status.name: consts.BACKUP_STATE_UNKNOWN,
+                 Subcloud.backup_datetime.name: None})
+
+            LOG.info("Successfully deleted backup for subcloud %s" % subcloud.name)
+            return True
+
+        except PlaybookExecutionFailed:
+            LOG.error("Failed to delete backup for subcloud %s, check individual "
+                      "log at %s for detailed output." % (subcloud.name, log_file))
+            return False
 
     @staticmethod
     def _fail_subcloud_backup_prep(context, subcloud):

@@ -186,12 +186,14 @@ INVALID_DEPLOY_STATES_FOR_BACKUP = [DEPLOY_STATE_INSTALLING,
                                     DEPLOY_STATE_DEPLOYING]
 
 # Subcloud backup status states
+BACKUP_STATE_INITIAL = 'initial'
 BACKUP_STATE_VALIDATING = 'validating'
 BACKUP_STATE_VALIDATE_FAILED = 'validate-failed'
 BACKUP_STATE_PRE_BACKUP = 'pre-backup'
 BACKUP_STATE_PREP_FAILED = 'backup-prep-failed'
 BACKUP_STATE_IN_PROGRESS = 'backing-up'
 BACKUP_STATE_FAILED = 'failed'
+BACKUP_STATE_UNKNOWN = 'unknown'
 BACKUP_STATE_COMPLETE = 'complete'
 
 # Upgrades States
