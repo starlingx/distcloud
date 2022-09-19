@@ -3,6 +3,8 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 #
+import json
+
 from requests_toolbelt.multipart import decoder
 
 import base64
@@ -56,6 +58,19 @@ class SubcloudBackupController(object):
 
     @staticmethod
     def _get_payload(request, expected_params):
+        content_type = pecan.request.headers.get('Content-Type')
+
+        if 'multipart' in content_type:
+            return SubcloudBackupController._get_multipart_payload(
+                request, expected_params)
+        elif 'json' in content_type:
+            return SubcloudBackupController._get_json_payload(
+                request, expected_params)
+        else:
+            pecan.abort(400, _("Unexpected request content type"))
+
+    @staticmethod
+    def _get_multipart_payload(request, expected_params):
         payload = dict()
 
         multipart_data = \
@@ -74,6 +89,23 @@ class SubcloudBackupController(object):
                     payload.update({param: part.content})
             except StopIteration:
                 pecan.abort(400, _("Unexpected parameter received"))
+
+        return payload
+
+    @staticmethod
+    def _get_json_payload(request, expected_params):
+        try:
+            payload = json.loads(request.body)
+        except Exception:
+            error_msg = 'Request body is malformed.'
+            LOG.exception(error_msg)
+            pecan.abort(400, _(error_msg))
+            return
+        if not isinstance(payload, dict):
+            pecan.abort(400, _('Invalid request body format'))
+        if not set(payload.keys()).issubset(expected_params.keys()):
+            LOG.info(payload.keys())
+            pecan.abort(400, _("Unexpected parameter received"))
 
         return payload
 
