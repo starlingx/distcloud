@@ -44,10 +44,10 @@ from dcmanager.db import api as db_api
 LOG = logging.getLogger(__name__)
 CONF = cfg.CONF
 
+PRESTAGING_REPO_DIR = '/var/run/prestaging_repo'
 DEPLOY_BASE_DIR = dccommon_consts.DEPLOY_DIR + '/' + SW_VERSION
-PREPARE_PRESTAGE_PACKAGES_OUTPUT_PATH = DEPLOY_BASE_DIR + '/prestage/shared'
 PRESTAGE_PREPARATION_COMPLETED_FILE = os.path.join(
-    PREPARE_PRESTAGE_PACKAGES_OUTPUT_PATH, '.prestage_preparation_completed')
+    PRESTAGING_REPO_DIR, '.prestage_preparation_completed')
 PRESTAGE_PREPARATION_FAILED_FILE = os.path.join(
     DEPLOY_BASE_DIR, '.prestage_preparation_failed')
 ANSIBLE_PREPARE_PRESTAGE_PACKAGES_PLAYBOOK = \
