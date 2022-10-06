@@ -556,6 +556,7 @@ class TestSwUpdateManager(base.DCManagerTestCase):
             "management_end_ip": "192.168.101.4",
             "systemcontroller_gateway_ip": "192.168.204.101",
             'deploy_status': "not-deployed",
+            'error_description': 'No errors present',
             'openstack_installed': False,
             'group_id': group_id,
             'data_install': 'data from install',

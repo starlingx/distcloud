@@ -1,5 +1,5 @@
 # Copyright (c) 2015 Ericsson AB
-# Copyright (c) 2017-2021 Wind River Systems, Inc.
+# Copyright (c) 2017-2022 Wind River Systems, Inc.
 # All Rights Reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License"); you may
@@ -62,6 +62,7 @@ SUBCLOUD_SAMPLE_DATA_0 = [
     "testpass",  # sysadmin_password
     1,  # group_id
     consts.DEPLOY_STATE_DONE,  # deploy_status
+    consts.ERROR_DESC_EMPTY,  # error_description
     json.dumps({'data_install': 'test data install values'}),  # data_install
 ]
 

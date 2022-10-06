@@ -341,8 +341,9 @@ def subcloud_get_all_with_status(context):
 def subcloud_create(context, name, description, location, software_version,
                     management_subnet, management_gateway_ip,
                     management_start_ip, management_end_ip,
-                    systemcontroller_gateway_ip, deploy_status,
-                    openstack_installed, group_id, data_install=None):
+                    systemcontroller_gateway_ip, deploy_status, error_description,
+                    openstack_installed, group_id,
+                    data_install=None):
     with write_session() as session:
         subcloud_ref = models.Subcloud()
         subcloud_ref.name = name
@@ -357,6 +358,7 @@ def subcloud_create(context, name, description, location, software_version,
         subcloud_ref.management_end_ip = management_end_ip
         subcloud_ref.systemcontroller_gateway_ip = systemcontroller_gateway_ip
         subcloud_ref.deploy_status = deploy_status
+        subcloud_ref.error_description = error_description
         subcloud_ref.audit_fail_count = 0
         subcloud_ref.openstack_installed = openstack_installed
         subcloud_ref.group_id = group_id
@@ -373,7 +375,8 @@ def subcloud_create(context, name, description, location, software_version,
 def subcloud_update(context, subcloud_id, management_state=None,
                     availability_status=None, software_version=None,
                     description=None, location=None, audit_fail_count=None,
-                    deploy_status=None, backup_status=None, backup_datetime=None,
+                    deploy_status=None, backup_status=None,
+                    backup_datetime=None, error_description=None,
                     openstack_installed=None,
                     group_id=None,
                     data_install=None,
@@ -400,6 +403,8 @@ def subcloud_update(context, subcloud_id, management_state=None,
             subcloud_ref.backup_status = backup_status
         if backup_datetime is not None:
             subcloud_ref.backup_datetime = backup_datetime
+        if error_description is not None:
+            subcloud_ref.error_description = error_description
         if data_upgrade is not None:
             subcloud_ref.data_upgrade = data_upgrade
         if openstack_installed is not None:

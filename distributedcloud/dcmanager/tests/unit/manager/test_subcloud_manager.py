@@ -314,6 +314,7 @@ class Subcloud(object):
         else:
             self.availability_status = dccommon_consts.AVAILABILITY_OFFLINE
         self.deploy_status = data['deploy_status']
+        self.error_description = data['error_description']
         self.management_subnet = data['management_subnet']
         self.management_gateway_ip = data['management_gateway_address']
         self.management_start_ip = data['management_start_address']
@@ -376,6 +377,7 @@ class TestSubcloudManager(base.DCManagerTestCase):
             "management_end_ip": "192.168.101.4",
             "systemcontroller_gateway_ip": "192.168.204.101",
             'deploy_status': "not-deployed",
+            'error_description': "No errors present",
             'openstack_installed': False,
             'group_id': 1,
             'data_install': 'data from install',

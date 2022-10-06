@@ -1,5 +1,5 @@
 # Copyright (c) 2015 Ericsson AB
-# Copyright (c) 2017-2021 Wind River Systems, Inc.
+# Copyright (c) 2017-2022 Wind River Systems, Inc.
 # All Rights Reserved.
 #
 #    Licensed under the Apache License, Version 2.0 (the "License"); you may
@@ -128,6 +128,7 @@ class Subcloud(BASE, DCManagerBase):
     deploy_status = Column(String(255))
     backup_status = Column(String(255))
     backup_datetime = Column(DateTime(timezone=False))
+    error_description = Column(String(2048))
     data_upgrade = Column(String())
     management_subnet = Column(String(255))
     management_gateway_ip = Column(String(255))
