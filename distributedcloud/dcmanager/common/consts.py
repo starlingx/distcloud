@@ -186,10 +186,7 @@ ERROR_DESC_EMPTY = 'No errors present'
 # error_description max length
 ERROR_DESCRIPTION_LENGTH = 2048
 
-# States to discard while backing up subclouds
-INVALID_DEPLOY_STATES_FOR_BACKUP = [DEPLOY_STATE_INSTALLING,
-                                    DEPLOY_STATE_BOOTSTRAPPING,
-                                    DEPLOY_STATE_DEPLOYING]
+# States to discard while restoring subclouds
 INVALID_DEPLOY_STATES_FOR_RESTORE = [DEPLOY_STATE_INSTALLING,
                                      DEPLOY_STATE_BOOTSTRAPPING,
                                      DEPLOY_STATE_DEPLOYING,
