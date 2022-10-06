@@ -186,9 +186,11 @@ class SubcloudBackupController(object):
             pecan.abort(400, _('Operation not allowed while subcloud is unmanaged. '
                                'Please manage the subcloud and try again.'))
 
-        elif subcloud.deploy_status in consts.INVALID_DEPLOY_STATES_FOR_BACKUP:
-            pecan.abort(400, _('This operation is not allowed while subcloud '
-                               'install, bootstrap or deploy is in progress.'))
+        elif subcloud.deploy_status != consts.DEPLOY_STATE_DONE:
+            pecan.abort(400, _("The current subcloud deploy state is %s. "
+                               "This operation is only allowed while subcloud "
+                               "deploy state is 'complete'."
+                               % subcloud.deploy_status))
 
     @staticmethod
     def _get_subclouds_from_group(group, context):
