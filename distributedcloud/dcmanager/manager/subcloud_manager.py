@@ -938,6 +938,10 @@ class SubcloudManager(manager.Manager):
         payload['override_values']['admin_password'] = \
             str(keyring.get_password('CGCS', 'admin'))
 
+        if payload.get('backup_values'):
+            for key, value in payload.get('backup_values').items():
+                payload['override_values'][key] = value
+
         self._create_backup_overrides_file(payload, subcloud_name, 'backup_create_values')
 
     def _create_overrides_for_backup_delete(self, payload, subcloud_name,

@@ -7,20 +7,15 @@ import json
 
 from collections import namedtuple
 
-from requests_toolbelt.multipart import decoder
-
 import base64
-import os
 from oslo_config import cfg
 from oslo_log import log as logging
 from oslo_messaging import RemoteError
-import yaml
 
 import pecan
 from pecan import expose
-from pecan import request
+from pecan import request as pecan_request
 from pecan import response
-from yaml.scanner import ScannerError
 
 from dccommon import consts as dccommon_consts
 
@@ -32,7 +27,6 @@ from dcmanager.common.i18n import _
 from dcmanager.common import utils
 from dcmanager.db import api as db_api
 from dcmanager.db.sqlalchemy.models import Subcloud
-
 from dcmanager.rpc import client as rpc_client
 
 CONF = cfg.CONF
@@ -77,39 +71,8 @@ class SubcloudBackupController(object):
 
     @staticmethod
     def _get_payload(request, expected_params):
-        content_type = pecan.request.headers.get('Content-Type')
-
-        if 'multipart' in content_type:
-            return SubcloudBackupController._get_multipart_payload(
-                request, expected_params)
-        elif 'json' in content_type:
-            return SubcloudBackupController._get_json_payload(
-                request, expected_params)
-        else:
-            pecan.abort(400, _("Unexpected request content type"))
-
-    @staticmethod
-    def _get_multipart_payload(request, expected_params):
-        payload = dict()
-
-        multipart_data = \
-            decoder.MultipartDecoder(request.body,
-                                     pecan.request.headers.get('Content-Type'))
-
-        for part in multipart_data.parts:
-            header = part.headers.get('Content-Disposition')
-            try:
-                param = next(param for param in expected_params.keys()
-                             if param in header)
-                if expected_params[param] == "yaml":
-                    data = SubcloudBackupController.read_yaml_param(param, request)
-                    payload.update({param: data})
-                else:
-                    payload.update({param: part.content})
-            except StopIteration:
-                pecan.abort(400, _("Unexpected parameter received"))
-
-        return payload
+        return SubcloudBackupController._get_json_payload(
+            request, expected_params)
 
     @staticmethod
     def _get_json_payload(request, expected_params):
@@ -127,23 +90,6 @@ class SubcloudBackupController(object):
             pecan.abort(400, _("Unexpected parameter received"))
 
         return payload
-
-    @staticmethod
-    def read_yaml_param(param, request):
-        invalid_yaml_msg = "Invalid format received on yaml parameter %s"
-
-        file_item = request.POST[param]
-        file_item.file.seek(0, os.SEEK_SET)
-        try:
-            data = yaml.safe_load(file_item.file.read().decode('utf8'))
-            if not isinstance(data, dict):
-                LOG.error(invalid_yaml_msg % param)
-                pecan.abort(400, _(invalid_yaml_msg % param))
-            return data
-
-        except ScannerError:
-            LOG.exception(invalid_yaml_msg % param)
-            pecan.abort(400, _(invalid_yaml_msg % param))
 
     @staticmethod
     def _validate_and_decode_sysadmin_password(payload, param_name):
@@ -270,7 +216,7 @@ class SubcloudBackupController(object):
         """Create a new subcloud backup."""
 
         context = restcomm.extract_context_from_environ()
-        payload = self._get_backup_payload(request)
+        payload = self._get_backup_payload(pecan_request)
 
         policy.authorize(subcloud_backup_policy.POLICY_ROOT % "create", {},
                          restcomm.extract_credentials_for_policy())
@@ -313,7 +259,7 @@ class SubcloudBackupController(object):
         """
 
         context = restcomm.extract_context_from_environ()
-        payload = self._get_backup_delete_payload(request)
+        payload = self._get_backup_delete_payload(pecan_request)
 
         if verb == 'delete':
             policy.authorize(subcloud_backup_policy.POLICY_ROOT % "delete", {},
