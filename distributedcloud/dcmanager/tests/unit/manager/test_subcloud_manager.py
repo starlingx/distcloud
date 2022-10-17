@@ -500,7 +500,6 @@ class TestSubcloudManager(base.DCManagerTestCase):
         mock_create_addn_hosts.assert_called_once()
         mock_create_subcloud_inventory.assert_called_once()
         mock_write_subcloud_ansible_config.assert_called_once()
-        mock_keyring.get_password.assert_called_with('smapi', 'services')
         mock_thread_start.assert_called_once()
         mock_create_intermediate_ca_cert.assert_called_once()
         mock_compose_rehome_command.assert_called_once()

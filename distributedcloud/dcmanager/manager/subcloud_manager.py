@@ -447,12 +447,6 @@ class SubcloudManager(manager.Manager):
                 payload['users'][user] = \
                     str(keyring.get_password(
                         user, dccommon_consts.SERVICES_USER_NAME))
-            # The password of smapi user is expected to the aligned during rehoming
-            # a subcloud. Add smapi into the user to replace list.
-            if migrate_flag:
-                payload['users']['smapi'] = \
-                    str(keyring.get_password(
-                        'smapi', dccommon_consts.SERVICES_USER_NAME))
 
             # Create the ansible inventory for the new subcloud
             utils.create_subcloud_inventory(payload,
