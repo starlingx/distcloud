@@ -919,7 +919,7 @@ class SubcloudManager(manager.Manager):
 
         payload['override_values']['local'] = \
             payload['local_only'] or False
-        payload['override_values']['backup_user_local_registry'] = \
+        payload['override_values']['backup_user_images'] = \
             payload['registry_images'] or False
 
         if not payload['local_only']:
