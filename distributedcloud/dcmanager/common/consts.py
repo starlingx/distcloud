@@ -190,6 +190,10 @@ ERROR_DESCRIPTION_LENGTH = 2048
 INVALID_DEPLOY_STATES_FOR_BACKUP = [DEPLOY_STATE_INSTALLING,
                                     DEPLOY_STATE_BOOTSTRAPPING,
                                     DEPLOY_STATE_DEPLOYING]
+INVALID_DEPLOY_STATES_FOR_RESTORE = [DEPLOY_STATE_INSTALLING,
+                                     DEPLOY_STATE_BOOTSTRAPPING,
+                                     DEPLOY_STATE_DEPLOYING,
+                                     DEPLOY_STATE_REHOMING]
 
 # Subcloud backup status states
 BACKUP_STATE_INITIAL = 'initial'
