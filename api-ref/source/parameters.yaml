@@ -1,5 +1,11 @@
 ---
 # variables in path
+backup_delete_release:
+  description: |
+    Backup release to be deleted (e.g. 22.12).
+  in: path
+  required: true
+  type: string
 subcloud_group_uri:
   description: |
     The subcloud group reference, name or id.
@@ -75,6 +81,12 @@ backup_registry_images:
   in: body
   required: false
   type: boolean
+backup_restore_values:
+  description: |
+    Content of a restore playbook overrides file.
+  in: body
+  required: false
+  type: string
 backup_status:
   description: |
     The backup status of the subcloud.
@@ -177,6 +189,12 @@ endpoint_sync_status:
   in: body
   required: true
   type: list
+error_description:
+  description: |
+    Description of the subcloud's error.
+  in: body
+  required: false
+  type: string
 external_oam_floating_address:
   description: |
     The external OAM Floating IP of the subcloud.

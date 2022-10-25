@@ -1,0 +1,10 @@
+{
+    "subcloud": 1,
+    "local_only": "false",
+    "registry_images": "false",
+    "with_install": "false",
+    "sysadmin_password": "XXXXXXX",
+    "restore_values": {
+    	"backup_filename": "filename"
+    }
+}
