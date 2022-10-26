@@ -92,6 +92,7 @@
     name: stx-distcloud-tox-pep8
     parent: tox
     description: Run pep8 for distcloud
+    nodeset: ubuntu-focal
     required-projects:
       - starlingx/fault
       - starlingx/nfv
@@ -104,6 +105,7 @@
 - job:
     name: stx-distcloud-tox-pep8-debian
     parent: tox
+    nodeset: ubuntu-focal
     description: Run pep8 for distcloud
     required-projects:
       - starlingx/fault
