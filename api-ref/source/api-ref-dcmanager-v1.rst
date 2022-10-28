@@ -75,6 +75,8 @@ Response
   - software-version: software_version
   - availability-status: availability_status
   - deploy-status: deploy_status
+  - backup-status: backup_status
+  - backup-datetime: backup_datetime
   - openstack-installed: openstack_installed
   - management-state: management_state
   - systemcontroller-gateway-ip: systemcontroller_gateway_ip
@@ -212,6 +214,8 @@ This operation does not accept a request body.
   - software-version: software_version
   - availability-status: availability_status
   - deploy-status: deploy_status
+  - backup-status: backup_status
+  - backup-datetime: backup_datetime
   - openstack-installed: openstack_installed
   - management-state: management_state
   - systemcontroller-gateway-ip: systemcontroller_gateway_ip
@@ -271,6 +275,8 @@ This operation does not accept a request body.
   - software-version: software_version
   - availability-status: availability_status
   - deploy-status: deploy_status
+  - backup-status: backup_status
+  - backup-datetime: backup_datetime
   - openstack-installed: openstack_installed
   - management-state: management_state
   - systemcontroller-gateway-ip: systemcontroller_gateway_ip
@@ -347,6 +353,8 @@ Request Example
   - software-version: software_version
   - availability-status: availability_status
   - deploy-status: deploy_status
+  - backup-status: backup_status
+  - backup-datetime: backup_datetime
   - openstack-installed: openstack_installed
   - management-state: management_state
   - systemcontroller-gateway-ip: systemcontroller_gateway_ip
@@ -417,6 +425,8 @@ Request Example
   - software-version: software_version
   - availability-status: availability_status
   - deploy-status: deploy_status
+  - backup-status: backup_status
+  - backup-datetime: backup_datetime
   - openstack-installed: openstack_installed
   - management-state: management_state
   - systemcontroller-gateway-ip: systemcontroller_gateway_ip
@@ -486,6 +496,8 @@ Request Example
   - software-version: software_version
   - availability-status: availability_status
   - deploy-status: deploy_status
+  - backup-status: backup_status
+  - backup-datetime: backup_datetime
   - openstack-installed: openstack_installed
   - management-state: management_state
   - systemcontroller-gateway-ip: systemcontroller_gateway_ip
@@ -554,6 +566,8 @@ Request Example
   - software-version: software_version
   - availability-status: availability_status
   - deploy-status: deploy_status
+  - backup-status: backup_status
+  - backup-datetime: backup_datetime
   - openstack-installed: openstack_installed
   - management-state: management_state
   - systemcontroller-gateway-ip: systemcontroller_gateway_ip
@@ -814,6 +828,8 @@ This operation does not accept a request body.
   - software-version: software_version
   - availability-status: availability_status
   - deploy-status: deploy_status
+  - backup-status: backup_status
+  - backup-datetime: backup_datetime
   - openstack-installed: openstack_installed
   - management-state: management_state
   - systemcontroller-gateway-ip: systemcontroller_gateway_ip
@@ -917,6 +933,90 @@ internalServerError (500), serviceUnavailable (503)
   - subcloud-group: subcloud_group_uri
 
 This operation does not accept a request body.
+
+----------------
+Subcloud Backups
+----------------
+
+Subcloud Backups allow for essential subcloud system data (and optionally container images) to be
+saved and subsequently used to restore the subcloud to a previously working state.
+Subcloud backups may be created, deleted or restored for a single subcloud, or for all subclouds
+in a subcloud group.
+Backup files may be saved locally in the subcloud or to a centralized archive in the system
+controller.
+
+************************************************************************
+Generates subcloud backup files for a given subcloud or subcloud group
+************************************************************************
+
+.. rest_method:: POST /v1.0/subcloud-backup
+
+Accepts Content-Type multipart/form-data.
+
+
+**Normal response codes**
+
+OK (200) - request has been validated and backup operation was started
+
+**Error response codes**
+
+badRequest (400), unauthorized (401), forbidden (403), notFound (404),
+HTTPUnprocessableEntity (422), internalServerError (500),
+serviceUnavailable (503)
+
+**Request parameters**
+
+.. rest_parameters:: parameters.yaml
+
+  - subcloud: backup_subcloud_name_or_id
+  - group: backup_subcloud_group_name_or_id
+  - local_only: backup_local_only
+  - registry_images: backup_registry_images
+  - backup_values: backup_values
+  - sysadmin_password: sysadmin_password
+
+Request Example
+----------------
+
+.. literalinclude:: samples/subcloud-backup/subcloud-post-backup-request.json
+         :language: json
+
+
+**Response parameters**
+
+.. rest_parameters:: parameters.yaml
+
+  - subclouds: subclouds
+  - id: subcloud_id
+  - group_id: group_id
+  - name: subcloud_name
+  - description: subcloud_description
+  - location: subcloud_location
+  - software-version: software_version
+  - availability-status: availability_status
+  - deploy-status: deploy_status
+  - backup-status: backup_status
+  - backup-datetime: backup_datetime
+  - openstack-installed: openstack_installed
+  - management-state: management_state
+  - systemcontroller-gateway-ip: systemcontroller_gateway_ip
+  - management-start-ip: management_start_ip
+  - management-end-ip: management_end_ip
+  - management-subnet: management_subnet
+  - management-gateway-ip: management_gateway_ip
+  - created-at: created_at
+  - updated-at: updated_at
+  - data_install: data_install
+  - data_upgrade: data_upgrade
+  - endpoint_sync_status: endpoint_sync_status
+  - sync_status: sync_status
+  - endpoint_type: sync_status_type
+
+Response Example
+----------------
+
+.. literalinclude:: samples/subcloud-backup/subcloud-post-backup-response.json
+         :language: json
 
 ----------------
 Subcloud Alarms

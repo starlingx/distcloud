@@ -9,6 +9,8 @@
   },
   "data_upgrade": null,
   "deploy-status": "pre-restore",
+  "backup-status": "complete",
+  "backup-datetime": "2022-07-08 11:23:58.132134",
   "description": "Ottawa Site",
   "group_id": 1,
   "location": "YOW",
