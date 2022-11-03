@@ -667,7 +667,9 @@ def summarize_message(error_msg):
 
     Returns a brief message.
     """
-    list_of_strings_to_search_for = ['msg:', 'fail', 'error']
+    list_of_strings_to_search_for = [
+        'msg:', 'fail', 'error', 'cmd', 'stderr'
+        ]
     brief_message = []
     for line in error_msg:
         for s in list_of_strings_to_search_for:
