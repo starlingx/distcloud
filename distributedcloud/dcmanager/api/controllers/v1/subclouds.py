@@ -313,7 +313,8 @@ class SubcloudsController(object):
             )
         return file_path
 
-    def _get_subcloud_db_install_values(self, subcloud):
+    @staticmethod
+    def _get_subcloud_db_install_values(subcloud):
         if not subcloud.data_install:
             msg = _("Failed to read data install from db")
             LOG.exception(msg)
@@ -599,8 +600,10 @@ class SubcloudsController(object):
                 if k == 'image':
                     if software_version == tsc.SW_VERSION:
                         # check for the image at load vault load location
-                        matching_iso, matching_sig = \
-                            SubcloudsController.verify_active_load_in_vault()
+                        matching_iso, err_msg = utils.get_matching_iso()
+                        if err_msg:
+                            LOG.exception(err_msg)
+                            pecan.abort(400, _(err_msg))
                         LOG.info("image was not in install_values: will reference %s" %
                                  matching_iso)
                     else:
@@ -685,7 +688,6 @@ class SubcloudsController(object):
     @staticmethod
     def _validate_restore_values(payload):
         """Validate the restore values to ensure parameters for remote restore are present"""
-
         restore_values = payload.get(RESTORE_VALUES)
         for p in MANDATORY_RESTORE_VALUES:
             if p not in restore_values:
@@ -804,22 +806,6 @@ class SubcloudsController(object):
             group_id,
             data_install=data_install)
         return subcloud
-
-    @staticmethod
-    def verify_active_load_in_vault():
-        try:
-            matching_iso, matching_sig = utils.get_vault_load_files(tsc.SW_VERSION)
-            if not matching_iso:
-                msg = _('Failed to get active load image. Provide '
-                        'active load image via '
-                        '"system --os-region-name SystemController '
-                        'load-import --active"')
-                LOG.exception(msg)
-                pecan.abort(400, msg)
-            return matching_iso, matching_sig
-        except Exception as e:
-            LOG.exception(str(e))
-            pecan.abort(400, str(e))
 
     @index.when(method='GET', template='json')
     def get(self, subcloud_ref=None, detail=None):
@@ -1313,8 +1299,10 @@ class SubcloudsController(object):
             # image not in install values, add the matching image into the
             # install values.
             if 'image' not in install_values:
-                matching_iso, matching_sig = \
-                    SubcloudsController.verify_active_load_in_vault()
+                matching_iso, err_msg = utils.get_matching_iso()
+                if err_msg:
+                    LOG.exception(err_msg)
+                    pecan.abort(400, _(err_msg))
                 LOG.info("image was not in install_values: will reference %s" %
                          matching_iso)
                 install_values['image'] = matching_iso
@@ -1370,8 +1358,8 @@ class SubcloudsController(object):
                                             consts.DEPLOY_STATE_DEPLOYING]:
                 pecan.abort(400, _('This operation is not allowed while subcloud install, '
                                    'bootstrap or deploy is in progress.'))
-            sysadmin_password = \
-                payload.get('sysadmin_password')
+
+            sysadmin_password = payload.get('sysadmin_password')
             if not sysadmin_password:
                 pecan.abort(400, _('subcloud sysadmin_password required'))
 
@@ -1405,8 +1393,11 @@ class SubcloudsController(object):
                     'install_values': install_values,
                 })
 
-                # Confirm the active system controller load is still in dc-vault
-                SubcloudsController.verify_active_load_in_vault()
+                # Get the active system controller load is still in dc-vault
+                matching_iso, err_msg = utils.get_matching_iso()
+                if err_msg:
+                    LOG.exception(err_msg)
+                    pecan.abort(400, _(err_msg))
             else:
                 # Not Redfish capable subcloud. The subcloud has been reinstalled
                 # and required patches have been applied.

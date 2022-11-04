@@ -32,6 +32,17 @@ subcloud_backup_rules = [
                 'path': '/v1.0/subcloud-backup/delete/{release_version}'
             }
         ]
+    ),
+    policy.DocumentedRuleDefault(
+        name=POLICY_ROOT % 'restore',
+        check_str='rule:' + base.ADMIN_IN_SYSTEM_PROJECTS,
+        description="Restore a subcloud backup.",
+        operations=[
+            {
+                'method': 'PATCH',
+                'path': '/v1.0/subcloud-backup/restore'
+            }
+        ]
     )
 ]
 

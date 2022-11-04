@@ -32,14 +32,12 @@ from oslo_config import cfg
 from oslo_log import log as logging
 
 from dccommon import consts as dccommon_consts
+from dccommon.drivers.openstack.sysinv_v1 import SysinvClient
+from dccommon.drivers.openstack import vim
 from dccommon import exceptions as dccommon_exceptions
 from dcmanager.common import consts
 from dcmanager.common import exceptions
 from dcmanager.db import api as db_api
-
-from dccommon.drivers.openstack import vim
-
-from dccommon.drivers.openstack.sysinv_v1 import SysinvClient
 
 LOG = logging.getLogger(__name__)
 
@@ -696,3 +694,19 @@ def is_valid_for_restore(subcloud):
         and subcloud.deploy_status not in
         consts.INVALID_DEPLOY_STATES_FOR_RESTORE
     )
+
+
+def get_matching_iso():
+    try:
+        matching_iso, _ = get_vault_load_files(tsc.SW_VERSION)
+        if not matching_iso:
+            error_msg = ('Failed to get active load image. Provide '
+                         'active load image via '
+                         '"system --os-region-name SystemController '
+                         'load-import --active"')
+            LOG.exception(error_msg)
+            return None, error_msg
+        return matching_iso, None
+    except Exception as e:
+        LOG.exception("Could not load vault files.")
+        return None, str(e)
