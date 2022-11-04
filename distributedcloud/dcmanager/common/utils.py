@@ -680,3 +680,19 @@ def summarize_message(error_msg):
                 if line not in brief_message:
                     brief_message.append(line)
     return brief_message
+
+
+def is_valid_for_backup(subcloud):
+    return (
+        subcloud.availability_status == dccommon_consts.AVAILABILITY_ONLINE
+        and subcloud.management_state == dccommon_consts.MANAGEMENT_MANAGED
+        and subcloud.deploy_status == consts.DEPLOY_STATE_DONE
+    )
+
+
+def is_valid_for_restore(subcloud):
+    return (
+        subcloud.management_state == dccommon_consts.MANAGEMENT_UNMANAGED
+        and subcloud.deploy_status not in
+        consts.INVALID_DEPLOY_STATES_FOR_RESTORE
+    )
