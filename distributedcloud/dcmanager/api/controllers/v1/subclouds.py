@@ -17,6 +17,7 @@
 # SPDX-License-Identifier: Apache-2.0
 #
 
+
 from requests_toolbelt.multipart import decoder
 
 import base64
@@ -30,6 +31,7 @@ import os
 from oslo_config import cfg
 from oslo_log import log as logging
 from oslo_messaging import RemoteError
+import re
 import yaml
 
 import pecan
@@ -108,6 +110,12 @@ INSTALL_VALUES_ADDRESSES = [
 MANDATORY_RESTORE_VALUES = [
     'backup_filename',
 ]
+
+
+def _get_multipart_field_name(part):
+    content = part.headers[b"Content-Disposition"].decode("utf8")
+    regex = 'name="([^"]*)"'
+    return re.search(regex, content).group(1)
 
 
 class SubcloudsController(object):
@@ -190,19 +198,20 @@ class SubcloudsController(object):
 
     @staticmethod
     def _get_patch_data(request):
-        fields = ['management-state', 'description', 'location', 'group_id',
-                  'bmc_password', INSTALL_VALUES, 'force']
         payload = dict()
-        multipart_data = decoder.MultipartDecoder(
-            request.body, pecan.request.headers.get('Content-Type'))
-        for f in fields:
-            for part in multipart_data.parts:
-                for hk, hv in part.headers.items():
-                    if (hk.decode('utf8') == 'Content-Disposition' and
-                            f in hv.decode('utf8')):
-                        content = '"%s"' % part.content.decode('utf8')
-                        data = yaml.safe_load(content)
-                        payload.update({f: data})
+        content_type = request.headers.get("Content-Type")
+        multipart_data = decoder.MultipartDecoder(request.body, content_type)
+
+        for part in multipart_data.parts:
+            field_name = _get_multipart_field_name(part)
+            field_content = part.text
+
+            # only the install_values field is yaml, force should be bool
+            if field_name in [INSTALL_VALUES, 'force']:
+                field_content = yaml.safe_load(field_content)
+
+            payload[field_name] = field_content
+
         return payload
 
     @staticmethod
