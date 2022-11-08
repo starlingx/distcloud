@@ -158,11 +158,6 @@ class ManagerClient(RPCClient):
                                              release_version=release_version,
                                              payload=payload))
 
-    def restore_subcloud(self, ctxt, subcloud_id, payload):
-        return self.cast(ctxt, self.make_msg('restore_subcloud',
-                                             subcloud_id=subcloud_id,
-                                             payload=payload))
-
     def restore_subcloud_backups(self, ctxt, payload):
         return self.cast(ctxt, self.make_msg('restore_subcloud_backups',
                                              payload=payload))

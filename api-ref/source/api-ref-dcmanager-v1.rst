@@ -26,7 +26,7 @@ This operation does not accept a request body.
 
 **Error response codes**
 
-badRequest (400), unauthorized (401), forbidden (403), 
+badRequest (400), unauthorized (401), forbidden (403),
 itemNotFound (404), badMethod (405), HTTPUnprocessableEntity (422),
 internalServerError (500), serviceUnavailable (503)
 
@@ -57,7 +57,7 @@ This operation does not accept a request body.
 
 **Error response codes**
 
-badRequest (400), unauthorized (401), forbidden (403), 
+badRequest (400), unauthorized (401), forbidden (403),
 itemNotFound (404), badMethod (405), HTTPUnprocessableEntity (422),
 internalServerError (500), serviceUnavailable (503)
 
@@ -171,7 +171,7 @@ Request Example
   - management-gateway-ip: management_gateway_ip
   - management-start-ip: management_start_ip
   - management-end-ip: management_end_ip
-  
+
 Response Example
 ----------------
 
@@ -191,7 +191,7 @@ Shows information about a specific subcloud
 
 **Error response codes**
 
-badRequest (400), unauthorized (401), forbidden (403), 
+badRequest (400), unauthorized (401), forbidden (403),
 itemNotFound (404), badMethod (405), HTTPUnprocessableEntity (422),
 internalServerError (500), serviceUnavailable (503)
 
@@ -253,7 +253,7 @@ Shows additional information about a specific subcloud
 
 **Error response codes**
 
-badRequest (400), unauthorized (401), forbidden (403), 
+badRequest (400), unauthorized (401), forbidden (403),
 itemNotFound (404), badMethod (405), HTTPUnprocessableEntity (422),
 internalServerError (500), serviceUnavailable (503)
 
@@ -525,79 +525,8 @@ Response Example
 .. literalinclude:: samples/subclouds/subcloud-patch-reinstall-response.json
       :language: json
 
-********************************************************
-Restores a specific subcloud from platform backup data
-********************************************************
-
-.. rest_method:: PATCH /v1.0/subclouds/{subcloud}/restore
-
-Accepts Content-Type multipart/form-data.
-
-
-**Normal response codes**
-
-200
-
-**Error response codes**
-
-badRequest (400), unauthorized (401), forbidden (403), badMethod (405),
-HTTPUnprocessableEntity (422), internalServerError (500),
-serviceUnavailable (503)
-
-**Request parameters**
-
-.. rest_parameters:: parameters.yaml
-
-  - subcloud: subcloud_uri
-  - restore_values: restore_values
-  - sysadmin_password: sysadmin_password
-  - with_install: with_install
-
-Request Example
-----------------
-
-.. literalinclude:: samples/subclouds/subcloud-patch-restore-request.json
-         :language: json
-
-
-**Response parameters**
-
-.. rest_parameters:: parameters.yaml
-
-  - id: subcloud_id
-  - group_id: group_id
-  - name: subcloud_name
-  - description: subcloud_description
-  - location: subcloud_location
-  - software-version: software_version
-  - availability-status: availability_status
-  - error-description: error_description
-  - deploy-status: deploy_status
-  - backup-status: backup_status
-  - backup-datetime: backup_datetime
-  - openstack-installed: openstack_installed
-  - management-state: management_state
-  - systemcontroller-gateway-ip: systemcontroller_gateway_ip
-  - management-start-ip: management_start_ip
-  - management-end-ip: management_end_ip
-  - management-subnet: management_subnet
-  - management-gateway-ip: management_gateway_ip
-  - created-at: created_at
-  - updated-at: updated_at
-  - data_install: data_install
-  - data_upgrade: data_upgrade
-  - endpoint_sync_status: endpoint_sync_status
-  - sync_status: sync_status
-  - endpoint_type: sync_status_type
-
-Response Example
-----------------
-
-.. literalinclude:: samples/subclouds/subcloud-patch-restore-response.json
-         :language: json
-
 *****************************************
-Update the status of a specific subcloud 
+Update the status of a specific subcloud
 *****************************************
 
 .. rest_method:: PATCH /v1.0/subclouds/{subcloud}/update_status
@@ -680,7 +609,7 @@ This operation does not accept a request body.
 
 **Error response codes**
 
-badRequest (400), unauthorized (401), forbidden (403), 
+badRequest (400), unauthorized (401), forbidden (403),
 badMethod (405), HTTPUnprocessableEntity (422),
 internalServerError (500), serviceUnavailable (503)
 
@@ -767,7 +696,7 @@ Shows information about a specific subcloud group
 
 **Error response codes**
 
-badRequest (400), unauthorized (401), forbidden (403), 
+badRequest (400), unauthorized (401), forbidden (403),
 itemNotFound (404), badMethod (405), HTTPUnprocessableEntity (422),
 internalServerError (500), serviceUnavailable (503)
 
@@ -810,7 +739,7 @@ Shows subclouds that are part of a subcloud group
 
 **Error response codes**
 
-badRequest (400), unauthorized (401), forbidden (403), 
+badRequest (400), unauthorized (401), forbidden (403),
 itemNotFound (404), badMethod (405), HTTPUnprocessableEntity (422),
 internalServerError (500), serviceUnavailable (503)
 
@@ -1198,7 +1127,7 @@ Shows the details of the update strategy
 
 **Error response codes**
 
-badRequest (400), unauthorized (401), forbidden (403), 
+badRequest (400), unauthorized (401), forbidden (403),
 itemNotFound (404), badMethod (405), HTTPUnprocessableEntity (422),
 internalServerError (500), serviceUnavailable (503)
 
@@ -1303,7 +1232,7 @@ Deletes the update strategy
 
 **Error response codes**
 
-badRequest (400), unauthorized (401), forbidden (403), 
+badRequest (400), unauthorized (401), forbidden (403),
 itemNotFound (404), badMethod (405), HTTPUnprocessableEntity (422),
 internalServerError (500), serviceUnavailable (503)
 
@@ -1410,7 +1339,7 @@ This operation does not accept a request body.
 
 **Error response codes**
 
-badRequest (400), unauthorized (401), forbidden (403), 
+badRequest (400), unauthorized (401), forbidden (403),
 itemNotFound (404), badMethod (405), HTTPUnprocessableEntity (422),
 internalServerError (500), serviceUnavailable (503)
 
@@ -1448,7 +1377,7 @@ Shows the details of patch strategy steps for a particular cloud
 
 **Error response codes**
 
-badRequest (400), unauthorized (401), forbidden (403), 
+badRequest (400), unauthorized (401), forbidden (403),
 itemNotFound (404), badMethod (405), HTTPUnprocessableEntity (422),
 internalServerError (500), serviceUnavailable (503)
 
@@ -1500,7 +1429,7 @@ This operation does not accept a request body.
 
 **Error response codes**
 
-badRequest (400), unauthorized (401), forbidden (403), 
+badRequest (400), unauthorized (401), forbidden (403),
 itemNotFound (404), badMethod (405), HTTPUnprocessableEntity (422),
 internalServerError (500), serviceUnavailable (503)
 
@@ -1539,7 +1468,7 @@ Shows sw-update options (defaults or per subcloud). Use ``RegionOne`` as subclou
 
 **Error response codes**
 
-badRequest (400), unauthorized (401), forbidden (403), 
+badRequest (400), unauthorized (401), forbidden (403),
 itemNotFound (404), badMethod (405), HTTPUnprocessableEntity (422),
 internalServerError (500), serviceUnavailable (503)
 
