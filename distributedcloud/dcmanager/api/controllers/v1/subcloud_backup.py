@@ -255,7 +255,11 @@ class SubcloudBackupController(object):
                 pecan.abort(400, _('Release version required'))
 
             self._convert_param_to_bool(payload, ['local_only'])
-            self._validate_and_decode_sysadmin_password(payload, 'sysadmin_password')
+
+            # Backup delete in systemcontroller doesn't need sysadmin_password
+            if payload.get('local_only'):
+                self._validate_and_decode_sysadmin_password(
+                    payload, 'sysadmin_password')
 
             request_entity = self._read_entity_from_request_params(context, payload)
 
