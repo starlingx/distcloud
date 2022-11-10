@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2020-2021 Wind River Systems, Inc.
+# Copyright (c) 2020-2022 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -97,8 +97,15 @@ class CompletingUpgradeState(BaseState):
         # invoke the API 'upgrade-complete'
         # This is a partially blocking call that raises exception on failure.
         # We will re-attempt even if that failure is encountered
-        self._upgrade_complete(strategy_step)
-
+        try:
+            message = self._upgrade_complete(strategy_step)
+        except Exception as e:
+            msg = ("Failed to complete upgrade. %s" %
+                   str(e))
+            db_api.subcloud_update(
+                self.context, strategy_step.subcloud_id,
+                error_description=msg[0:consts.ERROR_DESCRIPTION_LENGTH])
+            raise
         # 'completion' deletes the upgrade. Need to loop until it is deleted
         counter = 0
         while True:
@@ -112,7 +119,12 @@ class CompletingUpgradeState(BaseState):
                 break
             counter += 1
             if counter >= self.max_queries:
-                raise Exception("Timeout waiting for completion to complete")
+                msg = ("Timeout waiting for completion to complete: %s:" %
+                       message)
+                db_api.subcloud_update(
+                    self.context, strategy_step.subcloud_id,
+                    error_description=msg[0:consts.ERROR_DESCRIPTION_LENGTH])
+                raise Exception(msg)
             time.sleep(self.sleep_duration)
 
         # When we return from this method without throwing an exception, the

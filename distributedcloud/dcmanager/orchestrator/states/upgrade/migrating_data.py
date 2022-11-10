@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2020-2021 Wind River Systems, Inc.
+# Copyright (c) 2020-2022 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -10,6 +10,7 @@ from dccommon.exceptions import PlaybookExecutionFailed
 from dccommon.utils import run_playbook
 from dcmanager.common import consts
 from dcmanager.common.exceptions import StrategyStoppedException
+from dcmanager.common import utils
 from dcmanager.db import api as db_api
 from dcmanager.orchestrator.states.base import BaseState
 
@@ -32,16 +33,14 @@ DEFAULT_API_SLEEP = 60
 DEFAULT_ANSIBLE_SLEEP = 180
 
 
-def migrate_subcloud_data(subcloud_name, migrate_command):
-    log_file = os.path.join(consts.DC_ANSIBLE_LOG_DIR, subcloud_name) + \
-        '_playbook_output.log'
+def migrate_subcloud_data(migrate_command, log_file):
     try:
         run_playbook(log_file, migrate_command)
     except PlaybookExecutionFailed:
-        msg = ("Failed to migrate data for subcloud %s, check individual "
-               "log at %s for detailed output."
-               % (subcloud_name, log_file))
-        raise Exception(msg)
+        msg_orch = ("Failed to migrate data, check individual "
+                    "log at %s or run %s for details"
+                    % (log_file, consts.ERROR_DESC_CMD))
+        raise Exception(msg_orch)
 
 
 class MigratingDataState(BaseState):
@@ -142,7 +141,8 @@ class MigratingDataState(BaseState):
         ansible_subcloud_inventory_file = os.path.join(
             consts.ANSIBLE_OVERRIDES_PATH,
             strategy_step.subcloud.name + consts.INVENTORY_FILE_POSTFIX)
-
+        log_file = os.path.join(consts.DC_ANSIBLE_LOG_DIR, subcloud.name) + \
+            '_playbook_output.log'
         # Send skip_patching=true to prevent the playbook from applying any patches present in the
         # upgrade_data. All the required patches will be included in the generated install iso.
         data_migrating_cmd = [
@@ -152,12 +152,17 @@ class MigratingDataState(BaseState):
             % (consts.TEMP_SYSADMIN_PASSWORD, consts.TEMP_SYSADMIN_PASSWORD)]
 
         try:
-            migrate_subcloud_data(strategy_step.subcloud.name,
-                                  data_migrating_cmd)
+            migrate_subcloud_data(data_migrating_cmd, log_file)
         except Exception as e:
+            # Two error messages: one for subcloud error description and logs and
+            # one for orchestrator strategy_step detail (shorter than the previous).
+            msg_subcloud = utils.find_ansible_error_msg(
+                strategy_step.subcloud.name, log_file, consts.DEPLOY_STATE_MIGRATING_DATA)
             db_api.subcloud_update(
                 self.context, strategy_step.subcloud_id,
-                deploy_status=consts.DEPLOY_STATE_DATA_MIGRATION_FAILED)
+                deploy_status=consts.DEPLOY_STATE_DATA_MIGRATION_FAILED,
+                error_description=msg_subcloud[0:consts.ERROR_DESCRIPTION_LENGTH])
+            self.error_log(strategy_step, msg_subcloud)
             self.error_log(strategy_step, str(e))
             raise
 

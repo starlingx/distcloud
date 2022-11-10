@@ -182,6 +182,7 @@ DEPLOY_STATE_DONE = 'complete'
 
 # Subcloud errors
 ERROR_DESC_EMPTY = 'No errors present'
+ERROR_DESC_CMD = 'dcmanager subcloud errors <subcloud-name>'
 
 # error_description max length
 ERROR_DESCRIPTION_LENGTH = 2048

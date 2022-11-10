@@ -178,7 +178,7 @@ class CertificateUploadError(DCManagerException):
 
 
 class LicenseInstallError(DCManagerException):
-    message = _("Error while installing license on subcloud: %(subcloud_id)s")
+    message = _("Error while installing license on subcloud: %(subcloud_id)s. %(error_message)s")
 
 
 class LicenseMissingError(DCManagerException):

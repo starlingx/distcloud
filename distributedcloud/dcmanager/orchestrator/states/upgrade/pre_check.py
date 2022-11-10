@@ -90,6 +90,10 @@ class PreCheckState(BaseState):
         if (host.administrative == consts.ADMIN_LOCKED and upgrades):
             alarm_ignore_list.append(HOST_ADMINISTRATIVELY_LOCKED_ALARM)
 
+        # Clean old error messages
+        db_api.subcloud_update(
+            self.context, strategy_step.subcloud_id,
+            error_description=consts.ERROR_DESC_EMPTY)
         # The health conditions acceptable for upgrade are:
         # a) subcloud is completely healthy (i.e. no failed checks)
         # b) subcloud only fails alarm check and it only has non-management
@@ -106,8 +110,14 @@ class PreCheckState(BaseState):
             #
             # These could be Kubernetes or other related failure(s) which has not been been
             # converted into an alarm condition.
-            details = "System health check failed. Please run 'system health-query' " \
-                      "command on the subcloud for more details."
+            error_desc_msg = ("System health check failed. \n %s" %
+                              fails)
+            db_api.subcloud_update(
+                self.context, strategy_step.subcloud_id,
+                error_description=error_desc_msg[0:consts.ERROR_DESCRIPTION_LENGTH])
+            details = ("System health check failed. Please run 'system health-query' "
+                       "command on the subcloud or %s on central for details"
+                       % (consts.ERROR_DESC_CMD))
             self.error_log(strategy_step, "\n" + system_health)
             raise PreCheckFailedException(
                 subcloud=strategy_step.subcloud.name,
@@ -125,9 +135,16 @@ class PreCheckState(BaseState):
                 for alarm in alarms:
                     if alarm.alarm_id not in alarm_ignore_list:
                         if alarm.mgmt_affecting == "True":
-                            details = "System health check failed due to alarm %s. " \
-                                      "Please run 'system health-query' " \
-                                      "command on the subcloud for more details." % alarm.alarm_id
+                            error_desc_msg = ("System health check failed due to alarm %s. "
+                                              "System health: \n %s" %
+                                              (alarm.alarm_id, system_health))
+                            db_api.subcloud_update(
+                                self.context, strategy_step.subcloud_id,
+                                error_description=error_desc_msg[0:consts.ERROR_DESCRIPTION_LENGTH])
+                            details = ("System health check failed due to alarm %s. "
+                                       "Please run 'system health-query' "
+                                       "command on the subcloud or %s on central for details." %
+                                       (alarm.alarm_id, consts.ERROR_DESC_CMD))
                             self.error_log(strategy_step, "\n" + system_health)
                             raise PreCheckFailedException(
                                 subcloud=strategy_step.subcloud.name,
@@ -135,9 +152,16 @@ class PreCheckState(BaseState):
                                 )
             else:
                 # Multiple failures
-                details = "System health check failed due to multiple failures. " \
-                          "Please run 'system health-query' command on the " \
-                          "subcloud for more details."
+                error_desc_msg = ("System health check failed due to multiple failures. "
+                                  "Health: \n %s" %
+                                  (system_health))
+                db_api.subcloud_update(
+                    self.context, strategy_step.subcloud_id,
+                    error_description=error_desc_msg[0:consts.ERROR_DESCRIPTION_LENGTH])
+                details = ("System health check failed due to multiple failures. "
+                           "Please run 'system health-query' command on the "
+                           "subcloud or %s on central for details." %
+                           (consts.ERROR_DESC_CMD))
                 self.error_log(strategy_step, "\n" + system_health)
                 raise PreCheckFailedException(
                     subcloud=strategy_step.subcloud.name,

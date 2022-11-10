@@ -11,6 +11,7 @@ from dcmanager.common import utils
 
 from dcmanager.common.exceptions import StrategyStoppedException
 from dcmanager.common.exceptions import VaultLoadMissingError
+from dcmanager.db import api as db_api
 from dcmanager.orchestrator.states.base import BaseState
 from dcmanager.orchestrator.states.upgrade.cache.cache_specifications import \
     REGION_ONE_SYSTEM_INFO_CACHE_TYPE
@@ -155,11 +156,20 @@ class ImportingLoadState(BaseState):
             # Send only the required fields
             creation_keys = ['software_version', 'compatible_version', 'required_patches']
             target_load = {key: target_load[key] for key in creation_keys}
-            load = self.get_sysinv_client(
-                strategy_step.subcloud.name).import_load_metadata(target_load)
-            self.info_log(strategy_step,
-                          "Load: %s is now: %s" % (
-                              load.software_version, load.state))
+            try:
+                load = self.get_sysinv_client(
+                    strategy_step.subcloud.name).import_load_metadata(target_load)
+                self.info_log(strategy_step,
+                              "Load: %s is now: %s" % (
+                                  load.software_version, load.state))
+            except Exception as e:
+                msg = ("Failed to import load metadata. %s" %
+                       str(e))
+                db_api.subcloud_update(
+                    self.context, strategy_step.subcloud_id,
+                    error_description=msg[0:consts.ERROR_DESCRIPTION_LENGTH])
+                self.error_log(strategy_step, msg)
+                raise
         else:
             while True:
                 # If event handler stop has been triggered, fail the state

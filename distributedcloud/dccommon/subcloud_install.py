@@ -31,6 +31,7 @@ from dccommon.drivers.openstack.sysinv_v1 import SysinvClient
 from dccommon import exceptions
 from dccommon import install_consts
 from dccommon import utils as common_utils
+from dcmanager.common import consts as common_consts
 from dcmanager.common import utils
 
 LOG = logging.getLogger(__name__)
@@ -618,7 +619,7 @@ class SubcloudInstall(object):
             # for cleanup on process restart/SWACT.
             common_utils.run_playbook(log_file, install_command)
         except exceptions.PlaybookExecutionFailed:
-            msg = ("Failed to install the subcloud %s, check individual "
-                   "log at %s for detailed output."
-                   % (self.name, log_file))
+            msg = ("Failed to install %s, check individual "
+                   "log at %s or run %s for details"
+                   % (self.name, log_file, common_consts.ERROR_DESC_CMD))
             raise Exception(msg)
