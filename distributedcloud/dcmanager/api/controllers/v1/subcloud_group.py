@@ -49,7 +49,7 @@ MIN_SUBCLOUD_GROUP_MAX_PARALLEL_SUBCLOUDS = 1
 MAX_SUBCLOUD_GROUP_MAX_PARALLEL_SUBCLOUDS = 500
 
 
-class SubcloudGroupsController(object):
+class SubcloudGroupsController(restcomm.GenericPathController):
 
     def __init__(self):
         super(SubcloudGroupsController, self).__init__()
