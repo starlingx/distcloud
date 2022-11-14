@@ -1063,14 +1063,11 @@ class SubcloudManager(manager.Manager):
 
         if not payload['local_only']:
             payload['override_values']['central_backup_dir'] = CENTRAL_BACKUP_DIR
-
-        # payload['override_values']['backup_dir'] = \
-        #     '/opt/platform-backup/backups' if payload['local_only'] else None
-
-        payload['override_values']['ansible_ssh_pass'] = \
-            payload['sysadmin_password']
-        payload['override_values']['ansible_become_pass'] = \
-            payload['sysadmin_password']
+        else:
+            payload['override_values']['ansible_ssh_pass'] = \
+                payload['sysadmin_password']
+            payload['override_values']['ansible_become_pass'] = \
+                payload['sysadmin_password']
 
         self._create_backup_overrides_file(payload, subcloud_name, 'backup_delete_values')
 
