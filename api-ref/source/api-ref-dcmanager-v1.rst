@@ -74,6 +74,7 @@ Response
   - location: subcloud_location
   - software-version: software_version
   - availability-status: availability_status
+  - error-description: error_description
   - deploy-status: deploy_status
   - backup-status: backup_status
   - backup-datetime: backup_datetime
@@ -213,6 +214,7 @@ This operation does not accept a request body.
   - location: subcloud_location
   - software-version: software_version
   - availability-status: availability_status
+  - error-description: error_description
   - deploy-status: deploy_status
   - backup-status: backup_status
   - backup-datetime: backup_datetime
@@ -274,6 +276,7 @@ This operation does not accept a request body.
   - location: subcloud_location
   - software-version: software_version
   - availability-status: availability_status
+  - error-description: error_description
   - deploy-status: deploy_status
   - backup-status: backup_status
   - backup-datetime: backup_datetime
@@ -352,6 +355,7 @@ Request Example
   - location: subcloud_location
   - software-version: software_version
   - availability-status: availability_status
+  - error-description: error_description
   - deploy-status: deploy_status
   - backup-status: backup_status
   - backup-datetime: backup_datetime
@@ -424,6 +428,7 @@ Request Example
   - location: subcloud_location
   - software-version: software_version
   - availability-status: availability_status
+  - error-description: error_description
   - deploy-status: deploy_status
   - backup-status: backup_status
   - backup-datetime: backup_datetime
@@ -495,6 +500,7 @@ Request Example
   - location: subcloud_location
   - software-version: software_version
   - availability-status: availability_status
+  - error-description: error_description
   - deploy-status: deploy_status
   - backup-status: backup_status
   - backup-datetime: backup_datetime
@@ -565,6 +571,7 @@ Request Example
   - location: subcloud_location
   - software-version: software_version
   - availability-status: availability_status
+  - error-description: error_description
   - deploy-status: deploy_status
   - backup-status: backup_status
   - backup-datetime: backup_datetime
@@ -827,6 +834,7 @@ This operation does not accept a request body.
   - location: subcloud_location
   - software-version: software_version
   - availability-status: availability_status
+  - error-description: error_description
   - deploy-status: deploy_status
   - backup-status: backup_status
   - backup-datetime: backup_datetime
@@ -978,7 +986,7 @@ serviceUnavailable (503)
 Request Example
 ----------------
 
-.. literalinclude:: samples/subcloud-backup/subcloud-post-backup-request.json
+.. literalinclude:: samples/subcloud-backup/subcloud-create-backup-request.json
          :language: json
 
 
@@ -994,6 +1002,7 @@ Request Example
   - location: subcloud_location
   - software-version: software_version
   - availability-status: availability_status
+  - error-description: error_description
   - deploy-status: deploy_status
   - backup-status: backup_status
   - backup-datetime: backup_datetime
@@ -1015,7 +1024,117 @@ Request Example
 Response Example
 ----------------
 
-.. literalinclude:: samples/subcloud-backup/subcloud-post-backup-response.json
+.. literalinclude:: samples/subcloud-backup/subcloud-create-backup-response.json
+         :language: json
+
+***********************************************************************************
+Deletes subcloud backup files of a release for a given subcloud or subcloud group
+***********************************************************************************
+
+.. rest_method:: PATCH /v1.0/subcloud-backup/delete
+
+Accepts Content-Type multipart/form-data.
+
+
+**Normal response codes**
+
+noContent (204) - Backup files deleted successfully
+
+**Error response codes**
+
+badRequest (400), unauthorized (401), forbidden (403), notFound (404),
+HTTPUnprocessableEntity (422), internalServerError (500),
+serviceUnavailable (503)
+
+**Request parameters**
+
+.. rest_parameters:: parameters.yaml
+
+  - release: backup_delete_release
+  - subcloud: backup_subcloud_name_or_id
+  - group: backup_subcloud_group_name_or_id
+  - local_only: backup_local_only
+  - sysadmin_password: sysadmin_password
+
+Request Example
+----------------
+
+.. literalinclude:: samples/subcloud-backup/subcloud-delete-backup-request.json
+         :language: json
+
+***********************************************************************************
+Restores a subcloud or a subcloud group from a backup
+***********************************************************************************
+
+.. rest_method:: PATCH /v1.0/subcloud-backup/restore
+
+Accepts Content-Type application/json.
+
+
+**Normal response codes**
+
+OK (200) - request has been validated and restore operation was started
+
+**Error response codes**
+
+badRequest (400), unauthorized (401), forbidden (403), notFound (404),
+HTTPUnprocessableEntity (422), internalServerError (500),
+serviceUnavailable (503)
+
+**Request parameters**
+
+.. rest_parameters:: parameters.yaml
+
+  - with_install: with_install
+  - local_only: backup_local_only
+  - registry_images: backup_registry_images
+  - sysadmin_password: sysadmin_password
+  - subcloud: backup_subcloud_name_or_id
+  - group: backup_subcloud_group_name_or_id
+  - restore_values: backup_restore_values
+
+Request Example
+----------------
+
+.. literalinclude:: samples/subcloud-backup/subcloud-restore-backup-request.json
+         :language: json
+
+
+**Response parameters**
+
+.. rest_parameters:: parameters.yaml
+
+  - subclouds: subclouds
+  - id: subcloud_id
+  - group_id: group_id
+  - name: subcloud_name
+  - description: subcloud_description
+  - location: subcloud_location
+  - software-version: software_version
+  - availability-status: availability_status
+  - error-description: error_description
+  - deploy-status: deploy_status
+  - backup-status: backup_status
+  - backup-datetime: backup_datetime
+  - openstack-installed: openstack_installed
+  - management-state: management_state
+  - systemcontroller-gateway-ip: systemcontroller_gateway_ip
+  - management-start-ip: management_start_ip
+  - management-end-ip: management_end_ip
+  - management-subnet: management_subnet
+  - management-gateway-ip: management_gateway_ip
+  - created-at: created_at
+  - updated-at: updated_at
+  - data_install: data_install
+  - data_upgrade: data_upgrade
+  - endpoint_sync_status: endpoint_sync_status
+  - sync_status: sync_status
+  - endpoint_type: sync_status_type
+
+Response Example
+----------------
+
+.. literalinclude:: samples/subcloud-backup/subcloud-restore-backup-response.json
          :language: json
 
 ----------------
