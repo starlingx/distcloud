@@ -300,6 +300,38 @@ FAKE_CACHED_REGIONONE_DATA = {
     "expiry": datetime.datetime.utcnow() + datetime.timedelta(seconds=3600)
 }
 
+FAKE_BACKUP_DELETE_LOAD = {
+    "sysadmin_password": "testpasswd",
+    "subcloud": 1,
+    "software_version": "22.12"
+}
+
+FAKE_BACKUP_DELETE_LOCAL_LOAD = {
+    "sysadmin_password": "testpasswd",
+    "subcloud": 1,
+    "software_version": "22.12",
+    "local_only": True
+}
+
+FAKE_BACKUP_DELETE_LOAD_1 = {
+    "sysadmin_password": "testpasswd",
+    "subcloud": 1,
+    "software_version": "22.12",
+    "local_only": False
+}
+
+FAKE_BACKUP_CREATE_LOAD = {
+    "sysadmin_password": "testpasswd",
+    "subcloud": 1,
+}
+
+FAKE_BACKUP_CREATE_LOAD_1 = {
+    "sysadmin_password": "testpasswd",
+    "subcloud": 1,
+    "local_only": False,
+    "registry_images": False,
+}
+
 
 class Subcloud(object):
     def __init__(self, data, is_online):
@@ -1680,6 +1712,271 @@ class TestSubcloudManager(base.DCManagerTestCase):
         updated_subcloud = db_api.subcloud_get_by_name(self.ctx, subcloud.name)
         self.assertEqual(consts.DEPLOY_STATE_PRE_RESTORE,
                          updated_subcloud.deploy_status)
+
+    @mock.patch.object(subcloud_manager.SubcloudManager,
+                       '_run_parallel_group_operation')
+    def test_backup_create_managed_online(self, mock_parallel_group_operation):
+
+        values = copy.copy(FAKE_BACKUP_CREATE_LOAD)
+        subcloud = self.create_subcloud_static(
+            self.ctx,
+            name='subcloud1',
+            deploy_status=consts.DEPLOY_STATE_DONE)
+
+        db_api.subcloud_update(self.ctx,
+                               subcloud.id,
+                               availability_status=dccommon_consts.AVAILABILITY_ONLINE,
+                               management_state=dccommon_consts.MANAGEMENT_MANAGED,
+                               backup_datetime=None,
+                               backup_status=consts.BACKUP_STATE_UNKNOWN)
+
+        sm = subcloud_manager.SubcloudManager()
+        sm.create_subcloud_backups(self.ctx, payload=values)
+
+        mock_parallel_group_operation.assert_called_once()
+
+        # Verify that subcloud has the correct deploy status consts.PRESTAGE_STATE_PREPARE
+        updated_subcloud = db_api.subcloud_get_by_name(self.ctx, subcloud.name)
+        self.assertEqual(consts.BACKUP_STATE_PRE_BACKUP,
+                         updated_subcloud.backup_status)
+
+    @mock.patch.object(subcloud_manager.SubcloudManager,
+                       '_run_parallel_group_operation')
+    def test_backup_create_unmanaged_online(self, mock_parallel_group_operation):
+
+        values = copy.copy(FAKE_BACKUP_CREATE_LOAD)
+        subcloud = self.create_subcloud_static(
+            self.ctx,
+            name='subcloud1',
+            deploy_status=consts.DEPLOY_STATE_NONE)
+
+        db_api.subcloud_update(self.ctx,
+                               subcloud.id,
+                               availability_status=dccommon_consts.AVAILABILITY_ONLINE,
+                               management_state=dccommon_consts.MANAGEMENT_UNMANAGED,
+                               backup_datetime=None,
+                               backup_status=consts.BACKUP_STATE_UNKNOWN)
+
+        sm = subcloud_manager.SubcloudManager()
+        sm.create_subcloud_backups(self.ctx, payload=values)
+
+        mock_parallel_group_operation.assert_called_once()
+
+        # Verify that subcloud has the correct deploy status consts.PRESTAGE_STATE_PREPARE
+        updated_subcloud = db_api.subcloud_get_by_name(self.ctx, subcloud.name)
+        self.assertEqual(consts.BACKUP_STATE_VALIDATE_FAILED,
+                         updated_subcloud.backup_status)
+
+    @mock.patch.object(subcloud_manager.SubcloudManager,
+                       '_run_parallel_group_operation')
+    def test_backup_create_unmanaged_offline(self, mock_parallel_group_operation):
+
+        values = copy.copy(FAKE_BACKUP_CREATE_LOAD)
+        subcloud = self.create_subcloud_static(
+            self.ctx,
+            name='subcloud1',
+            deploy_status=consts.DEPLOY_STATE_NONE)
+
+        db_api.subcloud_update(self.ctx,
+                               subcloud.id,
+                               availability_status=dccommon_consts.AVAILABILITY_OFFLINE,
+                               management_state=dccommon_consts.MANAGEMENT_UNMANAGED,
+                               backup_datetime=None,
+                               backup_status=consts.BACKUP_STATE_UNKNOWN)
+
+        sm = subcloud_manager.SubcloudManager()
+        sm.create_subcloud_backups(self.ctx, payload=values)
+
+        mock_parallel_group_operation.assert_called_once()
+
+        # Verify that subcloud has the correct deploy status consts.PRESTAGE_STATE_PREPARE
+        updated_subcloud = db_api.subcloud_get_by_name(self.ctx, subcloud.name)
+        self.assertEqual(consts.BACKUP_STATE_VALIDATE_FAILED,
+                         updated_subcloud.backup_status)
+
+    @mock.patch.object(subcloud_manager.SubcloudManager,
+                       '_run_parallel_group_operation')
+    def test_backup_create_managed_offline(self, mock_parallel_group_operation):
+
+        values = copy.copy(FAKE_BACKUP_CREATE_LOAD)
+        subcloud = self.create_subcloud_static(
+            self.ctx,
+            name='subcloud1',
+            deploy_status=consts.DEPLOY_STATE_NONE)
+
+        db_api.subcloud_update(self.ctx,
+                               subcloud.id,
+                               availability_status=dccommon_consts.AVAILABILITY_OFFLINE,
+                               management_state=dccommon_consts.MANAGEMENT_MANAGED,
+                               backup_datetime=None,
+                               backup_status=consts.BACKUP_STATE_UNKNOWN)
+
+        sm = subcloud_manager.SubcloudManager()
+        sm.create_subcloud_backups(self.ctx, payload=values)
+
+        mock_parallel_group_operation.assert_called_once()
+
+        # Verify that subcloud has the correct deploy status consts.PRESTAGE_STATE_PREPARE
+        updated_subcloud = db_api.subcloud_get_by_name(self.ctx, subcloud.name)
+        self.assertEqual(consts.BACKUP_STATE_VALIDATE_FAILED,
+                         updated_subcloud.backup_status)
+
+    @mock.patch.object(subcloud_manager.SubcloudManager,
+                       '_run_parallel_group_operation')
+    def test_backup_delete_managed_online(self, mock_parallel_group_operation):
+
+        release_version = '22.12'
+        values = copy.copy(FAKE_BACKUP_DELETE_LOAD)
+        subcloud = self.create_subcloud_static(
+            self.ctx,
+            name='subcloud1',
+            deploy_status=consts.DEPLOY_STATE_NONE)
+
+        db_api.subcloud_update(self.ctx,
+                               subcloud.id,
+                               availability_status=dccommon_consts.AVAILABILITY_ONLINE,
+                               management_state=dccommon_consts.MANAGEMENT_MANAGED,
+                               backup_datetime=None,
+                               backup_status=consts.BACKUP_STATE_UNKNOWN)
+
+        sm = subcloud_manager.SubcloudManager()
+        sm.delete_subcloud_backups(self.ctx, payload=values, release_version=release_version)
+
+        mock_parallel_group_operation.assert_called_once()
+
+        # Verify that subcloud has the correct deploy status consts.PRESTAGE_STATE_PREPARE
+        updated_subcloud = db_api.subcloud_get_by_name(self.ctx, subcloud.name)
+        self.assertEqual(consts.BACKUP_STATE_UNKNOWN,
+                         updated_subcloud.backup_status)
+
+    @mock.patch.object(subcloud_manager.SubcloudManager,
+                       '_run_parallel_group_operation')
+    def test_backup_delete_managed_local_online(self, mock_parallel_group_operation):
+
+        release_version = '22.12'
+        values = copy.copy(FAKE_BACKUP_DELETE_LOCAL_LOAD)
+        subcloud = self.create_subcloud_static(
+            self.ctx,
+            name='subcloud1',
+            deploy_status=consts.DEPLOY_STATE_NONE)
+
+        db_api.subcloud_update(self.ctx,
+                               subcloud.id,
+                               availability_status=dccommon_consts.AVAILABILITY_ONLINE,
+                               management_state=dccommon_consts.MANAGEMENT_MANAGED,
+                               backup_datetime=None,
+                               backup_status=consts.BACKUP_STATE_UNKNOWN)
+
+        sm = subcloud_manager.SubcloudManager()
+        sm.delete_subcloud_backups(self.ctx, payload=values, release_version=release_version)
+
+        mock_parallel_group_operation.assert_called_once()
+
+        # Verify that subcloud has the correct deploy status consts.PRESTAGE_STATE_PREPARE
+        updated_subcloud = db_api.subcloud_get_by_name(self.ctx, subcloud.name)
+        self.assertEqual(consts.BACKUP_STATE_UNKNOWN,
+                         updated_subcloud.backup_status)
+
+    @mock.patch.object(subcloud_manager.SubcloudManager,
+                       '_create_backup_overrides_file')
+    @mock.patch.object(subcloud_manager, 'keyring')
+    @mock.patch.object(cutils, 'get_oam_addresses')
+    @mock.patch.object(subcloud_manager, 'run_playbook')
+    @mock.patch.object(subcloud_manager.SubcloudManager,
+                       '_clear_subcloud_backup_failure_alarm_if_exists')
+    @mock.patch.object(subcloud_manager.SubcloudManager,
+                       'compose_backup_command')
+    @mock.patch.object(cutils, 'create_subcloud_inventory')
+    @mock.patch.object(subcloud_manager, 'OpenStackDriver')
+    def test_backup_create_subcloud(
+        self, mock_keystone_client,
+        mock_create_subcloud_inventory, mock_compose_backup_command,
+        mock_clear_subcloud_failure_alarm, mock_run_playbook,
+        mock_oam_address, mock_keyring, mock_create_backup_file):
+
+        subcloud = self.create_subcloud_static(
+            self.ctx,
+            name='subcloud1',
+            deploy_status=consts.BACKUP_STATE_UNKNOWN)
+
+        values = copy.copy(FAKE_BACKUP_CREATE_LOAD_1)
+
+        sm = subcloud_manager.SubcloudManager()
+        sm._backup_subcloud(self.ctx, payload=values, subcloud=subcloud)
+
+        mock_keystone_client().keystone_client = FakeKeystoneClient()
+        mock_create_subcloud_inventory.assert_called_once()
+        mock_oam_address.return_value = FAKE_OAM_FLOATING_IP
+        mock_keyring.get_password.return_value = "testpassword"
+        mock_keyring.get_password.assert_called()
+
+        mock_create_backup_file.assert_called_once()
+        mock_run_playbook.assert_called_once()
+
+        mock_compose_backup_command.assert_called_once()
+        mock_clear_subcloud_failure_alarm.assert_called_once()
+
+        updated_subcloud = db_api.subcloud_get_by_name(self.ctx, subcloud.name)
+        self.assertEqual(consts.BACKUP_STATE_COMPLETE,
+                         updated_subcloud.backup_status)
+
+    @mock.patch.object(subcloud_manager.SubcloudManager,
+                       '_create_subcloud_inventory_file')
+    def test_backup_create_subcloud_fail_to_create(
+        self, mock_create_subcloud_inventory_file):
+
+        subcloud = self.create_subcloud_static(
+            self.ctx,
+            name='subcloud1',
+            deploy_status=consts.BACKUP_STATE_UNKNOWN)
+
+        values = copy.copy(FAKE_BACKUP_CREATE_LOAD_1)
+
+        sm = subcloud_manager.SubcloudManager()
+        sm._backup_subcloud(self.ctx, payload=values, subcloud=subcloud)
+
+        mock_create_subcloud_inventory_file.side_effort = Exception('FakeFailure')
+
+        updated_subcloud = db_api.subcloud_get_by_name(self.ctx, subcloud.name)
+        self.assertEqual(consts.BACKUP_STATE_PREP_FAILED,
+                         updated_subcloud.backup_status)
+
+    @mock.patch.object(cutils, 'create_subcloud_inventory')
+    @mock.patch.object(cutils, 'get_oam_addresses')
+    @mock.patch.object(subcloud_manager, 'OpenStackDriver')
+    @mock.patch.object(subcloud_manager, 'run_playbook')
+    @mock.patch.object(subcloud_manager.SubcloudManager,
+                       'compose_backup_delete_command')
+    @mock.patch.object(subcloud_manager.SubcloudManager,
+                       '_create_backup_overrides_file')
+    def test_delete_subcloud_backup(
+        self, mock_create_subcloud_inventory_file,
+        mock_compose_backup_delete_command,
+        mock_run_playbook, mock_keystone_client,
+        mock_oam_address, mock_create_subcloud_inventory):
+
+        subcloud = self.create_subcloud_static(
+            self.ctx,
+            name='subcloud1',
+            deploy_status=consts.BACKUP_STATE_COMPLETE)
+
+        values = copy.copy(FAKE_BACKUP_DELETE_LOAD_1)
+        RELEASE_VERSION = '22.12'
+
+        sm = subcloud_manager.SubcloudManager()
+        sm._delete_subcloud_backup(
+            self.ctx, payload=values, release_version=RELEASE_VERSION, subcloud=subcloud)
+
+        mock_create_subcloud_inventory_file.assert_called_once()
+        mock_compose_backup_delete_command.assert_called_once()
+        mock_run_playbook.assert_called_once()
+        mock_keystone_client().keystone_client = FakeKeystoneClient()
+        mock_oam_address.return_value = FAKE_OAM_FLOATING_IP
+        mock_create_subcloud_inventory.assert_called_once()
+
+        updated_subcloud = db_api.subcloud_get_by_name(self.ctx, subcloud.name)
+        self.assertEqual(consts.BACKUP_STATE_UNKNOWN,
+                         updated_subcloud.backup_status)
 
     @mock.patch.object(threading.Thread, 'start')
     def test_prestage_subcloud_prepare(self, mock_thread_start):
