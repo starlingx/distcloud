@@ -29,8 +29,9 @@ class ManagerOrchestratorClient(object):
 
     BASE_RPC_API_VERSION = '1.0'
 
-    def __init__(self):
+    def __init__(self, timeout=None):
         self._client = messaging.get_rpc_client(
+            timeout=timeout,
             topic=consts.TOPIC_DC_MANAGER_ORCHESTRATOR,
             version=self.BASE_RPC_API_VERSION)
 

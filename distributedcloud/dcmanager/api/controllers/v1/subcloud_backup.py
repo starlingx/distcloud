@@ -39,7 +39,8 @@ RequestEntity = namedtuple('RequestEntity', ['type', 'id', 'name', 'subclouds'])
 class SubcloudBackupController(object):
     def __init__(self):
         super(SubcloudBackupController, self).__init__()
-        self.dcmanager_rpc_client = rpc_client.ManagerClient()
+        self.dcmanager_rpc_client = rpc_client.ManagerClient(
+            timeout=consts.RPC_SUBCLOUD_BACKUP_TIMEOUT)
 
     @expose(generic=True, template='json')
     def index(self):
