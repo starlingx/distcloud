@@ -1152,7 +1152,7 @@ class SubcloudManager(manager.Manager):
             LOG.error(msg)
             db_api.subcloud_update(
                 context, subcloud.id,
-                deploy_status=consts.DEPLOY_STATE_RESTORE_PREP_FAILED
+                deploy_status=consts.DEPLOY_STATE_RESTORE_FAILED
             )
             return False
 
