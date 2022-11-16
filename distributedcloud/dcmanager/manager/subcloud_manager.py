@@ -24,6 +24,7 @@ import json
 import keyring
 import netaddr
 import os
+import shutil
 import threading
 import time
 
@@ -1625,8 +1626,20 @@ class SubcloudManager(manager.Manager):
         # Delete the subcloud intermediate certificate
         SubcloudManager._delete_subcloud_cert(subcloud.name)
 
+        # Delete the subcloud backup path
+        self._delete_subcloud_backup_data(subcloud.name)
+
         # Regenerate the addn_hosts_dc file
         self._create_addn_hosts_dc(context)
+
+    @staticmethod
+    def _delete_subcloud_backup_data(subcloud_name):
+        try:
+            backup_path = os.path.join(CENTRAL_BACKUP_DIR, subcloud_name)
+            if os.path.exists(backup_path):
+                shutil.rmtree(backup_path)
+        except Exception as e:
+            LOG.exception(e)
 
     def delete_subcloud(self, context, subcloud_id):
         """Delete subcloud and notify orchestrators.
