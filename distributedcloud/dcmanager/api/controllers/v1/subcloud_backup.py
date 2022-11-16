@@ -21,6 +21,7 @@ from dcmanager.api.controllers import restcomm
 from dcmanager.api.policies import subcloud_backup as subcloud_backup_policy
 from dcmanager.api import policy
 from dcmanager.common import consts
+from dcmanager.common import exceptions
 from dcmanager.common.i18n import _
 from dcmanager.common import utils
 from dcmanager.db import api as db_api
@@ -144,23 +145,31 @@ class SubcloudBackupController(object):
             operation (string): Subcloud backup operation
         """
         subclouds = request_entity.subclouds
-        if operation == 'create' or operation == 'delete':
-            valid_subclouds = [subcloud for subcloud in subclouds if
-                               utils.is_valid_for_backup(subcloud)]
-        elif operation == 'restore':
-            valid_subclouds = [subcloud for subcloud in subclouds if
-                               utils.is_valid_for_restore(subcloud)]
-        else:
-            pecan.abort(400, _('Operation %s is not valid' % operation))
+        error_msg = ''
+        has_valid_subclouds = False
+        for subcloud in subclouds:
+            try:
+                if utils.is_valid_for_backup_operation(operation, subcloud):
+                    has_valid_subclouds = True
+            except exceptions.ValidateFail as e:
+                error_msg = e.message
 
-        if not valid_subclouds:
+            if (operation == 'create' and has_valid_subclouds
+                    and request_entity.type == 'subcloud'):
+                # Check if the subcloud has no management affecting alarms only if
+                # the command was issued to a single subcloud to avoid huge delays.
+                if utils.has_management_affecting_alarms(subcloud.name):
+                    msg = _('Subcloud %s must have no management affecting alarms for '
+                            'subcloud-backup create' % subcloud.name)
+                    pecan.abort(400, msg)
 
+        if not has_valid_subclouds:
             if request_entity.type == 'group':
                 msg = _('None of the subclouds in group %s are in a valid '
-                        'state for backup %s.') % (request_entity.name, operation)
+                        'state for subcloud-backup %s') % (request_entity.name,
+                                                           operation)
             elif request_entity.type == 'subcloud':
-                msg = _('Subcloud %s is not in a valid state for backup %s.') \
-                    % (request_entity.name, operation)
+                msg = error_msg
 
             pecan.abort(400, msg)
 
@@ -216,6 +225,12 @@ class SubcloudBackupController(object):
         policy.authorize(subcloud_backup_policy.POLICY_ROOT % "create", {},
                          restcomm.extract_credentials_for_policy())
 
+        self._validate_and_decode_sysadmin_password(payload, 'sysadmin_password')
+
+        if not payload.get('local_only') and payload.get('registry_images'):
+            pecan.abort(400, _('Option registry_images can not be used without '
+                               'local_only option.'))
+
         request_entity = self._read_entity_from_request_params(context, payload)
         self._validate_subclouds(request_entity, 'create')
 
@@ -224,12 +239,6 @@ class SubcloudBackupController(object):
         subclouds = request_entity.subclouds
 
         self._convert_param_to_bool(payload, ['local_only', 'registry_images'])
-
-        if not payload.get('local_only') and payload.get('registry_images'):
-            pecan.abort(400, _('Option registry_images can not be used without '
-                               'local_only option.'))
-
-        self._validate_and_decode_sysadmin_password(payload, 'sysadmin_password')
 
         try:
             self._reset_backup_status(context, subclouds)

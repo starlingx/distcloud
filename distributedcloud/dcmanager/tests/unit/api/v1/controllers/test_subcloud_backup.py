@@ -14,6 +14,7 @@ import webtest
 
 from dccommon import consts as dccommon_consts
 from dcmanager.common import consts
+from dcmanager.common import utils as common_utils
 from dcmanager.db.sqlalchemy import api as db_api
 from dcmanager.rpc import client as rpc_client
 
@@ -41,8 +42,9 @@ class TestSubcloudCreate(testroot.DCManagerApiTest):
         self.mock_rpc_state_client = p.start()
         self.addCleanup(p.stop)
 
+    @mock.patch.object(common_utils, 'has_management_affecting_alarms', return_value=False)
     @mock.patch.object(rpc_client, 'ManagerClient')
-    def test_backup_create_subcloud(self, mock_rpc_client):
+    def test_backup_create_subcloud(self, mock_rpc_client, mock_alarm):
 
         subcloud = fake_subcloud.create_fake_subcloud(self.ctx)
 
@@ -64,6 +66,29 @@ class TestSubcloudCreate(testroot.DCManagerApiTest):
                                       params=data)
 
         self.assertEqual(response.status_int, 200)
+
+    @mock.patch.object(common_utils, 'has_management_affecting_alarms', return_value=True)
+    @mock.patch.object(rpc_client, 'ManagerClient')
+    def test_backup_create_subcloud_with_mgmt_alarm(self, mock_rpc_client, mock_alarm):
+
+        subcloud = fake_subcloud.create_fake_subcloud(self.ctx)
+
+        db_api.subcloud_update(self.ctx,
+                               subcloud.id,
+                               availability_status=dccommon_consts.AVAILABILITY_ONLINE,
+                               management_state=dccommon_consts.MANAGEMENT_MANAGED,
+                               backup_datetime=None,
+                               backup_status=consts.BACKUP_STATE_UNKNOWN)
+
+        fake_password = (base64.b64encode('testpass'.encode("utf-8"))).decode('ascii')
+        data = {'sysadmin_password': fake_password,
+                'subcloud': '1'}
+
+        mock_rpc_client().backup_subclouds.return_value = True
+
+        six.assertRaisesRegex(self, webtest.app.AppError, "404 *",
+                              self.app.post_json, FAKE_URL_CREATE,
+                              headers=FAKE_HEADERS, params=data)
 
     @mock.patch.object(rpc_client, 'ManagerClient')
     def test_backup_create_unknown_subcloud(self, mock_rpc_client):
@@ -154,8 +179,9 @@ class TestSubcloudCreate(testroot.DCManagerApiTest):
                               self.app.post_json, FAKE_URL_CREATE,
                               headers=FAKE_HEADERS, params=data)
 
+    @mock.patch.object(common_utils, 'has_management_affecting_alarms', return_value=False)
     @mock.patch.object(rpc_client, 'ManagerClient')
-    def test_backup_create_group(self, mock_rpc_client):
+    def test_backup_create_group(self, mock_rpc_client, mock_alarm):
 
         subcloud = fake_subcloud.create_fake_subcloud(self.ctx)
 
@@ -201,7 +227,7 @@ class TestSubcloudCreate(testroot.DCManagerApiTest):
                               headers=FAKE_HEADERS, params=data)
 
     @mock.patch.object(rpc_client, 'ManagerClient')
-    def test_backup_create_group_no_online(self, mock_rpc_client):
+    def test_backup_create_group_not_online(self, mock_rpc_client):
 
         subcloud = fake_subcloud.create_fake_subcloud(self.ctx)
 
@@ -311,8 +337,9 @@ class TestSubcloudCreate(testroot.DCManagerApiTest):
                               self.app.post_json, FAKE_URL_CREATE,
                               headers=FAKE_HEADERS, params=data)
 
+    @mock.patch.object(common_utils, 'has_management_affecting_alarms', return_value=False)
     @mock.patch.object(rpc_client, 'ManagerClient')
-    def test_backup_create_subcloud_backup_values(self, mock_rpc_client):
+    def test_backup_create_subcloud_backup_values(self, mock_rpc_client, mock_alarm):
 
         subcloud = fake_subcloud.create_fake_subcloud(self.ctx)
 
@@ -355,8 +382,9 @@ class TestSubcloudCreate(testroot.DCManagerApiTest):
                               self.app.post_json, FAKE_URL_CREATE,
                               headers=FAKE_HEADERS, params=data)
 
+    @mock.patch.object(common_utils, 'has_management_affecting_alarms', return_value=False)
     @mock.patch.object(rpc_client, 'ManagerClient')
-    def test_backup_create_subcloud_local_only(self, mock_rpc_client):
+    def test_backup_create_subcloud_local_only(self, mock_rpc_client, mock_alarm):
         subcloud = fake_subcloud.create_fake_subcloud(self.ctx)
 
         db_api.subcloud_update(self.ctx,
@@ -378,9 +406,10 @@ class TestSubcloudCreate(testroot.DCManagerApiTest):
 
         self.assertEqual(response.status_int, 200)
 
+    @mock.patch.object(common_utils, 'has_management_affecting_alarms', return_value=False)
     @mock.patch.object(rpc_client, 'ManagerClient')
     def test_backup_create_subcloud_local_only_registry_images(
-        self, mock_rpc_client):
+        self, mock_rpc_client, mock_alarm):
 
         subcloud = fake_subcloud.create_fake_subcloud(self.ctx)
 
@@ -404,9 +433,10 @@ class TestSubcloudCreate(testroot.DCManagerApiTest):
 
         self.assertEqual(response.status_int, 200)
 
+    @mock.patch.object(common_utils, 'has_management_affecting_alarms', return_value=False)
     @mock.patch.object(rpc_client, 'ManagerClient')
     def test_backup_create_subcloud_no_local_only_registry_images(
-        self, mock_rpc_client):
+        self, mock_rpc_client, mock_alarm):
 
         subcloud = fake_subcloud.create_fake_subcloud(self.ctx)
 
@@ -470,8 +500,9 @@ class TestSubcloudCreate(testroot.DCManagerApiTest):
                               self.app.post_json, FAKE_URL_CREATE,
                               headers=FAKE_HEADERS, params=data)
 
+    @mock.patch.object(common_utils, 'has_management_affecting_alarms', return_value=False)
     @mock.patch.object(rpc_client, 'ManagerClient')
-    def test_backup_create_subcloud_json_file(self, mock_rpc_client):
+    def test_backup_create_subcloud_json_file(self, mock_rpc_client, mock_alarm):
 
         subcloud = fake_subcloud.create_fake_subcloud(self.ctx)
 
@@ -645,6 +676,9 @@ class TestSubcloudDelete(testroot.DCManagerApiTest):
         six.assertRaisesRegex(self, webtest.app.AppError, "400 *",
                               self.app.patch_json, FAKE_URL_DELETE + release_version,
                               headers=FAKE_HEADERS, params=data)
+
+# from dccommon.drivers.openstack.sdk_platform import OpenStackDriver
+# from dccommon.drivers.openstack.sysinv_v1 import SysinvClient
 
     @mock.patch.object(rpc_client, 'ManagerClient')
     def test_backup_delete_invalid_url(self, mock_rpc_client):
