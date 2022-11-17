@@ -33,7 +33,7 @@ LOG = logging.getLogger(__name__)
 LOCK_NAME = 'SubcloudBackupController'
 
 # Subcloud/group information to be retrieved from request params
-RequestEntity = namedtuple('RequestEntity', ['type', 'id', 'subclouds'])
+RequestEntity = namedtuple('RequestEntity', ['type', 'id', 'name', 'subclouds'])
 
 
 class SubcloudBackupController(object):
@@ -130,7 +130,7 @@ class SubcloudBackupController(object):
                 payload[param_name] = default
 
     @staticmethod
-    def _validate_subclouds(subclouds, operation):
+    def _validate_subclouds(request_entity, operation):
         """Validate the subcloud according to the operation
 
         Create/Delete: The subcloud is managed, online and in complete state.
@@ -140,10 +140,10 @@ class SubcloudBackupController(object):
         If none of the subclouds are valid, the operation will be aborted.
 
         Args:
-            subclouds (list): List of subclouds to be validated
+            request_entity (namedtuple): Request entity
             operation (string): Subcloud backup operation
         """
-
+        subclouds = request_entity.subclouds
         if operation == 'create' or operation == 'delete':
             valid_subclouds = [subcloud for subcloud in subclouds if
                                utils.is_valid_for_backup(subcloud)]
@@ -154,8 +154,15 @@ class SubcloudBackupController(object):
             pecan.abort(400, _('Operation %s is not valid' % operation))
 
         if not valid_subclouds:
-            pecan.abort(400, _('Subcloud backup %s is not allowed because the '
-                               'subcloud(s) are in invalid states.') % operation)
+
+            if request_entity.type == 'group':
+                msg = _('None of the subclouds in group %s are in a valid '
+                        'state for backup %s.') % (request_entity.name, operation)
+            elif request_entity.type == 'subcloud':
+                msg = _('Subcloud %s is not in a valid state for backup %s.') \
+                    % (request_entity.name, operation)
+
+            pecan.abort(400, msg)
 
     @staticmethod
     def _get_subclouds_from_group(group, context):
@@ -175,13 +182,13 @@ class SubcloudBackupController(object):
             subcloud = utils.subcloud_get_by_ref(context, subcloud_ref)
             if not subcloud:
                 pecan.abort(400, _('Subcloud not found'))
-            return RequestEntity('subcloud', subcloud.id, [subcloud])
+            return RequestEntity('subcloud', subcloud.id, subcloud_ref, [subcloud])
         elif group_ref:
             group = utils.subcloud_group_get_by_ref(context, group_ref)
             group_subclouds = self._get_subclouds_from_group(group, context)
             if not group_subclouds:
                 pecan.abort(400, _('No subclouds present in group'))
-            return RequestEntity('group', group.id, group_subclouds)
+            return RequestEntity('group', group.id, group_ref, group_subclouds)
         else:
             pecan.abort(400, _("'subcloud' or 'group' parameter is required"))
 
@@ -210,7 +217,7 @@ class SubcloudBackupController(object):
                          restcomm.extract_credentials_for_policy())
 
         request_entity = self._read_entity_from_request_params(context, payload)
-        self._validate_subclouds(request_entity.subclouds, 'create')
+        self._validate_subclouds(request_entity, 'create')
 
         # Set subcloud/group ID as reference instead of name to ease processing
         payload[request_entity.type] = request_entity.id
@@ -267,7 +274,7 @@ class SubcloudBackupController(object):
             # Not needed for centralized storage, since connection is not required
             local_only = payload.get('local_only')
             if local_only:
-                self._validate_subclouds(request_entity.subclouds, verb)
+                self._validate_subclouds(request_entity, verb)
 
             # Set subcloud/group ID as reference instead of name to ease processing
             payload[request_entity.type] = request_entity.id
@@ -308,7 +315,7 @@ class SubcloudBackupController(object):
                                                           request_entity.id)
                 pecan.abort(400, _(msg))
 
-            self._validate_subclouds(request_entity.subclouds, verb)
+            self._validate_subclouds(request_entity, verb)
 
             payload[request_entity.type] = request_entity.id
 
