@@ -94,11 +94,12 @@ def get_rpc_server(target, endpoint):
                                          serializer=serializer)
 
 
-def get_rpc_client(**kwargs):
+def get_rpc_client(timeout, **msg_target_kwargs):
     """Return a configured oslo_messaging RPCClient."""
-    target = oslo_messaging.Target(**kwargs)
+    target = oslo_messaging.Target(**msg_target_kwargs)
     serializer = RequestContextSerializer(JsonPayloadSerializer())
-    return oslo_messaging.RPCClient(TRANSPORT, target,
+    # With timeout == None the default value will be 60 seconds
+    return oslo_messaging.RPCClient(TRANSPORT, target, timeout=timeout,
                                     serializer=serializer)
 
 

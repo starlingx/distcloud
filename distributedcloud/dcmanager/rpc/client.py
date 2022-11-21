@@ -31,10 +31,9 @@ class RPCClient(object):
     Basic RPC client implementation to deliver RPC 'call' and 'cast'
     """
 
-    def __init__(self, topic, version):
-        self._client = messaging.get_rpc_client(
-            topic=topic,
-            version=version)
+    def __init__(self, timeout, topic, version):
+        self._client = messaging.get_rpc_client(timeout=timeout, topic=topic,
+                                                version=version)
 
     @staticmethod
     def make_msg(method, **kwargs):
@@ -62,8 +61,9 @@ class SubcloudStateClient(RPCClient):
 
     BASE_RPC_API_VERSION = '1.0'
 
-    def __init__(self):
+    def __init__(self, timeout=None):
         super(SubcloudStateClient, self).__init__(
+            timeout,
             consts.TOPIC_DC_MANAGER_STATE,
             self.BASE_RPC_API_VERSION)
 
@@ -114,8 +114,9 @@ class ManagerClient(RPCClient):
 
     BASE_RPC_API_VERSION = '1.0'
 
-    def __init__(self):
+    def __init__(self, timeout=None):
         super(ManagerClient, self).__init__(
+            timeout,
             consts.TOPIC_DC_MANAGER,
             self.BASE_RPC_API_VERSION)
 
@@ -184,13 +185,14 @@ class DCManagerNotifications(RPCClient):
     Version History:
        1.0 - Initial version
     """
+    DCMANAGER_RPC_API_VERSION = '1.0'
+    TOPIC_DC_NOTIFICIATION = 'DCMANAGER-NOTIFICATION'
 
-    def __init__(self):
-        DCMANAGER_RPC_API_VERSION = '1.0'
-        TOPIC_DC_NOTIFICIATION = 'DCMANAGER-NOTIFICATION'
-
+    def __init__(self, timeout=None):
         super(DCManagerNotifications, self).__init__(
-            TOPIC_DC_NOTIFICIATION, DCMANAGER_RPC_API_VERSION)
+            timeout,
+            self.TOPIC_DC_NOTIFICIATION,
+            self.DCMANAGER_RPC_API_VERSION)
 
     def subcloud_online(self, ctxt, subcloud_name):
         return self.cast(ctxt, self.make_msg('subcloud_online',

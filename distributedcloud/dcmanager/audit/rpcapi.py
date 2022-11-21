@@ -29,8 +29,9 @@ class ManagerAuditClient(object):
 
     BASE_RPC_API_VERSION = '1.0'
 
-    def __init__(self):
+    def __init__(self, timeout=None):
         self._client = messaging.get_rpc_client(
+            timeout=timeout,
             topic=consts.TOPIC_DC_MANAGER_AUDIT,
             version=self.BASE_RPC_API_VERSION)
 
@@ -90,8 +91,9 @@ class ManagerAuditWorkerClient(object):
     # todo(abailey): Does the RPC version need to increment
     BASE_RPC_API_VERSION = '1.0'
 
-    def __init__(self):
+    def __init__(self, timeout=None):
         self._client = messaging.get_rpc_client(
+            timeout=timeout,
             topic=consts.TOPIC_DC_MANAGER_AUDIT_WORKER,
             version=self.BASE_RPC_API_VERSION)
 
