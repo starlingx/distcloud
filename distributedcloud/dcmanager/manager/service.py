@@ -163,14 +163,6 @@ class DCManagerService(service.Service):
         return self.subcloud_manager.restore_subcloud_backups(context, payload)
 
     @request_context
-    def restore_subcloud(self, context, subcloud_id, payload):
-        # Restore a subcloud
-        LOG.info("Handling restore_subcloud request for: %s" % subcloud_id)
-        return self.subcloud_manager.restore_subcloud(context,
-                                                      subcloud_id,
-                                                      payload)
-
-    @request_context
     def update_subcloud_sync_endpoint_type(self, context, subcloud_name,
                                            endpoint_type_list,
                                            openstack_installed):

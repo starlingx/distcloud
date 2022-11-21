@@ -251,24 +251,6 @@ class FakeException(Exception):
         pass
 
 
-FAKE_RESTORE_VALUES = {
-    "backup_filename": "subcloud_platform_backup.tgz",
-    "on_box_data": "false",
-    "initial_backup_dir": "/home/sysadmin",
-    "skip_patches_restore": "true"
-}
-
-
-FAKE_SUBCLOUD_RESTORE_PAYLOAD = {
-    "install_values": fake_subcloud.FAKE_SUBCLOUD_INSTALL_VALUES,
-    "with_install": True,
-    "bootstrap-address": "bootstrap_ip",
-    "software_version": "20.12",
-    "sysadmin_password": "testpasswd",
-    "restore_values": FAKE_RESTORE_VALUES
-}
-
-
 FAKE_SUBCLOUD_PRESTAGE_PAYLOAD = {
     "install_values": fake_subcloud.FAKE_SUBCLOUD_INSTALL_VALUES,
     "subcloud_name": 'subcloud1',
@@ -1619,99 +1601,6 @@ class TestSubcloudManager(base.DCManagerTestCase):
         subcloud = db_api.subcloud_get_by_name(self.ctx, subcloud11.name)
         self.assertEqual(consts.DEPLOY_STATE_DONE,
                          subcloud.deploy_status)
-
-    def test_compose_check_target_command(self):
-        sm = subcloud_manager.SubcloudManager()
-        check_target_command = sm.compose_check_target_command(
-            'subcloud1', '/var/opt/dc/ansible/subcloud1_inventory.yml',
-            FAKE_SUBCLOUD_RESTORE_PAYLOAD)
-        self.assertEqual(
-            check_target_command,
-            [
-                'ansible-playbook',
-                subcloud_manager.ANSIBLE_HOST_VALIDATION_PLAYBOOK,
-                '-i', '/var/opt/dc/ansible/subcloud1_inventory.yml',
-                '--limit', 'subcloud1',
-                '-e', '@/var/opt/dc/ansible/subcloud1_check_target_values.yml'
-            ]
-        )
-
-    def test_compose_restore_command(self):
-        sm = subcloud_manager.SubcloudManager()
-        restore_command = sm.compose_restore_command(
-            'subcloud1', '/var/opt/dc/ansible/subcloud1_inventory.yml',
-            FAKE_SUBCLOUD_RESTORE_PAYLOAD)
-        self.assertEqual(
-            restore_command,
-            [
-                'ansible-playbook',
-                subcloud_manager.ANSIBLE_SUBCLOUD_RESTORE_PLAYBOOK,
-                '-i', '/var/opt/dc/ansible/subcloud1_inventory.yml',
-                '--limit', 'subcloud1',
-                '-e', '@/var/opt/dc/ansible/subcloud1_restore_values.yml'
-            ]
-        )
-
-    def test_restore_managed_subcloud(self):
-        subcloud = self.create_subcloud_static(
-            self.ctx,
-            name='subcloud1',
-            deploy_status=consts.DEPLOY_STATE_DONE)
-        db_api.subcloud_update(self.ctx,
-                               subcloud.id,
-                               management_state=dccommon_consts.MANAGEMENT_MANAGED)
-
-        fake_dcmanager_cermon_api = FakeDCManagerNotifications()
-
-        p = mock.patch('dcmanager.rpc.client.DCManagerNotifications')
-        mock_dcmanager_api = p.start()
-        mock_dcmanager_api.return_value = fake_dcmanager_cermon_api
-
-        sm = subcloud_manager.SubcloudManager()
-        self.assertRaises(exceptions.SubcloudNotUnmanaged,
-                          sm.restore_subcloud, self.ctx,
-                          subcloud.id, FAKE_SUBCLOUD_RESTORE_PAYLOAD)
-
-    @mock.patch.object(cutils, 'get_vault_load_files')
-    @mock.patch.object(cutils, 'create_subcloud_inventory')
-    @mock.patch.object(
-        subcloud_manager.SubcloudManager, 'compose_install_command')
-    @mock.patch.object(subcloud_manager.SubcloudManager,
-                       '_prepare_for_restore')
-    @mock.patch.object(
-        subcloud_manager.SubcloudManager, 'compose_check_target_command')
-    @mock.patch.object(
-        subcloud_manager.SubcloudManager, 'compose_restore_command')
-    @mock.patch.object(threading.Thread, 'start')
-    def test_restore_subcloud(
-        self, mock_thread_start,
-        mock_compose_restore_command, mock_compose_check_target_command,
-        mock_prepare_for_restore, mock_compose_install_command,
-        mock_create_subcloud_inventory, mock_get_vault_load_files):
-
-        subcloud = self.create_subcloud_static(
-            self.ctx,
-            name='subcloud1',
-            deploy_status=consts.DEPLOY_STATE_PRE_RESTORE)
-
-        sm = subcloud_manager.SubcloudManager()
-        mock_get_vault_load_files.return_value = ("iso file path", "sig file path")
-
-        sm.restore_subcloud(self.ctx, subcloud.id, FAKE_SUBCLOUD_RESTORE_PAYLOAD)
-        mock_get_vault_load_files.assert_called_once_with(SW_VERSION)
-        mock_create_subcloud_inventory.assert_called_once_with(
-            FAKE_SUBCLOUD_RESTORE_PAYLOAD, mock.ANY)
-        mock_compose_install_command.assert_called_once_with(subcloud.name, mock.ANY)
-        mock_compose_check_target_command.assert_called_once_with(
-            subcloud.name, mock.ANY, FAKE_SUBCLOUD_RESTORE_PAYLOAD)
-        mock_compose_restore_command.assert_called_once_with(
-            subcloud.name, mock.ANY, FAKE_SUBCLOUD_RESTORE_PAYLOAD)
-        mock_thread_start.assert_called_once()
-
-        # Verify that subcloud has the correct deploy status
-        updated_subcloud = db_api.subcloud_get_by_name(self.ctx, subcloud.name)
-        self.assertEqual(consts.DEPLOY_STATE_PRE_RESTORE,
-                         updated_subcloud.deploy_status)
 
     @mock.patch.object(subcloud_manager.SubcloudManager,
                        '_run_parallel_group_operation')
