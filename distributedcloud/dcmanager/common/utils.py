@@ -32,6 +32,7 @@ from oslo_config import cfg
 from oslo_log import log as logging
 
 from dccommon import consts as dccommon_consts
+from dccommon.drivers.openstack.sdk_platform import OpenStackDriver
 from dccommon.drivers.openstack.sysinv_v1 import SysinvClient
 from dccommon.drivers.openstack import vim
 from dccommon import exceptions as dccommon_exceptions
@@ -680,20 +681,53 @@ def summarize_message(error_msg):
     return brief_message
 
 
-def is_valid_for_backup(subcloud):
-    return (
-        subcloud.availability_status == dccommon_consts.AVAILABILITY_ONLINE
-        and subcloud.management_state == dccommon_consts.MANAGEMENT_MANAGED
-        and subcloud.deploy_status == consts.DEPLOY_STATE_DONE
-    )
+def is_valid_for_backup_operation(operation, subcloud):
+
+    if operation == 'create':
+        return _is_valid_for_backup_create(subcloud)
+    elif operation == 'delete':
+        return _is_valid_for_backup_delete(subcloud)
+    elif operation == 'restore':
+        return _is_valid_for_backup_restore(subcloud)
+    else:
+        msg = "Invalid operation %s" % operation
+        LOG.error(msg)
+        raise exceptions.ValidateFail(msg)
 
 
-def is_valid_for_restore(subcloud):
-    return (
-        subcloud.management_state == dccommon_consts.MANAGEMENT_UNMANAGED
-        and subcloud.deploy_status not in
-        consts.INVALID_DEPLOY_STATES_FOR_RESTORE
-    )
+def _is_valid_for_backup_create(subcloud):
+
+    if subcloud.availability_status != dccommon_consts.AVAILABILITY_ONLINE \
+        or subcloud.management_state != dccommon_consts.MANAGEMENT_MANAGED \
+        or subcloud.deploy_status != consts.DEPLOY_STATE_DONE:
+        msg = ('Subcloud %s must be online, managed and have complete '
+               'deploy-status for the subcloud-backup create operation.' %
+               subcloud.name)
+        raise exceptions.ValidateFail(msg)
+
+    return True
+
+
+def _is_valid_for_backup_delete(subcloud):
+
+    if subcloud.availability_status != dccommon_consts.AVAILABILITY_ONLINE \
+        or subcloud.management_state != dccommon_consts.MANAGEMENT_MANAGED:
+        msg = ('Subcloud %s must be online and managed for the subcloud-backup'
+               ' delete operation with --local-only option.' % subcloud.name)
+        raise exceptions.ValidateFail(msg)
+
+    return True
+
+
+def _is_valid_for_backup_restore(subcloud):
+
+    if subcloud.management_state != dccommon_consts.MANAGEMENT_UNMANAGED \
+        or subcloud.deploy_status in consts.INVALID_DEPLOY_STATES_FOR_RESTORE:
+        msg = ('Subcloud %s must be unmanaged and in a valid deploy state '
+               'for the subcloud-backup restore operation.' % subcloud.name)
+        raise exceptions.ValidateFail(msg)
+
+    return True
 
 
 def get_matching_iso():
@@ -710,3 +744,22 @@ def get_matching_iso():
     except Exception as e:
         LOG.exception("Could not load vault files.")
         return None, str(e)
+
+
+def has_management_affecting_alarms(subcloud_name):
+
+    system_health = ""
+    try:
+        os_client = OpenStackDriver(region_name=subcloud_name,
+                                    region_clients=None)
+        keystone_client = os_client.keystone_client
+        endpoint = keystone_client.endpoint_cache.get_endpoint('sysinv')
+        sysinv_client = SysinvClient(subcloud_name,
+                                     keystone_client.session,
+                                     endpoint=endpoint)
+        system_health = sysinv_client.get_system_health()
+    except Exception as e:
+        LOG.exception(e)
+        raise
+
+    return not ('[0] of which are management affecting' in system_health)

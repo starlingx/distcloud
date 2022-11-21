@@ -613,7 +613,7 @@ class SubcloudManager(manager.Manager):
                                    consts.BACKUP_STATE_VALIDATING)
 
         subclouds_to_backup, invalid_subclouds = \
-            self._validate_subclouds_for_backup(subclouds)
+            self._validate_subclouds_for_backup(subclouds, 'create')
 
         self._mark_invalid_subclouds_for_backup(context, invalid_subclouds)
         self._update_backup_status(context, subclouds_to_backup,
@@ -684,7 +684,7 @@ class SubcloudManager(manager.Manager):
         )
 
         restore_subclouds, invalid_subclouds = (
-            self._validate_subclouds_for_backup(subclouds, restore=True)
+            self._validate_subclouds_for_backup(subclouds, 'restore')
         )
 
         if restore_subclouds:
@@ -730,13 +730,22 @@ class SubcloudManager(manager.Manager):
                                                          invalid_subclouds)
         return
 
-    def _validate_subclouds_for_backup(self, subclouds, restore=False):
+    def _validate_subclouds_for_backup(self, subclouds, operation):
         valid_subclouds = []
         invalid_subclouds = []
-        validation = (utils.is_valid_for_restore if restore else
-                      utils.is_valid_for_backup)
         for subcloud in subclouds:
-            if validation(subcloud):
+            is_valid = False
+            try:
+                if utils.is_valid_for_backup_operation(operation, subcloud):
+                    is_valid = True
+
+                    if (operation == 'create'):
+                        is_valid = not utils.has_management_affecting_alarms(subcloud.name)
+
+            except exceptions.ValidateFail:
+                is_valid = False
+
+            if is_valid:
                 valid_subclouds.append(subcloud)
             else:
                 invalid_subclouds.append(subcloud)
@@ -841,7 +850,7 @@ class SubcloudManager(manager.Manager):
         if local_delete:
             # Use same criteria defined for subcloud backup create
             subclouds_to_delete_backup, invalid_subclouds = \
-                self._validate_subclouds_for_backup(subclouds)
+                self._validate_subclouds_for_backup(subclouds, 'delete')
         else:
             # Otherwise, validation is unnecessary, since connection is not required
             subclouds_to_delete_backup = subclouds
