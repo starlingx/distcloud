@@ -815,7 +815,7 @@ class SubcloudManager(manager.Manager):
             subcloud_inventory_file = self._create_subcloud_inventory_file(subcloud)
 
             # Prepare for backup
-            self._create_overrides_for_backup(payload, subcloud.name)
+            self._create_overrides_for_backup_or_restore('create', payload, subcloud.name)
             backup_command = self.compose_backup_command(
                 subcloud.name, subcloud_inventory_file)
 
@@ -877,8 +877,7 @@ class SubcloudManager(manager.Manager):
             subcloud_inventory_file = self._create_subcloud_inventory_file(
                 subcloud, data_install=data_install)
             # Prepare for restore
-            self._create_overrides_for_backup(
-                payload, subcloud.name, 'backup_restore_values')
+            self._create_overrides_for_backup_or_restore('restore', payload, subcloud.name)
             restore_command = self.compose_backup_restore_command(
                 subcloud.name, subcloud_inventory_file)
         except Exception:
@@ -946,16 +945,22 @@ class SubcloudManager(manager.Manager):
                                         ansible_subcloud_inventory_file)
         return ansible_subcloud_inventory_file
 
-    def _create_overrides_for_backup(
-            self, payload, subcloud_name, suffix='backup_create_values'):
+    def _create_overrides_for_backup_or_restore(self, op, payload, subcloud_name):
         # Set override names as expected by the playbook
         if not payload.get('override_values'):
             payload['override_values'] = {}
 
         payload['override_values']['local'] = \
             payload['local_only'] or False
-        payload['override_values']['backup_user_images'] = \
-            payload['registry_images'] or False
+
+        if op == 'create':
+            payload['override_values']['backup_user_images'] = \
+                payload['registry_images'] or False
+            suffix = 'backup_create_values'
+        else:
+            payload['override_values']['restore_user_images'] = \
+                payload['registry_images'] or False
+            suffix = 'backup_restore_values'
 
         if not payload['local_only']:
             payload['override_values']['central_backup_dir'] = CENTRAL_BACKUP_DIR
