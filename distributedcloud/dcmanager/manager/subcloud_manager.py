@@ -824,7 +824,9 @@ class SubcloudManager(manager.Manager):
             subcloud_inventory_file = self._create_subcloud_inventory_file(subcloud)
 
             # Prepare for backup
-            self._create_overrides_for_backup_or_restore('create', payload, subcloud.name)
+            overrides_file = self._create_overrides_for_backup_or_restore(
+                'create', payload, subcloud.name
+            )
             backup_command = self.compose_backup_command(
                 subcloud.name, subcloud_inventory_file)
 
@@ -835,6 +837,10 @@ class SubcloudManager(manager.Manager):
 
         success = self._run_subcloud_backup_create_playbook(subcloud, backup_command,
                                                             context)
+
+        if success:
+            utils.delete_subcloud_inventory(overrides_file)
+
         return subcloud, success
 
     def _filter_subclouds_for_backup_delete(self, context, payload, local_delete):
@@ -859,8 +865,9 @@ class SubcloudManager(manager.Manager):
 
     def _delete_subcloud_backup(self, context, payload, release_version, subcloud):
         try:
-            self._create_overrides_for_backup_delete(payload, subcloud.name,
-                                                     release_version)
+            overrides_file = self._create_overrides_for_backup_delete(
+                payload, subcloud.name, release_version
+            )
             inventory_file = self._create_subcloud_inventory_file(subcloud)
             delete_command = self.compose_backup_delete_command(
                 subcloud.name, inventory_file)
@@ -872,6 +879,10 @@ class SubcloudManager(manager.Manager):
 
         success = self._run_subcloud_backup_delete_playbook(context, subcloud,
                                                             delete_command)
+
+        if success:
+            utils.delete_subcloud_inventory(overrides_file)
+
         return subcloud, success
 
     def _restore_subcloud_backup(self, context, payload, subcloud):
@@ -886,7 +897,9 @@ class SubcloudManager(manager.Manager):
             subcloud_inventory_file = self._create_subcloud_inventory_file(
                 subcloud, data_install=data_install)
             # Prepare for restore
-            self._create_overrides_for_backup_or_restore('restore', payload, subcloud.name)
+            overrides_file = self._create_overrides_for_backup_or_restore(
+                'restore', payload, subcloud.name
+            )
             restore_command = self.compose_backup_restore_command(
                 subcloud.name, subcloud_inventory_file)
         except Exception:
@@ -913,6 +926,10 @@ class SubcloudManager(manager.Manager):
 
         success = self._run_subcloud_backup_restore_playbook(
             subcloud, restore_command, context, log_file)
+
+        if success:
+            utils.delete_subcloud_inventory(overrides_file)
+
         return subcloud, success
 
     @staticmethod
@@ -988,7 +1005,7 @@ class SubcloudManager(manager.Manager):
             for key, value in payload.get('restore_values').items():
                 payload['override_values'][key] = value
 
-        self._create_backup_overrides_file(payload, subcloud_name, suffix)
+        return self._create_backup_overrides_file(payload, subcloud_name, suffix)
 
     def _create_overrides_for_backup_delete(self, payload, subcloud_name,
                                             release_version):
@@ -1009,7 +1026,9 @@ class SubcloudManager(manager.Manager):
             payload['override_values']['ansible_become_pass'] = \
                 payload['sysadmin_password']
 
-        self._create_backup_overrides_file(payload, subcloud_name, 'backup_delete_values')
+        return self._create_backup_overrides_file(
+            payload, subcloud_name, 'backup_delete_values'
+        )
 
     def _create_backup_overrides_file(self, payload, subcloud_name, filename_suffix):
         backup_overrides_file = os.path.join(
@@ -1022,6 +1041,8 @@ class SubcloudManager(manager.Manager):
             )
             for k, v in payload['override_values'].items():
                 f_out.write("%s: %s\n" % (k, json.dumps(v)))
+
+        return backup_overrides_file
 
     def _run_subcloud_backup_create_playbook(self, subcloud, backup_command, context):
         log_file = os.path.join(consts.DC_ANSIBLE_LOG_DIR, subcloud.name) + \
