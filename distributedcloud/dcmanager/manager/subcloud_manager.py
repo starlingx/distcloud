@@ -1050,7 +1050,8 @@ class SubcloudManager(manager.Manager):
 
         db_api.subcloud_update(
             context, subcloud.id,
-            backup_status=consts.BACKUP_STATE_IN_PROGRESS)
+            backup_status=consts.BACKUP_STATE_IN_PROGRESS,
+            error_description=consts.ERROR_DESC_EMPTY)
 
         # Run the subcloud backup playbook
         try:
@@ -1062,7 +1063,6 @@ class SubcloudManager(manager.Manager):
 
             LOG.info("Successfully backed up subcloud %s" % subcloud.name)
             return True
-
         except PlaybookExecutionFailed:
             self._fail_subcloud_backup_operation(context, log_file, subcloud)
             return False
@@ -1095,7 +1095,8 @@ class SubcloudManager(manager.Manager):
             self, subcloud, restore_command, context, log_file):
         db_api.subcloud_update(
             context, subcloud.id,
-            deploy_status=consts.DEPLOY_STATE_RESTORING
+            deploy_status=consts.DEPLOY_STATE_RESTORING,
+            error_description=consts.ERROR_DESC_EMPTY
         )
         # Run the subcloud backup restore playbook
         try:
@@ -1107,13 +1108,13 @@ class SubcloudManager(manager.Manager):
             )
             return True
         except PlaybookExecutionFailed:
-            msg = ("Failed to run the subcloud restore playbook for "
-                   "subcloud %s, check individual log at %s for detailed "
-                   "output." % (subcloud.name, log_file))
+            msg = utils.find_ansible_error_msg(
+                subcloud.name, log_file, consts.DEPLOY_STATE_RESTORING)
             LOG.error(msg)
             db_api.subcloud_update(
                 context, subcloud.id,
-                deploy_status=consts.DEPLOY_STATE_RESTORE_FAILED
+                deploy_status=consts.DEPLOY_STATE_RESTORE_FAILED,
+                error_description=msg[0:consts.ERROR_DESCRIPTION_LENGTH]
             )
             return False
 
@@ -1126,13 +1127,14 @@ class SubcloudManager(manager.Manager):
             backup_status=consts.BACKUP_STATE_PREP_FAILED)
 
     def _fail_subcloud_backup_operation(self, context, log_file, subcloud):
-        msg = "Failed to backup subcloud %s, check individual log at %s for " \
-              "detailed output." % (subcloud.name, log_file)
+        msg = utils.find_ansible_error_msg(
+            subcloud.name, log_file, consts.BACKUP_STATE_IN_PROGRESS)
         LOG.error(msg)
 
         db_api.subcloud_update(
             context, subcloud.id,
-            backup_status=consts.BACKUP_STATE_FAILED)
+            backup_status=consts.BACKUP_STATE_FAILED,
+            error_description=msg[0:consts.ERROR_DESCRIPTION_LENGTH])
 
         self._set_subcloud_backup_failure_alarm(subcloud)
 
