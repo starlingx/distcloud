@@ -808,3 +808,59 @@ def get_certificate_from_secret(secret_name, secret_ns):
                         (secret_ns, secret_name))
 
     return tls_crt, tls_key
+
+
+def get_management_subnet(payload):
+    """Get management subnet.
+
+    Given a payload dict, prefer an admin
+    subnet over a management subnet if it
+    is present.
+
+    Returns the management subnet.
+    """
+    if payload.get('admin_subnet', None):
+        return payload.get('admin_subnet')
+    return payload.get('management_subnet', '')
+
+
+def get_management_start_address(payload):
+    """Get management start address.
+
+    Given a payload dict, prefer an admin
+    start address over a management start address
+    if it is present.
+
+    Returns the management start address.
+    """
+    if payload.get('admin_start_address', None):
+        return payload.get('admin_start_address')
+    return payload.get('management_start_address', '')
+
+
+def get_management_end_address(payload):
+    """Get management end address.
+
+    Given a payload dict, prefer an admin
+    end address over a management end address
+    if it is present.
+
+    Returns the management end address.
+    """
+    if payload.get('admin_end_address', None):
+        return payload.get('admin_end_address')
+    return payload.get('management_end_address', '')
+
+
+def get_management_gateway_address(payload):
+    """Get management gateway address.
+
+    Given a payload dict, prefer an admin
+    gateway address over a management gateway address
+    if it is present.
+
+    Returns the management gateway address.
+    """
+    if payload.get('admin_gateway_address', None):
+        return payload.get('admin_gateway_address')
+    return payload.get('management_gateway_address', '')

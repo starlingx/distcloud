@@ -37,6 +37,7 @@ CERT_MODE_SSL_CA = 'ssl_ca'
 CONTROLLER = 'controller'
 
 NETWORK_TYPE_MGMT = 'mgmt'
+NETWORK_TYPE_ADMIN = 'admin'
 
 SSL_CERT_DIR = "/etc/ssl/private/"
 SSL_CERT_FILE = "server-cert.pem"
@@ -247,6 +248,34 @@ class SysinvClient(base.DriverBase):
                 break
         else:
             LOG.error("Management address pool not found")
+            raise exceptions.InternalError()
+
+        return self.sysinv_client.address_pool.get(address_pool_uuid)
+
+    def get_admin_interface(self, hostname):
+        """Get the admin interface for a host."""
+        interfaces = self.sysinv_client.iinterface.list(hostname)
+        for interface in interfaces:
+            interface_networks = self.sysinv_client.interface_network.\
+                list_by_interface(interface.uuid)
+            for if_net in interface_networks:
+                if if_net.network_type == NETWORK_TYPE_ADMIN:
+                    return interface
+
+        # This can happen if the host is still being installed and has not
+        # yet created its admin interface.
+        LOG.warning("Admin interface on host %s not found" % hostname)
+        return None
+
+    def get_admin_address_pool(self):
+        """Get the admin address pool for a host."""
+        networks = self.sysinv_client.network.list()
+        for network in networks:
+            if network.type == NETWORK_TYPE_ADMIN:
+                address_pool_uuid = network.pool_uuid
+                break
+        else:
+            LOG.error("Admin address pool not found")
             raise exceptions.InternalError()
 
         return self.sysinv_client.address_pool.get(address_pool_uuid)

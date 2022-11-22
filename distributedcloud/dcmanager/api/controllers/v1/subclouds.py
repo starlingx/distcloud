@@ -85,7 +85,8 @@ SUBCLOUD_ADD_GET_FILE_CONTENTS = [
 BOOTSTRAP_VALUES_ADDRESSES = [
     'bootstrap-address', 'management_start_address', 'management_end_address',
     'management_gateway_address', 'systemcontroller_gateway_address',
-    'external_oam_gateway_address', 'external_oam_floating_address'
+    'external_oam_gateway_address', 'external_oam_floating_address',
+    'admin_start_address', 'admin_end_address', 'admin_gateway_address'
 ]
 
 INSTALL_VALUES_ADDRESSES = [
@@ -324,6 +325,10 @@ class SubcloudsController(object):
     def _validate_subcloud_config(self,
                                   context,
                                   name,
+                                  admin_subnet_str,
+                                  admin_start_ip_str,
+                                  admin_end_ip_str,
+                                  admin_gateway_ip_str,
                                   management_subnet_str,
                                   management_start_ip_str,
                                   management_end_ip_str,
@@ -396,26 +401,44 @@ class SubcloudsController(object):
                   "addresses") % MIN_MANAGEMENT_ADDRESSES)
 
         # Parse/validate the gateway
-        try:
-            utils.validate_address_str(
-                management_gateway_ip_str, management_subnet)
-        except exceptions.ValidateFail as e:
-            LOG.exception(e)
-            pecan.abort(400, _("management_gateway_address invalid: %s") % e)
+        if not admin_gateway_ip_str:
+            try:
+                utils.validate_address_str(
+                    management_gateway_ip_str, management_subnet)
+            except exceptions.ValidateFail as e:
+                LOG.exception(e)
+                pecan.abort(400, _("management_gateway_address invalid: %s") % e)
+
+        self._validate_admin_network_config(admin_subnet_str,
+                                            admin_start_ip_str,
+                                            admin_end_ip_str,
+                                            admin_gateway_ip_str,
+                                            subcloud_subnets)
 
         # Ensure subcloud management gateway is not within the actual subcloud
         # management subnet address pool for consistency with the
         # systemcontroller gateway restriction below. Address collision
         # is not a concern as the address is added to sysinv.
-        subcloud_mgmt_address_start = IPAddress(management_start_ip_str)
-        subcloud_mgmt_address_end = IPAddress(management_end_ip_str)
-        subcloud_mgmt_gw_ip = IPAddress(management_gateway_ip_str)
+        if admin_start_ip_str:
+            subcloud_mgmt_address_start = IPAddress(admin_start_ip_str)
+        else:
+            subcloud_mgmt_address_start = IPAddress(management_start_ip_str)
+        if admin_end_ip_str:
+            subcloud_mgmt_address_end = IPAddress(admin_end_ip_str)
+        else:
+            subcloud_mgmt_address_end = IPAddress(management_end_ip_str)
+        if admin_gateway_ip_str:
+            subcloud_mgmt_gw_ip = IPAddress(admin_gateway_ip_str)
+        else:
+            subcloud_mgmt_gw_ip = IPAddress(management_gateway_ip_str)
+
         if ((subcloud_mgmt_gw_ip >= subcloud_mgmt_address_start) and
                 (subcloud_mgmt_gw_ip <= subcloud_mgmt_address_end)):
-            pecan.abort(400, _("management_gateway_address invalid, "
+            pecan.abort(400, _("%(network)s_gateway_address invalid, "
                                "is within management pool: %(start)s - "
                                "%(end)s") %
-                        {'start': subcloud_mgmt_address_start,
+                        {'network': 'admin' if admin_gateway_ip_str else 'management',
+                         'start': subcloud_mgmt_address_start,
                          'end': subcloud_mgmt_address_end})
 
         # Ensure systemcontroller gateway is in the management subnet
@@ -432,6 +455,7 @@ class SubcloudsController(object):
             LOG.exception(e)
             pecan.abort(400,
                         _("systemcontroller_gateway_address invalid: %s") % e)
+
         # Ensure systemcontroller gateway is not within the actual
         # management subnet address pool to prevent address collision.
         mgmt_address_start = IPAddress(management_address_pool.ranges[0][0])
@@ -483,6 +507,70 @@ class SubcloudsController(object):
         except exceptions.ValidateFail as e:
             LOG.exception(e)
             pecan.abort(400, _("oam_floating_address invalid: %s") % e)
+
+    def _validate_admin_network_config(self,
+                                       admin_subnet_str,
+                                       admin_start_address_str,
+                                       admin_end_address_str,
+                                       admin_gateway_address_str,
+                                       existing_networks):
+        """validate whether admin network configuration is valid"""
+
+        if not (admin_subnet_str or admin_start_address_str or
+                admin_end_address_str or admin_gateway_address_str):
+            return
+
+        MIN_ADMIN_SUBNET_SIZE = 5
+        # subtract 3 for network, gateway and broadcast addresses.
+        MIN_ADMIN_ADDRESSES = MIN_ADMIN_SUBNET_SIZE - 3
+
+        admin_subnet = None
+        try:
+            admin_subnet = utils.validate_network_str(
+                admin_subnet_str,
+                minimum_size=MIN_ADMIN_SUBNET_SIZE,
+                existing_networks=existing_networks)
+        except exceptions.ValidateFail as e:
+            LOG.exception(e)
+            pecan.abort(400, _("admin_subnet invalid: %s") % e)
+
+        # Parse/validate the start/end addresses
+        admin_start_ip = None
+        try:
+            admin_start_ip = utils.validate_address_str(
+                admin_start_address_str, admin_subnet)
+        except exceptions.ValidateFail as e:
+            LOG.exception(e)
+            pecan.abort(400, _("admin_start_address invalid: %s") % e)
+
+        admin_end_ip = None
+        try:
+            admin_end_ip = utils.validate_address_str(
+                admin_end_address_str, admin_subnet)
+        except exceptions.ValidateFail as e:
+            LOG.exception(e)
+            pecan.abort(400, _("admin_end_address invalid: %s") % e)
+
+        if not admin_start_ip < admin_end_ip:
+            pecan.abort(
+                400,
+                _("admin_start_address  not less than "
+                  "admin_end_address"))
+
+        if not len(IPRange(admin_start_ip, admin_end_ip)) >= \
+                MIN_ADMIN_ADDRESSES:
+            pecan.abort(
+                400,
+                _("admin address range must contain at least %d "
+                  "addresses") % MIN_ADMIN_ADDRESSES)
+
+        # Parse/validate the gateway
+        try:
+            utils.validate_address_str(
+                admin_gateway_address_str, admin_subnet)
+        except exceptions.ValidateFail as e:
+            LOG.exception(e)
+            pecan.abort(400, _("admin_gateway_address invalid: %s") % e)
 
     def _format_ip_address(self, payload):
         """Format IP addresses in 'bootstrap_values' and 'install_values'.
@@ -752,10 +840,10 @@ class SubcloudsController(object):
             payload.get('description'),
             payload.get('location'),
             software_version,
-            payload['management_subnet'],
-            payload['management_gateway_address'],
-            payload['management_start_address'],
-            payload['management_end_address'],
+            utils.get_management_subnet(payload),
+            utils.get_management_gateway_address(payload),
+            utils.get_management_start_address(payload),
+            utils.get_management_end_address(payload),
             payload['systemcontroller_gateway_address'],
             consts.DEPLOY_STATE_NONE,
             consts.ERROR_DESC_EMPTY,
@@ -912,6 +1000,26 @@ class SubcloudsController(object):
             if not system_mode:
                 pecan.abort(400, _('system_mode required'))
 
+            # The admin network is optional, but takes precedence over the
+            # management network for communication between the subcloud and
+            # system controller if it is defined.
+            admin_subnet = payload.get('admin_subnet', None)
+            admin_start_ip = payload.get('admin_start_address', None)
+            admin_end_ip = payload.get('admin_end_address', None)
+            admin_gateway_ip = payload.get('admin_gateway_address', None)
+            if any([admin_subnet, admin_start_ip, admin_end_ip,
+                    admin_gateway_ip]):
+                # If any admin parameter is defined, all admin parameters
+                # should be defined.
+                if not admin_subnet:
+                    pecan.abort(400, _('admin_subnet required'))
+                if not admin_start_ip:
+                    pecan.abort(400, _('admin_start_address required'))
+                if not admin_end_ip:
+                    pecan.abort(400, _('admin_end_address required'))
+                if not admin_gateway_ip:
+                    pecan.abort(400, _('admin_gateway_address required'))
+
             management_subnet = payload.get('management_subnet')
             if not management_subnet:
                 pecan.abort(400, _('management_subnet required'))
@@ -925,7 +1033,11 @@ class SubcloudsController(object):
                 pecan.abort(400, _('management_end_address required'))
 
             management_gateway_ip = payload.get('management_gateway_address')
-            if not management_gateway_ip:
+            if (admin_gateway_ip and management_gateway_ip):
+                pecan.abort(400, _('admin_gateway_address and '
+                                   'management_gateway_address cannot be '
+                                   'specified at the same time'))
+            elif (not admin_gateway_ip and not management_gateway_ip):
                 pecan.abort(400, _('management_gateway_address required'))
 
             systemcontroller_gateway_ip = \
@@ -978,6 +1090,10 @@ class SubcloudsController(object):
 
             self._validate_subcloud_config(context,
                                            name,
+                                           admin_subnet,
+                                           admin_start_ip,
+                                           admin_end_ip,
+                                           admin_gateway_ip,
                                            management_subnet,
                                            management_start_ip,
                                            management_end_ip,

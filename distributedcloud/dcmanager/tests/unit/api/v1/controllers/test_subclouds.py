@@ -1868,3 +1868,131 @@ class TestSubcloudAPIOther(testroot.DCManagerApiTest):
                               self.app.patch_json, FAKE_URL + '/' +
                               str(subcloud.id) + '/prestage',
                               headers=FAKE_HEADERS, params=data)
+
+    def test_get_management_subnet(self):
+        payload = {
+            'management_subnet': "192.168.204.0/24"
+        }
+        self.assertEqual(cutils.get_management_subnet(payload), payload['management_subnet'])
+
+    def test_get_management_subnet_return_admin(self):
+        payload = {
+            'admin_subnet': "192.168.205.0/24",
+            'management_subnet': "192.168.204.0/24"
+        }
+        self.assertEqual(cutils.get_management_subnet(payload), payload['admin_subnet'])
+
+    def test_get_management_start_address(self):
+        payload = {
+            'management_start_address': "192.168.204.2"
+        }
+        self.assertEqual(cutils.get_management_start_address(payload), payload['management_start_address'])
+
+    def test_get_management_start_address_return_admin(self):
+        payload = {
+            'admin_start_address': "192.168.205.2",
+            'management_start_address': "192.168.204.2"
+        }
+        self.assertEqual(cutils.get_management_start_address(payload), payload['admin_start_address'])
+
+    def test_get_management_end_address(self):
+        payload = {
+            'management_end_address': "192.168.204.50"
+        }
+        self.assertEqual(cutils.get_management_end_address(payload), payload['management_end_address'])
+
+    def test_get_management_end_address_return_admin(self):
+        payload = {
+            'admin_end_address': "192.168.205.50",
+            'management_end_address': "192.168.204.50"
+        }
+        self.assertEqual(cutils.get_management_end_address(payload), payload['admin_end_address'])
+
+    def test_get_management_gateway_address(self):
+        payload = {
+            'management_gateway_address': "192.168.204.1"
+        }
+        self.assertEqual(cutils.get_management_gateway_address(payload), payload['management_gateway_address'])
+
+    def test_get_management_gateway_address_return_admin(self):
+        payload = {
+            'admin_gateway_address': "192.168.205.1",
+            'management_gateway_address': "192.168.204.1"
+        }
+        self.assertEqual(cutils.get_management_gateway_address(payload), payload['admin_gateway_address'])
+
+    @mock.patch.object(rpc_client, 'ManagerClient')
+    def test_validate_admin_config_subnet_small(self, mock_rpc_client):
+
+        admin_subnet = "192.168.205.0/32"
+        admin_start_address = "192.168.205.2"
+        admin_end_address = "192.168.205.50"
+        admin_gateway_address = "192.168.205.1"
+
+        six.assertRaisesRegex(self,
+                              Exception,
+                              "Subnet too small*",
+                              subclouds.SubcloudsController().
+                              _validate_admin_network_config,
+                              admin_subnet,
+                              admin_start_address,
+                              admin_end_address,
+                              admin_gateway_address,
+                              existing_networks=None)
+
+    @mock.patch.object(rpc_client, 'ManagerClient')
+    def test_validate_admin_config_start_address_outOfSubnet(self, mock_rpc_client):
+
+        admin_subnet = "192.168.205.0/28"
+        admin_start_address = "192.168.205.200"
+        admin_end_address = "192.168.205.50"
+        admin_gateway_address = "192.168.205.1"
+
+        six.assertRaisesRegex(self,
+                              Exception,
+                              "Address must be in subnet*",
+                              subclouds.SubcloudsController().
+                              _validate_admin_network_config,
+                              admin_subnet,
+                              admin_start_address,
+                              admin_end_address,
+                              admin_gateway_address,
+                              existing_networks=None)
+
+    @mock.patch.object(rpc_client, 'ManagerClient')
+    def test_validate_admin_config_end_address_outOfSubnet(self, mock_rpc_client):
+
+        admin_subnet = "192.168.205.0/28"
+        admin_start_address = "192.168.205.1"
+        admin_end_address = "192.168.205.50"
+        admin_gateway_address = "192.168.205.1"
+
+        six.assertRaisesRegex(self,
+                              Exception,
+                              "Address must be in subnet*",
+                              subclouds.SubcloudsController().
+                              _validate_admin_network_config,
+                              admin_subnet,
+                              admin_start_address,
+                              admin_end_address,
+                              admin_gateway_address,
+                              existing_networks=None)
+
+    @mock.patch.object(rpc_client, 'ManagerClient')
+    def test_validate_admin_config_gateway_address_outOfSubnet(self, mock_rpc_client):
+
+        admin_subnet = "192.168.205.0/28"
+        admin_start_address = "192.168.205.1"
+        admin_end_address = "192.168.205.12"
+        admin_gateway_address = "192.168.205.50"
+
+        six.assertRaisesRegex(self,
+                              Exception,
+                              "Address must be in subnet*",
+                              subclouds.SubcloudsController().
+                              _validate_admin_network_config,
+                              admin_subnet,
+                              admin_start_address,
+                              admin_end_address,
+                              admin_gateway_address,
+                              existing_networks=None)

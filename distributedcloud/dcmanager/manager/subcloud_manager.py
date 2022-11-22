@@ -318,7 +318,7 @@ class SubcloudManager(manager.Manager):
             m_ks_client = OpenStackDriver(
                 region_name=dccommon_consts.DEFAULT_REGION_NAME,
                 region_clients=None).keystone_client
-            subcloud_subnet = netaddr.IPNetwork(payload['management_subnet'])
+            subcloud_subnet = netaddr.IPNetwork(utils.get_management_subnet(payload))
             endpoint = m_ks_client.endpoint_cache.get_endpoint('sysinv')
             sysinv_client = SysinvClient(dccommon_consts.DEFAULT_REGION_NAME,
                                          m_ks_client.session,
@@ -343,7 +343,7 @@ class SubcloudManager(manager.Manager):
             # The non-identity endpoints are added to facilitate horizon access
             # from the System Controller to the subcloud.
             endpoint_config = []
-            endpoint_ip = payload['management_start_address']
+            endpoint_ip = utils.get_management_start_address(payload)
             if netaddr.IPAddress(endpoint_ip).version == 6:
                 endpoint_ip = '[' + endpoint_ip + ']'
 

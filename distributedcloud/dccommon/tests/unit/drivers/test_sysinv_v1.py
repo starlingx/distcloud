@@ -102,6 +102,37 @@ class TestSysinvClient(base.DCCommonTestCase):
         self.assertEqual(pool, management_pool)
 
     @mock.patch.object(sysinv_v1.SysinvClient, '__init__')
+    def test_get_admin_interface(self, mock_sysinvclient_init):
+        interface = FakeInterface('interface', 'uuid')
+        interface_network = FakeInterfaceNetwork('admin', 'interface')
+        mock_sysinvclient_init.return_value = None
+        sysinv_client = sysinv_v1.SysinvClient(dccommon_consts.DEFAULT_REGION_NAME,
+                                               None)
+        sysinv_client.sysinv_client = mock.MagicMock()
+        sysinv_client.sysinv_client.iinterface.list = mock.MagicMock()
+        sysinv_client.sysinv_client.iinterface.list.return_value = [interface]
+        sysinv_client.sysinv_client.interface_network.list_by_interface.\
+            return_value = [interface_network]
+        admin_interface = sysinv_client.get_admin_interface(
+            'hostname')
+        self.assertEqual(interface, admin_interface)
+
+    @mock.patch.object(sysinv_v1.SysinvClient, '__init__')
+    def test_get_admin_address_pool(self, mock_sysinvclient_init):
+        network = FakeNetwork('admin', 'uuid')
+        pool = FakeAddressPool('uuid')
+        mock_sysinvclient_init.return_value = None
+        sysinv_client = sysinv_v1.SysinvClient(dccommon_consts.DEFAULT_REGION_NAME,
+                                               None)
+        sysinv_client.sysinv_client = mock.MagicMock()
+        sysinv_client.sysinv_client.network.list = mock.MagicMock()
+        sysinv_client.sysinv_client.network.list.return_value = [network]
+        sysinv_client.sysinv_client.address_pool.get = mock.MagicMock()
+        sysinv_client.sysinv_client.address_pool.get.return_value = pool
+        admin_pool = sysinv_client.get_admin_address_pool()
+        self.assertEqual(pool, admin_pool)
+
+    @mock.patch.object(sysinv_v1.SysinvClient, '__init__')
     def test_create_route(self, mock_sysinvclient_init):
         fake_route = utils.create_route_dict(base.ROUTE_0)
         mock_sysinvclient_init.return_value = None
