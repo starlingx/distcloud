@@ -187,12 +187,6 @@ ERROR_DESC_EMPTY = 'No errors present'
 # error_description max length
 ERROR_DESCRIPTION_LENGTH = 2048
 
-# States to discard while restoring subclouds
-INVALID_DEPLOY_STATES_FOR_RESTORE = [DEPLOY_STATE_INSTALLING,
-                                     DEPLOY_STATE_BOOTSTRAPPING,
-                                     DEPLOY_STATE_DEPLOYING,
-                                     DEPLOY_STATE_REHOMING]
-
 # Subcloud backup status states
 BACKUP_STATE_INITIAL = 'initial'
 BACKUP_STATE_VALIDATING = 'validating'
@@ -293,3 +287,13 @@ DEFAULT_PERSISTENT_SIZE = 30000
 # since these should only occur if a service is being restarted
 PLATFORM_RETRY_MAX_ATTEMPTS = 5
 PLATFORM_RETRY_SLEEP_MILLIS = 5000
+
+# States to reject when processing a subcloud-backup create request
+VALID_DEPLOY_STATES_FOR_BACKUP = [DEPLOY_STATE_DONE,
+                                  PRESTAGE_STATE_COMPLETE]
+
+# States to reject when processing a subcloud-backup restore request
+INVALID_DEPLOY_STATES_FOR_RESTORE = [DEPLOY_STATE_INSTALLING,
+                                     DEPLOY_STATE_BOOTSTRAPPING,
+                                     DEPLOY_STATE_DEPLOYING,
+                                     DEPLOY_STATE_REHOMING]

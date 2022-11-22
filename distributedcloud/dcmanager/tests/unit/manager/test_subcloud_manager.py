@@ -1602,7 +1602,7 @@ class TestSubcloudManager(base.DCManagerTestCase):
         self.assertEqual(consts.DEPLOY_STATE_DONE,
                          subcloud.deploy_status)
 
-    @mock.patch.object(cutils, 'has_management_affecting_alarms', return_value=False)
+    @mock.patch.object(cutils, 'is_subcloud_healthy', return_value=True)
     @mock.patch.object(subcloud_manager.SubcloudManager, '_run_parallel_group_operation')
     def test_backup_create_managed_online(self, mock_parallel_group_operation, mock_health):
 
