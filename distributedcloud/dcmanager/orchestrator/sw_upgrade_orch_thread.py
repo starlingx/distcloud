@@ -49,6 +49,8 @@ from dcmanager.orchestrator.states.upgrade.swact_to_controller_0 \
     import SwactToController0State
 from dcmanager.orchestrator.states.upgrade.swact_to_controller_1 \
     import SwactToController1State
+from dcmanager.orchestrator.states.upgrade.transfer_ca_certificate \
+    import TransferCACertificateState
 from dcmanager.orchestrator.states.upgrade.unlock_duplex \
     import UnlockDuplexState
 from dcmanager.orchestrator.states.upgrade.unlock_simplex \
@@ -86,6 +88,7 @@ class SwUpgradeOrchThread(OrchThread):
         consts.STRATEGY_STATE_FINISHING_PATCH_STRATEGY:
             FinishingPatchStrategyState,
         consts.STRATEGY_STATE_STARTING_UPGRADE: StartingUpgradeState,
+        consts.STRATEGY_STATE_TRANSFERRING_CA_CERTIFICATE: TransferCACertificateState,
         consts.STRATEGY_STATE_LOCKING_CONTROLLER_0: LockSimplexState,
         consts.STRATEGY_STATE_LOCKING_CONTROLLER_1: LockDuplexState,
         consts.STRATEGY_STATE_UPGRADING_SIMPLEX: UpgradingSimplexState,

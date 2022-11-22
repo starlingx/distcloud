@@ -108,6 +108,7 @@ STRATEGY_STATE_IMPORTING_LOAD = "importing load"
 STRATEGY_STATE_UPDATING_PATCHES = "updating patches"
 STRATEGY_STATE_FINISHING_PATCH_STRATEGY = "finishing patch strategy"
 STRATEGY_STATE_STARTING_UPGRADE = "starting upgrade"
+STRATEGY_STATE_TRANSFERRING_CA_CERTIFICATE = "transferring CA certificate"
 STRATEGY_STATE_LOCKING_CONTROLLER_0 = "locking controller-0"
 STRATEGY_STATE_LOCKING_CONTROLLER_1 = "locking controller-1"
 STRATEGY_STATE_UPGRADING_SIMPLEX = "upgrading simplex"
@@ -298,3 +299,8 @@ INVALID_DEPLOY_STATES_FOR_RESTORE = [DEPLOY_STATE_INSTALLING,
                                      DEPLOY_STATE_BOOTSTRAPPING,
                                      DEPLOY_STATE_DEPLOYING,
                                      DEPLOY_STATE_REHOMING]
+
+# The k8s secret that holds openldap CA certificate
+OPENLDAP_CA_CERT_SECRET_NAME = "system-local-ca"
+
+CERT_NAMESPACE_PLATFORM_CA_CERTS = 'cert-manager'

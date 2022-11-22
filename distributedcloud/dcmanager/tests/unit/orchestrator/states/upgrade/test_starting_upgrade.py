@@ -31,7 +31,7 @@ class TestSwUpgradeSimplexStartingUpgradeStage(TestSwUpgradeState):
         super(TestSwUpgradeSimplexStartingUpgradeStage, self).setUp()
 
         # next state after 'starting upgrade' is 'migrating data'
-        self.on_success_state = consts.STRATEGY_STATE_LOCKING_CONTROLLER_0
+        self.on_success_state = consts.STRATEGY_STATE_TRANSFERRING_CA_CERTIFICATE
 
         # Add the subcloud being processed by this unit test
         self.subcloud = self.setup_subcloud()
@@ -215,7 +215,7 @@ class TestSwUpgradeDuplexStartingUpgradeStage(TestSwUpgradeSimplexStartingUpgrad
         super(TestSwUpgradeDuplexStartingUpgradeStage, self).setUp()
 
         # next state after 'starting upgrade' is 'migrating data'
-        self.on_success_state = consts.STRATEGY_STATE_LOCKING_CONTROLLER_1
+        self.on_success_state = consts.STRATEGY_STATE_TRANSFERRING_CA_CERTIFICATE
 
         # Add mock API endpoints for sysinv client calls invoked by this state
         system_values = FakeSystem()

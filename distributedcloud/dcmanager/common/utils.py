@@ -30,12 +30,14 @@ from keystoneauth1 import exceptions as keystone_exceptions
 from oslo_concurrency import lockutils
 from oslo_config import cfg
 from oslo_log import log as logging
+from oslo_serialization import base64
 
 from dccommon import consts as dccommon_consts
 from dccommon.drivers.openstack.sdk_platform import OpenStackDriver
 from dccommon.drivers.openstack.sysinv_v1 import SysinvClient
 from dccommon.drivers.openstack import vim
 from dccommon import exceptions as dccommon_exceptions
+from dccommon import kubeoperator
 from dcmanager.common import consts
 from dcmanager.common import exceptions
 from dcmanager.db import api as db_api
@@ -774,3 +776,35 @@ def is_subcloud_healthy(subcloud_name):
         return True
 
     return False
+
+
+def get_certificate_from_secret(secret_name, secret_ns):
+    """Get certificate from k8s secret
+
+    :param secret_name: the name of the secret
+    :param secret_ns: the namespace of the secret
+
+    :return: tls_crt: the certificate.
+             tls_key: the corresponding private key of the certificate.
+    raise Exception for kubernetes data errors
+    """
+
+    kube = kubeoperator.KubeOperator()
+    secret = kube.kube_get_secret(secret_name, secret_ns)
+
+    if not hasattr(secret, 'data'):
+        raise Exception('Invalid secret %s\\%s' % (secret_ns, secret_name))
+
+    data = secret.data
+    if 'tls.crt' not in data or 'tls.key' not in data:
+        raise Exception('Invalid certificate data from secret %s\\%s' %
+                        (secret_ns, secret_name))
+
+    try:
+        tls_crt = base64.decode_as_text(data['tls.crt'])
+        tls_key = base64.decode_as_text(data['tls.key'])
+    except TypeError:
+        raise Exception('Certificate secret data is invalid %s\\%s' %
+                        (secret_ns, secret_name))
+
+    return tls_crt, tls_key
