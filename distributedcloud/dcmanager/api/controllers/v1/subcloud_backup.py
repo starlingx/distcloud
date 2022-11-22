@@ -157,11 +157,11 @@ class SubcloudBackupController(object):
 
             if (operation == 'create' and has_valid_subclouds
                     and request_entity.type == 'subcloud'):
-                # Check if the subcloud has no management affecting alarms only if
-                # the command was issued to a single subcloud to avoid huge delays.
-                if utils.has_management_affecting_alarms(subcloud.name):
-                    msg = _('Subcloud %s must have no management affecting alarms for '
-                            'subcloud-backup create' % subcloud.name)
+                # Check the system health only if the command was issued
+                # to a single subcloud to avoid huge delays.
+                if not utils.is_subcloud_healthy(subcloud.name):
+                    msg = _('Subcloud %s must be in good health for '
+                            'subcloud-backup create.' % subcloud.name)
                     pecan.abort(400, msg)
 
         if not has_valid_subclouds:

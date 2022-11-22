@@ -740,7 +740,7 @@ class SubcloudManager(manager.Manager):
                     is_valid = True
 
                     if (operation == 'create'):
-                        is_valid = not utils.has_management_affecting_alarms(subcloud.name)
+                        is_valid = utils.is_subcloud_healthy(subcloud.name)
 
             except exceptions.ValidateFail:
                 is_valid = False

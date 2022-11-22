@@ -699,10 +699,10 @@ def _is_valid_for_backup_create(subcloud):
 
     if subcloud.availability_status != dccommon_consts.AVAILABILITY_ONLINE \
         or subcloud.management_state != dccommon_consts.MANAGEMENT_MANAGED \
-        or subcloud.deploy_status != consts.DEPLOY_STATE_DONE:
-        msg = ('Subcloud %s must be online, managed and have complete '
-               'deploy-status for the subcloud-backup create operation.' %
-               subcloud.name)
+        or subcloud.deploy_status not in consts.VALID_DEPLOY_STATES_FOR_BACKUP:
+        msg = ('Subcloud %s must be online, managed and have valid '
+               'deploy-status for the subcloud-backup '
+               'create operation.' % subcloud.name)
         raise exceptions.ValidateFail(msg)
 
     return True
@@ -746,7 +746,7 @@ def get_matching_iso():
         return None, str(e)
 
 
-def has_management_affecting_alarms(subcloud_name):
+def is_subcloud_healthy(subcloud_name):
 
     system_health = ""
     try:
@@ -762,4 +762,15 @@ def has_management_affecting_alarms(subcloud_name):
         LOG.exception(e)
         raise
 
-    return not ('[0] of which are management affecting' in system_health)
+    fails = re.findall("\[Fail\]", system_health)
+    failed_alarm_check = re.findall("No alarms: \[Fail\]", system_health)
+    no_mgmt_alarms = re.findall("\[0\] of which are management affecting",
+                                system_health)
+
+    # Subcloud is considered healthy if there are no failures or
+    # a single failure with only low severity alarms (not management affecting)
+    if ((len(fails) == 0) or
+            (len(fails) == 1 and failed_alarm_check and no_mgmt_alarms)):
+        return True
+
+    return False

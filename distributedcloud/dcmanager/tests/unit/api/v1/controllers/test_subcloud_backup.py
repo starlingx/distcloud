@@ -14,7 +14,6 @@ import webtest
 
 from dccommon import consts as dccommon_consts
 from dcmanager.common import consts
-from dcmanager.common import utils as common_utils
 from dcmanager.db.sqlalchemy import api as db_api
 from dcmanager.rpc import client as rpc_client
 
@@ -29,6 +28,58 @@ FAKE_URL_RESTORE = '/v1.0/subcloud-backup/restore'
 FAKE_HEADERS = {'X-Tenant-Id': FAKE_TENANT, 'X_ROLE': 'admin,member,reader',
                 'X-Identity-Status': 'Confirmed', 'X-Project-Name': 'admin',
                 'Content-Type': 'json'}
+FAKE_GOOD_SYSTEM_HEALTH = \
+    ("System Health:\n"
+     "All hosts are provisioned: [OK]\n"
+     "All hosts are unlocked/enabled: [OK]\n"
+     "All hosts have current configurations: [OK]\n"
+     "All hosts are patch current: [OK]\n"
+     "No alarms: [Fail]\n"
+     "[1] alarms found, [0] of which are management affecting\n"
+     "All kubernetes nodes are ready: [OK]\n"
+     "All kubernetes control plane pods are ready: [OK]\n")
+FAKE_GOOD_SYSTEM_HEALTH_NO_ALARMS = \
+    ("System Health:"
+     "All hosts are provisioned: [OK]"
+     "All hosts are unlocked/enabled: [OK]"
+     "All hosts have current configurations: [OK]"
+     "All hosts are patch current: [OK]"
+     "No alarms: [OK]"
+     "All kubernetes nodes are ready: [OK]"
+     "All kubernetes control plane pods are ready: [OK]")
+FAKE_SYSTEM_HEALTH_CEPH_FAIL = \
+    ("System Health:\n"
+     "All hosts are provisioned: [OK]\n"
+     "All hosts are unlocked/enabled: [OK]\n"
+     "All hosts have current configurations: [OK]\n"
+     "All hosts are patch current: [OK]\n"
+     "Ceph Storage Healthy: [Fail]\n"
+     "No alarms: [Fail]\n"
+     "[2] alarms found, [2] of which are management affecting\n"
+     "All kubernetes nodes are ready: [OK]\n"
+     "All kubernetes control plane pods are ready: [OK]\n")
+FAKE_SYSTEM_HEALTH_MGMT_ALARM = \
+    ("System Health:\n"
+     "All hosts are provisioned: [OK]\n"
+     "All hosts are unlocked/enabled: [OK]\n"
+     "All hosts have current configurations: [OK]\n"
+     "All hosts are patch current: [OK]\n"
+     "Ceph Storage Healthy: [Fail]\n"
+     "No alarms: [Fail]\n"
+     "[2] alarms found, [2] of which are management affecting\n"
+     "All kubernetes nodes are ready: [OK]\n"
+     "All kubernetes control plane pods are ready: [OK]\n")
+FAKE_SYSTEM_HEALTH_K8S_FAIL = \
+    ("System Health:\n"
+     "All hosts are provisioned: [OK]\n"
+     "All hosts are unlocked/enabled: [OK]\n"
+     "All hosts have current configurations: [OK]\n"
+     "All hosts are patch current: [OK]\n"
+     "Ceph Storage Healthy: [Fail]\n"
+     "No alarms: [Fail]\n"
+     "[2] alarms found, [2] of which are management affecting\n"
+     "All kubernetes nodes are ready: [OK]\n"
+     "All kubernetes control plane pods are ready: [OK]\n")
 
 
 class TestSubcloudCreate(testroot.DCManagerApiTest):
@@ -42,53 +93,63 @@ class TestSubcloudCreate(testroot.DCManagerApiTest):
         self.mock_rpc_state_client = p.start()
         self.addCleanup(p.stop)
 
-    @mock.patch.object(common_utils, 'has_management_affecting_alarms', return_value=False)
+    @mock.patch('dcmanager.common.utils.OpenStackDriver')
+    @mock.patch('dcmanager.common.utils.SysinvClient')
     @mock.patch.object(rpc_client, 'ManagerClient')
-    def test_backup_create_subcloud(self, mock_rpc_client, mock_alarm):
+    def test_backup_create_subcloud(self, mock_rpc_client, mock_sysinv,
+                                    mock_openstack):
 
+        mock_rpc_client().backup_subclouds.return_value = True
         subcloud = fake_subcloud.create_fake_subcloud(self.ctx)
-
-        db_api.subcloud_update(self.ctx,
-                               subcloud.id,
-                               availability_status=dccommon_consts.AVAILABILITY_ONLINE,
-                               management_state=dccommon_consts.MANAGEMENT_MANAGED,
-                               backup_datetime=None,
-                               backup_status=consts.BACKUP_STATE_UNKNOWN)
-
         fake_password = (base64.b64encode('testpass'.encode("utf-8"))).decode('ascii')
         data = {'sysadmin_password': fake_password,
                 'subcloud': '1'}
+        good_health_states = [FAKE_GOOD_SYSTEM_HEALTH,
+                              FAKE_GOOD_SYSTEM_HEALTH_NO_ALARMS]
 
-        mock_rpc_client().backup_subclouds.return_value = True
+        for system_health in good_health_states:
 
-        response = self.app.post_json(FAKE_URL_CREATE,
-                                      headers=FAKE_HEADERS,
-                                      params=data)
+            mock_sysinv().get_system_health.return_value = system_health
+            db_api.subcloud_update(self.ctx,
+                                   subcloud.id,
+                                   availability_status=dccommon_consts.AVAILABILITY_ONLINE,
+                                   management_state=dccommon_consts.MANAGEMENT_MANAGED,
+                                   backup_datetime=None,
+                                   backup_status=consts.BACKUP_STATE_UNKNOWN)
 
-        self.assertEqual(response.status_int, 200)
+            response = self.app.post_json(FAKE_URL_CREATE,
+                                          headers=FAKE_HEADERS,
+                                          params=data)
 
-    @mock.patch.object(common_utils, 'has_management_affecting_alarms', return_value=True)
+            self.assertEqual(response.status_int, 200)
+
+    @mock.patch('dcmanager.common.utils.OpenStackDriver')
+    @mock.patch('dcmanager.common.utils.SysinvClient')
     @mock.patch.object(rpc_client, 'ManagerClient')
-    def test_backup_create_subcloud_with_mgmt_alarm(self, mock_rpc_client, mock_alarm):
+    def test_backup_create_subcloud_with_bad_system_health(
+        self, mock_rpc_client, mock_sysinv, mock_openstack):
 
         subcloud = fake_subcloud.create_fake_subcloud(self.ctx)
-
-        db_api.subcloud_update(self.ctx,
-                               subcloud.id,
-                               availability_status=dccommon_consts.AVAILABILITY_ONLINE,
-                               management_state=dccommon_consts.MANAGEMENT_MANAGED,
-                               backup_datetime=None,
-                               backup_status=consts.BACKUP_STATE_UNKNOWN)
-
-        fake_password = (base64.b64encode('testpass'.encode("utf-8"))).decode('ascii')
-        data = {'sysadmin_password': fake_password,
-                'subcloud': '1'}
-
         mock_rpc_client().backup_subclouds.return_value = True
+        fake_password = (base64.b64encode('testpass'.encode("utf-8"))).decode('ascii')
+        data = {'sysadmin_password': fake_password, 'subcloud': '1'}
 
-        six.assertRaisesRegex(self, webtest.app.AppError, "404 *",
-                              self.app.post_json, FAKE_URL_CREATE,
-                              headers=FAKE_HEADERS, params=data)
+        bad_health_states = [FAKE_SYSTEM_HEALTH_MGMT_ALARM, FAKE_SYSTEM_HEALTH_CEPH_FAIL,
+                             FAKE_SYSTEM_HEALTH_K8S_FAIL]
+
+        for system_health in bad_health_states:
+
+            mock_sysinv().get_system_health.return_value = system_health
+            db_api.subcloud_update(self.ctx,
+                                   subcloud.id,
+                                   availability_status=dccommon_consts.AVAILABILITY_ONLINE,
+                                   management_state=dccommon_consts.MANAGEMENT_MANAGED,
+                                   backup_datetime=None,
+                                   backup_status=consts.BACKUP_STATE_UNKNOWN)
+
+            six.assertRaisesRegex(self, webtest.app.AppError, "404 *",
+                                  self.app.post_json, FAKE_URL_CREATE,
+                                  headers=FAKE_HEADERS, params=data)
 
     @mock.patch.object(rpc_client, 'ManagerClient')
     def test_backup_create_unknown_subcloud(self, mock_rpc_client):
@@ -179,9 +240,8 @@ class TestSubcloudCreate(testroot.DCManagerApiTest):
                               self.app.post_json, FAKE_URL_CREATE,
                               headers=FAKE_HEADERS, params=data)
 
-    @mock.patch.object(common_utils, 'has_management_affecting_alarms', return_value=False)
     @mock.patch.object(rpc_client, 'ManagerClient')
-    def test_backup_create_group(self, mock_rpc_client, mock_alarm):
+    def test_backup_create_group(self, mock_rpc_client):
 
         subcloud = fake_subcloud.create_fake_subcloud(self.ctx)
 
@@ -337,9 +397,10 @@ class TestSubcloudCreate(testroot.DCManagerApiTest):
                               self.app.post_json, FAKE_URL_CREATE,
                               headers=FAKE_HEADERS, params=data)
 
-    @mock.patch.object(common_utils, 'has_management_affecting_alarms', return_value=False)
+    @mock.patch('dcmanager.common.utils.OpenStackDriver')
+    @mock.patch('dcmanager.common.utils.SysinvClient')
     @mock.patch.object(rpc_client, 'ManagerClient')
-    def test_backup_create_subcloud_backup_values(self, mock_rpc_client, mock_alarm):
+    def test_backup_create_subcloud_backup_values(self, mock_rpc_client, mock_sysinv, mock_openstack):
 
         subcloud = fake_subcloud.create_fake_subcloud(self.ctx)
 
@@ -356,6 +417,7 @@ class TestSubcloudCreate(testroot.DCManagerApiTest):
                 'backup_values': 'TestFileDirectory'}
 
         mock_rpc_client().backup_subclouds.return_value = True
+        mock_sysinv().get_system_health.return_value = FAKE_GOOD_SYSTEM_HEALTH
 
         response = self.app.post_json(FAKE_URL_CREATE,
                                       headers=FAKE_HEADERS,
@@ -382,9 +444,11 @@ class TestSubcloudCreate(testroot.DCManagerApiTest):
                               self.app.post_json, FAKE_URL_CREATE,
                               headers=FAKE_HEADERS, params=data)
 
-    @mock.patch.object(common_utils, 'has_management_affecting_alarms', return_value=False)
+    @mock.patch('dcmanager.common.utils.OpenStackDriver')
+    @mock.patch('dcmanager.common.utils.SysinvClient')
     @mock.patch.object(rpc_client, 'ManagerClient')
-    def test_backup_create_subcloud_local_only(self, mock_rpc_client, mock_alarm):
+    def test_backup_create_subcloud_local_only(self, mock_rpc_client, mock_sysinv,
+                                               mock_openstack):
         subcloud = fake_subcloud.create_fake_subcloud(self.ctx)
 
         db_api.subcloud_update(self.ctx,
@@ -399,6 +463,7 @@ class TestSubcloudCreate(testroot.DCManagerApiTest):
                 'subcloud': '1',
                 'local_only': 'True'}
         mock_rpc_client().backup_subclouds.return_value = True
+        mock_sysinv().get_system_health.return_value = FAKE_GOOD_SYSTEM_HEALTH
 
         response = self.app.post_json(FAKE_URL_CREATE,
                                       headers=FAKE_HEADERS,
@@ -406,10 +471,11 @@ class TestSubcloudCreate(testroot.DCManagerApiTest):
 
         self.assertEqual(response.status_int, 200)
 
-    @mock.patch.object(common_utils, 'has_management_affecting_alarms', return_value=False)
+    @mock.patch('dcmanager.common.utils.OpenStackDriver')
+    @mock.patch('dcmanager.common.utils.SysinvClient')
     @mock.patch.object(rpc_client, 'ManagerClient')
     def test_backup_create_subcloud_local_only_registry_images(
-        self, mock_rpc_client, mock_alarm):
+        self, mock_rpc_client, mock_sysinv, mock_openstack):
 
         subcloud = fake_subcloud.create_fake_subcloud(self.ctx)
 
@@ -426,6 +492,7 @@ class TestSubcloudCreate(testroot.DCManagerApiTest):
                 'local_only': 'True',
                 'registry_images': 'True'}
         mock_rpc_client().backup_subclouds.return_value = True
+        mock_sysinv().get_system_health.return_value = FAKE_GOOD_SYSTEM_HEALTH
 
         response = self.app.post_json(FAKE_URL_CREATE,
                                       headers=FAKE_HEADERS,
@@ -433,10 +500,11 @@ class TestSubcloudCreate(testroot.DCManagerApiTest):
 
         self.assertEqual(response.status_int, 200)
 
-    @mock.patch.object(common_utils, 'has_management_affecting_alarms', return_value=False)
+    @mock.patch('dcmanager.common.utils.OpenStackDriver')
+    @mock.patch('dcmanager.common.utils.SysinvClient')
     @mock.patch.object(rpc_client, 'ManagerClient')
     def test_backup_create_subcloud_no_local_only_registry_images(
-        self, mock_rpc_client, mock_alarm):
+        self, mock_rpc_client, mock_sysinv, mock_openstack):
 
         subcloud = fake_subcloud.create_fake_subcloud(self.ctx)
 
@@ -453,6 +521,7 @@ class TestSubcloudCreate(testroot.DCManagerApiTest):
                 'registry_images': 'True'}
 
         mock_rpc_client().backup_subclouds.return_value = True
+        mock_sysinv().get_system_health.return_value = FAKE_GOOD_SYSTEM_HEALTH
 
         six.assertRaisesRegex(self, webtest.app.AppError, "400 *",
                               self.app.post_json, FAKE_URL_CREATE,
@@ -500,9 +569,11 @@ class TestSubcloudCreate(testroot.DCManagerApiTest):
                               self.app.post_json, FAKE_URL_CREATE,
                               headers=FAKE_HEADERS, params=data)
 
-    @mock.patch.object(common_utils, 'has_management_affecting_alarms', return_value=False)
+    @mock.patch('dcmanager.common.utils.OpenStackDriver')
+    @mock.patch('dcmanager.common.utils.SysinvClient')
     @mock.patch.object(rpc_client, 'ManagerClient')
-    def test_backup_create_subcloud_json_file(self, mock_rpc_client, mock_alarm):
+    def test_backup_create_subcloud_json_file(self, mock_rpc_client, mock_sysinv,
+                                              mock_openstack):
 
         subcloud = fake_subcloud.create_fake_subcloud(self.ctx)
 
@@ -517,6 +588,7 @@ class TestSubcloudCreate(testroot.DCManagerApiTest):
         data = {'sysadmin_password': fake_password,
                 'subcloud': '1'}
         mock_rpc_client().backup_subclouds.return_value = True
+        mock_sysinv().get_system_health.return_value = FAKE_GOOD_SYSTEM_HEALTH
 
         response = self.app.post_json(FAKE_URL_CREATE,
                                       headers=FAKE_HEADERS,
@@ -1045,8 +1117,7 @@ class TestSubcloudRestore(testroot.DCManagerApiTest):
         invalid_deploy_states = [consts.DEPLOY_STATE_INSTALLING,
                                  consts.DEPLOY_STATE_BOOTSTRAPPING,
                                  consts.DEPLOY_STATE_DEPLOYING,
-                                 consts.DEPLOY_STATE_REHOMING,
-                                 consts.DEPLOY_STATE_DONE]
+                                 consts.DEPLOY_STATE_REHOMING]
 
         subcloud = fake_subcloud.create_fake_subcloud(self.ctx)
         fake_password = (base64.b64encode('testpass'.encode("utf-8"))).decode('ascii')
