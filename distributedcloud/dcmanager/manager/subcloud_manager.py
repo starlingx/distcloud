@@ -118,9 +118,9 @@ TRANSITORY_BACKUP_STATES = {
     consts.BACKUP_STATE_IN_PROGRESS: consts.BACKUP_STATE_FAILED
 }
 
-MAX_PARALLEL_SUBCLOUD_BACKUP_CREATE = 50
+MAX_PARALLEL_SUBCLOUD_BACKUP_CREATE = 250
 MAX_PARALLEL_SUBCLOUD_BACKUP_DELETE = 250
-MAX_PARALLEL_SUBCLOUD_BACKUP_RESTORE = 50
+MAX_PARALLEL_SUBCLOUD_BACKUP_RESTORE = 100
 CENTRAL_BACKUP_DIR = '/opt/dc-vault/backups'
 
 
@@ -616,8 +616,6 @@ class SubcloudManager(manager.Manager):
             self._validate_subclouds_for_backup(subclouds, 'create')
 
         self._mark_invalid_subclouds_for_backup(context, invalid_subclouds)
-        self._update_backup_status(context, subclouds_to_backup,
-                                   consts.BACKUP_STATE_PRE_BACKUP)
 
         # Use thread pool to limit number of operations in parallel
         backup_pool = greenpool.GreenPool(size=MAX_PARALLEL_SUBCLOUD_BACKUP_CREATE)
@@ -739,9 +737,6 @@ class SubcloudManager(manager.Manager):
                 if utils.is_valid_for_backup_operation(operation, subcloud):
                     is_valid = True
 
-                    if (operation == 'create'):
-                        is_valid = utils.is_subcloud_healthy(subcloud.name)
-
             except exceptions.ValidateFail:
                 is_valid = False
 
@@ -821,6 +816,25 @@ class SubcloudManager(manager.Manager):
 
     def _backup_subcloud(self, context, payload, subcloud):
         try:
+            # Health check validation
+            if not utils.is_subcloud_healthy(subcloud.name):
+                db_api.subcloud_update(
+                    context,
+                    subcloud.id,
+                    backup_status=consts.BACKUP_STATE_VALIDATE_FAILED,
+                )
+                LOG.info(
+                    ("Subcloud %s is not in good health for subcloud-backup create")
+                    % subcloud.name
+                )
+                return subcloud, False
+
+            db_api.subcloud_update(
+                context,
+                subcloud.id,
+                backup_status=consts.BACKUP_STATE_PRE_BACKUP,
+            )
+
             subcloud_inventory_file = self._create_subcloud_inventory_file(subcloud)
 
             # Prepare for backup

@@ -1603,8 +1603,22 @@ class TestSubcloudManager(base.DCManagerTestCase):
                          subcloud.deploy_status)
 
     @mock.patch.object(cutils, 'is_subcloud_healthy', return_value=True)
-    @mock.patch.object(subcloud_manager.SubcloudManager, '_run_parallel_group_operation')
-    def test_backup_create_managed_online(self, mock_parallel_group_operation, mock_health):
+    @mock.patch.object(subcloud_manager.SubcloudManager,
+                       '_run_subcloud_backup_create_playbook')
+    @mock.patch.object(subcloud_manager.SubcloudManager,
+                       '_set_subcloud_backup_failure_alarm')
+    @mock.patch.object(subcloud_manager.SubcloudManager,
+                       '_clear_subcloud_backup_failure_alarm_if_exists')
+    @mock.patch.object(subcloud_manager.SubcloudManager,
+                       '_create_overrides_for_backup_or_restore')
+    @mock.patch.object(subcloud_manager.SubcloudManager,
+                       '_create_subcloud_inventory_file')
+    def test_backup_create_managed_online(
+        self, mock_create_inventory_file, mock_create_overrides,
+        mock_clear_alarm, mock_set_alarm, mock_run_playbook, mock_is_healthy,
+    ):
+        mock_create_inventory_file.return_value = 'inventory_file.yml'
+        mock_create_overrides.return_value = 'overrides_file.yml'
 
         values = copy.copy(FAKE_BACKUP_CREATE_LOAD)
         subcloud = self.create_subcloud_static(
@@ -1622,7 +1636,12 @@ class TestSubcloudManager(base.DCManagerTestCase):
         sm = subcloud_manager.SubcloudManager()
         sm.create_subcloud_backups(self.ctx, payload=values)
 
-        mock_parallel_group_operation.assert_called_once()
+        mock_create_inventory_file.assert_called_once()
+        mock_create_overrides.assert_called_once()
+        mock_clear_alarm.assert_called_once()
+        mock_set_alarm.assert_not_called()
+        mock_run_playbook.assert_called_once()
+        mock_is_healthy.assert_called_once()
 
         # Verify that subcloud has the correct deploy status consts.PRESTAGE_STATE_PREPARE
         updated_subcloud = db_api.subcloud_get_by_name(self.ctx, subcloud.name)
@@ -1766,6 +1785,7 @@ class TestSubcloudManager(base.DCManagerTestCase):
         self.assertEqual(consts.BACKUP_STATE_UNKNOWN,
                          updated_subcloud.backup_status)
 
+    @mock.patch.object(cutils, 'is_subcloud_healthy', return_value=True)
     @mock.patch.object(cutils, 'delete_subcloud_inventory')
     @mock.patch.object(subcloud_manager.SubcloudManager,
                        '_create_backup_overrides_file')
@@ -1783,7 +1803,7 @@ class TestSubcloudManager(base.DCManagerTestCase):
         mock_create_subcloud_inventory, mock_compose_backup_command,
         mock_clear_subcloud_failure_alarm, mock_run_playbook,
         mock_oam_address, mock_keyring, mock_create_backup_file,
-        mock_delete_subcloud_inventory):
+        mock_delete_subcloud_inventory, mock_is_healthy):
 
         subcloud = self.create_subcloud_static(
             self.ctx,
@@ -1808,6 +1828,7 @@ class TestSubcloudManager(base.DCManagerTestCase):
 
         mock_create_backup_file.assert_called_once()
         mock_run_playbook.assert_called_once()
+        mock_is_healthy.assert_called_once()
 
         mock_compose_backup_command.assert_called_once()
         mock_clear_subcloud_failure_alarm.assert_called_once()
