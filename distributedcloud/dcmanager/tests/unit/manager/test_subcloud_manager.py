@@ -1815,7 +1815,7 @@ class TestSubcloudManager(base.DCManagerTestCase):
         mock_delete_subcloud_inventory.assert_called_once_with(override_file)
 
         updated_subcloud = db_api.subcloud_get_by_name(self.ctx, subcloud.name)
-        self.assertEqual(consts.BACKUP_STATE_COMPLETE,
+        self.assertEqual(consts.BACKUP_STATE_COMPLETE_CENTRAL,
                          updated_subcloud.backup_status)
 
     @mock.patch.object(subcloud_manager.SubcloudManager,
@@ -1858,7 +1858,7 @@ class TestSubcloudManager(base.DCManagerTestCase):
         subcloud = self.create_subcloud_static(
             self.ctx,
             name='subcloud1',
-            deploy_status=consts.BACKUP_STATE_COMPLETE)
+            deploy_status=consts.BACKUP_STATE_COMPLETE_CENTRAL)
 
         values = copy.copy(FAKE_BACKUP_DELETE_LOAD_1)
         RELEASE_VERSION = '22.12'

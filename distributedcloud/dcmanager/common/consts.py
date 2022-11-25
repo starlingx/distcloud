@@ -196,7 +196,8 @@ BACKUP_STATE_PREP_FAILED = 'backup-prep-failed'
 BACKUP_STATE_IN_PROGRESS = 'backing-up'
 BACKUP_STATE_FAILED = 'failed'
 BACKUP_STATE_UNKNOWN = 'unknown'
-BACKUP_STATE_COMPLETE = 'complete'
+BACKUP_STATE_COMPLETE_LOCAL = 'complete-local'
+BACKUP_STATE_COMPLETE_CENTRAL = 'complete-central'
 
 # Upgrades States
 UPGRADE_STATE_DATA_MIGRATION = 'data-migration'
