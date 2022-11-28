@@ -25,7 +25,6 @@ from dcmanager.common import exceptions
 from dcmanager.common.i18n import _
 from dcmanager.common import utils
 from dcmanager.db import api as db_api
-from dcmanager.db.sqlalchemy.models import Subcloud
 from dcmanager.rpc import client as rpc_client
 
 CONF = cfg.CONF
@@ -146,12 +145,24 @@ class SubcloudBackupController(object):
             operation (string): Subcloud backup operation
         """
         subclouds = request_entity.subclouds
-        error_msg = ''
+        error_msg = _('Subcloud(s) must be in a valid state for backup %s.' % operation)
         has_valid_subclouds = False
         for subcloud in subclouds:
             try:
-                if utils.is_valid_for_backup_operation(operation, subcloud):
-                    has_valid_subclouds = True
+                is_valid = utils.is_valid_for_backup_operation(operation, subcloud)
+
+                if operation == 'create':
+                    backup_in_progress = subcloud.backup_status in \
+                        consts.STATES_FOR_ONGOING_BACKUP
+                    if is_valid and not backup_in_progress:
+                        has_valid_subclouds = True
+                    else:
+                        error_msg = _('Subcloud(s) already have a backup '
+                                      'operation in progress.')
+                else:
+                    if is_valid:
+                        has_valid_subclouds = True
+
             except exceptions.ValidateFail as e:
                 error_msg = e.message
 
@@ -202,19 +213,6 @@ class SubcloudBackupController(object):
         else:
             pecan.abort(400, _("'subcloud' or 'group' parameter is required"))
 
-    @staticmethod
-    def _reset_backup_status(context, subclouds):
-        subcloud_ids = []
-        for subcloud in subclouds:
-            subcloud.backup_status = consts.BACKUP_STATE_INITIAL
-            subcloud_ids.append(subcloud.id)
-
-        update_form = {
-            Subcloud.backup_status.name: consts.BACKUP_STATE_INITIAL
-        }
-
-        db_api.subcloud_bulk_update_by_ids(context, subcloud_ids, update_form)
-
     @utils.synchronized(LOCK_NAME)
     @index.when(method='POST', template='json')
     def post(self):
@@ -237,12 +235,9 @@ class SubcloudBackupController(object):
 
         # Set subcloud/group ID as reference instead of name to ease processing
         payload[request_entity.type] = request_entity.id
-        subclouds = request_entity.subclouds
-
         self._convert_param_to_bool(payload, ['local_only', 'registry_images'])
 
         try:
-            self._reset_backup_status(context, subclouds)
             self.dcmanager_rpc_client.backup_subclouds(context, payload)
             return utils.subcloud_db_list_to_dict(request_entity.subclouds)
         except RemoteError as e:
