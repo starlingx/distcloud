@@ -618,7 +618,7 @@ class TestSubcloudDelete(testroot.DCManagerApiTest):
                                availability_status=dccommon_consts.AVAILABILITY_ONLINE,
                                management_state=dccommon_consts.MANAGEMENT_MANAGED,
                                backup_datetime=timeutils.utcnow(),
-                               backup_status=consts.BACKUP_STATE_COMPLETE)
+                               backup_status=consts.BACKUP_STATE_COMPLETE_CENTRAL)
 
         release_version = '22.12'
         fake_password = (base64.b64encode('testpass'.encode("utf-8"))).decode('ascii')
@@ -643,7 +643,7 @@ class TestSubcloudDelete(testroot.DCManagerApiTest):
                                availability_status=dccommon_consts.AVAILABILITY_OFFLINE,
                                management_state=dccommon_consts.MANAGEMENT_MANAGED,
                                backup_datetime=timeutils.utcnow(),
-                               backup_status=consts.BACKUP_STATE_COMPLETE)
+                               backup_status=consts.BACKUP_STATE_COMPLETE_CENTRAL)
 
         release_version = '22.12'
         fake_password = (base64.b64encode('testpass'.encode("utf-8"))).decode('ascii')
@@ -665,7 +665,7 @@ class TestSubcloudDelete(testroot.DCManagerApiTest):
                                availability_status=dccommon_consts.AVAILABILITY_ONLINE,
                                management_state=dccommon_consts.MANAGEMENT_UNMANAGED,
                                backup_datetime=timeutils.utcnow(),
-                               backup_status=consts.BACKUP_STATE_COMPLETE)
+                               backup_status=consts.BACKUP_STATE_COMPLETE_CENTRAL)
 
         release_version = '22.12'
         fake_password = (base64.b64encode('testpass'.encode("utf-8"))).decode('ascii')
@@ -688,7 +688,7 @@ class TestSubcloudDelete(testroot.DCManagerApiTest):
                                availability_status=dccommon_consts.AVAILABILITY_ONLINE,
                                management_state=dccommon_consts.MANAGEMENT_MANAGED,
                                backup_datetime=timeutils.utcnow(),
-                               backup_status=consts.BACKUP_STATE_COMPLETE)
+                               backup_status=consts.BACKUP_STATE_COMPLETE_CENTRAL)
 
         release_version = '22.12'
         fake_password = (base64.b64encode('testpass'.encode("utf-8"))).decode('ascii')
@@ -713,7 +713,7 @@ class TestSubcloudDelete(testroot.DCManagerApiTest):
                                availability_status=dccommon_consts.AVAILABILITY_ONLINE,
                                management_state=dccommon_consts.MANAGEMENT_MANAGED,
                                backup_datetime=timeutils.utcnow(),
-                               backup_status=consts.BACKUP_STATE_COMPLETE)
+                               backup_status=consts.BACKUP_STATE_COMPLETE_CENTRAL)
         HEADER = copy.copy(FAKE_HEADERS)
         release_version = '22.12'
         fake_password = (base64.b64encode('testpass'.encode("utf-8"))).decode('ascii')
@@ -737,7 +737,7 @@ class TestSubcloudDelete(testroot.DCManagerApiTest):
                                availability_status=dccommon_consts.AVAILABILITY_ONLINE,
                                management_state=dccommon_consts.MANAGEMENT_MANAGED,
                                backup_datetime=timeutils.utcnow(),
-                               backup_status=consts.BACKUP_STATE_COMPLETE)
+                               backup_status=consts.BACKUP_STATE_COMPLETE_CENTRAL)
 
         release_version = '22.12'
         fake_password = (base64.b64encode('testpass'.encode("utf-8"))).decode('ascii')
@@ -762,7 +762,7 @@ class TestSubcloudDelete(testroot.DCManagerApiTest):
                                availability_status=dccommon_consts.AVAILABILITY_ONLINE,
                                management_state=dccommon_consts.MANAGEMENT_MANAGED,
                                backup_datetime=timeutils.utcnow(),
-                               backup_status=consts.BACKUP_STATE_COMPLETE)
+                               backup_status=consts.BACKUP_STATE_COMPLETE_CENTRAL)
 
         invalid_url = '/v1.0/subcloud-backup/fake/'
         fake_password = (base64.b64encode('testpass'.encode("utf-8"))).decode('ascii')
@@ -785,7 +785,7 @@ class TestSubcloudDelete(testroot.DCManagerApiTest):
                                availability_status=dccommon_consts.AVAILABILITY_ONLINE,
                                management_state=dccommon_consts.MANAGEMENT_MANAGED,
                                backup_datetime=timeutils.utcnow(),
-                               backup_status=consts.BACKUP_STATE_COMPLETE)
+                               backup_status=consts.BACKUP_STATE_COMPLETE_CENTRAL)
 
         fake_password = (base64.b64encode('testpass'.encode("utf-8"))).decode('ascii')
         data = {'sysadmin_password': fake_password,
@@ -807,7 +807,7 @@ class TestSubcloudDelete(testroot.DCManagerApiTest):
                                availability_status=dccommon_consts.AVAILABILITY_ONLINE,
                                management_state=dccommon_consts.MANAGEMENT_MANAGED,
                                backup_datetime=timeutils.utcnow(),
-                               backup_status=consts.BACKUP_STATE_COMPLETE)
+                               backup_status=consts.BACKUP_STATE_COMPLETE_CENTRAL)
 
         release_version = '22.12'
         fake_password = (base64.b64encode('testpass'.encode("utf-8"))).decode('ascii')
@@ -832,7 +832,7 @@ class TestSubcloudDelete(testroot.DCManagerApiTest):
                                availability_status=dccommon_consts.AVAILABILITY_ONLINE,
                                management_state=dccommon_consts.MANAGEMENT_MANAGED,
                                backup_datetime=timeutils.utcnow(),
-                               backup_status=consts.BACKUP_STATE_COMPLETE)
+                               backup_status=consts.BACKUP_STATE_COMPLETE_CENTRAL)
 
         release_version = '22.12'
         fake_password = (base64.b64encode('testpass'.encode("utf-8"))).decode('ascii')
@@ -855,7 +855,7 @@ class TestSubcloudDelete(testroot.DCManagerApiTest):
                                availability_status=dccommon_consts.AVAILABILITY_ONLINE,
                                management_state=dccommon_consts.MANAGEMENT_MANAGED,
                                backup_datetime=timeutils.utcnow(),
-                               backup_status=consts.BACKUP_STATE_COMPLETE)
+                               backup_status=consts.BACKUP_STATE_COMPLETE_LOCAL)
 
         release_version = '22.12'
         fake_password = (base64.b64encode('testpass'.encode("utf-8"))).decode('ascii')
@@ -872,7 +872,7 @@ class TestSubcloudDelete(testroot.DCManagerApiTest):
         self.assertEqual(response.status_int, 207)
 
     @mock.patch.object(rpc_client, 'ManagerClient')
-    def test_backup_delete_no_local_only(self, mock_rpc_client):
+    def test_backup_delete_central(self, mock_rpc_client):
 
         subcloud = fake_subcloud.create_fake_subcloud(self.ctx)
 
@@ -881,7 +881,7 @@ class TestSubcloudDelete(testroot.DCManagerApiTest):
                                availability_status=dccommon_consts.AVAILABILITY_ONLINE,
                                management_state=dccommon_consts.MANAGEMENT_MANAGED,
                                backup_datetime=timeutils.utcnow(),
-                               backup_status=consts.BACKUP_STATE_COMPLETE)
+                               backup_status=consts.BACKUP_STATE_COMPLETE_CENTRAL)
 
         release_version = '22.12'
         fake_password = (base64.b64encode('testpass'.encode("utf-8"))).decode('ascii')
@@ -898,7 +898,7 @@ class TestSubcloudDelete(testroot.DCManagerApiTest):
         self.assertEqual(response.status_int, 207)
 
     @mock.patch.object(rpc_client, 'ManagerClient')
-    def test_backup_delete_unknown_local_only(self, mock_rpc_client):
+    def test_backup_delete_invalid_local_only(self, mock_rpc_client):
 
         subcloud = fake_subcloud.create_fake_subcloud(self.ctx)
 
@@ -907,7 +907,7 @@ class TestSubcloudDelete(testroot.DCManagerApiTest):
                                availability_status=dccommon_consts.AVAILABILITY_ONLINE,
                                management_state=dccommon_consts.MANAGEMENT_MANAGED,
                                backup_datetime=timeutils.utcnow(),
-                               backup_status=consts.BACKUP_STATE_COMPLETE)
+                               backup_status=consts.BACKUP_STATE_COMPLETE_LOCAL)
 
         release_version = '22.12'
         fake_password = (base64.b64encode('testpass'.encode("utf-8"))).decode('ascii')
@@ -931,7 +931,7 @@ class TestSubcloudDelete(testroot.DCManagerApiTest):
                                availability_status=dccommon_consts.AVAILABILITY_ONLINE,
                                management_state=dccommon_consts.MANAGEMENT_MANAGED,
                                backup_datetime=timeutils.utcnow(),
-                               backup_status=consts.BACKUP_STATE_COMPLETE)
+                               backup_status=consts.BACKUP_STATE_COMPLETE_LOCAL)
 
         release_version = '22.12'
         fake_password = (base64.b64encode('testpass'.encode("utf-8"))).decode('ascii')

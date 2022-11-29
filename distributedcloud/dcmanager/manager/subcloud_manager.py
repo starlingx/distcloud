@@ -849,8 +849,9 @@ class SubcloudManager(manager.Manager):
             self._fail_subcloud_backup_prep(context, subcloud)
             return subcloud, False
 
-        success = self._run_subcloud_backup_create_playbook(subcloud, backup_command,
-                                                            context)
+        local_only = payload.get('local_only') or False
+        success = self._run_subcloud_backup_create_playbook(
+            subcloud, backup_command, context, local_only)
 
         if success:
             utils.delete_subcloud_inventory(overrides_file)
@@ -1058,7 +1059,8 @@ class SubcloudManager(manager.Manager):
 
         return backup_overrides_file
 
-    def _run_subcloud_backup_create_playbook(self, subcloud, backup_command, context):
+    def _run_subcloud_backup_create_playbook(self, subcloud, backup_command,
+                                             context, local_only):
         log_file = os.path.join(consts.DC_ANSIBLE_LOG_DIR, subcloud.name) + \
             '_playbook_output.log'
 
@@ -1070,9 +1072,16 @@ class SubcloudManager(manager.Manager):
         # Run the subcloud backup playbook
         try:
             run_playbook(log_file, backup_command)
+
+            # Decide between complete-local or complete-central
+            if local_only:
+                backup_status = consts.BACKUP_STATE_COMPLETE_LOCAL
+            else:
+                backup_status = consts.BACKUP_STATE_COMPLETE_CENTRAL
+
             db_api.subcloud_update(
                 context, subcloud.id,
-                backup_status=consts.BACKUP_STATE_COMPLETE,
+                backup_status=backup_status,
                 backup_datetime=datetime.datetime.utcnow())
 
             LOG.info("Successfully backed up subcloud %s" % subcloud.name)
