@@ -107,13 +107,19 @@ class DCManagerService(service.Service):
 
     @request_context
     def update_subcloud(self, context, subcloud_id, management_state=None,
-                        description=None, location=None, group_id=None,
-                        data_install=None, force=None):
+                        description=None, management_subnet=None,
+                        management_gateway_ip=None, management_start_ip=None,
+                        management_end_ip=None, location=None,
+                        group_id=None, data_install=None, force=None):
         # Updates a subcloud
         LOG.info("Handling update_subcloud request for: %s" % subcloud_id)
         subcloud = self.subcloud_manager.update_subcloud(context, subcloud_id,
                                                          management_state,
                                                          description,
+                                                         management_subnet,
+                                                         management_gateway_ip,
+                                                         management_start_ip,
+                                                         management_end_ip,
                                                          location,
                                                          group_id,
                                                          data_install,

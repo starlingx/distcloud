@@ -647,6 +647,62 @@ class TestSubcloudManager(base.DCManagerTestCase):
         self.assertEqual("subcloud new location",
                          updated_subcloud.location)
 
+    def test_update_subcloud_with_admin_values(self):
+        subcloud = self.create_subcloud_static(
+            self.ctx,
+            name='subcloud1',
+            deploy_status=consts.DEPLOY_STATE_DONE)
+        db_api.subcloud_update(self.ctx,
+                               subcloud.id,
+                               availability_status=dccommon_consts.AVAILABILITY_ONLINE)
+
+        data = {'admin_subnet': "192.168.102.0/24",
+                'admin_node_0_address': "192.168.102.5",
+                'admin_node_1_address': "192.168.102.49",
+                'admin_gateway_ip': "192.168.102.1"}
+
+        fake_dcmanager_notification = FakeDCManagerNotifications()
+
+        p = mock.patch('dcmanager.rpc.client.DCManagerNotifications')
+        mock_dcmanager_api = p.start()
+        mock_dcmanager_api.return_value = fake_dcmanager_notification
+
+        sm = subcloud_manager.SubcloudManager()
+        sm.update_subcloud(self.ctx,
+                           subcloud.id,
+                           management_state=dccommon_consts.MANAGEMENT_MANAGED,
+                           description="subcloud new description",
+                           location="subcloud new location",
+                           management_subnet=data['admin_subnet'],
+                           management_gateway_ip=data['admin_gateway_ip'],
+                           management_start_ip=data['admin_node_0_address'],
+                           management_end_ip=data['admin_node_1_address'])
+
+        fake_dcmanager_notification.subcloud_managed.assert_called_once_with(
+            self.ctx, subcloud.name)
+
+        exclude_endpoints = [dccommon_consts.ENDPOINT_TYPE_PATCHING,
+                             dccommon_consts.ENDPOINT_TYPE_LOAD]
+        self.fake_dcmanager_audit_api.trigger_subcloud_audits.\
+            assert_called_once_with(self.ctx, subcloud.id, exclude_endpoints)
+
+        # Verify subcloud was updated with correct values
+        updated_subcloud = db_api.subcloud_get_by_name(self.ctx, subcloud.name)
+        self.assertEqual(dccommon_consts.MANAGEMENT_MANAGED,
+                         updated_subcloud.management_state)
+        self.assertEqual("subcloud new description",
+                         updated_subcloud.description)
+        self.assertEqual("subcloud new location",
+                         updated_subcloud.location)
+        self.assertEqual(data['admin_subnet'],
+                         updated_subcloud.management_subnet)
+        self.assertEqual(data['admin_gateway_ip'],
+                         updated_subcloud.management_gateway_ip)
+        self.assertEqual(data['admin_node_0_address'],
+                         updated_subcloud.management_start_ip)
+        self.assertEqual(data['admin_node_1_address'],
+                         updated_subcloud.management_end_ip)
+
     def test_update_subcloud_with_install_values(self):
         subcloud = self.create_subcloud_static(
             self.ctx,

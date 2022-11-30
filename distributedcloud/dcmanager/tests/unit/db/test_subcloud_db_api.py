@@ -178,15 +178,27 @@ class DBAPISubcloudTest(base.DCManagerTestCase):
         management_state = 'testmanagementstate'
         availability_status = 'testavailabilitystatus'
         software_version = 'testversion'
+        admin_subnet = '192.168.102.0/24'
+        admin_start_ip = '192.168.102.5'
+        admin_end_ip = '192.168.102.49'
+        admin_gateway_ip = '192.168.102.1'
         updated = db_api.subcloud_update(
             self.ctx, subcloud.id,
             management_state=management_state,
             availability_status=availability_status,
-            software_version=software_version)
+            software_version=software_version,
+            management_subnet=admin_subnet,
+            management_start_ip=admin_start_ip,
+            management_end_ip=admin_end_ip,
+            management_gateway_ip=admin_gateway_ip)
         self.assertIsNotNone(updated)
         self.assertEqual(management_state, updated.management_state)
         self.assertEqual(availability_status, updated.availability_status)
         self.assertEqual(software_version, updated.software_version)
+        self.assertEqual(admin_subnet, updated.management_subnet)
+        self.assertEqual(admin_start_ip, updated.management_start_ip)
+        self.assertEqual(admin_end_ip, updated.management_end_ip)
+        self.assertEqual(admin_gateway_ip, updated.management_gateway_ip)
 
         updated_subcloud = db_api.subcloud_get(self.ctx, subcloud.id)
         self.assertEqual(management_state,
@@ -195,6 +207,14 @@ class DBAPISubcloudTest(base.DCManagerTestCase):
                          updated_subcloud.availability_status)
         self.assertEqual(software_version,
                          updated_subcloud.software_version)
+        self.assertEqual(admin_subnet,
+                         updated_subcloud.management_subnet)
+        self.assertEqual(admin_start_ip,
+                         updated_subcloud.management_start_ip)
+        self.assertEqual(admin_end_ip,
+                         updated_subcloud.management_end_ip)
+        self.assertEqual(admin_gateway_ip,
+                         updated_subcloud.management_gateway_ip)
 
     def test_delete_subcloud(self):
         fake_subcloud = utils.create_subcloud_dict(base.SUBCLOUD_SAMPLE_DATA_0)

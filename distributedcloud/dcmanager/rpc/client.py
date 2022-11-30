@@ -129,12 +129,18 @@ class ManagerClient(RPCClient):
                                              subcloud_id=subcloud_id))
 
     def update_subcloud(self, ctxt, subcloud_id, management_state=None,
-                        description=None, location=None, group_id=None,
+                        description=None, management_subnet=None,
+                        management_gateway_ip=None, management_start_ip=None,
+                        management_end_ip=None, location=None, group_id=None,
                         data_install=None, force=None):
         return self.call(ctxt, self.make_msg('update_subcloud',
                                              subcloud_id=subcloud_id,
                                              management_state=management_state,
                                              description=description,
+                                             management_subnet=management_subnet,
+                                             management_gateway_ip=management_gateway_ip,
+                                             management_start_ip=management_start_ip,
+                                             management_end_ip=management_end_ip,
                                              location=location,
                                              group_id=group_id,
                                              data_install=data_install,

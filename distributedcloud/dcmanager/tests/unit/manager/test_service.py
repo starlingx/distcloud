@@ -99,6 +99,8 @@ class TestDCManagerService(base.DCManagerTestCase):
             assert_called_once_with(self.context, mock.ANY,
                                     mock.ANY, mock.ANY,
                                     mock.ANY, mock.ANY,
+                                    mock.ANY, mock.ANY,
+                                    mock.ANY, mock.ANY,
                                     mock.ANY, mock.ANY)
 
     @mock.patch.object(service, 'SubcloudManager')

@@ -1042,6 +1042,40 @@ class TestSubcloudAPIOther(testroot.DCManagerApiTest):
         self.assertEqual(response.status_int, 200)
 
     @mock.patch.object(rpc_client, 'ManagerClient')
+    @mock.patch.object(subclouds.SubcloudsController, '_validate_admin_network_config')
+    @mock.patch.object(subclouds.SubcloudsController, '_get_patch_data')
+    def test_patch_subcloud_admin_values(self, mock_get_patch_data,
+                                         mock_validate_admin_network_config,
+                                         mock_rpc_client):
+        subcloud = fake_subcloud.create_fake_subcloud(self.ctx)
+        data = {'admin_subnet': "192.168.102.0/24",
+                'admin_node_0_address': "192.168.102.5",
+                'admin_node_1_address': "192.168.102.49",
+                'admin_gateway_ip': "192.168.102.1"}
+
+        mock_rpc_client().update_subcloud.return_value = True
+        mock_get_patch_data.return_value = data
+        response = self.app.patch_json(FAKE_URL + '/' + str(subcloud.id),
+                                       headers=FAKE_HEADERS,
+                                       params=data)
+        self.assertEqual(response.status_int, 200)
+        mock_validate_admin_network_config.assert_called_once()
+        mock_rpc_client().update_subcloud.assert_called_once_with(
+            mock.ANY,
+            subcloud.id,
+            management_state=None,
+            description=None,
+            management_subnet=data['admin_subnet'],
+            management_gateway_ip=data['admin_gateway_ip'],
+            management_start_ip=data['admin_node_0_address'],
+            management_end_ip=data['admin_node_1_address'],
+            location=None,
+            group_id=None,
+            data_install=None,
+            force=None)
+        self.assertEqual(response.status_int, 200)
+
+    @mock.patch.object(rpc_client, 'ManagerClient')
     @mock.patch.object(subclouds.SubcloudsController, '_get_patch_data')
     def test_patch_subcloud_install_values(self, mock_get_patch_data,
                                            mock_rpc_client):

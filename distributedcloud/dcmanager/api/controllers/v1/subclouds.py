@@ -572,6 +572,17 @@ class SubcloudsController(object):
             LOG.exception(e)
             pecan.abort(400, _("admin_gateway_address invalid: %s") % e)
 
+        subcloud_admin_address_start = IPAddress(admin_start_address_str)
+        subcloud_admin_address_end = IPAddress(admin_end_address_str)
+        subcloud_admin_gw_ip = IPAddress(admin_gateway_address_str)
+        if ((subcloud_admin_gw_ip >= subcloud_admin_address_start) and
+                (subcloud_admin_gw_ip <= subcloud_admin_address_end)):
+            pecan.abort(400, _("admin_gateway_address invalid, "
+                               "is within admin pool: %(start)s - "
+                               "%(end)s") %
+                        {'start': subcloud_admin_address_start,
+                         'end': subcloud_admin_address_end})
+
     def _format_ip_address(self, payload):
         """Format IP addresses in 'bootstrap_values' and 'install_values'.
 
@@ -1174,6 +1185,29 @@ class SubcloudsController(object):
             location = payload.get('location')
             group_id = payload.get('group_id')
 
+            admin_subnet_str = payload.get('admin_subnet')
+            admin_start_ip_str = payload.get('admin_node_0_address')
+            admin_end_ip_str = payload.get('admin_node_1_address')
+            admin_gateway_ip_str = payload.get('admin_gateway_ip')
+            admin_address_configured = False
+
+            # Syntax checking
+
+            if (admin_subnet_str and admin_gateway_ip_str and
+                    admin_start_ip_str and admin_end_ip_str):
+                # Parse/validate the admin subnet
+                subcloud_subnets = []
+                subclouds = db_api.subcloud_get_all(context)
+                for subcloud in subclouds:
+                    subcloud_subnets.append(IPNetwork(subcloud.management_subnet))
+
+                admin_address_configured = True
+                self._validate_admin_network_config(admin_subnet_str,
+                                                    admin_start_ip_str,
+                                                    admin_end_ip_str,
+                                                    admin_gateway_ip_str,
+                                                    subcloud_subnets)
+
             # Syntax checking
             if management_state and \
                     management_state not in [dccommon_consts.MANAGEMENT_UNMANAGED,
@@ -1211,10 +1245,22 @@ class SubcloudsController(object):
             try:
                 # Inform dcmanager that subcloud has been updated.
                 # It will do all the real work...
-                subcloud = self.dcmanager_rpc_client.update_subcloud(
-                    context, subcloud_id, management_state=management_state,
-                    description=description, location=location, group_id=group_id,
-                    data_install=data_install, force=force_flag)
+                if admin_address_configured:
+                    subcloud = self.dcmanager_rpc_client.update_subcloud(
+                        context, subcloud_id, management_state=management_state,
+                        description=description, management_subnet=payload.get('admin_subnet'),
+                        management_gateway_ip=payload.get('admin_gateway_ip'),
+                        management_start_ip=payload.get('admin_node_0_address'),
+                        management_end_ip=payload.get('admin_node_1_address'),
+                        location=location, group_id=group_id,
+                        data_install=data_install, force=force_flag)
+                else:
+                    subcloud = self.dcmanager_rpc_client.update_subcloud(
+                        context, subcloud_id, management_state=management_state,
+                        description=description, location=location,
+                        group_id=group_id, data_install=data_install,
+                        force=force_flag)
+
                 return subcloud
             except RemoteError as e:
                 pecan.abort(422, e.value)

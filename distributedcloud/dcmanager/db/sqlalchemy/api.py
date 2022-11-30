@@ -374,7 +374,9 @@ def subcloud_create(context, name, description, location, software_version,
 @require_admin_context
 def subcloud_update(context, subcloud_id, management_state=None,
                     availability_status=None, software_version=None,
-                    description=None, location=None, audit_fail_count=None,
+                    description=None, management_subnet=None,
+                    management_gateway_ip=None, management_start_ip=None,
+                    management_end_ip=None, location=None, audit_fail_count=None,
                     deploy_status=None, backup_status=None,
                     backup_datetime=None, error_description=None,
                     openstack_installed=None,
@@ -391,6 +393,14 @@ def subcloud_update(context, subcloud_id, management_state=None,
             subcloud_ref.software_version = software_version
         if description is not None:
             subcloud_ref.description = description
+        if management_subnet is not None:
+            subcloud_ref.management_subnet = management_subnet
+        if management_gateway_ip is not None:
+            subcloud_ref.management_gateway_ip = management_gateway_ip
+        if management_start_ip is not None:
+            subcloud_ref.management_start_ip = management_start_ip
+        if management_end_ip is not None:
+            subcloud_ref.management_end_ip = management_end_ip
         if location is not None:
             subcloud_ref.location = location
         if audit_fail_count is not None:
