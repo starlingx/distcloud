@@ -1029,9 +1029,13 @@ class SubcloudManager(manager.Manager):
             str(keyring.get_password('CGCS', 'admin'))
 
         if payload.get('backup_values'):
+            LOG.info('Backup create: Received backup_values for subcloud %s'
+                     % subcloud_name)
             for key, value in payload.get('backup_values').items():
                 payload['override_values'][key] = value
         elif payload.get('restore_values'):
+            LOG.info('Backup restore: Received restore_values for subcloud %s'
+                     % subcloud_name)
             for key, value in payload.get('restore_values').items():
                 payload['override_values'][key] = value
 

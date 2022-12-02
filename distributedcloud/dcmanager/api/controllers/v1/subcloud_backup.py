@@ -8,11 +8,13 @@ import json
 from collections import namedtuple
 
 import base64
+import os
 from oslo_config import cfg
 from oslo_log import log as logging
 from oslo_messaging import RemoteError
-
 import pecan
+import yaml
+
 from pecan import expose
 from pecan import request as pecan_request
 from pecan import response
@@ -80,8 +82,34 @@ class SubcloudBackupController(object):
         else:
             pecan.abort(400, _("Unexpected verb received"))
 
-        return SubcloudBackupController._get_json_payload(request,
-                                                          expected_params)
+        content_type = request.headers.get('content-type')
+        LOG.info('Request content-type: %s' % content_type)
+        if 'multipart/form-data' in content_type.lower():
+            return SubcloudBackupController._get_multipart_payload(request,
+                                                                   expected_params)
+        else:
+            return SubcloudBackupController._get_json_payload(request,
+                                                              expected_params)
+
+    @staticmethod
+    def _get_multipart_payload(request, expected_params):
+        payload = dict()
+        file_params = ['backup_values', 'restore_values']
+        for param in file_params:
+            if param in request.POST:
+                file_item = request.POST[param]
+                file_item.file.seek(0, os.SEEK_SET)
+                data = yaml.safe_load(file_item.file.read().decode('utf8'))
+                payload.update({param: data})
+                del request.POST[param]
+
+        payload.update(request.POST)
+
+        if not set(payload.keys()).issubset(expected_params.keys()):
+            LOG.info("Got an unexpected parameter in: %s" % payload)
+            pecan.abort(400, _("Unexpected parameter received"))
+
+        return payload
 
     @staticmethod
     def _get_json_payload(request, expected_params):
@@ -95,7 +123,7 @@ class SubcloudBackupController(object):
         if not isinstance(payload, dict):
             pecan.abort(400, _('Invalid request body format'))
         if not set(payload.keys()).issubset(expected_params.keys()):
-            LOG.info(payload.keys())
+            LOG.info("Got an unexpected parameter in: %s" % payload)
             pecan.abort(400, _("Unexpected parameter received"))
 
         return payload
@@ -217,13 +245,11 @@ class SubcloudBackupController(object):
     @index.when(method='POST', template='json')
     def post(self):
         """Create a new subcloud backup."""
-
         context = restcomm.extract_context_from_environ()
         payload = self._get_payload(pecan_request, 'create')
 
         policy.authorize(subcloud_backup_policy.POLICY_ROOT % "create", {},
                          restcomm.extract_credentials_for_policy())
-
         self._validate_and_decode_sysadmin_password(payload, 'sysadmin_password')
 
         if not payload.get('local_only') and payload.get('registry_images'):
