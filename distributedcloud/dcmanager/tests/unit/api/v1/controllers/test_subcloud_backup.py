@@ -596,6 +596,52 @@ class TestSubcloudCreate(testroot.DCManagerApiTest):
 
         self.assertEqual(response.status_int, 200)
 
+    @mock.patch('dcmanager.common.utils.OpenStackDriver')
+    @mock.patch('dcmanager.common.utils.SysinvClient')
+    @mock.patch.object(rpc_client, 'ManagerClient')
+    def test_create_concurrent_backup(self, mock_rpc_client, mock_sysinv,
+                                      mock_openstack):
+
+        mock_sysinv().get_system_health.return_value = FAKE_GOOD_SYSTEM_HEALTH
+        mock_rpc_client().backup_subclouds.return_value = True
+        subcloud = fake_subcloud.create_fake_subcloud(self.ctx)
+        fake_password = (base64.b64encode('testpass'.encode("utf-8"))).decode('ascii')
+        data = {'sysadmin_password': fake_password,
+                'subcloud': '1'}
+        db_api.subcloud_update(self.ctx,
+                               subcloud.id,
+                               deploy_status=consts.DEPLOY_STATE_DONE,
+                               availability_status=dccommon_consts.AVAILABILITY_ONLINE,
+                               management_state=dccommon_consts.MANAGEMENT_MANAGED)
+
+        ongoing_backup_states = [consts.BACKUP_STATE_INITIAL,
+                                 consts.BACKUP_STATE_VALIDATING,
+                                 consts.BACKUP_STATE_PRE_BACKUP,
+                                 consts.BACKUP_STATE_IN_PROGRESS]
+
+        final_backup_states = [consts.BACKUP_STATE_VALIDATE_FAILED,
+                               consts.BACKUP_STATE_PREP_FAILED,
+                               consts.BACKUP_STATE_FAILED,
+                               consts.BACKUP_STATE_UNKNOWN,
+                               consts.BACKUP_STATE_COMPLETE_CENTRAL,
+                               consts.BACKUP_STATE_COMPLETE_LOCAL,
+                               consts.BACKUP_STATE_IN_PROGRESS]
+
+        for backup_state in ongoing_backup_states + final_backup_states:
+            db_api.subcloud_update(self.ctx, subcloud.id,
+                                   backup_status=backup_state)
+            if backup_state in ongoing_backup_states:
+                # Expect the operation to fail
+                six.assertRaisesRegex(self, webtest.app.AppError, "400 *",
+                                      self.app.post_json, FAKE_URL_CREATE,
+                                      headers=FAKE_HEADERS, params=data)
+            else:
+                # Expect the operation to succeed
+                response = self.app.post_json(FAKE_URL_CREATE,
+                                              headers=FAKE_HEADERS,
+                                              params=data)
+                self.assertEqual(response.status_int, 200)
+
 
 class TestSubcloudDelete(testroot.DCManagerApiTest):
 
@@ -748,9 +794,6 @@ class TestSubcloudDelete(testroot.DCManagerApiTest):
         six.assertRaisesRegex(self, webtest.app.AppError, "400 *",
                               self.app.patch_json, FAKE_URL_DELETE + release_version,
                               headers=FAKE_HEADERS, params=data)
-
-# from dccommon.drivers.openstack.sdk_platform import OpenStackDriver
-# from dccommon.drivers.openstack.sysinv_v1 import SysinvClient
 
     @mock.patch.object(rpc_client, 'ManagerClient')
     def test_backup_delete_invalid_url(self, mock_rpc_client):

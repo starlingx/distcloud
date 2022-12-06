@@ -608,6 +608,10 @@ class SubcloudManager(manager.Manager):
         subclouds = [db_api.subcloud_get(context, subcloud_id)] if subcloud_id\
             else db_api.subcloud_get_for_group(context, group_id)
 
+        self._filter_subclouds_with_ongoing_backup(subclouds)
+        self._update_backup_status(context, subclouds,
+                                   consts.BACKUP_STATE_INITIAL)
+
         # Validate the subclouds and filter the ones applicable for backup
         self._update_backup_status(context, subclouds,
                                    consts.BACKUP_STATE_VALIDATING)
@@ -727,6 +731,17 @@ class SubcloudManager(manager.Manager):
             return self._build_subcloud_operation_notice(failed_subclouds,
                                                          invalid_subclouds)
         return
+
+    def _filter_subclouds_with_ongoing_backup(self, subclouds):
+        i = 0
+        while i < len(subclouds):
+            subcloud = subclouds[i]
+            if subcloud.backup_status in consts.STATES_FOR_ONGOING_BACKUP:
+                LOG.info(_('Subcloud %s already has a backup operation in '
+                           'progress' % subcloud.name))
+                subclouds.pop(i)
+            else:
+                i += 1
 
     def _validate_subclouds_for_backup(self, subclouds, operation):
         valid_subclouds = []

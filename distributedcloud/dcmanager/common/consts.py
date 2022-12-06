@@ -298,7 +298,15 @@ VALID_DEPLOY_STATES_FOR_BACKUP = [DEPLOY_STATE_DONE,
 INVALID_DEPLOY_STATES_FOR_RESTORE = [DEPLOY_STATE_INSTALLING,
                                      DEPLOY_STATE_BOOTSTRAPPING,
                                      DEPLOY_STATE_DEPLOYING,
-                                     DEPLOY_STATE_REHOMING]
+                                     DEPLOY_STATE_REHOMING,
+                                     DEPLOY_STATE_PRE_RESTORE,
+                                     DEPLOY_STATE_RESTORING]
+
+# States to indicate if a backup operation is currently in progress
+STATES_FOR_ONGOING_BACKUP = [BACKUP_STATE_INITIAL,
+                             BACKUP_STATE_VALIDATING,
+                             BACKUP_STATE_PRE_BACKUP,
+                             BACKUP_STATE_IN_PROGRESS]
 
 # The k8s secret that holds openldap CA certificate
 OPENLDAP_CA_CERT_SECRET_NAME = "system-local-ca"
