@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2020-2021 Wind River Systems, Inc.
+# Copyright (c) 2020-2022 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -201,11 +201,12 @@ class UpgradingSimplexState(BaseState):
         if not subcloud.data_install:
             # Set the deploy status to pre-install-failed so it can be
             # handled accordingly in pre check step.
+            message = ("Failed to get upgrade data from install")
             db_api.subcloud_update(
                 self.context, strategy_step.subcloud_id,
-                deploy_status=consts.DEPLOY_STATE_PRE_INSTALL_FAILED)
+                deploy_status=consts.DEPLOY_STATE_PRE_INSTALL_FAILED,
+                error_description=message)
 
-            message = ("Failed to get upgrade data from install")
             self.warn_log(strategy_step, message)
             raise Exception(message)
 
@@ -337,6 +338,8 @@ class UpgradingSimplexState(BaseState):
 
     def perform_subcloud_install(self, strategy_step, session, install_values):
 
+        log_file = os.path.join(consts.DC_ANSIBLE_LOG_DIR, strategy_step.subcloud.name) + \
+            '_playbook_output.log'
         db_api.subcloud_update(
             self.context, strategy_step.subcloud_id,
             deploy_status=consts.DEPLOY_STATE_PRE_INSTALL)
@@ -350,7 +353,8 @@ class UpgradingSimplexState(BaseState):
         except Exception as e:
             db_api.subcloud_update(
                 self.context, strategy_step.subcloud_id,
-                deploy_status=consts.DEPLOY_STATE_PRE_INSTALL_FAILED)
+                deploy_status=consts.DEPLOY_STATE_PRE_INSTALL_FAILED,
+                error_description=str(e)[0:consts.ERROR_DESCRIPTION_LENGTH])
             self.error_log(strategy_step, str(e))
             # TODO(jkung): cleanup to be implemented within SubcloudInstall
             install.cleanup()
@@ -379,9 +383,15 @@ class UpgradingSimplexState(BaseState):
         try:
             install.install(consts.DC_ANSIBLE_LOG_DIR, install_command)
         except Exception as e:
+            # Detailed error message for subcloud error description field.
+            # Exception message for strategy_step detail.
+            msg = utils.find_ansible_error_msg(
+                strategy_step.subcloud.name, log_file, consts.DEPLOY_STATE_INSTALLING)
             db_api.subcloud_update(
                 self.context, strategy_step.subcloud_id,
-                deploy_status=consts.DEPLOY_STATE_INSTALL_FAILED)
+                deploy_status=consts.DEPLOY_STATE_INSTALL_FAILED,
+                error_description=msg[0:consts.ERROR_DESCRIPTION_LENGTH])
+            self.error_log(strategy_step, msg)
             self.error_log(strategy_step, str(e))
             install.cleanup()
             raise

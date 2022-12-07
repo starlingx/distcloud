@@ -6,6 +6,7 @@
 from dccommon import consts as dccommon_consts
 from dcmanager.common import consts
 from dcmanager.common import exceptions
+from dcmanager.db import api as db_api
 from dcmanager.orchestrator.states.base import BaseState
 from dcmanager.orchestrator.states.upgrade.cache.cache_specifications import \
     REGION_ONE_LICENSE_CACHE_TYPE
@@ -51,8 +52,15 @@ class InstallingLicenseState(BaseState):
                 return self.next_state
             else:
                 # An unexpected error occurred querying the license
+                message = ('An unexpected error occurred querying the license %s. Detail: %s' %
+                           (dccommon_consts.SYSTEM_CONTROLLER_NAME,
+                            target_error))
+                db_api.subcloud_update(
+                    self.context, strategy_step.subcloud_id,
+                    error_description=message[0:consts.ERROR_DESCRIPTION_LENGTH])
                 raise exceptions.LicenseInstallError(
-                    subcloud_id=dccommon_consts.SYSTEM_CONTROLLER_NAME)
+                    subcloud_id=dccommon_consts.SYSTEM_CONTROLLER_NAME,
+                    error_message=target_error)
 
         # retrieve the keystone session for the subcloud and query its license
         subcloud_sysinv_client = \
@@ -76,8 +84,17 @@ class InstallingLicenseState(BaseState):
         install_rc = subcloud_sysinv_client.install_license(target_license)
         install_error = install_rc.get('error')
         if len(install_error) != 0:
+            # Save error response from sysinv into subcloud error description.
+            # Provide exception with sysinv error response to strategy_step details
+            message = ('Error installing license on subcloud %s. Detail: %s' %
+                       (strategy_step.subcloud.name,
+                        install_error))
+            db_api.subcloud_update(
+                self.context, strategy_step.subcloud_id,
+                error_description=message[0:consts.ERROR_DESCRIPTION_LENGTH])
             raise exceptions.LicenseInstallError(
-                subcloud_id=strategy_step.subcloud_id)
+                subcloud_id=strategy_step.subcloud_id,
+                error_message=install_error)
 
         # The license has been successfully installed. Move to the next stage
         self.info_log(strategy_step, "License installed.")
