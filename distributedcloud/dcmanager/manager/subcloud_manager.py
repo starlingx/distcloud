@@ -1010,11 +1010,11 @@ class SubcloudManager(manager.Manager):
             payload['local_only'] or False
 
         if op == 'create':
-            payload['override_values']['backup_user_images'] = \
+            payload['override_values']['backup_registry_images'] = \
                 payload['registry_images'] or False
             suffix = 'backup_create_values'
         else:
-            payload['override_values']['restore_user_images'] = \
+            payload['override_values']['restore_registry_images'] = \
                 payload['registry_images'] or False
             suffix = 'backup_restore_values'
 
