@@ -211,10 +211,12 @@ class AuditLoggingHook(hooks.PecanHook):
         def json_post_data(rest_state):
             if 'form-data' in rest_state.request.headers.get('Content-Type'):
                 return " POST: {}".format(rest_state.request.params)
-            if not hasattr(rest_state.request, 'json'):
+            try:
+                if not hasattr(rest_state.request, 'json'):
+                    return ""
+                return " POST: {}".format(rest_state.request.json)
+            except Exception:
                 return ""
-            return " POST: {}".format(rest_state.request.json)
-
         # Filter password from log
         filtered_json = re.sub(r'{[^{}]*(passwd_hash|community|password)[^{}]*},*',
                                '',
