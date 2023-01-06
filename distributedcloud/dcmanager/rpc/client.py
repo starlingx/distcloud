@@ -1,4 +1,4 @@
-# Copyright (c) 2017-2022 Wind River Systems, Inc.
+# Copyright (c) 2017-2023 Wind River Systems, Inc.
 # Licensed under the Apache License, Version 2.0 (the "License"); you may
 # not use this file except in compliance with the License. You may obtain
 # a copy of the License at
@@ -84,25 +84,29 @@ class SubcloudStateClient(RPCClient):
     def update_subcloud_endpoint_status(self, ctxt, subcloud_name=None,
                                         endpoint_type=None,
                                         sync_status=dccommon_consts.SYNC_STATUS_OUT_OF_SYNC,
-                                        ignore_endpoints=None):
+                                        ignore_endpoints=None,
+                                        alarmable=True):
         # Note: This is an asynchronous operation.
         # See below for synchronous method call
         return self.cast(ctxt, self.make_msg('update_subcloud_endpoint_status',
                                              subcloud_name=subcloud_name,
                                              endpoint_type=endpoint_type,
                                              sync_status=sync_status,
-                                             ignore_endpoints=ignore_endpoints))
+                                             ignore_endpoints=ignore_endpoints,
+                                             alarmable=alarmable))
 
     def update_subcloud_endpoint_status_sync(self, ctxt, subcloud_name=None,
                                              endpoint_type=None,
                                              sync_status=dccommon_consts.SYNC_STATUS_OUT_OF_SYNC,
-                                             ignore_endpoints=None):
+                                             ignore_endpoints=None,
+                                             alarmable=True):
         # Note: synchronous
         return self.call(ctxt, self.make_msg('update_subcloud_endpoint_status',
                                              subcloud_name=subcloud_name,
                                              endpoint_type=endpoint_type,
                                              sync_status=sync_status,
-                                             ignore_endpoints=ignore_endpoints))
+                                             ignore_endpoints=ignore_endpoints,
+                                             alarmable=alarmable))
 
 
 class ManagerClient(RPCClient):

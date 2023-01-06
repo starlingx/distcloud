@@ -1,4 +1,4 @@
-# Copyright 2017-2022 Wind River
+# Copyright 2017-2023 Wind River
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -30,6 +30,7 @@ from dcorch.common import context
 from dcorch.common import exceptions
 from dcorch.common import utils
 from dcorch.db import api as db_api
+from dcorch.engine.fernet_key_manager import FERNET_REPO_MASTER_ID
 from dcorch.objects import orchrequest
 from dcorch.objects import resource
 from dcorch.objects.subcloud import Subcloud
@@ -64,6 +65,12 @@ class SyncThread(object):
     """Manages tasks related to resource management."""
 
     MAX_RETRY = 3
+    PENDING_SYNC_REQUEST_STATES = (
+        consts.ORCH_REQUEST_QUEUED,
+        consts.ORCH_REQUEST_IN_PROGRESS,
+        consts.ORCH_REQUEST_FAILED,
+    )
+
     # used by the audit to cache the master resources
     master_resources_dict = collections.defaultdict(dict)
 
@@ -261,7 +268,7 @@ class SyncThread(object):
             sync_request.orch_job.operation_type), extra=self.log_extra)
         handler(sync_request, rsrc)
 
-    def set_sync_status(self, sync_status):
+    def set_sync_status(self, sync_status, alarmable=True):
         # Only report sync_status when managed
         subcloud_managed = self.is_subcloud_managed()
         if not subcloud_managed:
@@ -278,17 +285,23 @@ class SyncThread(object):
                 subcloud_sync.sync_status_report_time, timeutils.utcnow())
             if delta < 3600:
                 if subcloud_sync.sync_status_reported == sync_status:
-                    LOG.debug("skip set_sync_status sync_status_reported=%s, sync_status=%s " %
-                              (subcloud_sync.sync_status_reported, sync_status, ),
-                              extra=self.log_extra)
+                    LOG.debug(
+                        "skip set_sync_status sync_status_reported={}, "
+                        "sync_status={}".format(
+                            subcloud_sync.sync_status_reported, sync_status
+                        ),
+                        extra=self.log_extra,
+                    )
                     return
 
-        LOG.info("{}: set_sync_status {}".format(self.subcloud_name, sync_status),
+        LOG.info("{}: set_sync_status {}, alarmable: {}".format(
+                 self.subcloud_name, sync_status, alarmable),
                  extra=self.log_extra)
 
         self.dcmanager_state_rpc_client.update_subcloud_endpoint_status(
             self.ctxt, self.subcloud_name,
-            self.endpoint_type, sync_status)
+            self.endpoint_type, sync_status,
+            alarmable=alarmable)
 
         db_api.subcloud_sync_update(
             self.ctxt, self.subcloud_name, self.endpoint_type,
@@ -300,151 +313,175 @@ class SyncThread(object):
                   extra=self.log_extra)
         region_name = self.subcloud_name
         sync_requests = []
-        # We want to check for pending work even if subcloud is disabled.
 
-        states = [
-            consts.ORCH_REQUEST_QUEUED,
-            consts.ORCH_REQUEST_IN_PROGRESS,
-            consts.ORCH_REQUEST_FAILED,
-        ]
         sync_requests = orchrequest.OrchRequestList.get_by_attrs(
             self.ctxt, self.endpoint_type,
             target_region_name=region_name,
-            states=states)
-        if(len(sync_requests) != 0):
-            LOG.info("Got " + str(len(sync_requests)) + " sync request(s)",
+            states=self.PENDING_SYNC_REQUEST_STATES)
+
+        # Early exit in case there are no pending sync requests
+        if not sync_requests:
+            LOG.info("Sync resources done for subcloud - "
+                     "no sync requests",
                      extra=self.log_extra)
+            self.set_sync_status(dccommon_consts.SYNC_STATUS_IN_SYNC)
+            return
+
+        LOG.info(
+            "Got {} sync request(s)".format(len(sync_requests)),
+            extra=self.log_extra,
+        )
+
+        actual_sync_requests = []
+        alarmable = False
+        for req in sync_requests:
+            # Failed orch requests were taken into consideration when reporting
+            # sync status to the dcmanager. They need to be removed from the
+            # orch requests list before proceeding.
+            if req.state != consts.ORCH_REQUEST_STATE_FAILED:
+                actual_sync_requests.append(req)
+            else:
+                # Any failed state should be alarmable
+                alarmable = True
+
+            # Do not raise an alarm if all the sync requests are due to
+            # a fernet key rotation, as these are expected to occur
+            # periodically.
+            if req.orch_job.source_resource_id != FERNET_REPO_MASTER_ID:
+                alarmable = True
+
         # todo: for each request look up sync handler based on
         # resource type (I'm assuming here we're not storing a python
         # object in the DB)
         # Update dcmanager with the current sync status.
-        subcloud_enabled = self.is_subcloud_enabled()
-        if sync_requests:
-            self.set_sync_status(dccommon_consts.SYNC_STATUS_OUT_OF_SYNC)
-            sync_status_start = dccommon_consts.SYNC_STATUS_OUT_OF_SYNC
-        else:
-            self.set_sync_status(dccommon_consts.SYNC_STATUS_IN_SYNC)
-            sync_status_start = dccommon_consts.SYNC_STATUS_IN_SYNC
+        self.set_sync_status(
+            dccommon_consts.SYNC_STATUS_OUT_OF_SYNC, alarmable=alarmable
+        )
+        sync_status_start = dccommon_consts.SYNC_STATUS_OUT_OF_SYNC
 
-        # Failed orch requests were taken into consideration when reporting
-        # sync status to the dcmanager. They need to be removed from the
-        # orch requests list before proceeding.
-        actual_sync_requests = \
-            [r for r in sync_requests if r.state != consts.ORCH_REQUEST_STATE_FAILED]
+        if not actual_sync_requests:
+            LOG.info("Sync resources done for subcloud - "
+                     "no valid sync requests",
+                     extra=self.log_extra)
+            return
+        elif not self.is_subcloud_enabled():
+            LOG.info("Sync resources done for subcloud - "
+                     "subcloud is disabled",
+                     extra=self.log_extra)
+            return
 
-        if not actual_sync_requests or not subcloud_enabled:
-            # Either there are no sync requests, or subcloud is disabled,
-            # or we timed out trying to talk to it.
-            # We're not going to process any sync requests, just go
-            # back to sleep.
-            if not subcloud_enabled:
-                LOG.info("subcloud is disabled", extra=self.log_extra)
-        else:
-            # Subcloud is enabled and there are pending sync requests, so
-            # we have work to do.
+        # Subcloud is enabled and there are pending sync requests, so
+        # we have work to do.
+        request_aborted = False
+        try:
+            for request in actual_sync_requests:
+                if not self.is_subcloud_enabled() or \
+                        self.should_exit():
+                        # Oops, someone disabled the endpoint while
+                        # we were processing work for it.
+                        raise exceptions.EndpointNotReachable()
+                request.state = consts.ORCH_REQUEST_STATE_IN_PROGRESS
+                try:
+                    request.save()  # save to DB
+                except exceptions.OrchRequestNotFound:
+                    # This case is handled in loop below, but should also be
+                    # handled here as well.
+                    LOG.info(
+                        "Orch request already deleted request uuid=%s state=%s"
+                        % (request.uuid, request.state),
+                        extra=self.log_extra,
+                    )
+                    continue
 
-            request_aborted = False
-            try:
-                for request in actual_sync_requests:
-                    if not self.is_subcloud_enabled() or \
-                            self.should_exit():
-                            # Oops, someone disabled the endpoint while
-                            # we were processing work for it.
-                            raise exceptions.EndpointNotReachable()
-                    request.state = consts.ORCH_REQUEST_STATE_IN_PROGRESS
+                retry_count = 0
+                while retry_count < self.MAX_RETRY:
                     try:
-                        request.save()  # save to DB
+                        self.sync_resource(request)
+                        # Sync succeeded, mark the request as
+                        # completed for tracking/debugging purpose
+                        # and tag it for purge when its deleted
+                        # time exceeds the data retention period.
+                        request.state = \
+                            consts.ORCH_REQUEST_STATE_COMPLETED
+                        request.deleted = 1
+                        request.deleted_at = timeutils.utcnow()
+                        request.save()
+                        break
                     except exceptions.OrchRequestNotFound:
-                        # This case is handled in loop below, but should also be
-                        # handled here as well.
-                        LOG.info("Orch request already deleted request uuid=%s state=%s" %
-                                 (request.uuid, request.state),
-                                 extra=self.log_extra)
-                        continue
-
-                    retry_count = 0
-                    while retry_count < self.MAX_RETRY:
-                        try:
-                            self.sync_resource(request)
-                            # Sync succeeded, mark the request as
-                            # completed for tracking/debugging purpose
-                            # and tag it for purge when its deleted
-                            # time exceeds the data retention period.
-                            request.state = \
-                                consts.ORCH_REQUEST_STATE_COMPLETED
-                            request.deleted = 1
-                            request.deleted_at = timeutils.utcnow()
-                            request.save()
-                            break
-                        except exceptions.OrchRequestNotFound:
-                            LOG.info("Orch request already deleted request uuid=%s state=%s" %
-                                     (request.uuid, request.state),
-                                     extra=self.log_extra)
-                            break
-                        except exceptions.SyncRequestTimeout:
-                            request.try_count += 1
-                            request.save()
-                            retry_count += 1
-                            if retry_count >= self.MAX_RETRY:
-                                # todo: raise "unable to sync this
-                                # subcloud/endpoint" alarm with fmapi
-                                raise exceptions.EndpointNotReachable()
-                        except exceptions.SyncRequestFailedRetry:
+                        LOG.info(
+                            "Orch request already deleted request uuid=%s state=%s"
+                            % (request.uuid, request.state),
+                            extra=self.log_extra,
+                        )
+                        break
+                    except exceptions.SyncRequestTimeout:
+                        request.try_count += 1
+                        request.save()
+                        retry_count += 1
+                        if retry_count >= self.MAX_RETRY:
                             # todo: raise "unable to sync this
                             # subcloud/endpoint" alarm with fmapi
-                            request.try_count += 1
-                            request.state = \
-                                consts.ORCH_REQUEST_STATE_FAILED
-                            request.save()
-                            retry_count += 1
-                            # we'll retry
-                        except exceptions.SyncRequestFailed:
-                            request.state = \
-                                consts.ORCH_REQUEST_STATE_FAILED
-                            request.save()
-                            retry_count = self.MAX_RETRY
-                        except exceptions.SyncRequestAbortedBySystem:
-                            request.state = \
-                                consts.ORCH_REQUEST_STATE_FAILED
-                            request.save()
-                            retry_count = self.MAX_RETRY
-                            request_aborted = True
+                            raise exceptions.EndpointNotReachable()
+                    except exceptions.SyncRequestFailedRetry:
+                        # todo: raise "unable to sync this
+                        # subcloud/endpoint" alarm with fmapi
+                        request.try_count += 1
+                        request.state = \
+                            consts.ORCH_REQUEST_STATE_FAILED
+                        request.save()
+                        retry_count += 1
+                        # we'll retry
+                    except exceptions.SyncRequestFailed:
+                        request.state = \
+                            consts.ORCH_REQUEST_STATE_FAILED
+                        request.save()
+                        retry_count = self.MAX_RETRY
+                    except exceptions.SyncRequestAbortedBySystem:
+                        request.state = \
+                            consts.ORCH_REQUEST_STATE_FAILED
+                        request.save()
+                        retry_count = self.MAX_RETRY
+                        request_aborted = True
 
-                    # If we fall out of the retry loop we either succeeded
-                    # or failed multiple times and want to move to the next
-                    # request.
+                # If we fall out of the retry loop we either succeeded
+                # or failed multiple times and want to move to the next
+                # request.
 
-            except exceptions.EndpointNotReachable:
-                # Endpoint not reachable, throw away all the sync requests.
-                LOG.info("EndpointNotReachable, {} sync requests pending"
-                         .format(len(actual_sync_requests)))
-                # del sync_requests[:] #This fails due to:
-                # 'OrchRequestList' object does not support item deletion
+        except exceptions.EndpointNotReachable:
+            # Endpoint not reachable, throw away all the sync requests.
+            LOG.info(
+                "EndpointNotReachable, {} sync requests pending".format(
+                    len(actual_sync_requests)), extra=self.log_extra)
+            # del sync_requests[:] #This fails due to:
+            # 'OrchRequestList' object does not support item deletion
 
-            sync_requests = orchrequest.OrchRequestList.get_by_attrs(
-                self.ctxt, self.endpoint_type,
-                target_region_name=region_name,
-                states=states)
+        sync_requests = orchrequest.OrchRequestList.get_by_attrs(
+            self.ctxt, self.endpoint_type,
+            target_region_name=region_name,
+            states=self.PENDING_SYNC_REQUEST_STATES)
 
-            if (sync_requests and
-                    sync_status_start != dccommon_consts.SYNC_STATUS_OUT_OF_SYNC):
+        if (sync_requests and
+                sync_status_start != dccommon_consts.SYNC_STATUS_OUT_OF_SYNC):
+            self.set_sync_status(dccommon_consts.SYNC_STATUS_OUT_OF_SYNC)
+            LOG.info(
+                "End of resource sync out-of-sync. {} sync request(s)".format(
+                    len(sync_requests)), extra=self.log_extra)
+        elif sync_requests and request_aborted:
+            if sync_status_start != dccommon_consts.SYNC_STATUS_OUT_OF_SYNC:
                 self.set_sync_status(dccommon_consts.SYNC_STATUS_OUT_OF_SYNC)
-                LOG.info("End of resource sync out-of-sync. " +
-                         str(len(sync_requests)) + " sync request(s)",
-                         extra=self.log_extra)
-            elif sync_requests and request_aborted:
-                if sync_status_start != dccommon_consts.SYNC_STATUS_OUT_OF_SYNC:
-                    self.set_sync_status(dccommon_consts.SYNC_STATUS_OUT_OF_SYNC)
-                LOG.info("End of resource sync out-of-sync. " +
-                         str(len(sync_requests)) + " sync request(s)" +
-                         ": request_aborted", extra=self.log_extra)
-            elif sync_status_start != dccommon_consts.SYNC_STATUS_IN_SYNC:
-                self.set_sync_status(dccommon_consts.SYNC_STATUS_IN_SYNC)
-                LOG.info("End of resource sync in-sync. " +
-                         str(len(sync_requests)) + " sync request(s)",
-                         extra=self.log_extra)
+            LOG.info(
+                "End of resource sync out-of-sync. {} sync request(s): "
+                "request_aborted".format(len(sync_requests)),
+                extra=self.log_extra)
+        elif sync_status_start != dccommon_consts.SYNC_STATUS_IN_SYNC:
+            self.set_sync_status(dccommon_consts.SYNC_STATUS_IN_SYNC)
+            LOG.info(
+                "End of resource sync in-sync. {} sync request(s)".format(
+                    len(sync_requests)), extra=self.log_extra)
 
-        LOG.info("Sync resources done for subcloud", extra=self.log_extra)
+        LOG.info("Sync resources done for subcloud - "
+                 "synced {} request(s)".format(len(actual_sync_requests)),
+                 extra=self.log_extra)
 
     def run_sync_audit(self, engine_id=None):
         if self.endpoint_type in cfg.CONF.disable_audit_endpoints:
