@@ -947,6 +947,7 @@ class SubcloudManager(manager.Manager):
             # Update data_install with missing data
             matching_iso, _ = utils.get_vault_load_files(SW_VERSION)
             data_install['image'] = matching_iso
+            data_install['software_version'] = SW_VERSION
             data_install['ansible_ssh_pass'] = payload['sysadmin_password']
             data_install['ansible_become_pass'] = payload['sysadmin_password']
             install_success = self._run_subcloud_install(
