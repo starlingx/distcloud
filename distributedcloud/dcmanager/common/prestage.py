@@ -1,4 +1,4 @@
-# Copyright (c) 2022 Wind River Systems, Inc.
+# Copyright (c) 2023 Wind River Systems, Inc.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -57,6 +57,8 @@ ANSIBLE_PRESTAGE_SUBCLOUD_PACKAGES_PLAYBOOK = \
 ANSIBLE_PRESTAGE_SUBCLOUD_IMAGES_PLAYBOOK = \
     "/usr/share/ansible/stx-ansible/playbooks/prestage_images.yml"
 ANSIBLE_PRESTAGE_INVENTORY_SUFFIX = '_prestage_inventory.yml'
+
+LAST_SW_VERSION_IN_CENTOS = "22.06"
 
 
 def is_deploy_status_prestage(deploy_status):
@@ -315,9 +317,18 @@ def _sync_run_prestage_prepare_packages(context, subcloud, payload):
     LOG.info("Prepare prestage ansible successful")
 
 
+# TODO(Shrikumar): Cleanup this function, especially the comparison for
+# software versions.
+# Rationale: In CentOS, prestage_prepare is required; in Debian, it is not.
+
+
 @utils.synchronized('prestage-prepare-packages', external=True)
 def prestage_prepare(context, subcloud, payload):
     """Run the prepare prestage packages playbook if required."""
+    if SW_VERSION > LAST_SW_VERSION_IN_CENTOS:
+        LOG.info("Skipping prestage package preparation in Debian")
+        return
+
     if is_upgrade(subcloud.software_version):
         if not os.path.exists(PRESTAGE_PREPARATION_COMPLETED_FILE):
             _sync_run_prestage_prepare_packages(context, subcloud, payload)
