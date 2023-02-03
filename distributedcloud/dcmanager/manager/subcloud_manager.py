@@ -1,5 +1,5 @@
 # Copyright 2017 Ericsson AB.
-# Copyright (c) 2017-2022 Wind River Systems, Inc.
+# Copyright (c) 2017-2023 Wind River Systems, Inc.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -1562,12 +1562,15 @@ class SubcloudManager(manager.Manager):
         # for a subcloud, we manually clear the following:
         # - subcloud offline
         # - subloud resource out of sync
+        # - Subcloud Backup Failure
         for alarm_id, entity_instance_id in (
                 (fm_const.FM_ALARM_ID_DC_SUBCLOUD_OFFLINE,
                  "subcloud=%s" % subcloud.name),
                 (fm_const.FM_ALARM_ID_DC_SUBCLOUD_RESOURCE_OUT_OF_SYNC,
                  "subcloud=%s.resource=%s" %
-                 (subcloud.name, dccommon_consts.ENDPOINT_TYPE_DC_CERT))):
+                 (subcloud.name, dccommon_consts.ENDPOINT_TYPE_DC_CERT)),
+                (fm_const.FM_ALARM_ID_DC_SUBCLOUD_BACKUP_FAILED,
+                 "subcloud=%s" % subcloud.name)):
             try:
                 fault = self.fm_api.get_fault(alarm_id,
                                               entity_instance_id)
