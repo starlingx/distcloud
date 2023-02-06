@@ -9,7 +9,6 @@
       jobs:
         - openstack-tox-linters
         - stx-distcloud-tox-pep8
-        - stx-distcloud-tox-py27
         - stx-distcloud-tox-py39
         - stx-distcloud-tox-pylint
         - stx-distcloud-tox-pep8-debian
@@ -18,7 +17,6 @@
       jobs:
         - openstack-tox-linters
         - stx-distcloud-tox-pep8
-        - stx-distcloud-tox-py27
         - stx-distcloud-tox-py39
         - stx-distcloud-tox-pylint
         - stx-distcloud-tox-pep8-debian
@@ -26,20 +24,6 @@
     post:
       jobs:
         - stx-distcloud-upload-git-mirror
-
-- job:
-    name: stx-distcloud-tox-py27
-    parent: tox
-    description: Run py27 for distcloud
-    nodeset: ubuntu-xenial
-    required-projects:
-      - starlingx/fault
-      - starlingx/nfv
-      - starlingx/update
-      - starlingx/config
-    vars:
-      tox_envlist: py27
-      tox_extra_args: -c distributedcloud/tox.ini
 
 - job:
     name: stx-distcloud-tox-py39
