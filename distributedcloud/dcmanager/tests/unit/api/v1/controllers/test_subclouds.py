@@ -1,5 +1,5 @@
 # Copyright (c) 2017 Ericsson AB
-# Copyright (c) 2017-2022 Wind River Systems, Inc.
+# Copyright (c) 2017-2023 Wind River Systems, Inc.
 # All Rights Reserved.
 #
 #    Licensed under the Apache License, Version 2.0 (the "License"); you may
@@ -1048,31 +1048,27 @@ class TestSubcloudAPIOther(testroot.DCManagerApiTest):
                                          mock_validate_admin_network_config,
                                          mock_rpc_client):
         subcloud = fake_subcloud.create_fake_subcloud(self.ctx)
-        data = {'admin_subnet': "192.168.102.0/24",
-                'admin_node_0_address': "192.168.102.5",
-                'admin_node_1_address': "192.168.102.49",
-                'admin_gateway_ip': "192.168.102.1"}
+        db_api.subcloud_update(self.ctx, subcloud.id,
+                               availability_status=dccommon_consts.AVAILABILITY_ONLINE)
+        fake_password = (
+            base64.b64encode('testpass'.encode("utf-8"))).decode('ascii')
+        payload = {'sysadmin_password': fake_password,
+                   'admin_subnet': "192.168.102.0/24",
+                   'admin_start_address': "192.168.102.5",
+                   'admin_end_address': "192.168.102.49",
+                   'admin_gateway_ip': "192.168.102.1"}
 
-        mock_rpc_client().update_subcloud.return_value = True
-        mock_get_patch_data.return_value = data
+        mock_rpc_client().update_subcloud_with_network_reconfig.return_value = True
+        mock_get_patch_data.return_value = payload
         response = self.app.patch_json(FAKE_URL + '/' + str(subcloud.id),
                                        headers=FAKE_HEADERS,
-                                       params=data)
+                                       params=payload)
         self.assertEqual(response.status_int, 200)
         mock_validate_admin_network_config.assert_called_once()
-        mock_rpc_client().update_subcloud.assert_called_once_with(
+        mock_rpc_client().update_subcloud_with_network_reconfig.assert_called_once_with(
             mock.ANY,
             subcloud.id,
-            management_state=None,
-            description=None,
-            management_subnet=data['admin_subnet'],
-            management_gateway_ip=data['admin_gateway_ip'],
-            management_start_ip=data['admin_node_0_address'],
-            management_end_ip=data['admin_node_1_address'],
-            location=None,
-            group_id=None,
-            data_install=None,
-            force=None)
+            payload)
         self.assertEqual(response.status_int, 200)
 
     @mock.patch.object(rpc_client, 'ManagerClient')
@@ -1200,13 +1196,13 @@ class TestSubcloudAPIOther(testroot.DCManagerApiTest):
     def test_patch_subcloud_forced_manage(self, mock_get_patch_data,
                                           mock_rpc_client):
         subcloud = fake_subcloud.create_fake_subcloud(self.ctx)
-        data = {'management-state': dccommon_consts.MANAGEMENT_MANAGED,
-                'force': True}
+        payload = {'management-state': dccommon_consts.MANAGEMENT_MANAGED,
+                   'force': True}
         mock_rpc_client().update_subcloud.return_value = True
-        mock_get_patch_data.return_value = data
+        mock_get_patch_data.return_value = payload
         response = self.app.patch_json(FAKE_URL + '/' + str(subcloud.id),
                                        headers=FAKE_HEADERS,
-                                       params=data)
+                                       params=payload)
         mock_rpc_client().update_subcloud.assert_called_once_with(
             mock.ANY,
             mock.ANY,

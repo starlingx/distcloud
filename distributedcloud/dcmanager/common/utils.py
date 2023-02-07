@@ -1,5 +1,5 @@
 # Copyright 2015 Huawei Technologies Co., Ltd.
-# Copyright (c) 2017-2022 Wind River Systems, Inc.
+# Copyright (c) 2017-2023 Wind River Systems, Inc.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -112,6 +112,22 @@ def validate_network_str(network_str, minimum_size,
     except netaddr.AddrFormatError:
         raise exceptions.ValidateFail(
             "Invalid subnet - not a valid IP subnet")
+
+
+def is_password_valid(payload):
+    sysadmin_password = payload.get('sysadmin_password')
+    if not sysadmin_password:
+        msg = 'subcloud sysadmin_password required'
+        return False, msg
+    try:
+        LOG.info("password: %s" % sysadmin_password)
+        payload['sysadmin_password'] = base64.decode_as_text(sysadmin_password)
+        return True, None
+    except Exception:
+        msg = ('Failed to decode subcloud sysadmin_password, '
+               'verify the password is base64 encoded')
+        LOG.exception(msg)
+        return False, msg
 
 
 def validate_certificate_subject(subject):

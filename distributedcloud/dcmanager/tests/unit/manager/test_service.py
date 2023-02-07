@@ -1,4 +1,4 @@
-# Copyright (c) 2017-2021 Wind River Systems, Inc.
+# Copyright (c) 2017-2023 Wind River Systems, Inc.
 # Licensed under the Apache License, Version 2.0 (the "License"); you may
 # not use this file except in compliance with the License. You may obtain
 # a copy of the License at
@@ -94,14 +94,10 @@ class TestDCManagerService(base.DCManagerTestCase):
     def test_update_subcloud(self, mock_subcloud_manager):
         self.service_obj.init_managers()
         self.service_obj.update_subcloud(
-            self.context, subcloud_id=1, management_state='testmgmtstatus')
-        mock_subcloud_manager().update_subcloud.\
-            assert_called_once_with(self.context, mock.ANY,
-                                    mock.ANY, mock.ANY,
-                                    mock.ANY, mock.ANY,
-                                    mock.ANY, mock.ANY,
-                                    mock.ANY, mock.ANY,
-                                    mock.ANY, mock.ANY)
+            self.context, subcloud_id=1,
+            management_state='testmgmtstatus')
+        mock_subcloud_manager().update_subcloud.assert_called_once_with(
+            self.context, 1, 'testmgmtstatus', None, None, None, None, None)
 
     @mock.patch.object(service, 'SubcloudManager')
     @mock.patch.object(service, 'rpc_messaging')

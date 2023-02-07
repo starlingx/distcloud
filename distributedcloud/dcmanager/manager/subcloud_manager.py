@@ -29,6 +29,7 @@ import time
 from eventlet import greenpool
 from fm_api import constants as fm_const
 from fm_api import fm_api
+import ipaddress
 import keyring
 import netaddr
 from oslo_log import log as logging
@@ -77,6 +78,8 @@ ANSIBLE_SUBCLOUD_INSTALL_PLAYBOOK = \
     '/usr/share/ansible/stx-ansible/playbooks/install.yml'
 ANSIBLE_SUBCLOUD_REHOME_PLAYBOOK = \
     '/usr/share/ansible/stx-ansible/playbooks/rehome_subcloud.yml'
+ANSIBLE_SUBCLOUD_UPDATE_PLAYBOOK = \
+    '/usr/share/ansible/stx-ansible/playbooks/update_subcloud.yml'
 
 USERS_TO_REPLICATE = [
     'sysinv',
@@ -92,6 +95,7 @@ USERS_TO_REPLICATE = [
 # long time for privilege escalation before resetting the host route and
 # LDAP server address in a subcloud.
 REHOME_PLAYBOOK_TIMEOUT = "180"  # 180 seconds
+UPDATE_PLAYBOOK_TIMEOUT = "180"
 SC_INTERMEDIATE_CERT_DURATION = "8760h"  # 1 year = 24 hours x 365
 SC_INTERMEDIATE_CERT_RENEW_BEFORE = "720h"  # 30 days
 CERT_NAMESPACE = "dc-cert"
@@ -276,6 +280,16 @@ class SubcloudManager(manager.Manager):
             subcloud_name + "_backup_restore_values.yml"]
 
         return backup_command
+
+    def compose_update_command(self, subcloud_name, ansible_subcloud_inventory_file):
+        subcloud_update_command = [
+            "ansible-playbook", ANSIBLE_SUBCLOUD_UPDATE_PLAYBOOK,
+            "-i", ansible_subcloud_inventory_file,
+            "--limit", subcloud_name,
+            "--timeout", UPDATE_PLAYBOOK_TIMEOUT,
+            "-e", "subcloud_update_overrides=%s" % consts.ANSIBLE_OVERRIDES_PATH + "/" +
+            subcloud_name + "_update_values.yml"]
+        return subcloud_update_command
 
     def compose_rehome_command(self, subcloud_name, ansible_subcloud_inventory_file):
         rehome_command = [
@@ -1583,15 +1597,31 @@ class SubcloudManager(manager.Manager):
                     (subcloud.name, alarm_id))
                 LOG.exception(e)
 
+    def update_subcloud_with_network_reconfig(self, context, subcloud_id, payload):
+        subcloud = db_api.subcloud_get(context, subcloud_id)
+        description = payload.get('description', subcloud.description)
+        location = payload.get('location', subcloud.location)
+        group_id = payload.get('group_id', subcloud.group_id)
+        data_install = payload.get('data_install', subcloud.data_install)
+        self._update_subcloud_admin_network(payload, subcloud.name, context, subcloud_id)
+        subcloud = db_api.subcloud_update(
+            context,
+            subcloud_id,
+            description=description,
+            management_subnet=payload.get('admin_subnet'),
+            management_gateway_ip=payload.get('admin_gateway_ip'),
+            management_start_ip=payload.get('admin_start_address'),
+            management_end_ip=payload.get('admin_end_address'),
+            location=location,
+            group_id=group_id,
+            data_install=data_install
+        )
+
     def update_subcloud(self,
                         context,
                         subcloud_id,
                         management_state=None,
                         description=None,
-                        management_subnet=None,
-                        management_gateway_ip=None,
-                        management_start_ip=None,
-                        management_end_ip=None,
                         location=None,
                         group_id=None,
                         data_install=None,
@@ -1645,21 +1675,18 @@ class SubcloudManager(manager.Manager):
                 LOG.error("Invalid management_state %s" % management_state)
                 raise exceptions.InternalError()
 
-        subcloud = db_api.subcloud_update(context,
-                                          subcloud_id,
-                                          management_state=management_state,
-                                          description=description,
-                                          management_subnet=management_subnet,
-                                          management_gateway_ip=management_gateway_ip,
-                                          management_start_ip=management_start_ip,
-                                          management_end_ip=management_end_ip,
-                                          location=location,
-                                          group_id=group_id,
-                                          data_install=data_install)
+        subcloud = db_api.subcloud_update(
+            context,
+            subcloud_id,
+            management_state=management_state,
+            description=description,
+            location=location,
+            group_id=group_id,
+            data_install=data_install
+        )
 
         # Inform orchestrators that subcloud has been updated
         if management_state:
-
             try:
                 # Inform orchestrator of state change
                 self.dcorch_rpc_client.update_subcloud_states(
@@ -1710,6 +1737,149 @@ class SubcloudManager(manager.Manager):
                     context, subcloud_id, exclude_endpoints)
 
         return db_api.subcloud_db_model_to_dict(subcloud)
+
+    def _update_subcloud_admin_network(self, payload, subcloud_name, context, subcloud_id):
+        try:
+            self._create_intermediate_ca_cert(payload)
+            subcloud_inventory_file = self._get_ansible_filename(
+                subcloud_name, INVENTORY_FILE_POSTFIX)
+            subcloud_params = {'name': subcloud_name,
+                               'bootstrap-address': payload.get('bootstrap_address')}
+            utils.create_subcloud_inventory(subcloud_params, subcloud_inventory_file)
+            overrides_file = self._create_subcloud_update_overrides_file(
+                payload, subcloud_name, 'update_values')
+            update_command = self.compose_update_command(
+                subcloud_name, subcloud_inventory_file)
+        except Exception:
+            LOG.exception("Failed to prepare subcloud %s for update."
+                          % subcloud_name)
+            return
+        try:
+            apply_thread = threading.Thread(
+                target=self._run_update_playbook,
+                args=(subcloud_name, update_command, overrides_file, payload, context, subcloud_id))
+            apply_thread.start()
+        except Exception:
+            LOG.exception("Failed to update subcloud %s" % subcloud_name)
+
+    def _run_update_playbook(
+            self, subcloud_name, update_command, overrides_file, payload, context, subcloud_id):
+        log_file = (os.path.join(consts.DC_ANSIBLE_LOG_DIR, subcloud_name) +
+                    '_playbook_output.log')
+        try:
+            run_playbook(log_file, update_command)
+            utils.delete_subcloud_inventory(overrides_file)
+            db_api.subcloud_update(
+                context, subcloud_id,
+                deploy_status=consts.DEPLOY_STATE_DONE
+            )
+        except PlaybookExecutionFailed:
+            msg = utils.find_ansible_error_msg(
+                subcloud_name, log_file, consts.DEPLOY_STATE_RECONFIGURING_NETWORK)
+            LOG.error(msg)
+            db_api.subcloud_update(
+                context, subcloud_id,
+                deploy_status=consts.DEPLOY_STATE_RECONFIGURING_NETWORK_FAILED,
+                error_description=msg[0:consts.ERROR_DESCRIPTION_LENGTH]
+            )
+            return
+        try:
+            m_ks_client = OpenStackDriver(
+                region_name=dccommon_consts.DEFAULT_REGION_NAME,
+                region_clients=None).keystone_client
+            self._create_subcloud_admin_route(payload, m_ks_client)
+        except Exception:
+            LOG.exception("Failed to create route to admin")
+            return
+        try:
+            self._update_services_endpoint(payload, m_ks_client)
+        except Exception:
+            LOG.exception("Failed to update endpoint %s" % subcloud_name)
+            return
+
+    def _create_subcloud_admin_route(self, payload, keystone_client):
+        subcloud_subnet = netaddr.IPNetwork(utils.get_management_subnet(payload))
+        endpoint = keystone_client.endpoint_cache.get_endpoint('sysinv')
+        sysinv_client = SysinvClient(dccommon_consts.DEFAULT_REGION_NAME,
+                                     keystone_client.session,
+                                     endpoint=endpoint)
+        systemcontroller_gateway_ip = payload.get('systemcontroller_gateway_ip')
+        # TODO(nicodemos) delete old route
+        cached_regionone_data = self._get_cached_regionone_data(
+            keystone_client, sysinv_client)
+        for mgmt_if_uuid in cached_regionone_data['mgmt_interface_uuids']:
+            sysinv_client.create_route(mgmt_if_uuid,
+                                       str(subcloud_subnet.ip),
+                                       subcloud_subnet.prefixlen,
+                                       systemcontroller_gateway_ip,
+                                       1)
+
+    def _update_services_endpoint(self, payload, m_ks_client):
+        endpoint_ip = str(ipaddress.ip_network(payload.get('admin_subnet'))[2])
+        if netaddr.IPAddress(endpoint_ip).version == 6:
+            endpoint_ip = '[' + endpoint_ip + ']'
+
+        for endpoint in m_ks_client.keystone_client.endpoints.list(
+                region=payload['name']):
+            service_type = m_ks_client.keystone_client.services.get(
+                endpoint.service_id).type
+            if service_type == dccommon_consts.ENDPOINT_TYPE_PLATFORM:
+                admin_endpoint_url = "https://{}:6386/v1".format(endpoint_ip)
+            elif service_type == dccommon_consts.ENDPOINT_TYPE_IDENTITY:
+                admin_endpoint_url = "https://{}:5001/v3".format(endpoint_ip)
+            elif service_type == dccommon_consts.ENDPOINT_TYPE_PATCHING:
+                admin_endpoint_url = "https://{}:5492".format(endpoint_ip)
+            elif service_type == dccommon_consts.ENDPOINT_TYPE_FM:
+                admin_endpoint_url = "https://{}:18003".format(endpoint_ip)
+            elif service_type == dccommon_consts.ENDPOINT_TYPE_NFV:
+                admin_endpoint_url = "https://{}:4546".format(endpoint_ip)
+            else:
+                LOG.exception("Endpoint Type Error: %s" % service_type)
+            m_ks_client.keystone_client.endpoints.update(
+                endpoint, url=admin_endpoint_url)
+        # Clear the subcloud endpoint cache
+        OpenStackDriver(
+            region_name=dccommon_consts.DEFAULT_REGION_NAME,
+            region_clients=None
+        ).os_clients_dict[payload['name']] = collections.defaultdict(dict)
+        m_ks_client.endpoint_cache.re_initialize_master_keystone_client()
+
+    def _create_subcloud_update_overrides_file(
+            self, payload, subcloud_name, filename_suffix):
+        update_overrides_file = os.path.join(
+            consts.ANSIBLE_OVERRIDES_PATH, subcloud_name + '_' +
+            filename_suffix + '.yml')
+
+        self._update_override_values(payload)
+
+        with open(update_overrides_file, 'w') as f_out:
+            f_out.write(
+                '---\n'
+            )
+            for k, v in payload['override_values'].items():
+                f_out.write("%s: %s\n" % (k, json.dumps(v)))
+
+        return update_overrides_file
+
+    def _update_override_values(self, payload):
+        if not payload.get('override_values'):
+            payload['override_values'] = {}
+
+        payload['override_values']['ansible_ssh_pass'] = (
+            payload['sysadmin_password'])
+        payload['override_values']['ansible_become_pass'] = (
+            payload['sysadmin_password'])
+        payload['override_values']['admin_gateway_address'] = (
+            payload['admin_gateway_ip'])
+        payload['override_values']['admin_floating_address'] = (
+            payload['admin_start_address']
+        )
+        payload['override_values']['admin_subnet'] = (
+            payload['admin_subnet']
+        )
+        payload['override_values']['dc_root_ca_cert'] = payload['dc_root_ca_cert']
+        payload['override_values']['sc_ca_cert'] = payload['sc_ca_cert']
+        payload['override_values']['sc_ca_key'] = payload['sc_ca_key']
 
     def update_subcloud_sync_endpoint_type(self, context,
                                            subcloud_name,
