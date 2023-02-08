@@ -39,6 +39,8 @@ from dcmanager.tests.unit.common import fake_subcloud
 from dcmanager.tests import utils
 from tsconfig.tsconfig import SW_VERSION
 
+LAST_SW_VERSION_IN_CENTOS = "22.06"
+
 
 FAKE_ADMIN_USER_ID = 1
 FAKE_SYSINV_USER_ID = 2
@@ -2067,20 +2069,20 @@ class TestSubcloudManager(base.DCManagerTestCase):
     @mock.patch.object(prestage, 'prestage_packages')
     @mock.patch.object(cutils, 'delete_subcloud_inventory')
     @mock.patch.object(prestage, '_run_ansible')
-    def test_prestage_subcloud_prestage_prepare(self,
-                                                mock_run_ansible,
-                                                mock_delete_subcloud_inventory,
-                                                mock_prestage_packages,
-                                                mock_prestage_images,
-                                                mock_prestage_complete):
+    def test_prestage_subcloud_prestage_prepare_centos(self,
+                                                       mock_run_ansible,
+                                                       mock_delete_subcloud_inventory,
+                                                       mock_prestage_packages,
+                                                       mock_prestage_images,
+                                                       mock_prestage_complete):
 
         values = copy.copy(FAKE_PRESTAGE_PAYLOAD)
         subcloud = self.create_subcloud_static(self.ctx,
                                                name='subcloud1',
                                                deploy_status=consts.DEPLOY_STATE_NONE)
-
+        current_sw_version = prestage.SW_VERSION
+        prestage.SW_VERSION = LAST_SW_VERSION_IN_CENTOS
         prestage._prestage_standalone_thread(self.ctx, subcloud, payload=values)
-
         mock_run_ansible.return_value = None
         mock_prestage_packages.assert_called_once_with(self.ctx, subcloud, values)
         mock_prestage_images.assert_called_once_with(self.ctx, subcloud, values)
@@ -2089,7 +2091,36 @@ class TestSubcloudManager(base.DCManagerTestCase):
 
         # Verify that subcloud has the correct deploy status
         updated_subcloud = db_api.subcloud_get_by_name(self.ctx, subcloud.name)
+        prestage.SW_VERSION = current_sw_version
         self.assertEqual(consts.PRESTAGE_STATE_PREPARE,
+                         updated_subcloud.deploy_status)
+
+    @mock.patch.object(prestage, 'prestage_complete')
+    @mock.patch.object(prestage, 'prestage_images')
+    @mock.patch.object(prestage, 'prestage_packages')
+    @mock.patch.object(cutils, 'delete_subcloud_inventory')
+    @mock.patch.object(prestage, '_run_ansible')
+    def test_prestage_subcloud_prestage_prepare_debian(self,
+                                                       mock_run_ansible,
+                                                       mock_delete_subcloud_inventory,
+                                                       mock_prestage_packages,
+                                                       mock_prestage_images,
+                                                       mock_prestage_complete):
+
+        values = copy.copy(FAKE_PRESTAGE_PAYLOAD)
+        subcloud = self.create_subcloud_static(self.ctx,
+                                               name='subcloud1',
+                                               deploy_status=consts.DEPLOY_STATE_NONE)
+        prestage._prestage_standalone_thread(self.ctx, subcloud, payload=values)
+        mock_run_ansible.return_value = None
+        mock_prestage_packages.assert_called_once_with(self.ctx, subcloud, values)
+        mock_prestage_images.assert_called_once_with(self.ctx, subcloud, values)
+        mock_prestage_complete.assert_called_once_with(self.ctx, subcloud.id)
+        mock_delete_subcloud_inventory.return_value = None
+
+        # Verify that subcloud has the correct deploy status
+        updated_subcloud = db_api.subcloud_get_by_name(self.ctx, subcloud.name)
+        self.assertEqual(consts.DEPLOY_STATE_NONE,
                          updated_subcloud.deploy_status)
 
     def test_get_cached_regionone_data(self):
