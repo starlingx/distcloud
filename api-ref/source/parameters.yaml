@@ -379,6 +379,30 @@ strategy_steps:
   in: body
   required: false
   type: array
+subcloud_admin_gateway_ip:
+  description: |
+    The admin gateway ip of a subcloud.
+  in: body
+  required: false
+  type: string
+subcloud_admin_node_0_address:
+  description: |
+    The admin node-0 address of a subcloud.
+  in: body
+  required: false
+  type: string
+subcloud_admin_node_1_address:
+  description: |
+    The admin node-1 address of a subcloud.
+  in: body
+  required: false
+  type: string
+subcloud_admin_subnet:
+  description: |
+    The admin subnet of a subcloud.
+  in: body
+  required: false
+  type: string
 subcloud_apply_type:
   description: |
     The apply type for the update.  `serial` or `parallel`.
