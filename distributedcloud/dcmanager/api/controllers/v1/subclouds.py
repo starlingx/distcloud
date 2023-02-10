@@ -1,5 +1,5 @@
 # Copyright (c) 2017 Ericsson AB.
-# Copyright (c) 2017-2022 Wind River Systems, Inc.
+# Copyright (c) 2017-2023 Wind River Systems, Inc.
 # All Rights Reserved.
 #
 #    Licensed under the Apache License, Version 2.0 (the "License"); you may
@@ -39,6 +39,8 @@ from pecan import expose
 from pecan import request
 
 from dccommon import consts as dccommon_consts
+from dccommon.drivers.openstack import patching_v1
+from dccommon.drivers.openstack.patching_v1 import PatchingClient
 from dccommon.drivers.openstack.sdk_platform import OpenStackDriver
 from dccommon.drivers.openstack.sysinv_v1 import SysinvClient
 from dccommon import exceptions as dccommon_exceptions
@@ -793,6 +795,17 @@ class SubcloudsController(object):
                      'for region %s' % region_name)
             raise
 
+    def _validate_system_controller_patch_status(self):
+        ks_client = self.get_ks_client()
+        patching_client = PatchingClient(dccommon_consts.DEFAULT_REGION_NAME,
+                                         ks_client.session,
+                                         endpoint=ks_client.endpoint_cache.get_endpoint('patching'))
+        patches = patching_client.query()
+        patch_ids = list(patches.keys())
+        for patch_id in patch_ids:
+            if patches[patch_id]['patchstate'] in [patching_v1.PATCH_STATE_PARTIAL_APPLY, patching_v1.PATCH_STATE_PARTIAL_REMOVE]:
+                pecan.abort(422, _('Subcloud add is not allowed while system controller patching is still in progress.'))
+
     def _get_management_address_pool(self, context):
         """Get the system controller's management address pool"""
         ks_client = self.get_ks_client()
@@ -1098,6 +1111,8 @@ class SubcloudsController(object):
             # If a subcloud group is not passed, use the default
             group_id = payload.get('group_id',
                                    consts.DEFAULT_SUBCLOUD_GROUP_ID)
+
+            self._validate_system_controller_patch_status()
 
             self._validate_subcloud_config(context,
                                            name,

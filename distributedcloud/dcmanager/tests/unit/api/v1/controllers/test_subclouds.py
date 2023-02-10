@@ -55,6 +55,12 @@ FAKE_SUBCLOUD_INSTALL_VALUES_WITH_PERSISTENT_SIZE = \
 FAKE_SUBCLOUD_BOOTSTRAP_PAYLOAD = fake_subcloud.FAKE_SUBCLOUD_BOOTSTRAP_PAYLOAD
 OAM_FLOATING_IP = '10.10.10.12'
 
+FAKE_PATCH = {
+    "value": {
+        "patchstate": "Partial-Apply"
+    }
+}
+
 health_report_no_alarm = \
     "System Health:\n \
     All hosts are provisioned: [Fail]\n \
@@ -282,6 +288,14 @@ class TestSubcloudPost(testroot.DCManagerApiTest,
         self.mock_rpc_client = p.start()
         self.addCleanup(p.stop)
 
+        p = mock.patch.object(subclouds.SubcloudsController, 'get_ks_client')
+        self.mock_get_ks_client = p.start()
+        self.addCleanup(p.stop)
+
+        p = mock.patch.object(subclouds.PatchingClient, 'query')
+        self.mock_query = p.start()
+        self.addCleanup(p.stop)
+
         p = mock.patch.object(rpc_client, 'SubcloudStateClient')
         self.mock_rpc_state_client = p.start()
         self.addCleanup(p.stop)
@@ -498,6 +512,21 @@ class TestSubcloudPost(testroot.DCManagerApiTest,
                                  upload_files=upload_files,
                                  headers=self.get_api_headers())
         self._verify_post_success(response)
+
+    @mock.patch.object(subclouds.PatchingClient, 'query')
+    def test_post_subcloud_when_partial_applied_patch(self, mock_query):
+        """Test POST operation when there is a partial-applied patch."""
+
+        upload_files = self.get_post_upload_files()
+        params = self.get_post_params()
+        mock_query.return_value = FAKE_PATCH
+        response = self.app.post(self.get_api_prefix(),
+                                 params=params,
+                                 upload_files=upload_files,
+                                 headers=self.get_api_headers(),
+                                 expect_errors=True)
+        self.assertEqual(http_client.UNPROCESSABLE_ENTITY, response.status_code)
+        self.assertEqual('text/plain', response.content_type)
 
     def test_post_subcloud_install_values_no_bmc_password(self):
         """Test POST operation with install values is supported by the API."""
