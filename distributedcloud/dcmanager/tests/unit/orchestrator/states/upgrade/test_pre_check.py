@@ -56,7 +56,7 @@ CONTROLLER_1_UPGRADED_STANDBY = FakeController(host_id=2,
                                                administrative=consts.ADMIN_UNLOCKED,
                                                software_load='56.78',
                                                capabilities={"Personality": "Controller-Standby"})
-SYSTEM_HEALTH_RESPONSE_SUCCESS = \
+SYSTEM_HEALTH_UPGRADE_RESPONSE_SUCCESS = \
     "System Health:\n" \
     "All hosts are provisioned: [OK]\n" \
     "All hosts are unlocked/enabled: [OK]\n" \
@@ -65,9 +65,11 @@ SYSTEM_HEALTH_RESPONSE_SUCCESS = \
     "Ceph Storage Healthy: [OK]\n" \
     "No alarms: [OK]\n" \
     "All kubernetes nodes are ready: [OK]\n" \
-    "All kubernetes control plane pods are ready: [OK]"
+    "All kubernetes control plane pods are ready: [OK]\n" \
+    "Active kubernetes version is the latest supported version: [OK]\n" \
+    "No imported load found. Unable to test further"
 
-SYSTEM_HEALTH_RESPONSE_NON_MGMT_AFFECTING_ALARMS =  \
+SYSTEM_HEALTH_UPGRADE_RESPONSE_NON_MGMT_AFFECTING_ALARMS =  \
     "System Health:\n" \
     "All hosts are provisioned: [OK]\n" \
     "All hosts are unlocked/enabled: [OK]\n" \
@@ -77,9 +79,11 @@ SYSTEM_HEALTH_RESPONSE_NON_MGMT_AFFECTING_ALARMS =  \
     "No alarms: [Fail]\n" \
     "[4] alarms found, [0] of which are management affecting\n" \
     "All kubernetes nodes are ready: [OK]\n" \
-    "All kubernetes control plane pods are ready: [OK]"
+    "All kubernetes control plane pods are ready: [OK]\n" \
+    "Active kubernetes version is the latest supported version: [OK]\n" \
+    "No imported load found. Unable to test further"
 
-SYSTEM_HEALTH_RESPONSE_MGMT_AFFECTING_ALARM =  \
+SYSTEM_HEALTH_UPGRADE_RESPONSE_MGMT_AFFECTING_ALARM =  \
     "System Health:\n" \
     "All hosts are provisioned: [OK]\n" \
     "All hosts are unlocked/enabled: [OK]\n" \
@@ -89,9 +93,11 @@ SYSTEM_HEALTH_RESPONSE_MGMT_AFFECTING_ALARM =  \
     "No alarms: [Fail]\n" \
     "[1] alarms found, [1] of which are management affecting\n" \
     "All kubernetes nodes are ready: [OK]\n" \
-    "All kubernetes control plane pods are ready: [OK]"
+    "All kubernetes control plane pods are ready: [OK]\n" \
+    "Active kubernetes version is the latest supported version: [OK]\n" \
+    "No imported load found. Unable to test further"
 
-SYSTEM_HEALTH_RESPONSE_MULTIPLE_FAILED_HEALTH_CHECKS =  \
+SYSTEM_HEALTH_UPGRADE_RESPONSE_MULTIPLE_FAILED_HEALTH_CHECKS =  \
     "System Health:\n" \
     "All hosts are provisioned: [OK]\n" \
     "All hosts are unlocked/enabled: [OK]\n" \
@@ -103,9 +109,11 @@ SYSTEM_HEALTH_RESPONSE_MULTIPLE_FAILED_HEALTH_CHECKS =  \
     "All kubernetes nodes are ready: [Fail]\n" \
     "Kubernetes nodes not ready: controller-0\n" \
     "All kubernetes control plane pods are ready: [Fail]\n" \
-    "Kubernetes control plane pods not ready: kube-apiserver-controller-0"
+    "Kubernetes control plane pods not ready: kube-apiserver-controller-0\n" \
+    "Active kubernetes version is the latest supported version: [OK]\n" \
+    "No imported load found. Unable to test further"
 
-SYSTEM_HEALTH_RESPONSE_K8S_FAILED_HEALTH_CHECKS =  \
+SYSTEM_HEALTH_UPGRADE_RESPONSE_K8S_FAILED_HEALTH_CHECKS =  \
     "System Health:\n" \
     "All hosts are provisioned: [OK]\n" \
     "All hosts are unlocked/enabled: [OK]\n" \
@@ -114,7 +122,23 @@ SYSTEM_HEALTH_RESPONSE_K8S_FAILED_HEALTH_CHECKS =  \
     "Ceph Storage Healthy: [OK]\n" \
     "No alarms: [OK]\n" \
     "All kubernetes nodes are ready: [Fail]\n" \
-    "All kubernetes control plane pods are ready: [OK]"
+    "All kubernetes control plane pods are ready: [OK]\n" \
+    "Active kubernetes version is the latest supported version: [OK]\n" \
+    "No imported load found. Unable to test further"
+
+SYSTEM_HEALTH_UPGRADE_RESPONSE_FAILED_ACTIVE_K8S_VERSION_CHECK = \
+    "System Health:\n" \
+    "All hosts are provisioned: [OK]\n" \
+    "All hosts are unlocked/enabled: [OK]\n" \
+    "All hosts have current configurations: [OK]\n" \
+    "All hosts are patch current: [OK]\n" \
+    "Ceph Storage Healthy: [OK]\n" \
+    "No alarms: [OK]\n" \
+    "All kubernetes nodes are ready: [OK]\n" \
+    "All kubernetes control plane pods are ready: [OK]\n" \
+    "Active kubernetes version is the latest supported version: [Fail]\n" \
+    "Upgrade kubernetes to the latest version: [v1.26.1]. See \"system kube-version-list\"\n" \
+    "No imported load found. Unable to test further"
 
 UPGRADE_STARTED = FakeUpgrade(state='started')
 
@@ -137,7 +161,7 @@ class TestSwUpgradePreCheckStage(TestSwUpgradeState):
 
         self.sysinv_client.get_host = mock.MagicMock()
         self.sysinv_client.get_host_filesystem = mock.MagicMock()
-        self.sysinv_client.get_system_health = mock.MagicMock()
+        self.sysinv_client.get_system_health_upgrade = mock.MagicMock()
         self.sysinv_client.get_system = mock.MagicMock()
         system_values = FakeSystem()
         system_values.system_mode = consts.SYSTEM_MODE_SIMPLEX
@@ -160,14 +184,14 @@ class TestSwUpgradePreCheckStage(TestSwUpgradeState):
         self.sysinv_client.get_host_filesystem.side_effect = \
             [CONTROLLER_0_HOST_FS_SCRATCH_MIN_SIZED]
 
-        self.sysinv_client.get_system_health.return_value = \
-            SYSTEM_HEALTH_RESPONSE_SUCCESS
+        self.sysinv_client.get_system_health_upgrade.return_value = \
+            SYSTEM_HEALTH_UPGRADE_RESPONSE_SUCCESS
 
         # invoke the strategy state operation on the orch thread
         self.worker.perform_state_action(self.strategy_step)
 
-        # verify the get system health API call was invoked
-        self.sysinv_client.get_system_health.assert_called()
+        # verify the get system health upgrade API call was invoked
+        self.sysinv_client.get_system_health_upgrade.assert_called()
 
         # verify the get host filesystem API call was invoked
         self.sysinv_client.get_host_filesystem.assert_called()
@@ -191,14 +215,14 @@ class TestSwUpgradePreCheckStage(TestSwUpgradeState):
         self.sysinv_client.get_host_filesystem.side_effect = \
             [CONTROLLER_0_HOST_FS_SCRATCH_MIN_SIZED]
 
-        self.sysinv_client.get_system_health.return_value = \
-            SYSTEM_HEALTH_RESPONSE_NON_MGMT_AFFECTING_ALARMS
+        self.sysinv_client.get_system_health_upgrade.return_value = \
+            SYSTEM_HEALTH_UPGRADE_RESPONSE_NON_MGMT_AFFECTING_ALARMS
 
         # invoke the strategy state operation on the orch thread
         self.worker.perform_state_action(self.strategy_step)
 
-        # verify the get system health API call was invoked
-        self.sysinv_client.get_system_health.assert_called()
+        # verify the get system health upgrade API call was invoked
+        self.sysinv_client.get_system_health_upgrade.assert_called()
 
         # verify the get host filesystem API call was invoked
         self.sysinv_client.get_host_filesystem.assert_called()
@@ -226,8 +250,8 @@ class TestSwUpgradePreCheckStage(TestSwUpgradeState):
         # upgrade has started
         self.sysinv_client.get_upgrades.return_value = [UPGRADE_STARTED, ]
 
-        self.sysinv_client.get_system_health.return_value = \
-            SYSTEM_HEALTH_RESPONSE_MGMT_AFFECTING_ALARM
+        self.sysinv_client.get_system_health_upgrade.return_value = \
+            SYSTEM_HEALTH_UPGRADE_RESPONSE_MGMT_AFFECTING_ALARM
 
         self.fm_client.get_alarms.return_value = [UPGRADE_ALARM, HOST_LOCKED_ALARM, ]
 
@@ -237,8 +261,8 @@ class TestSwUpgradePreCheckStage(TestSwUpgradeState):
         # invoke the strategy state operation on the orch thread
         self.worker.perform_state_action(self.strategy_step)
 
-        # verify the get system health API call was invoked
-        self.sysinv_client.get_system_health.assert_called()
+        # verify the get system health upgrade API call was invoked
+        self.sysinv_client.get_system_health_upgrade.assert_called()
 
         # verify the get alarms API call was invoked
         self.fm_client.get_alarms.assert_called()
@@ -268,8 +292,8 @@ class TestSwUpgradePreCheckStage(TestSwUpgradeState):
 
         self.sysinv_client.get_upgrades.return_value = []
 
-        self.sysinv_client.get_system_health.return_value = \
-            SYSTEM_HEALTH_RESPONSE_MGMT_AFFECTING_ALARM
+        self.sysinv_client.get_system_health_upgrade.return_value = \
+            SYSTEM_HEALTH_UPGRADE_RESPONSE_MGMT_AFFECTING_ALARM
 
         self.fm_client.get_alarms.return_value = [HOST_LOCKED_ALARM, ]
 
@@ -277,7 +301,7 @@ class TestSwUpgradePreCheckStage(TestSwUpgradeState):
         self.worker.perform_state_action(self.strategy_step)
 
         # verify the get system health API call was invoked
-        self.sysinv_client.get_system_health.assert_called()
+        self.sysinv_client.get_system_health_upgrade.assert_called()
 
         # verify the get alarms API call was invoked
         self.fm_client.get_alarms.assert_called()
@@ -299,14 +323,40 @@ class TestSwUpgradePreCheckStage(TestSwUpgradeState):
                                self.subcloud.id,
                                deploy_status=consts.DEPLOY_STATE_DONE)
 
-        self.sysinv_client.get_system_health.return_value = \
-            SYSTEM_HEALTH_RESPONSE_MULTIPLE_FAILED_HEALTH_CHECKS
+        self.sysinv_client.get_system_health_upgrade.return_value = \
+            SYSTEM_HEALTH_UPGRADE_RESPONSE_MULTIPLE_FAILED_HEALTH_CHECKS
 
         # invoke the strategy state operation on the orch thread
         self.worker.perform_state_action(self.strategy_step)
 
         # verify the get system health API call was invoked
-        self.sysinv_client.get_system_health.assert_called()
+        self.sysinv_client.get_system_health_upgrade.assert_called()
+
+        # Verify the exception caused the state to go to failed
+        self.assert_step_updated(self.strategy_step.subcloud_id,
+                                 consts.STRATEGY_STATE_FAILED)
+
+    def test_upgrade_pre_check_subcloud_online_active_k8s_version_check_failed(self):
+        """Test pre check step where the subcloud is online but is unhealthy
+
+        The pre-check should raise an exception and transition to the failed
+        state when the subcloud is not ready because subcloud k8s version is not
+        the latest supported kubernetes version.
+        """
+
+        # Update the subcloud to have deploy state as "complete"
+        db_api.subcloud_update(self.ctx,
+                               self.subcloud.id,
+                               deploy_status=consts.DEPLOY_STATE_DONE)
+
+        self.sysinv_client.get_system_health_upgrade.return_value = \
+            SYSTEM_HEALTH_UPGRADE_RESPONSE_FAILED_ACTIVE_K8S_VERSION_CHECK
+
+        # invoke the strategy state operation on the orch thread
+        self.worker.perform_state_action(self.strategy_step)
+
+        # verify the get system health API call was invoked
+        self.sysinv_client.get_system_health_upgrade.assert_called()
 
         # Verify the exception caused the state to go to failed
         self.assert_step_updated(self.strategy_step.subcloud_id,
@@ -325,14 +375,14 @@ class TestSwUpgradePreCheckStage(TestSwUpgradeState):
                                self.subcloud.id,
                                deploy_status=consts.DEPLOY_STATE_DONE)
 
-        self.sysinv_client.get_system_health.return_value = \
-            SYSTEM_HEALTH_RESPONSE_K8S_FAILED_HEALTH_CHECKS
+        self.sysinv_client.get_system_health_upgrade.return_value = \
+            SYSTEM_HEALTH_UPGRADE_RESPONSE_K8S_FAILED_HEALTH_CHECKS
 
         # invoke the strategy state operation on the orch thread
         self.worker.perform_state_action(self.strategy_step)
 
         # verify the get system health API call was invoked
-        self.sysinv_client.get_system_health.assert_called()
+        self.sysinv_client.get_system_health_upgrade.assert_called()
 
         # Verify the exception caused the state to go to failed
         self.assert_step_updated(self.strategy_step.subcloud_id,
@@ -354,14 +404,14 @@ class TestSwUpgradePreCheckStage(TestSwUpgradeState):
         self.sysinv_client.get_host_filesystem.side_effect = \
             [CONTROLLER_0_HOST_FS_SCRATCH_UNDER_SIZED]
 
-        self.sysinv_client.get_system_health.return_value = \
-            SYSTEM_HEALTH_RESPONSE_SUCCESS
+        self.sysinv_client.get_system_health_upgrade.return_value = \
+            SYSTEM_HEALTH_UPGRADE_RESPONSE_SUCCESS
 
         # invoke the strategy state operation on the orch thread
         self.worker.perform_state_action(self.strategy_step)
 
-        # verify the get system health API call was invoked
-        self.sysinv_client.get_system_health.assert_called()
+        # verify the get system health upgrade API call was invoked
+        self.sysinv_client.get_system_health_upgrade.assert_called()
 
         # verify the get host filesystem API call was invoked
         self.sysinv_client.get_host_filesystem.assert_called()
@@ -388,7 +438,7 @@ class TestSwUpgradePreCheckSimplexStage(TestSwUpgradePreCheckStage):
         self.worker.perform_state_action(self.strategy_step)
 
         # verify the get system health API call was not invoked
-        self.sysinv_client.get_system_health.assert_not_called()
+        self.sysinv_client.get_system_health_upgrade.assert_not_called()
 
         # verify the get host filesystem API call was not invoked
         self.sysinv_client.get_host_filesystem.assert_not_called()
@@ -408,8 +458,8 @@ class TestSwUpgradePreCheckSimplexStage(TestSwUpgradePreCheckStage):
                                self.subcloud.id,
                                deploy_status=consts.DEPLOY_STATE_DATA_MIGRATION_FAILED)
 
-        self.sysinv_client.get_system_health.return_value = \
-            SYSTEM_HEALTH_RESPONSE_MGMT_AFFECTING_ALARM
+        self.sysinv_client.get_system_health_upgrade.return_value = \
+            SYSTEM_HEALTH_UPGRADE_RESPONSE_MGMT_AFFECTING_ALARM
 
         self.fm_client.get_alarms.return_value = [UPGRADE_ALARM, ]
 
@@ -420,7 +470,7 @@ class TestSwUpgradePreCheckSimplexStage(TestSwUpgradePreCheckStage):
         self.worker.perform_state_action(self.strategy_step)
 
         # verify the get system health API call was invoked
-        self.sysinv_client.get_system_health.assert_called()
+        self.sysinv_client.get_system_health_upgrade.assert_called()
 
         # verify the get host filesystem API call was invoked
         self.sysinv_client.get_host_filesystem.assert_called()

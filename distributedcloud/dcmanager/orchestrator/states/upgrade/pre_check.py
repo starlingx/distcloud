@@ -45,7 +45,7 @@ class PreCheckState(BaseState):
     def _check_health(self, strategy_step, subcloud_sysinv_client, subcloud_fm_client,
                       host, upgrades):
 
-        # Check system health
+        # Check system upgrade health
         #
         # Sample output #1
         # ================
@@ -61,6 +61,8 @@ class PreCheckState(BaseState):
         # [1] alarms found, [0] of which are management affecting
         # All kubernetes nodes are ready: [OK]
         # All kubernetes control plane pods are ready: [OK]
+        # Active kubernetes version is the latest supported version: [OK]
+        # No imported load found. Unable to test further
         #
         # Sample output #2
         # ================
@@ -76,11 +78,13 @@ class PreCheckState(BaseState):
         # [7] alarms found, [2] of which are management affecting
         # All kubernetes nodes are ready: [OK]
         # All kubernetes control plane pods are ready: [OK]
+        # Active kubernetes version is the latest supported version: [OK]
+        # No imported load found. Unable to test further
 
         # TODO(teewrs): Update the sysinv API to allow a list of ignored alarms
         # to be passed to the health check API. This would be much more efficient
         # than having to retrieve the alarms in a separate step.
-        system_health = subcloud_sysinv_client.get_system_health()
+        system_health = subcloud_sysinv_client.get_system_health_upgrade()
         fails = re.findall("\[Fail\]", system_health)
         failed_alarm_check = re.findall("No alarms: \[Fail\]", system_health)
         no_mgmt_alarms = re.findall("\[0\] of which are management affecting",
@@ -110,12 +114,12 @@ class PreCheckState(BaseState):
             #
             # These could be Kubernetes or other related failure(s) which has not been been
             # converted into an alarm condition.
-            error_desc_msg = ("System health check failed. \n %s" %
+            error_desc_msg = ("System upgrade health check failed. \n %s" %
                               fails)
             db_api.subcloud_update(
                 self.context, strategy_step.subcloud_id,
                 error_description=error_desc_msg[0:consts.ERROR_DESCRIPTION_LENGTH])
-            details = ("System health check failed. Please run 'system health-query' "
+            details = ("System upgrade health check failed. Please run 'system health-query-upgrade' "
                        "command on the subcloud or %s on central for details"
                        % (consts.ERROR_DESC_CMD))
             self.error_log(strategy_step, "\n" + system_health)
@@ -135,14 +139,14 @@ class PreCheckState(BaseState):
                 for alarm in alarms:
                     if alarm.alarm_id not in alarm_ignore_list:
                         if alarm.mgmt_affecting == "True":
-                            error_desc_msg = ("System health check failed due to alarm %s. "
-                                              "System health: \n %s" %
+                            error_desc_msg = ("System upgrade health check failed due to alarm %s. "
+                                              "System upgrade health: \n %s" %
                                               (alarm.alarm_id, system_health))
                             db_api.subcloud_update(
                                 self.context, strategy_step.subcloud_id,
                                 error_description=error_desc_msg[0:consts.ERROR_DESCRIPTION_LENGTH])
-                            details = ("System health check failed due to alarm %s. "
-                                       "Please run 'system health-query' "
+                            details = ("System upgrade health check failed due to alarm %s. "
+                                       "Please run 'system health-query-upgrade' "
                                        "command on the subcloud or %s on central for details." %
                                        (alarm.alarm_id, consts.ERROR_DESC_CMD))
                             self.error_log(strategy_step, "\n" + system_health)
@@ -152,14 +156,14 @@ class PreCheckState(BaseState):
                                 )
             else:
                 # Multiple failures
-                error_desc_msg = ("System health check failed due to multiple failures. "
+                error_desc_msg = ("System upgrade health check failed due to multiple failures. "
                                   "Health: \n %s" %
                                   (system_health))
                 db_api.subcloud_update(
                     self.context, strategy_step.subcloud_id,
                     error_description=error_desc_msg[0:consts.ERROR_DESCRIPTION_LENGTH])
-                details = ("System health check failed due to multiple failures. "
-                           "Please run 'system health-query' command on the "
+                details = ("System upgrade health check failed due to multiple failures. "
+                           "Please run 'system health-query-upgrade' command on the "
                            "subcloud or %s on central for details." %
                            (consts.ERROR_DESC_CMD))
                 self.error_log(strategy_step, "\n" + system_health)

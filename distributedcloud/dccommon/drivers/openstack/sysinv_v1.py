@@ -375,6 +375,10 @@ class SysinvClient(base.DriverBase):
         """Get system health."""
         return self.sysinv_client.health.get()
 
+    def get_system_health_upgrade(self):
+        """Get platform upgrade health."""
+        return self.sysinv_client.health.get_upgrade()
+
     def get_hosts(self):
         """Get a list of hosts."""
         return self.sysinv_client.ihost.list()
