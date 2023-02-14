@@ -1,4 +1,4 @@
-# Copyright (c) 2017-2022 Wind River Systems, Inc.
+# Copyright (c) 2017-2023 Wind River Systems, Inc.
 # Licensed under the Apache License, Version 2.0 (the "License"); you may
 # not use this file except in compliance with the License. You may obtain
 # a copy of the License at
@@ -201,12 +201,16 @@ class TestSwUpdate(base.DCManagerTestCase):
 
     def assert_step_updated(self, subcloud_id, update_state):
         step = db_api.strategy_step_get(self.ctx, subcloud_id)
-        self.assertEqual(step.state, update_state)
+        self.assertEqual(update_state, step.state)
+
+    def assert_step_details(self, subcloud_id, details):
+        step = db_api.strategy_step_get(self.ctx, subcloud_id)
+        self.assertEqual(details, step.details)
 
     # utility methods to help assert the value of any subcloud attribute
     def assert_subcloud_attribute(self, subcloud_id, attr_name, expected_val):
         subcloud = db_api.subcloud_get(self.ctx, subcloud_id)
-        self.assertEqual(subcloud[attr_name], expected_val)
+        self.assertEqual(expected_val, subcloud[attr_name])
 
     def assert_subcloud_software_version(self, subcloud_id, expected_val):
         self.assert_subcloud_attribute(subcloud_id,

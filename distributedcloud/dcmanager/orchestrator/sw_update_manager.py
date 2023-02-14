@@ -1,5 +1,5 @@
 # Copyright 2017 Ericsson AB.
-# Copyright (c) 2017-2022 Wind River Systems, Inc.
+# Copyright (c) 2017-2023 Wind River Systems, Inc.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -513,19 +513,6 @@ class SwUpdateManager(manager.Manager):
             stop_on_failure,
             consts.SW_UPDATE_STATE_INITIAL,
             extra_args=extra_args)
-
-        # For 'patch', always create a strategy step for the system controller
-        # A strategy step for the system controller is not added for:
-        # 'upgrade', 'firmware', 'kube upgrade', 'kube rootca update'
-        if strategy_type == consts.SW_UPDATE_TYPE_PATCH:
-            current_stage_counter += 1
-            db_api.strategy_step_create(
-                context,
-                None,  # None means not a subcloud. ie: SystemController
-                stage=current_stage_counter,
-                state=consts.STRATEGY_STATE_INITIAL,
-                details='')
-            strategy_step_created = True
 
         # Create a strategy step for each subcloud that is managed, online and
         # out of sync

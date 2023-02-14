@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2020, 2022 Wind River Systems, Inc.
+# Copyright (c) 2020, 2023 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -41,11 +41,6 @@ SUBCLOUD_PATCHES = {'DC.1': {'sw_version': '17.07',
                     }
 
 
-def compare_call_with_unsorted_list(call, unsorted_list):
-    call_args, _ = call
-    return call_args[0].sort() == unsorted_list.sort()
-
-
 @mock.patch("dcmanager.orchestrator.states.upgrade.finishing_patch_strategy"
             ".DEFAULT_MAX_QUERIES", 3)
 @mock.patch("dcmanager.orchestrator.states.upgrade.finishing_patch_strategy"
@@ -81,14 +76,11 @@ class TestSwUpgradeFinishingPatchStrategyStage(TestSwUpgradeState):
         # invoke the strategy state operation on the orch thread
         self.worker.perform_state_action(self.strategy_step)
 
-        assert(compare_call_with_unsorted_list(
-            self.patching_client.delete.call_args_list[0],
-            ['DC.5', 'DC.6']
-        ))
-        assert(compare_call_with_unsorted_list(
-            self.patching_client.commit.call_args_list[0],
-            ['DC.2', 'DC.3']
-        ))
+        call_args, _ = self.patching_client.delete.call_args_list[0]
+        self.assertItemsEqual(['DC.5', 'DC.6'], call_args[0])
+
+        call_args, _ = self.patching_client.commit.call_args_list[0]
+        self.assertItemsEqual(['DC.2', 'DC.3'], call_args[0])
 
         # On success, the state should transition to the next state
         self.assert_step_updated(self.strategy_step.subcloud_id,

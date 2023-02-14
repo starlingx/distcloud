@@ -1,5 +1,5 @@
 # Copyright (c) 2016 Ericsson AB.
-# Copyright (c) 2017-2022 Wind River Systems, Inc.
+# Copyright (c) 2017-2023 Wind River Systems, Inc.
 # Licensed under the Apache License, Version 2.0 (the "License"); you may
 # not use this file except in compliance with the License. You may obtain
 # a copy of the License at
@@ -92,16 +92,18 @@ DEFAULT_SUBCLOUD_GROUP_DESCRIPTION = 'Default Subcloud Group'
 DEFAULT_SUBCLOUD_GROUP_UPDATE_APPLY_TYPE = SUBCLOUD_APPLY_TYPE_PARALLEL
 DEFAULT_SUBCLOUD_GROUP_MAX_PARALLEL_SUBCLOUDS = 2
 
-# Strategy step states
+# Common strategy step states
 STRATEGY_STATE_INITIAL = "initial"
-STRATEGY_STATE_UPDATING_PATCHES = "updating patches"
-STRATEGY_STATE_CREATING_STRATEGY = "creating strategy"
-STRATEGY_STATE_APPLYING_STRATEGY = "applying strategy"
-STRATEGY_STATE_FINISHING = "finishing"
 STRATEGY_STATE_COMPLETE = "complete"
 STRATEGY_STATE_ABORTED = "aborted"
 STRATEGY_STATE_FAILED = "failed"
 
+# Patch orchestrations states
+STRATEGY_STATE_CREATING_VIM_PATCH_STRATEGY = "creating VIM patch strategy"
+STRATEGY_STATE_DELETING_VIM_PATCH_STRATEGY = "deleting VIM patch strategy"
+STRATEGY_STATE_APPLYING_VIM_PATCH_STRATEGY = "applying VIM patch strategy"
+
+# Upgrade orchestration states
 STRATEGY_STATE_PRE_CHECK = "pre check"
 STRATEGY_STATE_INSTALLING_LICENSE = "installing license"
 STRATEGY_STATE_IMPORTING_LOAD = "importing load"

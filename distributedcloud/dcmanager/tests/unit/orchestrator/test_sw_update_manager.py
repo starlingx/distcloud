@@ -1,4 +1,4 @@
-# Copyright (c) 2017-2022 Wind River Systems, Inc.
+# Copyright (c) 2017-2023 Wind River Systems, Inc.
 # Licensed under the Apache License, Version 2.0 (the "License"); you may
 # not use this file except in compliance with the License. You may obtain
 # a copy of the License at
@@ -15,8 +15,6 @@
 import base64
 import copy
 import mock
-from os import path as os_path
-import threading
 
 from oslo_config import cfg
 
@@ -26,13 +24,9 @@ from dcmanager.common import context
 from dcmanager.common import exceptions
 from dcmanager.common import prestage
 from dcmanager.db.sqlalchemy import api as db_api
-from dcmanager.orchestrator import patch_orch_thread
 from dcmanager.orchestrator import sw_update_manager
 
 from dcmanager.tests import base
-from dcmanager.tests.unit.common import fake_strategy
-from dcmanager.tests.unit.common import fake_subcloud
-from dcmanager.tests.unit.orchestrator.states.fakes import FakeAlarm
 from dcmanager.tests import utils
 
 
@@ -66,15 +60,6 @@ FAKE_SW_PATCH_DATA = {
     "state": consts.SW_UPDATE_STATE_INITIAL,
 }
 
-FAKE_STRATEGY_STEP_DATA = {
-    "id": 1,
-    "subcloud_id": 1,
-    "stage": 1,
-    "state": consts.STRATEGY_STATE_INITIAL,
-    "details": '',
-    "subcloud": None
-}
-
 health_report_no_mgmt_alarm = \
     "System Health:\n \
     All hosts are provisioned: [Fail]\n \
@@ -85,11 +70,6 @@ health_report_no_mgmt_alarm = \
     No alarms: [OK]\n \
     All kubernetes nodes are ready: [OK]\n \
     All kubernetes control plane pods are ready: [OK]"
-
-
-def compare_call_with_unsorted_list(call, unsorted_list):
-    call_args, _ = call
-    return call_args[0].sort() == unsorted_list.sort()
 
 
 class Subcloud(object):
@@ -106,427 +86,6 @@ class Subcloud(object):
             self.availability_status = dccommon_consts.AVAILABILITY_ONLINE
         else:
             self.availability_status = dccommon_consts.AVAILABILITY_OFFLINE
-
-
-class StrategyStep(object):
-    def __init__(self, id=1, subcloud_id=1, stage=1,
-                 state=consts.STRATEGY_STATE_INITIAL, details='',
-                 subcloud=None, subcloud_name=None):
-        self.id = id
-        self.subcloud_id = subcloud_id
-        self.stage = stage
-        self.state = state
-        self.details = details
-        self.subcloud = subcloud
-        self.subcloud_name = subcloud_name
-
-
-class Load(object):
-    def __init__(self, software_version):
-        self.software_version = software_version
-        self.state = consts.ACTIVE_LOAD_STATE
-
-
-class FakePatchingClientOutOfSync(mock.Mock):
-    def __init__(self, region, session, endpoint):
-        super(FakePatchingClientOutOfSync, self).__init__()
-        self.region = region
-        self.session = session
-        self.endpoint = endpoint
-
-    def query(self, state=None):
-        if state == 'Committed':
-            if self.region == dccommon_consts.DEFAULT_REGION_NAME:
-                return {'DC.3': {'sw_version': '17.07',
-                                 'repostate': 'Committed',
-                                 'patchstate': 'Committed'}
-                        }
-            else:
-                return {}
-        else:
-            if self.region == dccommon_consts.DEFAULT_REGION_NAME:
-                return {'DC.1': {'sw_version': '17.07',
-                                 'repostate': 'Applied',
-                                 'patchstate': 'Applied'},
-                        'DC.2': {'sw_version': '17.07',
-                                 'repostate': 'Applied',
-                                 'patchstate': 'Applied'},
-                        'DC.3': {'sw_version': '17.07',
-                                 'repostate': 'Committed',
-                                 'patchstate': 'Committed'},
-                        'DC.4': {'sw_version': '17.07',
-                                 'repostate': 'Available',
-                                 'patchstate': 'Available'},
-                        'DC.8': {'sw_version': '17.07',
-                                 'repostate': 'Applied',
-                                 'patchstate': 'Applied'},
-                        }
-            elif self.region == 'subcloud1':
-                return {'DC.1': {'sw_version': '17.07',
-                                 'repostate': 'Applied',
-                                 'patchstate': 'Applied'},
-                        'DC.2': {'sw_version': '17.07',
-                                 'repostate': 'Available',
-                                 'patchstate': 'Available'},
-                        'DC.3': {'sw_version': '17.07',
-                                 'repostate': 'Available',
-                                 'patchstate': 'Partial-Remove'},
-                        'DC.5': {'sw_version': '17.07',
-                                 'repostate': 'Applied',
-                                 'patchstate': 'Applied'},
-                        'DC.6': {'sw_version': '17.07',
-                                 'repostate': 'Applied',
-                                 'patchstate': 'Partial-Apply'},
-                        }
-            else:
-                return {}
-
-    def query_hosts(self):
-        return []
-
-
-class FakePatchingClientSubcloudCommitted(mock.Mock):
-    def __init__(self, region, session, endpoint):
-        super(FakePatchingClientSubcloudCommitted, self).__init__()
-        self.region = region
-        self.session = session
-        self.endpoint = endpoint
-
-    def query(self, state=None):
-        if state == 'Committed':
-            if self.region == dccommon_consts.DEFAULT_REGION_NAME:
-                return {'DC.3': {'sw_version': '17.07',
-                                 'repostate': 'Committed',
-                                 'patchstate': 'Committed'}
-                        }
-            elif self.region == 'subcloud1':
-                return {'DC.5': {'sw_version': '17.07',
-                                 'repostate': 'Committed',
-                                 'patchstate': 'Committed'},
-
-                        }
-            else:
-                return {}
-        else:
-            if self.region == dccommon_consts.DEFAULT_REGION_NAME:
-                return {'DC.1': {'sw_version': '17.07',
-                                 'repostate': 'Applied',
-                                 'patchstate': 'Applied'},
-                        'DC.2': {'sw_version': '17.07',
-                                 'repostate': 'Applied',
-                                 'patchstate': 'Applied'},
-                        'DC.3': {'sw_version': '17.07',
-                                 'repostate': 'Committed',
-                                 'patchstate': 'Committed'},
-                        'DC.4': {'sw_version': '17.07',
-                                 'repostate': 'Available',
-                                 'patchstate': 'Available'},
-                        'DC.8': {'sw_version': '17.07',
-                                 'repostate': 'Applied',
-                                 'patchstate': 'Applied'},
-                        }
-            elif self.region == 'subcloud1':
-                return {'DC.1': {'sw_version': '17.07',
-                                 'repostate': 'Applied',
-                                 'patchstate': 'Applied'},
-                        'DC.2': {'sw_version': '17.07',
-                                 'repostate': 'Available',
-                                 'patchstate': 'Available'},
-                        'DC.3': {'sw_version': '17.07',
-                                 'repostate': 'Available',
-                                 'patchstate': 'Partial-Remove'},
-                        'DC.5': {'sw_version': '17.07',
-                                 'repostate': 'Committed',
-                                 'patchstate': 'Committed'},
-                        'DC.6': {'sw_version': '17.07',
-                                 'repostate': 'Applied',
-                                 'patchstate': 'Partial-Apply'},
-                        }
-            else:
-                return {}
-
-    def query_hosts(self):
-        return []
-
-
-class FakePatchingClientSubcloudUnknown(mock.Mock):
-    def __init__(self, region, session, endpoint):
-        super(FakePatchingClientSubcloudUnknown, self).__init__()
-        self.region = region
-        self.session = session
-        self.endpoint = endpoint
-
-    def query(self, state=None):
-        if state == 'Committed':
-            if self.region == dccommon_consts.DEFAULT_REGION_NAME:
-                return {'DC.3': {'sw_version': '17.07',
-                                 'repostate': 'Committed',
-                                 'patchstate': 'Committed'}
-                        }
-            else:
-                return {}
-        else:
-            if self.region == dccommon_consts.DEFAULT_REGION_NAME:
-                return {'DC.1': {'sw_version': '17.07',
-                                 'repostate': 'Applied',
-                                 'patchstate': 'Applied'},
-                        'DC.2': {'sw_version': '17.07',
-                                 'repostate': 'Applied',
-                                 'patchstate': 'Applied'},
-                        'DC.3': {'sw_version': '17.07',
-                                 'repostate': 'Committed',
-                                 'patchstate': 'Committed'},
-                        'DC.4': {'sw_version': '17.07',
-                                 'repostate': 'Available',
-                                 'patchstate': 'Available'},
-                        'DC.8': {'sw_version': '17.07',
-                                 'repostate': 'Applied',
-                                 'patchstate': 'Applied'},
-                        }
-            elif self.region == 'subcloud1':
-                return {'DC.1': {'sw_version': '17.07',
-                                 'repostate': 'Applied',
-                                 'patchstate': 'Applied'},
-                        'DC.2': {'sw_version': '17.07',
-                                 'repostate': 'Available',
-                                 'patchstate': 'Available'},
-                        'DC.3': {'sw_version': '17.07',
-                                 'repostate': 'Available',
-                                 'patchstate': 'Partial-Remove'},
-                        'DC.5': {'sw_version': '17.07',
-                                 'repostate': 'Unknown',
-                                 'patchstate': 'Unknown'},
-                        'DC.6': {'sw_version': '17.07',
-                                 'repostate': 'Applied',
-                                 'patchstate': 'Partial-Apply'},
-                        }
-            else:
-                return {}
-
-    def query_hosts(self):
-        return []
-
-
-class FakePatchingClientAvailable(mock.Mock):
-    def __init__(self, region, session, endpoint):
-        super(FakePatchingClientAvailable, self).__init__()
-        self.region = region
-        self.session = session
-        self.endpoint = endpoint
-
-    def query(self, state=None):
-        if self.region == dccommon_consts.DEFAULT_REGION_NAME:
-            if state == 'Committed':
-                return {'DC.1': {'sw_version': '17.07',
-                                 'repostate': 'Committed',
-                                 'patchstate': 'Committed'},
-                        }
-            else:
-                return {'DC.1': {'sw_version': '17.07',
-                                 'repostate': 'Applied',
-                                 'patchstate': 'Applied'},
-                        }
-
-        elif self.region == 'subcloud1':
-            if state != 'Committed':
-                return {'DC.1': {'sw_version': '17.07',
-                                 'repostate': 'Available',
-                                 'patchstate': 'Available'},
-                        }
-
-        else:
-            return {}
-
-    def query_hosts(self):
-        return []
-
-
-class FakePatchingClientFinish(mock.Mock):
-    def __init__(self, region, session, endpoint):
-        super(FakePatchingClientFinish, self).__init__()
-        self.region = region
-        self.session = session
-        self.endpoint = endpoint
-
-    def query(self, state=None):
-        if self.region == dccommon_consts.DEFAULT_REGION_NAME:
-            if state == 'Committed':
-                return {'DC.2': {'sw_version': '17.07',
-                                 'repostate': 'Committed',
-                                 'patchstate': 'Committed'},
-                        'DC.3': {'sw_version': '17.07',
-                                 'repostate': 'Committed',
-                                 'patchstate': 'Committed'},
-                        'DC.4': {'sw_version': '17.07',
-                                 'repostate': 'Committed',
-                                 'patchstate': 'Committed'},
-                        }
-            else:
-                return {'DC.1': {'sw_version': '17.07',
-                                 'repostate': 'Applied',
-                                 'patchstate': 'Applied'},
-                        'DC.2': {'sw_version': '17.07',
-                                 'repostate': 'Committed',
-                                 'patchstate': 'Committed'},
-                        'DC.3': {'sw_version': '17.07',
-                                 'repostate': 'Committed',
-                                 'patchstate': 'Committed'},
-                        'DC.4': {'sw_version': '17.07',
-                                 'repostate': 'Committed',
-                                 'patchstate': 'Committed'},
-                        'DC.8': {'sw_version': '17.07',
-                                 'repostate': 'Available',
-                                 'patchstate': 'Available'},
-                        }
-        elif self.region == 'subcloud1':
-            if state == 'Committed':
-                return {'DC.4': {'sw_version': '17.07',
-                                 'repostate': 'Committed',
-                                 'patchstate': 'Committed'},
-                        }
-            else:
-                return {'DC.1': {'sw_version': '17.07',
-                                 'repostate': 'Applied',
-                                 'patchstate': 'Applied'},
-                        'DC.2': {'sw_version': '17.07',
-                                 'repostate': 'Applied',
-                                 'patchstate': 'Applied'},
-                        'DC.3': {'sw_version': '17.07',
-                                 'repostate': 'Applied',
-                                 'patchstate': 'Applied'},
-                        'DC.4': {'sw_version': '17.07',
-                                 'repostate': 'Committed',
-                                 'patchstate': 'Committed'},
-                        'DC.5': {'sw_version': '17.07',
-                                 'repostate': 'Available',
-                                 'patchstate': 'Available'},
-                        'DC.6': {'sw_version': '17.07',
-                                 'repostate': 'Available',
-                                 'patchstate': 'Available'},
-                        }
-        else:
-            return {}
-
-    def query_hosts(self):
-        return []
-
-
-class FakeSysinvClientOneLoad(object):
-    def __init__(self, region, session, endpoint):
-        self.region = region
-        self.session = session
-        self.endpoint = endpoint
-        self.loads = [Load('17.07')]
-        self.health_report =   \
-            "System Health:\n \
-            All hosts are provisioned: [Fail]\n \
-            1 Unprovisioned hosts\n \
-            All hosts are unlocked/enabled: [OK]\n \
-            All hosts have current configurations: [OK]\n \
-            All hosts are patch current: [OK]\n \
-            No alarms: [OK]\n \
-            All kubernetes nodes are ready: [OK]\n \
-            All kubernetes control plane pods are ready: [OK]"
-
-    def get_loads(self):
-        return self.loads
-
-    def get_system_health(self):
-        return self.health_report
-
-
-class FakeSysinvClientNoMgmtAffectAlarm(object):
-    def __init__(self, region, session, endpoint):
-        self.region = region
-        self.session = session
-        self.endpoint = endpoint
-        self.loads = [Load('17.07')]
-        self.no_mgmt_alarm = True
-
-        self.health_report =   \
-            "System Health:\n" \
-            "All hosts are provisioned: [OK]\n" \
-            "All hosts are unlocked/enabled: [OK]\n" \
-            "All hosts have current configurations: [OK]\n" \
-            "All hosts are patch current: [OK]\n" \
-            "Ceph Storage Healthy: [OK]\n" \
-            "No alarms: [Fail]\n" \
-            "[1] alarms found, [0] of which are management affecting\n" \
-            "All kubernetes nodes are ready: [OK]\n" \
-            "All kubernetes control plane pods are ready: [OK]"
-
-    def get_loads(self):
-        return self.loads
-
-    def get_system_health(self):
-        return self.health_report
-
-
-class FakeSysinvClientReportTimeOut(object):
-    def __init__(self, region, session, endpoint):
-        self.region = region
-        self.session = session
-        self.endpoint = endpoint
-        self.loads = [Load('17.07')]
-        self.no_mgmt_alarm = True
-
-    def get_loads(self):
-        return self.loads
-
-    def get_system_health(self):
-        raise ValueError('Fake Sysinv Time Out')
-
-
-class FakeSysinvClientMgmtAffectAlarm(object):
-    def __init__(self, region, session, endpoint):
-        self.region = region
-        self.session = session
-        self.endpoint = endpoint
-        self.loads = [Load('17.07')]
-        self.no_mgmt_alarm = True
-
-        self.health_report =   \
-            "System Health:\n" \
-            "All hosts are provisioned: [OK]\n" \
-            "All hosts are unlocked/enabled: [OK]\n" \
-            "All hosts have current configurations: [OK]\n" \
-            "All hosts are patch current: [OK]\n" \
-            "Ceph Storage Healthy: [OK]\n" \
-            "No alarms: [Fail]\n" \
-            "[1] alarms found, [1] of which are management affecting\n" \
-            "All kubernetes nodes are ready: [OK]\n" \
-            "All kubernetes control plane pods are ready: [OK]"
-
-    def get_loads(self):
-        return self.loads
-
-    def get_system_health(self):
-        return self.health_report
-
-
-class FakeFMClientIgnoredAlarm(object):
-    def __init__(self, region, session):
-        self.region = region
-        self.session = session
-        self.alarm_list = [FakeAlarm('900.001', 'True')]
-
-    def get_alarms(self):
-        return self.alarm_list
-
-
-class FakeFMClientAlarm(object):
-    def __init__(self, region, session):
-        self.region = region
-        self.session = session
-        self.alarm_list = [FakeAlarm('100.001', 'True'), FakeAlarm('100.002', 'True')]
-
-    def get_alarms(self):
-        return self.alarm_list
-
-
-class Controller(object):
-    def __init__(self, hostname):
-        self.hostname = hostname
 
 
 # All orch_threads can be mocked the same way
@@ -706,23 +265,8 @@ class TestSwUpdateManager(base.DCManagerTestCase):
     def test_create_sw_update_strategy_no_subclouds(
             self, mock_patch_orch_thread):
         um = sw_update_manager.SwUpdateManager()
-        response = um.create_sw_update_strategy(
-            self.ctxt, payload=FAKE_SW_UPDATE_DATA)
-
-        # Verify strategy was created as expected
-        self.assertEqual(response['type'],
-                         FAKE_SW_UPDATE_DATA['type'])
-
-        # Verify strategy step was created as expected
-        strategy_steps = db_api.strategy_step_get_all(self.ctx)
-        self.assertEqual(strategy_steps[0]['state'],
-                         consts.STRATEGY_STATE_INITIAL)
-        self.assertEqual(strategy_steps[0]['stage'],
-                         1)
-        self.assertEqual(strategy_steps[0]['details'],
-                         '')
-        self.assertEqual(strategy_steps[0]['subcloud_id'],
-                         None)
+        # No strategy will be created, so it should raise:
+        # 'Bad strategy request: Strategy has no steps to apply'
         self.assertRaises(exceptions.BadRequest,
                           um.create_sw_update_strategy,
                           self.ctxt, payload=FAKE_SW_UPDATE_DATA)
@@ -765,7 +309,7 @@ class TestSwUpdateManager(base.DCManagerTestCase):
         self.assertEqual(strategy_steps[0]['details'],
                          '')
         self.assertEqual(strategy_steps[0]['subcloud_id'],
-                         None)
+                         1)
 
     @mock.patch.object(sw_update_manager, 'PatchOrchThread')
     def test_create_sw_update_strategy_parallel_for_a_single_group(
@@ -1021,8 +565,8 @@ class TestSwUpdateManager(base.DCManagerTestCase):
                          consts.SUBCLOUD_APPLY_TYPE_PARALLEL)
 
         # Verify the strategy step list
-        subcloud_ids = [None, 1, 3, 5, 6, 7]
-        stage = [1, 2, 2, 3, 4, 4]
+        subcloud_ids = [1, 3, 5, 6, 7]
+        stage = [1, 1, 2, 3, 3]
         strategy_step_list = db_api.strategy_step_get_all(self.ctxt)
         for index, strategy_step in enumerate(strategy_step_list):
             self.assertEqual(subcloud_ids[index], strategy_step.subcloud_id)
@@ -1083,14 +627,13 @@ class TestSwUpdateManager(base.DCManagerTestCase):
         self.assertEqual(response['type'], consts.SW_UPDATE_TYPE_PATCH)
 
         # Verify the strategy step list
-        # System Controller denoted as ID None was added to strategy list in patching
-        # System Controller will be patched prior to all other subclouds
-        subcloud_ids = [None, 1, 3]
-        stage = [1, 2, 2]
+        subcloud_ids = [1, 3]
+        # Both subclouds are added to the first stage (max-parallel-subclouds=2)
+        stage = [1, 1]
         strategy_step_list = db_api.strategy_step_get_all(self.ctxt)
         subcloud_id_processed = []
         stage_processed = []
-        for index, strategy_step in enumerate(strategy_step_list):
+        for strategy_step in strategy_step_list:
                 subcloud_id_processed.append(strategy_step.subcloud_id)
                 stage_processed.append(strategy_step.stage)
         self.assertEqual(subcloud_ids, subcloud_id_processed)
@@ -1213,8 +756,8 @@ class TestSwUpdateManager(base.DCManagerTestCase):
                          consts.SUBCLOUD_APPLY_TYPE_SERIAL)
 
         # Verify the strategy step list
-        subcloud_ids = [None, 1, 3, 5, 6, 7]
-        stage = [1, 2, 3, 4, 5, 6]
+        subcloud_ids = [1, 3, 5, 6, 7]
+        stage = [1, 2, 3, 4, 5]
         strategy_step_list = db_api.strategy_step_get_all(self.ctxt)
         for index, strategy_step in enumerate(strategy_step_list):
             self.assertEqual(subcloud_ids[index], strategy_step.subcloud_id)
@@ -1306,8 +849,8 @@ class TestSwUpdateManager(base.DCManagerTestCase):
         self.assertEqual(strategy_dict['max-parallel-subclouds'], 2)
 
         # Verify the strategy step list
-        subcloud_ids = [None, 1, 3, 5, 6, 7, 8, 9, 10, 11, 12, 13]
-        stage = [1, 2, 2, 3, 4, 4, 5, 6, 7, 8, 8, 9]
+        subcloud_ids = [1, 3, 5, 6, 7, 8, 9, 10, 11, 12, 13]
+        stage = [1, 1, 2, 3, 3, 4, 5, 6, 7, 7, 8]
         strategy_step_list = db_api.strategy_step_get_all(self.ctxt)
         for index, strategy_step in enumerate(strategy_step_list):
             self.assertEqual(subcloud_ids[index], strategy_step.subcloud_id)
@@ -1400,8 +943,8 @@ class TestSwUpdateManager(base.DCManagerTestCase):
         self.assertEqual(strategy_dict['max-parallel-subclouds'], None)
 
         # Verify the strategy step list
-        subcloud_ids = [None, 1, 3, 5, 6, 7, 8, 9, 10, 11, 12, 13]
-        stage = [1, 2, 2, 3, 4, 4, 5, 5, 6, 7, 7, 8]
+        subcloud_ids = [1, 3, 5, 6, 7, 8, 9, 10, 11, 12, 13]
+        stage = [1, 1, 2, 3, 3, 4, 4, 5, 6, 6, 7]
         strategy_step_list = db_api.strategy_step_get_all(self.ctxt)
         for index, strategy_step in enumerate(strategy_step_list):
             self.assertEqual(subcloud_ids[index], strategy_step.subcloud_id)
@@ -1491,8 +1034,8 @@ class TestSwUpdateManager(base.DCManagerTestCase):
         self.assertEqual(strategy_dict['subcloud-apply-type'], None)
 
         # Verify the strategy step list
-        subcloud_ids = [None, 1, 3, 5, 6, 7, 8, 9, 10, 11, 12, 13]
-        stage = [1, 2, 2, 3, 4, 4, 5, 6, 7, 8, 8, 9]
+        subcloud_ids = [1, 3, 5, 6, 7, 8, 9, 10, 11, 12, 13]
+        stage = [1, 1, 2, 3, 3, 4, 5, 6, 7, 7, 8]
         strategy_step_list = db_api.strategy_step_get_all(self.ctxt)
         for index, strategy_step in enumerate(strategy_step_list):
             self.assertEqual(subcloud_ids[index], strategy_step.subcloud_id)
@@ -1587,7 +1130,7 @@ class TestSwUpdateManager(base.DCManagerTestCase):
                                               is_managed=True, is_online=True)
         self.update_subcloud_status(self.ctxt, fake_subcloud3.id)
 
-        # Subcloud3 will be included in the strategy as it's online
+        # Subcloud4 will be included in the strategy as it's online
         fake_subcloud4 = self.create_subcloud(self.ctxt, 'subcloud4', 1,
                                               is_managed=True, is_online=True)
         self.update_subcloud_status(self.ctxt, fake_subcloud4.id)
@@ -1604,8 +1147,8 @@ class TestSwUpdateManager(base.DCManagerTestCase):
         self.assertEqual(strategy_dict['type'], consts.SW_UPDATE_TYPE_PATCH)
 
         # Verify the strategy step list
-        subcloud_ids = [None, 2, 3, 4]
-        stage = [1, 2, 2, 2]
+        subcloud_ids = [2, 3, 4]
+        stage = [1, 1, 1]
         strategy_step_list = db_api.strategy_step_get_all(self.ctxt)
         for index, strategy_step in enumerate(strategy_step_list):
             self.assertEqual(subcloud_ids[index], strategy_step.subcloud_id)
@@ -1804,19 +1347,12 @@ class TestSwUpdateManager(base.DCManagerTestCase):
         data = copy.copy(FAKE_SW_UPDATE_DATA)
         data["force"] = True
         data["cloud_name"] = 'subcloud1'
-        strategy_dict = um.create_sw_update_strategy(self.ctxt, payload=data)
 
-        # Assert that values passed through CLI are used instead of group values
-        self.assertEqual(strategy_dict['subcloud-apply-type'],
-                         consts.SUBCLOUD_APPLY_TYPE_PARALLEL)
-
-        # Verify the strategy step list
-        subcloud_ids = [None]
-        stage = [1]
-        strategy_step_list = db_api.strategy_step_get_all(self.ctxt)
-        for index, strategy_step in enumerate(strategy_step_list):
-            self.assertEqual(subcloud_ids[index], strategy_step.subcloud_id)
-            self.assertEqual(stage[index], strategy_step.stage)
+        # No strategy step is created when all subclouds are offline,
+        # should raise 'Bad strategy request: Strategy has no steps to apply'
+        self.assertRaises(exceptions.BadRequest,
+                          um.create_sw_update_strategy,
+                          self.ctxt, payload=data)
 
     @mock.patch.object(sw_update_manager, 'PatchOrchThread')
     def test_delete_sw_update_strategy(self, mock_patch_orch_thread):
@@ -1912,423 +1448,3 @@ class TestSwUpdateManager(base.DCManagerTestCase):
         self.assertRaises(exceptions.BadRequest,
                           um.apply_sw_update_strategy,
                           self.ctxt)
-
-    @mock.patch.object(patch_orch_thread, 'SysinvClient')
-    @mock.patch.object(os_path, 'isfile')
-    @mock.patch.object(patch_orch_thread, 'PatchingClient')
-    @mock.patch.object(threading, 'Thread')
-    def test_update_subcloud_patches_no_management_affected_alarm(
-            self, mock_threading,
-            mock_patching_client, mock_os_path_isfile, mock_sysinv_client):
-
-        subcloud_id = fake_subcloud.create_fake_subcloud(self.ctx).id
-        subcloud = db_api.subcloud_update(
-            self.ctx,
-            subcloud_id,
-            management_state=dccommon_consts.MANAGEMENT_MANAGED,
-            availability_status=dccommon_consts.AVAILABILITY_ONLINE)
-        fake_strategy.create_fake_strategy_step(
-            self.ctx,
-            subcloud_id=subcloud.id,
-            state=consts.STRATEGY_STATE_INITIAL)
-        strategy_step = db_api.strategy_step_get_by_name(self.ctx, subcloud.name)
-
-        mock_os_path_isfile.return_value = True
-        mock_patching_client.side_effect = FakePatchingClientAvailable
-        mock_sysinv_client.side_effect = FakeSysinvClientNoMgmtAffectAlarm
-
-        FakePatchingClientAvailable.apply = mock.Mock()
-
-        sw_update_manager.PatchOrchThread.stopped = lambda x: False
-        mock_strategy_lock = mock.Mock()
-        pot = sw_update_manager.PatchOrchThread(mock_strategy_lock,
-                                                self.fake_dcmanager_audit_api)
-        pot.get_ks_client = mock.Mock()
-
-        # invoke get_region_one_patches once t update required attributes
-        pot.get_region_one_patches()
-        pot.update_subcloud_patches(strategy_step)
-
-        # Verify that strategy step was updated
-        updated_strategy_steps = db_api.strategy_step_get_all(self.ctx)
-        self.assertEqual(updated_strategy_steps[0]['state'],
-                         consts.STRATEGY_STATE_CREATING_STRATEGY)
-
-    @mock.patch.object(patch_orch_thread, 'SysinvClient')
-    @mock.patch.object(os_path, 'isfile')
-    @mock.patch.object(patch_orch_thread, 'PatchingClient')
-    @mock.patch.object(threading, 'Thread')
-    def test_update_subcloud_patches_no_alarm(
-            self, mock_threading,
-            mock_patching_client, mock_os_path_isfile, mock_sysinv_client):
-
-        subcloud_id = fake_subcloud.create_fake_subcloud(self.ctx).id
-        subcloud = db_api.subcloud_update(
-            self.ctx,
-            subcloud_id,
-            management_state=dccommon_consts.MANAGEMENT_MANAGED,
-            availability_status=dccommon_consts.AVAILABILITY_ONLINE)
-        fake_strategy.create_fake_strategy_step(
-            self.ctx,
-            subcloud_id=subcloud.id,
-            state=consts.STRATEGY_STATE_INITIAL)
-        strategy_step = db_api.strategy_step_get_by_name(self.ctx, subcloud.name)
-
-        mock_os_path_isfile.return_value = True
-        mock_patching_client.side_effect = FakePatchingClientAvailable
-        mock_sysinv_client.side_effect = FakeSysinvClientOneLoad
-
-        FakePatchingClientAvailable.apply = mock.Mock()
-
-        sw_update_manager.PatchOrchThread.stopped = lambda x: False
-        mock_strategy_lock = mock.Mock()
-        pot = sw_update_manager.PatchOrchThread(mock_strategy_lock,
-                                                self.fake_dcmanager_audit_api)
-        pot.get_ks_client = mock.Mock()
-
-        # invoke get_region_one_patches once t update required attributes
-        pot.get_region_one_patches()
-        pot.update_subcloud_patches(strategy_step)
-
-        # Verify that strategy step was updated
-        updated_strategy_steps = db_api.strategy_step_get_all(self.ctx)
-        self.assertEqual(updated_strategy_steps[0]['state'],
-                         consts.STRATEGY_STATE_CREATING_STRATEGY)
-
-    @mock.patch.object(patch_orch_thread, 'FmClient')
-    @mock.patch.object(patch_orch_thread, 'SysinvClient')
-    @mock.patch.object(os_path, 'isfile')
-    @mock.patch.object(patch_orch_thread, 'PatchingClient')
-    @mock.patch.object(threading, 'Thread')
-    def test_update_subcloud_patches_management_affected_alarm(
-            self, mock_threading, mock_patching_client, mock_os_path_isfile,
-            mock_sysinv_client, mock_fm_client):
-
-        subcloud_id = fake_subcloud.create_fake_subcloud(self.ctx).id
-        subcloud = db_api.subcloud_update(
-            self.ctx,
-            subcloud_id,
-            management_state=dccommon_consts.MANAGEMENT_MANAGED,
-            availability_status=dccommon_consts.AVAILABILITY_ONLINE)
-        fake_strategy.create_fake_strategy_step(
-            self.ctx,
-            subcloud_id=subcloud.id,
-            state=consts.STRATEGY_STATE_INITIAL)
-        strategy_step = db_api.strategy_step_get_by_name(self.ctx, subcloud.name)
-
-        mock_os_path_isfile.return_value = True
-        mock_patching_client.side_effect = FakePatchingClientAvailable
-        mock_sysinv_client.side_effect = FakeSysinvClientMgmtAffectAlarm
-        mock_fm_client.return_value = FakeFMClientAlarm('fake_region', 'fake_session')
-
-        FakePatchingClientAvailable.apply = mock.Mock()
-
-        sw_update_manager.PatchOrchThread.stopped = lambda x: False
-        mock_strategy_lock = mock.Mock()
-        pot = sw_update_manager.PatchOrchThread(mock_strategy_lock,
-                                                self.fake_dcmanager_audit_api)
-        pot.get_ks_client = mock.Mock()
-
-        # invoke get_region_one_patches once t update required attributes
-        pot.get_region_one_patches()
-        pot.update_subcloud_patches(strategy_step)
-
-        # Verify that strategy step was updated
-        updated_strategy_steps = db_api.strategy_step_get_all(self.ctx)
-        self.assertEqual(updated_strategy_steps[0]['state'],
-                         consts.STRATEGY_STATE_FAILED)
-
-    @mock.patch.object(patch_orch_thread, 'FmClient')
-    @mock.patch.object(patch_orch_thread, 'SysinvClient')
-    @mock.patch.object(os_path, 'isfile')
-    @mock.patch.object(patch_orch_thread, 'PatchingClient')
-    @mock.patch.object(threading, 'Thread')
-    def test_update_subcloud_patches_ignored_alarm(
-            self, mock_threading, mock_patching_client, mock_os_path_isfile,
-            mock_sysinv_client, mock_fm_client):
-
-        subcloud_id = fake_subcloud.create_fake_subcloud(self.ctx).id
-        subcloud = db_api.subcloud_update(
-            self.ctx,
-            subcloud_id,
-            management_state=dccommon_consts.MANAGEMENT_MANAGED,
-            availability_status=dccommon_consts.AVAILABILITY_ONLINE)
-        fake_strategy.create_fake_strategy_step(
-            self.ctx,
-            subcloud_id=subcloud.id,
-            state=consts.STRATEGY_STATE_INITIAL)
-        strategy_step = db_api.strategy_step_get_by_name(self.ctx, subcloud.name)
-
-        mock_os_path_isfile.return_value = True
-        mock_patching_client.side_effect = FakePatchingClientAvailable
-        mock_sysinv_client.side_effect = FakeSysinvClientMgmtAffectAlarm
-        mock_fm_client.return_value = FakeFMClientIgnoredAlarm('fake_region', 'fake_session')
-
-        FakePatchingClientAvailable.apply = mock.Mock()
-
-        sw_update_manager.PatchOrchThread.stopped = lambda x: False
-        mock_strategy_lock = mock.Mock()
-        pot = sw_update_manager.PatchOrchThread(mock_strategy_lock,
-                                                self.fake_dcmanager_audit_api)
-        pot.get_ks_client = mock.Mock()
-
-        # invoke get_region_one_patches once t update required attributes
-        pot.get_region_one_patches()
-        pot.update_subcloud_patches(strategy_step)
-
-        # Verify that strategy step was updated
-        updated_strategy_steps = db_api.strategy_step_get_all(self.ctx)
-        self.assertEqual(updated_strategy_steps[0]['state'],
-                         consts.STRATEGY_STATE_CREATING_STRATEGY)
-
-    @mock.patch.object(patch_orch_thread, 'SysinvClient')
-    @mock.patch.object(os_path, 'isfile')
-    @mock.patch.object(patch_orch_thread, 'PatchingClient')
-    @mock.patch.object(threading, 'Thread')
-    def test_update_subcloud_patches_sysinv_get_report_timeout(
-            self, mock_threading,
-            mock_patching_client, mock_os_path_isfile, mock_sysinv_client):
-
-        subcloud_id = fake_subcloud.create_fake_subcloud(self.ctx).id
-        subcloud = db_api.subcloud_update(
-            self.ctx,
-            subcloud_id,
-            management_state=dccommon_consts.MANAGEMENT_MANAGED,
-            availability_status=dccommon_consts.AVAILABILITY_ONLINE)
-        fake_strategy.create_fake_strategy_step(
-            self.ctx,
-            subcloud_id=subcloud.id,
-            state=consts.STRATEGY_STATE_INITIAL)
-        strategy_step = db_api.strategy_step_get_by_name(self.ctx, subcloud.name)
-
-        mock_os_path_isfile.return_value = True
-        mock_patching_client.side_effect = FakePatchingClientAvailable
-        mock_sysinv_client.side_effect = FakeSysinvClientReportTimeOut
-
-        FakePatchingClientAvailable.apply = mock.Mock()
-
-        sw_update_manager.PatchOrchThread.stopped = lambda x: False
-        mock_strategy_lock = mock.Mock()
-        pot = sw_update_manager.PatchOrchThread(mock_strategy_lock,
-                                                self.fake_dcmanager_audit_api)
-        pot.get_ks_client = mock.Mock()
-
-        # invoke get_region_one_patches once t update required attributes
-        pot.get_region_one_patches()
-        pot.update_subcloud_patches(strategy_step)
-
-        # Verify that strategy step was updated
-        updated_strategy_steps = db_api.strategy_step_get_all(self.ctx)
-        self.assertEqual(updated_strategy_steps[0]['state'],
-                         consts.STRATEGY_STATE_FAILED)
-
-    @mock.patch.object(patch_orch_thread, 'SysinvClient')
-    @mock.patch.object(os_path, 'isfile')
-    @mock.patch.object(patch_orch_thread, 'PatchingClient')
-    @mock.patch.object(threading, 'Thread')
-    def test_update_subcloud_patches(
-            self, mock_threading,
-            mock_patching_client, mock_os_path_isfile, mock_sysinv_client):
-
-        subcloud_id = fake_subcloud.create_fake_subcloud(self.ctx).id
-        subcloud = db_api.subcloud_update(
-            self.ctx,
-            subcloud_id,
-            management_state=dccommon_consts.MANAGEMENT_MANAGED,
-            availability_status=dccommon_consts.AVAILABILITY_ONLINE)
-        fake_strategy.create_fake_strategy_step(
-            self.ctx,
-            subcloud_id=subcloud.id,
-            state=consts.STRATEGY_STATE_INITIAL)
-        strategy_step = db_api.strategy_step_get_by_name(self.ctx, subcloud.name)
-
-        mock_patching_client.side_effect = FakePatchingClientOutOfSync
-        mock_os_path_isfile.return_value = True
-        mock_sysinv_client.side_effect = FakeSysinvClientOneLoad
-        FakePatchingClientOutOfSync.apply = mock.Mock()
-        FakePatchingClientOutOfSync.remove = mock.Mock()
-        FakePatchingClientOutOfSync.upload = mock.Mock()
-        sw_update_manager.PatchOrchThread.stopped = lambda x: False
-        mock_strategy_lock = mock.Mock()
-        pot = sw_update_manager.PatchOrchThread(mock_strategy_lock,
-                                                self.fake_dcmanager_audit_api)
-        pot.get_ks_client = mock.Mock()
-        # invoke get_region_one_patches once to update required attributes
-        pot.get_region_one_patches()
-        pot.update_subcloud_patches(strategy_step)
-
-        assert(compare_call_with_unsorted_list(
-            FakePatchingClientOutOfSync.remove.call_args_list[0],
-            ['DC.5', 'DC.6']
-        ))
-        FakePatchingClientOutOfSync.upload.assert_called_with(
-            [consts.PATCH_VAULT_DIR + '/17.07/DC.8.patch'])
-        assert(compare_call_with_unsorted_list(
-            FakePatchingClientOutOfSync.apply.call_args_list[0],
-            ['DC.2', 'DC.3', 'DC.8']
-        ))
-
-        # Verify that strategy step was updated
-        updated_strategy_steps = db_api.strategy_step_get_all(self.ctx)
-        self.assertEqual(updated_strategy_steps[0]['state'],
-                         consts.STRATEGY_STATE_CREATING_STRATEGY)
-
-    @mock.patch.object(patch_orch_thread, 'SysinvClient')
-    @mock.patch.object(os_path, 'isfile')
-    @mock.patch.object(patch_orch_thread, 'PatchingClient')
-    @mock.patch.object(threading, 'Thread')
-    def test_update_subcloud_patches_bad_committed(
-            self, mock_threading,
-            mock_patching_client, mock_os_path_isfile, mock_sysinv_client):
-
-        subcloud_id = fake_subcloud.create_fake_subcloud(self.ctx).id
-        subcloud = db_api.subcloud_update(
-            self.ctx,
-            subcloud_id,
-            management_state=dccommon_consts.MANAGEMENT_MANAGED,
-            availability_status=dccommon_consts.AVAILABILITY_ONLINE)
-        fake_strategy.create_fake_strategy_step(
-            self.ctx,
-            subcloud_id=subcloud.id,
-            state=consts.STRATEGY_STATE_INITIAL)
-        strategy_step = db_api.strategy_step_get_by_name(self.ctx, subcloud.name)
-
-        mock_os_path_isfile.return_value = True
-        mock_patching_client.side_effect = FakePatchingClientSubcloudCommitted
-        mock_sysinv_client.side_effect = FakeSysinvClientOneLoad
-        FakePatchingClientOutOfSync.apply = mock.Mock()
-        FakePatchingClientOutOfSync.remove = mock.Mock()
-        FakePatchingClientOutOfSync.upload = mock.Mock()
-        sw_update_manager.PatchOrchThread.stopped = lambda x: False
-        mock_strategy_lock = mock.Mock()
-        pot = sw_update_manager.PatchOrchThread(mock_strategy_lock,
-                                                self.fake_dcmanager_audit_api)
-        pot.get_ks_client = mock.Mock()
-        # invoke get_region_one_patches once to update required attributes
-        pot.get_region_one_patches()
-        pot.update_subcloud_patches(strategy_step)
-
-        # Verify that strategy step was updated
-        updated_strategy_steps = db_api.strategy_step_get_all(self.ctx)
-        self.assertEqual(updated_strategy_steps[0]['state'],
-                         consts.STRATEGY_STATE_FAILED)
-
-    @mock.patch.object(patch_orch_thread, 'SysinvClient')
-    @mock.patch.object(os_path, 'isfile')
-    @mock.patch.object(patch_orch_thread, 'PatchingClient')
-    @mock.patch.object(threading, 'Thread')
-    def test_update_subcloud_patches_bad_state(
-            self, mock_threading,
-            mock_patching_client, mock_os_path_isfile, mock_sysinv_client):
-
-        subcloud_id = fake_subcloud.create_fake_subcloud(self.ctx).id
-        subcloud = db_api.subcloud_update(
-            self.ctx,
-            subcloud_id,
-            management_state=dccommon_consts.MANAGEMENT_MANAGED,
-            availability_status=dccommon_consts.AVAILABILITY_ONLINE)
-        fake_strategy.create_fake_strategy_step(
-            self.ctx,
-            subcloud_id=subcloud.id,
-            state=consts.STRATEGY_STATE_INITIAL)
-        strategy_step = db_api.strategy_step_get_by_name(self.ctx, subcloud.name)
-
-        mock_os_path_isfile.return_value = True
-        mock_patching_client.side_effect = FakePatchingClientSubcloudUnknown
-        mock_sysinv_client.side_effect = FakeSysinvClientOneLoad
-        FakePatchingClientOutOfSync.apply = mock.Mock()
-        FakePatchingClientOutOfSync.remove = mock.Mock()
-        FakePatchingClientOutOfSync.upload = mock.Mock()
-        sw_update_manager.PatchOrchThread.stopped = lambda x: False
-        mock_strategy_lock = mock.Mock()
-        pot = sw_update_manager.PatchOrchThread(mock_strategy_lock,
-                                                self.fake_dcmanager_audit_api)
-        pot.get_ks_client = mock.Mock()
-        # invoke get_region_one_patches once to update required attributes
-        pot.get_region_one_patches()
-        pot.update_subcloud_patches(strategy_step)
-
-        # Verify that strategy step was updated
-        updated_strategy_steps = db_api.strategy_step_get_all(self.ctx)
-        self.assertEqual(updated_strategy_steps[0]['state'],
-                         consts.STRATEGY_STATE_FAILED)
-
-    @mock.patch.object(os_path, 'isfile')
-    @mock.patch.object(patch_orch_thread, 'PatchingClient')
-    @mock.patch.object(threading, 'Thread')
-    def test_finish(
-            self, mock_threading,
-            mock_patching_client, mock_os_path_isfile):
-
-        subcloud_id = fake_subcloud.create_fake_subcloud(self.ctx).id
-        subcloud = db_api.subcloud_update(
-            self.ctx,
-            subcloud_id,
-            management_state=dccommon_consts.MANAGEMENT_MANAGED,
-            availability_status=dccommon_consts.AVAILABILITY_ONLINE)
-        fake_strategy.create_fake_strategy_step(
-            self.ctx,
-            subcloud_id=subcloud.id,
-            state=consts.STRATEGY_STATE_INITIAL)
-        strategy_step = db_api.strategy_step_get_by_name(self.ctx, subcloud.name)
-
-        mock_os_path_isfile.return_value = True
-        mock_patching_client.side_effect = FakePatchingClientFinish
-        FakePatchingClientFinish.delete = mock.Mock()
-        FakePatchingClientFinish.commit = mock.Mock()
-        sw_update_manager.PatchOrchThread.stopped = lambda x: False
-        mock_strategy_lock = mock.Mock()
-        pot = sw_update_manager.PatchOrchThread(mock_strategy_lock,
-                                                self.fake_dcmanager_audit_api)
-        pot.get_ks_client = mock.Mock()
-        # invoke get_region_one_patches once to update required attributes
-        pot.get_region_one_patches()
-        pot.finish(strategy_step)
-
-        assert(compare_call_with_unsorted_list(
-            FakePatchingClientFinish.delete.call_args_list[0],
-            ['DC.5', 'DC.6']
-        ))
-        assert(compare_call_with_unsorted_list(
-            FakePatchingClientFinish.commit.call_args_list[0],
-            ['DC.2', 'DC.3']
-        ))
-
-        # Verify that strategy step was updated
-        updated_strategy_steps = db_api.strategy_step_get_all(self.ctx)
-        self.assertEqual(updated_strategy_steps[0]['state'],
-                         consts.STRATEGY_STATE_COMPLETE)
-
-    @mock.patch.object(patch_orch_thread, 'PatchingClient')
-    def test_get_region_one_patches(self, mock_patching_client):
-        mock_strategy_lock = mock.Mock()
-        mock_patching_client.side_effect = FakePatchingClientOutOfSync
-        pot = patch_orch_thread.PatchOrchThread(mock_strategy_lock,
-                                                self.fake_dcmanager_audit_api)
-        pot.get_ks_client = mock.Mock()
-        pot.get_region_one_patches()
-
-        regionone_patches = dict()
-        regionone_patches = \
-            FakePatchingClientOutOfSync(
-                dccommon_consts.DEFAULT_REGION_NAME, mock.Mock(), mock.Mock()).query()
-        regionone_applied_patch_ids = [
-            patch_id for patch_id in regionone_patches.keys()
-            if regionone_patches[patch_id]['repostate'] in [
-                'Applied', 'Committed']]
-
-        # Verify the update of regionone_patches attribute
-        self.assertEqual(pot.regionone_patches, regionone_patches)
-        # Verify the update of regionone_applied_patch_ids attribute
-        self.assertEqual(pot.regionone_applied_patch_ids,
-                         regionone_applied_patch_ids)
-
-        regionone_committed_patches = \
-            FakePatchingClientOutOfSync(
-                dccommon_consts.DEFAULT_REGION_NAME, mock.Mock(), mock.Mock()
-            ).query('Committed')
-        regionone_committed_patch_ids = [
-            patch_id for patch_id in regionone_committed_patches]
-        # Verify the update of regionone_committed_patch_ids attribute
-        self.assertEqual(pot.regionone_committed_patch_ids,
-                         regionone_committed_patch_ids)
