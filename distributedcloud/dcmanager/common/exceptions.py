@@ -154,7 +154,8 @@ class SubcloudGroupDefaultNotDeletable(DCManagerException):
 
 
 class SubcloudBackupOperationFailed(DCManagerException):
-    message = _("Failed to run subcloud-backup %(operation)s, check dcmanager logs")
+    message = _("Failed to run subcloud-backup %(operation)s. Please run "
+                "'dcmanager subcloud error' command for details")
 
 
 class ConnectionRefused(DCManagerException):
