@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2020-2021 Wind River Systems, Inc.
+# Copyright (c) 2020-2023 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -27,13 +27,15 @@ WAIT_INTERVAL = 60
 class ApplyingVIMStrategyState(BaseState):
     """State for applying the VIM strategy."""
 
-    def __init__(self, next_state, region_name, strategy_name):
+    def __init__(self, next_state, region_name, strategy_name,
+                 wait_attempts=DEFAULT_MAX_WAIT_ATTEMPTS,
+                 wait_interval=WAIT_INTERVAL):
         super(ApplyingVIMStrategyState, self).__init__(
             next_state=next_state, region_name=region_name)
         self.strategy_name = strategy_name
         self.max_failed_queries = DEFAULT_MAX_FAILED_QUERIES
-        self.wait_attempts = DEFAULT_MAX_WAIT_ATTEMPTS
-        self.wait_interval = WAIT_INTERVAL
+        self.wait_attempts = wait_attempts
+        self.wait_interval = wait_interval
 
     def perform_state_action(self, strategy_step):
         """Apply a VIM strategy using VIM REST API
