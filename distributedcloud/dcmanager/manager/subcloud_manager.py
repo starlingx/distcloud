@@ -728,7 +728,8 @@ class SubcloudManager(manager.Manager):
                                                                 failed_subclouds)
 
         if invalid_subclouds or failed_subclouds:
-            return self._build_subcloud_operation_notice(failed_subclouds,
+            return self._build_subcloud_operation_notice(operation,
+                                                         failed_subclouds,
                                                          invalid_subclouds)
         return
 
@@ -964,17 +965,19 @@ class SubcloudManager(manager.Manager):
         return subcloud, success
 
     @staticmethod
-    def _build_subcloud_operation_notice(failed_subclouds, invalid_subclouds):
+    def _build_subcloud_operation_notice(operation, failed_subclouds, invalid_subclouds):
         invalid_subcloud_names = [subcloud.name for subcloud in invalid_subclouds]
         failed_subcloud_names = [subcloud.name for subcloud in failed_subclouds]
 
-        notice = "Subcloud backup operation completed with warnings:\n"
+        notice = "Subcloud backup %s operation completed with warnings:\n" % operation
         if invalid_subclouds:
             notice += ("The following subclouds were skipped for local backup "
-                       "operation: %s." % ' ,'.join(invalid_subcloud_names))
+                       "%s operation: %s."
+                       % (operation, ' ,'.join(invalid_subcloud_names)))
         if failed_subclouds:
             notice += ("The following subclouds failed during backup "
-                       "operation: %s." % ' ,'.join(failed_subcloud_names))
+                       "%s operation: %s."
+                       % (operation, ' ,'.join(failed_subcloud_names)))
         return notice
 
     def _create_subcloud_inventory_file(self, subcloud, data_install=None):
@@ -1132,6 +1135,15 @@ class SubcloudManager(manager.Manager):
         except PlaybookExecutionFailed:
             LOG.error("Failed to delete backup for subcloud %s, check individual "
                       "log at %s for detailed output." % (subcloud.name, log_file))
+
+            msg = utils.find_ansible_error_msg(
+                subcloud.name, log_file, consts.BACKUP_STATE_FAILED)
+            LOG.error(msg)
+
+            db_api.subcloud_update(
+                context, subcloud.id,
+                error_description=msg[0:consts.ERROR_DESCRIPTION_LENGTH])
+
             return False
 
     def _run_subcloud_backup_restore_playbook(
