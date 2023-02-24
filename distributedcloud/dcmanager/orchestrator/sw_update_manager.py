@@ -412,6 +412,10 @@ class SwUpdateManager(manager.Manager):
                     payload.get(consts.EXTRA_ARGS_SYSADMIN_PASSWORD),
                 consts.EXTRA_ARGS_FORCE: force
             }
+        elif strategy_type == consts.SW_UPDATE_TYPE_PATCH:
+            upload_only_str = payload.get(consts.EXTRA_ARGS_UPLOAD_ONLY)
+            upload_only_bool = True if upload_only_str == 'true' else False
+            extra_args = {consts.EXTRA_ARGS_UPLOAD_ONLY: upload_only_bool}
 
         # Don't create a strategy if any of the subclouds is online and the
         # relevant sync status is unknown. Offline subcloud is skipped unless
