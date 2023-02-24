@@ -884,6 +884,22 @@ class SubcloudsController(object):
             data_install=data_install)
         return subcloud
 
+    @staticmethod
+    def _append_static_err_content(subcloud):
+        err_dict = consts.ERR_MSG_DICT
+        status = subcloud.get('deploy-status')
+        err_msg = [subcloud.get('error-description')]
+        err_code = \
+            re.search(r"err_code\s*=\s*(\S*)", err_msg[0], re.IGNORECASE)
+        if err_code and err_code.group(1) in err_dict:
+            err_msg.append(err_dict.get(err_code.group(1)))
+        if status == consts.DEPLOY_STATE_DEPLOY_FAILED:
+            err_msg.append(err_dict.get(consts.DEPLOY_ERROR_MSG))
+        elif status == consts.DEPLOY_STATE_BOOTSTRAP_FAILED:
+            err_msg.append(err_dict.get(consts.BOOTSTRAP_ERROR_MSG))
+        subcloud['error-description'] = '\n'.join(err_msg)
+        return None
+
     @index.when(method='GET', template='json')
     def get(self, subcloud_ref=None, detail=None):
         """Get details about subcloud.
@@ -913,6 +929,8 @@ class SubcloudsController(object):
                 subcloud_status_dict = db_api.subcloud_status_db_model_to_dict(
                     subcloud_status)
                 subcloud_dict.update(subcloud_status_dict)
+
+                self._append_static_err_content(subcloud_dict)
 
                 if not first_time:
                     if subcloud_list[-1]['id'] == subcloud_dict['id']:
@@ -989,6 +1007,8 @@ class SubcloudsController(object):
             endpoint_sync_dict = {consts.ENDPOINT_SYNC_STATUS:
                                   subcloud_status_list}
             subcloud_dict.update(endpoint_sync_dict)
+
+            self._append_static_err_content(subcloud_dict)
 
             if detail is not None:
                 oam_floating_ip = "unavailable"
