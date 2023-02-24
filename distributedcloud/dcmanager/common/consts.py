@@ -181,7 +181,8 @@ DEPLOY_STATE_REHOMING = 'rehoming'
 DEPLOY_STATE_REHOME_FAILED = 'rehome-failed'
 DEPLOY_STATE_REHOME_PREP_FAILED = 'rehome-prep-failed'
 DEPLOY_STATE_DONE = 'complete'
-
+DEPLOY_STATE_RECONFIGURING_NETWORK = 'reconfiguring-network'
+DEPLOY_STATE_RECONFIGURING_NETWORK_FAILED = 'network-reconfiguration-failed'
 # Subcloud errors
 ERROR_DESC_EMPTY = 'No errors present'
 ERROR_DESC_CMD = 'dcmanager subcloud errors <subcloud-name>'

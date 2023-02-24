@@ -1,4 +1,4 @@
-# Copyright (c) 2017-2022 Wind River Systems, Inc.
+# Copyright (c) 2017-2023 Wind River Systems, Inc.
 # Licensed under the Apache License, Version 2.0 (the "License"); you may
 # not use this file except in compliance with the License. You may obtain
 # a copy of the License at
@@ -658,10 +658,12 @@ class TestSubcloudManager(base.DCManagerTestCase):
                                subcloud.id,
                                availability_status=dccommon_consts.AVAILABILITY_ONLINE)
 
-        data = {'admin_subnet': "192.168.102.0/24",
-                'admin_node_0_address': "192.168.102.5",
-                'admin_node_1_address': "192.168.102.49",
-                'admin_gateway_ip': "192.168.102.1"}
+        payload = {'description': "subcloud new description",
+                   'location': "subcloud new location",
+                   'admin_subnet': "192.168.102.0/24",
+                   'admin_start_address': "192.168.102.5",
+                   'admin_end_address': "192.168.102.49",
+                   'admin_gateway_ip': "192.168.102.1"}
 
         fake_dcmanager_notification = FakeDCManagerNotifications()
 
@@ -670,39 +672,21 @@ class TestSubcloudManager(base.DCManagerTestCase):
         mock_dcmanager_api.return_value = fake_dcmanager_notification
 
         sm = subcloud_manager.SubcloudManager()
-        sm.update_subcloud(self.ctx,
-                           subcloud.id,
-                           management_state=dccommon_consts.MANAGEMENT_MANAGED,
-                           description="subcloud new description",
-                           location="subcloud new location",
-                           management_subnet=data['admin_subnet'],
-                           management_gateway_ip=data['admin_gateway_ip'],
-                           management_start_ip=data['admin_node_0_address'],
-                           management_end_ip=data['admin_node_1_address'])
-
-        fake_dcmanager_notification.subcloud_managed.assert_called_once_with(
-            self.ctx, subcloud.name)
-
-        exclude_endpoints = [dccommon_consts.ENDPOINT_TYPE_PATCHING,
-                             dccommon_consts.ENDPOINT_TYPE_LOAD]
-        self.fake_dcmanager_audit_api.trigger_subcloud_audits.\
-            assert_called_once_with(self.ctx, subcloud.id, exclude_endpoints)
+        sm.update_subcloud_with_network_reconfig(self.ctx, subcloud.id, payload)
 
         # Verify subcloud was updated with correct values
         updated_subcloud = db_api.subcloud_get_by_name(self.ctx, subcloud.name)
-        self.assertEqual(dccommon_consts.MANAGEMENT_MANAGED,
-                         updated_subcloud.management_state)
         self.assertEqual("subcloud new description",
                          updated_subcloud.description)
         self.assertEqual("subcloud new location",
                          updated_subcloud.location)
-        self.assertEqual(data['admin_subnet'],
+        self.assertEqual(payload['admin_subnet'],
                          updated_subcloud.management_subnet)
-        self.assertEqual(data['admin_gateway_ip'],
+        self.assertEqual(payload['admin_gateway_ip'],
                          updated_subcloud.management_gateway_ip)
-        self.assertEqual(data['admin_node_0_address'],
+        self.assertEqual(payload['admin_start_address'],
                          updated_subcloud.management_start_ip)
-        self.assertEqual(data['admin_node_1_address'],
+        self.assertEqual(payload['admin_end_address'],
                          updated_subcloud.management_end_ip)
 
     def test_update_subcloud_with_install_values(self):
@@ -795,7 +779,6 @@ class TestSubcloudManager(base.DCManagerTestCase):
         db_api.subcloud_update(self.ctx,
                                subcloud.id,
                                availability_status=dccommon_consts.AVAILABILITY_OFFLINE)
-
         sm = subcloud_manager.SubcloudManager()
         self.assertRaises(exceptions.SubcloudNotOnline,
                           sm.update_subcloud, self.ctx,

@@ -1,4 +1,4 @@
-# Copyright (c) 2017-2022 Wind River Systems, Inc.
+# Copyright (c) 2017-2023 Wind River Systems, Inc.
 # Licensed under the Apache License, Version 2.0 (the "License"); you may
 # not use this file except in compliance with the License. You may obtain
 # a copy of the License at
@@ -107,24 +107,26 @@ class DCManagerService(service.Service):
 
     @request_context
     def update_subcloud(self, context, subcloud_id, management_state=None,
-                        description=None, management_subnet=None,
-                        management_gateway_ip=None, management_start_ip=None,
-                        management_end_ip=None, location=None,
+                        description=None, location=None,
                         group_id=None, data_install=None, force=None):
         # Updates a subcloud
         LOG.info("Handling update_subcloud request for: %s" % subcloud_id)
         subcloud = self.subcloud_manager.update_subcloud(context, subcloud_id,
                                                          management_state,
                                                          description,
-                                                         management_subnet,
-                                                         management_gateway_ip,
-                                                         management_start_ip,
-                                                         management_end_ip,
                                                          location,
                                                          group_id,
                                                          data_install,
                                                          force)
         return subcloud
+
+    @request_context
+    def update_subcloud_with_network_reconfig(self, context, subcloud_id, payload):
+        LOG.info("Handling update_subcloud_with_network_reconfig request for: %s",
+                 subcloud_id)
+        return self.subcloud_manager.update_subcloud_with_network_reconfig(context,
+                                                                           subcloud_id,
+                                                                           payload)
 
     @request_context
     def reconfigure_subcloud(self, context, subcloud_id, payload):

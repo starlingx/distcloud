@@ -1196,32 +1196,38 @@ class SubcloudsController(object):
                 pecan.abort(400, _('Body required'))
 
             management_state = payload.get('management-state')
+            group_id = payload.get('group_id')
             description = payload.get('description')
             location = payload.get('location')
-            group_id = payload.get('group_id')
-
             admin_subnet_str = payload.get('admin_subnet')
-            admin_start_ip_str = payload.get('admin_node_0_address')
-            admin_end_ip_str = payload.get('admin_node_1_address')
+            admin_start_ip_str = payload.get('admin_start_address')
+            admin_end_ip_str = payload.get('admin_end_address')
             admin_gateway_ip_str = payload.get('admin_gateway_ip')
-            admin_address_configured = False
 
             # Syntax checking
 
             if (admin_subnet_str and admin_gateway_ip_str and
                     admin_start_ip_str and admin_end_ip_str):
+                # Required parameters
+                payload['name'] = subcloud.name
+                payload['systemcontroller_gateway_ip'] = (
+                    subcloud.systemcontroller_gateway_ip)
+
                 # Parse/validate the admin subnet
                 subcloud_subnets = []
                 subclouds = db_api.subcloud_get_all(context)
                 for subcloud in subclouds:
                     subcloud_subnets.append(IPNetwork(subcloud.management_subnet))
 
-                admin_address_configured = True
                 self._validate_admin_network_config(admin_subnet_str,
                                                     admin_start_ip_str,
                                                     admin_end_ip_str,
                                                     admin_gateway_ip_str,
                                                     subcloud_subnets)
+                # Password only required when update admin network
+                valid, msg = utils.is_password_valid(payload)
+                if not valid:
+                    pecan.abort(400, _(msg))
 
             # Syntax checking
             if management_state and \
@@ -1252,31 +1258,30 @@ class SubcloudsController(object):
                     pecan.abort(400, _('Invalid group'))
                 except exceptions.SubcloudGroupNotFound:
                     pecan.abort(400, _('Invalid group'))
-
-            data_install = None
             if self._validate_install_values(payload, subcloud):
-                data_install = json.dumps(payload[INSTALL_VALUES])
-
+                payload['data_install'] = json.dumps(payload[INSTALL_VALUES])
             try:
                 # Inform dcmanager that subcloud has been updated.
                 # It will do all the real work...
-                if admin_address_configured:
-                    subcloud = self.dcmanager_rpc_client.update_subcloud(
-                        context, subcloud_id, management_state=management_state,
-                        description=description, management_subnet=payload.get('admin_subnet'),
-                        management_gateway_ip=payload.get('admin_gateway_ip'),
-                        management_start_ip=payload.get('admin_node_0_address'),
-                        management_end_ip=payload.get('admin_node_1_address'),
-                        location=location, group_id=group_id,
-                        data_install=data_install, force=force_flag)
+                if payload.get('admin_subnet'):
+                    if payload.get('management-state'):
+                        pecan.abort(422, _('Management state and network configuration must be updated separately'))
+                    if subcloud.management_state != dccommon_consts.MANAGEMENT_UNMANAGED:
+                        pecan.abort(422, _("Subcloud must be unmanaged to update admin network"))
+
+                    subcloud = db_api.subcloud_update(
+                        context, subcloud_id,
+                        deploy_status=consts.DEPLOY_STATE_RECONFIGURING_NETWORK)
+                    self.dcmanager_rpc_client.update_subcloud_with_network_reconfig(
+                        context, subcloud_id, payload)
+                    return db_api.subcloud_db_model_to_dict(subcloud)
                 else:
                     subcloud = self.dcmanager_rpc_client.update_subcloud(
                         context, subcloud_id, management_state=management_state,
                         description=description, location=location,
-                        group_id=group_id, data_install=data_install,
+                        group_id=group_id, data_install=payload.get('data_install'),
                         force=force_flag)
-
-                return subcloud
+                    return subcloud
             except RemoteError as e:
                 pecan.abort(422, e.value)
             except Exception as e:
