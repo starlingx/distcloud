@@ -1,5 +1,5 @@
 # Copyright 2017 Ericsson AB.
-# Copyright (c) 2017-2022 Wind River Systems, Inc.
+# Copyright (c) 2017-2023 Wind River Systems, Inc.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -23,7 +23,9 @@ from keystoneauth1 import exceptions as keystone_exceptions
 from oslo_log import log as logging
 
 from dccommon import consts as dccommon_consts
+from dccommon.drivers.openstack.patching_v1 import PatchingClient
 from dccommon.drivers.openstack.sdk_platform import OpenStackDriver
+from dccommon.drivers.openstack.sysinv_v1 import SysinvClient
 from dccommon.drivers.openstack import vim
 from dcmanager.common import consts
 from dcmanager.common import context
@@ -78,12 +80,36 @@ class OrchThread(threading.Thread):
             thread_pool_size=500)
         # Track worker created for each subcloud.
         self.subcloud_workers = dict()
+        # Track if the strategy setup function was executed
+        self._setup = False
 
     @abc.abstractmethod
     def trigger_audit(self):
         """Subclass MUST override this method"""
         LOG.warn("(%s) OrchThread subclass must override trigger_audit"
                  % self.update_type)
+
+    def _pre_apply_setup(self):
+        """Setup performed once before a strategy starts to apply"""
+        if not self._setup:
+            LOG.info("(%s) OrchThread Pre-Apply Setup" % self.update_type)
+            self._setup = True
+            self.pre_apply_setup()
+
+    def pre_apply_setup(self):
+        """Subclass can override this method"""
+        pass
+
+    def _post_delete_teardown(self):
+        """Cleanup code executed once after deleting a strategy"""
+        if self._setup:
+            LOG.info("(%s) OrchThread Post-Delete Teardown" % self.update_type)
+            self._setup = False
+            self.post_delete_teardown()
+
+    def post_delete_teardown(self):
+        """Subclass can override this method"""
+        pass
 
     def stopped(self):
         return self._stop.isSet()
@@ -113,6 +139,19 @@ class OrchThread(threading.Thread):
     def get_vim_client(region_name=dccommon_consts.DEFAULT_REGION_NAME):
         ks_client = OrchThread.get_ks_client(region_name)
         return vim.VimClient(region_name, ks_client.session)
+
+    @staticmethod
+    def get_sysinv_client(region_name=dccommon_consts.DEFAULT_REGION_NAME):
+        ks_client = OrchThread.get_ks_client(region_name)
+        endpoint = ks_client.endpoint_cache.get_endpoint('sysinv')
+        return SysinvClient(region_name,
+                            ks_client.session,
+                            endpoint=endpoint)
+
+    @staticmethod
+    def get_patching_client(region_name=dccommon_consts.DEFAULT_REGION_NAME):
+        ks_client = OrchThread.get_ks_client(region_name)
+        return PatchingClient(region_name, ks_client.session)
 
     @staticmethod
     def get_region_name(strategy_step):
@@ -184,6 +223,7 @@ class OrchThread(threading.Thread):
                     if sw_update_strategy.state in [
                             consts.SW_UPDATE_STATE_APPLYING,
                             consts.SW_UPDATE_STATE_ABORTING]:
+                        self._pre_apply_setup()
                         self.apply(sw_update_strategy)
                     elif sw_update_strategy.state == \
                             consts.SW_UPDATE_STATE_ABORT_REQUESTED:
@@ -191,6 +231,7 @@ class OrchThread(threading.Thread):
                     elif sw_update_strategy.state == \
                             consts.SW_UPDATE_STATE_DELETING:
                         self.delete(sw_update_strategy)
+                        self._post_delete_teardown()
 
             except exceptions.NotFound:
                 # Nothing to do if a strategy doesn't exist

@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2020-2022 Wind River Systems, Inc.
+# Copyright (c) 2020-2023 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -31,9 +31,14 @@ class BaseState(object):
         self._stop = None
         self.region_name = region_name
         self._shared_caches = None
+        self._job_data = None
 
     def override_next_state(self, next_state):
         self.next_state = next_state
+
+    def set_job_data(self, job_data):
+        """Store an orch_thread job data object"""
+        self._job_data = job_data
 
     def registerStopEvent(self, stop_event):
         """Store an orch_thread threading.Event to detect stop."""
@@ -73,6 +78,13 @@ class BaseState(object):
                      strategy_step.state,
                      self.get_region_name(strategy_step),
                      details))
+
+    def exception_log(self, strategy_step, details):
+        LOG.exception("Stage: %s, State: %s, Subcloud: %s, Details: %s"
+                      % (strategy_step.stage,
+                         strategy_step.state,
+                         self.get_region_name(strategy_step),
+                         details))
 
     @staticmethod
     def get_region_name(strategy_step):
