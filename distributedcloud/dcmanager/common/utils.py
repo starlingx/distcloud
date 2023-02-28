@@ -373,7 +373,7 @@ def delete_subcloud_inventory(inventory_file):
     """Delete the ansible inventory file for the specified subcloud"""
 
     # Delete the file if it exists
-    if os.path.isfile(inventory_file):
+    if inventory_file and os.path.isfile(inventory_file):
         os.remove(inventory_file)
 
 

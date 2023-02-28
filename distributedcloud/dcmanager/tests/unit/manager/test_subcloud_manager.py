@@ -649,17 +649,28 @@ class TestSubcloudManager(base.DCManagerTestCase):
         self.assertEqual("subcloud new location",
                          updated_subcloud.location)
 
-    def test_update_subcloud_with_admin_values(self):
+    @mock.patch.object(subcloud_manager.SubcloudManager,
+                       '_delete_subcloud_routes')
+    @mock.patch.object(subcloud_manager.SubcloudManager,
+                       '_update_services_endpoint')
+    @mock.patch.object(subcloud_manager.SubcloudManager,
+                       '_create_subcloud_admin_route')
+    @mock.patch.object(subcloud_manager, 'OpenStackDriver')
+    @mock.patch.object(subcloud_manager, 'run_playbook')
+    def test_update_subcloud_with_admin_values(
+            self, mock_run_playbook, mock_keystone_client, mock_create_route,
+            mock_update_endpoints, mock_delete_route):
         subcloud = self.create_subcloud_static(
             self.ctx,
             name='subcloud1',
             deploy_status=consts.DEPLOY_STATE_DONE)
-        db_api.subcloud_update(self.ctx,
-                               subcloud.id,
-                               availability_status=dccommon_consts.AVAILABILITY_ONLINE)
+        db_api.subcloud_update(
+            self.ctx, subcloud.id,
+            availability_status=dccommon_consts.AVAILABILITY_ONLINE)
 
-        payload = {'description': "subcloud new description",
-                   'location': "subcloud new location",
+        payload = {'name': subcloud.name,
+                   'description': "subcloud description",
+                   'location': "subcloud location",
                    'admin_subnet': "192.168.102.0/24",
                    'admin_start_address': "192.168.102.5",
                    'admin_end_address': "192.168.102.49",
@@ -672,13 +683,20 @@ class TestSubcloudManager(base.DCManagerTestCase):
         mock_dcmanager_api.return_value = fake_dcmanager_notification
 
         sm = subcloud_manager.SubcloudManager()
-        sm.update_subcloud_with_network_reconfig(self.ctx, subcloud.id, payload)
+        sm._run_admin_network_update_playbook(
+            subcloud.name, mock.ANY, None, payload, self.ctx, subcloud.id)
+
+        mock_run_playbook.assert_called_once()
+        mock_keystone_client.assert_called_once()
+        mock_create_route.assert_called_once()
+        mock_update_endpoints.assert_called_once()
+        mock_delete_route.assert_called_once()
 
         # Verify subcloud was updated with correct values
         updated_subcloud = db_api.subcloud_get_by_name(self.ctx, subcloud.name)
-        self.assertEqual("subcloud new description",
+        self.assertEqual(payload['description'],
                          updated_subcloud.description)
-        self.assertEqual("subcloud new location",
+        self.assertEqual(payload['location'],
                          updated_subcloud.location)
         self.assertEqual(payload['admin_subnet'],
                          updated_subcloud.management_subnet)

@@ -1455,12 +1455,8 @@ class SubcloudManager(manager.Manager):
             payload[consts.DEPLOY_OVERRIDES]
         self._write_deploy_files(payload, subcloud_name)
 
-    def _delete_subcloud_routes(self, context, subcloud):
+    def _delete_subcloud_routes(self, keystone_client, subcloud):
         """Delete the routes to this subcloud"""
-
-        keystone_client = OpenStackDriver(
-            region_name=dccommon_consts.DEFAULT_REGION_NAME,
-            region_clients=None).keystone_client
 
         # Delete the route to this subcloud on the management interface on
         # both controllers.
@@ -1522,7 +1518,7 @@ class SubcloudManager(manager.Manager):
         keystone_client.delete_region(subcloud.name)
 
         # Delete the routes to this subcloud
-        self._delete_subcloud_routes(context, subcloud)
+        self._delete_subcloud_routes(keystone_client, subcloud)
 
         # Remove the subcloud from the database
         try:
@@ -1608,26 +1604,6 @@ class SubcloudManager(manager.Manager):
                     "Problem clearing fault for subcloud %s, alarm_id=%s" %
                     (subcloud.name, alarm_id))
                 LOG.exception(e)
-
-    def update_subcloud_with_network_reconfig(self, context, subcloud_id, payload):
-        subcloud = db_api.subcloud_get(context, subcloud_id)
-        description = payload.get('description', subcloud.description)
-        location = payload.get('location', subcloud.location)
-        group_id = payload.get('group_id', subcloud.group_id)
-        data_install = payload.get('data_install', subcloud.data_install)
-        self._update_subcloud_admin_network(payload, subcloud.name, context, subcloud_id)
-        subcloud = db_api.subcloud_update(
-            context,
-            subcloud_id,
-            description=description,
-            management_subnet=payload.get('admin_subnet'),
-            management_gateway_ip=payload.get('admin_gateway_ip'),
-            management_start_ip=payload.get('admin_start_address'),
-            management_end_ip=payload.get('admin_end_address'),
-            location=location,
-            group_id=group_id,
-            data_install=data_install
-        )
 
     def update_subcloud(self,
                         context,
@@ -1750,7 +1726,8 @@ class SubcloudManager(manager.Manager):
 
         return db_api.subcloud_db_model_to_dict(subcloud)
 
-    def _update_subcloud_admin_network(self, payload, subcloud_name, context, subcloud_id):
+    def update_subcloud_with_network_reconfig(self, context, subcloud_id, payload):
+        subcloud_name = payload['name']
         try:
             self._create_intermediate_ca_cert(payload)
             subcloud_inventory_file = self._get_ansible_filename(
@@ -1768,23 +1745,20 @@ class SubcloudManager(manager.Manager):
             return
         try:
             apply_thread = threading.Thread(
-                target=self._run_update_playbook,
+                target=self._run_admin_network_update_playbook,
                 args=(subcloud_name, update_command, overrides_file, payload, context, subcloud_id))
             apply_thread.start()
         except Exception:
             LOG.exception("Failed to update subcloud %s" % subcloud_name)
 
-    def _run_update_playbook(
+    def _run_admin_network_update_playbook(
             self, subcloud_name, update_command, overrides_file, payload, context, subcloud_id):
         log_file = (os.path.join(consts.DC_ANSIBLE_LOG_DIR, subcloud_name) +
                     '_playbook_output.log')
+        subcloud = db_api.subcloud_get(context, subcloud_id)
         try:
             run_playbook(log_file, update_command)
             utils.delete_subcloud_inventory(overrides_file)
-            db_api.subcloud_update(
-                context, subcloud_id,
-                deploy_status=consts.DEPLOY_STATE_DONE
-            )
         except PlaybookExecutionFailed:
             msg = utils.find_ansible_error_msg(
                 subcloud_name, log_file, consts.DEPLOY_STATE_RECONFIGURING_NETWORK)
@@ -1802,12 +1776,42 @@ class SubcloudManager(manager.Manager):
             self._create_subcloud_admin_route(payload, m_ks_client)
         except Exception:
             LOG.exception("Failed to create route to admin")
+            db_api.subcloud_update(
+                context, subcloud_id,
+                deploy_status=consts.DEPLOY_STATE_RECONFIGURING_NETWORK_FAILED,
+                error_description=consts.ERROR_DESC_EMPTY
+            )
             return
         try:
             self._update_services_endpoint(payload, m_ks_client)
         except Exception:
-            LOG.exception("Failed to update endpoint %s" % subcloud_name)
+            LOG.exception("Failed to update subcloud %s endpoints" % subcloud_name)
+            db_api.subcloud_update(
+                context, subcloud_id,
+                deploy_status=consts.DEPLOY_STATE_RECONFIGURING_NETWORK_FAILED,
+                error_description=consts.ERROR_DESC_EMPTY
+            )
             return
+
+        self._delete_subcloud_routes(m_ks_client, subcloud)
+
+        db_api.subcloud_update(
+            context, subcloud_id,
+            deploy_status=consts.DEPLOY_STATE_DONE
+        )
+
+        subcloud = db_api.subcloud_update(
+            context,
+            subcloud_id,
+            description=payload.get('description', subcloud.description),
+            management_subnet=payload.get('admin_subnet'),
+            management_gateway_ip=payload.get('admin_gateway_ip'),
+            management_start_ip=payload.get('admin_start_address'),
+            management_end_ip=payload.get('admin_end_address'),
+            location=payload.get('location', subcloud.location),
+            group_id=payload.get('group_id', subcloud.group_id),
+            data_install=payload.get('data_install', subcloud.data_install)
+        )
 
     def _create_subcloud_admin_route(self, payload, keystone_client):
         subcloud_subnet = netaddr.IPNetwork(utils.get_management_subnet(payload))
