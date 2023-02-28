@@ -103,6 +103,11 @@ def get_rpc_client(timeout, **msg_target_kwargs):
                                     serializer=serializer)
 
 
+def get_transport():
+    """Return a configured oslo_messaging transport."""
+    return TRANSPORT
+
+
 def get_notifier(publisher_id):
     """Return a configured oslo_messaging notifier."""
     return NOTIFIER.prepare(publisher_id=publisher_id)

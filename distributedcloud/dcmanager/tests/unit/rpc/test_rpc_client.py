@@ -81,7 +81,7 @@ class ManagerRpcAPITestCase(base.DCManagerTestCase):
 
         # with version
         res = rpcapi.cast(self.context, msg, version='123')
-        client.prepare.assert_called_once_with(version='123')
+        client.prepare.assert_called_once_with(fanout=None, version='123')
         new_client = client.prepare.return_value
         new_client.cast.assert_called_once_with(self.context, 'fake_method',
                                                 key='value')

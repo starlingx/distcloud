@@ -10,7 +10,7 @@
 # License for the specific language governing permissions and limitations
 # under the License.
 #
-# Copyright (c) 2020-2022 Wind River Systems, Inc.
+# Copyright (c) 2020-2023 Wind River Systems, Inc.
 #
 
 import six
@@ -291,6 +291,10 @@ class EngineService(service.Service):
     # todo: add authentication since ctxt not actually needed later
     def update_subcloud_version(self, ctxt, subcloud_name, sw_version):
         self.gsm.update_subcloud_version(ctxt, subcloud_name, sw_version)
+
+    @request_context
+    def update_subcloud_endpoints(self, ctxt, subcloud_name, endpoints):
+        self.gsm.update_subcloud_endpoints(ctxt, subcloud_name, endpoints)
 
     @request_context
     # The sync job info has been written to the DB, alert the sync engine

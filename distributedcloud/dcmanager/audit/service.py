@@ -1,4 +1,4 @@
-# Copyright (c) 2020-2021 Wind River Systems, Inc.
+# Copyright (c) 2020-2023 Wind River Systems, Inc.
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -158,6 +158,13 @@ class DCManagerAuditService(service.Service):
         return self.subcloud_audit_manager.trigger_subcloud_patch_load_audits(
             context, subcloud_id)
 
+    @request_context
+    def trigger_subcloud_endpoints_update(self, context, subcloud_name, endpoints):
+        """Trigger update endpoints of services for a subcloud region."""
+        LOG.info("Trigger update endpoints for subcloud %s", subcloud_name)
+        return self.subcloud_audit_manager.trigger_subcloud_endpoints_update(
+            context, subcloud_name, endpoints)
+
 
 class DCManagerAuditWorkerService(service.Service):
     """Lifecycle manager for a running audit service."""
@@ -255,3 +262,12 @@ class DCManagerAuditWorkerService(service.Service):
             kubernetes_audit_data,
             do_openstack_audit,
             kube_rootca_update_audit_data)
+
+    @request_context
+    def update_subcloud_endpoints(self, context, subcloud_name, endpoints):
+        """Update endpoints of services for a subcloud region"""
+        self.subcloud_audit_worker_manager.update_subcloud_endpoints(
+            context,
+            subcloud_name,
+            endpoints
+        )

@@ -1,5 +1,5 @@
 # Copyright 2015 Huawei Technologies Co., Ltd.
-# Copyright (c) 2018-2021 Wind River Systems, Inc.
+# Copyright (c) 2018-2023 Wind River Systems, Inc.
 # All Rights Reserved
 #
 #    Licensed under the Apache License, Version 2.0 (the "License"); you may
@@ -209,10 +209,15 @@ class EndpointCache(object):
         return sess
 
     @lockutils.synchronized(LOCK_NAME)
+    def update_master_service_endpoint_region(self, region_name, endpoint_values):
+        EndpointCache.master_service_endpoint_map[region_name] = endpoint_values
+
+    @lockutils.synchronized(LOCK_NAME)
     def get_cached_master_keystone_client_and_region_endpoint_map(self, region_name):
         if (EndpointCache.master_keystone_client is None):
             self._create_master_cached_data()
-            LOG.info("Generated Master keystone client and master token the very first time")
+            LOG.info("Generated Master keystone client and master token the "
+                     "very first time")
         else:
             token_expiring_soon = is_token_expiring_soon(token=EndpointCache.master_token)
 

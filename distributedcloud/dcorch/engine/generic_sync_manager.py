@@ -13,26 +13,28 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-# Copyright (c) 2020-2022 Wind River Systems, Inc.
+# Copyright (c) 2020-2023 Wind River Systems, Inc.
 #
 
 import eventlet
 import collections  # noqa: H306
+import random
+
+from keystoneauth1 import exceptions as keystone_exceptions
 from oslo_log import log as logging
 from oslo_utils import timeutils
-import random
 
 from dccommon import consts as dccommon_consts
 from dcorch.common import consts as dco_consts
 from dcorch.common import context
 from dcorch.common import exceptions
 from dcorch.db import api as db_api
+from dcorch.drivers.openstack import sdk
 from dcorch.engine import scheduler
 from dcorch.engine import subcloud_lock
 from dcorch.engine.sync_services.identity import IdentitySyncThread
 from dcorch.engine.sync_services.sysinv import SysinvSyncThread
 from dcorch.objects import subcloud
-
 
 LOG = logging.getLogger(__name__)
 
@@ -458,6 +460,20 @@ class GenericSyncManager(object):
             sc.save()
         except KeyError:
             raise exceptions.SubcloudNotFound(region_name=subcloud_name)
+
+    def update_subcloud_endpoints(self, context, subcloud_name, endpoints):
+        try:
+            LOG.info("Updating service endpoints for subcloud %s in "
+                     "endpoint cache" % subcloud_name)
+            endpoint_cache = sdk.OpenStackDriver(
+                region_name=dccommon_consts.CLOUD_0).keystone_client.endpoint_cache
+            endpoint_cache.update_master_service_endpoint_region(
+                subcloud_name, endpoints)
+        except (keystone_exceptions.EndpointNotFound,
+                keystone_exceptions.ConnectFailure,
+                IndexError):
+            LOG.error("Failed to update services endpoints for "
+                      "subcloud: %s in dcorch." % subcloud_name)
 
     def initial_sync(self, context, subcloud_name):
         LOG.info('Initial sync subcloud %(sc)s %(id)s' %

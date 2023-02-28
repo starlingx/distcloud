@@ -1,4 +1,4 @@
-# Copyright (c) 2020-2021 Wind River Systems, Inc.
+# Copyright (c) 2020-2023 Wind River Systems, Inc.
 # Licensed under the Apache License, Version 2.0 (the "License"); you may
 # not use this file except in compliance with the License. You may obtain
 # a copy of the License at
@@ -80,6 +80,11 @@ class ManagerAuditClient(object):
         return self.cast(ctxt, self.make_msg('trigger_subcloud_patch_load_audits',
                                              subcloud_id=subcloud_id))
 
+    def trigger_subcloud_endpoints_update(self, ctxt, subcloud_name, endpoints):
+        return self.cast(ctxt, self.make_msg('trigger_subcloud_endpoints_update',
+                                             subcloud_name=subcloud_name,
+                                             endpoints=endpoints))
+
 
 class ManagerAuditWorkerClient(object):
     """Client side of the DC Manager Audit Worker rpc API.
@@ -109,10 +114,10 @@ class ManagerAuditWorkerClient(object):
             client = self._client
         return client.call(ctxt, method, **kwargs)
 
-    def cast(self, ctxt, msg, version=None):
+    def cast(self, ctxt, msg, fanout=None, version=None):
         method, kwargs = msg
-        if version is not None:
-            client = self._client.prepare(version=version)
+        if version or fanout:
+            client = self._client.prepare(fanout=fanout, version=version)
         else:
             client = self._client
         return client.cast(ctxt, method, **kwargs)
@@ -137,3 +142,9 @@ class ManagerAuditWorkerClient(object):
             kubernetes_audit_data=kubernetes_audit_data,
             do_openstack_audit=do_openstack_audit,
             kube_rootca_update_audit_data=kube_rootca_update_data))
+
+    def update_subcloud_endpoints(self, ctxt, subcloud_name, endpoints):
+        """Update endpoints of services for a subcloud region"""
+        return self.cast(ctxt, self.make_msg(
+            'update_subcloud_endpoints', subcloud_name=subcloud_name,
+            endpoints=endpoints), fanout=True, version=self.BASE_RPC_API_VERSION)

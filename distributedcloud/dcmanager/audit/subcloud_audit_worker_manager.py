@@ -1,5 +1,5 @@
 # Copyright 2017 Ericsson AB.
-# Copyright (c) 2017-2022 Wind River Systems, Inc.
+# Copyright (c) 2017-2023 Wind River Systems, Inc.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -161,6 +161,20 @@ class SubcloudAuditWorkerManager(manager.Manager):
                                                 do_firmware_audit,
                                                 do_kubernetes_audit,
                                                 do_kube_rootca_update_audit)
+
+    def update_subcloud_endpoints(self, context, subcloud_name, endpoints):
+        try:
+            LOG.info("Updating service endpoints for subcloud %s "
+                     "in endpoint cache" % subcloud_name)
+            endpoint_cache = OpenStackDriver(
+                region_name=dccommon_consts.CLOUD_0).keystone_client.endpoint_cache
+            endpoint_cache.update_master_service_endpoint_region(
+                subcloud_name, endpoints)
+        except (keystone_exceptions.EndpointNotFound,
+                keystone_exceptions.ConnectFailure,
+                IndexError):
+            LOG.error("Failed to update the service endpoints "
+                      "for subcloud %s." % subcloud_name)
 
     def _update_subcloud_audit_fail_count(self, subcloud,
                                           audit_fail_count):
