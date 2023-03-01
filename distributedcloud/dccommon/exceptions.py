@@ -113,3 +113,9 @@ class PlaybookExecutionFailed(DCCommonException):
 class PlaybookExecutionTimeout(PlaybookExecutionFailed):
     message = _("Playbook execution failed [TIMEOUT (%(timeout)s)], "
                 "command=%(playbook_cmd)s")
+
+
+class ImageNotInLocalRegistry(NotFound):
+    message = _("Image %(image_name)s:%(image_tag)s not found in the local registry. "
+                "Please check with command: system registry-image-list or "
+                "system registry-image-tags %(image_name)s")

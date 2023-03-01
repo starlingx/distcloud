@@ -195,7 +195,8 @@ class SubcloudInstall(object):
         msg = "Error: Image %s:%s not found in the local registry." % (
             image_name, image_tag)
         LOG.error(msg)
-        raise exceptions.NotFound()
+        raise exceptions.ImageNotInLocalRegistry(image_name=image_name,
+                                                 image_tag=image_tag)
 
     @staticmethod
     def create_rvmc_config_file(override_path, payload):
