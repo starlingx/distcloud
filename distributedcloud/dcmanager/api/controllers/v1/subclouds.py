@@ -660,6 +660,14 @@ class SubcloudsController(object):
                 pecan.abort(400, _("persistent_size of %s MB is less than "
                                    "the permitted minimum %s MB ") %
                             (str(persistent_size), consts.DEFAULT_PERSISTENT_SIZE))
+        if 'hw_settle' in install_values:
+            hw_settle = install_values.get('hw_settle')
+            if not isinstance(hw_settle, int):
+                pecan.abort(400, _("The install value hw_settle (in seconds) must "
+                                   "be a whole number greater than or equal to 0"))
+            if hw_settle < 0:
+                pecan.abort(400, _("hw_settle of %s seconds is less than 0") %
+                            (str(hw_settle)))
 
         for k in install_consts.MANDATORY_INSTALL_VALUES:
             if k not in install_values:
