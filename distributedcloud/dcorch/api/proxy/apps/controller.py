@@ -410,6 +410,9 @@ class SysinvAPIController(APIController):
             if 'active' in request.POST:
                 req_body['active'] = request.POST['active']
 
+            if 'inactive' in request.POST:
+                req_body['inactive'] = request.POST['inactive']
+
             # sysinv will handle a simple application/json request
             # with the file location
             req.content_type = "application/json"
