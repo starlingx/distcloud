@@ -59,7 +59,7 @@ class PatchOrchThread(OrchThread):
 
     def pre_apply_setup(self):
         super(PatchOrchThread, self).pre_apply_setup()
-        self.job_data = PatchJobData()
+        self.job_data = PatchJobData(self.context)
 
     def post_delete_teardown(self):
         super(PatchOrchThread, self).post_delete_teardown()

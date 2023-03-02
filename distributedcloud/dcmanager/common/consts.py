@@ -280,6 +280,9 @@ EXTRA_ARGS_SUBJECT = 'subject'
 EXTRA_ARGS_SYSADMIN_PASSWORD = 'sysadmin_password'
 EXTRA_ARGS_FORCE = 'force'
 
+# extra_args for patching
+EXTRA_ARGS_UPLOAD_ONLY = 'upload-only'
+
 # Device Image Bitstream Types
 BITSTREAM_TYPE_ROOT_KEY = 'root-key'
 BITSTREAM_TYPE_FUNCTIONAL = 'functional'

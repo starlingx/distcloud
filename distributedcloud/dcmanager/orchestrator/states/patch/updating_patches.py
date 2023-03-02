@@ -35,10 +35,12 @@ class UpdatingPatchesState(BaseState):
         self.region_one_patches = job_data.region_one_patches
         self.region_one_applied_patch_ids = job_data.\
             region_one_applied_patch_ids
+        self.extra_args = job_data.extra_args
 
     def perform_state_action(self, strategy_step):
         """Update patches in this subcloud"""
         self.info_log(strategy_step, "Updating patches")
+        upload_only = self.extra_args.get(consts.EXTRA_ARGS_UPLOAD_ONLY)
 
         # Retrieve all subcloud patches
         try:
@@ -66,30 +68,31 @@ class UpdatingPatchesState(BaseState):
                 patches_to_apply.append(patch_id)
 
         # Check that all applied patches in subcloud match RegionOne
-        for patch_id in subcloud_patch_ids:
-            repostate = subcloud_patches[patch_id]["repostate"]
-            if repostate == patching_v1.PATCH_STATE_APPLIED:
-                if patch_id not in self.region_one_applied_patch_ids:
-                    self.info_log(strategy_step,
-                                  "Patch %s will be removed from subcloud" %
-                                  patch_id)
-                    patches_to_remove.append(patch_id)
-            elif repostate == patching_v1.PATCH_STATE_COMMITTED:
-                if patch_id not in self.region_one_applied_patch_ids:
-                    message = ("Patch %s is committed in subcloud but "
-                               "not applied in SystemController" % patch_id)
+        if not upload_only:
+            for patch_id in subcloud_patch_ids:
+                repostate = subcloud_patches[patch_id]["repostate"]
+                if repostate == patching_v1.PATCH_STATE_APPLIED:
+                    if patch_id not in self.region_one_applied_patch_ids:
+                        self.info_log(strategy_step,
+                                      "Patch %s will be removed from subcloud" %
+                                      patch_id)
+                        patches_to_remove.append(patch_id)
+                elif repostate == patching_v1.PATCH_STATE_COMMITTED:
+                    if patch_id not in self.region_one_applied_patch_ids:
+                        message = ("Patch %s is committed in subcloud but "
+                                   "not applied in SystemController" % patch_id)
+                        self.warn_log(strategy_step, message)
+                        raise Exception(message)
+                elif repostate == patching_v1.PATCH_STATE_AVAILABLE:
+                    if patch_id in self.region_one_applied_patch_ids:
+                        patches_to_apply.append(patch_id)
+
+                else:
+                    # This patch is in an invalid state
+                    message = ("Patch %s in subcloud is in an unexpected state:"
+                               " %s" % (patch_id, repostate))
                     self.warn_log(strategy_step, message)
                     raise Exception(message)
-            elif repostate == patching_v1.PATCH_STATE_AVAILABLE:
-                if patch_id in self.region_one_applied_patch_ids:
-                    patches_to_apply.append(patch_id)
-
-            else:
-                # This patch is in an invalid state
-                message = ("Patch %s in subcloud is in an unexpected state: %s"
-                           % (patch_id, repostate))
-                self.warn_log(strategy_step, message)
-                raise Exception(message)
 
         if patches_to_upload:
             self.info_log(strategy_step, "Uploading patches %s to subcloud" %
@@ -108,6 +111,12 @@ class UpdatingPatchesState(BaseState):
                     self.info_log(strategy_step,
                                   "Exiting because task is stopped")
                     raise StrategyStoppedException()
+
+        if upload_only:
+            self.info_log(strategy_step, "%s option enabled, skipping forward"
+                          " to state:(%s)" % (consts.EXTRA_ARGS_UPLOAD_ONLY,
+                                              consts.STRATEGY_STATE_COMPLETE))
+            return consts.STRATEGY_STATE_COMPLETE
 
         if patches_to_remove:
             self.info_log(strategy_step, "Removing patches %s from subcloud" %

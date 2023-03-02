@@ -16,7 +16,8 @@ LOG = logging.getLogger(__name__)
 class PatchJobData(object):
     """Job data initialized once and shared across state operators"""
 
-    def __init__(self):
+    def __init__(self, context):
+        self.context = context
         self.initialize_data()
 
     def initialize_data(self):
@@ -41,3 +42,5 @@ class PatchJobData(object):
                     self.region_one_commited_patch_ids.append(patch_id)
                     # A commited patch is also an applied one
                     self.region_one_applied_patch_ids.append(patch_id)
+
+        self.extra_args = utils.get_sw_update_strategy_extra_args(self.context)

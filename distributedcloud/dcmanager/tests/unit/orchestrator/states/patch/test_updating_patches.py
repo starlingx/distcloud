@@ -7,6 +7,7 @@ from os import path as os_path
 
 from dcmanager.common import consts
 from dcmanager.orchestrator.orch_thread import OrchThread
+from dcmanager.tests.unit.common import fake_strategy
 from dcmanager.tests.unit.orchestrator.states.fakes import FakeLoad
 from dcmanager.tests.unit.orchestrator.states.patch.test_base import \
     TestPatchState
@@ -117,12 +118,21 @@ class TestUpdatingPatchesStage(TestPatchState):
         self.fake_load = FakeLoad(1, software_version="20.12",
                                   state=consts.ACTIVE_LOAD_STATE)
 
+    def _create_fake_strategy(self, upload_only=False):
+        # setup extra_args used by PatchJobData
+        extra_args = {consts.EXTRA_ARGS_UPLOAD_ONLY: upload_only}
+        return fake_strategy.create_fake_strategy(self.ctx,
+                                                  self.DEFAULT_STRATEGY_TYPE,
+                                                  extra_args=extra_args)
+
     def test_set_job_data(self):
         """Test the 'set_job_data' method"""
         self.patching_client.query.side_effect = [REGION_ONE_PATCHES,
                                                   SUBCLOUD_PATCHES_SUCCESS]
 
         self.sysinv_client.get_loads.side_effect = [[self.fake_load]]
+
+        self._create_fake_strategy()
 
         # invoke the pre apply setup to create the PatchJobData object
         self.worker.pre_apply_setup()
@@ -147,6 +157,8 @@ class TestUpdatingPatchesStage(TestPatchState):
         self.sysinv_client.get_loads.side_effect = [[self.fake_load]]
 
         mock_os_path_isfile.return_value = True
+
+        self._create_fake_strategy()
 
         # invoke the pre apply setup to create the PatchJobData object
         self.worker.pre_apply_setup()
@@ -184,6 +196,8 @@ class TestUpdatingPatchesStage(TestPatchState):
 
         mock_os_path_isfile.return_value = True
 
+        self._create_fake_strategy()
+
         # invoke the pre apply setup to create the PatchJobData object
         self.worker.pre_apply_setup()
 
@@ -213,6 +227,8 @@ class TestUpdatingPatchesStage(TestPatchState):
 
         mock_os_path_isfile.return_value = True
 
+        self._create_fake_strategy()
+
         # invoke the pre apply setup to create the PatchJobData object
         self.worker.pre_apply_setup()
 
@@ -226,3 +242,38 @@ class TestUpdatingPatchesStage(TestPatchState):
         self.assert_step_details(self.strategy_step.subcloud_id,
                                  "updating patches: Patch DC.5 in subcloud is"
                                  " in an unexpected state: Unknown")
+
+    @mock.patch.object(os_path, "isfile")
+    def test_update_subcloud_patches_upload_only(self, mock_os_path_isfile):
+        """Test update_patches with the upload-only option.
+
+        It should only upload the patches, without applying or removing them,
+        returning 'complete' as the next step.
+        """
+
+        self.patching_client.query.side_effect = [REGION_ONE_PATCHES,
+                                                  SUBCLOUD_PATCHES_SUCCESS]
+
+        self.sysinv_client.get_loads.side_effect = [[self.fake_load]]
+
+        mock_os_path_isfile.return_value = True
+
+        self._create_fake_strategy(upload_only=True)
+
+        # invoke the pre apply setup to create the PatchJobData object
+        self.worker.pre_apply_setup()
+
+        # invoke the strategy state operation on the orch thread
+        self.worker.perform_state_action(self.strategy_step)
+
+        self.patching_client.upload.assert_called_with([consts.PATCH_VAULT_DIR +
+                                                        "/20.12/DC.8.patch"])
+
+        self.patching_client.remove.assert_not_called()
+        self.patching_client.apply.assert_not_called()
+
+        self.assert_step_details(self.strategy_step.subcloud_id, "")
+
+        # On success, the state should transition to the complete state
+        self.assert_step_updated(self.strategy_step.subcloud_id,
+                                 consts.STRATEGY_STATE_COMPLETE)
