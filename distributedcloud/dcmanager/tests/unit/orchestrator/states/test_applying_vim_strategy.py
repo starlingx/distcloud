@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2020-2022 Wind River Systems, Inc.
+# Copyright (c) 2020-2023 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -20,12 +20,19 @@ STRATEGY_APPLIED = FakeVimStrategy(state=vim.STATE_APPLIED)
 STRATEGY_APPLY_FAILED = FakeVimStrategy(state=vim.STATE_APPLY_FAILED)
 
 
+# Note: although the values of DEFAULT_MAX_WAIT_ATTEMPTS and WAIT_INTERVAL of
+# "dcmanager.orchestrator.states.applying_vim_strategy" are patched in the lines below,
+# the default values of parameters "wait_attempts" and "wait_interval" of method
+# "ApplyingVIMStrategyState.__init__" don't change. To fix this, we patch these default
+# values in "ApplyingVIMStrategyState.__init__.__defaults__".
 @mock.patch("dcmanager.orchestrator.states.applying_vim_strategy."
             "DEFAULT_MAX_FAILED_QUERIES", 3)
 @mock.patch("dcmanager.orchestrator.states.applying_vim_strategy."
             "DEFAULT_MAX_WAIT_ATTEMPTS", 3)
 @mock.patch("dcmanager.orchestrator.states.applying_vim_strategy."
             "WAIT_INTERVAL", 1)
+@mock.patch("dcmanager.orchestrator.states.applying_vim_strategy."
+            "ApplyingVIMStrategyState.__init__.__defaults__", (3, 1))
 class ApplyingVIMStrategyMixin(object):
 
     def set_state(self, state, success_state):
