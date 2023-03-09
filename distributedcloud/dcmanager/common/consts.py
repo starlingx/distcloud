@@ -189,6 +189,47 @@ DEPLOY_STATE_RECONFIGURING_NETWORK_FAILED = 'network-reconfiguration-failed'
 ERROR_DESC_EMPTY = 'No errors present'
 ERROR_DESC_CMD = 'dcmanager subcloud errors <subcloud-name>'
 
+# Static content for error messages
+BOOTSTRAP_ERROR_MSG = DEPLOY_STATE_BOOTSTRAP_FAILED
+DEPLOY_ERROR_MSG = DEPLOY_STATE_DEPLOY_FAILED
+
+ERR_MSG_DICT = {
+
+    BOOTSTRAP_ERROR_MSG: "For bootstrap failures, please delete and re-add "
+                         "the subcloud after the cause of failure has been "
+                         "resolved.",
+
+    DEPLOY_ERROR_MSG: "For deployment failures, please use dcmanager subcloud "
+                      "reconfig command to reconfigure the subcloud after the "
+                      "cause of failure has been resolved.",
+
+    "bmc_cred": "Check BMC credentials in install-values.yml. Check basic "
+                "authenticacion to the BMC: curl -u <<user:pass>> "
+                "<<BMC_URL>>",
+
+    "ping_bmc": "Check reachability to the BMC: ping <<BMC_URL>>",
+
+    "dm_pod_failed": """-  Ensure you are using the correct tarball that \
+corresponds to the image.
+-  Check helm overrides files, ensure the deployment manager images exist in \
+the specified registry and you can manually pull them from the registry.
+-  Ensure you have installed the correct certificate.
+-  Ensure you have logged in: sudo docker login registry.local:9001 \
+-u <<registry_user>> -p <<registry_password>>""",
+
+    "dm_apply_failed": "Check deployment yaml file and ensure the content is "
+                       "syntactically and semantically correct.",
+
+    "images_download_failure": "Check docker_registries and docker proxy "
+                               "configurations in bootstrap values yaml "
+                               "file. Ensure you can manually log into the "
+                               "registry e.g. sudo docker login "
+                               "registry.local:9001 -u <registry-user> "
+                               "-p <registry-password>",
+
+    "failed_ssl_cert": "Check if the right certificate was installed."
+}
+
 # error_description max length
 ERROR_DESCRIPTION_LENGTH = 2048
 
