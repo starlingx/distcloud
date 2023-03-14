@@ -5,7 +5,9 @@
   "stop-on-failure": true,
   "max-parallel-subclouds": "2",
   "subcloud-apply-type": "serial",
-  "extra-args": null,
+  "extra-args": {
+    "upload-only": true
+  },
   "created-at": "2018-02-25T23:23:53.852473",
   "updated-at": null
 }

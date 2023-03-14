@@ -304,6 +304,13 @@ openstack_installed:
   in: body
   required: true
   type: boolean
+patch_strategy_upload_only:
+  description: |
+    Flag to indicate whether patches should only be uploaded to the subclouds
+    or not. This parameter is only used by 'patch' type strategies.
+  in: body
+  required: false
+  type: boolean
 region_name:
   description: |
     The name provisioned for the subcloud (synonym for subcloud name).

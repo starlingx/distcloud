@@ -1204,6 +1204,7 @@ serviceUnavailable (503)
   - stop-on-failure: stop_on_failure
   - subcloud-apply-type: subcloud_apply_type
   - type: sw_update_strategy_type
+  - upload-only: patch_strategy_upload_only
 
 Request Example
 ----------------
