@@ -1,5 +1,5 @@
 # Copyright 2017 Ericsson AB.
-# Copyright (c) 2017-2022 Wind River Systems, Inc.
+# Copyright (c) 2017-2023 Wind River Systems, Inc.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -206,6 +206,11 @@ class SubcloudAuditManager(manager.Manager):
             "load_audit_requested": True,
         }
         db_api.subcloud_audits_update(context, subcloud_id, values)
+
+    def trigger_subcloud_endpoints_update(self, context, subcloud_name, endpoints):
+        """Trigger update endpoints of services for a subcloud region."""
+        self.audit_worker_rpc_client.update_subcloud_endpoints(
+            context, subcloud_name, endpoints)
 
     def periodic_subcloud_audit(self):
         """Audit availability of subclouds."""

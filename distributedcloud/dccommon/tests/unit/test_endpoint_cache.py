@@ -1,5 +1,5 @@
 # Copyright 2015 Huawei Technologies Co., Ltd.
-# Copyright (c) 2017-2021 Wind River Systems, Inc.
+# Copyright (c) 2017-2023 Wind River Systems, Inc.
 # All Rights Reserved
 #
 #    Licensed under the Apache License, Version 2.0 (the "License"); you may
@@ -16,6 +16,7 @@
 #
 
 import collections
+import copy
 import mock
 from mock import patch
 
@@ -34,11 +35,12 @@ FAKE_SUBCLOUD1_KEYSTONE_ENDPOINT = "https://[2620:10a:a001:ac05::7d02]:5001/v3"
 CENTRAL_REGION = "RegionOne"
 SUBCLOUD1_REGION = "subcloud1"
 
-FAKE_MASTER_SERVICE_ENDPOINT_MAP = \
-    {CENTRAL_REGION: {"sysinv": FAKE_REGIONONE_SYSINV_ENDPOINT,
-                      "keystone": FAKE_REGIONONE_KEYSTONE_ENDPOINT},
-     SUBCLOUD1_REGION: {"sysinv": FAKE_SUBCLOUD1_SYSINV_ENDPOINT,
-                        "keystone": FAKE_SUBCLOUD1_KEYSTONE_ENDPOINT}}
+FAKE_MASTER_SERVICE_ENDPOINT_MAP = {
+    CENTRAL_REGION: {"sysinv": FAKE_REGIONONE_SYSINV_ENDPOINT,
+                     "keystone": FAKE_REGIONONE_KEYSTONE_ENDPOINT},
+    SUBCLOUD1_REGION: {"sysinv": FAKE_SUBCLOUD1_SYSINV_ENDPOINT,
+                       "keystone": FAKE_SUBCLOUD1_KEYSTONE_ENDPOINT}
+}
 
 FAKE_SERVICE_ENDPOINT_MAP = {"sysinv": FAKE_REGIONONE_SYSINV_ENDPOINT,
                              "keystone": FAKE_REGIONONE_KEYSTONE_ENDPOINT}
@@ -139,3 +141,28 @@ class EndpointCacheTest(base.DCCommonTestCase):
         endpoint_cache.EndpointCache("RegionOne", None)
         services_list = endpoint_cache.EndpointCache.get_master_services_list()
         self.assertEqual(FAKE_SERVICES_LIST, services_list)
+
+    @patch.object(endpoint_cache.EndpointCache, 'get_admin_session')
+    @patch.object(tokens.TokenManager, 'validate')
+    @patch.object(endpoint_cache.EndpointCache,
+                  '_generate_master_service_endpoint_map')
+    def test_update_master_service_endpoint_region(
+            self, mock_generate_cached_data, mock_tokens_validate,
+            mock_admin_session):
+        mock_generate_cached_data.return_value = (
+            copy.deepcopy(FAKE_MASTER_SERVICE_ENDPOINT_MAP))
+        region_name = SUBCLOUD1_REGION
+        new_endpoints = {
+            'sysinv': 'https://[fake_ip]:6386/v1',
+            'keystone': 'https://[fake_ip]:5001/v3'
+        }
+        cache = endpoint_cache.EndpointCache("RegionOne", None)
+        self.assertEqual(
+            endpoint_cache.EndpointCache.master_service_endpoint_map,
+            FAKE_MASTER_SERVICE_ENDPOINT_MAP
+        )
+        cache.update_master_service_endpoint_region(region_name, new_endpoints)
+        self.assertNotEqual(
+            endpoint_cache.EndpointCache.master_service_endpoint_map,
+            FAKE_MASTER_SERVICE_ENDPOINT_MAP
+        )

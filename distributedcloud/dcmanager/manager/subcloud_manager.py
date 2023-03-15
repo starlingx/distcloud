@@ -1783,7 +1783,7 @@ class SubcloudManager(manager.Manager):
             )
             return
         try:
-            self._update_services_endpoint(payload, m_ks_client)
+            self._update_services_endpoint(context, payload, m_ks_client)
         except Exception:
             LOG.exception("Failed to update subcloud %s endpoints" % subcloud_name)
             db_api.subcloud_update(
@@ -1830,35 +1830,47 @@ class SubcloudManager(manager.Manager):
                                        systemcontroller_gateway_ip,
                                        1)
 
-    def _update_services_endpoint(self, payload, m_ks_client):
+    def _update_services_endpoint(self, context, payload, m_ks_client):
         endpoint_ip = str(ipaddress.ip_network(payload.get('admin_subnet'))[2])
+        subcloud_name = payload.get('name')
         if netaddr.IPAddress(endpoint_ip).version == 6:
             endpoint_ip = '[' + endpoint_ip + ']'
 
+        services_endpoints = {
+            "keystone": "https://{}:5001/v3".format(endpoint_ip),
+            "sysinv": "https://{}:6386/v1".format(endpoint_ip),
+            "fm": "https://{}:18003".format(endpoint_ip),
+            "patching": "https://{}:5492".format(endpoint_ip),
+            "vim": "https://{}:4546".format(endpoint_ip)
+        }
+
         for endpoint in m_ks_client.keystone_client.endpoints.list(
-                region=payload['name']):
+                region=subcloud_name):
             service_type = m_ks_client.keystone_client.services.get(
                 endpoint.service_id).type
             if service_type == dccommon_consts.ENDPOINT_TYPE_PLATFORM:
-                admin_endpoint_url = "https://{}:6386/v1".format(endpoint_ip)
+                admin_endpoint_url = services_endpoints.get('sysinv')
             elif service_type == dccommon_consts.ENDPOINT_TYPE_IDENTITY:
-                admin_endpoint_url = "https://{}:5001/v3".format(endpoint_ip)
+                admin_endpoint_url = services_endpoints.get('keystone')
             elif service_type == dccommon_consts.ENDPOINT_TYPE_PATCHING:
-                admin_endpoint_url = "https://{}:5492".format(endpoint_ip)
+                admin_endpoint_url = services_endpoints.get('patching')
             elif service_type == dccommon_consts.ENDPOINT_TYPE_FM:
-                admin_endpoint_url = "https://{}:18003".format(endpoint_ip)
+                admin_endpoint_url = services_endpoints.get('fm')
             elif service_type == dccommon_consts.ENDPOINT_TYPE_NFV:
-                admin_endpoint_url = "https://{}:4546".format(endpoint_ip)
+                admin_endpoint_url = services_endpoints.get('vim')
             else:
                 LOG.exception("Endpoint Type Error: %s" % service_type)
             m_ks_client.keystone_client.endpoints.update(
                 endpoint, url=admin_endpoint_url)
-        # Clear the subcloud endpoint cache
-        OpenStackDriver(
-            region_name=dccommon_consts.DEFAULT_REGION_NAME,
-            region_clients=None
-        ).os_clients_dict[payload['name']] = collections.defaultdict(dict)
-        m_ks_client.endpoint_cache.re_initialize_master_keystone_client()
+        # Update service URLs in subcloud endpoint cache
+        self.audit_rpc_client.trigger_subcloud_endpoints_update(
+            context, subcloud_name, services_endpoints)
+        self.dcorch_rpc_client.update_subcloud_endpoints(
+            context, subcloud_name, services_endpoints)
+        # Update sysinv URL in cert-mon cache
+        dc_notification = dcmanager_rpc_client.DCManagerNotifications()
+        dc_notification.subcloud_sysinv_endpoint_update(
+            context, subcloud_name, services_endpoints.get("sysinv"))
 
     def _create_subcloud_update_overrides_file(
             self, payload, subcloud_name, filename_suffix):

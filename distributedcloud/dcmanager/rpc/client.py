@@ -47,10 +47,10 @@ class RPCClient(object):
             client = self._client
         return client.call(ctxt, method, **kwargs)
 
-    def cast(self, ctxt, msg, version=None):
+    def cast(self, ctxt, msg, fanout=None, version=None):
         method, kwargs = msg
-        if version is not None:
-            client = self._client.prepare(version=version)
+        if fanout or version:
+            client = self._client.prepare(fanout=fanout, version=version)
         else:
             client = self._client
         return client.cast(ctxt, method, **kwargs)
@@ -210,3 +210,8 @@ class DCManagerNotifications(RPCClient):
     def subcloud_managed(self, ctxt, subcloud_name):
         return self.cast(ctxt, self.make_msg('subcloud_managed',
                                              subcloud_name=subcloud_name))
+
+    def subcloud_sysinv_endpoint_update(self, ctxt, subcloud_name, endpoint):
+        return self.cast(ctxt, self.make_msg(
+            'subcloud_sysinv_endpoint_update', subcloud_name=subcloud_name,
+            endpoint=endpoint), fanout=True, version=self.DCMANAGER_RPC_API_VERSION)
