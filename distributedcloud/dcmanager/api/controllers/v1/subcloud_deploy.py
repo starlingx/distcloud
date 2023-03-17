@@ -12,7 +12,7 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 #
-# Copyright (c) 2020-2022 Wind River Systems, Inc.
+# Copyright (c) 2020-2023 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -27,6 +27,7 @@ import pecan
 from pecan import expose
 from pecan import request
 
+from dccommon import consts as dccommon_consts
 from dcmanager.api.controllers import restcomm
 from dcmanager.api.policies import subcloud_deploy as subcloud_deploy_policy
 from dcmanager.api import policy
@@ -104,6 +105,12 @@ class SubcloudDeployController(object):
                         error_msg = "error: argument %s is required" % missing_str.rstrip()
                         pecan.abort(httpclient.BAD_REQUEST, error_msg)
 
+        release = tsc.SW_VERSION
+        if request.POST.get('release_version'):
+            release = request.POST.get('release_version')
+        deploy_dicts['release_version'] = release
+
+        dir_path = os.path.join(dccommon_consts.DEPLOY_DIR, release)
         for f in consts.DEPLOY_COMMON_FILE_OPTIONS:
             if f not in request.POST:
                 continue
@@ -113,7 +120,6 @@ class SubcloudDeployController(object):
             if not filename:
                 pecan.abort(httpclient.BAD_REQUEST,
                             _("No %s file uploaded" % f))
-            dir_path = tsc.DEPLOY_PATH
 
             binary = False
             if f == consts.DEPLOY_CHART:
@@ -128,14 +134,20 @@ class SubcloudDeployController(object):
         return deploy_dicts
 
     @index.when(method='GET', template='json')
-    def get(self):
-        """Get the subcloud deploy files that has been uploaded and stored"""
+    def get(self, release=None):
+        """Get the subcloud deploy files that has been uploaded and stored.
+
+        :param release: release version
+        """
 
         policy.authorize(subcloud_deploy_policy.POLICY_ROOT % "get", {},
                          restcomm.extract_credentials_for_policy())
         deploy_dicts = dict()
+        if not release:
+            release = tsc.SW_VERSION
+        deploy_dicts['release_version'] = release
+        dir_path = os.path.join(dccommon_consts.DEPLOY_DIR, release)
         for f in consts.DEPLOY_COMMON_FILE_OPTIONS:
-            dir_path = tsc.DEPLOY_PATH
             filename = None
             if os.path.isdir(dir_path):
                 prefix = f + '_'

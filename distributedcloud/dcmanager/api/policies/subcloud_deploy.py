@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2022 Wind River Systems, Inc.
+# Copyright (c) 2022-2023 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -30,6 +30,10 @@ subcloud_deploy_rules = [
             {
                 'method': 'GET',
                 'path': '/v1.0/subcloud-deploy'
+            },
+            {
+                'method': 'GET',
+                'path': '/v1.0/subcloud-deploy/{release}'
             }
         ]
     )
