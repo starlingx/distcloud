@@ -3,11 +3,15 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 #
+import re
+
 from dccommon.consts import DEFAULT_REGION_NAME
+from dcmanager.common.consts import ERROR_DESC_CMD
 from dcmanager.common.consts import STRATEGY_STATE_COMPLETE
 from dcmanager.common.consts \
     import STRATEGY_STATE_KUBE_CREATING_VIM_KUBE_UPGRADE_STRATEGY
 from dcmanager.common import utils
+from dcmanager.db import api as db_api
 from dcmanager.orchestrator.states.base import BaseState
 
 
@@ -35,6 +39,25 @@ class KubeUpgradePreCheckState(BaseState):
         rather than the 'available' version in the subcloud.  This allows
         a partially upgraded subcloud to be skipped.
         """
+        system_health = self.get_sysinv_client(self.region_name).get_kube_upgrade_health()
+        fails = re.findall("\[Fail\]", system_health)
+        failed_alarm_check = re.findall("No alarms: \[Fail\]", system_health)
+        no_mgmt_alarms = re.findall("\[0\] of which are management affecting",
+                                    system_health)
+        if not fails or (len(fails) == 1 and failed_alarm_check and no_mgmt_alarms):
+            self.info_log(strategy_step, "Kubernetes upgrade health check passed.")
+        else:
+            error_desc_msg = ("Kubernetes upgrade health check failed. \n %s" %
+                              system_health)
+            self.error_log(strategy_step, "\n" + system_health)
+            db_api.subcloud_update(
+                self.context, strategy_step.subcloud_id,
+                error_description=error_desc_msg)
+            raise Exception(("Kubernetes upgrade health check failed. "
+                             "Please run 'system health-query-kube-upgrade' "
+                             "command on the subcloud or %s on central for details"
+                             % (ERROR_DESC_CMD)))
+
         # Get any  existing kubernetes upgrade operation in the subcloud,
         # and use its to-version rather than the 'available' version for
         # determining whether or not to skip.

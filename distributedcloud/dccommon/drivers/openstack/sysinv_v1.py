@@ -379,6 +379,10 @@ class SysinvClient(base.DriverBase):
         """Get platform upgrade health."""
         return self.sysinv_client.health.get_upgrade()
 
+    def get_kube_upgrade_health(self):
+        """Get system health for kube upgrade."""
+        return self.sysinv_client.health.get_kube_upgrade()
+
     def get_hosts(self):
         """Get a list of hosts."""
         return self.sysinv_client.ihost.list()

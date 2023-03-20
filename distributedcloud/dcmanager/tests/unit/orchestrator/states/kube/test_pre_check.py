@@ -23,6 +23,41 @@ from dcmanager.tests.unit.orchestrator.states.fakes \
 from dcmanager.tests.unit.orchestrator.states.kube.test_base \
     import TestKubeUpgradeState
 
+KUBERNETES_UPGRADE_HEALTH_RESPONSE_SUCCESS = \
+    "System Health:\n" \
+    "All hosts are provisioned: [OK]\n" \
+    "All hosts are unlocked/enabled: [OK]\n" \
+    "All hosts have current configurations: [OK]\n" \
+    "All hosts are patch current: [OK]\n" \
+    "No alarms: [OK]\n" \
+    "All kubernetes nodes are ready: [OK]\n" \
+    "All kubernetes control plane pods are ready: [OK]\n" \
+    "All kubernetes applications are in a valid state: [OK]"
+
+KUBERNETES_UPGRADE_HEALTH_RESPONSE_MGMT_AFFECTING_ALARM = \
+    "System Health:\n" \
+    "All hosts are provisioned: [OK]\n" \
+    "All hosts are unlocked/enabled: [OK]\n" \
+    "All hosts have current configurations: [OK]\n" \
+    "All hosts are patch current: [OK]\n" \
+    "No alarms: [Fail]\n" \
+    "[2] alarms found, [2] of which are management affecting\n" \
+    "All kubernetes nodes are ready: [OK]\n" \
+    "All kubernetes control plane pods are ready: [OK]\n" \
+    "All kubernetes applications are in a valid state: [OK]"
+
+KUBERNETES_UPGRADE_HEALTH_RESPONSE_NON_MGMT_AFFECTING_ALARM = \
+    "System Health:\n" \
+    "All hosts are provisioned: [OK]\n" \
+    "All hosts are unlocked/enabled: [OK]\n" \
+    "All hosts have current configurations: [OK]\n" \
+    "All hosts are patch current: [OK]\n" \
+    "No alarms: [Fail]\n" \
+    "[1] alarms found, [0] of which are management affecting\n" \
+    "All kubernetes nodes are ready: [OK]\n" \
+    "All kubernetes control plane pods are ready: [OK]\n" \
+    "All kubernetes applications are in a valid state: [OK]"
+
 
 class TestKubeUpgradePreCheckStage(TestKubeUpgradeState):
 
@@ -40,6 +75,9 @@ class TestKubeUpgradePreCheckStage(TestKubeUpgradeState):
         # mock there not being a kube upgrade in progress
         self.sysinv_client.get_kube_upgrades = mock.MagicMock()
         self.sysinv_client.get_kube_upgrades.return_value = []
+
+        self.sysinv_client.get_kube_upgrade_health = mock.MagicMock()
+        self.sysinv_client.get_kube_upgrade_health.return_value = KUBERNETES_UPGRADE_HEALTH_RESPONSE_SUCCESS
 
         # mock the get_kube_versions calls
         self.sysinv_client.get_kube_versions = mock.MagicMock()
@@ -73,6 +111,48 @@ class TestKubeUpgradePreCheckStage(TestKubeUpgradeState):
 
         # Verify the transition to the  expected next state
         self.assert_step_updated(self.strategy_step.subcloud_id, next_state)
+
+    def test_pre_check_subcloud_failed_health_check_with_management_alarms(self):
+        """Test pre check step where subcloud has management affecting alarms"""
+
+        db_api.subcloud_update(self.ctx,
+                               self.subcloud.id,
+                               deploy_status=DEPLOY_STATE_DONE)
+
+        self.sysinv_client.get_kube_upgrade_health.return_value = KUBERNETES_UPGRADE_HEALTH_RESPONSE_MGMT_AFFECTING_ALARM
+        self.sysinv_client.get_kube_upgrades.return_value = [FakeKubeUpgrade()]
+        self.sysinv_client.get_kube_versions.return_value = [
+            FakeKubeVersion(obj_id=1,
+                            version=UPGRADED_KUBE_VERSION,
+                            target=True,
+                            state='active'),
+        ]
+        self.worker.perform_state_action(self.strategy_step)
+        self.sysinv_client.get_kube_upgrade_health.assert_called_once()
+
+        self.assert_step_updated(self.strategy_step.subcloud_id,
+                                 STRATEGY_STATE_FAILED)
+
+    def test_pre_check_subcloud_failed_health_check_with_non_management_alarms(self):
+        """Test pre check step where subcloud has non-management affecting alarms"""
+
+        db_api.subcloud_update(self.ctx,
+                               self.subcloud.id,
+                               deploy_status=DEPLOY_STATE_DONE)
+
+        self.sysinv_client.get_kube_upgrade_health.return_value = KUBERNETES_UPGRADE_HEALTH_RESPONSE_NON_MGMT_AFFECTING_ALARM
+        self.sysinv_client.get_kube_upgrades.return_value = [FakeKubeUpgrade()]
+        self.sysinv_client.get_kube_versions.return_value = [
+            FakeKubeVersion(obj_id=1,
+                            version=UPGRADED_KUBE_VERSION,
+                            target=True,
+                            state='active'),
+        ]
+        self.worker.perform_state_action(self.strategy_step)
+        self.sysinv_client.get_kube_upgrade_health.assert_called_once()
+
+        self.assert_step_updated(self.strategy_step.subcloud_id,
+                                 STRATEGY_STATE_KUBE_CREATING_VIM_KUBE_UPGRADE_STRATEGY)
 
     def test_pre_check_no_sys_controller_active_version(self):
         """Test pre check step where system controller has no active version
