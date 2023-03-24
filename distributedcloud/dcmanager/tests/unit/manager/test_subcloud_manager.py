@@ -318,6 +318,17 @@ FAKE_BACKUP_CREATE_LOAD_1 = {
     "registry_images": False,
 }
 
+FAKE_BACKUP_RESTORE_LOAD = {
+    "sysadmin_password": "testpasswd",
+    "subcloud": 1
+}
+
+FAKE_BACKUP_RESTORE_LOAD_WITH_INSTALL = {
+    "sysadmin_password": "testpasswd",
+    "subcloud": 1,
+    "install_values": fake_subcloud.FAKE_SUBCLOUD_INSTALL_VALUES
+}
+
 
 class Subcloud(object):
     def __init__(self, data, is_online):
@@ -2187,3 +2198,184 @@ class TestSubcloudManager(base.DCManagerTestCase):
             mock_keystone_client, mock_sysinv_client)
         expiry2 = cached_regionone_data['expiry']
         self.assertEqual(expiry1, expiry2)
+
+    @mock.patch.object(subcloud_manager.SubcloudManager,
+                       '_run_subcloud_backup_restore_playbook')
+    @mock.patch.object(subcloud_manager.SubcloudManager,
+                       '_create_overrides_for_backup_or_restore')
+    @mock.patch.object(subcloud_manager.SubcloudManager,
+                       '_create_subcloud_inventory_file')
+    def test_backup_restore_unmanaged_online(self,
+                                             mock_create_inventory_file,
+                                             mock_create_overrides,
+                                             mock_run_playbook
+                                             ):
+        mock_create_inventory_file.return_value = 'inventory_file.yml'
+        mock_create_overrides.return_value = 'overrides_file.yml'
+
+        values = copy.copy(FAKE_BACKUP_RESTORE_LOAD)
+        subcloud = self.create_subcloud_static(
+            self.ctx,
+            name='subcloud1',
+            deploy_status=consts.DEPLOY_STATE_DONE)
+
+        data_install = str(fake_subcloud.FAKE_SUBCLOUD_INSTALL_VALUES).replace('\'', '"')
+
+        db_api.subcloud_update(self.ctx,
+                               subcloud.id,
+                               availability_status=dccommon_consts.AVAILABILITY_ONLINE,
+                               management_state=dccommon_consts.MANAGEMENT_UNMANAGED,
+                               data_install=data_install)
+
+        sm = subcloud_manager.SubcloudManager()
+        sm.restore_subcloud_backups(self.ctx, payload=values)
+
+        mock_create_inventory_file.assert_called_once()
+        mock_create_overrides.assert_called_once()
+        mock_run_playbook.assert_called_once()
+
+        # Verify that subcloud has the correct deploy status
+        updated_subcloud = db_api.subcloud_get_by_name(self.ctx, subcloud.name)
+        self.assertEqual(consts.DEPLOY_STATE_PRE_RESTORE,
+                         updated_subcloud.deploy_status)
+
+    @mock.patch.object(subcloud_manager.SubcloudManager,
+                       '_run_subcloud_backup_restore_playbook')
+    @mock.patch.object(subcloud_manager.SubcloudManager,
+                       '_create_overrides_for_backup_or_restore')
+    @mock.patch.object(subcloud_manager.SubcloudManager,
+                       '_create_subcloud_inventory_file')
+    def test_backup_restore_managed_online(self,
+                                           mock_create_inventory_file,
+                                           mock_create_overrides,
+                                           mock_run_playbook
+                                           ):
+
+        values = copy.copy(FAKE_BACKUP_RESTORE_LOAD)
+        subcloud = self.create_subcloud_static(
+            self.ctx,
+            name='subcloud1',
+            deploy_status=consts.DEPLOY_STATE_NONE)
+
+        data_install = str(fake_subcloud.FAKE_SUBCLOUD_INSTALL_VALUES).replace('\'', '"')
+
+        db_api.subcloud_update(self.ctx,
+                               subcloud.id,
+                               availability_status=dccommon_consts.AVAILABILITY_ONLINE,
+                               management_state=dccommon_consts.MANAGEMENT_MANAGED,
+                               data_install=data_install)
+
+        sm = subcloud_manager.SubcloudManager()
+        return_log = sm.restore_subcloud_backups(self.ctx, payload=values)
+
+        expected_log = 'skipped for local backup restore operation'
+
+        self.assertIn(expected_log, return_log)
+
+    @mock.patch.object(subcloud_manager.SubcloudManager,
+                       '_run_subcloud_backup_restore_playbook')
+    @mock.patch.object(subcloud_manager.SubcloudManager,
+                       '_create_overrides_for_backup_or_restore')
+    @mock.patch.object(subcloud_manager.SubcloudManager,
+                       '_create_subcloud_inventory_file')
+    def test_backup_restore_unmanaged_offline(self,
+                                              mock_create_inventory_file,
+                                              mock_create_overrides,
+                                              mock_run_playbook
+                                              ):
+
+        values = copy.copy(FAKE_BACKUP_RESTORE_LOAD)
+        subcloud = self.create_subcloud_static(
+            self.ctx,
+            name='subcloud1',
+            deploy_status=consts.DEPLOY_STATE_NONE)
+
+        data_install = str(fake_subcloud.FAKE_SUBCLOUD_INSTALL_VALUES).replace('\'', '"')
+
+        db_api.subcloud_update(self.ctx,
+                               subcloud.id,
+                               availability_status=dccommon_consts.AVAILABILITY_OFFLINE,
+                               management_state=dccommon_consts.MANAGEMENT_UNMANAGED,
+                               data_install=data_install)
+
+        sm = subcloud_manager.SubcloudManager()
+        sm.restore_subcloud_backups(self.ctx, payload=values)
+
+        mock_create_inventory_file.assert_called_once()
+        mock_create_overrides.assert_called_once()
+        mock_run_playbook.assert_called_once()
+
+        # Verify that subcloud has the correct deploy status
+        updated_subcloud = db_api.subcloud_get_by_name(self.ctx, subcloud.name)
+        self.assertEqual(consts.DEPLOY_STATE_PRE_RESTORE,
+                         updated_subcloud.deploy_status)
+
+    def test_backup_restore_managed_offline(self):
+
+        values = copy.copy(FAKE_BACKUP_RESTORE_LOAD)
+        subcloud = self.create_subcloud_static(
+            self.ctx,
+            name='subcloud1',
+            deploy_status=consts.DEPLOY_STATE_NONE)
+
+        db_api.subcloud_update(self.ctx,
+                               subcloud.id,
+                               availability_status=dccommon_consts.AVAILABILITY_OFFLINE,
+                               management_state=dccommon_consts.MANAGEMENT_MANAGED)
+
+        sm = subcloud_manager.SubcloudManager()
+        return_log = sm.restore_subcloud_backups(self.ctx, payload=values)
+
+        expected_log = 'skipped for local backup restore operation'
+
+        self.assertIn(expected_log, return_log)
+
+    @mock.patch.object(subcloud_manager.SubcloudManager,
+                       '_run_subcloud_backup_restore_playbook')
+    @mock.patch.object(subcloud_manager.SubcloudManager, '_run_subcloud_install')
+    @mock.patch.object(subcloud_manager.SubcloudManager,
+                       '_create_overrides_for_backup_or_restore')
+    @mock.patch.object(subcloud_manager.SubcloudManager,
+                       '_create_subcloud_inventory_file')
+    @mock.patch('os.path.isdir')
+    @mock.patch('os.listdir')
+    def test_backup_restore_with_install(self,
+                                         mock_listdir,
+                                         mock_isdir,
+                                         mock_create_inventory_file,
+                                         mock_create_overrides,
+                                         mock_subcloud_install,
+                                         mock_run_restore_playbook
+                                         ):
+        mock_isdir.return_value = True
+        mock_listdir.return_value = ['test.iso', 'test.sig']
+        mock_create_inventory_file.return_value = 'inventory_file.yml'
+        mock_create_overrides.return_value = 'overrides_file.yml'
+        mock_subcloud_install.return_value = True
+        mock_run_restore_playbook.return_value = True
+
+        data_install = str(fake_subcloud.FAKE_SUBCLOUD_INSTALL_VALUES).replace('\'', '"')
+
+        values = copy.copy(FAKE_BACKUP_RESTORE_LOAD_WITH_INSTALL)
+        values['with_install'] = True
+        subcloud = self.create_subcloud_static(
+            self.ctx,
+            name='subcloud1',
+            data_install=data_install,
+            deploy_status=consts.DEPLOY_STATE_DONE)
+
+        db_api.subcloud_update(self.ctx,
+                               subcloud.id,
+                               availability_status=dccommon_consts.AVAILABILITY_ONLINE,
+                               management_state=dccommon_consts.MANAGEMENT_UNMANAGED)
+
+        sm = subcloud_manager.SubcloudManager()
+        sm.restore_subcloud_backups(self.ctx, payload=values)
+
+        mock_create_inventory_file.assert_called_once()
+        mock_create_overrides.assert_called_once()
+
+        # Verify that subcloud has the correct deploy status
+        updated_subcloud = db_api.subcloud_get_by_name(self.ctx, subcloud.name)
+        self.assertEqual(consts.DEPLOY_STATE_PRE_RESTORE,
+                         updated_subcloud.deploy_status)

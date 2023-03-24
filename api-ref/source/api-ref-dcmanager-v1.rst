@@ -1031,6 +1031,7 @@ serviceUnavailable (503)
 .. rest_parameters:: parameters.yaml
 
   - with_install: with_install
+  - release: release
   - local_only: backup_local_only
   - registry_images: backup_registry_images
   - sysadmin_password: sysadmin_password

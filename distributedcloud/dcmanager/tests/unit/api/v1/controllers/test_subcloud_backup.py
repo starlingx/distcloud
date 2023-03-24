@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2022 Wind River Systems, Inc.
+# Copyright (c) 2022-2023 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -1212,6 +1212,104 @@ class TestSubcloudRestore(testroot.DCManagerApiTest):
         fake_password = (base64.b64encode('testpass'.encode("utf-8"))).decode('ascii')
         data = {'sysadmin_password': fake_password}
         mock_rpc_client().restore_subcloud_backups.return_value = True
+
+        six.assertRaisesRegex(self, webtest.app.AppError, "400 *",
+                              self.app.patch_json, FAKE_URL_RESTORE,
+                              headers=FAKE_HEADERS, params=data)
+
+    @mock.patch.object(rpc_client, 'ManagerClient')
+    @mock.patch('os.path.isdir')
+    @mock.patch('os.listdir')
+    def test_backup_restore_subcloud_with_install_no_release(self,
+                                                             mock_listdir,
+                                                             mock_isdir,
+                                                             mock_rpc_client):
+
+        subcloud = fake_subcloud.create_fake_subcloud(self.ctx)
+        data_install = str(fake_subcloud.FAKE_SUBCLOUD_INSTALL_VALUES).replace('\'', '"')
+        db_api.subcloud_update(self.ctx,
+                               subcloud.id,
+                               availability_status=dccommon_consts.AVAILABILITY_ONLINE,
+                               management_state=dccommon_consts.MANAGEMENT_UNMANAGED,
+                               data_install=data_install)
+
+        fake_password = (base64.b64encode('testpass'.encode("utf-8"))).decode('ascii')
+        data = {'sysadmin_password': fake_password,
+                'subcloud': '1',
+                'with_install': 'True'
+                }
+
+        mock_isdir.return_value = True
+        mock_listdir.return_value = ['test.iso', 'test.sig']
+        mock_rpc_client().restore_subcloud_backups.return_value = True
+        response = self.app.patch_json(FAKE_URL_RESTORE,
+                                       headers=FAKE_HEADERS,
+                                       params=data)
+
+        self.assertEqual(response.status_int, 200)
+
+    @mock.patch.object(rpc_client, 'ManagerClient')
+    @mock.patch('os.path.isdir')
+    @mock.patch('os.listdir')
+    def test_backup_restore_subcloud_with_install_with_release(self,
+                                                               mock_listdir,
+                                                               mock_isdir,
+                                                               mock_rpc_client):
+
+        subcloud = fake_subcloud.create_fake_subcloud(self.ctx)
+        data_install = str(fake_subcloud.FAKE_SUBCLOUD_INSTALL_VALUES).replace('\'', '"')
+        db_api.subcloud_update(self.ctx,
+                               subcloud.id,
+                               availability_status=dccommon_consts.AVAILABILITY_ONLINE,
+                               management_state=dccommon_consts.MANAGEMENT_UNMANAGED,
+                               data_install=data_install)
+
+        fake_password = (base64.b64encode('testpass'.encode("utf-8"))).decode('ascii')
+        data = {'sysadmin_password': fake_password,
+                'subcloud': '1',
+                'with_install': 'True',
+                'release': '22.12'
+                }
+
+        mock_isdir.return_value = True
+        mock_listdir.return_value = ['test.iso', 'test.sig']
+        mock_rpc_client().restore_subcloud_backups.return_value = True
+
+        response = self.app.patch_json(FAKE_URL_RESTORE,
+                                       headers=FAKE_HEADERS,
+                                       params=data)
+
+        self.assertEqual(response.status_int, 200)
+
+    @mock.patch.object(rpc_client, 'ManagerClient')
+    def test_backup_restore_subcloud_no_install_with_release(self, mock_rpc_client):
+
+        fake_password = (base64.b64encode('testpass'.encode("utf-8"))).decode('ascii')
+        data = {'sysadmin_password': fake_password,
+                'subcloud': '1',
+                'release': '22.12'
+                }
+
+        mock_rpc_client().restore_subcloud_backups.return_value = True
+
+        six.assertRaisesRegex(self, webtest.app.AppError, "400 *",
+                              self.app.patch_json, FAKE_URL_RESTORE,
+                              headers=FAKE_HEADERS, params=data)
+
+    @mock.patch.object(rpc_client, 'ManagerClient')
+    @mock.patch('dcmanager.common.utils.get_matching_iso')
+    def test_backup_restore_subcloud_invalid_release(self,
+                                                     mock_rpc_client,
+                                                     mock_matching_iso):
+
+        fake_password = (base64.b64encode('testpass'.encode("utf-8"))).decode('ascii')
+        data = {'sysadmin_password': fake_password,
+                'subcloud': '1',
+                'release': '00.00'
+                }
+
+        mock_rpc_client().restore_subcloud_backups.return_value = True
+        mock_matching_iso.return_value = [None, True]
 
         six.assertRaisesRegex(self, webtest.app.AppError, "400 *",
                               self.app.patch_json, FAKE_URL_RESTORE,
