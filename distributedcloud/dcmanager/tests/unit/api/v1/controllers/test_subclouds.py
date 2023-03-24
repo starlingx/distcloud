@@ -278,9 +278,9 @@ class TestSubcloudPost(testroot.DCManagerApiTest,
                                                        '192.168.204.100')
 
         p = mock.patch.object(subclouds.SubcloudsController,
-                              '_get_management_address_pool')
-        self.mock_get_management_address_pool = p.start()
-        self.mock_get_management_address_pool.return_value = \
+                              '_get_network_address_pool')
+        self.mock_get_network_address_pool = p.start()
+        self.mock_get_network_address_pool.return_value = \
             self.management_address_pool
         self.addCleanup(p.stop)
 
@@ -1234,21 +1234,30 @@ class TestSubcloudAPIOther(testroot.DCManagerApiTest):
         self.assertEqual(response.status_int, 200)
 
     @mock.patch.object(rpc_client, 'ManagerClient')
-    @mock.patch.object(subclouds.SubcloudsController, '_validate_admin_network_config')
+    @mock.patch.object(subclouds.SubcloudsController, '_get_network_address_pool')
+    @mock.patch.object(subclouds.SubcloudsController,
+                       '_validate_network_reconfiguration')
     @mock.patch.object(subclouds.SubcloudsController, '_get_patch_data')
-    def test_patch_subcloud_admin_values(self, mock_get_patch_data,
-                                         mock_validate_admin_network_config,
-                                         mock_rpc_client):
+    def test_patch_subcloud_network_values(
+            self, mock_get_patch_data, mock_validate_network_reconfiguration,
+            mock_mgmt_address_pool, mock_rpc_client):
         subcloud = fake_subcloud.create_fake_subcloud(self.ctx)
-        db_api.subcloud_update(self.ctx, subcloud.id,
-                               availability_status=dccommon_consts.AVAILABILITY_ONLINE)
+        db_api.subcloud_update(
+            self.ctx, subcloud.id,
+            availability_status=dccommon_consts.AVAILABILITY_ONLINE)
         fake_password = (
             base64.b64encode('testpass'.encode("utf-8"))).decode('ascii')
         payload = {'sysadmin_password': fake_password,
-                   'admin_subnet': "192.168.102.0/24",
-                   'admin_start_address': "192.168.102.5",
-                   'admin_end_address': "192.168.102.49",
-                   'admin_gateway_ip': "192.168.102.1"}
+                   'bootstrap_address': "192.168.102.2",
+                   'management_subnet': "192.168.102.0/24",
+                   'management_start_ip': "192.168.102.5",
+                   'management_end_ip': "192.168.102.49",
+                   'management_gateway_ip': "192.168.102.1"}
+
+        fake_management_address_pool = FakeAddressPool('192.168.204.0', 24,
+                                                       '192.168.204.2',
+                                                       '192.168.204.100')
+        mock_mgmt_address_pool.return_value = fake_management_address_pool
 
         mock_rpc_client().update_subcloud_with_network_reconfig.return_value = True
         mock_get_patch_data.return_value = payload
@@ -1256,7 +1265,7 @@ class TestSubcloudAPIOther(testroot.DCManagerApiTest):
                                        headers=FAKE_HEADERS,
                                        params=payload)
         self.assertEqual(response.status_int, 200)
-        mock_validate_admin_network_config.assert_called_once()
+        mock_validate_network_reconfiguration.assert_called_once()
         mock_rpc_client().update_subcloud_with_network_reconfig.assert_called_once_with(
             mock.ANY,
             subcloud.id,

@@ -26,6 +26,7 @@ import shutil
 import threading
 import time
 
+from cgtsclient.exc import HTTPConflict
 from eventlet import greenpool
 from fm_api import constants as fm_const
 from fm_api import fm_api
@@ -1741,6 +1742,11 @@ class SubcloudManager(manager.Manager):
         return db_api.subcloud_db_model_to_dict(subcloud)
 
     def update_subcloud_with_network_reconfig(self, context, subcloud_id, payload):
+        subcloud = db_api.subcloud_get(context, subcloud_id)
+        subcloud = db_api.subcloud_update(
+            context, subcloud.id,
+            deploy_status=consts.DEPLOY_STATE_RECONFIGURING_NETWORK
+        )
         subcloud_name = payload['name']
         try:
             self._create_intermediate_ca_cert(payload)
@@ -1754,22 +1760,25 @@ class SubcloudManager(manager.Manager):
             update_command = self.compose_update_command(
                 subcloud_name, subcloud_inventory_file)
         except Exception:
-            LOG.exception("Failed to prepare subcloud %s for update."
-                          % subcloud_name)
+            LOG.exception(
+                "Failed to prepare subcloud %s for update." % subcloud_name)
             return
         try:
             apply_thread = threading.Thread(
-                target=self._run_admin_network_update_playbook,
-                args=(subcloud_name, update_command, overrides_file, payload, context, subcloud_id))
+                target=self._run_network_reconfig_playbook,
+                args=(subcloud_name, update_command, overrides_file,
+                      payload, context, subcloud))
             apply_thread.start()
         except Exception:
             LOG.exception("Failed to update subcloud %s" % subcloud_name)
 
-    def _run_admin_network_update_playbook(
-            self, subcloud_name, update_command, overrides_file, payload, context, subcloud_id):
+    def _run_network_reconfig_playbook(
+        self, subcloud_name, update_command, overrides_file,
+        payload, context, subcloud
+    ):
         log_file = (os.path.join(consts.DC_ANSIBLE_LOG_DIR, subcloud_name) +
                     '_playbook_output.log')
-        subcloud = db_api.subcloud_get(context, subcloud_id)
+        subcloud_id = subcloud.id
         try:
             run_playbook(log_file, update_command)
             utils.delete_subcloud_inventory(overrides_file)
@@ -1787,9 +1796,14 @@ class SubcloudManager(manager.Manager):
             m_ks_client = OpenStackDriver(
                 region_name=dccommon_consts.DEFAULT_REGION_NAME,
                 region_clients=None).keystone_client
-            self._create_subcloud_admin_route(payload, m_ks_client)
+            self._create_subcloud_route(payload, m_ks_client, subcloud)
+        except HTTPConflict:
+            # The route already exists
+            LOG.warning(
+                "Failed to create route to subcloud %s" % subcloud_name)
         except Exception:
-            LOG.exception("Failed to create route to admin")
+            LOG.exception(
+                "Failed to create route to subcloud %s." % subcloud_name)
             db_api.subcloud_update(
                 context, subcloud_id,
                 deploy_status=consts.DEPLOY_STATE_RECONFIGURING_NETWORK_FAILED,
@@ -1797,7 +1811,8 @@ class SubcloudManager(manager.Manager):
             )
             return
         try:
-            self._update_services_endpoint(context, payload, m_ks_client)
+            self._update_services_endpoint(
+                context, payload, subcloud_name, m_ks_client)
         except Exception:
             LOG.exception("Failed to update subcloud %s endpoints" % subcloud_name)
             db_api.subcloud_update(
@@ -1810,45 +1825,46 @@ class SubcloudManager(manager.Manager):
         self._delete_subcloud_routes(m_ks_client, subcloud)
 
         db_api.subcloud_update(
-            context, subcloud_id,
-            deploy_status=consts.DEPLOY_STATE_DONE
+            context, subcloud_id, deploy_status=consts.DEPLOY_STATE_DONE
         )
 
         subcloud = db_api.subcloud_update(
             context,
             subcloud_id,
             description=payload.get('description', subcloud.description),
-            management_subnet=payload.get('admin_subnet'),
-            management_gateway_ip=payload.get('admin_gateway_ip'),
-            management_start_ip=payload.get('admin_start_address'),
-            management_end_ip=payload.get('admin_end_address'),
+            management_subnet=payload.get('management_subnet'),
+            management_gateway_ip=payload.get('management_gateway_ip'),
+            management_start_ip=payload.get('management_start_ip'),
+            management_end_ip=payload.get('management_end_ip'),
             location=payload.get('location', subcloud.location),
             group_id=payload.get('group_id', subcloud.group_id),
             data_install=payload.get('data_install', subcloud.data_install)
         )
 
-    def _create_subcloud_admin_route(self, payload, keystone_client):
-        subcloud_subnet = netaddr.IPNetwork(utils.get_management_subnet(payload))
+        # Regenerate the addn_hosts_dc file
+        self._create_addn_hosts_dc(context)
+
+    def _create_subcloud_route(self, payload, keystone_client, subcloud):
+        subcloud_subnet = netaddr.IPNetwork(payload.get('management_subnet'))
         endpoint = keystone_client.endpoint_cache.get_endpoint('sysinv')
         sysinv_client = SysinvClient(dccommon_consts.DEFAULT_REGION_NAME,
                                      keystone_client.session,
                                      endpoint=endpoint)
-        systemcontroller_gateway_ip = payload.get('systemcontroller_gateway_ip')
-        # TODO(nicodemos) delete old route
         cached_regionone_data = self._get_cached_regionone_data(
             keystone_client, sysinv_client)
         for mgmt_if_uuid in cached_regionone_data['mgmt_interface_uuids']:
             sysinv_client.create_route(mgmt_if_uuid,
                                        str(subcloud_subnet.ip),
                                        subcloud_subnet.prefixlen,
-                                       systemcontroller_gateway_ip,
+                                       subcloud.systemcontroller_gateway_ip,
                                        1)
 
-    def _update_services_endpoint(self, context, payload, m_ks_client):
-        endpoint_ip = str(ipaddress.ip_network(payload.get('admin_subnet'))[2])
-        subcloud_name = payload.get('name')
+    def _update_services_endpoint(
+            self, context, payload, subcloud_name, m_ks_client):
+        endpoint_ip = str(ipaddress.ip_network(
+            payload.get('management_subnet'))[2])
         if netaddr.IPAddress(endpoint_ip).version == 6:
-            endpoint_ip = '[' + endpoint_ip + ']'
+            endpoint_ip = f"[{endpoint_ip}]"
 
         services_endpoints = {
             "keystone": "https://{}:5001/v3".format(endpoint_ip),
@@ -1911,14 +1927,17 @@ class SubcloudManager(manager.Manager):
             payload['sysadmin_password'])
         payload['override_values']['ansible_become_pass'] = (
             payload['sysadmin_password'])
-        payload['override_values']['admin_gateway_address'] = (
-            payload['admin_gateway_ip'])
-        payload['override_values']['admin_floating_address'] = (
-            payload['admin_start_address']
-        )
-        payload['override_values']['admin_subnet'] = (
-            payload['admin_subnet']
-        )
+
+        payload['override_values']['sc_gateway_address'] = (
+            payload['management_gateway_ip'])
+        payload['override_values']['sc_floating_address'] = (
+            payload['management_start_ip'])
+        payload['override_values']['system_controller_network'] = (
+            payload['system_controller_network'])
+        payload['override_values']['system_controller_network_prefix'] = (
+            payload['system_controller_network_prefix'])
+        payload['override_values']['sc_subnet'] = payload['management_subnet']
+
         payload['override_values']['dc_root_ca_cert'] = payload['dc_root_ca_cert']
         payload['override_values']['sc_ca_cert'] = payload['sc_ca_cert']
         payload['override_values']['sc_ca_key'] = payload['sc_ca_key']

@@ -96,6 +96,11 @@ INSTALL_VALUES_ADDRESSES = [
     'network_address'
 ]
 
+SUBCLOUD_MANDATORY_NETWORK_PARAMS = [
+    'management_subnet', 'management_gateway_ip',
+    'management_start_ip', 'management_end_ip'
+]
+
 ANSIBLE_BOOTSTRAP_VALIDATE_CONFIG_VARS = \
     consts.ANSIBLE_CURRENT_VERSION_BASE_PATH + \
     '/roles/bootstrap/validate-config/vars/main.yml'
@@ -452,7 +457,7 @@ class SubcloudsController(object):
 
         # Ensure systemcontroller gateway is in the management subnet
         # for the systemcontroller region.
-        management_address_pool = self._get_management_address_pool(context)
+        management_address_pool = self._get_network_address_pool()
         systemcontroller_subnet_str = "%s/%d" % (
             management_address_pool.network,
             management_address_pool.prefix)
@@ -591,6 +596,39 @@ class SubcloudsController(object):
                                "%(end)s") %
                         {'start': subcloud_admin_address_start,
                          'end': subcloud_admin_address_end})
+
+    # TODO(nicodemos): Check if subcloud is online and network already exist in the
+    # subcloud when the lock/unlock is not required for network reconfiguration
+    def _validate_network_reconfiguration(self, payload, subcloud):
+        if payload.get('management-state'):
+            pecan.abort(422, _("Management state and network reconfiguration must "
+                               "be updated separately"))
+        if subcloud.management_state != dccommon_consts.MANAGEMENT_UNMANAGED:
+            pecan.abort(422, _("A subcloud must be unmanaged to perform network "
+                               "reconfiguration"))
+        if not payload.get('bootstrap_address'):
+            pecan.abort(422, _("The bootstrap_address parameter is required for "
+                               "network reconfiguration"))
+        # Check if all parameters exist
+        if not all(payload.get(value) is not None for value in (
+                SUBCLOUD_MANDATORY_NETWORK_PARAMS)):
+            mandatory_params = ', '.join('--{}'.format(param.replace(
+                '_', '-')) for param in SUBCLOUD_MANDATORY_NETWORK_PARAMS)
+            abort_msg = (
+                "The following parameters are necessary for "
+                "subcloud network reconfiguration: {}".format(mandatory_params)
+            )
+            pecan.abort(422, _(abort_msg))
+
+        # Check if any network values are already in use
+        for param in SUBCLOUD_MANDATORY_NETWORK_PARAMS:
+            if payload.get(param) == getattr(subcloud, param):
+                pecan.abort(422, _("%s already in use by the subcloud.") % param)
+
+        # Check if password is valid
+        valid, msg = utils.is_password_valid(payload)
+        if not valid:
+            pecan.abort(400, _(msg))
 
     def _format_ip_address(self, payload):
         """Format IP addresses in 'bootstrap_values' and 'install_values'.
@@ -857,13 +895,17 @@ class SubcloudsController(object):
             if patches[patch_id]['patchstate'] in [patching_v1.PATCH_STATE_PARTIAL_APPLY, patching_v1.PATCH_STATE_PARTIAL_REMOVE]:
                 pecan.abort(422, _('Subcloud add is not allowed while system controller patching is still in progress.'))
 
-    def _get_management_address_pool(self, context):
-        """Get the system controller's management address pool"""
-        ks_client = self.get_ks_client()
+    def _get_network_address_pool(
+            self, network='management',
+            region_name=dccommon_consts.DEFAULT_REGION_NAME):
+        """Get the region network address pool"""
+        ks_client = self.get_ks_client(region_name)
         endpoint = ks_client.endpoint_cache.get_endpoint('sysinv')
-        sysinv_client = SysinvClient(dccommon_consts.DEFAULT_REGION_NAME,
+        sysinv_client = SysinvClient(region_name,
                                      ks_client.session,
                                      endpoint=endpoint)
+        if network == 'admin':
+            return sysinv_client.get_admin_address_pool()
         return sysinv_client.get_management_address_pool()
 
     # TODO(gsilvatr): refactor to use implementation from common/utils and test
@@ -1260,7 +1302,6 @@ class SubcloudsController(object):
                                                        subcloud_ref)
             except exceptions.SubcloudNameNotFound:
                 pecan.abort(404, _('Subcloud not found'))
-
         subcloud_id = subcloud.id
 
         if verb is None:
@@ -1269,39 +1310,26 @@ class SubcloudsController(object):
             if not payload:
                 pecan.abort(400, _('Body required'))
 
+            # Check if exist any network reconfiguration parameters
+            reconfigure_network = any(payload.get(value) is not None for value in (
+                SUBCLOUD_MANDATORY_NETWORK_PARAMS))
+
+            if reconfigure_network:
+                system_controller_mgmt_pool = self._get_network_address_pool()
+                # Required parameters
+                payload['name'] = subcloud.name
+                payload['system_controller_network'] = (
+                    system_controller_mgmt_pool.network)
+                payload['system_controller_network_prefix'] = (
+                    system_controller_mgmt_pool.prefix
+                )
+                # Validation
+                self._validate_network_reconfiguration(payload, subcloud)
+
             management_state = payload.get('management-state')
             group_id = payload.get('group_id')
             description = payload.get('description')
             location = payload.get('location')
-            admin_subnet_str = payload.get('admin_subnet')
-            admin_start_ip_str = payload.get('admin_start_address')
-            admin_end_ip_str = payload.get('admin_end_address')
-            admin_gateway_ip_str = payload.get('admin_gateway_ip')
-
-            # Syntax checking
-
-            if (admin_subnet_str and admin_gateway_ip_str and
-                    admin_start_ip_str and admin_end_ip_str):
-                # Required parameters
-                payload['name'] = subcloud.name
-                payload['systemcontroller_gateway_ip'] = (
-                    subcloud.systemcontroller_gateway_ip)
-
-                # Parse/validate the admin subnet
-                subcloud_subnets = []
-                subclouds = db_api.subcloud_get_all(context)
-                for subcloud in subclouds:
-                    subcloud_subnets.append(IPNetwork(subcloud.management_subnet))
-
-                self._validate_admin_network_config(admin_subnet_str,
-                                                    admin_start_ip_str,
-                                                    admin_end_ip_str,
-                                                    admin_gateway_ip_str,
-                                                    subcloud_subnets)
-                # Password only required when update admin network
-                valid, msg = utils.is_password_valid(payload)
-                if not valid:
-                    pecan.abort(400, _(msg))
 
             # Syntax checking
             if management_state and \
@@ -1335,27 +1363,16 @@ class SubcloudsController(object):
             if self._validate_install_values(payload, subcloud):
                 payload['data_install'] = json.dumps(payload[INSTALL_VALUES])
             try:
-                # Inform dcmanager that subcloud has been updated.
-                # It will do all the real work...
-                if payload.get('admin_subnet'):
-                    if payload.get('management-state'):
-                        pecan.abort(422, _('Management state and network configuration must be updated separately'))
-                    if subcloud.management_state != dccommon_consts.MANAGEMENT_UNMANAGED:
-                        pecan.abort(422, _("Subcloud must be unmanaged to update admin network"))
-
-                    subcloud = db_api.subcloud_update(
-                        context, subcloud_id,
-                        deploy_status=consts.DEPLOY_STATE_RECONFIGURING_NETWORK)
+                if reconfigure_network:
                     self.dcmanager_rpc_client.update_subcloud_with_network_reconfig(
                         context, subcloud_id, payload)
                     return db_api.subcloud_db_model_to_dict(subcloud)
-                else:
-                    subcloud = self.dcmanager_rpc_client.update_subcloud(
-                        context, subcloud_id, management_state=management_state,
-                        description=description, location=location,
-                        group_id=group_id, data_install=payload.get('data_install'),
-                        force=force_flag)
-                    return subcloud
+                subcloud = self.dcmanager_rpc_client.update_subcloud(
+                    context, subcloud_id, management_state=management_state,
+                    description=description, location=location,
+                    group_id=group_id, data_install=payload.get('data_install'),
+                    force=force_flag)
+                return subcloud
             except RemoteError as e:
                 pecan.abort(422, e.value)
             except Exception as e:

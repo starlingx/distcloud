@@ -319,13 +319,13 @@ The attributes of a subcloud which are modifiable:
 
 -  group_id
 
--  admin-subnet
+-  management-subnet
 
--  admin-gateway-ip
+-  management-gateway-ip
 
--  admin-node-0-address
+-  management-start-ip
 
--  admin-node-1-address
+-  management-end-ip
 
 **Normal response codes**
 
@@ -346,10 +346,12 @@ serviceUnavailable (503)
   - location: subcloud_location
   - management-state: subcloud_management_state
   - group_id: subcloud_group_id
-  - admin-subnet: subcloud_admin_subnet
-  - admin-gateway-ip: subcloud_admin_gateway_ip
-  - admin-node-0-address: subcloud_admin_node_0_address
-  - admin-node-1-address: subcloud_admin_node_1_address
+  - management-subnet: subcloud_management_subnet
+  - management-gateway-ip: subcloud_management_gateway_ip
+  - management-start-ip: subcloud_management_start_ip
+  - management-end-ip: subcloud_management_end_ip
+  - bootstrap-address: bootstrap_address
+  - sysadmin-password: sysadmin_password
 
 Request Example
 ----------------

@@ -662,16 +662,18 @@ class TestSubcloudManager(base.DCManagerTestCase):
                          updated_subcloud.location)
 
     @mock.patch.object(subcloud_manager.SubcloudManager,
+                       '_create_addn_hosts_dc')
+    @mock.patch.object(subcloud_manager.SubcloudManager,
                        '_delete_subcloud_routes')
     @mock.patch.object(subcloud_manager.SubcloudManager,
                        '_update_services_endpoint')
     @mock.patch.object(subcloud_manager.SubcloudManager,
-                       '_create_subcloud_admin_route')
+                       '_create_subcloud_route')
     @mock.patch.object(subcloud_manager, 'OpenStackDriver')
     @mock.patch.object(subcloud_manager, 'run_playbook')
-    def test_update_subcloud_with_admin_values(
+    def test_update_subcloud_network_reconfiguration(
             self, mock_run_playbook, mock_keystone_client, mock_create_route,
-            mock_update_endpoints, mock_delete_route):
+            mock_update_endpoints, mock_delete_route, mock_addn_hosts_dc):
         subcloud = self.create_subcloud_static(
             self.ctx,
             name='subcloud1',
@@ -683,10 +685,10 @@ class TestSubcloudManager(base.DCManagerTestCase):
         payload = {'name': subcloud.name,
                    'description': "subcloud description",
                    'location': "subcloud location",
-                   'admin_subnet': "192.168.102.0/24",
-                   'admin_start_address': "192.168.102.5",
-                   'admin_end_address': "192.168.102.49",
-                   'admin_gateway_ip': "192.168.102.1"}
+                   'management_subnet': "192.168.102.0/24",
+                   'management_start_ip': "192.168.102.5",
+                   'management_end_ip': "192.168.102.49",
+                   'management_gateway_ip': "192.168.102.1"}
 
         fake_dcmanager_notification = FakeDCManagerNotifications()
 
@@ -695,14 +697,15 @@ class TestSubcloudManager(base.DCManagerTestCase):
         mock_dcmanager_api.return_value = fake_dcmanager_notification
 
         sm = subcloud_manager.SubcloudManager()
-        sm._run_admin_network_update_playbook(
-            subcloud.name, mock.ANY, None, payload, self.ctx, subcloud.id)
+        sm._run_network_reconfig_playbook(
+            subcloud.name, mock.ANY, None, payload, self.ctx, subcloud)
 
         mock_run_playbook.assert_called_once()
         mock_keystone_client.assert_called_once()
         mock_create_route.assert_called_once()
         mock_update_endpoints.assert_called_once()
         mock_delete_route.assert_called_once()
+        mock_addn_hosts_dc.assert_called_once()
 
         # Verify subcloud was updated with correct values
         updated_subcloud = db_api.subcloud_get_by_name(self.ctx, subcloud.name)
@@ -710,13 +713,13 @@ class TestSubcloudManager(base.DCManagerTestCase):
                          updated_subcloud.description)
         self.assertEqual(payload['location'],
                          updated_subcloud.location)
-        self.assertEqual(payload['admin_subnet'],
+        self.assertEqual(payload['management_subnet'],
                          updated_subcloud.management_subnet)
-        self.assertEqual(payload['admin_gateway_ip'],
+        self.assertEqual(payload['management_gateway_ip'],
                          updated_subcloud.management_gateway_ip)
-        self.assertEqual(payload['admin_start_address'],
+        self.assertEqual(payload['management_start_ip'],
                          updated_subcloud.management_start_ip)
-        self.assertEqual(payload['admin_end_address'],
+        self.assertEqual(payload['management_end_ip'],
                          updated_subcloud.management_end_ip)
 
     def test_update_subcloud_with_install_values(self):
