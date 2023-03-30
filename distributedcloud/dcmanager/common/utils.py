@@ -22,6 +22,7 @@ import netaddr
 import os
 import pwd
 import re
+import resource as sys_resource
 import six.moves
 import subprocess
 import tsconfig.tsconfig as tsc
@@ -880,3 +881,22 @@ def get_management_gateway_address(payload):
     if payload.get('admin_gateway_address', None):
         return payload.get('admin_gateway_address')
     return payload.get('management_gateway_address', '')
+
+
+def set_open_file_limit(new_soft_limit: int):
+    """Adjust the maximum number of open files for this process (soft limit)"""
+    try:
+        current_soft, current_hard = sys_resource.getrlimit(
+            sys_resource.RLIMIT_NOFILE)
+        if new_soft_limit > current_hard:
+            LOG.error(f'New process open file soft limit [{new_soft_limit}] '
+                      f'exceeds the hard limit [{current_hard}]. Setting to '
+                      'hard limit instead.')
+            new_soft_limit = current_hard
+        if new_soft_limit != current_soft:
+            LOG.info(f'Setting process open file limit to {new_soft_limit} '
+                     f'(from {current_soft})')
+            sys_resource.setrlimit(sys_resource.RLIMIT_NOFILE,
+                                   (new_soft_limit, current_hard))
+    except Exception as ex:
+        LOG.exception(f'Failed to set NOFILE resource limit: {ex}')

@@ -33,6 +33,7 @@ from dcmanager.common import context
 from dcmanager.common import exceptions
 from dcmanager.common.i18n import _
 from dcmanager.common import messaging as rpc_messaging
+from dcmanager.common import utils
 from dcmanager.state.subcloud_state_manager import SubcloudStateManager
 
 LOG = logging.getLogger(__name__)
@@ -79,6 +80,7 @@ class DCManagerStateService(service.Service):
 
     def start(self):
         LOG.info("Starting %s", self.__class__.__name__)
+        utils.set_open_file_limit(cfg.CONF.worker_rlimit_nofile)
         self._init_managers()
         target = oslo_messaging.Target(version=self.rpc_api_version,
                                        server=self.host,

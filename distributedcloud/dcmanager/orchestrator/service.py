@@ -27,6 +27,7 @@ from dcmanager.common import context
 from dcmanager.common import exceptions
 from dcmanager.common import messaging as rpc_messaging
 from dcmanager.common import scheduler
+from dcmanager.common import utils
 from dcmanager.orchestrator.sw_update_manager import SwUpdateManager
 
 CONF = cfg.CONF
@@ -63,6 +64,7 @@ class DCManagerOrchestratorService(service.Service):
         self.sw_update_manager = None
 
     def start(self):
+        utils.set_open_file_limit(cfg.CONF.worker_rlimit_nofile)
         self.init_tgm()
         self.init_manager()
         target = oslo_messaging.Target(version=self.rpc_api_version,

@@ -29,6 +29,7 @@ from dcmanager.common import context
 from dcmanager.common import exceptions
 from dcmanager.common.i18n import _
 from dcmanager.common import messaging as rpc_messaging
+from dcmanager.common import utils
 from dcmanager.manager.subcloud_manager import SubcloudManager
 
 CONF = cfg.CONF
@@ -76,6 +77,7 @@ class DCManagerService(service.Service):
         self.subcloud_manager = SubcloudManager()
 
     def start(self):
+        utils.set_open_file_limit(cfg.CONF.worker_rlimit_nofile)
         self.dcmanager_id = uuidutils.generate_uuid()
         self.init_managers()
         target = oslo_messaging.Target(version=self.rpc_api_version,
