@@ -218,19 +218,28 @@ class SubcloudManager(manager.Manager):
             subcloud_name + postfix)
         return ansible_filename
 
-    def compose_install_command(self, subcloud_name, ansible_subcloud_inventory_file):
+    def compose_install_command(self, subcloud_name,
+                                ansible_subcloud_inventory_file,
+                                software_version=None):
         install_command = [
             "ansible-playbook", ANSIBLE_SUBCLOUD_INSTALL_PLAYBOOK,
             "-i", ansible_subcloud_inventory_file,
             "--limit", subcloud_name,
             "-e", "@%s" % consts.ANSIBLE_OVERRIDES_PATH + "/" +
                   subcloud_name + '/' + "install_values.yml"]
+        if software_version and software_version != SW_VERSION:
+            install_command += [
+                "-e", "install_release_version=%s" % software_version]
         return install_command
 
-    def compose_apply_command(self, subcloud_name, ansible_subcloud_inventory_file):
+    def compose_apply_command(self, subcloud_name,
+                              ansible_subcloud_inventory_file,
+                              software_version=None):
         apply_command = [
-            "ansible-playbook", ANSIBLE_SUBCLOUD_PLAYBOOK, "-i",
-            ansible_subcloud_inventory_file,
+            "ansible-playbook",
+            utils.get_playbook_for_software_version(
+                ANSIBLE_SUBCLOUD_PLAYBOOK, software_version),
+            "-i", ansible_subcloud_inventory_file,
             "--limit", subcloud_name
         ]
         # Add the overrides dir and region_name so the playbook knows
@@ -291,9 +300,13 @@ class SubcloudManager(manager.Manager):
             subcloud_name + "_update_values.yml"]
         return subcloud_update_command
 
-    def compose_rehome_command(self, subcloud_name, ansible_subcloud_inventory_file):
+    def compose_rehome_command(self, subcloud_name,
+                               ansible_subcloud_inventory_file,
+                               software_version):
         rehome_command = [
-            "ansible-playbook", ANSIBLE_SUBCLOUD_REHOME_PLAYBOOK,
+            "ansible-playbook",
+            utils.get_playbook_for_software_version(
+                ANSIBLE_SUBCLOUD_REHOME_PLAYBOOK, software_version),
             "-i", ansible_subcloud_inventory_file,
             "--limit", subcloud_name,
             "--timeout", REHOME_PLAYBOOK_TIMEOUT,
@@ -426,10 +439,6 @@ class SubcloudManager(manager.Manager):
             if "install_values" in payload:
                 payload['install_values']['ansible_ssh_pass'] = \
                     payload['sysadmin_password']
-                if 'image' not in payload['install_values']:
-                    matching_iso, matching_sig = utils.get_vault_load_files(
-                        SW_VERSION)
-                    payload['install_values'].update({'image': matching_iso})
 
             deploy_command = None
             if "deploy_playbook" in payload:
@@ -461,7 +470,8 @@ class SubcloudManager(manager.Manager):
             if migrate_flag:
                 rehome_command = self.compose_rehome_command(
                     subcloud.name,
-                    ansible_subcloud_inventory_file)
+                    ansible_subcloud_inventory_file,
+                    subcloud.software_version)
                 apply_thread = threading.Thread(
                     target=self.run_deploy,
                     args=(subcloud, payload, context,
@@ -471,10 +481,12 @@ class SubcloudManager(manager.Manager):
                 if "install_values" in payload:
                     install_command = self.compose_install_command(
                         subcloud.name,
-                        ansible_subcloud_inventory_file)
+                        ansible_subcloud_inventory_file,
+                        subcloud.software_version)
                 apply_command = self.compose_apply_command(
                     subcloud.name,
-                    ansible_subcloud_inventory_file)
+                    ansible_subcloud_inventory_file,
+                    subcloud.software_version)
                 apply_thread = threading.Thread(
                     target=self.run_deploy,
                     args=(subcloud, payload, context,
@@ -590,10 +602,12 @@ class SubcloudManager(manager.Manager):
 
             install_command = self.compose_install_command(
                 subcloud.name,
-                ansible_subcloud_inventory_file)
+                ansible_subcloud_inventory_file,
+                payload['software_version'])
             apply_command = self.compose_apply_command(
                 subcloud.name,
-                ansible_subcloud_inventory_file)
+                ansible_subcloud_inventory_file,
+                payload['software_version'])
             apply_thread = threading.Thread(
                 target=self.run_deploy,
                 args=(subcloud, payload, context,
@@ -958,11 +972,11 @@ class SubcloudManager(manager.Manager):
 
         if payload.get('with_install'):
             install_command = self.compose_install_command(
-                subcloud.name, subcloud_inventory_file)
+                subcloud.name, subcloud_inventory_file, subcloud.software_version)
             # Update data_install with missing data
-            matching_iso, _ = utils.get_vault_load_files(SW_VERSION)
+            matching_iso, _ = utils.get_vault_load_files(subcloud.software_version)
             data_install['image'] = matching_iso
-            data_install['software_version'] = SW_VERSION
+            data_install['software_version'] = subcloud.software_version
             data_install['ansible_ssh_pass'] = payload['sysadmin_password']
             data_install['ansible_become_pass'] = payload['sysadmin_password']
             install_success = self._run_subcloud_install(

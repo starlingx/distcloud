@@ -105,12 +105,12 @@ class SubcloudDeployController(object):
                         error_msg = "error: argument %s is required" % missing_str.rstrip()
                         pecan.abort(httpclient.BAD_REQUEST, error_msg)
 
-        release = tsc.SW_VERSION
-        if request.POST.get('release_version'):
-            release = request.POST.get('release_version')
-        deploy_dicts['release_version'] = release
+        software_version = tsc.SW_VERSION
+        if request.POST.get('release'):
+            software_version = request.POST.get('release')
+        deploy_dicts['software_version'] = software_version
 
-        dir_path = os.path.join(dccommon_consts.DEPLOY_DIR, release)
+        dir_path = os.path.join(dccommon_consts.DEPLOY_DIR, software_version)
         for f in consts.DEPLOY_COMMON_FILE_OPTIONS:
             if f not in request.POST:
                 continue
@@ -145,7 +145,7 @@ class SubcloudDeployController(object):
         deploy_dicts = dict()
         if not release:
             release = tsc.SW_VERSION
-        deploy_dicts['release_version'] = release
+        deploy_dicts['software_version'] = release
         dir_path = os.path.join(dccommon_consts.DEPLOY_DIR, release)
         for f in consts.DEPLOY_COMMON_FILE_OPTIONS:
             filename = None

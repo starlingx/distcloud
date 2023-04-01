@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2020-2022 Wind River Systems, Inc.
+# Copyright (c) 2020-2023 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -15,6 +15,8 @@ FAKE_TENANT = utils.UUID1
 FAKE_ID = '1'
 FAKE_URL = '/v1.0/subclouds'
 WRONG_URL = '/v1.0/wrong'
+
+FAKE_SOFTWARE_VERSION = '18.03'
 
 FAKE_HEADERS = {'X-Tenant-Id': FAKE_TENANT, 'X_ROLE': 'admin,member,reader',
                 'X-Identity-Status': 'Confirmed', 'X-Project-Name': 'admin'}
@@ -61,7 +63,7 @@ FAKE_SUBCLOUD_BOOTSTRAP_PAYLOAD = {
 
 FAKE_SUBCLOUD_INSTALL_VALUES = {
     "image": "http://192.168.101.2:8080/iso/bootimage.iso",
-    "software_version": "18.03",
+    "software_version": FAKE_SOFTWARE_VERSION,
     "bootstrap_interface": "eno1",
     "bootstrap_address": "128.224.151.183",
     "bootstrap_address_prefix": 23,
@@ -81,7 +83,7 @@ FAKE_SUBCLOUD_INSTALL_VALUES = {
 
 FAKE_SUBCLOUD_INSTALL_VALUES_WITH_PERSISTENT_SIZE = {
     "image": "http://192.168.101.2:8080/iso/bootimage.iso",
-    "software_version": "18.03",
+    "software_version": FAKE_SOFTWARE_VERSION,
     "bootstrap_interface": "eno1",
     "bootstrap_address": "128.224.151.183",
     "bootstrap_address_prefix": 23,
@@ -105,7 +107,7 @@ def create_fake_subcloud(ctxt, **kwargs):
         "name": "subcloud1",
         "description": "subcloud1 description",
         "location": "subcloud1 location",
-        'software_version': "18.03",
+        'software_version': FAKE_SOFTWARE_VERSION,
         "management_subnet": "192.168.101.0/24",
         "management_gateway_ip": "192.168.101.1",
         "management_start_ip": "192.168.101.2",

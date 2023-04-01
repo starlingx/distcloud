@@ -1,5 +1,6 @@
 {
     "deploy_chart": "deployment-manager.tgz",
     "deploy_playbook": "deployment-manager-playbook.yaml",
-    "deploy_overrides": "deployment-manager-overrides-subcloud.yaml"
+    "deploy_overrides": "deployment-manager-overrides-subcloud.yaml",
+    "software_version": "22.12"
 }

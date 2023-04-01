@@ -27,7 +27,7 @@ from dcmanager.tests import utils
 
 from tsconfig.tsconfig import SW_VERSION
 
-FAKE_RELEASE = '21.12'
+FAKE_SOFTWARE_VERSION = '21.12'
 FAKE_TENANT = utils.UUID1
 FAKE_ID = '1'
 FAKE_URL = '/v1.0/subcloud-deploy'
@@ -55,7 +55,7 @@ class TestSubcloudDeploy(testroot.DCManagerApiTest):
     @mock.patch.object(subcloud_deploy.SubcloudDeployController,
                        '_upload_files')
     def test_post_subcloud_deploy(self, mock_upload_files):
-        params = [('release_version', FAKE_RELEASE)]
+        params = [('release', FAKE_SOFTWARE_VERSION)]
         fields = list()
         for opt in consts.DEPLOY_COMMON_FILE_OPTIONS:
             fake_name = opt + "_fake"
@@ -67,7 +67,7 @@ class TestSubcloudDeploy(testroot.DCManagerApiTest):
                                  headers=FAKE_HEADERS,
                                  params=params)
         self.assertEqual(response.status_code, http_client.OK)
-        self.assertEqual(FAKE_RELEASE, response.json['release_version'])
+        self.assertEqual(FAKE_SOFTWARE_VERSION, response.json['software_version'])
 
     @mock.patch.object(subcloud_deploy.SubcloudDeployController,
                        '_upload_files')
@@ -83,7 +83,7 @@ class TestSubcloudDeploy(testroot.DCManagerApiTest):
                                  upload_files=fields)
         self.assertEqual(response.status_code, http_client.OK)
         # Verify the active release will be returned if release doesn't present
-        self.assertEqual(SW_VERSION, response.json['release_version'])
+        self.assertEqual(SW_VERSION, response.json['software_version'])
 
     @mock.patch.object(subcloud_deploy.SubcloudDeployController,
                        '_upload_files')
@@ -206,11 +206,11 @@ class TestSubcloudDeploy(testroot.DCManagerApiTest):
         os.path.isdir = mock.Mock(return_value=True)
         mock_get_filename_by_prefix.side_effect = \
             get_filename_by_prefix_side_effect
-        url = FAKE_URL + '/' + FAKE_RELEASE
+        url = FAKE_URL + '/' + FAKE_SOFTWARE_VERSION
         response = self.app.get(url, headers=FAKE_HEADERS)
         self.assertEqual(response.status_code, http_client.OK)
-        self.assertEqual(FAKE_RELEASE,
-                         response.json['subcloud_deploy']['release_version'])
+        self.assertEqual(FAKE_SOFTWARE_VERSION,
+                         response.json['subcloud_deploy']['software_version'])
         self.assertEqual(FAKE_DEPLOY_PLAYBOOK_FILE,
                          response.json['subcloud_deploy'][consts.DEPLOY_PLAYBOOK])
         self.assertEqual(FAKE_DEPLOY_OVERRIDES_FILE,
@@ -236,7 +236,7 @@ class TestSubcloudDeploy(testroot.DCManagerApiTest):
         response = self.app.get(FAKE_URL, headers=FAKE_HEADERS)
         self.assertEqual(response.status_code, http_client.OK)
         self.assertEqual(SW_VERSION,
-                         response.json['subcloud_deploy']['release_version'])
+                         response.json['subcloud_deploy']['software_version'])
         self.assertEqual(FAKE_DEPLOY_PLAYBOOK_FILE,
                          response.json['subcloud_deploy'][consts.DEPLOY_PLAYBOOK])
         self.assertEqual(FAKE_DEPLOY_OVERRIDES_FILE,

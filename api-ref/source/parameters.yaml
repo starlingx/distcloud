@@ -6,6 +6,12 @@ backup_delete_release:
   in: path
   required: true
   type: string
+release_uri:
+  description: |
+    The subcloud software version.
+  in: path
+  required: false
+  type: string
 subcloud_group_uri:
   description: |
     The subcloud group reference, name or id.
@@ -316,6 +322,12 @@ region_name:
     The name provisioned for the subcloud (synonym for subcloud name).
   in: body
   required: true
+  type: string
+release:
+  description: |
+    The subcloud software version.
+  in: body
+  required: false
   type: string
 restore_values:
   description: |

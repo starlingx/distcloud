@@ -96,6 +96,13 @@ INSTALL_VALUES_ADDRESSES = [
     'network_address'
 ]
 
+ANSIBLE_BOOTSTRAP_VALIDATE_CONFIG_VARS = \
+    consts.ANSIBLE_CURRENT_VERSION_BASE_PATH + \
+    '/roles/bootstrap/validate-config/vars/main.yml'
+
+FRESH_INSTALL_K8S_VERSION = 'fresh_install_k8s_version'
+KUBERNETES_VERSION = 'kubernetes_version'
+
 
 def _get_multipart_field_name(part):
     content = part.headers[b"Content-Disposition"].decode("utf8")
@@ -132,14 +139,14 @@ class SubcloudsController(object):
             pecan.abort(400, _("Invalid group_id"))
 
     @staticmethod
-    def _get_common_deploy_files(payload):
+    def _get_common_deploy_files(payload, software_version):
         for f in consts.DEPLOY_COMMON_FILE_OPTIONS:
             # Skip the prestage_images option as it is not relevant in this
             # context
             if f == consts.DEPLOY_PRESTAGE:
                 continue
             filename = None
-            dir_path = tsc.DEPLOY_PATH
+            dir_path = os.path.join(dccommon_consts.DEPLOY_DIR, software_version)
             if os.path.isdir(dir_path):
                 filename = utils.get_filename_by_prefix(dir_path, f + '_')
             if filename is None:
@@ -159,7 +166,7 @@ class SubcloudsController(object):
             fn = self._get_config_file_path(payload['name'], consts.DEPLOY_CONFIG)
             self._upload_config_file(contents, fn, consts.DEPLOY_CONFIG)
             payload.update({consts.DEPLOY_CONFIG: fn})
-            self._get_common_deploy_files(payload)
+            self._get_common_deploy_files(payload, payload['software_version'])
 
     @staticmethod
     def _get_request_data(request):
@@ -242,7 +249,7 @@ class SubcloudsController(object):
             LOG.exception(msg)
             pecan.abort(400, msg)
 
-    def _get_reconfig_payload(self, request, subcloud_name):
+    def _get_reconfig_payload(self, request, subcloud_name, software_version):
         payload = dict()
         multipart_data = decoder.MultipartDecoder(
             request.body, pecan.request.headers.get('Content-Type'))
@@ -260,7 +267,7 @@ class SubcloudsController(object):
                             payload.update({consts.DEPLOY_CONFIG: fn})
                         elif "sysadmin_password" in hv:
                             payload.update({'sysadmin_password': part.content})
-        self._get_common_deploy_files(payload)
+        self._get_common_deploy_files(payload, software_version)
         return payload
 
     def _get_config_file_path(self, subcloud_name, config_file_type=None):
@@ -615,7 +622,7 @@ class SubcloudsController(object):
         """Validate install values if 'install_values' is present in payload.
 
            The image in payload install values is optional, and if not provided,
-           the image is set to the available active load image.
+           the image is set to the available active/inactive load image.
 
            :return boolean: True if bmc install requested, otherwise False
         """
@@ -640,15 +647,18 @@ class SubcloudsController(object):
             pecan.abort(400, msg)
         payload['install_values'].update({'bmc_password': bmc_password})
 
+        software_version = payload.get('software_version')
+        if not software_version and subcloud:
+            software_version = subcloud.software_version
         if 'software_version' in install_values:
-            software_version = str(install_values.get('software_version'))
-        else:
-            if original_install_values:
-                pecan.abort(400, _("Mandatory install value software_version not present, "
-                                   "existing software_version in DB: %s") %
-                            original_install_values.get("software_version"))
-            else:
-                pecan.abort(400, _("Mandatory install value software_version not present"))
+            install_software_version = str(install_values.get('software_version'))
+            if software_version and software_version != install_software_version:
+                pecan.abort(400,
+                            _("The software_version value %s in the install values "
+                              "yaml file does not match with the specified/current "
+                              "software version of %s. Please correct or remove "
+                              "this parameter from the yaml file and try again.") %
+                            (install_software_version, software_version))
         if 'persistent_size' in install_values:
             persistent_size = install_values.get('persistent_size')
             if not isinstance(persistent_size, int):
@@ -671,27 +681,21 @@ class SubcloudsController(object):
 
         for k in install_consts.MANDATORY_INSTALL_VALUES:
             if k not in install_values:
-                if k == 'image':
-                    if software_version == tsc.SW_VERSION:
-                        # check for the image at load vault load location
-                        matching_iso, err_msg = utils.get_matching_iso()
-                        if err_msg:
-                            LOG.exception(err_msg)
-                            pecan.abort(400, _(err_msg))
-                        LOG.info("image was not in install_values: will reference %s" %
-                                 matching_iso)
-                    else:
-                        pecan.abort(400, _("Image was not in install_values, and "
-                                           "software version %s in install values "
-                                           "did not match the active load %s") %
-                                    (software_version, tsc.SW_VERSION))
+                if original_install_values:
+                    pecan.abort(400, _("Mandatory install value %s not present, "
+                                       "existing %s in DB: %s") %
+                                (k, k, original_install_values.get(k)))
                 else:
-                    if original_install_values:
-                        pecan.abort(400, _("Mandatory install value %s not present, "
-                                           "existing %s in DB: %s") %
-                                    (k, k, original_install_values.get(k)))
-                    else:
-                        pecan.abort(400, _("Mandatory install value %s not present") % k)
+                    pecan.abort(400,
+                                _("Mandatory install value %s not present") % k)
+
+        # check for the image at load vault load location
+        matching_iso, err_msg = utils.get_matching_iso(software_version)
+        if err_msg:
+            LOG.exception(err_msg)
+            pecan.abort(400, _(err_msg))
+        LOG.info("Image in install_values is set to %s" % matching_iso)
+        payload['install_values'].update({'image': matching_iso})
 
         if (install_values['install_type'] not in
                 list(range(install_consts.SUPPORTED_INSTALL_TYPES))):
@@ -758,6 +762,45 @@ class SubcloudsController(object):
                 pecan.abort(400, _("rd.net.timeout.ipv6dad invalid: %s") % e)
 
         return True
+
+    @staticmethod
+    def _validate_k8s_version(payload):
+        """Validate k8s version.
+
+           If the specified release in the payload is not the active release,
+           the kubernetes_version value if specified in the subcloud bootstrap
+           yaml file must be of the same value as fresh_install_k8s_version of
+           the specified release.
+        """
+        if payload['software_version'] == tsc.SW_VERSION:
+            return
+
+        kubernetes_version = payload.get(KUBERNETES_VERSION)
+        if kubernetes_version:
+            try:
+                bootstrap_var_file = utils.get_playbook_for_software_version(
+                    ANSIBLE_BOOTSTRAP_VALIDATE_CONFIG_VARS,
+                    payload['software_version'])
+                fresh_install_k8s_version = utils.get_value_from_yaml_file(
+                    bootstrap_var_file,
+                    FRESH_INSTALL_K8S_VERSION)
+                if not fresh_install_k8s_version:
+                    pecan.abort(400, _("%s not found in %s")
+                                % (FRESH_INSTALL_K8S_VERSION,
+                                   bootstrap_var_file))
+                if kubernetes_version != fresh_install_k8s_version:
+                    pecan.abort(400, _("The kubernetes_version value (%s) "
+                                       "specified in the subcloud bootstrap "
+                                       "yaml file doesn't match "
+                                       "fresh_install_k8s_version value (%s) "
+                                       "of the specified release %s")
+                                % (kubernetes_version,
+                                   fresh_install_k8s_version,
+                                   payload['software_version']))
+            except exceptions.PlaybookNotFound:
+                pecan.abort(400, _("The bootstrap playbook validate-config vars "
+                                   "not found for %s software version")
+                            % payload['software_version'])
 
     def _get_subcloud_users(self):
         """Get the subcloud users and passwords from keyring"""
@@ -855,15 +898,11 @@ class SubcloudsController(object):
                 resource='subcloud',
                 msg='Subcloud with that name already exists')
 
-        # Subcloud is added with software version that matches system
-        # controller.
-        software_version = tsc.SW_VERSION
         # if group_id has been omitted from payload, use 'Default'.
         group_id = payload.get('group_id',
                                consts.DEFAULT_SUBCLOUD_GROUP_ID)
         data_install = None
         if 'install_values' in payload:
-            software_version = payload['install_values']['software_version']
             data_install = json.dumps(payload['install_values'])
 
         subcloud = db_api.subcloud_create(
@@ -871,7 +910,7 @@ class SubcloudsController(object):
             payload['name'],
             payload.get('description'),
             payload.get('location'),
-            software_version,
+            payload.get('software_version'),
             utils.get_management_subnet(payload),
             utils.get_management_gateway_address(payload),
             utils.get_management_start_address(payload),
@@ -1140,6 +1179,10 @@ class SubcloudsController(object):
             group_id = payload.get('group_id',
                                    consts.DEFAULT_SUBCLOUD_GROUP_ID)
 
+            # If a subcloud release is not passed, use the current
+            # system controller software_version
+            payload['software_version'] = payload.get('release', tsc.SW_VERSION)
+
             self._validate_system_controller_patch_status()
 
             self._validate_subcloud_config(context,
@@ -1159,6 +1202,8 @@ class SubcloudsController(object):
                                            group_id)
 
             self._validate_install_values(payload)
+
+            self._validate_k8s_version(payload)
 
             self._format_ip_address(payload)
 
@@ -1219,6 +1264,7 @@ class SubcloudsController(object):
         subcloud_id = subcloud.id
 
         if verb is None:
+            # subcloud update
             payload = self._get_patch_data(request)
             if not payload:
                 pecan.abort(400, _('Body required'))
@@ -1317,7 +1363,8 @@ class SubcloudsController(object):
                 LOG.exception(e)
                 pecan.abort(500, _('Unable to update subcloud'))
         elif verb == 'reconfigure':
-            payload = self._get_reconfig_payload(request, subcloud.name)
+            payload = self._get_reconfig_payload(
+                request, subcloud.name, subcloud.software_version)
             if not payload:
                 pecan.abort(400, _('Body required'))
 
@@ -1454,25 +1501,31 @@ class SubcloudsController(object):
                                               external_oam_floating_ip,
                                               subcloud_subnets)
 
+            # If a subcloud release is not passed, use the current
+            # system controller software_version
+            payload['software_version'] = payload.get('release', tsc.SW_VERSION)
+
+            self._validate_k8s_version(payload)
+
             # If the software version of the subcloud is different from the
-            # central cloud, update the software version in install valuse and
-            # delete the image path in install values, then the subcloud will
-            # be reinstalled using the image in dc_vault.
-            if install_values.get('software_version') != tsc.SW_VERSION:
-                install_values['software_version'] = tsc.SW_VERSION
+            # specified or active load, update the software version in install
+            # value and delete the image path in install values, then the subcloud
+            # will be reinstalled using the image in dc_vault.
+            if install_values.get('software_version') != \
+                    payload['software_version']:
+                install_values['software_version'] = payload['software_version']
                 install_values.pop('image', None)
 
-            # Confirm the active system controller load is still in dc-vault if
+            # Confirm the specified or active load is still in dc-vault if
             # image not in install values, add the matching image into the
             # install values.
-            if 'image' not in install_values:
-                matching_iso, err_msg = utils.get_matching_iso()
-                if err_msg:
-                    LOG.exception(err_msg)
-                    pecan.abort(400, _(err_msg))
-                LOG.info("image was not in install_values: will reference %s" %
-                         matching_iso)
-                install_values['image'] = matching_iso
+            matching_iso, err_msg = utils.get_matching_iso(
+                payload['software_version'])
+            if err_msg:
+                LOG.exception(err_msg)
+                pecan.abort(400, _(err_msg))
+            LOG.info("Image in install_values is set to %s" % matching_iso)
+            install_values['image'] = matching_iso
 
             # Update the install values in payload
             payload.update({
@@ -1489,15 +1542,15 @@ class SubcloudsController(object):
             self._upload_deploy_config_file(request, payload)
 
             try:
-                # Align the software version of the subcloud with the central
-                # cloud. Update description, location and group id if offered,
+                # Align the software version of the subcloud with reinstall
+                # version. Update description, location and group id if offered,
                 # update the deploy status as pre-install.
-                db_api.subcloud_update(
+                subcloud = db_api.subcloud_update(
                     context,
                     subcloud_id,
                     description=payload.get('description', subcloud.description),
                     location=payload.get('location', subcloud.location),
-                    software_version=tsc.SW_VERSION,
+                    software_version=payload['software_version'],
                     management_state=dccommon_consts.MANAGEMENT_UNMANAGED,
                     deploy_status=consts.DEPLOY_STATE_PRE_INSTALL,
                     data_install=data_install)

@@ -26,6 +26,7 @@ import resource as sys_resource
 import six.moves
 import subprocess
 import tsconfig.tsconfig as tsc
+import yaml
 
 from keystoneauth1 import exceptions as keystone_exceptions
 from oslo_concurrency import lockutils
@@ -749,14 +750,16 @@ def _is_valid_for_backup_restore(subcloud):
     return True
 
 
-def get_matching_iso():
+def get_matching_iso(software_version=None):
     try:
-        matching_iso, _ = get_vault_load_files(tsc.SW_VERSION)
+        if not software_version:
+            software_version = tsc.SW_VERSION
+        matching_iso, _ = get_vault_load_files(software_version)
         if not matching_iso:
-            error_msg = ('Failed to get active load image. Provide '
-                         'active load image via '
+            error_msg = ('Failed to get %s load image. Provide '
+                         'active/inactive load image via '
                          '"system --os-region-name SystemController '
-                         'load-import --active"')
+                         'load-import --active/--inactive"' % software_version)
             LOG.exception(error_msg)
             return None, error_msg
         return matching_iso, None
@@ -900,3 +903,42 @@ def set_open_file_limit(new_soft_limit: int):
                                    (new_soft_limit, current_hard))
     except Exception as ex:
         LOG.exception(f'Failed to set NOFILE resource limit: {ex}')
+
+
+def get_playbook_for_software_version(playbook_filename, software_version=None):
+    """Get the ansible playbook filename in corresponding software version.
+
+    :param playbook_filename: ansible playbook filename
+    :param software_version: software version
+    :raises PlaybookNotFound: If the playbook is not found
+
+    Returns the unchanged ansible playbook filename if the software version
+    parameter is not provided or the same as active release, otherwise, returns
+    the filename in corresponding software version.
+    """
+    if software_version and software_version != tsc.SW_VERSION:
+        software_version_path = os.path.join(
+            consts.ANSIBLE_PREVIOUS_VERSION_BASE_PATH, software_version)
+        playbook_filename = playbook_filename.replace(
+            consts.ANSIBLE_CURRENT_VERSION_BASE_PATH,
+            software_version_path)
+    if not os.path.isfile(playbook_filename):
+        raise exceptions.PlaybookNotFound(playbook_name=playbook_filename)
+    return playbook_filename
+
+
+def get_value_from_yaml_file(filename, key):
+    """Get corresponding value for a key in the given yaml file.
+
+    :param filename: the yaml filename
+    :param key: the path for the value
+
+    Returns the value or None if not found.
+    """
+    value = None
+    if os.path.isfile(filename):
+        with open(os.path.abspath(filename), 'r') as f:
+            data = f.read()
+        data = yaml.load(data, Loader=yaml.SafeLoader)
+        value = data.get(key)
+    return value

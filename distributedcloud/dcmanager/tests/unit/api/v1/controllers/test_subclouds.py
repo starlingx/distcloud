@@ -40,6 +40,8 @@ from dcmanager.tests.unit.api.v1.controllers.mixins import PostMixin
 from dcmanager.tests.unit.common import fake_subcloud
 from dcmanager.tests import utils
 
+from tsconfig.tsconfig import SW_VERSION
+
 SAMPLE_SUBCLOUD_NAME = 'SubcloudX'
 SAMPLE_SUBCLOUD_DESCRIPTION = 'A Subcloud of mystery'
 
@@ -186,8 +188,6 @@ class SubcloudAPIMixin(APIMixin):
     # based off MANDATORY_INSTALL_VALUES
     # bmc_password must be passed as a param
     FAKE_INSTALL_DATA = {
-        "image": "fake image",
-        "software_version": "123.456",
         "bootstrap_interface": "fake interface",
         "bootstrap_address": "10.10.10.12",
         "bootstrap_address_prefix": "10.10.10.12",
@@ -494,8 +494,11 @@ class TestSubcloudPost(testroot.DCManagerApiTest,
                                      bad_values,
                                      good_value)
 
-    def test_post_subcloud_install_values(self):
+    @mock.patch('dcmanager.common.utils.get_vault_load_files')
+    def test_post_subcloud_install_values(self, mock_vault_files):
         """Test POST operation with install values is supported by the API."""
+
+        mock_vault_files.return_value = ('fake_iso', 'fake_sig')
 
         # pass a different "install" list of files for this POST
         self.set_list_of_post_files(subclouds.SUBCLOUD_ADD_GET_FILE_CONTENTS)
@@ -513,6 +516,86 @@ class TestSubcloudPost(testroot.DCManagerApiTest,
                                  headers=self.get_api_headers())
         self._verify_post_success(response)
 
+    @mock.patch('dcmanager.common.utils.get_vault_load_files')
+    def test_post_subcloud_without_release_parameter(self, mock_vault_files):
+        """Test POST operation without release parameter."""
+
+        mock_vault_files.return_value = ('fake_iso', 'fake_sig')
+
+        self.set_list_of_post_files(subclouds.SUBCLOUD_ADD_GET_FILE_CONTENTS)
+        upload_files = self.get_post_upload_files()
+
+        params = self.get_post_params()
+        # add bmc_password to params
+        params.update(
+            {'bmc_password':
+             base64.b64encode('fake pass'.encode("utf-8")).decode("utf-8")})
+
+        response = self.app.post(self.get_api_prefix(),
+                                 params=params,
+                                 upload_files=upload_files,
+                                 headers=self.get_api_headers())
+        self._verify_post_success(response)
+        # Verify that the subcloud installed with the active release
+        # when no release parameter provided.
+        self.assertEqual(SW_VERSION, response.json['software-version'])
+
+    def test_post_subcloud_release_not_match_install_values_sw(self):
+        """Release parameter not match software_version in the install_values."""
+
+        self.set_list_of_post_files(subclouds.SUBCLOUD_ADD_GET_FILE_CONTENTS)
+        upload_files = self.get_post_upload_files()
+
+        params = self.get_post_params()
+        # add bmc_password and release to params
+        params.update(
+            {'bmc_password':
+             base64.b64encode('fake pass'.encode("utf-8")).decode("utf-8"),
+             'release': '21.12'})
+
+        response = self.app.post(self.get_api_prefix(),
+                                 params=params,
+                                 upload_files=upload_files,
+                                 headers=self.get_api_headers(),
+                                 expect_errors=True)
+
+        # Verify the request was rejected
+        self.assertEqual(response.status_code, http_client.BAD_REQUEST)
+
+    @mock.patch.object(subclouds.SubcloudsController, '_validate_k8s_version')
+    @mock.patch('dcmanager.common.utils.get_vault_load_files')
+    def test_post_subcloud_with_release_parameter(self, mock_vault_files,
+                                                  mock_validate_k8s_version):
+        """Test POST operation with release parameter."""
+
+        mock_vault_files.return_value = ('fake_iso', 'fake_sig')
+        software_version = '21.12'
+        # Update the software_version value to match the release parameter value,
+        # otherwise, the request will be rejected
+        self.install_data['software_version'] = software_version
+
+        self.set_list_of_post_files(subclouds.SUBCLOUD_ADD_GET_FILE_CONTENTS)
+        upload_files = self.get_post_upload_files()
+
+        params = self.get_post_params()
+        # add bmc_password and release to params
+        params.update(
+            {'bmc_password':
+             base64.b64encode('fake pass'.encode("utf-8")).decode("utf-8"),
+             'release': software_version})
+
+        response = self.app.post(self.get_api_prefix(),
+                                 params=params,
+                                 upload_files=upload_files,
+                                 headers=self.get_api_headers(),
+                                 expect_errors=True)
+
+        self.assertEqual(response.status_code, http_client.OK)
+        self.assertEqual(software_version, response.json['software-version'])
+
+        # Revert the software_version value
+        self.install_data['software_version'] = SW_VERSION
+
     @mock.patch.object(subclouds.PatchingClient, 'query')
     def test_post_subcloud_when_partial_applied_patch(self, mock_query):
         """Test POST operation when there is a partial-applied patch."""
@@ -528,8 +611,11 @@ class TestSubcloudPost(testroot.DCManagerApiTest,
         self.assertEqual(http_client.UNPROCESSABLE_ENTITY, response.status_code)
         self.assertEqual('text/plain', response.content_type)
 
-    def test_post_subcloud_install_values_no_bmc_password(self):
+    @mock.patch('dcmanager.common.utils.get_vault_load_files')
+    def test_post_subcloud_install_values_no_bmc_password(self, mock_vault_files):
         """Test POST operation with install values is supported by the API."""
+
+        mock_vault_files.return_value = ('fake_iso', 'fake_sig')
 
         # pass a different "install" list of files for this POST
         self.set_list_of_post_files(subclouds.SUBCLOUD_ADD_GET_FILE_CONTENTS)
@@ -556,11 +642,32 @@ class TestSubcloudPost(testroot.DCManagerApiTest,
         self._verify_post_success(response)
 
     @mock.patch('dcmanager.common.utils.get_vault_load_files')
+    def test_post_subcloud_missing_image(self, mock_vault_files):
+        """Test POST operation without image in install values and vault files."""
+
+        mock_vault_files.return_value = (None, None)
+
+        params = self.get_post_params()
+        # add bmc_password to params
+        params.update(
+            {'bmc_password':
+             base64.b64encode('fake pass'.encode("utf-8")).decode("utf-8")})
+
+        self.set_list_of_post_files(subclouds.SUBCLOUD_ADD_GET_FILE_CONTENTS)
+        self.install_data = copy.copy(self.FAKE_INSTALL_DATA)
+        upload_files = self.get_post_upload_files()
+        response = self.app.post(self.get_api_prefix(),
+                                 params=params,
+                                 upload_files=upload_files,
+                                 headers=self.get_api_headers(),
+                                 expect_errors=True)
+        self.assertEqual(response.status_code, http_client.BAD_REQUEST)
+
+    @mock.patch('dcmanager.common.utils.get_vault_load_files')
     def test_post_subcloud_install_values_missing(self, mock_vault_files):
         """Test POST operation with install values fails if data missing."""
 
-        # todo(abailey): add a new unit test with no image and no vault files
-        mock_vault_files.return_value = (None, None)
+        mock_vault_files.return_value = ('fake_iso', 'fake_sig')
 
         params = self.get_post_params()
         # add bmc_password to params
@@ -581,15 +688,45 @@ class TestSubcloudPost(testroot.DCManagerApiTest,
                                      expect_errors=True)
             self._verify_post_failure(response, key, None)
 
+    @mock.patch('dcmanager.common.utils.get_vault_load_files')
+    @mock.patch.object(cutils, 'get_playbook_for_software_version')
+    @mock.patch.object(cutils, 'get_value_from_yaml_file')
+    def test_post_subcloud_bad_kubernetes_version(self,
+                                                  mock_get_value_from_yaml_file,
+                                                  mock_get_playbook_for_software_version,
+                                                  mock_vault_files):
+        """Test POST operation with bad kubernetes_version."""
+
         mock_vault_files.return_value = ('fake_iso', 'fake_sig')
-        # try with nothing removed and verify it works
+
+        software_version = '21.12'
+        # Update the software_version value to match the release parameter value,
+        # otherwise, the request will be rejected
+        self.install_data['software_version'] = software_version
+
+        params = self.get_post_params()
+        # add bmc_password to params
+        params.update(
+            {'bmc_password':
+             base64.b64encode('fake pass'.encode("utf-8")).decode("utf-8"),
+             'release': software_version})
+
+        # Add kubernetes version to bootstrap_data
+        self.bootstrap_data['kubernetes_version'] = '1.21.8'
+        mock_get_value_from_yaml_file.return_value = '1.23.1'
+
+        self.set_list_of_post_files(subclouds.SUBCLOUD_ADD_GET_FILE_CONTENTS)
         self.install_data = copy.copy(self.FAKE_INSTALL_DATA)
         upload_files = self.get_post_upload_files()
         response = self.app.post(self.get_api_prefix(),
                                  params=params,
                                  upload_files=upload_files,
-                                 headers=self.get_api_headers())
-        self._verify_post_success(response)
+                                 headers=self.get_api_headers(),
+                                 expect_errors=True)
+        self.assertEqual(response.status_code, http_client.BAD_REQUEST)
+
+        # Revert the change of bootstrap_data
+        del self.bootstrap_data['kubernetes_version']
 
     def _test_post_input_value_inputs(self,
                                       setup_overrides,
@@ -614,6 +751,7 @@ class TestSubcloudPost(testroot.DCManagerApiTest,
         starting_data = copy.copy(self.FAKE_INSTALL_DATA)
         for key, val in setup_overrides.items():
             starting_data[key] = val
+        starting_data['image'] = 'fake image'
 
         # Test all the bad param values
         for bad_value in bad_values:
@@ -661,9 +799,11 @@ class TestSubcloudPost(testroot.DCManagerApiTest,
                                  headers=self.get_api_headers())
         self._verify_post_success(response)
 
-    def test_post_subcloud_install_values_invalid_type(self):
+    @mock.patch('dcmanager.common.utils.get_vault_load_files')
+    def test_post_subcloud_install_values_invalid_type(self, mock_vault_files):
         """Test POST with an invalid type specified in install values."""
 
+        mock_vault_files.return_value = ('fake_iso', 'fake_sig')
         setup_overrides = {}
         required_overrides = {}
         # the install_type must a number 0 <= X <=5
@@ -679,9 +819,11 @@ class TestSubcloudPost(testroot.DCManagerApiTest,
         self._test_post_input_value_inputs(setup_overrides, required_overrides,
                                            install_key, bad_values, good_value)
 
-    def test_post_subcloud_install_bad_bootstrap_ip(self):
+    @mock.patch('dcmanager.common.utils.get_vault_load_files')
+    def test_post_subcloud_install_bad_bootstrap_ip(self, mock_vault_files):
         """Test POST with invalid boostrap ip specified in install values."""
 
+        mock_vault_files.return_value = ('fake_iso', 'fake_sig')
         setup_overrides = {}
         required_overrides = {}
         install_key = "bootstrap_address"
@@ -694,9 +836,11 @@ class TestSubcloudPost(testroot.DCManagerApiTest,
         self._test_post_input_value_inputs(setup_overrides, required_overrides,
                                            install_key, bad_values, good_value)
 
-    def test_post_subcloud_install_bad_bmc_ip(self):
+    @mock.patch('dcmanager.common.utils.get_vault_load_files')
+    def test_post_subcloud_install_bad_bmc_ip(self, mock_vault_files):
         """Test POST with invalid bmc ip specified in install values."""
 
+        mock_vault_files.return_value = ('fake_iso', 'fake_sig')
         setup_overrides = {}
         required_overrides = {}
         install_key = "bmc_address"
@@ -708,9 +852,11 @@ class TestSubcloudPost(testroot.DCManagerApiTest,
         self._test_post_input_value_inputs(setup_overrides, required_overrides,
                                            install_key, bad_values, good_value)
 
-    def test_post_subcloud_install_bad_persistent_size(self):
+    @mock.patch('dcmanager.common.utils.get_vault_load_files')
+    def test_post_subcloud_install_bad_persistent_size(self, mock_vault_files):
         """Test POST with invalid persistent_size specified in install values."""
 
+        mock_vault_files.return_value = ('fake_iso', 'fake_sig')
         setup_overrides = {}
         required_overrides = {}
         install_key = "persistent_size"
@@ -723,9 +869,11 @@ class TestSubcloudPost(testroot.DCManagerApiTest,
         self._test_post_input_value_inputs(setup_overrides, required_overrides,
                                            install_key, bad_values, good_value)
 
-    def test_post_subcloud_install_bad_nexthop_gateway(self):
+    @mock.patch('dcmanager.common.utils.get_vault_load_files')
+    def test_post_subcloud_install_bad_nexthop_gateway(self, mock_vault_files):
         """Test POST with invalid nexthop_gateway in install values."""
 
+        mock_vault_files.return_value = ('fake_iso', 'fake_sig')
         setup_overrides = {}
         required_overrides = {}
         # nexthop_gateway is not required. but if provided, it must be valid
@@ -738,9 +886,11 @@ class TestSubcloudPost(testroot.DCManagerApiTest,
         self._test_post_input_value_inputs(setup_overrides, required_overrides,
                                            install_key, bad_values, good_value)
 
-    def test_post_subcloud_install_bad_network_address(self):
+    @mock.patch('dcmanager.common.utils.get_vault_load_files')
+    def test_post_subcloud_install_bad_network_address(self, mock_vault_files):
         """Test POST with invalid network_address in install values."""
 
+        mock_vault_files.return_value = ('fake_iso', 'fake_sig')
         setup_overrides = {}
         # The nexthop_gateway is required when network_address is present
         # The network mask is required when network address is present
@@ -757,9 +907,11 @@ class TestSubcloudPost(testroot.DCManagerApiTest,
         self._test_post_input_value_inputs(setup_overrides, required_overrides,
                                            install_key, bad_values, good_value)
 
-    def test_post_subcloud_install_bad_network_mask(self):
+    @mock.patch('dcmanager.common.utils.get_vault_load_files')
+    def test_post_subcloud_install_bad_network_mask(self, mock_vault_files):
         """Test POST with invalid network_mask in install values."""
 
+        mock_vault_files.return_value = ('fake_iso', 'fake_sig')
         # network_address is not required. but if provided a valid network_mask
         # is needed
         setup_overrides = {
@@ -778,9 +930,11 @@ class TestSubcloudPost(testroot.DCManagerApiTest,
         self._test_post_input_value_inputs(setup_overrides, required_overrides,
                                            install_key, bad_values, good_value)
 
-    def test_post_subcloud_install_diff_bmc_ip_version(self):
+    @mock.patch('dcmanager.common.utils.get_vault_load_files')
+    def test_post_subcloud_install_diff_bmc_ip_version(self, mock_vault_files):
         """Test POST install values with mismatched(ipv4/ipv6) bmc ip."""
 
+        mock_vault_files.return_value = ('fake_iso', 'fake_sig')
         setup_overrides = {
             "bootstrap_address": "192.168.1.2"
         }
@@ -795,9 +949,11 @@ class TestSubcloudPost(testroot.DCManagerApiTest,
         self._test_post_input_value_inputs(setup_overrides, required_overrides,
                                            install_key, bad_values, good_value)
 
-    def test_post_subcloud_install_diff_bmc_ip_version_ipv6(self):
+    @mock.patch('dcmanager.common.utils.get_vault_load_files')
+    def test_post_subcloud_install_diff_bmc_ip_version_ipv6(self, mock_vault_files):
         """Test POST install values with mismatched(ipv6/ipv4) bmc ip."""
 
+        mock_vault_files.return_value = ('fake_iso', 'fake_sig')
         # version of bootstrap address must be same as bmc_address
         setup_overrides = {
             "bootstrap_address": "fd01:6::7"
@@ -812,9 +968,11 @@ class TestSubcloudPost(testroot.DCManagerApiTest,
         self._test_post_input_value_inputs(setup_overrides, required_overrides,
                                            install_key, bad_values, good_value)
 
-    def test_post_subcloud_install_diff_nexthop_ip_version(self):
+    @mock.patch('dcmanager.common.utils.get_vault_load_files')
+    def test_post_subcloud_install_diff_nexthop_ip_version(self, mock_vault_files):
         """Test POST install values mismatched(ipv4/ipv6) nexthop_gateway."""
 
+        mock_vault_files.return_value = ('fake_iso', 'fake_sig')
         # ip version of bootstrap address must be same as nexthop_gateway
         # All required addresses (like bmc address) much match bootstrap
         # default bmc address is ipv4
@@ -828,9 +986,12 @@ class TestSubcloudPost(testroot.DCManagerApiTest,
         self._test_post_input_value_inputs(setup_overrides, required_overrides,
                                            install_key, bad_values, good_value)
 
-    def test_post_subcloud_install_diff_nexthop_ip_version_ipv6(self):
+    @mock.patch('dcmanager.common.utils.get_vault_load_files')
+    def test_post_subcloud_install_diff_nexthop_ip_version_ipv6(self,
+                                                                mock_vault_files):
         """Test POST install values with mismatched(ipv6/ipv4) bmc ip."""
 
+        mock_vault_files.return_value = ('fake_iso', 'fake_sig')
         # version of bootstrap address must be same as nexthop_gateway
         # All required addresses must also be setup ipv6 such as bmc_address
         # default bmc address is ipv4
@@ -1037,9 +1198,11 @@ class TestSubcloudAPIOther(testroot.DCManagerApiTest):
 
     @mock.patch.object(rpc_client, 'ManagerClient')
     @mock.patch.object(subclouds.SubcloudsController, '_get_patch_data')
-    def test_update_subcloud_install_values_persistent_size(self,
+    @mock.patch('dcmanager.common.utils.get_vault_load_files')
+    def test_update_subcloud_install_values_persistent_size(self, mock_vault_files,
                                                             mock_get_patch_data,
                                                             mock_rpc_client):
+        mock_vault_files.return_value = ('fake_iso', 'fake_sig')
         subcloud = fake_subcloud.create_fake_subcloud(self.ctx, data_install=None)
         payload = {}
         install_data = copy.copy(FAKE_SUBCLOUD_INSTALL_VALUES_WITH_PERSISTENT_SIZE)
@@ -1102,8 +1265,11 @@ class TestSubcloudAPIOther(testroot.DCManagerApiTest):
 
     @mock.patch.object(rpc_client, 'ManagerClient')
     @mock.patch.object(subclouds.SubcloudsController, '_get_patch_data')
-    def test_patch_subcloud_install_values(self, mock_get_patch_data,
+    @mock.patch('dcmanager.common.utils.get_vault_load_files')
+    def test_patch_subcloud_install_values(self, mock_vault_files,
+                                           mock_get_patch_data,
                                            mock_rpc_client):
+        mock_vault_files.return_value = ('fake_iso', 'fake_sig')
         subcloud = fake_subcloud.create_fake_subcloud(self.ctx, data_install=None)
         payload = {}
         install_data = copy.copy(FAKE_SUBCLOUD_INSTALL_VALUES)
@@ -1136,12 +1302,14 @@ class TestSubcloudAPIOther(testroot.DCManagerApiTest):
 
     @mock.patch.object(rpc_client, 'ManagerClient')
     @mock.patch.object(subclouds.SubcloudsController, '_get_patch_data')
+    @mock.patch('dcmanager.common.utils.get_vault_load_files')
     def test_patch_subcloud_install_values_with_existing_data_install(
-        self, mock_get_patch_data, mock_rpc_client):
+        self, mock_vault_files, mock_get_patch_data, mock_rpc_client):
+        mock_vault_files.return_value = ('fake_iso', 'fake_sig')
         install_data = copy.copy(FAKE_SUBCLOUD_INSTALL_VALUES)
         subcloud = fake_subcloud.create_fake_subcloud(
             self.ctx, data_install=json.dumps(install_data))
-        install_data.update({"software_version": "18.04"})
+        install_data.update({"install_type": 2})
         payload = {}
         encoded_password = base64.b64encode(
             'bmc_password'.encode("utf-8")).decode('utf-8')
@@ -1455,8 +1623,10 @@ class TestSubcloudAPIOther(testroot.DCManagerApiTest):
     @mock.patch.object(subclouds.SubcloudsController, '_get_subcloud_db_install_values')
     @mock.patch.object(subclouds.SubcloudsController, '_validate_oam_network_config')
     @mock.patch.object(subclouds.SubcloudsController, '_get_request_data')
+    @mock.patch.object(subclouds.SubcloudsController, '_upload_deploy_config_file')
     def test_reinstall_subcloud(
-        self, mock_get_request_data, mock_validate_oam_network_config,
+        self, mock_upload_deploy_config_file,
+        mock_get_request_data, mock_validate_oam_network_config,
         mock_get_subcloud_db_install_values, mock_rpc_client,
         mock_get_vault_load_files):
 
@@ -1484,6 +1654,56 @@ class TestSubcloudAPIOther(testroot.DCManagerApiTest):
             subcloud.id,
             mock.ANY)
         self.assertEqual(response.status_int, 200)
+
+        mock_upload_deploy_config_file.assert_called_once()
+        self.assertEqual(SW_VERSION, response.json['software-version'])
+
+    @mock.patch.object(cutils, 'get_vault_load_files')
+    @mock.patch.object(rpc_client, 'ManagerClient')
+    @mock.patch.object(subclouds.SubcloudsController,
+                       '_get_subcloud_db_install_values')
+    @mock.patch.object(subclouds.SubcloudsController, '_validate_oam_network_config')
+    @mock.patch.object(subclouds.SubcloudsController, '_get_request_data')
+    @mock.patch.object(subclouds.SubcloudsController, '_upload_deploy_config_file')
+    @mock.patch.object(subclouds.SubcloudsController, '_validate_k8s_version')
+    def test_reinstall_subcloud_with_release_parameter(
+            self, mock_validate_k8s_version, mock_upload_deploy_config_file,
+            mock_get_request_data, mock_validate_oam_network_config,
+            mock_get_subcloud_db_install_values, mock_rpc_client,
+            mock_get_vault_load_files):
+
+        software_version = '21.12'
+        subcloud = fake_subcloud.create_fake_subcloud(self.ctx)
+        install_data = copy.copy(FAKE_SUBCLOUD_INSTALL_VALUES)
+        reinstall_data = copy.copy(FAKE_SUBCLOUD_BOOTSTRAP_PAYLOAD)
+        reinstall_data['release'] = software_version
+        mock_get_request_data.return_value = reinstall_data
+
+        encoded_password = base64.b64encode(
+            'bmc_password'.encode("utf-8")).decode('utf-8')
+        bmc_password = {'bmc_password': encoded_password}
+        install_data.update(bmc_password)
+        mock_get_subcloud_db_install_values.return_value = install_data
+
+        mock_rpc_client().reinstall_subcloud.return_value = True
+        mock_get_vault_load_files.return_value = ('iso_file_path', 'sig_file_path')
+
+        response = self.app.patch_json(
+            FAKE_URL + '/' + str(subcloud.id) + '/reinstall',
+            headers=FAKE_HEADERS, params=reinstall_data)
+
+        mock_validate_oam_network_config.assert_called_once()
+        mock_rpc_client().reinstall_subcloud.assert_called_once_with(
+            mock.ANY,
+            subcloud.id,
+            mock.ANY)
+        self.assertEqual(response.status_int, 200)
+
+        mock_validate_k8s_version.assert_called_once()
+        mock_upload_deploy_config_file.assert_called_once()
+        self.assertEqual(software_version, response.json['software-version'])
+        self.assertIn(software_version,
+                      json.loads(response.json['data_install'])['software_version'])
 
     @mock.patch.object(cutils, 'get_vault_load_files')
     @mock.patch.object(rpc_client, 'ManagerClient')

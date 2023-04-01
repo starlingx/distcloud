@@ -140,6 +140,7 @@ serviceUnavailable (503)
   - management_subnet: management_subnet
   - migrate: migrate
   - name: subcloud_name
+  - release: release
   - sysadmin_password: sysadmin_password
   - systemcontroller_gateway_address: systemcontroller_gateway_ip
   - system_mode: system_mode
@@ -493,6 +494,7 @@ serviceUnavailable (503)
   - subcloud: subcloud_uri
   - bootstrap_values: bootstrap_values
   - deploy_config: deploy_config
+  - release: release
   - sysadmin_password: sysadmin_password
 
 Request Example
@@ -1601,9 +1603,7 @@ files which include deploy playbook, deploy overrides, deploy helm charts, and p
 Show Subcloud Deploy Files
 **************************
 
-.. rest_method:: GET /v1.0/subcloud-deploy
-
-This operation does not accept a request body.
+.. rest_method:: GET /v1.0/subcloud-deploy/​{release}​
 
 **Normal response codes**
 
@@ -1615,6 +1615,13 @@ badRequest (400), unauthorized (401), forbidden
 (403), badMethod (405), HTTPUnprocessableEntity (422),
 internalServerError (500), serviceUnavailable (503)
 
+**Request parameters**
+
+.. rest_parameters:: parameters.yaml
+
+  - release: release_uri
+
+This operation does not accept a request body.
 
 **Response parameters**
 
@@ -1625,6 +1632,7 @@ internalServerError (500), serviceUnavailable (503)
   - deploy_playbook: subcloud_deploy_playbook
   - deploy_overrides: subcloud_deploy_overrides
   - prestage_images: subcloud_deploy_prestage_images
+  - software_version: software_version
 
 Response Example
 ----------------
@@ -1659,6 +1667,7 @@ serviceUnavailable (503)
   - deploy_playbook: subcloud_deploy_playbook_content
   - deploy_overrides: subcloud_deploy_overrides_content
   - prestage_images: subcloud_deploy_prestage_images_content
+  - release: release
 
 Request Example
 ----------------
@@ -1674,6 +1683,7 @@ Request Example
   - deploy_playbook: subcloud_deploy_playbook
   - deploy_overrides: subcloud_deploy_overrides
   - prestage_images: subcloud_deploy_prestage_images
+  - software_version: software_version
 
 Response Example
 ----------------

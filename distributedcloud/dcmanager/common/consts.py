@@ -360,3 +360,7 @@ STATES_FOR_ONGOING_BACKUP = [BACKUP_STATE_INITIAL,
 OPENLDAP_CA_CERT_SECRET_NAME = "system-local-ca"
 
 CERT_NAMESPACE_PLATFORM_CA_CERTS = 'cert-manager'
+
+# The ansible playbook base directories
+ANSIBLE_CURRENT_VERSION_BASE_PATH = '/usr/share/ansible/stx-ansible/playbooks'
+ANSIBLE_PREVIOUS_VERSION_BASE_PATH = '/opt/dc-vault/playbooks'

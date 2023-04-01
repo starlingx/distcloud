@@ -1,4 +1,4 @@
-# Copyright (c) 2020-2021 Wind River Systems, Inc.
+# Copyright (c) 2020-2023 Wind River Systems, Inc.
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -16,8 +16,6 @@
 SUPPORTED_INSTALL_TYPES = 6
 
 MANDATORY_INSTALL_VALUES = [
-    'image',
-    'software_version',
     'bootstrap_interface',
     'bootstrap_address',
     'bootstrap_address_prefix',
