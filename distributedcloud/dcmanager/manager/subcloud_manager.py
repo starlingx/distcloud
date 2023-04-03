@@ -1107,7 +1107,7 @@ class SubcloudManager(manager.Manager):
                 '---\n'
             )
             for k, v in payload['override_values'].items():
-                f_out.write("%s: %s\n" % (k, json.dumps(v)))
+                f_out.write("%s: %s\n" % (k, v))
 
         return backup_overrides_file
 

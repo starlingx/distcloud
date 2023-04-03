@@ -408,7 +408,8 @@ def _run_ansible(context, prestage_command, phase,
         subcloud.name,
         ansible_subcloud_inventory_file,
         oam_floating_ip,
-        ansible_pass=base64.b64decode(sysadmin_password).decode('utf-8'))
+        ansible_pass=utils.decode_and_normalize_passwd(sysadmin_password))
+
     try:
         run_playbook(log_file, prestage_command,
                      timeout=timeout_seconds, register_cleanup=True)

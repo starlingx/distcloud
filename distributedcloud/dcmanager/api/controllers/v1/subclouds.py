@@ -1198,8 +1198,8 @@ class SubcloudsController(object):
             if not sysadmin_password:
                 pecan.abort(400, _('subcloud sysadmin_password required'))
             try:
-                payload['sysadmin_password'] = base64.b64decode(
-                    sysadmin_password).decode('utf-8')
+                payload['sysadmin_password'] = \
+                    utils.decode_and_normalize_passwd(sysadmin_password)
             except Exception:
                 msg = _('Failed to decode subcloud sysadmin_password, '
                         'verify the password is base64 encoded')
@@ -1401,8 +1401,8 @@ class SubcloudsController(object):
                 pecan.abort(400, _('subcloud sysadmin_password required'))
 
             try:
-                payload['sysadmin_password'] = base64.b64decode(
-                    sysadmin_password).decode('utf-8')
+                payload['sysadmin_password'] = \
+                    utils.decode_and_normalize_passwd(sysadmin_password)
             except Exception:
                 msg = _('Failed to decode subcloud sysadmin_password, '
                         'verify the password is base64 encoded')
@@ -1499,8 +1499,8 @@ class SubcloudsController(object):
                 pecan.abort(400, _('subcloud sysadmin_password required'))
 
             try:
-                payload['sysadmin_password'] = base64.b64decode(
-                    sysadmin_password).decode('utf-8')
+                payload['sysadmin_password'] = \
+                    utils.decode_and_normalize_passwd(sysadmin_password)
             except Exception:
                 msg = _('Failed to decode subcloud sysadmin_password, '
                         'verify the password is base64 encoded')

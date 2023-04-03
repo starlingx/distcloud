@@ -24,6 +24,7 @@ import pwd
 import re
 import resource as sys_resource
 import six.moves
+import string
 import subprocess
 import tsconfig.tsconfig as tsc
 import yaml
@@ -942,3 +943,17 @@ def get_value_from_yaml_file(filename, key):
         data = yaml.load(data, Loader=yaml.SafeLoader)
         value = data.get(key)
     return value
+
+
+def decode_and_normalize_passwd(input_passwd):
+    pattern = r'^[' + string.punctuation + ']'
+    passwd = base64.decode_as_text(input_passwd)
+    # Ensure that sysadmin password which starts with a special
+    # character will be enclosed in quotes so that the generated
+    # inventory file will be parsable by Ansible.
+    if not passwd.startswith('"') and re.search(pattern, passwd):
+        passwd = '"' + passwd + '"'
+    elif passwd.startswith('"') and not passwd.endswith('"'):
+        passwd = "'" + passwd + "'"
+
+    return passwd

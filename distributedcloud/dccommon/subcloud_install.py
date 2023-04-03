@@ -14,7 +14,6 @@
 #
 
 from eventlet.green import subprocess
-import json
 import netaddr
 import os
 from oslo_log import log as logging
@@ -234,7 +233,7 @@ class SubcloudInstall(object):
                 + '\n'
             )
             for k, v in payload.items():
-                f_out_override_file.write("%s: %s\n" % (k, json.dumps(v)))
+                f_out_override_file.write("%s: %s\n" % (k, v))
 
     def create_ks_conf_file(self, filename, values):
         try:
