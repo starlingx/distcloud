@@ -609,10 +609,13 @@ class SubcloudManager(manager.Manager):
                 subcloud.name,
                 ansible_subcloud_inventory_file,
                 payload['software_version'])
+            management_subnet = utils.get_management_subnet(payload)
+            network_reconfig = management_subnet != subcloud.management_subnet
             apply_thread = threading.Thread(
                 target=self.run_deploy,
                 args=(subcloud, payload, context,
-                      install_command, apply_command, deploy_command))
+                      install_command, apply_command, deploy_command,
+                      None, network_reconfig))
             apply_thread.start()
             return db_api.subcloud_db_model_to_dict(subcloud)
         except Exception:
@@ -1263,7 +1266,8 @@ class SubcloudManager(manager.Manager):
     # failure
     def run_deploy(self, subcloud, payload, context,
                    install_command=None, apply_command=None,
-                   deploy_command=None, rehome_command=None):
+                   deploy_command=None, rehome_command=None,
+                   network_reconfig=None):
 
         log_file = os.path.join(consts.DC_ANSIBLE_LOG_DIR, subcloud.name) + \
             '_playbook_output.log'
@@ -1341,6 +1345,23 @@ class SubcloudManager(manager.Manager):
                 return
             LOG.info("Successfully rehomed subcloud %s" %
                      subcloud.name)
+        if network_reconfig:
+            self._configure_system_controller_network(context, payload, subcloud)
+            subcloud = db_api.subcloud_update(
+                context,
+                subcloud.id,
+                description=payload.get('description', subcloud.description),
+                management_subnet=utils.get_management_subnet(payload),
+                management_gateway_ip=utils.get_management_gateway_address(payload),
+                management_start_ip=utils.get_management_start_address(payload),
+                management_end_ip=utils.get_management_end_address(payload),
+                location=payload.get('location', subcloud.location),
+                group_id=payload.get('group_id', subcloud.group_id),
+                data_install=payload.get('data_install', subcloud.data_install)
+            )
+
+            # Regenerate the addn_hosts_dc file
+            self._create_addn_hosts_dc(context)
 
         db_api.subcloud_update(
             context, subcloud.id,
@@ -1765,14 +1786,14 @@ class SubcloudManager(manager.Manager):
             return
         try:
             apply_thread = threading.Thread(
-                target=self._run_network_reconfig_playbook,
+                target=self._run_network_reconfiguration,
                 args=(subcloud_name, update_command, overrides_file,
                       payload, context, subcloud))
             apply_thread.start()
         except Exception:
             LOG.exception("Failed to update subcloud %s" % subcloud_name)
 
-    def _run_network_reconfig_playbook(
+    def _run_network_reconfiguration(
         self, subcloud_name, update_command, overrides_file,
         payload, context, subcloud
     ):
@@ -1792,6 +1813,32 @@ class SubcloudManager(manager.Manager):
                 error_description=msg[0:consts.ERROR_DESCRIPTION_LENGTH]
             )
             return
+
+        self._configure_system_controller_network(context, payload, subcloud)
+
+        db_api.subcloud_update(
+            context, subcloud_id, deploy_status=consts.DEPLOY_STATE_DONE
+        )
+
+        subcloud = db_api.subcloud_update(
+            context,
+            subcloud_id,
+            description=payload.get('description', subcloud.description),
+            management_subnet=payload.get('management_subnet'),
+            management_gateway_ip=payload.get('management_gateway_ip'),
+            management_start_ip=payload.get('management_start_ip'),
+            management_end_ip=payload.get('management_end_ip'),
+            location=payload.get('location', subcloud.location),
+            group_id=payload.get('group_id', subcloud.group_id),
+            data_install=payload.get('data_install', subcloud.data_install)
+        )
+
+        # Regenerate the addn_hosts_dc file
+        self._create_addn_hosts_dc(context)
+
+    def _configure_system_controller_network(self, context, payload, subcloud):
+        subcloud_name = subcloud.name
+        subcloud_id = subcloud.id
         try:
             m_ks_client = OpenStackDriver(
                 region_name=dccommon_consts.DEFAULT_REGION_NAME,
@@ -1822,30 +1869,11 @@ class SubcloudManager(manager.Manager):
             )
             return
 
+        # Delete old routes
         self._delete_subcloud_routes(m_ks_client, subcloud)
 
-        db_api.subcloud_update(
-            context, subcloud_id, deploy_status=consts.DEPLOY_STATE_DONE
-        )
-
-        subcloud = db_api.subcloud_update(
-            context,
-            subcloud_id,
-            description=payload.get('description', subcloud.description),
-            management_subnet=payload.get('management_subnet'),
-            management_gateway_ip=payload.get('management_gateway_ip'),
-            management_start_ip=payload.get('management_start_ip'),
-            management_end_ip=payload.get('management_end_ip'),
-            location=payload.get('location', subcloud.location),
-            group_id=payload.get('group_id', subcloud.group_id),
-            data_install=payload.get('data_install', subcloud.data_install)
-        )
-
-        # Regenerate the addn_hosts_dc file
-        self._create_addn_hosts_dc(context)
-
     def _create_subcloud_route(self, payload, keystone_client, subcloud):
-        subcloud_subnet = netaddr.IPNetwork(payload.get('management_subnet'))
+        subcloud_subnet = netaddr.IPNetwork(utils.get_management_subnet(payload))
         endpoint = keystone_client.endpoint_cache.get_endpoint('sysinv')
         sysinv_client = SysinvClient(dccommon_consts.DEFAULT_REGION_NAME,
                                      keystone_client.session,
@@ -1862,7 +1890,7 @@ class SubcloudManager(manager.Manager):
     def _update_services_endpoint(
             self, context, payload, subcloud_name, m_ks_client):
         endpoint_ip = str(ipaddress.ip_network(
-            payload.get('management_subnet'))[2])
+            utils.get_management_subnet(payload))[2])
         if netaddr.IPAddress(endpoint_ip).version == 6:
             endpoint_ip = f"[{endpoint_ip}]"
 
@@ -1910,12 +1938,13 @@ class SubcloudManager(manager.Manager):
 
         self._update_override_values(payload)
 
-        with open(update_overrides_file, 'w') as f_out:
-            f_out.write(
-                '---\n'
-            )
-            for k, v in payload['override_values'].items():
-                f_out.write("%s: %s\n" % (k, json.dumps(v)))
+        with open(update_overrides_file, 'w', encoding='UTF-8') as f_out:
+            f_out.write('---\n')
+            for key, value in payload['override_values'].items():
+                if key in ['ansible_ssh_pass', 'ansible_become_pass']:
+                    f_out.write(f"{key}: {value}\n")
+                else:
+                    f_out.write(f"{key}: {json.dumps(value)}\n")
 
         return update_overrides_file
 

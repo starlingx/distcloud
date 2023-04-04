@@ -1590,7 +1590,7 @@ class TestSubcloudAPIOther(testroot.DCManagerApiTest):
     @mock.patch.object(rpc_client, 'ManagerClient')
     @mock.patch.object(keyring, 'get_password')
     def test_get_subcloud_db_install_values(
-        self, mock_keyring, mock_rpc_client):
+            self, mock_keyring, mock_rpc_client):
         install_data = copy.copy(FAKE_SUBCLOUD_INSTALL_VALUES)
         encoded_password = base64.b64encode(
             'bmc_password'.encode("utf-8")).decode('utf-8')
@@ -1617,7 +1617,7 @@ class TestSubcloudAPIOther(testroot.DCManagerApiTest):
     @mock.patch.object(rpc_client, 'ManagerClient')
     @mock.patch.object(keyring, 'get_password')
     def test_get_subcloud_db_install_values_without_bmc_password(
-        self, mock_keyring, mock_rpc_client):
+            self, mock_keyring, mock_rpc_client):
         install_data = copy.copy(FAKE_SUBCLOUD_INSTALL_VALUES)
         subcloud = fake_subcloud.create_fake_subcloud(
             self.ctx, data_install=json.dumps(install_data))
@@ -1629,15 +1629,18 @@ class TestSubcloudAPIOther(testroot.DCManagerApiTest):
 
     @mock.patch.object(cutils, 'get_vault_load_files')
     @mock.patch.object(rpc_client, 'ManagerClient')
-    @mock.patch.object(subclouds.SubcloudsController, '_get_subcloud_db_install_values')
-    @mock.patch.object(subclouds.SubcloudsController, '_validate_oam_network_config')
-    @mock.patch.object(subclouds.SubcloudsController, '_get_request_data')
     @mock.patch.object(subclouds.SubcloudsController, '_upload_deploy_config_file')
+    @mock.patch.object(subclouds.SubcloudsController, '_validate_k8s_version')
+    @mock.patch.object(subclouds.SubcloudsController, '_validate_subcloud_config')
+    @mock.patch.object(subclouds.SubcloudsController, '_validate_install_parameters')
+    @mock.patch.object(subclouds.SubcloudsController,
+                       '_get_subcloud_db_install_values')
+    @mock.patch.object(subclouds.SubcloudsController, '_get_request_data')
     def test_reinstall_subcloud(
-        self, mock_upload_deploy_config_file,
-        mock_get_request_data, mock_validate_oam_network_config,
-        mock_get_subcloud_db_install_values, mock_rpc_client,
-        mock_get_vault_load_files):
+            self, mock_get_request_data, mock_get_subcloud_db_install_values,
+            mock_validate_install_parameters, mock_validate_subcloud_config,
+            mock_validate_k8s_version, mock_upload_deploy_config_file,
+            mock_rpc_client, mock_get_vault_load_files):
 
         subcloud = fake_subcloud.create_fake_subcloud(self.ctx)
         install_data = copy.copy(FAKE_SUBCLOUD_INSTALL_VALUES)
@@ -1657,7 +1660,9 @@ class TestSubcloudAPIOther(testroot.DCManagerApiTest):
             FAKE_URL + '/' + str(subcloud.id) + '/reinstall',
             headers=FAKE_HEADERS, params=reinstall_data)
 
-        mock_validate_oam_network_config.assert_called_once()
+        mock_validate_install_parameters.assert_called_once()
+        mock_validate_subcloud_config.assert_called_once()
+        mock_validate_k8s_version.assert_called_once()
         mock_rpc_client().reinstall_subcloud.assert_called_once_with(
             mock.ANY,
             subcloud.id,
@@ -1669,17 +1674,18 @@ class TestSubcloudAPIOther(testroot.DCManagerApiTest):
 
     @mock.patch.object(cutils, 'get_vault_load_files')
     @mock.patch.object(rpc_client, 'ManagerClient')
-    @mock.patch.object(subclouds.SubcloudsController,
-                       '_get_subcloud_db_install_values')
-    @mock.patch.object(subclouds.SubcloudsController, '_validate_oam_network_config')
-    @mock.patch.object(subclouds.SubcloudsController, '_get_request_data')
     @mock.patch.object(subclouds.SubcloudsController, '_upload_deploy_config_file')
     @mock.patch.object(subclouds.SubcloudsController, '_validate_k8s_version')
+    @mock.patch.object(subclouds.SubcloudsController, '_validate_subcloud_config')
+    @mock.patch.object(subclouds.SubcloudsController, '_validate_install_parameters')
+    @mock.patch.object(subclouds.SubcloudsController,
+                       '_get_subcloud_db_install_values')
+    @mock.patch.object(subclouds.SubcloudsController, '_get_request_data')
     def test_reinstall_subcloud_with_release_parameter(
-            self, mock_validate_k8s_version, mock_upload_deploy_config_file,
-            mock_get_request_data, mock_validate_oam_network_config,
-            mock_get_subcloud_db_install_values, mock_rpc_client,
-            mock_get_vault_load_files):
+            self, mock_get_request_data, mock_get_subcloud_db_install_values,
+            mock_validate_install_parameters, mock_validate_subcloud_config,
+            mock_validate_k8s_version, mock_upload_deploy_config_file,
+            mock_rpc_client, mock_get_vault_load_files):
 
         software_version = '21.12'
         subcloud = fake_subcloud.create_fake_subcloud(self.ctx)
@@ -1701,7 +1707,8 @@ class TestSubcloudAPIOther(testroot.DCManagerApiTest):
             FAKE_URL + '/' + str(subcloud.id) + '/reinstall',
             headers=FAKE_HEADERS, params=reinstall_data)
 
-        mock_validate_oam_network_config.assert_called_once()
+        mock_validate_install_parameters.assert_called_once()
+        mock_validate_subcloud_config.assert_called_once()
         mock_rpc_client().reinstall_subcloud.assert_called_once_with(
             mock.ANY,
             subcloud.id,
@@ -1716,13 +1723,14 @@ class TestSubcloudAPIOther(testroot.DCManagerApiTest):
 
     @mock.patch.object(cutils, 'get_vault_load_files')
     @mock.patch.object(rpc_client, 'ManagerClient')
-    @mock.patch.object(subclouds.SubcloudsController, '_get_subcloud_db_install_values')
-    @mock.patch.object(subclouds.SubcloudsController, '_validate_oam_network_config')
+    @mock.patch.object(subclouds.SubcloudsController,
+                       '_get_subcloud_db_install_values')
+    @mock.patch.object(subclouds.SubcloudsController, '_validate_install_parameters')
     @mock.patch.object(subclouds.SubcloudsController, '_get_request_data')
     def test_reinstall_subcloud_no_body(
-        self, mock_get_request_data, mock_validate_oam_network_config,
-        mock_get_subcloud_db_install_values, mock_rpc_client,
-        mock_get_vault_load_files):
+            self, mock_get_request_data, mock_validate_install_parameters,
+            mock_get_subcloud_db_install_values, mock_rpc_client,
+            mock_get_vault_load_files):
 
         subcloud = fake_subcloud.create_fake_subcloud(self.ctx)
         install_data = copy.copy(FAKE_SUBCLOUD_INSTALL_VALUES)
@@ -1732,7 +1740,7 @@ class TestSubcloudAPIOther(testroot.DCManagerApiTest):
         bmc_password = {'bmc_password': encoded_password}
         install_data.update(bmc_password)
 
-        mock_validate_oam_network_config.assert_not_called()
+        mock_validate_install_parameters.assert_not_called()
         mock_get_subcloud_db_install_values.return_value = install_data
         mock_rpc_client().reinstall_subcloud.return_value = True
         six.assertRaisesRegex(self, webtest.app.AppError, "400 *",
@@ -1742,18 +1750,20 @@ class TestSubcloudAPIOther(testroot.DCManagerApiTest):
 
     @mock.patch.object(cutils, 'get_vault_load_files')
     @mock.patch.object(rpc_client, 'ManagerClient')
-    @mock.patch.object(subclouds.SubcloudsController, '_get_subcloud_db_install_values')
-    @mock.patch.object(subclouds.SubcloudsController, '_validate_oam_network_config')
+    @mock.patch.object(subclouds.SubcloudsController,
+                       '_get_subcloud_db_install_values')
+    @mock.patch.object(subclouds.SubcloudsController, '_validate_install_parameters')
     @mock.patch.object(subclouds.SubcloudsController, '_get_request_data')
     def test_reinstall_online_subcloud(
-        self, mock_get_request_data, mock_validate_oam_network_config,
-        mock_get_subcloud_db_install_values, mock_rpc_client,
-        mock_get_vault_load_files):
+            self, mock_get_request_data, mock_validate_install_parameters,
+            mock_get_subcloud_db_install_values, mock_rpc_client,
+            mock_get_vault_load_files):
 
         subcloud = fake_subcloud.create_fake_subcloud(self.ctx)
-        db_api.subcloud_update(self.ctx,
-                               subcloud.id,
-                               availability_status=dccommon_consts.AVAILABILITY_ONLINE)
+        db_api.subcloud_update(
+            self.ctx, subcloud.id,
+            availability_status=dccommon_consts.AVAILABILITY_ONLINE
+        )
         install_data = copy.copy(FAKE_SUBCLOUD_INSTALL_VALUES)
         reinstall_data = copy.copy(FAKE_SUBCLOUD_BOOTSTRAP_PAYLOAD)
         mock_get_request_data.return_value = reinstall_data
@@ -1762,7 +1772,7 @@ class TestSubcloudAPIOther(testroot.DCManagerApiTest):
         bmc_password = {'bmc_password': encoded_password}
         install_data.update(bmc_password)
 
-        mock_validate_oam_network_config.assert_not_called()
+        mock_validate_install_parameters.assert_not_called()
         mock_get_subcloud_db_install_values.return_value = install_data
         mock_rpc_client().reinstall_subcloud.return_value = True
         six.assertRaisesRegex(self, webtest.app.AppError, "400 *",
@@ -1771,11 +1781,12 @@ class TestSubcloudAPIOther(testroot.DCManagerApiTest):
                               headers=FAKE_HEADERS, params={})
 
     @mock.patch.object(rpc_client, 'ManagerClient')
-    @mock.patch.object(subclouds.SubcloudsController, '_get_subcloud_db_install_values')
+    @mock.patch.object(subclouds.SubcloudsController,
+                       '_get_subcloud_db_install_values')
     @mock.patch.object(subclouds.SubcloudsController, '_get_request_data')
     def test_reinstall_subcloud_missing_required_value(
-        self, mock_get_request_data, mock_get_subcloud_db_install_values,
-        mock_rpc_client):
+            self, mock_get_request_data, mock_get_subcloud_db_install_values,
+            mock_rpc_client):
 
         subcloud = fake_subcloud.create_fake_subcloud(self.ctx)
         install_data = copy.copy(FAKE_SUBCLOUD_INSTALL_VALUES)
@@ -1800,13 +1811,17 @@ class TestSubcloudAPIOther(testroot.DCManagerApiTest):
 
     @mock.patch.object(cutils, 'get_vault_load_files')
     @mock.patch.object(rpc_client, 'ManagerClient')
-    @mock.patch.object(subclouds.SubcloudsController, '_get_subcloud_db_install_values')
-    @mock.patch.object(subclouds.SubcloudsController, '_validate_oam_network_config')
+    @mock.patch.object(subclouds.SubcloudsController,
+                       '_get_subcloud_db_install_values')
+    @mock.patch.object(subclouds.SubcloudsController, '_validate_k8s_version')
+    @mock.patch.object(subclouds.SubcloudsController, '_validate_subcloud_config')
+    @mock.patch.object(subclouds.SubcloudsController, '_validate_install_parameters')
     @mock.patch.object(subclouds.SubcloudsController, '_get_request_data')
     def test_reinstall_subcloud_missing_stored_value(
-        self, mock_get_request_data, mock_validate_oam_network_config,
-        mock_get_subcloud_db_install_values, mock_rpc_client,
-        mock_get_vault_load_files):
+            self, mock_get_request_data, mock_validate_install_parameters,
+            mock_validate_subcloud_config, mock_validate_k8s_version,
+            mock_get_subcloud_db_install_values, mock_rpc_client,
+            mock_get_vault_load_files):
 
         subcloud = fake_subcloud.create_fake_subcloud(self.ctx)
         install_data = copy.copy(FAKE_SUBCLOUD_INSTALL_VALUES)
@@ -1820,8 +1835,9 @@ class TestSubcloudAPIOther(testroot.DCManagerApiTest):
         mock_rpc_client().reinstall_subcloud.return_value = True
         mock_get_vault_load_files.return_value = ('iso_file_path', 'sig_file_path')
 
-        for k in ['management_subnet', 'management_start_address', 'management_end_address',
-                  'management_gateway_address', 'systemcontroller_gateway_address']:
+        for k in ['management_subnet', 'management_start_address',
+                  'management_end_address', 'management_gateway_address',
+                  'systemcontroller_gateway_address']:
             reinstall_data = copy.copy(FAKE_SUBCLOUD_BOOTSTRAP_PAYLOAD)
             del reinstall_data[k]
             mock_get_request_data.return_value = reinstall_data
@@ -1829,38 +1845,6 @@ class TestSubcloudAPIOther(testroot.DCManagerApiTest):
                 FAKE_URL + '/' + str(subcloud.id) + '/reinstall',
                 headers=FAKE_HEADERS, params=reinstall_data)
             self.assertEqual(response.status_int, 200)
-
-    @mock.patch.object(cutils, 'get_vault_load_files')
-    @mock.patch.object(rpc_client, 'ManagerClient')
-    @mock.patch.object(subclouds.SubcloudsController, '_get_subcloud_db_install_values')
-    @mock.patch.object(subclouds.SubcloudsController, '_validate_subcloud_config')
-    @mock.patch.object(subclouds.SubcloudsController, '_get_request_data')
-    def test_reinstall_subcloud_stored_value_not_match(
-        self, mock_get_request_data, mock_validate_subcloud_config,
-        mock_get_subcloud_db_install_values, mock_rpc_client,
-        mock_get_vault_load_files):
-
-        subcloud = fake_subcloud.create_fake_subcloud(self.ctx)
-        install_data = copy.copy(FAKE_SUBCLOUD_INSTALL_VALUES)
-
-        encoded_password = base64.b64encode(
-            'bmc_password'.encode("utf-8")).decode('utf-8')
-        bmc_password = {'bmc_password': encoded_password}
-        install_data.update(bmc_password)
-        mock_get_subcloud_db_install_values.return_value = install_data
-
-        mock_rpc_client().reinstall_subcloud.return_value = True
-        mock_get_vault_load_files.return_value = ('iso_file_path', 'sig_file_path')
-
-        for k in ['management_subnet', 'management_start_address', 'management_end_address',
-                  'management_gateway_address', 'systemcontroller_gateway_address']:
-            reinstall_data = copy.copy(FAKE_SUBCLOUD_BOOTSTRAP_PAYLOAD)
-            reinstall_data[k] = 'wrong_value'
-            mock_get_request_data.return_value = reinstall_data
-            six.assertRaisesRegex(self, webtest.app.AppError, "400 *",
-                                  self.app.patch_json, FAKE_URL + '/' +
-                                  str(subcloud.id) + '/reinstall',
-                                  headers=FAKE_HEADERS, params=reinstall_data)
 
     @mock.patch.object(rpc_client, 'ManagerClient')
     @mock.patch.object(prestage, '_get_system_controller_upgrades')
@@ -2226,7 +2210,8 @@ class TestSubcloudAPIOther(testroot.DCManagerApiTest):
                               admin_start_address,
                               admin_end_address,
                               admin_gateway_address,
-                              existing_networks=None)
+                              existing_networks=None,
+                              operation=None)
 
     @mock.patch.object(rpc_client, 'ManagerClient')
     def test_validate_admin_config_start_address_outOfSubnet(self, mock_rpc_client):
@@ -2245,7 +2230,8 @@ class TestSubcloudAPIOther(testroot.DCManagerApiTest):
                               admin_start_address,
                               admin_end_address,
                               admin_gateway_address,
-                              existing_networks=None)
+                              existing_networks=None,
+                              operation=None)
 
     @mock.patch.object(rpc_client, 'ManagerClient')
     def test_validate_admin_config_end_address_outOfSubnet(self, mock_rpc_client):
@@ -2264,7 +2250,8 @@ class TestSubcloudAPIOther(testroot.DCManagerApiTest):
                               admin_start_address,
                               admin_end_address,
                               admin_gateway_address,
-                              existing_networks=None)
+                              existing_networks=None,
+                              operation=None)
 
     @mock.patch.object(rpc_client, 'ManagerClient')
     def test_validate_admin_config_gateway_address_outOfSubnet(self, mock_rpc_client):
@@ -2283,4 +2270,5 @@ class TestSubcloudAPIOther(testroot.DCManagerApiTest):
                               admin_start_address,
                               admin_end_address,
                               admin_gateway_address,
-                              existing_networks=None)
+                              existing_networks=None,
+                              operation=None)

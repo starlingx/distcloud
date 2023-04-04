@@ -697,7 +697,7 @@ class TestSubcloudManager(base.DCManagerTestCase):
         mock_dcmanager_api.return_value = fake_dcmanager_notification
 
         sm = subcloud_manager.SubcloudManager()
-        sm._run_network_reconfig_playbook(
+        sm._run_network_reconfiguration(
             subcloud.name, mock.ANY, None, payload, self.ctx, subcloud)
 
         mock_run_playbook.assert_called_once()

@@ -95,8 +95,8 @@ def ip_version_to_string(ip_version):
         return "IP"
 
 
-def validate_network_str(network_str, minimum_size,
-                         existing_networks=None, multicast=False):
+def validate_network_str(network_str, minimum_size, existing_networks=None,
+                         multicast=False, operation=None):
     """Determine whether a network is valid."""
     try:
         network = netaddr.IPNetwork(network_str)
@@ -105,7 +105,7 @@ def validate_network_str(network_str, minimum_size,
                                           "least %d addresses" % minimum_size)
         elif network.version == 6 and network.prefixlen < 64:
             raise exceptions.ValidateFail("IPv6 minimum prefix length is 64")
-        elif existing_networks:
+        elif existing_networks and operation != 'reinstall':
             if any(network.ip in subnet for subnet in existing_networks):
                 raise exceptions.ValidateFail("Subnet overlaps with another "
                                               "configured subnet")
@@ -115,22 +115,6 @@ def validate_network_str(network_str, minimum_size,
     except netaddr.AddrFormatError:
         raise exceptions.ValidateFail(
             "Invalid subnet - not a valid IP subnet")
-
-
-def is_password_valid(payload):
-    sysadmin_password = payload.get('sysadmin_password')
-    if not sysadmin_password:
-        msg = 'subcloud sysadmin_password required'
-        return False, msg
-    try:
-        LOG.info("password: %s" % sysadmin_password)
-        payload['sysadmin_password'] = base64.decode_as_text(sysadmin_password)
-        return True, None
-    except Exception:
-        msg = ('Failed to decode subcloud sysadmin_password, '
-               'verify the password is base64 encoded')
-        LOG.exception(msg)
-        return False, msg
 
 
 def validate_certificate_subject(subject):
