@@ -474,7 +474,7 @@ class SubcloudManager(manager.Manager):
                     ansible_subcloud_inventory_file,
                     subcloud.software_version)
                 apply_thread = threading.Thread(
-                    target=self.run_deploy,
+                    target=self.run_deploy_thread,
                     args=(subcloud, payload, context,
                           None, None, None, rehome_command))
             else:
@@ -489,7 +489,7 @@ class SubcloudManager(manager.Manager):
                     ansible_subcloud_inventory_file,
                     subcloud.software_version)
                 apply_thread = threading.Thread(
-                    target=self.run_deploy,
+                    target=self.run_deploy_thread,
                     args=(subcloud, payload, context,
                           install_command, apply_command, deploy_command))
 
@@ -536,7 +536,7 @@ class SubcloudManager(manager.Manager):
 
             del payload['sysadmin_password']
             apply_thread = threading.Thread(
-                target=self.run_deploy,
+                target=self.run_deploy_thread,
                 args=(subcloud, payload, context, None, None, deploy_command))
             apply_thread.start()
             return db_api.subcloud_db_model_to_dict(subcloud)
@@ -612,7 +612,7 @@ class SubcloudManager(manager.Manager):
             management_subnet = utils.get_management_subnet(payload)
             network_reconfig = management_subnet != subcloud.management_subnet
             apply_thread = threading.Thread(
-                target=self.run_deploy,
+                target=self.run_deploy_thread,
                 args=(subcloud, payload, context,
                       install_command, apply_command, deploy_command,
                       None, network_reconfig))
@@ -1261,16 +1261,27 @@ class SubcloudManager(manager.Manager):
         except Exception as e:
             LOG.exception(e)
 
-    # TODO(kmacleod) add outer try/except here to catch and log unexpected
-    # exception. As this stands, any uncaught exception is a silent (unlogged)
-    # failure
-    def run_deploy(self, subcloud, payload, context,
-                   install_command=None, apply_command=None,
-                   deploy_command=None, rehome_command=None,
-                   network_reconfig=None):
+    def run_deploy_thread(self, subcloud, payload, context,
+                          install_command=None, apply_command=None,
+                          deploy_command=None, rehome_command=None,
+                          network_reconfig=None):
+        try:
+            self._run_deploy(subcloud, payload, context,
+                             install_command, apply_command,
+                             deploy_command, rehome_command,
+                             network_reconfig)
+        except Exception as ex:
+            LOG.exception("run_deploy failed")
+            raise ex
 
-        log_file = os.path.join(consts.DC_ANSIBLE_LOG_DIR, subcloud.name) + \
-            '_playbook_output.log'
+    def _run_deploy(self, subcloud, payload, context,
+                    install_command, apply_command,
+                    deploy_command, rehome_command,
+                    network_reconfig):
+        log_file = (
+            os.path.join(consts.DC_ANSIBLE_LOG_DIR, subcloud.name)
+            + "_playbook_output.log"
+        )
         if install_command:
             install_success = self._run_subcloud_install(
                 context, subcloud, install_command,
@@ -1285,9 +1296,10 @@ class SubcloudManager(manager.Manager):
                     context, subcloud.id,
                     deploy_status=consts.DEPLOY_STATE_BOOTSTRAPPING,
                     error_description=consts.ERROR_DESC_EMPTY)
-            except Exception as e:
-                LOG.exception(e)
-                raise e
+            except Exception:
+                LOG.error("DB subcloud_update failed")
+                # exception is logged above
+                raise
 
             # Run the ansible boostrap-subcloud playbook
             LOG.info("Starting bootstrap of %s" % subcloud.name)

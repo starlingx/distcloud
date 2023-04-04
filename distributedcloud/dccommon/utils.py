@@ -46,6 +46,8 @@ STALE_TOKEN_DURATION_STEP = 20
 # Exitcode from 'timeout' command on timeout:
 TIMEOUT_EXITCODE = 124
 
+LAST_SW_VERSION_IN_CENTOS = "22.06"
+
 
 class memoized(object):
     """Decorator.
@@ -253,11 +255,27 @@ def get_os_type(release_file=consts.OS_RELEASE_FILE):
     return get_os_release(release_file)[0]
 
 
-def is_debian():
+def is_debian(software_version=None):
+    """Check target version or underlying OS type.
+
+    Check either the given software_version (e.g. for checking a subcloud,
+    or prestaging operation), or the underlying OS type (for this running
+    instance)
+    """
+    if software_version:
+        return not is_centos(software_version)
     return get_os_type() == consts.OS_DEBIAN
 
 
-def is_centos():
+def is_centos(software_version=None):
+    """Check target version or underlying OS type.
+
+    Check either the given software_version (e.g. for checking a subcloud,
+    or prestaging operation), or the underlying OS type (for this running
+    instance)
+    """
+    if software_version:
+        return software_version <= LAST_SW_VERSION_IN_CENTOS
     return get_os_type() == consts.OS_CENTOS
 
 

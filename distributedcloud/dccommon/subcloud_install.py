@@ -29,7 +29,7 @@ from dccommon.drivers.openstack.keystone_v3 import KeystoneClient
 from dccommon.drivers.openstack.sysinv_v1 import SysinvClient
 from dccommon import exceptions
 from dccommon import install_consts
-from dccommon import utils as common_utils
+from dccommon import utils as dccommon_utils
 from dcmanager.common import consts as common_consts
 from dcmanager.common import utils
 
@@ -286,8 +286,10 @@ class SubcloudInstall(object):
     def update_iso(self, override_path, values):
         if not os.path.isdir(self.www_root):
             os.mkdir(self.www_root, 0o755)
-
+        LOG.debug("update_iso: www_root: %s, values: %s, override_path: %s",
+                  self.www_root, str(values), override_path)
         path = None
+        software_version = str(values['software_version'])
         try:
             if parse.urlparse(values['image']).scheme:
                 url = values['image']
@@ -297,7 +299,7 @@ class SubcloudInstall(object):
             filename = os.path.join(override_path, 'bootimage.iso')
 
             if path and path.startswith(consts.LOAD_VAULT_DIR +
-                                        '/' + str(values['software_version'])):
+                                        '/' + software_version):
                 if os.path.exists(path):
                     # Reference known load in vault
                     LOG.info("Setting input_iso to load vault path %s" % path)
@@ -324,7 +326,9 @@ class SubcloudInstall(object):
                 resource=self.name,
                 msg=msg)
 
-        if common_utils.is_debian():
+        is_subcloud_debian = dccommon_utils.is_debian(software_version)
+
+        if is_subcloud_debian:
             update_iso_cmd = [
                 GEN_ISO_COMMAND,
                 "--input", self.input_iso,
@@ -341,6 +345,7 @@ class SubcloudInstall(object):
                 "--id", self.name,
                 "--boot-hostname", self.name,
                 "--timeout", BOOT_MENU_TIMEOUT,
+                "--patches-from-iso",
             ]
         for key in GEN_ISO_OPTIONS:
             if key in values:
@@ -381,7 +386,11 @@ class SubcloudInstall(object):
                 else:
                     update_iso_cmd += [GEN_ISO_OPTIONS[key], str(values[key])]
 
-        if common_utils.is_centos():
+        if is_subcloud_debian:
+            # Get the base URL. ostree_repo is located within this path
+            base_url = os.path.join(self.get_image_base_url(), 'iso',
+                                    software_version)
+        else:
             # create ks-addon.cfg
             addon_cfg = os.path.join(override_path, 'ks-addon.cfg')
             self.create_ks_conf_file(addon_cfg, values)
@@ -390,22 +399,21 @@ class SubcloudInstall(object):
 
             # Get the base URL
             base_url = os.path.join(self.get_image_base_url(), 'iso',
-                                    str(values['software_version']))
-        else:
-            # Get the base URL. ostree_repo is located within this path
-            base_url = os.path.join(self.get_image_base_url(), 'iso',
-                                    str(values['software_version']))
+                                    software_version)
 
         update_iso_cmd += ['--base-url', base_url]
 
         str_cmd = ' '.join(x for x in update_iso_cmd)
         LOG.info("Running update_iso_cmd: %s", str_cmd)
-        try:
-            with open(os.devnull, "w") as fnull:
-                subprocess.check_call(  # pylint: disable=E1102
-                    update_iso_cmd, stdout=fnull, stderr=fnull)
-        except subprocess.CalledProcessError:
-            msg = "Failed to update iso %s, " % str(update_iso_cmd)
+        result = subprocess.run(update_iso_cmd,
+                                stdout=subprocess.PIPE,
+                                stderr=subprocess.STDOUT)
+        if result.returncode != 0:
+            msg = f'Failed to update iso: {str_cmd}'
+            LOG.error("%s returncode: %s, output: %s",
+                      msg,
+                      result.returncode,
+                      result.stdout.decode('utf-8').replace('\n', ', '))
             raise Exception(msg)
 
     def cleanup(self):
@@ -416,7 +424,7 @@ class SubcloudInstall(object):
             os.remove(self.input_iso)
 
         if (self.www_root is not None and os.path.isdir(self.www_root)):
-            if common_utils.is_debian():
+            if dccommon_utils.is_debian():
                 cleanup_cmd = [
                     GEN_ISO_COMMAND,
                     "--id", self.name,
@@ -430,7 +438,6 @@ class SubcloudInstall(object):
                     "--www-root", self.www_root,
                     "--delete"
                 ]
-
             try:
                 with open(os.devnull, "w") as fnull:
                     subprocess.check_call(  # pylint: disable=E1102
@@ -538,19 +545,21 @@ class SubcloudInstall(object):
             if k in payload:
                 iso_values[k] = payload.get(k)
 
+        software_version = str(payload['software_version'])
+        iso_values['software_version'] = payload['software_version']
+        iso_values['image'] = payload['image']
+
         override_path = os.path.join(override_path, self.name)
         if not os.path.isdir(override_path):
             os.mkdir(override_path, 0o755)
 
-        self.www_root = os.path.join(SUBCLOUD_ISO_PATH,
-                                     str(iso_values['software_version']))
-
-        software_version = str(payload['software_version'])
+        self.www_root = os.path.join(SUBCLOUD_ISO_PATH, software_version)
 
         feed_path_rel_version = os.path.join(SUBCLOUD_FEED_PATH,
                                              "rel-{version}".format(
                                                  version=software_version))
-        if common_utils.is_debian():
+
+        if dccommon_utils.is_debian(software_version):
             self.check_ostree_mount(feed_path_rel_version)
 
         # Clean up iso directory if it already exists
@@ -584,7 +593,11 @@ class SubcloudInstall(object):
             if k in payload:
                 del payload[k]
 
-        if common_utils.is_centos():
+        # Only applicable for 22.06:
+        if (
+            dccommon_utils.is_centos(software_version)
+            and software_version == dccommon_utils.LAST_SW_VERSION_IN_CENTOS
+        ):
             # when adding a new subcloud, the subcloud will pull
             # the file "packages_list" from the controller.
             # The subcloud pulls from /var/www/pages/iso/<version>/.
@@ -624,7 +637,7 @@ class SubcloudInstall(object):
         try:
             # Since this is a long-running task we want to register
             # for cleanup on process restart/SWACT.
-            common_utils.run_playbook(log_file, install_command)
+            dccommon_utils.run_playbook(log_file, install_command)
         except exceptions.PlaybookExecutionFailed:
             msg = ("Failed to install %s, check individual "
                    "log at %s or run %s for details"
