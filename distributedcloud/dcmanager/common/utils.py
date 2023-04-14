@@ -726,10 +726,14 @@ def _is_valid_for_backup_delete(subcloud):
 
 def _is_valid_for_backup_restore(subcloud):
 
+    msg = None
     if subcloud.management_state != dccommon_consts.MANAGEMENT_UNMANAGED \
         or subcloud.deploy_status in consts.INVALID_DEPLOY_STATES_FOR_RESTORE:
         msg = ('Subcloud %s must be unmanaged and in a valid deploy state '
                'for the subcloud-backup restore operation.' % subcloud.name)
+    elif not subcloud.data_install:
+        msg = ('Data installation on %s is missing.' % subcloud.name)
+    if msg:
         raise exceptions.ValidateFail(msg)
 
     return True

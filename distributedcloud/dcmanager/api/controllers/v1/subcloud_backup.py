@@ -1,22 +1,22 @@
 #
-# Copyright (c) 2022 Wind River Systems, Inc.
+# Copyright (c) 2022-2023 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
-import json
 
 from collections import namedtuple
-
+import json
 import os
+
 from oslo_config import cfg
 from oslo_log import log as logging
 from oslo_messaging import RemoteError
 import pecan
-import yaml
-
 from pecan import expose
 from pecan import request as pecan_request
 from pecan import response
+import tsconfig.tsconfig as tsc
+import yaml
 
 from dcmanager.api.controllers import restcomm
 from dcmanager.api.policies import subcloud_backup as subcloud_backup_policy
@@ -27,6 +27,7 @@ from dcmanager.common.i18n import _
 from dcmanager.common import utils
 from dcmanager.db import api as db_api
 from dcmanager.rpc import client as rpc_client
+
 
 CONF = cfg.CONF
 LOG = logging.getLogger(__name__)
@@ -71,6 +72,7 @@ class SubcloudBackupController(object):
         elif verb == 'restore':
             expected_params = {
                 "with_install": "text",
+                "release": "text",
                 "local_only": "text",
                 "registry_images": "text",
                 "sysadmin_password": "text",
@@ -339,6 +341,10 @@ class SubcloudBackupController(object):
                 pecan.abort(400, _('Option registry_images cannot be used '
                                    'without local_only option.'))
 
+            if not payload['with_install'] and payload.get('release'):
+                pecan.abort(400, _('Option release cannot be used '
+                                   'without with_install option.'))
+
             request_entity = self._read_entity_from_request_params(context, payload)
             if len(request_entity.subclouds) == 0:
                 msg = "No subclouds exist under %s %s" % (request_entity.type,
@@ -359,8 +365,9 @@ class SubcloudBackupController(object):
                                    'install data.'))
 
             if payload.get('with_install'):
-                # Confirm the active system controller load is still in dc-vault
-                matching_iso, err_msg = utils.get_matching_iso()
+                # Confirm the requested or active load is still in dc-vault
+                payload['software_version'] = payload.get('release', tsc.SW_VERSION)
+                matching_iso, err_msg = utils.get_matching_iso(payload['software_version'])
                 if err_msg:
                     LOG.exception(err_msg)
                     pecan.abort(400, _(err_msg))

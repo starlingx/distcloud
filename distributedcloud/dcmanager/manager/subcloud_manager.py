@@ -748,8 +748,9 @@ class SubcloudManager(manager.Manager):
     def _subcloud_operation_notice(
             self, operation, restore_subclouds, failed_subclouds,
             invalid_subclouds):
-        all_failed = not set(restore_subclouds) - set(failed_subclouds)
-        if restore_subclouds and all_failed:
+        all_failed = ((not set(restore_subclouds) - set(failed_subclouds))
+                      and not invalid_subclouds)
+        if all_failed:
             LOG.error("Backup %s failed for all applied subclouds" % operation)
             raise exceptions.SubcloudBackupOperationFailed(operation=operation)
 
@@ -975,12 +976,13 @@ class SubcloudManager(manager.Manager):
             return subcloud, False
 
         if payload.get('with_install'):
+            software_version = payload.get('software_version')
             install_command = self.compose_install_command(
-                subcloud.name, subcloud_inventory_file, subcloud.software_version)
+                subcloud.name, subcloud_inventory_file, software_version)
             # Update data_install with missing data
-            matching_iso, _ = utils.get_vault_load_files(subcloud.software_version)
+            matching_iso, _ = utils.get_vault_load_files(software_version)
+            data_install['software_version'] = software_version
             data_install['image'] = matching_iso
-            data_install['software_version'] = subcloud.software_version
             data_install['ansible_ssh_pass'] = payload['sysadmin_password']
             data_install['ansible_become_pass'] = payload['sysadmin_password']
             install_success = self._run_subcloud_install(
@@ -1392,7 +1394,8 @@ class SubcloudManager(manager.Manager):
         db_api.subcloud_update(
             context, subcloud.id,
             deploy_status=consts.DEPLOY_STATE_INSTALLING,
-            error_description=consts.ERROR_DESC_EMPTY)
+            error_description=consts.ERROR_DESC_EMPTY,
+            software_version=str(payload['software_version']))
         try:
             install.install(consts.DC_ANSIBLE_LOG_DIR, install_command)
         except Exception as e:
