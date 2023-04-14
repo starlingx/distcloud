@@ -34,6 +34,7 @@ from dccommon.drivers.openstack.sdk_platform import OpenStackDriver
 from dccommon.drivers.openstack.sysinv_v1 import SysinvClient
 from dccommon.exceptions import PlaybookExecutionFailed
 from dccommon.exceptions import PlaybookExecutionTimeout
+from dccommon.utils import LAST_SW_VERSION_IN_CENTOS
 from dccommon.utils import run_playbook
 
 from dcmanager.common import consts
@@ -57,8 +58,6 @@ ANSIBLE_PRESTAGE_SUBCLOUD_PACKAGES_PLAYBOOK = \
 ANSIBLE_PRESTAGE_SUBCLOUD_IMAGES_PLAYBOOK = \
     "/usr/share/ansible/stx-ansible/playbooks/prestage_images.yml"
 ANSIBLE_PRESTAGE_INVENTORY_SUFFIX = '_prestage_inventory.yml'
-
-LAST_SW_VERSION_IN_CENTOS = "22.06"
 
 
 def is_deploy_status_prestage(deploy_status):
