@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2020-2022 Wind River Systems, Inc.
+# Copyright (c) 2020-2023 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -95,7 +95,8 @@ class UpdatingPatchesState(BaseState):
         for patch_id in subcloud_patch_ids:
             if subcloud_patches[patch_id]['repostate'] == \
                     patching_v1.PATCH_STATE_APPLIED:
-                if patch_id not in applied_patch_ids:
+                if subcloud_patches[patch_id]['patchstate'] != \
+                    patching_v1.PATCH_STATE_APPLIED:
                     self.info_log(strategy_step,
                                   "Patch %s will be removed from subcloud" %
                                   (patch_id))
