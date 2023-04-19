@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2020-2022 Wind River Systems, Inc.
+# Copyright (c) 2020-2023 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -8,6 +8,7 @@ import keyring
 import os
 
 from base64 import b64encode
+from dccommon.consts import AVAILABILITY_OFFLINE
 from dccommon.install_consts import ANSIBLE_SUBCLOUD_INSTALL_PLAYBOOK
 from dccommon.subcloud_install import SubcloudInstall
 
@@ -379,6 +380,7 @@ class UpgradingSimplexState(BaseState):
         # Run the remote install playbook
         db_api.subcloud_update(
             self.context, strategy_step.subcloud_id,
+            availability_status=AVAILABILITY_OFFLINE,
             deploy_status=consts.DEPLOY_STATE_INSTALLING)
         try:
             install.install(consts.DC_ANSIBLE_LOG_DIR, install_command)
