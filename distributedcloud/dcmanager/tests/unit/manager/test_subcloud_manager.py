@@ -11,7 +11,7 @@
 # License for the specific language governing permissions and limitations
 # under the License.
 #
-
+import base64
 import copy
 import datetime
 
@@ -40,7 +40,6 @@ from dcmanager.tests.unit.common import fake_subcloud
 from dcmanager.tests import utils
 from tsconfig.tsconfig import SW_VERSION
 
-LAST_SW_VERSION_IN_CENTOS = "22.06"
 FAKE_PREVIOUS_SW_VERSION = '21.12'
 
 
@@ -264,11 +263,15 @@ FAKE_SUBCLOUD_PRESTAGE_PAYLOAD = {
     "sysadmin_password": "testpasswd",
 }
 
+FAKE_PRESTAGE_RELEASE = '22.12'
+FAKE_SUBCLOUD_SW_VERSION = '21.12'
+FAKE_PASSWORD = (base64.b64encode('testpass'.encode("utf-8"))).decode('ascii')
 FAKE_PRESTAGE_PAYLOAD = {
     "subcloud_name": "subcloud1",
     "oam_floating_ip": "10.10.10.12",
-    "sysadmin_password": 'testpassword',
-    "force": False
+    "sysadmin_password": FAKE_PASSWORD,
+    "force": False,
+    "release": FAKE_PRESTAGE_RELEASE
 }
 
 FAKE_MGMT_IF_UUIDS = [
@@ -1437,7 +1440,8 @@ class TestSubcloudManager(base.DCManagerTestCase):
                     FAKE_PREVIOUS_SW_VERSION),
                 '-i', '/var/opt/dc/ansible/subcloud1_inventory.yml',
                 '--limit', 'subcloud1', '-e',
-                "override_files_dir='/var/opt/dc/ansible' region_name=subcloud1"
+                "override_files_dir='/var/opt/dc/ansible' region_name=subcloud1",
+                '-e', "install_release_version=%s" % FAKE_PREVIOUS_SW_VERSION
             ]
         )
 
@@ -1750,7 +1754,7 @@ class TestSubcloudManager(base.DCManagerTestCase):
         mock_run_playbook.assert_called_once()
         mock_is_healthy.assert_called_once()
 
-        # Verify that subcloud has the correct deploy status consts.PRESTAGE_STATE_PREPARE
+        # Verify that subcloud has the correct deploy status consts.PRESTAGE_STATE_PACKAGES
         updated_subcloud = db_api.subcloud_get_by_name(self.ctx, subcloud.name)
         self.assertEqual(consts.BACKUP_STATE_PRE_BACKUP,
                          updated_subcloud.backup_status)
@@ -1777,7 +1781,7 @@ class TestSubcloudManager(base.DCManagerTestCase):
 
         mock_parallel_group_operation.assert_called_once()
 
-        # Verify that subcloud has the correct deploy status consts.PRESTAGE_STATE_PREPARE
+        # Verify that subcloud has the correct deploy status consts.PRESTAGE_STATE_PACKAGES
         updated_subcloud = db_api.subcloud_get_by_name(self.ctx, subcloud.name)
         self.assertEqual(consts.BACKUP_STATE_VALIDATE_FAILED,
                          updated_subcloud.backup_status)
@@ -1804,7 +1808,7 @@ class TestSubcloudManager(base.DCManagerTestCase):
 
         mock_parallel_group_operation.assert_called_once()
 
-        # Verify that subcloud has the correct deploy status consts.PRESTAGE_STATE_PREPARE
+        # Verify that subcloud has the correct deploy status consts.PRESTAGE_STATE_PACKAGES
         updated_subcloud = db_api.subcloud_get_by_name(self.ctx, subcloud.name)
         self.assertEqual(consts.BACKUP_STATE_VALIDATE_FAILED,
                          updated_subcloud.backup_status)
@@ -1831,7 +1835,7 @@ class TestSubcloudManager(base.DCManagerTestCase):
 
         mock_parallel_group_operation.assert_called_once()
 
-        # Verify that subcloud has the correct deploy status consts.PRESTAGE_STATE_PREPARE
+        # Verify that subcloud has the correct deploy status consts.PRESTAGE_STATE_PACKAGES
         updated_subcloud = db_api.subcloud_get_by_name(self.ctx, subcloud.name)
         self.assertEqual(consts.BACKUP_STATE_VALIDATE_FAILED,
                          updated_subcloud.backup_status)
@@ -1859,7 +1863,7 @@ class TestSubcloudManager(base.DCManagerTestCase):
 
         mock_parallel_group_operation.assert_called_once()
 
-        # Verify that subcloud has the correct deploy status consts.PRESTAGE_STATE_PREPARE
+        # Verify that subcloud has the correct deploy status consts.PRESTAGE_STATE_PACKAGES
         updated_subcloud = db_api.subcloud_get_by_name(self.ctx, subcloud.name)
         self.assertEqual(consts.BACKUP_STATE_UNKNOWN,
                          updated_subcloud.backup_status)
@@ -1887,7 +1891,7 @@ class TestSubcloudManager(base.DCManagerTestCase):
 
         mock_parallel_group_operation.assert_called_once()
 
-        # Verify that subcloud has the correct deploy status consts.PRESTAGE_STATE_PREPARE
+        # Verify that subcloud has the correct deploy status consts.PRESTAGE_STATE_PACKAGES
         updated_subcloud = db_api.subcloud_get_by_name(self.ctx, subcloud.name)
         self.assertEqual(consts.BACKUP_STATE_UNKNOWN,
                          updated_subcloud.backup_status)
@@ -2013,25 +2017,7 @@ class TestSubcloudManager(base.DCManagerTestCase):
                          updated_subcloud.backup_status)
 
     @mock.patch.object(threading.Thread, 'start')
-    def test_prestage_subcloud_prepare(self, mock_thread_start):
-
-        values = copy.copy(FAKE_PRESTAGE_PAYLOAD)
-        subcloud = self.create_subcloud_static(
-            self.ctx,
-            name='subcloud1',
-            deploy_status=consts.DEPLOY_STATE_NONE)
-
-        sm = subcloud_manager.SubcloudManager()
-        sm.prestage_subcloud(self.ctx, payload=values)
-        mock_thread_start.assert_called_once()
-
-        # Verify that subcloud has the correct deploy status consts.PRESTAGE_STATE_PREPARE
-        updated_subcloud = db_api.subcloud_get_by_name(self.ctx, subcloud.name)
-        self.assertEqual(consts.PRESTAGE_STATE_PREPARE,
-                         updated_subcloud.deploy_status)
-
-    @mock.patch.object(threading.Thread, 'start')
-    def test_prestage_subcloud_prepare_no_subcloud(self, mock_thread_start):
+    def test_prestage_no_subcloud(self, mock_thread_start):
         values = copy.copy(FAKE_PRESTAGE_PAYLOAD)
         values['subcloud_name'] = 'randomname'
 
@@ -2048,113 +2034,72 @@ class TestSubcloudManager(base.DCManagerTestCase):
     @mock.patch.object(os_path, 'exists')
     @mock.patch.object(cutils, 'get_filename_by_prefix')
     @mock.patch.object(prestage, '_run_ansible')
-    def test_prestage_upgrade_pass(self, mock_run_ansible,
-                                   mock_get_filename_by_prefix,
-                                   mock_file_exists):
+    def test_prestage_remote_pass(self, mock_run_ansible,
+                                  mock_get_filename_by_prefix,
+                                  mock_file_exists):
 
         values = copy.copy(FAKE_PRESTAGE_PAYLOAD)
         subcloud = self.create_subcloud_static(self.ctx,
                                                name='subcloud1',
                                                deploy_status=consts.DEPLOY_STATE_NONE,
-                                               software_version='18.02')
+                                               software_version=FAKE_SUBCLOUD_SW_VERSION)
 
         prestage._prestage_standalone_thread(self.ctx, subcloud, payload=values)
         mock_run_ansible.return_value = None
-        mock_get_filename_by_prefix.return_value = None
-        mock_file_exists.return_value = False
+        mock_get_filename_by_prefix.return_value = 'prestage_images_list.txt'
+        mock_file_exists.return_value = True
 
         # Verify that subcloud has the correct deploy status
         updated_subcloud = db_api.subcloud_get_by_name(self.ctx, subcloud.name)
         self.assertEqual(consts.PRESTAGE_STATE_COMPLETE,
                          updated_subcloud.deploy_status)
 
-    @mock.patch.object(os_path, 'exists')
+        # Verify both of prestage package and image ansible playbooks were called
+        self.assertEqual(mock_run_ansible.call_count, 2)
+        # Verify the "image_list_file" was passed to the prestage image playbook
+        # for the remote prestage
+        self.assertTrue(
+            'image_list_file' in mock_run_ansible.call_args_list[1].args[1][5])
+        # Verify the prestage request release was passed to the playbooks
+        self.assertTrue(
+            FAKE_PRESTAGE_RELEASE in mock_run_ansible.call_args_list[0].args[1][5])
+        self.assertTrue(
+            FAKE_PRESTAGE_RELEASE in mock_run_ansible.call_args_list[1].args[1][5])
+
     @mock.patch.object(prestage, '_run_ansible')
-    def test_prestage_ansible_failed(self, mock_run_ansible,
-                                     mock_file_exists):
+    def test_prestage_local_pass(self, mock_run_ansible):
 
         values = copy.copy(FAKE_PRESTAGE_PAYLOAD)
         subcloud = self.create_subcloud_static(self.ctx,
                                                name='subcloud1',
                                                deploy_status=consts.DEPLOY_STATE_NONE,
-                                               software_version='18.02')
-
-        mock_run_ansible.side_effect = FakeException('Test')
-        mock_file_exists.return_value = False
-        mock_open = mock.mock_open(read_data='test')
-        with mock.patch('six.moves.builtins.open', mock_open):
-
-            e = self.assertRaises(FakeException,
-                                  prestage._sync_run_prestage_prepare_packages,
-                                  context=self.ctx, subcloud=subcloud, payload=values)
-
-            self.assertEqual('Test', str(e))
-
-    @mock.patch.object(os_path, 'exists')
-    @mock.patch.object(cutils, 'get_filename_by_prefix')
-    @mock.patch.object(prestage, '_run_ansible')
-    def test_prestage_reinstall_pass(self, mock_run_ansible,
-                                     mock_get_filename_by_prefix,
-                                     mock_file_exists):
-
-        values = copy.copy(FAKE_PRESTAGE_PAYLOAD)
-        subcloud = self.create_subcloud_static(self.ctx,
-                                               name='subcloud1',
-                                               deploy_status=consts.DEPLOY_STATE_NONE,
-                                               software_version=SW_VERSION)
+                                               software_version=FAKE_PRESTAGE_RELEASE)
 
         prestage._prestage_standalone_thread(self.ctx, subcloud, payload=values)
         mock_run_ansible.return_value = None
-        mock_get_filename_by_prefix.return_value = None
-        mock_file_exists.return_value = False
 
         # Verify that subcloud has the correct deploy status
         updated_subcloud = db_api.subcloud_get_by_name(self.ctx, subcloud.name)
         self.assertEqual(consts.PRESTAGE_STATE_COMPLETE,
                          updated_subcloud.deploy_status)
 
-    @mock.patch.object(prestage, 'prestage_complete')
+        # Verify both of prestage package and image ansible playbooks were called
+        self.assertEqual(mock_run_ansible.call_count, 2)
+        # Verify the prestage request release was passed to the playbooks
+        self.assertTrue(
+            FAKE_PRESTAGE_RELEASE in mock_run_ansible.call_args_list[0].args[1][5])
+        self.assertTrue(
+            FAKE_PRESTAGE_RELEASE in mock_run_ansible.call_args_list[1].args[1][5])
+
     @mock.patch.object(prestage, 'prestage_images')
     @mock.patch.object(prestage, 'prestage_packages')
     @mock.patch.object(cutils, 'delete_subcloud_inventory')
     @mock.patch.object(prestage, '_run_ansible')
-    def test_prestage_subcloud_prestage_prepare_centos(self,
-                                                       mock_run_ansible,
-                                                       mock_delete_subcloud_inventory,
-                                                       mock_prestage_packages,
-                                                       mock_prestage_images,
-                                                       mock_prestage_complete):
-
-        values = copy.copy(FAKE_PRESTAGE_PAYLOAD)
-        subcloud = self.create_subcloud_static(self.ctx,
-                                               name='subcloud1',
-                                               deploy_status=consts.DEPLOY_STATE_NONE)
-        current_sw_version = prestage.SW_VERSION
-        prestage.SW_VERSION = LAST_SW_VERSION_IN_CENTOS
-        prestage._prestage_standalone_thread(self.ctx, subcloud, payload=values)
-        mock_run_ansible.return_value = None
-        mock_prestage_packages.assert_called_once_with(self.ctx, subcloud, values)
-        mock_prestage_images.assert_called_once_with(self.ctx, subcloud, values)
-        mock_prestage_complete.assert_called_once_with(self.ctx, subcloud.id)
-        mock_delete_subcloud_inventory.return_value = None
-
-        # Verify that subcloud has the correct deploy status
-        updated_subcloud = db_api.subcloud_get_by_name(self.ctx, subcloud.name)
-        prestage.SW_VERSION = current_sw_version
-        self.assertEqual(consts.PRESTAGE_STATE_PREPARE,
-                         updated_subcloud.deploy_status)
-
-    @mock.patch.object(prestage, 'prestage_complete')
-    @mock.patch.object(prestage, 'prestage_images')
-    @mock.patch.object(prestage, 'prestage_packages')
-    @mock.patch.object(cutils, 'delete_subcloud_inventory')
-    @mock.patch.object(prestage, '_run_ansible')
-    def test_prestage_subcloud_prestage_prepare_debian(self,
-                                                       mock_run_ansible,
-                                                       mock_delete_subcloud_inventory,
-                                                       mock_prestage_packages,
-                                                       mock_prestage_images,
-                                                       mock_prestage_complete):
+    def test_prestage_subcloud_complete(self,
+                                        mock_run_ansible,
+                                        mock_delete_subcloud_inventory,
+                                        mock_prestage_packages,
+                                        mock_prestage_images):
 
         values = copy.copy(FAKE_PRESTAGE_PAYLOAD)
         subcloud = self.create_subcloud_static(self.ctx,
@@ -2164,12 +2109,11 @@ class TestSubcloudManager(base.DCManagerTestCase):
         mock_run_ansible.return_value = None
         mock_prestage_packages.assert_called_once_with(self.ctx, subcloud, values)
         mock_prestage_images.assert_called_once_with(self.ctx, subcloud, values)
-        mock_prestage_complete.assert_called_once_with(self.ctx, subcloud.id)
         mock_delete_subcloud_inventory.return_value = None
 
-        # Verify that subcloud has the correct deploy status
+        # Verify that subcloud has the "prestage-complete" deploy status
         updated_subcloud = db_api.subcloud_get_by_name(self.ctx, subcloud.name)
-        self.assertEqual(consts.DEPLOY_STATE_NONE,
+        self.assertEqual(consts.PRESTAGE_STATE_COMPLETE,
                          updated_subcloud.deploy_status)
 
     def test_get_cached_regionone_data(self):

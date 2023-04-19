@@ -225,6 +225,12 @@ extra_args:
   in: body
   required: false
   type: dictionary
+force:
+  description: |
+    Indicates whether to disregard subcloud management alarm condition.
+  in: body
+  required: false
+  type: boolean
 group_id:
   description: |
     The ID of a subcloud group. Default is 1.
@@ -317,6 +323,12 @@ patch_strategy_upload_only:
   in: body
   required: false
   type: boolean
+prestage_software_version:
+  description: |
+    The prestage software version for the subcloud.
+  in: body
+  required: true
+  type: string
 region_name:
   description: |
     The name provisioned for the subcloud (synonym for subcloud name).

@@ -456,6 +456,16 @@ def get_loads_for_patching(loads):
     return [load.software_version for load in loads if load.state in valid_states]
 
 
+def get_loads_for_prestage(loads):
+    """Filter the loads that can be prestaged. Return their software versions"""
+    valid_states = [
+        consts.ACTIVE_LOAD_STATE,
+        consts.IMPORTED_LOAD_STATE,
+        consts.INACTIVE_LOAD_STATE
+    ]
+    return [load.software_version for load in loads if load.state in valid_states]
+
+
 def subcloud_get_by_ref(context, subcloud_ref):
     """Handle getting a subcloud by either name, or ID
 
@@ -785,6 +795,26 @@ def is_subcloud_healthy(subcloud_name):
         return True
 
     return False
+
+
+def get_systemcontroller_installed_loads():
+
+    try:
+        os_client = OpenStackDriver(
+            region_name=dccommon_consts.SYSTEM_CONTROLLER_NAME,
+            region_clients=None)
+    except Exception:
+        LOG.exception("Failed to get keystone client for %s",
+                      dccommon_consts.SYSTEM_CONTROLLER_NAME)
+        raise
+
+    ks_client = os_client.keystone_client
+    sysinv_client = SysinvClient(
+        dccommon_consts.SYSTEM_CONTROLLER_NAME, ks_client.session,
+        endpoint=ks_client.endpoint_cache.get_endpoint('sysinv'))
+
+    loads = sysinv_client.get_loads()
+    return get_loads_for_prestage(loads)
 
 
 def get_certificate_from_secret(secret_name, secret_ns):

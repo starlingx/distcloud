@@ -20,6 +20,8 @@ import threading
 
 from oslo_log import log as logging
 
+from tsconfig.tsconfig import SW_VERSION
+
 from dccommon import consts as dccommon_consts
 from dcmanager.audit import rpcapi as dcmanager_audit_rpc_client
 from dcmanager.common import consts
@@ -307,6 +309,12 @@ class SwUpdateManager(manager.Manager):
             else:
                 force = False
 
+        installed_loads = []
+        software_version = None
+        if payload.get(consts.PRESTAGE_REQUEST_RELEASE):
+            software_version = payload.get(consts.PRESTAGE_REQUEST_RELEASE)
+            installed_loads = utils.get_systemcontroller_installed_loads()
+
         # Has the user specified a specific subcloud?
         # todo(abailey): refactor this code to use classes
         cloud_name = payload.get('cloud_name')
@@ -375,7 +383,8 @@ class SwUpdateManager(manager.Manager):
                 try:
                     prestage.global_prestage_validate(payload)
                     prestage_global_validated = True
-                    prestage.initial_subcloud_validate(subcloud)
+                    prestage.initial_subcloud_validate(
+                        subcloud, installed_loads, software_version)
                 except exceptions.PrestagePreCheckFailedException as ex:
                     raise exceptions.BadRequest(resource='strategy',
                                                 msg=str(ex))
@@ -410,7 +419,9 @@ class SwUpdateManager(manager.Manager):
             extra_args = {
                 consts.EXTRA_ARGS_SYSADMIN_PASSWORD:
                     payload.get(consts.EXTRA_ARGS_SYSADMIN_PASSWORD),
-                consts.EXTRA_ARGS_FORCE: force
+                consts.EXTRA_ARGS_FORCE: force,
+                consts.PRESTAGE_SOFTWARE_VERSION:
+                    software_version if software_version else SW_VERSION
             }
         elif strategy_type == consts.SW_UPDATE_TYPE_PATCH:
             upload_only_str = payload.get(consts.EXTRA_ARGS_UPLOAD_ONLY)
@@ -496,7 +507,8 @@ class SwUpdateManager(manager.Manager):
                 if subcloud.name not in subclouds_processed:
                     # Do initial validation for subcloud
                     try:
-                        prestage.initial_subcloud_validate(subcloud)
+                        prestage.initial_subcloud_validate(
+                            subcloud, installed_loads, software_version)
                     except exceptions.PrestagePreCheckFailedException:
                         LOG.warn("Excluding subcloud from prestage strategy: %s",
                                  subcloud.name)

@@ -213,7 +213,7 @@ class SubcloudsController(object):
 
     @staticmethod
     def _get_prestage_payload(request):
-        fields = ['sysadmin_password', 'force']
+        fields = ['sysadmin_password', 'force', consts.PRESTAGE_REQUEST_RELEASE]
         payload = {
             'force': False
         }
@@ -243,6 +243,8 @@ class SubcloudsController(object):
                     else:
                         pecan.abort(
                             400, _('Invalid value for force option: %s' % val))
+                elif field == consts.PRESTAGE_REQUEST_RELEASE:
+                    payload[consts.PRESTAGE_REQUEST_RELEASE] = val
         return payload
 
     def _upload_config_file(self, file_item, config_file, config_type):
@@ -1516,12 +1518,18 @@ class SubcloudsController(object):
                 LOG.exception("validate_prestage failed")
                 pecan.abort(400, _(str(exc)))
 
+            prestage_software_version = payload.get(
+                consts.PRESTAGE_REQUEST_RELEASE, tsc.SW_VERSION)
+
             try:
                 self.dcmanager_rpc_client.prestage_subcloud(context, payload)
                 # local update to deploy_status - this is just for CLI response:
-                subcloud.deploy_status = consts.PRESTAGE_STATE_PREPARE
-                return db_api.subcloud_db_model_to_dict(subcloud)
+                subcloud.deploy_status = consts.PRESTAGE_STATE_PACKAGES
 
+                subcloud_dict = db_api.subcloud_db_model_to_dict(subcloud)
+                subcloud_dict.update(
+                    {consts.PRESTAGE_SOFTWARE_VERSION: prestage_software_version})
+                return subcloud_dict
             except RemoteError as e:
                 pecan.abort(422, e.value)
             except Exception:

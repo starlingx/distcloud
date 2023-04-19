@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2022 Wind River Systems, Inc.
+# Copyright (c) 2022-2023 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -51,7 +51,7 @@ class PrestagePreCheckState(PrestageState):
 
     def __init__(self, region_name):
         super(PrestagePreCheckState, self).__init__(
-            next_state=consts.STRATEGY_STATE_PRESTAGE_PREPARE,
+            next_state=consts.STRATEGY_STATE_PRESTAGE_PACKAGES,
             region_name=region_name)
 
     @utils.synchronized('prestage-update-extra-args', external=True)
@@ -85,18 +85,14 @@ class PrestagePreCheckState(PrestageState):
             'sysadmin_password': extra_args['sysadmin_password'],
             'force': extra_args['force']
         }
+        if extra_args.get(consts.PRESTAGE_SOFTWARE_VERSION):
+            payload.update({consts.PRESTAGE_REQUEST_RELEASE:
+                            extra_args.get(consts.PRESTAGE_SOFTWARE_VERSION)})
         try:
             oam_floating_ip = prestage.validate_prestage(
                 strategy_step.subcloud, payload)
-
             self._update_oam_floating_ip(strategy_step, oam_floating_ip)
-            if strategy_step.stage == 1:
-                # Note: this cleanup happens for every subcloud, but they are all
-                # processed before moving on to the next strategy step
-                # TODO(kmacleod) although this is a quick check, it is
-                # synchronized, so we may want to figure out a better
-                # way to only run this once
-                prestage.cleanup_failed_preparation()
+
             prestage.prestage_start(self.context, strategy_step.subcloud.id)
 
         except exceptions.PrestagePreCheckFailedException as ex:
@@ -110,26 +106,6 @@ class PrestagePreCheckState(PrestageState):
             raise
         else:
             self.info_log(strategy_step, "Pre-check pass")
-
-
-class PrestagePrepareState(PrestageState):
-    """Perform prepare operation"""
-
-    def __init__(self, region_name):
-        super(PrestagePrepareState, self).__init__(
-            next_state=consts.STRATEGY_STATE_PRESTAGE_PACKAGES,
-            region_name=region_name)
-
-    def _do_state_action(self, strategy_step):
-        extra_args = utils.get_sw_update_strategy_extra_args(self.context)
-        payload = {
-            'sysadmin_password': extra_args['sysadmin_password'],
-            'oam_floating_ip':
-                extra_args['oam_floating_ip_dict'][strategy_step.subcloud.name],
-            'force': extra_args['force']
-        }
-        prestage.prestage_prepare(self.context, strategy_step.subcloud, payload)
-        self.info_log(strategy_step, "Prepare finished")
 
 
 class PrestagePackagesState(PrestageState):
@@ -148,6 +124,9 @@ class PrestagePackagesState(PrestageState):
                 extra_args['oam_floating_ip_dict'][strategy_step.subcloud.name],
             'force': extra_args['force']
         }
+        if extra_args.get(consts.PRESTAGE_SOFTWARE_VERSION):
+            payload.update({consts.PRESTAGE_REQUEST_RELEASE:
+                            extra_args.get(consts.PRESTAGE_SOFTWARE_VERSION)})
         prestage.prestage_packages(self.context,
                                    strategy_step.subcloud, payload)
         self.info_log(strategy_step, "Packages finished")
@@ -169,6 +148,9 @@ class PrestageImagesState(PrestageState):
                 extra_args['oam_floating_ip_dict'][strategy_step.subcloud.name],
             'force': extra_args['force']
         }
+        if extra_args.get(consts.PRESTAGE_SOFTWARE_VERSION):
+            payload.update({consts.PRESTAGE_REQUEST_RELEASE:
+                            extra_args.get(consts.PRESTAGE_SOFTWARE_VERSION)})
         prestage.prestage_images(self.context, strategy_step.subcloud, payload)
         self.info_log(strategy_step, "Images finished")
         prestage.prestage_complete(self.context, strategy_step.subcloud.id)

@@ -1,4 +1,4 @@
-# Copyright (c) 2022 Wind River Systems, Inc.
+# Copyright (c) 2022-2023 Wind River Systems, Inc.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -30,8 +30,6 @@ class PrestageOrchThread(OrchThread):
     STATE_OPERATORS = {
         consts.STRATEGY_STATE_PRESTAGE_PRE_CHECK:
             states.PrestagePreCheckState,
-        consts.STRATEGY_STATE_PRESTAGE_PREPARE:
-            states.PrestagePrepareState,
         consts.STRATEGY_STATE_PRESTAGE_PACKAGES:
             states.PrestagePackagesState,
         consts.STRATEGY_STATE_PRESTAGE_IMAGES:

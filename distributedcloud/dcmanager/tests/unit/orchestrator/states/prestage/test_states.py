@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2022 Wind River Systems, Inc.
+# Copyright (c) 2022-2023 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -17,7 +17,6 @@ from dcmanager.common.consts import STRATEGY_STATE_FAILED
 from dcmanager.common.consts import STRATEGY_STATE_PRESTAGE_IMAGES
 from dcmanager.common.consts import STRATEGY_STATE_PRESTAGE_PACKAGES
 from dcmanager.common.consts import STRATEGY_STATE_PRESTAGE_PRE_CHECK
-from dcmanager.common.consts import STRATEGY_STATE_PRESTAGE_PREPARE
 
 from dcmanager.db.sqlalchemy import api as db_api
 
@@ -57,27 +56,6 @@ class TestPrestagePreCheckState(TestPrestage):
         # Add the strategy_step state being processed by this unit test
         self.strategy_step = \
             self.setup_strategy_step(self.subcloud.id, STRATEGY_STATE_PRESTAGE_PRE_CHECK)
-
-    def test_prestage_prepare(self):
-        next_state = STRATEGY_STATE_PRESTAGE_PREPARE
-        # Update the subcloud to have deploy state as "complete"
-        db_api.subcloud_update(self.ctx,
-                               self.subcloud.id,
-                               deploy_status=DEPLOY_STATE_DONE)
-
-        extra_args = {"sysadmin_password": FAKE_PASSWORD,
-                      "force": False,
-                      'oam_floating_ip': OAM_FLOATING_IP}
-        self.strategy = fake_strategy.create_fake_strategy(
-            self.ctx,
-            self.DEFAULT_STRATEGY_TYPE,
-            extra_args=extra_args)
-
-        # invoke the strategy state operation on the orch thread
-        self.worker.perform_state_action(self.strategy_step)
-
-        # Verify the transition to the expected next state
-        self.assert_step_updated(self.strategy_step.subcloud_id, next_state)
 
     def test_prestage_prepare_no_extra_args(self):
         next_state = STRATEGY_STATE_FAILED
@@ -152,73 +130,6 @@ class TestPrestagePreCheckState(TestPrestage):
 
         # The strategy step details field should be updated with the Exception string
         self.assertTrue('test' in str(new_strategy_step.details))
-
-
-class TestPrestagePrepareState(TestPrestage):
-
-    def setUp(self):
-        super(TestPrestagePrepareState, self).setUp()
-
-        # Add the subcloud being processed by this unit test
-        # The subcloud is online, managed with deploy_state 'installed'
-        self.subcloud = self.setup_subcloud()
-
-        p = mock.patch('dcmanager.common.prestage.prestage_prepare')
-        self.mock_prestage_prepare = p.start()
-        self.addCleanup(p.stop)
-
-        # Add the strategy_step state being processed by this unit test
-        self.strategy_step = \
-            self.setup_strategy_step(self.subcloud.id, STRATEGY_STATE_PRESTAGE_PREPARE)
-
-    def test_prestage_prestage_prepare(self):
-
-        next_state = STRATEGY_STATE_PRESTAGE_PACKAGES
-        # Update the subcloud to have deploy state as "complete"
-        db_api.subcloud_update(self.ctx,
-                               self.subcloud.id,
-                               deploy_status=DEPLOY_STATE_DONE)
-
-        oam_floating_ip_dict = {
-            self.subcloud.name: OAM_FLOATING_IP
-        }
-        extra_args = {"sysadmin_password": FAKE_PASSWORD,
-                      "force": False,
-                      "oam_floating_ip_dict": oam_floating_ip_dict}
-        self.strategy = fake_strategy.create_fake_strategy(
-            self.ctx,
-            self.DEFAULT_STRATEGY_TYPE,
-            extra_args=extra_args)
-
-        # invoke the strategy state operation on the orch thread
-        self.worker.perform_state_action(self.strategy_step)
-
-        # Verify the transition to the expected next state
-        self.assert_step_updated(self.strategy_step.subcloud_id, next_state)
-
-    def test_prestage_prestage_prepare_no_password(self):
-
-        next_state = STRATEGY_STATE_FAILED
-        # Update the subcloud to have deploy state as "complete"
-        db_api.subcloud_update(self.ctx,
-                               self.subcloud.id,
-                               deploy_status=DEPLOY_STATE_DONE)
-
-        oam_floating_ip_dict = {
-            self.subcloud.name: OAM_FLOATING_IP
-        }
-        extra_args = {"force": False,
-                      "oam_floating_ip_dict": oam_floating_ip_dict}
-        self.strategy = fake_strategy.create_fake_strategy(
-            self.ctx,
-            self.DEFAULT_STRATEGY_TYPE,
-            extra_args=extra_args)
-
-        # invoke the strategy state operation on the orch thread
-        self.worker.perform_state_action(self.strategy_step)
-
-        # Verify the transition to the expected next state
-        self.assert_step_updated(self.strategy_step.subcloud_id, next_state)
 
 
 class TestPrestagePackageState(TestPrestage):

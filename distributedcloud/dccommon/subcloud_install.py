@@ -416,7 +416,7 @@ class SubcloudInstall(object):
                       result.stdout.decode('utf-8').replace('\n', ', '))
             raise Exception(msg)
 
-    def cleanup(self):
+    def cleanup(self, software_version=None):
         # Do not remove the input_iso if it is in the Load Vault
         if (self.input_iso is not None and
                 not self.input_iso.startswith(consts.LOAD_VAULT_DIR) and
@@ -424,7 +424,7 @@ class SubcloudInstall(object):
             os.remove(self.input_iso)
 
         if (self.www_root is not None and os.path.isdir(self.www_root)):
-            if dccommon_utils.is_debian():
+            if dccommon_utils.is_debian(software_version):
                 cleanup_cmd = [
                     GEN_ISO_COMMAND,
                     "--id", self.name,
@@ -439,6 +439,7 @@ class SubcloudInstall(object):
                     "--delete"
                 ]
             try:
+                LOG.info("Running install cleanup: %s", self.name)
                 with open(os.devnull, "w") as fnull:
                     subprocess.check_call(  # pylint: disable=E1102
                         cleanup_cmd, stdout=fnull, stderr=fnull)
@@ -569,7 +570,7 @@ class SubcloudInstall(object):
         if os.path.isdir(iso_dir_path):
             LOG.info("Found preexisting iso dir for subcloud %s, cleaning up",
                      self.name)
-            self.cleanup()
+            self.cleanup(software_version)
 
         # Update the default iso image based on the install values
         # Runs gen-bootloader-iso.sh

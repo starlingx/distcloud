@@ -23,6 +23,7 @@ from dcmanager.common import consts
 from dcmanager.common import context
 from dcmanager.common import exceptions
 from dcmanager.common import prestage
+from dcmanager.common import utils as cutils
 from dcmanager.db.sqlalchemy import api as db_api
 from dcmanager.orchestrator import sw_update_manager
 
@@ -639,13 +640,15 @@ class TestSwUpdateManager(base.DCManagerTestCase):
         self.assertEqual(subcloud_ids, subcloud_id_processed)
         self.assertEqual(stage, stage_processed)
 
+    @mock.patch.object(cutils, 'get_systemcontroller_installed_loads')
     @mock.patch.object(prestage, 'initial_subcloud_validate')
     @mock.patch.object(prestage, '_get_system_controller_upgrades')
     @mock.patch.object(sw_update_manager, 'PatchOrchThread')
     def test_create_sw_prestage_strategy_parallel(self,
                                                   mock_patch_orch_thread,
                                                   mock_controller_upgrade,
-                                                  mock_initial_subcloud_validate):
+                                                  mock_initial_subcloud_validate,
+                                                  mock_installed_loads):
 
         # Create fake subclouds and respective status
         # Subcloud1 will be prestaged
@@ -679,6 +682,9 @@ class TestSwUpdateManager(base.DCManagerTestCase):
         data = copy.copy(FAKE_SW_PRESTAGE_DATA)
         fake_password = (base64.b64encode('testpass'.encode("utf-8"))).decode('ascii')
         data['sysadmin_password'] = fake_password
+        fake_release = '21.12'
+        data[consts.PRESTAGE_REQUEST_RELEASE] = fake_release
+        mock_installed_loads.return_value = [fake_release]
 
         um = sw_update_manager.SwUpdateManager()
         strategy_dict = um.create_sw_update_strategy(self.ctxt, payload=data)
@@ -690,6 +696,9 @@ class TestSwUpdateManager(base.DCManagerTestCase):
         self.assertEqual(strategy_dict['max-parallel-subclouds'], 2)
         self.assertEqual(strategy_dict['subcloud-apply-type'],
                          consts.SUBCLOUD_APPLY_TYPE_PARALLEL)
+        self.assertEqual(fake_release,
+                         strategy_dict['extra-args'].get(
+                             consts.PRESTAGE_SOFTWARE_VERSION))
 
         # Verify the strategy step list
         subcloud_ids = [1, 3, 5, 6, 7]

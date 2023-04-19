@@ -154,7 +154,6 @@ STRATEGY_STATE_APPLYING_VIM_KUBE_ROOTCA_UPDATE_STRATEGY = \
 
 # Prestage orchestration states (ordered)
 STRATEGY_STATE_PRESTAGE_PRE_CHECK = "prestage-precheck"
-STRATEGY_STATE_PRESTAGE_PREPARE = "prestage-prepare"
 STRATEGY_STATE_PRESTAGE_PACKAGES = "prestaging-packages"
 STRATEGY_STATE_PRESTAGE_IMAGES = "prestaging-images"
 
@@ -255,14 +254,10 @@ UPGRADE_STATE_ACTIVATION_FAILED = 'activation-failed'
 UPGRADE_STATE_ACTIVATION_COMPLETE = 'activation-complete'
 
 # Prestage States
-PRESTAGE_STATE_PREPARE = STRATEGY_STATE_PRESTAGE_PREPARE
 PRESTAGE_STATE_PACKAGES = STRATEGY_STATE_PRESTAGE_PACKAGES
 PRESTAGE_STATE_IMAGES = STRATEGY_STATE_PRESTAGE_IMAGES
 PRESTAGE_STATE_FAILED = 'prestage-failed'
 PRESTAGE_STATE_COMPLETE = 'prestage-complete'
-
-# Prestage preparation timeout
-PRESTAGE_PREPARE_TIMEOUT = 900  # 15 minutes
 
 # Alarm aggregation
 ALARMS_DISABLED = "disabled"
@@ -302,6 +297,7 @@ SYSTEM_MODE_DUPLEX_DIRECT = "duplex-direct"
 
 # Load states
 ACTIVE_LOAD_STATE = 'active'
+INACTIVE_LOAD_STATE = 'inactive'
 IMPORTING_LOAD_STATE = 'importing'
 IMPORTED_LOAD_STATE = 'imported'
 IMPORTED_METADATA_LOAD_STATE = 'imported-metadata'
@@ -323,6 +319,10 @@ EXTRA_ARGS_FORCE = 'force'
 
 # extra_args for patching
 EXTRA_ARGS_UPLOAD_ONLY = 'upload-only'
+
+# http request/response arguments for prestage
+PRESTAGE_SOFTWARE_VERSION = 'prestage-software-version'
+PRESTAGE_REQUEST_RELEASE = 'release'
 
 # Device Image Bitstream Types
 BITSTREAM_TYPE_ROOT_KEY = 'root-key'

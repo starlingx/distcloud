@@ -111,7 +111,6 @@ TRANSITORY_STATES = {
     consts.DEPLOY_STATE_MIGRATING_DATA: consts.DEPLOY_STATE_DATA_MIGRATION_FAILED,
     consts.DEPLOY_STATE_PRE_RESTORE: consts.DEPLOY_STATE_RESTORE_PREP_FAILED,
     consts.DEPLOY_STATE_RESTORING: consts.DEPLOY_STATE_RESTORE_FAILED,
-    consts.PRESTAGE_STATE_PREPARE: consts.PRESTAGE_STATE_FAILED,
     consts.PRESTAGE_STATE_PACKAGES: consts.PRESTAGE_STATE_FAILED,
     consts.PRESTAGE_STATE_IMAGES: consts.PRESTAGE_STATE_FAILED,
 }
@@ -227,10 +226,9 @@ class SubcloudManager(manager.Manager):
             "-i", ansible_subcloud_inventory_file,
             "--limit", subcloud_name,
             "-e", "@%s" % consts.ANSIBLE_OVERRIDES_PATH + "/" +
-                  subcloud_name + '/' + "install_values.yml"]
-        if software_version and software_version != SW_VERSION:
-            install_command += [
-                "-e", "install_release_version=%s" % software_version]
+                  subcloud_name + '/' + "install_values.yml",
+            "-e", "install_release_version=%s" %
+                  software_version if software_version else SW_VERSION]
         return install_command
 
     def compose_apply_command(self, subcloud_name,
@@ -247,7 +245,9 @@ class SubcloudManager(manager.Manager):
         # which overrides to load
         apply_command += [
             "-e", str("override_files_dir='%s' region_name=%s") % (
-                consts.ANSIBLE_OVERRIDES_PATH, subcloud_name)]
+                consts.ANSIBLE_OVERRIDES_PATH, subcloud_name),
+            "-e", "install_release_version=%s" %
+                  software_version if software_version else SW_VERSION]
         return apply_command
 
     def compose_deploy_command(self, subcloud_name, ansible_subcloud_inventory_file, payload):
@@ -1385,11 +1385,13 @@ class SubcloudManager(manager.Manager):
     @staticmethod
     def _run_subcloud_install(
             context, subcloud, install_command, log_file, payload):
-        LOG.info("Preparing remote install of %s" % subcloud.name)
+        software_version = str(payload['software_version'])
+        LOG.info("Preparing remote install of %s, version: %s",
+                 subcloud.name, software_version)
         db_api.subcloud_update(
             context, subcloud.id,
             deploy_status=consts.DEPLOY_STATE_PRE_INSTALL,
-            software_version=str(payload['software_version']))
+            software_version=software_version)
         try:
             install = SubcloudInstall(context, subcloud.name)
             install.prep(consts.ANSIBLE_OVERRIDES_PATH, payload)
@@ -1399,7 +1401,7 @@ class SubcloudManager(manager.Manager):
                 context, subcloud.id,
                 deploy_status=consts.DEPLOY_STATE_PRE_INSTALL_FAILED)
             LOG.error(str(e))
-            install.cleanup()
+            install.cleanup(software_version)
             return False
 
         # Run the remote install playbook
@@ -1419,9 +1421,9 @@ class SubcloudManager(manager.Manager):
                 context, subcloud.id,
                 deploy_status=consts.DEPLOY_STATE_INSTALL_FAILED,
                 error_description=msg[0:consts.ERROR_DESCRIPTION_LENGTH])
-            install.cleanup()
+            install.cleanup(software_version)
             return False
-        install.cleanup()
+        install.cleanup(software_version)
         LOG.info("Successfully installed %s" % subcloud.name)
         return True
 

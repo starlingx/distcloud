@@ -1879,6 +1879,38 @@ class TestSubcloudAPIOther(testroot.DCManagerApiTest):
             mock.ANY)
         self.assertEqual(response.status_int, 200)
 
+    @mock.patch.object(cutils, 'get_systemcontroller_installed_loads')
+    @mock.patch.object(rpc_client, 'ManagerClient')
+    @mock.patch.object(prestage, '_get_system_controller_upgrades')
+    @mock.patch.object(subclouds.SubcloudsController, '_get_prestage_payload')
+    def test_prestage_subcloud_invalid_release(self, mock_get_prestage_payload,
+                                               mock_controller_upgrade,
+                                               mock_rpc_client,
+                                               mock_installed_loads):
+        subcloud = fake_subcloud.create_fake_subcloud(self.ctx)
+        subcloud = db_api.subcloud_update(
+            self.ctx, subcloud.id,
+            availability_status=dccommon_consts.AVAILABILITY_ONLINE,
+            management_state=dccommon_consts.MANAGEMENT_MANAGED)
+
+        fake_release = '21.12'
+        mock_installed_loads.return_value = ['22.12']
+
+        fake_password = (base64.b64encode('testpass'.encode("utf-8"))). \
+            decode('ascii')
+        data = {'sysadmin_password': fake_password,
+                'force': False,
+                'release': fake_release}
+        mock_controller_upgrade.return_value = list()
+
+        mock_rpc_client().prestage_subcloud.return_value = True
+        mock_get_prestage_payload.return_value = data
+
+        six.assertRaisesRegex(self, webtest.app.AppError, "400 *",
+                              self.app.patch_json, FAKE_URL + '/' +
+                              str(subcloud.id) + '/prestage',
+                              headers=FAKE_HEADERS, params=data)
+
     @mock.patch.object(rpc_client, 'ManagerClient')
     @mock.patch.object(subclouds.SubcloudsController, '_get_prestage_payload')
     @mock.patch.object(prestage, '_get_system_controller_upgrades')
@@ -1925,6 +1957,7 @@ class TestSubcloudAPIOther(testroot.DCManagerApiTest):
                               str(subcloud.id) + '/prestage',
                               headers=FAKE_HEADERS, params=data)
 
+    @mock.patch.object(cutils, 'get_systemcontroller_installed_loads')
     @mock.patch.object(rpc_client, 'ManagerClient')
     @mock.patch.object(prestage, '_get_system_controller_upgrades')
     @mock.patch.object(prestage, '_get_prestage_subcloud_info')
@@ -1932,13 +1965,18 @@ class TestSubcloudAPIOther(testroot.DCManagerApiTest):
     def test_prestage_subcloud_duplex(self, mock_get_prestage_payload,
                                       mock_prestage_subcloud_info,
                                       mock_controller_upgrade,
-                                      mock_rpc_client):
+                                      mock_rpc_client,
+                                      mock_installed_loads):
         subcloud = fake_subcloud.create_fake_subcloud(self.ctx)
         subcloud = db_api.subcloud_update(
             self.ctx, subcloud.id, availability_status=dccommon_consts.AVAILABILITY_ONLINE,
             management_state=dccommon_consts.MANAGEMENT_MANAGED)
 
-        fake_password = (base64.b64encode('testpass'.encode("utf-8"))).decode('ascii')
+        fake_release = '21.12'
+        mock_installed_loads.return_value = [fake_release]
+
+        fake_password = (base64.b64encode('testpass'.encode("utf-8"))).\
+            decode('ascii')
         data = {'sysadmin_password': fake_password,
                 'force': False}
         mock_controller_upgrade.return_value = list()
