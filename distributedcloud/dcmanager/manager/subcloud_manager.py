@@ -1388,7 +1388,8 @@ class SubcloudManager(manager.Manager):
         LOG.info("Preparing remote install of %s" % subcloud.name)
         db_api.subcloud_update(
             context, subcloud.id,
-            deploy_status=consts.DEPLOY_STATE_PRE_INSTALL)
+            deploy_status=consts.DEPLOY_STATE_PRE_INSTALL,
+            software_version=str(payload['software_version']))
         try:
             install = SubcloudInstall(context, subcloud.name)
             install.prep(consts.ANSIBLE_OVERRIDES_PATH, payload)
@@ -1406,8 +1407,7 @@ class SubcloudManager(manager.Manager):
         db_api.subcloud_update(
             context, subcloud.id,
             deploy_status=consts.DEPLOY_STATE_INSTALLING,
-            error_description=consts.ERROR_DESC_EMPTY,
-            software_version=str(payload['software_version']))
+            error_description=consts.ERROR_DESC_EMPTY)
         try:
             install.install(consts.DC_ANSIBLE_LOG_DIR, install_command)
         except Exception as e:
