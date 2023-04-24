@@ -132,7 +132,7 @@ class TestSwUpgradeUpdatingPatchesStage(TestSwUpgradeState):
             [consts.PATCH_VAULT_DIR + '/20.12/DC.8.patch'])
 
         call_args, _ = self.patching_client.remove.call_args_list[0]
-        self.assertItemsEqual(['DC.5', 'DC.6'], call_args[0])
+        self.assertItemsEqual(['DC.6'], call_args[0])
 
         call_args, _ = self.patching_client.apply.call_args_list[0]
         self.assertItemsEqual(['DC.2', 'DC.3', 'DC.8'], call_args[0])
