@@ -13,6 +13,7 @@ from dcmanager.tests.unit.orchestrator.states.upgrade.test_base \
     import TestSwUpgradeState
 
 FAKE_CERT = "-----BEGIN CERTIFICATE-----\nMIIDAO\n-----END CERTIFICATE-----\n"
+FAKE_KEY = "-----BEGIN PRIVATE KEY-----\nMIIDAO\n-----END PRIVATE KEY-----\n"
 
 
 class TestSwUpgradeSimplexTransferringCACertificateStage(TestSwUpgradeState):
@@ -82,7 +83,7 @@ class TestSwUpgradeDuplexTransferringCACertificateStage(TestSwUpgradeState):
         # simulate get_certificate_from_secret finding the openldap ca certificate
         p = mock.patch('dcmanager.common.utils.get_certificate_from_secret')
         self.mock_cert_file = p.start()
-        self.mock_cert_file.return_value = (FAKE_CERT, None)
+        self.mock_cert_file.return_value = (FAKE_CERT, FAKE_KEY)
         self.addCleanup(p.stop)
 
         # invoke the strategy state operation on the orch thread
@@ -90,7 +91,7 @@ class TestSwUpgradeDuplexTransferringCACertificateStage(TestSwUpgradeState):
 
         # verify update_certificate was invoked
         self.sysinv_client.update_certificate.assert_called_with(
-            '', FAKE_CERT, {'mode': 'openldap_ca'})
+            '', FAKE_CERT + FAKE_KEY, {'mode': 'openldap_ca'})
 
         # On success, the state should transition to the next state
         self.assert_step_updated(self.strategy_step.subcloud_id,
@@ -124,7 +125,7 @@ class TestSwUpgradeDuplexTransferringCACertificateStage(TestSwUpgradeState):
         # simulate get_certificate_from_secret finding the openldap ca certificate
         p = mock.patch('dcmanager.common.utils.get_certificate_from_secret')
         self.mock_cert_file = p.start()
-        self.mock_cert_file.return_value = (FAKE_CERT, None)
+        self.mock_cert_file.return_value = (FAKE_CERT, FAKE_KEY)
         self.addCleanup(p.stop)
 
         # simulate update_certificate failing to update
@@ -136,7 +137,7 @@ class TestSwUpgradeDuplexTransferringCACertificateStage(TestSwUpgradeState):
 
         # verify update_certificate was invoked
         self.sysinv_client.update_certificate.assert_called_with(
-            '', FAKE_CERT, {'mode': 'openldap_ca'})
+            '', FAKE_CERT + FAKE_KEY, {'mode': 'openldap_ca'})
 
         # verify the update_certificate was invoked: 1 + max_retries times
         self.assertEqual(transfer_ca_certificate.DEFAULT_MAX_RETRIES + 1,
