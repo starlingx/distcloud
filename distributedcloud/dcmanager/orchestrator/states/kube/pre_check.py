@@ -14,6 +14,12 @@ from dcmanager.common import utils
 from dcmanager.db import api as db_api
 from dcmanager.orchestrator.states.base import BaseState
 
+# These following alarms can occur during a vim orchestrated k8s upgrade on the subcloud.
+# By ignoring the alarms, subcloud k8s upgrade can be
+# retried after a failure using DC orchestrator.
+ALARM_IGNORE_LIST = ['100.003', '200.001', '700.004', '750.006',
+                     '900.007', '900.401']
+
 
 class KubeUpgradePreCheckState(BaseState):
     """Perform pre check operations to determine if kube upgrade is required"""
@@ -46,6 +52,22 @@ class KubeUpgradePreCheckState(BaseState):
                                     system_health)
         if not fails or (len(fails) == 1 and failed_alarm_check and no_mgmt_alarms):
             self.info_log(strategy_step, "Kubernetes upgrade health check passed.")
+        elif (len(fails) == 1 and failed_alarm_check):
+            alarms = self.get_fm_client(self.region_name).get_alarms()
+            for alarm in alarms:
+                if alarm.alarm_id not in ALARM_IGNORE_LIST:
+                    if alarm.mgmt_affecting == "True":
+                        error_desc_msg = ("Kubernetes upgrade health check failed due to alarm %s. "
+                                          "Kubernetes upgrade health: \n %s" %
+                                          (alarm.alarm_id, system_health))
+                        db_api.subcloud_update(
+                            self.context, strategy_step.subcloud_id,
+                            error_description=error_desc_msg)
+                        self.error_log(strategy_step, "\n" + system_health)
+                        raise Exception(("Kubernetes upgrade health check failed due to alarm %s. "
+                                         "Please run 'system health-query-kube-upgrade' "
+                                         "command on the subcloud or %s on central for details." %
+                                         (alarm.alarm_id, ERROR_DESC_CMD)))
         else:
             error_desc_msg = ("Kubernetes upgrade health check failed. \n %s" %
                               system_health)

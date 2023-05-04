@@ -14,6 +14,7 @@ from dcmanager.common.consts import STRATEGY_STATE_KUBE_UPGRADE_PRE_CHECK
 from dcmanager.db.sqlalchemy import api as db_api
 
 from dcmanager.tests.unit.common import fake_strategy
+from dcmanager.tests.unit.orchestrator.states.fakes import FakeAlarm
 from dcmanager.tests.unit.orchestrator.states.fakes import FakeKubeUpgrade
 from dcmanager.tests.unit.orchestrator.states.fakes import FakeKubeVersion
 from dcmanager.tests.unit.orchestrator.states.fakes \
@@ -58,6 +59,10 @@ KUBERNETES_UPGRADE_HEALTH_RESPONSE_NON_MGMT_AFFECTING_ALARM = \
     "All kubernetes control plane pods are ready: [OK]\n" \
     "All kubernetes applications are in a valid state: [OK]"
 
+MEMORY_THRESHOLD_ALARM = FakeAlarm('100.101', 'True')
+KUBERNETES_UPGRADE_ALARM = FakeAlarm('900.007', 'True')
+CEPH_ALARM = FakeAlarm('250.002', 'False')
+
 
 class TestKubeUpgradePreCheckStage(TestKubeUpgradeState):
 
@@ -76,6 +81,7 @@ class TestKubeUpgradePreCheckStage(TestKubeUpgradeState):
         self.sysinv_client.get_kube_upgrades = mock.MagicMock()
         self.sysinv_client.get_kube_upgrades.return_value = []
 
+        self.fm_client.get_alarms = mock.MagicMock()
         self.sysinv_client.get_kube_upgrade_health = mock.MagicMock()
         self.sysinv_client.get_kube_upgrade_health.return_value = KUBERNETES_UPGRADE_HEALTH_RESPONSE_SUCCESS
 
@@ -119,6 +125,7 @@ class TestKubeUpgradePreCheckStage(TestKubeUpgradeState):
                                self.subcloud.id,
                                deploy_status=DEPLOY_STATE_DONE)
 
+        self.fm_client.get_alarms.return_value = [MEMORY_THRESHOLD_ALARM, KUBERNETES_UPGRADE_ALARM]
         self.sysinv_client.get_kube_upgrade_health.return_value = KUBERNETES_UPGRADE_HEALTH_RESPONSE_MGMT_AFFECTING_ALARM
         self.sysinv_client.get_kube_upgrades.return_value = [FakeKubeUpgrade()]
         self.sysinv_client.get_kube_versions.return_value = [
@@ -129,9 +136,29 @@ class TestKubeUpgradePreCheckStage(TestKubeUpgradeState):
         ]
         self.worker.perform_state_action(self.strategy_step)
         self.sysinv_client.get_kube_upgrade_health.assert_called_once()
-
         self.assert_step_updated(self.strategy_step.subcloud_id,
                                  STRATEGY_STATE_FAILED)
+
+    def test_pre_check_subcloud_failed_health_check_with_allowed_management_alarms(self):
+        """Test pre check step where subcloud has management affecting alarms"""
+
+        db_api.subcloud_update(self.ctx,
+                               self.subcloud.id,
+                               deploy_status=DEPLOY_STATE_DONE)
+
+        self.fm_client.get_alarms.return_value = [CEPH_ALARM, KUBERNETES_UPGRADE_ALARM]
+        self.sysinv_client.get_kube_upgrade_health.return_value = KUBERNETES_UPGRADE_HEALTH_RESPONSE_MGMT_AFFECTING_ALARM
+        self.sysinv_client.get_kube_upgrades.return_value = [FakeKubeUpgrade()]
+        self.sysinv_client.get_kube_versions.return_value = [
+            FakeKubeVersion(obj_id=1,
+                            version=UPGRADED_KUBE_VERSION,
+                            target=True,
+                            state='active'),
+        ]
+        self.worker.perform_state_action(self.strategy_step)
+        self.sysinv_client.get_kube_upgrade_health.assert_called_once()
+        self.assert_step_updated(self.strategy_step.subcloud_id,
+                                 STRATEGY_STATE_KUBE_CREATING_VIM_KUBE_UPGRADE_STRATEGY)
 
     def test_pre_check_subcloud_failed_health_check_with_non_management_alarms(self):
         """Test pre check step where subcloud has non-management affecting alarms"""
