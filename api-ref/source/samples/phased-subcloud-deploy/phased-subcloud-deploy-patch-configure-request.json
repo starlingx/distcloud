@@ -1,0 +1,5 @@
+{
+    "deploy_config": "content of deploy_config file",
+    "subcloud": "subcloud1",
+    "sysadmin_password": "XXXXXXX"
+}

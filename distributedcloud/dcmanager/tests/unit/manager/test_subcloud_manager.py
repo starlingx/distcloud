@@ -558,6 +558,29 @@ class TestSubcloudManager(base.DCManagerTestCase):
                          updated_subcloud.deploy_status)
 
     @mock.patch.object(subcloud_manager.SubcloudManager,
+                       '_prepare_for_deployment')
+    @mock.patch.object(threading.Thread,
+                       'start')
+    def test_configure_subcloud(self, mock_thread_start,
+                                mock_prepare_for_deployment):
+        subcloud = self.create_subcloud_static(
+            self.ctx,
+            name='subcloud1',
+            deploy_status=consts.DEPLOY_STATE_PRE_CONFIG)
+
+        fake_payload = {"sysadmin_password": "testpass",
+                        "deploy_playbook": "test_playbook.yaml",
+                        "deploy_overrides": "test_overrides.yaml",
+                        "deploy_chart": "test_chart.yaml",
+                        "deploy_config": "subcloud1.yaml"}
+        sm = subcloud_manager.SubcloudManager()
+        sm.subcloud_deploy_config(self.ctx,
+                                  subcloud.id,
+                                  payload=fake_payload)
+        mock_thread_start.assert_called_once()
+        mock_prepare_for_deployment.assert_called_once()
+
+    @mock.patch.object(subcloud_manager.SubcloudManager,
                        'compose_apply_command')
     @mock.patch.object(subcloud_manager.SubcloudManager,
                        'compose_rehome_command')
@@ -2157,12 +2180,14 @@ class TestSubcloudManager(base.DCManagerTestCase):
         self.assertTrue('Subcloud does not exist'
                         in str(e))
 
+    @mock.patch.object(os_path, 'isdir')
     @mock.patch.object(os_path, 'exists')
     @mock.patch.object(cutils, 'get_filename_by_prefix')
     @mock.patch.object(prestage, '_run_ansible')
     def test_prestage_remote_pass(self, mock_run_ansible,
                                   mock_get_filename_by_prefix,
-                                  mock_file_exists):
+                                  mock_file_exists,
+                                  mock_isdir):
 
         values = copy.copy(FAKE_PRESTAGE_PAYLOAD)
         subcloud = self.create_subcloud_static(self.ctx,
@@ -2174,6 +2199,7 @@ class TestSubcloudManager(base.DCManagerTestCase):
         mock_run_ansible.return_value = None
         mock_get_filename_by_prefix.return_value = 'prestage_images_list.txt'
         mock_file_exists.return_value = True
+        mock_isdir.return_value = True
 
         # Verify that subcloud has the correct deploy status
         updated_subcloud = db_api.subcloud_get_by_name(self.ctx, subcloud.name)

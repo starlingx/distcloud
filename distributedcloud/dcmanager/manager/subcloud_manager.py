@@ -108,6 +108,8 @@ TRANSITORY_STATES = {
     consts.DEPLOY_STATE_PRE_INSTALL: consts.DEPLOY_STATE_PRE_INSTALL_FAILED,
     consts.DEPLOY_STATE_INSTALLING: consts.DEPLOY_STATE_INSTALL_FAILED,
     consts.DEPLOY_STATE_BOOTSTRAPPING: consts.DEPLOY_STATE_BOOTSTRAP_FAILED,
+    consts.DEPLOY_STATE_PRE_CONFIG: consts.DEPLOY_STATE_PRE_CONFIG_FAILED,
+    consts.DEPLOY_STATE_CONFIGURING: consts.DEPLOY_STATE_CONFIG_FAILED,
     consts.DEPLOY_STATE_DEPLOYING: consts.DEPLOY_STATE_DEPLOY_FAILED,
     consts.DEPLOY_STATE_MIGRATING_DATA: consts.DEPLOY_STATE_DATA_MIGRATION_FAILED,
     consts.DEPLOY_STATE_PRE_RESTORE: consts.DEPLOY_STATE_RESTORE_PREP_FAILED,
@@ -260,6 +262,7 @@ class SubcloudManager(manager.Manager):
                   software_version if software_version else SW_VERSION]
         return apply_command
 
+    # TODO(vgluzrom): rename compose_deploy_command to compose_config_command
     def compose_deploy_command(self, subcloud_name, ansible_subcloud_inventory_file, payload):
         deploy_command = [
             "ansible-playbook", payload[consts.DEPLOY_PLAYBOOK],
@@ -974,6 +977,41 @@ class SubcloudManager(manager.Manager):
                 context, subcloud_id,
                 deploy_status=consts.DEPLOY_STATE_PRE_BOOTSTRAP_FAILED)
 
+    def subcloud_deploy_config(self, context, subcloud_id, payload: dict) -> dict:
+        """Configure subcloud
+
+        :param context: request context object
+        :param payload: subcloud configuration
+        """
+        LOG.info("Configuring subcloud %s." % subcloud_id)
+
+        subcloud = db_api.subcloud_update(
+            context, subcloud_id,
+            deploy_status=consts.DEPLOY_STATE_PRE_CONFIG)
+        try:
+            # Ansible inventory filename for the specified subcloud
+            ansible_subcloud_inventory_file = self._get_ansible_filename(
+                subcloud.name, INVENTORY_FILE_POSTFIX)
+
+            self._prepare_for_deployment(payload, subcloud.name)
+            deploy_command = self.compose_deploy_command(
+                subcloud.name,
+                ansible_subcloud_inventory_file,
+                payload)
+
+            del payload['sysadmin_password']
+            apply_thread = threading.Thread(
+                target=self.run_deploy_commands,
+                args=(subcloud, payload, context),
+                kwargs={'deploy_command': deploy_command})
+            apply_thread.start()
+            return db_api.subcloud_db_model_to_dict(subcloud)
+        except Exception:
+            LOG.exception("Failed to configure %s" % subcloud.name)
+            db_api.subcloud_update(
+                context, subcloud_id,
+                deploy_status=consts.DEPLOY_STATE_PRE_CONFIG_FAILED)
+
     def _subcloud_operation_notice(
             self, operation, restore_subclouds, failed_subclouds,
             invalid_subclouds):
@@ -1623,6 +1661,9 @@ class SubcloudManager(manager.Manager):
             if apply_command:
                 self._run_subcloud_bootstrap(context, subcloud,
                                              apply_command, log_file)
+            if deploy_command:
+                self._run_subcloud_config(subcloud, context,
+                                          deploy_command, log_file)
         except Exception as ex:
             LOG.exception("run_deploy failed")
             raise ex
@@ -1700,6 +1741,32 @@ class SubcloudManager(manager.Manager):
             error_description=consts.ERROR_DESC_EMPTY)
 
         LOG.info("Successfully bootstrapped %s" % subcloud.name)
+
+    def _run_subcloud_config(self, subcloud, context,
+                             deploy_command, log_file):
+        # Run the custom deploy playbook
+        LOG.info("Starting deploy of %s" % subcloud.name)
+        db_api.subcloud_update(
+            context, subcloud.id,
+            deploy_status=consts.DEPLOY_STATE_CONFIGURING,
+            error_description=consts.ERROR_DESC_EMPTY)
+
+        try:
+            run_playbook(log_file, deploy_command)
+        except PlaybookExecutionFailed:
+            msg = utils.find_ansible_error_msg(
+                subcloud.name, log_file, consts.DEPLOY_STATE_CONFIGURING)
+            LOG.error(msg)
+            db_api.subcloud_update(
+                context, subcloud.id,
+                deploy_status=consts.DEPLOY_STATE_CONFIG_FAILED,
+                error_description=msg[0:consts.ERROR_DESCRIPTION_LENGTH])
+            return
+        LOG.info("Successfully deployed %s" % subcloud.name)
+        db_api.subcloud_update(
+            context, subcloud.id,
+            deploy_status=consts.DEPLOY_STATE_DONE,
+            error_description=consts.ERROR_DESC_EMPTY)
 
     def _create_addn_hosts_dc(self, context):
         """Generate the addn_hosts_dc file for hostname/ip translation"""

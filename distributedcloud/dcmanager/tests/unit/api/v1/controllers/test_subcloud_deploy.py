@@ -21,6 +21,7 @@ import webtest
 
 from dcmanager.api.controllers.v1 import subcloud_deploy
 from dcmanager.common import consts
+from dcmanager.common import phased_subcloud_deploy as psd_common
 from dcmanager.common import utils as dutils
 from dcmanager.tests.unit.api import test_root_controller as testroot
 from dcmanager.tests import utils
@@ -245,3 +246,16 @@ class TestSubcloudDeploy(testroot.DCManagerApiTest):
                          response.json['subcloud_deploy'][consts.DEPLOY_CHART])
         self.assertEqual(None,
                          response.json['subcloud_deploy'][consts.DEPLOY_PRESTAGE])
+
+    def test_get_config_file_path(self):
+        bootstrap_file = psd_common.get_config_file_path("subcloud1")
+        install_values = psd_common.get_config_file_path("subcloud1",
+                                                         consts.INSTALL_VALUES)
+        deploy_config = psd_common.get_config_file_path("subcloud1",
+                                                        consts.DEPLOY_CONFIG)
+        self.assertEqual(bootstrap_file,
+                         "/var/opt/dc/ansible/subcloud1.yml")
+        self.assertEqual(install_values,
+                         "/var/opt/dc/ansible/subcloud1/install_values.yml")
+        self.assertEqual(deploy_config,
+                         "/var/opt/dc/ansible/subcloud1_deploy_config.yml")
