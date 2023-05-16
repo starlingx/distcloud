@@ -1,4 +1,4 @@
-# Copyright (c) 2020-2022 Wind River Systems, Inc.
+# Copyright (c) 2020-2023 Wind River Systems, Inc.
 # Licensed under the Apache License, Version 2.0 (the "License"); you may
 # not use this file except in compliance with the License. You may obtain
 # a copy of the License at
@@ -123,6 +123,11 @@ AVAILABILITY_ONLINE = "online"
 SYNC_STATUS_UNKNOWN = "unknown"
 SYNC_STATUS_IN_SYNC = "in-sync"
 SYNC_STATUS_OUT_OF_SYNC = "out-of-sync"
+
+# Subcloud deploy configuration status
+DEPLOY_CONFIG_UP_TO_DATE = 'Deployment: configurations up-to-date'
+DEPLOY_CONFIG_OUT_OF_DATE = 'Deployment: configurations out-of-date'
+MONITORED_ALARM_ENTITIES = ['host.starlingx.windriver.com', ]
 
 # OS type
 OS_RELEASE_FILE = '/etc/os-release'

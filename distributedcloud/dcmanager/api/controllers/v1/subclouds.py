@@ -39,6 +39,7 @@ from pecan import expose
 from pecan import request
 
 from dccommon import consts as dccommon_consts
+from dccommon.drivers.openstack.fm import FmClient
 from dccommon.drivers.openstack import patching_v1
 from dccommon.drivers.openstack.patching_v1 import PatchingClient
 from dccommon.drivers.openstack.sdk_platform import OpenStackDriver
@@ -61,6 +62,7 @@ from dcmanager.common import utils
 from dcmanager.db import api as db_api
 
 from dcmanager.rpc import client as rpc_client
+from fm_api.constants import FM_ALARM_ID_UNSYNCHRONIZED_RESOURCE
 from six.moves import range
 
 CONF = cfg.CONF
@@ -1006,12 +1008,11 @@ class SubcloudsController(object):
         return sysinv_client.get_management_address_pool()
 
     # TODO(gsilvatr): refactor to use implementation from common/utils and test
-    def _get_oam_addresses(self, context, subcloud_name):
+    def _get_oam_addresses(self, context, subcloud_name, sc_ks_client):
         """Get the subclouds oam addresses"""
 
         # First need to retrieve the Subcloud's Keystone session
         try:
-            sc_ks_client = self.get_ks_client(subcloud_name)
             endpoint = sc_ks_client.endpoint_cache.get_endpoint('sysinv')
             sysinv_client = SysinvClient(subcloud_name,
                                          sc_ks_client.session,
@@ -1026,6 +1027,31 @@ class SubcloudsController(object):
                        (subcloud_name))
             LOG.error(message)
         return None
+
+    def _get_deploy_config_sync_status(self, context, subcloud_name, keystone_client):
+        """Get the deploy configuration insync status of the subcloud """
+        detected_alarms = None
+        try:
+            fm_client = FmClient(subcloud_name, keystone_client.session)
+            detected_alarms = fm_client.get_alarms_by_id(
+                FM_ALARM_ID_UNSYNCHRONIZED_RESOURCE)
+        except Exception as ex:
+            LOG.error(str(ex))
+            return None
+
+        out_of_date = False
+        if detected_alarms:
+            # Check if any alarm.entity_instance_id contains any of the values
+            # in MONITORED_ALARM_ENTITIES.
+            # We want to scope 260.002 alarms to the host entity only.
+            out_of_date = any(
+                any(entity_id in alarm.entity_instance_id
+                    for entity_id in dccommon_consts.MONITORED_ALARM_ENTITIES)
+                for alarm in detected_alarms
+            )
+        sync_status = dccommon_consts.DEPLOY_CONFIG_OUT_OF_DATE if out_of_date \
+            else dccommon_consts.DEPLOY_CONFIG_UP_TO_DATE
+        return sync_status
 
     def _add_subcloud_to_database(self, context, payload):
         try:
@@ -1190,16 +1216,26 @@ class SubcloudsController(object):
 
             if detail is not None:
                 oam_floating_ip = "unavailable"
+                config_sync_status = "unknown"
                 if subcloud.availability_status == dccommon_consts.AVAILABILITY_ONLINE:
+
+                    # Get the keystone client that will be used
+                    # for _get_deploy_config_sync_status and _get_oam_addresses
+                    sc_ks_client = self.get_ks_client(subcloud.name)
                     oam_addresses = self._get_oam_addresses(context,
-                                                            subcloud.name)
+                                                            subcloud.name, sc_ks_client)
                     if oam_addresses is not None:
                         oam_floating_ip = oam_addresses.oam_floating_ip
 
-                floating_ip_dict = {"oam_floating_ip":
-                                    oam_floating_ip}
-                subcloud_dict.update(floating_ip_dict)
+                    deploy_config_state = self._get_deploy_config_sync_status(
+                        context, subcloud.name, sc_ks_client)
+                    if deploy_config_state is not None:
+                        config_sync_status = deploy_config_state
 
+                extra_details = {"oam_floating_ip": oam_floating_ip,
+                                 "config_sync_status": config_sync_status}
+
+                subcloud_dict.update(extra_details)
             return subcloud_dict
 
     @utils.synchronized(LOCK_NAME)

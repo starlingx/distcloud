@@ -1052,11 +1052,17 @@ class TestSubcloudAPIOther(testroot.DCManagerApiTest):
         self.assertEqual(response.json['name'], subcloud.name)
 
     @mock.patch.object(subclouds.SubcloudsController,
+                       '_get_deploy_config_sync_status')
+    @mock.patch.object(subclouds.SubcloudsController,
                        '_get_oam_addresses')
+    @mock.patch.object(subclouds.SubcloudsController,
+                       'get_ks_client')
     @mock.patch.object(rpc_client, 'ManagerClient')
     def test_get_online_subcloud_with_additional_detail(self,
                                                         mock_rpc_client,
-                                                        mock_get_oam_addresses):
+                                                        mock_get_ks_client,
+                                                        mock_get_oam_addresses,
+                                                        mock_get_deploy_config_sync_status):
         subcloud = fake_subcloud.create_fake_subcloud(self.ctx)
         updated_subcloud = db_api.subcloud_update(
             self.ctx, subcloud.id, availability_status=dccommon_consts.AVAILABILITY_ONLINE)
@@ -1069,11 +1075,14 @@ class TestSubcloudAPIOther(testroot.DCManagerApiTest):
                                            '10.10.10.3',
                                            '10.10.10.1',
                                            '10.10.10.2')
+        mock_get_ks_client.return_value = 'ks_client'
         mock_get_oam_addresses.return_value = oam_addresses
+        mock_get_deploy_config_sync_status.return_value = dccommon_consts.DEPLOY_CONFIG_UP_TO_DATE
         response = self.app.get(get_url, headers=FAKE_HEADERS)
         self.assertEqual(response.content_type, 'application/json')
         self.assertEqual(response.status_code, http_client.OK)
         self.assertEqual('10.10.10.2', response.json['oam_floating_ip'])
+        self.assertEqual('Deployment: configurations up-to-date', response.json['config_sync_status'])
 
     @mock.patch.object(rpc_client, 'ManagerClient')
     def test_get_offline_subcloud_with_additional_detail(self,
@@ -1084,18 +1093,47 @@ class TestSubcloudAPIOther(testroot.DCManagerApiTest):
         self.assertEqual(response.content_type, 'application/json')
         self.assertEqual(response.status_code, http_client.OK)
         self.assertEqual('unavailable', response.json['oam_floating_ip'])
+        self.assertEqual('unknown', response.json['config_sync_status'])
+
+    @mock.patch.object(subclouds.SubcloudsController,
+                       '_get_deploy_config_sync_status')
+    @mock.patch.object(subclouds.SubcloudsController,
+                       '_get_oam_addresses')
+    @mock.patch.object(subclouds.SubcloudsController,
+                       'get_ks_client')
+    @mock.patch.object(rpc_client, 'ManagerClient')
+    def test_get_subcloud_deploy_config_status_unknown(self,
+                                                       mock_rpc_client,
+                                                       mock_get_ks_client,
+                                                       mock_get_oam_addresses,
+                                                       mock_get_deploy_config_sync_status):
+        subcloud = fake_subcloud.create_fake_subcloud(self.ctx)
+        updated_subcloud = db_api.subcloud_update(
+            self.ctx, subcloud.id, availability_status=dccommon_consts.AVAILABILITY_ONLINE)
+        get_url = FAKE_URL + '/' + str(updated_subcloud.id) + '/detail'
+        mock_get_ks_client.return_value = 'ks_client'
+        mock_get_oam_addresses.return_value = None
+        mock_get_deploy_config_sync_status.return_value = None
+        response = self.app.get(get_url, headers=FAKE_HEADERS)
+        self.assertEqual(response.content_type, 'application/json')
+        self.assertEqual(response.status_code, http_client.OK)
+        self.assertEqual('unknown', response.json['config_sync_status'])
 
     @mock.patch.object(subclouds.SubcloudsController,
                        '_get_oam_addresses')
+    @mock.patch.object(subclouds.SubcloudsController,
+                       'get_ks_client')
     @mock.patch.object(rpc_client, 'ManagerClient')
     def test_get_subcloud_oam_ip_unavailable(self,
                                              mock_rpc_client,
+                                             mock_get_ks_client,
                                              mock_get_oam_addresses):
         subcloud = fake_subcloud.create_fake_subcloud(self.ctx)
         updated_subcloud = db_api.subcloud_update(
             self.ctx, subcloud.id, availability_status=dccommon_consts.AVAILABILITY_ONLINE)
 
         get_url = FAKE_URL + '/' + str(updated_subcloud.id) + '/detail'
+        mock_get_ks_client.return_value = 'ks_client'
         mock_get_oam_addresses.return_value = None
         response = self.app.get(get_url, headers=FAKE_HEADERS)
         self.assertEqual(response.content_type, 'application/json')
