@@ -364,7 +364,6 @@ class SubcloudAuditWorkerManager(manager.Manager):
         sysinv_client = None
         fm_client = None
         avail_to_set = dccommon_consts.AVAILABILITY_OFFLINE
-
         try:
             os_client = OpenStackDriver(region_name=subcloud_name,
                                         thread_name='subcloud-audit',
@@ -381,6 +380,19 @@ class SubcloudAuditWorkerManager(manager.Manager):
                 # The subcloud will be marked as offline below.
                 LOG.error("Identity or Platform endpoint for online "
                           "subcloud: %s not found." % subcloud_name)
+
+        except keystone_exceptions.NotFound:
+            if subcloud.first_identity_sync_complete \
+                and avail_status_current == dccommon_consts.AVAILABILITY_ONLINE:
+                # The first identity sync is already complete
+                # Therefore this is an error
+                LOG.error("Identity or Platform endpoint for online "
+                          "subcloud: %s not found." % subcloud_name)
+            else:
+                LOG.debug("Identity or Platform endpoint for %s not "
+                          "found, ignoring for offline "
+                          "subcloud or identity sync not done." % subcloud_name)
+                return audits_done, failures
 
         except (keystone_exceptions.EndpointNotFound,
                 keystone_exceptions.ConnectFailure,
@@ -455,9 +467,11 @@ class SubcloudAuditWorkerManager(manager.Manager):
                 availability_status=avail_status_current,
                 update_state_only=True)
 
-        # If subcloud is managed and online, audit additional resources
+        # If subcloud is managed and online and the identity was synced once,
+        # audit additional resources
         if (subcloud.management_state == dccommon_consts.MANAGEMENT_MANAGED and
-                avail_to_set == dccommon_consts.AVAILABILITY_ONLINE):
+                avail_to_set == dccommon_consts.AVAILABILITY_ONLINE and
+                subcloud.first_identity_sync_complete):
             # Get alarm summary and store in db,
             if fm_client:
                 self.alarm_aggr.update_alarm_summary(subcloud_name, fm_client)

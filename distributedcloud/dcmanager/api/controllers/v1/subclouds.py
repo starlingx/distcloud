@@ -1483,6 +1483,7 @@ class SubcloudsController(object):
                     software_version=payload['software_version'],
                     management_state=dccommon_consts.MANAGEMENT_UNMANAGED,
                     deploy_status=consts.DEPLOY_STATE_PRE_INSTALL,
+                    first_identity_sync_complete=False,
                     data_install=data_install)
 
                 self.dcmanager_rpc_client.reinstall_subcloud(

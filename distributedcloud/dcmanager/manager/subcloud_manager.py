@@ -1764,16 +1764,9 @@ class SubcloudManager(manager.Manager):
             elif management_state == dccommon_consts.MANAGEMENT_MANAGED:
                 # Subcloud is managed
                 # Tell cert-mon to audit endpoint certificate
-                LOG.info('Request for managed audit for %s' % subcloud.name)
+                LOG.info('Request certmon audit for %s' % subcloud.name)
                 dc_notification = dcmanager_rpc_client.DCManagerNotifications()
                 dc_notification.subcloud_managed(context, subcloud.name)
-                # Since sysinv user is sync'ed during bootstrap, trigger the
-                # related audits. Patch and load audits are delayed until the
-                # identity resource synchronized by dcdbsync is complete.
-                exclude_endpoints = [dccommon_consts.ENDPOINT_TYPE_PATCHING,
-                                     dccommon_consts.ENDPOINT_TYPE_LOAD]
-                self.audit_rpc_client.trigger_subcloud_audits(
-                    context, subcloud_id, exclude_endpoints)
 
         return db_api.subcloud_db_model_to_dict(subcloud)
 

@@ -1,4 +1,4 @@
-# Copyright 2017-2021 Wind River Inc
+# Copyright 2017-2023 Wind River Inc
 
 # Licensed under the Apache License, Version 2.0 (the "License"); you may
 # not use this file except in compliance with the License. You may obtain
@@ -91,6 +91,10 @@ class OpenStackDriver(object):
                           (region_name, str(exception)))
                 raise exception
             except keystone_exceptions.ConnectTimeout as exception:
+                LOG.debug('keystone_client region %s error: %s' %
+                          (region_name, str(exception)))
+                raise exception
+            except keystone_exceptions.NotFound as exception:
                 LOG.debug('keystone_client region %s error: %s' %
                           (region_name, str(exception)))
                 raise exception

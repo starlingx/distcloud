@@ -10,7 +10,7 @@
 # License for the specific language governing permissions and limitations
 # under the License.
 #
-# Copyright (c) 2017-2022 Wind River Systems, Inc.
+# Copyright (c) 2017-2023 Wind River Systems, Inc.
 #
 # The right to copy, distribute, modify, or otherwise make use
 # of this software may be licensed only pursuant to the terms
@@ -131,15 +131,17 @@ class SubcloudStateManager(manager.Manager):
                                               endpoint_type,
                                               sync_status)
 
-                # Trigger subcloud patch and load audits for the subcloud after
+                # Trigger subcloud audits for the subcloud after
                 # its identity endpoint turns to other status from unknown
                 if endpoint_type == dccommon_consts.ENDPOINT_TYPE_IDENTITY \
                         and sync_status != dccommon_consts.SYNC_STATUS_UNKNOWN \
                         and original_identity_status == dccommon_consts.SYNC_STATUS_UNKNOWN:
-                    LOG.debug('Request for patch and load audit for %s after updating '
+                    if not subcloud.first_identity_sync_complete:
+                        db_api.subcloud_update(context, subcloud_id,
+                                               first_identity_sync_complete=True)
+                    LOG.debug('Request for audits for %s after updating '
                               'identity out of unknown' % subcloud.name)
-                    self.audit_rpc_client.trigger_subcloud_patch_load_audits(
-                        context, subcloud_id)
+                    self.audit_rpc_client.trigger_subcloud_audits(context, subcloud_id)
 
                 entity_instance_id = "subcloud=%s.resource=%s" % \
                                      (subcloud.name, endpoint_type)

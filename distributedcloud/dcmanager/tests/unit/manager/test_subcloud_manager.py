@@ -658,11 +658,6 @@ class TestSubcloudManager(base.DCManagerTestCase):
         fake_dcmanager_notification.subcloud_managed.assert_called_once_with(
             self.ctx, subcloud.name)
 
-        exclude_endpoints = [dccommon_consts.ENDPOINT_TYPE_PATCHING,
-                             dccommon_consts.ENDPOINT_TYPE_LOAD]
-        self.fake_dcmanager_audit_api.trigger_subcloud_audits.\
-            assert_called_once_with(self.ctx, subcloud.id, exclude_endpoints)
-
         # Verify subcloud was updated with correct values
         updated_subcloud = db_api.subcloud_get_by_name(self.ctx, subcloud.name)
         self.assertEqual(dccommon_consts.MANAGEMENT_MANAGED,
@@ -758,10 +753,6 @@ class TestSubcloudManager(base.DCManagerTestCase):
 
         fake_dcmanager_cermon_api.subcloud_managed.assert_called_once_with(
             self.ctx, subcloud.name)
-        exclude_endpoints = [dccommon_consts.ENDPOINT_TYPE_PATCHING,
-                             dccommon_consts.ENDPOINT_TYPE_LOAD]
-        self.fake_dcmanager_audit_api.trigger_subcloud_audits.\
-            assert_called_once_with(self.ctx, subcloud.id, exclude_endpoints)
 
         # Verify subcloud was updated with correct values
         updated_subcloud = db_api.subcloud_get_by_name(self.ctx, subcloud.name)
@@ -1224,7 +1215,7 @@ class TestSubcloudManager(base.DCManagerTestCase):
 
         # We trigger a subcloud audits after updating the identity from unknown
         # to in-sync
-        self.fake_dcmanager_audit_api.trigger_subcloud_patch_load_audits.\
+        self.fake_dcmanager_audit_api.trigger_subcloud_audits.\
             assert_called_once_with(self.ctx, subcloud.id)
 
         # Audit fails once
@@ -1280,6 +1271,7 @@ class TestSubcloudManager(base.DCManagerTestCase):
         # Set the subcloud to online/managed
         db_api.subcloud_update(self.ctx, subcloud.id,
                                management_state=dccommon_consts.MANAGEMENT_MANAGED,
+                               first_identity_sync_complete=True,
                                availability_status=dccommon_consts.AVAILABILITY_ONLINE)
 
         # Update identity endpoints statuses
@@ -1299,19 +1291,19 @@ class TestSubcloudManager(base.DCManagerTestCase):
                     sync_status=original_sync_status)
 
                 # Get the count of the trigger already called
-                original_trigger_subcloud_patch_load_audits_count = \
-                    self.fake_dcmanager_audit_api.trigger_subcloud_patch_load_audits.call_count
+                trigger_subcloud_audits = \
+                    self.fake_dcmanager_audit_api.trigger_subcloud_audits.call_count
 
                 # Update identity to new status and get the count of the trigger again
                 ssm.update_subcloud_endpoint_status(
                     self.ctx, subcloud_name=subcloud.name,
                     endpoint_type=endpoint,
                     sync_status=new_sync_status)
-                new_trigger_subcloud_patch_load_audits_count = \
-                    self.fake_dcmanager_audit_api.trigger_subcloud_patch_load_audits.call_count
+                new_trigger_subcloud_audits = \
+                    self.fake_dcmanager_audit_api.trigger_subcloud_audits.call_count
 
-                trigger_count = new_trigger_subcloud_patch_load_audits_count - \
-                    original_trigger_subcloud_patch_load_audits_count
+                trigger_count = new_trigger_subcloud_audits - \
+                    trigger_subcloud_audits
 
                 if original_sync_status == dccommon_consts.SYNC_STATUS_UNKNOWN and \
                    new_sync_status != dccommon_consts.SYNC_STATUS_UNKNOWN:
