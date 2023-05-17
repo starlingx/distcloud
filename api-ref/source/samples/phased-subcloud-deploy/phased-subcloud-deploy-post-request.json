@@ -1,0 +1,11 @@
+{
+    "bmc_password": "YYYYYYY",
+    "bootstrap-address": "10.10.10.12",
+    "bootstrap_values": "content of bootstrap_values file",
+    "deploy_config": "content of deploy_config file",
+    "description": "Subcloud 1",
+    "group_id": 1,
+    "install_values": "content of install_values file",
+    "location": "Somewhere",
+    "release": "22.12"
+}

@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2022 Wind River Systems, Inc.
+# Copyright (c) 2023 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -8,6 +8,7 @@ import itertools
 
 from dcmanager.api.policies import alarm_manager
 from dcmanager.api.policies import base
+from dcmanager.api.policies import phased_subcloud_deploy
 from dcmanager.api.policies import subcloud_backup
 from dcmanager.api.policies import subcloud_deploy
 from dcmanager.api.policies import subcloud_group
@@ -25,5 +26,6 @@ def list_rules():
         sw_update_strategy.list_rules(),
         sw_update_options.list_rules(),
         subcloud_group.list_rules(),
-        subcloud_backup.list_rules()
+        subcloud_backup.list_rules(),
+        phased_subcloud_deploy.list_rules()
     )

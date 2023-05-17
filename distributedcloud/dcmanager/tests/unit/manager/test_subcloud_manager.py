@@ -425,6 +425,85 @@ class TestSubcloudManager(base.DCManagerTestCase):
         self.assertEqual(self.ctx, sm.context)
 
     @mock.patch.object(subcloud_manager.SubcloudManager,
+                       '_create_intermediate_ca_cert')
+    @mock.patch.object(cutils, 'delete_subcloud_inventory')
+    @mock.patch.object(subcloud_manager, 'OpenStackDriver')
+    @mock.patch.object(subcloud_manager, 'SysinvClient')
+    @mock.patch.object(subcloud_manager.SubcloudManager,
+                       '_get_cached_regionone_data')
+    @mock.patch.object(subcloud_manager.SubcloudManager,
+                       '_create_addn_hosts_dc')
+    @mock.patch.object(cutils, 'create_subcloud_inventory')
+    @mock.patch.object(subcloud_manager.SubcloudManager,
+                       '_write_subcloud_ansible_config')
+    @mock.patch.object(subcloud_manager,
+                       'keyring')
+    def test_subcloud_deploy_create(self, mock_keyring,
+                                    mock_write_subcloud_ansible_config,
+                                    mock_create_subcloud_inventory,
+                                    mock_create_addn_hosts,
+                                    mock_get_cached_regionone_data,
+                                    mock_sysinv_client,
+                                    mock_keystone_client,
+                                    mock_delete_subcloud_inventory,
+                                    mock_create_intermediate_ca_cert):
+        values = utils.create_subcloud_dict(base.SUBCLOUD_SAMPLE_DATA_0)
+        values['deploy_status'] = consts.DEPLOY_STATE_NONE
+
+        # dcmanager add_subcloud queries the data from the db
+        subcloud = self.create_subcloud_static(self.ctx, name=values['name'])
+        values['id'] = subcloud.id
+
+        mock_keystone_client().keystone_client = FakeKeystoneClient()
+        mock_keyring.get_password.return_value = "testpassword"
+        mock_get_cached_regionone_data.return_value = FAKE_CACHED_REGIONONE_DATA
+
+        sm = subcloud_manager.SubcloudManager()
+        subcloud_dict = sm.subcloud_deploy_create(self.ctx, subcloud.id,
+                                                  payload=values)
+        mock_get_cached_regionone_data.assert_called_once()
+        mock_sysinv_client().create_route.assert_called()
+        self.fake_dcorch_api.add_subcloud.assert_called_once()
+        mock_create_addn_hosts.assert_called_once()
+        mock_create_subcloud_inventory.assert_called_once()
+        mock_write_subcloud_ansible_config.assert_called_once()
+        mock_keyring.get_password.assert_called()
+        mock_create_intermediate_ca_cert.assert_called_once()
+
+        # Verify subcloud was updated with correct values
+        self.assertEqual(consts.DEPLOY_STATE_CREATED,
+                         subcloud_dict['deploy-status'])
+
+        # Verify subcloud was updated with correct values
+        updated_subcloud = db_api.subcloud_get_by_name(self.ctx, values['name'])
+        self.assertEqual(consts.DEPLOY_STATE_CREATED,
+                         updated_subcloud.deploy_status)
+
+    @mock.patch.object(subcloud_manager, 'OpenStackDriver')
+    def test_subcloud_deploy_create_failed(self, mock_keystone_client):
+        values = utils.create_subcloud_dict(base.SUBCLOUD_SAMPLE_DATA_0)
+        values['deploy_status'] = consts.DEPLOY_STATE_NONE
+
+        # dcmanager add_subcloud queries the data from the db
+        subcloud = self.create_subcloud_static(self.ctx, name=values['name'])
+        values['id'] = subcloud.id
+
+        mock_keystone_client.side_effect = FakeException('boom')
+
+        sm = subcloud_manager.SubcloudManager()
+        subcloud_dict = sm.subcloud_deploy_create(self.ctx, subcloud.id,
+                                                  payload=values)
+
+        # Verify subcloud was updated with correct values
+        self.assertEqual(consts.DEPLOY_STATE_CREATE_FAILED,
+                         subcloud_dict['deploy-status'])
+
+        # Verify subcloud was updated with correct values
+        updated_subcloud = db_api.subcloud_get_by_name(self.ctx, values['name'])
+        self.assertEqual(consts.DEPLOY_STATE_CREATE_FAILED,
+                         updated_subcloud.deploy_status)
+
+    @mock.patch.object(subcloud_manager.SubcloudManager,
                        'compose_apply_command')
     @mock.patch.object(subcloud_manager.SubcloudManager,
                        'compose_rehome_command')
@@ -1957,7 +2036,8 @@ class TestSubcloudManager(base.DCManagerTestCase):
         sm = subcloud_manager.SubcloudManager()
         sm._backup_subcloud(self.ctx, payload=values, subcloud=subcloud)
 
-        mock_create_subcloud_inventory_file.side_effort = Exception('FakeFailure')
+        mock_create_subcloud_inventory_file.side_effect = Exception(
+            'FakeFailure')
 
         updated_subcloud = db_api.subcloud_get_by_name(self.ctx, subcloud.name)
         self.assertEqual(consts.BACKUP_STATE_PREP_FAILED,

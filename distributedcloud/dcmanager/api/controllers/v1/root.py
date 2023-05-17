@@ -1,5 +1,5 @@
 # Copyright (c) 2017 Ericsson AB.
-# Copyright (c) 2017-2021 Wind River Systems, Inc.
+# Copyright (c) 2017-2023 Wind River Systems, Inc.
 # All Rights Reserved.
 #
 #    Licensed under the Apache License, Version 2.0 (the "License"); you may
@@ -18,6 +18,7 @@ import pecan
 
 from dcmanager.api.controllers.v1 import alarm_manager
 from dcmanager.api.controllers.v1 import notifications
+from dcmanager.api.controllers.v1 import phased_subcloud_deploy
 from dcmanager.api.controllers.v1 import subcloud_backup
 from dcmanager.api.controllers.v1 import subcloud_deploy
 from dcmanager.api.controllers.v1 import subcloud_group
@@ -51,6 +52,8 @@ class Controller(object):
                 notifications.NotificationsController
             sub_controllers["subcloud-backup"] = subcloud_backup.\
                 SubcloudBackupController
+            sub_controllers["phased-subcloud-deploy"] = phased_subcloud_deploy.\
+                PhasedSubcloudDeployController
 
         for name, ctrl in sub_controllers.items():
             setattr(self, name, ctrl)
