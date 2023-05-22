@@ -945,3 +945,19 @@ def decode_and_normalize_passwd(input_passwd):
         passwd = "'" + passwd + "'"
 
     return passwd
+
+
+def get_failure_msg(subcloud_name):
+    try:
+        os_client = OpenStackDriver(region_name=subcloud_name,
+                                    region_clients=None)
+        keystone_client = os_client.keystone_client
+        endpoint = keystone_client.endpoint_cache.get_endpoint('sysinv')
+        sysinv_client = SysinvClient(subcloud_name,
+                                     keystone_client.session,
+                                     endpoint=endpoint)
+        msg = sysinv_client.get_error_msg()
+        return msg
+    except Exception as e:
+        LOG.exception("{}: {}".format(subcloud_name, e))
+        return consts.ERROR_DESC_FAILED

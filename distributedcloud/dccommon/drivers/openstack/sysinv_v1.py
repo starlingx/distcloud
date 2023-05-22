@@ -1,5 +1,5 @@
 # Copyright 2016 Ericsson AB
-# Copyright (c) 2017-2022 Wind River Systems, Inc.
+# Copyright (c) 2017-2023 Wind River Systems, Inc.
 # Licensed under the Apache License, Version 2.0 (the "License"); you may
 # not use this file except in compliance with the License. You may obtain
 # a copy of the License at
@@ -390,6 +390,10 @@ class SysinvClient(base.DriverBase):
     def get_upgrades(self):
         """Get a list of upgrades."""
         return self.sysinv_client.upgrade.list()
+
+    def get_error_msg(self):
+        """Get the upgrade message."""
+        return self.sysinv_client.upgrade.get_upgrade_msg()
 
     def upgrade_activate(self):
         """Invoke the API for 'system upgrade-activate', which is an update """

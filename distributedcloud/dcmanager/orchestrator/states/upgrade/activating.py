@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2020 Wind River Systems, Inc.
+# Copyright (c) 2023 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -7,6 +7,8 @@ import time
 
 from dcmanager.common import consts
 from dcmanager.common.exceptions import StrategyStoppedException
+from dcmanager.common import utils
+from dcmanager.db import api as db_api
 from dcmanager.orchestrator.states.base import BaseState
 
 ACTIVATING_COMPLETED_STATES = ['activation-complete',
@@ -84,8 +86,15 @@ class ActivatingUpgradeState(BaseState):
 
             # if max retries have occurred, fail the state
             if activate_retry_counter >= self.max_failed_retries:
-                raise Exception("Failed to activate upgrade. Please check "
-                                "sysinv.log on the subcloud for details.")
+                error_msg = utils.get_failure_msg(strategy_step.subcloud.name)
+                db_api.subcloud_update(
+                    self.context, strategy_step.subcloud_id,
+                    error_description=error_msg[0:consts.ERROR_DESCRIPTION_LENGTH])
+                details = ("Failed to activate upgrade. Please check "
+                           "sysinv.log on the subcloud or "
+                           "%s on central for details." %
+                           (consts.ERROR_DESC_CMD))
+                raise Exception(details)
 
             # We may need multiple attempts to issue the first activate
             # if keystone is down, impacting the ability to send the activate
@@ -137,9 +146,15 @@ class ActivatingUpgradeState(BaseState):
                 break
             audit_counter += 1
             if audit_counter >= self.max_queries:
-                raise Exception("Timeout waiting for activation to complete. "
-                                "Please check sysinv.log on the subcloud for "
-                                "details.")
+                error_msg = utils.get_failure_msg(strategy_step.subcloud.name)
+                db_api.subcloud_update(
+                    self.context, strategy_step.subcloud_id,
+                    error_description=error_msg[0:consts.ERROR_DESCRIPTION_LENGTH])
+                details = ("Timeout waiting for activation to complete. "
+                           "Please check sysinv.log on the subcloud or "
+                           "%s on central for details." %
+                           (consts.ERROR_DESC_CMD))
+                raise Exception(details)
             time.sleep(self.sleep_duration)
 
         # When we return from this method without throwing an exception, the

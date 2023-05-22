@@ -158,10 +158,13 @@ class MigratingDataState(BaseState):
             # one for orchestrator strategy_step detail (shorter than the previous).
             msg_subcloud = utils.find_ansible_error_msg(
                 strategy_step.subcloud.name, log_file, consts.DEPLOY_STATE_MIGRATING_DATA)
+            # Get script output in case it is available
+            error_msg = utils.get_failure_msg(strategy_step.subcloud.name)
+            failure = ('%s \n%s' % (error_msg, msg_subcloud))
             db_api.subcloud_update(
                 self.context, strategy_step.subcloud_id,
                 deploy_status=consts.DEPLOY_STATE_DATA_MIGRATION_FAILED,
-                error_description=msg_subcloud[0:consts.ERROR_DESCRIPTION_LENGTH])
+                error_description=failure[0:consts.ERROR_DESCRIPTION_LENGTH])
             self.error_log(strategy_step, msg_subcloud)
             self.error_log(strategy_step, str(e))
             raise
