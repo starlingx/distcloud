@@ -1,0 +1,7 @@
+{
+    "bmc_password": "YYYYYYY",
+    "install_values": "content of install_values file",
+    "release": "22.12",
+    "subcloud": "subcloud1",
+    "sysadmin_password": "XXXXXXX"
+}

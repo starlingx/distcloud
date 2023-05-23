@@ -603,7 +603,8 @@ def validate_k8s_version(payload):
         yaml file must be of the same value as fresh_install_k8s_version of
         the specified release.
     """
-    if payload['software_version'] == tsc.SW_VERSION:
+    software_version = payload['software_version']
+    if software_version == tsc.SW_VERSION:
         return
 
     kubernetes_version = payload.get(KUBERNETES_VERSION)
@@ -611,14 +612,14 @@ def validate_k8s_version(payload):
         try:
             bootstrap_var_file = utils.get_playbook_for_software_version(
                 ANSIBLE_BOOTSTRAP_VALIDATE_CONFIG_VARS,
-                payload['software_version'])
+                software_version)
             fresh_install_k8s_version = utils.get_value_from_yaml_file(
                 bootstrap_var_file,
                 FRESH_INSTALL_K8S_VERSION)
             if not fresh_install_k8s_version:
                 pecan.abort(400, _("%s not found in %s")
                             % (FRESH_INSTALL_K8S_VERSION,
-                                bootstrap_var_file))
+                               bootstrap_var_file))
             if kubernetes_version != fresh_install_k8s_version:
                 pecan.abort(400, _("The kubernetes_version value (%s) "
                                    "specified in the subcloud bootstrap "
@@ -626,12 +627,12 @@ def validate_k8s_version(payload):
                                    "fresh_install_k8s_version value (%s) "
                                    "of the specified release %s")
                             % (kubernetes_version,
-                                fresh_install_k8s_version,
-                                payload['software_version']))
+                               fresh_install_k8s_version,
+                               software_version))
         except exceptions.PlaybookNotFound:
             pecan.abort(400, _("The bootstrap playbook validate-config vars "
                                "not found for %s software version")
-                        % payload['software_version'])
+                        % software_version)
 
 
 def validate_sysadmin_password(payload: dict):
@@ -809,12 +810,42 @@ def get_request_data(request: pecan.Request,
     return payload
 
 
+def get_subcloud_db_install_values(subcloud):
+    if not subcloud.data_install:
+        msg = _("Failed to read data install from db")
+        LOG.exception(msg)
+        pecan.abort(400, msg)
+
+    install_values = json.loads(subcloud.data_install)
+
+    # mandatory install parameters
+    mandatory_install_parameters = [
+        'bootstrap_interface',
+        'bootstrap_address',
+        'bootstrap_address_prefix',
+        'bmc_username',
+        'bmc_address',
+        'bmc_password',
+    ]
+    for p in mandatory_install_parameters:
+        if p not in install_values:
+            msg = _("Failed to get %s from data_install" % p)
+            LOG.exception(msg)
+            pecan.abort(400, msg)
+
+    return install_values
+
+
 def populate_payload_with_pre_existing_data(payload: dict,
                                             subcloud: models.Subcloud,
                                             mandatory_values: typing.Sequence):
     for value in mandatory_values:
         if value == consts.INSTALL_VALUES:
-            pass
+            if not payload.get(consts.INSTALL_VALUES):
+                install_values = get_subcloud_db_install_values(subcloud)
+                payload.update({value: install_values})
+            else:
+                validate_install_values(payload)
         elif value == consts.BOOTSTRAP_VALUES:
             filename = get_config_file_path(subcloud.name)
             LOG.info("Loading existing bootstrap values from: %s" % filename)
@@ -834,3 +865,33 @@ def populate_payload_with_pre_existing_data(payload: dict,
                     pecan.abort(400, msg)
                 payload.update({value: fn})
             get_common_deploy_files(payload, subcloud.software_version)
+
+
+def pre_deploy_install(payload: dict,
+                       subcloud: models.Subcloud):
+
+    install_values = payload['install_values']
+
+    # If the software version of the subcloud is different from the
+    # specified or active load, update the software version in install
+    # value and delete the image path in install values, then the subcloud
+    # will be reinstalled using the image in dc_vault.
+    if install_values.get(
+            'software_version') != payload['software_version']:
+        install_values['software_version'] = payload['software_version']
+        install_values.pop('image', None)
+
+    # Confirm the specified or active load is still in dc-vault if
+    # image not in install values, add the matching image into the
+    # install values.
+    matching_iso, err_msg = utils.get_matching_iso(payload['software_version'])
+    if err_msg:
+        LOG.exception(err_msg)
+        pecan.abort(400, _(err_msg))
+    LOG.info("Image in install_values is set to %s" % matching_iso)
+    install_values['image'] = matching_iso
+
+    # Update the install values in payload
+    if not payload.get('bmc_password'):
+        payload.update({'bmc_password': install_values.get('bmc_password')})
+    payload.update({'install_values': install_values})

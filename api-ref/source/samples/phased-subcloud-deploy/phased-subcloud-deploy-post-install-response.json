@@ -1,0 +1,23 @@
+{
+    "id": 1,
+    "name": "subcloud1",
+    "created-at": "2023-01-02T03:04:05.678987",
+    "updated-at": "2023-04-08T15:16:23.424851",
+    "availability-status": "offline",
+    "data_install": null,
+    "data_upgrade": null,
+    "deploy-status": "pre-install",
+    "backup-status": null,
+    "backup-datetime": null,
+    "description": "Ottawa Site",
+    "group_id": 1,
+    "location": "YOW",
+    "management-end-ip": "192.168.101.50",
+    "management-gateway-ip": "192.168.101.1",
+    "management-start-ip": "192.168.101.2",
+    "management-state": "unmanaged",
+    "management-subnet": "192.168.101.0/24",
+    "openstack-installed": false,
+    "software-version": "22.12",
+    "systemcontroller-gateway-ip": "192.168.204.101"
+}

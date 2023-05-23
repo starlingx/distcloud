@@ -11,6 +11,7 @@ import json
 import mock
 from os import path as os_path
 import six
+from tsconfig.tsconfig import SW_VERSION
 import webtest
 
 from dcmanager.common import consts
@@ -28,10 +29,12 @@ from dcmanager.tests import utils
 
 FAKE_URL = '/v1.0/phased-subcloud-deploy'
 
+FAKE_SOFTWARE_VERSION = '21.12'
 FAKE_TENANT = utils.UUID1
 
 FAKE_HEADERS = {'X-Tenant-Id': FAKE_TENANT, 'X_ROLE': 'admin,member,reader',
                 'X-Identity-Status': 'Confirmed', 'X-Project-Name': 'admin'}
+FAKE_SUBCLOUD_INSTALL_VALUES = fake_subcloud.FAKE_SUBCLOUD_INSTALL_VALUES
 
 
 class FakeRPCClient(object):
@@ -305,3 +308,158 @@ class TestSubcloudDeployConfig(testroot.DCManagerApiTest):
                               self.app.patch_json, FAKE_URL + '/' +
                               str(subcloud.id) + '/configure',
                               headers=FAKE_HEADERS, params=data)
+
+
+class TestSubcloudDeployInstall(testroot.DCManagerApiTest):
+    def setUp(self):
+        super(TestSubcloudDeployInstall, self).setUp()
+        self.ctx = utils.dummy_context()
+
+        p = mock.patch.object(rpc_client, 'ManagerClient')
+        self.mock_rpc_client = p.start()
+        self.addCleanup(p.stop)
+
+        p = mock.patch.object(dutils, 'get_vault_load_files')
+        self.mock_get_vault_load_files = p.start()
+        self.addCleanup(p.stop)
+
+        p = mock.patch.object(psd_common, 'get_subcloud_db_install_values')
+        self.mock_get_subcloud_db_install_values = p.start()
+        self.addCleanup(p.stop)
+
+        p = mock.patch.object(psd_common, 'validate_k8s_version')
+        self.mock_validate_k8s_version = p.start()
+        self.addCleanup(p.stop)
+
+        p = mock.patch.object(psd_common, 'get_request_data')
+        self.mock_get_request_data = p.start()
+        self.addCleanup(p.stop)
+
+    def test_install_subcloud(self):
+
+        subcloud = fake_subcloud.create_fake_subcloud(
+            self.ctx,
+            deploy_status=consts.DEPLOY_STATE_CREATED)
+        install_data = copy.copy(FAKE_SUBCLOUD_INSTALL_VALUES)
+        install_data.pop('software_version')
+
+        fake_sysadmin_password = base64.b64encode(
+            'testpass'.encode("utf-8")).decode('utf-8')
+        fake_bmc_password = base64.b64encode(
+            'bmc_password'.encode("utf-8")).decode('utf-8')
+        bmc_password = {'bmc_password': fake_bmc_password}
+        install_data.update(bmc_password)
+        install_payload = {'install_values': install_data,
+                           'sysadmin_password': fake_sysadmin_password,
+                           'bmc_password': fake_bmc_password}
+        self.mock_get_request_data.return_value = install_payload
+        self.mock_get_subcloud_db_install_values.return_value = install_data
+
+        self.mock_rpc_client().subcloud_deploy_install.return_value = True
+        self.mock_get_vault_load_files.return_value = ('iso_file_path', 'sig_file_path')
+
+        response = self.app.patch_json(
+            FAKE_URL + '/' + str(subcloud.id) + '/install',
+            headers=FAKE_HEADERS, params=install_payload)
+
+        self.assertEqual(response.status_int, 200)
+        self.assertEqual(consts.DEPLOY_STATE_PRE_INSTALL,
+                         response.json['deploy-status'])
+        self.assertEqual(SW_VERSION, response.json['software-version'])
+
+    def test_install_subcloud_with_release_parameter(self):
+
+        subcloud = fake_subcloud.create_fake_subcloud(
+            self.ctx,
+            deploy_status=consts.DEPLOY_STATE_CREATED)
+        install_data = copy.copy(FAKE_SUBCLOUD_INSTALL_VALUES)
+        install_data.pop('software_version')
+
+        fake_sysadmin_password = base64.b64encode(
+            'testpass'.encode("utf-8")).decode('utf-8')
+        fake_bmc_password = base64.b64encode(
+            'bmc_password'.encode("utf-8")).decode('utf-8')
+        bmc_password = {'bmc_password': fake_bmc_password}
+        install_data.update(bmc_password)
+        install_payload = {'install_values': install_data,
+                           'sysadmin_password': fake_sysadmin_password,
+                           'bmc_password': fake_bmc_password,
+                           'release': FAKE_SOFTWARE_VERSION}
+        self.mock_get_request_data.return_value = install_payload
+        self.mock_get_subcloud_db_install_values.return_value = install_data
+
+        self.mock_rpc_client().subcloud_deploy_install.return_value = True
+        self.mock_get_vault_load_files.return_value = ('iso_file_path', 'sig_file_path')
+
+        response = self.app.patch_json(
+            FAKE_URL + '/' + str(subcloud.id) + '/install',
+            headers=FAKE_HEADERS, params=install_payload)
+
+        self.assertEqual(response.status_int, 200)
+        self.assertEqual(consts.DEPLOY_STATE_PRE_INSTALL,
+                         response.json['deploy-status'])
+        self.assertEqual(FAKE_SOFTWARE_VERSION,
+                         json.loads(response.json['data_install'])['software_version'])
+
+    def test_install_subcloud_no_body(self):
+
+        subcloud = fake_subcloud.create_fake_subcloud(
+            self.ctx,
+            deploy_status=consts.DEPLOY_STATE_CREATED)
+
+        self.mock_get_request_data.return_value = {}
+
+        six.assertRaisesRegex(self, webtest.app.AppError, "400 *",
+                              self.app.patch_json, FAKE_URL + '/' +
+                              str(subcloud.id) + '/install',
+                              headers=FAKE_HEADERS, params={})
+
+    def test_install_subcloud_no_install_values_on_request_or_db(self):
+
+        subcloud = fake_subcloud.create_fake_subcloud(
+            self.ctx,
+            deploy_status=consts.DEPLOY_STATE_CREATED,
+            data_install='')
+
+        fake_sysadmin_password = base64.b64encode(
+            'testpass'.encode("utf-8")).decode('utf-8')
+        fake_bmc_password = base64.b64encode(
+            'bmc_password'.encode("utf-8")).decode('utf-8')
+        install_payload = {'sysadmin_password': fake_sysadmin_password,
+                           'bmc_password': fake_bmc_password}
+        self.mock_get_request_data.return_value = install_payload
+
+        six.assertRaisesRegex(self, webtest.app.AppError, "400 *",
+                              self.app.patch_json, FAKE_URL + '/' +
+                              str(subcloud.id) + '/install',
+                              headers=FAKE_HEADERS, params=install_payload)
+
+    def test_install_subcloud_no_install_values_on_request(self):
+
+        subcloud = fake_subcloud.create_fake_subcloud(
+            self.ctx,
+            deploy_status=consts.DEPLOY_STATE_CREATED)
+        install_data = copy.copy(FAKE_SUBCLOUD_INSTALL_VALUES)
+        install_data.pop('software_version')
+
+        fake_sysadmin_password = base64.b64encode(
+            'testpass'.encode("utf-8")).decode('utf-8')
+        fake_bmc_password = base64.b64encode(
+            'bmc_password'.encode("utf-8")).decode('utf-8')
+        bmc_password = {'bmc_password': fake_bmc_password}
+        install_data.update(bmc_password)
+        install_payload = {'sysadmin_password': fake_sysadmin_password}
+        self.mock_get_request_data.return_value = install_payload
+        self.mock_get_subcloud_db_install_values.return_value = install_data
+
+        self.mock_rpc_client().subcloud_deploy_install.return_value = True
+        self.mock_get_vault_load_files.return_value = ('iso_file_path', 'sig_file_path')
+
+        response = self.app.patch_json(
+            FAKE_URL + '/' + str(subcloud.id) + '/install',
+            headers=FAKE_HEADERS, params=install_payload)
+
+        self.assertEqual(response.status_int, 200)
+        self.assertEqual(consts.DEPLOY_STATE_PRE_INSTALL,
+                         response.json['deploy-status'])
+        self.assertEqual(SW_VERSION, response.json['software-version'])

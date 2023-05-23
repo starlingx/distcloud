@@ -425,6 +425,36 @@ class TestSubcloudManager(base.DCManagerTestCase):
         self.assertEqual('localhost', sm.host)
         self.assertEqual(self.ctx, sm.context)
 
+    @mock.patch.object(
+        subcloud_manager.SubcloudManager, 'compose_install_command')
+    @mock.patch.object(threading.Thread, 'start')
+    def test_deploy_install_subcloud(self,
+                                     mock_thread_start,
+                                     mock_compose_install_command):
+
+        subcloud_name = 'subcloud1'
+        subcloud = self.create_subcloud_static(
+            self.ctx,
+            name=subcloud_name,
+            deploy_status=consts.DEPLOY_STATE_PRE_INSTALL)
+
+        fake_install_values = \
+            copy.copy(fake_subcloud.FAKE_SUBCLOUD_INSTALL_VALUES)
+        fake_install_values['software_version'] = SW_VERSION
+        fake_payload = {'bmc_password': 'bmc_pass',
+                        'install_values': fake_install_values,
+                        'software_version': FAKE_PREVIOUS_SW_VERSION,
+                        'sysadmin_password': 'sys_pass'}
+
+        sm = subcloud_manager.SubcloudManager()
+
+        sm.subcloud_deploy_install(self.ctx, subcloud.id, payload=fake_payload)
+        mock_compose_install_command.assert_called_once_with(
+            subcloud_name,
+            sm._get_ansible_filename(subcloud_name, consts.INVENTORY_FILE_POSTFIX),
+            FAKE_PREVIOUS_SW_VERSION)
+        mock_thread_start.assert_called_once()
+
     @mock.patch.object(subcloud_manager.SubcloudManager,
                        '_create_intermediate_ca_cert')
     @mock.patch.object(cutils, 'delete_subcloud_inventory')
