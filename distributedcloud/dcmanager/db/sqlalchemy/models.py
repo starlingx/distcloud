@@ -1,5 +1,5 @@
 # Copyright (c) 2015 Ericsson AB
-# Copyright (c) 2017-2022 Wind River Systems, Inc.
+# Copyright (c) 2017-2023 Wind River Systems, Inc.
 # All Rights Reserved.
 #
 #    Licensed under the Apache License, Version 2.0 (the "License"); you may
@@ -137,6 +137,7 @@ class Subcloud(BASE, DCManagerBase):
     openstack_installed = Column(Boolean, nullable=False, default=False)
     systemcontroller_gateway_ip = Column(String(255))
     audit_fail_count = Column(Integer)
+    first_identity_sync_complete = Column(Boolean, default=False)
 
     # multiple subclouds can be in a particular group
     group_id = Column(Integer,
