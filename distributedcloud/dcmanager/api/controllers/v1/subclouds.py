@@ -1216,7 +1216,7 @@ class SubcloudsController(object):
 
             if detail is not None:
                 oam_floating_ip = "unavailable"
-                config_sync_status = "unknown"
+                deploy_config_sync_status = "unknown"
                 if subcloud.availability_status == dccommon_consts.AVAILABILITY_ONLINE:
 
                     # Get the keystone client that will be used
@@ -1230,10 +1230,10 @@ class SubcloudsController(object):
                     deploy_config_state = self._get_deploy_config_sync_status(
                         context, subcloud.name, sc_ks_client)
                     if deploy_config_state is not None:
-                        config_sync_status = deploy_config_state
+                        deploy_config_sync_status = deploy_config_state
 
                 extra_details = {"oam_floating_ip": oam_floating_ip,
-                                 "config_sync_status": config_sync_status}
+                                 "deploy_config_sync_status": deploy_config_sync_status}
 
                 subcloud_dict.update(extra_details)
             return subcloud_dict

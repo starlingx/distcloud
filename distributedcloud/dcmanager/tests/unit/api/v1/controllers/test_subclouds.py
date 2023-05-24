@@ -1082,7 +1082,8 @@ class TestSubcloudAPIOther(testroot.DCManagerApiTest):
         self.assertEqual(response.content_type, 'application/json')
         self.assertEqual(response.status_code, http_client.OK)
         self.assertEqual('10.10.10.2', response.json['oam_floating_ip'])
-        self.assertEqual('Deployment: configurations up-to-date', response.json['config_sync_status'])
+        self.assertEqual(
+            'Deployment: configurations up-to-date', response.json['deploy_config_sync_status'])
 
     @mock.patch.object(rpc_client, 'ManagerClient')
     def test_get_offline_subcloud_with_additional_detail(self,
@@ -1093,7 +1094,7 @@ class TestSubcloudAPIOther(testroot.DCManagerApiTest):
         self.assertEqual(response.content_type, 'application/json')
         self.assertEqual(response.status_code, http_client.OK)
         self.assertEqual('unavailable', response.json['oam_floating_ip'])
-        self.assertEqual('unknown', response.json['config_sync_status'])
+        self.assertEqual('unknown', response.json['deploy_config_sync_status'])
 
     @mock.patch.object(subclouds.SubcloudsController,
                        '_get_deploy_config_sync_status')
@@ -1117,7 +1118,7 @@ class TestSubcloudAPIOther(testroot.DCManagerApiTest):
         response = self.app.get(get_url, headers=FAKE_HEADERS)
         self.assertEqual(response.content_type, 'application/json')
         self.assertEqual(response.status_code, http_client.OK)
-        self.assertEqual('unknown', response.json['config_sync_status'])
+        self.assertEqual('unknown', response.json['deploy_config_sync_status'])
 
     @mock.patch.object(subclouds.SubcloudsController,
                        '_get_oam_addresses')
