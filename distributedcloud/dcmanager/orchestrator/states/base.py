@@ -13,6 +13,7 @@ from dccommon.drivers.openstack.barbican import BarbicanClient
 from dccommon.drivers.openstack.fm import FmClient
 from dccommon.drivers.openstack.patching_v1 import PatchingClient
 from dccommon.drivers.openstack.sdk_platform import OpenStackDriver
+from dccommon.drivers.openstack.software_v1 import SoftwareClient
 from dccommon.drivers.openstack.sysinv_v1 import SysinvClient
 from dccommon.drivers.openstack.vim import VimClient
 from dcmanager.common import context
@@ -131,6 +132,10 @@ class BaseState(object):
     def get_patching_client(self, region_name=dccommon_consts.DEFAULT_REGION_NAME):
         keystone_client = self.get_keystone_client(region_name)
         return PatchingClient(region_name, keystone_client.session)
+
+    def get_software_client(self, region_name=dccommon_consts.DEFAULT_REGION_NAME):
+        keystone_client = self.get_keystone_client(region_name)
+        return SoftwareClient(region_name, keystone_client.session)
 
     @property
     def local_sysinv(self):
