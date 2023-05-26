@@ -26,6 +26,10 @@ CERTS_VAULT_DIR = "/opt/dc-vault/certs"
 LOADS_VAULT_DIR = "/opt/dc-vault/loads"
 PATCH_VAULT_DIR = "/opt/dc-vault/patches"
 
+BOOTSTRAP_VALUES = 'bootstrap_values'
+BOOTSTRAP_ADDRESS = 'bootstrap-address'
+INSTALL_VALUES = 'install_values'
+
 # Admin status for hosts
 ADMIN_LOCKED = 'locked'
 ADMIN_UNLOCKED = 'unlocked'
@@ -168,9 +172,13 @@ DEPLOY_STATE_PRE_INSTALL = 'pre-install'
 DEPLOY_STATE_PRE_INSTALL_FAILED = 'pre-install-failed'
 DEPLOY_STATE_INSTALLING = 'installing'
 DEPLOY_STATE_INSTALL_FAILED = 'install-failed'
-DEPLOY_STATE_INSTALLED = 'installed'
+DEPLOY_STATE_INSTALLED = 'install-complete'
+DEPLOY_STATE_PRE_BOOTSTRAP = 'pre-bootstrap'
+DEPLOY_STATE_PRE_BOOTSTRAP_FAILED = 'pre-bootstrap-failed'
 DEPLOY_STATE_BOOTSTRAPPING = 'bootstrapping'
 DEPLOY_STATE_BOOTSTRAP_FAILED = 'bootstrap-failed'
+DEPLOY_STATE_BOOTSTRAP_ABORTED = 'bootstrap-aborted'
+DEPLOY_STATE_BOOTSTRAPPED = 'bootstrap-complete'
 DEPLOY_STATE_DEPLOYING = 'deploying'
 DEPLOY_STATE_DEPLOY_FAILED = 'deploy-failed'
 DEPLOY_STATE_MIGRATING_DATA = 'migrating-data'

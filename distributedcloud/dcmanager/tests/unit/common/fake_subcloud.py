@@ -61,6 +61,19 @@ FAKE_SUBCLOUD_BOOTSTRAP_PAYLOAD = {
         (base64.b64encode('testpass'.encode("utf-8"))).decode('ascii'),
 }
 
+FAKE_BOOTSTRAP_FILE_DATA = {
+    "system_mode": "simplex",
+    "name": "fake subcloud1",
+    "management_subnet": "192.168.101.0/24",
+    "management_start_address": "192.168.101.2",
+    "management_end_address": "192.168.101.50",
+    "management_gateway_address": "192.168.101.1",
+    "external_oam_subnet": "10.10.10.0/24",
+    "external_oam_gateway_address": "10.10.10.1",
+    "external_oam_floating_address": "10.10.10.12",
+    "systemcontroller_gateway_address": "192.168.204.101",
+}
+
 FAKE_SUBCLOUD_INSTALL_VALUES = {
     "image": "http://192.168.101.2:8080/iso/bootimage.iso",
     "software_version": FAKE_SOFTWARE_VERSION,

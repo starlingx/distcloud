@@ -383,7 +383,8 @@ def subcloud_update(context, subcloud_id, management_state=None,
                     group_id=None,
                     data_install=None,
                     data_upgrade=None,
-                    first_identity_sync_complete=None):
+                    first_identity_sync_complete=None,
+                    systemcontroller_gateway_ip=None):
     with write_session() as session:
         subcloud_ref = subcloud_get(context, subcloud_id)
         if management_state is not None:
@@ -424,6 +425,9 @@ def subcloud_update(context, subcloud_id, management_state=None,
             subcloud_ref.group_id = group_id
         if first_identity_sync_complete is not None:
             subcloud_ref.first_identity_sync_complete = first_identity_sync_complete
+        if systemcontroller_gateway_ip is not None:
+            subcloud_ref.systemcontroller_gateway_ip = \
+                systemcontroller_gateway_ip
         subcloud_ref.save(session)
         return subcloud_ref
 

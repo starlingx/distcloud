@@ -22,6 +22,17 @@ phased_subcloud_deploy_rules = [
             }
         ]
     ),
+    policy.DocumentedRuleDefault(
+        name=POLICY_ROOT % 'modify',
+        check_str='rule:' + base.ADMIN_IN_SYSTEM_PROJECTS,
+        description="Modify the subcloud deployment.",
+        operations=[
+            {
+                'method': 'PATCH',
+                'path': '/v1.0/phased-subcloud-deploy/{subcloud}/bootstrap'
+            }
+        ]
+    )
 ]
 
 

@@ -7,11 +7,13 @@
 import base64
 import json
 import os
+import typing
 
 import netaddr
 from oslo_log import log as logging
 import pecan
 import tsconfig.tsconfig as tsc
+import yaml
 
 from dccommon import consts as dccommon_consts
 from dccommon.drivers.openstack import patching_v1
@@ -24,6 +26,7 @@ from dcmanager.common import exceptions
 from dcmanager.common.i18n import _
 from dcmanager.common import utils
 from dcmanager.db import api as db_api
+from dcmanager.db.sqlalchemy import models
 
 LOG = logging.getLogger(__name__)
 
@@ -148,7 +151,8 @@ def validate_system_controller_patch_status(operation: str):
                         % operation)
 
 
-def validate_subcloud_config(context, payload, operation=None):
+def validate_subcloud_config(context, payload, operation=None,
+                             ignore_conflicts_with=None):
     """Check whether subcloud config is valid."""
 
     # Validate the name
@@ -173,6 +177,10 @@ def validate_subcloud_config(context, payload, operation=None):
     subcloud_subnets = []
     subclouds = db_api.subcloud_get_all(context)
     for subcloud in subclouds:
+        # Ignore management subnet conflict with the subcloud specified by
+        # ignore_conflicts_with
+        if ignore_conflicts_with and (subcloud.id == ignore_conflicts_with.id):
+            continue
         subcloud_subnets.append(netaddr.IPNetwork(subcloud.management_subnet))
 
     MIN_MANAGEMENT_SUBNET_SIZE = 8
@@ -775,3 +783,54 @@ def add_subcloud_to_database(context, payload):
         group_id,
         data_install=data_install)
     return subcloud
+
+
+def get_request_data(request: pecan.Request,
+                     subcloud: models.Subcloud,
+                     subcloud_file_contents: typing.Sequence):
+    payload = dict()
+    for f in subcloud_file_contents:
+        if f in request.POST:
+            file_item = request.POST[f]
+            file_item.file.seek(0, os.SEEK_SET)
+            contents = file_item.file.read()
+            if subcloud.name and f == consts.DEPLOY_CONFIG:
+                fn = get_config_file_path(subcloud.name, f)
+                upload_config_file(contents, fn, f)
+                payload.update({f: fn})
+            else:
+                data = yaml.safe_load(contents.decode('utf8'))
+                if f == consts.BOOTSTRAP_VALUES:
+                    payload.update(data)
+                else:
+                    payload.update({f: data})
+            del request.POST[f]
+    payload.update(request.POST)
+    return payload
+
+
+def populate_payload_with_pre_existing_data(payload: dict,
+                                            subcloud: models.Subcloud,
+                                            mandatory_values: typing.Sequence):
+    for value in mandatory_values:
+        if value == consts.INSTALL_VALUES:
+            pass
+        elif value == consts.BOOTSTRAP_VALUES:
+            filename = get_config_file_path(subcloud.name)
+            LOG.info("Loading existing bootstrap values from: %s" % filename)
+            try:
+                existing_values = utils.load_yaml_file(filename)
+            except FileNotFoundError:
+                msg = _("Required %s file was not provided and it was not "
+                        "previously available.") % value
+                pecan.abort(400, msg)
+            payload.update(existing_values)
+        elif value == consts.DEPLOY_CONFIG:
+            if not payload.get(consts.DEPLOY_CONFIG):
+                fn = get_config_file_path(subcloud.name, value)
+                if not os.path.exists(fn):
+                    msg = _("Required %s file was not provided and it was not "
+                            "previously available.") % consts.DEPLOY_CONFIG
+                    pecan.abort(400, msg)
+                payload.update({value: fn})
+            get_common_deploy_files(payload, subcloud.software_version)

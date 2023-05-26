@@ -60,6 +60,7 @@ from dcmanager.db.sqlalchemy.models import Subcloud
 from dcmanager.rpc import client as dcmanager_rpc_client
 from dcorch.rpc import client as dcorch_rpc_client
 
+
 LOG = logging.getLogger(__name__)
 
 # Name of our distributed cloud addn_hosts file for dnsmasq
@@ -239,6 +240,7 @@ class SubcloudManager(manager.Manager):
                   software_version if software_version else SW_VERSION]
         return install_command
 
+    # TODO(gherzman): rename compose_apply_command to compose_bootstrap_command
     def compose_apply_command(self, subcloud_name,
                               ansible_subcloud_inventory_file,
                               software_version=None):
@@ -892,6 +894,86 @@ class SubcloudManager(manager.Manager):
                 deploy_status=consts.DEPLOY_STATE_CREATE_FAILED)
             return db_api.subcloud_db_model_to_dict(subcloud)
 
+    def subcloud_deploy_bootstrap(self, context, subcloud_id, payload):
+        """Bootstrap subcloud
+
+        :param context: request context object
+        :param subcloud_id: subcloud_id from db
+        :param payload: subcloud bootstrap configuration
+        """
+        LOG.info("Bootstrapping subcloud %s." % payload['name'])
+
+        try:
+            subcloud = db_api.subcloud_get(context, subcloud_id)
+
+            management_subnet = utils.get_management_subnet(payload)
+            sys_controller_gw_ip = payload.get(
+                "systemcontroller_gateway_address")
+
+            if (management_subnet != subcloud.management_subnet) or (
+                sys_controller_gw_ip != subcloud.systemcontroller_gateway_ip):
+                m_ks_client = OpenStackDriver(
+                    region_name=dccommon_consts.DEFAULT_REGION_NAME,
+                    region_clients=None).keystone_client
+                # Create a new route
+                self._create_subcloud_route(payload, m_ks_client,
+                                            sys_controller_gw_ip)
+                # Delete previous route
+                self._delete_subcloud_routes(m_ks_client, subcloud)
+                # Update endpoints
+                self._update_services_endpoint(context, payload, subcloud.name,
+                                               m_ks_client)
+
+            # Update subcloud
+            subcloud = db_api.subcloud_update(
+                context,
+                subcloud.id,
+                description=payload.get("description", None),
+                management_subnet=utils.get_management_subnet(payload),
+                management_gateway_ip=utils.get_management_gateway_address(
+                    payload),
+                management_start_ip=utils.get_management_start_address(
+                    payload),
+                management_end_ip=utils.get_management_end_address(payload),
+                systemcontroller_gateway_ip=payload.get(
+                    "systemcontroller_gateway_address", None),
+                location=payload.get("location", None),
+                deploy_status=consts.DEPLOY_STATE_PRE_BOOTSTRAP)
+
+            # Populate payload with passwords
+            payload['ansible_become_pass'] = payload['sysadmin_password']
+            payload['ansible_ssh_pass'] = payload['sysadmin_password']
+            payload['admin_password'] = str(keyring.get_password('CGCS',
+                                                                 'admin'))
+            del payload['sysadmin_password']
+
+            # Update the ansible overrides file
+            overrides_file = os.path.join(consts.ANSIBLE_OVERRIDES_PATH,
+                                          subcloud.name + '.yml')
+            utils.update_values_on_yaml_file(overrides_file, payload)
+
+            # Ansible inventory filename for the specified subcloud
+            ansible_subcloud_inventory_file = utils.get_ansible_filename(
+                subcloud.name, INVENTORY_FILE_POSTFIX)
+
+            # Update the ansible inventory for the subcloud
+            utils.create_subcloud_inventory(payload,
+                                            ansible_subcloud_inventory_file)
+
+            apply_command = self.compose_apply_command(
+                subcloud.name,
+                ansible_subcloud_inventory_file,
+                subcloud.software_version)
+
+            self.run_deploy_commands(subcloud, payload, context,
+                                     apply_command=apply_command)
+
+        except Exception:
+            LOG.exception("Failed to bootstrap subcloud %s" % payload['name'])
+            db_api.subcloud_update(
+                context, subcloud_id,
+                deploy_status=consts.DEPLOY_STATE_PRE_BOOTSTRAP_FAILED)
+
     def _subcloud_operation_notice(
             self, operation, restore_subclouds, failed_subclouds,
             invalid_subclouds):
@@ -1529,6 +1611,22 @@ class SubcloudManager(manager.Manager):
             deploy_status=consts.DEPLOY_STATE_DONE,
             error_description=consts.ERROR_DESC_EMPTY)
 
+    def run_deploy_commands(self, subcloud, payload, context,
+                            install_command=None, apply_command=None,
+                            deploy_command=None, rehome_command=None,
+                            network_reconfig=None):
+        try:
+            log_file = (
+                os.path.join(consts.DC_ANSIBLE_LOG_DIR, subcloud.name)
+                + "_playbook_output.log"
+            )
+            if apply_command:
+                self._run_subcloud_bootstrap(context, subcloud,
+                                             apply_command, log_file)
+        except Exception as ex:
+            LOG.exception("run_deploy failed")
+            raise ex
+
     @staticmethod
     def _run_subcloud_install(
             context, subcloud, install_command, log_file, payload):
@@ -1573,6 +1671,35 @@ class SubcloudManager(manager.Manager):
         install.cleanup(software_version)
         LOG.info("Successfully installed %s" % subcloud.name)
         return True
+
+    def _run_subcloud_bootstrap(self, context, subcloud,
+                                apply_command, log_file):
+        # Update the subcloud deploy_status to bootstrapping
+        db_api.subcloud_update(
+            context, subcloud.id,
+            deploy_status=consts.DEPLOY_STATE_BOOTSTRAPPING,
+            error_description=consts.ERROR_DESC_EMPTY)
+
+        # Run the ansible subcloud boostrap playbook
+        LOG.info("Starting bootstrap of %s" % subcloud.name)
+        try:
+            run_playbook(log_file, apply_command)
+        except PlaybookExecutionFailed:
+            msg = utils.find_ansible_error_msg(
+                subcloud.name, log_file, consts.DEPLOY_STATE_BOOTSTRAPPING)
+            LOG.error(msg)
+            db_api.subcloud_update(
+                context, subcloud.id,
+                deploy_status=consts.DEPLOY_STATE_BOOTSTRAP_FAILED,
+                error_description=msg[0:consts.ERROR_DESCRIPTION_LENGTH])
+            return
+
+        db_api.subcloud_update(
+            context, subcloud.id,
+            deploy_status=consts.DEPLOY_STATE_BOOTSTRAPPED,
+            error_description=consts.ERROR_DESC_EMPTY)
+
+        LOG.info("Successfully bootstrapped %s" % subcloud.name)
 
     def _create_addn_hosts_dc(self, context):
         """Generate the addn_hosts_dc file for hostname/ip translation"""
@@ -2002,7 +2129,8 @@ class SubcloudManager(manager.Manager):
             m_ks_client = OpenStackDriver(
                 region_name=dccommon_consts.DEFAULT_REGION_NAME,
                 region_clients=None).keystone_client
-            self._create_subcloud_route(payload, m_ks_client, subcloud)
+            self._create_subcloud_route(payload, m_ks_client,
+                                        subcloud.systemcontroller_gateway_ip)
         except HTTPConflict:
             # The route already exists
             LOG.warning(
@@ -2031,7 +2159,8 @@ class SubcloudManager(manager.Manager):
         # Delete old routes
         self._delete_subcloud_routes(m_ks_client, subcloud)
 
-    def _create_subcloud_route(self, payload, keystone_client, subcloud):
+    def _create_subcloud_route(self, payload, keystone_client,
+                               systemcontroller_gateway_ip):
         subcloud_subnet = netaddr.IPNetwork(utils.get_management_subnet(payload))
         endpoint = keystone_client.endpoint_cache.get_endpoint('sysinv')
         sysinv_client = SysinvClient(dccommon_consts.DEFAULT_REGION_NAME,
@@ -2043,7 +2172,7 @@ class SubcloudManager(manager.Manager):
             sysinv_client.create_route(mgmt_if_uuid,
                                        str(subcloud_subnet.ip),
                                        subcloud_subnet.prefixlen,
-                                       subcloud.systemcontroller_gateway_ip,
+                                       systemcontroller_gateway_ip,
                                        1)
 
     def _update_services_endpoint(

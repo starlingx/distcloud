@@ -18,6 +18,7 @@
 import datetime
 import grp
 import itertools
+import json
 import netaddr
 import os
 import pwd
@@ -961,6 +962,39 @@ def get_value_from_yaml_file(filename, key):
         data = yaml.load(data, Loader=yaml.SafeLoader)
         value = data.get(key)
     return value
+
+
+def update_values_on_yaml_file(filename, values, yaml_dump=True):
+    """Update all specified key values from the given yaml file.
+
+    :param filename: the yaml filename
+    :param values: dict with yaml keys and values to replace
+    :param yaml_dump: write file using yaml dump (default is True)
+    """
+    update_file = False
+    if not os.path.isfile(filename):
+        return
+    with open(os.path.abspath(filename), 'r') as f:
+        data = f.read()
+    data = yaml.load(data, Loader=yaml.SafeLoader)
+    for key, value in values.items():
+        if key not in data or value != data.get(key):
+            data.update({key: value})
+            update_file = True
+    if update_file:
+        with open(os.path.abspath(filename), 'w') as f:
+            if yaml_dump:
+                yaml.dump(data, f, sort_keys=False)
+            else:
+                f.write('---\n')
+                for k, v in data.items():
+                    f.write("%s: %s\n" % (k, json.dumps(v)))
+
+
+def load_yaml_file(filename: str):
+    with open(os.path.abspath(filename), 'r') as f:
+        data = yaml.load(f, Loader=yaml.loader.SafeLoader)
+    return data
 
 
 def decode_and_normalize_passwd(input_passwd):

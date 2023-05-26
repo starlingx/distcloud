@@ -1,0 +1,5 @@
+{
+    "bootstrap-address": "10.10.10.12",
+    "bootstrap_values": "content of bootstrap_values file",
+    "sysadmin_password": "XXXXXXX"
+}

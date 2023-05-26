@@ -24,6 +24,7 @@ from oslo_config import cfg
 from oslo_db import api
 
 from dccommon import consts as dccommon_consts
+from dcmanager.db.sqlalchemy import models
 
 CONF = cfg.CONF
 
@@ -151,7 +152,7 @@ def subcloud_get_with_status(context, subcloud_id):
     return IMPL.subcloud_get_with_status(context, subcloud_id)
 
 
-def subcloud_get_by_name(context, name):
+def subcloud_get_by_name(context, name) -> models.Subcloud:
     """Retrieve a subcloud by name or raise if it does not exist."""
     return IMPL.subcloud_get_by_name(context, name)
 
@@ -174,7 +175,9 @@ def subcloud_update(context, subcloud_id, management_state=None,
                     deploy_status=None, backup_status=None,
                     backup_datetime=None, error_description=None,
                     openstack_installed=None, group_id=None,
-                    data_install=None, data_upgrade=None, first_identity_sync_complete=None):
+                    data_install=None, data_upgrade=None,
+                    first_identity_sync_complete=None,
+                    systemcontroller_gateway_ip=None):
     """Update a subcloud or raise if it does not exist."""
     return IMPL.subcloud_update(context, subcloud_id, management_state,
                                 availability_status, software_version,
@@ -182,7 +185,9 @@ def subcloud_update(context, subcloud_id, management_state=None,
                                 management_start_ip, management_end_ip, location,
                                 audit_fail_count, deploy_status, backup_status,
                                 backup_datetime, error_description, openstack_installed,
-                                group_id, data_install, data_upgrade, first_identity_sync_complete)
+                                group_id, data_install, data_upgrade,
+                                first_identity_sync_complete,
+                                systemcontroller_gateway_ip)
 
 
 def subcloud_bulk_update_by_ids(context, subcloud_ids, update_form):

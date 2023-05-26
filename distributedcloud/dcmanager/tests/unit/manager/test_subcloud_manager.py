@@ -32,6 +32,7 @@ from dcmanager.common import consts
 from dcmanager.common import exceptions
 from dcmanager.common import prestage
 from dcmanager.common import utils as cutils
+from dcmanager.db import api as dc_db_api
 from dcmanager.db.sqlalchemy import api as db_api
 from dcmanager.manager import subcloud_manager
 from dcmanager.state import subcloud_state_manager
@@ -501,6 +502,59 @@ class TestSubcloudManager(base.DCManagerTestCase):
         # Verify subcloud was updated with correct values
         updated_subcloud = db_api.subcloud_get_by_name(self.ctx, values['name'])
         self.assertEqual(consts.DEPLOY_STATE_CREATE_FAILED,
+                         updated_subcloud.deploy_status)
+
+    @mock.patch.object(cutils, 'create_subcloud_inventory')
+    @mock.patch.object(subcloud_manager, 'keyring')
+    @mock.patch.object(cutils, 'get_playbook_for_software_version')
+    @mock.patch.object(cutils, 'update_values_on_yaml_file')
+    @mock.patch.object(subcloud_manager, 'run_playbook')
+    def test_subcloud_deploy_bootstrap(self, mock_run_playbook, mock_update_yml,
+                                       mock_get_playbook_for_software_version,
+                                       mock_keyring, create_subcloud_inventory):
+        mock_get_playbook_for_software_version.return_value = "22.12"
+        mock_keyring.get_password.return_value = "testpass"
+
+        subcloud = fake_subcloud.create_fake_subcloud(
+            self.ctx,
+            name=fake_subcloud.FAKE_BOOTSTRAP_FILE_DATA["name"],
+            deploy_status=consts.DEPLOY_STATE_INSTALLED)
+
+        payload = {**fake_subcloud.FAKE_BOOTSTRAP_VALUE,
+                   **fake_subcloud.FAKE_BOOTSTRAP_FILE_DATA}
+        payload["sysadmin_password"] = "testpass"
+
+        sm = subcloud_manager.SubcloudManager()
+        sm.subcloud_deploy_bootstrap(self.ctx, subcloud.id, payload)
+
+        mock_run_playbook.assert_called_once()
+
+        # Verify subcloud was updated with correct values
+        updated_subcloud = db_api.subcloud_get_by_name(self.ctx,
+                                                       payload['name'])
+        self.assertEqual(consts.DEPLOY_STATE_BOOTSTRAPPED,
+                         updated_subcloud.deploy_status)
+
+    @mock.patch.object(dc_db_api, 'subcloud_get')
+    def test_subcloud_deploy_bootstrap_failed(self, mock_subcloud_get):
+        mock_subcloud_get.side_effect = FakeException('boom')
+
+        subcloud = fake_subcloud.create_fake_subcloud(
+            self.ctx,
+            name=fake_subcloud.FAKE_BOOTSTRAP_FILE_DATA["name"],
+            deploy_status=consts.DEPLOY_STATE_INSTALLED)
+
+        payload = {**fake_subcloud.FAKE_BOOTSTRAP_VALUE,
+                   **fake_subcloud.FAKE_BOOTSTRAP_FILE_DATA}
+        payload["sysadmin_password"] = "testpass"
+
+        sm = subcloud_manager.SubcloudManager()
+        sm.subcloud_deploy_bootstrap(self.ctx, subcloud.id, payload)
+
+        # Verify subcloud was updated with correct values
+        updated_subcloud = db_api.subcloud_get_by_name(self.ctx,
+                                                       payload['name'])
+        self.assertEqual(consts.DEPLOY_STATE_PRE_BOOTSTRAP_FAILED,
                          updated_subcloud.deploy_status)
 
     @mock.patch.object(subcloud_manager.SubcloudManager,
