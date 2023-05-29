@@ -54,6 +54,21 @@ DC_MANAGER_GRPNAME = "root"
 # Max lines output msg from logs
 MAX_LINES_MSG = 10
 
+ABORT_UPDATE_STATUS = {
+    consts.DEPLOY_STATE_INSTALLING: consts.DEPLOY_STATE_ABORTING_INSTALL,
+    consts.DEPLOY_STATE_BOOTSTRAPPING: consts.DEPLOY_STATE_ABORTING_BOOTSTRAP,
+    consts.DEPLOY_STATE_CONFIGURING: consts.DEPLOY_STATE_ABORTING_CONFIG,
+    consts.DEPLOY_STATE_ABORTING_INSTALL: consts.DEPLOY_STATE_INSTALL_ABORTED,
+    consts.DEPLOY_STATE_ABORTING_BOOTSTRAP: consts.DEPLOY_STATE_BOOTSTRAP_ABORTED,
+    consts.DEPLOY_STATE_ABORTING_CONFIG: consts.DEPLOY_STATE_CONFIG_ABORTED
+}
+
+ABORT_UPDATE_FAIL_STATUS = {
+    consts.DEPLOY_STATE_ABORTING_INSTALL: consts.DEPLOY_STATE_INSTALL_FAILED,
+    consts.DEPLOY_STATE_ABORTING_BOOTSTRAP: consts.DEPLOY_STATE_BOOTSTRAP_FAILED,
+    consts.DEPLOY_STATE_ABORTING_CONFIG: consts.DEPLOY_STATE_CONFIG_FAILED
+}
+
 
 def get_import_path(cls):
     return cls.__module__ + "." + cls.__name__
@@ -526,7 +541,7 @@ def get_oam_addresses(subcloud_name, sc_ks_client):
 
 def get_ansible_filename(subcloud_name, postfix='.yml'):
     """Build ansible filename using subcloud and given postfix"""
-    ansible_filename = os.path.join(consts.ANSIBLE_OVERRIDES_PATH,
+    ansible_filename = os.path.join(dccommon_consts.ANSIBLE_OVERRIDES_PATH,
                                     subcloud_name + postfix)
     return ansible_filename
 
@@ -1025,3 +1040,21 @@ def get_failure_msg(subcloud_name):
     except Exception as e:
         LOG.exception("{}: {}".format(subcloud_name, e))
         return consts.ERROR_DESC_FAILED
+
+
+def update_abort_status(context, subcloud_id, deploy_status, abort_failed=False):
+    """Update the subcloud deploy status during deploy abort operation.
+
+    :param context: request context object
+    :param subcloud_id: subcloud id from db
+    :param deploy_status: subcloud deploy status from db
+    :param abort_failed: if abort process fails (default False)
+    """
+    if abort_failed:
+        abort_status_dict = ABORT_UPDATE_FAIL_STATUS
+    else:
+        abort_status_dict = ABORT_UPDATE_STATUS
+    new_deploy_status = abort_status_dict[deploy_status]
+    updated_subcloud = db_api.subcloud_update(context, subcloud_id,
+                                              deploy_status=new_deploy_status)
+    return updated_subcloud

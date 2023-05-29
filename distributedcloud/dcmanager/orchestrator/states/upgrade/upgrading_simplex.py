@@ -336,7 +336,7 @@ class UpgradingSimplexState(BaseState):
         try:
             install = SubcloudInstall(
                 self.context, strategy_step.subcloud.name)
-            install.prep(consts.ANSIBLE_OVERRIDES_PATH,
+            install.prep(dccommon_consts.ANSIBLE_OVERRIDES_PATH,
                          install_values)
         except Exception as e:
             db_api.subcloud_update(
@@ -349,7 +349,7 @@ class UpgradingSimplexState(BaseState):
             raise
 
         ansible_subcloud_inventory_file = os.path.join(
-            consts.ANSIBLE_OVERRIDES_PATH,
+            dccommon_consts.ANSIBLE_OVERRIDES_PATH,
             strategy_step.subcloud.name + consts.INVENTORY_FILE_POSTFIX)
 
         # Create the ansible inventory for the upgrade subcloud
@@ -360,7 +360,7 @@ class UpgradingSimplexState(BaseState):
         install_command = [
             "ansible-playbook", dccommon_consts.ANSIBLE_SUBCLOUD_INSTALL_PLAYBOOK,
             "-i", ansible_subcloud_inventory_file,
-            "-e", "@%s" % consts.ANSIBLE_OVERRIDES_PATH + "/" +
+            "-e", "@%s" % dccommon_consts.ANSIBLE_OVERRIDES_PATH + "/" +
                   strategy_step.subcloud.name + '/' + "install_values.yml"
         ]
 

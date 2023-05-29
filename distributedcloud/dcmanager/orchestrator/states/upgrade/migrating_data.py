@@ -6,6 +6,7 @@
 import os
 import time
 
+from dccommon import consts as dccommon_consts
 from dccommon.exceptions import PlaybookExecutionFailed
 from dccommon.utils import run_playbook
 from dcmanager.common import consts
@@ -139,7 +140,7 @@ class MigratingDataState(BaseState):
             deploy_status=consts.DEPLOY_STATE_MIGRATING_DATA)
 
         ansible_subcloud_inventory_file = os.path.join(
-            consts.ANSIBLE_OVERRIDES_PATH,
+            dccommon_consts.ANSIBLE_OVERRIDES_PATH,
             strategy_step.subcloud.name + consts.INVENTORY_FILE_POSTFIX)
         log_file = os.path.join(consts.DC_ANSIBLE_LOG_DIR, subcloud.name) + \
             '_playbook_output.log'

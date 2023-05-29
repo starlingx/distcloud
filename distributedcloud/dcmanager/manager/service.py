@@ -22,6 +22,7 @@ import oslo_messaging
 from oslo_service import service
 from oslo_utils import uuidutils
 
+from dccommon import consts as dccommon_consts
 from dccommon.subprocess_cleanup import SubprocessCleanup
 from dcmanager.audit import rpcapi as dcmanager_audit_rpc_client
 from dcmanager.common import consts
@@ -92,7 +93,7 @@ class DCManagerService(service.Service):
         if not os.path.isdir(consts.DC_ANSIBLE_LOG_DIR):
             os.mkdir(consts.DC_ANSIBLE_LOG_DIR, 0o755)
 
-        os.makedirs(consts.ANSIBLE_OVERRIDES_PATH, 0o600, exist_ok=True)
+        os.makedirs(dccommon_consts.ANSIBLE_OVERRIDES_PATH, 0o600, exist_ok=True)
 
         self.subcloud_manager.handle_subcloud_operations_in_progress()
         super(DCManagerService, self).start()
@@ -223,6 +224,14 @@ class DCManagerService(service.Service):
         return self.subcloud_manager.subcloud_deploy_install(context,
                                                              subcloud_id,
                                                              payload)
+
+    @request_context
+    def subcloud_deploy_abort(self, context, subcloud_id, deploy_status):
+        # Abort the subcloud deployment
+        LOG.info("Handling subcloud_deploy_abort request for: %s" % subcloud_id)
+        return self.subcloud_manager.subcloud_deploy_abort(context,
+                                                           subcloud_id,
+                                                           deploy_status)
 
     def _stop_rpc_server(self):
         # Stop RPC connection to prevent new requests

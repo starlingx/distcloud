@@ -203,9 +203,14 @@ class ManagerClient(RPCClient):
                                              payload=payload))
 
     def subcloud_deploy_config(self, ctxt, subcloud_id, payload):
-        return self.call(ctxt, self.make_msg('subcloud_deploy_config',
+        return self.cast(ctxt, self.make_msg('subcloud_deploy_config',
                                              subcloud_id=subcloud_id,
                                              payload=payload))
+
+    def subcloud_deploy_abort(self, ctxt, subcloud_id, deploy_status):
+        return self.cast(ctxt, self.make_msg('subcloud_deploy_abort',
+                                             subcloud_id=subcloud_id,
+                                             deploy_status=deploy_status))
 
 
 class DCManagerNotifications(RPCClient):

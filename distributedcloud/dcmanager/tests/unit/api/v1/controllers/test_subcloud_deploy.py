@@ -19,6 +19,7 @@ import mock
 from six.moves import http_client
 import webtest
 
+from dccommon import consts as dccommon_consts
 from dcmanager.api.controllers.v1 import subcloud_deploy
 from dcmanager.common import consts
 from dcmanager.common import phased_subcloud_deploy as psd_common
@@ -254,8 +255,8 @@ class TestSubcloudDeploy(testroot.DCManagerApiTest):
         deploy_config = psd_common.get_config_file_path("subcloud1",
                                                         consts.DEPLOY_CONFIG)
         self.assertEqual(bootstrap_file,
-                         f'{consts.ANSIBLE_OVERRIDES_PATH}/subcloud1.yml')
+                         f'{dccommon_consts.ANSIBLE_OVERRIDES_PATH}/subcloud1.yml')
         self.assertEqual(install_values,
-                         f'{consts.ANSIBLE_OVERRIDES_PATH}/subcloud1/install_values.yml')
+                         f'{dccommon_consts.ANSIBLE_OVERRIDES_PATH}/subcloud1/install_values.yml')
         self.assertEqual(deploy_config,
-                         f'{consts.ANSIBLE_OVERRIDES_PATH}/subcloud1_deploy_config.yml')
+                         f'{dccommon_consts.ANSIBLE_OVERRIDES_PATH}/subcloud1_deploy_config.yml')

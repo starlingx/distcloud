@@ -28,6 +28,7 @@ CLOUD_0 = "RegionOne"
 VIRTUAL_MASTER_CLOUD = "SystemController"
 
 SW_UPDATE_DEFAULT_TITLE = "all clouds default"
+ANSIBLE_OVERRIDES_PATH = '/opt/dc-vault/ansible'
 LOAD_VAULT_DIR = '/opt/dc-vault/loads'
 DEPLOY_DIR = '/opt/platform/deploy'
 
@@ -139,6 +140,10 @@ SUPPORTED_OS_TYPES = [OS_CENTOS, OS_DEBIAN]
 CERT_CA_FILE_CENTOS = "ca-cert.pem"
 CERT_CA_FILE_DEBIAN = "ca-cert.crt"
 SSL_CERT_CA_DIR = "/etc/pki/ca-trust/source/anchors/"
+
+# RVMC
+RVMC_NAME_PREFIX = 'rvmc'
+RVMC_CONFIG_FILE_NAME = 'rvmc-config.yaml'
 
 # Subcloud installation values
 BMC_INSTALL_VALUES = [

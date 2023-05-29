@@ -692,7 +692,7 @@ def upload_deploy_config_file(request, payload):
 
 
 def get_config_file_path(subcloud_name, config_file_type=None):
-    basepath = consts.ANSIBLE_OVERRIDES_PATH
+    basepath = dccommon_consts.ANSIBLE_OVERRIDES_PATH
     if config_file_type == consts.DEPLOY_CONFIG:
         filename = f"{subcloud_name}_{config_file_type}.yml"
     elif config_file_type == consts.INSTALL_VALUES:

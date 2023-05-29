@@ -463,3 +463,40 @@ class TestSubcloudDeployInstall(testroot.DCManagerApiTest):
         self.assertEqual(consts.DEPLOY_STATE_PRE_INSTALL,
                          response.json['deploy-status'])
         self.assertEqual(SW_VERSION, response.json['software-version'])
+
+
+class TestSubcloudDeployAbort(testroot.DCManagerApiTest):
+    def setUp(self):
+        super(TestSubcloudDeployAbort, self).setUp()
+        self.ctx = utils.dummy_context()
+
+        p = mock.patch.object(rpc_client, 'ManagerClient')
+        self.mock_rpc_client = p.start()
+        self.addCleanup(p.stop)
+
+    def test_abort_subcloud(self):
+        subcloud = fake_subcloud.create_fake_subcloud(
+            self.ctx,
+            deploy_status=consts.DEPLOY_STATE_INSTALLING)
+
+        self.mock_rpc_client().subcloud_deploy_abort.return_value = True
+
+        response = self.app.patch_json(FAKE_URL + '/' + str(subcloud.id) +
+                                       '/abort',
+                                       headers=FAKE_HEADERS)
+        self.mock_rpc_client().subcloud_deploy_abort.assert_called_once_with(
+            mock.ANY,
+            subcloud.id,
+            subcloud.deploy_status)
+        self.assertEqual(response.status_int, 200)
+
+    def test_abort_subcloud_invalid_deploy_status(self):
+        subcloud = fake_subcloud.create_fake_subcloud(
+            self.ctx,
+            deploy_status=consts.DEPLOY_STATE_INSTALLED)
+        self.mock_rpc_client().subcloud_deploy_config.return_value = True
+
+        six.assertRaisesRegex(self, webtest.app.AppError, "400 *",
+                              self.app.patch_json, FAKE_URL + '/' +
+                              str(subcloud.id) + '/abort',
+                              headers=FAKE_HEADERS)

@@ -44,7 +44,9 @@ from dccommon.drivers.openstack.sysinv_v1 import SysinvClient
 from dccommon.exceptions import PlaybookExecutionFailed
 from dccommon import kubeoperator
 from dccommon.subcloud_install import SubcloudInstall
+from dccommon.subcloud_install import SubcloudShutdown
 from dccommon.utils import run_playbook
+from dccommon.utils import RunAnsible
 from dcmanager.audit import rpcapi as dcmanager_audit_rpc_client
 from dcmanager.common import consts
 from dcmanager.common.consts import INVENTORY_FILE_POSTFIX
@@ -110,6 +112,9 @@ TRANSITORY_STATES = {
     consts.DEPLOY_STATE_PRE_CONFIG: consts.DEPLOY_STATE_PRE_CONFIG_FAILED,
     consts.DEPLOY_STATE_CONFIGURING: consts.DEPLOY_STATE_CONFIG_FAILED,
     consts.DEPLOY_STATE_DEPLOYING: consts.DEPLOY_STATE_DEPLOY_FAILED,
+    consts.DEPLOY_STATE_ABORTING_INSTALL: consts.DEPLOY_STATE_INSTALL_FAILED,
+    consts.DEPLOY_STATE_ABORTING_BOOTSTRAP: consts.DEPLOY_STATE_BOOTSTRAP_FAILED,
+    consts.DEPLOY_STATE_ABORTING_CONFIG: consts.DEPLOY_STATE_CONFIG_FAILED,
     consts.DEPLOY_STATE_MIGRATING_DATA: consts.DEPLOY_STATE_DATA_MIGRATION_FAILED,
     consts.DEPLOY_STATE_PRE_RESTORE: consts.DEPLOY_STATE_RESTORE_PREP_FAILED,
     consts.DEPLOY_STATE_RESTORING: consts.DEPLOY_STATE_RESTORE_FAILED,
@@ -224,7 +229,7 @@ class SubcloudManager(manager.Manager):
     @staticmethod
     def _get_ansible_filename(subcloud_name, postfix='.yml'):
         ansible_filename = os.path.join(
-            consts.ANSIBLE_OVERRIDES_PATH,
+            dccommon_consts.ANSIBLE_OVERRIDES_PATH,
             subcloud_name + postfix)
         return ansible_filename
 
@@ -235,7 +240,7 @@ class SubcloudManager(manager.Manager):
             "ansible-playbook", dccommon_consts.ANSIBLE_SUBCLOUD_INSTALL_PLAYBOOK,
             "-i", ansible_subcloud_inventory_file,
             "--limit", subcloud_name,
-            "-e", "@%s" % consts.ANSIBLE_OVERRIDES_PATH + "/" +
+            "-e", "@%s" % dccommon_consts.ANSIBLE_OVERRIDES_PATH + "/" +
                   subcloud_name + '/' + "install_values.yml",
             "-e", "install_release_version=%s" %
                   software_version if software_version else SW_VERSION]
@@ -256,7 +261,7 @@ class SubcloudManager(manager.Manager):
         # which overrides to load
         apply_command += [
             "-e", str("override_files_dir='%s' region_name=%s") % (
-                consts.ANSIBLE_OVERRIDES_PATH, subcloud_name),
+                dccommon_consts.ANSIBLE_OVERRIDES_PATH, subcloud_name),
             "-e", "install_release_version=%s" %
                   software_version if software_version else SW_VERSION]
         return apply_command
@@ -265,7 +270,7 @@ class SubcloudManager(manager.Manager):
     def compose_deploy_command(self, subcloud_name, ansible_subcloud_inventory_file, payload):
         deploy_command = [
             "ansible-playbook", payload[consts.DEPLOY_PLAYBOOK],
-            "-e", "@%s" % consts.ANSIBLE_OVERRIDES_PATH + "/" +
+            "-e", "@%s" % dccommon_consts.ANSIBLE_OVERRIDES_PATH + "/" +
                   subcloud_name + '_deploy_values.yml',
             "-i", ansible_subcloud_inventory_file,
             "--limit", subcloud_name
@@ -277,7 +282,7 @@ class SubcloudManager(manager.Manager):
             "ansible-playbook", ANSIBLE_SUBCLOUD_BACKUP_CREATE_PLAYBOOK,
             "-i", ansible_subcloud_inventory_file,
             "--limit", subcloud_name,
-            "-e", "subcloud_bnr_overrides=%s" % consts.ANSIBLE_OVERRIDES_PATH + "/" +
+            "-e", "subcloud_bnr_overrides=%s" % dccommon_consts.ANSIBLE_OVERRIDES_PATH + "/" +
             subcloud_name + "_backup_create_values.yml"]
 
         return backup_command
@@ -288,7 +293,7 @@ class SubcloudManager(manager.Manager):
             "ansible-playbook", ANSIBLE_SUBCLOUD_BACKUP_DELETE_PLAYBOOK,
             "-i", ansible_subcloud_inventory_file,
             "--limit", subcloud_name,
-            "-e", "subcloud_bnr_overrides=%s" % consts.ANSIBLE_OVERRIDES_PATH + "/" +
+            "-e", "subcloud_bnr_overrides=%s" % dccommon_consts.ANSIBLE_OVERRIDES_PATH + "/" +
             subcloud_name + "_backup_delete_values.yml"]
 
         return backup_command
@@ -298,7 +303,7 @@ class SubcloudManager(manager.Manager):
             "ansible-playbook", ANSIBLE_SUBCLOUD_BACKUP_RESTORE_PLAYBOOK,
             "-i", ansible_subcloud_inventory_file,
             "--limit", subcloud_name,
-            "-e", "subcloud_bnr_overrides=%s" % consts.ANSIBLE_OVERRIDES_PATH + "/" +
+            "-e", "subcloud_bnr_overrides=%s" % dccommon_consts.ANSIBLE_OVERRIDES_PATH + "/" +
             subcloud_name + "_backup_restore_values.yml"]
 
         return backup_command
@@ -309,7 +314,7 @@ class SubcloudManager(manager.Manager):
             "-i", ansible_subcloud_inventory_file,
             "--limit", subcloud_name,
             "--timeout", UPDATE_PLAYBOOK_TIMEOUT,
-            "-e", "subcloud_update_overrides=%s" % consts.ANSIBLE_OVERRIDES_PATH + "/" +
+            "-e", "subcloud_update_overrides=%s" % dccommon_consts.ANSIBLE_OVERRIDES_PATH + "/" +
             subcloud_name + "_update_values.yml"]
         return subcloud_update_command
 
@@ -324,7 +329,7 @@ class SubcloudManager(manager.Manager):
             "--limit", subcloud_name,
             "--timeout", REHOME_PLAYBOOK_TIMEOUT,
             "-e", str("override_files_dir='%s' region_name=%s") % (
-                consts.ANSIBLE_OVERRIDES_PATH, subcloud_name)]
+                dccommon_consts.ANSIBLE_OVERRIDES_PATH, subcloud_name)]
         return rehome_command
 
     def add_subcloud(self, context, payload):
@@ -784,6 +789,53 @@ class SubcloudManager(manager.Manager):
 
         return install_command
 
+    def subcloud_deploy_abort(self, context, subcloud_id, deploy_status):
+        """Abort the subcloud deploy
+
+        :param context: request context object
+        :param subcloud_id: subcloud id from db
+        :param deploy_status: subcloud deploy status from db
+        """
+
+        LOG.info("Aborting deployment of subcloud %s." % subcloud_id)
+        subcloud = utils.update_abort_status(context, subcloud_id, deploy_status)
+
+        try:
+            run_ansible = RunAnsible()
+            aborted = run_ansible.run_abort(subcloud.name)
+            if not aborted:
+                LOG.warning("Ansible deploy phase subprocess of %s "
+                            "was terminated before it could be aborted"
+                            % subcloud.name)
+                # let the main phase thread handle the state update
+                return
+
+            if subcloud.deploy_status == consts.DEPLOY_STATE_ABORTING_INSTALL:
+                # First delete the k8s job and pod, stopping the current
+                # installation attempt if exists
+                # Then send shutdown signal to subcloud
+                kube = kubeoperator.KubeOperator()
+                shutdown_subcloud = SubcloudShutdown(subcloud.name)
+                namespace = dccommon_consts.RVMC_NAME_PREFIX
+                jobname = '%s-%s' % (namespace, subcloud.name)
+                pod_basename = '%s-' % jobname
+                all_pods = kube.get_pods_by_namespace(namespace)
+                desired_pod = next((s for s in all_pods if pod_basename in s), None)
+                if desired_pod:
+                    kube.kube_delete_job(jobname, namespace)
+                    kube.kube_delete_pod(desired_pod, namespace)
+                    while kube.pod_exists(desired_pod, namespace):
+                        time.sleep(2)
+                shutdown_subcloud.send_shutdown_signal()
+        except Exception as ex:
+            LOG.error("Subcloud deploy abort failed for subcloud %s" % subcloud.name)
+            utils.update_abort_status(context, subcloud.id, subcloud.deploy_status,
+                                      abort_failed=True)
+            # exception is logged above
+            raise ex
+        LOG.info("Successfully aborted deployment of %s" % subcloud.name)
+        utils.update_abort_status(context, subcloud.id, subcloud.deploy_status)
+
     def subcloud_deploy_create(self, context, subcloud_id, payload):
         """Create subcloud and notify orchestrators.
 
@@ -942,13 +994,9 @@ class SubcloudManager(manager.Manager):
 
             install_command = self._deploy_install_prep(
                 subcloud, payload, ansible_subcloud_inventory_file)
+            self.run_deploy_commands(subcloud, payload, context,
+                                     install_command=install_command)
 
-            apply_thread = threading.Thread(
-                target=self.run_deploy_commands,
-                args=(subcloud, payload, context),
-                kwargs={'install_command': install_command})
-            apply_thread.start()
-            return db_api.subcloud_db_model_to_dict(subcloud)
         except Exception:
             LOG.exception("Failed to install subcloud %s" % subcloud.name)
             # If we failed to install the subcloud,
@@ -1011,7 +1059,7 @@ class SubcloudManager(manager.Manager):
             del payload['sysadmin_password']
 
             # Update the ansible overrides file
-            overrides_file = os.path.join(consts.ANSIBLE_OVERRIDES_PATH,
+            overrides_file = os.path.join(dccommon_consts.ANSIBLE_OVERRIDES_PATH,
                                           subcloud.name + '.yml')
             utils.update_values_on_yaml_file(overrides_file, payload)
 
@@ -1059,13 +1107,9 @@ class SubcloudManager(manager.Manager):
                 ansible_subcloud_inventory_file,
                 payload)
 
-            del payload['sysadmin_password']
-            apply_thread = threading.Thread(
-                target=self.run_deploy_commands,
-                args=(subcloud, payload, context),
-                kwargs={'deploy_command': deploy_command})
-            apply_thread.start()
-            return db_api.subcloud_db_model_to_dict(subcloud)
+            self.run_deploy_commands(subcloud, payload, context,
+                                     deploy_command=deploy_command)
+
         except Exception:
             LOG.exception("Failed to configure %s" % subcloud.name)
             db_api.subcloud_update(
@@ -1431,7 +1475,7 @@ class SubcloudManager(manager.Manager):
 
     def _create_backup_overrides_file(self, payload, subcloud_name, filename_suffix):
         backup_overrides_file = os.path.join(
-            consts.ANSIBLE_OVERRIDES_PATH, subcloud_name + '_' +
+            dccommon_consts.ANSIBLE_OVERRIDES_PATH, subcloud_name + '_' +
             filename_suffix + '.yml')
 
         with open(backup_overrides_file, 'w') as f_out:
@@ -1722,7 +1766,8 @@ class SubcloudManager(manager.Manager):
             if install_command:
                 install_success = self._run_subcloud_install(
                     context, subcloud, install_command,
-                    log_file, payload['install_values'])
+                    log_file, payload['install_values'],
+                    abortable=True)
                 if not install_success:
                     return
                 db_api.subcloud_update(
@@ -1731,8 +1776,10 @@ class SubcloudManager(manager.Manager):
                     error_description=consts.ERROR_DESC_EMPTY)
 
             if apply_command:
-                self._run_subcloud_bootstrap(context, subcloud,
-                                             apply_command, log_file)
+                bootstrap_success = self._run_subcloud_bootstrap(
+                    context, subcloud, apply_command, log_file)
+                if not bootstrap_success:
+                    return
 
             if deploy_command:
                 self._run_subcloud_config(subcloud, context,
@@ -1742,9 +1789,39 @@ class SubcloudManager(manager.Manager):
             LOG.exception("run_deploy failed")
             raise ex
 
+    def _run_subcloud_config(self, subcloud, context,
+                             deploy_command, log_file):
+        # Run the custom deploy playbook
+        LOG.info("Starting deploy of %s" % subcloud.name)
+        db_api.subcloud_update(
+            context, subcloud.id,
+            deploy_status=consts.DEPLOY_STATE_CONFIGURING,
+            error_description=consts.ERROR_DESC_EMPTY)
+
+        try:
+            run_ansible = RunAnsible()
+            aborted = run_ansible.exec_playbook(
+                log_file, deploy_command, subcloud.name)
+        except PlaybookExecutionFailed:
+            msg = utils.find_ansible_error_msg(
+                subcloud.name, log_file, consts.DEPLOY_STATE_CONFIGURING)
+            LOG.error(msg)
+            db_api.subcloud_update(
+                context, subcloud.id,
+                deploy_status=consts.DEPLOY_STATE_CONFIG_FAILED,
+                error_description=msg[0:consts.ERROR_DESCRIPTION_LENGTH])
+            return False
+        if aborted:
+            return False
+        LOG.info("Successfully deployed %s" % subcloud.name)
+        db_api.subcloud_update(
+            context, subcloud.id,
+            deploy_status=consts.DEPLOY_STATE_DONE,
+            error_description=consts.ERROR_DESC_EMPTY)
+
     @staticmethod
-    def _run_subcloud_install(
-            context, subcloud, install_command, log_file, payload):
+    def _run_subcloud_install(context, subcloud, install_command,
+                              log_file, payload, abortable=False):
         software_version = str(payload['software_version'])
         LOG.info("Preparing remote install of %s, version: %s",
                  subcloud.name, software_version)
@@ -1754,7 +1831,7 @@ class SubcloudManager(manager.Manager):
             software_version=software_version)
         try:
             install = SubcloudInstall(context, subcloud.name)
-            install.prep(consts.ANSIBLE_OVERRIDES_PATH, payload)
+            install.prep(dccommon_consts.ANSIBLE_OVERRIDES_PATH, payload)
         except Exception as e:
             LOG.exception(e)
             db_api.subcloud_update(
@@ -1771,7 +1848,8 @@ class SubcloudManager(manager.Manager):
             deploy_status=consts.DEPLOY_STATE_INSTALLING,
             error_description=consts.ERROR_DESC_EMPTY)
         try:
-            install.install(consts.DC_ANSIBLE_LOG_DIR, install_command)
+            aborted = install.install(
+                consts.DC_ANSIBLE_LOG_DIR, install_command, abortable=abortable)
         except Exception as e:
             msg = utils.find_ansible_error_msg(
                 subcloud.name, log_file, consts.DEPLOY_STATE_INSTALLING)
@@ -1784,6 +1862,8 @@ class SubcloudManager(manager.Manager):
             install.cleanup(software_version)
             return False
         install.cleanup(software_version)
+        if aborted:
+            return False
         LOG.info("Successfully installed %s" % subcloud.name)
         return True
 
@@ -1798,7 +1878,9 @@ class SubcloudManager(manager.Manager):
         # Run the ansible subcloud boostrap playbook
         LOG.info("Starting bootstrap of %s" % subcloud.name)
         try:
-            run_playbook(log_file, apply_command)
+            run_ansible = RunAnsible()
+            aborted = run_ansible.exec_playbook(
+                log_file, apply_command, subcloud.name)
         except PlaybookExecutionFailed:
             msg = utils.find_ansible_error_msg(
                 subcloud.name, log_file, consts.DEPLOY_STATE_BOOTSTRAPPING)
@@ -1807,7 +1889,10 @@ class SubcloudManager(manager.Manager):
                 context, subcloud.id,
                 deploy_status=consts.DEPLOY_STATE_BOOTSTRAP_FAILED,
                 error_description=msg[0:consts.ERROR_DESCRIPTION_LENGTH])
-            return
+            return False
+
+        if aborted:
+            return False
 
         db_api.subcloud_update(
             context, subcloud.id,
@@ -1815,32 +1900,7 @@ class SubcloudManager(manager.Manager):
             error_description=consts.ERROR_DESC_EMPTY)
 
         LOG.info("Successfully bootstrapped %s" % subcloud.name)
-
-    def _run_subcloud_config(self, subcloud, context,
-                             deploy_command, log_file):
-        # Run the custom deploy playbook
-        LOG.info("Starting deploy of %s" % subcloud.name)
-        db_api.subcloud_update(
-            context, subcloud.id,
-            deploy_status=consts.DEPLOY_STATE_CONFIGURING,
-            error_description=consts.ERROR_DESC_EMPTY)
-
-        try:
-            run_playbook(log_file, deploy_command)
-        except PlaybookExecutionFailed:
-            msg = utils.find_ansible_error_msg(
-                subcloud.name, log_file, consts.DEPLOY_STATE_CONFIGURING)
-            LOG.error(msg)
-            db_api.subcloud_update(
-                context, subcloud.id,
-                deploy_status=consts.DEPLOY_STATE_CONFIG_FAILED,
-                error_description=msg[0:consts.ERROR_DESCRIPTION_LENGTH])
-            return
-        LOG.info("Successfully deployed %s" % subcloud.name)
-        db_api.subcloud_update(
-            context, subcloud.id,
-            deploy_status=consts.DEPLOY_STATE_DONE,
-            error_description=consts.ERROR_DESC_EMPTY)
+        return True
 
     def _create_addn_hosts_dc(self, context):
         """Generate the addn_hosts_dc file for hostname/ip translation"""
@@ -1868,7 +1928,7 @@ class SubcloudManager(manager.Manager):
     def _write_subcloud_ansible_config(self, cached_regionone_data, payload):
         """Create the override file for usage with the specified subcloud"""
 
-        overrides_file = os.path.join(consts.ANSIBLE_OVERRIDES_PATH,
+        overrides_file = os.path.join(dccommon_consts.ANSIBLE_OVERRIDES_PATH,
                                       payload['name'] + '.yml')
 
         mgmt_pool = cached_regionone_data['mgmt_pool']
@@ -1901,7 +1961,7 @@ class SubcloudManager(manager.Manager):
         """Create the deploy value files for the subcloud"""
 
         deploy_values_file = os.path.join(
-            consts.ANSIBLE_OVERRIDES_PATH, subcloud_name +
+            dccommon_consts.ANSIBLE_OVERRIDES_PATH, subcloud_name +
             '_deploy_values.yml')
 
         with open(deploy_values_file, 'w') as f_out_deploy_values_file:
@@ -2362,7 +2422,7 @@ class SubcloudManager(manager.Manager):
     def _create_subcloud_update_overrides_file(
             self, payload, subcloud_name, filename_suffix):
         update_overrides_file = os.path.join(
-            consts.ANSIBLE_OVERRIDES_PATH, subcloud_name + '_' +
+            dccommon_consts.ANSIBLE_OVERRIDES_PATH, subcloud_name + '_' +
             filename_suffix + '.yml')
 
         self._update_override_values(payload)

@@ -119,3 +119,7 @@ class ImageNotInLocalRegistry(NotFound):
     message = _("Image %(image_name)s:%(image_tag)s not found in the local registry. "
                 "Please check with command: system registry-image-list or "
                 "system registry-image-tags %(image_name)s")
+
+
+class SubcloudShutdownError(PlaybookExecutionFailed):
+    message = _("Subcloud %(subcloud_name)s could not be shut down.")
