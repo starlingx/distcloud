@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2020-2022 Wind River Systems, Inc.
+# Copyright (c) 2020-2023 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -9,6 +9,7 @@ from dccommon.drivers.openstack.vim import ALARM_RESTRICTIONS_RELAXED
 from dcmanager.common import consts
 from dcmanager.common.exceptions import StrategyStoppedException
 from dcmanager.common import utils
+from dcmanager.db import api as db_api
 from dcmanager.orchestrator.states.base import BaseState
 
 DEFAULT_FORCE_FLAG = False
@@ -95,9 +96,15 @@ class StartingUpgradeState(BaseState):
             if upgrade_state in UPGRADE_RETRY_STATES:
                 retry_counter += 1
                 if retry_counter >= self.max_failed_retries:
-                    raise Exception("Failed to start upgrade. Please "
-                                    "check sysinv.log on the subcloud for "
-                                    "details.")
+                    error_msg = utils.get_failure_msg(strategy_step.subcloud.name)
+                    db_api.subcloud_update(
+                        self.context, strategy_step.subcloud_id,
+                        error_description=error_msg[0:consts.ERROR_DESCRIPTION_LENGTH])
+                    details = ("Failed to start upgrade. Please "
+                               "check sysinv.log on the subcloud or "
+                               "%s on central for details." %
+                               (consts.ERROR_DESC_CMD))
+                    raise Exception(details)
                 self.warn_log(strategy_step,
                               "Upgrade start failed, retrying... State=%s"
                               % upgrade_state)

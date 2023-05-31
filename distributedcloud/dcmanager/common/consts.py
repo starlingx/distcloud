@@ -186,6 +186,7 @@ DEPLOY_STATE_RECONFIGURING_NETWORK = 'reconfiguring-network'
 DEPLOY_STATE_RECONFIGURING_NETWORK_FAILED = 'network-reconfiguration-failed'
 # Subcloud errors
 ERROR_DESC_EMPTY = 'No errors present'
+ERROR_DESC_FAILED = 'Failed to get error message. Please check sysinv log'
 ERROR_DESC_CMD = 'dcmanager subcloud errors <subcloud-name>'
 
 # Static content for error messages
