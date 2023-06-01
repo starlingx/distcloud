@@ -711,6 +711,13 @@ class SubcloudsController(object):
                               "software version of %s. Please correct or remove "
                               "this parameter from the yaml file and try again.") %
                             (install_software_version, software_version))
+        else:
+            # Only install_values payload will be passed to the subcloud
+            # installation backend methods. The software_version is required by
+            # the installation, so it cannot be absent in the install_values.
+            LOG.debug("software_version (%s) is added to install_values" %
+                      software_version)
+            payload['install_values'].update({'software_version': software_version})
         if 'persistent_size' in install_values:
             persistent_size = install_values.get('persistent_size')
             if not isinstance(persistent_size, int):
