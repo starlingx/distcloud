@@ -7,7 +7,8 @@ import json
 import keyring
 import os
 
-from base64 import b64encode
+from oslo_serialization import base64
+
 from dccommon.consts import AVAILABILITY_OFFLINE
 from dccommon.install_consts import ANSIBLE_SUBCLOUD_INSTALL_PLAYBOOK
 from dccommon.subcloud_install import SubcloudInstall
@@ -297,7 +298,7 @@ class UpgradingSimplexState(BaseState):
                 # If the host is configured to store bmc in its barbican database,
                 # encode the password. Otherwise leave it as None and it will be
                 # replaced with the value retrieved from the dcmanager database.
-                bmc_password = b64encode(bmc_password)
+                bmc_password = base64.encode_as_text(bmc_password)
 
         volatile_data_install.update({
             'bmc_address': host.bm_ip,
