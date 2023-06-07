@@ -176,6 +176,7 @@ class SubcloudBackupController(object):
         subclouds = request_entity.subclouds
         error_msg = _('Subcloud(s) must be in a valid state for backup %s.' % operation)
         has_valid_subclouds = False
+        valid_subclouds = list()
         for subcloud in subclouds:
             try:
                 is_valid = utils.is_valid_for_backup_operation(operation, subcloud)
@@ -190,6 +191,7 @@ class SubcloudBackupController(object):
                                       'operation in progress.')
                 else:
                     if is_valid:
+                        valid_subclouds.append(subcloud)
                         has_valid_subclouds = True
 
             except exceptions.ValidateFail as e:
@@ -213,6 +215,7 @@ class SubcloudBackupController(object):
                 msg = error_msg
 
             pecan.abort(400, msg)
+        return valid_subclouds
 
     @staticmethod
     def _get_subclouds_from_group(group, context):
@@ -351,7 +354,8 @@ class SubcloudBackupController(object):
                                                           request_entity.id)
                 pecan.abort(400, _(msg))
 
-            self._validate_subclouds(request_entity, verb)
+            restore_subclouds = self._validate_subclouds(request_entity,
+                                                         verb)
 
             payload[request_entity.type] = request_entity.id
 
@@ -375,9 +379,12 @@ class SubcloudBackupController(object):
                          "installation" % matching_iso)
 
             try:
+                # local update to deploy_status - this is just for CLI response
+                for i in range(len(restore_subclouds)):
+                    restore_subclouds[i].deploy_status = consts.DEPLOY_STATE_PRE_RESTORE
                 message = self.dcmanager_rpc_client.restore_subcloud_backups(
                     context, payload)
-                return utils.subcloud_db_list_to_dict(request_entity.subclouds)
+                return utils.subcloud_db_list_to_dict(restore_subclouds)
             except RemoteError as e:
                 pecan.abort(422, e.value)
             except Exception:
