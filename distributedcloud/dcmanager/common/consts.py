@@ -344,7 +344,8 @@ VALID_DEPLOY_STATES_FOR_BACKUP = [DEPLOY_STATE_DONE,
                                   PRESTAGE_STATE_COMPLETE]
 
 # States to reject when processing a subcloud-backup restore request
-INVALID_DEPLOY_STATES_FOR_RESTORE = [DEPLOY_STATE_INSTALLING,
+INVALID_DEPLOY_STATES_FOR_RESTORE = [DEPLOY_STATE_PRE_INSTALL,
+                                     DEPLOY_STATE_INSTALLING,
                                      DEPLOY_STATE_BOOTSTRAPPING,
                                      DEPLOY_STATE_DEPLOYING,
                                      DEPLOY_STATE_REHOMING,
