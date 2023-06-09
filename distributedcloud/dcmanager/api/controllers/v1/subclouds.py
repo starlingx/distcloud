@@ -737,6 +737,23 @@ class SubcloudsController(object):
             if hw_settle < 0:
                 pecan.abort(400, _("hw_settle of %s seconds is less than 0") %
                             (str(hw_settle)))
+        if 'extra_boot_params' in install_values:
+            # Validate 'extra_boot_params' boot parameter
+            # Note: this must be a single string (no spaces). If
+            # multiple boot parameters are required they can be
+            # separated by commas. They will be split into separate
+            # arguments by the miniboot.cfg kickstart.
+            extra_boot_params = install_values.get('extra_boot_params')
+            if extra_boot_params in ('', None, 'None'):
+                msg = "The install value extra_boot_params must not be empty."
+                pecan.abort(400, _(msg))
+            if ' ' in extra_boot_params:
+                msg = (
+                    "Invalid install value 'extra_boot_params="
+                    f"{extra_boot_params}'. Spaces are not allowed "
+                    "(use ',' to separate multiple arguments)"
+                )
+                pecan.abort(400, _(msg))
 
         for k in install_consts.MANDATORY_INSTALL_VALUES:
             if k not in install_values:

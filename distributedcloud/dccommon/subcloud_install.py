@@ -67,6 +67,7 @@ OPTIONAL_INSTALL_VALUES = [
     'no_check_certificate',
     'persistent_size',
     'hw_settle',
+    'extra_boot_params',
 ]
 
 GEN_ISO_OPTIONS = {
@@ -82,6 +83,7 @@ GEN_ISO_OPTIONS = {
     'no_check_certificate': '--param',
     'persistent_size': '--param',
     'hw_settle': '--param',
+    'extra_boot_params': '--param',
 }
 
 BMC_OPTIONS = {
@@ -382,6 +384,10 @@ class SubcloudInstall(object):
                     # translate to 'insthwsettle' boot parameter
                     update_iso_cmd += [GEN_ISO_OPTIONS[key],
                                        ('insthwsettle=%s'
+                                        % str(values[key]))]
+                elif key == 'extra_boot_params':
+                    update_iso_cmd += [GEN_ISO_OPTIONS[key],
+                                       ('extra_boot_params=%s'
                                         % str(values[key]))]
                 else:
                     update_iso_cmd += [GEN_ISO_OPTIONS[key], str(values[key])]
