@@ -57,6 +57,7 @@ class DBAPISubcloudTest(base.DCManagerTestCase):
             'systemcontroller_gateway_ip': "192.168.204.101",
             'deploy_status': "not-deployed",
             'error_description': 'No errors present',
+            'region_name': base.SUBCLOUD_1['region_name'],
             'openstack_installed': False,
             'group_id': 1,
         }
@@ -78,6 +79,7 @@ class DBAPISubcloudTest(base.DCManagerTestCase):
                 'systemcontroller_gateway_address'],
             'deploy_status': "not-deployed",
             'error_description': 'No errors present',
+            'region_name': data['region_name'],
             'openstack_installed': False,
             'group_id': 1,
         }
@@ -143,19 +145,26 @@ class DBAPISubcloudTest(base.DCManagerTestCase):
 
     def test_create_multiple_subclouds(self):
         name1 = 'testname1'
+        region1 = base.SUBCLOUD_1['region_name']
         name2 = 'testname2'
+        region2 = base.SUBCLOUD_2['region_name']
         name3 = 'testname3'
-        subcloud = self.create_subcloud_static(self.ctx, name=name1)
+        region3 = base.SUBCLOUD_3['region_name']
+        subcloud = self.create_subcloud_static(self.ctx,
+                                               name=name1,
+                                               region_name=region1)
         self.assertIsNotNone(subcloud)
 
         subcloud2 = self.create_subcloud_static(self.ctx,
                                                 name=name2,
+                                                region_name=region2,
                                                 management_start_ip="2.3.4.6",
                                                 management_end_ip="2.3.4.7")
         self.assertIsNotNone(subcloud2)
 
         subcloud3 = self.create_subcloud_static(self.ctx,
                                                 name=name3,
+                                                region_name=region3,
                                                 management_start_ip="3.3.4.6",
                                                 management_end_ip="3.3.4.7")
         self.assertIsNotNone(subcloud3)

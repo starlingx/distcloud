@@ -28,7 +28,6 @@ from dcmanager.audit import subcloud_audit_manager
 from dcmanager.tests import base
 from dcmanager.tests import utils
 
-
 CONF = cfg.CONF
 
 
@@ -462,11 +461,14 @@ class TestFirmwareAudit(base.DCManagerTestCase):
         am.firmware_audit = fm
         firmware_audit_data = self.get_fw_audit_data(am)
 
-        for name in ['subcloud1', 'subcloud2']:
-            fm.subcloud_firmware_audit(name, firmware_audit_data)
+        subclouds = {base.SUBCLOUD_1['name']: base.SUBCLOUD_1['region_name'],
+                     base.SUBCLOUD_2['name']: base.SUBCLOUD_2['region_name']}
+        for name, region in subclouds.items():
+            fm.subcloud_firmware_audit(name, region, firmware_audit_data)
             expected_calls = [
                 mock.call(mock.ANY,
                           subcloud_name=name,
+                          subcloud_region=region,
                           endpoint_type=dccommon_consts.ENDPOINT_TYPE_FIRMWARE,
                           sync_status=dccommon_consts.SYNC_STATUS_IN_SYNC)]
             self.fake_dcmanager_state_api.update_subcloud_endpoint_status. \
@@ -494,11 +496,14 @@ class TestFirmwareAudit(base.DCManagerTestCase):
         am.firmware_audit = fm
         firmware_audit_data = self.get_fw_audit_data(am)
 
-        for name in ['subcloud1', 'subcloud2']:
-            fm.subcloud_firmware_audit(name, firmware_audit_data)
+        subclouds = {base.SUBCLOUD_1['name']: base.SUBCLOUD_1['region_name'],
+                     base.SUBCLOUD_2['name']: base.SUBCLOUD_2['region_name']}
+        for name, region in subclouds.items():
+            fm.subcloud_firmware_audit(name, region, firmware_audit_data)
             expected_calls = [
                 mock.call(mock.ANY,
                           subcloud_name=name,
+                          subcloud_region=region,
                           endpoint_type=dccommon_consts.ENDPOINT_TYPE_FIRMWARE,
                           sync_status=dccommon_consts.SYNC_STATUS_IN_SYNC)]
             self.fake_dcmanager_state_api.update_subcloud_endpoint_status. \
@@ -525,11 +530,14 @@ class TestFirmwareAudit(base.DCManagerTestCase):
         am.firmware_audit = fm
         firmware_audit_data = self.get_fw_audit_data(am)
 
-        for name in ['subcloud1', 'subcloud2']:
-            fm.subcloud_firmware_audit(name, firmware_audit_data)
+        subclouds = {base.SUBCLOUD_1['name']: base.SUBCLOUD_1['region_name'],
+                     base.SUBCLOUD_2['name']: base.SUBCLOUD_2['region_name']}
+        for name, region in subclouds.items():
+            fm.subcloud_firmware_audit(name, region, firmware_audit_data)
             expected_calls = [
                 mock.call(mock.ANY,
                           subcloud_name=name,
+                          subcloud_region=region,
                           endpoint_type=dccommon_consts.ENDPOINT_TYPE_FIRMWARE,
                           sync_status=dccommon_consts.SYNC_STATUS_IN_SYNC)]
             self.fake_dcmanager_state_api.update_subcloud_endpoint_status. \
@@ -556,11 +564,14 @@ class TestFirmwareAudit(base.DCManagerTestCase):
         am.firmware_audit = fm
         firmware_audit_data = self.get_fw_audit_data(am)
 
-        for name in ['subcloud1', 'subcloud2']:
-            fm.subcloud_firmware_audit(name, firmware_audit_data)
+        subclouds = {base.SUBCLOUD_1['name']: base.SUBCLOUD_1['region_name'],
+                     base.SUBCLOUD_2['name']: base.SUBCLOUD_2['region_name']}
+        for name, region in subclouds.items():
+            fm.subcloud_firmware_audit(name, region, firmware_audit_data)
             expected_calls = [
                 mock.call(mock.ANY,
                           subcloud_name=name,
+                          subcloud_region=region,
                           endpoint_type=dccommon_consts.ENDPOINT_TYPE_FIRMWARE,
                           sync_status=dccommon_consts.SYNC_STATUS_OUT_OF_SYNC)]
             self.fake_dcmanager_state_api.update_subcloud_endpoint_status. \
@@ -587,11 +598,14 @@ class TestFirmwareAudit(base.DCManagerTestCase):
         am.firmware_audit = fm
         firmware_audit_data = self.get_fw_audit_data(am)
 
-        for name in ['subcloud1', 'subcloud2']:
-            fm.subcloud_firmware_audit(name, firmware_audit_data)
+        subclouds = {base.SUBCLOUD_1['name']: base.SUBCLOUD_1['region_name'],
+                     base.SUBCLOUD_2['name']: base.SUBCLOUD_2['region_name']}
+        for name, region in subclouds.items():
+            fm.subcloud_firmware_audit(name, region, firmware_audit_data)
             expected_calls = [
                 mock.call(mock.ANY,
                           subcloud_name=name,
+                          subcloud_region=region,
                           endpoint_type=dccommon_consts.ENDPOINT_TYPE_FIRMWARE,
                           sync_status=dccommon_consts.SYNC_STATUS_OUT_OF_SYNC)]
             self.fake_dcmanager_state_api.update_subcloud_endpoint_status. \
@@ -618,11 +632,14 @@ class TestFirmwareAudit(base.DCManagerTestCase):
         am.firmware_audit = fm
         firmware_audit_data = self.get_fw_audit_data(am)
 
-        for name in ['subcloud1', 'subcloud2']:
-            fm.subcloud_firmware_audit(name, firmware_audit_data)
+        subclouds = {base.SUBCLOUD_1['name']: base.SUBCLOUD_1['region_name'],
+                     base.SUBCLOUD_2['name']: base.SUBCLOUD_2['region_name']}
+        for name, region in subclouds.items():
+            fm.subcloud_firmware_audit(name, region, firmware_audit_data)
             expected_calls = [
                 mock.call(mock.ANY,
                           subcloud_name=name,
+                          subcloud_region=region,
                           endpoint_type=dccommon_consts.ENDPOINT_TYPE_FIRMWARE,
                           sync_status=dccommon_consts.SYNC_STATUS_IN_SYNC)]
             self.fake_dcmanager_state_api.update_subcloud_endpoint_status. \
@@ -649,11 +666,14 @@ class TestFirmwareAudit(base.DCManagerTestCase):
         am.firmware_audit = fm
         firmware_audit_data = self.get_fw_audit_data(am)
 
-        for name in ['subcloud1', 'subcloud2']:
-            fm.subcloud_firmware_audit(name, firmware_audit_data)
+        subclouds = {base.SUBCLOUD_1['name']: base.SUBCLOUD_1['region_name'],
+                     base.SUBCLOUD_2['name']: base.SUBCLOUD_2['region_name']}
+        for name, region in subclouds.items():
+            fm.subcloud_firmware_audit(name, region, firmware_audit_data)
             expected_calls = [
                 mock.call(mock.ANY,
                           subcloud_name=name,
+                          subcloud_region=region,
                           endpoint_type=dccommon_consts.ENDPOINT_TYPE_FIRMWARE,
                           sync_status=dccommon_consts.SYNC_STATUS_IN_SYNC)]
             self.fake_dcmanager_state_api.update_subcloud_endpoint_status. \
@@ -680,11 +700,14 @@ class TestFirmwareAudit(base.DCManagerTestCase):
         am.firmware_audit = fm
         firmware_audit_data = self.get_fw_audit_data(am)
 
-        for name in ['subcloud1', 'subcloud2']:
-            fm.subcloud_firmware_audit(name, firmware_audit_data)
+        subclouds = {base.SUBCLOUD_1['name']: base.SUBCLOUD_1['region_name'],
+                     base.SUBCLOUD_2['name']: base.SUBCLOUD_2['region_name']}
+        for name, region in subclouds.items():
+            fm.subcloud_firmware_audit(name, region, firmware_audit_data)
             expected_calls = [
                 mock.call(mock.ANY,
                           subcloud_name=name,
+                          subcloud_region=region,
                           endpoint_type=dccommon_consts.ENDPOINT_TYPE_FIRMWARE,
                           sync_status=dccommon_consts.SYNC_STATUS_IN_SYNC)]
             self.fake_dcmanager_state_api.update_subcloud_endpoint_status. \

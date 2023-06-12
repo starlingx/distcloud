@@ -22,6 +22,7 @@ from dcmanager.manager import service
 from dcmanager.tests import base
 from dcmanager.tests import utils
 from oslo_config import cfg
+from oslo_utils import uuidutils
 
 CONF = cfg.CONF
 FAKE_USER = utils.UUID1
@@ -76,9 +77,11 @@ class TestDCManagerService(base.DCManagerTestCase):
 
     @mock.patch.object(service, 'SubcloudManager')
     def test_add_subcloud(self, mock_subcloud_manager):
+        payload = {'name': 'testname',
+                   'region_name': uuidutils.generate_uuid().replace("-", "")}
         self.service_obj.init_managers()
         self.service_obj.add_subcloud(
-            self.context, subcloud_id=1, payload={'name': 'testname'})
+            self.context, subcloud_id=1, payload=payload)
         mock_subcloud_manager().add_subcloud.\
             assert_called_once_with(self.context, 1, mock.ANY)
 

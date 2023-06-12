@@ -55,39 +55,47 @@ class BaseState(object):
         LOG.debug("Stage: %s, State: %s, Subcloud: %s, Details: %s"
                   % (strategy_step.stage,
                      strategy_step.state,
-                     self.get_region_name(strategy_step),
+                     self.get_subcloud_name(strategy_step),
                      details))
 
     def info_log(self, strategy_step, details):
         LOG.info("Stage: %s, State: %s, Subcloud: %s, Details: %s"
                  % (strategy_step.stage,
                     strategy_step.state,
-                    self.get_region_name(strategy_step),
+                    self.get_subcloud_name(strategy_step),
                     details))
 
     def warn_log(self, strategy_step, details):
         LOG.warn("Stage: %s, State: %s, Subcloud: %s, Details: %s"
                  % (strategy_step.stage,
                     strategy_step.state,
-                    self.get_region_name(strategy_step),
+                    self.get_subcloud_name(strategy_step),
                     details))
 
     def error_log(self, strategy_step, details):
         LOG.error("Stage: %s, State: %s, Subcloud: %s, Details: %s"
                   % (strategy_step.stage,
                      strategy_step.state,
-                     self.get_region_name(strategy_step),
+                     self.get_subcloud_name(strategy_step),
                      details))
 
     def exception_log(self, strategy_step, details):
         LOG.exception("Stage: %s, State: %s, Subcloud: %s, Details: %s"
                       % (strategy_step.stage,
                          strategy_step.state,
-                         self.get_region_name(strategy_step),
+                         self.get_subcloud_name(strategy_step),
                          details))
 
     @staticmethod
     def get_region_name(strategy_step):
+        """Get the region name for a strategy step"""
+        if strategy_step.subcloud_id is None:
+            # This is the SystemController.
+            return dccommon_consts.DEFAULT_REGION_NAME
+        return strategy_step.subcloud.region_name
+
+    @staticmethod
+    def get_subcloud_name(strategy_step):
         """Get the region name for a strategy step"""
         if strategy_step.subcloud_id is None:
             # This is the SystemController.

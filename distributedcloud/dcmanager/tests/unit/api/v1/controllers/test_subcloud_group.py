@@ -239,6 +239,7 @@ class TestSubcloudGroupGet(testroot.DCManagerApiTest,
                 FAKE_SUBCLOUD_DATA.get('systemcontroller_gateway_ip'),
             'deploy_status': FAKE_SUBCLOUD_DATA.get('deploy_status'),
             'error_description': FAKE_SUBCLOUD_DATA.get('error_description'),
+            'region_name': FAKE_SUBCLOUD_DATA.get('region_name'),
             'openstack_installed':
                 FAKE_SUBCLOUD_DATA.get('openstack_installed'),
             'group_id': FAKE_SUBCLOUD_DATA.get('group_id', 1)

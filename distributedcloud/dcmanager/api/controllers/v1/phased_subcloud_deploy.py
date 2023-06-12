@@ -171,6 +171,8 @@ class PhasedSubcloudDeployController(object):
 
         payload = get_create_payload(request)
 
+        psd_common.subcloud_region_create(payload, context)
+
         psd_common.pre_deploy_create(payload, context, request)
 
         try:

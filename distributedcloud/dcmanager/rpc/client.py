@@ -69,6 +69,7 @@ class SubcloudStateClient(RPCClient):
 
     def update_subcloud_availability(self, ctxt,
                                      subcloud_name,
+                                     subcloud_region,
                                      availability_status,
                                      update_state_only=False,
                                      audit_fail_count=None):
@@ -77,11 +78,13 @@ class SubcloudStateClient(RPCClient):
             ctxt,
             self.make_msg('update_subcloud_availability',
                           subcloud_name=subcloud_name,
+                          subcloud_region=subcloud_region,
                           availability_status=availability_status,
                           update_state_only=update_state_only,
                           audit_fail_count=audit_fail_count))
 
     def update_subcloud_endpoint_status(self, ctxt, subcloud_name=None,
+                                        subcloud_region=None,
                                         endpoint_type=None,
                                         sync_status=dccommon_consts.SYNC_STATUS_OUT_OF_SYNC,
                                         ignore_endpoints=None,
@@ -90,12 +93,14 @@ class SubcloudStateClient(RPCClient):
         # See below for synchronous method call
         return self.cast(ctxt, self.make_msg('update_subcloud_endpoint_status',
                                              subcloud_name=subcloud_name,
+                                             subcloud_region=subcloud_region,
                                              endpoint_type=endpoint_type,
                                              sync_status=sync_status,
                                              ignore_endpoints=ignore_endpoints,
                                              alarmable=alarmable))
 
     def update_subcloud_endpoint_status_sync(self, ctxt, subcloud_name=None,
+                                             subcloud_region=None,
                                              endpoint_type=None,
                                              sync_status=dccommon_consts.SYNC_STATUS_OUT_OF_SYNC,
                                              ignore_endpoints=None,
@@ -103,6 +108,7 @@ class SubcloudStateClient(RPCClient):
         # Note: synchronous
         return self.call(ctxt, self.make_msg('update_subcloud_endpoint_status',
                                              subcloud_name=subcloud_name,
+                                             subcloud_region=subcloud_region,
                                              endpoint_type=endpoint_type,
                                              sync_status=sync_status,
                                              ignore_endpoints=ignore_endpoints,
@@ -132,6 +138,12 @@ class ManagerClient(RPCClient):
     def delete_subcloud(self, ctxt, subcloud_id):
         return self.call(ctxt, self.make_msg('delete_subcloud',
                                              subcloud_id=subcloud_id))
+
+    def rename_subcloud(self, ctxt, subcloud_id, curr_subcloud_name, new_subcloud_name=None):
+        return self.call(ctxt, self.make_msg('rename_subcloud',
+                                             subcloud_id=subcloud_id,
+                                             curr_subcloud_name=curr_subcloud_name,
+                                             new_subcloud_name=new_subcloud_name))
 
     def update_subcloud(self, ctxt, subcloud_id, management_state=None,
                         description=None, location=None, group_id=None,
@@ -173,13 +185,13 @@ class ManagerClient(RPCClient):
                                              payload=payload))
 
     def update_subcloud_sync_endpoint_type(self, ctxt,
-                                           subcloud_name,
+                                           subcloud_region,
                                            endpoint_type_list,
                                            openstack_installed):
         return self.cast(
             ctxt,
             self.make_msg('update_subcloud_sync_endpoint_type',
-                          subcloud_name=subcloud_name,
+                          subcloud_region=subcloud_region,
                           endpoint_type_list=endpoint_type_list,
                           openstack_installed=openstack_installed))
 
@@ -228,6 +240,10 @@ class ManagerClient(RPCClient):
         return self.cast(ctxt, self.make_msg('migrate_subcloud',
                                              subcloud_ref=subcloud_ref,
                                              payload=payload))
+
+    def get_subcloud_name_by_region_name(self, ctxt, subcloud_region):
+        return self.call(ctxt, self.make_msg('get_subcloud_name_by_region_name',
+                                             subcloud_region=subcloud_region))
 
 
 class DCManagerNotifications(RPCClient):

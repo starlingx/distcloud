@@ -404,6 +404,10 @@ class SubcloudsController(object):
                 first_time = False
 
             for s in subcloud_list:
+                # This is to reduce changes on cert-mon
+                # Overwrites the name value with region
+                if utils.is_req_from_cert_mon_agent(request):
+                    s['name'] = s['region-name']
                 result['subclouds'].append(s)
 
             return result
@@ -421,11 +425,19 @@ class SubcloudsController(object):
                 except exceptions.SubcloudNotFound:
                     pecan.abort(404, _('Subcloud not found'))
             else:
-                # Look up subcloud by name
                 try:
-                    subcloud = db_api.subcloud_get_by_name(context,
-                                                           subcloud_ref)
-                except exceptions.SubcloudNameNotFound:
+                    # This method replaces subcloud_get_by_name, since it
+                    # allows to lookup the subcloud either by region name
+                    # or subcloud name.
+                    # When the request comes from the cert-monitor, it is
+                    # based on the region name (which is UUID format).
+                    # Whereas, if the request comes from a client other
+                    # than cert-monitor, it will do the lookup based on
+                    # the subcloud name.
+                    subcloud = db_api.subcloud_get_by_name_or_region_name(
+                        context,
+                        subcloud_ref)
+                except exceptions.SubcloudNameOrRegionNameNotFound:
                     pecan.abort(404, _('Subcloud not found'))
 
             subcloud_id = subcloud.id
@@ -448,6 +460,8 @@ class SubcloudsController(object):
 
             self._append_static_err_content(subcloud_dict)
 
+            subcloud_region = subcloud.region_name
+            subcloud_dict.pop('region-name')
             if detail is not None:
                 oam_floating_ip = "unavailable"
                 deploy_config_sync_status = "unknown"
@@ -455,19 +469,20 @@ class SubcloudsController(object):
 
                     # Get the keystone client that will be used
                     # for _get_deploy_config_sync_status and _get_oam_addresses
-                    sc_ks_client = psd_common.get_ks_client(subcloud.name)
+                    sc_ks_client = psd_common.get_ks_client(subcloud_region)
                     oam_addresses = self._get_oam_addresses(context,
-                                                            subcloud.name, sc_ks_client)
+                                                            subcloud_region, sc_ks_client)
                     if oam_addresses is not None:
                         oam_floating_ip = oam_addresses.oam_floating_ip
 
                     deploy_config_state = self._get_deploy_config_sync_status(
-                        context, subcloud.name, sc_ks_client)
+                        context, subcloud_region, sc_ks_client)
                     if deploy_config_state is not None:
                         deploy_config_sync_status = deploy_config_state
 
                 extra_details = {"oam_floating_ip": oam_floating_ip,
-                                 "deploy_config_sync_status": deploy_config_sync_status}
+                                 "deploy_config_sync_status": deploy_config_sync_status,
+                                 "region_name": subcloud_region}
 
                 subcloud_dict.update(extra_details)
             return subcloud_dict
@@ -481,6 +496,8 @@ class SubcloudsController(object):
                          restcomm.extract_credentials_for_policy())
         context = restcomm.extract_context_from_environ()
 
+        bootstrap_sc_name = psd_common.get_bootstrap_subcloud_name(request)
+
         payload = psd_common.get_request_data(request, None,
                                               SUBCLOUD_ADD_GET_FILE_CONTENTS)
 
@@ -488,9 +505,18 @@ class SubcloudsController(object):
 
         psd_common.validate_secondary_parameter(payload, request)
 
+        # Compares to match both supplied and bootstrap name param
+        # of the subcloud if migrate is on
+        if payload.get('migrate') == 'true' and bootstrap_sc_name is not None:
+            if bootstrap_sc_name != payload.get('name'):
+                pecan.abort(400, _('subcloud name does not match the '
+                                   'name defined in bootstrap file'))
+
         # No need sysadmin_password when add a secondary subcloud
         if 'secondary' not in payload:
             psd_common.validate_sysadmin_password(payload)
+
+        psd_common.subcloud_region_create(payload, context)
 
         psd_common.pre_deploy_create(payload, context, request)
 
@@ -537,12 +563,21 @@ class SubcloudsController(object):
             except exceptions.SubcloudNotFound:
                 pecan.abort(404, _('Subcloud not found'))
         else:
-            # Look up subcloud by name
             try:
-                subcloud = db_api.subcloud_get_by_name(context,
-                                                       subcloud_ref)
-            except exceptions.SubcloudNameNotFound:
-                pecan.abort(404, _('Subcloud not found'))
+                # This method replaces subcloud_get_by_name, since it
+                # allows to lookup the subcloud either by region name
+                # or subcloud name.
+                # When the request comes from the cert-monitor, it is
+                # based on the region name (which is UUID format).
+                # Whereas, if the request comes from a client other
+                # than cert-monitor, it will do the lookup based on
+                # the subcloud name.
+                subcloud = db_api.subcloud_get_by_name_or_region_name(
+                    context,
+                    subcloud_ref)
+            except exceptions.SubcloudNameOrRegionNameNotFound:
+                    pecan.abort(404, _('Subcloud not found'))
+
         subcloud_id = subcloud.id
 
         if verb is None:
@@ -550,6 +585,43 @@ class SubcloudsController(object):
             payload = self._get_patch_data(request)
             if not payload:
                 pecan.abort(400, _('Body required'))
+
+            # Rename the subcloud
+            new_subcloud_name = payload.get('name')
+            if new_subcloud_name is not None:
+                # To be renamed the subcloud must be in unmanaged and valid deploy state
+                if subcloud.management_state != dccommon_consts.MANAGEMENT_UNMANAGED \
+                    or subcloud.deploy_status not in consts.STATES_FOR_SUBCLOUD_RENAME:
+                    msg = ('Subcloud %s must be unmanaged and in a valid deploy state '
+                           'for the subcloud rename operation.' % subcloud.name)
+
+                # Validates new name
+                if not utils.is_subcloud_name_format_valid(new_subcloud_name):
+                    pecan.abort(400, _("new name must contain alphabetic characters"))
+
+                # Checks if new subcloud name is the same as the current subcloud
+                if new_subcloud_name == subcloud.name:
+                    pecan.abort(400, _('Provided subcloud name %s is the same as the '
+                                       'current subcloud %s. A different name is '
+                                       'required to rename the subcloud' %
+                                       (new_subcloud_name, subcloud.name)))
+
+                error_msg = ('Unable to rename subcloud %s with their region %s to %s' %
+                             (subcloud.name, subcloud.region_name, new_subcloud_name))
+                try:
+                    LOG.info("Renaming subcloud %s to: %s\n" % (subcloud.name,
+                                                                new_subcloud_name))
+                    sc = self.dcmanager_rpc_client.rename_subcloud(context,
+                                                                   subcloud_id,
+                                                                   subcloud.name,
+                                                                   new_subcloud_name)
+                    subcloud.name = sc['name']
+                except RemoteError as e:
+                    LOG.error(error_msg)
+                    pecan.abort(422, e.value)
+                except Exception:
+                    LOG.error(error_msg)
+                    pecan.abort(500, _('Unable to rename subcloud'))
 
             # Check if exist any network reconfiguration parameters
             reconfigure_network = any(payload.get(value) is not None for value in (
@@ -562,6 +634,7 @@ class SubcloudsController(object):
                 system_controller_mgmt_pool = psd_common.get_network_address_pool()
                 # Required parameters
                 payload['name'] = subcloud.name
+                payload['region_name'] = subcloud.region_name
                 payload['system_controller_network'] = (
                     system_controller_mgmt_pool.network)
                 payload['system_controller_network_prefix'] = (
@@ -715,7 +788,7 @@ class SubcloudsController(object):
                                'Please use /v1.0/subclouds/{subcloud}/redeploy'))
 
         elif verb == 'update_status':
-            res = self.updatestatus(subcloud.name)
+            res = self.updatestatus(subcloud.name, subcloud.region_name)
             return res
         elif verb == 'prestage':
             if utils.subcloud_is_secondary_state(subcloud.deploy_status):
@@ -816,10 +889,11 @@ class SubcloudsController(object):
             LOG.exception(e)
             pecan.abort(500, _('Unable to delete subcloud'))
 
-    def updatestatus(self, subcloud_name):
+    def updatestatus(self, subcloud_name, subcloud_region):
         """Update subcloud sync status
 
         :param subcloud_name: name of the subcloud
+        :param subcloud_region: name of the subcloud region
         :return: json result object for the operation on success
         """
 
@@ -848,7 +922,7 @@ class SubcloudsController(object):
         LOG.info('update %s set %s=%s' % (subcloud_name, endpoint, status))
         context = restcomm.extract_context_from_environ()
         self.dcmanager_state_rpc_client.update_subcloud_endpoint_status(
-            context, subcloud_name, endpoint, status)
+            context, subcloud_name, subcloud_region, endpoint, status)
 
         result = {'result': 'OK'}
         return result

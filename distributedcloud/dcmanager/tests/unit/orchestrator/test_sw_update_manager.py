@@ -17,6 +17,7 @@ import copy
 import mock
 
 from oslo_config import cfg
+from oslo_utils import uuidutils
 
 from dccommon import consts as dccommon_consts
 from dcmanager.common import consts
@@ -117,6 +118,7 @@ class TestSwUpdateManager(base.DCManagerTestCase):
             "systemcontroller_gateway_ip": "192.168.204.101",
             'deploy_status': "not-deployed",
             'error_description': 'No errors present',
+            'region_name': uuidutils.generate_uuid().replace("-", ""),
             'openstack_installed': False,
             'group_id': group_id,
             'data_install': 'data from install',

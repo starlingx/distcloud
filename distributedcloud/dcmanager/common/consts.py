@@ -418,3 +418,9 @@ ALTERNATE_DEPLOY_PLAYBOOK_DIR = ALTERNATE_DEPLOY_FILES_DIR + '/playbooks'
 DEPLOY_PLAYBOOK_POSTFIX = 'deployment-manager.yaml'
 
 SUPPORTED_UPGRADES_METADATA_FILE_PATH = '/usr/rootdirs/opt/upgrades/metadata.xml'
+
+# Required for subcloud name configuration
+CERT_MON_HTTP_AGENT = 'cert-mon/1.0'
+OS_REGION_NAME = "OS_REGION_NAME"
+STATES_FOR_SUBCLOUD_RENAME = [DEPLOY_STATE_DONE,
+                              PRESTAGE_STATE_COMPLETE]

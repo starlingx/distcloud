@@ -11,6 +11,7 @@ import typing
 
 import netaddr
 from oslo_log import log as logging
+from oslo_utils import uuidutils
 import pecan
 import tsconfig.tsconfig as tsc
 import yaml
@@ -730,7 +731,18 @@ def upload_deploy_config_file(request, payload):
         pecan.abort(400, _("No %s file uploaded" % consts.DEPLOY_CONFIG))
 
     file_item.file.seek(0, os.SEEK_SET)
-    contents = file_item.file.read()
+    file_lines = file_item.file.readlines()
+
+    # Updates the OS_REGION_NAME param which is required for deployment
+    contents = ""
+    for line in file_lines:
+        dec_line = line.decode('utf8')
+        if consts.OS_REGION_NAME in dec_line:
+            os_reg_item = dec_line.split(":")
+            dec_line = os_reg_item[0] + ": " + payload['region_name'] + "\n"
+            contents = contents + dec_line
+    contents = contents.encode()
+
     # the deploy config needs to upload to the override location
     fn = get_config_file_path(payload['name'], consts.DEPLOY_CONFIG)
     upload_config_file(contents, fn, consts.DEPLOY_CONFIG)
@@ -844,6 +856,9 @@ def add_subcloud_to_database(context, payload):
     if 'install_values' in payload:
         data_install = json.dumps(payload['install_values'])
 
+    LOG.info("Creating subcloud %s with region: %s", payload.get('name'),
+             payload.get('region_name'))
+
     subcloud = db_api.subcloud_create(
         context,
         payload['name'],
@@ -857,6 +872,7 @@ def add_subcloud_to_database(context, payload):
         payload['systemcontroller_gateway_address'],
         consts.DEPLOY_STATE_NONE,
         consts.ERROR_DESC_EMPTY,
+        payload['region_name'],
         False,
         group_id,
         data_install=data_install)
@@ -1023,3 +1039,118 @@ def pre_deploy_bootstrap(context: RequestContext, payload: dict,
     # again:
     validate_system_controller_patch_status("bootstrap")
     validate_k8s_version(payload)
+
+
+def get_bootstrap_subcloud_name(request: pecan.Request):
+    bootstrap_values = request.POST.get(consts.BOOTSTRAP_VALUES)
+    bootstrap_sc_name = None
+    if bootstrap_values is not None:
+        bootstrap_values.file.seek(0, os.SEEK_SET)
+        contents = bootstrap_values.file.read()
+        data = yaml.safe_load(contents.decode('utf8'))
+        bootstrap_sc_name = data.get('name')
+
+    return bootstrap_sc_name
+
+
+def get_region_value_from_subcloud(payload: dict):
+    subcloud_region = None
+    # It connects to the subcloud via the bootstrap-address IP and tries
+    # to get the region from it
+    if payload['bootstrap-address'] is not None:
+        try:
+            subcloud_region = utils.\
+                get_region_from_subcloud_address(payload)
+            LOG.info("Retrieved region value from subcloud to be migrated: %s"
+                     % subcloud_region)
+            if subcloud_region is None:
+                msg = ("Cannot find subcloud's region name from address: %s"
+                       % payload['bootstrap-address'])
+                LOG.error(msg)
+                raise exceptions.InvalidParameterValue(err=msg)
+        except Exception:
+            LOG.error("Unable to retrieve the region value from subcloud "
+                      "address %s" % payload['bootstrap-address'])
+            raise
+    return subcloud_region
+
+
+def is_migrate_scenario(payload: dict):
+    migrate = False
+    migrate_str = payload.get('migrate')
+
+    if migrate_str is not None:
+        if migrate_str == "true":
+            migrate = True
+    return migrate
+
+
+def generate_subcloud_unique_region(context: RequestContext, payload: dict):
+    LOG.debug("Begin generate subcloud unique region for subcloud %s"
+              % payload['name'])
+
+    is_migrate = is_migrate_scenario(payload)
+    migrate_sc_region = None
+
+    # If migration flag is present, tries to connect to subcloud to
+    # get the region value
+    if is_migrate:
+        LOG.debug("The scenario matches that of the subcloud migration, "
+                  "therefore it will try to obtain the value of the "
+                  "region from subcloud %s..." % payload['name'])
+        migrate_sc_region = get_region_value_from_subcloud(payload)
+    else:
+        LOG.debug("The scenario matches that of creating a new subcloud, "
+                  "so a region will be generated randomly for "
+                  "subcloud %s..." % payload['name'])
+    while True:
+        # If migrate flag is not present, creates a random region value
+        if not is_migrate:
+            subcloud_region = uuidutils.generate_uuid().replace("-", "")
+        else:
+            # In the migration/rehome scenario uses the region value
+            # returned by queried subcloud
+            subcloud_region = migrate_sc_region
+        # Lookup region to check if exists
+        try:
+            db_api.subcloud_get_by_region_name(context,
+                                               subcloud_region)
+            LOG.info("Subcloud region: %s already exists. "
+                     "Generating new one..." % (subcloud_region))
+            # In the migration scenario, it is intended to use the
+            # same region that the current subcloud has, therefore
+            # another region value cannot be generated.
+            if is_migrate:
+                LOG.error("Subcloud region to migrate: %s already exists "
+                          "and it is not allowed to generate a new region "
+                          "for a subcloud migration" % (subcloud_region))
+                raise exceptions.SubcloudAlreadyExists(
+                    region_name=subcloud_region)
+        except exceptions.SubcloudRegionNameNotFound:
+            break
+        except Exception:
+            message = "Unable to generate subcloud region"
+            LOG.error(message)
+            raise
+    if not is_migrate:
+        LOG.info("Generated region for new subcloud %s: %s"
+                 % (payload.get('name'), subcloud_region))
+    else:
+        LOG.info("Region for subcloud %s to be migrated: %s"
+                 % (payload.get('name'), subcloud_region))
+    return subcloud_region
+
+
+def subcloud_region_create(payload: dict, context: RequestContext):
+    try:
+        # Generates a unique region value
+        payload['region_name'] = generate_subcloud_unique_region(context,
+                                                                 payload)
+    except Exception:
+        # For logging purpose only
+        msg = "Unable to generate or retrieve region value"
+        if not is_migrate_scenario(payload):
+            msg = "Unable to generate region value to update deploy \
+                config for subcloud %s" % payload.get('name')
+        LOG.exception(msg)
+        pecan.abort(400, _(msg))

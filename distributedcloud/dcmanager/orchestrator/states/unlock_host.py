@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2020-2021 Wind River Systems, Inc.
+# Copyright (c) 2020-2023 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -61,7 +61,7 @@ class UnlockHostState(BaseState):
         """
 
         # Retrieve host from sysinv client on the subcloud
-        host = self._get_host_with_retry(strategy_step.subcloud.name)
+        host = self._get_host_with_retry(strategy_step.subcloud.region_name)
 
         # if the host is already in the desired state, no need for action
         if self.check_host_ready(host):
@@ -85,7 +85,7 @@ class UnlockHostState(BaseState):
             while True:
                 try:
                     response = self.get_sysinv_client(
-                        strategy_step.subcloud.name).unlock_host(host.id)
+                        strategy_step.subcloud.region_name).unlock_host(host.id)
                     if (response.ihost_action != 'unlock' or
                             response.task != 'Unlocking'):
                         raise Exception("Unable to unlock host %s"
@@ -113,7 +113,7 @@ class UnlockHostState(BaseState):
             try:
                 # query the administrative state to see if it is the new state.
                 host = self.get_sysinv_client(
-                    strategy_step.subcloud.name).get_host(self.target_hostname)
+                    strategy_step.subcloud.region_name).get_host(self.target_hostname)
                 if self.check_host_ready(host):
                     # Success. Break out of the loop.
                     msg = "Host: %s is now: %s %s %s" % (self.target_hostname,

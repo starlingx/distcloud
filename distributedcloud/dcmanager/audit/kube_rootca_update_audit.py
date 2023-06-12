@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2021-2022 Wind River Systems, Inc.
+# Copyright (c) 2021-2023 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -46,20 +46,21 @@ class KubeRootcaUpdateAudit(Auditor):
         """
         return []
 
-    def subcloud_audit(self, subcloud_name, region_one_audit_data):
+    def subcloud_audit(self, subcloud_name, subcloud_region, region_one_audit_data):
         """Perform an audit of kube root CA update info in a subcloud.
 
         :param subcloud_name: the name of the subcloud
+        :param subcloud_region: the region of the subcloud
         :param region_one_audit_data: ignored. Always an empty list
         """
         LOG.info("Triggered %s audit for: %s" % (self.audit_type,
                                                  subcloud_name))
         # check for a particular alarm in the subcloud
         try:
-            sc_os_client = OpenStackDriver(region_name=subcloud_name,
+            sc_os_client = OpenStackDriver(region_name=subcloud_region,
                                            region_clients=None)
             session = sc_os_client.keystone_client.session
-            fm_client = FmClient(subcloud_name, session)
+            fm_client = FmClient(subcloud_region, session)
         except (keystone_exceptions.EndpointNotFound,
                 keystone_exceptions.ConnectFailure,
                 keystone_exceptions.ConnectTimeout,
@@ -75,8 +76,8 @@ class KubeRootcaUpdateAudit(Auditor):
                     out_of_sync = True
                     break
         if out_of_sync:
-            self.set_subcloud_endpoint_out_of_sync(subcloud_name)
+            self.set_subcloud_endpoint_out_of_sync(subcloud_name, subcloud_region)
         else:
-            self.set_subcloud_endpoint_in_sync(subcloud_name)
+            self.set_subcloud_endpoint_in_sync(subcloud_name, subcloud_region)
         LOG.info("%s audit completed for: %s" % (self.audit_type,
                                                  subcloud_name))

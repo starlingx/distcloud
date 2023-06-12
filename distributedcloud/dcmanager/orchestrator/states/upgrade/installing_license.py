@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2020, 2022 Wind River Systems, Inc.
+# Copyright (c) 2020-2023 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -64,7 +64,7 @@ class InstallingLicenseState(BaseState):
 
         # retrieve the keystone session for the subcloud and query its license
         subcloud_sysinv_client = \
-            self.get_sysinv_client(strategy_step.subcloud.name)
+            self.get_sysinv_client(strategy_step.subcloud.region_name)
         subcloud_license_response = subcloud_sysinv_client.get_license()
         subcloud_license = subcloud_license_response.get('content')
         subcloud_error = subcloud_license_response.get('error')

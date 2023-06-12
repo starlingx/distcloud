@@ -111,6 +111,27 @@ class DCManagerService(service.Service):
         return self.subcloud_manager.delete_subcloud(context, subcloud_id)
 
     @request_context
+    def rename_subcloud(self, context, subcloud_id, curr_subcloud_name,
+                        new_subcloud_name=None):
+        # Rename a subcloud
+        LOG.info("Handling rename_subcloud request for: %s" %
+                 curr_subcloud_name)
+        subcloud = self.subcloud_manager.rename_subcloud(context,
+                                                         subcloud_id,
+                                                         curr_subcloud_name,
+                                                         new_subcloud_name)
+        return subcloud
+
+    @request_context
+    def get_subcloud_name_by_region_name(self, context, subcloud_region):
+        # get subcloud by region name
+        LOG.debug("Handling get_subcloud_name_by_region_name request for "
+                  "region: %s" % subcloud_region)
+        subcloud = self.subcloud_manager.get_subcloud_name_by_region_name(context,
+                                                                          subcloud_region)
+        return subcloud
+
+    @request_context
     def update_subcloud(self, context, subcloud_id, management_state=None,
                         description=None, location=None,
                         group_id=None, data_install=None, force=None,

@@ -188,7 +188,7 @@ def validate_prestage(subcloud, payload):
     initial_subcloud_validate(subcloud, installed_loads, software_version)
 
     subcloud_type, system_health, oam_floating_ip = \
-        _get_prestage_subcloud_info(subcloud.name)
+        _get_prestage_subcloud_info(subcloud)
 
     if subcloud_type != consts.SYSTEM_MODE_SIMPLEX:
         raise exceptions.PrestagePreCheckFailedException(
@@ -287,18 +287,18 @@ def _prestage_standalone_thread(context, subcloud, payload):
         raise
 
 
-def _get_prestage_subcloud_info(subcloud_name):
+def _get_prestage_subcloud_info(subcloud):
     """Retrieve prestage data from the subcloud.
 
     Pull all required data here in order to minimize keystone/sysinv client
     interactions.
     """
     try:
-        os_client = OpenStackDriver(region_name=subcloud_name,
+        os_client = OpenStackDriver(region_name=subcloud.region_name,
                                     region_clients=None)
         keystone_client = os_client.keystone_client
         endpoint = keystone_client.endpoint_cache.get_endpoint('sysinv')
-        sysinv_client = SysinvClient(subcloud_name,
+        sysinv_client = SysinvClient(subcloud.region_name,
                                      keystone_client.session,
                                      endpoint=endpoint)
         mode = sysinv_client.get_system().system_mode
@@ -309,7 +309,7 @@ def _get_prestage_subcloud_info(subcloud_name):
     except Exception as e:
         LOG.exception(e)
         raise exceptions.PrestagePreCheckFailedException(
-            subcloud=subcloud_name,
+            subcloud=subcloud.name,
             details="Failed to retrieve subcloud system mode and system health.")
 
 

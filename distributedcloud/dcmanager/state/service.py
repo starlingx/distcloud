@@ -10,7 +10,7 @@
 # License for the specific language governing permissions and limitations
 # under the License.
 #
-# Copyright (c) 2017-2022 Wind River Systems, Inc.
+# Copyright (c) 2017-2023 Wind River Systems, Inc.
 #
 # The right to copy, distribute, modify, or otherwise make use
 # of this software may be licensed only pursuant to the terms
@@ -113,6 +113,7 @@ class DCManagerStateService(service.Service):
 
     @request_context
     def update_subcloud_endpoint_status(self, context, subcloud_name=None,
+                                        subcloud_region=None,
                                         endpoint_type=None,
                                         sync_status=dccommon_consts.SYNC_STATUS_OUT_OF_SYNC,
                                         alarmable=True,
@@ -124,7 +125,7 @@ class DCManagerStateService(service.Service):
 
         self.subcloud_state_manager. \
             update_subcloud_endpoint_status(context,
-                                            subcloud_name,
+                                            subcloud_region,
                                             endpoint_type,
                                             sync_status,
                                             alarmable,
@@ -153,6 +154,7 @@ class DCManagerStateService(service.Service):
     @request_context
     def update_subcloud_availability(self, context,
                                      subcloud_name,
+                                     subcloud_region,
                                      availability_status,
                                      update_state_only=False,
                                      audit_fail_count=None):
@@ -161,7 +163,7 @@ class DCManagerStateService(service.Service):
                  subcloud_name)
         self.subcloud_state_manager.update_subcloud_availability(
             context,
-            subcloud_name,
+            subcloud_region,
             availability_status,
             update_state_only,
             audit_fail_count)

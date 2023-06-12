@@ -115,6 +115,18 @@ class SubcloudNameNotFound(NotFound):
     message = _("Subcloud with name %(name)s doesn't exist.")
 
 
+class SubcloudRegionNameNotFound(NotFound):
+    message = _("Subcloud with region name %(region_name)s doesn't exist.")
+
+
+class SubcloudNameOrRegionNameNotFound(NotFound):
+    message = _("Subcloud with name or region name %(name)s doesn't exist.")
+
+
+class SubcloudOrRegionNameAlreadyExists(Conflict):
+    message = _("Subcloud with name or region name %(name)s already exist.")
+
+
 class SubcloudNotOnline(DCManagerException):
     message = _("Subcloud is not online.")
 

@@ -13,5 +13,6 @@
     "management-gateway-ip": "192.168.205.1",
     "management-end-ip": "192.168.205.160",
     "id": 4,
-    "name": "subcloud7"
+    "name": "subcloud7",
+    "region-name": "b098933127ed408e9ad7f6e81c587edb"
 }

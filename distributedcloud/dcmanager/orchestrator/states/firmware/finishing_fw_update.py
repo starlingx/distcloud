@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2020-2022 Wind River Systems, Inc.
+# Copyright (c) 2020-2023 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -33,10 +33,11 @@ class FinishingFwUpdateState(BaseState):
                       % (dccommon_consts.ENDPOINT_TYPE_FIRMWARE,
                          dccommon_consts.SYNC_STATUS_IN_SYNC))
         dcmanager_state_rpc_client = dcmanager_rpc_client.SubcloudStateClient()
-        # The subcloud name is the same as the region in the strategy_step
+        # The subcloud name may differ from the region name in the strategy_step
         dcmanager_state_rpc_client.update_subcloud_endpoint_status(
             self.context,
-            subcloud_name=self.get_region_name(strategy_step),
+            subcloud_name=self.get_subcloud_name(strategy_step),
+            subcloud_region=self.get_region_name(strategy_step),
             endpoint_type=dccommon_consts.ENDPOINT_TYPE_FIRMWARE,
             sync_status=dccommon_consts.SYNC_STATUS_IN_SYNC)
 

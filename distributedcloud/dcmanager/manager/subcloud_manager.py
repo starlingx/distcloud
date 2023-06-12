@@ -179,10 +179,10 @@ class SubcloudManager(manager.Manager):
 
     @staticmethod
     def _create_intermediate_ca_cert(payload):
-        subcloud_name = payload["name"]
-        cert_name = SubcloudManager._get_subcloud_cert_name(subcloud_name)
+        subcloud_region = payload["region_name"]
+        cert_name = SubcloudManager._get_subcloud_cert_name(subcloud_region)
         secret_name = SubcloudManager._get_subcloud_cert_secret_name(
-            subcloud_name)
+            subcloud_region)
 
         cert = {
             "apiVersion": "%s/%s" % (kubeoperator.CERT_MANAGER_GROUP,
@@ -255,6 +255,7 @@ class SubcloudManager(manager.Manager):
         return install_command
 
     def compose_bootstrap_command(self, subcloud_name,
+                                  subcloud_region,
                                   ansible_subcloud_inventory_file,
                                   software_version=None):
         bootstrap_command = [
@@ -268,7 +269,7 @@ class SubcloudManager(manager.Manager):
         # which overrides to load
         bootstrap_command += [
             "-e", str("override_files_dir='%s' region_name=%s") % (
-                dccommon_consts.ANSIBLE_OVERRIDES_PATH, subcloud_name),
+                dccommon_consts.ANSIBLE_OVERRIDES_PATH, subcloud_region),
             "-e", "install_release_version=%s" %
                   software_version if software_version else SW_VERSION]
         return bootstrap_command
@@ -324,7 +325,7 @@ class SubcloudManager(manager.Manager):
             subcloud_name + "_update_values.yml"]
         return subcloud_update_command
 
-    def compose_rehome_command(self, subcloud_name,
+    def compose_rehome_command(self, subcloud_name, subcloud_region,
                                ansible_subcloud_inventory_file,
                                software_version):
         rehome_command = [
@@ -335,7 +336,7 @@ class SubcloudManager(manager.Manager):
             "--limit", subcloud_name,
             "--timeout", REHOME_PLAYBOOK_TIMEOUT,
             "-e", str("override_files_dir='%s' region_name=%s") % (
-                dccommon_consts.ANSIBLE_OVERRIDES_PATH, subcloud_name)]
+                dccommon_consts.ANSIBLE_OVERRIDES_PATH, subcloud_region)]
         return rehome_command
 
     def migrate_subcloud(self, context, subcloud_ref, payload):
@@ -394,6 +395,7 @@ class SubcloudManager(manager.Manager):
 
         rehome_command = self.compose_rehome_command(
             subcloud.name,
+            subcloud.region_name,
             ansible_subcloud_inventory_file,
             subcloud.software_version)
 
@@ -407,7 +409,7 @@ class SubcloudManager(manager.Manager):
         :param subcloud_id: id of the subcloud
         :param payload: subcloud configuration
         """
-        LOG.info(f"Adding subcloud {payload['name']}.")
+        LOG.info(f"Adding subcloud {payload['name']} with region {payload['region_name']}.")
 
         rehoming = payload.get('migrate', '').lower() == "true"
         secondary = (payload.get('secondary', '').lower() == "true")
@@ -653,6 +655,7 @@ class SubcloudManager(manager.Manager):
 
         bootstrap_command = self.compose_bootstrap_command(
             subcloud.name,
+            subcloud.region_name,
             ansible_subcloud_inventory_file,
             subcloud.software_version)
         return bootstrap_command
@@ -923,7 +926,7 @@ class SubcloudManager(manager.Manager):
                         endpoint["id"],
                         endpoint['admin_endpoint_url'],
                         interface=dccommon_consts.KS_ENDPOINT_ADMIN,
-                        region=subcloud.name)
+                        region=subcloud.region_name)
                 except Exception as e:
                     # Keystone service must be temporarily busy, retry
                     LOG.error(str(e))
@@ -931,11 +934,11 @@ class SubcloudManager(manager.Manager):
                         endpoint["id"],
                         endpoint['admin_endpoint_url'],
                         interface=dccommon_consts.KS_ENDPOINT_ADMIN,
-                        region=subcloud.name)
+                        region=subcloud.region_name)
 
             # Inform orchestrator that subcloud has been added
             self.dcorch_rpc_client.add_subcloud(
-                context, subcloud.name, subcloud.software_version)
+                context, subcloud.region_name, subcloud.software_version)
 
             # create entry into alarm summary table, will get real values later
             alarm_updates = {'critical_alarms': -1,
@@ -1282,7 +1285,7 @@ class SubcloudManager(manager.Manager):
     def _backup_subcloud(self, context, payload, subcloud):
         try:
             # Health check validation
-            if not utils.is_subcloud_healthy(subcloud.name):
+            if not utils.is_subcloud_healthy(subcloud.region_name):
                 db_api.subcloud_update(
                     context,
                     subcloud.id,
@@ -1442,9 +1445,9 @@ class SubcloudManager(manager.Manager):
         else:
             # Use subcloud floating IP for host reachability
             keystone_client = OpenStackDriver(
-                region_name=subcloud.name,
+                region_name=subcloud.region_name,
                 region_clients=None).keystone_client
-            oam_fip = utils.get_oam_addresses(subcloud.name, keystone_client)\
+            oam_fip = utils.get_oam_addresses(subcloud, keystone_client)\
                 .oam_floating_ip
 
         # Add parameters used to generate inventory
@@ -2042,10 +2045,10 @@ class SubcloudManager(manager.Manager):
                                        1)
 
     @staticmethod
-    def _delete_subcloud_cert(subcloud_name):
-        cert_name = SubcloudManager._get_subcloud_cert_name(subcloud_name)
+    def _delete_subcloud_cert(subcloud_region):
+        cert_name = SubcloudManager._get_subcloud_cert_name(subcloud_region)
         secret_name = SubcloudManager._get_subcloud_cert_secret_name(
-            subcloud_name)
+            subcloud_region)
 
         kube = kubeoperator.KubeOperator()
         kube.delete_cert_manager_certificate(CERT_NAMESPACE, cert_name)
@@ -2059,7 +2062,7 @@ class SubcloudManager(manager.Manager):
         """Remove subcloud details from database and inform orchestrators"""
         # Inform orchestrators that subcloud has been deleted
         try:
-            self.dcorch_rpc_client.del_subcloud(context, subcloud.name)
+            self.dcorch_rpc_client.del_subcloud(context, subcloud.region_name)
         except RemoteError as e:
             # TODO(kmacleod): this should be caught as explicit remote exception
             # Fix when centos/python2 is no longer supported
@@ -2083,8 +2086,8 @@ class SubcloudManager(manager.Manager):
             region_clients=None).keystone_client
 
         # Delete keystone endpoints for subcloud
-        keystone_client.delete_endpoints(subcloud.name)
-        keystone_client.delete_region(subcloud.name)
+        keystone_client.delete_endpoints(subcloud.region_name)
+        keystone_client.delete_region(subcloud.region_name)
 
         # Delete the routes to this subcloud
         self._delete_subcloud_routes(keystone_client, subcloud)
@@ -2100,7 +2103,7 @@ class SubcloudManager(manager.Manager):
         utils.delete_subcloud_inventory(ansible_subcloud_inventory_file)
 
         # Delete the subcloud intermediate certificate
-        SubcloudManager._delete_subcloud_cert(subcloud.name)
+        SubcloudManager._delete_subcloud_cert(subcloud.region_name)
 
         # Delete the subcloud backup path
         self._delete_subcloud_backup_data(subcloud.name)
@@ -2141,6 +2144,42 @@ class SubcloudManager(manager.Manager):
                                     subcloud_name)
         if os.path.exists(install_path):
             shutil.rmtree(install_path)
+
+    def _rename_subcloud_ansible_files(self, cur_sc_name, new_sc_name):
+        """Renames the ansible and logs files from the given subcloud"""
+
+        ansible_path = dccommon_consts.ANSIBLE_OVERRIDES_PATH
+        log_path = consts.DC_ANSIBLE_LOG_DIR
+
+        ansible_file_list = os.listdir(ansible_path)
+        log_file_list = os.listdir(log_path)
+
+        ansible_file_list = [ansible_path + '/' + x for x in ansible_file_list]
+        log_file_list = [log_path + '/' + x for x in log_file_list]
+
+        for cur_file in ansible_file_list + log_file_list:
+            new_file = cur_file.replace(cur_sc_name, new_sc_name)
+            if os.path.exists(cur_file) and new_sc_name in new_file:
+                os.rename(cur_file, new_file)
+
+        # Gets new ansible inventory file
+        ansible_inv_file = self._get_ansible_filename(new_sc_name,
+                                                      INVENTORY_FILE_POSTFIX)
+
+        # Updates inventory host param with the new subcloud name
+        with open(ansible_inv_file, 'r') as f:
+            data = yaml.safe_load(f)
+
+        mkey = list(data.keys())[0]
+
+        if mkey in data and 'hosts' in data[mkey] and \
+            cur_sc_name in data[mkey]['hosts']:
+
+            data[mkey]['hosts'][new_sc_name] = \
+                data[mkey]['hosts'].pop(cur_sc_name)
+
+            with open(ansible_inv_file, 'w') as f:
+                yaml.dump(data, f, sort_keys=False)
 
     @staticmethod
     def _delete_subcloud_backup_data(subcloud_name):
@@ -2207,6 +2246,62 @@ class SubcloudManager(manager.Manager):
                     "Problem clearing fault for subcloud %s, alarm_id=%s" %
                     (subcloud.name, alarm_id))
                 LOG.exception(e)
+
+    def rename_subcloud(self,
+                        context,
+                        subcloud_id,
+                        curr_subcloud_name,
+                        new_subcloud_name=None):
+        """Rename subcloud.
+
+        :param context: request context object.
+        :param subcloud_id: id of subcloud to rename
+        :param curr_subcloud_name: current subcloud name
+        :param new_subcloud_name: new subcloud name
+        """
+        try:
+            subcloud = db_api.\
+                subcloud_get_by_name_or_region_name(context,
+                                                    new_subcloud_name)
+        except exceptions.SubcloudNameOrRegionNameNotFound:
+            pass
+        else:
+            # If the found subcloud id is not the same as the received
+            # subcloud id, it indicates that the name change does not
+            # correspond to the current subcloud.
+            # Therefore it is not allowed to change the name.
+            if subcloud_id != subcloud.id:
+                raise exceptions.SubcloudOrRegionNameAlreadyExists(
+                    name=new_subcloud_name)
+
+        # updates subcloud name
+        subcloud = db_api.subcloud_update(context, subcloud_id,
+                                          name=new_subcloud_name)
+        # updates subcloud names on alarms
+        db_api.subcloud_rename_alarms(context, curr_subcloud_name,
+                                      new_subcloud_name)
+        # Deletes subcloud alarms
+        entity_instance_id = "subcloud=%s" % curr_subcloud_name
+        self.fm_api.clear_all(entity_instance_id)
+
+        # Regenerate the dnsmasq host entry
+        self._create_addn_hosts_dc(context)
+
+        # Rename related subcloud files
+        self._rename_subcloud_ansible_files(curr_subcloud_name,
+                                            new_subcloud_name)
+
+        return subcloud
+
+    def get_subcloud_name_by_region_name(self,
+                                         context,
+                                         subcloud_region):
+        subcloud_name = None
+        if subcloud_region is not None:
+            sc = db_api.subcloud_get_by_region_name(context, subcloud_region)
+            subcloud_name = sc.get("name")
+
+        return subcloud_name
 
     def update_subcloud(self,
                         context,
@@ -2363,7 +2458,7 @@ class SubcloudManager(manager.Manager):
                 # Inform orchestrator of state change
                 self.dcorch_rpc_client.update_subcloud_states(
                     context,
-                    subcloud.name,
+                    subcloud.region_name,
                     management_state,
                     subcloud.availability_status)
 
@@ -2391,6 +2486,7 @@ class SubcloudManager(manager.Manager):
                 self.state_rpc_client.update_subcloud_endpoint_status_sync(
                     context,
                     subcloud_name=subcloud.name,
+                    subcloud_region=subcloud.region_name,
                     endpoint_type=None,
                     sync_status=dccommon_consts.SYNC_STATUS_UNKNOWN,
                     ignore_endpoints=[dccommon_consts.ENDPOINT_TYPE_DC_CERT])
@@ -2399,7 +2495,7 @@ class SubcloudManager(manager.Manager):
                 # Tell cert-mon to audit endpoint certificate
                 LOG.info('Request certmon audit for %s' % subcloud.name)
                 dc_notification = dcmanager_rpc_client.DCManagerNotifications()
-                dc_notification.subcloud_managed(context, subcloud.name)
+                dc_notification.subcloud_managed(context, subcloud.region_name)
 
         return db_api.subcloud_db_model_to_dict(subcloud)
 
@@ -2487,6 +2583,7 @@ class SubcloudManager(manager.Manager):
         :param update_db: whether it should update the db on success/failure
         """
         subcloud_name = subcloud.name
+        subcloud_region = subcloud.region_name
         subcloud_id = subcloud.id
         sys_controller_gw_ip = payload.get("systemcontroller_gateway_address",
                                            subcloud.systemcontroller_gateway_ip)
@@ -2509,7 +2606,7 @@ class SubcloudManager(manager.Manager):
             return
         try:
             self._update_services_endpoint(
-                context, payload, subcloud_name, m_ks_client)
+                context, payload, subcloud_region, m_ks_client)
         except Exception:
             LOG.exception("Failed to update subcloud %s endpoints" % subcloud_name)
             if update_db:
@@ -2541,7 +2638,7 @@ class SubcloudManager(manager.Manager):
                                        1)
 
     def _update_services_endpoint(
-            self, context, payload, subcloud_name, m_ks_client):
+            self, context, payload, subcloud_region, m_ks_client):
         endpoint_ip = utils.get_management_start_address(payload)
         if netaddr.IPAddress(endpoint_ip).version == 6:
             endpoint_ip = f"[{endpoint_ip}]"
@@ -2556,7 +2653,7 @@ class SubcloudManager(manager.Manager):
         }
 
         for endpoint in m_ks_client.keystone_client.endpoints.list(
-                region=subcloud_name):
+                region=subcloud_region):
             service_type = m_ks_client.keystone_client.services.get(
                 endpoint.service_id).type
             if service_type == dccommon_consts.ENDPOINT_TYPE_PLATFORM:
@@ -2576,17 +2673,17 @@ class SubcloudManager(manager.Manager):
             m_ks_client.keystone_client.endpoints.update(
                 endpoint, url=admin_endpoint_url)
 
-        LOG.info("Update services endpoint to %s in subcloud %s" % (
-            endpoint_ip, subcloud_name))
+        LOG.info("Update services endpoint to %s in subcloud region %s" % (
+            endpoint_ip, subcloud_region))
         # Update service URLs in subcloud endpoint cache
         self.audit_rpc_client.trigger_subcloud_endpoints_update(
-            context, subcloud_name, services_endpoints)
+            context, subcloud_region, services_endpoints)
         self.dcorch_rpc_client.update_subcloud_endpoints(
-            context, subcloud_name, services_endpoints)
+            context, subcloud_region, services_endpoints)
         # Update sysinv URL in cert-mon cache
         dc_notification = dcmanager_rpc_client.DCManagerNotifications()
         dc_notification.subcloud_sysinv_endpoint_update(
-            context, subcloud_name, services_endpoints.get("sysinv"))
+            context, subcloud_region, services_endpoints.get("sysinv"))
 
     def _create_subcloud_update_overrides_file(
             self, payload, subcloud_name, filename_suffix):
@@ -2630,7 +2727,7 @@ class SubcloudManager(manager.Manager):
         payload['override_values']['sc_ca_key'] = payload['sc_ca_key']
 
     def update_subcloud_sync_endpoint_type(self, context,
-                                           subcloud_name,
+                                           subcloud_region,
                                            endpoint_type_list,
                                            openstack_installed):
         operation = 'add' if openstack_installed else 'remove'
@@ -2646,17 +2743,17 @@ class SubcloudManager(manager.Manager):
         }
 
         try:
-            subcloud = db_api.subcloud_get_by_name(context, subcloud_name)
+            subcloud = db_api.subcloud_get_by_region_name(context, subcloud_region)
         except Exception:
-            LOG.exception("Failed to get subcloud by name: %s" % subcloud_name)
+            LOG.exception("Failed to get subcloud by region name: %s" % subcloud_region)
             raise
 
         try:
             # Notify dcorch to add/remove sync endpoint type list
-            func_switcher[operation][0](self.context, subcloud_name,
+            func_switcher[operation][0](self.context, subcloud_region,
                                         endpoint_type_list)
             LOG.info('Notifying dcorch, subcloud: %s new sync endpoint: %s' %
-                     (subcloud_name, endpoint_type_list))
+                     (subcloud.name, endpoint_type_list))
 
             # Update subcloud status table by adding/removing openstack sync
             # endpoint types
@@ -2668,7 +2765,7 @@ class SubcloudManager(manager.Manager):
                                    openstack_installed=openstack_installed)
         except Exception:
             LOG.exception('Problem informing dcorch of subcloud sync endpoint'
-                          ' type change, subcloud: %s' % subcloud_name)
+                          ' type change, subcloud region: %s' % subcloud_region)
 
     def handle_subcloud_operations_in_progress(self):
         """Identify subclouds in transitory stages and update subcloud

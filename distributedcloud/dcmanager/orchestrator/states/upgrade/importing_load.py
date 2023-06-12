@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2020-2022 Wind River Systems, Inc.
+# Copyright (c) 2020-2023 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -49,13 +49,13 @@ class ImportingLoadState(BaseState):
                 self.info_log(strategy_step, "Retrieving load list from subcloud...")
                 # success when only one load, the active load, remains
                 if len(self.get_sysinv_client(
-                        strategy_step.subcloud.name).get_loads()) == 1:
+                        strategy_step.subcloud.region_name).get_loads()) == 1:
                     msg = "Load: %s has been removed." % load_version
                     self.info_log(strategy_step, msg)
                     return True
             else:
                 load = self.get_sysinv_client(
-                    strategy_step.subcloud.name).get_load(load_id)
+                    strategy_step.subcloud.region_name).get_load(load_id)
                 if load.state == consts.IMPORTED_LOAD_STATE:
                     # success when load is imported
                     msg = "Load: %s is now: %s" % (load_version,
@@ -102,7 +102,7 @@ class ImportingLoadState(BaseState):
         load_info = {}
         # Check if the load is already imported by checking the version
         current_loads = self.get_sysinv_client(
-            strategy_step.subcloud.name).get_loads()
+            strategy_step.subcloud.region_name).get_loads()
 
         for load in current_loads:
             if load.software_version == target_version:
@@ -140,12 +140,12 @@ class ImportingLoadState(BaseState):
             self.info_log(strategy_step,
                           "Deleting load %s..." % load_id_to_be_deleted)
             self.get_sysinv_client(
-                strategy_step.subcloud.name).delete_load(load_id_to_be_deleted)
+                strategy_step.subcloud.region_name).delete_load(load_id_to_be_deleted)
             req_info['type'] = LOAD_DELETE_REQUEST_TYPE
             self._wait_for_request_to_complete(strategy_step, req_info)
 
         subcloud_type = self.get_sysinv_client(
-            strategy_step.subcloud.name).get_system().system_mode
+            strategy_step.subcloud.region_name).get_system().system_mode
         load_import_retry_counter = 0
         load = None
         if subcloud_type == consts.SYSTEM_MODE_SIMPLEX:
@@ -158,7 +158,7 @@ class ImportingLoadState(BaseState):
             target_load = {key: target_load[key] for key in creation_keys}
             try:
                 load = self.get_sysinv_client(
-                    strategy_step.subcloud.name).import_load_metadata(target_load)
+                    strategy_step.subcloud.region_name).import_load_metadata(target_load)
                 self.info_log(strategy_step,
                               "Load: %s is now: %s" % (
                                   load.software_version, load.state))
@@ -190,7 +190,7 @@ class ImportingLoadState(BaseState):
                     # Call the API. import_load blocks until the load state is 'importing'
                     self.info_log(strategy_step, "Sending load import request...")
                     load = self.get_sysinv_client(
-                        strategy_step.subcloud.name).import_load(iso_path, sig_path)
+                        strategy_step.subcloud.region_name).import_load(iso_path, sig_path)
 
                     break
                 except VaultLoadMissingError:

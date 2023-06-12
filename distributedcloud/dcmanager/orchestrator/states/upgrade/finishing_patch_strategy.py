@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2020-2022 Wind River Systems, Inc.
+# Copyright (c) 2020-2023 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -56,7 +56,7 @@ class FinishingPatchStrategyState(BaseState):
                        "RegionOne committed_patch_ids: %s" % committed_patch_ids)
 
         subcloud_patches = self.get_patching_client(
-            strategy_step.subcloud.name).query()
+            strategy_step.subcloud.region_name).query()
         self.debug_log(strategy_step,
                        "Patches for subcloud: %s" % subcloud_patches)
 
@@ -93,6 +93,6 @@ class FinishingPatchStrategyState(BaseState):
             self.info_log(strategy_step,
                           "Committing patches %s in subcloud" % patches_to_commit)
             self.get_patching_client(
-                strategy_step.subcloud.name).commit(patches_to_commit)
+                strategy_step.subcloud.region_name).commit(patches_to_commit)
 
         return self.next_state

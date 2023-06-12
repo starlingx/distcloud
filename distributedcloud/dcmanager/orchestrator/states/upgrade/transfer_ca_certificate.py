@@ -48,7 +48,7 @@ class TransferCACertificateState(BaseState):
         retry_counter = 0
         while True:
             try:
-                sysinv_client = self.get_sysinv_client(strategy_step.subcloud.name)
+                sysinv_client = self.get_sysinv_client(strategy_step.subcloud.region_name)
 
                 data = {'mode': 'openldap_ca'}
                 ldap_ca_cert, ldap_ca_key = utils.get_certificate_from_secret(

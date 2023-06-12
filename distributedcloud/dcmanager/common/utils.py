@@ -55,6 +55,7 @@ DC_MANAGER_GRPNAME = "root"
 
 # Max lines output msg from logs
 MAX_LINES_MSG = 10
+REGION_VALUE_CMD = "grep " + consts.OS_REGION_NAME + " /etc/platform/openrc"
 
 ABORT_UPDATE_STATUS = {
     consts.DEPLOY_STATE_INSTALLING: consts.DEPLOY_STATE_ABORTING_INSTALL,
@@ -552,23 +553,23 @@ def subcloud_db_list_to_dict(subclouds):
             for subcloud in subclouds]}
 
 
-def get_oam_addresses(subcloud_name, sc_ks_client):
+def get_oam_addresses(subcloud, sc_ks_client):
     """Get the subclouds oam addresses"""
 
     # First need to retrieve the Subcloud's Keystone session
     try:
         endpoint = sc_ks_client.endpoint_cache.get_endpoint('sysinv')
-        sysinv_client = SysinvClient(subcloud_name,
+        sysinv_client = SysinvClient(subcloud.region_name,
                                      sc_ks_client.session,
                                      endpoint=endpoint)
         return sysinv_client.get_oam_addresses()
     except (keystone_exceptions.EndpointNotFound, IndexError) as e:
         message = ("Identity endpoint for subcloud: %s not found. %s" %
-                   (subcloud_name, e))
+                   (subcloud.name, e))
         LOG.error(message)
     except dccommon_exceptions.OAMAddressesNotFound:
         message = ("OAM addresses for subcloud: %s not found." %
-                   subcloud_name)
+                   subcloud.name)
         LOG.error(message)
     return None
 
@@ -594,6 +595,65 @@ def pre_check_management_affected_alarm(system_health):
     if failed_alarm_check and not no_mgmt_alarms:
         return False
     return True
+
+
+def is_subcloud_name_format_valid(name):
+    """Validates subcloud name format
+
+    Regex based on RFC 1123 subdomain validation
+
+    param: name = Subcloud name
+    returns True if name is valid, otherwise it returns false.
+    """
+    rex = r"[a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*"
+
+    pat = re.compile(rex)
+    if re.fullmatch(pat, name):
+        return True
+    return False
+
+
+def get_region_from_subcloud_address(payload):
+    """Retrieves the current region from the subcloud being migrated
+
+    param: payload = Subcloud payload
+    returns the OS_REGION_NAME value from subcloud
+    """
+    cmd = [
+        "sshpass",
+        "-p",
+        str(payload['sysadmin_password']),
+        "ssh",
+        "-q",
+        "sysadmin@" + str(payload['bootstrap-address']),
+        REGION_VALUE_CMD,
+    ]
+
+    try:
+        LOG.info("Getting region value from subcloud %s" % payload['name'])
+        task = subprocess.check_output(
+            cmd,
+            stderr=subprocess.STDOUT).decode('utf-8')
+        if len(task) < 1:
+            return None
+        subcloud_region = str(task.split("=")[1]).strip()
+    except Exception:
+        LOG.error("Unable to get region value from subcloud %s"
+                  % payload['name'])
+        raise
+
+    system_regions = [dccommon_consts.DEFAULT_REGION_NAME,
+                      dccommon_consts.SYSTEM_CONTROLLER_NAME]
+
+    if subcloud_region in system_regions:
+        LOG.error("Invalid region value: %s" % subcloud_region)
+        raise exceptions.InvalidParameterValue(
+            err="Invalid region value: %s" % subcloud_region)
+
+    # Returns the region value from result:
+    # Current systems: export OS_REGION_NAME=subcloudX
+    # New systems: export OS_REGION_NAME=abcdefghhijlkmnopqrstuvqxyz12342
+    return subcloud_region
 
 
 def find_ansible_error_msg(subcloud_name, log_file, stage=None):
@@ -817,15 +877,15 @@ def get_matching_iso(software_version=None):
         return None, str(e)
 
 
-def is_subcloud_healthy(subcloud_name):
+def is_subcloud_healthy(subcloud_region):
 
     system_health = ""
     try:
-        os_client = OpenStackDriver(region_name=subcloud_name,
+        os_client = OpenStackDriver(region_name=subcloud_region,
                                     region_clients=None)
         keystone_client = os_client.keystone_client
         endpoint = keystone_client.endpoint_cache.get_endpoint('sysinv')
-        sysinv_client = SysinvClient(subcloud_name,
+        sysinv_client = SysinvClient(subcloud_region,
                                      keystone_client.session,
                                      endpoint=endpoint)
         system_health = sysinv_client.get_system_health()
@@ -1083,19 +1143,19 @@ def decode_and_normalize_passwd(input_passwd):
     return passwd
 
 
-def get_failure_msg(subcloud_name):
+def get_failure_msg(subcloud_region):
     try:
-        os_client = OpenStackDriver(region_name=subcloud_name,
+        os_client = OpenStackDriver(region_name=subcloud_region,
                                     region_clients=None)
         keystone_client = os_client.keystone_client
         endpoint = keystone_client.endpoint_cache.get_endpoint('sysinv')
-        sysinv_client = SysinvClient(subcloud_name,
+        sysinv_client = SysinvClient(subcloud_region,
                                      keystone_client.session,
                                      endpoint=endpoint)
         msg = sysinv_client.get_error_msg()
         return msg
     except Exception as e:
-        LOG.exception("{}: {}".format(subcloud_name, e))
+        LOG.exception("{}: {}".format(subcloud_region, e))
         return consts.ERROR_DESC_FAILED
 
 
@@ -1181,3 +1241,19 @@ def get_current_supported_upgrade_versions():
         supported_versions.append(version.strip())
 
     return supported_versions
+
+
+# Feature: Subcloud Name Reconfiguration
+# This method is useful to determine the origin of the request
+# towards the api. The goal was to avoid any code changes in
+# the cert-monitor module, since it only needs the region reference.
+# When this method is called, the condition is applied to replace the
+# value of the "name" field with the value of the "region_name" field
+# in the response. In this way, the cert-monitor does not lose the
+# region reference in subcloud rename operation.
+def is_req_from_cert_mon_agent(request):
+    ua = request.headers.get("User-Agent")
+    if ua == consts.CERT_MON_HTTP_AGENT:
+        return True
+    else:
+        return False

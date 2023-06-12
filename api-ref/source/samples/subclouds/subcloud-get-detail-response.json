@@ -21,7 +21,8 @@
   "data_install": null,
   "data_upgrade": null,
   "oam_floating_ip": "192.168.101.2",
-  "deploy_config_sync_status": "Deployment: configurations up-to-date"
+  "deploy_config_sync_status": "Deployment: configurations up-to-date",
+  "region-name": "bbadb3e8e2ab473792c80ef09c5a12a4",
   "endpoint_sync_status": [
     {
       "sync_status": "in-sync",

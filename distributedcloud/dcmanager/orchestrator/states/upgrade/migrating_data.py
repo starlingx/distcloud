@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2020-2022 Wind River Systems, Inc.
+# Copyright (c) 2020-2023 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -76,7 +76,7 @@ class MigratingDataState(BaseState):
             try:
                 # query the administrative state to see if it is the new state.
                 host = self.get_sysinv_client(
-                    strategy_step.subcloud.name).get_host(target_hostname)
+                    strategy_step.subcloud.region_name).get_host(target_hostname)
                 if (host.administrative == consts.ADMIN_UNLOCKED and
                         host.operational == consts.OPERATIONAL_ENABLED):
                     # Success. Break out of the loop.
@@ -160,7 +160,7 @@ class MigratingDataState(BaseState):
             msg_subcloud = utils.find_ansible_error_msg(
                 strategy_step.subcloud.name, log_file, consts.DEPLOY_STATE_MIGRATING_DATA)
             # Get script output in case it is available
-            error_msg = utils.get_failure_msg(strategy_step.subcloud.name)
+            error_msg = utils.get_failure_msg(strategy_step.subcloud.region_name)
             failure = ('%s \n%s' % (error_msg, msg_subcloud))
             db_api.subcloud_update(
                 self.context, strategy_step.subcloud_id,

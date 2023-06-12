@@ -159,6 +159,14 @@ class OrchThread(threading.Thread):
         if strategy_step.subcloud_id is None:
             # This is the SystemController.
             return dccommon_consts.DEFAULT_REGION_NAME
+        return strategy_step.subcloud.region_name
+
+    @staticmethod
+    def get_subcloud_name(strategy_step):
+        """Get the subcloud name for a strategy step"""
+        if strategy_step.subcloud_id is None:
+            # This is the SystemController.
+            return dccommon_consts.DEFAULT_REGION_NAME
         return strategy_step.subcloud.name
 
     @staticmethod
@@ -263,18 +271,18 @@ class OrchThread(threading.Thread):
         for strategy_step in strategy_steps:
             if strategy_step.state == consts.STRATEGY_STATE_COMPLETE:
                 # This step is complete
-                self._delete_subcloud_worker(strategy_step.subcloud.name,
+                self._delete_subcloud_worker(strategy_step.subcloud.region_name,
                                              strategy_step.subcloud_id)
                 continue
             elif strategy_step.state == consts.STRATEGY_STATE_ABORTED:
                 # This step was aborted
-                self._delete_subcloud_worker(strategy_step.subcloud.name,
+                self._delete_subcloud_worker(strategy_step.subcloud.region_name,
                                              strategy_step.subcloud_id)
                 abort_detected = True
                 continue
             elif strategy_step.state == consts.STRATEGY_STATE_FAILED:
                 failure_detected = True
-                self._delete_subcloud_worker(strategy_step.subcloud.name,
+                self._delete_subcloud_worker(strategy_step.subcloud.region_name,
                                              strategy_step.subcloud_id)
                 # This step has failed and needs no further action
                 if strategy_step.subcloud_id is None:
@@ -572,7 +580,7 @@ class OrchThread(threading.Thread):
                      % (self.update_type,
                         strategy_step.stage,
                         strategy_step.state,
-                        self.get_region_name(strategy_step)))
+                        self.get_subcloud_name(strategy_step)))
             # Instantiate the state operator and perform the state actions
             state_operator = self.determine_state_operator(strategy_step)
             state_operator.registerStopEvent(self._stop)
@@ -585,7 +593,7 @@ class OrchThread(threading.Thread):
                      % (self.update_type,
                         strategy_step.stage,
                         strategy_step.state,
-                        self.get_region_name(strategy_step)))
+                        strategy_step.subcloud.name))
             # Transition immediately to complete. Update the details to show
             # that this subcloud has been skipped
             details = self.format_update_details(None, str(ex))
@@ -598,7 +606,7 @@ class OrchThread(threading.Thread):
                           % (self.update_type,
                              strategy_step.stage,
                              strategy_step.state,
-                             self.get_region_name(strategy_step)))
+                             strategy_step.subcloud.name))
             details = self.format_update_details(strategy_step.state, str(ex))
             self.strategy_step_update(strategy_step.subcloud_id,
                                       state=consts.STRATEGY_STATE_FAILED,

@@ -1429,7 +1429,8 @@ class TestSubcloudAPIOther(testroot.DCManagerApiTest):
             data, headers=FAKE_HEADERS)
 
         self.mock_rpc_state_client().update_subcloud_endpoint_status.\
-            assert_called_once_with(mock.ANY, subcloud.name, 'dc-cert', 'in-sync')
+            assert_called_once_with(mock.ANY, subcloud.name, subcloud.region_name,
+                                    'dc-cert', 'in-sync')
 
         self.assertEqual(response.status_int, 200)
 
