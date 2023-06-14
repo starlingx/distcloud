@@ -233,6 +233,17 @@ class DCManagerService(service.Service):
                                                            subcloud_id,
                                                            deploy_status)
 
+    @request_context
+    def subcloud_deploy_resume(self, context, subcloud_id, subcloud_name,
+                               payload, deploy_states_to_run):
+        # Adds a subcloud
+        LOG.info("Handling subcloud_deploy_resume request for: %s" % subcloud_name)
+        return self.subcloud_manager.subcloud_deploy_resume(context,
+                                                            subcloud_id,
+                                                            subcloud_name,
+                                                            payload,
+                                                            deploy_states_to_run)
+
     def _stop_rpc_server(self):
         # Stop RPC connection to prevent new requests
         LOG.debug(_("Attempting to stop RPC service..."))
