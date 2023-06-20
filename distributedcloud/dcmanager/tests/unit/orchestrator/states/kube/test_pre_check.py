@@ -61,7 +61,7 @@ KUBERNETES_UPGRADE_HEALTH_RESPONSE_NON_MGMT_AFFECTING_ALARM = \
 
 MEMORY_THRESHOLD_ALARM = FakeAlarm('100.101', 'True')
 KUBERNETES_UPGRADE_ALARM = FakeAlarm('900.007', 'True')
-CEPH_ALARM = FakeAlarm('250.002', 'False')
+CONFIG_OUT_OF_DATE_ALARM = FakeAlarm('250.001', 'False')
 
 
 class TestKubeUpgradePreCheckStage(TestKubeUpgradeState):
@@ -146,7 +146,7 @@ class TestKubeUpgradePreCheckStage(TestKubeUpgradeState):
                                self.subcloud.id,
                                deploy_status=DEPLOY_STATE_DONE)
 
-        self.fm_client.get_alarms.return_value = [CEPH_ALARM, KUBERNETES_UPGRADE_ALARM]
+        self.fm_client.get_alarms.return_value = [CONFIG_OUT_OF_DATE_ALARM, KUBERNETES_UPGRADE_ALARM]
         self.sysinv_client.get_kube_upgrade_health.return_value = KUBERNETES_UPGRADE_HEALTH_RESPONSE_MGMT_AFFECTING_ALARM
         self.sysinv_client.get_kube_upgrades.return_value = [FakeKubeUpgrade()]
         self.sysinv_client.get_kube_versions.return_value = [
