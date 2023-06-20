@@ -127,6 +127,14 @@ MAX_PARALLEL_SUBCLOUD_BACKUP_DELETE = 250
 MAX_PARALLEL_SUBCLOUD_BACKUP_RESTORE = 100
 CENTRAL_BACKUP_DIR = '/opt/dc-vault/backups'
 
+ENDPOINT_URLS = {
+    dccommon_consts.ENDPOINT_TYPE_PLATFORM: "https://{}:6386/v1",
+    dccommon_consts.ENDPOINT_TYPE_IDENTITY: "https://{}:5001/v3",
+    dccommon_consts.ENDPOINT_TYPE_PATCHING: "https://{}:5492",
+    dccommon_consts.ENDPOINT_TYPE_FM: "https://{}:18003",
+    dccommon_consts.ENDPOINT_TYPE_NFV: "https://{}:4546"
+}
+
 
 class SubcloudManager(manager.Manager):
     """Manages tasks related to subclouds."""
@@ -744,6 +752,145 @@ class SubcloudManager(manager.Manager):
 
         return self._subcloud_operation_notice('restore', restore_subclouds,
                                                failed_subclouds, invalid_subclouds)
+
+    def subcloud_deploy_create(self, context, subcloud_id, payload):
+        """Create subcloud and notify orchestrators.
+
+        :param context: request context object
+        :param subcloud_id: subcloud_id from db
+        :param payload: subcloud configuration
+        """
+        LOG.info("Creating subcloud %s." % payload['name'])
+
+        subcloud = db_api.subcloud_update(
+            context, subcloud_id,
+            deploy_status=consts.DEPLOY_STATE_CREATING)
+
+        try:
+            # Create a new route to this subcloud on the management interface
+            # on both controllers.
+            m_ks_client = OpenStackDriver(
+                region_name=dccommon_consts.DEFAULT_REGION_NAME,
+                region_clients=None).keystone_client
+            subcloud_subnet = netaddr.IPNetwork(
+                utils.get_management_subnet(payload))
+            endpoint = m_ks_client.endpoint_cache.get_endpoint('sysinv')
+            sysinv_client = SysinvClient(dccommon_consts.DEFAULT_REGION_NAME,
+                                         m_ks_client.session,
+                                         endpoint=endpoint)
+            LOG.debug("Getting cached regionone data for %s" % subcloud.name)
+            cached_regionone_data = self._get_cached_regionone_data(
+                m_ks_client, sysinv_client)
+            for mgmt_if_uuid in cached_regionone_data['mgmt_interface_uuids']:
+                sysinv_client.create_route(
+                    mgmt_if_uuid,
+                    str(subcloud_subnet.ip),
+                    subcloud_subnet.prefixlen,
+                    payload['systemcontroller_gateway_address'],
+                    1)
+
+            # Create endpoints to this subcloud on the
+            # management-start-ip of the subcloud which will be allocated
+            # as the floating Management IP of the Subcloud if the
+            # Address Pool is not shared. Incase the endpoint entries
+            # are incorrect, or the management IP of the subcloud is changed
+            # in the future, it will not go managed or will show up as
+            # out of sync. To fix this use Openstack endpoint commands
+            # on the SystemController to change the subcloud endpoints.
+            # The non-identity endpoints are added to facilitate horizon access
+            # from the System Controller to the subcloud.
+            endpoint_config = []
+            endpoint_ip = utils.get_management_start_address(payload)
+            if netaddr.IPAddress(endpoint_ip).version == 6:
+                endpoint_ip = '[' + endpoint_ip + ']'
+
+            for service in m_ks_client.services_list:
+                admin_endpoint_url = ENDPOINT_URLS.get(service.type, None)
+                if admin_endpoint_url:
+                    admin_endpoint_url = admin_endpoint_url.format(endpoint_ip)
+                    endpoint_config.append(
+                        {"id": service.id,
+                         "admin_endpoint_url": admin_endpoint_url})
+
+            if len(endpoint_config) < len(ENDPOINT_URLS):
+                raise exceptions.BadRequest(
+                    resource='subcloud',
+                    msg='Missing service in SystemController')
+
+            for endpoint in endpoint_config:
+                try:
+                    m_ks_client.keystone_client.endpoints.create(
+                        endpoint["id"],
+                        endpoint['admin_endpoint_url'],
+                        interface=dccommon_consts.KS_ENDPOINT_ADMIN,
+                        region=subcloud.name)
+                except Exception as e:
+                    # Keystone service must be temporarily busy, retry
+                    LOG.error(str(e))
+                    m_ks_client.keystone_client.endpoints.create(
+                        endpoint["id"],
+                        endpoint['admin_endpoint_url'],
+                        interface=dccommon_consts.KS_ENDPOINT_ADMIN,
+                        region=subcloud.name)
+
+            # Inform orchestrator that subcloud has been added
+            self.dcorch_rpc_client.add_subcloud(
+                context, subcloud.name, subcloud.software_version)
+
+            # create entry into alarm summary table, will get real values later
+            alarm_updates = {'critical_alarms': -1,
+                             'major_alarms': -1,
+                             'minor_alarms': -1,
+                             'warnings': -1,
+                             'cloud_status': consts.ALARMS_DISABLED}
+            db_api.subcloud_alarms_create(context, subcloud.name,
+                                          alarm_updates)
+
+            # Regenerate the addn_hosts_dc file
+            self._create_addn_hosts_dc(context)
+
+            self._populate_payload_with_cached_keystone_data(
+                cached_regionone_data, payload, populate_passwords=False)
+
+            if "deploy_playbook" in payload:
+                self._prepare_for_deployment(payload, subcloud.name,
+                                             populate_passwords=False)
+
+            payload['users'] = dict()
+            for user in USERS_TO_REPLICATE:
+                payload['users'][user] = \
+                    str(keyring.get_password(
+                        user, dccommon_consts.SERVICES_USER_NAME))
+
+            # Ansible inventory filename for the specified subcloud
+            ansible_subcloud_inventory_file = utils.get_ansible_filename(
+                subcloud.name, INVENTORY_FILE_POSTFIX)
+
+            # Create the ansible inventory for the new subcloud
+            utils.create_subcloud_inventory(payload,
+                                            ansible_subcloud_inventory_file)
+
+            # create subcloud intermediate certificate and pass in keys
+            self._create_intermediate_ca_cert(payload)
+
+            # Write this subclouds overrides to file
+            # NOTE: This file should not be deleted if subcloud add fails
+            # as it is used for debugging
+            self._write_subcloud_ansible_config(cached_regionone_data, payload)
+
+            subcloud = db_api.subcloud_update(
+                context, subcloud_id,
+                deploy_status=consts.DEPLOY_STATE_CREATED)
+
+            return db_api.subcloud_db_model_to_dict(subcloud)
+
+        except Exception:
+            LOG.exception("Failed to create subcloud %s" % payload['name'])
+            # If we failed to create the subcloud, update the deployment status
+            subcloud = db_api.subcloud_update(
+                context, subcloud.id,
+                deploy_status=consts.DEPLOY_STATE_CREATE_FAILED)
+            return db_api.subcloud_db_model_to_dict(subcloud)
 
     def _subcloud_operation_notice(
             self, operation, restore_subclouds, failed_subclouds,
@@ -1492,14 +1639,16 @@ class SubcloudManager(manager.Manager):
         with open(deploy_values_file, 'w') as f_out_deploy_values_file:
             json.dump(payload['deploy_values'], f_out_deploy_values_file)
 
-    def _prepare_for_deployment(self, payload, subcloud_name):
+    def _prepare_for_deployment(self, payload, subcloud_name,
+                                populate_passwords=True):
         payload['deploy_values'] = dict()
-        payload['deploy_values']['ansible_become_pass'] = \
-            payload['sysadmin_password']
-        payload['deploy_values']['ansible_ssh_pass'] = \
-            payload['sysadmin_password']
-        payload['deploy_values']['admin_password'] = \
-            str(keyring.get_password('CGCS', 'admin'))
+        if populate_passwords:
+            payload['deploy_values']['ansible_become_pass'] = \
+                payload['sysadmin_password']
+            payload['deploy_values']['ansible_ssh_pass'] = \
+                payload['sysadmin_password']
+            payload['deploy_values']['admin_password'] = \
+                str(keyring.get_password('CGCS', 'admin'))
         payload['deploy_values']['deployment_config'] = \
             payload[consts.DEPLOY_CONFIG]
         payload['deploy_values']['deployment_manager_chart'] = \
@@ -2108,7 +2257,8 @@ class SubcloudManager(manager.Manager):
         cached_regionone_data = SubcloudManager.regionone_data
         return cached_regionone_data
 
-    def _populate_payload_with_cached_keystone_data(self, cached_data, payload):
+    def _populate_payload_with_cached_keystone_data(self, cached_data, payload,
+                                                    populate_passwords=True):
         payload['system_controller_keystone_admin_user_id'] = \
             cached_data['admin_user_id']
         payload['system_controller_keystone_admin_project_id'] = \
@@ -2120,9 +2270,10 @@ class SubcloudManager(manager.Manager):
         payload['system_controller_keystone_dcmanager_user_id'] = \
             cached_data['dcmanager_user_id']
 
-        # While at it, add the admin and service user passwords to the payload so
-        # they get copied to the overrides file
-        payload['ansible_become_pass'] = payload['sysadmin_password']
-        payload['ansible_ssh_pass'] = payload['sysadmin_password']
-        payload['admin_password'] = str(keyring.get_password('CGCS',
-                                                             'admin'))
+        if populate_passwords:
+            # While at it, add the admin and service user passwords to the
+            # payload so they get copied to the overrides file
+            payload['ansible_become_pass'] = payload['sysadmin_password']
+            payload['ansible_ssh_pass'] = payload['sysadmin_password']
+            payload['admin_password'] = str(keyring.get_password('CGCS',
+                                                                 'admin'))

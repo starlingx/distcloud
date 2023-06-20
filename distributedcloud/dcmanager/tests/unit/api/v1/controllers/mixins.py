@@ -15,6 +15,7 @@
 #    under the License.
 #
 
+import contextlib
 import mock
 from six.moves import http_client
 
@@ -95,18 +96,22 @@ class APIMixin(object):
 # upload_files kwarg is not supported by the json methods in web_test
 class PostMixin(object):
 
-    @mock.patch.object(rpc_client, 'ManagerClient')
-    def test_create_success(self, mock_client):
+    def test_create_success(self):
         # Test that a POST operation is supported by the API
-        params = self.get_post_params()
-        upload_files = self.get_post_upload_files()
-        response = self.app.post(self.get_api_prefix(),
-                                 params=params,
-                                 upload_files=upload_files,
-                                 headers=self.get_api_headers())
-        self.assertEqual(response.content_type, 'application/json')
-        self.assertEqual(response.status_code, http_client.OK)
-        self.assert_fields(response.json)
+        with contextlib.ExitStack() as stack:
+            # Only mocks it if it's not already mocked by the derived class
+            if not isinstance(rpc_client.ManagerClient, mock.Mock):
+                stack.enter_context(mock.patch.object(rpc_client,
+                                                      'ManagerClient'))
+            params = self.get_post_params()
+            upload_files = self.get_post_upload_files()
+            response = self.app.post(self.get_api_prefix(),
+                                     params=params,
+                                     upload_files=upload_files,
+                                     headers=self.get_api_headers())
+            self.assertEqual(response.content_type, 'application/json')
+            self.assertEqual(response.status_code, http_client.OK)
+            self.assert_fields(response.json)
 
 
 class PostRejectedMixin(object):
