@@ -247,6 +247,8 @@ class UpgradingSimplexState(BaseState):
             'wait_for_timeout',
             'no_check_certificate',
             'rd.net.timeout.ipv6dad',
+            'hw_settle',
+            'extra_boot_params',
         ]
 
         for p in optional_bootstrap_parameters:
