@@ -29,6 +29,10 @@ phased_subcloud_deploy_rules = [
         operations=[
             {
                 'method': 'PATCH',
+                'path': '/v1.0/phased-subcloud-deploy/{subcloud}/install'
+            },
+            {
+                'method': 'PATCH',
                 'path': '/v1.0/phased-subcloud-deploy/{subcloud}/bootstrap'
             },
             {

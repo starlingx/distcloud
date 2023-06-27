@@ -5,6 +5,7 @@
 #
 
 import http.client as httpclient
+import json
 import os
 
 from oslo_log import log as logging
@@ -13,6 +14,7 @@ import pecan
 import tsconfig.tsconfig as tsc
 import yaml
 
+from dccommon import consts as dccommon_consts
 from dcmanager.api.controllers import restcomm
 from dcmanager.api.policies import phased_subcloud_deploy as \
     phased_subcloud_deploy_policy
@@ -43,12 +45,23 @@ SUBCLOUD_CREATE_GET_FILE_CONTENTS = (
     consts.INSTALL_VALUES,
 )
 
+SUBCLOUD_INSTALL_GET_FILE_CONTENTS = (
+    consts.INSTALL_VALUES,
+)
+
 SUBCLOUD_BOOTSTRAP_GET_FILE_CONTENTS = (
     consts.BOOTSTRAP_VALUES,
 )
 
 SUBCLOUD_CONFIG_GET_FILE_CONTENTS = (
     consts.DEPLOY_CONFIG,
+)
+
+VALID_STATES_FOR_DEPLOY_INSTALL = (
+    consts.DEPLOY_STATE_CREATED,
+    consts.DEPLOY_STATE_PRE_INSTALL_FAILED,
+    consts.DEPLOY_STATE_INSTALL_FAILED,
+    consts.DEPLOY_STATE_INSTALLED
 )
 
 VALID_STATES_FOR_DEPLOY_BOOTSTRAP = [
@@ -146,6 +159,48 @@ class PhasedSubcloudDeployController(object):
             LOG.exception("Unable to create subcloud %s" % payload.get('name'))
             pecan.abort(httpclient.INTERNAL_SERVER_ERROR,
                         _('Unable to create subcloud'))
+
+    def _deploy_install(self, context: RequestContext,
+                        request: pecan.Request, subcloud):
+        payload = psd_common.get_request_data(
+            request, subcloud, SUBCLOUD_INSTALL_GET_FILE_CONTENTS)
+        if not payload:
+            pecan.abort(400, _('Body required'))
+
+        if subcloud.deploy_status not in VALID_STATES_FOR_DEPLOY_INSTALL:
+            allowed_states_str = ', '.join(VALID_STATES_FOR_DEPLOY_INSTALL)
+            pecan.abort(400, _('Subcloud deploy status must be either: %s')
+                        % allowed_states_str)
+
+        payload['software_version'] = payload.get('release', tsc.SW_VERSION)
+        psd_common.populate_payload_with_pre_existing_data(
+            payload, subcloud, SUBCLOUD_INSTALL_GET_FILE_CONTENTS)
+
+        psd_common.validate_sysadmin_password(payload)
+        psd_common.pre_deploy_install(payload, subcloud)
+
+        try:
+            # Align the software version of the subcloud with install
+            # version. Update the deploy status as pre-install.
+            subcloud = db_api.subcloud_update(
+                context,
+                subcloud.id,
+                description=payload.get('description', subcloud.description),
+                location=payload.get('location', subcloud.location),
+                software_version=payload['software_version'],
+                management_state=dccommon_consts.MANAGEMENT_UNMANAGED,
+                deploy_status=consts.DEPLOY_STATE_PRE_INSTALL,
+                data_install=json.dumps(payload['install_values']))
+
+            self.dcmanager_rpc_client.subcloud_deploy_install(
+                context, subcloud.id, payload)
+
+            return db_api.subcloud_db_model_to_dict(subcloud)
+        except RemoteError as e:
+            pecan.abort(422, e.value)
+        except Exception:
+            LOG.exception("Unable to install subcloud %s" % subcloud.name)
+            pecan.abort(500, _('Unable to install subcloud'))
 
     def _deploy_bootstrap(self, context: RequestContext,
                           request: pecan.Request,
@@ -279,7 +334,9 @@ class PhasedSubcloudDeployController(object):
         except (exceptions.SubcloudNotFound, exceptions.SubcloudNameNotFound):
             pecan.abort(404, _('Subcloud not found'))
 
-        if verb == 'bootstrap':
+        if verb == 'install':
+            subcloud = self._deploy_install(context, pecan.request, subcloud)
+        elif verb == 'bootstrap':
             subcloud = self._deploy_bootstrap(context, pecan.request, subcloud)
         elif verb == 'configure':
             subcloud = self._deploy_config(context, pecan.request, subcloud)

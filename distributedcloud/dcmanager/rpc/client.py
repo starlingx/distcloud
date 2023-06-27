@@ -192,6 +192,11 @@ class ManagerClient(RPCClient):
                                              subcloud_id=subcloud_id,
                                              payload=payload))
 
+    def subcloud_deploy_install(self, ctxt, subcloud_id, payload):
+        return self.cast(ctxt, self.make_msg('subcloud_deploy_install',
+                                             subcloud_id=subcloud_id,
+                                             payload=payload))
+
     def subcloud_deploy_bootstrap(self, ctxt, subcloud_id, payload):
         return self.cast(ctxt, self.make_msg('subcloud_deploy_bootstrap',
                                              subcloud_id=subcloud_id,
