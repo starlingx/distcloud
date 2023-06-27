@@ -92,6 +92,8 @@ class DCManagerService(service.Service):
         if not os.path.isdir(consts.DC_ANSIBLE_LOG_DIR):
             os.mkdir(consts.DC_ANSIBLE_LOG_DIR, 0o755)
 
+        os.makedirs(consts.ANSIBLE_OVERRIDES_PATH, 0o600, exist_ok=True)
+
         self.subcloud_manager.handle_subcloud_operations_in_progress()
         super(DCManagerService, self).start()
 

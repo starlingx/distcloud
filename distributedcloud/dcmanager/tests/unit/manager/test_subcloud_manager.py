@@ -1581,22 +1581,22 @@ class TestSubcloudManager(base.DCManagerTestCase):
         filename = sm._get_ansible_filename('subcloud1',
                                             consts.INVENTORY_FILE_POSTFIX)
         self.assertEqual(filename,
-                         '/var/opt/dc/ansible/subcloud1_inventory.yml')
+                         f'{consts.ANSIBLE_OVERRIDES_PATH}/subcloud1_inventory.yml')
 
     def test_compose_install_command(self):
         sm = subcloud_manager.SubcloudManager()
         install_command = sm.compose_install_command(
             'subcloud1',
-            '/var/opt/dc/ansible/subcloud1_inventory.yml',
+            f'{consts.ANSIBLE_OVERRIDES_PATH}/subcloud1_inventory.yml',
             FAKE_PREVIOUS_SW_VERSION)
         self.assertEqual(
             install_command,
             [
                 'ansible-playbook',
                 subcloud_manager.ANSIBLE_SUBCLOUD_INSTALL_PLAYBOOK,
-                '-i', '/var/opt/dc/ansible/subcloud1_inventory.yml',
+                '-i', f'{consts.ANSIBLE_OVERRIDES_PATH}/subcloud1_inventory.yml',
                 '--limit', 'subcloud1',
-                '-e', "@/var/opt/dc/ansible/subcloud1/install_values.yml",
+                '-e', f"@{consts.ANSIBLE_OVERRIDES_PATH}/subcloud1/install_values.yml",
                 '-e', "install_release_version=%s" % FAKE_PREVIOUS_SW_VERSION
             ]
         )
@@ -1607,7 +1607,7 @@ class TestSubcloudManager(base.DCManagerTestCase):
         sm = subcloud_manager.SubcloudManager()
         apply_command = sm.compose_apply_command(
             'subcloud1',
-            '/var/opt/dc/ansible/subcloud1_inventory.yml',
+            f'{consts.ANSIBLE_OVERRIDES_PATH}/subcloud1_inventory.yml',
             FAKE_PREVIOUS_SW_VERSION)
         self.assertEqual(
             apply_command,
@@ -1616,9 +1616,9 @@ class TestSubcloudManager(base.DCManagerTestCase):
                 cutils.get_playbook_for_software_version(
                     subcloud_manager.ANSIBLE_SUBCLOUD_PLAYBOOK,
                     FAKE_PREVIOUS_SW_VERSION),
-                '-i', '/var/opt/dc/ansible/subcloud1_inventory.yml',
+                '-i', f'{consts.ANSIBLE_OVERRIDES_PATH}/subcloud1_inventory.yml',
                 '--limit', 'subcloud1', '-e',
-                "override_files_dir='/var/opt/dc/ansible' region_name=subcloud1",
+                f"override_files_dir='{consts.ANSIBLE_OVERRIDES_PATH}' region_name=subcloud1",
                 '-e', "install_release_version=%s" % FAKE_PREVIOUS_SW_VERSION
             ]
         )
@@ -1632,14 +1632,14 @@ class TestSubcloudManager(base.DCManagerTestCase):
                         "deploy_config": "subcloud1.yaml"}
         deploy_command = sm.compose_deploy_command(
             'subcloud1',
-            '/var/opt/dc/ansible/subcloud1_inventory.yml',
+            f'{consts.ANSIBLE_OVERRIDES_PATH}/subcloud1_inventory.yml',
             fake_payload)
         self.assertEqual(
             deploy_command,
             [
                 'ansible-playbook', 'test_playbook.yaml', '-e',
-                '@/var/opt/dc/ansible/subcloud1_deploy_values.yml', '-i',
-                '/var/opt/dc/ansible/subcloud1_inventory.yml',
+                f'@{consts.ANSIBLE_OVERRIDES_PATH}/subcloud1_deploy_values.yml', '-i',
+                f'{consts.ANSIBLE_OVERRIDES_PATH}/subcloud1_inventory.yml',
                 '--limit', 'subcloud1'
             ]
         )
@@ -1650,7 +1650,7 @@ class TestSubcloudManager(base.DCManagerTestCase):
         sm = subcloud_manager.SubcloudManager()
         rehome_command = sm.compose_rehome_command(
             'subcloud1',
-            '/var/opt/dc/ansible/subcloud1_inventory.yml',
+            f'{consts.ANSIBLE_OVERRIDES_PATH}/subcloud1_inventory.yml',
             FAKE_PREVIOUS_SW_VERSION)
         self.assertEqual(
             rehome_command,
@@ -1659,11 +1659,11 @@ class TestSubcloudManager(base.DCManagerTestCase):
                 cutils.get_playbook_for_software_version(
                     subcloud_manager.ANSIBLE_SUBCLOUD_REHOME_PLAYBOOK,
                     FAKE_PREVIOUS_SW_VERSION),
-                '-i', '/var/opt/dc/ansible/subcloud1_inventory.yml',
+                '-i', f'{consts.ANSIBLE_OVERRIDES_PATH}/subcloud1_inventory.yml',
                 '--limit', 'subcloud1',
                 '--timeout', subcloud_manager.REHOME_PLAYBOOK_TIMEOUT,
                 '-e',
-                "override_files_dir='/var/opt/dc/ansible' region_name=subcloud1"
+                f"override_files_dir='{consts.ANSIBLE_OVERRIDES_PATH}' region_name=subcloud1"
             ]
         )
 
