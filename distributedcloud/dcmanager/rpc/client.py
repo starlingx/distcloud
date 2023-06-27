@@ -197,6 +197,11 @@ class ManagerClient(RPCClient):
                                              subcloud_id=subcloud_id,
                                              payload=payload))
 
+    def subcloud_deploy_config(self, ctxt, subcloud_id, payload):
+        return self.call(ctxt, self.make_msg('subcloud_deploy_config',
+                                             subcloud_id=subcloud_id,
+                                             payload=payload))
+
 
 class DCManagerNotifications(RPCClient):
     """DC Manager Notification interface to broadcast subcloud state changed

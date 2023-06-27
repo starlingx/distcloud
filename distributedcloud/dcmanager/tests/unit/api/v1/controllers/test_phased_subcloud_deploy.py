@@ -4,8 +4,10 @@
 # SPDX-License-Identifier: Apache-2.0
 #
 
+import base64
 import copy
 import json
+
 import mock
 from os import path as os_path
 import six
@@ -41,7 +43,7 @@ class FakeRPCClient(object):
 # Apply the TestSubcloudPost parameter validation tests to the subcloud deploy
 # add endpoint as it uses the same parameter validation functions
 class TestSubcloudDeployCreate(TestSubcloudPost):
-    API_PREFIX = '/v1.0/phased-subcloud-deploy'
+    API_PREFIX = FAKE_URL
     RESULT_KEY = 'phased-subcloud-deploy'
 
     def setUp(self):
@@ -229,3 +231,77 @@ class TestSubcloudDeployBootstrap(testroot.DCManagerApiTest):
                               upload_files=[("bootstrap_values",
                                              "bootstrap_fake_filename",
                                              fake_content)])
+
+
+class TestSubcloudDeployConfig(testroot.DCManagerApiTest):
+    def setUp(self):
+        super(TestSubcloudDeployConfig, self).setUp()
+        self.ctx = utils.dummy_context()
+
+        p = mock.patch.object(rpc_client, 'ManagerClient')
+        self.mock_rpc_client = p.start()
+        self.addCleanup(p.stop)
+
+        p = mock.patch.object(psd_common, 'populate_payload_with_pre_existing_data')
+        self.mock_populate_payload = p.start()
+        self.addCleanup(p.stop)
+
+        p = mock.patch.object(psd_common, 'get_request_data')
+        self.mock_get_request_data = p.start()
+        self.addCleanup(p.stop)
+
+    def test_configure_subcloud(self):
+        subcloud = fake_subcloud.create_fake_subcloud(self.ctx)
+        fake_password = (base64.b64encode('testpass'.encode("utf-8"))).decode('ascii')
+        data = {'sysadmin_password': fake_password}
+
+        self.mock_rpc_client().subcloud_deploy_config.return_value = True
+        self.mock_get_request_data.return_value = data
+
+        response = self.app.patch_json(FAKE_URL + '/' + str(subcloud.id) +
+                                       '/configure',
+                                       headers=FAKE_HEADERS,
+                                       params=data)
+        self.mock_rpc_client().subcloud_deploy_config.assert_called_once_with(
+            mock.ANY,
+            subcloud.id,
+            mock.ANY)
+        self.assertEqual(response.status_int, 200)
+
+    def test_configure_subcloud_no_body(self):
+        subcloud = fake_subcloud.create_fake_subcloud(self.ctx)
+        # Pass an empty request body
+        data = {}
+        self.mock_rpc_client().subcloud_deploy_config.return_value = True
+        self.mock_get_request_data.return_value = data
+
+        six.assertRaisesRegex(self, webtest.app.AppError, "400 *",
+                              self.app.patch_json, FAKE_URL + '/' +
+                              str(subcloud.id) + '/configure',
+                              headers=FAKE_HEADERS, params=data)
+
+    def test_configure_subcloud_bad_password(self):
+        subcloud = fake_subcloud.create_fake_subcloud(self.ctx)
+        # Pass a sysadmin_password which is not base64 encoded
+        data = {'sysadmin_password': 'not_base64'}
+        self.mock_rpc_client().subcloud_deploy_config.return_value = True
+        self.mock_get_request_data.return_value = data
+
+        six.assertRaisesRegex(self, webtest.app.AppError, "400 *",
+                              self.app.patch_json, FAKE_URL + '/' +
+                              str(subcloud.id) + '/configure',
+                              headers=FAKE_HEADERS, params=data)
+
+    def test_configure_invalid_deploy_status(self):
+        subcloud = fake_subcloud.create_fake_subcloud(
+            self.ctx,
+            deploy_status=consts.DEPLOY_STATE_BOOTSTRAP_FAILED)
+        fake_password = base64.b64encode('testpass'.encode("utf-8")).decode("utf-8")
+        data = {'sysadmin_password': fake_password}
+        self.mock_rpc_client().subcloud_deploy_config.return_value = True
+        self.mock_get_request_data.return_value = data
+
+        six.assertRaisesRegex(self, webtest.app.AppError, "400 *",
+                              self.app.patch_json, FAKE_URL + '/' +
+                              str(subcloud.id) + '/configure',
+                              headers=FAKE_HEADERS, params=data)

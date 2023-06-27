@@ -692,21 +692,15 @@ def upload_deploy_config_file(request, payload):
 
 
 def get_config_file_path(subcloud_name, config_file_type=None):
+    basepath = consts.ANSIBLE_OVERRIDES_PATH
     if config_file_type == consts.DEPLOY_CONFIG:
-        file_path = os.path.join(
-            consts.ANSIBLE_OVERRIDES_PATH,
-            subcloud_name + '_' + config_file_type + '.yml'
-        )
-    elif config_file_type == INSTALL_VALUES:
-        file_path = os.path.join(
-            consts.ANSIBLE_OVERRIDES_PATH + '/' + subcloud_name,
-            config_file_type + '.yml'
-        )
+        filename = f"{subcloud_name}_{config_file_type}.yml"
+    elif config_file_type == consts.INSTALL_VALUES:
+        basepath = os.path.join(basepath, subcloud_name)
+        filename = f'{config_file_type}.yml'
     else:
-        file_path = os.path.join(
-            consts.ANSIBLE_OVERRIDES_PATH,
-            subcloud_name + '.yml'
-        )
+        filename = f"{subcloud_name}.yml"
+    file_path = os.path.join(basepath, filename)
     return file_path
 
 
@@ -721,18 +715,24 @@ def upload_config_file(file_item, config_file, config_type):
 
 
 def get_common_deploy_files(payload, software_version):
+    missing_deploy_files = []
     for f in consts.DEPLOY_COMMON_FILE_OPTIONS:
-        # Skip the prestage_images option as it is not relevant in this
-        # context
+        # Skip the prestage_images option as it is
+        # not relevant in this context
         if f == consts.DEPLOY_PRESTAGE:
             continue
         filename = None
         dir_path = os.path.join(dccommon_consts.DEPLOY_DIR, software_version)
         if os.path.isdir(dir_path):
             filename = utils.get_filename_by_prefix(dir_path, f + '_')
-        if filename is None:
-            pecan.abort(400, _("Missing required deploy file for %s") % f)
-        payload.update({f: os.path.join(dir_path, filename)})
+        if not filename:
+            missing_deploy_files.append(f)
+        else:
+            payload.update({f: os.path.join(dir_path, filename)})
+    if missing_deploy_files:
+        missing_deploy_files_str = ', '.join(missing_deploy_files)
+        msg = _("Missing required deploy files: %s" % missing_deploy_files_str)
+        pecan.abort(400, msg)
 
 
 def validate_subcloud_name_availability(context, subcloud_name):
@@ -794,7 +794,7 @@ def get_request_data(request: pecan.Request,
             file_item = request.POST[f]
             file_item.file.seek(0, os.SEEK_SET)
             contents = file_item.file.read()
-            if subcloud.name and f == consts.DEPLOY_CONFIG:
+            if f == consts.DEPLOY_CONFIG:
                 fn = get_config_file_path(subcloud.name, f)
                 upload_config_file(contents, fn, f)
                 payload.update({f: fn})

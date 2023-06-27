@@ -1673,6 +1673,7 @@ Subcloud Deploy
 These APIs allow for the display and upload of the deployment manager common
 files which include deploy playbook, deploy overrides, deploy helm charts, and prestage images list.
 
+
 **************************
 Show Subcloud Deploy Files
 **************************
@@ -1910,4 +1911,76 @@ Response Example
 ----------------
 
 .. literalinclude:: samples/phased-subcloud-deploy/phased-subcloud-deploy-post-response.json
+      :language: json
+
+**********************************
+Configures a subcloud
+**********************************
+
+.. rest_method:: PATCH /v1.0/phased-subcloud-deploy/{subcloud}/configure
+
+The attributes of a subcloud which are modifiable:
+
+-  subcloud configuration (which is provided through deploy_config file)
+
+**Normal response codes**
+
+200
+
+**Error response codes**
+
+badRequest (400), unauthorized (401), forbidden (403), badMethod (405),
+HTTPUnprocessableEntity (422), internalServerError (500),
+serviceUnavailable (503)
+
+**Request parameters**
+
+.. rest_parameters:: parameters.yaml
+
+  - subcloud: subcloud_uri
+  - deploy_config: deploy_config
+  - sysadmin_password: sysadmin_password
+
+Accepts Content-Type multipart/form-data
+
+Request Example
+----------------
+
+.. literalinclude:: samples/phased-subcloud-deploy/phased-subcloud-deploy-patch-configure-request.json
+      :language: json
+
+**Response parameters**
+
+.. rest_parameters:: parameters.yaml
+
+  - id: subcloud_id
+  - group_id: group_id
+  - name: subcloud_name
+  - description: subcloud_description
+  - location: subcloud_location
+  - software-version: software_version
+  - availability-status: availability_status
+  - error-description: error_description
+  - deploy-status: deploy_status
+  - backup-status: backup_status
+  - backup-datetime: backup_datetime
+  - openstack-installed: openstack_installed
+  - management-state: management_state
+  - systemcontroller-gateway-ip: systemcontroller_gateway_ip
+  - management-start-ip: management_start_ip
+  - management-end-ip: management_end_ip
+  - management-subnet: management_subnet
+  - management-gateway-ip: management_gateway_ip
+  - created-at: created_at
+  - updated-at: updated_at
+  - data_install: data_install
+  - data_upgrade: data_upgrade
+  - endpoint_sync_status: endpoint_sync_status
+  - sync_status: sync_status
+  - endpoint_type: sync_status_type
+
+Response Example
+----------------
+
+.. literalinclude:: samples/phased-subcloud-deploy/phased-subcloud-deploy-patch-configure-response.json
       :language: json

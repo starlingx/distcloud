@@ -22,6 +22,7 @@ from dcmanager.common.context import RequestContext
 from dcmanager.common import exceptions
 from dcmanager.common.i18n import _
 from dcmanager.common import phased_subcloud_deploy as psd_common
+from dcmanager.common import prestage
 from dcmanager.common import utils
 from dcmanager.db import api as db_api
 from dcmanager.db.sqlalchemy import models
@@ -46,6 +47,10 @@ SUBCLOUD_BOOTSTRAP_GET_FILE_CONTENTS = (
     consts.BOOTSTRAP_VALUES,
 )
 
+SUBCLOUD_CONFIG_GET_FILE_CONTENTS = (
+    consts.DEPLOY_CONFIG,
+)
+
 VALID_STATES_FOR_DEPLOY_BOOTSTRAP = [
     consts.DEPLOY_STATE_INSTALLED,
     consts.DEPLOY_STATE_BOOTSTRAP_FAILED,
@@ -55,6 +60,16 @@ VALID_STATES_FOR_DEPLOY_BOOTSTRAP = [
     # to allow the bootstrap operation when the state == DEPLOY_STATE_CREATED
     consts.DEPLOY_STATE_CREATED
 ]
+
+# TODO(vgluzrom): remove deploy_failed once 'subcloud reconfig'
+# has been deprecated
+VALID_STATES_FOR_DEPLOY_CONFIG = (
+    consts.DEPLOY_STATE_DONE,
+    consts.DEPLOY_STATE_PRE_CONFIG_FAILED,
+    consts.DEPLOY_STATE_CONFIG_FAILED,
+    consts.DEPLOY_STATE_DEPLOY_FAILED,
+    consts.DEPLOY_STATE_BOOTSTRAPPED
+)
 
 
 def get_create_payload(request: pecan.Request) -> dict:
@@ -199,6 +214,34 @@ class PhasedSubcloudDeployController(object):
             pecan.abort(httpclient.INTERNAL_SERVER_ERROR,
                         _('Unable to bootstrap subcloud'))
 
+    def _deploy_config(self, context: RequestContext,
+                       request: pecan.Request, subcloud):
+        payload = psd_common.get_request_data(
+            request, subcloud, SUBCLOUD_CONFIG_GET_FILE_CONTENTS)
+        if not payload:
+            pecan.abort(400, _('Body required'))
+
+        if not (subcloud.deploy_status in VALID_STATES_FOR_DEPLOY_CONFIG or
+                prestage.is_deploy_status_prestage(subcloud.deploy_status)):
+            allowed_states_str = ', '.join(VALID_STATES_FOR_DEPLOY_CONFIG)
+            pecan.abort(400, _('Subcloud deploy status must be either '
+                               '%s or prestage-...') % allowed_states_str)
+
+        psd_common.populate_payload_with_pre_existing_data(
+            payload, subcloud, SUBCLOUD_CONFIG_GET_FILE_CONTENTS)
+
+        psd_common.validate_sysadmin_password(payload)
+
+        try:
+            subcloud = self.dcmanager_rpc_client.subcloud_deploy_config(
+                context, subcloud.id, payload)
+            return subcloud
+        except RemoteError as e:
+            pecan.abort(422, e.value)
+        except Exception:
+            LOG.exception("Unable to configure subcloud %s" % subcloud.name)
+            pecan.abort(500, _('Unable to configure subcloud'))
+
     @pecan.expose(generic=True, template='json')
     def index(self):
         # Route the request to specific methods with parameters
@@ -238,6 +281,8 @@ class PhasedSubcloudDeployController(object):
 
         if verb == 'bootstrap':
             subcloud = self._deploy_bootstrap(context, pecan.request, subcloud)
+        elif verb == 'configure':
+            subcloud = self._deploy_config(context, pecan.request, subcloud)
         else:
             pecan.abort(400, _('Invalid request'))
 

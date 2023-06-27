@@ -206,6 +206,14 @@ class DCManagerService(service.Service):
                                                                subcloud_id,
                                                                payload)
 
+    @request_context
+    def subcloud_deploy_config(self, context, subcloud_id, payload):
+        # Configures a subcloud
+        LOG.info("Handling subcloud_deploy_config request for: %s" % subcloud_id)
+        return self.subcloud_manager.subcloud_deploy_config(context,
+                                                            subcloud_id,
+                                                            payload)
+
     def _stop_rpc_server(self):
         # Stop RPC connection to prevent new requests
         LOG.debug(_("Attempting to stop RPC service..."))
