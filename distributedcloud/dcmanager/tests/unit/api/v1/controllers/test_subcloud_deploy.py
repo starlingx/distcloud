@@ -254,8 +254,8 @@ class TestSubcloudDeploy(testroot.DCManagerApiTest):
         deploy_config = psd_common.get_config_file_path("subcloud1",
                                                         consts.DEPLOY_CONFIG)
         self.assertEqual(bootstrap_file,
-                         "/var/opt/dc/ansible/subcloud1.yml")
+                         f'{consts.ANSIBLE_OVERRIDES_PATH}/subcloud1.yml')
         self.assertEqual(install_values,
-                         "/var/opt/dc/ansible/subcloud1/install_values.yml")
+                         f'{consts.ANSIBLE_OVERRIDES_PATH}/subcloud1/install_values.yml')
         self.assertEqual(deploy_config,
-                         "/var/opt/dc/ansible/subcloud1_deploy_config.yml")
+                         f'{consts.ANSIBLE_OVERRIDES_PATH}/subcloud1_deploy_config.yml')

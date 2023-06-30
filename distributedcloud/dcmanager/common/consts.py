@@ -282,7 +282,7 @@ ALARM_DEGRADED_STATUS = "degraded"
 ALARM_CRITICAL_STATUS = "critical"
 
 # subcloud deploy file options
-ANSIBLE_OVERRIDES_PATH = '/var/opt/dc/ansible'
+ANSIBLE_OVERRIDES_PATH = '/opt/dc-vault/ansible'
 DEPLOY_PLAYBOOK = "deploy_playbook"
 DEPLOY_OVERRIDES = "deploy_overrides"
 DEPLOY_CHART = "deploy_chart"
