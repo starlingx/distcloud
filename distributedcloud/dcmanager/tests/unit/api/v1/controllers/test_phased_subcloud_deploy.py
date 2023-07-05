@@ -42,7 +42,7 @@ FAKE_SUBCLOUD_INSTALL_VALUES = fake_subcloud.FAKE_SUBCLOUD_INSTALL_VALUES
 class FakeRPCClient(object):
     def subcloud_deploy_create(self, context, subcloud_id, _):
         subcloud = db_api.subcloud_get(context, subcloud_id)
-        return db_api.subcloud_db_model_to_dict(subcloud)
+        return subcloud
 
 
 # Apply the TestSubcloudPost parameter validation tests to the subcloud deploy

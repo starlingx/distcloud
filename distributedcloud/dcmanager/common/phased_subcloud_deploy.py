@@ -151,6 +151,18 @@ def validate_system_controller_patch_status(operation: str):
                         % operation)
 
 
+def validate_migrate_parameter(payload, request):
+    migrate_str = payload.get('migrate')
+    if migrate_str is not None:
+        if migrate_str not in ["true", "false"]:
+            pecan.abort(400, _('The migrate option is invalid, '
+                               'valid options are true and false.'))
+
+        if consts.DEPLOY_CONFIG in request.POST:
+            pecan.abort(400, _('migrate with deploy-config is '
+                               'not allowed'))
+
+
 def validate_subcloud_config(context, payload, operation=None,
                              ignore_conflicts_with=None):
     """Check whether subcloud config is valid."""
@@ -452,7 +464,7 @@ def validate_install_values(payload, subcloud=None):
     """
     install_values = payload.get('install_values')
     if not install_values:
-        return False
+        return
 
     original_install_values = None
     if subcloud:
@@ -490,6 +502,7 @@ def validate_install_values(payload, subcloud=None):
         LOG.debug("software_version (%s) is added to install_values" %
                   software_version)
         payload['install_values'].update({'software_version': software_version})
+
     if 'persistent_size' in install_values:
         persistent_size = install_values.get('persistent_size')
         if not isinstance(persistent_size, int):
@@ -501,6 +514,7 @@ def validate_install_values(payload, subcloud=None):
             pecan.abort(400, _("persistent_size of %s MB is less than "
                                "the permitted minimum %s MB ") %
                         (str(persistent_size), consts.DEFAULT_PERSISTENT_SIZE))
+
     if 'hw_settle' in install_values:
         hw_settle = install_values.get('hw_settle')
         if not isinstance(hw_settle, int):
@@ -509,6 +523,24 @@ def validate_install_values(payload, subcloud=None):
         if hw_settle < 0:
             pecan.abort(400, _("hw_settle of %s seconds is less than 0") %
                         (str(hw_settle)))
+
+    if 'extra_boot_params' in install_values:
+        # Validate 'extra_boot_params' boot parameter
+        # Note: this must be a single string (no spaces). If
+        # multiple boot parameters are required they can be
+        # separated by commas. They will be split into separate
+        # arguments by the miniboot.cfg kickstart.
+        extra_boot_params = install_values.get('extra_boot_params')
+        if extra_boot_params in ('', None, 'None'):
+            msg = "The install value extra_boot_params must not be empty."
+            pecan.abort(400, _(msg))
+        if ' ' in extra_boot_params:
+            msg = (
+                "Invalid install value 'extra_boot_params="
+                f"{extra_boot_params}'. Spaces are not allowed "
+                "(use ',' to separate multiple arguments)"
+            )
+            pecan.abort(400, _(msg))
 
     for k in dccommon_consts.MANDATORY_INSTALL_VALUES:
         if k not in install_values:
@@ -591,8 +623,6 @@ def validate_install_values(payload, subcloud=None):
         except ValueError as e:
             LOG.exception(e)
             pecan.abort(400, _("rd.net.timeout.ipv6dad invalid: %s") % e)
-
-    return True
 
 
 def validate_k8s_version(payload):
@@ -677,19 +707,21 @@ def format_ip_address(payload):
 
 
 def upload_deploy_config_file(request, payload):
-    if consts.DEPLOY_CONFIG in request.POST:
-        file_item = request.POST[consts.DEPLOY_CONFIG]
-        filename = getattr(file_item, 'filename', '')
-        if not filename:
-            pecan.abort(400, _("No %s file uploaded"
-                        % consts.DEPLOY_CONFIG))
-        file_item.file.seek(0, os.SEEK_SET)
-        contents = file_item.file.read()
-        # the deploy config needs to upload to the override location
-        fn = get_config_file_path(payload['name'], consts.DEPLOY_CONFIG)
-        upload_config_file(contents, fn, consts.DEPLOY_CONFIG)
-        payload.update({consts.DEPLOY_CONFIG: fn})
-        get_common_deploy_files(payload, payload['software_version'])
+    file_item = request.POST.get(consts.DEPLOY_CONFIG)
+    if file_item is None:
+        return
+
+    filename = getattr(file_item, 'filename', '')
+    if not filename:
+        pecan.abort(400, _("No %s file uploaded" % consts.DEPLOY_CONFIG))
+
+    file_item.file.seek(0, os.SEEK_SET)
+    contents = file_item.file.read()
+    # the deploy config needs to upload to the override location
+    fn = get_config_file_path(payload['name'], consts.DEPLOY_CONFIG)
+    upload_config_file(contents, fn, consts.DEPLOY_CONFIG)
+    payload[consts.DEPLOY_CONFIG] = fn
+    get_common_deploy_files(payload, payload['software_version'])
 
 
 def get_config_file_path(subcloud_name, config_file_type=None):
@@ -718,8 +750,7 @@ def upload_config_file(file_item, config_file, config_type):
 def get_common_deploy_files(payload, software_version):
     missing_deploy_files = []
     for f in consts.DEPLOY_COMMON_FILE_OPTIONS:
-        # Skip the prestage_images option as it is
-        # not relevant in this context
+        # Skip the prestage_images option as it is not relevant in this context
         if f == consts.DEPLOY_PRESTAGE:
             continue
         filename = None
@@ -856,6 +887,35 @@ def populate_payload_with_pre_existing_data(payload: dict,
                     pecan.abort(400, msg)
                 payload.update({value: fn})
             get_common_deploy_files(payload, subcloud.software_version)
+
+
+def pre_deploy_create(payload: dict, context: RequestContext,
+                      request: pecan.Request):
+    if not payload:
+        pecan.abort(400, _('Body required'))
+
+    validate_bootstrap_values(payload)
+
+    # If a subcloud release is not passed, use the current
+    # system controller software_version
+    payload['software_version'] = payload.get('release', tsc.SW_VERSION)
+
+    validate_subcloud_name_availability(context, payload['name'])
+
+    validate_system_controller_patch_status("create")
+
+    validate_subcloud_config(context, payload)
+
+    validate_install_values(payload)
+
+    validate_k8s_version(payload)
+
+    format_ip_address(payload)
+
+    # Upload the deploy config files if it is included in the request
+    # It has a dependency on the subcloud name, and it is called after
+    # the name has been validated
+    upload_deploy_config_file(request, payload)
 
 
 def pre_deploy_install(payload: dict, validate_password=False):

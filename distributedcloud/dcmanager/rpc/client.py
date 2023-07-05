@@ -124,8 +124,9 @@ class ManagerClient(RPCClient):
             consts.TOPIC_DC_MANAGER,
             self.BASE_RPC_API_VERSION)
 
-    def add_subcloud(self, ctxt, payload):
+    def add_subcloud(self, ctxt, subcloud_id, payload):
         return self.cast(ctxt, self.make_msg('add_subcloud',
+                                             subcloud_id=subcloud_id,
                                              payload=payload))
 
     def delete_subcloud(self, ctxt, subcloud_id):

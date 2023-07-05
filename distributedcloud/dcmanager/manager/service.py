@@ -99,10 +99,10 @@ class DCManagerService(service.Service):
         super(DCManagerService, self).start()
 
     @request_context
-    def add_subcloud(self, context, payload):
+    def add_subcloud(self, context, subcloud_id, payload):
         # Adds a subcloud
         LOG.info("Handling add_subcloud request for: %s" % payload.get('name'))
-        return self.subcloud_manager.add_subcloud(context, payload)
+        return self.subcloud_manager.add_subcloud(context, subcloud_id, payload)
 
     @request_context
     def delete_subcloud(self, context, subcloud_id):
