@@ -141,6 +141,9 @@ class SwUpdateStrategyController(object):
         if not payload:
             pecan.abort(400, _('Body required'))
 
+        # If 'type' is in the request params, filter the update_type
+        update_type_filter = request.params.get('type', None)
+
         if actions is None:
             policy.authorize(sw_update_strat_policy.POLICY_ROOT % "create", {},
                              restcomm.extract_credentials_for_policy())
@@ -212,14 +215,14 @@ class SwUpdateStrategyController(object):
                 return self.orch_rpc_client.create_sw_update_strategy(context,
                                                                       payload)
             except RemoteError as e:
-                pecan.abort(422, e.value)
+                pecan.abort(
+                    422, _("Unable to create strategy of type '%s': %s")
+                    % (update_type_filter, e.value)
+                )
             except Exception as e:
                 LOG.exception(e)
                 pecan.abort(500, _('Unable to create strategy'))
         elif actions == 'actions':
-            # If 'type' is in the request params, filter the update_type
-            update_type_filter = request.params.get('type', None)
-
             # Apply or abort a strategy
             action = payload.get('action')
             if not action:
@@ -234,7 +237,10 @@ class SwUpdateStrategyController(object):
                         context,
                         update_type=update_type_filter)
                 except RemoteError as e:
-                    pecan.abort(422, e.value)
+                    pecan.abort(
+                        422, _("Unable to apply strategy of type '%s': %s")
+                        % (update_type_filter, e.value)
+                    )
                 except Exception as e:
                     LOG.exception(e)
                     pecan.abort(500, _('Unable to apply strategy'))
@@ -248,7 +254,10 @@ class SwUpdateStrategyController(object):
                         context,
                         update_type=update_type_filter)
                 except RemoteError as e:
-                    pecan.abort(422, e.value)
+                    pecan.abort(
+                        422, _("Unable to abort strategy of type '%s': %s")
+                        % (update_type_filter, e.value)
+                    )
                 except Exception as e:
                     LOG.exception(e)
                     pecan.abort(500, _('Unable to abort strategy'))
@@ -270,7 +279,10 @@ class SwUpdateStrategyController(object):
                 context,
                 update_type=update_type_filter)
         except RemoteError as e:
-            pecan.abort(422, e.value)
+            pecan.abort(
+                422, _("Unable to delete strategy of type '%s': %s")
+                % (update_type_filter, e.value)
+            )
         except Exception as e:
             LOG.exception(e)
             pecan.abort(500, _('Unable to delete strategy'))
