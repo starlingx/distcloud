@@ -8,17 +8,14 @@ import keyring
 import os
 
 from oslo_serialization import base64
+from tsconfig.tsconfig import SW_VERSION
 
-from dccommon.consts import AVAILABILITY_OFFLINE
-from dccommon.install_consts import ANSIBLE_SUBCLOUD_INSTALL_PLAYBOOK
+from dccommon import consts as dccommon_consts
 from dccommon.subcloud_install import SubcloudInstall
-
 from dcmanager.common import consts
 from dcmanager.common import utils
 from dcmanager.db import api as db_api
 from dcmanager.orchestrator.states.base import BaseState
-
-from tsconfig.tsconfig import SW_VERSION
 
 
 class UpgradingSimplexState(BaseState):
@@ -238,20 +235,7 @@ class UpgradingSimplexState(BaseState):
         if persistent_size is not None:
             upgrade_data_install.update({'persistent_size': persistent_size})
 
-        # optional bootstrap parameters
-        optional_bootstrap_parameters = [
-            'nexthop_gateway',  # default route address
-            'network_address',  # static route address
-            'network_mask',  # static route mask
-            'bootstrap_vlan',
-            'wait_for_timeout',
-            'no_check_certificate',
-            'rd.net.timeout.ipv6dad',
-            'hw_settle',
-            'extra_boot_params',
-        ]
-
-        for p in optional_bootstrap_parameters:
+        for p in dccommon_consts.OPTIONAL_INSTALL_VALUES:
             if p in data_install:
                 upgrade_data_install.update({p: data_install.get(p)})
 
@@ -374,7 +358,7 @@ class UpgradingSimplexState(BaseState):
 
         # SubcloudInstall.prep creates data_install.yml (install overrides)
         install_command = [
-            "ansible-playbook", ANSIBLE_SUBCLOUD_INSTALL_PLAYBOOK,
+            "ansible-playbook", dccommon_consts.ANSIBLE_SUBCLOUD_INSTALL_PLAYBOOK,
             "-i", ansible_subcloud_inventory_file,
             "-e", "@%s" % consts.ANSIBLE_OVERRIDES_PATH + "/" +
                   strategy_step.subcloud.name + '/' + "install_values.yml"
@@ -383,7 +367,7 @@ class UpgradingSimplexState(BaseState):
         # Run the remote install playbook
         db_api.subcloud_update(
             self.context, strategy_step.subcloud_id,
-            availability_status=AVAILABILITY_OFFLINE,
+            availability_status=dccommon_consts.AVAILABILITY_OFFLINE,
             deploy_status=consts.DEPLOY_STATE_INSTALLING)
         try:
             install.install(consts.DC_ANSIBLE_LOG_DIR, install_command)

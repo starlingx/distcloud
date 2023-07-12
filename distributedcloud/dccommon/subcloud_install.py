@@ -13,22 +13,22 @@
 # limitations under the License.
 #
 
+import os
+import shutil
+import socket
+import tempfile
+
 from eventlet.green import subprocess
 import netaddr
-import os
 from oslo_log import log as logging
-import shutil
 from six.moves.urllib import error as urllib_error
 from six.moves.urllib import parse
 from six.moves.urllib import request
-import socket
-import tempfile
 
 from dccommon import consts
 from dccommon.drivers.openstack.keystone_v3 import KeystoneClient
 from dccommon.drivers.openstack.sysinv_v1 import SysinvClient
 from dccommon import exceptions
-from dccommon import install_consts
 from dccommon import utils as dccommon_utils
 from dcmanager.common import consts as common_consts
 from dcmanager.common import utils
@@ -54,43 +54,6 @@ NETWORK_SCRIPTS = '/etc/sysconfig/network-scripts'
 NETWORK_INTERFACE_PREFIX = 'ifcfg'
 NETWORK_ROUTE_PREFIX = 'route'
 LOCAL_REGISTRY_PREFIX = 'registry.local:9001/'
-
-OPTIONAL_INSTALL_VALUES = [
-    'nexthop_gateway',
-    'network_address',
-    'network_mask',
-    'console_type',
-    'bootstrap_vlan',
-    'rootfs_device',
-    'boot_device',
-    'rd.net.timeout.ipv6dad',
-    'no_check_certificate',
-    'persistent_size',
-    'hw_settle',
-    'extra_boot_params',
-]
-
-GEN_ISO_OPTIONS = {
-    'bootstrap_interface': '--boot-interface',
-    'bootstrap_address': '--boot-ip',
-    'bootstrap_address_prefix': '--boot-netmask',
-    'nexthop_gateway': "--boot-gateway",
-    'install_type': '--default-boot',
-    'rootfs_device': '--param',
-    'boot_device': '--param',
-    'rd.net.timeout.ipv6dad': '--param',
-    'bootstrap_vlan': '--param',
-    'no_check_certificate': '--param',
-    'persistent_size': '--param',
-    'hw_settle': '--param',
-    'extra_boot_params': '--param',
-}
-
-BMC_OPTIONS = {
-    'bmc_address',
-    'bmc_username',
-    'bmc_password',
-}
 
 
 class SubcloudInstall(object):
@@ -210,7 +173,7 @@ class SubcloudInstall(object):
 
         with open(rvmc_config_file, 'w') as f_out_rvmc_config_file:
             for k, v in payload.items():
-                if k in BMC_OPTIONS or k == 'image':
+                if k in consts.BMC_INSTALL_VALUES or k == 'image':
                     f_out_rvmc_config_file.write(k + ': ' + v + '\n')
 
     def create_install_override_file(self, override_path, payload):
@@ -349,48 +312,48 @@ class SubcloudInstall(object):
                 "--timeout", BOOT_MENU_TIMEOUT,
                 "--patches-from-iso",
             ]
-        for key in GEN_ISO_OPTIONS:
+        for key in consts.GEN_ISO_OPTIONS:
             if key in values:
                 LOG.debug("Setting option from key=%s, option=%s, value=%s",
-                          key, GEN_ISO_OPTIONS[key], values[key])
+                          key, consts.GEN_ISO_OPTIONS[key], values[key])
                 if key in ('bootstrap_address', 'nexthop_gateway'):
-                    update_iso_cmd += [GEN_ISO_OPTIONS[key],
+                    update_iso_cmd += [consts.GEN_ISO_OPTIONS[key],
                                        self.format_address(values[key])]
                 elif key == 'no_check_certificate':
                     if str(values[key]) == 'True' and self.get_https_enabled():
-                        update_iso_cmd += [GEN_ISO_OPTIONS[key],
+                        update_iso_cmd += [consts.GEN_ISO_OPTIONS[key],
                                            'inst.noverifyssl=True']
                 elif key in ('rootfs_device', 'boot_device',
                              'rd.net.timeout.ipv6dad'):
-                    update_iso_cmd += [GEN_ISO_OPTIONS[key],
+                    update_iso_cmd += [consts.GEN_ISO_OPTIONS[key],
                                        (key + '=' + str(values[key]))]
                 elif key == 'bootstrap_vlan':
                     vlan_inteface = "%s.%s:%s" % \
                                     (values['bootstrap_interface'],
                                      values['bootstrap_vlan'],
                                      values['bootstrap_interface'])
-                    update_iso_cmd += [GEN_ISO_OPTIONS[key],
+                    update_iso_cmd += [consts.GEN_ISO_OPTIONS[key],
                                        ('vlan' + '=' + vlan_inteface)]
                 elif (key == 'bootstrap_interface'
                       and 'bootstrap_vlan' in values):
                     boot_interface = "%s.%s" % (values['bootstrap_interface'],
                                                 values['bootstrap_vlan'])
-                    update_iso_cmd += [GEN_ISO_OPTIONS[key], boot_interface]
+                    update_iso_cmd += [consts.GEN_ISO_OPTIONS[key], boot_interface]
                 elif key == 'persistent_size':
-                    update_iso_cmd += [GEN_ISO_OPTIONS[key],
+                    update_iso_cmd += [consts.GEN_ISO_OPTIONS[key],
                                        ('persistent_size=%s'
                                         % str(values[key]))]
                 elif key == 'hw_settle':
                     # translate to 'insthwsettle' boot parameter
-                    update_iso_cmd += [GEN_ISO_OPTIONS[key],
+                    update_iso_cmd += [consts.GEN_ISO_OPTIONS[key],
                                        ('insthwsettle=%s'
                                         % str(values[key]))]
                 elif key == 'extra_boot_params':
-                    update_iso_cmd += [GEN_ISO_OPTIONS[key],
+                    update_iso_cmd += [consts.GEN_ISO_OPTIONS[key],
                                        ('extra_boot_params=%s'
                                         % str(values[key]))]
                 else:
-                    update_iso_cmd += [GEN_ISO_OPTIONS[key], str(values[key])]
+                    update_iso_cmd += [consts.GEN_ISO_OPTIONS[key], str(values[key])]
 
         if is_subcloud_debian:
             # Get the base URL. ostree_repo is located within this path
@@ -542,13 +505,13 @@ class SubcloudInstall(object):
         """Update the iso image and create the config files for the subcloud"""
         LOG.info("Prepare for %s remote install" % (self.name))
         iso_values = {}
-        for k in install_consts.MANDATORY_INSTALL_VALUES:
-            if k in list(GEN_ISO_OPTIONS.keys()):
+        for k in consts.MANDATORY_INSTALL_VALUES:
+            if k in list(consts.GEN_ISO_OPTIONS.keys()):
                 iso_values[k] = payload.get(k)
-            if k not in BMC_OPTIONS:
+            if k not in consts.BMC_INSTALL_VALUES:
                 iso_values[k] = payload.get(k)
 
-        for k in OPTIONAL_INSTALL_VALUES:
+        for k in consts.OPTIONAL_INSTALL_VALUES:
             if k in payload:
                 iso_values[k] = payload.get(k)
 
@@ -596,7 +559,7 @@ class SubcloudInstall(object):
         self.create_rvmc_config_file(override_path, payload)
 
         # remove the bmc values from the payload
-        for k in BMC_OPTIONS:
+        for k in consts.BMC_INSTALL_VALUES:
             if k in payload:
                 del payload[k]
 

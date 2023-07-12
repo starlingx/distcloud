@@ -139,3 +139,52 @@ SUPPORTED_OS_TYPES = [OS_CENTOS, OS_DEBIAN]
 CERT_CA_FILE_CENTOS = "ca-cert.pem"
 CERT_CA_FILE_DEBIAN = "ca-cert.crt"
 SSL_CERT_CA_DIR = "/etc/pki/ca-trust/source/anchors/"
+
+# Subcloud installation values
+BMC_INSTALL_VALUES = [
+    'bmc_username',
+    'bmc_address',
+    'bmc_password',
+]
+
+MANDATORY_INSTALL_VALUES = [
+    'bootstrap_interface',
+    'bootstrap_address',
+    'bootstrap_address_prefix',
+    'install_type',
+] + BMC_INSTALL_VALUES
+
+OPTIONAL_INSTALL_VALUES = [
+    'nexthop_gateway',
+    'network_address',
+    'network_mask',
+    'console_type',
+    'bootstrap_vlan',
+    'rootfs_device',
+    'boot_device',
+    'rd.net.timeout.ipv6dad',
+    'no_check_certificate',
+    'persistent_size',
+    'hw_settle',
+    'extra_boot_params',
+]
+
+GEN_ISO_OPTIONS = {
+    'bootstrap_interface': '--boot-interface',
+    'bootstrap_address': '--boot-ip',
+    'bootstrap_address_prefix': '--boot-netmask',
+    'install_type': '--default-boot',
+    'nexthop_gateway': "--boot-gateway",
+    'rootfs_device': '--param',
+    'boot_device': '--param',
+    'rd.net.timeout.ipv6dad': '--param',
+    'bootstrap_vlan': '--param',
+    'no_check_certificate': '--param',
+    'persistent_size': '--param',
+    'hw_settle': '--param',
+    'extra_boot_params': '--param',
+}
+
+SUPPORTED_INSTALL_TYPES = 6
+ANSIBLE_SUBCLOUD_INSTALL_PLAYBOOK = \
+    '/usr/share/ansible/stx-ansible/playbooks/install.yml'

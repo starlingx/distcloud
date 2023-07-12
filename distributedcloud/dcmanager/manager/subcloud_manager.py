@@ -77,8 +77,6 @@ ANSIBLE_SUBCLOUD_BACKUP_RESTORE_PLAYBOOK = \
     '/usr/share/ansible/stx-ansible/playbooks/restore_subcloud_backup.yml'
 ANSIBLE_SUBCLOUD_PLAYBOOK = \
     '/usr/share/ansible/stx-ansible/playbooks/bootstrap.yml'
-ANSIBLE_SUBCLOUD_INSTALL_PLAYBOOK = \
-    '/usr/share/ansible/stx-ansible/playbooks/install.yml'
 ANSIBLE_SUBCLOUD_REHOME_PLAYBOOK = \
     '/usr/share/ansible/stx-ansible/playbooks/rehome_subcloud.yml'
 ANSIBLE_SUBCLOUD_UPDATE_PLAYBOOK = \
@@ -234,7 +232,7 @@ class SubcloudManager(manager.Manager):
                                 ansible_subcloud_inventory_file,
                                 software_version=None):
         install_command = [
-            "ansible-playbook", ANSIBLE_SUBCLOUD_INSTALL_PLAYBOOK,
+            "ansible-playbook", dccommon_consts.ANSIBLE_SUBCLOUD_INSTALL_PLAYBOOK,
             "-i", ansible_subcloud_inventory_file,
             "--limit", subcloud_name,
             "-e", "@%s" % consts.ANSIBLE_OVERRIDES_PATH + "/" +

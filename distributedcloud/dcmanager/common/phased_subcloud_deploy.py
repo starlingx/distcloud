@@ -20,7 +20,6 @@ from dccommon.drivers.openstack import patching_v1
 from dccommon.drivers.openstack.patching_v1 import PatchingClient
 from dccommon.drivers.openstack.sdk_platform import OpenStackDriver
 from dccommon.drivers.openstack.sysinv_v1 import SysinvClient
-from dccommon import install_consts
 from dcmanager.common import consts
 from dcmanager.common import exceptions
 from dcmanager.common.i18n import _
@@ -510,7 +509,7 @@ def validate_install_values(payload, subcloud=None):
             pecan.abort(400, _("hw_settle of %s seconds is less than 0") %
                         (str(hw_settle)))
 
-    for k in install_consts.MANDATORY_INSTALL_VALUES:
+    for k in dccommon_consts.MANDATORY_INSTALL_VALUES:
         if k not in install_values:
             if original_install_values:
                 pecan.abort(400, _("Mandatory install value %s not present, "
@@ -529,7 +528,7 @@ def validate_install_values(payload, subcloud=None):
     payload['install_values'].update({'image': matching_iso})
 
     if (install_values['install_type'] not in
-            list(range(install_consts.SUPPORTED_INSTALL_TYPES))):
+            list(range(dccommon_consts.SUPPORTED_INSTALL_TYPES))):
         pecan.abort(400, _("install_type invalid: %s") %
                     install_values['install_type'])
 
@@ -818,16 +817,7 @@ def get_subcloud_db_install_values(subcloud):
 
     install_values = json.loads(subcloud.data_install)
 
-    # mandatory install parameters
-    mandatory_install_parameters = [
-        'bootstrap_interface',
-        'bootstrap_address',
-        'bootstrap_address_prefix',
-        'bmc_username',
-        'bmc_address',
-        'bmc_password',
-    ]
-    for p in mandatory_install_parameters:
+    for p in dccommon_consts.MANDATORY_INSTALL_VALUES:
         if p not in install_values:
             msg = _("Failed to get %s from data_install" % p)
             LOG.exception(msg)
