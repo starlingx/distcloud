@@ -11,16 +11,12 @@
         - stx-distcloud-tox-pep8
         - stx-distcloud-tox-py39
         - stx-distcloud-tox-pylint
-        - stx-distcloud-tox-pep8-debian
-        - stx-distcloud-tox-pylint-debian
     gate:
       jobs:
         - openstack-tox-linters
         - stx-distcloud-tox-pep8
         - stx-distcloud-tox-py39
         - stx-distcloud-tox-pylint
-        - stx-distcloud-tox-pep8-debian
-        - stx-distcloud-tox-pylint-debian
     post:
       jobs:
         - stx-distcloud-upload-git-mirror
@@ -29,7 +25,7 @@
     name: stx-distcloud-tox-py39
     parent: tox-py39
     description: Run py39 for distcloud
-    nodeset: ubuntu-focal
+    nodeset: debian-bullseye
     pre-run:
       - tools/gate/playbooks/install-postgresql.yaml
     required-projects:
@@ -47,21 +43,7 @@
     name: stx-distcloud-tox-pylint
     parent: tox
     description: Run pylint for distcloud
-    nodeset: ubuntu-bionic
-    required-projects:
-      - starlingx/fault
-      - starlingx/nfv
-      - starlingx/update
-      - starlingx/config
-    vars:
-      tox_envlist: pylint
-      tox_extra_args: -c distributedcloud/tox.ini
-
-- job:
-    name: stx-distcloud-tox-pylint-debian
-    parent: tox
-    description: Run pylint for distcloud
-    nodeset: ubuntu-focal
+    nodeset: debian-bullseye
     required-projects:
       - starlingx/fault
       - starlingx/nfv
@@ -69,28 +51,14 @@
       - starlingx/config
     vars:
       python_version: 3.9
-      tox_envlist: pylint_Debian
+      tox_envlist: pylint
       tox_extra_args: -c distributedcloud/tox.ini
 
 - job:
     name: stx-distcloud-tox-pep8
     parent: tox
     description: Run pep8 for distcloud
-    nodeset: ubuntu-focal
-    required-projects:
-      - starlingx/fault
-      - starlingx/nfv
-      - starlingx/update
-      - starlingx/config
-    vars:
-      tox_envlist: pep8
-      tox_extra_args: -c distributedcloud/tox.ini
-
-- job:
-    name: stx-distcloud-tox-pep8-debian
-    parent: tox
-    nodeset: ubuntu-focal
-    description: Run pep8 for distcloud
+    nodeset: debian-bullseye
     required-projects:
       - starlingx/fault
       - starlingx/nfv
@@ -98,7 +66,7 @@
       - starlingx/config
     vars:
       python_version: 3.9
-      tox_envlist: pep8_Debian
+      tox_envlist: pep8
       tox_extra_args: -c distributedcloud/tox.ini
 
 - job:
