@@ -1593,7 +1593,7 @@ class TestSubcloudManager(base.DCManagerTestCase):
             install_command,
             [
                 'ansible-playbook',
-                subcloud_manager.ANSIBLE_SUBCLOUD_INSTALL_PLAYBOOK,
+                dccommon_consts.ANSIBLE_SUBCLOUD_INSTALL_PLAYBOOK,
                 '-i', f'{consts.ANSIBLE_OVERRIDES_PATH}/subcloud1_inventory.yml',
                 '--limit', 'subcloud1',
                 '-e', f"@{consts.ANSIBLE_OVERRIDES_PATH}/subcloud1/install_values.yml",

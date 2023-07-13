@@ -45,7 +45,6 @@ from dccommon.drivers.openstack.patching_v1 import PatchingClient
 from dccommon.drivers.openstack.sdk_platform import OpenStackDriver
 from dccommon.drivers.openstack.sysinv_v1 import SysinvClient
 from dccommon import exceptions as dccommon_exceptions
-from dccommon import install_consts
 
 from keystoneauth1 import exceptions as keystone_exceptions
 
@@ -755,7 +754,7 @@ class SubcloudsController(object):
                 )
                 pecan.abort(400, _(msg))
 
-        for k in install_consts.MANDATORY_INSTALL_VALUES:
+        for k in dccommon_consts.MANDATORY_INSTALL_VALUES:
             if k not in install_values:
                 if original_install_values:
                     pecan.abort(400, _("Mandatory install value %s not present, "
@@ -774,7 +773,7 @@ class SubcloudsController(object):
         payload['install_values'].update({'image': matching_iso})
 
         if (install_values['install_type'] not in
-                list(range(install_consts.SUPPORTED_INSTALL_TYPES))):
+                list(range(dccommon_consts.SUPPORTED_INSTALL_TYPES))):
             pecan.abort(400, _("install_type invalid: %s") %
                         install_values['install_type'])
 
