@@ -2211,13 +2211,11 @@ class TestSubcloudManager(base.DCManagerTestCase):
                         in str(e))
 
     @mock.patch.object(os_path, 'isdir')
-    @mock.patch.object(os_path, 'exists')
     @mock.patch.object(cutils, 'get_filename_by_prefix')
     @mock.patch.object(prestage, '_run_ansible')
-    def test_prestage_remote_pass(self, mock_run_ansible,
-                                  mock_get_filename_by_prefix,
-                                  mock_file_exists,
-                                  mock_isdir):
+    def test_prestage_remote_pass_with_img_list(self, mock_run_ansible,
+                                                mock_get_filename_by_prefix,
+                                                mock_isdir):
 
         values = copy.copy(FAKE_PRESTAGE_PAYLOAD)
         subcloud = self.create_subcloud_static(self.ctx,
@@ -2225,11 +2223,10 @@ class TestSubcloudManager(base.DCManagerTestCase):
                                                deploy_status=consts.DEPLOY_STATE_NONE,
                                                software_version=FAKE_SUBCLOUD_SW_VERSION)
 
-        prestage._prestage_standalone_thread(self.ctx, subcloud, payload=values)
         mock_run_ansible.return_value = None
         mock_get_filename_by_prefix.return_value = 'prestage_images_list.txt'
-        mock_file_exists.return_value = True
         mock_isdir.return_value = True
+        prestage._prestage_standalone_thread(self.ctx, subcloud, payload=values)
 
         # Verify that subcloud has the correct deploy status
         updated_subcloud = db_api.subcloud_get_by_name(self.ctx, subcloud.name)
@@ -2248,8 +2245,42 @@ class TestSubcloudManager(base.DCManagerTestCase):
         self.assertTrue(
             FAKE_PRESTAGE_RELEASE in mock_run_ansible.call_args_list[1].args[1][5])
 
+    @mock.patch.object(os_path, 'isdir')
+    @mock.patch.object(cutils, 'get_filename_by_prefix')
     @mock.patch.object(prestage, '_run_ansible')
-    def test_prestage_local_pass(self, mock_run_ansible):
+    def test_prestage_remote_pass_without_img_list(self, mock_run_ansible,
+                                                   mock_get_filename_by_prefix,
+                                                   mock_isdir):
+
+        values = copy.copy(FAKE_PRESTAGE_PAYLOAD)
+        subcloud = self.create_subcloud_static(self.ctx,
+                                               name='subcloud1',
+                                               deploy_status=consts.DEPLOY_STATE_NONE,
+                                               software_version=FAKE_SUBCLOUD_SW_VERSION)
+
+        mock_run_ansible.return_value = None
+        mock_get_filename_by_prefix.return_value = None
+        mock_isdir.return_value = True
+        prestage._prestage_standalone_thread(self.ctx, subcloud, payload=values)
+
+        # Verify that subcloud has the correct deploy status
+        updated_subcloud = db_api.subcloud_get_by_name(self.ctx, subcloud.name)
+        self.assertEqual(consts.PRESTAGE_STATE_COMPLETE,
+                         updated_subcloud.deploy_status)
+
+        # Verify that only prestage package playbook is called
+        self.assertEqual(mock_run_ansible.call_count, 1)
+
+        # Verify the prestage request release was passed to the playbooks
+        self.assertTrue(
+            FAKE_PRESTAGE_RELEASE in mock_run_ansible.call_args_list[0].args[1][5])
+
+    @mock.patch.object(os_path, 'isdir')
+    @mock.patch.object(cutils, 'get_filename_by_prefix')
+    @mock.patch.object(prestage, '_run_ansible')
+    def test_prestage_local_pass_with_img_list(self, mock_run_ansible,
+                                               mock_get_filename_by_prefix,
+                                               mock_isdir):
 
         values = copy.copy(FAKE_PRESTAGE_PAYLOAD)
         subcloud = self.create_subcloud_static(self.ctx,
@@ -2257,8 +2288,10 @@ class TestSubcloudManager(base.DCManagerTestCase):
                                                deploy_status=consts.DEPLOY_STATE_NONE,
                                                software_version=FAKE_PRESTAGE_RELEASE)
 
-        prestage._prestage_standalone_thread(self.ctx, subcloud, payload=values)
         mock_run_ansible.return_value = None
+        mock_get_filename_by_prefix.return_value = 'prestage_images_list.txt'
+        mock_isdir.return_value = True
+        prestage._prestage_standalone_thread(self.ctx, subcloud, payload=values)
 
         # Verify that subcloud has the correct deploy status
         updated_subcloud = db_api.subcloud_get_by_name(self.ctx, subcloud.name)
@@ -2267,6 +2300,45 @@ class TestSubcloudManager(base.DCManagerTestCase):
 
         # Verify both of prestage package and image ansible playbooks were called
         self.assertEqual(mock_run_ansible.call_count, 2)
+        # Verify the "image_list_file" was passed to the prestage image playbook
+        # for the local prestage
+        self.assertTrue(
+            'image_list_file' in mock_run_ansible.call_args_list[1].args[1][5])
+        # Verify the prestage request release was passed to the playbooks
+        self.assertTrue(
+            FAKE_PRESTAGE_RELEASE in mock_run_ansible.call_args_list[0].args[1][5])
+        self.assertTrue(
+            FAKE_PRESTAGE_RELEASE in mock_run_ansible.call_args_list[1].args[1][5])
+
+    @mock.patch.object(os_path, 'isdir')
+    @mock.patch.object(cutils, 'get_filename_by_prefix')
+    @mock.patch.object(prestage, '_run_ansible')
+    def test_prestage_local_pass_without_img_list(self, mock_run_ansible,
+                                                  mock_get_filename_by_prefix,
+                                                  mock_isdir):
+
+        values = copy.copy(FAKE_PRESTAGE_PAYLOAD)
+        subcloud = self.create_subcloud_static(self.ctx,
+                                               name='subcloud1',
+                                               deploy_status=consts.DEPLOY_STATE_NONE,
+                                               software_version=FAKE_PRESTAGE_RELEASE)
+
+        mock_run_ansible.return_value = None
+        mock_get_filename_by_prefix.return_value = None
+        mock_isdir.return_value = True
+        prestage._prestage_standalone_thread(self.ctx, subcloud, payload=values)
+
+        # Verify that subcloud has the correct deploy status
+        updated_subcloud = db_api.subcloud_get_by_name(self.ctx, subcloud.name)
+        self.assertEqual(consts.PRESTAGE_STATE_COMPLETE,
+                         updated_subcloud.deploy_status)
+
+        # Verify both of prestage package and image ansible playbooks were called
+        self.assertEqual(mock_run_ansible.call_count, 2)
+        # Verify the "image_list_file" was not passed to the prestage image playbook
+        # for the local prestage
+        self.assertTrue(
+            'image_list_file' not in mock_run_ansible.call_args_list[1].args[1][5])
         # Verify the prestage request release was passed to the playbooks
         self.assertTrue(
             FAKE_PRESTAGE_RELEASE in mock_run_ansible.call_args_list[0].args[1][5])

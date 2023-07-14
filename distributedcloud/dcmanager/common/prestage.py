@@ -378,58 +378,57 @@ def prestage_packages(context, subcloud, payload):
 def prestage_images(context, subcloud, payload):
     """Run the prestage images ansible script.
 
-    Approach:
+    If the prestage images file has been uploaded, include the fully
+    qualified path name in the extra vars before invoking the prestage_images.yml
+    playbook.
 
-    If the prestage images file has been uploaded for the target software
-    version then pass the image_list_file to the prestage_images.yml playbook
-    If the images file does not exist and the prestage source is remote,
-    skip calling prestage_images.yml playbook.
+    If the prestage images file has not been uploaded, only proceed
+    with images prestage if the prestage source is local.
 
     Ensure the final state is either prestage-failed or prestage-complete
     regardless of whether prestage_images.yml playbook is executed or skipped.
+
     """
     prestage_software_version = payload.get(
         consts.PRESTAGE_REQUEST_RELEASE, SW_VERSION)
-    local = is_local(subcloud.software_version, prestage_software_version)
     extra_vars_str = "software_version=%s" % prestage_software_version
 
-    image_list_file = None
+    image_list_filename = None
     deploy_dir = os.path.join(DEPLOY_BASE_DIR, prestage_software_version)
-    if not local:
-        image_list_filename = None
-        if os.path.isdir(deploy_dir):
-            image_list_filename = utils.get_filename_by_prefix(deploy_dir,
-                                                               'prestage_images')
-        if image_list_filename:
-            image_list_file = os.path.join(deploy_dir, image_list_filename)
-            # include this file in the ansible args:
-            extra_vars_str += (" image_list_file=%s" % image_list_file)
-            LOG.debug("prestage images list file: %s", image_list_file)
-        else:
-            LOG.debug("prestage images list file does not exist")
-
-    # There are only two scenarios where we want to run ansible
-    # for prestaging images:
-    # 1. local
-    # 2. remote, with supplied image list
-    if local or ((not local) and image_list_file):
-        # Ansible inventory filename for the specified subcloud
-        ansible_subcloud_inventory_file = \
-            utils.get_ansible_filename(subcloud.name,
-                                       ANSIBLE_PRESTAGE_INVENTORY_SUFFIX)
-        _run_ansible(context,
-                     ["ansible-playbook",
-                      ANSIBLE_PRESTAGE_SUBCLOUD_IMAGES_PLAYBOOK,
-                      "--inventory", ansible_subcloud_inventory_file,
-                      "--extra-vars", extra_vars_str],
-                     "images",
-                     subcloud,
-                     consts.PRESTAGE_STATE_IMAGES,
-                     payload['sysadmin_password'],
-                     payload['oam_floating_ip'],
-                     prestage_software_version,
-                     ansible_subcloud_inventory_file,
-                     timeout_seconds=CONF.playbook_timeout * 2)
+    if os.path.isdir(deploy_dir):
+        image_list_filename = utils.get_filename_by_prefix(deploy_dir,
+                                                           'prestage_images')
+    if image_list_filename:
+        image_list_file = os.path.join(deploy_dir, image_list_filename)
+        # include this file in the ansible args:
+        extra_vars_str += (" image_list_file=%s" % image_list_file)
+        LOG.debug("prestage images list file: %s", image_list_file)
     else:
-        LOG.info("Skipping ansible prestage images step, is_local: %s,"
-                 " image_list_file: %s", local, image_list_file)
+        LOG.debug("prestage images list file does not exist")
+        if prestage_software_version != subcloud.software_version:
+            # Prestage source is remote but there is no images list file so
+            # skip the images prestage.
+            LOG.info("Images prestage is skipped for %s as the prestage images "
+                     "list for release %s has not been uploaded and the "
+                     "subcloud is running a different load than %s."
+                     % (subcloud.name, prestage_software_version,
+                        prestage_software_version))
+            return
+
+    # Ansible inventory filename for the specified subcloud
+    ansible_subcloud_inventory_file = \
+        utils.get_ansible_filename(subcloud.name,
+                                   ANSIBLE_PRESTAGE_INVENTORY_SUFFIX)
+    _run_ansible(context,
+                 ["ansible-playbook",
+                  ANSIBLE_PRESTAGE_SUBCLOUD_IMAGES_PLAYBOOK,
+                  "--inventory", ansible_subcloud_inventory_file,
+                  "--extra-vars", extra_vars_str],
+                 "images",
+                 subcloud,
+                 consts.PRESTAGE_STATE_IMAGES,
+                 payload['sysadmin_password'],
+                 payload['oam_floating_ip'],
+                 prestage_software_version,
+                 ansible_subcloud_inventory_file,
+                 timeout_seconds=CONF.playbook_timeout * 2)
