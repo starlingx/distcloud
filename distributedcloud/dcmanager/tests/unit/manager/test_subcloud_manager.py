@@ -721,7 +721,8 @@ class TestSubcloudManager(base.DCManagerTestCase):
                    "deploy_playbook": "test_playbook.yaml",
                    "deploy_overrides": "test_overrides.yaml",
                    "deploy_chart": "test_chart.yaml",
-                   "deploy_config": "subcloud1.yaml"}
+                   "deploy_config": "subcloud1.yaml",
+                   "user_uploaded_artifacts": True}
 
         # Create subcloud in DB
         subcloud = self.create_subcloud_static(self.ctx, name=payload['name'])
