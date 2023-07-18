@@ -912,6 +912,40 @@ class TestSubcloudManager(base.DCManagerTestCase):
         self.assertEqual(payload['management_end_ip'],
                          updated_subcloud.management_end_ip)
 
+    @mock.patch.object(subcloud_manager.SubcloudManager,
+                       '_delete_subcloud_routes')
+    @mock.patch.object(subcloud_manager.SubcloudManager,
+                       '_update_services_endpoint')
+    @mock.patch.object(subcloud_manager.SubcloudManager,
+                       '_create_subcloud_route')
+    @mock.patch.object(subcloud_manager, 'OpenStackDriver')
+    def test_network_reconf_same_subnet(
+            self, mock_keystone_client, mock_create_route,
+            mock_update_endpoints, mock_delete_route):
+        subcloud = self.create_subcloud_static(
+            self.ctx,
+            name='subcloud1',
+            deploy_status=consts.DEPLOY_STATE_DONE)
+        db_api.subcloud_update(
+            self.ctx, subcloud.id,
+            availability_status=dccommon_consts.AVAILABILITY_ONLINE)
+
+        payload = {'name': "subcloud1",
+                   'description': "subcloud description",
+                   'location': "subcloud location",
+                   'management_subnet': "192.168.101.0/24",
+                   'management_start_ip': "192.168.101.3",
+                   'management_end_ip': "192.168.101.49",
+                   'management_gateway_ip': "192.168.101.1"}
+
+        sm = subcloud_manager.SubcloudManager()
+        sm._configure_system_controller_network(self.ctx, payload, subcloud)
+
+        mock_keystone_client.assert_called_once()
+        mock_create_route.assert_called_once()
+        mock_update_endpoints.assert_called_once()
+        self.assertFalse(mock_delete_route.called)
+
     def test_update_subcloud_with_install_values(self):
         subcloud = self.create_subcloud_static(
             self.ctx,
