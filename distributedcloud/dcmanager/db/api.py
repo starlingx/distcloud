@@ -161,6 +161,11 @@ def subcloud_get_all(context):
     return IMPL.subcloud_get_all(context)
 
 
+def subcloud_get_all_ordered_by_id(context):
+    """Retrieve all subclouds ordered by id."""
+    return IMPL.subcloud_get_all_ordered_by_id(context)
+
+
 def subcloud_get_all_with_status(context):
     """Retrieve all subclouds and sync statuses."""
     return IMPL.subcloud_get_all_with_status(context)

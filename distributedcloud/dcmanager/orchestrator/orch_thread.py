@@ -181,7 +181,7 @@ class OrchThread(threading.Thread):
         return state_operator(
             region_name=OrchThread.get_region_name(strategy_step))
 
-    def strategy_step_update(self, subcloud_id, state=None, details=None):
+    def strategy_step_update(self, subcloud_id, state=None, details=None, stage=None):
         """Update the strategy step in the DB
 
         Sets the start and finished timestamp if necessary, based on state.
@@ -197,12 +197,16 @@ class OrchThread(threading.Thread):
         # Return the updated object, in case we need to use its updated values
         return db_api.strategy_step_update(self.context,
                                            subcloud_id,
+                                           stage=stage,
                                            state=state,
                                            details=details,
                                            started_at=started_at,
                                            finished_at=finished_at)
 
-    def _delete_subcloud_worker(self, region):
+    def _delete_subcloud_worker(self, region, subcloud_id):
+        db_api.strategy_step_update(self.context,
+                                    subcloud_id,
+                                    stage=consts.STAGE_SUBCLOUD_ORCHESTRATION_PROCESSED)
         if region in self.subcloud_workers:
             # The orchestration for this subcloud has either
             # completed/failed/aborted, remove it from the
@@ -253,24 +257,25 @@ class OrchThread(threading.Thread):
         LOG.debug("(%s) Applying update strategy" % self.update_type)
         strategy_steps = db_api.strategy_step_get_all(self.context)
 
-        # Figure out which stage we are working on
-        current_stage = None
-        stop_after_stage = None
+        stop = False
         failure_detected = False
         abort_detected = False
         for strategy_step in strategy_steps:
             if strategy_step.state == consts.STRATEGY_STATE_COMPLETE:
                 # This step is complete
-                self._delete_subcloud_worker(strategy_step.subcloud.name)
+                self._delete_subcloud_worker(strategy_step.subcloud.name,
+                                             strategy_step.subcloud_id)
                 continue
             elif strategy_step.state == consts.STRATEGY_STATE_ABORTED:
                 # This step was aborted
-                self._delete_subcloud_worker(strategy_step.subcloud.name)
+                self._delete_subcloud_worker(strategy_step.subcloud.name,
+                                             strategy_step.subcloud_id)
                 abort_detected = True
                 continue
             elif strategy_step.state == consts.STRATEGY_STATE_FAILED:
                 failure_detected = True
-                self._delete_subcloud_worker(strategy_step.subcloud.name)
+                self._delete_subcloud_worker(strategy_step.subcloud.name,
+                                             strategy_step.subcloud_id)
                 # This step has failed and needs no further action
                 if strategy_step.subcloud_id is None:
                     # Strategy on SystemController failed. We are done.
@@ -288,13 +293,10 @@ class OrchThread(threading.Thread):
                     return
                 elif sw_update_strategy.stop_on_failure:
                     # We have been told to stop on failures
-                    stop_after_stage = strategy_step.stage
-                    current_stage = strategy_step.stage
+                    stop = True
                     break
                 continue
             # We have found the first step that isn't complete or failed.
-            # This is the stage we are working on now.
-            current_stage = strategy_step.stage
             break
         else:
             # The strategy application is complete
@@ -328,22 +330,16 @@ class OrchThread(threading.Thread):
             self.trigger_audit()
             return
 
-        if stop_after_stage is not None:
+        if stop:
             work_remaining = False
-            # We are going to stop after the steps in this stage have finished.
-            for strategy_step in strategy_steps:
-                if strategy_step.stage == stop_after_stage:
-                    if strategy_step.state != consts.STRATEGY_STATE_COMPLETE \
-                            and strategy_step.state != \
-                            consts.STRATEGY_STATE_FAILED:
-                        # There is more work to do in this stage
-                        work_remaining = True
-                        break
+            # We are going to stop after the steps that are in progress finish.
+            if len(self.subcloud_workers) > 0:
+                work_remaining = True
 
             if not work_remaining:
-                # We have completed the stage that failed
-                LOG.info("(%s) Stopping strategy due to failure in stage %d"
-                         % (self.update_type, stop_after_stage))
+                # We have completed the remaining steps
+                LOG.info("(%s) Stopping strategy due to failure"
+                         % self.update_type)
                 with self.strategy_lock:
                     db_api.sw_update_strategy_update(
                         self.context,
@@ -353,30 +349,31 @@ class OrchThread(threading.Thread):
                 self.trigger_audit()
                 return
 
-        LOG.debug("(%s) Working on stage %d"
-                  % (self.update_type, current_stage))
         for strategy_step in strategy_steps:
-            if strategy_step.stage == current_stage:
-                region = self.get_region_name(strategy_step)
-                if self.stopped():
-                    LOG.info("(%s) Exiting because task is stopped"
-                             % self.update_type)
-                    self.subcloud_workers.clear()
-                    return
-                if strategy_step.state == \
-                        consts.STRATEGY_STATE_FAILED:
-                    LOG.debug("(%s) Intermediate step is failed"
-                              % self.update_type)
-                    self._delete_subcloud_worker(region)
-                    continue
-                elif strategy_step.state == \
-                        consts.STRATEGY_STATE_COMPLETE:
-                    LOG.debug("(%s) Intermediate step is complete"
-                              % self.update_type)
-                    self._delete_subcloud_worker(region)
-                    continue
-                elif strategy_step.state == \
-                        consts.STRATEGY_STATE_INITIAL:
+            region = self.get_region_name(strategy_step)
+            if self.stopped():
+                LOG.info("(%s) Exiting because task is stopped"
+                         % self.update_type)
+                self.subcloud_workers.clear()
+                return
+            if strategy_step.state == \
+                    consts.STRATEGY_STATE_FAILED:
+                LOG.debug("(%s) Intermediate step is failed"
+                          % self.update_type)
+                self._delete_subcloud_worker(region,
+                                             strategy_step.subcloud_id)
+                continue
+            elif strategy_step.state == \
+                    consts.STRATEGY_STATE_COMPLETE:
+                LOG.debug("(%s) Intermediate step is complete"
+                          % self.update_type)
+                self._delete_subcloud_worker(region,
+                                             strategy_step.subcloud_id)
+                continue
+            elif strategy_step.state == \
+                    consts.STRATEGY_STATE_INITIAL:
+                if sw_update_strategy.max_parallel_subclouds > len(self.subcloud_workers) \
+                   and not stop:
                     # Don't start upgrading this subcloud if it has been
                     # unmanaged by the user. If orchestration was already
                     # started, it will be allowed to complete.
@@ -396,15 +393,16 @@ class OrchThread(threading.Thread):
                     # Use the updated value for calling process_update_step
                     strategy_step = self.strategy_step_update(
                         strategy_step.subcloud_id,
+                        stage=consts.STAGE_SUBCLOUD_ORCHESTRATION_STARTED,
                         state=self.starting_state)
                     # Starting state should log an error if greenthread exists
                     self.process_update_step(region,
                                              strategy_step,
                                              log_error=True)
-                else:
-                    self.process_update_step(region,
-                                             strategy_step,
-                                             log_error=False)
+            else:
+                self.process_update_step(region,
+                                         strategy_step,
+                                         log_error=False)
 
     def abort(self, sw_update_strategy):
         """Abort an update strategy"""
