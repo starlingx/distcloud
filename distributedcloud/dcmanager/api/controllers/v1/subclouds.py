@@ -281,17 +281,17 @@ class SubcloudsController(object):
     def _get_config_file_path(self, subcloud_name, config_file_type=None):
         if config_file_type == consts.DEPLOY_CONFIG:
             file_path = os.path.join(
-                consts.ANSIBLE_OVERRIDES_PATH,
+                dccommon_consts.ANSIBLE_OVERRIDES_PATH,
                 subcloud_name + '_' + config_file_type + '.yml'
             )
         elif config_file_type == INSTALL_VALUES:
             file_path = os.path.join(
-                consts.ANSIBLE_OVERRIDES_PATH + '/' + subcloud_name,
+                dccommon_consts.ANSIBLE_OVERRIDES_PATH + '/' + subcloud_name,
                 config_file_type + '.yml'
             )
         else:
             file_path = os.path.join(
-                consts.ANSIBLE_OVERRIDES_PATH,
+                dccommon_consts.ANSIBLE_OVERRIDES_PATH,
                 subcloud_name + '.yml'
             )
         return file_path

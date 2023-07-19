@@ -1,4 +1,4 @@
-# Copyright (c) 2021-2022 Wind River Systems, Inc.
+# Copyright (c) 2021-2023 Wind River Systems, Inc.
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -13,10 +13,13 @@
 # limitations under the License.
 #
 
+import json
 import os
 import shutil
 import socket
+import ssl
 import tempfile
+import time
 
 from eventlet.green import subprocess
 import netaddr
@@ -24,13 +27,14 @@ from oslo_log import log as logging
 from six.moves.urllib import error as urllib_error
 from six.moves.urllib import parse
 from six.moves.urllib import request
+import yaml
 
 from dccommon import consts
 from dccommon.drivers.openstack.keystone_v3 import KeystoneClient
 from dccommon.drivers.openstack.sysinv_v1 import SysinvClient
 from dccommon import exceptions
 from dccommon import utils as dccommon_utils
-from dcmanager.common import consts as common_consts
+from dcmanager.common import consts as dcmanager_consts
 from dcmanager.common import utils
 
 LOG = logging.getLogger(__name__)
@@ -39,7 +43,6 @@ BOOT_MENU_TIMEOUT = '5'
 
 # The RVMC_IMAGE_NAME:RVMC_IMAGE_TAG must align with the one specified
 # in system images in the ansible install/upgrade playbook
-RVMC_NAME_PREFIX = 'rvmc'
 RVMC_IMAGE_NAME = 'docker.io/starlingx/rvmc'
 RVMC_IMAGE_TAG = 'stx.8.0-v1.0.1'
 
@@ -54,6 +57,99 @@ NETWORK_SCRIPTS = '/etc/sysconfig/network-scripts'
 NETWORK_INTERFACE_PREFIX = 'ifcfg'
 NETWORK_ROUTE_PREFIX = 'route'
 LOCAL_REGISTRY_PREFIX = 'registry.local:9001/'
+
+# Redfish constants
+ACTION_URL = '/Actions/ComputerSystem.Reset'
+POWER_OFF_PAYLOAD = {'Action': 'Reset', 'ResetType': 'ForceOff'}
+REDFISH_HEADER = {'Content-Type': 'application/json',
+                  'Accept': 'application/json'}
+REDFISH_SYSTEMS_URL = '/redfish/v1/Systems'
+SUCCESSFUL_STATUS_CODES = [200, 202, 204]
+
+
+class SubcloudShutdown(object):
+    """Sends a shutdown signal to a Redfish controlled subcloud
+
+    Approach:
+
+    To shutdown a Redfish controlled subcloud, it's needed to first
+    send a GET request to find the @odata.id of the member, and then
+    send a POST request with the shutdown signal. Since this is
+    intended as a way to turn off the subcloud during the deploy abort
+    process, only the ForceOff option is considered.
+    """
+    def __init__(self, subcloud_name):
+        self.target = subcloud_name
+        self.rvmc_data = self._get_subcloud_data()
+
+    def _get_subcloud_data(self):
+        rvmc_config_file_path = os.path.join(consts.ANSIBLE_OVERRIDES_PATH,
+                                             self.target, consts.RVMC_CONFIG_FILE_NAME)
+        if not os.path.isfile(rvmc_config_file_path):
+            raise Exception('Missing rvmc files for %s' % self.target)
+        with open(os.path.abspath(rvmc_config_file_path), 'r') as f:
+            rvmc_data = f.read()
+        rvmc_config_values = yaml.load(rvmc_data, Loader=yaml.SafeLoader)
+        base_url = "https://" + rvmc_config_values['bmc_address']
+        bmc_username = rvmc_config_values['bmc_username']
+        bmc_password = rvmc_config_values['bmc_password']
+        credentials = ("%s:%s" % (bmc_username.rstrip(), bmc_password)).encode("utf-8")
+        return {'base_url': base_url, 'credentials': credentials}
+
+    def _make_request(self, url, credentials, method, retry=5):
+        if method == 'get':
+            payload = None
+        else:
+            payload = json.dumps(POWER_OFF_PAYLOAD).encode('utf-8')
+
+        try:
+            context = ssl._create_unverified_context()
+            req = request.Request(url, headers=REDFISH_HEADER, method=method)
+            req.add_header('Authorization', 'Basic %s' % credentials)
+            response = request.urlopen(req, data=payload, context=context)
+            status_code = response.getcode()
+
+            if status_code not in SUCCESSFUL_STATUS_CODES:
+                if retry <= 0:
+                    raise exceptions.SubcloudShutdownError(
+                        subcloud_name=self.target)
+                retry -= retry
+                time.sleep(2)
+                self._make_request(url, credentials, method, retry=retry)
+        except urllib_error.URLError:
+            # This occurs when the BMC is not available anymore,
+            # so we just ignore it.
+            return None
+        except Exception as ex:
+            raise ex
+
+        return response
+
+    def _get_data_id(self):
+        base_url = self.rvmc_data['base_url']
+        credentials = self.rvmc_data['credentials']
+        url = base_url + REDFISH_SYSTEMS_URL
+        response = self._make_request(url, credentials, method='GET')
+        if not response:
+            return None
+        r = json.loads(response.read().decode())
+
+        for member in r['Members']:
+            if member.get('@odata.id'):
+                url_with_id = member['@odata.id']
+                break
+
+        return url_with_id
+
+    def send_shutdown_signal(self):
+        base_url = self.rvmc_data['base_url']
+        credentials = self.rvmc_data['credentials']
+        url_with_id = self._get_data_id()
+        if not url_with_id:
+            return None
+        url = base_url + url_with_id + ACTION_URL
+        response = self._make_request(url, credentials, method='POST')
+        return response
 
 
 class SubcloudInstall(object):
@@ -169,7 +265,7 @@ class SubcloudInstall(object):
 
         LOG.debug("create rvmc config file, path: %s, payload: %s",
                   override_path, payload)
-        rvmc_config_file = os.path.join(override_path, 'rvmc-config.yaml')
+        rvmc_config_file = os.path.join(override_path, consts.RVMC_CONFIG_FILE_NAME)
 
         with open(rvmc_config_file, 'w') as f_out_rvmc_config_file:
             for k, v in payload.items():
@@ -184,7 +280,7 @@ class SubcloudInstall(object):
             RVMC_IMAGE_TAG
         install_override_file = os.path.join(override_path,
                                              'install_values.yml')
-        rvmc_name = "%s-%s" % (RVMC_NAME_PREFIX, self.name)
+        rvmc_name = "%s-%s" % (consts.RVMC_NAME_PREFIX, self.name)
         host_name = socket.gethostname()
 
         with open(install_override_file, 'w') as f_out_override_file:
@@ -600,16 +696,26 @@ class SubcloudInstall(object):
         # create the install override file
         self.create_install_override_file(override_path, payload)
 
-    def install(self, log_file_dir, install_command):
+    def install(self, log_file_dir, install_command, abortable=False):
         LOG.info("Start remote install %s", self.name)
         log_file = os.path.join(log_file_dir, self.name) + '_playbook_output.log'
 
         try:
             # Since this is a long-running task we want to register
             # for cleanup on process restart/SWACT.
-            dccommon_utils.run_playbook(log_file, install_command)
+            if abortable:
+                # Install phase of subcloud deployment
+                run_ansible = dccommon_utils.RunAnsible()
+                aborted = run_ansible.exec_playbook(log_file, install_command, self.name)
+                # Returns True if the playbook was aborted and False otherwise
+                return aborted
+            else:
+                dccommon_utils.run_playbook(log_file, install_command)
+                # Always return false because this playbook execution
+                # method cannot be aborted
+                return False
         except exceptions.PlaybookExecutionFailed:
             msg = ("Failed to install %s, check individual "
                    "log at %s or run %s for details"
-                   % (self.name, log_file, common_consts.ERROR_DESC_CMD))
+                   % (self.name, log_file, dcmanager_consts.ERROR_DESC_CMD))
             raise Exception(msg)

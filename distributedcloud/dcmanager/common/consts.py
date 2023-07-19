@@ -185,6 +185,12 @@ DEPLOY_STATE_CONFIGURING = 'configuring'
 DEPLOY_STATE_CONFIG_FAILED = 'config-failed'
 DEPLOY_STATE_DEPLOYING = 'deploying'
 DEPLOY_STATE_DEPLOY_FAILED = 'deploy-failed'
+DEPLOY_STATE_ABORTING_INSTALL = 'aborting-install'
+DEPLOY_STATE_INSTALL_ABORTED = 'install-aborted'
+DEPLOY_STATE_ABORTING_BOOTSTRAP = 'aborting-bootstrap'
+DEPLOY_STATE_BOOTSTRAP_ABORTED = 'bootstrap-aborted'
+DEPLOY_STATE_ABORTING_CONFIG = 'aborting-config'
+DEPLOY_STATE_CONFIG_ABORTED = 'config-aborted'
 DEPLOY_STATE_MIGRATING_DATA = 'migrating-data'
 DEPLOY_STATE_DATA_MIGRATION_FAILED = 'data-migration-failed'
 DEPLOY_STATE_MIGRATED = 'migrated'
@@ -281,8 +287,6 @@ ALARM_OK_STATUS = "OK"
 ALARM_DEGRADED_STATUS = "degraded"
 ALARM_CRITICAL_STATUS = "critical"
 
-# subcloud deploy file options
-ANSIBLE_OVERRIDES_PATH = '/opt/dc-vault/ansible'
 DEPLOY_PLAYBOOK = "deploy_playbook"
 DEPLOY_OVERRIDES = "deploy_overrides"
 DEPLOY_CHART = "deploy_chart"

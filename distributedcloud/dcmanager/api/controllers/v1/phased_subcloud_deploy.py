@@ -61,11 +61,13 @@ VALID_STATES_FOR_DEPLOY_INSTALL = (
     consts.DEPLOY_STATE_CREATED,
     consts.DEPLOY_STATE_PRE_INSTALL_FAILED,
     consts.DEPLOY_STATE_INSTALL_FAILED,
-    consts.DEPLOY_STATE_INSTALLED
+    consts.DEPLOY_STATE_INSTALLED,
+    consts.DEPLOY_STATE_INSTALL_ABORTED
 )
 
 VALID_STATES_FOR_DEPLOY_BOOTSTRAP = [
     consts.DEPLOY_STATE_INSTALLED,
+    consts.DEPLOY_STATE_PRE_BOOTSTRAP_FAILED,
     consts.DEPLOY_STATE_BOOTSTRAP_FAILED,
     consts.DEPLOY_STATE_BOOTSTRAP_ABORTED,
     consts.DEPLOY_STATE_BOOTSTRAPPED,
@@ -81,7 +83,14 @@ VALID_STATES_FOR_DEPLOY_CONFIG = (
     consts.DEPLOY_STATE_PRE_CONFIG_FAILED,
     consts.DEPLOY_STATE_CONFIG_FAILED,
     consts.DEPLOY_STATE_DEPLOY_FAILED,
-    consts.DEPLOY_STATE_BOOTSTRAPPED
+    consts.DEPLOY_STATE_BOOTSTRAPPED,
+    consts.DEPLOY_STATE_CONFIG_ABORTED
+)
+
+VALID_STATES_FOR_DEPLOY_ABORT = (
+    consts.DEPLOY_STATE_INSTALLING,
+    consts.DEPLOY_STATE_BOOTSTRAPPING,
+    consts.DEPLOY_STATE_CONFIGURING
 )
 
 
@@ -288,14 +297,37 @@ class PhasedSubcloudDeployController(object):
         psd_common.validate_sysadmin_password(payload)
 
         try:
-            subcloud = self.dcmanager_rpc_client.subcloud_deploy_config(
+            self.dcmanager_rpc_client.subcloud_deploy_config(
                 context, subcloud.id, payload)
-            return subcloud
+            subcloud_dict = db_api.subcloud_db_model_to_dict(subcloud)
+            subcloud_dict['deploy-status'] = consts.DEPLOY_STATE_PRE_CONFIG
+            return subcloud_dict
         except RemoteError as e:
             pecan.abort(422, e.value)
         except Exception:
             LOG.exception("Unable to configure subcloud %s" % subcloud.name)
             pecan.abort(500, _('Unable to configure subcloud'))
+
+    def _deploy_abort(self, context, subcloud):
+
+        if subcloud.deploy_status not in VALID_STATES_FOR_DEPLOY_ABORT:
+            allowed_states_str = ', '.join(VALID_STATES_FOR_DEPLOY_ABORT)
+            pecan.abort(400, _('Subcloud deploy status must be in one '
+                               'of the following states: %s')
+                        % allowed_states_str)
+
+        try:
+            self.dcmanager_rpc_client.subcloud_deploy_abort(
+                context, subcloud.id, subcloud.deploy_status)
+            subcloud_dict = db_api.subcloud_db_model_to_dict(subcloud)
+            subcloud_dict['deploy-status'] = \
+                utils.ABORT_UPDATE_STATUS[subcloud.deploy_status]
+            return subcloud_dict
+        except RemoteError as e:
+            pecan.abort(422, e.value)
+        except Exception:
+            LOG.exception("Unable to abort subcloud %s deployment" % subcloud.name)
+            pecan.abort(500, _('Unable to abort subcloud deploy'))
 
     @pecan.expose(generic=True, template='json')
     def index(self):
@@ -334,7 +366,9 @@ class PhasedSubcloudDeployController(object):
         except (exceptions.SubcloudNotFound, exceptions.SubcloudNameNotFound):
             pecan.abort(404, _('Subcloud not found'))
 
-        if verb == 'install':
+        if verb == 'abort':
+            subcloud = self._deploy_abort(context, subcloud)
+        elif verb == 'install':
             subcloud = self._deploy_install(context, pecan.request, subcloud)
         elif verb == 'bootstrap':
             subcloud = self._deploy_bootstrap(context, pecan.request, subcloud)

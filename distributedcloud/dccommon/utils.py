@@ -1,4 +1,4 @@
-# Copyright (c) 2020-2022 Wind River Systems, Inc.
+# Copyright (c) 2020-2023 Wind River Systems, Inc.
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -19,6 +19,8 @@ import functools
 import os
 import random
 import re
+import threading
+import time
 
 from eventlet.green import subprocess
 from oslo_log import log as logging
@@ -28,6 +30,7 @@ from dccommon import consts
 from dccommon import exceptions
 from dccommon.exceptions import PlaybookExecutionFailed
 from dccommon.exceptions import PlaybookExecutionTimeout
+from dccommon.subprocess_cleanup import kill_subprocess_group
 from dccommon.subprocess_cleanup import SubprocessCleanup
 from dcorch.common.i18n import _
 
@@ -86,6 +89,153 @@ class memoized(object):
         return functools.partial(self.__call__, obj)
 
 
+class RunAnsible(object):
+    """Class to run Ansible playbooks with the abort option
+
+    Approach:
+
+    At the start of the playbook execution, the abort status
+    (default value is False) and PID of the subprocess for the
+    specified subcloud are set on the class variable dict (abort_status).
+    When the user sends the abort command, the subcloud_manager changes
+    the abort status to True and the subprocess is killed.
+
+    If Ansible is currently executing a task that cannot be interrupted,
+    a deploy_not_abortable flag is created in the overrides folder by the
+    playbook itself, and the abort process will wait for said flag to be
+    deleted before killing the subprocess. If the task fails while abort
+    is waiting, the playbook_failed flag will indicate to the
+    original process to raise PlaybookExecutionFailed.
+    """
+    abort_status = {}
+    lock = threading.Lock()
+
+    def _unregister_subcloud(self, subcloud_name):
+        with RunAnsible.lock:
+            if RunAnsible.abort_status.get(subcloud_name):
+                del RunAnsible.abort_status[subcloud_name]
+
+    def run_abort(self, subcloud_name, timeout=600):
+        """Set abort status for a subcloud.
+
+        :param subcloud_name: Name of the subcloud
+        param timeout: Timeout in seconds.
+        """
+        with RunAnsible.lock:
+            RunAnsible.abort_status[subcloud_name]['abort'] = True
+        unabortable_flag = os.path.join(consts.ANSIBLE_OVERRIDES_PATH,
+                                        '.%s_deploy_not_abortable' % subcloud_name)
+        subp = RunAnsible.abort_status[subcloud_name]['subp']
+        while os.path.exists(unabortable_flag) and timeout > 0:
+            time.sleep(1)
+            timeout -= 1
+        kill_subprocess_group(subp)
+        return True
+
+    def exec_playbook(self, log_file, playbook_command, subcloud_name,
+                      timeout=None, register_cleanup=True):
+        """Run ansible playbook via subprocess.
+
+        :param log_file: Logs output to file
+        :param timeout: Timeout in seconds. Raises PlaybookExecutionTimeout
+                        on timeout
+        :param register_cleanup: Register the subprocess group for cleanup on
+                                 shutdown, if the underlying service supports cleanup.
+        """
+        exec_env = os.environ.copy()
+        exec_env["ANSIBLE_LOG_PATH"] = "/dev/null"
+
+        aborted = False
+
+        if timeout:
+            timeout_log_str = " (timeout: %ss)" % timeout
+        else:
+            timeout_log_str = ''
+
+        with open(log_file, "a+") as f_out_log:
+            try:
+                logged_playbook_command = \
+                    _strip_password_from_command(playbook_command)
+                txt = "%s Executing playbook command%s: %s\n" \
+                    % (datetime.today().strftime('%Y-%m-%d-%H:%M:%S'),
+                       timeout_log_str,
+                       logged_playbook_command)
+                f_out_log.write(txt)
+                f_out_log.flush()
+
+                # Remove unabortable flag created by the playbook
+                # if present from previous executions
+                unabortable_flag = os.path.join(consts.ANSIBLE_OVERRIDES_PATH,
+                                                '.%s_deploy_not_abortable' % subcloud_name)
+                if os.path.exists(unabortable_flag):
+                    os.remove(unabortable_flag)
+
+                subp = subprocess.Popen(playbook_command,
+                                        stdout=f_out_log,
+                                        stderr=f_out_log,
+                                        env=exec_env,
+                                        start_new_session=register_cleanup)
+                try:
+                    if register_cleanup:
+                        SubprocessCleanup.register_subprocess_group(subp)
+                    with RunAnsible.lock:
+                        RunAnsible.abort_status[subcloud_name] = {
+                            'abort': False,
+                            'subp': subp}
+
+                    subp.wait(timeout)
+                    subp_rc = subp.poll()
+
+                    # There are 5 possible outcomes of the subprocess execution:
+                    # 1: Playbook completed (process exited)
+                    #    - playbook_failure is False with subp_rc == 0,
+                    #      aborted is False, unabortable_flag_exists is False
+                    # 2: Playbook was aborted (process killed)
+                    #    - playbook_failure is False with subp_rc != 0,
+                    #      aborted is True, unabortable_flag_exists is False
+                    # 3: Playbook failed (process exited)
+                    #    - playbook_failure is True with subp_rc != 0,
+                    #      aborted is False, unabortable_flag_exists is False
+                    # 4: Playbook failed during unabortable task (process exited)
+                    #    - playbook_failure is True with  subp_rc != 0,
+                    #      aborted is False, unabortable_flag_exists is True
+                    # 5: Playbook failed while waiting to be aborted (process exited)
+                    #    - playbook_failure is True with subp_rc != 0,
+                    #      aborted is True, unabortable_flag_exists is False
+                    with RunAnsible.lock:
+                        aborted = RunAnsible.abort_status[subcloud_name]['abort']
+                        unabortable_flag_exists = os.path.exists(unabortable_flag)
+                    playbook_failure = (subp_rc != 0 and
+                                        (not aborted or unabortable_flag_exists))
+
+                    # Raise PlaybookExecutionFailed if the playbook fails when
+                    # on normal conditions (no abort issued) or fails while
+                    # waiting for the unabortable flag to be cleared.
+                    if playbook_failure:
+                        raise PlaybookExecutionFailed(playbook_cmd=playbook_command)
+
+                except subprocess.TimeoutExpired:
+                    kill_subprocess_group(subp)
+                    f_out_log.write(
+                        "%s TIMEOUT (%ss) - playbook is terminated\n" %
+                        (datetime.today().strftime('%Y-%m-%d-%H:%M:%S'), timeout)
+                    )
+                    raise PlaybookExecutionTimeout(playbook_cmd=playbook_command,
+                                                   timeout=timeout)
+                finally:
+                    f_out_log.flush()
+                    if register_cleanup:
+                        SubprocessCleanup.unregister_subprocess_group(subp)
+                    self._unregister_subcloud(subcloud_name)
+
+            except PlaybookExecutionFailed:
+                raise
+            except Exception as ex:
+                LOG.error(str(ex))
+                raise
+        return aborted
+
+
 def _strip_password_from_command(script_command):
     """Strip out any known password arguments from given command"""
     logged_command = list()
@@ -105,6 +255,8 @@ def _strip_password_from_command(script_command):
     return logged_command
 
 
+# TODO(vgluzrom): remove this function and replace all calls
+# with RunAnsible class
 def run_playbook(log_file, playbook_command,
                  timeout=None, register_cleanup=True):
     """Run ansible playbook via subprocess.

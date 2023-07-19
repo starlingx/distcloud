@@ -28,6 +28,7 @@ sys.modules['fm_core'] = mock.Mock()
 import threading
 
 from dccommon import consts as dccommon_consts
+from dccommon.utils import RunAnsible
 from dcmanager.common import consts
 from dcmanager.common import exceptions
 from dcmanager.common import prestage
@@ -427,9 +428,7 @@ class TestSubcloudManager(base.DCManagerTestCase):
 
     @mock.patch.object(
         subcloud_manager.SubcloudManager, 'compose_install_command')
-    @mock.patch.object(threading.Thread, 'start')
     def test_deploy_install_subcloud(self,
-                                     mock_thread_start,
                                      mock_compose_install_command):
 
         subcloud_name = 'subcloud1'
@@ -453,7 +452,6 @@ class TestSubcloudManager(base.DCManagerTestCase):
             subcloud_name,
             sm._get_ansible_filename(subcloud_name, consts.INVENTORY_FILE_POSTFIX),
             FAKE_PREVIOUS_SW_VERSION)
-        mock_thread_start.assert_called_once()
 
     @mock.patch.object(subcloud_manager.SubcloudManager,
                        '_create_intermediate_ca_cert')
@@ -538,12 +536,13 @@ class TestSubcloudManager(base.DCManagerTestCase):
     @mock.patch.object(subcloud_manager, 'keyring')
     @mock.patch.object(cutils, 'get_playbook_for_software_version')
     @mock.patch.object(cutils, 'update_values_on_yaml_file')
-    @mock.patch.object(subcloud_manager, 'run_playbook')
-    def test_subcloud_deploy_bootstrap(self, mock_run_playbook, mock_update_yml,
+    @mock.patch.object(RunAnsible, 'exec_playbook')
+    def test_subcloud_deploy_bootstrap(self, mock_exec_playbook, mock_update_yml,
                                        mock_get_playbook_for_software_version,
                                        mock_keyring, create_subcloud_inventory):
         mock_get_playbook_for_software_version.return_value = "22.12"
         mock_keyring.get_password.return_value = "testpass"
+        mock_exec_playbook.return_value = False
 
         subcloud = fake_subcloud.create_fake_subcloud(
             self.ctx,
@@ -557,7 +556,7 @@ class TestSubcloudManager(base.DCManagerTestCase):
         sm = subcloud_manager.SubcloudManager()
         sm.subcloud_deploy_bootstrap(self.ctx, subcloud.id, payload)
 
-        mock_run_playbook.assert_called_once()
+        mock_exec_playbook.assert_called_once()
 
         # Verify subcloud was updated with correct values
         updated_subcloud = db_api.subcloud_get_by_name(self.ctx,
@@ -589,10 +588,7 @@ class TestSubcloudManager(base.DCManagerTestCase):
 
     @mock.patch.object(subcloud_manager.SubcloudManager,
                        '_prepare_for_deployment')
-    @mock.patch.object(threading.Thread,
-                       'start')
-    def test_configure_subcloud(self, mock_thread_start,
-                                mock_prepare_for_deployment):
+    def test_configure_subcloud(self, mock_prepare_for_deployment):
         subcloud = self.create_subcloud_static(
             self.ctx,
             name='subcloud1',
@@ -607,7 +603,6 @@ class TestSubcloudManager(base.DCManagerTestCase):
         sm.subcloud_deploy_config(self.ctx,
                                   subcloud.id,
                                   payload=fake_payload)
-        mock_thread_start.assert_called_once()
         mock_prepare_for_deployment.assert_called_once()
 
     @mock.patch.object(subcloud_manager.SubcloudManager,
@@ -1581,22 +1576,22 @@ class TestSubcloudManager(base.DCManagerTestCase):
         filename = sm._get_ansible_filename('subcloud1',
                                             consts.INVENTORY_FILE_POSTFIX)
         self.assertEqual(filename,
-                         f'{consts.ANSIBLE_OVERRIDES_PATH}/subcloud1_inventory.yml')
+                         f'{dccommon_consts.ANSIBLE_OVERRIDES_PATH}/subcloud1_inventory.yml')
 
     def test_compose_install_command(self):
         sm = subcloud_manager.SubcloudManager()
         install_command = sm.compose_install_command(
             'subcloud1',
-            f'{consts.ANSIBLE_OVERRIDES_PATH}/subcloud1_inventory.yml',
+            f'{dccommon_consts.ANSIBLE_OVERRIDES_PATH}/subcloud1_inventory.yml',
             FAKE_PREVIOUS_SW_VERSION)
         self.assertEqual(
             install_command,
             [
                 'ansible-playbook',
                 dccommon_consts.ANSIBLE_SUBCLOUD_INSTALL_PLAYBOOK,
-                '-i', f'{consts.ANSIBLE_OVERRIDES_PATH}/subcloud1_inventory.yml',
+                '-i', f'{dccommon_consts.ANSIBLE_OVERRIDES_PATH}/subcloud1_inventory.yml',
                 '--limit', 'subcloud1',
-                '-e', f"@{consts.ANSIBLE_OVERRIDES_PATH}/subcloud1/install_values.yml",
+                '-e', f"@{dccommon_consts.ANSIBLE_OVERRIDES_PATH}/subcloud1/install_values.yml",
                 '-e', "install_release_version=%s" % FAKE_PREVIOUS_SW_VERSION
             ]
         )
@@ -1607,7 +1602,7 @@ class TestSubcloudManager(base.DCManagerTestCase):
         sm = subcloud_manager.SubcloudManager()
         apply_command = sm.compose_apply_command(
             'subcloud1',
-            f'{consts.ANSIBLE_OVERRIDES_PATH}/subcloud1_inventory.yml',
+            f'{dccommon_consts.ANSIBLE_OVERRIDES_PATH}/subcloud1_inventory.yml',
             FAKE_PREVIOUS_SW_VERSION)
         self.assertEqual(
             apply_command,
@@ -1616,9 +1611,9 @@ class TestSubcloudManager(base.DCManagerTestCase):
                 cutils.get_playbook_for_software_version(
                     subcloud_manager.ANSIBLE_SUBCLOUD_PLAYBOOK,
                     FAKE_PREVIOUS_SW_VERSION),
-                '-i', f'{consts.ANSIBLE_OVERRIDES_PATH}/subcloud1_inventory.yml',
+                '-i', f'{dccommon_consts.ANSIBLE_OVERRIDES_PATH}/subcloud1_inventory.yml',
                 '--limit', 'subcloud1', '-e',
-                f"override_files_dir='{consts.ANSIBLE_OVERRIDES_PATH}' region_name=subcloud1",
+                f"override_files_dir='{dccommon_consts.ANSIBLE_OVERRIDES_PATH}' region_name=subcloud1",
                 '-e', "install_release_version=%s" % FAKE_PREVIOUS_SW_VERSION
             ]
         )
@@ -1632,14 +1627,14 @@ class TestSubcloudManager(base.DCManagerTestCase):
                         "deploy_config": "subcloud1.yaml"}
         deploy_command = sm.compose_deploy_command(
             'subcloud1',
-            f'{consts.ANSIBLE_OVERRIDES_PATH}/subcloud1_inventory.yml',
+            f'{dccommon_consts.ANSIBLE_OVERRIDES_PATH}/subcloud1_inventory.yml',
             fake_payload)
         self.assertEqual(
             deploy_command,
             [
                 'ansible-playbook', 'test_playbook.yaml', '-e',
-                f'@{consts.ANSIBLE_OVERRIDES_PATH}/subcloud1_deploy_values.yml', '-i',
-                f'{consts.ANSIBLE_OVERRIDES_PATH}/subcloud1_inventory.yml',
+                f'@{dccommon_consts.ANSIBLE_OVERRIDES_PATH}/subcloud1_deploy_values.yml', '-i',
+                f'{dccommon_consts.ANSIBLE_OVERRIDES_PATH}/subcloud1_inventory.yml',
                 '--limit', 'subcloud1'
             ]
         )
@@ -1650,7 +1645,7 @@ class TestSubcloudManager(base.DCManagerTestCase):
         sm = subcloud_manager.SubcloudManager()
         rehome_command = sm.compose_rehome_command(
             'subcloud1',
-            f'{consts.ANSIBLE_OVERRIDES_PATH}/subcloud1_inventory.yml',
+            f'{dccommon_consts.ANSIBLE_OVERRIDES_PATH}/subcloud1_inventory.yml',
             FAKE_PREVIOUS_SW_VERSION)
         self.assertEqual(
             rehome_command,
@@ -1659,11 +1654,11 @@ class TestSubcloudManager(base.DCManagerTestCase):
                 cutils.get_playbook_for_software_version(
                     subcloud_manager.ANSIBLE_SUBCLOUD_REHOME_PLAYBOOK,
                     FAKE_PREVIOUS_SW_VERSION),
-                '-i', f'{consts.ANSIBLE_OVERRIDES_PATH}/subcloud1_inventory.yml',
+                '-i', f'{dccommon_consts.ANSIBLE_OVERRIDES_PATH}/subcloud1_inventory.yml',
                 '--limit', 'subcloud1',
                 '--timeout', subcloud_manager.REHOME_PLAYBOOK_TIMEOUT,
                 '-e',
-                f"override_files_dir='{consts.ANSIBLE_OVERRIDES_PATH}' region_name=subcloud1"
+                f"override_files_dir='{dccommon_consts.ANSIBLE_OVERRIDES_PATH}' region_name=subcloud1"
             ]
         )
 
@@ -2102,7 +2097,7 @@ class TestSubcloudManager(base.DCManagerTestCase):
         values = copy.copy(FAKE_BACKUP_CREATE_LOAD_1)
 
         override_file = os_path.join(
-            consts.ANSIBLE_OVERRIDES_PATH, subcloud.name + "_backup_create_values.yml"
+            dccommon_consts.ANSIBLE_OVERRIDES_PATH, subcloud.name + "_backup_create_values.yml"
         )
         mock_create_backup_file.return_value = override_file
 
@@ -2175,7 +2170,7 @@ class TestSubcloudManager(base.DCManagerTestCase):
         RELEASE_VERSION = '22.12'
 
         override_file = os_path.join(
-            consts.ANSIBLE_OVERRIDES_PATH, subcloud.name + "_backup_delete_values.yml"
+            dccommon_consts.ANSIBLE_OVERRIDES_PATH, subcloud.name + "_backup_delete_values.yml"
         )
         mock_create_subcloud_inventory_file.return_value = override_file
 

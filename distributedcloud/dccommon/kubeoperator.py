@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2020-2022 Wind River Systems, Inc.
+# Copyright (c) 2020-2023 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -149,3 +149,58 @@ class KubeOperator(object):
             if e.status != httplib.NOT_FOUND:
                 LOG.error("Fail to delete %s:%s. %s" % (namespace, name, e))
                 raise
+
+    def get_pods_by_namespace(self, namespace):
+        c = self._get_kubernetesclient_core()
+        try:
+            pods = c.list_namespaced_pod(namespace)
+            return [pod.metadata.name for pod in pods.items]
+        except ApiException as e:
+            if e.status == httplib.NOT_FOUND:
+                return []
+            LOG.error("Failed to get pod name under "
+                      "Namespace %s." % (namespace))
+            raise
+        except Exception as e:
+            LOG.error("Kubernetes exception in get_pods_by_namespace: %s" % e)
+            raise
+
+    def pod_exists(self, pod, namespace):
+        pods = self.get_pods_by_namespace(namespace)
+        if pod in pods:
+            return True
+        return False
+
+    def kube_delete_job(self, name, namespace, **kwargs):
+        body = {}
+        if kwargs:
+            body.update(kwargs)
+
+        b = self._get_kubernetesclient_batch()
+        try:
+            b.delete_namespaced_job(name, namespace, body=body)
+        except ApiException as e:
+            if e.status != httplib.NOT_FOUND:
+                LOG.error("Failed to delete job %s under "
+                          "Namespace %s: %s" % (name, namespace, e.body))
+                raise
+        except Exception as e:
+            LOG.error("Kubernetes exception in kube_delete_job: %s" % e)
+            raise
+
+    def kube_delete_pod(self, name, namespace, **kwargs):
+        body = {}
+        if kwargs:
+            body.update(kwargs)
+
+        c = self._get_kubernetesclient_core()
+        try:
+            c.delete_namespaced_pod(name, namespace, body=body)
+        except ApiException as e:
+            if e.status != httplib.NOT_FOUND:
+                LOG.error("Failed to delete pod %s under "
+                          "Namespace %s: %s" % (name, namespace, e.body))
+                raise
+        except Exception as e:
+            LOG.error("Kubernetes exception in kube_delete_pod: %s" % e)
+            raise
