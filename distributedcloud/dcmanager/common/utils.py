@@ -133,7 +133,8 @@ def validate_network_str(network_str, minimum_size, existing_networks=None,
                                           "least %d addresses" % minimum_size)
         elif network.version == 6 and network.prefixlen < 64:
             raise exceptions.ValidateFail("IPv6 minimum prefix length is 64")
-        elif existing_networks and operation != 'reinstall':
+        elif existing_networks and (operation != 'reinstall'
+                                    and operation != 'redeploy'):
             if any(network.ip in subnet for subnet in existing_networks):
                 raise exceptions.ValidateFail("Subnet overlaps with another "
                                               "configured subnet")
@@ -943,12 +944,14 @@ def has_network_reconfig(payload, subcloud):
     start_address = get_management_start_address(payload)
     end_address = get_management_end_address(payload)
     gateway_address = get_management_gateway_address(payload)
+    sys_controller_gw_ip = payload.get("systemcontroller_gateway_address")
 
     has_network_reconfig = any([
         management_subnet != subcloud.management_subnet,
         start_address != subcloud.management_start_ip,
         end_address != subcloud.management_end_ip,
-        gateway_address != subcloud.management_gateway_ip
+        gateway_address != subcloud.management_gateway_ip,
+        sys_controller_gw_ip != subcloud.systemcontroller_gateway_ip
     ])
 
     return has_network_reconfig

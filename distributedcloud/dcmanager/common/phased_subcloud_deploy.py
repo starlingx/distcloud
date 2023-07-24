@@ -491,9 +491,9 @@ def validate_install_values(payload, subcloud=None):
         if software_version and software_version != install_software_version:
             pecan.abort(400,
                         _("The software_version value %s in the install values "
-                            "yaml file does not match with the specified/current "
-                            "software version of %s. Please correct or remove "
-                            "this parameter from the yaml file and try again.") %
+                          "yaml file does not match with the specified/current "
+                          "software version of %s. Please correct or remove "
+                          "this parameter from the yaml file and try again.") %
                         (install_software_version, software_version))
     else:
         # Only install_values payload will be passed to the subcloud
@@ -959,7 +959,7 @@ def pre_deploy_install(payload: dict, validate_password=False):
     # If the software version of the subcloud is different from the
     # specified or active load, update the software version in install
     # value and delete the image path in install values, then the subcloud
-    # will be reinstalled using the image in dc_vault.
+    # will be installed using the image in dc_vault.
     if install_values.get(
             'software_version') != payload['software_version']:
         install_values['software_version'] = payload['software_version']

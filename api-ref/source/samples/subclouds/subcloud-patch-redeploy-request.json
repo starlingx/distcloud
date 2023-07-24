@@ -1,0 +1,8 @@
+{
+    "bmc_password": "YYYYYYY",
+    "bootstrap_values": "content of bootstrap_values file",
+    "deploy_config": "content of deploy_config file",
+    "install_values": "content of install_values file",
+    "release": "22.12",
+    "sysadmin_password": "XXXXXXX"
+}

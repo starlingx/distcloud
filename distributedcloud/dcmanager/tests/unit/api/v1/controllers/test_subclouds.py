@@ -15,15 +15,17 @@
 #    under the License.
 #
 
-from oslo_utils import timeutils
-
 import base64
 import copy
 import json
+import os
+
 import keyring
 import mock
+from oslo_utils import timeutils
 import six
 from six.moves import http_client
+from tsconfig.tsconfig import SW_VERSION
 import webtest
 
 from dccommon import consts as dccommon_consts
@@ -34,14 +36,11 @@ from dcmanager.common import prestage
 from dcmanager.common import utils as cutils
 from dcmanager.db.sqlalchemy import api as db_api
 from dcmanager.rpc import client as rpc_client
-
 from dcmanager.tests.unit.api import test_root_controller as testroot
 from dcmanager.tests.unit.api.v1.controllers.mixins import APIMixin
 from dcmanager.tests.unit.api.v1.controllers.mixins import PostMixin
 from dcmanager.tests.unit.common import fake_subcloud
 from dcmanager.tests import utils
-
-from tsconfig.tsconfig import SW_VERSION
 
 SAMPLE_SUBCLOUD_NAME = 'SubcloudX'
 SAMPLE_SUBCLOUD_DESCRIPTION = 'A Subcloud of mystery'
@@ -1790,6 +1789,355 @@ class TestSubcloudAPIOther(testroot.DCManagerApiTest):
                 FAKE_URL + '/' + str(subcloud.id) + '/reinstall',
                 headers=FAKE_HEADERS, params=reinstall_data)
             self.assertEqual(response.status_int, 200)
+
+    @mock.patch.object(psd_common, 'upload_config_file')
+    @mock.patch.object(psd_common.PatchingClient, 'query')
+    @mock.patch.object(os.path, 'isdir')
+    @mock.patch.object(os, 'listdir')
+    @mock.patch.object(cutils, 'get_vault_load_files')
+    @mock.patch.object(psd_common, 'validate_k8s_version')
+    @mock.patch.object(psd_common, 'validate_subcloud_config')
+    @mock.patch.object(psd_common, 'validate_bootstrap_values')
+    def test_redeploy_subcloud(
+            self, mock_validate_bootstrap_values, mock_validate_subcloud_config,
+            mock_validate_k8s_version, mock_get_vault_load_files,
+            mock_os_listdir, mock_os_isdir, mock_query, mock_upload_config_file):
+
+        fake_bmc_password = base64.b64encode(
+            'bmc_password'.encode("utf-8")).decode('utf-8')
+        fake_sysadmin_password = base64.b64encode(
+            'sysadmin_password'.encode("utf-8")).decode('utf-8')
+
+        install_data = copy.copy(FAKE_SUBCLOUD_INSTALL_VALUES)
+        install_data.pop('software_version')
+        bootstrap_data = copy.copy(fake_subcloud.FAKE_BOOTSTRAP_FILE_DATA)
+        config_data = {'deploy_config': 'deploy config values'}
+        redeploy_data = {**install_data, **bootstrap_data, **config_data,
+                         'sysadmin_password': fake_sysadmin_password,
+                         'bmc_password': fake_bmc_password}
+
+        subcloud = fake_subcloud.create_fake_subcloud(
+            self.ctx, name=bootstrap_data["name"])
+
+        mock_query.return_value = {}
+        mock_get_vault_load_files.return_value = ('iso_file_path', 'sig_file_path')
+        mock_os_isdir.return_value = True
+        mock_upload_config_file.return_value = True
+        mock_os_listdir.return_value = ['deploy_chart_fake.tgz',
+                                        'deploy_overrides_fake.yaml',
+                                        'deploy_playbook_fake.yaml']
+
+        upload_files = [("install_values", "install_fake_filename",
+                         json.dumps(install_data).encode("utf-8")),
+                        ("bootstrap_values", "bootstrap_fake_filename",
+                         json.dumps(bootstrap_data).encode("utf-8")),
+                        ("deploy_config", "config_fake_filename",
+                         json.dumps(config_data).encode("utf-8"))]
+
+        response = self.app.patch(
+            FAKE_URL + '/' + str(subcloud.id) + '/redeploy',
+            headers=FAKE_HEADERS, params=redeploy_data,
+            upload_files=upload_files)
+
+        mock_validate_bootstrap_values.assert_called_once()
+        mock_validate_subcloud_config.assert_called_once()
+        mock_validate_k8s_version.assert_called_once()
+        self.mock_rpc_client().redeploy_subcloud.assert_called_once_with(
+            mock.ANY,
+            subcloud.id,
+            mock.ANY)
+        self.assertEqual(response.status_int, 200)
+        self.assertEqual(SW_VERSION, response.json['software-version'])
+
+    @mock.patch.object(cutils, 'load_yaml_file')
+    @mock.patch.object(psd_common.PatchingClient, 'query')
+    @mock.patch.object(os.path, 'exists')
+    @mock.patch.object(os.path, 'isdir')
+    @mock.patch.object(os, 'listdir')
+    @mock.patch.object(cutils, 'get_vault_load_files')
+    @mock.patch.object(psd_common, 'validate_k8s_version')
+    def test_redeploy_subcloud_no_request_data(
+            self, mock_validate_k8s_version, mock_get_vault_load_files,
+            mock_os_listdir, mock_os_isdir, mock_path_exists, mock_query,
+            mock_load_yaml):
+
+        fake_bmc_password = base64.b64encode(
+            'bmc_password'.encode("utf-8")).decode('utf-8')
+        fake_sysadmin_password = base64.b64encode(
+            'sysadmin_password'.encode("utf-8")).decode('utf-8')
+
+        install_data = copy.copy(FAKE_SUBCLOUD_INSTALL_VALUES)
+        install_data.pop('software_version')
+        install_data['bmc_password'] = fake_bmc_password
+        redeploy_data = {'sysadmin_password': fake_sysadmin_password}
+
+        subcloud = fake_subcloud.create_fake_subcloud(
+            self.ctx, name=fake_subcloud.FAKE_BOOTSTRAP_FILE_DATA["name"],
+            data_install=json.dumps(install_data))
+
+        config_file = psd_common.get_config_file_path(subcloud.name,
+                                                      consts.DEPLOY_CONFIG)
+        mock_query.return_value = {}
+        mock_get_vault_load_files.return_value = ('iso_file_path', 'sig_file_path')
+        mock_os_isdir.return_value = True
+        mock_os_listdir.return_value = ['deploy_chart_fake.tgz',
+                                        'deploy_overrides_fake.yaml',
+                                        'deploy_playbook_fake.yaml']
+        mock_path_exists.side_effect = lambda x: True if x == config_file else False
+        mock_load_yaml.return_value = {"software_version": SW_VERSION}
+
+        response = self.app.patch(
+            FAKE_URL + '/' + str(subcloud.id) + '/redeploy',
+            headers=FAKE_HEADERS, params=redeploy_data)
+
+        mock_validate_k8s_version.assert_called_once()
+        self.mock_rpc_client().redeploy_subcloud.assert_called_once_with(
+            mock.ANY,
+            subcloud.id,
+            mock.ANY)
+        self.assertEqual(response.status_int, 200)
+        self.assertEqual(SW_VERSION, response.json['software-version'])
+
+    @mock.patch.object(psd_common, 'upload_config_file')
+    @mock.patch.object(psd_common.PatchingClient, 'query')
+    @mock.patch.object(os.path, 'isdir')
+    @mock.patch.object(os, 'listdir')
+    @mock.patch.object(cutils, 'get_vault_load_files')
+    @mock.patch.object(psd_common, 'validate_k8s_version')
+    @mock.patch.object(psd_common, 'validate_subcloud_config')
+    @mock.patch.object(psd_common, 'validate_bootstrap_values')
+    def test_redeploy_subcloud_with_release_version(
+            self, mock_validate_bootstrap_values, mock_validate_subcloud_config,
+            mock_validate_k8s_version, mock_get_vault_load_files,
+            mock_os_listdir, mock_os_isdir, mock_query, mock_upload_config_file):
+
+        fake_bmc_password = base64.b64encode(
+            'bmc_password'.encode("utf-8")).decode('utf-8')
+        fake_sysadmin_password = base64.b64encode(
+            'sysadmin_password'.encode("utf-8")).decode('utf-8')
+
+        install_data = copy.copy(FAKE_SUBCLOUD_INSTALL_VALUES)
+        install_data.pop('software_version')
+        bootstrap_data = copy.copy(fake_subcloud.FAKE_BOOTSTRAP_FILE_DATA)
+        config_data = {'deploy_config': 'deploy config values'}
+        redeploy_data = {**install_data, **bootstrap_data, **config_data,
+                         'sysadmin_password': fake_sysadmin_password,
+                         'bmc_password': fake_bmc_password,
+                         'release': fake_subcloud.FAKE_SOFTWARE_VERSION}
+
+        subcloud = fake_subcloud.create_fake_subcloud(
+            self.ctx, name=bootstrap_data["name"],
+            software_version=SW_VERSION)
+
+        mock_query.return_value = {}
+        mock_get_vault_load_files.return_value = ('iso_file_path', 'sig_file_path')
+        mock_os_isdir.return_value = True
+        mock_upload_config_file.return_value = True
+        mock_os_listdir.return_value = ['deploy_chart_fake.tgz',
+                                        'deploy_overrides_fake.yaml',
+                                        'deploy_playbook_fake.yaml']
+
+        upload_files = [("install_values", "install_fake_filename",
+                         json.dumps(install_data).encode("utf-8")),
+                        ("bootstrap_values", "bootstrap_fake_filename",
+                         json.dumps(bootstrap_data).encode("utf-8")),
+                        ("deploy_config", "config_fake_filename",
+                         json.dumps(config_data).encode("utf-8"))]
+
+        response = self.app.patch(
+            FAKE_URL + '/' + str(subcloud.id) + '/redeploy',
+            headers=FAKE_HEADERS, params=redeploy_data,
+            upload_files=upload_files)
+
+        mock_validate_bootstrap_values.assert_called_once()
+        mock_validate_subcloud_config.assert_called_once()
+        mock_validate_k8s_version.assert_called_once()
+        self.mock_rpc_client().redeploy_subcloud.assert_called_once_with(
+            mock.ANY,
+            subcloud.id,
+            mock.ANY)
+        self.assertEqual(response.status_int, 200)
+        self.assertEqual(fake_subcloud.FAKE_SOFTWARE_VERSION,
+                         response.json['software-version'])
+
+    @mock.patch.object(cutils, 'load_yaml_file')
+    @mock.patch.object(psd_common.PatchingClient, 'query')
+    @mock.patch.object(os.path, 'exists')
+    @mock.patch.object(os.path, 'isdir')
+    @mock.patch.object(os, 'listdir')
+    @mock.patch.object(cutils, 'get_vault_load_files')
+    def test_redeploy_subcloud_no_request_body(
+            self, mock_get_vault_load_files, mock_os_listdir,
+            mock_os_isdir, mock_path_exists, mock_query, mock_load_yaml):
+
+        fake_bmc_password = base64.b64encode(
+            'bmc_password'.encode("utf-8")).decode('utf-8')
+
+        install_data = copy.copy(FAKE_SUBCLOUD_INSTALL_VALUES)
+        install_data.pop('software_version')
+        install_data['bmc_password'] = fake_bmc_password
+
+        subcloud = fake_subcloud.create_fake_subcloud(
+            self.ctx, name=fake_subcloud.FAKE_BOOTSTRAP_FILE_DATA["name"],
+            data_install=json.dumps(install_data))
+
+        config_file = psd_common.get_config_file_path(subcloud.name,
+                                                      consts.DEPLOY_CONFIG)
+        mock_query.return_value = {}
+        mock_get_vault_load_files.return_value = ('iso_file_path', 'sig_file_path')
+        mock_os_isdir.return_value = True
+        mock_os_listdir.return_value = ['deploy_chart_fake.tgz',
+                                        'deploy_overrides_fake.yaml',
+                                        'deploy_playbook_fake.yaml']
+        mock_path_exists.side_effect = lambda x: True if x == config_file else False
+        mock_load_yaml.return_value = {"software_version": SW_VERSION}
+
+        six.assertRaisesRegex(self, webtest.app.AppError, "400 *",
+                              self.app.patch_json, FAKE_URL + '/' +
+                              str(subcloud.id) + '/redeploy',
+                              headers=FAKE_HEADERS, params={})
+
+    def test_redeploy_online_subcloud(self):
+
+        subcloud = fake_subcloud.create_fake_subcloud(
+            self.ctx, name=fake_subcloud.FAKE_BOOTSTRAP_FILE_DATA["name"])
+        db_api.subcloud_update(self.ctx, subcloud.id,
+                               availability_status=dccommon_consts.AVAILABILITY_ONLINE)
+
+        six.assertRaisesRegex(self, webtest.app.AppError, "400 *",
+                              self.app.patch_json, FAKE_URL + '/' +
+                              str(subcloud.id) + '/redeploy',
+                              headers=FAKE_HEADERS, params={})
+        self.mock_rpc_client().redeploy_subcloud.assert_not_called()
+
+    def test_redeploy_managed_subcloud(self):
+
+        subcloud = fake_subcloud.create_fake_subcloud(
+            self.ctx, name=fake_subcloud.FAKE_BOOTSTRAP_FILE_DATA["name"])
+        db_api.subcloud_update(self.ctx, subcloud.id,
+                               management_state=dccommon_consts.MANAGEMENT_MANAGED)
+
+        six.assertRaisesRegex(self, webtest.app.AppError, "400 *",
+                              self.app.patch_json, FAKE_URL + '/' +
+                              str(subcloud.id) + '/redeploy',
+                              headers=FAKE_HEADERS, params={})
+        self.mock_rpc_client().redeploy_subcloud.assert_not_called()
+
+    @mock.patch.object(cutils, 'load_yaml_file')
+    @mock.patch.object(psd_common.PatchingClient, 'query')
+    @mock.patch.object(os.path, 'exists')
+    @mock.patch.object(os.path, 'isdir')
+    @mock.patch.object(os, 'listdir')
+    @mock.patch.object(cutils, 'get_vault_load_files')
+    @mock.patch.object(psd_common, 'validate_k8s_version')
+    def test_redeploy_subcloud_missing_required_value(
+            self, mock_validate_k8s_version, mock_get_vault_load_files,
+            mock_os_listdir, mock_os_isdir, mock_path_exists, mock_query,
+            mock_load_yaml):
+
+        fake_bmc_password = base64.b64encode(
+            'bmc_password'.encode("utf-8")).decode('utf-8')
+        fake_sysadmin_password = base64.b64encode(
+            'sysadmin_password'.encode("utf-8")).decode('utf-8')
+
+        install_data = copy.copy(FAKE_SUBCLOUD_INSTALL_VALUES)
+        install_data.pop('software_version')
+        install_data['bmc_password'] = fake_bmc_password
+
+        subcloud = fake_subcloud.create_fake_subcloud(
+            self.ctx, name=fake_subcloud.FAKE_BOOTSTRAP_FILE_DATA["name"],
+            data_install=json.dumps(install_data))
+
+        config_file = psd_common.get_config_file_path(subcloud.name,
+                                                      consts.DEPLOY_CONFIG)
+        mock_query.return_value = {}
+        mock_get_vault_load_files.return_value = ('iso_file_path', 'sig_file_path')
+        mock_os_isdir.return_value = True
+        mock_os_listdir.return_value = ['deploy_chart_fake.tgz',
+                                        'deploy_overrides_fake.yaml',
+                                        'deploy_playbook_fake.yaml']
+        mock_path_exists.side_effect = lambda x: True if x == config_file else False
+        mock_load_yaml.return_value = {"software_version": SW_VERSION}
+
+        for k in ['name', 'system_mode', 'external_oam_subnet',
+                  'external_oam_gateway_address', 'external_oam_floating_address',
+                  'sysadmin_password']:
+            bootstrap_values = copy.copy(fake_subcloud.FAKE_BOOTSTRAP_FILE_DATA)
+            redeploy_data = {**bootstrap_values,
+                             'sysadmin_password': fake_sysadmin_password}
+            del redeploy_data[k]
+            upload_files = [("bootstrap_values", "bootstrap_fake_filename",
+                             json.dumps(redeploy_data).encode("utf-8"))]
+            six.assertRaisesRegex(self, webtest.app.AppError, "400 *",
+                                  self.app.patch_json, FAKE_URL + '/' +
+                                  str(subcloud.id) + '/redeploy',
+                                  headers=FAKE_HEADERS, params=redeploy_data,
+                                  upload_files=upload_files)
+
+    @mock.patch.object(psd_common, 'upload_config_file')
+    @mock.patch.object(psd_common.PatchingClient, 'query')
+    @mock.patch.object(os.path, 'isdir')
+    @mock.patch.object(os, 'listdir')
+    @mock.patch.object(cutils, 'get_vault_load_files')
+    @mock.patch.object(psd_common, 'validate_k8s_version')
+    @mock.patch.object(psd_common, 'validate_subcloud_config')
+    @mock.patch.object(psd_common, 'validate_bootstrap_values')
+    def test_redeploy_subcloud_missing_stored_values(
+            self, mock_validate_bootstrap_values, mock_validate_subcloud_config,
+            mock_validate_k8s_version, mock_get_vault_load_files,
+            mock_os_listdir, mock_os_isdir, mock_query, mock_upload_config_values):
+
+        fake_bmc_password = base64.b64encode(
+            'bmc_password'.encode("utf-8")).decode('utf-8')
+        fake_sysadmin_password = base64.b64encode(
+            'sysadmin_password'.encode("utf-8")).decode('utf-8')
+
+        install_data = copy.copy(FAKE_SUBCLOUD_INSTALL_VALUES)
+        install_data.pop('software_version')
+        bootstrap_data = copy.copy(fake_subcloud.FAKE_BOOTSTRAP_FILE_DATA)
+        config_data = {'deploy_config': 'deploy config values'}
+
+        for k in ['management_subnet', 'management_start_address',
+                  'management_end_address', 'management_gateway_address',
+                  'systemcontroller_gateway_address']:
+            del bootstrap_data[k]
+
+        redeploy_data = {**install_data, **bootstrap_data, **config_data,
+                         'sysadmin_password': fake_sysadmin_password,
+                         'bmc_password': fake_bmc_password}
+
+        subcloud = fake_subcloud.create_fake_subcloud(
+            self.ctx, name=bootstrap_data["name"])
+
+        mock_query.return_value = {}
+        mock_get_vault_load_files.return_value = ('iso_file_path', 'sig_file_path')
+        mock_os_isdir.return_value = True
+        mock_upload_config_values.return_value = True
+        mock_os_listdir.return_value = ['deploy_chart_fake.tgz',
+                                        'deploy_overrides_fake.yaml',
+                                        'deploy_playbook_fake.yaml']
+
+        upload_files = [("install_values", "install_fake_filename",
+                         json.dumps(install_data).encode("utf-8")),
+                        ("bootstrap_values", "bootstrap_fake_filename",
+                         json.dumps(bootstrap_data).encode("utf-8")),
+                        ("deploy_config", "config_fake_filename",
+                         json.dumps(config_data).encode("utf-8"))]
+
+        response = self.app.patch(
+            FAKE_URL + '/' + str(subcloud.id) + '/redeploy',
+            headers=FAKE_HEADERS, params=redeploy_data,
+            upload_files=upload_files)
+
+        mock_validate_bootstrap_values.assert_called_once()
+        mock_validate_subcloud_config.assert_called_once()
+        mock_validate_k8s_version.assert_called_once()
+        self.mock_rpc_client().redeploy_subcloud.assert_called_once_with(
+            mock.ANY,
+            subcloud.id,
+            mock.ANY)
+        self.assertEqual(response.status_int, 200)
+        self.assertEqual(SW_VERSION, response.json['software-version'])
 
     @mock.patch.object(prestage, '_get_system_controller_upgrades')
     @mock.patch.object(prestage, '_get_prestage_subcloud_info')

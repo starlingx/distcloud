@@ -75,6 +75,10 @@ subclouds_rules = [
             },
             {
                 'method': 'PATCH',
+                'path': '/v1.0/subclouds/{subcloud}/redeploy'
+            },
+            {
+                'method': 'PATCH',
                 'path': '/v1.0/subclouds/{subcloud}/restore'
             },
             {

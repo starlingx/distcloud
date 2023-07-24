@@ -417,8 +417,8 @@ class TestSubcloudManager(base.DCManagerTestCase):
             'software_version': "18.03",
             "management_subnet": "192.168.101.0/24",
             "management_gateway_ip": "192.168.101.1",
-            "management_start_ip": "192.168.101.3",
-            "management_end_ip": "192.168.101.4",
+            "management_start_ip": "192.168.101.2",
+            "management_end_ip": "192.168.101.50",
             "systemcontroller_gateway_ip": "192.168.204.101",
             'deploy_status': "not-deployed",
             'error_description': "No errors present",
@@ -1825,6 +1825,61 @@ class TestSubcloudManager(base.DCManagerTestCase):
             cutils.get_ansible_filename(subcloud_name, consts.INVENTORY_FILE_POSTFIX),
             FAKE_PREVIOUS_SW_VERSION)
         mock_thread_start.assert_called_once()
+
+    @mock.patch.object(subcloud_manager.SubcloudManager,
+                       '_run_subcloud_install')
+    @mock.patch.object(subcloud_manager.SubcloudManager,
+                       '_prepare_for_deployment')
+    @mock.patch.object(cutils, 'create_subcloud_inventory')
+    @mock.patch.object(subcloud_manager, 'keyring')
+    @mock.patch.object(cutils, 'get_playbook_for_software_version')
+    @mock.patch.object(cutils, 'update_values_on_yaml_file')
+    @mock.patch.object(RunAnsible, 'exec_playbook')
+    def test_subcloud_redeploy(self, mock_exec_playbook, mock_update_yml,
+                               mock_get_playbook_for_software_version,
+                               mock_keyring, create_subcloud_inventory,
+                               mock_prepare_for_deployment,
+                               mock_run_subcloud_install):
+        mock_get_playbook_for_software_version.return_value = "22.12"
+        mock_keyring.get_password.return_value = "testpass"
+        mock_exec_playbook.return_value = False
+        mock_run_subcloud_install.return_value = True
+
+        subcloud = self.create_subcloud_static(
+            self.ctx,
+            name='subcloud1',
+            deploy_status=consts.DEPLOY_STATE_CREATED)
+
+        fake_install_values = \
+            copy.copy(fake_subcloud.FAKE_SUBCLOUD_INSTALL_VALUES)
+        fake_install_values['software_version'] = SW_VERSION
+        fake_payload_install = {'bmc_password': 'bmc_pass',
+                                'install_values': fake_install_values,
+                                'software_version': SW_VERSION,
+                                'sysadmin_password': 'sys_pass'}
+
+        fake_payload_bootstrap = {**fake_subcloud.FAKE_BOOTSTRAP_VALUE,
+                                  **fake_subcloud.FAKE_BOOTSTRAP_FILE_DATA}
+        fake_payload_bootstrap["sysadmin_password"] = "testpass"
+
+        fake_payload_config = {"sysadmin_password": "testpass",
+                               "deploy_playbook": "test_playbook.yaml",
+                               "deploy_overrides": "test_overrides.yaml",
+                               "deploy_chart": "test_chart.yaml",
+                               "deploy_config": "subcloud1.yaml"}
+
+        fake_payload = {**fake_payload_install,
+                        **fake_payload_bootstrap,
+                        **fake_payload_config}
+
+        sm = subcloud_manager.SubcloudManager()
+        sm.redeploy_subcloud(self.ctx, subcloud.id, fake_payload)
+
+        # Verify subcloud was updated with correct values
+        updated_subcloud = db_api.subcloud_get_by_name(self.ctx,
+                                                       subcloud.name)
+        self.assertEqual(consts.DEPLOY_STATE_DONE,
+                         updated_subcloud.deploy_status)
 
     def test_handle_subcloud_operations_in_progress(self):
         subcloud1 = self.create_subcloud_static(

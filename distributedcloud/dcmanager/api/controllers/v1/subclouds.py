@@ -23,6 +23,7 @@ from requests_toolbelt.multipart import decoder
 import base64
 import json
 import keyring
+import os
 from oslo_config import cfg
 from oslo_log import log as logging
 from oslo_messaging import RemoteError
@@ -75,6 +76,12 @@ SUBCLOUD_RECONFIG_MANDATORY_FILE = [
 SUBCLOUD_ADD_GET_FILE_CONTENTS = [
     BOOTSTRAP_VALUES,
     INSTALL_VALUES,
+]
+
+SUBCLOUD_REDEPLOY_GET_FILE_CONTENTS = [
+    INSTALL_VALUES,
+    BOOTSTRAP_VALUES,
+    consts.DEPLOY_CONFIG
 ]
 
 BOOTSTRAP_VALUES_ADDRESSES = [
@@ -761,6 +768,70 @@ class SubcloudsController(object):
             except Exception:
                 LOG.exception("Unable to reinstall subcloud %s" % subcloud.name)
                 pecan.abort(500, _('Unable to reinstall subcloud'))
+        elif verb == "redeploy":
+            config_file = psd_common.get_config_file_path(subcloud.name,
+                                                          consts.DEPLOY_CONFIG)
+            has_bootstrap_values = consts.BOOTSTRAP_VALUES in request.POST
+            has_original_config_values = os.path.exists(config_file)
+            has_new_config_values = consts.DEPLOY_CONFIG in request.POST
+            has_config_values = has_original_config_values or has_new_config_values
+            payload = psd_common.get_request_data(
+                request, subcloud, SUBCLOUD_REDEPLOY_GET_FILE_CONTENTS)
+
+            if (subcloud.availability_status == dccommon_consts.AVAILABILITY_ONLINE or
+                    subcloud.management_state == dccommon_consts.MANAGEMENT_MANAGED):
+                msg = _('Cannot re-deploy an online and/or managed subcloud')
+                LOG.warning(msg)
+                pecan.abort(400, msg)
+
+            # If a subcloud release is not passed, use the current
+            # system controller software_version
+            payload['software_version'] = payload.get('release', tsc.SW_VERSION)
+
+            # Don't load previously stored bootstrap_values if they are present in
+            # the request, as this would override the already loaded values from it.
+            # As config_values are optional, only attempt to load previously stored
+            # values if this phase should be executed.
+            files_for_redeploy = SUBCLOUD_REDEPLOY_GET_FILE_CONTENTS.copy()
+            if has_bootstrap_values:
+                files_for_redeploy.remove(BOOTSTRAP_VALUES)
+            if not has_config_values:
+                files_for_redeploy.remove(consts.DEPLOY_CONFIG)
+
+            psd_common.populate_payload_with_pre_existing_data(
+                payload, subcloud, files_for_redeploy)
+
+            psd_common.validate_sysadmin_password(payload)
+            psd_common.pre_deploy_install(payload, validate_password=False)
+            psd_common.pre_deploy_bootstrap(context, payload, subcloud,
+                                            has_bootstrap_values,
+                                            validate_password=False)
+            payload['bootstrap-address'] = \
+                payload['install_values']['bootstrap_address']
+
+            try:
+                # Align the software version of the subcloud with redeploy
+                # version. Update description, location and group id if offered,
+                # update the deploy status as pre-install.
+                subcloud = db_api.subcloud_update(
+                    context,
+                    subcloud_id,
+                    description=payload.get('description'),
+                    location=payload.get('location'),
+                    software_version=payload['software_version'],
+                    deploy_status=consts.DEPLOY_STATE_PRE_INSTALL,
+                    first_identity_sync_complete=False,
+                    data_install=json.dumps(payload['install_values']))
+
+                self.dcmanager_rpc_client.redeploy_subcloud(
+                    context, subcloud_id, payload)
+
+                return db_api.subcloud_db_model_to_dict(subcloud)
+            except RemoteError as e:
+                pecan.abort(422, e.value)
+            except Exception:
+                LOG.exception("Unable to redeploy subcloud %s" % subcloud.name)
+                pecan.abort(500, _('Unable to redeploy subcloud'))
         elif verb == "restore":
             pecan.abort(410, _('This API is deprecated. '
                                'Please use /v1.0/subcloud-backup/restore'))

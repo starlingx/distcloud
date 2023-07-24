@@ -508,6 +508,35 @@ class SubcloudManager(manager.Manager):
                 context, subcloud_id,
                 deploy_status=consts.DEPLOY_STATE_PRE_INSTALL_FAILED)
 
+    def redeploy_subcloud(self, context, subcloud_id, payload):
+        """Redeploy subcloud
+
+        :param context: request context object
+        :param subcloud_id: subcloud id from db
+        :param payload: subcloud redeploy
+        """
+
+        # Retrieve the subcloud details from the database
+        subcloud = db_api.subcloud_get(context, subcloud_id)
+
+        LOG.info("Redeploying subcloud %s." % subcloud.name)
+
+        # Define which deploy phases to run
+        phases_to_run = [consts.DEPLOY_PHASE_INSTALL,
+                         consts.DEPLOY_PHASE_BOOTSTRAP]
+        if consts.DEPLOY_CONFIG in payload:
+            phases_to_run.append(consts.DEPLOY_PHASE_CONFIG)
+
+        succeeded = self.run_deploy_phases(context, subcloud_id, payload,
+                                           phases_to_run)
+
+        if succeeded:
+            db_api.subcloud_update(
+                context, subcloud.id,
+                deploy_status=consts.DEPLOY_STATE_DONE,
+                error_description=consts.ERROR_DESC_EMPTY)
+            LOG.info(f"Finished redeploying subcloud {subcloud['name']}.")
+
     def create_subcloud_backups(self, context, payload):
         """Backup subcloud or group of subclouds
 
@@ -637,29 +666,18 @@ class SubcloudManager(manager.Manager):
         :param ansible_subcloud_inventory_file: the ansible inventory file path
         :return: ansible command needed to run the bootstrap playbook
         """
-        management_subnet = utils.get_management_subnet(payload)
-        sys_controller_gw_ip = payload.get(
-            "systemcontroller_gateway_address")
-
-        if (management_subnet != subcloud.management_subnet) or (
-                sys_controller_gw_ip != subcloud.systemcontroller_gateway_ip):
-            m_ks_client = OpenStackDriver(
-                region_name=dccommon_consts.DEFAULT_REGION_NAME,
-                region_clients=None).keystone_client
-            # Create a new route
-            self._create_subcloud_route(payload, m_ks_client,
-                                        sys_controller_gw_ip)
-            # Delete previous route
-            self._delete_subcloud_routes(m_ks_client, subcloud)
-            # Update endpoints
-            self._update_services_endpoint(context, payload, subcloud.name,
-                                           m_ks_client)
+        network_reconfig = utils.has_network_reconfig(payload, subcloud)
+        if network_reconfig:
+            self._configure_system_controller_network(context, payload, subcloud,
+                                                      update_db=False)
+            # Regenerate the addn_hosts_dc file
+            self._create_addn_hosts_dc(context)
 
         # Update subcloud
         subcloud = db_api.subcloud_update(
             context,
             subcloud.id,
-            description=payload.get("description", None),
+            description=payload.get("description"),
             management_subnet=utils.get_management_subnet(payload),
             management_gateway_ip=utils.get_management_gateway_address(
                 payload),
@@ -667,8 +685,8 @@ class SubcloudManager(manager.Manager):
                 payload),
             management_end_ip=utils.get_management_end_address(payload),
             systemcontroller_gateway_ip=payload.get(
-                "systemcontroller_gateway_address", None),
-            location=payload.get("location", None),
+                "systemcontroller_gateway_address"),
+            location=payload.get("location"),
             deploy_status=consts.DEPLOY_STATE_PRE_BOOTSTRAP)
 
         # Populate payload with passwords
@@ -959,8 +977,7 @@ class SubcloudManager(manager.Manager):
             deploy_status=deploy_state)
 
         # The RPC call must return the subcloud as a dictionary, otherwise it
-        # should return the DB object for dcmanager internal use (subcloud add,
-        # resume and redeploy)
+        # should return the DB object for dcmanager internal use (subcloud add)
         if return_as_dict:
             subcloud = db_api.subcloud_db_model_to_dict(subcloud)
 
@@ -2308,35 +2325,47 @@ class SubcloudManager(manager.Manager):
         # Regenerate the addn_hosts_dc file
         self._create_addn_hosts_dc(context)
 
-    def _configure_system_controller_network(self, context, payload, subcloud):
+    def _configure_system_controller_network(self, context, payload, subcloud,
+                                             update_db=True):
+        """Configure system controller network
+
+        :param context: request context object
+        :param payload: subcloud bootstrap configuration
+        :param subcloud: subcloud model object
+        :param update_db: whether it should update the db on success/failure
+        """
         subcloud_name = subcloud.name
         subcloud_id = subcloud.id
+        sys_controller_gw_ip = payload.get("systemcontroller_gateway_address",
+                                           subcloud.systemcontroller_gateway_ip)
 
         try:
             m_ks_client = OpenStackDriver(
                 region_name=dccommon_consts.DEFAULT_REGION_NAME,
                 region_clients=None).keystone_client
             self._create_subcloud_route(payload, m_ks_client,
-                                        subcloud.systemcontroller_gateway_ip)
+                                        sys_controller_gw_ip)
         except Exception:
             LOG.exception(
                 "Failed to create route to subcloud %s." % subcloud_name)
-            db_api.subcloud_update(
-                context, subcloud_id,
-                deploy_status=consts.DEPLOY_STATE_RECONFIGURING_NETWORK_FAILED,
-                error_description=consts.ERROR_DESC_EMPTY
-            )
+            if update_db:
+                db_api.subcloud_update(
+                    context, subcloud_id,
+                    deploy_status=consts.DEPLOY_STATE_RECONFIGURING_NETWORK_FAILED,
+                    error_description=consts.ERROR_DESC_EMPTY
+                )
             return
         try:
             self._update_services_endpoint(
                 context, payload, subcloud_name, m_ks_client)
         except Exception:
             LOG.exception("Failed to update subcloud %s endpoints" % subcloud_name)
-            db_api.subcloud_update(
-                context, subcloud_id,
-                deploy_status=consts.DEPLOY_STATE_RECONFIGURING_NETWORK_FAILED,
-                error_description=consts.ERROR_DESC_EMPTY
-            )
+            if update_db:
+                db_api.subcloud_update(
+                    context, subcloud_id,
+                    deploy_status=consts.DEPLOY_STATE_RECONFIGURING_NETWORK_FAILED,
+                    error_description=consts.ERROR_DESC_EMPTY
+                )
             return
 
         # Delete old routes

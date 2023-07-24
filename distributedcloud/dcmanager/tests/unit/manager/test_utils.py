@@ -30,7 +30,8 @@ class TestUtils(base.DCManagerTestCase):
         payload = {"management_subnet": "192.168.101.0/24",
                    "management_gateway_address": "192.168.101.1",
                    "management_start_address": "192.168.101.2",
-                   "management_end_address": "192.168.101.50"}
+                   "management_end_address": "192.168.101.50",
+                   "systemcontroller_gateway_address": "192.168.204.101"}
         result = utils.has_network_reconfig(payload, subcloud)
         self.assertFalse(result)
 
@@ -49,5 +50,15 @@ class TestUtils(base.DCManagerTestCase):
                    "management_gateway_address": "192.168.101.5",
                    "management_start_address": "192.168.101.7",
                    "management_end_address": "192.168.101.50"}
+        result = utils.has_network_reconfig(payload, subcloud)
+        self.assertTrue(result)
+
+    def test_has_network_reconfig_different_sc_gateway(self):
+        subcloud = fake_subcloud.create_fake_subcloud(self.ctx)
+        payload = {"management_subnet": "192.168.101.0/24",
+                   "management_gateway_address": "192.168.101.1",
+                   "management_start_address": "192.168.101.2",
+                   "management_end_address": "192.168.101.50",
+                   "systemcontroller_gateway_address": "192.168.204.102"}
         result = utils.has_network_reconfig(payload, subcloud)
         self.assertTrue(result)

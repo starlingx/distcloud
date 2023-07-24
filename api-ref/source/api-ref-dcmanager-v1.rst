@@ -542,6 +542,78 @@ Response Example
       :language: json
 
 ********************************
+Redeploy a specific subcloud
+********************************
+
+.. rest_method:: PATCH /v1.0/subclouds/{subcloud}/redeploy
+
+Redeploy and bootstrap a subcloud based on its previous install configurations.
+
+**Normal response codes**
+
+200
+
+**Error response codes**
+
+badRequest (400), unauthorized (401), forbidden (403), badMethod (405),
+HTTPUnprocessableEntity (422), internalServerError (500),
+serviceUnavailable (503)
+
+**Request parameters**
+
+.. rest_parameters:: parameters.yaml
+
+  - subcloud: subcloud_uri
+  - install_values: install_values
+  - bootstrap_values: bootstrap_values
+  - deploy_config: deploy_config
+  - release: release
+  - sysadmin_password: sysadmin_password
+  - bmc_password: bmc_password
+
+Request Example
+----------------
+
+.. literalinclude:: samples/subclouds/subcloud-patch-redeploy-request.json
+      :language: json
+
+**Response parameters**
+
+.. rest_parameters:: parameters.yaml
+
+  - id: subcloud_id
+  - group_id: group_id
+  - name: subcloud_name
+  - description: subcloud_description
+  - location: subcloud_location
+  - software-version: software_version
+  - availability-status: availability_status
+  - error-description: error_description
+  - deploy-status: deploy_status
+  - backup-status: backup_status
+  - backup-datetime: backup_datetime
+  - openstack-installed: openstack_installed
+  - management-state: management_state
+  - systemcontroller-gateway-ip: systemcontroller_gateway_ip
+  - management-start-ip: management_start_ip
+  - management-end-ip: management_end_ip
+  - management-subnet: management_subnet
+  - management-gateway-ip: management_gateway_ip
+  - created-at: created_at
+  - updated-at: updated_at
+  - data_install: data_install
+  - data_upgrade: data_upgrade
+  - endpoint_sync_status: endpoint_sync_status
+  - sync_status: sync_status
+  - endpoint_type: sync_status_type
+
+Response Example
+----------------
+
+.. literalinclude:: samples/subclouds/subcloud-patch-redeploy-response.json
+      :language: json
+
+********************************
 Prestage a specific subcloud
 ********************************
 
