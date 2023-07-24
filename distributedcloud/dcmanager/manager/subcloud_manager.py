@@ -358,7 +358,8 @@ class SubcloudManager(manager.Manager):
 
         # Create the subcloud
         subcloud = self.subcloud_deploy_create(context, subcloud_id,
-                                               payload, rehoming)
+                                               payload, rehoming,
+                                               return_as_dict=False)
 
         # Return if create failed
         if rehoming:
@@ -641,8 +642,7 @@ class SubcloudManager(manager.Manager):
             "systemcontroller_gateway_address")
 
         if (management_subnet != subcloud.management_subnet) or (
-            sys_controller_gw_ip != subcloud.systemcontroller_gateway_ip
-        ):
+                sys_controller_gw_ip != subcloud.systemcontroller_gateway_ip):
             m_ks_client = OpenStackDriver(
                 region_name=dccommon_consts.DEFAULT_REGION_NAME,
                 region_clients=None).keystone_client
@@ -808,14 +808,16 @@ class SubcloudManager(manager.Manager):
         self.run_deploy_phases(context, subcloud_id, payload,
                                deploy_states_to_run)
 
-    def subcloud_deploy_create(self, context, subcloud_id, payload, rehoming=False):
+    def subcloud_deploy_create(self, context, subcloud_id, payload,
+                               rehoming=False, return_as_dict=True):
         """Create subcloud and notify orchestrators.
 
         :param context: request context object
         :param subcloud_id: subcloud_id from db
         :param payload: subcloud configuration
         :param rehoming: flag indicating if this is part of a rehoming operation
-        :return: resulting subcloud DB object
+        :param return_as_dict: converts the subcloud DB object to a dict before returning
+        :return: resulting subcloud DB object or dictionary
         """
         LOG.info("Creating subcloud %s." % payload['name'])
 
@@ -943,12 +945,6 @@ class SubcloudManager(manager.Manager):
             if not rehoming:
                 deploy_state = consts.DEPLOY_STATE_CREATED
 
-            subcloud = db_api.subcloud_update(
-                context, subcloud_id,
-                deploy_status=deploy_state)
-
-            return subcloud
-
         except Exception:
             LOG.exception("Failed to create subcloud %s" % payload['name'])
             # If we failed to create the subcloud, update the deployment status
@@ -958,10 +954,17 @@ class SubcloudManager(manager.Manager):
             else:
                 deploy_state = consts.DEPLOY_STATE_CREATE_FAILED
 
-            subcloud = db_api.subcloud_update(
-                context, subcloud.id,
-                deploy_status=deploy_state)
-            return subcloud
+        subcloud = db_api.subcloud_update(
+            context, subcloud.id,
+            deploy_status=deploy_state)
+
+        # The RPC call must return the subcloud as a dictionary, otherwise it
+        # should return the DB object for dcmanager internal use (subcloud add,
+        # resume and redeploy)
+        if return_as_dict:
+            subcloud = db_api.subcloud_db_model_to_dict(subcloud)
+
+        return subcloud
 
     def subcloud_deploy_install(self, context, subcloud_id, payload: dict) -> bool:
         """Install subcloud
@@ -1085,6 +1088,24 @@ class SubcloudManager(manager.Manager):
                 context, subcloud_id,
                 deploy_status=consts.DEPLOY_STATE_PRE_CONFIG_FAILED)
             return False
+
+    def subcloud_deploy_complete(self, context, subcloud_id):
+        """Completes the subcloud deployment.
+
+        :param context: request context object
+        :param subcloud_id: subcloud_id from db
+        :return: resulting subcloud dictionary
+        """
+        LOG.info("Completing subcloud %s deployment." % subcloud_id)
+
+        # Just update the deploy status
+        subcloud = db_api.subcloud_update(context, subcloud_id,
+                                          deploy_status=consts.DEPLOY_STATE_DONE)
+
+        LOG.info("Subcloud %s deploy status set to: %s"
+                 % (subcloud_id, consts.DEPLOY_STATE_DONE))
+
+        return db_api.subcloud_db_model_to_dict(subcloud)
 
     def _subcloud_operation_notice(
             self, operation, restore_subclouds, failed_subclouds,

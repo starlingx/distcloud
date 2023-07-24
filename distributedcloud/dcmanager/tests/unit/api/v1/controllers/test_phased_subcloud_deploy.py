@@ -15,6 +15,7 @@ import six
 from tsconfig.tsconfig import SW_VERSION
 import webtest
 
+from dccommon import consts as dccommon_consts
 from dcmanager.api.controllers.v1 import phased_subcloud_deploy as psd_api
 from dcmanager.common import consts
 from dcmanager.common import phased_subcloud_deploy as psd_common
@@ -42,7 +43,7 @@ FAKE_SUBCLOUD_INSTALL_VALUES = fake_subcloud.FAKE_SUBCLOUD_INSTALL_VALUES
 class FakeRPCClient(object):
     def subcloud_deploy_create(self, context, subcloud_id, _):
         subcloud = db_api.subcloud_get(context, subcloud_id)
-        return subcloud
+        return db_api.subcloud_db_model_to_dict(subcloud)
 
 
 # Apply the TestSubcloudPost parameter validation tests to the subcloud deploy
@@ -468,6 +469,47 @@ class TestSubcloudDeployInstall(testroot.DCManagerApiTest):
         self.assertEqual(consts.DEPLOY_STATE_PRE_INSTALL,
                          response.json['deploy-status'])
         self.assertEqual(SW_VERSION, response.json['software-version'])
+
+
+class TestSubcloudDeployComplete(testroot.DCManagerApiTest):
+    def setUp(self):
+        super().setUp()
+        self.ctx = utils.dummy_context()
+
+        p = mock.patch.object(rpc_client, 'ManagerClient')
+        self.mock_rpc_client = p.start()
+        self.addCleanup(p.stop)
+
+    def test_complete_subcloud_deployment(self):
+        subcloud = fake_subcloud.create_fake_subcloud(
+            self.ctx, deploy_status=consts.DEPLOY_STATE_BOOTSTRAPPED)
+
+        subcloud = db_api.subcloud_update(
+            self.ctx, subcloud.id,
+            availability_status=dccommon_consts.AVAILABILITY_ONLINE)
+
+        self.mock_rpc_client().subcloud_deploy_complete.return_value = True
+
+        response = self.app.patch_json(FAKE_URL + '/' + str(subcloud.id) +
+                                       '/complete',
+                                       headers=FAKE_HEADERS)
+        self.mock_rpc_client().subcloud_deploy_complete.assert_called_once_with(
+            mock.ANY,
+            subcloud.id)
+        self.assertEqual(response.status_int, 200)
+
+    def test_complete_subcloud_deployment_not_bootstrapped(self):
+        subcloud = fake_subcloud.create_fake_subcloud(
+            self.ctx, deploy_status=consts.DEPLOY_STATE_INSTALLED)
+
+        subcloud = db_api.subcloud_update(
+            self.ctx, subcloud.id,
+            availability_status=dccommon_consts.AVAILABILITY_ONLINE)
+
+        six.assertRaisesRegex(self, webtest.app.AppError, "400 *",
+                              self.app.patch_json, FAKE_URL + '/' +
+                              str(subcloud.id) + '/complete',
+                              headers=FAKE_HEADERS)
 
 
 class TestSubcloudDeployAbort(testroot.DCManagerApiTest):

@@ -226,6 +226,12 @@ class DCManagerService(service.Service):
                                                              payload)
 
     @request_context
+    def subcloud_deploy_complete(self, context, subcloud_id):
+        # Complete the subcloud deployment
+        LOG.info("Handling subcloud_deploy_complete request for: %s" % subcloud_id)
+        return self.subcloud_manager.subcloud_deploy_complete(context, subcloud_id)
+
+    @request_context
     def subcloud_deploy_abort(self, context, subcloud_id, deploy_status):
         # Abort the subcloud deployment
         LOG.info("Handling subcloud_deploy_abort request for: %s" % subcloud_id)

@@ -33,6 +33,7 @@ LOCK_NAME = 'PhasedSubcloudDeployController'
 INSTALL = consts.DEPLOY_PHASE_INSTALL
 BOOTSTRAP = consts.DEPLOY_PHASE_BOOTSTRAP
 CONFIG = consts.DEPLOY_PHASE_CONFIG
+COMPLETE = consts.DEPLOY_PHASE_COMPLETE
 ABORT = consts.DEPLOY_PHASE_ABORT
 RESUME = consts.DEPLOY_PHASE_RESUME
 
@@ -177,10 +178,9 @@ class PhasedSubcloudDeployController(object):
 
             # Ask dcmanager-manager to create the subcloud.
             # It will do all the real work...
-            subcloud = self.dcmanager_rpc_client.subcloud_deploy_create(
+            subcloud_dict = self.dcmanager_rpc_client.subcloud_deploy_create(
                 context, subcloud.id, payload)
 
-            subcloud_dict = db_api.subcloud_db_model_to_dict(subcloud)
             return subcloud_dict
 
         except RemoteError as e:
@@ -298,6 +298,30 @@ class PhasedSubcloudDeployController(object):
         except Exception:
             LOG.exception("Unable to configure subcloud %s" % subcloud.name)
             pecan.abort(500, _('Unable to configure subcloud'))
+
+    def _deploy_complete(self, context: RequestContext, subcloud):
+
+        # The deployment should be able to be completed when the deploy state
+        # is consts.DEPLOY_STATE_BOOTSTRAPPED because the user could have
+        # configured the subcloud manually
+        if subcloud.deploy_status != consts.DEPLOY_STATE_BOOTSTRAPPED:
+            pecan.abort(400, _('Subcloud deploy can only be completed when'
+                               ' its deploy status is: %s')
+                        % consts.DEPLOY_STATE_BOOTSTRAPPED)
+
+        try:
+            # Ask dcmanager-manager to complete the subcloud deployment
+            subcloud = self.dcmanager_rpc_client.subcloud_deploy_complete(
+                context, subcloud.id)
+            return subcloud
+
+        except RemoteError as e:
+            pecan.abort(httpclient.UNPROCESSABLE_ENTITY, e.value)
+        except Exception:
+            LOG.exception("Unable to complete subcloud %s deployment" %
+                          subcloud.name)
+            pecan.abort(httpclient.INTERNAL_SERVER_ERROR,
+                        _('Unable to complete subcloud deployment'))
 
     def _deploy_abort(self, context, subcloud):
 
@@ -451,6 +475,8 @@ class PhasedSubcloudDeployController(object):
             subcloud = self._deploy_bootstrap(context, pecan.request, subcloud)
         elif verb == CONFIG:
             subcloud = self._deploy_config(context, pecan.request, subcloud)
+        elif verb == COMPLETE:
+            subcloud = self._deploy_complete(context, subcloud)
         else:
             pecan.abort(400, _('Invalid request'))
 
