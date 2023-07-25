@@ -933,6 +933,27 @@ def get_management_gateway_address(payload):
     return payload.get('management_gateway_address', '')
 
 
+def has_network_reconfig(payload, subcloud):
+    """Check if network reconfiguration is needed
+
+    :param payload: subcloud configuration
+    :param subcloud: subcloud object
+    """
+    management_subnet = get_management_subnet(payload)
+    start_address = get_management_start_address(payload)
+    end_address = get_management_end_address(payload)
+    gateway_address = get_management_gateway_address(payload)
+
+    has_network_reconfig = any([
+        management_subnet != subcloud.management_subnet,
+        start_address != subcloud.management_start_ip,
+        end_address != subcloud.management_end_ip,
+        gateway_address != subcloud.management_gateway_ip
+    ])
+
+    return has_network_reconfig
+
+
 def set_open_file_limit(new_soft_limit: int):
     """Adjust the maximum number of open files for this process (soft limit)"""
     try:

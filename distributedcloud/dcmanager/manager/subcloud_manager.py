@@ -30,7 +30,6 @@ from cgtsclient.exc import HTTPConflict
 from eventlet import greenpool
 from fm_api import constants as fm_const
 from fm_api import fm_api
-import ipaddress
 import keyring
 import netaddr
 from oslo_log import log as logging
@@ -626,8 +625,7 @@ class SubcloudManager(manager.Manager):
                 subcloud.name,
                 ansible_subcloud_inventory_file,
                 payload['software_version'])
-            management_subnet = utils.get_management_subnet(payload)
-            network_reconfig = management_subnet != subcloud.management_subnet
+            network_reconfig = utils.has_network_reconfig(payload, subcloud)
             apply_thread = threading.Thread(
                 target=self.run_deploy_thread,
                 args=(subcloud, payload, context,
@@ -2381,6 +2379,7 @@ class SubcloudManager(manager.Manager):
     def _configure_system_controller_network(self, context, payload, subcloud):
         subcloud_name = subcloud.name
         subcloud_id = subcloud.id
+
         try:
             m_ks_client = OpenStackDriver(
                 region_name=dccommon_consts.DEFAULT_REGION_NAME,
@@ -2389,8 +2388,7 @@ class SubcloudManager(manager.Manager):
                                         subcloud.systemcontroller_gateway_ip)
         except HTTPConflict:
             # The route already exists
-            LOG.warning(
-                "Failed to create route to subcloud %s" % subcloud_name)
+            LOG.warning("Failed to create route to subcloud %s" % subcloud_name)
         except Exception:
             LOG.exception(
                 "Failed to create route to subcloud %s." % subcloud_name)
@@ -2413,7 +2411,8 @@ class SubcloudManager(manager.Manager):
             return
 
         # Delete old routes
-        self._delete_subcloud_routes(m_ks_client, subcloud)
+        if utils.get_management_subnet(payload) != subcloud.management_subnet:
+            self._delete_subcloud_routes(m_ks_client, subcloud)
 
     def _create_subcloud_route(self, payload, keystone_client,
                                systemcontroller_gateway_ip):
@@ -2433,8 +2432,7 @@ class SubcloudManager(manager.Manager):
 
     def _update_services_endpoint(
             self, context, payload, subcloud_name, m_ks_client):
-        endpoint_ip = str(ipaddress.ip_network(
-            utils.get_management_subnet(payload))[2])
+        endpoint_ip = utils.get_management_start_address(payload)
         if netaddr.IPAddress(endpoint_ip).version == 6:
             endpoint_ip = f"[{endpoint_ip}]"
 
@@ -2464,6 +2462,9 @@ class SubcloudManager(manager.Manager):
                 LOG.exception("Endpoint Type Error: %s" % service_type)
             m_ks_client.keystone_client.endpoints.update(
                 endpoint, url=admin_endpoint_url)
+
+        LOG.info("Update services endpoint to %s in subcloud %s" % (
+            endpoint_ip, subcloud_name))
         # Update service URLs in subcloud endpoint cache
         self.audit_rpc_client.trigger_subcloud_endpoints_update(
             context, subcloud_name, services_endpoints)
