@@ -5,7 +5,6 @@
 #
 
 import http.client as httpclient
-import json
 import os
 
 from oslo_log import log as logging
@@ -14,7 +13,6 @@ import pecan
 import tsconfig.tsconfig as tsc
 import yaml
 
-from dccommon import consts as dccommon_consts
 from dcmanager.api.controllers import restcomm
 from dcmanager.api.policies import phased_subcloud_deploy as \
     phased_subcloud_deploy_policy
@@ -32,6 +30,12 @@ from dcmanager.rpc import client as rpc_client
 
 LOG = logging.getLogger(__name__)
 LOCK_NAME = 'PhasedSubcloudDeployController'
+
+INSTALL = consts.DEPLOY_PHASE_INSTALL
+BOOTSTRAP = consts.DEPLOY_PHASE_BOOTSTRAP
+CONFIG = consts.DEPLOY_PHASE_CONFIG
+ABORT = consts.DEPLOY_PHASE_ABORT
+RESUME = consts.DEPLOY_PHASE_RESUME
 
 SUBCLOUD_CREATE_REQUIRED_PARAMETERS = (
     consts.BOOTSTRAP_VALUES,
@@ -92,6 +96,46 @@ VALID_STATES_FOR_DEPLOY_ABORT = (
     consts.DEPLOY_STATE_BOOTSTRAPPING,
     consts.DEPLOY_STATE_CONFIGURING
 )
+
+FILES_FOR_RESUME_INSTALL = \
+    SUBCLOUD_INSTALL_GET_FILE_CONTENTS + \
+    SUBCLOUD_BOOTSTRAP_GET_FILE_CONTENTS + \
+    SUBCLOUD_CONFIG_GET_FILE_CONTENTS
+
+
+FILES_FOR_RESUME_BOOTSTRAP = \
+    SUBCLOUD_BOOTSTRAP_GET_FILE_CONTENTS + \
+    SUBCLOUD_CONFIG_GET_FILE_CONTENTS
+
+
+FILES_FOR_RESUME_CONFIG = SUBCLOUD_CONFIG_GET_FILE_CONTENTS
+
+RESUMABLE_STATES = {
+    consts.DEPLOY_STATE_CREATED: [INSTALL, BOOTSTRAP, CONFIG],
+    consts.DEPLOY_STATE_INSTALLED: [BOOTSTRAP, CONFIG],
+    consts.DEPLOY_STATE_PRE_INSTALL_FAILED: [INSTALL, BOOTSTRAP, CONFIG],
+    consts.DEPLOY_STATE_INSTALL_FAILED: [INSTALL, BOOTSTRAP, CONFIG],
+    consts.DEPLOY_STATE_INSTALL_ABORTED: [INSTALL, BOOTSTRAP, CONFIG],
+    consts.DEPLOY_STATE_BOOTSTRAPPED: [CONFIG],
+    consts.DEPLOY_STATE_PRE_BOOTSTRAP_FAILED: [BOOTSTRAP, CONFIG],
+    consts.DEPLOY_STATE_BOOTSTRAP_FAILED: [BOOTSTRAP, CONFIG],
+    consts.DEPLOY_STATE_BOOTSTRAP_ABORTED: [BOOTSTRAP, CONFIG],
+    consts.DEPLOY_STATE_PRE_CONFIG_FAILED: [CONFIG],
+    consts.DEPLOY_STATE_CONFIG_FAILED: [CONFIG],
+    consts.DEPLOY_STATE_CONFIG_ABORTED: [CONFIG]
+}
+
+FILES_MAPPING = {
+    INSTALL: SUBCLOUD_INSTALL_GET_FILE_CONTENTS,
+    BOOTSTRAP: SUBCLOUD_BOOTSTRAP_GET_FILE_CONTENTS,
+    CONFIG: SUBCLOUD_CONFIG_GET_FILE_CONTENTS
+}
+
+RESUME_PREP_UPDATE_STATUS = {
+    INSTALL: consts.DEPLOY_STATE_PRE_INSTALL,
+    BOOTSTRAP: consts.DEPLOY_STATE_PRE_BOOTSTRAP,
+    CONFIG: consts.DEPLOY_STATE_PRE_CONFIG
+}
 
 
 def get_create_payload(request: pecan.Request) -> dict:
@@ -181,30 +225,23 @@ class PhasedSubcloudDeployController(object):
             pecan.abort(400, _('Subcloud deploy status must be either: %s')
                         % allowed_states_str)
 
-        payload['software_version'] = payload.get('release', tsc.SW_VERSION)
+        payload['software_version'] = payload.get('release', subcloud.software_version)
         psd_common.populate_payload_with_pre_existing_data(
             payload, subcloud, SUBCLOUD_INSTALL_GET_FILE_CONTENTS)
 
-        psd_common.validate_sysadmin_password(payload)
         psd_common.pre_deploy_install(payload, subcloud)
 
         try:
             # Align the software version of the subcloud with install
             # version. Update the deploy status as pre-install.
-            subcloud = db_api.subcloud_update(
-                context,
-                subcloud.id,
-                description=payload.get('description', subcloud.description),
-                location=payload.get('location', subcloud.location),
-                software_version=payload['software_version'],
-                management_state=dccommon_consts.MANAGEMENT_UNMANAGED,
-                deploy_status=consts.DEPLOY_STATE_PRE_INSTALL,
-                data_install=json.dumps(payload['install_values']))
 
             self.dcmanager_rpc_client.subcloud_deploy_install(
                 context, subcloud.id, payload)
+            subcloud_dict = db_api.subcloud_db_model_to_dict(subcloud)
+            subcloud_dict['deploy-status'] = consts.DEPLOY_STATE_PRE_INSTALL
+            subcloud_dict['software-version'] = payload['software_version']
 
-            return db_api.subcloud_db_model_to_dict(subcloud)
+            return subcloud_dict
         except RemoteError as e:
             pecan.abort(422, e.value)
         except Exception:
@@ -238,31 +275,8 @@ class PhasedSubcloudDeployController(object):
         # Update the existing values with new ones from the request
         payload.update(request_data)
 
-        psd_common.validate_sysadmin_password(payload)
-
-        if has_bootstrap_values:
-            # Need to validate the new values
-            playload_name = payload.get('name')
-            if playload_name != subcloud.name:
-                pecan.abort(400, _('The bootstrap-values "name" value (%s) '
-                                   'must match the current subcloud name (%s)' %
-                                   (playload_name, subcloud.name)))
-
-            # Verify if payload contains all required bootstrap values
-            psd_common.validate_bootstrap_values(payload)
-
-            # It's ok for the management subnet to conflict with itself since we
-            # are only going to update it if it was modified, conflicts with
-            # other subclouds are still verified.
-            psd_common.validate_subcloud_config(context, payload,
-                                                ignore_conflicts_with=subcloud)
-            psd_common.format_ip_address(payload)
-
-        # Patch status and fresh_install_k8s_version may have been changed
-        # between deploy create and deploy bootstrap commands. Validate them
-        # again:
-        psd_common.validate_system_controller_patch_status("bootstrap")
-        psd_common.validate_k8s_version(payload)
+        psd_common.pre_deploy_bootstrap(context, payload, subcloud,
+                                        has_bootstrap_values)
 
         try:
             # Ask dcmanager-manager to bootstrap the subcloud.
@@ -329,6 +343,90 @@ class PhasedSubcloudDeployController(object):
             LOG.exception("Unable to abort subcloud %s deployment" % subcloud.name)
             pecan.abort(500, _('Unable to abort subcloud deploy'))
 
+    def _deploy_resume(self, context: RequestContext,
+                       request: pecan.Request, subcloud):
+
+        if subcloud.deploy_status not in RESUMABLE_STATES:
+            allowed_states_str = ', '.join(RESUMABLE_STATES)
+            pecan.abort(400, _('Subcloud deploy status must be either: %s')
+                        % allowed_states_str)
+
+        # Since both install and config are optional phases,
+        # it's necessary to check if they should be executed
+        config_file = psd_common.get_config_file_path(subcloud.name,
+                                                      consts.DEPLOY_CONFIG)
+        has_original_install_values = subcloud.data_install
+        has_original_config_values = os.path.exists(config_file)
+        has_new_install_values = consts.INSTALL_VALUES in request.POST
+        has_new_config_values = consts.DEPLOY_CONFIG in request.POST
+        has_bootstrap_values = consts.BOOTSTRAP_VALUES in request.POST
+        has_config_values = has_original_config_values or has_new_config_values
+        has_install_values = has_original_install_values or has_new_install_values
+
+        deploy_states_to_run = RESUMABLE_STATES[subcloud.deploy_status]
+        if deploy_states_to_run == [CONFIG] and not has_config_values:
+            msg = _("Only deploy phase left is deploy config. "
+                    "Required %s file was not provided and it was not "
+                    "previously available.") % consts.DEPLOY_CONFIG
+            pecan.abort(400, msg)
+
+        # Since the subcloud can be installed manually and the config is optional,
+        # skip those phases if the user doesn't provide the install or config values
+        # and they are not available from previous executions.
+        files_for_resume = []
+        for state in deploy_states_to_run:
+            if state == INSTALL and not has_install_values:
+                deploy_states_to_run.remove(state)
+            elif state == CONFIG and not has_config_values:
+                deploy_states_to_run.remove(state)
+            else:
+                files_for_resume.extend(FILES_MAPPING[state])
+
+        payload = psd_common.get_request_data(request, subcloud, files_for_resume)
+
+        # Consider the incoming release parameter only if install is one
+        # of the pending deploy states
+        if INSTALL in deploy_states_to_run:
+            payload['software_version'] = payload.get('release', subcloud.software_version)
+        else:
+            payload['software_version'] = subcloud.software_version
+
+        # Need to remove bootstrap_values from the list of files to populate
+        # pre existing data so it does not overwrite newly loaded values
+        if has_bootstrap_values:
+            files_for_resume = [f for f in files_for_resume if f
+                                not in FILES_MAPPING[BOOTSTRAP]]
+        psd_common.populate_payload_with_pre_existing_data(
+            payload, subcloud, files_for_resume)
+
+        psd_common.validate_sysadmin_password(payload)
+        for state in deploy_states_to_run:
+            if state == INSTALL:
+                psd_common.pre_deploy_install(payload, validate_password=False)
+            elif state == BOOTSTRAP:
+                psd_common.pre_deploy_bootstrap(context, payload, subcloud,
+                                                has_bootstrap_values,
+                                                validate_password=False)
+            elif state == CONFIG:
+                # Currently the only pre_deploy_config step is validate_sysadmin_password
+                # which can't be executed more than once
+                pass
+
+        try:
+            self.dcmanager_rpc_client.subcloud_deploy_resume(
+                context, subcloud.id, subcloud.name, payload, deploy_states_to_run)
+            subcloud_dict = db_api.subcloud_db_model_to_dict(subcloud)
+            next_deploy_phase = RESUMABLE_STATES[subcloud.deploy_status][0]
+            next_deploy_state = RESUME_PREP_UPDATE_STATUS[next_deploy_phase]
+            subcloud_dict['deploy-status'] = next_deploy_state
+            subcloud_dict['software-version'] = payload['software_version']
+            return subcloud_dict
+        except RemoteError as e:
+            pecan.abort(422, e.value)
+        except Exception:
+            LOG.exception("Unable to resume subcloud %s deployment" % subcloud.name)
+            pecan.abort(500, _('Unable to resume subcloud deployment'))
+
     @pecan.expose(generic=True, template='json')
     def index(self):
         # Route the request to specific methods with parameters
@@ -366,13 +464,15 @@ class PhasedSubcloudDeployController(object):
         except (exceptions.SubcloudNotFound, exceptions.SubcloudNameNotFound):
             pecan.abort(404, _('Subcloud not found'))
 
-        if verb == 'abort':
+        if verb == ABORT:
             subcloud = self._deploy_abort(context, subcloud)
-        elif verb == 'install':
+        elif verb == RESUME:
+            subcloud = self._deploy_resume(context, pecan.request, subcloud)
+        elif verb == INSTALL:
             subcloud = self._deploy_install(context, pecan.request, subcloud)
-        elif verb == 'bootstrap':
+        elif verb == BOOTSTRAP:
             subcloud = self._deploy_bootstrap(context, pecan.request, subcloud)
-        elif verb == 'configure':
+        elif verb == CONFIG:
             subcloud = self._deploy_config(context, pecan.request, subcloud)
         else:
             pecan.abort(400, _('Invalid request'))

@@ -762,6 +762,75 @@ class SubcloudManager(manager.Manager):
         return self._subcloud_operation_notice('restore', restore_subclouds,
                                                failed_subclouds, invalid_subclouds)
 
+    def _deploy_bootstrap_prep(self, context, subcloud, payload: dict,
+                               ansible_subcloud_inventory_file):
+        management_subnet = utils.get_management_subnet(payload)
+        sys_controller_gw_ip = payload.get(
+            "systemcontroller_gateway_address")
+
+        if (management_subnet != subcloud.management_subnet) or (
+            sys_controller_gw_ip != subcloud.systemcontroller_gateway_ip):
+            m_ks_client = OpenStackDriver(
+                region_name=dccommon_consts.DEFAULT_REGION_NAME,
+                region_clients=None).keystone_client
+            # Create a new route
+            self._create_subcloud_route(payload, m_ks_client,
+                                        sys_controller_gw_ip)
+            # Delete previous route
+            self._delete_subcloud_routes(m_ks_client, subcloud)
+            # Update endpoints
+            self._update_services_endpoint(context, payload, subcloud.name,
+                                           m_ks_client)
+
+        # Update subcloud
+        subcloud = db_api.subcloud_update(
+            context,
+            subcloud.id,
+            description=payload.get("description", None),
+            management_subnet=utils.get_management_subnet(payload),
+            management_gateway_ip=utils.get_management_gateway_address(
+                payload),
+            management_start_ip=utils.get_management_start_address(
+                payload),
+            management_end_ip=utils.get_management_end_address(payload),
+            systemcontroller_gateway_ip=payload.get(
+                "systemcontroller_gateway_address", None),
+            location=payload.get("location", None),
+            deploy_status=consts.DEPLOY_STATE_PRE_BOOTSTRAP)
+
+        # Populate payload with passwords
+        payload['ansible_become_pass'] = payload['sysadmin_password']
+        payload['ansible_ssh_pass'] = payload['sysadmin_password']
+        payload['admin_password'] = str(keyring.get_password('CGCS', 'admin'))
+        payload_without_sysadmin_password = payload.copy()
+        if 'sysadmin_password' in payload_without_sysadmin_password:
+            del payload_without_sysadmin_password['sysadmin_password']
+
+        # Update the ansible overrides file
+        overrides_file = os.path.join(dccommon_consts.ANSIBLE_OVERRIDES_PATH,
+                                      subcloud.name + '.yml')
+        utils.update_values_on_yaml_file(overrides_file,
+                                         payload_without_sysadmin_password)
+
+        # Update the ansible inventory for the subcloud
+        utils.create_subcloud_inventory(payload,
+                                        ansible_subcloud_inventory_file)
+
+        apply_command = self.compose_apply_command(
+            subcloud.name,
+            ansible_subcloud_inventory_file,
+            subcloud.software_version)
+        return apply_command
+
+    def _deploy_config_prep(self, subcloud, payload: dict,
+                            ansible_subcloud_inventory_file):
+        self._prepare_for_deployment(payload, subcloud.name)
+        deploy_command = self.compose_deploy_command(
+            subcloud.name,
+            ansible_subcloud_inventory_file,
+            payload)
+        return deploy_command
+
     def _deploy_install_prep(self, subcloud, payload: dict,
                              ansible_subcloud_inventory_file):
         payload['install_values']['ansible_ssh_pass'] = \
@@ -835,6 +904,22 @@ class SubcloudManager(manager.Manager):
             raise ex
         LOG.info("Successfully aborted deployment of %s" % subcloud.name)
         utils.update_abort_status(context, subcloud.id, subcloud.deploy_status)
+
+    def subcloud_deploy_resume(self, context, subcloud_id, subcloud_name,
+                               payload: dict, deploy_states_to_run):
+        """Resume the subcloud deployment
+
+        :param context: request context object
+        :param subcloud_id: subcloud id from db
+        :param subcloud_name: name of the subcloud
+        :param payload: subcloud resume payload
+        :param deploy_states_to_run: deploy phases pending execution
+        """
+        LOG.info("Resuming deployment of subcloud %s. Deploy phases to be executed: %s"
+                 % (subcloud_name, ', '.join(deploy_states_to_run)))
+
+        self.run_deploy_phases(context, subcloud_id, payload,
+                               deploy_states_to_run)
 
     def subcloud_deploy_create(self, context, subcloud_id, payload):
         """Create subcloud and notify orchestrators.
@@ -975,7 +1060,7 @@ class SubcloudManager(manager.Manager):
                 deploy_status=consts.DEPLOY_STATE_CREATE_FAILED)
             return db_api.subcloud_db_model_to_dict(subcloud)
 
-    def subcloud_deploy_install(self, context, subcloud_id, payload: dict) -> dict:
+    def subcloud_deploy_install(self, context, subcloud_id, payload: dict):
         """Install subcloud
 
         :param context: request context object
@@ -984,18 +1069,35 @@ class SubcloudManager(manager.Manager):
         """
 
         # Retrieve the subcloud details from the database
-        subcloud = db_api.subcloud_get(context, subcloud_id)
+        subcloud = db_api.subcloud_update(
+            context,
+            subcloud_id,
+            software_version=payload['software_version'],
+            deploy_status=consts.DEPLOY_STATE_PRE_INSTALL,
+            data_install=json.dumps(payload['install_values']))
 
-        LOG.info("Installing subcloud %s." % subcloud_id)
+        LOG.info("Installing subcloud %s." % subcloud.name)
 
         try:
+            log_file = (
+                os.path.join(consts.DC_ANSIBLE_LOG_DIR, subcloud.name)
+                + "_playbook_output.log"
+            )
             ansible_subcloud_inventory_file = self._get_ansible_filename(
                 subcloud.name, INVENTORY_FILE_POSTFIX)
 
             install_command = self._deploy_install_prep(
                 subcloud, payload, ansible_subcloud_inventory_file)
-            self.run_deploy_commands(subcloud, payload, context,
-                                     install_command=install_command)
+            install_success = self._run_subcloud_install(
+                context, subcloud, install_command,
+                log_file, payload['install_values'],
+                abortable=True)
+            if install_success:
+                db_api.subcloud_update(
+                    context, subcloud.id,
+                    deploy_status=consts.DEPLOY_STATE_INSTALLED,
+                    error_description=consts.ERROR_DESC_EMPTY)
+            return install_success
 
         except Exception:
             LOG.exception("Failed to install subcloud %s" % subcloud.name)
@@ -1004,6 +1106,7 @@ class SubcloudManager(manager.Manager):
             db_api.subcloud_update(
                 context, subcloud_id,
                 deploy_status=consts.DEPLOY_STATE_PRE_INSTALL_FAILED)
+            return False
 
     def subcloud_deploy_bootstrap(self, context, subcloud_id, payload):
         """Bootstrap subcloud
@@ -1014,81 +1117,36 @@ class SubcloudManager(manager.Manager):
         """
         LOG.info("Bootstrapping subcloud %s." % payload['name'])
 
+        # Retrieve the subcloud details from the database
+        subcloud = db_api.subcloud_get(context, subcloud_id)
+
         try:
-            subcloud = db_api.subcloud_get(context, subcloud_id)
-
-            management_subnet = utils.get_management_subnet(payload)
-            sys_controller_gw_ip = payload.get(
-                "systemcontroller_gateway_address")
-
-            if (management_subnet != subcloud.management_subnet) or (
-                sys_controller_gw_ip != subcloud.systemcontroller_gateway_ip):
-                m_ks_client = OpenStackDriver(
-                    region_name=dccommon_consts.DEFAULT_REGION_NAME,
-                    region_clients=None).keystone_client
-                # Create a new route
-                self._create_subcloud_route(payload, m_ks_client,
-                                            sys_controller_gw_ip)
-                # Delete previous route
-                self._delete_subcloud_routes(m_ks_client, subcloud)
-                # Update endpoints
-                self._update_services_endpoint(context, payload, subcloud.name,
-                                               m_ks_client)
-
-            # Update subcloud
-            subcloud = db_api.subcloud_update(
-                context,
-                subcloud.id,
-                description=payload.get("description", None),
-                management_subnet=utils.get_management_subnet(payload),
-                management_gateway_ip=utils.get_management_gateway_address(
-                    payload),
-                management_start_ip=utils.get_management_start_address(
-                    payload),
-                management_end_ip=utils.get_management_end_address(payload),
-                systemcontroller_gateway_ip=payload.get(
-                    "systemcontroller_gateway_address", None),
-                location=payload.get("location", None),
-                deploy_status=consts.DEPLOY_STATE_PRE_BOOTSTRAP)
-
-            # Populate payload with passwords
-            payload['ansible_become_pass'] = payload['sysadmin_password']
-            payload['ansible_ssh_pass'] = payload['sysadmin_password']
-            payload['admin_password'] = str(keyring.get_password('CGCS',
-                                                                 'admin'))
-            del payload['sysadmin_password']
-
-            # Update the ansible overrides file
-            overrides_file = os.path.join(dccommon_consts.ANSIBLE_OVERRIDES_PATH,
-                                          subcloud.name + '.yml')
-            utils.update_values_on_yaml_file(overrides_file, payload)
-
-            # Ansible inventory filename for the specified subcloud
-            ansible_subcloud_inventory_file = utils.get_ansible_filename(
+            log_file = (
+                os.path.join(consts.DC_ANSIBLE_LOG_DIR, subcloud.name)
+                + "_playbook_output.log"
+            )
+            ansible_subcloud_inventory_file = self._get_ansible_filename(
                 subcloud.name, INVENTORY_FILE_POSTFIX)
 
-            # Update the ansible inventory for the subcloud
-            utils.create_subcloud_inventory(payload,
-                                            ansible_subcloud_inventory_file)
-
-            apply_command = self.compose_apply_command(
-                subcloud.name,
-                ansible_subcloud_inventory_file,
-                subcloud.software_version)
-
-            self.run_deploy_commands(subcloud, payload, context,
-                                     apply_command=apply_command)
+            apply_command = self._deploy_bootstrap_prep(
+                context, subcloud, payload,
+                ansible_subcloud_inventory_file)
+            bootstrap_success = self._run_subcloud_bootstrap(
+                context, subcloud, apply_command, log_file)
+            return bootstrap_success
 
         except Exception:
             LOG.exception("Failed to bootstrap subcloud %s" % payload['name'])
             db_api.subcloud_update(
                 context, subcloud_id,
                 deploy_status=consts.DEPLOY_STATE_PRE_BOOTSTRAP_FAILED)
+            return False
 
     def subcloud_deploy_config(self, context, subcloud_id, payload: dict) -> dict:
         """Configure subcloud
 
         :param context: request context object
+        :param subcloud_id: subcloud_id from db
         :param payload: subcloud configuration
         """
         LOG.info("Configuring subcloud %s." % subcloud_id)
@@ -1097,6 +1155,10 @@ class SubcloudManager(manager.Manager):
             context, subcloud_id,
             deploy_status=consts.DEPLOY_STATE_PRE_CONFIG)
         try:
+            log_file = (
+                os.path.join(consts.DC_ANSIBLE_LOG_DIR, subcloud.name)
+                + "_playbook_output.log"
+            )
             # Ansible inventory filename for the specified subcloud
             ansible_subcloud_inventory_file = self._get_ansible_filename(
                 subcloud.name, INVENTORY_FILE_POSTFIX)
@@ -1107,14 +1169,16 @@ class SubcloudManager(manager.Manager):
                 ansible_subcloud_inventory_file,
                 payload)
 
-            self.run_deploy_commands(subcloud, payload, context,
-                                     deploy_command=deploy_command)
+            config_success = self._run_subcloud_config(subcloud, context,
+                                                       deploy_command, log_file)
+            return config_success
 
         except Exception:
             LOG.exception("Failed to configure %s" % subcloud.name)
             db_api.subcloud_update(
                 context, subcloud_id,
                 deploy_status=consts.DEPLOY_STATE_PRE_CONFIG_FAILED)
+            return False
 
     def _subcloud_operation_notice(
             self, operation, restore_subclouds, failed_subclouds,
@@ -1753,37 +1817,26 @@ class SubcloudManager(manager.Manager):
             deploy_status=consts.DEPLOY_STATE_DONE,
             error_description=consts.ERROR_DESC_EMPTY)
 
-    def run_deploy_commands(self, subcloud, payload, context,
-                            install_command=None, apply_command=None,
-                            deploy_command=None, rehome_command=None,
-                            network_reconfig=None):
+    def run_deploy_phases(self, context, subcloud_id, payload,
+                          deploy_states_to_run):
+        """Run individual phases durring deploy operation."""
         try:
-            log_file = (
-                os.path.join(consts.DC_ANSIBLE_LOG_DIR, subcloud.name)
-                + "_playbook_output.log"
-            )
-
-            if install_command:
-                install_success = self._run_subcloud_install(
-                    context, subcloud, install_command,
-                    log_file, payload['install_values'],
-                    abortable=True)
-                if not install_success:
-                    return
-                db_api.subcloud_update(
-                    context, subcloud.id,
-                    deploy_status=consts.DEPLOY_STATE_INSTALLED,
-                    error_description=consts.ERROR_DESC_EMPTY)
-
-            if apply_command:
-                bootstrap_success = self._run_subcloud_bootstrap(
-                    context, subcloud, apply_command, log_file)
-                if not bootstrap_success:
-                    return
-
-            if deploy_command:
-                self._run_subcloud_config(subcloud, context,
-                                          deploy_command, log_file)
+            for state in deploy_states_to_run:
+                if state == consts.DEPLOY_PHASE_INSTALL:
+                    install_success = self.subcloud_deploy_install(
+                        context, subcloud_id, payload)
+                    if not install_success:
+                        return
+                elif state == consts.DEPLOY_PHASE_BOOTSTRAP:
+                    bootstrap_success = self.subcloud_deploy_bootstrap(
+                        context, subcloud_id, payload)
+                    if not bootstrap_success:
+                        return
+                elif state == consts.DEPLOY_PHASE_CONFIG:
+                    config_success = self.subcloud_deploy_config(
+                        context, subcloud_id, payload)
+                    if not config_success:
+                        return
 
         except Exception as ex:
             LOG.exception("run_deploy failed")
@@ -1825,10 +1878,12 @@ class SubcloudManager(manager.Manager):
         software_version = str(payload['software_version'])
         LOG.info("Preparing remote install of %s, version: %s",
                  subcloud.name, software_version)
-        db_api.subcloud_update(
-            context, subcloud.id,
-            deploy_status=consts.DEPLOY_STATE_PRE_INSTALL,
-            software_version=software_version)
+        if (subcloud.deploy_status != consts.DEPLOY_STATE_PRE_INSTALL or
+                subcloud.software_version != software_version):
+            db_api.subcloud_update(
+                context, subcloud.id,
+                deploy_status=consts.DEPLOY_STATE_PRE_INSTALL,
+                software_version=software_version)
         try:
             install = SubcloudInstall(context, subcloud.name)
             install.prep(dccommon_consts.ANSIBLE_OVERRIDES_PATH, payload)

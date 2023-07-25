@@ -2121,3 +2121,75 @@ Response Example
 
 .. literalinclude:: samples/phased-subcloud-deploy/phased-subcloud-deploy-patch-abort-response.json
       :language: json
+
+
+****************************
+Resume subcloud deployment
+****************************
+
+.. rest_method:: POST /v1.0/phased-subcloud-deploy
+
+Accepts Content-Type multipart/form-data.
+
+
+**Normal response codes**
+
+200
+
+**Error response codes**
+
+badRequest (400), unauthorized (401), forbidden (403), badMethod (405),
+conflict (409), HTTPUnprocessableEntity (422), internalServerError (500),
+serviceUnavailable (503)
+
+**Request parameters**
+
+.. rest_parameters:: parameters.yaml
+
+  - bmc_password: bmc_password
+  - bootstrap-address: bootstrap_address
+  - bootstrap_values: bootstrap_values
+  - deploy_config: deploy_config
+  - install_values: install_values
+  - release: release
+  - sysadmin_password: sysadmin_password
+
+Request Example
+----------------
+
+.. literalinclude:: samples/phased-subcloud-deploy/phased-subcloud-deploy-patch-resume-request.json
+      :language: json
+
+
+**Response parameters**
+
+.. rest_parameters:: parameters.yaml
+
+  - id: subcloud_id
+  - name: subcloud_name
+  - description: subcloud_description
+  - location: subcloud_location
+  - software-version: software_version
+  - management-state: management_state
+  - availability-status: availability_status
+  - deploy-status: deploy_status
+  - backup-status: backup_status
+  - backup-datetime: backup_datetime
+  - error-description: error_description
+  - management-subnet: management_subnet
+  - management-start-ip: management_start_ip
+  - management-end-ip: management_end_ip
+  - management-gateway-ip: management_gateway_ip
+  - openstack-installed: openstack_installed
+  - systemcontroller-gateway-ip: systemcontroller_gateway_ip
+  - data_install: data_install
+  - data_upgrade: data_upgrade
+  - created-at: created_at
+  - updated-at: updated_at
+  - group_id: group_id
+
+Response Example
+----------------
+
+.. literalinclude:: samples/phased-subcloud-deploy/phased-subcloud-deploy-patch-resume-response.json
+      :language: json

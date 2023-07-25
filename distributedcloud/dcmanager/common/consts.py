@@ -30,6 +30,14 @@ BOOTSTRAP_VALUES = 'bootstrap_values'
 BOOTSTRAP_ADDRESS = 'bootstrap-address'
 INSTALL_VALUES = 'install_values'
 
+# Deploy phases
+DEPLOY_PHASE_CREATE = 'create'
+DEPLOY_PHASE_INSTALL = 'install'
+DEPLOY_PHASE_BOOTSTRAP = 'bootstrap'
+DEPLOY_PHASE_CONFIG = 'configure'
+DEPLOY_PHASE_ABORT = 'abort'
+DEPLOY_PHASE_RESUME = 'resume'
+
 # Admin status for hosts
 ADMIN_LOCKED = 'locked'
 ADMIN_UNLOCKED = 'unlocked'

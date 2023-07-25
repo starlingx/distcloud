@@ -9,11 +9,13 @@ import copy
 import json
 
 import mock
+import os
 from os import path as os_path
 import six
 from tsconfig.tsconfig import SW_VERSION
 import webtest
 
+from dcmanager.api.controllers.v1 import phased_subcloud_deploy as psd_api
 from dcmanager.common import consts
 from dcmanager.common import phased_subcloud_deploy as psd_common
 from dcmanager.common import utils as dutils
@@ -339,7 +341,8 @@ class TestSubcloudDeployInstall(testroot.DCManagerApiTest):
 
         subcloud = fake_subcloud.create_fake_subcloud(
             self.ctx,
-            deploy_status=consts.DEPLOY_STATE_CREATED)
+            deploy_status=consts.DEPLOY_STATE_CREATED,
+            software_version=SW_VERSION)
         install_data = copy.copy(FAKE_SUBCLOUD_INSTALL_VALUES)
         install_data.pop('software_version')
 
@@ -371,7 +374,8 @@ class TestSubcloudDeployInstall(testroot.DCManagerApiTest):
 
         subcloud = fake_subcloud.create_fake_subcloud(
             self.ctx,
-            deploy_status=consts.DEPLOY_STATE_CREATED)
+            deploy_status=consts.DEPLOY_STATE_CREATED,
+            software_version=SW_VERSION)
         install_data = copy.copy(FAKE_SUBCLOUD_INSTALL_VALUES)
         install_data.pop('software_version')
 
@@ -398,14 +402,13 @@ class TestSubcloudDeployInstall(testroot.DCManagerApiTest):
         self.assertEqual(response.status_int, 200)
         self.assertEqual(consts.DEPLOY_STATE_PRE_INSTALL,
                          response.json['deploy-status'])
-        self.assertEqual(FAKE_SOFTWARE_VERSION,
-                         json.loads(response.json['data_install'])['software_version'])
 
     def test_install_subcloud_no_body(self):
 
         subcloud = fake_subcloud.create_fake_subcloud(
             self.ctx,
-            deploy_status=consts.DEPLOY_STATE_CREATED)
+            deploy_status=consts.DEPLOY_STATE_CREATED,
+            software_version=SW_VERSION)
 
         self.mock_get_request_data.return_value = {}
 
@@ -419,6 +422,7 @@ class TestSubcloudDeployInstall(testroot.DCManagerApiTest):
         subcloud = fake_subcloud.create_fake_subcloud(
             self.ctx,
             deploy_status=consts.DEPLOY_STATE_CREATED,
+            software_version=SW_VERSION,
             data_install='')
 
         fake_sysadmin_password = base64.b64encode(
@@ -438,7 +442,8 @@ class TestSubcloudDeployInstall(testroot.DCManagerApiTest):
 
         subcloud = fake_subcloud.create_fake_subcloud(
             self.ctx,
-            deploy_status=consts.DEPLOY_STATE_CREATED)
+            deploy_status=consts.DEPLOY_STATE_CREATED,
+            software_version=SW_VERSION)
         install_data = copy.copy(FAKE_SUBCLOUD_INSTALL_VALUES)
         install_data.pop('software_version')
 
@@ -500,3 +505,176 @@ class TestSubcloudDeployAbort(testroot.DCManagerApiTest):
                               self.app.patch_json, FAKE_URL + '/' +
                               str(subcloud.id) + '/abort',
                               headers=FAKE_HEADERS)
+
+
+class TestSubcloudDeployResume(testroot.DCManagerApiTest):
+    def setUp(self):
+        super().setUp()
+        self.ctx = utils.dummy_context()
+
+        p = mock.patch.object(rpc_client, 'ManagerClient')
+        self.mock_rpc_client = p.start()
+        self.addCleanup(p.stop)
+
+        p = mock.patch.object(dutils, 'get_vault_load_files')
+        self.mock_get_vault_load_files = p.start()
+        self.addCleanup(p.stop)
+
+        p = mock.patch.object(psd_common, 'get_subcloud_db_install_values')
+        self.mock_get_subcloud_db_install_values = p.start()
+        self.addCleanup(p.stop)
+
+        p = mock.patch.object(psd_common, 'validate_k8s_version')
+        self.mock_validate_k8s_version = p.start()
+        self.addCleanup(p.stop)
+
+        p = mock.patch.object(psd_common, 'get_request_data')
+        self.mock_get_request_data = p.start()
+        self.addCleanup(p.stop)
+
+        self.management_address_pool = FakeAddressPool('192.168.204.0', 24,
+                                                       '192.168.204.2',
+                                                       '192.168.204.100')
+
+        p = mock.patch.object(psd_common, 'get_network_address_pool')
+        self.mock_get_network_address_pool = p.start()
+        self.mock_get_network_address_pool.return_value = \
+            self.management_address_pool
+        self.addCleanup(p.stop)
+
+        p = mock.patch.object(psd_common, 'get_ks_client')
+        self.mock_get_ks_client = p.start()
+        self.addCleanup(p.stop)
+
+        p = mock.patch.object(psd_common.PatchingClient, 'query')
+        self.mock_query = p.start()
+        self.addCleanup(p.stop)
+
+    @mock.patch.object(os_path, 'isdir')
+    @mock.patch.object(os, 'listdir')
+    def test_resume_subcloud(self,
+                             mock_os_listdir,
+                             mock_os_isdir):
+        mock_os_isdir.return_value = True
+        mock_os_listdir.return_value = ['deploy_chart_fake.tgz',
+                                        'deploy_overrides_fake.yaml',
+                                        'deploy_playbook_fake.yaml']
+
+        subcloud = fake_subcloud.create_fake_subcloud(
+            self.ctx,
+            name=fake_subcloud.FAKE_BOOTSTRAP_FILE_DATA["name"],
+            deploy_status=consts.DEPLOY_STATE_CREATED,
+            software_version=SW_VERSION)
+        install_data = copy.copy(FAKE_SUBCLOUD_INSTALL_VALUES)
+        install_data.pop('software_version')
+
+        self.mock_get_vault_load_files.return_value = ('iso_file_path', 'sig_file_path')
+        self.mock_rpc_client().subcloud_deploy_resume.return_value = True
+
+        for state in psd_api.RESUMABLE_STATES:
+            fake_sysadmin_password = base64.b64encode(
+                'testpass'.encode("utf-8")).decode('utf-8')
+            fake_bmc_password = base64.b64encode(
+                'bmc_password'.encode("utf-8")).decode('utf-8')
+            bmc_password = {'bmc_password': fake_bmc_password}
+            install_data.update(bmc_password)
+            install_request = {'install_values': install_data,
+                               'sysadmin_password': fake_sysadmin_password,
+                               'bmc_password': fake_bmc_password}
+            bootstrap_request = {'bootstrap_values': fake_subcloud.FAKE_BOOTSTRAP_FILE_DATA}
+            config_request = {'deploy_config': 'deploy config values',
+                              'sysadmin_password': fake_sysadmin_password}
+            resume_request = {**install_request,
+                              **bootstrap_request,
+                              **config_request}
+            resume_payload = {**install_request,
+                              **fake_subcloud.FAKE_BOOTSTRAP_FILE_DATA,
+                              **config_request}
+
+            subcloud = db_api.subcloud_update(self.ctx,
+                                              subcloud.id,
+                                              deploy_status=state)
+            next_deploy_phase = psd_api.RESUMABLE_STATES[subcloud.deploy_status][0]
+            next_deploy_state = psd_api.RESUME_PREP_UPDATE_STATUS[next_deploy_phase]
+
+            self.mock_get_request_data.return_value = resume_payload
+            response = self.app.patch(
+                FAKE_URL + '/' + str(subcloud.id) + '/resume',
+                headers=FAKE_HEADERS, params=resume_request)
+
+            self.assertEqual(response.status_int, 200)
+            self.assertEqual(next_deploy_state,
+                             response.json['deploy-status'])
+            self.assertEqual(SW_VERSION, response.json['software-version'])
+
+    def test_resume_subcloud_invalid_state(self):
+
+        subcloud = fake_subcloud.create_fake_subcloud(
+            self.ctx,
+            name=fake_subcloud.FAKE_BOOTSTRAP_FILE_DATA["name"],
+            deploy_status=consts.DEPLOY_STATE_CREATED,
+            software_version=SW_VERSION)
+
+        self.mock_get_vault_load_files.return_value = ('iso_file_path', 'sig_file_path')
+        self.mock_rpc_client().subcloud_deploy_resume.return_value = True
+        invalid_resume_states = [consts.DEPLOY_STATE_INSTALLING,
+                                 consts.DEPLOY_STATE_BOOTSTRAPPING,
+                                 consts.DEPLOY_STATE_CONFIGURING]
+
+        for state in invalid_resume_states:
+            subcloud = db_api.subcloud_update(self.ctx,
+                                              subcloud.id,
+                                              deploy_status=state)
+
+            six.assertRaisesRegex(self, webtest.app.AppError, "400 *",
+                                  self.app.patch_json, FAKE_URL + '/' +
+                                  str(subcloud.id) + '/resume',
+                                  headers=FAKE_HEADERS)
+
+    @mock.patch.object(dutils, 'load_yaml_file')
+    @mock.patch.object(os_path, 'exists')
+    @mock.patch.object(os_path, 'isdir')
+    @mock.patch.object(os, 'listdir')
+    def test_resume_subcloud_no_request_data(self,
+                                             mock_os_listdir,
+                                             mock_os_isdir,
+                                             mock_path_exists,
+                                             mock_load_yaml):
+        subcloud = fake_subcloud.create_fake_subcloud(
+            self.ctx,
+            name=fake_subcloud.FAKE_BOOTSTRAP_FILE_DATA["name"],
+            deploy_status=consts.DEPLOY_STATE_CREATED,
+            software_version=SW_VERSION)
+
+        config_file = psd_common.get_config_file_path(subcloud.name,
+                                                      consts.DEPLOY_CONFIG)
+        mock_path_exists.side_effect = lambda x: True if x == config_file else False
+        mock_load_yaml.return_value = {
+            "software_version": fake_subcloud.FAKE_SOFTWARE_VERSION}
+        mock_os_isdir.return_value = True
+        mock_os_listdir.return_value = ['deploy_chart_fake.tgz',
+                                        'deploy_overrides_fake.yaml',
+                                        'deploy_playbook_fake.yaml']
+        self.mock_get_vault_load_files.return_value = ('iso_file_path', 'sig_file_path')
+        self.mock_rpc_client().subcloud_deploy_resume.return_value = True
+
+        for state in psd_api.RESUMABLE_STATES:
+            fake_sysadmin_password = base64.b64encode(
+                'testpass'.encode("utf-8")).decode('utf-8')
+            resume_request = {'sysadmin_password': fake_sysadmin_password}
+
+            subcloud = db_api.subcloud_update(self.ctx,
+                                              subcloud.id,
+                                              deploy_status=state)
+            next_deploy_phase = psd_api.RESUMABLE_STATES[subcloud.deploy_status][0]
+            next_deploy_state = psd_api.RESUME_PREP_UPDATE_STATUS[next_deploy_phase]
+
+            self.mock_get_request_data.return_value = resume_request
+            response = self.app.patch(
+                FAKE_URL + '/' + str(subcloud.id) + '/resume',
+                headers=FAKE_HEADERS, params=resume_request)
+
+            self.assertEqual(response.status_int, 200)
+            self.assertEqual(next_deploy_state,
+                             response.json['deploy-status'])
+            self.assertEqual(SW_VERSION, response.json['software-version'])

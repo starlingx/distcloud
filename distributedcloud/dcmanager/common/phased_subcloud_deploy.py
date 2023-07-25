@@ -21,6 +21,7 @@ from dccommon.drivers.openstack.patching_v1 import PatchingClient
 from dccommon.drivers.openstack.sdk_platform import OpenStackDriver
 from dccommon.drivers.openstack.sysinv_v1 import SysinvClient
 from dcmanager.common import consts
+from dcmanager.common.context import RequestContext
 from dcmanager.common import exceptions
 from dcmanager.common.i18n import _
 from dcmanager.common import utils
@@ -845,7 +846,7 @@ def populate_payload_with_pre_existing_data(payload: dict,
                 msg = _("Required %s file was not provided and it was not "
                         "previously available.") % value
                 pecan.abort(400, msg)
-            payload.update(existing_values)
+            payload.update(dict(list(existing_values.items()) + list(payload.items())))
         elif value == consts.DEPLOY_CONFIG:
             if not payload.get(consts.DEPLOY_CONFIG):
                 fn = get_config_file_path(subcloud.name, value)
@@ -857,8 +858,9 @@ def populate_payload_with_pre_existing_data(payload: dict,
             get_common_deploy_files(payload, subcloud.software_version)
 
 
-def pre_deploy_install(payload: dict,
-                       subcloud: models.Subcloud):
+def pre_deploy_install(payload: dict, validate_password=False):
+    if validate_password:
+        validate_sysadmin_password(payload)
 
     install_values = payload['install_values']
 
@@ -885,3 +887,33 @@ def pre_deploy_install(payload: dict,
     if not payload.get('bmc_password'):
         payload.update({'bmc_password': install_values.get('bmc_password')})
     payload.update({'install_values': install_values})
+
+
+def pre_deploy_bootstrap(context: RequestContext, payload: dict,
+                         subcloud: models.Subcloud, has_bootstrap_values: bool,
+                         validate_password=True):
+    if validate_password:
+        validate_sysadmin_password(payload)
+    if has_bootstrap_values:
+        # Need to validate the new values
+        payload_name = payload.get('name')
+        if payload_name != subcloud.name:
+            pecan.abort(400, _('The bootstrap-values "name" value (%s) '
+                               'must match the current subcloud name (%s)' %
+                               (payload_name, subcloud.name)))
+
+        # Verify if payload contains all required bootstrap values
+        validate_bootstrap_values(payload)
+
+        # It's ok for the management subnet to conflict with itself since we
+        # are only going to update it if it was modified, conflicts with
+        # other subclouds are still verified.
+        validate_subcloud_config(context, payload,
+                                 ignore_conflicts_with=subcloud)
+        format_ip_address(payload)
+
+    # Patch status and fresh_install_k8s_version may have been changed
+    # between deploy create and deploy bootstrap commands. Validate them
+    # again:
+    validate_system_controller_patch_status("bootstrap")
+    validate_k8s_version(payload)
