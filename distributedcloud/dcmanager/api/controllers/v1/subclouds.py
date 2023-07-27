@@ -572,6 +572,10 @@ class SubcloudsController(object):
                 payload['system_controller_network_prefix'] = (
                     system_controller_mgmt_pool.prefix
                 )
+                # Needed for service endpoint reconfiguration
+                payload['management_start_address'] = (
+                    payload.get('management_start_ip', None)
+                )
                 # Validation
                 self._validate_network_reconfiguration(payload, subcloud)
 
