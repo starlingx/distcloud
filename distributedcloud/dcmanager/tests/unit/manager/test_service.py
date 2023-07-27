@@ -78,9 +78,9 @@ class TestDCManagerService(base.DCManagerTestCase):
     def test_add_subcloud(self, mock_subcloud_manager):
         self.service_obj.init_managers()
         self.service_obj.add_subcloud(
-            self.context, payload={'name': 'testname'})
+            self.context, subcloud_id=1, payload={'name': 'testname'})
         mock_subcloud_manager().add_subcloud.\
-            assert_called_once_with(self.context, mock.ANY)
+            assert_called_once_with(self.context, 1, mock.ANY)
 
     @mock.patch.object(service, 'SubcloudManager')
     def test_delete_subcloud(self, mock_subcloud_manager):

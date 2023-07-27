@@ -12,6 +12,7 @@
 # under the License.
 #
 import base64
+import collections
 import copy
 import datetime
 
@@ -28,6 +29,7 @@ sys.modules['fm_core'] = mock.Mock()
 import threading
 
 from dccommon import consts as dccommon_consts
+from dccommon import subcloud_install
 from dccommon.utils import RunAnsible
 from dcmanager.common import consts
 from dcmanager.common import exceptions
@@ -102,6 +104,7 @@ class FakeProject(object):
     def __init__(self, projname, projid):
         self.name = projname
         self.id = projid
+
 
 FAKE_PROJECTS = [
     FakeProject(
@@ -252,7 +255,7 @@ class FakeSysinvClient(object):
 
 
 class FakeException(Exception):
-        pass
+    pass
 
 
 FAKE_SUBCLOUD_PRESTAGE_PAYLOAD = {
@@ -397,6 +400,10 @@ class TestSubcloudManager(base.DCManagerTestCase):
         self.mock_context.get_admin_context.return_value = self.ctx
         self.addCleanup(p.stop)
 
+        # Reset the regionone_data cache between tests
+        subcloud_manager.SubcloudManager.regionone_data = \
+            collections.defaultdict(dict)
+
     @staticmethod
     def create_subcloud_static(ctxt, **kwargs):
         values = {
@@ -453,7 +460,7 @@ class TestSubcloudManager(base.DCManagerTestCase):
         sm.subcloud_deploy_install(self.ctx, subcloud.id, payload=fake_payload)
         mock_compose_install_command.assert_called_once_with(
             subcloud_name,
-            sm._get_ansible_filename(subcloud_name, consts.INVENTORY_FILE_POSTFIX),
+            cutils.get_ansible_filename(subcloud_name, consts.INVENTORY_FILE_POSTFIX),
             FAKE_PREVIOUS_SW_VERSION)
 
         # Verify subcloud was updated with correct values
@@ -497,8 +504,8 @@ class TestSubcloudManager(base.DCManagerTestCase):
         mock_get_cached_regionone_data.return_value = FAKE_CACHED_REGIONONE_DATA
 
         sm = subcloud_manager.SubcloudManager()
-        subcloud_dict = sm.subcloud_deploy_create(self.ctx, subcloud.id,
-                                                  payload=values)
+        subcloud = sm.subcloud_deploy_create(self.ctx, subcloud.id,
+                                             payload=values)
         mock_get_cached_regionone_data.assert_called_once()
         mock_sysinv_client().create_route.assert_called()
         self.fake_dcorch_api.add_subcloud.assert_called_once()
@@ -510,7 +517,7 @@ class TestSubcloudManager(base.DCManagerTestCase):
 
         # Verify subcloud was updated with correct values
         self.assertEqual(consts.DEPLOY_STATE_CREATED,
-                         subcloud_dict['deploy-status'])
+                         subcloud.deploy_status)
 
         # Verify subcloud was updated with correct values
         updated_subcloud = db_api.subcloud_get_by_name(self.ctx, values['name'])
@@ -529,12 +536,12 @@ class TestSubcloudManager(base.DCManagerTestCase):
         mock_keystone_client.side_effect = FakeException('boom')
 
         sm = subcloud_manager.SubcloudManager()
-        subcloud_dict = sm.subcloud_deploy_create(self.ctx, subcloud.id,
-                                                  payload=values)
+        subcloud = sm.subcloud_deploy_create(self.ctx, subcloud.id,
+                                             payload=values)
 
         # Verify subcloud was updated with correct values
         self.assertEqual(consts.DEPLOY_STATE_CREATE_FAILED,
-                         subcloud_dict['deploy-status'])
+                         subcloud.deploy_status)
 
         # Verify subcloud was updated with correct values
         updated_subcloud = db_api.subcloud_get_by_name(self.ctx, values['name'])
@@ -548,7 +555,7 @@ class TestSubcloudManager(base.DCManagerTestCase):
     @mock.patch.object(RunAnsible, 'exec_playbook')
     def test_subcloud_deploy_bootstrap(self, mock_exec_playbook, mock_update_yml,
                                        mock_get_playbook_for_software_version,
-                                       mock_keyring, create_subcloud_inventory):
+                                       mock_keyring, mock_create_subcloud_inventory):
         mock_get_playbook_for_software_version.return_value = "22.12"
         mock_keyring.get_password.return_value = "testpass"
         mock_exec_playbook.return_value = False
@@ -675,73 +682,72 @@ class TestSubcloudManager(base.DCManagerTestCase):
         self.assertEqual(consts.DEPLOY_STATE_DONE,
                          updated_subcloud.deploy_status)
 
+    @mock.patch.object(subcloud_install.SubcloudInstall, 'prep')
+    @mock.patch.object(subcloud_install, 'KeystoneClient')
+    @mock.patch.object(subcloud_install, 'SysinvClient')
     @mock.patch.object(subcloud_manager.SubcloudManager,
-                       'compose_apply_command')
-    @mock.patch.object(subcloud_manager.SubcloudManager,
-                       'compose_rehome_command')
+                       '_write_subcloud_ansible_config')
     @mock.patch.object(subcloud_manager.SubcloudManager,
                        '_create_intermediate_ca_cert')
-    @mock.patch.object(cutils, 'delete_subcloud_inventory')
+    @mock.patch.object(subcloud_manager.SubcloudManager,
+                       '_create_addn_hosts_dc')
     @mock.patch.object(subcloud_manager, 'OpenStackDriver')
     @mock.patch.object(subcloud_manager, 'SysinvClient')
     @mock.patch.object(subcloud_manager.SubcloudManager,
-                       '_get_cached_regionone_data')
-    @mock.patch.object(subcloud_manager.SubcloudManager,
-                       '_create_addn_hosts_dc')
+                       '_write_deploy_files')
     @mock.patch.object(cutils, 'create_subcloud_inventory')
-    @mock.patch.object(subcloud_manager.SubcloudManager,
-                       '_write_subcloud_ansible_config')
-    @mock.patch.object(subcloud_manager,
-                       'keyring')
-    @mock.patch.object(threading.Thread,
-                       'start')
-    def test_add_subcloud(self, mock_thread_start, mock_keyring,
-                          mock_write_subcloud_ansible_config,
-                          mock_create_subcloud_inventory,
-                          mock_create_addn_hosts,
-                          mock_get_cached_regionone_data,
-                          mock_sysinv_client,
-                          mock_keystone_client,
-                          mock_delete_subcloud_inventory,
+    @mock.patch.object(subcloud_manager, 'keyring')
+    @mock.patch.object(cutils, 'get_playbook_for_software_version')
+    @mock.patch.object(cutils, 'update_values_on_yaml_file')
+    @mock.patch.object(RunAnsible, 'exec_playbook')
+    def test_add_subcloud(self, mock_exec_playbook, mock_update_yml,
+                          mock_get_playbook_for_software_version,
+                          mock_keyring, mock_create_subcloud_inventory,
+                          mock_write_deploy_files, mock_sysinv_client,
+                          mock_openstack_driver, mock_create_addn_hosts,
                           mock_create_intermediate_ca_cert,
-                          mock_compose_rehome_command,
-                          mock_compose_apply_command):
-        values = utils.create_subcloud_dict(base.SUBCLOUD_SAMPLE_DATA_0)
-        values['deploy_status'] = consts.DEPLOY_STATE_NONE
+                          mock_write_subcloud_ansible_config,
+                          mock_install_ks_client, mock_install_sysinvclient,
+                          mock_install_prep):
+        # Prepare the payload
+        install_values = copy.copy(fake_subcloud.FAKE_SUBCLOUD_INSTALL_VALUES)
+        install_values['software_version'] = SW_VERSION
+        payload = {**fake_subcloud.FAKE_BOOTSTRAP_VALUE,
+                   **fake_subcloud.FAKE_BOOTSTRAP_FILE_DATA,
+                   "sysadmin_password": "testpass",
+                   'bmc_password': 'bmc_pass',
+                   'install_values': install_values,
+                   'software_version': FAKE_PREVIOUS_SW_VERSION,
+                   "deploy_playbook": "test_playbook.yaml",
+                   "deploy_overrides": "test_overrides.yaml",
+                   "deploy_chart": "test_chart.yaml",
+                   "deploy_config": "subcloud1.yaml"}
 
-        # dcmanager add_subcloud queries the data from the db
-        subcloud = self.create_subcloud_static(self.ctx, name=values['name'])
+        # Create subcloud in DB
+        subcloud = self.create_subcloud_static(self.ctx, name=payload['name'])
 
-        mock_keystone_client().keystone_client = FakeKeystoneClient()
-        mock_keyring.get_password.return_value = "testpassword"
-        mock_get_cached_regionone_data.return_value = FAKE_CACHED_REGIONONE_DATA
+        # Mock return values
+        mock_get_playbook_for_software_version.return_value = SW_VERSION
+        mock_keyring.get_password.return_value = payload['sysadmin_password']
+        mock_exec_playbook.return_value = False
+        mock_openstack_driver().keystone_client = FakeKeystoneClient()
 
+        # Call the add method
         sm = subcloud_manager.SubcloudManager()
-        subcloud_dict = sm.add_subcloud(self.ctx, payload=values)
-        mock_get_cached_regionone_data.assert_called_once()
-        mock_sysinv_client().create_route.assert_called()
-        self.fake_dcorch_api.add_subcloud.assert_called_once()
-        mock_create_addn_hosts.assert_called_once()
-        mock_create_subcloud_inventory.assert_called_once()
-        mock_write_subcloud_ansible_config.assert_called_once()
-        mock_keyring.get_password.assert_called()
-        mock_thread_start.assert_called_once()
-        mock_create_intermediate_ca_cert.assert_called_once()
-        mock_compose_rehome_command.assert_not_called()
-        mock_compose_apply_command.assert_called_once_with(
-            values['name'],
-            sm._get_ansible_filename(values['name'], consts.INVENTORY_FILE_POSTFIX),
-            subcloud['software_version'])
+        sm.add_subcloud(self.ctx, subcloud.id, payload)
 
-        # Verify subcloud was updated with correct values
-        self.assertEqual(consts.DEPLOY_STATE_PRE_DEPLOY,
-                         subcloud_dict['deploy-status'])
-
-        # Verify subcloud was updated with correct values
-        updated_subcloud = db_api.subcloud_get_by_name(self.ctx, values['name'])
-        self.assertEqual(consts.DEPLOY_STATE_PRE_DEPLOY,
+        # Verify results
+        updated_subcloud = db_api.subcloud_get_by_name(self.ctx, subcloud.name)
+        self.assertEqual(consts.DEPLOY_STATE_DONE,
                          updated_subcloud.deploy_status)
 
+        mock_write_deploy_files.assert_called()
+        mock_keyring.get_password.assert_called()
+        mock_update_yml.assert_called()
+        mock_create_subcloud_inventory.assert_called()
+        mock_get_playbook_for_software_version.assert_called_once()
+        self.assertEqual(mock_exec_playbook.call_count, 3)
+
     @mock.patch.object(subcloud_manager.SubcloudManager,
                        'compose_rehome_command')
     @mock.patch.object(subcloud_manager.SubcloudManager,
@@ -758,10 +764,8 @@ class TestSubcloudManager(base.DCManagerTestCase):
                        '_write_subcloud_ansible_config')
     @mock.patch.object(subcloud_manager,
                        'keyring')
-    @mock.patch.object(threading.Thread,
-                       'start')
     def test_add_subcloud_with_migration_option(
-        self, mock_thread_start, mock_keyring,
+        self, mock_keyring,
         mock_write_subcloud_ansible_config,
         mock_create_subcloud_inventory,
         mock_create_addn_hosts,
@@ -783,23 +787,21 @@ class TestSubcloudManager(base.DCManagerTestCase):
         mock_get_cached_regionone_data.return_value = FAKE_CACHED_REGIONONE_DATA
 
         sm = subcloud_manager.SubcloudManager()
-        subcloud_dict = sm.add_subcloud(self.ctx, payload=values)
+        with mock.patch.object(sm, 'run_deploy_thread') as mock_run_deploy:
+            sm.add_subcloud(self.ctx, subcloud.id, payload=values)
+
         mock_get_cached_regionone_data.assert_called_once()
         mock_sysinv_client().create_route.assert_called()
         self.fake_dcorch_api.add_subcloud.assert_called_once()
         mock_create_addn_hosts.assert_called_once()
         mock_create_subcloud_inventory.assert_called_once()
         mock_write_subcloud_ansible_config.assert_called_once()
-        mock_thread_start.assert_called_once()
+        mock_run_deploy.assert_called_once()
         mock_create_intermediate_ca_cert.assert_called_once()
         mock_compose_rehome_command.assert_called_once_with(
             values['name'],
             sm._get_ansible_filename(values['name'], consts.INVENTORY_FILE_POSTFIX),
             subcloud['software_version'])
-
-        # Verify subcloud was updated with correct values
-        self.assertEqual(consts.DEPLOY_STATE_PRE_REHOME,
-                         subcloud_dict['deploy-status'])
 
         # Verify subcloud was updated with correct values
         updated_subcloud = db_api.subcloud_get_by_name(self.ctx, values['name'])
@@ -809,28 +811,28 @@ class TestSubcloudManager(base.DCManagerTestCase):
     @mock.patch.object(subcloud_manager, 'OpenStackDriver')
     @mock.patch.object(subcloud_manager, 'SysinvClient')
     @mock.patch.object(subcloud_manager.SubcloudManager, '_get_cached_regionone_data')
-    def test_add_subcloud_deploy_prep_failed(self,
-                                             mock_get_cached_regionone_data,
-                                             mock_sysinv_client,
-                                             mock_keystone_client):
+    def test_add_subcloud_create_failed(self,
+                                        mock_get_cached_regionone_data,
+                                        mock_sysinv_client,
+                                        mock_keystone_client):
         values = utils.create_subcloud_dict(base.SUBCLOUD_SAMPLE_DATA_0)
         services = FAKE_SERVICES
 
         # dcmanager add_subcloud queries the data from the db
-        self.create_subcloud_static(self.ctx, name=values['name'])
+        subcloud = self.create_subcloud_static(self.ctx, name=values['name'])
 
         self.fake_dcorch_api.add_subcloud.side_effect = FakeException('boom')
         mock_get_cached_regionone_data.return_value = FAKE_CACHED_REGIONONE_DATA
         mock_keystone_client().services_list = services
 
         sm = subcloud_manager.SubcloudManager()
-        sm.add_subcloud(self.ctx, payload=values)
+        sm.add_subcloud(self.ctx, subcloud.id, payload=values)
         mock_get_cached_regionone_data.assert_called_once()
         mock_sysinv_client().create_route.assert_called()
 
         # Verify subcloud was updated with correct values
         subcloud = db_api.subcloud_get_by_name(self.ctx, values['name'])
-        self.assertEqual(consts.DEPLOY_STATE_DEPLOY_PREP_FAILED,
+        self.assertEqual(consts.DEPLOY_STATE_CREATE_FAILED,
                          subcloud.deploy_status)
 
     @mock.patch.object(subcloud_manager, 'OpenStackDriver')
@@ -843,14 +845,14 @@ class TestSubcloudManager(base.DCManagerTestCase):
         services = FAKE_SERVICES
 
         # dcmanager add_subcloud queries the data from the db
-        self.create_subcloud_static(self.ctx, name=values['name'])
+        subcloud = self.create_subcloud_static(self.ctx, name=values['name'])
 
         self.fake_dcorch_api.add_subcloud.side_effect = FakeException('boom')
         mock_get_cached_regionone_data.return_value = FAKE_CACHED_REGIONONE_DATA
         mock_keystone_client().services_list = services
 
         sm = subcloud_manager.SubcloudManager()
-        sm.add_subcloud(self.ctx, payload=values)
+        sm.add_subcloud(self.ctx, subcloud.id, payload=values)
         mock_get_cached_regionone_data.assert_called_once()
         mock_sysinv_client().create_route.assert_called()
 
@@ -1676,9 +1678,8 @@ class TestSubcloudManager(base.DCManagerTestCase):
         mock_prepare_for_deployment.assert_called_once()
 
     def test_get_ansible_filename(self):
-        sm = subcloud_manager.SubcloudManager()
-        filename = sm._get_ansible_filename('subcloud1',
-                                            consts.INVENTORY_FILE_POSTFIX)
+        filename = cutils.get_ansible_filename('subcloud1',
+                                               consts.INVENTORY_FILE_POSTFIX)
         self.assertEqual(filename,
                          f'{dccommon_consts.ANSIBLE_OVERRIDES_PATH}/subcloud1_inventory.yml')
 
@@ -1701,15 +1702,15 @@ class TestSubcloudManager(base.DCManagerTestCase):
         )
 
     @mock.patch('os.path.isfile')
-    def test_compose_apply_command(self, mock_isfile):
+    def test_compose_bootstrap_command(self, mock_isfile):
         mock_isfile.return_value = True
         sm = subcloud_manager.SubcloudManager()
-        apply_command = sm.compose_apply_command(
+        bootstrap_command = sm.compose_bootstrap_command(
             'subcloud1',
             f'{dccommon_consts.ANSIBLE_OVERRIDES_PATH}/subcloud1_inventory.yml',
             FAKE_PREVIOUS_SW_VERSION)
         self.assertEqual(
-            apply_command,
+            bootstrap_command,
             [
                 'ansible-playbook',
                 cutils.get_playbook_for_software_version(
@@ -1722,19 +1723,19 @@ class TestSubcloudManager(base.DCManagerTestCase):
             ]
         )
 
-    def test_compose_deploy_command(self):
+    def test_compose_config_command(self):
         sm = subcloud_manager.SubcloudManager()
         fake_payload = {"sysadmin_password": "testpass",
                         "deploy_playbook": "test_playbook.yaml",
                         "deploy_overrides": "test_overrides.yaml",
                         "deploy_chart": "test_chart.yaml",
                         "deploy_config": "subcloud1.yaml"}
-        deploy_command = sm.compose_deploy_command(
+        config_command = sm.compose_config_command(
             'subcloud1',
             f'{dccommon_consts.ANSIBLE_OVERRIDES_PATH}/subcloud1_inventory.yml',
             fake_payload)
         self.assertEqual(
-            deploy_command,
+            config_command,
             [
                 'ansible-playbook', 'test_playbook.yaml', '-e',
                 f'@{dccommon_consts.ANSIBLE_OVERRIDES_PATH}/subcloud1_deploy_values.yml', '-i',
@@ -1773,7 +1774,7 @@ class TestSubcloudManager(base.DCManagerTestCase):
     @mock.patch.object(
         subcloud_manager.SubcloudManager, 'compose_install_command')
     @mock.patch.object(
-        subcloud_manager.SubcloudManager, 'compose_apply_command')
+        subcloud_manager.SubcloudManager, 'compose_bootstrap_command')
     @mock.patch.object(cutils, 'create_subcloud_inventory')
     @mock.patch.object(subcloud_manager.SubcloudManager, '_get_cached_regionone_data')
     @mock.patch.object(subcloud_manager, 'OpenStackDriver')
@@ -1782,7 +1783,7 @@ class TestSubcloudManager(base.DCManagerTestCase):
     def test_reinstall_subcloud(
         self, mock_keyring, mock_thread_start,
         mock_keystone_client, mock_get_cached_regionone_data, mock_create_subcloud_inventory,
-        mock_compose_apply_command, mock_compose_install_command,
+        mock_compose_bootstrap_command, mock_compose_install_command,
         mock_create_intermediate_ca_cert, mock_write_subcloud_ansible_config):
 
         subcloud_name = 'subcloud1'
@@ -1812,11 +1813,11 @@ class TestSubcloudManager(base.DCManagerTestCase):
         mock_write_subcloud_ansible_config.assert_called_once()
         mock_compose_install_command.assert_called_once_with(
             subcloud_name,
-            sm._get_ansible_filename(subcloud_name, consts.INVENTORY_FILE_POSTFIX),
+            cutils.get_ansible_filename(subcloud_name, consts.INVENTORY_FILE_POSTFIX),
             FAKE_PREVIOUS_SW_VERSION)
-        mock_compose_apply_command.assert_called_once_with(
+        mock_compose_bootstrap_command.assert_called_once_with(
             subcloud_name,
-            sm._get_ansible_filename(subcloud_name, consts.INVENTORY_FILE_POSTFIX),
+            cutils.get_ansible_filename(subcloud_name, consts.INVENTORY_FILE_POSTFIX),
             FAKE_PREVIOUS_SW_VERSION)
         mock_thread_start.assert_called_once()
 
@@ -2336,13 +2337,10 @@ class TestSubcloudManager(base.DCManagerTestCase):
         self.assertEqual(mock_run_ansible.call_count, 2)
         # Verify the "image_list_file" was passed to the prestage image playbook
         # for the remote prestage
-        self.assertTrue(
-            'image_list_file' in mock_run_ansible.call_args_list[1].args[1][5])
+        self.assertIn('image_list_file', mock_run_ansible.call_args_list[1].args[1][5])
         # Verify the prestage request release was passed to the playbooks
-        self.assertTrue(
-            FAKE_PRESTAGE_RELEASE in mock_run_ansible.call_args_list[0].args[1][5])
-        self.assertTrue(
-            FAKE_PRESTAGE_RELEASE in mock_run_ansible.call_args_list[1].args[1][5])
+        self.assertIn(FAKE_PRESTAGE_RELEASE, mock_run_ansible.call_args_list[0].args[1][5])
+        self.assertIn(FAKE_PRESTAGE_RELEASE, mock_run_ansible.call_args_list[1].args[1][5])
 
     @mock.patch.object(os_path, 'isdir')
     @mock.patch.object(cutils, 'get_filename_by_prefix')
@@ -2439,10 +2437,8 @@ class TestSubcloudManager(base.DCManagerTestCase):
         self.assertTrue(
             'image_list_file' not in mock_run_ansible.call_args_list[1].args[1][5])
         # Verify the prestage request release was passed to the playbooks
-        self.assertTrue(
-            FAKE_PRESTAGE_RELEASE in mock_run_ansible.call_args_list[0].args[1][5])
-        self.assertTrue(
-            FAKE_PRESTAGE_RELEASE in mock_run_ansible.call_args_list[1].args[1][5])
+        self.assertIn(FAKE_PRESTAGE_RELEASE, mock_run_ansible.call_args_list[0].args[1][5])
+        self.assertIn(FAKE_PRESTAGE_RELEASE, mock_run_ansible.call_args_list[1].args[1][5])
 
     @mock.patch.object(prestage, 'prestage_images')
     @mock.patch.object(prestage, 'prestage_packages')

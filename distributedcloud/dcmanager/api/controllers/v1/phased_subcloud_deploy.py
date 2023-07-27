@@ -10,7 +10,6 @@ import os
 from oslo_log import log as logging
 from oslo_messaging import RemoteError
 import pecan
-import tsconfig.tsconfig as tsc
 import yaml
 
 from dcmanager.api.controllers import restcomm
@@ -170,41 +169,19 @@ class PhasedSubcloudDeployController(object):
 
         payload = get_create_payload(request)
 
-        if not payload:
-            pecan.abort(400, _('Body required'))
-
-        psd_common.validate_bootstrap_values(payload)
-
-        # If a subcloud release is not passed, use the current
-        # system controller software_version
-        payload['software_version'] = payload.get('release', tsc.SW_VERSION)
-
-        psd_common.validate_subcloud_name_availability(context, payload['name'])
-
-        psd_common.validate_system_controller_patch_status("create")
-
-        psd_common.validate_subcloud_config(context, payload)
-
-        psd_common.validate_install_values(payload)
-
-        psd_common.validate_k8s_version(payload)
-
-        psd_common.format_ip_address(payload)
-
-        # Upload the deploy config files if it is included in the request
-        # It has a dependency on the subcloud name, and it is called after
-        # the name has been validated
-        psd_common.upload_deploy_config_file(request, payload)
+        psd_common.pre_deploy_create(payload, context, request)
 
         try:
             # Add the subcloud details to the database
             subcloud = psd_common.add_subcloud_to_database(context, payload)
 
-            # Ask dcmanager-manager to add the subcloud.
+            # Ask dcmanager-manager to create the subcloud.
             # It will do all the real work...
             subcloud = self.dcmanager_rpc_client.subcloud_deploy_create(
                 context, subcloud.id, payload)
-            return subcloud
+
+            subcloud_dict = db_api.subcloud_db_model_to_dict(subcloud)
+            return subcloud_dict
 
         except RemoteError as e:
             pecan.abort(httpclient.UNPROCESSABLE_ENTITY, e.value)
