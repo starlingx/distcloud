@@ -140,7 +140,8 @@ ENDPOINT_URLS = {
     dccommon_consts.ENDPOINT_TYPE_IDENTITY: "https://{}:5001/v3",
     dccommon_consts.ENDPOINT_TYPE_PATCHING: "https://{}:5492",
     dccommon_consts.ENDPOINT_TYPE_FM: "https://{}:18003",
-    dccommon_consts.ENDPOINT_TYPE_NFV: "https://{}:4546"
+    dccommon_consts.ENDPOINT_TYPE_NFV: "https://{}:4546",
+    dccommon_consts.ENDPOINT_TYPE_SOFTWARE: "https://{}:5498",
 }
 
 
@@ -2350,7 +2351,8 @@ class SubcloudManager(manager.Manager):
             "sysinv": "https://{}:6386/v1".format(endpoint_ip),
             "fm": "https://{}:18003".format(endpoint_ip),
             "patching": "https://{}:5492".format(endpoint_ip),
-            "vim": "https://{}:4546".format(endpoint_ip)
+            "vim": "https://{}:4546".format(endpoint_ip),
+            "usm": "https://{}:5498".format(endpoint_ip),
         }
 
         for endpoint in m_ks_client.keystone_client.endpoints.list(
@@ -2367,6 +2369,8 @@ class SubcloudManager(manager.Manager):
                 admin_endpoint_url = services_endpoints.get('fm')
             elif service_type == dccommon_consts.ENDPOINT_TYPE_NFV:
                 admin_endpoint_url = services_endpoints.get('vim')
+            elif service_type == dccommon_consts.ENDPOINT_TYPE_SOFTWARE:
+                admin_endpoint_url = services_endpoints.get('usm')
             else:
                 LOG.exception("Endpoint Type Error: %s" % service_type)
             m_ks_client.keystone_client.endpoints.update(

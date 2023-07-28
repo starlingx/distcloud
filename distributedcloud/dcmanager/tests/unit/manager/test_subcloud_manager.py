@@ -146,6 +146,10 @@ FAKE_SERVICES = [
     FakeService(
         dccommon_consts.ENDPOINT_TYPE_DC_CERT,
         6
+    ),
+    FakeService(
+        dccommon_consts.ENDPOINT_TYPE_SOFTWARE,
+        7
     )
 ]
 
