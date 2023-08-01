@@ -39,7 +39,19 @@ sw_update_strategy_type:
   in: path
   required: false
   type: string
+system_peer_uri:
+  description: |
+    The system peer reference, name or id or UUID.
+  in: path
+  required: true
+  type: string
 # variables in body
+administrative_state:
+  description: |
+    The administrative state of the system peer site. (enabled, disabled)
+  in: body
+  required: true
+  type: string
 alarm_restriction_type:
   description: |
     Whether to allow update if subcloud alarms are present or not.
@@ -245,6 +257,30 @@ group_id:
   in: body
   required: true
   type: integer
+heartbeat_failure_policy:
+  description: |
+    The failure policy of the peer site heartbeats. (alarm, rehome, delegate)
+  in: body
+  required: true
+  type: string
+heartbeat_failure_threshold:
+  description: |
+    The failure threshold of the peer site heartbeats.
+  in: body
+  required: true
+  type: integer
+heartbeat_interval:
+  description: |
+    The interval of the message between the peer site heartbeats. (in seconds)
+  in: body
+  required: true
+  type: integer
+heartbeat_maintenance_timeout:
+  description: |
+    The maintenance timeout of the peer site heartbeats. (in seconds)
+  in: body
+  required: true
+  type: integer
 install_values:
   description: |
     The content of a file containing install variables such as subcloud
@@ -285,6 +321,24 @@ management_state:
 management_subnet:
   description: |
     The management subnet for subcloud.
+  in: body
+  required: true
+  type: string
+manager_endpoint:
+  description: |
+    The endpoint of the system peer site manager.
+  in: body
+  required: true
+  type: string
+manager_password:
+  description: |
+    The password of the system peer site manager.
+  in: body
+  required: true
+  type: string
+manager_username:
+  description: |
+    The username of the system peer site manager.
   in: body
   required: true
   type: string
@@ -331,6 +385,24 @@ patch_strategy_upload_only:
   in: body
   required: false
   type: boolean
+peer_controller_gateway_address:
+  description: |
+    The gateway IP address of the system peer site system controller.
+  in: body
+  required: true
+  type: string
+peer_name:
+  description: |
+    The name of a peer as a string.
+  in: body
+  required: true
+  type: string
+peer_uuid:
+  description: |
+    The UUID of a peer as a string.
+  in: body
+  required: true
+  type: string
 prestage_software_version:
   description: |
     The prestage software version for the subcloud.
@@ -678,6 +750,18 @@ system_mode:
   in: body
   required: true
   type: string
+system_peer_id:
+  description: |
+    The ID of a system peer as an integer.
+  in: body
+  required: true
+  type: integer
+system_peers:
+  description: |
+    The list of ``system-peer`` objects.
+  in: body
+  required: true
+  type: array
 systemcontroller_gateway_ip:
   description: |
     The gateway IP address of the system controller of the subcloud.

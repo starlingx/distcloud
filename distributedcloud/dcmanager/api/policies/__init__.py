@@ -15,6 +15,7 @@ from dcmanager.api.policies import subcloud_group
 from dcmanager.api.policies import subclouds
 from dcmanager.api.policies import sw_update_options
 from dcmanager.api.policies import sw_update_strategy
+from dcmanager.api.policies import system_peers
 
 
 def list_rules():
@@ -27,5 +28,6 @@ def list_rules():
         sw_update_options.list_rules(),
         subcloud_group.list_rules(),
         subcloud_backup.list_rules(),
-        phased_subcloud_deploy.list_rules()
+        phased_subcloud_deploy.list_rules(),
+        system_peers.list_rules()
     )

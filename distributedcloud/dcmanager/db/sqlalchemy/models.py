@@ -100,6 +100,25 @@ class DCManagerBase(models.ModelBase,
         session.commit()
 
 
+class SystemPeer(BASE, DCManagerBase):
+    """Represents a system peer"""
+
+    __tablename__ = 'system_peer'
+
+    id = Column(Integer, primary_key=True, autoincrement=True, nullable=False)
+    peer_uuid = Column(String(36), unique=True)
+    peer_name = Column(String(255), unique=True)
+    manager_endpoint = Column(String(255))
+    manager_username = Column(String(255))
+    manager_password = Column(String(255))
+    peer_controller_gateway_ip = Column(String(255))
+    administrative_state = Column(String(255))
+    heartbeat_interval = Column(Integer)
+    heartbeat_failure_threshold = Column(Integer)
+    heartbeat_failure_policy = Column(String(255))
+    heartbeat_maintenance_timeout = Column(Integer)
+
+
 class SubcloudGroup(BASE, DCManagerBase):
     """Represents a subcloud group"""
 

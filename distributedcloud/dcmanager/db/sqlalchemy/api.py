@@ -765,6 +765,145 @@ def sw_update_opts_default_destroy(context):
 
 
 ##########################
+# system peer
+##########################
+@require_context
+def system_peer_get(context, peer_id):
+    try:
+        result = model_query(context, models.SystemPeer). \
+            filter_by(deleted=0). \
+            filter_by(id=peer_id). \
+            one()
+    except NoResultFound:
+        raise exception.SystemPeerNotFound(peer_id=peer_id)
+    except MultipleResultsFound:
+        raise exception.InvalidParameterValue(
+            err="Multiple entries found for system peer %s" % peer_id)
+
+    return result
+
+
+@require_context
+def system_peer_get_by_name(context, name):
+    try:
+        result = model_query(context, models.SystemPeer). \
+            filter_by(deleted=0). \
+            filter_by(peer_name=name). \
+            one()
+    except NoResultFound:
+        raise exception.SystemPeerNameNotFound(name=name)
+    except MultipleResultsFound:
+        # This exception should never happen due to the UNIQUE setting for name
+        raise exception.InvalidParameterValue(
+            err="Multiple entries found for system peer %s" % name)
+
+    return result
+
+
+@require_context
+def system_peer_get_by_uuid(context, uuid):
+    try:
+        result = model_query(context, models.SystemPeer). \
+            filter_by(deleted=0). \
+            filter_by(peer_uuid=uuid). \
+            one()
+    except NoResultFound:
+        raise exception.SystemPeerUUIDNotFound(uuid=uuid)
+    except MultipleResultsFound:
+        # This exception should never happen due to the UNIQUE setting for uuid
+        raise exception.InvalidParameterValue(
+            err="Multiple entries found for system peer %s" % uuid)
+
+    return result
+
+
+@require_context
+def system_peer_get_all(context):
+    result = model_query(context, models.SystemPeer). \
+        filter_by(deleted=0). \
+        order_by(models.SystemPeer.id). \
+        all()
+
+    return result
+
+
+@require_admin_context
+def system_peer_create(context,
+                       peer_uuid, peer_name,
+                       endpoint, username, password,
+                       gateway_ip,
+                       administrative_state="enabled",
+                       heartbeat_interval=60,
+                       heartbeat_failure_threshold=3,
+                       heartbeat_failure_policy="alarm",
+                       heartbeat_maintenance_timeout=600):
+    with write_session() as session:
+        system_peer_ref = models.SystemPeer()
+        system_peer_ref.peer_uuid = peer_uuid
+        system_peer_ref.peer_name = peer_name
+        system_peer_ref.manager_endpoint = endpoint
+        system_peer_ref.manager_username = username
+        system_peer_ref.manager_password = password
+        system_peer_ref.peer_controller_gateway_ip = gateway_ip
+        system_peer_ref.administrative_state = administrative_state
+        system_peer_ref.heartbeat_interval = heartbeat_interval
+        system_peer_ref.heartbeat_failure_threshold = \
+            heartbeat_failure_threshold
+        system_peer_ref.heartbeat_failure_policy = heartbeat_failure_policy
+        system_peer_ref.heartbeat_maintenance_timeout = \
+            heartbeat_maintenance_timeout
+        session.add(system_peer_ref)
+        return system_peer_ref
+
+
+@require_admin_context
+def system_peer_update(context, peer_id,
+                       peer_uuid=None, peer_name=None,
+                       endpoint=None, username=None, password=None,
+                       gateway_ip=None,
+                       administrative_state=None,
+                       heartbeat_interval=None,
+                       heartbeat_failure_threshold=None,
+                       heartbeat_failure_policy=None,
+                       heartbeat_maintenance_timeout=None):
+    with write_session() as session:
+        system_peer_ref = system_peer_get(context, peer_id)
+        if peer_uuid is not None:
+            system_peer_ref.peer_uuid = peer_uuid
+        if peer_name is not None:
+            system_peer_ref.peer_name = peer_name
+        if endpoint is not None:
+            system_peer_ref.manager_endpoint = endpoint
+        if username is not None:
+            system_peer_ref.manager_username = username
+        if password is not None:
+            system_peer_ref.manager_password = password
+        if gateway_ip is not None:
+            system_peer_ref.peer_controller_gateway_ip = gateway_ip
+        if administrative_state is not None:
+            system_peer_ref.administrative_state = administrative_state
+        if heartbeat_interval is not None:
+            system_peer_ref.heartbeat_interval = heartbeat_interval
+        if heartbeat_failure_threshold is not None:
+            system_peer_ref.heartbeat_failure_threshold = \
+                heartbeat_failure_threshold
+        if heartbeat_failure_policy is not None:
+            system_peer_ref.heartbeat_failure_policy = heartbeat_failure_policy
+        if heartbeat_maintenance_timeout is not None:
+            system_peer_ref.heartbeat_maintenance_timeout = \
+                heartbeat_maintenance_timeout
+        system_peer_ref.save(session)
+        return system_peer_ref
+
+
+@require_admin_context
+def system_peer_destroy(context, peer_id):
+    with write_session() as session:
+        system_peer_ref = system_peer_get(context, peer_id)
+        session.delete(system_peer_ref)
+
+
+##########################
 # subcloud group
 ##########################
 @require_context
@@ -897,7 +1036,6 @@ def initialize_subcloud_group_default(engine):
             pass
     except Exception as ex:
         LOG.error("Exception occurred setting up default subcloud group", ex)
-
 ##########################
 
 

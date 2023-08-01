@@ -28,6 +28,7 @@ import six.moves
 import string
 import subprocess
 import tsconfig.tsconfig as tsc
+import uuid
 import xml.etree.ElementTree as ElementTree
 import yaml
 
@@ -493,6 +494,26 @@ def get_loads_for_prestage(loads):
         consts.INACTIVE_LOAD_STATE
     ]
     return [load.software_version for load in loads if load.state in valid_states]
+
+
+def system_peer_get_by_ref(context, peer_ref):
+    """Handle getting a system peer by either UUID, or ID, or Name
+
+    :param context: The request context
+    :param peer_ref: Reference to the system peer, either an UUID or an ID or
+                     a Name
+    """
+    try:
+        if peer_ref.isdigit():
+            return db_api.system_peer_get(context, peer_ref)
+        try:
+            uuid.UUID(peer_ref)
+            return db_api.system_peer_get_by_uuid(context, peer_ref)
+        except ValueError:
+            return db_api.system_peer_get_by_name(context, peer_ref)
+    except (exceptions.SystemPeerNotFound, exceptions.SystemPeerUUIDNotFound,
+            exceptions.SystemPeerNameNotFound):
+        return None
 
 
 def subcloud_get_by_ref(context, subcloud_ref):

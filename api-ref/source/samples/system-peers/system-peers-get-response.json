@@ -1,0 +1,19 @@
+{
+  "system_peers": [
+    {
+      "id": 1,
+      "peer-uuid": "b00d0863-c54e-4340-af4d-3e2093764276",
+      "peer-name": "PeerDistributedCloud1",
+      "manager-endpoint": "http://128.128.128.1:5000/v3",
+      "manager-username": "admin",
+      "peer-controller-gateway-address": "192.168.204.1",
+      "administrative-state": "enabled",
+      "heartbeat-interval": 60,
+      "heartbeat-failure-threshold": 3,
+      "heartbeat-failure-policy": "alarm",
+      "heartbeat-maintenance-timeout": 600,
+      "created-at": "2023-08-14 05:47:35.587528",
+      "updated-at": "2023-08-14 05:47:35.587528"
+    }
+  ]
+}

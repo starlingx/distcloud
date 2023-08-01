@@ -25,6 +25,7 @@ from dcmanager.api.controllers.v1 import subcloud_group
 from dcmanager.api.controllers.v1 import subclouds
 from dcmanager.api.controllers.v1 import sw_update_options
 from dcmanager.api.controllers.v1 import sw_update_strategy
+from dcmanager.api.controllers.v1 import system_peers
 
 
 class Controller(object):
@@ -54,6 +55,8 @@ class Controller(object):
                 SubcloudBackupController
             sub_controllers["phased-subcloud-deploy"] = phased_subcloud_deploy.\
                 PhasedSubcloudDeployController
+            sub_controllers["system-peers"] = system_peers.\
+                SystemPeersController
 
         for name, ctrl in sub_controllers.items():
             setattr(self, name, ctrl)

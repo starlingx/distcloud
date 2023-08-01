@@ -2263,3 +2263,283 @@ Response Example
 
 .. literalinclude:: samples/phased-subcloud-deploy/phased-subcloud-deploy-patch-resume-response.json
       :language: json
+
+------------
+System Peers
+------------
+
+System Peers are logical entities which are managed by a central System Controller.
+Each System Peer maintains the information which is used for health check
+and data synchronization in the protection group in Geo-Redundancy deployment.
+
+**********************
+Lists all system peers
+**********************
+
+.. rest_method:: GET /v1.0/system-peers
+
+This operation does not accept a request body.
+
+**Normal response codes**
+
+200
+
+**Error response codes**
+
+badRequest (400), unauthorized (401), forbidden (403),
+itemNotFound (404), badMethod (405), HTTPUnprocessableEntity (422),
+internalServerError (500), serviceUnavailable (503)
+
+Response
+--------
+
+.. rest_parameters:: parameters.yaml
+
+  - system_peers: system_peers
+  - id: system_peer_id
+  - peer-uuid: peer_uuid
+  - peer-name: peer_name
+  - manager-endpoint: manager_endpoint
+  - manager-username: manager_username
+  - peer-controller-gateway-address: peer_controller_gateway_address
+  - administrative-state: administrative_state
+  - heartbeat-interval: heartbeat_interval
+  - heartbeat-failure-threshold: heartbeat_failure_threshold 
+  - heartbeat-failure-policy: heartbeat_failure_policy
+  - heartbeat-maintenance-timeout: heartbeat_maintenance_timeout
+  - created-at: created_at
+  - updated-at: updated_at
+
+Response Example
+----------------
+
+.. literalinclude:: samples/system-peers/system-peers-get-response.json
+      :language: json
+
+
+*********************
+Creates a system peer
+*********************
+
+.. rest_method:: POST /v1.0/system-peers
+
+Accepts Content-Type multipart/form-data.
+
+
+**Normal response codes**
+
+200
+
+**Error response codes**
+
+badRequest (400), unauthorized (401), forbidden (403), badMethod (405),
+HTTPUnprocessableEntity (422), internalServerError (500),
+serviceUnavailable (503)
+
+**Request parameters**
+
+.. rest_parameters:: parameters.yaml
+
+  - peer_uuid: peer_uuid
+  - peer_name: peer_name
+  - manager_endpoint: manager_endpoint
+  - manager_username: manager_username
+  - manager_password: manager_password
+  - peer_controller_gateway_address: peer_controller_gateway_address
+  - administrative_state: administrative_state
+  - heartbeat_interval: heartbeat_interval
+  - heartbeat_failure_threshold: heartbeat_failure_threshold 
+  - heartbeat_failure_policy: heartbeat_failure_policy
+  - heartbeat_maintenance_timeout: heartbeat_maintenance_timeout
+
+Request Example
+----------------
+
+.. literalinclude:: samples/system-peers/system-peers-post-request.json
+      :language: json
+
+
+**Response parameters**
+
+.. rest_parameters:: parameters.yaml
+
+  - id: system_peer_id
+  - peer-uuid: peer_uuid
+  - peer-name: peer_name
+  - manager-endpoint: manager_endpoint
+  - manager-username: manager_username
+  - peer-controller-gateway-address: peer_controller_gateway_address
+  - administrative-state: administrative_state
+  - heartbeat-interval: heartbeat_interval
+  - heartbeat-failure-threshold: heartbeat_failure_threshold 
+  - heartbeat-failure-policy: heartbeat_failure_policy
+  - heartbeat-maintenance-timeout: heartbeat_maintenance_timeout
+  - created-at: created_at
+  - updated-at: updated_at
+
+Response Example
+----------------
+
+.. literalinclude:: samples/system-peers/system-peers-post-response.json
+      :language: json
+
+
+**********************************************
+Shows information about a specific system peer
+**********************************************
+
+.. rest_method:: GET /v1.0/system-peers/​{system-peer}​
+
+**Normal response codes**
+
+200
+
+**Error response codes**
+
+badRequest (400), unauthorized (401), forbidden (403),
+itemNotFound (404), badMethod (405), HTTPUnprocessableEntity (422),
+internalServerError (500), serviceUnavailable (503)
+
+**Request parameters**
+
+.. rest_parameters:: parameters.yaml
+
+  - system-peer: system_peer_uri
+
+This operation does not accept a request body.
+
+**Response parameters**
+
+.. rest_parameters:: parameters.yaml
+
+  - id: system_peer_id
+  - peer-uuid: peer_uuid
+  - peer-name: peer_name
+  - manager-endpoint: manager_endpoint
+  - manager-username: manager_username
+  - peer-controller-gateway-address: peer_controller_gateway_address
+  - administrative-state: administrative_state
+  - heartbeat-interval: heartbeat_interval
+  - heartbeat-failure-threshold: heartbeat_failure_threshold 
+  - heartbeat-failure-policy: heartbeat_failure_policy
+  - heartbeat-maintenance-timeout: heartbeat_maintenance_timeout
+  - created-at: created_at
+  - updated-at: updated_at
+
+Response Example
+----------------
+
+.. literalinclude:: samples/system-peers/system-peer-get-response.json
+         :language: json
+
+
+*******************************
+Modifies a specific system peer
+*******************************
+
+.. rest_method:: PATCH /v1.0/system-peers/​{system-peer}​
+
+The attributes of a subcloud group which are modifiable:
+
+-  peer-uuid
+
+-  peer-name
+
+-  manager-endpoint
+
+-  manager-username
+
+-  manager-password
+
+-  peer-controller-gateway-address
+
+-  administrative-state
+
+-  heartbeat-interval
+
+-  heartbeat-failure-threshold
+
+-  heartbeat-failure-policy
+
+-  heartbeat-maintenance-timeout
+
+**Normal response codes**
+
+200
+
+**Error response codes**
+
+badRequest (400), unauthorized (401), forbidden (403), badMethod (405),
+HTTPUnprocessableEntity (422), internalServerError (500),
+serviceUnavailable (503)
+
+**Request parameters**
+
+.. rest_parameters:: parameters.yaml
+
+  - system-peer: system_peer_uri
+  - peer_uuid: peer_uuid
+  - peer_name: peer_name
+  - manager_endpoint: manager_endpoint
+  - manager_username: manager_username
+  - manager_password: manager_password
+  - peer_controller_gateway_address: peer_controller_gateway_address
+  - administrative_state: administrative_state
+  - heartbeat_interval: heartbeat_interval
+  - heartbeat_failure_threshold: heartbeat_failure_threshold 
+  - heartbeat_failure_policy: heartbeat_failure_policy
+  - heartbeat_maintenance_timeout: heartbeat_maintenance_timeout
+
+Request Example
+----------------
+.. literalinclude:: samples/system-peers/system-peer-patch-request.json
+         :language: json
+
+**Response parameters**
+
+.. rest_parameters:: parameters.yaml
+
+  - id: system_peer_id
+  - peer-uuid: peer_uuid
+  - peer-name: peer_name
+  - manager-endpoint: manager_endpoint
+  - manager-username: manager_username
+  - peer-controller-gateway-address: peer_controller_gateway_address
+  - administrative-state: administrative_state
+  - heartbeat-interval: heartbeat_interval
+  - heartbeat-failure-threshold: heartbeat_failure_threshold 
+  - heartbeat-failure-policy: heartbeat_failure_policy
+  - heartbeat-maintenance-timeout: heartbeat_maintenance_timeout
+  - created-at: created_at
+  - updated-at: updated_at
+
+Response Example
+----------------
+
+.. literalinclude:: samples/system-peers/system-peer-patch-response.json
+         :language: json
+
+
+******************************
+Deletes a specific system peer
+******************************
+
+.. rest_method:: DELETE /v1.0/system-peers/​{system-peer}​
+
+**Normal response codes**
+
+200
+
+**Error response codes**
+
+badRequest (400), unauthorized (401), forbidden (403),
+itemNotFound (404), badMethod (405), HTTPUnprocessableEntity (422),
+internalServerError (500), serviceUnavailable (503)
+
+**Request parameters**
+
+.. rest_parameters:: parameters.yaml
+
+  - system-peer: system_peer_uri
+
+This operation does not accept a request body.

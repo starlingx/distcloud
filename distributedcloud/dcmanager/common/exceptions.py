@@ -137,6 +137,18 @@ class SubcloudPatchOptsNotFound(NotFound):
                 "defaults will be used.")
 
 
+class SystemPeerNotFound(NotFound):
+    message = _("System Peer with id %(peer_id)s doesn't exist.")
+
+
+class SystemPeerNameNotFound(NotFound):
+    message = _("System Peer with peer_name %(name)s doesn't exist.")
+
+
+class SystemPeerUUIDNotFound(NotFound):
+    message = _("System Peer with peer_uuid %(uuid)s doesn't exist.")
+
+
 class SubcloudGroupNotFound(NotFound):
     message = _("Subcloud Group with id %(group_id)s doesn't exist.")
 

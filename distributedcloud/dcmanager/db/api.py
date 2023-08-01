@@ -352,6 +352,96 @@ def subcloud_group_destroy(context, group_id):
 
 
 ###################
+# system_peer
+def system_peer_db_model_to_dict(system_peer):
+    """Convert system_peer db model to dictionary."""
+    result = {"id": system_peer.id,
+              "peer-uuid": system_peer.peer_uuid,
+              "peer-name": system_peer.peer_name,
+              "manager-endpoint": system_peer.manager_endpoint,
+              "manager-username": system_peer.manager_username,
+              "peer-controller-gateway-address": system_peer.
+              peer_controller_gateway_ip,
+              "administrative-state": system_peer.administrative_state,
+              "heartbeat-interval": system_peer.heartbeat_interval,
+              "heartbeat-failure-threshold": system_peer.
+              heartbeat_failure_threshold,
+              "heartbeat-failure-policy": system_peer.heartbeat_failure_policy,
+              "heartbeat-maintenance-timeout": system_peer.
+              heartbeat_maintenance_timeout,
+              "created-at": system_peer.created_at,
+              "updated-at": system_peer.updated_at}
+    return result
+
+
+def system_peer_create(context,
+                       peer_uuid, peer_name,
+                       endpoint, username, password,
+                       gateway_ip,
+                       administrative_state,
+                       heartbeat_interval,
+                       heartbeat_failure_threshold,
+                       heartbeat_failure_policy,
+                       heartbeat_maintenance_timeout):
+    """Create a system_peer."""
+    return IMPL.system_peer_create(context,
+                                   peer_uuid, peer_name,
+                                   endpoint, username, password,
+                                   gateway_ip,
+                                   administrative_state,
+                                   heartbeat_interval,
+                                   heartbeat_failure_threshold,
+                                   heartbeat_failure_policy,
+                                   heartbeat_maintenance_timeout)
+
+
+def system_peer_get(context, peer_id):
+    """Retrieve a system_peer or raise if it does not exist."""
+    return IMPL.system_peer_get(context, peer_id)
+
+
+def system_peer_get_by_uuid(context, uuid):
+    """Retrieve a system_peer by uuid or raise if it does not exist."""
+    return IMPL.system_peer_get_by_uuid(context, uuid)
+
+
+def system_peer_get_by_name(context, uuid):
+    """Retrieve a system_peer by name or raise if it does not exist."""
+    return IMPL.system_peer_get_by_name(context, uuid)
+
+
+def system_peer_get_all(context):
+    """Retrieve all system peers."""
+    return IMPL.system_peer_get_all(context)
+
+
+def system_peer_update(context, peer_id,
+                       peer_uuid, peer_name,
+                       endpoint, username, password,
+                       gateway_ip,
+                       administrative_state,
+                       heartbeat_interval,
+                       heartbeat_failure_threshold,
+                       heartbeat_failure_policy,
+                       heartbeat_maintenance_timeout):
+    """Update the system peer or raise if it does not exist."""
+    return IMPL.system_peer_update(context, peer_id,
+                                   peer_uuid, peer_name,
+                                   endpoint, username, password,
+                                   gateway_ip,
+                                   administrative_state,
+                                   heartbeat_interval,
+                                   heartbeat_failure_threshold,
+                                   heartbeat_failure_policy,
+                                   heartbeat_maintenance_timeout)
+
+
+def system_peer_destroy(context, peer_id):
+    """Destroy the system peer or raise if it does not exist."""
+    return IMPL.system_peer_destroy(context, peer_id)
+
+
+###################
 
 def sw_update_strategy_db_model_to_dict(sw_update_strategy):
     """Convert sw update db model to dictionary."""
