@@ -508,8 +508,8 @@ class TestSubcloudManager(base.DCManagerTestCase):
         mock_get_cached_regionone_data.return_value = FAKE_CACHED_REGIONONE_DATA
 
         sm = subcloud_manager.SubcloudManager()
-        subcloud = sm.subcloud_deploy_create(self.ctx, subcloud.id,
-                                             payload=values)
+        subcloud_dict = sm.subcloud_deploy_create(self.ctx, subcloud.id,
+                                                  payload=values)
         mock_get_cached_regionone_data.assert_called_once()
         mock_sysinv_client().create_route.assert_called()
         self.fake_dcorch_api.add_subcloud.assert_called_once()
@@ -521,7 +521,7 @@ class TestSubcloudManager(base.DCManagerTestCase):
 
         # Verify subcloud was updated with correct values
         self.assertEqual(consts.DEPLOY_STATE_CREATED,
-                         subcloud.deploy_status)
+                         subcloud_dict['deploy-status'])
 
         # Verify subcloud was updated with correct values
         updated_subcloud = db_api.subcloud_get_by_name(self.ctx, values['name'])
@@ -540,12 +540,12 @@ class TestSubcloudManager(base.DCManagerTestCase):
         mock_keystone_client.side_effect = FakeException('boom')
 
         sm = subcloud_manager.SubcloudManager()
-        subcloud = sm.subcloud_deploy_create(self.ctx, subcloud.id,
-                                             payload=values)
+        subcloud_dict = sm.subcloud_deploy_create(self.ctx, subcloud.id,
+                                                  payload=values)
 
         # Verify subcloud was updated with correct values
         self.assertEqual(consts.DEPLOY_STATE_CREATE_FAILED,
-                         subcloud.deploy_status)
+                         subcloud_dict['deploy-status'])
 
         # Verify subcloud was updated with correct values
         updated_subcloud = db_api.subcloud_get_by_name(self.ctx, values['name'])

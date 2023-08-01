@@ -208,6 +208,10 @@ class ManagerClient(RPCClient):
                                              subcloud_id=subcloud_id,
                                              payload=payload))
 
+    def subcloud_deploy_complete(self, ctxt, subcloud_id):
+        return self.call(ctxt, self.make_msg('subcloud_deploy_complete',
+                                             subcloud_id=subcloud_id))
+
     def subcloud_deploy_abort(self, ctxt, subcloud_id, deploy_status):
         return self.cast(ctxt, self.make_msg('subcloud_deploy_abort',
                                              subcloud_id=subcloud_id,
