@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2020-2022 Wind River Systems, Inc.
+# Copyright (c) 2020-2023 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -8,7 +8,7 @@ import time
 
 from dccommon import consts as dccommon_consts
 from dccommon.exceptions import PlaybookExecutionFailed
-from dccommon.utils import run_playbook
+from dccommon.utils import AnsiblePlaybook
 from dcmanager.common import consts
 from dcmanager.common.exceptions import StrategyStoppedException
 from dcmanager.common import utils
@@ -34,9 +34,10 @@ DEFAULT_API_SLEEP = 60
 DEFAULT_ANSIBLE_SLEEP = 180
 
 
-def migrate_subcloud_data(migrate_command, log_file):
+def migrate_subcloud_data(migrate_command, log_file, subcloud_name):
     try:
-        run_playbook(log_file, migrate_command)
+        ansible = AnsiblePlaybook(subcloud_name)
+        ansible.run_playbook(log_file, migrate_command)
     except PlaybookExecutionFailed:
         msg_orch = ("Failed to migrate data, check individual "
                     "log at %s or run %s for details"
@@ -153,7 +154,8 @@ class MigratingDataState(BaseState):
             % (consts.TEMP_SYSADMIN_PASSWORD, consts.TEMP_SYSADMIN_PASSWORD)]
 
         try:
-            migrate_subcloud_data(data_migrating_cmd, log_file)
+            migrate_subcloud_data(data_migrating_cmd, log_file,
+                                  strategy_step.subcloud.name)
         except Exception as e:
             # Two error messages: one for subcloud error description and logs and
             # one for orchestrator strategy_step detail (shorter than the previous).

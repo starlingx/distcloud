@@ -192,20 +192,26 @@ class ManagerClient(RPCClient):
                                              subcloud_id=subcloud_id,
                                              payload=payload))
 
-    def subcloud_deploy_install(self, ctxt, subcloud_id, payload):
+    def subcloud_deploy_install(self, ctxt, subcloud_id, payload,
+                                initial_deployment):
         return self.cast(ctxt, self.make_msg('subcloud_deploy_install',
                                              subcloud_id=subcloud_id,
-                                             payload=payload))
+                                             payload=payload,
+                                             initial_deployment=initial_deployment))
 
-    def subcloud_deploy_bootstrap(self, ctxt, subcloud_id, payload):
+    def subcloud_deploy_bootstrap(self, ctxt, subcloud_id, payload,
+                                  initial_deployment):
         return self.cast(ctxt, self.make_msg('subcloud_deploy_bootstrap',
                                              subcloud_id=subcloud_id,
-                                             payload=payload))
+                                             payload=payload,
+                                             initial_deployment=initial_deployment))
 
-    def subcloud_deploy_config(self, ctxt, subcloud_id, payload):
+    def subcloud_deploy_config(self, ctxt, subcloud_id, payload,
+                               initial_deployment):
         return self.cast(ctxt, self.make_msg('subcloud_deploy_config',
                                              subcloud_id=subcloud_id,
-                                             payload=payload))
+                                             payload=payload,
+                                             initial_deployment=initial_deployment))
 
     def subcloud_deploy_complete(self, ctxt, subcloud_id):
         return self.call(ctxt, self.make_msg('subcloud_deploy_complete',

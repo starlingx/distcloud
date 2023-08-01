@@ -89,7 +89,7 @@ class memoized(object):
         return functools.partial(self.__call__, obj)
 
 
-class RunAnsible(object):
+class AnsiblePlaybook(object):
     """Class to run Ansible playbooks with the abort option
 
     Approach:
@@ -110,30 +110,33 @@ class RunAnsible(object):
     abort_status = {}
     lock = threading.Lock()
 
-    def _unregister_subcloud(self, subcloud_name):
-        with RunAnsible.lock:
-            if RunAnsible.abort_status.get(subcloud_name):
-                del RunAnsible.abort_status[subcloud_name]
+    def __init__(self, subcloud_name: str):
+        self.subcloud_name = subcloud_name
 
-    def run_abort(self, subcloud_name, timeout=600):
+    def _unregister_subcloud(self):
+        with AnsiblePlaybook.lock:
+            if AnsiblePlaybook.abort_status.get(self.subcloud_name):
+                del AnsiblePlaybook.abort_status[self.subcloud_name]
+
+    def run_abort(self, timeout=600):
         """Set abort status for a subcloud.
 
         :param subcloud_name: Name of the subcloud
         param timeout: Timeout in seconds.
         """
-        with RunAnsible.lock:
-            RunAnsible.abort_status[subcloud_name]['abort'] = True
+        with AnsiblePlaybook.lock:
+            AnsiblePlaybook.abort_status[self.subcloud_name]['abort'] = True
         unabortable_flag = os.path.join(consts.ANSIBLE_OVERRIDES_PATH,
-                                        '.%s_deploy_not_abortable' % subcloud_name)
-        subp = RunAnsible.abort_status[subcloud_name]['subp']
+                                        '.%s_deploy_not_abortable' % self.subcloud_name)
+        subp = AnsiblePlaybook.abort_status[self.subcloud_name]['subp']
         while os.path.exists(unabortable_flag) and timeout > 0:
             time.sleep(1)
             timeout -= 1
         kill_subprocess_group(subp)
         return True
 
-    def exec_playbook(self, log_file, playbook_command, subcloud_name,
-                      timeout=None, register_cleanup=True):
+    def run_playbook(self, log_file, playbook_command, timeout=None,
+                     register_cleanup=True):
         """Run ansible playbook via subprocess.
 
         :param log_file: Logs output to file
@@ -166,7 +169,7 @@ class RunAnsible(object):
                 # Remove unabortable flag created by the playbook
                 # if present from previous executions
                 unabortable_flag = os.path.join(consts.ANSIBLE_OVERRIDES_PATH,
-                                                '.%s_deploy_not_abortable' % subcloud_name)
+                                                '.%s_deploy_not_abortable' % self.subcloud_name)
                 if os.path.exists(unabortable_flag):
                     os.remove(unabortable_flag)
 
@@ -178,8 +181,8 @@ class RunAnsible(object):
                 try:
                     if register_cleanup:
                         SubprocessCleanup.register_subprocess_group(subp)
-                    with RunAnsible.lock:
-                        RunAnsible.abort_status[subcloud_name] = {
+                    with AnsiblePlaybook.lock:
+                        AnsiblePlaybook.abort_status[self.subcloud_name] = {
                             'abort': False,
                             'subp': subp}
 
@@ -202,8 +205,8 @@ class RunAnsible(object):
                     # 5: Playbook failed while waiting to be aborted (process exited)
                     #    - playbook_failure is True with subp_rc != 0,
                     #      aborted is True, unabortable_flag_exists is False
-                    with RunAnsible.lock:
-                        aborted = RunAnsible.abort_status[subcloud_name]['abort']
+                    with AnsiblePlaybook.lock:
+                        aborted = AnsiblePlaybook.abort_status[self.subcloud_name]['abort']
                         unabortable_flag_exists = os.path.exists(unabortable_flag)
                     playbook_failure = (subp_rc != 0 and
                                         (not aborted or unabortable_flag_exists))
@@ -226,7 +229,7 @@ class RunAnsible(object):
                     f_out_log.flush()
                     if register_cleanup:
                         SubprocessCleanup.unregister_subprocess_group(subp)
-                    self._unregister_subcloud(subcloud_name)
+                    self._unregister_subcloud()
 
             except PlaybookExecutionFailed:
                 raise
@@ -253,88 +256,6 @@ def _strip_password_from_command(script_command):
             tmpstr = tmpstr[:-1]
             logged_command.append(tmpstr)
     return logged_command
-
-
-# TODO(vgluzrom): remove this function and replace all calls
-# with RunAnsible class
-def run_playbook(log_file, playbook_command,
-                 timeout=None, register_cleanup=True):
-    """Run ansible playbook via subprocess.
-
-    log_file: Logs output to file
-    timeout: Timeout in seconds. Raises PlaybookExecutionTimeout on timeout
-    register_cleanup: Register the subprocess group for cleanup on shutdown,
-                      if the underlying service supports cleanup.
-    """
-    exec_env = os.environ.copy()
-    exec_env["ANSIBLE_LOG_PATH"] = "/dev/null"
-
-    if timeout:
-        # Invoke ansible-playbook via the 'timeout' command.
-        # Using --kill-after=5s which will force a kill -9 if the process
-        # hasn't terminated within 5s:
-        timeout_log_str = " (timeout: %ss)" % timeout
-        playbook_command = ["/usr/bin/timeout", "--kill-after=5s",
-                            "%ss" % timeout] + playbook_command
-    else:
-        timeout_log_str = ''
-
-    with open(log_file, "a+") as f_out_log:
-        try:
-            logged_playbook_command = \
-                _strip_password_from_command(playbook_command)
-            txt = "%s Executing playbook command%s: %s\n" \
-                % (datetime.today().strftime('%Y-%m-%d-%H:%M:%S'),
-                   timeout_log_str,
-                   logged_playbook_command)
-            f_out_log.write(txt)
-            f_out_log.flush()
-
-            if register_cleanup:
-                # Use the same process group / session for all children
-                # This makes it easier to kill the entire process group
-                # on cleanup
-                preexec_fn = os.setsid
-            else:
-                preexec_fn = None
-
-            # TODO(kmacleod) future considerations:
-            # - In python3, this code can be simplified to use the new
-            #   subprocess.run(timeout=val) method or Popen with
-            #   subp.wait(timeout=val)
-            # - Beginning with ansible 2.10, we can introduce the
-            #   ANSIBLE_TASK_TIMEOUT value to set a task-level timeout.
-            #   This is not available in our current version of ansible (2.7.5)
-            subp = subprocess.Popen(playbook_command,
-                                    stdout=f_out_log,
-                                    stderr=f_out_log,
-                                    env=exec_env,
-                                    preexec_fn=preexec_fn)
-            try:
-                if register_cleanup:
-                    SubprocessCleanup.register_subprocess_group(subp)
-
-                subp.communicate()  # wait for process to exit
-
-                if timeout and subp.returncode == TIMEOUT_EXITCODE:
-                    f_out_log.write(
-                        "%s TIMEOUT (%ss) - playbook is terminated\n" %
-                        (datetime.today().strftime('%Y-%m-%d-%H:%M:%S'), timeout)
-                    )
-                    raise PlaybookExecutionTimeout(playbook_cmd=playbook_command,
-                                                   timeout=timeout)
-                if subp.returncode != 0:
-                    raise PlaybookExecutionFailed(playbook_cmd=playbook_command)
-            finally:
-                f_out_log.flush()
-                if register_cleanup:
-                    SubprocessCleanup.unregister_subprocess_group(subp)
-
-        except PlaybookExecutionFailed:
-            raise
-        except Exception as ex:
-            LOG.error(str(ex))
-            raise
 
 
 def is_token_expiring_soon(token,
