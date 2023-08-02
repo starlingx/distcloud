@@ -1967,6 +1967,8 @@ class SubcloudManager(manager.Manager):
             payload[consts.DEPLOY_CHART]
         payload['deploy_values']['deployment_manager_overrides'] = \
             payload[consts.DEPLOY_OVERRIDES]
+        payload['deploy_values']['user_uploaded_artifacts'] = \
+            payload["user_uploaded_artifacts"]
         self._write_deploy_files(payload, subcloud_name)
 
     def _delete_subcloud_routes(self, keystone_client, subcloud):

@@ -747,6 +747,33 @@ def upload_config_file(file_item, config_file, config_type):
         pecan.abort(400, msg)
 
 
+def check_deploy_files_in_alternate_location(payload):
+    for f in os.listdir(consts.ALTERNATE_DEPLOY_PLAYBOOK_DIR):
+        if f.endswith(consts.DEPLOY_PLAYBOOK_POSTFIX):
+            filename = os.path.join(consts.ALTERNATE_DEPLOY_PLAYBOOK_DIR, f)
+            payload.update({consts.DEPLOY_PLAYBOOK: filename})
+            break
+    else:
+        return False
+
+    for f in os.listdir(consts.ALTERNATE_HELM_CHART_OVERRIDES_DIR):
+        if f.endswith(consts.HELM_CHART_OVERRIDES_POSTFIX):
+            filename = os.path.join(consts.ALTERNATE_HELM_CHART_OVERRIDES_DIR, f)
+            payload.update({consts.DEPLOY_OVERRIDES: filename})
+            break
+    else:
+        return False
+
+    for f in os.listdir(consts.ALTERNATE_HELM_CHART_DIR):
+        if consts.HELM_CHART_POSTFIX in str(f):
+            filename = os.path.join(consts.ALTERNATE_HELM_CHART_DIR, f)
+            payload.update({consts.DEPLOY_CHART: filename})
+            break
+    else:
+        return False
+    return True
+
+
 def get_common_deploy_files(payload, software_version):
     missing_deploy_files = []
     for f in consts.DEPLOY_COMMON_FILE_OPTIONS:
@@ -762,9 +789,14 @@ def get_common_deploy_files(payload, software_version):
         else:
             payload.update({f: os.path.join(dir_path, filename)})
     if missing_deploy_files:
-        missing_deploy_files_str = ', '.join(missing_deploy_files)
-        msg = _("Missing required deploy files: %s" % missing_deploy_files_str)
-        pecan.abort(400, msg)
+        if check_deploy_files_in_alternate_location(payload):
+            payload.update({'user_uploaded_artifacts': False})
+        else:
+            missing_deploy_files_str = ', '.join(missing_deploy_files)
+            msg = _("Missing required deploy files: %s" % missing_deploy_files_str)
+            pecan.abort(400, msg)
+    else:
+        payload.update({'user_uploaded_artifacts': True})
 
 
 def validate_subcloud_name_availability(context, subcloud_name):

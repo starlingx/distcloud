@@ -394,3 +394,15 @@ CERT_NAMESPACE_PLATFORM_CA_CERTS = 'cert-manager'
 # The ansible playbook base directories
 ANSIBLE_CURRENT_VERSION_BASE_PATH = '/usr/share/ansible/stx-ansible/playbooks'
 ANSIBLE_PREVIOUS_VERSION_BASE_PATH = '/opt/dc-vault/playbooks'
+
+# The deployment manager artifacts usr directories
+ALTERNATE_DEPLOY_FILES_DIR = '/usr/local/share/applications'
+
+ALTERNATE_HELM_CHART_OVERRIDES_DIR = ALTERNATE_DEPLOY_FILES_DIR + '/overrides'
+HELM_CHART_OVERRIDES_POSTFIX = '-overrides-subcloud.yaml'
+
+ALTERNATE_HELM_CHART_DIR = ALTERNATE_DEPLOY_FILES_DIR + '/helm'
+HELM_CHART_POSTFIX = 'deployment-manager'
+
+ALTERNATE_DEPLOY_PLAYBOOK_DIR = ALTERNATE_DEPLOY_FILES_DIR + '/playbooks'
+DEPLOY_PLAYBOOK_POSTFIX = 'deployment-manager.yaml'
