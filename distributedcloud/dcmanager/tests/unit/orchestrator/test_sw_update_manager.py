@@ -295,7 +295,7 @@ class TestSwUpdateManager(base.DCManagerTestCase):
             self.ctxt, payload=data)
 
         # Verify strategy was created as expected using group values
-        self.assertEqual(response['max-parallel-subclouds'], 2)
+        self.assertEqual(response['max-parallel-subclouds'], 1)
         self.assertEqual(response['subcloud-apply-type'],
                          consts.SUBCLOUD_APPLY_TYPE_SERIAL)
         self.assertEqual(response['type'],
@@ -305,8 +305,6 @@ class TestSwUpdateManager(base.DCManagerTestCase):
         strategy_steps = db_api.strategy_step_get_all(self.ctx)
         self.assertEqual(strategy_steps[0]['state'],
                          consts.STRATEGY_STATE_INITIAL)
-        self.assertEqual(strategy_steps[0]['stage'],
-                         1)
         self.assertEqual(strategy_steps[0]['details'],
                          '')
         self.assertEqual(strategy_steps[0]['subcloud_id'],
@@ -343,11 +341,9 @@ class TestSwUpdateManager(base.DCManagerTestCase):
 
         # Verify the strategy step list
         subcloud_ids = [1, 2]
-        stage = [1, 1]
         strategy_step_list = db_api.strategy_step_get_all(self.ctxt)
         for index, strategy_step in enumerate(strategy_step_list):
             self.assertEqual(subcloud_ids[index], strategy_step.subcloud_id)
-            self.assertEqual(stage[index], strategy_step.stage)
 
     @mock.patch.object(prestage, 'initial_subcloud_validate')
     @mock.patch.object(prestage, 'global_prestage_validate')
@@ -391,11 +387,9 @@ class TestSwUpdateManager(base.DCManagerTestCase):
 
         # Verify the strategy step list
         subcloud_ids = [1, 2]
-        stage = [1, 1]
         strategy_step_list = db_api.strategy_step_get_all(self.ctxt)
         for index, strategy_step in enumerate(strategy_step_list):
             self.assertEqual(subcloud_ids[index], strategy_step.subcloud_id)
-            self.assertEqual(stage[index], strategy_step.stage)
 
     @mock.patch.object(prestage, 'initial_subcloud_validate')
     @mock.patch.object(prestage, 'global_prestage_validate')
@@ -458,11 +452,9 @@ class TestSwUpdateManager(base.DCManagerTestCase):
 
         # Verify the strategy step list
         subcloud_ids = [1, 2, 3, 4]
-        stage = [1, 1, 2, 2]
         strategy_step_list = db_api.strategy_step_get_all(self.ctxt)
         for index, strategy_step in enumerate(strategy_step_list):
             self.assertEqual(subcloud_ids[index], strategy_step.subcloud_id)
-            self.assertEqual(stage[index], strategy_step.stage)
 
     @mock.patch.object(prestage, 'initial_subcloud_validate')
     @mock.patch.object(prestage, '_get_system_controller_upgrades')
@@ -567,11 +559,9 @@ class TestSwUpdateManager(base.DCManagerTestCase):
 
         # Verify the strategy step list
         subcloud_ids = [1, 3, 5, 6, 7]
-        stage = [1, 1, 2, 3, 3]
         strategy_step_list = db_api.strategy_step_get_all(self.ctxt)
         for index, strategy_step in enumerate(strategy_step_list):
             self.assertEqual(subcloud_ids[index], strategy_step.subcloud_id)
-            self.assertEqual(stage[index], strategy_step.stage)
 
     @mock.patch.object(sw_update_manager, 'PatchOrchThread')
     def test_create_sw_patching_subcloud_in_sync_out_of_sync(
@@ -629,16 +619,11 @@ class TestSwUpdateManager(base.DCManagerTestCase):
 
         # Verify the strategy step list
         subcloud_ids = [1, 3]
-        # Both subclouds are added to the first stage (max-parallel-subclouds=2)
-        stage = [1, 1]
         strategy_step_list = db_api.strategy_step_get_all(self.ctxt)
         subcloud_id_processed = []
-        stage_processed = []
         for strategy_step in strategy_step_list:
                 subcloud_id_processed.append(strategy_step.subcloud_id)
-                stage_processed.append(strategy_step.stage)
         self.assertEqual(subcloud_ids, subcloud_id_processed)
-        self.assertEqual(stage, stage_processed)
 
     @mock.patch.object(cutils, 'get_systemcontroller_installed_loads')
     @mock.patch.object(prestage, 'initial_subcloud_validate')
@@ -702,15 +687,11 @@ class TestSwUpdateManager(base.DCManagerTestCase):
 
         # Verify the strategy step list
         subcloud_ids = [1, 3, 5, 6, 7]
-        stage = [1, 1, 2, 3, 3]
         strategy_step_list = db_api.strategy_step_get_all(self.ctxt)
         subcloud_id_processed = []
-        stage_processed = []
         for index, strategy_step in enumerate(strategy_step_list):
             subcloud_id_processed.append(strategy_step.subcloud_id)
-            stage_processed.append(strategy_step.stage)
         self.assertEqual(subcloud_ids, subcloud_id_processed)
-        self.assertEqual(stage, stage_processed)
 
     @mock.patch.object(sw_update_manager, 'PatchOrchThread')
     def test_create_sw_update_strategy_serial(
@@ -760,17 +741,15 @@ class TestSwUpdateManager(base.DCManagerTestCase):
         strategy_dict = um.create_sw_update_strategy(self.ctxt, payload=data)
 
         # Assert that values passed through CLI are used instead of group values
-        self.assertEqual(strategy_dict['max-parallel-subclouds'], 2)
+        self.assertEqual(strategy_dict['max-parallel-subclouds'], 1)
         self.assertEqual(strategy_dict['subcloud-apply-type'],
                          consts.SUBCLOUD_APPLY_TYPE_SERIAL)
 
         # Verify the strategy step list
         subcloud_ids = [1, 3, 5, 6, 7]
-        stage = [1, 2, 3, 4, 5]
         strategy_step_list = db_api.strategy_step_get_all(self.ctxt)
         for index, strategy_step in enumerate(strategy_step_list):
             self.assertEqual(subcloud_ids[index], strategy_step.subcloud_id)
-            self.assertEqual(stage[index], strategy_step.stage)
 
     @mock.patch.object(sw_update_manager, 'PatchOrchThread')
     def test_create_sw_update_strategy_using_group_apply_type(
@@ -859,11 +838,9 @@ class TestSwUpdateManager(base.DCManagerTestCase):
 
         # Verify the strategy step list
         subcloud_ids = [1, 3, 5, 6, 7, 8, 9, 10, 11, 12, 13]
-        stage = [1, 1, 2, 3, 3, 4, 5, 6, 7, 7, 8]
         strategy_step_list = db_api.strategy_step_get_all(self.ctxt)
         for index, strategy_step in enumerate(strategy_step_list):
             self.assertEqual(subcloud_ids[index], strategy_step.subcloud_id)
-            self.assertEqual(stage[index], strategy_step.stage)
 
     @mock.patch.object(sw_update_manager, 'PatchOrchThread')
     def test_create_sw_update_strategy_using_group_max_parallel(
@@ -949,15 +926,14 @@ class TestSwUpdateManager(base.DCManagerTestCase):
                          consts.SUBCLOUD_APPLY_TYPE_PARALLEL)
 
         # Assert that group values are being used for subcloud_apply_type
-        self.assertEqual(strategy_dict['max-parallel-subclouds'], None)
+        self.assertEqual(strategy_dict['max-parallel-subclouds'],
+                         consts.DEFAULT_SUBCLOUD_GROUP_MAX_PARALLEL_SUBCLOUDS)
 
         # Verify the strategy step list
         subcloud_ids = [1, 3, 5, 6, 7, 8, 9, 10, 11, 12, 13]
-        stage = [1, 1, 2, 3, 3, 4, 4, 5, 6, 6, 7]
         strategy_step_list = db_api.strategy_step_get_all(self.ctxt)
         for index, strategy_step in enumerate(strategy_step_list):
             self.assertEqual(subcloud_ids[index], strategy_step.subcloud_id)
-            self.assertEqual(stage[index], strategy_step.stage)
 
     @mock.patch.object(sw_update_manager, 'PatchOrchThread')
     def test_create_sw_update_strategy_using_all_group_values(
@@ -1039,16 +1015,15 @@ class TestSwUpdateManager(base.DCManagerTestCase):
         strategy_dict = um.create_sw_update_strategy(self.ctxt, payload=data)
 
         # Assert that group values are being used
-        self.assertEqual(strategy_dict['max-parallel-subclouds'], None)
+        self.assertEqual(strategy_dict['max-parallel-subclouds'],
+                         consts.DEFAULT_SUBCLOUD_GROUP_MAX_PARALLEL_SUBCLOUDS)
         self.assertEqual(strategy_dict['subcloud-apply-type'], None)
 
         # Verify the strategy step list
         subcloud_ids = [1, 3, 5, 6, 7, 8, 9, 10, 11, 12, 13]
-        stage = [1, 1, 2, 3, 3, 4, 5, 6, 7, 7, 8]
         strategy_step_list = db_api.strategy_step_get_all(self.ctxt)
         for index, strategy_step in enumerate(strategy_step_list):
             self.assertEqual(subcloud_ids[index], strategy_step.subcloud_id)
-            self.assertEqual(stage[index], strategy_step.stage)
 
     @mock.patch.object(sw_update_manager, 'PatchOrchThread')
     def test_create_sw_update_strategy_unknown_sync_status(
@@ -1157,11 +1132,9 @@ class TestSwUpdateManager(base.DCManagerTestCase):
 
         # Verify the strategy step list
         subcloud_ids = [2, 3, 4]
-        stage = [1, 1, 1]
         strategy_step_list = db_api.strategy_step_get_all(self.ctxt)
         for index, strategy_step in enumerate(strategy_step_list):
             self.assertEqual(subcloud_ids[index], strategy_step.subcloud_id)
-            self.assertEqual(stage[index], strategy_step.stage)
 
     @mock.patch.object(sw_update_manager, 'PatchOrchThread')
     def test_create_sw_update_strategy_with_force_option(
@@ -1205,11 +1178,9 @@ class TestSwUpdateManager(base.DCManagerTestCase):
         self.assertEqual(strategy_dict['type'], consts.SW_UPDATE_TYPE_UPGRADE)
 
         subcloud_ids = [1, 2]
-        stage = [1, 1]
         strategy_step_list = db_api.strategy_step_get_all(self.ctxt)
         for index, strategy_step in enumerate(strategy_step_list):
             self.assertEqual(subcloud_ids[index], strategy_step.subcloud_id)
-            self.assertEqual(stage[index], strategy_step.stage)
 
     @mock.patch.object(sw_update_manager, 'PatchOrchThread')
     def test_create_sw_update_strategy_without_force_option(
@@ -1253,11 +1224,9 @@ class TestSwUpdateManager(base.DCManagerTestCase):
         self.assertEqual(strategy_dict['type'], consts.SW_UPDATE_TYPE_UPGRADE)
 
         subcloud_ids = [2]
-        stage = [1]
         strategy_step_list = db_api.strategy_step_get_all(self.ctxt)
         for index, strategy_step in enumerate(strategy_step_list):
             self.assertEqual(subcloud_ids[index], strategy_step.subcloud_id)
-            self.assertEqual(stage[index], strategy_step.stage)
 
     @mock.patch.object(sw_update_manager, 'PatchOrchThread')
     def test_create_sw_update_strategy_not_in_sync_offline_subcloud_with_force_upgrade(
@@ -1287,11 +1256,9 @@ class TestSwUpdateManager(base.DCManagerTestCase):
 
         # Verify the strategy step list
         subcloud_ids = [1]
-        stage = [1]
         strategy_step_list = db_api.strategy_step_get_all(self.ctxt)
         for index, strategy_step in enumerate(strategy_step_list):
             self.assertEqual(subcloud_ids[index], strategy_step.subcloud_id)
-            self.assertEqual(stage[index], strategy_step.stage)
 
     @mock.patch.object(sw_update_manager, 'PatchOrchThread')
     def test_create_sw_update_strategy_in_sync_offline_subcloud_with_force_upgrade(

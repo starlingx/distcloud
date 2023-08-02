@@ -5,6 +5,7 @@
 #
 import mock
 
+from dccommon import consts as dccommon_consts
 from dccommon.drivers.openstack import vim
 from dcmanager.common import consts
 from dcmanager.common import exceptions as exception
@@ -24,6 +25,29 @@ def non_threaded_start(some_function, some_arguments):
 
 
 class TestFwOrchThread(TestSwUpdate):
+    @staticmethod
+    def create_subcloud(ctxt, name, group_id):
+        values = {
+            "name": name,
+            "description": "subcloud1 description",
+            "location": "subcloud1 location",
+            'software_version': "18.03",
+            "management_subnet": "192.168.101.0/24",
+            "management_gateway_ip": "192.168.101.1",
+            "management_start_ip": "192.168.101.3",
+            "management_end_ip": "192.168.101.4",
+            "systemcontroller_gateway_ip": "192.168.204.101",
+            'deploy_status': "not-deployed",
+            'error_description': 'No errors present',
+            'openstack_installed': False,
+            'group_id': group_id,
+            'data_install': 'data from install',
+        }
+        subcloud = db_api.subcloud_create(ctxt, **values)
+        state = dccommon_consts.MANAGEMENT_MANAGED
+        subcloud = db_api.subcloud_update(ctxt, subcloud.id,
+                                          management_state=state)
+        return subcloud
 
     # Setting DEFAULT_STRATEGY_TYPE to firmware will setup the firmware
     # orchestration worker, and will mock away the other orch threads
@@ -47,6 +71,7 @@ class TestFwOrchThread(TestSwUpdate):
         return fake_strategy.create_fake_strategy(
             self.ctx,
             consts.SW_UPDATE_TYPE_FIRMWARE,
+            max_parallel_subclouds=2,
             state=state)
 
     def test_delete_strategy_no_steps(self):
@@ -65,6 +90,47 @@ class TestFwOrchThread(TestSwUpdate):
                           db_api.sw_update_strategy_get,
                           self.ctx,
                           consts.SW_UPDATE_TYPE_FIRMWARE)
+
+    @mock.patch.object(scheduler.ThreadGroupManager, 'start')
+    @mock.patch.object(OrchThread, 'perform_state_action')
+    def test_apply_strategy(self, mock_perform_state_action,
+                            mock_start):
+        mock_start.side_effect = non_threaded_start
+        self.strategy = self.setup_strategy(
+            state=consts.SW_UPDATE_STATE_APPLYING)
+        subcloud2 = self.create_subcloud(self.ctxt, 'subcloud2', 1)
+        subcloud3 = self.create_subcloud(self.ctxt, 'subcloud3', 1)
+        subcloud4 = self.create_subcloud(self.ctxt, 'subcloud4', 1)
+
+        self.setup_strategy_step(
+            subcloud2.id, consts.STRATEGY_STATE_INITIAL)
+        self.setup_strategy_step(
+            subcloud3.id, consts.STRATEGY_STATE_INITIAL)
+        self.setup_strategy_step(
+            subcloud4.id, consts.STRATEGY_STATE_INITIAL)
+
+        self.worker.apply(self.strategy)
+
+        steps = db_api.strategy_step_get_all(self.ctx)
+
+        # the orchestrator can orchestrate 2 subclouds at a time
+        self.assertEqual(steps[0].state, consts.STRATEGY_STATE_IMPORTING_FIRMWARE)
+        self.assertEqual(steps[1].state, consts.STRATEGY_STATE_IMPORTING_FIRMWARE)
+        self.assertEqual(steps[2].state, consts.STRATEGY_STATE_INITIAL)
+
+        # subcloud3 orchestration finished first
+        db_api.strategy_step_update(self.ctx,
+                                    subcloud3.id,
+                                    state=consts.STRATEGY_STATE_COMPLETE)
+
+        self.worker.apply(self.strategy)
+
+        steps = db_api.strategy_step_get_all(self.ctx)
+
+        # the subcloud3 finished thus the subcloud 4 should start
+        self.assertEqual(steps[0].state, consts.STRATEGY_STATE_IMPORTING_FIRMWARE)
+        self.assertEqual(steps[1].state, consts.STRATEGY_STATE_COMPLETE)
+        self.assertEqual(steps[2].state, consts.STRATEGY_STATE_IMPORTING_FIRMWARE)
 
     @mock.patch.object(scheduler.ThreadGroupManager, 'start')
     def test_delete_strategy_single_step_no_vim_strategy(self, mock_start):

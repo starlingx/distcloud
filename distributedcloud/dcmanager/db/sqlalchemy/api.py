@@ -324,6 +324,13 @@ def subcloud_get_all(context):
         all()
 
 
+def subcloud_get_all_ordered_by_id(context):
+    return model_query(context, models.Subcloud). \
+        filter_by(deleted=0). \
+        order_by(models.Subcloud.id). \
+        all()
+
+
 @require_context
 def subcloud_get_all_with_status(context):
     result = model_query(context, models.Subcloud, models.SubcloudStatus). \
