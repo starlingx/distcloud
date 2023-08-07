@@ -18,6 +18,7 @@ import os
 import shutil
 import threading
 
+from oslo_config import cfg
 from oslo_log import log as logging
 
 from tsconfig.tsconfig import SW_VERSION
@@ -37,6 +38,7 @@ from dcmanager.orchestrator.kube_upgrade_orch_thread \
     import KubeUpgradeOrchThread
 from dcmanager.orchestrator.patch_orch_thread import PatchOrchThread
 from dcmanager.orchestrator.prestage_orch_thread import PrestageOrchThread
+from dcmanager.orchestrator.software_orch_thread import SoftwareOrchThread
 from dcmanager.orchestrator.sw_upgrade_orch_thread import SwUpgradeOrchThread
 
 LOG = logging.getLogger(__name__)
@@ -56,17 +58,27 @@ class SwUpdateManager(manager.Manager):
         # Used to notify dcmanager-audit
         self.audit_rpc_client = dcmanager_audit_rpc_client.ManagerAuditClient()
 
+        # Define which API will be used
+        self.use_usm = cfg.CONF.use_usm
+
         # todo(abailey): refactor/decouple orch threads into a list
         # Start worker threads
-        # - patch orchestration thread
-        self.patch_orch_thread = PatchOrchThread(self.strategy_lock,
-                                                 self.audit_rpc_client)
-        self.patch_orch_thread.start()
-        # - sw upgrade orchestration thread
-        self.sw_upgrade_orch_thread = SwUpgradeOrchThread(self.strategy_lock,
-                                                          self.audit_rpc_client)
-        self.sw_upgrade_orch_thread.start()
-        # - fw update orchestration thread
+
+        if self.use_usm:
+            # - software orchestration thread
+            self.software_orch_thread = SoftwareOrchThread(self.strategy_lock,
+                                                           self.audit_rpc_client)
+            self.software_orch_thread.start()
+        else:
+            # - patch orchestration thread
+            self.patch_orch_thread = PatchOrchThread(self.strategy_lock,
+                                                     self.audit_rpc_client)
+            self.patch_orch_thread.start()
+            # - sw upgrade orchestration thread
+            self.sw_upgrade_orch_thread = SwUpgradeOrchThread(self.strategy_lock,
+                                                              self.audit_rpc_client)
+            self.sw_upgrade_orch_thread.start()
+            # - fw update orchestration thread
         self.fw_update_orch_thread = FwUpdateOrchThread(self.strategy_lock,
                                                         self.audit_rpc_client)
         self.fw_update_orch_thread.start()
@@ -87,12 +99,17 @@ class SwUpdateManager(manager.Manager):
 
     def stop(self):
         # Stop (and join) the worker threads
-        # - patch orchestration thread
-        self.patch_orch_thread.stop()
-        self.patch_orch_thread.join()
-        # - sw upgrade orchestration thread
-        self.sw_upgrade_orch_thread.stop()
-        self.sw_upgrade_orch_thread.join()
+        if self.use_usm:
+            # - software orchestration thread
+            self.software_orch_thread.stop()
+            self.software_orch_thread.join()
+        else:
+            # - patch orchestration thread
+            self.patch_orch_thread.stop()
+            self.patch_orch_thread.join()
+            # - sw upgrade orchestration thread
+            self.sw_upgrade_orch_thread.stop()
+            self.sw_upgrade_orch_thread.join()
         # - fw update orchestration thread
         self.fw_update_orch_thread.stop()
         self.fw_update_orch_thread.join()
