@@ -80,15 +80,16 @@ VALID_STATES_FOR_DEPLOY_BOOTSTRAP = [
     consts.DEPLOY_STATE_CREATED
 ]
 
-# TODO(vgluzrom): remove deploy_failed once 'subcloud reconfig'
-# has been deprecated
 VALID_STATES_FOR_DEPLOY_CONFIG = (
     consts.DEPLOY_STATE_DONE,
     consts.DEPLOY_STATE_PRE_CONFIG_FAILED,
     consts.DEPLOY_STATE_CONFIG_FAILED,
-    consts.DEPLOY_STATE_DEPLOY_FAILED,
     consts.DEPLOY_STATE_BOOTSTRAPPED,
-    consts.DEPLOY_STATE_CONFIG_ABORTED
+    consts.DEPLOY_STATE_CONFIG_ABORTED,
+    # The next two states are needed due to upgrade scenario:
+    # TODO(gherzman): remove states when they are no longer needed
+    consts.DEPLOY_STATE_DEPLOY_FAILED,
+    consts.DEPLOY_STATE_DEPLOY_PREP_FAILED,
 )
 
 VALID_STATES_FOR_DEPLOY_ABORT = (

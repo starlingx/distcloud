@@ -154,16 +154,6 @@ class ManagerClient(RPCClient):
                                              subcloud_id=subcloud_id,
                                              payload=payload))
 
-    def reconfigure_subcloud(self, ctxt, subcloud_id, payload):
-        return self.call(ctxt, self.make_msg('reconfigure_subcloud',
-                                             subcloud_id=subcloud_id,
-                                             payload=payload))
-
-    def reinstall_subcloud(self, ctxt, subcloud_id, payload):
-        return self.cast(ctxt, self.make_msg('reinstall_subcloud',
-                                             subcloud_id=subcloud_id,
-                                             payload=payload))
-
     def redeploy_subcloud(self, ctxt, subcloud_id, payload):
         return self.cast(ctxt, self.make_msg('redeploy_subcloud',
                                              subcloud_id=subcloud_id,

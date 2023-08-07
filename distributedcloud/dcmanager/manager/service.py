@@ -139,22 +139,6 @@ class DCManagerService(service.Service):
                                                                            payload)
 
     @request_context
-    def reconfigure_subcloud(self, context, subcloud_id, payload):
-        # Reconfigures a subcloud
-        LOG.info("Handling reconfigure_subcloud request for: %s" % subcloud_id)
-        return self.subcloud_manager.reconfigure_subcloud(context,
-                                                          subcloud_id,
-                                                          payload)
-
-    @request_context
-    def reinstall_subcloud(self, context, subcloud_id, payload):
-        # Reinstall a subcloud
-        LOG.info("Handling reinstall_subcloud request for: %s" % payload.get('name'))
-        return self.subcloud_manager.reinstall_subcloud(context,
-                                                        subcloud_id,
-                                                        payload)
-
-    @request_context
     def redeploy_subcloud(self, context, subcloud_id, payload):
         # Redeploy a subcloud
         LOG.info("Handling redeploy_subcloud request for: %s" % subcloud_id)

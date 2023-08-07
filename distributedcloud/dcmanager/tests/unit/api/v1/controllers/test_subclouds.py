@@ -29,6 +29,7 @@ from tsconfig.tsconfig import SW_VERSION
 import webtest
 
 from dccommon import consts as dccommon_consts
+from dcmanager.api.controllers.v1 import phased_subcloud_deploy as psd
 from dcmanager.api.controllers.v1 import subclouds
 from dcmanager.common import consts
 from dcmanager.common import exceptions
@@ -197,7 +198,7 @@ class SubcloudAPIMixin(APIMixin):
         "install_type": 2,
     }
 
-    list_of_post_files = subclouds.SUBCLOUD_ADD_MANDATORY_FILE
+    list_of_post_files = psd.SUBCLOUD_BOOTSTRAP_GET_FILE_CONTENTS
     bootstrap_data = copy.copy(FAKE_BOOTSTRAP_DATA)
     install_data = copy.copy(FAKE_INSTALL_DATA)
 
@@ -245,9 +246,9 @@ class SubcloudAPIMixin(APIMixin):
         for f in self.list_of_post_files:
             fake_name = f + "_fake"
             # The data in the bootstrap file needs to be dictionary syntax
-            if f == subclouds.BOOTSTRAP_VALUES:
+            if f == consts.BOOTSTRAP_VALUES:
                 fake_content = json.dumps(self.bootstrap_data).encode("utf-8")
-            elif f == subclouds.INSTALL_VALUES:
+            elif f == consts.INSTALL_VALUES:
                 fake_content = json.dumps(self.install_data).encode("utf-8")
             else:
                 fake_content = "fake content".encode("utf-8")
@@ -270,7 +271,7 @@ class TestSubcloudPost(testroot.DCManagerApiTest,
                        PostMixin):
     def setUp(self):
         super(TestSubcloudPost, self).setUp()
-        self.list_of_post_files = subclouds.SUBCLOUD_ADD_MANDATORY_FILE
+        self.list_of_post_files = psd.SUBCLOUD_BOOTSTRAP_GET_FILE_CONTENTS
         self.bootstrap_data = copy.copy(self.FAKE_BOOTSTRAP_DATA)
         self.install_data = copy.copy(self.FAKE_INSTALL_DATA)
 
@@ -345,7 +346,7 @@ class TestSubcloudPost(testroot.DCManagerApiTest,
         Example: name is a required field
         """
 
-        self.list_of_post_files = subclouds.SUBCLOUD_ADD_MANDATORY_FILE
+        self.list_of_post_files = psd.SUBCLOUD_BOOTSTRAP_GET_FILE_CONTENTS
         params = self.get_post_params()
 
         for key in self.FAKE_BOOTSTRAP_DATA:
@@ -1416,67 +1417,6 @@ class TestSubcloudAPIOther(testroot.DCManagerApiTest):
             bootstrap_address=None)
         self.assertEqual(response.status_int, 200)
 
-    @mock.patch.object(subclouds.SubcloudsController, '_get_reconfig_payload')
-    def test_reconfigure_subcloud(self, mock_get_reconfig_payload):
-        subcloud = fake_subcloud.create_fake_subcloud(self.ctx)
-        fake_password = (base64.b64encode('testpass'.encode("utf-8"))).decode('ascii')
-        data = {'sysadmin_password': fake_password}
-
-        self.mock_rpc_client().reconfigure_subcloud.return_value = True
-        mock_get_reconfig_payload.return_value = data
-
-        response = self.app.patch_json(FAKE_URL + '/' + str(subcloud.id) +
-                                       '/reconfigure',
-                                       headers=FAKE_HEADERS,
-                                       params=data)
-        self.mock_rpc_client().reconfigure_subcloud.assert_called_once_with(
-            mock.ANY,
-            subcloud.id,
-            mock.ANY)
-        self.assertEqual(response.status_int, 200)
-
-    @mock.patch.object(subclouds.SubcloudsController, '_get_reconfig_payload')
-    def test_reconfigure_subcloud_no_body(self, mock_get_reconfig_payload):
-        subcloud = fake_subcloud.create_fake_subcloud(self.ctx)
-        # Pass an empty request body
-        data = {}
-        mock_get_reconfig_payload.return_value = data
-        self.mock_rpc_client().reconfigure_subcloud.return_value = True
-
-        six.assertRaisesRegex(self, webtest.app.AppError, "400 *",
-                              self.app.patch_json, FAKE_URL + '/' +
-                              str(subcloud.id) + '/reconfigure',
-                              headers=FAKE_HEADERS, params=data)
-
-    @mock.patch.object(subclouds.SubcloudsController, '_get_reconfig_payload')
-    def test_reconfigure_subcloud_bad_password(self, mock_get_reconfig_payload):
-        subcloud = fake_subcloud.create_fake_subcloud(self.ctx)
-        # Pass a sysadmin_password which is not base64 encoded
-        data = {'sysadmin_password': 'not_base64'}
-        mock_get_reconfig_payload.return_value = data
-        self.mock_rpc_client().reconfigure_subcloud.return_value = True
-
-        six.assertRaisesRegex(self, webtest.app.AppError, "400 *",
-                              self.app.patch_json, FAKE_URL + '/' +
-                              str(subcloud.id) + '/reconfigure',
-                              headers=FAKE_HEADERS, params=data)
-
-    @mock.patch.object(subclouds.SubcloudsController, '_get_reconfig_payload')
-    def test_reconfigure_invalid_deploy_status(self,
-                                               mock_get_reconfig_payload):
-        subcloud = fake_subcloud.create_fake_subcloud(
-            self.ctx,
-            deploy_status=consts.DEPLOY_STATE_BOOTSTRAP_FAILED)
-        fake_password = base64.b64encode('testpass'.encode("utf-8")).decode("utf-8")
-        data = {'sysadmin_password': fake_password}
-        mock_get_reconfig_payload.return_value = data
-        self.mock_rpc_client().reconfigure_subcloud.return_value = True
-
-        six.assertRaisesRegex(self, webtest.app.AppError, "400 *",
-                              self.app.patch_json, FAKE_URL + '/' +
-                              str(subcloud.id) + '/reconfigure',
-                              headers=FAKE_HEADERS, params=data)
-
     @mock.patch.object(subclouds.SubcloudsController, '_get_updatestatus_payload')
     def test_subcloud_updatestatus(self, mock_get_updatestatus_payload):
         subcloud = fake_subcloud.create_fake_subcloud(self.ctx)
@@ -1551,17 +1491,17 @@ class TestSubcloudAPIOther(testroot.DCManagerApiTest):
             psd_common.format_ip_address(fake_payload)
             self.assertEqual(fake_payload['bootstrap-address'], v)
 
-        fake_payload[subclouds.INSTALL_VALUES] = {}
+        fake_payload[consts.INSTALL_VALUES] = {}
         for k, v in good_values.items():
-            fake_payload[subclouds.INSTALL_VALUES]['bmc_address'] = k
+            fake_payload[consts.INSTALL_VALUES]['bmc_address'] = k
             psd_common.format_ip_address(fake_payload)
-            self.assertEqual(fake_payload[subclouds.INSTALL_VALUES]['bmc_address'], v)
+            self.assertEqual(fake_payload[consts.INSTALL_VALUES]['bmc_address'], v)
 
         fake_payload['othervalues1'] = 'othervalues1'
-        fake_payload[subclouds.INSTALL_VALUES]['othervalues2'] = 'othervalues2'
+        fake_payload[consts.INSTALL_VALUES]['othervalues2'] = 'othervalues2'
         psd_common.format_ip_address(fake_payload)
         self.assertEqual(fake_payload['othervalues1'], 'othervalues1')
-        self.assertEqual(fake_payload[subclouds.INSTALL_VALUES]['othervalues2'], 'othervalues2')
+        self.assertEqual(fake_payload[consts.INSTALL_VALUES]['othervalues2'], 'othervalues2')
 
     def test_get_subcloud_db_install_values(self):
         install_data = copy.copy(FAKE_SUBCLOUD_INSTALL_VALUES)
@@ -1587,217 +1527,8 @@ class TestSubcloudAPIOther(testroot.DCManagerApiTest):
 
         six.assertRaisesRegex(self, webtest.app.AppError, "400 *",
                               self.app.patch_json, FAKE_URL + '/' +
-                              str(subcloud.id) + '/reinstall',
+                              str(subcloud.id) + '/redeploy',
                               headers=FAKE_HEADERS)
-
-    @mock.patch.object(cutils, 'get_vault_load_files')
-    @mock.patch.object(psd_common, 'upload_deploy_config_file')
-    @mock.patch.object(psd_common, 'validate_k8s_version')
-    @mock.patch.object(psd_common, 'validate_subcloud_config')
-    @mock.patch.object(psd_common, 'validate_bootstrap_values')
-    def test_reinstall_subcloud(
-            self, mock_validate_bootstrap_values, mock_validate_subcloud_config,
-            mock_validate_k8s_version, mock_upload_deploy_config_file,
-            mock_get_vault_load_files):
-
-        encoded_password = base64.b64encode(
-            'bmc_password'.encode("utf-8")).decode('utf-8')
-
-        data_install = {**FAKE_SUBCLOUD_INSTALL_VALUES,
-                        'bmc_password': encoded_password}
-
-        subcloud = fake_subcloud.create_fake_subcloud(
-            self.ctx, name=fake_subcloud.FAKE_BOOTSTRAP_FILE_DATA["name"],
-            data_install=json.dumps(data_install))
-
-        fake_bootstrap_content = json.dumps(
-            fake_subcloud.FAKE_BOOTSTRAP_FILE_DATA).encode("utf-8")
-
-        mock_get_vault_load_files.return_value = ('iso_file_path', 'sig_file_path')
-
-        params = {'sysadmin_password': encoded_password}
-
-        response = self.app.patch(
-            FAKE_URL + '/' + str(subcloud.id) + '/reinstall',
-            headers=FAKE_HEADERS, params=params,
-            upload_files=[("bootstrap_values",
-                           "bootstrap_fake_filename",
-                           fake_bootstrap_content)])
-
-        mock_validate_bootstrap_values.assert_called_once()
-        mock_validate_subcloud_config.assert_called_once()
-        mock_validate_k8s_version.assert_called_once()
-        self.mock_rpc_client().reinstall_subcloud.assert_called_once_with(
-            mock.ANY,
-            subcloud.id,
-            mock.ANY)
-        self.assertEqual(response.status_int, 200)
-
-        mock_upload_deploy_config_file.assert_called_once()
-        self.assertEqual(SW_VERSION, response.json['software-version'])
-
-    @mock.patch.object(psd_common, 'check_required_parameters')
-    @mock.patch.object(cutils, 'get_vault_load_files')
-    @mock.patch.object(psd_common, 'upload_deploy_config_file')
-    @mock.patch.object(psd_common, 'validate_k8s_version')
-    @mock.patch.object(psd_common, 'validate_subcloud_config')
-    @mock.patch.object(psd_common, 'validate_bootstrap_values')
-    @mock.patch.object(psd_common, 'get_subcloud_db_install_values')
-    @mock.patch.object(psd_common, 'get_request_data')
-    def test_reinstall_subcloud_with_release_parameter(
-            self, mock_get_request_data, mock_get_subcloud_db_install_values,
-            mock_validate_install_parameters, mock_validate_subcloud_config,
-            mock_validate_k8s_version, mock_upload_deploy_config_file,
-            mock_get_vault_load_files, mock_check_required_parameters):
-
-        software_version = '21.12'
-        subcloud = fake_subcloud.create_fake_subcloud(self.ctx)
-        install_data = copy.copy(FAKE_SUBCLOUD_INSTALL_VALUES)
-        reinstall_data = copy.copy(FAKE_SUBCLOUD_BOOTSTRAP_PAYLOAD)
-        reinstall_data['release'] = software_version
-        mock_get_request_data.return_value = reinstall_data
-
-        encoded_password = base64.b64encode(
-            'bmc_password'.encode("utf-8")).decode('utf-8')
-        bmc_password = {'bmc_password': encoded_password}
-        install_data.update(bmc_password)
-        mock_get_subcloud_db_install_values.return_value = install_data
-
-        self.mock_rpc_client().reinstall_subcloud.return_value = True
-        mock_get_vault_load_files.return_value = ('iso_file_path', 'sig_file_path')
-
-        response = self.app.patch_json(
-            FAKE_URL + '/' + str(subcloud.id) + '/reinstall',
-            headers=FAKE_HEADERS, params=reinstall_data)
-
-        mock_validate_install_parameters.assert_called_once()
-        mock_validate_subcloud_config.assert_called_once()
-        self.mock_rpc_client().reinstall_subcloud.assert_called_once_with(
-            mock.ANY,
-            subcloud.id,
-            mock.ANY)
-        self.assertEqual(response.status_int, 200)
-
-        mock_validate_k8s_version.assert_called_once()
-        mock_upload_deploy_config_file.assert_called_once()
-        self.assertEqual(software_version, response.json['software-version'])
-        self.assertIn(software_version,
-                      json.loads(response.json['data_install'])['software_version'])
-
-    @mock.patch.object(cutils, 'get_vault_load_files')
-    @mock.patch.object(psd_common, 'get_subcloud_db_install_values')
-    @mock.patch.object(psd_common, 'validate_bootstrap_values')
-    @mock.patch.object(psd_common, 'get_request_data')
-    def test_reinstall_subcloud_no_body(
-            self, mock_get_request_data, mock_validate_install_parameters,
-            mock_get_subcloud_db_install_values, mock_get_vault_load_files):
-
-        subcloud = fake_subcloud.create_fake_subcloud(self.ctx)
-        install_data = copy.copy(FAKE_SUBCLOUD_INSTALL_VALUES)
-        mock_get_request_data.return_value = {}
-        encoded_password = base64.b64encode(
-            'bmc_password'.encode("utf-8")).decode('utf-8')
-        bmc_password = {'bmc_password': encoded_password}
-        install_data.update(bmc_password)
-
-        mock_validate_install_parameters.assert_not_called()
-        mock_get_subcloud_db_install_values.return_value = install_data
-        self.mock_rpc_client().reinstall_subcloud.return_value = True
-        six.assertRaisesRegex(self, webtest.app.AppError, "400 *",
-                              self.app.patch_json, FAKE_URL + '/' +
-                              str(subcloud.id) + '/reinstall',
-                              headers=FAKE_HEADERS, params={})
-
-    @mock.patch.object(cutils, 'get_vault_load_files')
-    @mock.patch.object(psd_common, 'get_subcloud_db_install_values')
-    @mock.patch.object(psd_common, 'validate_bootstrap_values')
-    @mock.patch.object(psd_common, 'get_request_data')
-    def test_reinstall_online_subcloud(
-            self, mock_get_request_data, mock_validate_install_parameters,
-            mock_get_subcloud_db_install_values, mock_get_vault_load_files):
-
-        subcloud = fake_subcloud.create_fake_subcloud(self.ctx)
-        db_api.subcloud_update(
-            self.ctx, subcloud.id,
-            availability_status=dccommon_consts.AVAILABILITY_ONLINE
-        )
-        install_data = copy.copy(FAKE_SUBCLOUD_INSTALL_VALUES)
-        reinstall_data = copy.copy(FAKE_SUBCLOUD_BOOTSTRAP_PAYLOAD)
-        mock_get_request_data.return_value = reinstall_data
-        encoded_password = base64.b64encode(
-            'bmc_password'.encode("utf-8")).decode('utf-8')
-        bmc_password = {'bmc_password': encoded_password}
-        install_data.update(bmc_password)
-
-        mock_validate_install_parameters.assert_not_called()
-        mock_get_subcloud_db_install_values.return_value = install_data
-        self.mock_rpc_client().reinstall_subcloud.return_value = True
-        six.assertRaisesRegex(self, webtest.app.AppError, "400 *",
-                              self.app.patch_json, FAKE_URL + '/' +
-                              str(subcloud.id) + '/reinstall',
-                              headers=FAKE_HEADERS, params={})
-
-    @mock.patch.object(psd_common, 'get_subcloud_db_install_values')
-    @mock.patch.object(psd_common, 'get_request_data')
-    def test_reinstall_subcloud_missing_required_value(
-            self, mock_get_request_data, mock_get_subcloud_db_install_values):
-
-        subcloud = fake_subcloud.create_fake_subcloud(self.ctx)
-        install_data = copy.copy(FAKE_SUBCLOUD_INSTALL_VALUES)
-
-        encoded_password = base64.b64encode(
-            'bmc_password'.encode("utf-8")).decode('utf-8')
-        bmc_password = {'bmc_password': encoded_password}
-        install_data.update(bmc_password)
-        mock_get_subcloud_db_install_values.return_value = install_data
-        self.mock_rpc_client().reinstall_subcloud.return_value = True
-
-        for k in ['name', 'system_mode', 'external_oam_subnet',
-                  'external_oam_gateway_address', 'external_oam_floating_address',
-                  'sysadmin_password']:
-            reinstall_data = copy.copy(FAKE_SUBCLOUD_BOOTSTRAP_PAYLOAD)
-            del reinstall_data[k]
-            mock_get_request_data.return_value = reinstall_data
-            six.assertRaisesRegex(self, webtest.app.AppError, "400 *",
-                                  self.app.patch_json, FAKE_URL + '/' +
-                                  str(subcloud.id) + '/reinstall',
-                                  headers=FAKE_HEADERS, params=reinstall_data)
-
-    @mock.patch.object(psd_common, 'check_required_parameters')
-    @mock.patch.object(cutils, 'get_vault_load_files')
-    @mock.patch.object(psd_common, 'get_subcloud_db_install_values')
-    @mock.patch.object(psd_common, 'validate_k8s_version')
-    @mock.patch.object(psd_common, 'validate_subcloud_config')
-    @mock.patch.object(psd_common, 'validate_bootstrap_values')
-    @mock.patch.object(psd_common, 'get_request_data')
-    def test_reinstall_subcloud_missing_stored_value(
-            self, mock_get_request_data, mock_validate_install_parameters,
-            mock_validate_subcloud_config, mock_validate_k8s_version,
-            mock_get_subcloud_db_install_values, mock_get_vault_load_files,
-            mock_check_required_parameters):
-
-        subcloud = fake_subcloud.create_fake_subcloud(self.ctx)
-        install_data = copy.copy(FAKE_SUBCLOUD_INSTALL_VALUES)
-
-        encoded_password = base64.b64encode(
-            'bmc_password'.encode("utf-8")).decode('utf-8')
-        bmc_password = {'bmc_password': encoded_password}
-        install_data.update(bmc_password)
-        mock_get_subcloud_db_install_values.return_value = install_data
-
-        self.mock_rpc_client().reinstall_subcloud.return_value = True
-        mock_get_vault_load_files.return_value = ('iso_file_path', 'sig_file_path')
-
-        for k in ['management_subnet', 'management_start_address',
-                  'management_end_address', 'management_gateway_address',
-                  'systemcontroller_gateway_address']:
-            reinstall_data = copy.copy(FAKE_SUBCLOUD_BOOTSTRAP_PAYLOAD)
-            del reinstall_data[k]
-            mock_get_request_data.return_value = reinstall_data
-            response = self.app.patch_json(
-                FAKE_URL + '/' + str(subcloud.id) + '/reinstall',
-                headers=FAKE_HEADERS, params=reinstall_data)
-            self.assertEqual(response.status_int, 200)
 
     @mock.patch.object(psd_common, 'upload_config_file')
     @mock.patch.object(psd_common.PatchingClient, 'query')

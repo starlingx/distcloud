@@ -112,9 +112,12 @@ class SubcloudAuditWorkerManager(manager.Manager):
             # so that the subcloud can be set as offline
             if (subcloud.deploy_status not in
                     [consts.DEPLOY_STATE_DONE,
-                     consts.DEPLOY_STATE_DEPLOYING,
-                     consts.DEPLOY_STATE_DEPLOY_FAILED,
+                     consts.DEPLOY_STATE_CONFIGURING,
+                     consts.DEPLOY_STATE_CONFIG_FAILED,
+                     consts.DEPLOY_STATE_CONFIG_ABORTED,
+                     consts.DEPLOY_STATE_PRE_CONFIG_FAILED,
                      consts.DEPLOY_STATE_INSTALL_FAILED,
+                     consts.DEPLOY_STATE_INSTALL_ABORTED,
                      consts.DEPLOY_STATE_PRE_INSTALL_FAILED,
                      consts.DEPLOY_STATE_DATA_MIGRATION_FAILED,
                      consts.DEPLOY_STATE_MIGRATED,

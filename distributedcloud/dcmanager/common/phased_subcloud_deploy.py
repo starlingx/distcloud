@@ -37,7 +37,6 @@ ANSIBLE_BOOTSTRAP_VALIDATE_CONFIG_VARS = \
 FRESH_INSTALL_K8S_VERSION = 'fresh_install_k8s_version'
 KUBERNETES_VERSION = 'kubernetes_version'
 
-INSTALL_VALUES = 'install_values'
 INSTALL_VALUES_ADDRESSES = [
     'bootstrap_address', 'bmc_address', 'nexthop_gateway',
     'network_address'
@@ -700,16 +699,16 @@ def format_ip_address(payload):
         The IPv6 addresses can be represented in multiple ways. Format and
         update the IP addresses in payload before saving it to database.
     """
-    if INSTALL_VALUES in payload:
+    if consts.INSTALL_VALUES in payload:
         for k in INSTALL_VALUES_ADDRESSES:
-            if k in payload[INSTALL_VALUES]:
+            if k in payload[consts.INSTALL_VALUES]:
                 try:
-                    address = netaddr.IPAddress(payload[INSTALL_VALUES]
+                    address = netaddr.IPAddress(payload[consts.INSTALL_VALUES]
                                                 .get(k)).format()
                 except netaddr.AddrFormatError as e:
                     LOG.exception(e)
                     pecan.abort(400, _("%s invalid: %s") % (k, e))
-                payload[INSTALL_VALUES].update({k: address})
+                payload[consts.INSTALL_VALUES].update({k: address})
 
     for k in BOOTSTRAP_VALUES_ADDRESSES:
         if k in payload:

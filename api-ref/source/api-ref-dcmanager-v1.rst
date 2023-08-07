@@ -404,151 +404,6 @@ Response Example
       :language: json
 
 
-**********************************
-Reconfigures a specific subcloud
-**********************************
-
-.. rest_method:: PATCH /v1.0/subclouds/{subcloud}/reconfigure
-
-The attributes of a subcloud which are modifiable:
-
--  subcloud configuration (which is provided through deploy_config file)
-
-**Normal response codes**
-
-200
-
-**Error response codes**
-
-badRequest (400), unauthorized (401), forbidden (403), badMethod (405),
-HTTPUnprocessableEntity (422), internalServerError (500),
-serviceUnavailable (503)
-
-**Request parameters**
-
-.. rest_parameters:: parameters.yaml
-
-  - subcloud: subcloud_uri
-  - deploy_config: deploy_config
-  - sysadmin_password: sysadmin_password
-
-Accepts Content-Type multipart/form-data
-
-Request Example
-----------------
-
-.. literalinclude:: samples/subclouds/subcloud-patch-reconfigure-request.json
-      :language: json
-
-**Response parameters**
-
-.. rest_parameters:: parameters.yaml
-
-  - id: subcloud_id
-  - group_id: group_id
-  - name: subcloud_name
-  - description: subcloud_description
-  - location: subcloud_location
-  - software-version: software_version
-  - availability-status: availability_status
-  - error-description: error_description
-  - deploy-status: deploy_status
-  - backup-status: backup_status
-  - backup-datetime: backup_datetime
-  - openstack-installed: openstack_installed
-  - management-state: management_state
-  - systemcontroller-gateway-ip: systemcontroller_gateway_ip
-  - management-start-ip: management_start_ip
-  - management-end-ip: management_end_ip
-  - management-subnet: management_subnet
-  - management-gateway-ip: management_gateway_ip
-  - created-at: created_at
-  - updated-at: updated_at
-  - data_install: data_install
-  - data_upgrade: data_upgrade
-  - endpoint_sync_status: endpoint_sync_status
-  - sync_status: sync_status
-  - endpoint_type: sync_status_type
-
-Response Example
-----------------
-
-.. literalinclude:: samples/subclouds/subcloud-patch-reconfigure-response.json
-      :language: json
-
-
-********************************
-Reinstalls a specific subcloud
-********************************
-
-.. rest_method:: PATCH /v1.0/subclouds/{subcloud}/reinstall
-
-Reinstall and bootstrap a subcloud based on its previous install configurations.
-After reinstall, a reconfigure operation with deploy_config file is expected
-to deploy the subcloud.
-
-**Normal response codes**
-
-200
-
-**Error response codes**
-
-badRequest (400), unauthorized (401), forbidden (403), badMethod (405),
-HTTPUnprocessableEntity (422), internalServerError (500),
-serviceUnavailable (503)
-
-**Request parameters**
-
-.. rest_parameters:: parameters.yaml
-
-  - subcloud: subcloud_uri
-  - bootstrap_values: bootstrap_values
-  - deploy_config: deploy_config
-  - release: release
-  - sysadmin_password: sysadmin_password
-
-Request Example
-----------------
-
-.. literalinclude:: samples/subclouds/subcloud-patch-reinstall-request.json
-      :language: json
-
-**Response parameters**
-
-.. rest_parameters:: parameters.yaml
-
-  - id: subcloud_id
-  - group_id: group_id
-  - name: subcloud_name
-  - description: subcloud_description
-  - location: subcloud_location
-  - software-version: software_version
-  - availability-status: availability_status
-  - error-description: error_description
-  - deploy-status: deploy_status
-  - backup-status: backup_status
-  - backup-datetime: backup_datetime
-  - openstack-installed: openstack_installed
-  - management-state: management_state
-  - systemcontroller-gateway-ip: systemcontroller_gateway_ip
-  - management-start-ip: management_start_ip
-  - management-end-ip: management_end_ip
-  - management-subnet: management_subnet
-  - management-gateway-ip: management_gateway_ip
-  - created-at: created_at
-  - updated-at: updated_at
-  - data_install: data_install
-  - data_upgrade: data_upgrade
-  - endpoint_sync_status: endpoint_sync_status
-  - sync_status: sync_status
-  - endpoint_type: sync_status_type
-
-Response Example
-----------------
-
-.. literalinclude:: samples/subclouds/subcloud-patch-reinstall-response.json
-      :language: json
-
 ********************************
 Redeploy a specific subcloud
 ********************************
@@ -2064,7 +1919,7 @@ Response Example
 Installs a subcloud
 **********************************
 
-.. rest_method:: POST /v1.0/phased-subcloud-deploy/{subcloud}/install
+.. rest_method:: PATCH /v1.0/phased-subcloud-deploy/{subcloud}/install
 
 **Normal response codes**
 
@@ -2341,7 +2196,7 @@ Response Example
 Resume subcloud deployment
 ****************************
 
-.. rest_method:: POST /v1.0/phased-subcloud-deploy
+.. rest_method:: PATCH /v1.0/phased-subcloud-deploy/{subcloud}/resume
 
 Accepts Content-Type multipart/form-data.
 
@@ -2360,6 +2215,7 @@ serviceUnavailable (503)
 
 .. rest_parameters:: parameters.yaml
 
+  - subcloud: subcloud_uri
   - bmc_password: bmc_password
   - bootstrap-address: bootstrap_address
   - bootstrap_values: bootstrap_values

@@ -62,51 +62,21 @@ LOG = logging.getLogger(__name__)
 
 LOCK_NAME = 'SubcloudsController'
 
-BOOTSTRAP_VALUES = 'bootstrap_values'
-INSTALL_VALUES = 'install_values'
-
-SUBCLOUD_ADD_MANDATORY_FILE = [
-    BOOTSTRAP_VALUES,
-]
-
-SUBCLOUD_RECONFIG_MANDATORY_FILE = [
-    consts.DEPLOY_CONFIG,
-]
-
 SUBCLOUD_ADD_GET_FILE_CONTENTS = [
-    BOOTSTRAP_VALUES,
-    INSTALL_VALUES,
+    consts.BOOTSTRAP_VALUES,
+    consts.INSTALL_VALUES,
 ]
 
 SUBCLOUD_REDEPLOY_GET_FILE_CONTENTS = [
-    INSTALL_VALUES,
-    BOOTSTRAP_VALUES,
+    consts.INSTALL_VALUES,
+    consts.BOOTSTRAP_VALUES,
     consts.DEPLOY_CONFIG
-]
-
-BOOTSTRAP_VALUES_ADDRESSES = [
-    'bootstrap-address', 'bootstrap_address', 'management_start_address', 'management_end_address',
-    'management_gateway_address', 'systemcontroller_gateway_address',
-    'external_oam_gateway_address', 'external_oam_floating_address',
-    'admin_start_address', 'admin_end_address', 'admin_gateway_address'
-]
-
-INSTALL_VALUES_ADDRESSES = [
-    'bootstrap_address', 'bmc_address', 'nexthop_gateway',
-    'network_address'
 ]
 
 SUBCLOUD_MANDATORY_NETWORK_PARAMS = [
     'management_subnet', 'management_gateway_ip',
     'management_start_ip', 'management_end_ip'
 ]
-
-ANSIBLE_BOOTSTRAP_VALIDATE_CONFIG_VARS = \
-    consts.ANSIBLE_CURRENT_VERSION_BASE_PATH + \
-    '/roles/bootstrap/validate-config/vars/main.yml'
-
-FRESH_INSTALL_K8S_VERSION = 'fresh_install_k8s_version'
-KUBERNETES_VERSION = 'kubernetes_version'
 
 
 def _get_multipart_field_name(part):
@@ -146,7 +116,7 @@ class SubcloudsController(object):
             field_content = part.text
 
             # only the install_values field is yaml, force should be bool
-            if field_name in [INSTALL_VALUES, 'force']:
+            if field_name in [consts.INSTALL_VALUES, 'force']:
                 field_content = yaml.safe_load(field_content)
 
             payload[field_name] = field_content
@@ -187,27 +157,6 @@ class SubcloudsController(object):
                             400, _('Invalid value for force option: %s' % val))
                 elif field == consts.PRESTAGE_REQUEST_RELEASE:
                     payload[consts.PRESTAGE_REQUEST_RELEASE] = val
-        return payload
-
-    def _get_reconfig_payload(self, request, subcloud_name, software_version):
-        payload = dict()
-        multipart_data = decoder.MultipartDecoder(
-            request.body, pecan.request.headers.get('Content-Type'))
-
-        for filename in SUBCLOUD_RECONFIG_MANDATORY_FILE:
-            for part in multipart_data.parts:
-                for hk, hv in part.headers.items():
-                    hv = hv.decode('utf8')
-                    if hk.decode('utf8') == 'Content-Disposition':
-                        if filename in hv:
-                            fn = psd_common.get_config_file_path(
-                                subcloud_name, consts.DEPLOY_CONFIG)
-                            psd_common.upload_config_file(
-                                part.content, fn, consts.DEPLOY_CONFIG)
-                            payload.update({consts.DEPLOY_CONFIG: fn})
-                        elif "sysadmin_password" in hv:
-                            payload.update({'sysadmin_password': part.content})
-        psd_common.get_common_deploy_files(payload, software_version)
         return payload
 
     @staticmethod
@@ -382,8 +331,8 @@ class SubcloudsController(object):
             re.search(r"err_code\s*=\s*(\S*)", err_msg[0], re.IGNORECASE)
         if err_code and err_code.group(1) in err_dict:
             err_msg.append(err_dict.get(err_code.group(1)))
-        if status == consts.DEPLOY_STATE_DEPLOY_FAILED:
-            err_msg.append(err_dict.get(consts.DEPLOY_ERROR_MSG))
+        if status == consts.DEPLOY_STATE_CONFIG_FAILED:
+            err_msg.append(err_dict.get(consts.CONFIG_ERROR_MSG))
         elif status == consts.DEPLOY_STATE_BOOTSTRAP_FAILED:
             err_msg.append(err_dict.get(consts.BOOTSTRAP_ERROR_MSG))
         subcloud['error-description'] = '\n'.join(err_msg)
@@ -661,9 +610,9 @@ class SubcloudsController(object):
                         exceptions.SubcloudGroupNotFound):
                     pecan.abort(400, _('Invalid group'))
 
-            if INSTALL_VALUES in payload:
+            if consts.INSTALL_VALUES in payload:
                 psd_common.validate_install_values(payload, subcloud)
-                payload['data_install'] = json.dumps(payload[INSTALL_VALUES])
+                payload['data_install'] = json.dumps(payload[consts.INSTALL_VALUES])
 
             try:
                 if reconfigure_network:
@@ -684,138 +633,7 @@ class SubcloudsController(object):
                 # additional exceptions.
                 LOG.exception(e)
                 pecan.abort(500, _('Unable to update subcloud'))
-        elif verb == 'reconfigure':
-            if utils.subcloud_is_secondary_state(subcloud.deploy_status):
-                pecan.abort(500, _("Cannot perform on %s "
-                                   "state subcloud" % subcloud.deploy_status))
-            payload = self._get_reconfig_payload(
-                request, subcloud.name, subcloud.software_version)
-            if not payload:
-                pecan.abort(400, _('Body required'))
 
-            if (subcloud.deploy_status
-                    not in [consts.DEPLOY_STATE_DONE,
-                            consts.DEPLOY_STATE_DEPLOY_PREP_FAILED,
-                            consts.DEPLOY_STATE_DEPLOY_FAILED]
-                    and not prestage.is_deploy_status_prestage(
-                        subcloud.deploy_status)):
-                pecan.abort(400,
-                            _('Subcloud deploy status must be either '
-                              'complete, deploy-prep-failed, deploy-failed, '
-                              'or prestage-...'))
-            sysadmin_password = \
-                payload.get('sysadmin_password')
-            if not sysadmin_password:
-                pecan.abort(400, _('subcloud sysadmin_password required'))
-
-            try:
-                payload['sysadmin_password'] = \
-                    utils.decode_and_normalize_passwd(sysadmin_password)
-            except Exception:
-                msg = _('Failed to decode subcloud sysadmin_password, '
-                        'verify the password is base64 encoded')
-                LOG.exception(msg)
-                pecan.abort(400, msg)
-
-            try:
-                subcloud = self.dcmanager_rpc_client.reconfigure_subcloud(
-                    context, subcloud_id, payload)
-                return subcloud
-            except RemoteError as e:
-                pecan.abort(422, e.value)
-            except Exception:
-                LOG.exception("Unable to reconfigure subcloud %s" % subcloud.name)
-                pecan.abort(500, _('Unable to reconfigure subcloud'))
-        elif verb == "reinstall":
-            if utils.subcloud_is_secondary_state(subcloud.deploy_status):
-                pecan.abort(500, _("Cannot perform on %s "
-                                   "state subcloud" % subcloud.deploy_status))
-            psd_common.check_required_parameters(request,
-                                                 SUBCLOUD_ADD_MANDATORY_FILE)
-
-            payload = psd_common.get_request_data(
-                request, subcloud, SUBCLOUD_ADD_GET_FILE_CONTENTS)
-
-            install_values = psd_common.get_subcloud_db_install_values(subcloud)
-
-            if subcloud.availability_status == dccommon_consts.AVAILABILITY_ONLINE:
-                msg = _('Cannot re-install an online subcloud')
-                LOG.exception(msg)
-                pecan.abort(400, msg)
-
-            psd_common.validate_bootstrap_values(payload)
-
-            psd_common.validate_sysadmin_password(payload)
-
-            if payload.get('name') != subcloud.name:
-                pecan.abort(400, _('name is incorrect for the subcloud'))
-
-            psd_common.validate_subcloud_config(context, payload, verb)
-
-            # If a subcloud release is not passed, use the current
-            # system controller software_version
-            payload['software_version'] = payload.get('release', tsc.SW_VERSION)
-
-            psd_common.validate_k8s_version(payload)
-
-            # If the software version of the subcloud is different from the
-            # specified or active load, update the software version in install
-            # value and delete the image path in install values, then the subcloud
-            # will be reinstalled using the image in dc_vault.
-            if install_values.get(
-                    'software_version') != payload['software_version']:
-                install_values['software_version'] = payload['software_version']
-                install_values.pop('image', None)
-
-            # Confirm the specified or active load is still in dc-vault if
-            # image not in install values, add the matching image into the
-            # install values.
-            matching_iso, err_msg = utils.get_matching_iso(
-                payload['software_version'])
-            if err_msg:
-                LOG.exception(err_msg)
-                pecan.abort(400, _(err_msg))
-            LOG.info("Image in install_values is set to %s" % matching_iso)
-            install_values['image'] = matching_iso
-
-            # Update the install values in payload
-            payload.update({
-                'bmc_password': install_values.get('bmc_password'),
-                'install_values': install_values,
-            })
-
-            # Update data install(software version, image path)
-            data_install = None
-            if 'install_values' in payload:
-                data_install = json.dumps(payload['install_values'])
-
-            # Upload the deploy config files if it is included in the request
-            psd_common.upload_deploy_config_file(request, payload)
-
-            try:
-                # Align the software version of the subcloud with reinstall
-                # version. Update description, location and group id if offered,
-                # update the deploy status as pre-install.
-                subcloud = db_api.subcloud_update(
-                    context,
-                    subcloud_id,
-                    description=payload.get('description', subcloud.description),
-                    location=payload.get('location', subcloud.location),
-                    software_version=payload['software_version'],
-                    management_state=dccommon_consts.MANAGEMENT_UNMANAGED,
-                    deploy_status=consts.DEPLOY_STATE_PRE_INSTALL,
-                    first_identity_sync_complete=False,
-                    data_install=data_install)
-
-                self.dcmanager_rpc_client.reinstall_subcloud(
-                    context, subcloud_id, payload)
-
-                return db_api.subcloud_db_model_to_dict(subcloud)
-            except RemoteError as e:
-                pecan.abort(422, e.value)
-            except Exception:
-                LOG.exception("Unable to reinstall subcloud %s" % subcloud.name)
-                pecan.abort(500, _('Unable to reinstall subcloud'))
         elif verb == "redeploy":
             if utils.subcloud_is_secondary_state(subcloud.deploy_status):
                 pecan.abort(500, _("Cannot perform on %s "
@@ -845,7 +663,7 @@ class SubcloudsController(object):
             # values if this phase should be executed.
             files_for_redeploy = SUBCLOUD_REDEPLOY_GET_FILE_CONTENTS.copy()
             if has_bootstrap_values:
-                files_for_redeploy.remove(BOOTSTRAP_VALUES)
+                files_for_redeploy.remove(consts.BOOTSTRAP_VALUES)
             if not has_config_values:
                 files_for_redeploy.remove(consts.DEPLOY_CONFIG)
 
@@ -883,9 +701,19 @@ class SubcloudsController(object):
             except Exception:
                 LOG.exception("Unable to redeploy subcloud %s" % subcloud.name)
                 pecan.abort(500, _('Unable to redeploy subcloud'))
+
         elif verb == "restore":
             pecan.abort(410, _('This API is deprecated. '
                                'Please use /v1.0/subcloud-backup/restore'))
+
+        elif verb == "reconfigure":
+            pecan.abort(410, _('This API is deprecated. '
+                               'Please use /v1.0/phased-subcloud-deploy/{subcloud}/configure'))
+
+        elif verb == "reinstall":
+            pecan.abort(410, _('This API is deprecated. '
+                               'Please use /v1.0/subclouds/{subcloud}/redeploy'))
+
         elif verb == 'update_status':
             res = self.updatestatus(subcloud.name)
             return res

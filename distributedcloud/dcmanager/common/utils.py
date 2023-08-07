@@ -133,8 +133,7 @@ def validate_network_str(network_str, minimum_size, existing_networks=None,
                                           "least %d addresses" % minimum_size)
         elif network.version == 6 and network.prefixlen < 64:
             raise exceptions.ValidateFail("IPv6 minimum prefix length is 64")
-        elif existing_networks and (operation != 'reinstall'
-                                    and operation != 'redeploy'):
+        elif existing_networks and operation != 'redeploy':
             if any(network.ip in subnet for subnet in existing_networks):
                 raise exceptions.ValidateFail("Subnet overlaps with another "
                                               "configured subnet")

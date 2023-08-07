@@ -105,8 +105,7 @@ SC_INTERMEDIATE_CERT_RENEW_BEFORE = "720h"  # 30 days
 CERT_NAMESPACE = "dc-cert"
 
 TRANSITORY_STATES = {
-    consts.DEPLOY_STATE_NONE: consts.DEPLOY_STATE_DEPLOY_PREP_FAILED,
-    consts.DEPLOY_STATE_PRE_DEPLOY: consts.DEPLOY_STATE_DEPLOY_PREP_FAILED,
+    consts.DEPLOY_STATE_NONE: consts.DEPLOY_STATE_CREATE_FAILED,
     consts.DEPLOY_STATE_CREATING: consts.DEPLOY_STATE_CREATE_FAILED,
     consts.DEPLOY_STATE_PRE_INSTALL: consts.DEPLOY_STATE_PRE_INSTALL_FAILED,
     consts.DEPLOY_STATE_INSTALLING: consts.DEPLOY_STATE_INSTALL_FAILED,
@@ -114,15 +113,20 @@ TRANSITORY_STATES = {
     consts.DEPLOY_STATE_BOOTSTRAPPING: consts.DEPLOY_STATE_BOOTSTRAP_FAILED,
     consts.DEPLOY_STATE_PRE_CONFIG: consts.DEPLOY_STATE_PRE_CONFIG_FAILED,
     consts.DEPLOY_STATE_CONFIGURING: consts.DEPLOY_STATE_CONFIG_FAILED,
-    consts.DEPLOY_STATE_DEPLOYING: consts.DEPLOY_STATE_DEPLOY_FAILED,
     consts.DEPLOY_STATE_ABORTING_INSTALL: consts.DEPLOY_STATE_INSTALL_FAILED,
     consts.DEPLOY_STATE_ABORTING_BOOTSTRAP: consts.DEPLOY_STATE_BOOTSTRAP_FAILED,
     consts.DEPLOY_STATE_ABORTING_CONFIG: consts.DEPLOY_STATE_CONFIG_FAILED,
     consts.DEPLOY_STATE_MIGRATING_DATA: consts.DEPLOY_STATE_DATA_MIGRATION_FAILED,
     consts.DEPLOY_STATE_PRE_RESTORE: consts.DEPLOY_STATE_RESTORE_PREP_FAILED,
     consts.DEPLOY_STATE_RESTORING: consts.DEPLOY_STATE_RESTORE_FAILED,
+    consts.DEPLOY_STATE_PRE_REHOME: consts.DEPLOY_STATE_REHOME_PREP_FAILED,
+    consts.DEPLOY_STATE_REHOMING: consts.DEPLOY_STATE_REHOME_FAILED,
     consts.PRESTAGE_STATE_PACKAGES: consts.PRESTAGE_STATE_FAILED,
     consts.PRESTAGE_STATE_IMAGES: consts.PRESTAGE_STATE_FAILED,
+    # The next two states are needed due to upgrade scenario:
+    # TODO(gherzman): remove states when they are no longer needed
+    consts.DEPLOY_STATE_PRE_DEPLOY: consts.DEPLOY_STATE_PRE_CONFIG_FAILED,
+    consts.DEPLOY_STATE_DEPLOYING: consts.DEPLOY_STATE_CONFIG_FAILED,
 }
 
 
@@ -447,122 +451,6 @@ class SubcloudManager(manager.Manager):
                 context, subcloud_id, deploy_status=consts.DEPLOY_STATE_DONE)
 
         LOG.info(f"Finished adding subcloud {subcloud['name']}.")
-
-    def reconfigure_subcloud(self, context, subcloud_id, payload):
-        """Reconfigure subcloud
-
-        :param context: request context object
-        :param subcloud_id: id of the subcloud
-        :param payload: subcloud configuration
-        """
-        LOG.info("Reconfiguring subcloud %s." % subcloud_id)
-
-        subcloud = db_api.subcloud_update(
-            context, subcloud_id,
-            deploy_status=consts.DEPLOY_STATE_PRE_DEPLOY)
-        try:
-            # Ansible inventory filename for the specified subcloud
-            ansible_subcloud_inventory_file = self._get_ansible_filename(
-                subcloud.name, INVENTORY_FILE_POSTFIX)
-
-            config_command = None
-            if "deploy_playbook" in payload:
-                self._prepare_for_deployment(payload, subcloud.name)
-                config_command = self.compose_config_command(
-                    subcloud.name,
-                    ansible_subcloud_inventory_file,
-                    payload)
-
-            del payload['sysadmin_password']
-            apply_thread = threading.Thread(
-                target=self.run_deploy_thread,
-                args=(subcloud, payload, context, None, None, config_command))
-            apply_thread.start()
-            return db_api.subcloud_db_model_to_dict(subcloud)
-        except Exception:
-            LOG.exception("Failed to create subcloud %s" % subcloud.name)
-            # If we failed to create the subcloud, update the
-            # deployment status
-            db_api.subcloud_update(
-                context, subcloud_id,
-                deploy_status=consts.DEPLOY_STATE_DEPLOY_PREP_FAILED)
-
-    def reinstall_subcloud(self, context, subcloud_id, payload):
-        """Reinstall subcloud
-
-        :param context: request context object
-        :param subcloud_id: subcloud id from db
-        :param payload: subcloud reinstall
-        """
-
-        # Retrieve the subcloud details from the database
-        subcloud = db_api.subcloud_get(context, subcloud_id)
-
-        LOG.info("Reinstalling subcloud %s." % subcloud_id)
-
-        try:
-            ansible_subcloud_inventory_file = self._get_ansible_filename(
-                subcloud.name, INVENTORY_FILE_POSTFIX)
-
-            m_ks_client = OpenStackDriver(
-                region_name=dccommon_consts.DEFAULT_REGION_NAME,
-                region_clients=None).keystone_client
-            cached_regionone_data = self._get_cached_regionone_data(m_ks_client)
-            self._populate_payload_with_cached_keystone_data(
-                cached_regionone_data, payload)
-
-            payload['install_values']['ansible_ssh_pass'] = \
-                payload['sysadmin_password']
-            payload['install_values']['ansible_become_pass'] = \
-                payload['sysadmin_password']
-            payload['bootstrap-address'] = \
-                payload['install_values']['bootstrap_address']
-
-            config_command = None
-            if "deploy_playbook" in payload:
-                self._prepare_for_deployment(payload, subcloud.name)
-                config_command = self.compose_config_command(
-                    subcloud.name,
-                    ansible_subcloud_inventory_file,
-                    payload)
-            del payload['sysadmin_password']
-
-            payload['users'] = dict()
-            for user in USERS_TO_REPLICATE:
-                payload['users'][user] = \
-                    str(keyring.get_password(
-                        user, dccommon_consts.SERVICES_USER_NAME))
-
-            utils.create_subcloud_inventory(payload,
-                                            ansible_subcloud_inventory_file)
-
-            self._create_intermediate_ca_cert(payload)
-
-            self._write_subcloud_ansible_config(cached_regionone_data, payload)
-
-            install_command = self.compose_install_command(
-                subcloud.name,
-                ansible_subcloud_inventory_file,
-                payload['software_version'])
-            bootstrap_command = self.compose_bootstrap_command(
-                subcloud.name,
-                ansible_subcloud_inventory_file,
-                payload['software_version'])
-            network_reconfig = utils.has_network_reconfig(payload, subcloud)
-            apply_thread = threading.Thread(
-                target=self.run_deploy_thread,
-                args=(subcloud, payload, context,
-                      install_command, bootstrap_command, config_command,
-                      None, network_reconfig))
-            apply_thread.start()
-            return db_api.subcloud_db_model_to_dict(subcloud)
-        except Exception:
-            LOG.exception("Failed to reinstall subcloud %s" % subcloud.name)
-            # If we failed to reinstall the subcloud, update the
-            # deployment status
-            db_api.subcloud_update(
-                context, subcloud_id,
-                deploy_status=consts.DEPLOY_STATE_PRE_INSTALL_FAILED)
 
     def redeploy_subcloud(self, context, subcloud_id, payload):
         """Redeploy subcloud

@@ -202,7 +202,6 @@ DEPLOY_STATE_DEPLOY_FAILED = 'deploy-failed'
 DEPLOY_STATE_ABORTING_INSTALL = 'aborting-install'
 DEPLOY_STATE_INSTALL_ABORTED = 'install-aborted'
 DEPLOY_STATE_ABORTING_BOOTSTRAP = 'aborting-bootstrap'
-DEPLOY_STATE_BOOTSTRAP_ABORTED = 'bootstrap-aborted'
 DEPLOY_STATE_ABORTING_CONFIG = 'aborting-config'
 DEPLOY_STATE_CONFIG_ABORTED = 'config-aborted'
 DEPLOY_STATE_MIGRATING_DATA = 'migrating-data'
@@ -228,7 +227,7 @@ ERROR_DESC_CMD = 'dcmanager subcloud errors <subcloud-name>'
 
 # Static content for error messages
 BOOTSTRAP_ERROR_MSG = DEPLOY_STATE_BOOTSTRAP_FAILED
-DEPLOY_ERROR_MSG = DEPLOY_STATE_DEPLOY_FAILED
+CONFIG_ERROR_MSG = DEPLOY_STATE_CONFIG_FAILED
 
 ERR_MSG_DICT = {
 
@@ -236,9 +235,9 @@ ERR_MSG_DICT = {
                          "the subcloud after the cause of failure has been "
                          "resolved.",
 
-    DEPLOY_ERROR_MSG: "For deployment failures, please use dcmanager subcloud "
-                      "reconfig command to reconfigure the subcloud after the "
-                      "cause of failure has been resolved.",
+    CONFIG_ERROR_MSG: "For configuration failures, please use dcmanager subcloud "
+                      "deploy config command to reconfigure the subcloud after "
+                      "the cause of failure has been resolved.",
 
     "bmc_cred": "Check BMC credentials in install-values.yml. Check basic "
                 "authenticacion to the BMC: curl -u <<user:pass>> "
@@ -379,10 +378,14 @@ VALID_DEPLOY_STATES_FOR_BACKUP = [DEPLOY_STATE_DONE,
                                   PRESTAGE_STATE_COMPLETE]
 
 # States to reject when processing a subcloud-backup restore request
-INVALID_DEPLOY_STATES_FOR_RESTORE = [DEPLOY_STATE_PRE_INSTALL,
+INVALID_DEPLOY_STATES_FOR_RESTORE = [DEPLOY_STATE_CREATING,
+                                     DEPLOY_STATE_PRE_INSTALL,
                                      DEPLOY_STATE_INSTALLING,
+                                     DEPLOY_STATE_PRE_BOOTSTRAP,
                                      DEPLOY_STATE_BOOTSTRAPPING,
-                                     DEPLOY_STATE_DEPLOYING,
+                                     DEPLOY_STATE_PRE_CONFIG,
+                                     DEPLOY_STATE_CONFIGURING,
+                                     DEPLOY_STATE_PRE_REHOME,
                                      DEPLOY_STATE_REHOMING,
                                      DEPLOY_STATE_PRE_RESTORE,
                                      DEPLOY_STATE_RESTORING]

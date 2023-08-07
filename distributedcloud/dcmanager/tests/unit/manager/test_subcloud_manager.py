@@ -1674,29 +1674,6 @@ class TestSubcloudManager(base.DCManagerTestCase):
         updated_subcloud = db_api.subcloud_get_by_name(self.ctx, subcloud.name)
         self.assertEqual(updated_subcloud.openstack_installed, False)
 
-    @mock.patch.object(subcloud_manager.SubcloudManager,
-                       '_prepare_for_deployment')
-    @mock.patch.object(threading.Thread,
-                       'start')
-    def test_reconfig_subcloud(self, mock_thread_start,
-                               mock_prepare_for_deployment):
-        subcloud = self.create_subcloud_static(
-            self.ctx,
-            name='subcloud1',
-            deploy_status=consts.DEPLOY_STATE_PRE_DEPLOY)
-
-        fake_payload = {"sysadmin_password": "testpass",
-                        "deploy_playbook": "test_playbook.yaml",
-                        "deploy_overrides": "test_overrides.yaml",
-                        "deploy_chart": "test_chart.yaml",
-                        "deploy_config": "subcloud1.yaml"}
-        sm = subcloud_manager.SubcloudManager()
-        sm.reconfigure_subcloud(self.ctx,
-                                subcloud.id,
-                                payload=fake_payload)
-        mock_thread_start.assert_called_once()
-        mock_prepare_for_deployment.assert_called_once()
-
     def test_get_ansible_filename(self):
         filename = cutils.get_ansible_filename('subcloud1',
                                                consts.INVENTORY_FILE_POSTFIX)
@@ -1786,60 +1763,6 @@ class TestSubcloudManager(base.DCManagerTestCase):
                 f"override_files_dir='{dccommon_consts.ANSIBLE_OVERRIDES_PATH}' region_name=subcloud1"
             ]
         )
-
-    @mock.patch.object(
-        subcloud_manager.SubcloudManager, '_write_subcloud_ansible_config')
-    @mock.patch.object(
-        subcloud_manager.SubcloudManager, '_create_intermediate_ca_cert')
-    @mock.patch.object(
-        subcloud_manager.SubcloudManager, 'compose_install_command')
-    @mock.patch.object(
-        subcloud_manager.SubcloudManager, 'compose_bootstrap_command')
-    @mock.patch.object(cutils, 'create_subcloud_inventory')
-    @mock.patch.object(subcloud_manager.SubcloudManager, '_get_cached_regionone_data')
-    @mock.patch.object(subcloud_manager, 'OpenStackDriver')
-    @mock.patch.object(threading.Thread, 'start')
-    @mock.patch.object(subcloud_manager, 'keyring')
-    def test_reinstall_subcloud(
-        self, mock_keyring, mock_thread_start,
-        mock_keystone_client, mock_get_cached_regionone_data, mock_create_subcloud_inventory,
-        mock_compose_bootstrap_command, mock_compose_install_command,
-        mock_create_intermediate_ca_cert, mock_write_subcloud_ansible_config):
-
-        subcloud_name = 'subcloud1'
-        subcloud = self.create_subcloud_static(
-            self.ctx,
-            name=subcloud_name,
-            deploy_status=consts.DEPLOY_STATE_PRE_INSTALL)
-
-        fake_install_values = \
-            copy.copy(fake_subcloud.FAKE_SUBCLOUD_INSTALL_VALUES)
-        fake_install_values['software_version'] = SW_VERSION
-        fake_payload = copy.copy(fake_subcloud.FAKE_SUBCLOUD_BOOTSTRAP_PAYLOAD)
-        fake_payload.update({
-            'bmc_password': 'bmc_pass',
-            'software_version': FAKE_PREVIOUS_SW_VERSION,
-            'install_values': fake_install_values})
-
-        sm = subcloud_manager.SubcloudManager()
-        mock_keyring.get_password.return_value = "testpassword"
-        mock_get_cached_regionone_data.return_value = FAKE_CACHED_REGIONONE_DATA
-
-        sm.reinstall_subcloud(self.ctx, subcloud.id, payload=fake_payload)
-        mock_keystone_client.assert_called_once()
-        mock_get_cached_regionone_data.assert_called_once()
-        mock_create_subcloud_inventory.assert_called_once()
-        mock_create_intermediate_ca_cert.assert_called_once()
-        mock_write_subcloud_ansible_config.assert_called_once()
-        mock_compose_install_command.assert_called_once_with(
-            subcloud_name,
-            cutils.get_ansible_filename(subcloud_name, consts.INVENTORY_FILE_POSTFIX),
-            FAKE_PREVIOUS_SW_VERSION)
-        mock_compose_bootstrap_command.assert_called_once_with(
-            subcloud_name,
-            cutils.get_ansible_filename(subcloud_name, consts.INVENTORY_FILE_POSTFIX),
-            FAKE_PREVIOUS_SW_VERSION)
-        mock_thread_start.assert_called_once()
 
     @mock.patch.object(subcloud_manager.SubcloudManager,
                        '_run_subcloud_install')
@@ -1933,12 +1856,32 @@ class TestSubcloudManager(base.DCManagerTestCase):
             self.ctx,
             name='subcloud9',
             deploy_status=consts.DEPLOY_STATE_NONE)
+        subcloud10 = self.create_subcloud_static(
+            self.ctx,
+            name='subcloud10',
+            deploy_status=consts.DEPLOY_STATE_CREATING)
+        subcloud11 = self.create_subcloud_static(
+            self.ctx,
+            name='subcloud11',
+            deploy_status=consts.DEPLOY_STATE_PRE_BOOTSTRAP)
+        subcloud12 = self.create_subcloud_static(
+            self.ctx,
+            name='subcloud12',
+            deploy_status=consts.DEPLOY_STATE_ABORTING_INSTALL)
+        subcloud13 = self.create_subcloud_static(
+            self.ctx,
+            name='subcloud13',
+            deploy_status=consts.DEPLOY_STATE_ABORTING_BOOTSTRAP)
+        subcloud14 = self.create_subcloud_static(
+            self.ctx,
+            name='subcloud14',
+            deploy_status=consts.DEPLOY_STATE_ABORTING_CONFIG)
 
         sm = subcloud_manager.SubcloudManager()
         sm.handle_subcloud_operations_in_progress()
 
         subcloud = db_api.subcloud_get_by_name(self.ctx, subcloud1.name)
-        self.assertEqual(consts.DEPLOY_STATE_DEPLOY_PREP_FAILED,
+        self.assertEqual(consts.DEPLOY_STATE_PRE_CONFIG_FAILED,
                          subcloud.deploy_status)
 
         subcloud = db_api.subcloud_get_by_name(self.ctx, subcloud2.name)
@@ -1954,7 +1897,7 @@ class TestSubcloudManager(base.DCManagerTestCase):
                          subcloud.deploy_status)
 
         subcloud = db_api.subcloud_get_by_name(self.ctx, subcloud5.name)
-        self.assertEqual(consts.DEPLOY_STATE_DEPLOY_FAILED,
+        self.assertEqual(consts.DEPLOY_STATE_CONFIG_FAILED,
                          subcloud.deploy_status)
 
         subcloud = db_api.subcloud_get_by_name(self.ctx, subcloud6.name)
@@ -1970,14 +1913,34 @@ class TestSubcloudManager(base.DCManagerTestCase):
                          subcloud.deploy_status)
 
         subcloud = db_api.subcloud_get_by_name(self.ctx, subcloud9.name)
-        self.assertEqual(consts.DEPLOY_STATE_DEPLOY_PREP_FAILED,
+        self.assertEqual(consts.DEPLOY_STATE_CREATE_FAILED,
+                         subcloud.deploy_status)
+
+        subcloud = db_api.subcloud_get_by_name(self.ctx, subcloud10.name)
+        self.assertEqual(consts.DEPLOY_STATE_CREATE_FAILED,
+                         subcloud.deploy_status)
+
+        subcloud = db_api.subcloud_get_by_name(self.ctx, subcloud11.name)
+        self.assertEqual(consts.DEPLOY_STATE_PRE_BOOTSTRAP_FAILED,
+                         subcloud.deploy_status)
+
+        subcloud = db_api.subcloud_get_by_name(self.ctx, subcloud12.name)
+        self.assertEqual(consts.DEPLOY_STATE_INSTALL_FAILED,
+                         subcloud.deploy_status)
+
+        subcloud = db_api.subcloud_get_by_name(self.ctx, subcloud13.name)
+        self.assertEqual(consts.DEPLOY_STATE_BOOTSTRAP_FAILED,
+                         subcloud.deploy_status)
+
+        subcloud = db_api.subcloud_get_by_name(self.ctx, subcloud14.name)
+        self.assertEqual(consts.DEPLOY_STATE_CONFIG_FAILED,
                          subcloud.deploy_status)
 
     def test_handle_completed_subcloud_operations(self):
         subcloud1 = self.create_subcloud_static(
             self.ctx,
             name='subcloud1',
-            deploy_status=consts.DEPLOY_STATE_DEPLOY_PREP_FAILED)
+            deploy_status=consts.DEPLOY_STATE_CREATE_FAILED)
         subcloud2 = self.create_subcloud_static(
             self.ctx,
             name='subcloud2',
@@ -1997,7 +1960,7 @@ class TestSubcloudManager(base.DCManagerTestCase):
         subcloud6 = self.create_subcloud_static(
             self.ctx,
             name='subcloud6',
-            deploy_status=consts.DEPLOY_STATE_DEPLOY_FAILED)
+            deploy_status=consts.DEPLOY_STATE_CONFIG_FAILED)
         subcloud7 = self.create_subcloud_static(
             self.ctx,
             name='subcloud7',
@@ -2018,12 +1981,24 @@ class TestSubcloudManager(base.DCManagerTestCase):
             self.ctx,
             name='subcloud11',
             deploy_status=consts.DEPLOY_STATE_DONE)
+        subcloud12 = self.create_subcloud_static(
+            self.ctx,
+            name='subcloud12',
+            deploy_status=consts.DEPLOY_STATE_CREATE_FAILED)
+        subcloud13 = self.create_subcloud_static(
+            self.ctx,
+            name='subcloud13',
+            deploy_status=consts.DEPLOY_STATE_PRE_BOOTSTRAP_FAILED)
+        subcloud14 = self.create_subcloud_static(
+            self.ctx,
+            name='subcloud14',
+            deploy_status=consts.DEPLOY_STATE_PRE_CONFIG_FAILED)
 
         sm = subcloud_manager.SubcloudManager()
         sm.handle_subcloud_operations_in_progress()
 
         subcloud = db_api.subcloud_get_by_name(self.ctx, subcloud1.name)
-        self.assertEqual(consts.DEPLOY_STATE_DEPLOY_PREP_FAILED,
+        self.assertEqual(consts.DEPLOY_STATE_CREATE_FAILED,
                          subcloud.deploy_status)
 
         subcloud = db_api.subcloud_get_by_name(self.ctx, subcloud2.name)
@@ -2043,7 +2018,7 @@ class TestSubcloudManager(base.DCManagerTestCase):
                          subcloud.deploy_status)
 
         subcloud = db_api.subcloud_get_by_name(self.ctx, subcloud6.name)
-        self.assertEqual(consts.DEPLOY_STATE_DEPLOY_FAILED,
+        self.assertEqual(consts.DEPLOY_STATE_CONFIG_FAILED,
                          subcloud.deploy_status)
 
         subcloud = db_api.subcloud_get_by_name(self.ctx, subcloud7.name)
@@ -2064,6 +2039,18 @@ class TestSubcloudManager(base.DCManagerTestCase):
 
         subcloud = db_api.subcloud_get_by_name(self.ctx, subcloud11.name)
         self.assertEqual(consts.DEPLOY_STATE_DONE,
+                         subcloud.deploy_status)
+
+        subcloud = db_api.subcloud_get_by_name(self.ctx, subcloud12.name)
+        self.assertEqual(consts.DEPLOY_STATE_CREATE_FAILED,
+                         subcloud.deploy_status)
+
+        subcloud = db_api.subcloud_get_by_name(self.ctx, subcloud13.name)
+        self.assertEqual(consts.DEPLOY_STATE_PRE_BOOTSTRAP_FAILED,
+                         subcloud.deploy_status)
+
+        subcloud = db_api.subcloud_get_by_name(self.ctx, subcloud14.name)
+        self.assertEqual(consts.DEPLOY_STATE_PRE_CONFIG_FAILED,
                          subcloud.deploy_status)
 
     @mock.patch.object(cutils, 'is_subcloud_healthy', return_value=True)

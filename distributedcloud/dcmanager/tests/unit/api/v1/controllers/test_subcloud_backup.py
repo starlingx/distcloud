@@ -1156,18 +1156,12 @@ class TestSubcloudRestore(testroot.DCManagerApiTest):
 
     @mock.patch.object(rpc_client, 'ManagerClient')
     def test_backup_restore_subcloud_invalid_deploy_states(self, mock_rpc_client):
-
-        invalid_deploy_states = [consts.DEPLOY_STATE_INSTALLING,
-                                 consts.DEPLOY_STATE_BOOTSTRAPPING,
-                                 consts.DEPLOY_STATE_DEPLOYING,
-                                 consts.DEPLOY_STATE_REHOMING]
-
         subcloud = fake_subcloud.create_fake_subcloud(self.ctx)
         fake_password = (base64.b64encode('testpass'.encode("utf-8"))).decode('ascii')
         data = {'sysadmin_password': fake_password, 'subcloud': '1'}
         mock_rpc_client().restore_subcloud_backups.return_value = True
 
-        for status in invalid_deploy_states:
+        for status in consts.INVALID_DEPLOY_STATES_FOR_RESTORE:
             db_api.subcloud_update(self.ctx,
                                    subcloud.id,
                                    availability_status=dccommon_consts.AVAILABILITY_ONLINE,
