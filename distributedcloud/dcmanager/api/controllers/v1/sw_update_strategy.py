@@ -141,9 +141,6 @@ class SwUpdateStrategyController(object):
         if not payload:
             pecan.abort(400, _('Body required'))
 
-        # If 'type' is in the request params, filter the update_type
-        update_type_filter = request.params.get('type', None)
-
         if actions is None:
             policy.authorize(sw_update_strat_policy.POLICY_ROOT % "create", {},
                              restcomm.extract_credentials_for_policy())
@@ -217,12 +214,15 @@ class SwUpdateStrategyController(object):
             except RemoteError as e:
                 pecan.abort(
                     422, _("Unable to create strategy of type '%s': %s")
-                    % (update_type_filter, e.value)
+                    % (strategy_type, e.value)
                 )
             except Exception as e:
                 LOG.exception(e)
                 pecan.abort(500, _('Unable to create strategy'))
         elif actions == 'actions':
+            # If 'type' is in the request params, filter the update_type
+            update_type_filter = request.params.get('type', None)
+
             # Apply or abort a strategy
             action = payload.get('action')
             if not action:
