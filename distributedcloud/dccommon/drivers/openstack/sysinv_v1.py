@@ -17,6 +17,7 @@ import hashlib
 import os
 
 from cgtsclient.exc import HTTPBadRequest
+from cgtsclient.exc import HTTPConflict
 from cgtsclient.exc import HTTPNotFound
 from oslo_log import log
 from oslo_utils import encodeutils
@@ -293,13 +294,25 @@ class SysinvClient(base.DriverBase):
         """Create a static route on an interface."""
 
         LOG.info("Creating route: interface: %s dest: %s/%s "
-                 "gateway: %s metric %s" % (interface_uuid, network,
-                                            prefix, gateway, metric))
-        self.sysinv_client.route.create(interface_uuid=interface_uuid,
-                                        network=network,
-                                        prefix=prefix,
-                                        gateway=gateway,
-                                        metric=metric)
+                 "gateway: %s metric: %s" % (interface_uuid, network,
+                                             prefix, gateway, metric))
+        try:
+            self.sysinv_client.route.create(interface_uuid=interface_uuid,
+                                            network=network,
+                                            prefix=prefix,
+                                            gateway=gateway,
+                                            metric=metric)
+        except HTTPConflict:
+            # The route already exists
+            LOG.warning("Failed to create route, route: interface: %s dest: "
+                        "%s/%s gateway: %s metric: %s already exists" %
+                        (interface_uuid, network, prefix, gateway, metric))
+        except Exception as e:
+            LOG.error("Failed to create route: route: interface: %s dest: "
+                      "%s/%s gateway: %s metric: %s" % (interface_uuid,
+                                                        network, prefix,
+                                                        gateway, metric))
+            raise e
 
     def delete_route(self, interface_uuid, network, prefix, gateway, metric):
         """Delete a static route."""
@@ -310,8 +323,8 @@ class SysinvClient(base.DriverBase):
             if (route.network == network and route.prefix == prefix and
                     route.gateway == gateway and route.metric == metric):
                 LOG.info("Deleting route: interface: %s dest: %s/%s "
-                         "gateway: %s metric %s" % (interface_uuid, network,
-                                                    prefix, gateway, metric))
+                         "gateway: %s metric: %s" % (interface_uuid, network,
+                                                     prefix, gateway, metric))
                 self.sysinv_client.route.delete(route.uuid)
                 return
 
@@ -505,7 +518,8 @@ class SysinvClient(base.DriverBase):
 
     def _validate_certificate(self, signature, certificate):
         # JKUNG need to look at the crypto public serial id
-        certificate_sig = hashlib.md5(encodeutils.safe_encode(certificate)).hexdigest()
+        certificate_sig = hashlib.md5(
+            encodeutils.safe_encode(certificate)).hexdigest()
 
         if certificate_sig == signature:
             return True
