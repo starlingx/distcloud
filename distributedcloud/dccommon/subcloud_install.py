@@ -503,13 +503,23 @@ class SubcloudInstall(object):
                     "--www-root", self.www_root,
                     "--delete"
                 ]
-            try:
-                LOG.info("Running install cleanup: %s", self.name)
-                with open(os.devnull, "w") as fnull:
-                    subprocess.check_call(  # pylint: disable=E1102
-                        cleanup_cmd, stdout=fnull, stderr=fnull)
-            except subprocess.CalledProcessError:
-                LOG.error("Failed to delete boot files.")
+            LOG.info("Running install cleanup: %s", self.name)
+            result = subprocess.run(cleanup_cmd,
+                                    stdout=subprocess.PIPE,
+                                    stderr=subprocess.STDOUT)
+            if result.returncode == 0:
+                # Note: watch for non-exit 0 errors in this output as well
+                msg = f'Finished install cleanup: {cleanup_cmd}'
+                LOG.info("%s returncode: %s, output: %s",
+                         msg,
+                         result.returncode,
+                         result.stdout.decode('utf-8').replace('\n', ', '))
+            else:
+                msg = f'Failed install cleanup: {cleanup_cmd}'
+                LOG.error("%s returncode: %s, output: %s",
+                          msg,
+                          result.returncode,
+                          result.stdout.decode('utf-8').replace('\n', ', '))
 
     # TODO(kmacleod): utils.synchronized should be moved into dccommon
     @utils.synchronized("packages-list-from-bootimage", external=True)
