@@ -28,6 +28,7 @@ import six.moves
 import string
 import subprocess
 import tsconfig.tsconfig as tsc
+import xml.etree.ElementTree as ElementTree
 import yaml
 
 from keystoneauth1 import exceptions as keystone_exceptions
@@ -1106,3 +1107,57 @@ def subcloud_is_secondary_state(deploy_state):
 def create_subcloud_rehome_data_template():
     """Create a subcloud rehome data template"""
     return {'saved_payload': {}}
+
+
+def validate_release_version_supported(release_version_to_check):
+    """Given a release version, check whether it's supported by the current active version.
+
+    :param release_version_to_check: version string to validate
+
+    returns True to indicate that the version is valid
+    raise ValidateFail for an invalid/unsupported release version
+    """
+
+    current_version = tsc.SW_VERSION
+
+    if current_version == release_version_to_check:
+        return True
+
+    supported_versions = get_current_supported_upgrade_versions()
+
+    if release_version_to_check not in supported_versions:
+        msg = "%s is not a supported release version" % release_version_to_check
+        raise exceptions.ValidateFail(msg)
+
+    return True
+
+
+def get_current_supported_upgrade_versions():
+    """Parse the upgrades metadata file to build a list of supported versions.
+
+    returns a list of supported upgrade versions
+    raise InternalError exception for a missing/invalid metadata file
+    """
+
+    supported_versions = []
+
+    try:
+        with open(consts.SUPPORTED_UPGRADES_METADATA_FILE_PATH) as file:
+            root = ElementTree.fromstring(file.read())
+    except Exception:
+        LOG.exception("Error reading the supported upgrades metadata file")
+        raise exceptions.InternalError()
+
+    supported_upgrades = root.find('supported_upgrades')
+
+    if not supported_upgrades:
+        LOG.error("Missing supported upgrades information")
+        raise exceptions.InternalError()
+
+    upgrades = supported_upgrades.findall("upgrade")
+
+    for upgrade in upgrades:
+        version = upgrade.findtext("version")
+        supported_versions.append(version.strip())
+
+    return supported_versions

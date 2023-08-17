@@ -48,6 +48,12 @@ FAKE_DEPLOY_FILES = {
     FAKE_DEPLOY_CHART_PREFIX: FAKE_DEPLOY_CHART_FILE,
 }
 
+FAKE_UPGRADES_METADATA = '''
+    <build>\n<version>0.2</version>\n<supported_upgrades>
+    \n<upgrade>\n<version>%s</version>\n<required_patches>PATCH_0001</required_patches>
+    \n</upgrade>\n</supported_upgrades>\n</build>
+''' % FAKE_SOFTWARE_VERSION
+
 
 class TestSubcloudDeploy(testroot.DCManagerApiTest):
     def setUp(self):
@@ -65,9 +71,12 @@ class TestSubcloudDeploy(testroot.DCManagerApiTest):
             fields.append((opt, webtest.Upload(fake_name, fake_content)))
         mock_upload_files.return_value = True
         params += fields
-        response = self.app.post(FAKE_URL,
-                                 headers=FAKE_HEADERS,
-                                 params=params)
+
+        with mock.patch('builtins.open', mock.mock_open(read_data=FAKE_UPGRADES_METADATA)):
+            response = self.app.post(FAKE_URL,
+                                     headers=FAKE_HEADERS,
+                                     params=params)
+
         self.assertEqual(response.status_code, http_client.OK)
         self.assertEqual(FAKE_SOFTWARE_VERSION, response.json['software_version'])
 

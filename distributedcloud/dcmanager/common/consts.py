@@ -413,3 +413,5 @@ HELM_CHART_POSTFIX = 'deployment-manager'
 
 ALTERNATE_DEPLOY_PLAYBOOK_DIR = ALTERNATE_DEPLOY_FILES_DIR + '/playbooks'
 DEPLOY_PLAYBOOK_POSTFIX = 'deployment-manager.yaml'
+
+SUPPORTED_UPGRADES_METADATA_FILE_PATH = '/usr/rootdirs/opt/upgrades/metadata.xml'
