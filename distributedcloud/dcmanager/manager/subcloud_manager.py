@@ -324,14 +324,18 @@ class SubcloudManager(manager.Manager):
         return backup_command
 
     def compose_backup_delete_command(self, subcloud_name,
-                                      ansible_subcloud_inventory_file):
+                                      ansible_subcloud_inventory_file=None):
         backup_command = [
             "ansible-playbook", ANSIBLE_SUBCLOUD_BACKUP_DELETE_PLAYBOOK,
-            "-i", ansible_subcloud_inventory_file,
-            "--limit", subcloud_name,
             "-e", "subcloud_bnr_overrides=%s" % dccommon_consts.ANSIBLE_OVERRIDES_PATH + "/" +
             subcloud_name + "_backup_delete_values.yml"]
-
+        if ansible_subcloud_inventory_file:
+            # Backup stored in subcloud storage
+            backup_command.extend(("-i", ansible_subcloud_inventory_file,
+                                  "--limit", subcloud_name))
+        else:
+            # Backup stored in central storage
+            backup_command.extend(("-e", "inventory_hostname=%s" % subcloud_name))
         return backup_command
 
     def compose_backup_restore_command(self, subcloud_name, ansible_subcloud_inventory_file):
@@ -1442,10 +1446,11 @@ class SubcloudManager(manager.Manager):
             overrides_file = self._create_overrides_for_backup_delete(
                 payload, subcloud.name, release_version
             )
-            inventory_file = self._create_subcloud_inventory_file(subcloud)
+            inventory_file = None
+            if payload['override_values']['local']:
+                inventory_file = self._create_subcloud_inventory_file(subcloud)
             delete_command = self.compose_backup_delete_command(
                 subcloud.name, inventory_file)
-
         except Exception:
             LOG.exception("Failed to prepare subcloud %s for backup delete"
                           % subcloud.name)

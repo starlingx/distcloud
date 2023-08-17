@@ -2391,7 +2391,7 @@ class TestSubcloudManager(base.DCManagerTestCase):
     @mock.patch.object(subcloud_manager.SubcloudManager,
                        '_create_backup_overrides_file')
     def test_delete_subcloud_backup(
-        self, mock_create_subcloud_inventory_file,
+        self, mock_create_backup_overrides_file,
         mock_compose_backup_delete_command,
         mock_run_playbook, mock_keystone_client,
         mock_oam_address, mock_create_subcloud_inventory,
@@ -2403,6 +2403,53 @@ class TestSubcloudManager(base.DCManagerTestCase):
             deploy_status=consts.BACKUP_STATE_COMPLETE_CENTRAL)
 
         values = copy.copy(FAKE_BACKUP_DELETE_LOAD_1)
+        RELEASE_VERSION = '22.12'
+
+        override_file = os_path.join(
+            dccommon_consts.ANSIBLE_OVERRIDES_PATH, subcloud.name + "_backup_delete_values.yml"
+        )
+        mock_create_backup_overrides_file.return_value = override_file
+
+        sm = subcloud_manager.SubcloudManager()
+        sm._delete_subcloud_backup(
+            self.ctx, payload=values, release_version=RELEASE_VERSION, subcloud=subcloud)
+
+        mock_create_backup_overrides_file.assert_called_once()
+        mock_compose_backup_delete_command.assert_called_once()
+        mock_run_playbook.assert_called_once()
+        mock_keystone_client().keystone_client = FakeKeystoneClient()
+        mock_oam_address.return_value = FAKE_OAM_FLOATING_IP
+        mock_create_subcloud_inventory.assert_not_called()
+        mock_delete_subcloud_inventory.assert_called_once_with(override_file)
+
+        updated_subcloud = db_api.subcloud_get_by_name(self.ctx, subcloud.name)
+        self.assertEqual(consts.BACKUP_STATE_UNKNOWN,
+                         updated_subcloud.backup_status)
+
+    @mock.patch.object(cutils, 'delete_subcloud_inventory')
+    @mock.patch.object(cutils, 'create_subcloud_inventory')
+    @mock.patch.object(cutils, 'get_oam_addresses')
+    @mock.patch.object(subcloud_manager, 'OpenStackDriver')
+    @mock.patch.object(AnsiblePlaybook, 'run_playbook')
+    @mock.patch.object(subcloud_manager.SubcloudManager,
+                       'compose_backup_delete_command')
+    @mock.patch.object(subcloud_manager.SubcloudManager,
+                       '_create_backup_overrides_file')
+    def test_delete_subcloud_backup_local_only(
+            self, mock_create_subcloud_inventory_file,
+            mock_compose_backup_delete_command,
+            mock_run_playbook, mock_keystone_client,
+            mock_oam_address, mock_create_subcloud_inventory,
+            mock_delete_subcloud_inventory):
+
+        subcloud = self.create_subcloud_static(
+            self.ctx,
+            name='subcloud1',
+            deploy_status=consts.BACKUP_STATE_COMPLETE_LOCAL)
+
+        values = copy.copy(FAKE_BACKUP_DELETE_LOAD_1)
+        values['local_only'] = True
+
         RELEASE_VERSION = '22.12'
 
         override_file = os_path.join(
