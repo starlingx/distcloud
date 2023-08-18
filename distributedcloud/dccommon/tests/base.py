@@ -1,5 +1,5 @@
 # Copyright (c) 2015 Ericsson AB
-# Copyright (c) 2020-2021 Wind River Systems, Inc.
+# Copyright (c) 2020-2023 Wind River Systems, Inc.
 # All Rights Reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License"); you may
@@ -28,6 +28,12 @@ ROUTE_0 = [
     "2018-04-11 17:01:49.654734", "NULL", "NULL", 1,
     "3a07ca95-d6fe-48cb-9393-b949f800b552", 6,
     "fd01:2::", 64, "fd01:1::1", 1, 9
+]
+
+ROUTE_1 = [
+    "2018-04-11 17:01:49.654734", "NULL", "NULL", 1,
+    "3a07ca95-d6fe-48cb-9393-b949f800b552", 6,
+    "fd01:3::", 64, "fd01:1::1", 1, 9
 ]
 
 

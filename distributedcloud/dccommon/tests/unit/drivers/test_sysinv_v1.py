@@ -1,4 +1,4 @@
-# Copyright (c) 2017-2022 Wind River Systems, Inc.
+# Copyright (c) 2017-2023 Wind River Systems, Inc.
 # Licensed under the Apache License, Version 2.0 (the "License"); you may
 # not use this file except in compliance with the License. You may obtain
 # a copy of the License at
@@ -152,4 +152,40 @@ class TestSysinvClient(base.DCCommonTestCase):
 
     @mock.patch.object(sysinv_v1.SysinvClient, '__init__')
     def test_delete_route(self, mock_sysinvclient_init):
+        fake_route = utils.create_route_dict(base.ROUTE_0)
         mock_sysinvclient_init.return_value = None
+        sysinv_client = sysinv_v1.SysinvClient(dccommon_consts.DEFAULT_REGION_NAME,
+                                               None)
+        sysinv_client.sysinv_client = mock.MagicMock()
+        sysinv_client.sysinv_client.route.delete = mock.MagicMock()
+        sysinv_client.sysinv_client.route.list_by_interface = mock.MagicMock()
+        existing_route_0 = FakeRoute(utils.create_route_dict(base.ROUTE_0))
+        existing_route_1 = FakeRoute(utils.create_route_dict(base.ROUTE_1))
+        sysinv_client.sysinv_client.route.list_by_interface.return_value = [
+            existing_route_0, existing_route_1]
+        sysinv_client.delete_route(fake_route['uuid'],
+                                   fake_route['network'],
+                                   fake_route['prefix'],
+                                   fake_route['gateway'],
+                                   fake_route['metric'])
+        sysinv_client.sysinv_client.route.delete.assert_called_with(
+            existing_route_0.uuid)
+
+    @mock.patch.object(sysinv_v1.SysinvClient, '__init__')
+    def test_delete_route_not_exist(self, mock_sysinvclient_init):
+        fake_route = utils.create_route_dict(base.ROUTE_0)
+        mock_sysinvclient_init.return_value = None
+        sysinv_client = sysinv_v1.SysinvClient(dccommon_consts.DEFAULT_REGION_NAME,
+                                               None)
+        sysinv_client.sysinv_client = mock.MagicMock()
+        sysinv_client.sysinv_client.route.delete = mock.MagicMock()
+        sysinv_client.sysinv_client.route.list_by_interface = mock.MagicMock()
+        existing_route_1 = FakeRoute(utils.create_route_dict(base.ROUTE_1))
+        sysinv_client.sysinv_client.route.list_by_interface.return_value = [
+            existing_route_1]
+        sysinv_client.delete_route(fake_route['uuid'],
+                                   fake_route['network'],
+                                   fake_route['prefix'],
+                                   fake_route['gateway'],
+                                   fake_route['metric'])
+        sysinv_client.sysinv_client.route.delete.assert_not_called()

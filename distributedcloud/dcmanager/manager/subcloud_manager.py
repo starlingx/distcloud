@@ -26,7 +26,6 @@ import shutil
 import threading
 import time
 
-from cgtsclient.exc import HTTPConflict
 from eventlet import greenpool
 from fm_api import constants as fm_const
 from fm_api import fm_api
@@ -2319,9 +2318,6 @@ class SubcloudManager(manager.Manager):
                 region_clients=None).keystone_client
             self._create_subcloud_route(payload, m_ks_client,
                                         subcloud.systemcontroller_gateway_ip)
-        except HTTPConflict:
-            # The route already exists
-            LOG.warning("Failed to create route to subcloud %s" % subcloud_name)
         except Exception:
             LOG.exception(
                 "Failed to create route to subcloud %s." % subcloud_name)
