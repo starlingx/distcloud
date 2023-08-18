@@ -131,6 +131,13 @@ def initial_subcloud_validate(subcloud, installed_loads, software_version):
             orch_skip=True,
             details="Subcloud is not managed.")
 
+    if subcloud.backup_status in consts.STATES_FOR_ONGOING_BACKUP:
+        raise exceptions.PrestagePreCheckFailedException(
+            subcloud=subcloud.name,
+            orch_skip=True,
+            details="Prestage operation is not allowed while"
+                    " backup is in progress.")
+
     allowed_deploy_states = [consts.DEPLOY_STATE_DONE,
                              consts.PRESTAGE_STATE_FAILED,
                              consts.PRESTAGE_STATE_COMPLETE]
@@ -164,6 +171,7 @@ def validate_prestage(subcloud, payload):
       - Subcloud is an AIO-SX
       - Subcloud is online
       - Subcloud is managed
+      - Subcloud backup operation is not in progress
       - Subcloud has no management-affecting alarms (unless force=true)
 
     Raises a PrestageCheckFailedException on failure.

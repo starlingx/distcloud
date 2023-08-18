@@ -31,6 +31,7 @@ import webtest
 from dccommon import consts as dccommon_consts
 from dcmanager.api.controllers.v1 import subclouds
 from dcmanager.common import consts
+from dcmanager.common import exceptions
 from dcmanager.common import phased_subcloud_deploy as psd_common
 from dcmanager.common import prestage
 from dcmanager.common import utils as cutils
@@ -2241,6 +2242,22 @@ class TestSubcloudAPIOther(testroot.DCManagerApiTest):
                               self.app.patch_json, FAKE_URL + '/' +
                               str(subcloud.id) + '/prestage',
                               headers=FAKE_HEADERS, params=data)
+
+    def test_prestage_subcloud_backup_in_progress(self):
+        subcloud = fake_subcloud.create_fake_subcloud(self.ctx)
+        subcloud = db_api.subcloud_update(
+            self.ctx,
+            subcloud.id,
+            availability_status=dccommon_consts.AVAILABILITY_ONLINE,
+            deploy_status=consts.DEPLOY_STATE_DONE,
+            management_state=dccommon_consts.MANAGEMENT_MANAGED,
+            backup_status=consts.BACKUP_STATE_IN_PROGRESS)
+
+        self.assertRaises(exceptions.PrestagePreCheckFailedException,
+                          prestage.initial_subcloud_validate,
+                          subcloud,
+                          [fake_subcloud.FAKE_SOFTWARE_VERSION],
+                          fake_subcloud.FAKE_SOFTWARE_VERSION)
 
     @mock.patch.object(cutils, 'get_systemcontroller_installed_loads')
     @mock.patch.object(prestage, '_get_system_controller_upgrades')

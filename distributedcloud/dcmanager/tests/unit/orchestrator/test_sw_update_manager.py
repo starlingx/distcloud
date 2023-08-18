@@ -489,6 +489,34 @@ class TestSwUpdateManager(base.DCManagerTestCase):
                           um.create_sw_update_strategy,
                           self.ctxt, payload=data)
 
+    @mock.patch.object(prestage, '_get_system_controller_upgrades')
+    @mock.patch.object(sw_update_manager, 'PatchOrchThread')
+    def test_create_sw_prestage_strategy_backup_in_progress(self,
+                                                            mock_patch_orch_thread,
+                                                            mock_controller_upgrade):
+        mock_controller_upgrade.return_value = list()
+
+        # Create fake subcloud and respective status (managed & online)
+        fake_subcloud1 = self.create_subcloud(self.ctxt, 'subcloud1',
+                                              self.fake_group3.id,
+                                              is_managed=True, is_online=True)
+        self.update_subcloud_status(self.ctxt, fake_subcloud1.id)
+        db_api.subcloud_update(self.ctx,
+                               fake_subcloud1.id,
+                               backup_status=consts.BACKUP_STATE_IN_PROGRESS)
+
+        data = copy.copy(FAKE_SW_PRESTAGE_DATA)
+        fake_password = (base64.b64encode('testpass'.encode("utf-8"))).decode(
+            'ascii')
+        data['sysadmin_password'] = fake_password
+        data['cloud_name'] = 'subcloud1'
+
+        um = sw_update_manager.SwUpdateManager()
+
+        self.assertRaises(exceptions.BadRequest,
+                          um.create_sw_update_strategy,
+                          self.ctxt, payload=data)
+
     @mock.patch.object(sw_update_manager, 'PatchOrchThread')
     def test_create_sw_update_strategy_cloud_name_not_exists(self,
                                                              mock_patch_orch_thread):
