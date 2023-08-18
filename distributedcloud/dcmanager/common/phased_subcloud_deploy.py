@@ -195,7 +195,7 @@ def validate_subcloud_config(context, payload, operation=None,
             continue
         subcloud_subnets.append(netaddr.IPNetwork(subcloud.management_subnet))
 
-    MIN_MANAGEMENT_SUBNET_SIZE = 8
+    MIN_MANAGEMENT_SUBNET_SIZE = 7
     # subtract 3 for network, gateway and broadcast addresses.
     MIN_MANAGEMENT_ADDRESSES = MIN_MANAGEMENT_SUBNET_SIZE - 3
 
