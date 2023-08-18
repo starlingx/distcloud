@@ -204,3 +204,49 @@ class KubeOperator(object):
         except Exception as e:
             LOG.error("Kubernetes exception in kube_delete_pod: %s" % e)
             raise
+
+    def kube_get_namespace(self, namespace):
+        c = self._get_kubernetesclient_core()
+        try:
+            c.read_namespace(namespace)
+            return True
+        except ApiException as e:
+            if e.status == httplib.NOT_FOUND:
+                return False
+            else:
+                LOG.error("Failed to get Namespace %s: %s" % (namespace, e.body))
+                raise
+        except Exception as e:
+            LOG.error("Kubernetes exception in "
+                      "kube_get_namespace %s: %s" % (namespace, e))
+            raise
+
+    def kube_create_namespace(self, namespace):
+        body = {'metadata': {'name': namespace}}
+
+        c = self._get_kubernetesclient_core()
+        try:
+            c.create_namespace(body)
+        except ApiException as e:
+            if e.status == httplib.CONFLICT:
+                # Already exist
+                LOG.warn("Namespace %s already exist." % namespace)
+            else:
+                LOG.error("Failed to create Namespace %s: %s" % (namespace, e.body))
+                raise
+        except Exception as e:
+            LOG.error("Kubernetes exception in "
+                      "_kube_create_namespace %s: %s" % (namespace, e))
+            raise
+
+    def kube_copy_secret(self, name, src_namespace, dst_namespace):
+        c = self._get_kubernetesclient_core()
+        try:
+            body = c.read_namespaced_secret(name, src_namespace)
+            body.metadata.resource_version = None
+            body.metadata.namespace = dst_namespace
+            c.create_namespaced_secret(dst_namespace, body)
+        except Exception as e:
+            LOG.error("Failed to copy Secret %s from Namespace %s to Namespace "
+                      "%s: %s" % (name, src_namespace, dst_namespace, e))
+            raise

@@ -23,6 +23,7 @@ import time
 
 from eventlet.green import subprocess
 import netaddr
+from oslo_concurrency import lockutils
 from oslo_log import log as logging
 from six.moves.urllib import error as urllib_error
 from six.moves.urllib import parse
@@ -33,6 +34,7 @@ from dccommon import consts
 from dccommon.drivers.openstack.keystone_v3 import KeystoneClient
 from dccommon.drivers.openstack.sysinv_v1 import SysinvClient
 from dccommon import exceptions
+from dccommon import kubeoperator
 from dccommon import utils as dccommon_utils
 from dcmanager.common import consts as dcmanager_consts
 from dcmanager.common import utils
@@ -65,6 +67,11 @@ REDFISH_HEADER = {'Content-Type': 'application/json',
                   'Accept': 'application/json'}
 REDFISH_SYSTEMS_URL = '/redfish/v1/Systems'
 SUCCESSFUL_STATUS_CODES = [200, 202, 204]
+
+RVMC_LOCK_NAME = 'dc-rvmc-install'
+RVMC_NAMESPACE = 'rvmc'
+KUBE_SYSTEM_NAMESPACE = 'kube-system'
+DEFAULT_REGISTRY_KEY = 'default-registry-key'
 
 
 class SubcloudShutdown(object):
@@ -271,6 +278,22 @@ class SubcloudInstall(object):
             for k, v in payload.items():
                 if k in consts.BMC_INSTALL_VALUES or k == 'image':
                     f_out_rvmc_config_file.write(k + ': ' + v + '\n')
+
+    @lockutils.synchronized(RVMC_LOCK_NAME)
+    def copy_default_registry_key(self):
+        """Copy default-registry-key secret for pulling rvmc image."""
+        kube = kubeoperator.KubeOperator()
+        try:
+            if kube.kube_get_secret(DEFAULT_REGISTRY_KEY, RVMC_NAMESPACE) is None:
+                if not kube.kube_get_namespace(RVMC_NAMESPACE):
+                    LOG.info("Creating rvmc namespace")
+                    kube.kube_create_namespace(RVMC_NAMESPACE)
+                LOG.info("Copying default-registry-key secret to rvmc namespace")
+                kube.kube_copy_secret(
+                    DEFAULT_REGISTRY_KEY, KUBE_SYSTEM_NAMESPACE, RVMC_NAMESPACE)
+        except Exception as e:
+            LOG.exception("Failed to copy default-registry-key secret")
+            raise e
 
     def create_install_override_file(self, override_path, payload):
 
@@ -663,6 +686,9 @@ class SubcloudInstall(object):
 
         # create the rvmc config file
         self.create_rvmc_config_file(override_path, payload)
+
+        # copy the default_registry_key secret to rvmc namespace
+        self.copy_default_registry_key()
 
         # remove the bmc values from the payload
         for k in consts.BMC_INSTALL_VALUES:
