@@ -753,6 +753,7 @@ class TestSubcloudManager(base.DCManagerTestCase):
         mock_get_playbook_for_software_version.assert_called_once()
         self.assertEqual(mock_exec_playbook.call_count, 3)
 
+    @mock.patch.object(subcloud_manager, 'run_playbook')
     @mock.patch.object(subcloud_manager.SubcloudManager,
                        'compose_rehome_command')
     @mock.patch.object(subcloud_manager.SubcloudManager,
@@ -779,21 +780,23 @@ class TestSubcloudManager(base.DCManagerTestCase):
         mock_keystone_client,
         mock_delete_subcloud_inventory,
         mock_create_intermediate_ca_cert,
-        mock_compose_rehome_command):
+        mock_compose_rehome_command,
+        mock_run_playbook):
+
         values = utils.create_subcloud_dict(base.SUBCLOUD_SAMPLE_DATA_0)
         values['deploy_status'] = consts.DEPLOY_STATE_NONE
         values['migrate'] = 'true'
+        sysadmin_password = values['sysadmin_password']
 
         # dcmanager add_subcloud queries the data from the db
         subcloud = self.create_subcloud_static(self.ctx, name=values['name'])
 
         mock_keystone_client().keystone_client = FakeKeystoneClient()
-        mock_keyring.get_password.return_value = "testpassword"
+        mock_keyring.get_password.return_value = sysadmin_password
         mock_get_cached_regionone_data.return_value = FAKE_CACHED_REGIONONE_DATA
 
         sm = subcloud_manager.SubcloudManager()
-        with mock.patch.object(sm, 'run_deploy_thread') as mock_run_deploy:
-            sm.add_subcloud(self.ctx, subcloud.id, payload=values)
+        sm.add_subcloud(self.ctx, subcloud.id, payload=values)
 
         mock_get_cached_regionone_data.assert_called_once()
         mock_sysinv_client().create_route.assert_called()
@@ -801,8 +804,8 @@ class TestSubcloudManager(base.DCManagerTestCase):
         mock_create_addn_hosts.assert_called_once()
         mock_create_subcloud_inventory.assert_called_once()
         mock_write_subcloud_ansible_config.assert_called_once()
-        mock_run_deploy.assert_called_once()
         mock_create_intermediate_ca_cert.assert_called_once()
+        mock_run_playbook.assert_called_once()
         mock_compose_rehome_command.assert_called_once_with(
             values['name'],
             sm._get_ansible_filename(values['name'], consts.INVENTORY_FILE_POSTFIX),
@@ -810,8 +813,16 @@ class TestSubcloudManager(base.DCManagerTestCase):
 
         # Verify subcloud was updated with correct values
         updated_subcloud = db_api.subcloud_get_by_name(self.ctx, values['name'])
-        self.assertEqual(consts.DEPLOY_STATE_PRE_REHOME,
+        self.assertEqual(consts.DEPLOY_STATE_DONE,
                          updated_subcloud.deploy_status)
+
+        # Verify that the password fields are present
+        written_payload = mock_write_subcloud_ansible_config.call_args.args[1]
+        expected_subset = {'ansible_become_pass': sysadmin_password,
+                           'ansible_ssh_pass': sysadmin_password,
+                           'admin_password': sysadmin_password}
+        # Check that expected_subset is a subset of written_payload
+        self.assertTrue(expected_subset.items() <= written_payload.items())
 
     @mock.patch.object(subcloud_manager, 'OpenStackDriver')
     @mock.patch.object(subcloud_manager, 'SysinvClient')
@@ -840,11 +851,14 @@ class TestSubcloudManager(base.DCManagerTestCase):
         self.assertEqual(consts.DEPLOY_STATE_CREATE_FAILED,
                          subcloud.deploy_status)
 
+    @mock.patch.object(subcloud_manager, 'keyring')
     @mock.patch.object(subcloud_manager, 'OpenStackDriver')
     @mock.patch.object(subcloud_manager, 'SysinvClient')
     @mock.patch.object(subcloud_manager.SubcloudManager, '_get_cached_regionone_data')
     def test_add_subcloud_with_migrate_option_prep_failed(
-        self, mock_get_cached_regionone_data, mock_sysinv_client, mock_keystone_client):
+        self, mock_get_cached_regionone_data, mock_sysinv_client,
+        mock_keystone_client, mock_keyring):
+
         values = utils.create_subcloud_dict(base.SUBCLOUD_SAMPLE_DATA_0)
         values['migrate'] = 'true'
         services = FAKE_SERVICES
@@ -855,6 +869,7 @@ class TestSubcloudManager(base.DCManagerTestCase):
         self.fake_dcorch_api.add_subcloud.side_effect = FakeException('boom')
         mock_get_cached_regionone_data.return_value = FAKE_CACHED_REGIONONE_DATA
         mock_keystone_client().services_list = services
+        mock_keyring.get_password.return_vaue = "testpass"
 
         sm = subcloud_manager.SubcloudManager()
         sm.add_subcloud(self.ctx, subcloud.id, payload=values)
