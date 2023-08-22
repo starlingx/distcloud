@@ -354,7 +354,6 @@ class SubcloudManager(manager.Manager):
         LOG.info(f"Adding subcloud {payload['name']}.")
 
         rehoming = payload.get('migrate', '').lower() == "true"
-        payload['ansible_ssh_pass'] = payload['sysadmin_password']
 
         # Create the subcloud
         subcloud = self.subcloud_deploy_create(context, subcloud_id,
@@ -913,8 +912,9 @@ class SubcloudManager(manager.Manager):
             # Regenerate the addn_hosts_dc file
             self._create_addn_hosts_dc(context)
 
+            # Passwords need to be populated when rehoming
             self._populate_payload_with_cached_keystone_data(
-                cached_regionone_data, payload, populate_passwords=False)
+                cached_regionone_data, payload, populate_passwords=rehoming)
 
             if "deploy_playbook" in payload:
                 self._prepare_for_deployment(payload, subcloud.name,
