@@ -138,6 +138,7 @@ class Subcloud(BASE, DCManagerBase):
     systemcontroller_gateway_ip = Column(String(255))
     audit_fail_count = Column(Integer)
     first_identity_sync_complete = Column(Boolean, default=False)
+    rehome_data = Column(Text())
 
     # multiple subclouds can be in a particular group
     group_id = Column(Integer,

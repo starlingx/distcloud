@@ -163,6 +163,21 @@ def validate_migrate_parameter(payload, request):
                                'not allowed'))
 
 
+def validate_secondary_parameter(payload, request):
+    secondary_str = payload.get('secondary')
+    migrate_str = payload.get('migrate')
+    if secondary_str is not None:
+        if secondary_str not in ["true", "false"]:
+            pecan.abort(400, _('The secondary option is invalid, '
+                               'valid options are true and false.'))
+        if consts.DEPLOY_CONFIG in request.POST:
+            pecan.abort(400, _('secondary with deploy-config is '
+                               'not allowed'))
+        if migrate_str is not None:
+            pecan.abort(400, _('secondary with migrate is '
+                               'not allowed'))
+
+
 def validate_subcloud_config(context, payload, operation=None,
                              ignore_conflicts_with=None):
     """Check whether subcloud config is valid."""

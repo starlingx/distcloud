@@ -16,7 +16,9 @@
 #
 from __future__ import division
 
+import base64
 import collections
+import copy
 import datetime
 import filecmp
 import functools
@@ -35,6 +37,7 @@ from oslo_log import log as logging
 from oslo_messaging import RemoteError
 from tsconfig.tsconfig import CONFIG_PATH
 from tsconfig.tsconfig import SW_VERSION
+import yaml
 
 from dccommon import consts as dccommon_consts
 from dccommon.drivers.openstack.sdk_platform import OpenStackDriver
@@ -331,6 +334,55 @@ class SubcloudManager(manager.Manager):
                 dccommon_consts.ANSIBLE_OVERRIDES_PATH, subcloud_name)]
         return rehome_command
 
+    def migrate_subcloud(self, context, subcloud_ref, payload):
+        '''migrate_subcloud function is for day-2's rehome purpose.
+
+        This is called by 'dcmanager subcloud migrate <subcloud>'.
+        This function is used to migrate those 'secondary' subcloud.
+
+        :param context: request context object
+        :param subcloud_ref: id or name of the subcloud
+        :param payload: subcloud configuration
+        '''
+        subcloud = None
+        try:
+            # subcloud_ref could be int type id.
+            subcloud = utils.subcloud_get_by_ref(context, str(subcloud_ref))
+            if not subcloud:
+                LOG.exception("Failed to migrate, non-existent subcloud %s" % subcloud_ref)
+                raise Exception("Failed to migrate, non-existent subcloud %s" % subcloud_ref)
+            if 'sysadmin_password' not in payload:
+                raise Exception("Failed to migrate subcloud: %s, must provide sysadmin_password" %
+                                subcloud.name)
+
+            if subcloud.deploy_status not in [consts.DEPLOY_STATE_SECONDARY,
+                                              consts.DEPLOY_STATE_REHOME_FAILED,
+                                              consts.DEPLOY_STATE_REHOME_PREP_FAILED]:
+                raise Exception("Failed to migrate subcloud: %s, "
+                                "must be in secondary or rehome failure state" %
+                                subcloud.name)
+
+            rehome_data = json.loads(subcloud.rehome_data)
+            saved_payload = rehome_data['saved_payload']
+            # Update sysadmin_password/ansible_ssh_pass
+            sysadmin_password = base64.b64decode(payload['sysadmin_password']).decode('utf-8')
+            saved_payload['sysadmin_password'] = sysadmin_password
+            saved_payload['ansible_ssh_pass'] = sysadmin_password
+
+            # Re-generate ansible config based on latest rehome_data
+            subcloud = self.subcloud_migrate_generate_ansible_config(
+                context, subcloud.id,
+                saved_payload)
+            self.rehome_subcloud(context, subcloud, saved_payload)
+        except Exception:
+            # If we failed to migrate the subcloud, update the
+            # deployment status
+            if subcloud:
+                LOG.exception("Failed to migrate subcloud %s" % subcloud.name)
+                db_api.subcloud_update(
+                    context, subcloud.id,
+                    deploy_status=consts.DEPLOY_STATE_REHOME_FAILED)
+
     def rehome_subcloud(self, context, subcloud, payload):
         # Ansible inventory filename for the specified subcloud
         ansible_subcloud_inventory_file = self._get_ansible_filename(
@@ -354,11 +406,16 @@ class SubcloudManager(manager.Manager):
         LOG.info(f"Adding subcloud {payload['name']}.")
 
         rehoming = payload.get('migrate', '').lower() == "true"
+        secondary = (payload.get('secondary', '').lower() == "true")
 
         # Create the subcloud
         subcloud = self.subcloud_deploy_create(context, subcloud_id,
                                                payload, rehoming,
                                                return_as_dict=False)
+
+        # return if 'secondary' subcloud
+        if secondary:
+            return
 
         # Return if create failed
         if rehoming:
@@ -825,6 +882,70 @@ class SubcloudManager(manager.Manager):
         self.run_deploy_phases(context, subcloud_id, payload,
                                deploy_states_to_run)
 
+    def subcloud_migrate_generate_ansible_config(self, context, subcloud_id, payload):
+        """Generate latest ansible config based on given payload for day-2 rehoming purpose.
+
+        :param context: request context object
+        :param subcloud_id: subcloud_id from db
+        :param payload: subcloud configuration
+        :return: resulting subcloud DB object
+        """
+        LOG.info("Generate subcloud %s ansible config." % payload['name'])
+
+        deploy_state = consts.DEPLOY_STATE_PRE_REHOME
+        subcloud = db_api.subcloud_update(
+            context, subcloud_id,
+            deploy_status=deploy_state)
+
+        try:
+            # Write ansible based on rehome_data
+            m_ks_client = OpenStackDriver(
+                region_name=dccommon_consts.DEFAULT_REGION_NAME,
+                region_clients=None).keystone_client
+            endpoint = m_ks_client.endpoint_cache.get_endpoint('sysinv')
+            sysinv_client = SysinvClient(dccommon_consts.DEFAULT_REGION_NAME,
+                                         m_ks_client.session,
+                                         endpoint=endpoint)
+            LOG.debug("Getting cached regionone data for %s" % subcloud.name)
+            cached_regionone_data = self._get_cached_regionone_data(
+                m_ks_client, sysinv_client)
+
+            self._populate_payload_with_cached_keystone_data(
+                cached_regionone_data, payload, populate_passwords=False)
+
+            payload['users'] = {}
+            for user in USERS_TO_REPLICATE:
+                payload['users'][user] = \
+                    str(keyring.get_password(
+                        user, dccommon_consts.SERVICES_USER_NAME))
+
+            # Ansible inventory filename for the specified subcloud
+            ansible_subcloud_inventory_file = utils.get_ansible_filename(
+                subcloud.name, INVENTORY_FILE_POSTFIX)
+
+            # Create the ansible inventory for the new subcloud
+            utils.create_subcloud_inventory(payload,
+                                            ansible_subcloud_inventory_file)
+
+            # create subcloud intermediate certificate and pass in keys
+            self._create_intermediate_ca_cert(payload)
+
+            # Write this subclouds overrides to file
+            # NOTE: This file should not be deleted if subcloud migrate fails
+            # as it is used for debugging
+            self._write_subcloud_ansible_config(cached_regionone_data, payload)
+
+            return subcloud
+
+        except Exception:
+            LOG.exception("Failed to generate subcloud %s config" % payload['name'])
+            # If we failed to generate the subcloud config, update the deployment status
+            deploy_state = consts.DEPLOY_STATE_REHOME_PREP_FAILED
+            subcloud = db_api.subcloud_update(
+                context, subcloud_id,
+                deploy_status=deploy_state)
+            return subcloud
+
     def subcloud_deploy_create(self, context, subcloud_id, payload,
                                rehoming=False, return_as_dict=True):
         """Create subcloud and notify orchestrators.
@@ -838,8 +959,17 @@ class SubcloudManager(manager.Manager):
         """
         LOG.info("Creating subcloud %s." % payload['name'])
 
+        # cache original payload data for day-2's rehome usage
+        original_payload = copy.deepcopy(payload)
+
+        # Check the secondary option from payload
+        secondary_str = payload.get('secondary', '')
+        secondary = (secondary_str.lower() == 'true')
+
         if rehoming:
             deploy_state = consts.DEPLOY_STATE_PRE_REHOME
+        elif secondary:
+            deploy_state = consts.DEPLOY_STATE_SECONDARY
         else:
             deploy_state = consts.DEPLOY_STATE_CREATING
 
@@ -847,6 +977,7 @@ class SubcloudManager(manager.Manager):
             context, subcloud_id,
             deploy_status=deploy_state)
 
+        rehome_data = None
         try:
             # Create a new route to this subcloud on the management interface
             # on both controllers.
@@ -960,7 +1091,22 @@ class SubcloudManager(manager.Manager):
             # as it is used for debugging
             self._write_subcloud_ansible_config(cached_regionone_data, payload)
 
-            if not rehoming:
+            # To add a 'secondary' subcloud, save payload into DB
+            # for day-2's migrate purpose.
+            if secondary:
+                # remove unused parameters
+                if 'secondary' in original_payload:
+                    del original_payload['secondary']
+                if 'ansible_ssh_pass' in original_payload:
+                    del original_payload['ansible_ssh_pass']
+                if 'sysadmin_password' in original_payload:
+                    del original_payload['sysadmin_password']
+                bootstrap_info = utils.create_subcloud_rehome_data_template()
+                bootstrap_info['saved_payload'] = original_payload
+                rehome_data = json.dumps(bootstrap_info)
+                deploy_state = consts.DEPLOY_STATE_SECONDARY
+
+            if not rehoming and not secondary:
                 deploy_state = consts.DEPLOY_STATE_CREATED
 
         except Exception:
@@ -969,12 +1115,15 @@ class SubcloudManager(manager.Manager):
 
             if rehoming:
                 deploy_state = consts.DEPLOY_STATE_REHOME_PREP_FAILED
+            elif secondary:
+                deploy_state = consts.DEPLOY_STATE_SECONDARY_FAILED
             else:
                 deploy_state = consts.DEPLOY_STATE_CREATE_FAILED
 
         subcloud = db_api.subcloud_update(
             context, subcloud.id,
-            deploy_status=deploy_state)
+            deploy_status=deploy_state,
+            rehome_data=rehome_data)
 
         # The RPC call must return the subcloud as a dictionary, otherwise it
         # should return the DB object for dcmanager internal use (subcloud add)
@@ -2145,7 +2294,10 @@ class SubcloudManager(manager.Manager):
                         location=None,
                         group_id=None,
                         data_install=None,
-                        force=None):
+                        force=None,
+                        deploy_status=None,
+                        bootstrap_values=None,
+                        bootstrap_address=None):
         """Update subcloud and notify orchestrators.
 
         :param context: request context object
@@ -2156,6 +2308,9 @@ class SubcloudManager(manager.Manager):
         :param group_id: new subcloud group id
         :param data_install: subcloud install values
         :param force: force flag
+        :param deploy_status: update to expected deploy status
+        :param bootstrap_values: bootstrap_values yaml content
+        :param bootstrap_address: oam IP for rehome
         """
 
         LOG.info("Updating subcloud %s." % subcloud_id)
@@ -2195,6 +2350,79 @@ class SubcloudManager(manager.Manager):
                 LOG.error("Invalid management_state %s" % management_state)
                 raise exceptions.InternalError()
 
+        # update bootstrap values into rehome_data
+        rehome_data_dict = None
+        # load the existing data if it exists
+        if subcloud.rehome_data:
+            rehome_data_dict = json.loads(subcloud.rehome_data)
+        # update saved_payload with the bootstrap values
+        if bootstrap_values:
+            _bootstrap_address = None
+            if not rehome_data_dict:
+                rehome_data_dict = utils.create_subcloud_rehome_data_template()
+            else:
+                # Since bootstrap-address is not original data in bootstrap-values
+                # it's necessary to save it first, then put it back after
+                # after bootstrap_values is updated.
+                if 'bootstrap-address' in rehome_data_dict['saved_payload']:
+                    _bootstrap_address = rehome_data_dict['saved_payload']['bootstrap-address']
+            bootstrap_values_dict = yaml.load(bootstrap_values, Loader=yaml.SafeLoader)
+            rehome_data_dict['saved_payload'] = bootstrap_values_dict
+            # put bootstrap_address back into rehome_data_dict
+            if _bootstrap_address:
+                rehome_data_dict['saved_payload']['bootstrap-address'] = _bootstrap_address
+
+        # update deploy status, ONLY apply for unmanaged subcloud
+        new_deploy_status = None
+        if deploy_status is not None:
+            if subcloud.management_state != dccommon_consts.MANAGEMENT_UNMANAGED:
+                raise exceptions.BadRequest(
+                      resource='subcloud',
+                      msg='deploy_status can only be updated on unmanaged subcloud')
+            new_deploy_status = deploy_status
+            # set all endpoint statuses to unknown
+            # no endpoint will be audited for secondary
+            # subclouds
+            self.state_rpc_client.update_subcloud_endpoint_status_sync(
+                context,
+                subcloud_name=subcloud.name,
+                endpoint_type=None,
+                sync_status=dccommon_consts.SYNC_STATUS_UNKNOWN)
+
+            # clear existing fault alarm of secondary subcloud
+            for alarm_id, entity_instance_id in (
+                    (fm_const.FM_ALARM_ID_DC_SUBCLOUD_OFFLINE,
+                        "subcloud=%s" % subcloud.name),
+                    (fm_const.FM_ALARM_ID_DC_SUBCLOUD_RESOURCE_OUT_OF_SYNC,
+                        "subcloud=%s.resource=%s" %
+                        (subcloud.name, dccommon_consts.ENDPOINT_TYPE_DC_CERT)),
+                    (fm_const.FM_ALARM_ID_DC_SUBCLOUD_BACKUP_FAILED,
+                        "subcloud=%s" % subcloud.name)):
+                try:
+                    fault = self.fm_api.get_fault(alarm_id,
+                                                  entity_instance_id)
+                    if fault:
+                        self.fm_api.clear_fault(alarm_id,
+                                                entity_instance_id)
+                except Exception as e:
+                    LOG.info(
+                        "Failed to clear fault for subcloud %s, alarm_id=%s" %
+                        (subcloud.name, alarm_id))
+                    LOG.exception(e)
+
+        # update bootstrap_address
+        if bootstrap_address:
+            if rehome_data_dict is None:
+                raise exceptions.BadRequest(
+                    resource='subcloud',
+                    msg='Cannot update bootstrap_address into rehome data, '
+                        'need to import bootstrap_values first')
+            rehome_data_dict['saved_payload']['bootstrap-address'] = bootstrap_address
+
+        if rehome_data_dict:
+            rehome_data = json.dumps(rehome_data_dict)
+        else:
+            rehome_data = None
         subcloud = db_api.subcloud_update(
             context,
             subcloud_id,
@@ -2202,7 +2430,9 @@ class SubcloudManager(manager.Manager):
             description=description,
             location=location,
             group_id=group_id,
-            data_install=data_install
+            data_install=data_install,
+            deploy_status=new_deploy_status,
+            rehome_data=rehome_data
         )
 
         # Inform orchestrators that subcloud has been updated

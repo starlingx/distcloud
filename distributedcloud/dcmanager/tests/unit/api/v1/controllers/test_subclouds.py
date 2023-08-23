@@ -1233,7 +1233,9 @@ class TestSubcloudAPIOther(testroot.DCManagerApiTest):
             location=None,
             group_id=None,
             data_install=json.dumps(install_data),
-            force=None)
+            force=None,
+            bootstrap_values=None,
+            bootstrap_address=None)
         self.assertEqual(response.status_int, 200)
 
     @mock.patch.object(psd_common, 'get_network_address_pool')
@@ -1304,7 +1306,9 @@ class TestSubcloudAPIOther(testroot.DCManagerApiTest):
             location=None,
             group_id=None,
             data_install=json.dumps(install_data),
-            force=None)
+            force=None,
+            bootstrap_values=None,
+            bootstrap_address=None)
         self.assertEqual(response.status_int, 200)
 
     @mock.patch.object(subclouds.SubcloudsController, '_get_patch_data')
@@ -1341,7 +1345,9 @@ class TestSubcloudAPIOther(testroot.DCManagerApiTest):
             location=None,
             group_id=None,
             data_install=json.dumps(install_data),
-            force=None)
+            force=None,
+            bootstrap_values=None,
+            bootstrap_address=None)
         self.assertEqual(response.status_int, 200)
 
     @mock.patch.object(subclouds.SubcloudsController, '_get_patch_data')
@@ -1404,7 +1410,9 @@ class TestSubcloudAPIOther(testroot.DCManagerApiTest):
             location=None,
             group_id=None,
             data_install=None,
-            force=True)
+            force=True,
+            bootstrap_values=None,
+            bootstrap_address=None)
         self.assertEqual(response.status_int, 200)
 
     @mock.patch.object(subclouds.SubcloudsController, '_get_reconfig_payload')

@@ -85,7 +85,7 @@ SUBCLOUD_REDEPLOY_GET_FILE_CONTENTS = [
 ]
 
 BOOTSTRAP_VALUES_ADDRESSES = [
-    'bootstrap-address', 'management_start_address', 'management_end_address',
+    'bootstrap-address', 'bootstrap_address', 'management_start_address', 'management_end_address',
     'management_gateway_address', 'systemcontroller_gateway_address',
     'external_oam_gateway_address', 'external_oam_floating_address',
     'admin_start_address', 'admin_end_address', 'admin_gateway_address'
@@ -341,6 +341,38 @@ class SubcloudsController(object):
             else dccommon_consts.DEPLOY_CONFIG_UP_TO_DATE
         return sync_status
 
+    def _validate_migrate(self, payload, subcloud):
+        # Verify rehome data
+        if not subcloud.rehome_data:
+            LOG.exception("Unable to migrate subcloud %s, "
+                          "required rehoming data is missing" % subcloud.name)
+            pecan.abort(500, _("Unable to migrate subcloud %s, "
+                               "required rehoming data is missing" % subcloud.name))
+        rehome_data = json.loads(subcloud.rehome_data)
+        if 'saved_payload' not in rehome_data:
+            LOG.exception("Unable to migrate subcloud %s, "
+                          "saved_payload is missing in rehoming data" % subcloud.name)
+            pecan.abort(500, _("Unable to migrate subcloud %s, "
+                               "saved_payload is missing in rehoming data" % subcloud.name))
+        saved_payload = rehome_data['saved_payload']
+        # Validate saved_payload
+        if len(saved_payload) == 0:
+            LOG.exception("Unable to migrate subcloud %s, "
+                          "saved_payload is empty" % subcloud.name)
+            pecan.abort(500, _("Unable to migrate subcloud %s, "
+                               "saved_payload is empty" % subcloud.name))
+        if 'bootstrap-address' not in saved_payload:
+            LOG.exception("Unable to migrate subcloud %s, "
+                          "bootstrap-address is missing in rehoming data" % subcloud.name)
+            pecan.abort(500, _("Unable to migrate subcloud %s, "
+                               "bootstrap-address is missing in rehoming data" % subcloud.name))
+        # Validate sysadmin_password is in payload
+        if 'sysadmin_password' not in payload:
+            LOG.exception("Unable to migrate subcloud %s, "
+                          "need sysadmin_password" % subcloud.name)
+            pecan.abort(500, _("Unable to migrate subcloud %s, "
+                               "need sysadmin_password" % subcloud.name))
+
     @staticmethod
     def _append_static_err_content(subcloud):
         err_dict = consts.ERR_MSG_DICT
@@ -505,7 +537,11 @@ class SubcloudsController(object):
 
         psd_common.validate_migrate_parameter(payload, request)
 
-        psd_common.validate_sysadmin_password(payload)
+        psd_common.validate_secondary_parameter(payload, request)
+
+        # No need sysadmin_password when add a secondary subcloud
+        if 'secondary' not in payload:
+            psd_common.validate_sysadmin_password(payload)
 
         psd_common.pre_deploy_create(payload, context, request)
 
@@ -571,6 +607,9 @@ class SubcloudsController(object):
                 SUBCLOUD_MANDATORY_NETWORK_PARAMS))
 
             if reconfigure_network:
+                if utils.subcloud_is_secondary_state(subcloud.deploy_status):
+                    pecan.abort(500, _("Cannot perform on %s "
+                                       "state subcloud" % subcloud.deploy_status))
                 system_controller_mgmt_pool = psd_common.get_network_address_pool()
                 # Required parameters
                 payload['name'] = subcloud.name
@@ -590,6 +629,8 @@ class SubcloudsController(object):
             group_id = payload.get('group_id')
             description = payload.get('description')
             location = payload.get('location')
+            bootstrap_values = payload.get('bootstrap_values')
+            bootstrap_address = payload.get('bootstrap_address')
 
             # Syntax checking
             if management_state and \
@@ -616,9 +657,8 @@ class SubcloudsController(object):
                         grp = db_api.subcloud_group_get_by_name(context,
                                                                 group_id)
                     group_id = grp.id
-                except exceptions.SubcloudGroupNameNotFound:
-                    pecan.abort(400, _('Invalid group'))
-                except exceptions.SubcloudGroupNotFound:
+                except (exceptions.SubcloudGroupNameNotFound,
+                        exceptions.SubcloudGroupNotFound):
                     pecan.abort(400, _('Invalid group'))
 
             if INSTALL_VALUES in payload:
@@ -634,7 +674,9 @@ class SubcloudsController(object):
                     context, subcloud_id, management_state=management_state,
                     description=description, location=location,
                     group_id=group_id, data_install=payload.get('data_install'),
-                    force=force_flag)
+                    force=force_flag,
+                    bootstrap_values=bootstrap_values,
+                    bootstrap_address=bootstrap_address)
                 return subcloud
             except RemoteError as e:
                 pecan.abort(422, e.value)
@@ -643,6 +685,9 @@ class SubcloudsController(object):
                 LOG.exception(e)
                 pecan.abort(500, _('Unable to update subcloud'))
         elif verb == 'reconfigure':
+            if utils.subcloud_is_secondary_state(subcloud.deploy_status):
+                pecan.abort(500, _("Cannot perform on %s "
+                                   "state subcloud" % subcloud.deploy_status))
             payload = self._get_reconfig_payload(
                 request, subcloud.name, subcloud.software_version)
             if not payload:
@@ -682,6 +727,9 @@ class SubcloudsController(object):
                 LOG.exception("Unable to reconfigure subcloud %s" % subcloud.name)
                 pecan.abort(500, _('Unable to reconfigure subcloud'))
         elif verb == "reinstall":
+            if utils.subcloud_is_secondary_state(subcloud.deploy_status):
+                pecan.abort(500, _("Cannot perform on %s "
+                                   "state subcloud" % subcloud.deploy_status))
             psd_common.check_required_parameters(request,
                                                  SUBCLOUD_ADD_MANDATORY_FILE)
 
@@ -769,6 +817,9 @@ class SubcloudsController(object):
                 LOG.exception("Unable to reinstall subcloud %s" % subcloud.name)
                 pecan.abort(500, _('Unable to reinstall subcloud'))
         elif verb == "redeploy":
+            if utils.subcloud_is_secondary_state(subcloud.deploy_status):
+                pecan.abort(500, _("Cannot perform on %s "
+                                   "state subcloud" % subcloud.deploy_status))
             config_file = psd_common.get_config_file_path(subcloud.name,
                                                           consts.DEPLOY_CONFIG)
             has_bootstrap_values = consts.BOOTSTRAP_VALUES in request.POST
@@ -839,6 +890,9 @@ class SubcloudsController(object):
             res = self.updatestatus(subcloud.name)
             return res
         elif verb == 'prestage':
+            if utils.subcloud_is_secondary_state(subcloud.deploy_status):
+                pecan.abort(500, _("Cannot perform on %s "
+                                   "state subcloud" % subcloud.deploy_status))
             payload = self._get_prestage_payload(request)
             payload['subcloud_name'] = subcloud.name
             try:
@@ -871,6 +925,29 @@ class SubcloudsController(object):
             except Exception:
                 LOG.exception("Unable to prestage subcloud %s" % subcloud.name)
                 pecan.abort(500, _('Unable to prestage subcloud'))
+        elif verb == 'migrate':
+            try:
+                # Reject if not in secondary/rehome-failed/rehome-prep-failed state
+                if subcloud.deploy_status not in [consts.DEPLOY_STATE_SECONDARY,
+                                                  consts.DEPLOY_STATE_REHOME_FAILED,
+                                                  consts.DEPLOY_STATE_REHOME_PREP_FAILED]:
+                    LOG.exception("Unable to migrate subcloud %s, "
+                                  "must be in secondary or rehome failure state" % subcloud.name)
+                    pecan.abort(400, _("Unable to migrate subcloud %s, "
+                                       "must be in secondary or rehome failure state" %
+                                       subcloud.name))
+                payload = json.loads(request.body)
+                self._validate_migrate(payload, subcloud)
+
+                # Call migrate
+                self.dcmanager_rpc_client.migrate_subcloud(context, subcloud.id, payload)
+                return db_api.subcloud_db_model_to_dict(subcloud)
+            except RemoteError as e:
+                pecan.abort(422, e.value)
+            except Exception:
+                LOG.exception(
+                    "Unable to migrate subcloud %s" % subcloud.name)
+                pecan.abort(500, _('Unable to migrate subcloud'))
 
     @utils.synchronized(LOCK_NAME)
     @index.when(method='delete', template='json')

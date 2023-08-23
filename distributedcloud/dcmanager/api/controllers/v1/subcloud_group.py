@@ -186,7 +186,6 @@ class SubcloudGroupsController(restcomm.GenericPathController):
         except RemoteError as e:
             pecan.abort(httpclient.UNPROCESSABLE_ENTITY, e.value)
         except Exception as e:
-            # TODO(abailey)  add support for GROUP already exists (409)
             LOG.exception(e)
             pecan.abort(httpclient.INTERNAL_SERVER_ERROR,
                         _('Unable to create subcloud group'))

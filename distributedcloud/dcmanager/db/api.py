@@ -123,7 +123,8 @@ def subcloud_db_model_to_dict(subcloud):
               "data_upgrade": subcloud.data_upgrade,
               "created-at": subcloud.created_at,
               "updated-at": subcloud.updated_at,
-              "group_id": subcloud.group_id}
+              "group_id": subcloud.group_id,
+              "rehome_data": subcloud.rehome_data}
     return result
 
 
@@ -182,7 +183,8 @@ def subcloud_update(context, subcloud_id, management_state=None,
                     openstack_installed=None, group_id=None,
                     data_install=None, data_upgrade=None,
                     first_identity_sync_complete=None,
-                    systemcontroller_gateway_ip=None):
+                    systemcontroller_gateway_ip=None,
+                    rehome_data=None):
     """Update a subcloud or raise if it does not exist."""
     return IMPL.subcloud_update(context, subcloud_id, management_state,
                                 availability_status, software_version,
@@ -192,7 +194,7 @@ def subcloud_update(context, subcloud_id, management_state=None,
                                 backup_datetime, error_description, openstack_installed,
                                 group_id, data_install, data_upgrade,
                                 first_identity_sync_complete,
-                                systemcontroller_gateway_ip)
+                                systemcontroller_gateway_ip, rehome_data)
 
 
 def subcloud_bulk_update_by_ids(context, subcloud_ids, update_form):
