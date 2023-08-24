@@ -2457,6 +2457,52 @@ Response Example
          :language: json
 
 
+*****************************************************************
+Shows subcloud peer groups that are associated with a system peer
+*****************************************************************
+
+.. rest_method:: GET /v1.0/system-peers/​{system-peer}​/subcloud-peer-groups
+
+**Normal response codes**
+
+200
+
+**Error response codes**
+
+badRequest (400), unauthorized (401), forbidden (403),
+itemNotFound (404), badMethod (405), HTTPUnprocessableEntity (422),
+internalServerError (500), serviceUnavailable (503)
+
+**Request parameters**
+
+.. rest_parameters:: parameters.yaml
+
+  - system-peer: system_peer_uri
+
+This operation does not accept a request body.
+
+**Response parameters**
+
+.. rest_parameters:: parameters.yaml
+
+  - subcloud_peer_groups: subcloud_peer_groups
+  - id: subcloud_peer_group_id
+  - peer_group_name: subcloud_peer_group_name
+  - group_priority: subcloud_peer_group_priority
+  - group_state: subcloud_peer_group_administrative_state
+  - max_subcloud_rehoming: subcloud_peer_group_max_subcloud_rehoming
+  - system_leader_id: subcloud_peer_group_system_leader_id
+  - system_leader_name: subcloud_peer_group_system_leader_name
+  - created_at: created_at
+  - updated_at: updated_at
+
+Response Example
+----------------
+
+.. literalinclude:: samples/system-peers/system-peers-get-peer-groups-response.json
+         :language: json
+
+
 *******************************
 Modifies a specific system peer
 *******************************
@@ -2894,5 +2940,264 @@ internalServerError (500), serviceUnavailable (503)
 .. rest_parameters:: parameters.yaml
 
   - subcloud-peer-group: subcloud_peer_group_uri
+
+This operation does not accept a request body.
+
+----------------------
+Peer Group Association
+----------------------
+
+Peer Group Associations are logical connections managed by a central System Controller.
+It's a linking of the subcloud peer group and the system peer to
+establish associations with local subcloud peer groups and peer sites.
+
+*********************************
+Lists all peer group associations
+*********************************
+
+.. rest_method:: GET /v1.0/peer-group-associations
+
+This operation does not accept a request body.
+
+**Normal response codes**
+
+200
+
+**Error response codes**
+
+badRequest (400), unauthorized (401), forbidden (403),
+badMethod (405), HTTPUnprocessableEntity (422),
+internalServerError (500), serviceUnavailable (503)
+
+
+**Response parameters**
+
+.. rest_parameters:: parameters.yaml
+
+  - peer-group-associations: peer_group_associations
+  - id: peer_group_association_id
+  - peer-group-id: association_peer_group_id
+  - system-peer-id: system_peer_id
+  - peer-group-priority: association_peer_group_priority
+  - sync-status: association_sync_status
+  - created-at: created_at
+  - updated-at: updated_at
+
+Response Example
+----------------
+
+.. literalinclude:: samples/peer-group-associations/associations-get-response.json
+         :language: json
+
+
+********************************
+Creates a peer group association
+********************************
+
+.. rest_method:: POST /v1.0/peer-group-associations
+
+**Normal response codes**
+
+200
+
+**Error response codes**
+
+badRequest (400), unauthorized (401), forbidden (403), badMethod (405),
+HTTPUnprocessableEntity (422), internalServerError (500),
+serviceUnavailable (503)
+
+**Request parameters**
+
+.. rest_parameters:: parameters.yaml
+
+  - peer_group_id: association_peer_group_id
+  - system_peer_id: system_peer_id
+  - peer_group_priority: association_peer_group_priority
+
+Request Example
+----------------
+
+.. literalinclude:: samples/peer-group-associations/associations-post-request.json
+         :language: json
+
+**Response parameters**
+
+.. rest_parameters:: parameters.yaml
+
+  - id: peer_group_association_id
+  - peer-group-id: association_peer_group_id
+  - system-peer-id: system_peer_id
+  - peer-group-priority: association_peer_group_priority
+  - sync-status: association_sync_status
+  - sync-message: association_sync_message
+  - created-at: created_at
+  - updated-at: updated_at
+
+Response Example
+----------------
+
+.. literalinclude:: samples/peer-group-associations/associations-post-response.json
+         :language: json
+
+
+*********************************************************
+Shows information about a specific peer group association
+*********************************************************
+
+.. rest_method:: GET /v1.0/peer-group-associations/​{associate_id}​
+
+**Normal response codes**
+
+200
+
+**Error response codes**
+
+badRequest (400), unauthorized (401), forbidden (403),
+itemNotFound (404), badMethod (405), HTTPUnprocessableEntity (422),
+internalServerError (500), serviceUnavailable (503)
+
+**Request parameters**
+
+.. rest_parameters:: parameters.yaml
+
+  - associate_id: peer_group_association_uri
+
+This operation does not accept a request body.
+
+**Response parameters**
+
+.. rest_parameters:: parameters.yaml
+
+  - id: peer_group_association_id
+  - peer-group-id: association_peer_group_id
+  - system-peer-id: system_peer_id
+  - peer-group-priority: association_peer_group_priority
+  - sync-status: association_sync_status
+  - sync-message: association_sync_message
+  - created-at: created_at
+  - updated-at: updated_at
+
+Response Example
+----------------
+
+.. literalinclude:: samples/peer-group-associations/association-get-response.json
+         :language: json
+
+
+**********************************************
+Synchronizes a specific peer group association
+**********************************************
+
+.. rest_method:: PATCH /v1.0/peer-group-associations/​{associate_id}​/sync
+
+**Normal response codes**
+
+200
+
+**Error response codes**
+
+badRequest (400), unauthorized (401), forbidden (403),
+itemNotFound (404), badMethod (405), HTTPUnprocessableEntity (422),
+internalServerError (500), serviceUnavailable (503)
+
+**Request parameters**
+
+.. rest_parameters:: parameters.yaml
+
+  - associate_id: peer_group_association_uri
+
+**Response parameters**
+
+.. rest_parameters:: parameters.yaml
+
+  - id: peer_group_association_id
+  - peer-group-id: association_peer_group_id
+  - system-peer-id: system_peer_id
+  - peer-group-priority: association_peer_group_priority
+  - sync-status: association_sync_status
+  - sync-message: association_sync_message
+  - created-at: created_at
+  - updated-at: updated_at
+
+Response Example
+----------------
+
+.. literalinclude:: samples/peer-group-associations/association-patch-response.json
+         :language: json
+
+
+******************************************
+Modifies a specific peer group association
+******************************************
+
+.. rest_method:: PATCH /v1.0/peer-group-associations/​{associate_id}​
+
+The attributes of a subcloud peer group which are modifiable:
+
+-  peer_group_priority
+
+**Normal response codes**
+
+200
+
+**Error response codes**
+
+badRequest (400), unauthorized (401), forbidden (403), badMethod (405),
+HTTPUnprocessableEntity (422), internalServerError (500),
+serviceUnavailable (503)
+
+**Request parameters**
+
+.. rest_parameters:: parameters.yaml
+
+  - associate_id: peer_group_association_uri
+  - peer_group_priority: association_peer_group_priority
+
+Request Example
+----------------
+.. literalinclude:: samples/peer-group-associations/association-patch-request.json
+         :language: json
+
+**Response parameters**
+
+.. rest_parameters:: parameters.yaml
+
+  - id: peer_group_association_id
+  - peer-group-id: association_peer_group_id
+  - system-peer-id: system_peer_id
+  - peer-group-priority: association_peer_group_priority
+  - sync-status: association_sync_status
+  - sync-message: association_sync_message
+  - created-at: created_at
+  - updated-at: updated_at
+
+Response Example
+----------------
+
+.. literalinclude:: samples/peer-group-associations/association-patch-response.json
+         :language: json
+
+
+*****************************************
+Deletes a specific peer group association
+*****************************************
+
+.. rest_method:: DELETE /v1.0/peer-group-associations/​{associate_id}​
+
+**Normal response codes**
+
+200
+
+**Error response codes**
+
+badRequest (400), unauthorized (401), forbidden (403),
+itemNotFound (404), badMethod (405), HTTPUnprocessableEntity (422),
+internalServerError (500), serviceUnavailable (503)
+
+**Request parameters**
+
+.. rest_parameters:: parameters.yaml
+
+  - associate_id: peer_group_association_uri
 
 This operation does not accept a request body.

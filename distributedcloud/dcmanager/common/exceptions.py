@@ -177,6 +177,26 @@ class SubcloudPeerGroupNotFound(NotFound):
     message = _("Subcloud Peer Group with id %(group_id)s doesn't exist.")
 
 
+class PeerGroupAssociationCombinationNotFound(NotFound):
+    message = _("Peer Group Association between peer group: %(peer_group_id)s "
+                "and system peer: %(system_peer_id)s doesn't exist.")
+
+
+class PeerGroupAssociationTargetNotMatch(NotFound):
+    message = _("Peer Group Association with peer site controller "
+                "UUID %(uuid)s doesn't match.")
+
+
+class SubcloudPeerGroupHasWrongPriority(DCManagerException):
+    message = _("Subcloud Peer group of peer site has wrong "
+                "priority %(priority)s.")
+
+
+class PeerGroupAssociationNotFound(NotFound):
+    message = _("Peer Group Association with id %(association_id)s "
+                "doesn't exist.")
+
+
 class SubcloudGroupNameViolation(DCManagerException):
     message = _("Default Subcloud Group name cannot be changed or reused.")
 

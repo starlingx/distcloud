@@ -8,6 +8,7 @@ import itertools
 
 from dcmanager.api.policies import alarm_manager
 from dcmanager.api.policies import base
+from dcmanager.api.policies import peer_group_association
 from dcmanager.api.policies import phased_subcloud_deploy
 from dcmanager.api.policies import subcloud_backup
 from dcmanager.api.policies import subcloud_deploy
@@ -31,5 +32,6 @@ def list_rules():
         subcloud_backup.list_rules(),
         phased_subcloud_deploy.list_rules(),
         subcloud_peer_group.list_rules(),
+        peer_group_association.list_rules(),
         system_peers.list_rules()
     )

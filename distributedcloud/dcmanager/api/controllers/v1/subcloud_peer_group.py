@@ -485,16 +485,13 @@ class SubcloudPeerGroupsController(restcomm.GenericPathController):
             pecan.abort(httpclient.NOT_FOUND, _('Subcloud Peer Group not found'))
 
         LOG.info("Handling delete subcloud peer group request for: %s" % group)
-        # TODO(Jon): uncomment in Association of System and Peer Group management commit
-        '''
-        # a peer group may not be deleted if it is used by any associations
+        # A peer group cannot be deleted if it is used by any associations
         association = db_api.peer_group_association_get_by_peer_group_id(context,
                                                                          group.id)
         if len(association) > 0:
             pecan.abort(httpclient.BAD_REQUEST,
                         _("Cannot delete a peer group "
                           "which is associated with a system peer."))
-        '''
         try:
             db_api.subcloud_peer_group_destroy(context, group.id)
             # Disassociate the subcloud.

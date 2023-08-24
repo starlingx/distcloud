@@ -117,6 +117,7 @@ class SystemPeer(BASE, DCManagerBase):
     heartbeat_failure_threshold = Column(Integer)
     heartbeat_failure_policy = Column(String(255))
     heartbeat_maintenance_timeout = Column(Integer)
+    heartbeat_status = Column(String(255))
 
 
 class SubcloudGroup(BASE, DCManagerBase):
@@ -143,6 +144,19 @@ class SubcloudPeerGroup(BASE, DCManagerBase):
     max_subcloud_rehoming = Column(Integer)
     system_leader_id = Column(String(255))
     system_leader_name = Column(String(255))
+
+
+class PeerGroupAssociation(BASE, DCManagerBase):
+    """Represents a Peer Group Association"""
+
+    __tablename__ = 'peer_group_association'
+
+    id = Column(Integer, primary_key=True, autoincrement=True, nullable=False)
+    peer_group_id = Column(Integer)
+    system_peer_id = Column(Integer)
+    peer_group_priority = Column(Integer)
+    sync_status = Column(String(255))
+    sync_message = Column(Text())
 
 
 class Subcloud(BASE, DCManagerBase):

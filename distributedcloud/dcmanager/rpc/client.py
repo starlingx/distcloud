@@ -135,6 +135,11 @@ class ManagerClient(RPCClient):
                                              subcloud_id=subcloud_id,
                                              payload=payload))
 
+    def add_secondary_subcloud(self, ctxt, subcloud_id, payload):
+        return self.call(ctxt, self.make_msg('add_subcloud',
+                                             subcloud_id=subcloud_id,
+                                             payload=payload))
+
     def delete_subcloud(self, ctxt, subcloud_id):
         return self.call(ctxt, self.make_msg('delete_subcloud',
                                              subcloud_id=subcloud_id))
@@ -255,6 +260,19 @@ class ManagerClient(RPCClient):
     def batch_migrate_subcloud(self, ctxt, payload):
         return self.cast(ctxt, self.make_msg('batch_migrate_subcloud',
                                              payload=payload))
+
+    def sync_subcloud_peer_group(self, ctxt, association_id):
+        return self.cast(ctxt, self.make_msg(
+            'sync_subcloud_peer_group', association_id=association_id))
+
+    def update_subcloud_peer_group(self, ctxt, association_id, priority):
+        return self.call(ctxt, self.make_msg(
+            'sync_subcloud_peer_group', association_id=association_id,
+            sync_subclouds=False, priority=priority))
+
+    def delete_peer_group_association(self, ctxt, association_id):
+        return self.call(ctxt, self.make_msg('delete_peer_group_association',
+                                             association_id=association_id))
 
 
 class DCManagerNotifications(RPCClient):

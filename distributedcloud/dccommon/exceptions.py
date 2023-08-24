@@ -135,3 +135,8 @@ class SubcloudNotFound(NotFound):
 
 class SubcloudPeerGroupNotFound(NotFound):
     message = _("Subcloud Peer Group %(peer_group_ref)s not found")
+
+
+class SubcloudPeerGroupDeleteFailedAssociated(DCCommonException):
+    message = _("Subcloud Peer Group %(peer_group_ref)s delete failed "
+                "cause it is associated with a system peer.")

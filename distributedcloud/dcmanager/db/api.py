@@ -381,6 +381,7 @@ def system_peer_db_model_to_dict(system_peer):
               "heartbeat-failure-policy": system_peer.heartbeat_failure_policy,
               "heartbeat-maintenance-timeout": system_peer.
               heartbeat_maintenance_timeout,
+              "heartbeat-status": system_peer.heartbeat_status,
               "created-at": system_peer.created_at,
               "updated-at": system_peer.updated_at}
     return result
@@ -427,6 +428,11 @@ def system_peer_get_all(context):
     return IMPL.system_peer_get_all(context)
 
 
+def peer_group_get_for_system_peer(context, peer_id):
+    """Get subcloud peer groups associated with a system peer."""
+    return IMPL.peer_group_get_for_system_peer(context, peer_id)
+
+
 def system_peer_update(context, peer_id,
                        peer_uuid, peer_name,
                        endpoint, username, password,
@@ -435,7 +441,8 @@ def system_peer_update(context, peer_id,
                        heartbeat_interval,
                        heartbeat_failure_threshold,
                        heartbeat_failure_policy,
-                       heartbeat_maintenance_timeout):
+                       heartbeat_maintenance_timeout,
+                       heartbeat_status=None):
     """Update the system peer or raise if it does not exist."""
     return IMPL.system_peer_update(context, peer_id,
                                    peer_uuid, peer_name,
@@ -445,7 +452,8 @@ def system_peer_update(context, peer_id,
                                    heartbeat_interval,
                                    heartbeat_failure_threshold,
                                    heartbeat_failure_policy,
-                                   heartbeat_maintenance_timeout)
+                                   heartbeat_maintenance_timeout,
+                                   heartbeat_status)
 
 
 def system_peer_destroy(context, peer_id):
@@ -527,6 +535,76 @@ def subcloud_peer_group_update(context, group_id, peer_group_name, group_priorit
                                            max_subcloud_rehoming,
                                            system_leader_id,
                                            system_leader_name)
+###################
+
+
+###################
+# peer_group_association
+def peer_group_association_db_model_to_dict(peer_group_association):
+    """Convert peer_group_association db model to dictionary."""
+    result = {"id": peer_group_association.id,
+              "peer-group-id": peer_group_association.peer_group_id,
+              "system-peer-id": peer_group_association.system_peer_id,
+              "peer-group-priority": peer_group_association.peer_group_priority,
+              "sync-status": peer_group_association.sync_status,
+              "sync-message": peer_group_association.sync_message,
+              "created-at": peer_group_association.created_at,
+              "updated-at": peer_group_association.updated_at}
+    return result
+
+
+def peer_group_association_create(context, peer_group_id, system_peer_id,
+                                  peer_group_priority, sync_status=None,
+                                  sync_message=None):
+    """Create a peer_group_association."""
+    return IMPL.peer_group_association_create(context,
+                                              peer_group_id,
+                                              system_peer_id,
+                                              peer_group_priority,
+                                              sync_status,
+                                              sync_message)
+
+
+def peer_group_association_update(context, id, peer_group_priority=None,
+                                  sync_status=None, sync_message=None):
+    """Update the system peer or raise if it does not exist."""
+    return IMPL.peer_group_association_update(context, id, peer_group_priority,
+                                              sync_status, sync_message)
+
+
+def peer_group_association_destroy(context, id):
+    """Destroy the peer_group_association or raise if it does not exist."""
+    return IMPL.peer_group_association_destroy(context, id)
+
+
+def peer_group_association_get(context, id):
+    """Retrieve a peer_group_association or raise if it does not exist."""
+    return IMPL.peer_group_association_get(context, id)
+
+
+def peer_group_association_get_all(context):
+    """Retrieve all peer_group_associations."""
+    return IMPL.peer_group_association_get_all(context)
+
+
+def peer_group_association_get_by_peer_group_and_system_peer_id(context,
+                                                                peer_group_id,
+                                                                system_peer_id):
+    """Get peer group associations by peer_group_id and system_peer_id."""
+    return IMPL.peer_group_association_get_by_peer_group_and_system_peer_id(
+        context, peer_group_id, system_peer_id)
+
+
+def peer_group_association_get_by_peer_group_id(context, peer_group_id):
+    """Get the peer_group_association list by peer_group_id"""
+    return IMPL.peer_group_association_get_by_peer_group_id(context,
+                                                            peer_group_id)
+
+
+def peer_group_association_get_by_system_peer_id(context, system_peer_id):
+    """Get the peer_group_association list by system_peer_id"""
+    return IMPL.peer_group_association_get_by_system_peer_id(context,
+                                                             system_peer_id)
 ###################
 
 

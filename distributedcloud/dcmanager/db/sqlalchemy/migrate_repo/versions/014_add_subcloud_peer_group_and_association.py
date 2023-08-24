@@ -72,6 +72,33 @@ def upgrade(migrate_engine):
     )
     system_peer.create()
 
+    # Declare the new peer_group_association table
+    peer_group_association = sqlalchemy.Table(
+        'peer_group_association', meta,
+        sqlalchemy.Column('id', sqlalchemy.Integer,
+                          primary_key=True,
+                          autoincrement=True,
+                          nullable=False),
+        sqlalchemy.Column('peer_group_id', sqlalchemy.Integer,
+                          sqlalchemy.ForeignKey('subcloud_peer_group.id',
+                                                ondelete='CASCADE')),
+        sqlalchemy.Column('system_peer_id', sqlalchemy.Integer,
+                          sqlalchemy.ForeignKey('system_peer.id',
+                                                ondelete='CASCADE')),
+        sqlalchemy.Column('peer_group_priority', sqlalchemy.Integer),
+        sqlalchemy.Column('sync_status', sqlalchemy.String(255)),
+        sqlalchemy.Column('sync_message', sqlalchemy.Text),
+        sqlalchemy.Column('reserved_1', sqlalchemy.Text),
+        sqlalchemy.Column('reserved_2', sqlalchemy.Text),
+        sqlalchemy.Column('created_at', sqlalchemy.DateTime),
+        sqlalchemy.Column('updated_at', sqlalchemy.DateTime),
+        sqlalchemy.Column('deleted_at', sqlalchemy.DateTime),
+        sqlalchemy.Column('deleted', sqlalchemy.Integer, default=0),
+        mysql_engine=ENGINE,
+        mysql_charset=CHARSET
+    )
+    peer_group_association.create()
+
 
 def downgrade(migrate_engine):
     raise NotImplementedError('Database downgrade is unsupported.')

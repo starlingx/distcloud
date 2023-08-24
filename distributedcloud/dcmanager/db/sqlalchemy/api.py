@@ -863,6 +863,18 @@ def system_peer_get_all(context):
     return result
 
 
+# This method returns all subcloud peer groups for a particular system peer
+@require_context
+def peer_group_get_for_system_peer(context, peer_id):
+    return model_query(context, models.SubcloudPeerGroup). \
+        join(models.PeerGroupAssociation, models.SubcloudPeerGroup.id ==
+             models.PeerGroupAssociation.peer_group_id). \
+        filter(models.SubcloudPeerGroup.deleted == 0). \
+        filter(models.PeerGroupAssociation.system_peer_id == peer_id). \
+        order_by(models.SubcloudPeerGroup.id). \
+        all()
+
+
 @require_admin_context
 def system_peer_create(context,
                        peer_uuid, peer_name,
@@ -872,7 +884,8 @@ def system_peer_create(context,
                        heartbeat_interval=60,
                        heartbeat_failure_threshold=3,
                        heartbeat_failure_policy="alarm",
-                       heartbeat_maintenance_timeout=600):
+                       heartbeat_maintenance_timeout=600,
+                       heartbeat_status="created"):
     with write_session() as session:
         system_peer_ref = models.SystemPeer()
         system_peer_ref.peer_uuid = peer_uuid
@@ -888,6 +901,7 @@ def system_peer_create(context,
         system_peer_ref.heartbeat_failure_policy = heartbeat_failure_policy
         system_peer_ref.heartbeat_maintenance_timeout = \
             heartbeat_maintenance_timeout
+        system_peer_ref.heartbeat_status = heartbeat_status
         session.add(system_peer_ref)
         return system_peer_ref
 
@@ -901,7 +915,8 @@ def system_peer_update(context, peer_id,
                        heartbeat_interval=None,
                        heartbeat_failure_threshold=None,
                        heartbeat_failure_policy=None,
-                       heartbeat_maintenance_timeout=None):
+                       heartbeat_maintenance_timeout=None,
+                       heartbeat_status=None):
     with write_session() as session:
         system_peer_ref = system_peer_get(context, peer_id)
         if peer_uuid is not None:
@@ -928,6 +943,8 @@ def system_peer_update(context, peer_id,
         if heartbeat_maintenance_timeout is not None:
             system_peer_ref.heartbeat_maintenance_timeout = \
                 heartbeat_maintenance_timeout
+        if heartbeat_status is not None:
+            system_peer_ref.heartbeat_status = heartbeat_status
         system_peer_ref.save(session)
         return system_peer_ref
 
@@ -1198,6 +1215,126 @@ def subcloud_peer_group_update(context,
             subcloud_peer_group_ref.system_leader_name = system_leader_name
         subcloud_peer_group_ref.save(session)
         return subcloud_peer_group_ref
+##########################
+
+
+##########################
+# peer group association
+##########################
+@require_admin_context
+def peer_group_association_create(context,
+                                  peer_group_id,
+                                  system_peer_id,
+                                  peer_group_priority,
+                                  sync_status,
+                                  sync_message):
+    with write_session() as session:
+        peer_group_association_ref = models.PeerGroupAssociation()
+        peer_group_association_ref.peer_group_id = peer_group_id
+        peer_group_association_ref.system_peer_id = system_peer_id
+        peer_group_association_ref.peer_group_priority = peer_group_priority
+        peer_group_association_ref.sync_status = sync_status
+        peer_group_association_ref.sync_message = sync_message
+        session.add(peer_group_association_ref)
+        return peer_group_association_ref
+
+
+@require_admin_context
+def peer_group_association_update(context,
+                                  associate_id,
+                                  peer_group_priority=None,
+                                  sync_status=None,
+                                  sync_message=None):
+    with write_session() as session:
+        association_ref = peer_group_association_get(context, associate_id)
+        if peer_group_priority is not None:
+            association_ref.peer_group_priority = peer_group_priority
+        if sync_status is not None:
+            association_ref.sync_status = sync_status
+        if sync_message is not None:
+            association_ref.sync_message = sync_message
+        association_ref.save(session)
+        return association_ref
+
+
+@require_admin_context
+def peer_group_association_destroy(context, association_id):
+    with write_session() as session:
+        association_ref = peer_group_association_get(context, association_id)
+        session.delete(association_ref)
+
+
+@require_context
+def peer_group_association_get(context, association_id):
+    try:
+        result = model_query(context, models.PeerGroupAssociation). \
+            filter_by(deleted=0). \
+            filter_by(id=association_id). \
+            one()
+    except NoResultFound:
+        raise exception.PeerGroupAssociationNotFound(
+            association_id=association_id)
+    except MultipleResultsFound:
+        raise exception.InvalidParameterValue(
+            err="Multiple entries found for peer group association %s" %
+            association_id)
+
+    return result
+
+
+@require_context
+def peer_group_association_get_all(context):
+    result = model_query(context, models.PeerGroupAssociation). \
+        filter_by(deleted=0). \
+        order_by(models.PeerGroupAssociation.id). \
+        all()
+
+    return result
+
+
+# Each combination of 'peer_group_id' and 'system_peer_id' is unique
+# and appears only once in the entries.
+@require_context
+def peer_group_association_get_by_peer_group_and_system_peer_id(context,
+                                                                peer_group_id,
+                                                                system_peer_id):
+    try:
+        result = model_query(context, models.PeerGroupAssociation). \
+            filter_by(deleted=0). \
+            filter_by(peer_group_id=peer_group_id). \
+            filter_by(system_peer_id=system_peer_id). \
+            one()
+    except NoResultFound:
+        raise exception.PeerGroupAssociationCombinationNotFound(
+            peer_group_id=peer_group_id, system_peer_id=system_peer_id)
+    except MultipleResultsFound:
+        # This exception should never happen due to the UNIQUE setting for name
+        raise exception.InvalidParameterValue(
+            err="Multiple entries found for peer group association %s,%s" %
+            (peer_group_id, system_peer_id))
+    return result
+
+
+@require_context
+def peer_group_association_get_by_peer_group_id(context, peer_group_id):
+    result = model_query(context, models.PeerGroupAssociation). \
+        filter_by(deleted=0). \
+        filter_by(peer_group_id=peer_group_id). \
+        order_by(models.PeerGroupAssociation.id). \
+        all()
+
+    return result
+
+
+@require_context
+def peer_group_association_get_by_system_peer_id(context, system_peer_id):
+    result = model_query(context, models.PeerGroupAssociation). \
+        filter_by(deleted=0). \
+        filter_by(system_peer_id=system_peer_id). \
+        order_by(models.PeerGroupAssociation.id). \
+        all()
+
+    return result
 ##########################
 
 

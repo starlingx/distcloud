@@ -514,7 +514,12 @@ class SubcloudsController(object):
         if 'secondary' not in payload:
             psd_common.validate_sysadmin_password(payload)
 
-        psd_common.subcloud_region_create(payload, context)
+        # Use the region_name if it has been provided in the payload.
+        # The typical scenario is adding a secondary subcloud from
+        # peer site where subcloud region_name is known and can be
+        # put into the payload of the subcloud add request.
+        if 'region_name' not in payload:
+            psd_common.subcloud_region_create(payload, context)
 
         psd_common.pre_deploy_create(payload, context, request)
 
@@ -524,8 +529,14 @@ class SubcloudsController(object):
 
             # Ask dcmanager-manager to add the subcloud.
             # It will do all the real work...
-            self.dcmanager_rpc_client.add_subcloud(
-                context, subcloud.id, payload)
+            # If the subcloud is secondary, it will be synchronous operation.
+            # A normal subcloud add will be a synchronous operation.
+            if 'secondary' in payload:
+                self.dcmanager_rpc_client.add_secondary_subcloud(
+                    context, subcloud.id, payload)
+            else:
+                self.dcmanager_rpc_client.add_subcloud(
+                    context, subcloud.id, payload)
 
             return db_api.subcloud_db_model_to_dict(subcloud)
         except RemoteError as e:

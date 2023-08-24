@@ -33,13 +33,15 @@ class DcmanagerClient(base.DriverBase):
         self.token = session.get_token()
         self.timeout = timeout
 
-    def get_subcloud(self, subcloud_ref):
+    def get_subcloud(self, subcloud_ref, is_region_name=False):
         """Get subcloud."""
         if subcloud_ref is None:
             raise ValueError("subcloud_ref is required.")
         url = f"{self.endpoint}/subclouds/{subcloud_ref}"
 
         headers = {"X-Auth-Token": self.token}
+        if is_region_name:
+            headers["User-Agent"] = "dcmanager/1.0"
         response = requests.get(url, headers=headers, timeout=self.timeout)
 
         if response.status_code == 200:
@@ -267,6 +269,11 @@ class DcmanagerClient(base.DriverBase):
                 'Subcloud Peer Group not found' in response.text:
                 raise exceptions.SubcloudPeerGroupNotFound(
                     peer_group_ref=peer_group_ref)
+            elif response.status_code == 400 and \
+                'a peer group which is associated with a system peer' in \
+                    response.text:
+                    raise exceptions.SubcloudPeerGroupDeleteFailedAssociated(
+                        peer_group_ref=peer_group_ref)
             message = "Delete Subcloud Peer Group: peer_group_ref %s " \
                 "failed with RC: %d" % (peer_group_ref, response.status_code)
             LOG.error(message)

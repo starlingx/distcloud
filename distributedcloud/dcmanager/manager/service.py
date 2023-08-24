@@ -33,6 +33,7 @@ from dcmanager.common.i18n import _
 from dcmanager.common import messaging as rpc_messaging
 from dcmanager.common import utils
 from dcmanager.manager.subcloud_manager import SubcloudManager
+from dcmanager.manager.system_peer_manager import SystemPeerManager
 
 CONF = cfg.CONF
 LOG = logging.getLogger(__name__)
@@ -88,6 +89,7 @@ class DCManagerService(service.Service):
 
     def init_managers(self):
         self.subcloud_manager = SubcloudManager()
+        self.syspeer_manager = SystemPeerManager()
 
     def start(self):
         utils.set_open_file_limit(cfg.CONF.worker_rlimit_nofile)
@@ -299,6 +301,21 @@ class DCManagerService(service.Service):
         LOG.info("Handling batch_migrate_subcloud request for peer_group: %s",
                  payload['peer_group'])
         return self.subcloud_manager.batch_migrate_subcloud(context, payload)
+
+    @request_context
+    def sync_subcloud_peer_group(self, context, association_id,
+                                 sync_subclouds=True, priority=None):
+        LOG.info("Handling sync_subcloud_peer_group request for: %s",
+                 association_id)
+        return self.syspeer_manager.sync_subcloud_peer_group(
+            context, association_id, sync_subclouds, priority)
+
+    @request_context
+    def delete_peer_group_association(self, context, association_id):
+        LOG.info("Handling delete_peer_group_association request for: %s",
+                 association_id)
+        return self.syspeer_manager.delete_peer_group_association(
+            context, association_id)
 
     def _stop_rpc_server(self):
         # Stop RPC connection to prevent new requests

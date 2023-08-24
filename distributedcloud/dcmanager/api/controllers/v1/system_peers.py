@@ -79,6 +79,10 @@ class SystemPeersController(restcomm.GenericPathController):
             pecan.abort(400, _('Invalid request body format'))
         return payload
 
+    def _get_peer_group_list_for_system_peer(self, context, peer_id):
+        peer_groups = db_api.peer_group_get_for_system_peer(context, peer_id)
+        return utils.subcloud_peer_group_db_list_to_dict(peer_groups)
+
     def _get_system_peer_list(self, context):
         peers = db_api.system_peer_get_all(context)
 
@@ -92,10 +96,16 @@ class SystemPeersController(restcomm.GenericPathController):
         return result
 
     @index.when(method='GET', template='json')
-    def get(self, peer_ref=None):
-        """Get details about system peer.
+    def get(self, peer_ref=None, subcloud_peer_groups=False):
+        """Retrieve information about a system peer.
+
+        This function allows you to retrieve details about a specific
+        system peer or obtain a list of subcloud peer groups associated with
+        a specific system peer.
 
         :param peer_ref: ID or UUID or Name of system peer
+        :param subcloud_peer_groups: If this request should return subcloud
+                                     peer groups
         """
         policy.authorize(system_peer_policy.POLICY_ROOT % "get", {},
                          restcomm.extract_credentials_for_policy())
@@ -108,6 +118,8 @@ class SystemPeersController(restcomm.GenericPathController):
         peer = utils.system_peer_get_by_ref(context, peer_ref)
         if peer is None:
             pecan.abort(httpclient.NOT_FOUND, _('System Peer not found'))
+        if subcloud_peer_groups:
+            return self._get_peer_group_list_for_system_peer(context, peer.id)
         system_peer_dict = db_api.system_peer_db_model_to_dict(peer)
         return system_peer_dict
 
@@ -467,13 +479,14 @@ class SystemPeersController(restcomm.GenericPathController):
         if peer is None:
             pecan.abort(httpclient.NOT_FOUND, _('System Peer not found'))
 
-        # TODO(jon): Add this back in when we have peer group associations
-        # a system peer may not be deleted if it is use by any associations
-        # association = db_api.peer_group_association_get_by_system_peer_id(context,
-        #                                                                   str(peer.id))
-        # if len(association) > 0:
-        #     pecan.abort(httpclient.BAD_REQUEST,
-        #                 _('System peer associated with peer group'))
+        # A system peer cannot be deleted if it is used by any associations
+        association = db_api.\
+            peer_group_association_get_by_system_peer_id(context,
+                                                         str(peer.id))
+        if len(association) > 0:
+            pecan.abort(httpclient.BAD_REQUEST,
+                        _('Cannot delete a system peer which is '
+                          'associated with peer group.'))
 
         try:
             db_api.system_peer_destroy(context, peer.id)

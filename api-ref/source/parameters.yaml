@@ -6,6 +6,12 @@ backup_delete_release:
   in: path
   required: true
   type: string
+peer_group_association_uri:
+  description: |
+    The peer group association reference id.
+  in: path
+  required: true
+  type: string
 release_uri:
   description: |
     The subcloud software version.
@@ -74,6 +80,31 @@ alarm_summary:
 alarm_summary_uuid:
   description: |
     The unique identifier for this object.
+  in: body
+  required: true
+  type: string
+association_peer_group_id:
+  description: |
+    The ID of the subcloud peer group as an integer.
+  in: body
+  required: true
+  type: string
+association_peer_group_priority:
+  description: |
+    The priority of the subcloud peer group in peer group association.
+    The lower the value, the higher the priority.
+  in: body
+  required: false
+  type: integer
+association_sync_message:
+  description: |
+    The sync message for association.
+  in: body
+  required: true
+  type: string
+association_sync_status:
+  description: |
+    The sync status for association.
   in: body
   required: true
   type: string
@@ -397,6 +428,18 @@ peer_controller_gateway_address:
   in: body
   required: true
   type: string
+peer_group_association_id:
+  description: |
+    The ID of a peer group association as an integer.
+  in: body
+  required: true
+  type: integer
+peer_group_associations:
+  description: |
+    The list of ``peer-group-association`` objects.
+  in: body
+  required: true
+  type: array
 peer_name:
   description: |
     The name of a peer as a string.

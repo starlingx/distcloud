@@ -18,6 +18,7 @@ import pecan
 
 from dcmanager.api.controllers.v1 import alarm_manager
 from dcmanager.api.controllers.v1 import notifications
+from dcmanager.api.controllers.v1 import peer_group_association
 from dcmanager.api.controllers.v1 import phased_subcloud_deploy
 from dcmanager.api.controllers.v1 import subcloud_backup
 from dcmanager.api.controllers.v1 import subcloud_deploy
@@ -58,6 +59,8 @@ class Controller(object):
                 PhasedSubcloudDeployController
             sub_controllers["subcloud-peer-groups"] = \
                 subcloud_peer_group.SubcloudPeerGroupsController
+            sub_controllers["peer-group-associations"] = \
+                peer_group_association.PeerGroupAssociationsController
             sub_controllers["system-peers"] = system_peers.\
                 SystemPeersController
 
