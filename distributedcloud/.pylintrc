@@ -1,6 +1,6 @@
 [MASTER]
 # Specify a configuration file.
-rcfile=pylint.rc
+rcfile=.pylintrc
 
 # A comma-separated list of package or module names from where C extensions may
 # be loaded. Extensions are loading into the active Python interpreter and may
