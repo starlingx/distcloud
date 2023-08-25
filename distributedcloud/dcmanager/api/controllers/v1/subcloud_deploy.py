@@ -32,6 +32,7 @@ from dcmanager.api.controllers import restcomm
 from dcmanager.api.policies import subcloud_deploy as subcloud_deploy_policy
 from dcmanager.api import policy
 from dcmanager.common import consts
+from dcmanager.common import exceptions
 from dcmanager.common.i18n import _
 from dcmanager.common import utils
 
@@ -107,7 +108,15 @@ class SubcloudDeployController(object):
 
         software_version = tsc.SW_VERSION
         if request.POST.get('release'):
-            software_version = request.POST.get('release')
+            try:
+                utils.validate_release_version_supported(request.POST.get('release'))
+                software_version = request.POST.get('release')
+            except exceptions.ValidateFail as e:
+                pecan.abort(httpclient.BAD_REQUEST,
+                            _("Error: invalid release version parameter. %s" % e))
+            except Exception:
+                pecan.abort(httpclient.INTERNAL_SERVER_ERROR,
+                            _('Error: unable to validate the release version.'))
         deploy_dicts['software_version'] = software_version
 
         dir_path = os.path.join(dccommon_consts.DEPLOY_DIR, software_version)
