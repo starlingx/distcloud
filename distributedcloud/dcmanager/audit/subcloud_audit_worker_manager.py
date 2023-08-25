@@ -119,13 +119,16 @@ class SubcloudAuditWorkerManager(manager.Manager):
                      consts.DEPLOY_STATE_INSTALL_FAILED,
                      consts.DEPLOY_STATE_INSTALL_ABORTED,
                      consts.DEPLOY_STATE_PRE_INSTALL_FAILED,
+                     consts.DEPLOY_STATE_INSTALLING,
                      consts.DEPLOY_STATE_DATA_MIGRATION_FAILED,
                      consts.DEPLOY_STATE_MIGRATED,
                      consts.DEPLOY_STATE_RESTORING,
                      consts.DEPLOY_STATE_RESTORE_PREP_FAILED,
                      consts.DEPLOY_STATE_RESTORE_FAILED]
                     and not prestage.is_deploy_status_prestage(
-                        subcloud.deploy_status)):
+                        subcloud.deploy_status)) or (
+                    subcloud.deploy_status == consts.DEPLOY_STATE_INSTALLING and
+                    subcloud.availability_status == dccommon_consts.AVAILABILITY_OFFLINE):
                 LOG.debug("Skip subcloud %s audit, deploy_status: %s" %
                           (subcloud.name, subcloud.deploy_status))
                 # This DB API call will set the "audit_finished_at" timestamp
