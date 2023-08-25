@@ -15,6 +15,7 @@ import base64
 import collections
 import copy
 import datetime
+import os
 
 import mock
 
@@ -2871,3 +2872,27 @@ class TestSubcloudManager(base.DCManagerTestCase):
         updated_subcloud = db_api.subcloud_get_by_name(self.ctx, subcloud.name)
         self.assertEqual(fake_result,
                          updated_subcloud.rehome_data)
+
+    @mock.patch('os.remove')
+    @mock.patch('shutil.rmtree')
+    @mock.patch.object(os_path, 'exists')
+    def test_cleanup_ansible_files(self, moch_path_exists, mock_rmtree, mock_remove):
+        moch_path_exists.return_value = True
+
+        sm = subcloud_manager.SubcloudManager()
+        sm._cleanup_ansible_files('subcloud1')
+
+        files = ('subcloud1.yml',
+                 'subcloud1_deploy_values.yml',
+                 'subcloud1_deploy_config.yml')
+
+        calls = []
+        for f in files:
+            filepath = os.path.join(dccommon_consts.ANSIBLE_OVERRIDES_PATH, f)
+            calls.append(mock.call(filepath))
+
+        install_dir = os.path.join(dccommon_consts.ANSIBLE_OVERRIDES_PATH,
+                                   'subcloud1')
+
+        mock_remove.assert_has_calls(calls, any_order=True)
+        mock_rmtree.assert_called_with(install_dir)

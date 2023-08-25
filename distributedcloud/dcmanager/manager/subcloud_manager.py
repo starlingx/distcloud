@@ -2108,6 +2108,40 @@ class SubcloudManager(manager.Manager):
         # Regenerate the addn_hosts_dc file
         self._create_addn_hosts_dc(context)
 
+        # Cleanup files inside ANSIBLE_OVERRIDES_PATH
+        self._cleanup_ansible_files(subcloud.name)
+
+    def _cleanup_ansible_files(self, subcloud_name):
+        LOG.info(f"Cleaning up subcloud {subcloud_name} files "
+                 f"from {dccommon_consts.ANSIBLE_OVERRIDES_PATH}")
+        try:
+            self._delete_subcloud_overrides_file(subcloud_name)
+            self._delete_subcloud_config_files(subcloud_name)
+            self._delete_subcloud_install_files(subcloud_name)
+        except Exception:
+            LOG.exception("Unable to cleanup subcloud ansible files"
+                          f" for subcloud: {subcloud_name}")
+
+    @staticmethod
+    def _delete_subcloud_overrides_file(subcloud_name):
+        filepath = utils.get_ansible_filename(subcloud_name)
+        if os.path.exists(filepath):
+            os.remove(filepath)
+
+    @staticmethod
+    def _delete_subcloud_config_files(subcloud_name):
+        for postfix in ("_deploy_values.yml", "_deploy_config.yml"):
+            filepath = utils.get_ansible_filename(subcloud_name, postfix)
+            if os.path.exists(filepath):
+                os.remove(filepath)
+
+    @staticmethod
+    def _delete_subcloud_install_files(subcloud_name):
+        install_path = os.path.join(dccommon_consts.ANSIBLE_OVERRIDES_PATH,
+                                    subcloud_name)
+        if os.path.exists(install_path):
+            shutil.rmtree(install_path)
+
     @staticmethod
     def _delete_subcloud_backup_data(subcloud_name):
         try:
