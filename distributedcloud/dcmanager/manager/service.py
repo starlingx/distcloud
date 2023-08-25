@@ -113,7 +113,9 @@ class DCManagerService(service.Service):
     @request_context
     def update_subcloud(self, context, subcloud_id, management_state=None,
                         description=None, location=None,
-                        group_id=None, data_install=None, force=None):
+                        group_id=None, data_install=None, force=None,
+                        deploy_status=None,
+                        bootstrap_values=None, bootstrap_address=None):
         # Updates a subcloud
         LOG.info("Handling update_subcloud request for: %s" % subcloud_id)
         subcloud = self.subcloud_manager.update_subcloud(context, subcloud_id,
@@ -122,7 +124,10 @@ class DCManagerService(service.Service):
                                                          location,
                                                          group_id,
                                                          data_install,
-                                                         force)
+                                                         force,
+                                                         deploy_status,
+                                                         bootstrap_values,
+                                                         bootstrap_address)
         return subcloud
 
     @request_context
@@ -246,6 +251,12 @@ class DCManagerService(service.Service):
         return self.subcloud_manager.subcloud_deploy_abort(context,
                                                            subcloud_id,
                                                            deploy_status)
+
+    @request_context
+    def migrate_subcloud(self, context, subcloud_ref, payload):
+        LOG.info("Handling migrate_subcloud request for: %s",
+                 subcloud_ref)
+        return self.subcloud_manager.migrate_subcloud(context, subcloud_ref, payload)
 
     @request_context
     def subcloud_deploy_resume(self, context, subcloud_id, subcloud_name,

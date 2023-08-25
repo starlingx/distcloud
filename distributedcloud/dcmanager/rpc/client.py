@@ -135,7 +135,8 @@ class ManagerClient(RPCClient):
 
     def update_subcloud(self, ctxt, subcloud_id, management_state=None,
                         description=None, location=None, group_id=None,
-                        data_install=None, force=None):
+                        data_install=None, force=None,
+                        deploy_status=None, bootstrap_values=None, bootstrap_address=None):
         return self.call(ctxt, self.make_msg('update_subcloud',
                                              subcloud_id=subcloud_id,
                                              management_state=management_state,
@@ -143,7 +144,10 @@ class ManagerClient(RPCClient):
                                              location=location,
                                              group_id=group_id,
                                              data_install=data_install,
-                                             force=force))
+                                             force=force,
+                                             deploy_status=deploy_status,
+                                             bootstrap_values=bootstrap_values,
+                                             bootstrap_address=bootstrap_address))
 
     def update_subcloud_with_network_reconfig(self, ctxt, subcloud_id, payload):
         return self.cast(ctxt, self.make_msg('update_subcloud_with_network_reconfig',
@@ -229,6 +233,11 @@ class ManagerClient(RPCClient):
                                              subcloud_name=subcloud_name,
                                              payload=payload,
                                              deploy_states_to_run=deploy_states_to_run))
+
+    def migrate_subcloud(self, ctxt, subcloud_ref, payload):
+        return self.cast(ctxt, self.make_msg('migrate_subcloud',
+                                             subcloud_ref=subcloud_ref,
+                                             payload=payload))
 
 
 class DCManagerNotifications(RPCClient):

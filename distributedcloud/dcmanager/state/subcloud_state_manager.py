@@ -294,7 +294,9 @@ class SubcloudStateManager(manager.Manager):
 
         # Rules for updating sync status:
         #
-        # Always update if not in-sync.
+        # Skip audit any 'secondary' state subclouds
+        #
+        # For others, always update if not in-sync.
         #
         # Otherwise, only update the sync status if managed and online
         # (unless dc-cert).
@@ -306,10 +308,11 @@ class SubcloudStateManager(manager.Manager):
         # This means if a subcloud is going offline or unmanaged, then
         # the sync status update must be done first.
         #
-        if (sync_status != dccommon_consts.SYNC_STATUS_IN_SYNC or
+        if ((sync_status != dccommon_consts.SYNC_STATUS_IN_SYNC or
             ((subcloud.availability_status == dccommon_consts.AVAILABILITY_ONLINE) and
              (subcloud.management_state == dccommon_consts.MANAGEMENT_MANAGED
-              or endpoint_type == dccommon_consts.ENDPOINT_TYPE_DC_CERT))):
+              or endpoint_type == dccommon_consts.ENDPOINT_TYPE_DC_CERT))) and
+                subcloud.deploy_status != consts.DEPLOY_STATE_SECONDARY):
             # update a single subcloud
             try:
                 self._do_update_subcloud_endpoint_status(context,

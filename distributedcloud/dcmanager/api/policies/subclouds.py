@@ -84,6 +84,10 @@ subclouds_rules = [
             {
                 'method': 'PATCH',
                 'path': '/v1.0/subclouds/{subcloud}/update_status'
+            },
+            {
+                'method': 'PATCH',
+                'path': '/v1.0/subclouds/{subcloud}/migrate'
             }
         ]
     )

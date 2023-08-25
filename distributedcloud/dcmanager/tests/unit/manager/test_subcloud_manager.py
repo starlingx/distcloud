@@ -2747,3 +2747,140 @@ class TestSubcloudManager(base.DCManagerTestCase):
         updated_subcloud = db_api.subcloud_get_by_name(self.ctx, subcloud.name)
         self.assertEqual(consts.DEPLOY_STATE_PRE_RESTORE,
                          updated_subcloud.deploy_status)
+
+    @mock.patch.object(subcloud_manager, 'db_api', side_effect=db_api)
+    @mock.patch.object(subcloud_manager.SubcloudManager,
+                       'subcloud_migrate_generate_ansible_config')
+    @mock.patch.object(subcloud_manager.SubcloudManager, 'rehome_subcloud')
+    def test_migrate_subcloud(self, mock_rehome_subcloud,
+                              mock_subcloud_migrate_generate_ansible_config,
+                              mock_db_api):
+        # Prepare the test data
+        subcloud = self.create_subcloud_static(self.ctx)
+        saved_payload = {
+            "name": subcloud.name,
+            "deploy_status": "secondary",
+            "rehome_data": '{"saved_payload": {"system_mode": "simplex",\
+            "name": "testsub", "bootstrap-address": "128.224.119.56"}}',
+        }
+        payload = {
+            "sysadmin_password": "TGk2OW51eA=="
+        }
+        payload_result = {
+            "name": subcloud.name,
+            "deploy_status": "secondary",
+            "rehome_data": {
+                "saved_payload": {
+                    "system_mode": "simplex",
+                    "name": "testsub",
+                    "bootstrap-address": "128.224.119.56",
+                    "sysadmin_password": "Li69nux",
+                    "ansible_ssh_pass": "Li69nux",
+                }
+            },
+        }
+        sm = subcloud_manager.SubcloudManager()
+        db_api.subcloud_update(self.ctx, subcloud.id,
+                               deploy_status=consts.DEPLOY_STATE_SECONDARY,
+                               rehome_data=saved_payload['rehome_data'])
+        sm.migrate_subcloud(self.ctx, subcloud.id, payload)
+
+        mock_subcloud_migrate_generate_ansible_config.assert_called_once_with(
+            mock.ANY, mock.ANY, payload_result['rehome_data']['saved_payload'])
+        mock_rehome_subcloud.assert_called_once_with(
+            mock.ANY, mock.ANY, payload_result['rehome_data']['saved_payload'])
+
+        self.assertFalse(mock_db_api.subcloud_update.called)
+
+    @mock.patch.object(subcloud_manager.SubcloudManager, 'subcloud_deploy_create')
+    @mock.patch.object(subcloud_manager.SubcloudManager, 'rehome_subcloud')
+    @mock.patch.object(subcloud_manager.SubcloudManager, 'run_deploy_phases')
+    @mock.patch.object(subcloud_manager, 'db_api')
+    def test_add_subcloud_with_secondary_option(self, mock_db_api,
+                                                mock_run_deploy_phases,
+                                                mock_rehome_subcloud,
+                                                mock_subcloud_deploy_create):
+        # Prepare the test data
+        values = {
+            'name': 'TestSubcloud',
+            'sysadmin_password': '123',
+            'secondary': 'true'
+        }
+
+        # Create an instance of SubcloudManager
+        sm = subcloud_manager.SubcloudManager()
+
+        # Call add_subcloud method with the test data
+        sm.add_subcloud(mock.MagicMock(), 1, values)
+
+        # Assert that the rehome_subcloud and run_deploy_phases methods were not called
+        mock_rehome_subcloud.assert_not_called()
+        mock_run_deploy_phases.assert_not_called()
+
+        mock_subcloud_deploy_create.assert_called_once()
+
+        # Assert that db_api.subcloud_update was not called for secondary subcloud
+        self.assertFalse(mock_db_api.subcloud_update.called)
+
+    def test_update_subcloud_bootstrap_values(self):
+
+        fake_bootstrap_values = "{'name': 'TestSubcloud', 'system_mode': 'simplex'}"
+        fake_result = '{"saved_payload": {"name": "TestSubcloud", "system_mode": "simplex"}}'
+
+        subcloud = self.create_subcloud_static(
+            self.ctx,
+            name='subcloud1',
+            deploy_status=consts.DEPLOY_STATE_DONE)
+        db_api.subcloud_update(self.ctx,
+                               subcloud.id,
+                               availability_status=dccommon_consts.AVAILABILITY_ONLINE)
+
+        fake_dcmanager_cermon_api = FakeDCManagerNotifications()
+
+        p = mock.patch('dcmanager.rpc.client.DCManagerNotifications')
+        mock_dcmanager_api = p.start()
+        mock_dcmanager_api.return_value = fake_dcmanager_cermon_api
+
+        sm = subcloud_manager.SubcloudManager()
+        sm.update_subcloud(self.ctx,
+                           subcloud.id,
+                           bootstrap_values=fake_bootstrap_values)
+
+        # Verify subcloud was updated with correct values
+        updated_subcloud = db_api.subcloud_get_by_name(self.ctx, subcloud.name)
+        self.assertEqual(fake_result,
+                         updated_subcloud.rehome_data)
+
+    def test_update_subcloud_bootstrap_address(self):
+        fake_bootstrap_values = '{"name": "TestSubcloud", "system_mode": "simplex"}'
+        fake_result = ('{"saved_payload": {"name": "TestSubcloud", '
+                       '"system_mode": "simplex", '
+                       '"bootstrap-address": "123.123.123.123"}}')
+
+        subcloud = self.create_subcloud_static(
+            self.ctx,
+            name='subcloud1',
+            deploy_status=consts.DEPLOY_STATE_DONE)
+
+        db_api.subcloud_update(self.ctx,
+                               subcloud.id,
+                               availability_status=dccommon_consts.AVAILABILITY_ONLINE)
+
+        fake_dcmanager_cermon_api = FakeDCManagerNotifications()
+
+        p = mock.patch('dcmanager.rpc.client.DCManagerNotifications')
+        mock_dcmanager_api = p.start()
+        mock_dcmanager_api.return_value = fake_dcmanager_cermon_api
+
+        sm = subcloud_manager.SubcloudManager()
+        sm.update_subcloud(self.ctx,
+                           subcloud.id,
+                           bootstrap_values=fake_bootstrap_values)
+        sm.update_subcloud(self.ctx,
+                           subcloud.id,
+                           bootstrap_address="123.123.123.123")
+
+        # Verify subcloud was updated with correct values
+        updated_subcloud = db_api.subcloud_get_by_name(self.ctx, subcloud.name)
+        self.assertEqual(fake_result,
+                         updated_subcloud.rehome_data)

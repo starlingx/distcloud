@@ -1094,3 +1094,15 @@ def update_abort_status(context, subcloud_id, deploy_status, abort_failed=False)
     updated_subcloud = db_api.subcloud_update(context, subcloud_id,
                                               deploy_status=new_deploy_status)
     return updated_subcloud
+
+
+def subcloud_is_secondary_state(deploy_state):
+    if deploy_state in [consts.DEPLOY_STATE_SECONDARY,
+                        consts.DEPLOY_STATE_SECONDARY_FAILED]:
+        return True
+    return False
+
+
+def create_subcloud_rehome_data_template():
+    """Create a subcloud rehome data template"""
+    return {'saved_payload': {}}

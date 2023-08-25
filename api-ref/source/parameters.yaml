@@ -139,6 +139,14 @@ bootstrap_values:
   in: body
   required: true
   type: string
+bootstrap_values_for_rehome:
+  description: |
+    The content of a file containing the bootstrap overrides such as subcloud
+    name, management and OAM subnet.The sysadmin password of the subcloud.
+    Must be base64 encoded.
+  in: body
+  required: false
+  type: string
 cloud_status:
   description: |
     The overall alarm status of the subcloud.
@@ -335,6 +343,12 @@ region_name:
   in: body
   required: true
   type: string
+rehome_data:
+  description: |
+    JSON format data for rehoming a subcloud.
+  in: body
+  required: true
+  type: string
 release:
   description: |
     The subcloud software version.
@@ -348,6 +362,12 @@ restore_values:
   in: body
   required: true
   type: string
+secondary:
+  description: |
+    A flag indicating if the subcloud is a secondary subcloud
+  in: body
+  required: false
+  type: boolean
 software_version:
   description: |
     The software version for the subcloud.

@@ -97,7 +97,7 @@ class TestDCManagerService(base.DCManagerTestCase):
             self.context, subcloud_id=1,
             management_state='testmgmtstatus')
         mock_subcloud_manager().update_subcloud.assert_called_once_with(
-            self.context, 1, 'testmgmtstatus', None, None, None, None, None)
+            self.context, 1, 'testmgmtstatus', None, None, None, None, None, None, None, None)
 
     @mock.patch.object(service, 'SubcloudManager')
     @mock.patch.object(service, 'rpc_messaging')

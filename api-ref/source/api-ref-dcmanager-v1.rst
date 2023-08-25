@@ -139,6 +139,7 @@ serviceUnavailable (503)
   - management_start_address: management_start_ip
   - management_subnet: management_subnet
   - migrate: migrate
+  - secondary: secondary
   - name: subcloud_name
   - release: release
   - sysadmin_password: sysadmin_password
@@ -226,6 +227,7 @@ This operation does not accept a request body.
   - management-end-ip: management_end_ip
   - management-subnet: management_subnet
   - management-gateway-ip: management_gateway_ip
+  - rehome_data: rehome_data
   - created-at: created_at
   - updated-at: updated_at
   - data_install: data_install
@@ -289,6 +291,7 @@ This operation does not accept a request body.
   - management-subnet: management_subnet
   - management-gateway-ip: management_gateway_ip
   - oam_floating_ip: oam_floating_ip
+  - rehome_data: rehome_data
   - created-at: created_at
   - updated-at: updated_at
   - data_install: data_install
@@ -327,6 +330,10 @@ The attributes of a subcloud which are modifiable:
 
 -  management-end-ip
 
+-  bootstrap_values
+
+-  bootstrap_address
+
 **Normal response codes**
 
 200
@@ -352,6 +359,7 @@ serviceUnavailable (503)
   - management-end-ip: subcloud_management_end_ip
   - bootstrap-address: bootstrap_address
   - sysadmin-password: sysadmin_password
+  - bootstrap-values: bootstrap_values_for_rehome
 
 Request Example
 ----------------
@@ -727,6 +735,73 @@ Response Example
 ----------------
 
 .. literalinclude:: samples/subclouds/subcloud-patch-update_status-response.json
+         :language: json
+
+*****************************************
+Migrate a specific subcloud
+*****************************************
+
+.. rest_method:: PATCH /v1.0/subclouds/{subcloud}/migrate
+
+
+**Normal response codes**
+
+200
+
+**Error response codes**
+
+badRequest (400), unauthorized (401), forbidden (403), badMethod (405),
+HTTPUnprocessableEntity (422), internalServerError (500),
+serviceUnavailable (503)
+
+**Request parameters**
+
+.. rest_parameters:: parameters.yaml
+
+  - subcloud: subcloud_uri
+  - sysadmin_password: sysadmin_password
+
+Request Example
+----------------
+
+.. literalinclude:: samples/subclouds/subcloud-patch-migrate-request.json
+         :language: json
+
+**Response parameters**
+
+.. rest_parameters:: parameters.yaml
+
+  - id: subcloud_id
+  - group_id: group_id
+  - name: subcloud_name
+  - description: subcloud_description
+  - location: subcloud_location
+  - software-version: software_version
+  - availability-status: availability_status
+  - error-description: error_description
+  - deploy-status: deploy_status
+  - backup-status: backup_status
+  - backup-datetime: backup_datetime
+  - openstack-installed: openstack_installed
+  - management-state: management_state
+  - systemcontroller-gateway-ip: systemcontroller_gateway_ip
+  - management-start-ip: management_start_ip
+  - management-end-ip: management_end_ip
+  - management-subnet: management_subnet
+  - management-gateway-ip: management_gateway_ip
+  - rehome_data: rehome_data
+  - created-at: created_at
+  - updated-at: updated_at
+  - data_install: data_install
+  - data_upgrade: data_upgrade
+  - endpoint_sync_status: endpoint_sync_status
+  - sync_status: sync_status
+  - endpoint_type: sync_status_type
+
+Response Example
+----------------
+
+.. literalinclude:: samples/subclouds/subcloud-patch-migrate-response.json
          :language: json
 
 *****************************
