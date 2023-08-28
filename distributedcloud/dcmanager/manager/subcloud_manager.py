@@ -195,6 +195,7 @@ class SubcloudManager(manager.Manager):
         self.fm_api = fm_api.FaultAPIs()
         self.audit_rpc_client = dcmanager_audit_rpc_client.ManagerAuditClient()
         self.state_rpc_client = dcmanager_rpc_client.SubcloudStateClient()
+        self.batch_rehome_lock = threading.Lock()
 
     @staticmethod
     def _get_subcloud_cert_name(subcloud_name):
@@ -368,6 +369,48 @@ class SubcloudManager(manager.Manager):
                 dccommon_consts.ANSIBLE_OVERRIDES_PATH, subcloud_region)]
         return rehome_command
 
+    def _migrate_manage_subcloud(self, context, payload, subcloud):
+        # migrate and set managed for
+        # online and complete subclouds.
+        success = True
+        self.migrate_subcloud(context, subcloud.id, payload)
+        subcloud = db_api.subcloud_get(context, subcloud.id)
+
+        if subcloud.deploy_status != consts.DEPLOY_STATE_DONE:
+            success = False
+        else:
+            # Wait online to set managed
+            # Until BATCH_REHOME_MGMT_STATES_TIMEOUT reached
+            job_done_ts = time.monotonic()
+            while True:
+                offline_seconds = time.monotonic() - job_done_ts
+                if subcloud.availability_status == \
+                    dccommon_consts.AVAILABILITY_OFFLINE:
+                    if offline_seconds >= consts.BATCH_REHOME_MGMT_STATES_TIMEOUT:
+                        LOG.warning("Skip trying to manage subcloud: %s, "
+                                    "wait online timeout [%d]" %
+                                    (subcloud.name, offline_seconds))
+                        success = False
+                        break
+                    time.sleep(20)
+                else:
+                    try:
+                        self.update_subcloud(
+                            context, subcloud.id,
+                            dccommon_consts.MANAGEMENT_MANAGED)
+                    except Exception:
+                        LOG.exception("Unable to manage subcloud %s "
+                                      "after migration operation" %
+                                      subcloud.name)
+                        success = False
+                        return subcloud, success
+                    LOG.info("Set manage of subcloud: %s success"
+                             % subcloud.name)
+                    break
+                subcloud = db_api.subcloud_get(context, subcloud.id)
+
+        return subcloud, success
+
     def migrate_subcloud(self, context, subcloud_ref, payload):
         '''migrate_subcloud function is for day-2's rehome purpose.
 
@@ -398,10 +441,9 @@ class SubcloudManager(manager.Manager):
 
             rehome_data = json.loads(subcloud.rehome_data)
             saved_payload = rehome_data['saved_payload']
-            # Update sysadmin_password/ansible_ssh_pass
+            # Update sysadmin_password
             sysadmin_password = base64.b64decode(payload['sysadmin_password']).decode('utf-8')
             saved_payload['sysadmin_password'] = sysadmin_password
-            saved_payload['ansible_ssh_pass'] = sysadmin_password
 
             # Re-generate ansible config based on latest rehome_data
             subcloud = self.subcloud_migrate_generate_ansible_config(
@@ -416,6 +458,90 @@ class SubcloudManager(manager.Manager):
                 db_api.subcloud_update(
                     context, subcloud.id,
                     deploy_status=consts.DEPLOY_STATE_REHOME_FAILED)
+
+    def batch_migrate_subcloud(self, context, payload):
+        if 'peer_group' not in payload:
+            LOG.error("Failed to migrate subcloud peer group, "
+                      "missing peer_group")
+            return
+        if 'sysadmin_password' not in payload:
+            LOG.error("Failed to migrate subcloud peer group, "
+                      "missing sysadmin_password")
+            return
+        if self.batch_rehome_lock.locked():
+            LOG.warning("Batch migrate is already running.")
+            return
+        with self.batch_rehome_lock:
+            try:
+                peer_group = \
+                    utils.subcloud_peer_group_get_by_ref(
+                        context,
+                        payload['peer_group'])
+
+                self.run_batch_migrate(
+                    context, peer_group,
+                    payload['sysadmin_password'])
+            except Exception as e:
+                LOG.exception("Failed to batch migrate subcloud peer "
+                              "group: %s error: %s" %
+                              (payload['peer_group'], e))
+
+    def run_batch_migrate(self, context, peer_group, sysadmin_password):
+        subclouds = db_api.subcloud_get_for_peer_group(context, peer_group.id)
+        subclouds_ready_to_migrate = []
+        for tmp_subcloud in subclouds:
+            # Check subcloud is ready for rehome
+            # Verify rehome data
+            rehome_data_json_str = tmp_subcloud.rehome_data
+            if not rehome_data_json_str:
+                LOG.error("Unable to migrate subcloud: %s "
+                          "no rehome data" % tmp_subcloud.name)
+                db_api.subcloud_update(
+                    context, tmp_subcloud.id,
+                    deploy_status=consts.DEPLOY_STATE_REHOME_PREP_FAILED)
+                continue
+            tmp_rehome_data = json.loads(rehome_data_json_str)
+            # Verify saved_payload in _rehome_data
+            if 'saved_payload' not in tmp_rehome_data:
+                LOG.error("Unable to migrate subcloud: %s "
+                          "no saved_payload" % tmp_subcloud.name)
+                db_api.subcloud_update(
+                    context, tmp_subcloud.id,
+                    deploy_status=consts.DEPLOY_STATE_REHOME_PREP_FAILED)
+                continue
+            if not (tmp_subcloud.management_state ==
+                    dccommon_consts.MANAGEMENT_UNMANAGED and
+                    tmp_subcloud.deploy_status ==
+                    consts.DEPLOY_STATE_SECONDARY):
+                LOG.info("Skipping subcloud %s from batch migration: "
+                         "not unmanaged or deploy status not 'secondary'" %
+                         tmp_subcloud.name)
+                continue
+            else:
+                LOG.info("Subcloud %s in secondary and unmanaged state,"
+                         "ready to migrate" % tmp_subcloud.name)
+            subclouds_ready_to_migrate.append(tmp_subcloud)
+        # If no subcloud need to rehome, exit
+        if not subclouds_ready_to_migrate:
+            LOG.info("No subclouds to be migrated in peer group: %s"
+                     " ending migration attempt"
+                     % str(peer_group.peer_group_name))
+            return
+
+        # Use thread pool to limit number of operations in parallel
+        migrate_pool = greenpool.GreenPool(
+            size=peer_group.max_subcloud_rehoming)
+        # Spawn threads to migrate each applicable subcloud
+        tmp_payload = {'sysadmin_password': sysadmin_password}
+        migrate_function = functools.partial(self._migrate_manage_subcloud,
+                                             context,
+                                             tmp_payload)
+
+        self._run_parallel_group_operation('migrate',
+                                           migrate_function,
+                                           migrate_pool,
+                                           subclouds_ready_to_migrate)
+        LOG.info("Batch migrate operation finished")
 
     def rehome_subcloud(self, context, subcloud):
         # Ansible inventory filename for the specified subcloud
@@ -885,13 +1011,15 @@ class SubcloudManager(manager.Manager):
                 m_ks_client, sysinv_client)
 
             self._populate_payload_with_cached_keystone_data(
-                cached_regionone_data, payload, populate_passwords=False)
+                cached_regionone_data, payload, populate_passwords=True)
 
             payload['users'] = {}
             for user in USERS_TO_REPLICATE:
                 payload['users'][user] = \
                     str(keyring.get_password(
                         user, dccommon_consts.SERVICES_USER_NAME))
+            if 'region_name' not in payload:
+                payload['region_name'] = subcloud.region_name
 
             # Ansible inventory filename for the specified subcloud
             ansible_subcloud_inventory_file = utils.get_ansible_filename(

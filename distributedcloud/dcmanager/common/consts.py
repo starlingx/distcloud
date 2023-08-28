@@ -425,3 +425,6 @@ CERT_MON_HTTP_AGENT = 'cert-mon/1.0'
 OS_REGION_NAME = "OS_REGION_NAME"
 STATES_FOR_SUBCLOUD_RENAME = [DEPLOY_STATE_DONE,
                               PRESTAGE_STATE_COMPLETE]
+
+# batch rehome manage state wait timeout
+BATCH_REHOME_MGMT_STATES_TIMEOUT = 900
