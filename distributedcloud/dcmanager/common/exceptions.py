@@ -169,6 +169,14 @@ class SubcloudGroupNameNotFound(NotFound):
     message = _("Subcloud Group with name %(name)s doesn't exist.")
 
 
+class SubcloudPeerGroupNameNotFound(NotFound):
+    message = _("Subcloud Peer Group with name %(name)s doesn't exist.")
+
+
+class SubcloudPeerGroupNotFound(NotFound):
+    message = _("Subcloud Peer Group with id %(group_id)s doesn't exist.")
+
+
 class SubcloudGroupNameViolation(DCManagerException):
     message = _("Default Subcloud Group name cannot be changed or reused.")
 

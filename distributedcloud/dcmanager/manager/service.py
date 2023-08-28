@@ -136,7 +136,7 @@ class DCManagerService(service.Service):
                         description=None, location=None,
                         group_id=None, data_install=None, force=None,
                         deploy_status=None,
-                        bootstrap_values=None, bootstrap_address=None):
+                        peer_group_id=None, bootstrap_values=None, bootstrap_address=None):
         # Updates a subcloud
         LOG.info("Handling update_subcloud request for: %s" % subcloud_id)
         subcloud = self.subcloud_manager.update_subcloud(context, subcloud_id,
@@ -147,6 +147,7 @@ class DCManagerService(service.Service):
                                                          data_install,
                                                          force,
                                                          deploy_status,
+                                                         peer_group_id,
                                                          bootstrap_values,
                                                          bootstrap_address)
         return subcloud

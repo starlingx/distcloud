@@ -1,0 +1,11 @@
+{
+  "id": 9,
+  "peer_group_name": "pg-name",
+  "group_priority": 0,
+  "group_state": "enabled",
+  "max_subcloud_rehoming": 10,
+  "system_leader_id": "ac62f555-9386-42f1-b3a1-51ecb709409d",
+  "system_leader_name": "dc1-name",
+  "created-at": "2023-08-07 06:13:52.664047",
+  "updated-at": null
+}

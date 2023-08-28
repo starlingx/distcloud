@@ -25,6 +25,12 @@ subcloud_options_uri:
   in: path
   required: true
   type: string
+subcloud_peer_group_uri:
+  description: |
+    The subcloud peer group reference, name or id.
+  in: path
+  required: true
+  type: string
 subcloud_uri:
   description: |
     The subcloud reference, name or id.
@@ -671,6 +677,56 @@ subcloud_name:
   in: body
   required: true
   type: string
+subcloud_peer_group_administrative_state:
+  description: |
+    The administrative state of the subcloud peer group.
+    Valid value is enabled/disabled.
+  in: body
+  required: false
+  type: string
+subcloud_peer_group_id:
+  description: |
+    The ID of the subcloud peer group associated with this object.
+  in: body
+  required: false
+  type: string
+subcloud_peer_group_max_subcloud_rehoming:
+  description: |
+    The maximum number of subclouds to rehome in parallel.
+  in: body
+  required: false
+  type: integer
+subcloud_peer_group_name:
+  description: |
+    The NAME of the subcloud peer group.
+  in: body
+  required: true
+  type: string
+subcloud_peer_group_priority:
+  description: |
+    The priority of the subcloud peer group.
+    Number lower priority is higher.
+  in: body
+  required: false
+  type: integer
+subcloud_peer_group_system_leader_id:
+  description: |
+    UUID of the peer system.
+  in: body
+  required: false
+  type: string
+subcloud_peer_group_system_leader_name:
+  description: |
+    NAME of the peer system.
+  in: body
+  required: false
+  type: string
+subcloud_peer_groups:
+  description: |
+    The list of ``subcloud-peer-group`` objects.
+  in: body
+  required: true
+  type: array
 subcloud_uuid:
   description: |
     The ID of a subcloud as a uuid.

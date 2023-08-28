@@ -148,7 +148,7 @@ class ManagerClient(RPCClient):
     def update_subcloud(self, ctxt, subcloud_id, management_state=None,
                         description=None, location=None, group_id=None,
                         data_install=None, force=None,
-                        deploy_status=None, bootstrap_values=None, bootstrap_address=None):
+                        deploy_status=None, peer_group_id=None, bootstrap_values=None, bootstrap_address=None):
         return self.call(ctxt, self.make_msg('update_subcloud',
                                              subcloud_id=subcloud_id,
                                              management_state=management_state,
@@ -158,6 +158,7 @@ class ManagerClient(RPCClient):
                                              data_install=data_install,
                                              force=force,
                                              deploy_status=deploy_status,
+                                             peer_group_id=peer_group_id,
                                              bootstrap_values=bootstrap_values,
                                              bootstrap_address=bootstrap_address))
 

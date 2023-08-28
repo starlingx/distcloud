@@ -431,6 +431,19 @@ class TestSubcloudManager(base.DCManagerTestCase):
         values.update(kwargs)
         return db_api.subcloud_create(ctxt, **values)
 
+    @staticmethod
+    def create_subcloud_peer_group_static(ctxt, **kwargs):
+        values = {
+            "peer_group_name": "pgname",
+            "system_leader_id": "12e0cb13-2c5c-480e-b0ea-9161fc03f3ef",
+            "system_leader_name": "DC0",
+            "group_priority": 0,
+            "group_state": "enabled",
+            "max_subcloud_rehoming": 50
+        }
+        values.update(kwargs)
+        return db_api.subcloud_peer_group_create(ctxt, **values)
+
     def test_init(self):
         sm = subcloud_manager.SubcloudManager()
         self.assertIsNotNone(sm)
@@ -2935,3 +2948,57 @@ class TestSubcloudManager(base.DCManagerTestCase):
 
         mock_remove.assert_has_calls(calls, any_order=True)
         mock_rmtree.assert_called_with(install_dir)
+
+    def test_update_subcloud_peer_group_id(self):
+
+        subcloud = self.create_subcloud_static(
+            self.ctx,
+            name='subcloud1',
+            deploy_status=consts.DEPLOY_STATE_DONE)
+        fake_peer_group_id = 123
+
+        fake_dcmanager_cermon_api = FakeDCManagerNotifications()
+
+        p = mock.patch('dcmanager.rpc.client.DCManagerNotifications')
+        mock_dcmanager_api = p.start()
+        mock_dcmanager_api.return_value = fake_dcmanager_cermon_api
+
+        sm = subcloud_manager.SubcloudManager()
+        sm.update_subcloud(self.ctx,
+                           subcloud.id,
+                           peer_group_id=fake_peer_group_id)
+
+        # Verify subcloud was updated with correct values
+        updated_subcloud = db_api.subcloud_get_by_name(self.ctx, subcloud.name)
+        self.assertEqual(fake_peer_group_id,
+                         updated_subcloud.peer_group_id)
+
+    def test_update_subcloud_peer_group_id_to_none(self):
+
+        subcloud = self.create_subcloud_static(
+            self.ctx,
+            name='subcloud1',
+            deploy_status=consts.DEPLOY_STATE_DONE)
+        fake_peer_group_id = 123
+
+        fake_dcmanager_cermon_api = FakeDCManagerNotifications()
+
+        p = mock.patch('dcmanager.rpc.client.DCManagerNotifications')
+        mock_dcmanager_api = p.start()
+        mock_dcmanager_api.return_value = fake_dcmanager_cermon_api
+
+        sm = subcloud_manager.SubcloudManager()
+        sm.update_subcloud(self.ctx,
+                           subcloud.id,
+                           peer_group_id=fake_peer_group_id)
+        # Verify subcloud was updated with correct values
+        updated_subcloud = db_api.subcloud_get_by_name(self.ctx, subcloud.name)
+        self.assertEqual(fake_peer_group_id,
+                         updated_subcloud.peer_group_id)
+        sm.update_subcloud(self.ctx,
+                           subcloud.id,
+                           peer_group_id='NoNe')
+        # Verify subcloud was updated to None
+        updated_subcloud = db_api.subcloud_get_by_name(self.ctx, subcloud.name)
+        self.assertEqual(None,
+                         updated_subcloud.peer_group_id)

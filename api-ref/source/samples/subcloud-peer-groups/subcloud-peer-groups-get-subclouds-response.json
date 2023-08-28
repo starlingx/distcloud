@@ -1,0 +1,28 @@
+{
+  "subclouds": [{
+    "id": 23,
+    "name": "fakesub1",
+    "description": "desc",
+    "location": "PEK SE Lab",
+    "software-version": "23.09",
+    "management-state": "unmanaged",
+    "availability-status": "offline",
+    "deploy-status": "secondary",
+    "backup-status": null,
+    "backup-datetime": null,
+    "error-description": "No errors present",
+    "management-subnet": "192.168.38.0/24",
+    "management-start-ip": "192.168.38.2",
+    "management-end-ip": "192.168.38.200",
+    "management-gateway-ip": "192.168.38.1",
+    "openstack-installed": false,
+    "systemcontroller-gateway-ip": "192.168.10.1",
+    "data_install": null,
+    "data_upgrade": null,
+    "created-at": "2023-08-04 05:45:04.416188",
+    "updated-at": "2023-08-04 08:55:13.034874",
+    "group_id": 1,
+    "peer_group_id": "6",
+    "rehome_data": "{\"saved_payload\": {\"system_mode\": \"simplex\", \"name\": \"fakesub2\", \"description\": \"bbb\", \"location\": \"PEK SE Lab\", \"external_oam_subnet\": \"128.224.115.0/24\", \"external_oam_gateway_address\": \"128.224.115.1\", \"external_oam_floating_address\": \"128.224.115.15\", \"management_subnet\": \"192.168.38.0/24\", \"management_start_address\": \"192.168.38.2\", \"management_end_address\": \"192.168.38.200\", \"management_gateway_address\": \"192.168.38.1\", \"systemcontroller_gateway_address\": \"192.168.10.1\", \"docker_http_proxy\": \"http://147.11.252.42:9090\", \"docker_https_proxy\": \"http://147.11.252.42:9090\", \"docker_no_proxy\": [], \"sysadmin_password\": \"Wind123$\", \"bootstrap-address\": \"192.168.58.2\"}}"
+  }]
+}

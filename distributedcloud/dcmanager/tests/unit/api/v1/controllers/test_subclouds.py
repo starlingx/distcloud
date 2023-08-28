@@ -1236,6 +1236,7 @@ class TestSubcloudAPIOther(testroot.DCManagerApiTest):
             group_id=None,
             data_install=json.dumps(install_data),
             force=None,
+            peer_group_id=None,
             bootstrap_values=None,
             bootstrap_address=None)
         self.assertEqual(response.status_int, 200)
@@ -1309,6 +1310,7 @@ class TestSubcloudAPIOther(testroot.DCManagerApiTest):
             group_id=None,
             data_install=json.dumps(install_data),
             force=None,
+            peer_group_id=None,
             bootstrap_values=None,
             bootstrap_address=None)
         self.assertEqual(response.status_int, 200)
@@ -1348,6 +1350,7 @@ class TestSubcloudAPIOther(testroot.DCManagerApiTest):
             group_id=None,
             data_install=json.dumps(install_data),
             force=None,
+            peer_group_id=None,
             bootstrap_values=None,
             bootstrap_address=None)
         self.assertEqual(response.status_int, 200)
@@ -1413,6 +1416,7 @@ class TestSubcloudAPIOther(testroot.DCManagerApiTest):
             group_id=None,
             data_install=None,
             force=True,
+            peer_group_id=None,
             bootstrap_values=None,
             bootstrap_address=None)
         self.assertEqual(response.status_int, 200)

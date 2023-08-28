@@ -229,6 +229,7 @@ This operation does not accept a request body.
   - management-end-ip: management_end_ip
   - management-subnet: management_subnet
   - management-gateway-ip: management_gateway_ip
+  - peer_group_id: subcloud_peer_group_id
   - rehome_data: rehome_data
   - created-at: created_at
   - updated-at: updated_at
@@ -294,6 +295,7 @@ This operation does not accept a request body.
   - management-subnet: management_subnet
   - management-gateway-ip: management_gateway_ip
   - oam_floating_ip: oam_floating_ip
+  - peer_group_id: subcloud_peer_group_id
   - rehome_data: rehome_data
   - created-at: created_at
   - updated-at: updated_at
@@ -335,6 +337,8 @@ The attributes of a subcloud which are modifiable:
 
 -  management-end-ip
 
+-  peer_group_id
+
 -  bootstrap_values
 
 -  bootstrap_address
@@ -363,6 +367,7 @@ serviceUnavailable (503)
   - management-gateway-ip: subcloud_management_gateway_ip
   - management-start-ip: subcloud_management_start_ip
   - management-end-ip: subcloud_management_end_ip
+  - peer_group_id: subcloud_peer_group_id
   - bootstrap-address: bootstrap_address
   - sysadmin-password: sysadmin_password
   - bootstrap-values: bootstrap_values_for_rehome
@@ -379,6 +384,7 @@ Request Example
 
   - id: subcloud_id
   - group_id: group_id
+  - peer_group_id: subcloud_peer_group_id
   - name: subcloud_name
   - description: subcloud_description
   - location: subcloud_location
@@ -2559,5 +2565,334 @@ internalServerError (500), serviceUnavailable (503)
 .. rest_parameters:: parameters.yaml
 
   - system-peer: system_peer_uri
+
+This operation does not accept a request body.
+
+--------------------
+Subcloud Peer Groups
+--------------------
+
+Subcloud Peer Groups are logical groupings managed by a central System Controller.
+It's a group of the current managed subclouds which are supposed to be duplicated
+in a peer site as secondary subclouds 
+
+******************************
+Lists all subcloud peer groups
+******************************
+
+.. rest_method:: GET /v1.0/subcloud-peer-groups
+
+This operation does not accept a request body.
+
+**Normal response codes**
+
+200
+
+**Error response codes**
+
+badRequest (400), unauthorized (401), forbidden (403),
+badMethod (405), HTTPUnprocessableEntity (422),
+internalServerError (500), serviceUnavailable (503)
+
+
+**Response parameters**
+
+.. rest_parameters:: parameters.yaml
+
+  - subcloud_peer_groups: subcloud_peer_groups
+  - id: subcloud_peer_group_id
+  - peer_group_name: subcloud_peer_group_name
+  - group_priority: subcloud_peer_group_priority
+  - group_state: subcloud_peer_group_administrative_state
+  - max_subcloud_rehoming: subcloud_peer_group_max_subcloud_rehoming
+  - system_leader_id: subcloud_peer_group_system_leader_id
+  - system_leader_name: subcloud_peer_group_system_leader_name
+  - created_at: created_at
+  - updated_at: updated_at
+
+Response Example
+----------------
+
+.. literalinclude:: samples/subcloud-peer-groups/subcloud-peer-groups-get-response.json
+         :language: json
+
+
+*****************************
+Creates a subcloud peer group
+*****************************
+
+.. rest_method:: POST /v1.0/subcloud-peer-groups
+
+**Normal response codes**
+
+200
+
+**Error response codes**
+
+badRequest (400), unauthorized (401), forbidden (403), badMethod (405),
+HTTPUnprocessableEntity (422), internalServerError (500),
+serviceUnavailable (503)
+
+**Request parameters**
+
+.. rest_parameters:: parameters.yaml
+
+  - peer_group_name: subcloud_peer_group_name
+  - group_priority: subcloud_peer_group_priority
+  - group_state: subcloud_peer_group_administrative_state
+  - max_subcloud_rehoming: subcloud_peer_group_max_subcloud_rehoming
+  - system_leader_id: subcloud_peer_group_system_leader_id
+  - system_leader_name: subcloud_peer_group_system_leader_name
+
+Request Example
+----------------
+
+.. literalinclude:: samples/subcloud-peer-groups/subcloud-peer-groups-post-request.json
+         :language: json
+
+**Response parameters**
+
+.. rest_parameters:: parameters.yaml
+
+  - id: subcloud_peer_group_id
+  - peer_group_name: subcloud_peer_group_name
+  - group_priority: subcloud_peer_group_priority
+  - group_state: subcloud_peer_group_administrative_state
+  - max_subcloud_rehoming: subcloud_peer_group_max_subcloud_rehoming
+  - system_leader_id: subcloud_peer_group_system_leader_id
+  - system_leader_name: subcloud_peer_group_system_leader_name
+  - created_at: created_at
+  - updated_at: updated_at
+
+Response Example
+----------------
+
+.. literalinclude:: samples/subcloud-peer-groups/subcloud-peer-groups-post-response.json
+         :language: json
+
+
+***************************************************
+Shows information about a specific subcloud group
+***************************************************
+
+.. rest_method:: GET /v1.0/subcloud-peer-groups/​{subcloud-peer-group}​
+
+**Normal response codes**
+
+200
+
+**Error response codes**
+
+badRequest (400), unauthorized (401), forbidden (403),
+itemNotFound (404), badMethod (405), HTTPUnprocessableEntity (422),
+internalServerError (500), serviceUnavailable (503)
+
+**Request parameters**
+
+.. rest_parameters:: parameters.yaml
+
+  - subcloud-peer-group: subcloud_peer_group_uri
+
+This operation does not accept a request body.
+
+**Response parameters**
+
+.. rest_parameters:: parameters.yaml
+
+  - id: subcloud_peer_group_id
+  - peer_group_name: subcloud_peer_group_name
+  - group_priority: subcloud_peer_group_priority
+  - group_state: subcloud_peer_group_administrative_state
+  - max_subcloud_rehoming: subcloud_peer_group_max_subcloud_rehoming
+  - system_leader_id: subcloud_peer_group_system_leader_id
+  - system_leader_name: subcloud_peer_group_system_leader_name
+  - created_at: created_at
+  - updated_at: updated_at
+
+Response Example
+----------------
+
+.. literalinclude:: samples/subcloud-peer-groups/subcloud-peer-groups-post-response.json
+         :language: json
+
+
+******************************************************
+Shows subclouds that are part of a subcloud peer group
+******************************************************
+
+.. rest_method:: GET /v1.0/subcloud-peer-groups/​{subcloud-peer-group}​/subclouds
+
+**Normal response codes**
+
+200
+
+**Error response codes**
+
+badRequest (400), unauthorized (401), forbidden (403),
+itemNotFound (404), badMethod (405), HTTPUnprocessableEntity (422),
+internalServerError (500), serviceUnavailable (503)
+
+**Request parameters**
+
+.. rest_parameters:: parameters.yaml
+
+  - subcloud-peer-group: subcloud_peer_group_uri
+
+This operation does not accept a request body.
+
+**Response parameters**
+
+.. rest_parameters:: parameters.yaml
+
+  - subclouds: subclouds
+  - id: subcloud_id
+  - group_id: group_id
+  - name: subcloud_name
+  - description: subcloud_description
+  - location: subcloud_location
+  - software-version: software_version
+  - availability-status: availability_status
+  - error-description: error_description
+  - deploy-status: deploy_status
+  - backup-status: backup_status
+  - backup-datetime: backup_datetime
+  - openstack-installed: openstack_installed
+  - management-state: management_state
+  - systemcontroller-gateway-ip: systemcontroller_gateway_ip
+  - management-start-ip: management_start_ip
+  - management-end-ip: management_end_ip
+  - management-subnet: management_subnet
+  - management-gateway-ip: management_gateway_ip
+  - created-at: created_at
+  - updated-at: updated_at
+  - data_install: data_install
+  - data_upgrade: data_upgrade
+
+Response Example
+----------------
+
+.. literalinclude:: samples/subcloud-peer-groups/subcloud-peer-groups-get-subclouds-response.json
+         :language: json
+
+
+***************************************
+Modifies a specific subcloud peer group
+***************************************
+
+.. rest_method:: PATCH /v1.0/subcloud-peer-groups/​{subcloud-peer-group}​
+
+The attributes of a subcloud peer group which are modifiable:
+
+-  peer_group_name
+
+-  group_priority
+
+-  group_state
+
+-  max_subcloud_rehoming
+
+-  system_leader_id
+
+-  system_leader_name
+
+
+**Normal response codes**
+
+200
+
+**Error response codes**
+
+badRequest (400), unauthorized (401), forbidden (403), badMethod (405),
+HTTPUnprocessableEntity (422), internalServerError (500),
+serviceUnavailable (503)
+
+**Request parameters**
+
+.. rest_parameters:: parameters.yaml
+
+  - subcloud-peer-group: subcloud_peer_group_uri
+  - peer_group_name: subcloud_peer_group_name
+  - group_priority: subcloud_peer_group_priority
+  - group_state: subcloud_peer_group_administrative_state
+  - max_subcloud_rehoming: subcloud_peer_group_max_subcloud_rehoming
+  - system_leader_id: subcloud_peer_group_system_leader_id
+  - system_leader_name: subcloud_peer_group_system_leader_name
+
+Request Example
+----------------
+.. literalinclude:: samples/subcloud-peer-groups/subcloud-peer-group-patch-request.json
+         :language: json
+
+**Response parameters**
+
+.. rest_parameters:: parameters.yaml
+
+  - id: subcloud_peer_group_id
+  - peer_group_name: subcloud_peer_group_name
+  - group_priority: subcloud_peer_group_priority
+  - group_state: subcloud_peer_group_administrative_state
+  - max_subcloud_rehoming: subcloud_peer_group_max_subcloud_rehoming
+  - system_leader_id: subcloud_peer_group_system_leader_id
+  - system_leader_name: subcloud_peer_group_system_leader_name
+  - created_at: created_at
+  - updated_at: updated_at
+
+Response Example
+----------------
+
+.. literalinclude:: samples/subcloud-peer-groups/subcloud-peer-group-patch-response.json
+         :language: json
+
+
+**************************************
+Migrate a specific subcloud peer group
+**************************************
+
+.. rest_method:: PATCH /v1.0/subcloud-peer-groups/​{subcloud-peer-group}​/migrate
+
+**Normal response codes**
+
+200
+
+**Error response codes**
+
+badRequest (400), unauthorized (401), forbidden (403),
+itemNotFound (404), badMethod (405), HTTPUnprocessableEntity (422),
+internalServerError (500), serviceUnavailable (503)
+
+**Request parameters**
+
+.. rest_parameters:: parameters.yaml
+
+  - subcloud-peer-group: subcloud_peer_group_uri
+  - sysadmin-password: sysadmin_password
+
+Request Example
+----------------
+.. literalinclude:: samples/subcloud-peer-groups/subcloud-peer-groups-patch-migrate-request.json
+         :language: json
+
+
+**************************************
+Deletes a specific subcloud peer group
+**************************************
+
+.. rest_method:: DELETE /v1.0/subcloud-peer-groups/​{subcloud-peer-group}​
+
+**Normal response codes**
+
+200
+
+**Error response codes**
+
+badRequest (400), unauthorized (401), forbidden (403),
+itemNotFound (404), badMethod (405), HTTPUnprocessableEntity (422),
+internalServerError (500), serviceUnavailable (503)
+
+**Request parameters**
+
+.. rest_parameters:: parameters.yaml
+
+  - subcloud-peer-group: subcloud_peer_group_uri
 
 This operation does not accept a request body.

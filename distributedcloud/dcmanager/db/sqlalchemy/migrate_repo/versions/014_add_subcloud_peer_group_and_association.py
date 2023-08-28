@@ -16,6 +16,32 @@ def upgrade(migrate_engine):
     # Add the 'rehome_data' column to the subclouds table.
     subclouds.create_column(sqlalchemy.Column('rehome_data', sqlalchemy.Text))
 
+    # Declare the new subcloud_peer_group table
+    subcloud_peer_group = sqlalchemy.Table(
+        'subcloud_peer_group', meta,
+        sqlalchemy.Column('id', sqlalchemy.Integer,
+                          primary_key=True,
+                          autoincrement=True,
+                          nullable=False),
+        sqlalchemy.Column('peer_group_name', sqlalchemy.String(255), unique=True),
+        sqlalchemy.Column('group_priority', sqlalchemy.Integer),
+        sqlalchemy.Column('group_state', sqlalchemy.String(255)),
+        sqlalchemy.Column('system_leader_id', sqlalchemy.String(255)),
+        sqlalchemy.Column('system_leader_name', sqlalchemy.String(255)),
+        sqlalchemy.Column('max_subcloud_rehoming', sqlalchemy.Integer),
+        sqlalchemy.Column('reserved_1', sqlalchemy.Text),
+        sqlalchemy.Column('reserved_2', sqlalchemy.Text),
+        sqlalchemy.Column('created_at', sqlalchemy.DateTime),
+        sqlalchemy.Column('updated_at', sqlalchemy.DateTime),
+        sqlalchemy.Column('deleted_at', sqlalchemy.DateTime),
+        sqlalchemy.Column('deleted', sqlalchemy.Integer, default=0),
+        mysql_engine=ENGINE,
+        mysql_charset=CHARSET
+    )
+    subcloud_peer_group.create()
+    # Add the 'peer_greoup_id' column to the subclouds table.
+    subclouds.create_column(sqlalchemy.Column('peer_group_id', sqlalchemy.Integer))
+
     # Declare the new system_peer table
     system_peer = sqlalchemy.Table(
         'system_peer', meta,

@@ -22,6 +22,7 @@ from dcmanager.api.controllers.v1 import phased_subcloud_deploy
 from dcmanager.api.controllers.v1 import subcloud_backup
 from dcmanager.api.controllers.v1 import subcloud_deploy
 from dcmanager.api.controllers.v1 import subcloud_group
+from dcmanager.api.controllers.v1 import subcloud_peer_group
 from dcmanager.api.controllers.v1 import subclouds
 from dcmanager.api.controllers.v1 import sw_update_options
 from dcmanager.api.controllers.v1 import sw_update_strategy
@@ -55,6 +56,8 @@ class Controller(object):
                 SubcloudBackupController
             sub_controllers["phased-subcloud-deploy"] = phased_subcloud_deploy.\
                 PhasedSubcloudDeployController
+            sub_controllers["subcloud-peer-groups"] = \
+                subcloud_peer_group.SubcloudPeerGroupsController
             sub_controllers["system-peers"] = system_peers.\
                 SystemPeersController
 

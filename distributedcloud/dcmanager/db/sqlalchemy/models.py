@@ -131,6 +131,20 @@ class SubcloudGroup(BASE, DCManagerBase):
     max_parallel_subclouds = Column(Integer)
 
 
+class SubcloudPeerGroup(BASE, DCManagerBase):
+    """Represents a subcloud group"""
+
+    __tablename__ = 'subcloud_peer_group'
+
+    id = Column(Integer, primary_key=True, autoincrement=True, nullable=False)
+    peer_group_name = Column(String(255), unique=True)
+    group_priority = Column(Integer)
+    group_state = Column(String(255))
+    max_subcloud_rehoming = Column(Integer)
+    system_leader_id = Column(String(255))
+    system_leader_name = Column(String(255))
+
+
 class Subcloud(BASE, DCManagerBase):
     """Represents a subcloud"""
 
@@ -158,6 +172,8 @@ class Subcloud(BASE, DCManagerBase):
     systemcontroller_gateway_ip = Column(String(255))
     audit_fail_count = Column(Integer)
     first_identity_sync_complete = Column(Boolean, default=False)
+    peer_group_id = Column(Integer,
+                           ForeignKey('subcloud_peer_group.id'))
     rehome_data = Column(Text())
 
     # multiple subclouds can be in a particular group

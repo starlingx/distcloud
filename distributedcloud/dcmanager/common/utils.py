@@ -517,6 +517,11 @@ def system_peer_get_by_ref(context, peer_ref):
         return None
 
 
+def subcloud_peer_group_db_list_to_dict(peer_groups):
+    return {'subcloud_peer_groups': [db_api.subcloud_peer_group_db_model_to_dict(
+        peer_group) for peer_group in peer_groups]}
+
+
 def subcloud_get_by_ref(context, subcloud_ref):
     """Handle getting a subcloud by either name, or ID
 
@@ -545,6 +550,21 @@ def subcloud_group_get_by_ref(context, group_ref):
             group = db_api.subcloud_group_get_by_name(context, group_ref)
         except exceptions.SubcloudGroupNameNotFound:
             return None
+    return group
+
+
+def subcloud_peer_group_get_by_ref(context, group_ref):
+    """Handle getting a peer group by either name, or ID"""
+    try:
+        if group_ref.isdigit():
+            # Lookup subcloud group as an ID
+            group = db_api.subcloud_peer_group_get(context, group_ref)
+        else:
+            # Lookup subcloud group as a name
+            group = db_api.subcloud_peer_group_get_by_name(context, group_ref)
+    except (exceptions.SubcloudPeerGroupNotFound,
+            exceptions.SubcloudPeerGroupNameNotFound):
+        return None
     return group
 
 

@@ -420,6 +420,7 @@ def subcloud_update(context, subcloud_id, management_state=None,
                     data_upgrade=None,
                     first_identity_sync_complete=None,
                     systemcontroller_gateway_ip=None,
+                    peer_group_id=None,
                     rehome_data=None):
     with write_session() as session:
         subcloud_ref = subcloud_get(context, subcloud_id)
@@ -466,6 +467,11 @@ def subcloud_update(context, subcloud_id, management_state=None,
         if systemcontroller_gateway_ip is not None:
             subcloud_ref.systemcontroller_gateway_ip = \
                 systemcontroller_gateway_ip
+        if peer_group_id is not None:
+            if str(peer_group_id).lower() == 'none':
+                subcloud_ref.peer_group_id = None
+            else:
+                subcloud_ref.peer_group_id = peer_group_id
         if rehome_data is not None:
             subcloud_ref.rehome_data = rehome_data
         subcloud_ref.save(session)
@@ -1066,6 +1072,132 @@ def initialize_subcloud_group_default(engine):
             pass
     except Exception as ex:
         LOG.error("Exception occurred setting up default subcloud group", ex)
+##########################
+
+
+##########################
+# subcloud peer group
+##########################
+@require_context
+def subcloud_peer_group_get(context, group_id):
+    try:
+        result = model_query(context, models.SubcloudPeerGroup). \
+            filter_by(deleted=0). \
+            filter_by(id=group_id). \
+            one()
+    except NoResultFound:
+        raise exception.SubcloudPeerGroupNotFound(group_id=group_id)
+    except MultipleResultsFound:
+        raise exception.InvalidParameterValue(
+            err="Multiple entries found for subcloud peer group %s" % group_id)
+
+    return result
+
+
+@require_context
+def subcloud_get_for_peer_group(context, peer_group_id):
+    """Get all subclouds for a subcloud peer group.
+
+    :param context: request context object
+    :param peer_group_id: ID of the subcloud peer group
+    """
+    return model_query(context, models.Subcloud). \
+        filter_by(deleted=0). \
+        filter_by(peer_group_id=peer_group_id). \
+        order_by(models.Subcloud.id). \
+        all()
+
+
+@require_context
+def subcloud_peer_group_get_all(context):
+    result = model_query(context, models.SubcloudPeerGroup). \
+        filter_by(deleted=0). \
+        order_by(models.SubcloudPeerGroup.id). \
+        all()
+
+    return result
+
+
+@require_context
+def subcloud_peer_group_get_by_name(context, name):
+    try:
+        result = model_query(context, models.SubcloudPeerGroup). \
+            filter_by(deleted=0). \
+            filter_by(peer_group_name=name). \
+            one()
+    except NoResultFound:
+        raise exception.SubcloudPeerGroupNameNotFound(name=name)
+    except MultipleResultsFound:
+        # This exception should never happen due to the UNIQUE setting for name
+        raise exception.InvalidParameterValue(
+            err="Multiple entries found for subcloud peer group %s" % name)
+
+    return result
+
+
+@require_context
+def subcloud_peer_group_get_by_leader_id(context, system_leader_id):
+    result = model_query(context, models.SubcloudPeerGroup). \
+        filter_by(deleted=0). \
+        filter_by(system_leader_id=system_leader_id). \
+        order_by(models.SubcloudPeerGroup.id). \
+        all()
+
+    return result
+
+
+@require_admin_context
+def subcloud_peer_group_create(context,
+                               peer_group_name,
+                               group_priority,
+                               group_state,
+                               max_subcloud_rehoming,
+                               system_leader_id,
+                               system_leader_name):
+    with write_session() as session:
+        subcloud_peer_group_ref = models.SubcloudPeerGroup()
+        subcloud_peer_group_ref.peer_group_name = peer_group_name
+        subcloud_peer_group_ref.group_priority = group_priority
+        subcloud_peer_group_ref.group_state = group_state
+        subcloud_peer_group_ref.max_subcloud_rehoming = max_subcloud_rehoming
+        subcloud_peer_group_ref.system_leader_id = system_leader_id
+        subcloud_peer_group_ref.system_leader_name = system_leader_name
+        session.add(subcloud_peer_group_ref)
+        return subcloud_peer_group_ref
+
+
+@require_admin_context
+def subcloud_peer_group_destroy(context, group_id):
+    with write_session() as session:
+        subcloud_peer_group_ref = subcloud_peer_group_get(context, group_id)
+        session.delete(subcloud_peer_group_ref)
+
+
+@require_admin_context
+def subcloud_peer_group_update(context,
+                               group_id,
+                               peer_group_name=None,
+                               group_priority=None,
+                               group_state=None,
+                               max_subcloud_rehoming=None,
+                               system_leader_id=None,
+                               system_leader_name=None):
+    with write_session() as session:
+        subcloud_peer_group_ref = subcloud_peer_group_get(context, group_id)
+        if peer_group_name is not None:
+            subcloud_peer_group_ref.peer_group_name = peer_group_name
+        if group_priority is not None:
+            subcloud_peer_group_ref.group_priority = group_priority
+        if group_state is not None:
+            subcloud_peer_group_ref.group_state = group_state
+        if max_subcloud_rehoming is not None:
+            subcloud_peer_group_ref.max_subcloud_rehoming = max_subcloud_rehoming
+        if system_leader_id is not None:
+            subcloud_peer_group_ref.system_leader_id = system_leader_id
+        if system_leader_name is not None:
+            subcloud_peer_group_ref.system_leader_name = system_leader_name
+        subcloud_peer_group_ref.save(session)
+        return subcloud_peer_group_ref
 ##########################
 
 

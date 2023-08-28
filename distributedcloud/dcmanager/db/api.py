@@ -125,6 +125,7 @@ def subcloud_db_model_to_dict(subcloud):
               "created-at": subcloud.created_at,
               "updated-at": subcloud.updated_at,
               "group_id": subcloud.group_id,
+              "peer_group_id": subcloud.peer_group_id,
               "rehome_data": subcloud.rehome_data}
     return result
 
@@ -195,7 +196,7 @@ def subcloud_update(context, subcloud_id, management_state=None,
                     data_install=None, data_upgrade=None,
                     first_identity_sync_complete=None,
                     systemcontroller_gateway_ip=None,
-                    rehome_data=None):
+                    peer_group_id=None, rehome_data=None):
     """Update a subcloud or raise if it does not exist."""
     return IMPL.subcloud_update(context, subcloud_id, management_state,
                                 availability_status, software_version, name,
@@ -205,7 +206,7 @@ def subcloud_update(context, subcloud_id, management_state=None,
                                 backup_datetime, error_description, openstack_installed,
                                 group_id, data_install, data_upgrade,
                                 first_identity_sync_complete,
-                                systemcontroller_gateway_ip, rehome_data)
+                                systemcontroller_gateway_ip, peer_group_id, rehome_data)
 
 
 def subcloud_bulk_update_by_ids(context, subcloud_ids, update_form):
@@ -450,9 +451,84 @@ def system_peer_update(context, peer_id,
 def system_peer_destroy(context, peer_id):
     """Destroy the system peer or raise if it does not exist."""
     return IMPL.system_peer_destroy(context, peer_id)
+###################
 
 
 ###################
+# subcloud_peer_group
+def subcloud_peer_group_db_model_to_dict(subcloud_peer_group):
+    """Convert subcloud_peer_group db model to dictionary."""
+    result = {"id": subcloud_peer_group.id,
+              "peer_group_name": subcloud_peer_group.peer_group_name,
+              "group_priority": subcloud_peer_group.group_priority,
+              "group_state": subcloud_peer_group.group_state,
+              "max_subcloud_rehoming": subcloud_peer_group.max_subcloud_rehoming,
+              "system_leader_id": subcloud_peer_group.system_leader_id,
+              "system_leader_name": subcloud_peer_group.system_leader_name,
+              "created-at": subcloud_peer_group.created_at,
+              "updated-at": subcloud_peer_group.updated_at}
+    return result
+
+
+def subcloud_peer_group_create(context, peer_group_name, group_priority, group_state,
+                               max_subcloud_rehoming, system_leader_id, system_leader_name):
+    """Create a subcloud_peer_group."""
+    return IMPL.subcloud_peer_group_create(context,
+                                           peer_group_name,
+                                           group_priority,
+                                           group_state,
+                                           max_subcloud_rehoming,
+                                           system_leader_id,
+                                           system_leader_name)
+
+
+def subcloud_peer_group_destroy(context, group_id):
+    """Destroy the subcloud peer group or raise if it does not exist."""
+    return IMPL.subcloud_peer_group_destroy(context, group_id)
+
+
+def subcloud_peer_group_get(context, group_id):
+    """Retrieve a subcloud_peer_group or raise if it does not exist."""
+    return IMPL.subcloud_peer_group_get(context, group_id)
+
+
+def subcloud_peer_group_get_by_name(context, name):
+    """Retrieve a subcloud_peer_group by name or raise if it does not exist."""
+    return IMPL.subcloud_peer_group_get_by_name(context, name)
+
+
+def subcloud_peer_group_get_by_leader_id(context, system_leader_id):
+    """Retrieve subcloud peer groups by system_leader_id."""
+    return IMPL.subcloud_peer_group_get_by_leader_id(context, system_leader_id)
+
+
+def subcloud_get_for_peer_group(context, group_id):
+    """Retrieve all subclouds belonging to a subcloud_peer_group
+
+    or raise if it does not exist.
+    """
+    return IMPL.subcloud_get_for_peer_group(context, group_id)
+
+
+def subcloud_peer_group_get_all(context):
+    """Retrieve all subcloud peer groups."""
+    return IMPL.subcloud_peer_group_get_all(context)
+
+
+def subcloud_peer_group_update(context, group_id, peer_group_name, group_priority,
+                               group_state, max_subcloud_rehoming, system_leader_id,
+                               system_leader_name):
+    """Update the subcloud peer group or raise if it does not exist."""
+    return IMPL.subcloud_peer_group_update(context,
+                                           group_id,
+                                           peer_group_name,
+                                           group_priority,
+                                           group_state,
+                                           max_subcloud_rehoming,
+                                           system_leader_id,
+                                           system_leader_name)
+###################
+
 
 def sw_update_strategy_db_model_to_dict(sw_update_strategy):
     """Convert sw update db model to dictionary."""

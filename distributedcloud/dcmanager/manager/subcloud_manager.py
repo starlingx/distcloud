@@ -2313,6 +2313,7 @@ class SubcloudManager(manager.Manager):
                         data_install=None,
                         force=None,
                         deploy_status=None,
+                        peer_group_id=None,
                         bootstrap_values=None,
                         bootstrap_address=None):
         """Update subcloud and notify orchestrators.
@@ -2326,6 +2327,7 @@ class SubcloudManager(manager.Manager):
         :param data_install: subcloud install values
         :param force: force flag
         :param deploy_status: update to expected deploy status
+        :param peer_group_id: id of peer group
         :param bootstrap_values: bootstrap_values yaml content
         :param bootstrap_address: oam IP for rehome
         """
@@ -2449,6 +2451,7 @@ class SubcloudManager(manager.Manager):
             group_id=group_id,
             data_install=data_install,
             deploy_status=new_deploy_status,
+            peer_group_id=peer_group_id,
             rehome_data=rehome_data
         )
 
