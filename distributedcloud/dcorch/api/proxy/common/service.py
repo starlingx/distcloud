@@ -1,4 +1,4 @@
-# Copyright (c) 2017-2021 Wind River Systems, Inc.
+# Copyright (c) 2017-2021, 2024 Wind River Systems, Inc.
 #
 #    Licensed under the Apache License, Version 2.0 (the "License"); you may
 #    not use this file except in compliance with the License. You may obtain
@@ -56,7 +56,8 @@ class Middleware(Application):
 
         def _factory(app):
             # https://bugs.launchpad.net/starlingx/+bug/1865085
-            return cls(app, global_config, **local_config)  # pylint: disable=too-many-function-args
+            # pylint: disable-next=too-many-function-args
+            return cls(app, global_config, **local_config)
         return _factory
 
     def __init__(self, application):

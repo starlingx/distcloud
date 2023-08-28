@@ -1,4 +1,5 @@
 # Copyright (c) 2015 Ericsson AB.
+# Copyright (c) 2024 Wind River Systems, Inc.
 # All Rights Reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License"); you may
@@ -15,14 +16,16 @@
 
 """SubcloudResource object."""
 
+from oslo_versionedobjects import base as ovo_base
+from oslo_versionedobjects import fields as ovo_fields
+
 from dcorch.common import consts
 from dcorch.common import exceptions
 from dcorch.db import api as db_api
 from dcorch.objects import base
-from oslo_versionedobjects import base as ovo_base
-from oslo_versionedobjects import fields as ovo_fields
 
 
+# pylint: disable=no-member
 @base.OrchestratorObjectRegistry.register
 class SubcloudResource(base.OrchestratorObject,
                        base.VersionedObjectDictCompat):
@@ -56,7 +59,7 @@ class SubcloudResource(base.OrchestratorObject,
         return self._from_db_object(self._context, self, db_subcloud_resource)
 
     def is_managed(self):
-        return self.shared_config_state == consts.SHARED_CONFIG_STATE_MANAGED  # pylint: disable=E1101
+        return self.shared_config_state == consts.SHARED_CONFIG_STATE_MANAGED
 
     @classmethod
     def get_by_id(cls, context, id):

@@ -1,5 +1,5 @@
 # Copyright 2016 Ericsson AB
-# Copyright (c) 2018-2022 Wind River Systems, Inc.
+# Copyright (c) 2018-2022, 2024 Wind River Systems, Inc.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -17,12 +17,12 @@
 import collections
 import copy
 import re
-from six.moves.queue import Queue
 import threading
 import time
 
 from oslo_config import cfg
 from oslo_log import log as logging
+from six.moves.queue import Queue
 
 from dccommon import consts as dccommon_consts
 from dccommon import endpoint_cache
@@ -347,7 +347,7 @@ class QuotaManager(manager.Manager):
 
         total_project_usages, regions_usage_dict = self.quota_usage_update(
             project_id, user_id)
-        if ((total_project_usages, regions_usage_dict) == (None, None)):
+        if (total_project_usages, regions_usage_dict) == (None, None):
             return
 
         # Get the global limit for this project from the master subcloud.

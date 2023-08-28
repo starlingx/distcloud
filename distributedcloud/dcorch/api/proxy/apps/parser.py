@@ -1,4 +1,4 @@
-# Copyright (c) 2021 Wind River Systems, Inc
+# Copyright (c) 2021, 2024 Wind River Systems, Inc
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -14,13 +14,13 @@
 # limitations under the License.
 
 import json
-import six
-import webob
 from xml import etree as et
 
-from dcorch.api.proxy.common.service import Middleware
-
 from oslo_log import log
+import six
+import webob
+
+from dcorch.api.proxy.common.service import Middleware
 
 LOG = log.getLogger(__name__)
 

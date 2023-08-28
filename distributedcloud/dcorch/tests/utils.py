@@ -1,4 +1,5 @@
 # Copyright (c) 2015 Ericsson AB
+# Copyright (c) 2024 Wind River Systems, Inc.
 # All Rights Reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License"); you may
@@ -13,18 +14,17 @@
 # License for the specific language governing permissions and limitations
 # under the License.
 
-import eventlet
 import random
-import sqlalchemy
 import string
 import uuid
 
+import eventlet
 from oslo_config import cfg
 from oslo_db import options
+import sqlalchemy
 
 from dcorch.common import context
 from dcorch.db import api as db_api
-
 
 get_engine = db_api.get_engine
 

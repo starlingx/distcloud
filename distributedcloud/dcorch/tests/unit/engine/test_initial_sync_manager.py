@@ -1,4 +1,6 @@
-# Copyright (c) 2020-2022 Wind River Systems, Inc.
+# Copyright (c) 2020-2022, 2024 Wind River Systems, Inc.
+# All Rights Reserved.
+#
 # Licensed under the Apache License, Version 2.0 (the "License"); you may
 # not use this file except in compliance with the License. You may obtain
 # a copy of the License at
@@ -10,17 +12,15 @@
 # WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
 # License for the specific language governing permissions and limitations
 # under the License.
-#
 
 import mock
+from oslo_utils import uuidutils
 
 from dccommon import consts as dccommon_consts
 from dcorch.common import consts
 from dcorch.db.sqlalchemy import api as db_api
 from dcorch.engine import initial_sync_manager
-
 from dcorch.tests import base
-from oslo_utils import uuidutils
 
 
 class FakeGSM(object):

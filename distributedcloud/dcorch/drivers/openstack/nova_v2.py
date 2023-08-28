@@ -1,5 +1,5 @@
 # Copyright 2016 Ericsson AB
-# Copyright (c) 2018-2022 Wind River Systems, Inc.
+# Copyright (c) 2018-2022, 2024 Wind River Systems, Inc.
 #
 # Licensed under the Apache License, Version 2.0 (the "License"); you may
 # not use this file except in compliance with the License. You may obtain
@@ -14,13 +14,12 @@
 # under the License.
 import collections
 
+from novaclient import client
 from oslo_log import log
 
 from dccommon import consts
 from dcorch.common import exceptions
 from dcorch.drivers import base
-
-from novaclient import client
 
 LOG = log.getLogger(__name__)
 API_VERSION = '2.37'
@@ -88,11 +87,8 @@ class NovaClient(base.DriverBase):
         except exceptions.InternalError:
             raise
 
-    # Since additional parameter variables are added on top of abc class previously defined
-    # Pylint will raise a warning (W0237) saying parameter got renamed. Added suppress to ignore
-    # Since alarm W0237 was not introduced until pylint 2.1x, the CentOS pylint (running 2.3) will
-    # raise an alarm (E0012) on W0237 suggesting it is invalid, Another suppress is added for E0012
-    def update_quota_limits(self, project_id, user_id, **new_quota):  # pylint: disable=E0012,W0237
+    # pylint: disable-next=arguments-renamed
+    def update_quota_limits(self, project_id, user_id, **new_quota):
         """Update quota limits for a given project.
 
         :params: project_id, dictionary with the quota limits to update

@@ -1,4 +1,4 @@
-# Copyright 2018-2023 Wind River
+# Copyright (c) 2018-2024 Wind River Systems, Inc.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -19,23 +19,23 @@ import json
 import os
 import shutil
 import tempfile
+
+from cgcs_patch.patch_functions import get_release_from_patch
+from oslo_config import cfg
+from oslo_log import log as logging
+from oslo_service.wsgi import Request
+from oslo_utils._i18n import _
 import webob.dec
 import webob.exc
 
-from cgcs_patch.patch_functions import get_release_from_patch
-
 from dccommon import consts as dccommon_consts
+from dcmanager.rpc import client as dcmanager_rpc_client
 from dcorch.api.proxy.apps.dispatcher import APIDispatcher
 from dcorch.api.proxy.common import constants as proxy_consts
 from dcorch.api.proxy.common.service import Middleware
 from dcorch.api.proxy.common import utils as proxy_utils
 from dcorch.common import context
-from oslo_config import cfg
-from oslo_log import log as logging
-from oslo_service.wsgi import Request
-from oslo_utils._i18n import _
 
-from dcmanager.rpc import client as dcmanager_rpc_client
 
 LOG = logging.getLogger(__name__)
 

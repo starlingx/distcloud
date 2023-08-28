@@ -1,4 +1,5 @@
 # Copyright (c) 2015 Ericsson AB
+# Copyright (c) 2024 Wind River Systems, Inc.
 # All Rights Reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License"); you may
@@ -15,19 +16,14 @@
 #
 # Copyright (c) 2020 Wind River Systems, Inc.
 #
-
-
-import sqlalchemy
-
 from oslo_config import cfg
 from oslo_db import options
-
-from dcorch.db import api as api
-from dcorch.db.sqlalchemy import api as db_api
-
-from dcorch.tests import utils
 from oslotest import base
+import sqlalchemy
 
+from dcorch.db import api
+from dcorch.db.sqlalchemy import api as db_api
+from dcorch.tests import utils
 
 get_engine = api.get_engine
 

@@ -1,4 +1,4 @@
-# Copyright 2017-2023 Wind River
+# Copyright (c) 2017-2024 Wind River Systems, Inc.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -16,9 +16,15 @@
 import grp
 import json
 import os
-import psutil
 import pwd
 import shutil
+
+from eventlet.green import subprocess
+from oslo_config import cfg
+from oslo_log import log as logging
+from oslo_service.wsgi import Request
+from oslo_utils._i18n import _
+import psutil
 import tsconfig.tsconfig as tsc
 import webob.dec
 import webob.exc
@@ -34,16 +40,10 @@ from dcorch.api.proxy.common.service import Middleware
 from dcorch.api.proxy.common.service import Request as ProxyRequest
 from dcorch.api.proxy.common import utils as proxy_utils
 from dcorch.common import consts
-import dcorch.common.context as k_context
+from dcorch.common import context as k_context
 from dcorch.common import exceptions as exception
 from dcorch.common import utils
 from dcorch.rpc import client as rpc_client
-from eventlet.green import subprocess
-from oslo_config import cfg
-from oslo_log import log as logging
-from oslo_service.wsgi import Request
-from oslo_utils._i18n import _
-
 
 LOG = logging.getLogger(__name__)
 
@@ -460,7 +460,8 @@ class SysinvAPIController(APIController):
                             new_load = json.loads(response.body)
                             self._save_load_to_vault(new_load['software_version'])
                         else:
-                            sw_version = json.loads(response.body)['software_version']
+                            sw_version = \
+                                json.loads(response.body)['software_version']
                             self._remove_load_from_vault(sw_version)
                 elif resource_type == consts.RESOURCE_TYPE_SYSINV_DEVICE_IMAGE:
                     notify = True
@@ -627,7 +628,7 @@ class SysinvAPIController(APIController):
             # file object type is different in Debian than CentOS and and
             # has fileno() attribute but is not a supported operation on Debian
             #
-            # The check for st_size is required to determine the file size of iso image
+            # The check for st_size is required to determine the file size of *.iso
             # It is not applicable to its signature file
             try:
                 file_size = os.fstat(source_file.fileno()).st_size
@@ -637,14 +638,16 @@ class SysinvAPIController(APIController):
             if file_size >= 0:
                 # Only proceed if there is space available for copying
                 avail_space = psutil.disk_usage('/scratch').free
-                if (avail_space < file_size):
-                    LOG.error("Failed to upload load file %s, not enough space on /scratch"
-                              " partition: %d bytes available "
-                              % (staging_file, avail_space))
+                if avail_space < file_size:
+                    LOG.error(
+                        "Failed to upload load file %s, not enough space on /scratch"
+                        " partition: %d bytes available " % (staging_file,
+                                                             avail_space))
                     return None
 
                 # Large iso file, allocate the required space
-                subprocess.check_call(["/usr/bin/fallocate",  # pylint: disable=not-callable
+                # pylint: disable-next=not-callable
+                subprocess.check_call(["/usr/bin/fallocate",
                                        "-l " + str(file_size), staging_file])
 
             with open(staging_file, 'wb') as destination_file:
@@ -753,7 +756,8 @@ class SysinvAPIController(APIController):
         # stores device image in the vault storage
         file_item = request.POST['file']
         try:
-            resource = json.loads(response.body)[consts.RESOURCE_TYPE_SYSINV_DEVICE_IMAGE]
+            resource = json.loads(response.body)[
+                consts.RESOURCE_TYPE_SYSINV_DEVICE_IMAGE]
             dst_filename = self._get_device_image_filename(resource)
             self._store_image_file(file_item, dst_filename)
         except Exception:
@@ -921,7 +925,7 @@ class IdentityAPIController(APIController):
                 resource_type = consts.RESOURCE_TYPE_IDENTITY_USERS
         elif (resource_type == consts.RESOURCE_TYPE_IDENTITY_GROUPS
               and operation_type != consts.OPERATION_TYPE_POST):
-            if("users" in request_header):
+            if "users" in request_header:
                 # Requests for adding a user (PUT) and removing a user (DELETE)
                 # should be converted to a PUT request
                 # The url in this case looks like /groups/{group_id}/users/{user_id}

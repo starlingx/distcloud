@@ -1,4 +1,5 @@
-# Copyright 2017-2022 Wind River
+# Copyright (c) 2017-2022, 2024 Wind River Systems, Inc.
+# All Rights Reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -139,7 +140,7 @@ class SysinvSyncThread(SyncThread):
         payload = dns_dict.get('payload')
 
         nameservers = None
-        if type(payload) is list:
+        if isinstance(payload, list):
             for ipayload in payload:
                 if ipayload.get('path') == '/nameservers':
                     nameservers = ipayload.get('value')
@@ -350,7 +351,7 @@ class SysinvSyncThread(SyncThread):
         payload = user_dict.get('payload')
 
         passwd_hash = None
-        if type(payload) is list:
+        if isinstance(payload, list):
             for ipayload in payload:
                 if ipayload.get('path') == '/passwd_hash':
                     passwd_hash = ipayload.get('value')

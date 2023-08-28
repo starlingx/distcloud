@@ -1,4 +1,4 @@
-# Copyright (c) 2017-2018  Wind River Inc.
+# Copyright (c) 2017-2018, 2024  Wind River Inc.
 # All Rights Reserved.
 # Licensed under the Apache License, Version 2.0 (the "License"); you may
 # not use this file except in compliance with the License. You may obtain
@@ -108,7 +108,9 @@ def upgrade(migrate_engine):
             meta.drop_all(tables=tables[:index])
             raise
 
-    rows = quota_classes.count().where(quota_classes.c.class_name == 'default').execute().scalar()  # pylint: disable=E1120
+    # pylint: disable-next=no-value-for-parameter
+    rows = quota_classes.count().where(
+        quota_classes.c.class_name == 'default').execute().scalar()
 
     # Do not add entries if there are already 'default' entries.  We don't
     # want to write over something the user added.

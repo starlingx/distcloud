@@ -1,3 +1,6 @@
+# Copyright (c) 2020-2024 Wind River Systems, Inc.
+# All Rights Reserved.
+#
 # Licensed under the Apache License, Version 2.0 (the "License"); you may
 # not use this file except in compliance with the License. You may obtain
 # a copy of the License at
@@ -9,18 +12,18 @@
 # WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
 # License for the specific language governing permissions and limitations
 # under the License.
-#
-# Copyright (c) 2020-2023 Wind River Systems, Inc.
-#
-
-import six
-import time
 
 import functools
+import resource
+import time
+
 from oslo_config import cfg
 from oslo_log import log as logging
 import oslo_messaging
-import resource
+from oslo_service import service
+from oslo_utils import timeutils
+from oslo_utils import uuidutils
+import six
 
 from dccommon import consts as dccommon_consts
 from dcorch.common import consts
@@ -35,9 +38,6 @@ from dcorch.engine.initial_sync_manager import InitialSyncManager
 from dcorch.engine.quota_manager import QuotaManager
 from dcorch.engine import scheduler
 from dcorch.objects import service as service_obj
-from oslo_service import service
-from oslo_utils import timeutils
-from oslo_utils import uuidutils
 
 CONF = cfg.CONF
 LOG = logging.getLogger(__name__)

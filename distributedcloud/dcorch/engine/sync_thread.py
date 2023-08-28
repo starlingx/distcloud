@@ -1,4 +1,5 @@
-# Copyright 2017-2023 Wind River
+# Copyright (c) 2017-2024 Wind River Systems, Inc.
+# All Rights Reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -108,7 +109,7 @@ class SyncThread(object):
     def is_subcloud_managed(self):
         # is this subcloud managed
         subcloud = Subcloud.get_by_name(self.ctxt, self.subcloud_name)
-        return subcloud.management_state == dccommon_consts.MANAGEMENT_MANAGED  # pylint: disable=E1101
+        return subcloud.management_state == dccommon_consts.MANAGEMENT_MANAGED
 
     def is_subcloud_enabled(self):
         # is this subcloud enabled
@@ -116,8 +117,8 @@ class SyncThread(object):
 
         # We only enable syncing if the subcloud is online and the initial
         # sync has completed.
-        if subcloud.availability_status == dccommon_consts.AVAILABILITY_ONLINE and \
-            subcloud.initial_sync_state == consts.INITIAL_SYNC_STATE_COMPLETED:  # pylint: disable=E1101
+        if subcloud.availability_status == dccommon_consts.AVAILABILITY_ONLINE and (
+                subcloud.initial_sync_state == consts.INITIAL_SYNC_STATE_COMPLETED):
             return True
         else:
             return False
@@ -396,11 +397,10 @@ class SyncThread(object):
         request_aborted = False
         try:
             for request in actual_sync_requests:
-                if not self.is_subcloud_enabled() or \
-                        self.should_exit():
-                        # Oops, someone disabled the endpoint while
-                        # we were processing work for it.
-                        raise exceptions.EndpointNotReachable()
+                if not self.is_subcloud_enabled() or self.should_exit():
+                    # Oops, someone disabled the endpoint while
+                    # we were processing work for it.
+                    raise exceptions.EndpointNotReachable()
                 request.state = consts.ORCH_REQUEST_STATE_IN_PROGRESS
                 try:
                     request.save()  # save to DB
@@ -736,7 +736,7 @@ class SyncThread(object):
                 # Resource implementation should handle this.
                 num_of_audit_jobs += self.audit_dependants(
                     resource_type, m_r, None)
-        if(num_of_audit_jobs != 0):
+        if (num_of_audit_jobs != 0):
             LOG.info("audit_find_missing {} num_of_audit_jobs".
                      format(num_of_audit_jobs), extra=self.log_extra)
         return num_of_audit_jobs
@@ -837,7 +837,7 @@ class SyncThread(object):
         m_resources = None
         db_resources = None
         # Query subcloud first. If not reachable, abort audit.
-        sc_resources = self.get_subcloud_resources(resource_type)  # pylint: disable=E1128
+        sc_resources = self.get_subcloud_resources(resource_type)
         if sc_resources is None:
             return m_resources, db_resources, sc_resources
         db_resources = self.get_db_master_resources(resource_type)
@@ -849,7 +849,7 @@ class SyncThread(object):
         if resource_type in SyncThread.master_resources_dict:
             m_resources = SyncThread.master_resources_dict[resource_type]
         else:
-            m_resources = self.get_master_resources(resource_type)  # pylint: disable=E1128
+            m_resources = self.get_master_resources(resource_type)
             if m_resources is not None:
                 SyncThread.master_resources_dict[resource_type] = m_resources
         return m_resources

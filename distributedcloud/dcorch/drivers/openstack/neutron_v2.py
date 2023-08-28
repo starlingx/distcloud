@@ -1,3 +1,6 @@
+# Copyright (c) 2024 Wind River Systems, Inc.
+# All Rights Reserved.
+#
 # Licensed under the Apache License, Version 2.0 (the "License"); you may
 # not use this file except in compliance with the License. You may obtain
 # a copy of the License at
@@ -12,12 +15,11 @@
 
 from collections import defaultdict
 
+from neutronclient.neutron import client
 from oslo_log import log
 
 from dcorch.common import exceptions
 from dcorch.drivers import base
-
-from neutronclient.neutron import client
 
 LOG = log.getLogger(__name__)
 API_VERSION = '2.0'
@@ -31,7 +33,7 @@ class NeutronClient(base.DriverBase):
                 API_VERSION, session=session,
                 region_name=region,
                 endpoint_type=endpoint_type,
-                )
+            )
             self.extension_list = self.neutron.list_extensions()
             self.disabled_quotas = disabled_quotas
             self.no_network = True if 'floatingip' in self.disabled_quotas \

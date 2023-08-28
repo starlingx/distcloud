@@ -1,4 +1,5 @@
 # Copyright (c) 2015 Ericsson AB.
+# Copyright (c) 2024 Wind River Systems, Inc.
 # All Rights Reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License"); you may
@@ -15,11 +16,12 @@
 
 """Resource object."""
 
+from oslo_versionedobjects import base as ovo_base
+from oslo_versionedobjects import fields as ovo_fields
+
 from dcorch.common import exceptions
 from dcorch.db import api as db_api
 from dcorch.objects import base
-from oslo_versionedobjects import base as ovo_base
-from oslo_versionedobjects import fields as ovo_fields
 
 
 @base.OrchestratorObjectRegistry.register

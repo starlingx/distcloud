@@ -1,4 +1,6 @@
 # Copyright 2017 Ericsson AB.
+# Copyright (c) 2020-2024 Wind River Systems, Inc.
+# All Rights Reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,14 +14,11 @@
 # implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-#
-# Copyright (c) 2020-2023 Wind River Systems, Inc.
-#
 
-import eventlet
-import collections  # noqa: H306
+import collections
 import random
 
+import eventlet
 from keystoneauth1 import exceptions as keystone_exceptions
 from oslo_log import log as logging
 from oslo_utils import timeutils
@@ -227,7 +226,8 @@ class GenericSyncManager(object):
         sc = sc.create()
         for endpoint_type in endpoint_type_list:
             db_api.subcloud_sync_create(context, name, endpoint_type,
-                                        values={'subcloud_id': sc.id})  # pylint: disable=E1101
+                                        # pylint: disable-next=no-member
+                                        values={'subcloud_id': sc.id})
         #  Create the sync object for this engine
         self.create_sync_objects(name, capabilities)
 

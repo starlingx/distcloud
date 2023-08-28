@@ -1,5 +1,5 @@
 # Copyright 2016 Ericsson AB
-# Copyright (c) 2021 Wind River Systems, Inc.
+# Copyright (c) 2021, 2024 Wind River Systems, Inc.
 # Licensed under the Apache License, Version 2.0 (the "License"); you may
 # not use this file except in compliance with the License. You may obtain
 # a copy of the License at
@@ -71,7 +71,8 @@ class OpenStackDriver(object):
                 region_name] = collections.defaultdict(dict)
 
             try:
-                sysinv_endpoint = self.keystone_client.endpoint_cache.get_endpoint('sysinv')
+                sysinv_endpoint = self.keystone_client.endpoint_cache.get_endpoint(
+                    'sysinv')
                 self.sysinv_client = SysinvClient(region_name,
                                                   self.keystone_client.session,
                                                   endpoint=sysinv_endpoint)
@@ -139,7 +140,7 @@ class OpenStackDriver(object):
             LOG.error('Error Occurred : %s', str(exception))
 
     def get_resource_usages(self, project_id, user_id):
-        raise(NotImplementedError)
+        raise NotImplementedError
 
         # # If one of the resources is unavailable we still want to return
         # # any usage information we have for the others.
@@ -165,7 +166,7 @@ class OpenStackDriver(object):
         # return nova_usages, neutron_usages, cinder_usages
 
     def get_quota_limits(self, project_id, user_id):
-        raise(NotImplementedError)
+        raise NotImplementedError
 
         # # If one of the resources is unavailable we still want to return
         # # any limit information we have for the others.
@@ -191,7 +192,7 @@ class OpenStackDriver(object):
         # return nova_limits, neutron_limits, cinder_limits
 
     def write_quota_limits(self, project_id, user_id, limits_to_write):
-        raise(NotImplementedError)
+        raise NotImplementedError
 
         # try:
         #     self.nova_client.update_quota_limits(project_id, user_id,
@@ -211,7 +212,7 @@ class OpenStackDriver(object):
         #     LOG.error('Error Occurred: %s', exception.message)
 
     def delete_quota_limits(self, project_id):
-        raise(NotImplementedError)
+        raise NotImplementedError
 
         # try:
         #     self.nova_client.delete_quota_limits(project_id)
@@ -225,7 +226,7 @@ class OpenStackDriver(object):
         #     LOG.error('Error Occurred: %s', exception.message)
 
     def _get_disabled_quotas(self, region):
-        raise(NotImplementedError)
+        raise NotImplementedError
 
         # disabled_quotas = []
         # if not self.keystone_client.is_service_enabled('volume') and \
@@ -247,8 +248,7 @@ class OpenStackDriver(object):
             if not region_lists:
                 # If endpoint filter is not used for the project, then
                 # return all regions
-                region_lists = \
-                    KeystoneClient().endpoint_cache.get_all_regions()
+                region_lists = KeystoneClient().endpoint_cache.get_all_regions()
             # nova, cinder, and neutron have no endpoints in consts.CLOUD_0
             if dccommon_consts.CLOUD_0 in region_lists:
                 region_lists.remove(dccommon_consts.CLOUD_0)

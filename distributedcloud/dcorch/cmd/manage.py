@@ -1,3 +1,6 @@
+# Copyright (c) 2024 Wind River Systems, Inc.
+# All Rights Reserved.
+#
 # Licensed under the Apache License, Version 2.0 (the "License"); you may
 # not use this file except in compliance with the License. You may obtain
 # a copy of the License at
@@ -91,6 +94,7 @@ def main():
         CONF.command.func()
     except Exception as e:
         sys.exit("ERROR: %s" % e)
+
 
 if __name__ == '__main__':
     main()

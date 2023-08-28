@@ -1,5 +1,5 @@
 #    Copyright 2016 Ericsson AB
-#    Copyright (c) 2020-2023 Wind River Systems, Inc.
+#    Copyright (c) 2020-2024 Wind River Systems, Inc.
 #    Licensed under the Apache License, Version 2.0 (the "License"); you may
 #    not use this file except in compliance with the License. You may obtain
 #    a copy of the License at
@@ -220,14 +220,13 @@ usm_opts = [
 ]
 
 usm_proxy_opts = [
-    cfg.StrOpt('bind_host',
-               default="0.0.0.0",
+    cfg.StrOpt('bind_host', default="0.0.0.0",
                help='IP address for API proxy to listen for incoming connections'),
-    cfg.IntOpt('bind_port',
-               default=25497,
+    cfg.IntOpt('bind_port', default=25497,
                help='listen port for API proxy'),
     cfg.StrOpt('remote_host', default='0.0.0.0',
-               help="The remote host address used for outgoing API proxy connection"),
+               help="The remote host address used for outgoing API proxy "
+               "connection"),
     cfg.IntOpt('remote_port', default=5497,
                help="The remote port used for outgoing API proxy connection")
 ]

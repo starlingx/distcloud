@@ -1,4 +1,4 @@
-# Copyright 2017-2022 Wind River
+# Copyright (c) 2017-2022, 2024 Wind River Systems, Inc.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -13,9 +13,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from dcorch.api.proxy.common.service import Application
 from oslo_log import log as logging
 from paste.proxy import TransparentProxy
+
+from dcorch.api.proxy.common.service import Application
 
 
 LOG = logging.getLogger(__name__)

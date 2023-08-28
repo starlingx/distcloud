@@ -1,4 +1,5 @@
 # Copyright (c) 2017 Ericsson AB.
+# Copyright (c) 2024 Wind River Systems, Inc.
 # All Rights Reserved.
 #
 #    Licensed under the Apache License, Version 2.0 (the "License"); you may
@@ -13,9 +14,9 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
+import pecan
 
 from dcorch.api.controllers.v1 import subcloud_manager
-import pecan
 
 
 class Controller(object):

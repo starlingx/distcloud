@@ -1,4 +1,4 @@
-# Copyright 2017-2023 Wind River
+# Copyright 2017-2024 Wind River
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -13,6 +13,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from oslo_config import cfg
+from oslo_log import log as logging
 import routes
 
 from dccommon import consts as dccommon_consts
@@ -29,13 +31,7 @@ from dcorch.api.proxy.apps.router import Router
 from dcorch.api.proxy.common import constants as proxy_consts
 from dcorch.common import consts
 
-from oslo_config import cfg
-from oslo_log import log as logging
-
-
 LOG = logging.getLogger(__name__)
-
-
 CONF = cfg.CONF
 
 

@@ -1,5 +1,6 @@
-# Copyright 2017-2018, 2022 Wind River
-
+# Copyright (c) 2017-2018, 2022, 2024 Wind River Systems, Inc.
+# All Rights Reserved.
+#
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -308,52 +309,49 @@ class ComputeSyncThread(SyncThread):
         switcher[action](rsrc, action, action_dict, subcloud_rsrc)
 
     def add_tenant_access(self, rsrc, action, action_dict, subcloud_rsrc):
-            tenant_id = action_dict[action]['tenant']
-            try:
-                self.sc_nova_client.flavor_access.add_tenant_access(
-                    subcloud_rsrc.subcloud_resource_id, tenant_id)
-            except novaclient_exceptions.Conflict:
-                LOG.info("Flavor-access already present {}:{}"
-                         .format(rsrc, action_dict),
-                         extra=self.log_extra)
+        tenant_id = action_dict[action]['tenant']
+        try:
+            self.sc_nova_client.flavor_access.add_tenant_access(
+                subcloud_rsrc.subcloud_resource_id, tenant_id)
+        except novaclient_exceptions.Conflict:
+            LOG.info("Flavor-access already present {}:{}".format(rsrc, action_dict),
+                     extra=self.log_extra)
 
     def remove_tenant_access(self, rsrc, action, action_dict, subcloud_rsrc):
-            tenant_id = action_dict[action]['tenant']
-            try:
-                self.sc_nova_client.flavor_access.remove_tenant_access(
-                    subcloud_rsrc.subcloud_resource_id, tenant_id)
-            except novaclient_exceptions.NotFound:
-                LOG.info("Flavor-access already deleted {}:{}"
-                         .format(rsrc, action_dict),
-                         extra=self.log_extra)
+        tenant_id = action_dict[action]['tenant']
+        try:
+            self.sc_nova_client.flavor_access.remove_tenant_access(
+                subcloud_rsrc.subcloud_resource_id, tenant_id)
+        except novaclient_exceptions.NotFound:
+            LOG.info("Flavor-access already deleted {}:{}".format(rsrc, action_dict),
+                     extra=self.log_extra)
 
     def set_extra_specs(self, rsrc, action, action_dict, subcloud_rsrc):
-            flavor = novaclient_utils.find_resource(
-                self.sc_nova_client.flavors,
-                subcloud_rsrc.subcloud_resource_id, is_public=None)
-            flavor.set_keys(action_dict[action])
-            # No need to handle "extra-spec already exists" case.
-            # Nova throws no exception for that.
+        flavor = novaclient_utils.find_resource(
+            self.sc_nova_client.flavors,
+            subcloud_rsrc.subcloud_resource_id, is_public=None)
+        flavor.set_keys(action_dict[action])
+        # No need to handle "extra-spec already exists" case.
+        # Nova throws no exception for that.
 
     def unset_extra_specs(self, rsrc, action, action_dict, subcloud_rsrc):
-            flavor = novaclient_utils.find_resource(
-                self.sc_nova_client.flavors,
-                subcloud_rsrc.subcloud_resource_id, is_public=None)
+        flavor = novaclient_utils.find_resource(
+            self.sc_nova_client.flavors,
+            subcloud_rsrc.subcloud_resource_id, is_public=None)
 
-            es_metadata = action_dict[action]
-            metadata = {}
-            # extra_spec keys passed in could be of format "key1"
-            # or "key1;key2;key3"
-            for metadatum in es_metadata.split(';'):
-                if metadatum:
-                    metadata[metadatum] = None
+        es_metadata = action_dict[action]
+        metadata = {}
+        # extra_spec keys passed in could be of format "key1"
+        # or "key1;key2;key3"
+        for metadatum in es_metadata.split(';'):
+            if metadatum:
+                metadata[metadatum] = None
 
-            try:
-                flavor.unset_keys(list(metadata.keys()))
-            except novaclient_exceptions.NotFound:
-                LOG.info("Extra-spec {} not found {}:{}"
-                         .format(list(metadata.keys()), rsrc, action_dict),
-                         extra=self.log_extra)
+        try:
+            flavor.unset_keys(list(metadata.keys()))
+        except novaclient_exceptions.NotFound:
+            LOG.info("Extra-spec {} not found {}:{}".format(
+                list(metadata.keys()), rsrc, action_dict), extra=self.log_extra)
 
     def get_flavor_resources(self, nc):
         try:

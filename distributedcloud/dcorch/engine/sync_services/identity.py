@@ -1,4 +1,5 @@
-# Copyright 2018-2022 Wind River
+# Copyright (c) 2018-2022, 2024 Wind River Systems, Inc.
+# All Rights Reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -16,6 +17,10 @@
 import base64
 from collections import namedtuple
 
+from keystoneauth1 import exceptions as keystone_exceptions
+from oslo_log import log as logging
+from oslo_serialization import jsonutils
+
 from dccommon import consts as dccommon_consts
 from dccommon.drivers.openstack import sdk_platform as sdk
 from dcdbsync.dbsyncclient import exceptions as dbsync_exceptions
@@ -23,12 +28,6 @@ from dcorch.common import consts
 from dcorch.common import exceptions
 from dcorch.engine.sync_thread import SyncThread
 from dcorch.objects import resource
-
-from keystoneauth1 import exceptions as keystone_exceptions
-
-from oslo_log import log as logging
-from oslo_serialization import jsonutils
-
 
 LOG = logging.getLogger(__name__)
 
@@ -155,7 +154,8 @@ class IdentitySyncThread(SyncThread):
 
     def _initial_sync_groups(self, m_groups, sc_groups):
         # Particularly sync groups with same name but different ID.
-        m_client = self.get_dbs_client(self.master_region_name).identity_group_manager
+        m_client = self.get_dbs_client(
+            self.master_region_name).identity_group_manager
         sc_client = self.get_dbs_client(self.region_name).identity_group_manager
 
         for m_group in m_groups:
@@ -1555,7 +1555,7 @@ class IdentitySyncThread(SyncThread):
                 consts.RESOURCE_TYPE_IDENTITY_GROUPS]
 
             filtered_groups = [group for group in groups if
-                               all(group.name != filtered for  # pylint: disable=comprehension-escape
+                               all(group.name != filtered for
                                    filtered in filtered_list)]
             return filtered_groups
         except (keystone_exceptions.connection.ConnectTimeout,
@@ -1582,7 +1582,7 @@ class IdentitySyncThread(SyncThread):
                 consts.RESOURCE_TYPE_IDENTITY_ROLES]
 
             filtered_roles = [role for role in roles if
-                              (all(role.name != filtered for  # pylint: disable=comprehension-escape
+                              (all(role.name != filtered for
                                    filtered in filtered_list))]
             return filtered_roles
         except (keystone_exceptions.connection.ConnectTimeout,
@@ -1609,7 +1609,7 @@ class IdentitySyncThread(SyncThread):
                 consts.RESOURCE_TYPE_IDENTITY_PROJECTS]
 
             filtered_projects = [project for project in projects if
-                                 all(project.name != filtered for  # pylint: disable=comprehension-escape
+                                 all(project.name != filtered for
                                      filtered in filtered_list)]
             return filtered_projects
         except (keystone_exceptions.connection.ConnectTimeout,
@@ -1640,7 +1640,8 @@ class IdentitySyncThread(SyncThread):
                     # about syncing or auditing them for now
                     continue
                 role_id = assignment.role['id']
-                actor_id = assignment.user['id'] if hasattr(assignment, 'user') else assignment.group['id']
+                actor_id = assignment.user['id'] if hasattr(
+                    assignment, 'user') else assignment.group['id']
                 project_id = assignment.scope['project']['id']
                 assignment_dict = {}
 
@@ -1873,12 +1874,12 @@ class IdentitySyncThread(SyncThread):
         # audit_find_missing(). same_resource() in audit_find_missing() is
         # actually redundant for assignment but it's the generic algorithm
         # for all types of resources.
-        return((m.actor.name == sc.actor.name and
-                m.actor.domain_id == sc.actor.domain_id) and
-               (m.role.name == sc.role.name and
-                m.role.domain_id == sc.role.domain_id) and
-               (m.project.name == sc.project.name and
-                m.project.domain_id == sc.project.domain_id))
+        return ((m.actor.name == sc.actor.name and
+                 m.actor.domain_id == sc.actor.domain_id) and
+                (m.role.name == sc.role.name and
+                 m.role.domain_id == sc.role.domain_id) and
+                (m.project.name == sc.project.name and
+                 m.project.domain_id == sc.project.domain_id))
 
     def _has_same_assignment_ids(self, m, sc):
         # For assignment the unique id is projectID_userID_roleID.
@@ -1893,18 +1894,18 @@ class IdentitySyncThread(SyncThread):
         # DB records. The DB records are from revocation_event tables.
         # Token revocation events are considered the same when all columns
         # match up.
-        return(m.domain_id == sc.domain_id and
-               m.project_id == sc.project_id and
-               m.user_id == sc.user_id and
-               m.role_id == sc.role_id and
-               m.trust_id == sc.trust_id and
-               m.consumer_id == sc.consumer_id and
-               m.access_token_id == sc.access_token_id and
-               m.issued_before == sc.issued_before and
-               m.expires_at == sc.expires_at and
-               m.revoked_at == sc.revoked_at and
-               m.audit_id == sc.audit_id and
-               m.audit_chain_id == sc.audit_chain_id)
+        return (m.domain_id == sc.domain_id and
+                m.project_id == sc.project_id and
+                m.user_id == sc.user_id and
+                m.role_id == sc.role_id and
+                m.trust_id == sc.trust_id and
+                m.consumer_id == sc.consumer_id and
+                m.access_token_id == sc.access_token_id and
+                m.issued_before == sc.issued_before and
+                m.expires_at == sc.expires_at and
+                m.revoked_at == sc.revoked_at and
+                m.audit_id == sc.audit_id and
+                m.audit_chain_id == sc.audit_chain_id)
 
     def _has_same_revoke_event_ids(self, m, sc):
         # For token revoke events to have same ids, all columns must be
@@ -2155,7 +2156,6 @@ class IdentitySyncThread(SyncThread):
                 consts.RESOURCE_TYPE_IDENTITY_PROJECTS,
                 consts.RESOURCE_TYPE_IDENTITY_ROLES,
                 consts.RESOURCE_TYPE_IDENTITY_TOKEN_REVOKE_EVENTS,
-                consts.RESOURCE_TYPE_IDENTITY_TOKEN_REVOKE_EVENTS_FOR_USER
-                ]:
+                consts.RESOURCE_TYPE_IDENTITY_TOKEN_REVOKE_EVENTS_FOR_USER]:
             return True
         return False

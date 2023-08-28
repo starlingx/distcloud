@@ -1,5 +1,5 @@
 # Copyright (c) 2017 Ericsson AB
-# Copyright (c) 2017-2021 Wind River Systems, Inc.
+# Copyright (c) 2017-2021, 2024 Wind River Systems, Inc.
 # All Rights Reserved.
 #
 #  Licensed under the Apache License, Version 2.0 (the "License"); you may
@@ -14,17 +14,16 @@
 # License for the specific language governing permissions and limitations
 # under the License.
 
-import oslo_db
-import sqlalchemy
-
 from oslo_config import cfg
+import oslo_db
 from oslo_db import options
 from oslo_utils import uuidutils
+import sqlalchemy
 
 from dcorch.common import config
 from dcorch.common import consts
 from dcorch.common import exceptions
-from dcorch.db import api as api
+from dcorch.db import api
 from dcorch.db.sqlalchemy import api as db_api
 from dcorch.tests import base
 from dcorch.tests import utils

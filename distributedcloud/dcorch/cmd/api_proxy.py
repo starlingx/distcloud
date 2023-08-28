@@ -1,5 +1,5 @@
 # Copyright 2015 Huawei Technologies Co., Ltd.
-# Copyright (c) 2018-2022 Wind River Systems, Inc.
+# Copyright (c) 2018-2022, 2024 Wind River Systems, Inc.
 # All Rights Reserved.
 #
 #    Licensed under the Apache License, Version 2.0 (the "License"); you may
@@ -17,31 +17,28 @@
 # Much of this module is based on the work of the Ironic team
 # see http://git.openstack.org/cgit/openstack/ironic/tree/ironic/cmd/api.py
 
-
-import eventlet
-
-eventlet.monkey_patch(os=False)
-
+import logging as std_logging
 import os
 import sys
 
-from oslo_config import cfg
-from oslo_log import log as logging
-from oslo_service import systemd
-from oslo_service import wsgi
+import eventlet
+eventlet.monkey_patch(os=False)
 
-import logging as std_logging
+# pylint: disable=wrong-import-position
+from oslo_config import cfg  # noqa: E402
+from oslo_log import log as logging  # noqa: E402
+from oslo_service import systemd  # noqa: E402
+from oslo_service import wsgi  # noqa: E402
 
-from dccommon import consts
-from dcmanager.common import messaging as dcmanager_messaging
-from dcorch.api import api_config
-from dcorch.api import app
-from dcorch.api.proxy.common import constants
-
-from dcorch.common import config
-from dcorch.common import messaging
-
-from dcorch.api.proxy.common import utils
+from dccommon import consts  # noqa: E402
+from dcmanager.common import messaging as dcmanager_messaging  # noqa: E402
+from dcorch.api import api_config  # noqa: E402
+from dcorch.api import app  # noqa: E402
+from dcorch.api.proxy.common import constants  # noqa: E402
+from dcorch.api.proxy.common import utils  # noqa: E402
+from dcorch.common import config  # noqa: E402
+from dcorch.common import messaging  # noqa: E402
+# pylint: enable=wrong-import-position
 
 proxy_opts = [
     cfg.StrOpt('bind_host',

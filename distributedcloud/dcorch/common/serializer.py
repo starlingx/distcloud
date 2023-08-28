@@ -1,5 +1,5 @@
 # Copyright 2015 Huawei Technologies Co., Ltd.
-# Copyright (c) 2020-2022 Wind River Systems, Inc.
+# Copyright (c) 2020-2022, 2024 Wind River Systems, Inc.
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -24,6 +24,7 @@ class Mapping(object):
         self.reverse_mapping = {}
         for key, value in mapping.items():
             self.reverse_mapping[value] = key
+
 
 _SINGLETON_MAPPING = Mapping({
     ATTR_NOT_SPECIFIED: "@@**ATTR_NOT_SPECIFIED**@@",

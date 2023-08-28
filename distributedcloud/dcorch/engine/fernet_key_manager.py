@@ -1,4 +1,4 @@
-# Copyright 2018-2022 Wind River
+# Copyright (c) 2018-2022, 2024 Wind River Systems, Inc.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -13,9 +13,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from eventlet.green import subprocess
 import os
 
+from eventlet.green import subprocess
 from oslo_config import cfg
 from oslo_log import log as logging
 from oslo_serialization import jsonutils
@@ -95,9 +95,10 @@ class FernetKeyManager(manager.Manager):
             # No cached client is required as it is called during the initial
             # sync and after weekly key rotation
             ks_client = KeystoneClient(dccommon_consts.CLOUD_0)
-            sysinv_client = SysinvClient(dccommon_consts.CLOUD_0,
-                                         ks_client.session,
-                                         endpoint=ks_client.endpoint_cache.get_endpoint('sysinv'))
+            sysinv_client = SysinvClient(
+                dccommon_consts.CLOUD_0,
+                ks_client.session,
+                endpoint=ks_client.endpoint_cache.get_endpoint('sysinv'))
             keys = sysinv_client.get_fernet_keys()
         except (exceptions.ConnectionRefused, exceptions.NotAuthorized,
                 exceptions.TimeOut):
@@ -142,9 +143,10 @@ class FernetKeyManager(manager.Manager):
             # No cached client is required as it is only called during the
             # initial sync
             ks_client = KeystoneClient(subcloud_name)
-            sysinv_client = SysinvClient(subcloud_name,
-                                         ks_client.session,
-                                         endpoint=ks_client.endpoint_cache.get_endpoint('sysinv'))
+            sysinv_client = SysinvClient(
+                subcloud_name,
+                ks_client.session,
+                endpoint=ks_client.endpoint_cache.get_endpoint('sysinv'))
             sysinv_client.post_fernet_repo(key_list)
         except (exceptions.ConnectionRefused, exceptions.NotAuthorized,
                 exceptions.TimeOut):
