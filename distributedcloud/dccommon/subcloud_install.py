@@ -1,4 +1,4 @@
-# Copyright (c) 2021-2023 Wind River Systems, Inc.
+# Copyright (c) 2021-2024 Wind River Systems, Inc.
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -298,7 +298,7 @@ class SubcloudInstall(object):
                 "--timeout", BOOT_MENU_TIMEOUT,
                 "--patches-from-iso",
             ]
-        for key in consts.GEN_ISO_OPTIONS:
+        for key, _ in consts.GEN_ISO_OPTIONS.items():
             if key in values:
                 LOG.debug("Setting option from key=%s, option=%s, value=%s",
                           key, consts.GEN_ISO_OPTIONS[key], values[key])
@@ -431,7 +431,8 @@ class SubcloudInstall(object):
 
         with open(os.devnull, "w") as fnull:
             try:
-                subprocess.check_call(['mount', '-r', '-o', 'loop',  # pylint: disable=not-callable
+                # pylint: disable-next=not-callable
+                subprocess.check_call(['mount', '-r', '-o', 'loop',
                                       bootimage_path,
                                       temp_bootimage_mnt_dir],
                                       stdout=fnull,
@@ -469,7 +470,8 @@ class SubcloudInstall(object):
             LOG.error(msg)
             raise Exception(msg)
         finally:
-            subprocess.check_call(['umount', '-l', temp_bootimage_mnt_dir])  # pylint: disable=not-callable
+            # pylint: disable-next=not-callable
+            subprocess.check_call(['umount', '-l', temp_bootimage_mnt_dir])
             os.rmdir(temp_bootimage_mnt_dir)
 
     def check_ostree_mount(self, source_path):

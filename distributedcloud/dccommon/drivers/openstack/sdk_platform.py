@@ -1,4 +1,4 @@
-# Copyright 2017-2023 Wind River Inc
+# Copyright 2017-2024 Wind River Inc
 
 # Licensed under the Apache License, Version 2.0 (the "License"); you may
 # not use this file except in compliance with the License. You may obtain
@@ -47,7 +47,7 @@ SUPPORTED_REGION_CLIENTS = [
     DBSYNC_CLIENT_NAME,
 ]
 
-# region client type and class mappings
+# Region client type and class mappings
 region_client_class_map = {
     SYSINV_CLIENT_NAME: SysinvClient,
     FM_CLIENT_NAME: FmClient,
@@ -121,10 +121,13 @@ class OpenStackDriver(object):
                 if getattr(self, client_obj_name) is None:
                     # Create new client object and cache it
                     try:
-                        # Since SysinvClient (cgtsclient) does not support session, also pass
-                        # the cached endpoint so it does not need to retrieve it from keystone.
+                        # Since SysinvClient (cgtsclient) does not support session,
+                        # also pass the cached endpoint so it does not need to
+                        # retrieve it from keystone.
                         if client_name == "sysinv":
-                            sysinv_endpoint = self.keystone_client.endpoint_cache.get_endpoint('sysinv')
+                            sysinv_endpoint = (
+                                self.keystone_client.endpoint_cache.get_endpoint(
+                                    'sysinv'))
                             client_object = region_client_class_map[client_name](
                                 region=region_name,
                                 session=self.keystone_client.session,

@@ -1,5 +1,5 @@
 # Copyright 2015 Huawei Technologies Co., Ltd.
-# Copyright (c) 2017-2023 Wind River Systems, Inc.
+# Copyright (c) 2017-2024 Wind River Systems, Inc.
 # All Rights Reserved
 #
 #    Licensed under the Apache License, Version 2.0 (the "License"); you may
@@ -17,15 +17,14 @@
 
 import collections
 import copy
-import mock
-from mock import patch
 
+from keystoneclient.v3 import services
+from keystoneclient.v3 import tokens
+import mock
 from oslo_config import cfg
 
 from dccommon import endpoint_cache
 from dccommon.tests import base
-from keystoneclient.v3 import services
-from keystoneclient.v3 import tokens
 
 FAKE_REGIONONE_SYSINV_ENDPOINT = "http://[2620:10a:a001:a114::d00]:6385/v1"
 FAKE_REGIONONE_KEYSTONE_ENDPOINT = "http://[2620:10a:a001:a114::d00]:5000/v3"
@@ -58,6 +57,7 @@ class FakeService(object):
         self.name = name
         self.type = type
         self.enabled = enabled
+
 
 FAKE_SERVICES_LIST = [FakeService(1, "keystone", "identity", True),
                       FakeService(2, "sysinv", "platform", True),
@@ -108,19 +108,21 @@ class EndpointCacheTest(base.DCCommonTestCase):
         endpoint_cache.EndpointCache.master_service_endpoint_map = \
             collections.defaultdict(dict)
 
-    @patch.object(endpoint_cache.EndpointCache, 'get_admin_session')
-    @patch.object(endpoint_cache.EndpointCache,
-                  'get_cached_master_keystone_client_and_region_endpoint_map')
+    @mock.patch.object(endpoint_cache.EndpointCache, 'get_admin_session')
+    @mock.patch.object(
+        endpoint_cache.EndpointCache,
+        'get_cached_master_keystone_client_and_region_endpoint_map')
     def test_get_endpoint(self, mock_get_cached_data, mock_get_admin_session):
-        mock_get_cached_data.return_value = (FakeKeystoneClient(), FAKE_SERVICE_ENDPOINT_MAP)
+        mock_get_cached_data.return_value = (
+            FakeKeystoneClient(), FAKE_SERVICE_ENDPOINT_MAP)
         cache = endpoint_cache.EndpointCache("RegionOne", None)
         endpoint = cache.get_endpoint("sysinv")
         self.assertEqual(endpoint, FAKE_REGIONONE_SYSINV_ENDPOINT)
 
-    @patch.object(endpoint_cache.EndpointCache, 'get_admin_session')
-    @patch.object(tokens.TokenManager, 'validate')
-    @patch.object(endpoint_cache.EndpointCache,
-                  '_generate_master_service_endpoint_map')
+    @mock.patch.object(endpoint_cache.EndpointCache, 'get_admin_session')
+    @mock.patch.object(tokens.TokenManager, 'validate')
+    @mock.patch.object(endpoint_cache.EndpointCache,
+                       '_generate_master_service_endpoint_map')
     def test_get_all_regions(self, mock_generate_cached_data, mock_tokens_validate,
                              mock_admin_session):
         mock_generate_cached_data.return_value = FAKE_MASTER_SERVICE_ENDPOINT_MAP
@@ -129,11 +131,11 @@ class EndpointCacheTest(base.DCCommonTestCase):
         self.assertIn(CENTRAL_REGION, region_list)
         self.assertIn(SUBCLOUD1_REGION, region_list)
 
-    @patch.object(endpoint_cache.EndpointCache, 'get_admin_session')
-    @patch.object(tokens.TokenManager, 'validate')
-    @patch.object(services.ServiceManager, 'list')
-    @patch.object(endpoint_cache.EndpointCache,
-                  '_generate_master_service_endpoint_map')
+    @mock.patch.object(endpoint_cache.EndpointCache, 'get_admin_session')
+    @mock.patch.object(tokens.TokenManager, 'validate')
+    @mock.patch.object(services.ServiceManager, 'list')
+    @mock.patch.object(endpoint_cache.EndpointCache,
+                       '_generate_master_service_endpoint_map')
     def test_get_services_list(self, mock_generate_cached_data, mock_services_list,
                                mock_tokens_validate, mock_admin_session):
         mock_services_list.return_value = FAKE_SERVICES_LIST
@@ -142,10 +144,10 @@ class EndpointCacheTest(base.DCCommonTestCase):
         services_list = endpoint_cache.EndpointCache.get_master_services_list()
         self.assertEqual(FAKE_SERVICES_LIST, services_list)
 
-    @patch.object(endpoint_cache.EndpointCache, 'get_admin_session')
-    @patch.object(tokens.TokenManager, 'validate')
-    @patch.object(endpoint_cache.EndpointCache,
-                  '_generate_master_service_endpoint_map')
+    @mock.patch.object(endpoint_cache.EndpointCache, 'get_admin_session')
+    @mock.patch.object(tokens.TokenManager, 'validate')
+    @mock.patch.object(endpoint_cache.EndpointCache,
+                       '_generate_master_service_endpoint_map')
     def test_update_master_service_endpoint_region(
             self, mock_generate_cached_data, mock_tokens_validate,
             mock_admin_session):

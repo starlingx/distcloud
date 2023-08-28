@@ -1,4 +1,4 @@
-# Copyright (c) 2023 Wind River Systems, Inc.
+# Copyright (c) 2023-2024 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -46,7 +46,7 @@ class DcmanagerClient(base.DriverBase):
             return response.json()
         else:
             if response.status_code == 404 and \
-                'System Peer not found' in response.text:
+                    'System Peer not found' in response.text:
                 raise exceptions.SystemPeerNotFound(
                     system_peer=system_peer_uuid)
             message = "Get SystemPeer: system_peer_uuid %s failed with RC: %d" \
@@ -69,7 +69,7 @@ class DcmanagerClient(base.DriverBase):
             return response.json()
         else:
             if response.status_code == 404 and \
-                'Subcloud not found' in response.text:
+                    'Subcloud not found' in response.text:
                 raise exceptions.SubcloudNotFound(subcloud_ref=subcloud_ref)
             message = "Get Subcloud: subcloud_ref %s failed with RC: %d" % \
                 (subcloud_ref, response.status_code)
@@ -137,7 +137,7 @@ class DcmanagerClient(base.DriverBase):
             return response.json()
         else:
             if response.status_code == 404 and \
-                'Subcloud Peer Group not found' in response.text:
+                    'Subcloud Peer Group not found' in response.text:
                 raise exceptions.SubcloudPeerGroupNotFound(
                     peer_group_ref=peer_group_ref)
             message = "Get Subcloud Peer Group: peer_group_ref %s " \
@@ -160,7 +160,7 @@ class DcmanagerClient(base.DriverBase):
             return data.get('subclouds', [])
         else:
             if response.status_code == 404 and \
-                'Subcloud Peer Group not found' in response.text:
+                    'Subcloud Peer Group not found' in response.text:
                 raise exceptions.SubcloudPeerGroupNotFound(
                     peer_group_ref=peer_group_ref)
             message = "Get Subcloud list by Peer Group: peer_group_ref %s " \
@@ -173,7 +173,7 @@ class DcmanagerClient(base.DriverBase):
         """Get peer group association with peer id and PG id."""
         for association in self.get_peer_group_association_list():
             if peer_id == association.get('system-peer-id') and \
-                pg_id == association.get('peer-group-id'):
+                    pg_id == association.get('peer-group-id'):
                 return association
         raise exceptions.PeerGroupAssociationNotFound(
             association_id=None)
@@ -278,7 +278,7 @@ class DcmanagerClient(base.DriverBase):
             return response.json()
         else:
             if response.status_code == 404 and \
-                'Peer Group Association not found' in response.text:
+                    'Peer Group Association not found' in response.text:
                 raise exceptions.PeerGroupAssociationNotFound(
                     association_id=association_id)
             message = "Update Peer Group Association: association_id %s, " \
@@ -302,7 +302,7 @@ class DcmanagerClient(base.DriverBase):
             return response.json()
         else:
             if response.status_code == 404 and \
-                'Subcloud Peer Group not found' in response.text:
+                    'Subcloud Peer Group not found' in response.text:
                 raise exceptions.SubcloudPeerGroupNotFound(
                     peer_group_ref=peer_group_ref)
             message = "Update Subcloud Peer Group: peer_group_ref %s, %s, " \
@@ -326,7 +326,7 @@ class DcmanagerClient(base.DriverBase):
             return response.json()
         else:
             if response.status_code == 404 and \
-                'Subcloud Peer Group not found' in response.text:
+                    'Subcloud Peer Group not found' in response.text:
                 raise exceptions.SubcloudPeerGroupNotFound(
                     peer_group_ref=peer_group_ref)
             message = "Audit Subcloud Peer Group: peer_group_ref %s, %s, " \
@@ -362,7 +362,7 @@ class DcmanagerClient(base.DriverBase):
             return response.json()
         else:
             if response.status_code == 404 and \
-                'Subcloud not found' in response.text:
+                    'Subcloud not found' in response.text:
                 raise exceptions.SubcloudNotFound(subcloud_ref=subcloud_ref)
             message = "Update Subcloud: subcloud_ref: %s files: %s, " \
                 "data: %s, failed with RC: %d" % (subcloud_ref, files, data,
@@ -384,7 +384,7 @@ class DcmanagerClient(base.DriverBase):
             return response.json()
         else:
             if response.status_code == 404 and \
-                'Peer Group Association not found' in response.text:
+                    'Peer Group Association not found' in response.text:
                 raise exceptions.PeerGroupAssociationNotFound(
                     association_id=association_id)
             message = "Delete Peer Group Association: association_id %s " \
@@ -406,14 +406,15 @@ class DcmanagerClient(base.DriverBase):
             return response.json()
         else:
             if response.status_code == 404 and \
-                'Subcloud Peer Group not found' in response.text:
+                    'Subcloud Peer Group not found' in response.text:
                 raise exceptions.SubcloudPeerGroupNotFound(
                     peer_group_ref=peer_group_ref)
             elif response.status_code == 400 and \
                 'a peer group which is associated with a system peer' in \
                     response.text:
-                    raise exceptions.SubcloudPeerGroupDeleteFailedAssociated(
-                        peer_group_ref=peer_group_ref)
+                raise exceptions.SubcloudPeerGroupDeleteFailedAssociated(
+                    peer_group_ref=peer_group_ref
+                )
             message = "Delete Subcloud Peer Group: peer_group_ref %s " \
                 "failed with RC: %d" % (peer_group_ref, response.status_code)
             LOG.error(message)
@@ -433,7 +434,7 @@ class DcmanagerClient(base.DriverBase):
             return response.json()
         else:
             if response.status_code == 404 and \
-                'Subcloud not found' in response.text:
+                    'Subcloud not found' in response.text:
                 raise exceptions.SubcloudNotFound(subcloud_ref=subcloud_ref)
             message = "Delete Subcloud: subcloud_ref %s failed with RC: %d" % \
                 (subcloud_ref, response.status_code)

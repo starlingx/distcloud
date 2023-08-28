@@ -1,5 +1,4 @@
-#
-# Copyright (c) 2020-2023 Wind River Systems, Inc.
+# Copyright (c) 2020-2024 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -14,7 +13,7 @@ from six.moves import http_client as httplib
 
 LOG = logging.getLogger(__name__)
 
-K8S_MODULE_MAJOR_VERSION = int(K8S_MODULE_VERSION.split('.')[0])
+K8S_MODULE_MAJOR_VERSION = int(K8S_MODULE_VERSION.split('.', maxsplit=1)[0])
 KUBE_CONFIG_PATH = '/etc/kubernetes/admin.conf'
 
 CERT_MANAGER_GROUP = 'cert-manager.io'

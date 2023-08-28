@@ -1,5 +1,5 @@
 # Copyright 2016 Ericsson AB
-# Copyright (c) 2020-2021 Wind River Systems, Inc.
+# Copyright (c) 2020-2021, 2024 Wind River Systems, Inc.
 # Licensed under the Apache License, Version 2.0 (the "License"); you may
 # not use this file except in compliance with the License. You may obtain
 # a copy of the License at
@@ -35,8 +35,8 @@ class BarbicanClient(base.DriverBase):
     """
 
     def __init__(
-            self, region, session, endpoint_type=dccommon_consts.KS_ENDPOINT_DEFAULT):
-
+            self, region, session,
+            endpoint_type=dccommon_consts.KS_ENDPOINT_DEFAULT):
         try:
             self.barbican_client = client.Client(
                 API_VERSION,

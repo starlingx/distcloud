@@ -1,5 +1,5 @@
 # Copyright (c) 2015 Ericsson AB
-# Copyright (c) 2020-2023 Wind River Systems, Inc.
+# Copyright (c) 2020-2024 Wind River Systems, Inc.
 # All Rights Reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License"); you may
@@ -15,8 +15,9 @@
 # under the License.
 #
 
-from dccommon.tests import utils
 from oslotest import base
+
+from dccommon.tests import utils
 
 KEYSTONE_ENDPOINT_0 = [
     "9785cc7f99b6469ba6fe89bd8d5b9072", "NULL", "admin",

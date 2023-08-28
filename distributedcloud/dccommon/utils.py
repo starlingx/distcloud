@@ -1,4 +1,4 @@
-# Copyright (c) 2020-2023 Wind River Systems, Inc.
+# Copyright (c) 2020-2024 Wind River Systems, Inc.
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -127,8 +127,10 @@ class AnsiblePlaybook(object):
         """
         with AnsiblePlaybook.lock:
             AnsiblePlaybook.abort_status[self.subcloud_name]['abort'] = True
-        unabortable_flag = os.path.join(consts.ANSIBLE_OVERRIDES_PATH,
-                                        '.%s_deploy_not_abortable' % self.subcloud_name)
+        unabortable_flag = os.path.join(
+            consts.ANSIBLE_OVERRIDES_PATH,
+            '.%s_deploy_not_abortable' % self.subcloud_name
+        )
         subp = AnsiblePlaybook.abort_status[self.subcloud_name]['subp']
         while os.path.exists(unabortable_flag) and timeout > 0:
             # If subprocess ended (subp.poll is not None), no further abort
@@ -145,9 +147,9 @@ class AnsiblePlaybook(object):
 
         :param log_file: Logs output to file
         :param timeout: Timeout in seconds. Raises PlaybookExecutionTimeout
-                        on timeout
+         on timeout
         :param register_cleanup: Register the subprocess group for cleanup on
-                                 shutdown, if the underlying service supports cleanup.
+         shutdown, if the underlying service supports cleanup.
         """
         exec_env = os.environ.copy()
         exec_env["ANSIBLE_LOG_PATH"] = "/dev/null"
@@ -172,8 +174,10 @@ class AnsiblePlaybook(object):
 
                 # Remove unabortable flag created by the playbook
                 # if present from previous executions
-                unabortable_flag = os.path.join(consts.ANSIBLE_OVERRIDES_PATH,
-                                                '.%s_deploy_not_abortable' % self.subcloud_name)
+                unabortable_flag = os.path.join(
+                    consts.ANSIBLE_OVERRIDES_PATH,
+                    '.%s_deploy_not_abortable' % self.subcloud_name
+                )
                 if os.path.exists(unabortable_flag):
                     os.remove(unabortable_flag)
 
@@ -210,7 +214,8 @@ class AnsiblePlaybook(object):
                     #    - playbook_failure is True with subp_rc != 0,
                     #      aborted is True, unabortable_flag_exists is False
                     with AnsiblePlaybook.lock:
-                        aborted = AnsiblePlaybook.abort_status[self.subcloud_name]['abort']
+                        aborted = \
+                            AnsiblePlaybook.abort_status[self.subcloud_name]['abort']
                         unabortable_flag_exists = os.path.exists(unabortable_flag)
                     playbook_failure = (subp_rc != 0 and
                                         (not aborted or unabortable_flag_exists))
@@ -266,7 +271,8 @@ def is_token_expiring_soon(token,
                            stale_token_duration_min=STALE_TOKEN_DURATION_MIN,
                            stale_token_duration_max=STALE_TOKEN_DURATION_MAX,
                            stale_token_duration_step=STALE_TOKEN_DURATION_STEP):
-    expiry_time = timeutils.normalize_time(timeutils.parse_isotime(token['expires_at']))
+    expiry_time = timeutils.normalize_time(timeutils.parse_isotime(
+        token['expires_at']))
     duration = random.randrange(stale_token_duration_min,
                                 stale_token_duration_max,
                                 stale_token_duration_step)

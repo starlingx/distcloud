@@ -1,5 +1,4 @@
-#
-# Copyright (c) 2023 Wind River Systems, Inc.
+# Copyright (c) 2023-2024 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -192,7 +191,9 @@ class SoftwareClient(base.DriverBase):
                 LOG.error(message)
                 raise FileNotFoundError(message)
 
-            to_upload_files[software_file] = (software_file, open(software_file, 'rb'))
+            to_upload_files[software_file] = (
+                software_file, open(software_file, 'rb')
+            )
 
         enc = MultipartEncoder(fields=to_upload_files)
         url = self.endpoint + '/upload'

@@ -1,5 +1,5 @@
 # Copyright 2015 Huawei Technologies Co., Ltd.
-# Copyright (c) 2018-2023 Wind River Systems, Inc.
+# Copyright (c) 2018-2024 Wind River Systems, Inc.
 # All Rights Reserved
 #
 #    Licensed under the Apache License, Version 2.0 (the "License"); you may
@@ -71,7 +71,8 @@ class EndpointCache(object):
             CONF.endpoint_cache.project_domain_name)
 
         self.keystone_client, self.service_endpoint_map = \
-            self.get_cached_master_keystone_client_and_region_endpoint_map(region_name)
+            self.get_cached_master_keystone_client_and_region_endpoint_map(
+                region_name)
 
         # if Endpoint cache is intended for a subcloud then
         # we need to retrieve the subcloud token and session.
@@ -148,7 +149,8 @@ class EndpointCache(object):
 
         master_endpoints_list = EndpointCache.master_keystone_client.endpoints.list()
         service_id_name_map = {}
-        for service in EndpointCache.master_services_list:  # pylint: disable=not-an-iterable
+        # pylint: disable-next=not-an-iterable
+        for service in EndpointCache.master_services_list:
             service_dict = service.to_dict()
             service_id_name_map[service_dict['id']] = service_dict['name']
 
@@ -214,12 +216,13 @@ class EndpointCache(object):
 
     @lockutils.synchronized(LOCK_NAME)
     def get_cached_master_keystone_client_and_region_endpoint_map(self, region_name):
-        if (EndpointCache.master_keystone_client is None):
+        if EndpointCache.master_keystone_client is None:
             self._create_master_cached_data()
             LOG.info("Generated Master keystone client and master token the "
                      "very first time")
         else:
-            token_expiring_soon = is_token_expiring_soon(token=EndpointCache.master_token)
+            token_expiring_soon = is_token_expiring_soon(
+                token=EndpointCache.master_token)
 
             # If token is expiring soon, initialize a new master keystone
             # client
@@ -228,19 +231,26 @@ class EndpointCache(object):
                          "will expire soon %s" %
                          (consts.CLOUD_0, EndpointCache.master_token['expires_at']))
                 self._create_master_cached_data()
-                LOG.info("Generated Master keystone client and master token as they are expiring soon")
+                LOG.info("Generated Master keystone client and master token as they "
+                         "are expiring soon")
             else:
-                # Check if the cached master service endpoint map needs to be refreshed
+                # Check if the cached master service endpoint map needs to be
+                # refreshed
                 if region_name not in self.master_service_endpoint_map:
                     previous_size = len(EndpointCache.master_service_endpoint_map)
-                    EndpointCache.master_service_endpoint_map = self._generate_master_service_endpoint_map(self)
+                    EndpointCache.master_service_endpoint_map = (
+                        self._generate_master_service_endpoint_map(self))
                     current_size = len(EndpointCache.master_service_endpoint_map)
-                    LOG.info("Master endpoints list refreshed to include region %s: "
-                             "prev_size=%d, current_size=%d" % (region_name, previous_size, current_size))
+                    LOG.info(
+                        "Master endpoints list refreshed to include region %s: "
+                        "prev_size=%d, current_size=%d" % (
+                            region_name, previous_size, current_size)
+                    )
 
         # TODO(clientsession)
         if region_name is not None:
-            region_service_endpoint_map = EndpointCache.master_service_endpoint_map[region_name]
+            region_service_endpoint_map = EndpointCache.master_service_endpoint_map[
+                region_name]
         else:
             region_service_endpoint_map = collections.defaultdict(dict)
 
@@ -255,9 +265,14 @@ class EndpointCache(object):
         EndpointCache.master_keystone_client = ks_client.Client(
             session=self.admin_session,
             region_name=consts.CLOUD_0)
-        EndpointCache.master_token = EndpointCache.master_keystone_client.tokens.validate(
-            EndpointCache.master_keystone_client.session.get_token(),
-            include_catalog=False)
+        EndpointCache.master_token = (
+            EndpointCache.master_keystone_client.tokens.validate(
+                EndpointCache.master_keystone_client.session.get_token(),
+                include_catalog=False
+            )
+        )
         if EndpointCache.master_services_list is None:
-            EndpointCache.master_services_list = EndpointCache.master_keystone_client.services.list()
-        EndpointCache.master_service_endpoint_map = self._generate_master_service_endpoint_map(self)
+            EndpointCache.master_services_list = (
+                EndpointCache.master_keystone_client.services.list())
+        EndpointCache.master_service_endpoint_map = (
+            self._generate_master_service_endpoint_map(self))

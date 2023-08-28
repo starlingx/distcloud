@@ -1,12 +1,13 @@
-# Copyright (c) 2023 Wind River Systems, Inc.
+# Copyright (c) 2023-2024 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
 
-import mock
 import os
 import uuid
 import yaml
+
+import mock
 
 from dccommon import consts as dccommon_consts
 from dccommon.drivers.openstack import dcmanager_v1
@@ -180,7 +181,8 @@ class TestDcmanagerClient(base.DCCommonTestCase):
     @mock.patch('requests.get')
     @mock.patch.object(dcmanager_v1.DcmanagerClient, '__init__')
     def test_get_subcloud_peer_group_not_found(
-        self, mock_client_init, mock_get):
+        self, mock_client_init, mock_get
+    ):
         mock_response = mock.MagicMock()
         mock_response.status_code = 404
         mock_response.text = "Subcloud Peer Group not found"
@@ -221,7 +223,8 @@ class TestDcmanagerClient(base.DCCommonTestCase):
     @mock.patch('requests.get')
     @mock.patch.object(dcmanager_v1.DcmanagerClient, '__init__')
     def test_get_subcloud_list_by_peer_group_not_found(
-        self, mock_client_init, mock_get):
+        self, mock_client_init, mock_get
+    ):
         mock_response = mock.MagicMock()
         mock_response.status_code = 404
         mock_response.text = "Subcloud Peer Group not found"

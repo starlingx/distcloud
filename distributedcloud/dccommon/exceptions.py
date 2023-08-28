@@ -1,5 +1,6 @@
 # Copyright 2015 Huawei Technologies Co., Ltd.
 # Copyright 2015 Ericsson AB.
+# Copyright (c) 2020-2024 Wind River Systems, Inc.
 # All Rights Reserved.
 #
 #    Licensed under the Apache License, Version 2.0 (the "License"); you may
@@ -13,9 +14,6 @@
 #    WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
 #    License for the specific language governing permissions and limitations
 #    under the License.
-#
-# Copyright (c) 2020-2023 Wind River Systems, Inc.
-#
 
 """
 DC Orchestrator base exception handling.
@@ -40,14 +38,14 @@ class DCCommonException(Exception):
 
     def __init__(self, **kwargs):
         try:
-            super(DCCommonException, self).__init__(self.message % kwargs)  # pylint: disable=W1645
-            self.msg = self.message % kwargs  # pylint: disable=W1645
+            super(DCCommonException, self).__init__(self.message % kwargs)
+            self.msg = self.message % kwargs
         except Exception:
             with excutils.save_and_reraise_exception() as ctxt:
                 if not self.use_fatal_exceptions():
                     ctxt.reraise = False
                     # at least get the core message out if something happened
-                    super(DCCommonException, self).__init__(self.message)  # pylint: disable=W1645
+                    super(DCCommonException, self).__init__(self.message)
 
     if six.PY2:
         def __unicode__(self):
@@ -116,8 +114,8 @@ class PlaybookExecutionTimeout(PlaybookExecutionFailed):
 
 
 class ImageNotInLocalRegistry(NotFound):
-    message = _("Image %(image_name)s:%(image_tag)s not found in the local registry. "
-                "Please check with command: system registry-image-list or "
+    message = _("Image %(image_name)s:%(image_tag)s not found in the local "
+                "registry. Please check with command: system registry-image-list or "
                 "system registry-image-tags %(image_name)s")
 
 
