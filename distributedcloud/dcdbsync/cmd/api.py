@@ -13,7 +13,7 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 #
-# Copyright (c) 2019 Wind River Systems, Inc.
+# Copyright (c) 2019, 2024 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -22,23 +22,23 @@
 # see http://git.openstack.org/cgit/openstack/ironic/tree/ironic/cmd/api.py
 
 
+import logging as std_logging
 import sys
 
 import eventlet
 eventlet.monkey_patch(os=False)
 
-from oslo_config import cfg
-from oslo_log import log as logging
-from oslo_service import systemd
-from oslo_service import wsgi
+# pylint: disable=wrong-import-position
+from oslo_config import cfg  # noqa: E402
+from oslo_log import log as logging  # noqa: E402
+from oslo_service import systemd  # noqa: E402
+from oslo_service import wsgi  # noqa: E402
 
-import logging as std_logging
-
-from dcdbsync.api import api_config
-from dcdbsync.api import app
-
-from dcdbsync.common import config
-from dcdbsync.common import messaging
+from dcdbsync.api import api_config  # noqa: E402
+from dcdbsync.api import app  # noqa: E402
+from dcdbsync.common import config  # noqa: E402
+from dcdbsync.common import messaging  # noqa: E402
+# pylint: enable=wrong-import-position
 
 CONF = cfg.CONF
 config.register_options()

@@ -14,13 +14,15 @@
 #    See the License for the specific language governing permissions and
 #    limitations under the License.
 #
-# Copyright (c) 2019-2021 Wind River Systems, Inc.
+# Copyright (c) 2019-2021, 2024 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
 
 import keystoneauth1.identity.generic as auth_plugin
 from keystoneauth1 import session as ks_session
+from oslo_utils import importutils
+import six
 
 from dcdbsync.dbsyncclient import httpclient
 from dcdbsync.dbsyncclient.v1.identity import identity_group_manager as igm
@@ -30,11 +32,7 @@ from dcdbsync.dbsyncclient.v1.identity import role_manager as rm
 from dcdbsync.dbsyncclient.v1.identity \
     import token_revoke_event_manager as trem
 
-from oslo_utils import importutils
 osprofiler_profiler = importutils.try_import("osprofiler.profiler")
-
-import six
-
 
 _DEFAULT_DBSYNC_AGENT_URL = "http://localhost:8219/v1.0"
 # default HTTP request timeout in seconds
@@ -150,7 +148,7 @@ def authenticate(dbsync_agent_url=None, username=None,
                 project_name=project_name,
                 project_domain_name=project_domain_name,
                 project_domain_id=project_domain_id,
-                )
+            )
 
         elif api_key and (username or user_id):
             auth = auth_plugin.Password(

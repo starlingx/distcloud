@@ -14,7 +14,7 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 #
-# Copyright (c) 2019-2021 Wind River Systems, Inc.
+# Copyright (c) 2019-2021, 2024 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -42,14 +42,14 @@ class DBsyncException(Exception):
 
     def __init__(self, **kwargs):
         try:
-            super(DBsyncException, self).__init__(self.message % kwargs)  # pylint: disable=exception-message-attribute
-            self.msg = self.message % kwargs  # pylint: disable=exception-message-attribute
+            super(DBsyncException, self).__init__(self.message % kwargs)
+            self.msg = self.message % kwargs
         except Exception:
             with excutils.save_and_reraise_exception() as ctxt:
                 if not self.use_fatal_exceptions():
                     ctxt.reraise = False
                     # at least get the core message out if something happened
-                    super(DBsyncException, self).__init__(self.message)  # pylint: disable=exception-message-attribute
+                    super(DBsyncException, self).__init__(self.message)
 
     if six.PY2:
         def __unicode__(self):

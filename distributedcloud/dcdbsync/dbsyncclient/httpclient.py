@@ -14,20 +14,20 @@
 #    See the License for the specific language governing permissions and
 #    limitations under the License.
 #
-# Copyright (c) 2019 Wind River Systems, Inc.
+# Copyright (c) 2019, 2024 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
 
 import copy
+import logging
 import os
-
 import requests
 
-import logging
+from oslo_utils import importutils
 
 from dcdbsync.dbsyncclient import exceptions
-from oslo_utils import importutils
+
 osprofiler_web = importutils.try_import("osprofiler.web")
 
 LOG = logging.getLogger(__name__)

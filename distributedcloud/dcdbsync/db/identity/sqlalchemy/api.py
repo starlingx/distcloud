@@ -13,7 +13,7 @@
 # License for the specific language governing permissions and limitations
 # under the License.
 #
-# Copyright (c) 2019-2022 Wind River Systems, Inc.
+# Copyright (c) 2019-2022, 2024 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -26,7 +26,6 @@ import sys
 
 from oslo_db.sqlalchemy import enginefacade
 from oslo_log import log as logging
-
 from sqlalchemy import Table, MetaData
 from sqlalchemy.sql import select
 
@@ -72,6 +71,7 @@ class TableRegistry(object):
                 autoload_with=connection
             )
         return table
+
 
 registry = TableRegistry()
 
@@ -345,7 +345,8 @@ def user_update(context, user_id, payload):
             user_group_membership = {'user_id': new_user_id}
             update(conn, 'assignment', 'actor_id', user_id, assignment)
             update(conn, 'system_assignment', 'actor_id', user_id, assignment)
-            update(conn, 'user_group_membership', 'user_id', user_id, user_group_membership)
+            update(conn, 'user_group_membership', 'user_id',
+                   user_id, user_group_membership)
 
     return user_get(context, new_user_id)
 
@@ -393,12 +394,15 @@ def group_get(context, group_id):
         result['group'] = group[0]
 
         # user_group_membership table
-        user_group_memberships = query(conn, 'user_group_membership', 'group_id', group_id)
+        user_group_memberships = query(conn, 'user_group_membership',
+                                       'group_id', group_id)
 
         for user_group_membership in user_group_memberships:
-            local_user = query(conn, 'local_user', 'user_id', user_group_membership.get('user_id'))
+            local_user = query(conn, 'local_user', 'user_id',
+                               user_group_membership.get('user_id'))
             if not local_user:
-                raise exception.UserNotFound(user_id=user_group_membership.get('user_id'))
+                raise exception.UserNotFound(user_id=user_group_membership.get(
+                    'user_id'))
             local_user_id_list.append(local_user[0]['user_id'])
 
         result['local_user_ids'] = local_user_id_list
@@ -415,7 +419,8 @@ def group_create(context, payload):
         insert(conn, 'group', group)
 
         for local_user_id in local_user_ids:
-            user_group_membership = {'user_id': local_user_id, 'group_id': group['id']}
+            user_group_membership = {'user_id': local_user_id,
+                                     'group_id': group['id']}
             insert(conn, 'user_group_membership', user_group_membership)
 
     return group_get(context, payload['group']['id'])
@@ -433,16 +438,19 @@ def group_update(context, group_id, payload):
             local_user_id_list = payload['local_user_ids']
             user_group_memberships = query(conn, 'user_group_membership',
                                            'group_id', group_id)
-            existing_user_list = [user_group_membership['user_id'] for user_group_membership
-                                  in user_group_memberships]
+            existing_user_list = [
+                user_group_membership['user_id'] for user_group_membership in
+                user_group_memberships
+            ]
             existing_user_list.sort()
             deleted = False
-            if (group_id != new_group_id) or (local_user_id_list != existing_user_list):
-                # Foreign key constraint exists on 'group_id' of user_group_membership table
-                # and 'id' of group table. So delete user group membership records before
-                # updating group if groups IDs are different
-                # Alternatively, if there is a discrepency in the user group memberships,
-                # delete and re-create them
+            # Foreign key constraint exists on 'group_id' of user_group_membership
+            # table and 'id' of group table. So delete user group membership records
+            # before updating group if groups IDs are different.
+            # Alternatively, if there is a discrepency in the user group memberships,
+            # delete and re-create them
+            if (group_id != new_group_id) or (
+                    local_user_id_list != existing_user_list):
                 delete(conn, 'user_group_membership', 'group_id', group_id)
                 deleted = True
             # Update group table

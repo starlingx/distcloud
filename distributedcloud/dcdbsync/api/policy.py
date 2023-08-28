@@ -13,17 +13,18 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 #
-# Copyright (c) 2022 Wind River Systems, Inc.
+# Copyright (c) 2022, 2024 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
+
 """Policy Engine For DC."""
 
-from dcdbsync.api import policies as controller_policies
 from oslo_config import cfg
 from oslo_policy import policy
 from webob import exc
 
+from dcdbsync.api import policies as controller_policies
 
 CONF = cfg.CONF
 _ENFORCER = None

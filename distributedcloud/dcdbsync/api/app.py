@@ -13,7 +13,7 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 #
-# Copyright (c) 2019 Wind River Systems, Inc.
+# Copyright (c) 2019, 2024 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -45,9 +45,9 @@ def setup_app(*args, **kwargs):
             'errors': {
                 400: '/error',
                 '__force_dict__': True
-                }
             }
         }
+    }
 
     pecan_config = pecan.configuration.conf_from_dict(config)
 

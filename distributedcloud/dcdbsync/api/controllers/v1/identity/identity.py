@@ -13,14 +13,15 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 #
-# Copyright (c) 2019-2021 Wind River Systems, Inc.
+# Copyright (c) 2019-2021, 2024 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
 
+import json
+
 from oslo_config import cfg
 from oslo_log import log as logging
-
 import pecan
 from pecan import expose
 from pecan import request
@@ -30,8 +31,6 @@ from dcdbsync.api.controllers import restcomm
 from dcdbsync.common import exceptions
 from dcdbsync.common.i18n import _
 from dcdbsync.db.identity import api as db_api
-
-import json
 
 CONF = cfg.CONF
 LOG = logging.getLogger(__name__)
@@ -97,7 +96,7 @@ class UsersController(object):
             # Insert the user into DB tables
             user_ref = db_api.user_create(context, payload)
             response.status = 201
-            return (user_ref)
+            return user_ref
 
         except Exception as e:
             LOG.exception(e)
@@ -193,7 +192,7 @@ class GroupsController(object):
             # Insert the group into DB tables
             group_ref = db_api.group_create(context, payload)
             response.status = 201
-            return (group_ref)
+            return group_ref
 
         except Exception as e:
             LOG.exception(e)
