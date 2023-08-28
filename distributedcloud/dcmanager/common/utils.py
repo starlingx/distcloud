@@ -1,43 +1,46 @@
 # Copyright 2015 Huawei Technologies Co., Ltd.
-# Copyright (c) 2017-2023 Wind River Systems, Inc.
+# Copyright (c) 2017-2024 Wind River Systems, Inc.
+# All Rights Reserved.
 #
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
+#    Licensed under the Apache License, Version 2.0 (the "License"); you may
+#    not use this file except in compliance with the License. You may obtain
+#    a copy of the License at
 #
-#    http://www.apache.org/licenses/LICENSE-2.0
+#         http://www.apache.org/licenses/LICENSE-2.0
 #
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or
-# implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
+#    Unless required by applicable law or agreed to in writing, software
+#    distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+#    WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
+#    License for the specific language governing permissions and limitations
+#    under the License.
 #
 
 import datetime
 import grp
 import itertools
 import json
-import netaddr
 import os
-import pecan
 import pwd
 import re
-import resource as sys_resource
-import six.moves
 import string
 import subprocess
-import tsconfig.tsconfig as tsc
 import uuid
+
+import resource as sys_resource
 import xml.etree.ElementTree as ElementTree
+
 import yaml
 
+import pecan
+
 from keystoneauth1 import exceptions as keystone_exceptions
+import netaddr
 from oslo_concurrency import lockutils
 from oslo_config import cfg
 from oslo_log import log as logging
 from oslo_serialization import base64
+import six.moves
+import tsconfig.tsconfig as tsc
 
 from dccommon import consts as dccommon_consts
 from dccommon.drivers.openstack.sdk_platform import OpenStackDriver
@@ -249,43 +252,41 @@ def get_sw_update_strategy_extra_args(context, update_type=None):
         return {}
 
 
-def get_sw_update_opts(context,
-                       for_sw_update=False, subcloud_id=None):
-        """Get sw update options for a subcloud
+def get_sw_update_opts(context, for_sw_update=False, subcloud_id=None):
+    """Get sw update options for a subcloud
 
-        :param context: request context object.
-        :param for_sw_update: return the default options if subcloud options
-                              are empty. Useful for retrieving sw update
-                              options on application of patch strategy.
-        :param subcloud_id: id of subcloud.
+    :param context: request context object.
+    :param for_sw_update: return the default options if subcloud options
+                            are empty. Useful for retrieving sw update
+                            options on application of patch strategy.
+    :param subcloud_id: id of subcloud.
 
-        """
+    """
 
-        if subcloud_id is None:
-            # Requesting defaults. Return constants if no entry in db.
+    if subcloud_id is None:
+        # Requesting defaults. Return constants if no entry in db.
+        sw_update_opts_ref = db_api.sw_update_opts_default_get(context)
+        if not sw_update_opts_ref:
+            sw_update_opts_dict = vim.SW_UPDATE_OPTS_CONST_DEFAULT
+            return sw_update_opts_dict
+    else:
+        # requesting subcloud options
+        sw_update_opts_ref = db_api.sw_update_opts_get(context, subcloud_id)
+        if sw_update_opts_ref:
+            subcloud_name = db_api.subcloud_get(context, subcloud_id).name
+            return db_api.sw_update_opts_w_name_db_model_to_dict(
+                sw_update_opts_ref, subcloud_name)
+        elif for_sw_update:
             sw_update_opts_ref = db_api.sw_update_opts_default_get(context)
             if not sw_update_opts_ref:
                 sw_update_opts_dict = vim.SW_UPDATE_OPTS_CONST_DEFAULT
                 return sw_update_opts_dict
         else:
-            # requesting subcloud options
-            sw_update_opts_ref = db_api.sw_update_opts_get(context,
-                                                           subcloud_id)
-            if sw_update_opts_ref:
-                subcloud_name = db_api.subcloud_get(context, subcloud_id).name
-                return db_api.sw_update_opts_w_name_db_model_to_dict(
-                    sw_update_opts_ref, subcloud_name)
-            elif for_sw_update:
-                sw_update_opts_ref = db_api.sw_update_opts_default_get(context)
-                if not sw_update_opts_ref:
-                    sw_update_opts_dict = vim.SW_UPDATE_OPTS_CONST_DEFAULT
-                    return sw_update_opts_dict
-            else:
-                raise exceptions.SubcloudPatchOptsNotFound(
-                    subcloud_id=subcloud_id)
+            raise exceptions.SubcloudPatchOptsNotFound(
+                subcloud_id=subcloud_id)
 
-        return db_api.sw_update_opts_w_name_db_model_to_dict(
-            sw_update_opts_ref, dccommon_consts.SW_UPDATE_DEFAULT_TITLE)
+    return db_api.sw_update_opts_w_name_db_model_to_dict(
+        sw_update_opts_ref, dccommon_consts.SW_UPDATE_DEFAULT_TITLE)
 
 
 def ensure_lock_path():
@@ -618,8 +619,8 @@ def subcloud_peer_group_get_by_ref(context, group_ref):
 
 
 def subcloud_db_list_to_dict(subclouds):
-    return {'subclouds': [db_api.subcloud_db_model_to_dict(subcloud)
-            for subcloud in subclouds]}
+    return {'subclouds':
+            [db_api.subcloud_db_model_to_dict(subcloud) for subcloud in subclouds]}
 
 
 def get_oam_addresses(subcloud, sc_ks_client):
@@ -811,7 +812,7 @@ def find_ansible_error_msg(subcloud_name, log_file, stage=None):
     else:
         files_for_search.append(log_file)
 
-    if (len(files_for_search) < 2):
+    if len(files_for_search) < 2:
         cmd_list = ([cmd_1, cmd_2, files_for_search[0]])
     else:
         cmd_list = ([cmd_1, cmd_2, files_for_search[0], files_for_search[1]])
@@ -858,7 +859,6 @@ def get_failed_task(files):
 
     Returns a string with the task and date
     """
-
     cmd_1 = 'awk'
     # awk command to get the information about last failed task.
     # Match expression starting with 'TASK [' and ending with
@@ -873,7 +873,7 @@ def get_failed_task(files):
             ''')
     # necessary check since is possible to have
     # the error in rotated ansible log
-    if (len(files) < 2):
+    if len(files) < 2:
         awk_cmd = ([cmd_1, cmd_2, files[0]])
     else:
         awk_cmd = ([cmd_1, cmd_2, files[0], files[1]])
@@ -903,9 +903,7 @@ def summarize_message(error_msg):
 
     Returns a brief message.
     """
-    list_of_strings_to_search_for = [
-        'msg:', 'fail', 'error', 'cmd', 'stderr'
-        ]
+    list_of_strings_to_search_for = ['msg:', 'fail', 'error', 'cmd', 'stderr']
     brief_message = []
     for line in error_msg:
         for s in list_of_strings_to_search_for:
@@ -933,10 +931,9 @@ def is_valid_for_backup_operation(operation, subcloud, bootstrap_address_dict=No
 
 
 def _is_valid_for_backup_create(subcloud):
-
     if subcloud.availability_status != dccommon_consts.AVAILABILITY_ONLINE \
-        or subcloud.management_state != dccommon_consts.MANAGEMENT_MANAGED \
-        or subcloud.deploy_status not in consts.VALID_DEPLOY_STATES_FOR_BACKUP:
+            or subcloud.management_state != dccommon_consts.MANAGEMENT_MANAGED \
+            or subcloud.deploy_status not in consts.VALID_DEPLOY_STATES_FOR_BACKUP:
         msg = ('Subcloud %s must be online, managed and have valid '
                'deploy-status for the subcloud-backup '
                'create operation.' % subcloud.name)
@@ -946,9 +943,8 @@ def _is_valid_for_backup_create(subcloud):
 
 
 def _is_valid_for_backup_delete(subcloud):
-
     if subcloud.availability_status != dccommon_consts.AVAILABILITY_ONLINE \
-        or subcloud.management_state != dccommon_consts.MANAGEMENT_MANAGED:
+            or subcloud.management_state != dccommon_consts.MANAGEMENT_MANAGED:
         msg = ('Subcloud %s must be online and managed for the subcloud-backup'
                ' delete operation with --local-only option.' % subcloud.name)
         raise exceptions.ValidateFail(msg)
@@ -967,7 +963,7 @@ def _is_valid_for_backup_restore(subcloud, bootstrap_address_dict=None):
     has_inventory_file = os.path.exists(ansible_subcloud_inventory_file)
 
     if subcloud.management_state != dccommon_consts.MANAGEMENT_UNMANAGED \
-        or subcloud.deploy_status in consts.INVALID_DEPLOY_STATES_FOR_RESTORE:
+            or subcloud.deploy_status in consts.INVALID_DEPLOY_STATES_FOR_RESTORE:
         msg = ('Subcloud %s must be unmanaged and in a valid deploy state '
                'for the subcloud-backup restore operation.' % subcloud.name)
     elif not (has_bootstrap_address or has_install_values or has_inventory_file):
@@ -1401,7 +1397,9 @@ def get_sw_version(release=None):
 
 
 def validate_release_version_supported(release_version_to_check):
-    """Given a release version, check whether it's supported by the current active version.
+    """Given a release version, check whether it's supported by the current active
+
+    version.
 
     :param release_version_to_check: version string to validate
 

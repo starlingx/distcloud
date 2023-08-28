@@ -1,8 +1,9 @@
 #
-# Copyright (c) 2020-2022 Wind River Systems, Inc.
+# Copyright (c) 2020-2022, 2024 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
+
 import mock
 
 from dccommon.drivers.openstack import vim
@@ -10,15 +11,16 @@ from dcmanager.common import consts
 from dcmanager.orchestrator.states.firmware import finishing_fw_update
 
 from dcmanager.tests.unit.fakes import FakeVimStrategy
-from dcmanager.tests.unit.orchestrator.states.firmware.test_base \
-    import TestFwUpdateState
+from dcmanager.tests.unit.orchestrator.states.firmware.test_base import \
+    TestFwUpdateState
 
 STRATEGY_APPLIED = FakeVimStrategy(state=vim.STATE_APPLIED)
 
 
-@mock.patch("dcmanager.orchestrator.states.firmware.finishing_fw_update.DEFAULT_MAX_FAILED_QUERIES",
-            3)
-@mock.patch("dcmanager.orchestrator.states.firmware.finishing_fw_update.DEFAULT_FAILED_SLEEP", 1)
+@mock.patch("dcmanager.orchestrator.states.firmware."
+            "finishing_fw_update.DEFAULT_MAX_FAILED_QUERIES", 3)
+@mock.patch("dcmanager.orchestrator.states.firmware."
+            "finishing_fw_update.DEFAULT_FAILED_SLEEP", 1)
 class TestFwUpdateFinishingFwUpdateStage(TestFwUpdateState):
 
     def setUp(self):
@@ -40,7 +42,8 @@ class TestFwUpdateFinishingFwUpdateStage(TestFwUpdateState):
         self.sysinv_client.get_hosts = mock.MagicMock()
         self.sysinv_client.get_host_device_list = mock.MagicMock()
 
-        p = mock.patch.object(finishing_fw_update.FinishingFwUpdateState, 'align_subcloud_status')
+        p = mock.patch.object(finishing_fw_update.FinishingFwUpdateState,
+                              'align_subcloud_status')
         self.mock_align = p.start()
         self.addCleanup(p.stop)
 

@@ -1,27 +1,23 @@
-# Copyright (c) 2017-2023 Wind River Systems, Inc.
-# Licensed under the Apache License, Version 2.0 (the "License"); you may
-# not use this file except in compliance with the License. You may obtain
-# a copy of the License at
+# Copyright (c) 2017-2024 Wind River Systems, Inc.
+# All Rights Reserved.
+#
+#    Licensed under the Apache License, Version 2.0 (the "License"); you may
+#    not use this file except in compliance with the License. You may obtain
+#    a copy of the License at
 #
 #         http://www.apache.org/licenses/LICENSE-2.0
 #
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
-# WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
-# License for the specific language governing permissions and limitations
-# under the License.
+#    Unless required by applicable law or agreed to in writing, software
+#    distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+#    WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
+#    License for the specific language governing permissions and limitations
+#    under the License.
 #
 
 import mock
-
 from oslo_config import cfg
 
-import sys
-
 from dccommon import consts as dccommon_consts
-
-sys.modules['fm_core'] = mock.Mock()
-
 from dcmanager.audit import patch_audit
 from dcmanager.audit import subcloud_audit_manager
 from dcmanager.tests import base
@@ -389,7 +385,7 @@ class TestPatchAudit(base.DCManagerTestCase):
                       subcloud_region=base.SUBCLOUD_4['region_name'],
                       endpoint_type=dccommon_consts.ENDPOINT_TYPE_LOAD,
                       sync_status=dccommon_consts.SYNC_STATUS_IN_SYNC),
-            ]
+        ]
 
         self.fake_dcmanager_state_api.update_subcloud_endpoint_status.\
             assert_has_calls(expected_calls)
@@ -447,7 +443,8 @@ class TestPatchAudit(base.DCManagerTestCase):
         am = subcloud_audit_manager.SubcloudAuditManager()
         am.patch_audit = pm
         mock_patching_client.side_effect = FakePatchingClientInSync
-        mock_sysinv_client.side_effect = FakeSysinvClientOneLoadUnmatchedSoftwareVersion
+        mock_sysinv_client.side_effect = (
+            FakeSysinvClientOneLoadUnmatchedSoftwareVersion)
 
         do_load_audit = True
         patch_audit_data = self.get_patch_audit_data(am)

@@ -1,8 +1,9 @@
 #
-# Copyright (c) 2020-2022 Wind River Systems, Inc.
+# Copyright (c) 2020-2022, 2024 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
+
 import os
 
 from dccommon import consts as dccommon_consts
@@ -20,7 +21,8 @@ class ImportingFirmwareState(BaseState):
 
     def __init__(self, region_name):
         super(ImportingFirmwareState, self).__init__(
-            next_state=consts.STRATEGY_STATE_CREATING_FW_UPDATE_STRATEGY, region_name=region_name)
+            next_state=consts.STRATEGY_STATE_CREATING_FW_UPDATE_STRATEGY,
+            region_name=region_name)
 
     def _image_in_list(self, image, image_list):
         # todo(abailey): FUTURE. There may be other ways that two images can
@@ -139,8 +141,8 @@ class ImportingFirmwareState(BaseState):
                 # However, it may not have been applied to this device
                 device_image_state = None
                 for device_image_state_obj in subcloud_device_image_states:
-                    if device_image_state_obj.pcidevice_uuid == device.uuid\
-                        and device_image_state_obj.image_uuid == image.uuid:
+                    if device_image_state_obj.pcidevice_uuid == device.uuid \
+                            and device_image_state_obj.image_uuid == image.uuid:
                         device_image_state = device_image_state_obj
                         break
                 else:

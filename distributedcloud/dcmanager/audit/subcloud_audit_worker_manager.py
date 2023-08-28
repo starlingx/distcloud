@@ -1,18 +1,17 @@
 # Copyright 2017 Ericsson AB.
-# Copyright (c) 2017-2023 Wind River Systems, Inc.
+# Copyright (c) 2017-2024 Wind River Systems, Inc.
 #
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
+#    Licensed under the Apache License, Version 2.0 (the "License"); you may
+#    not use this file except in compliance with the License. You may obtain
+#    a copy of the License at
 #
-#    http://www.apache.org/licenses/LICENSE-2.0
+#         http://www.apache.org/licenses/LICENSE-2.0
 #
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or
-# implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
+#    Unless required by applicable law or agreed to in writing, software
+#    distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+#    WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
+#    License for the specific language governing permissions and limitations
+#    under the License.
 #
 
 import os
@@ -23,7 +22,6 @@ from oslo_log import log as logging
 
 from dccommon import consts as dccommon_consts
 from dccommon.drivers.openstack.sdk_platform import OpenStackDriver
-
 from dcmanager.audit import alarm_aggregation
 from dcmanager.audit import firmware_audit
 from dcmanager.audit import kube_rootca_update_audit
@@ -131,8 +129,9 @@ class SubcloudAuditWorkerManager(manager.Manager):
                         subcloud.deploy_status)) or (
                     (subcloud.deploy_status in [
                         consts.DEPLOY_STATE_INSTALLING,
-                        consts.DEPLOY_STATE_REHOME_PENDING]) and
-                    subcloud.availability_status == dccommon_consts.AVAILABILITY_OFFLINE):
+                        consts.DEPLOY_STATE_REHOME_PENDING])
+                    and subcloud.availability_status ==
+                    dccommon_consts.AVAILABILITY_OFFLINE):
                 LOG.debug("Skip subcloud %s audit, deploy_status: %s" %
                           (subcloud.name, subcloud.deploy_status))
                 # This DB API call will set the "audit_finished_at" timestamp
@@ -399,7 +398,7 @@ class SubcloudAuditWorkerManager(manager.Manager):
 
         except keystone_exceptions.NotFound:
             if subcloud.first_identity_sync_complete \
-                and avail_status_current == dccommon_consts.AVAILABILITY_ONLINE:
+                    and avail_status_current == dccommon_consts.AVAILABILITY_ONLINE:
                 # The first identity sync is already complete
                 # Therefore this is an error
                 LOG.error("Identity or Platform endpoint for online "

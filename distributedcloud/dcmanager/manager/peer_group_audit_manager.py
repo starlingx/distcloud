@@ -29,6 +29,7 @@ LOG = logging.getLogger(__name__)
 
 class PeerGroupAuditManager(manager.Manager):
     """Manages audit related tasks."""
+
     def __init__(self, subcloud_manager, peer_group_id, *args, **kwargs):
         LOG.debug(_('PeerGroupAuditManager initialization...'))
         super().__init__(service_name="peer_group_audit_manager",
@@ -117,7 +118,7 @@ class PeerGroupAuditManager(manager.Manager):
         # deploy status to consts.DEPLOY_STATE_REHOME_PENDING to stop cert-mon
         # audits.
         if remote_peer_group.get("migration_status") == \
-            consts.PEER_GROUP_MIGRATING:
+                consts.PEER_GROUP_MIGRATING:
             # Unmanaged all local subclouds of peer group
             LOG.info("Unmanaged all local subclouds of peer group %s "
                      "since remote is in migrating state" %
@@ -130,7 +131,7 @@ class PeerGroupAuditManager(manager.Manager):
                     # an already unmanaged subcloud, so the deploy status
                     # update must be done separately
                     if subcloud.management_state != \
-                        dccommon_consts.MANAGEMENT_UNMANAGED:
+                            dccommon_consts.MANAGEMENT_UNMANAGED:
                         # Unmanage and update the deploy-status
                         LOG.info("Unmanaging and setting the local subcloud "
                                  f"{subcloud.name} deploy status to "
@@ -160,7 +161,7 @@ class PeerGroupAuditManager(manager.Manager):
         # get remote subclouds. For 'managed+online' subclouds,
         # set 'unmanaged+secondary' to local on same subclouds
         elif remote_peer_group.get("migration_status") == \
-            consts.PEER_GROUP_MIGRATION_COMPLETE:
+                consts.PEER_GROUP_MIGRATION_COMPLETE or self.require_audit_flag:
             remote_subclouds = \
                 self._get_subclouds_by_peer_group_from_system_peer(
                     system_peer,
@@ -182,7 +183,7 @@ class PeerGroupAuditManager(manager.Manager):
                     # There will be an exception when unmanage
                     # a subcloud in 'unamaged' state.
                     if subcloud.management_state != \
-                        dccommon_consts.MANAGEMENT_UNMANAGED:
+                            dccommon_consts.MANAGEMENT_UNMANAGED:
                         self.subcloud_manager.update_subcloud(
                             self.context,
                             subcloud.id,

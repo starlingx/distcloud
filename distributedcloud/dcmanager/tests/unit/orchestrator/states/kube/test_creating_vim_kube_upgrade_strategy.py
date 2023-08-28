@@ -1,8 +1,9 @@
 #
-# Copyright (c) 2020-2021 Wind River Systems, Inc.
+# Copyright (c) 2020-2021, 2024 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
+
 import mock
 
 from dccommon.drivers.openstack import vim
@@ -36,21 +37,21 @@ KUBE_VERSION_LIST = [
                     version='v1.2.5',
                     target=False,
                     state='available'),
-    ]
+]
 
 KUBE_VERSION_LIST_SC = [
     FakeKubeVersion(obj_id=1,
                     version='v1.2.5',
                     target=True,
                     state='active')
-    ]
+]
 
 KUBE_VERSION_LIST_SC_2 = [
     FakeKubeVersion(obj_id=1,
                     version='v1.2.4',
                     target=True,
                     state='active')
-    ]
+]
 
 
 class TestCreatingVIMKubeUpgradeStrategyStage(CreatingVIMStrategyStageMixin,

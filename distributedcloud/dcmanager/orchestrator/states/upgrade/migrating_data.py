@@ -1,8 +1,9 @@
 #
-# Copyright (c) 2020-2023 Wind River Systems, Inc.
+# Copyright (c) 2020-2024 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
+
 import os
 import time
 
@@ -47,7 +48,8 @@ class MigratingDataState(BaseState):
 
     def __init__(self, region_name):
         super(MigratingDataState, self).__init__(
-            next_state=consts.STRATEGY_STATE_UNLOCKING_CONTROLLER_0, region_name=region_name)
+            next_state=consts.STRATEGY_STATE_UNLOCKING_CONTROLLER_0,
+            region_name=region_name)
 
         self.max_api_queries = DEFAULT_MAX_API_QUERIES
         self.api_sleep_duration = DEFAULT_API_SLEEP
@@ -141,8 +143,9 @@ class MigratingDataState(BaseState):
             strategy_step.subcloud.name + consts.INVENTORY_FILE_POSTFIX)
         log_file = os.path.join(consts.DC_ANSIBLE_LOG_DIR, subcloud.name) + \
             '_playbook_output.log'
-        # Send skip_patching=true to prevent the playbook from applying any patches present in the
-        # upgrade_data. All the required patches will be included in the generated install iso.
+        # Send skip_patching=true to prevent the playbook from applying any patches
+        # present in the upgrade_data. All the required patches will be included in
+        # the generated install iso.
         data_migrating_cmd = [
             "ansible-playbook", ANSIBLE_UPGRADE_PLAYBOOK,
             "-i", ansible_subcloud_inventory_file, "-e",
@@ -156,7 +159,8 @@ class MigratingDataState(BaseState):
             # Two error messages: one for subcloud error description and logs and
             # one for orchestrator strategy_step detail (shorter than the previous).
             msg_subcloud = utils.find_ansible_error_msg(
-                strategy_step.subcloud.name, log_file, consts.DEPLOY_STATE_MIGRATING_DATA)
+                strategy_step.subcloud.name, log_file,
+                consts.DEPLOY_STATE_MIGRATING_DATA)
             # Get script output in case it is available
             error_msg = utils.get_failure_msg(strategy_step.subcloud.region_name)
             failure = ('%s \n%s' % (error_msg, msg_subcloud))

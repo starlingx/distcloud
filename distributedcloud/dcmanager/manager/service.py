@@ -1,22 +1,25 @@
 # Copyright (c) 2017-2024 Wind River Systems, Inc.
-# Licensed under the Apache License, Version 2.0 (the "License"); you may
-# not use this file except in compliance with the License. You may obtain
-# a copy of the License at
+# All Rights Reserved.
+#
+#    Licensed under the Apache License, Version 2.0 (the "License"); you may
+#    not use this file except in compliance with the License. You may obtain
+#    a copy of the License at
 #
 #         http://www.apache.org/licenses/LICENSE-2.0
 #
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
-# WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
-# License for the specific language governing permissions and limitations
-# under the License.
+#    Unless required by applicable law or agreed to in writing, software
+#    distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+#    WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
+#    License for the specific language governing permissions and limitations
+#    under the License.
 #
 
+import functools
 import os
-import six
 import threading
 
-import functools
+import six
+
 from oslo_config import cfg
 from oslo_log import log as logging
 import oslo_messaging
@@ -159,16 +162,18 @@ class DCManagerService(service.Service):
         # get subcloud by region name
         LOG.debug("Handling get_subcloud_name_by_region_name request for "
                   "region: %s" % subcloud_region)
-        subcloud = self.subcloud_manager.get_subcloud_name_by_region_name(context,
-                                                                          subcloud_region)
+        subcloud = self.subcloud_manager.get_subcloud_name_by_region_name(
+            context, subcloud_region
+        )
         return subcloud
 
     @request_context
-    def update_subcloud(self, context, subcloud_id, management_state=None,
-                        description=None, location=None,
-                        group_id=None, data_install=None, force=None,
-                        deploy_status=None,
-                        peer_group_id=None, bootstrap_values=None, bootstrap_address=None):
+    def update_subcloud(
+        self, context, subcloud_id, management_state=None, description=None,
+        location=None, group_id=None, data_install=None, force=None,
+        deploy_status=None, peer_group_id=None, bootstrap_values=None,
+        bootstrap_address=None
+    ):
         # Updates a subcloud
         LOG.info("Handling update_subcloud request for: %s" % subcloud_id)
         subcloud = self.subcloud_manager.update_subcloud(context, subcloud_id,
@@ -188,9 +193,8 @@ class DCManagerService(service.Service):
     def update_subcloud_with_network_reconfig(self, context, subcloud_id, payload):
         LOG.info("Handling update_subcloud_with_network_reconfig request for: %s",
                  subcloud_id)
-        return self.subcloud_manager.update_subcloud_with_network_reconfig(context,
-                                                                           subcloud_id,
-                                                                           payload)
+        return self.subcloud_manager.update_subcloud_with_network_reconfig(
+            context, subcloud_id, payload)
 
     @run_in_thread
     @request_context

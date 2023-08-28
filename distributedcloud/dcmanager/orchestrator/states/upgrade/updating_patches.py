@@ -1,8 +1,9 @@
 #
-# Copyright (c) 2020-2023 Wind River Systems, Inc.
+# Copyright (c) 2020-2024 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
+
 import os
 import time
 
@@ -69,7 +70,8 @@ class UpdatingPatchesState(BaseState):
                     patching_v1.PATCH_STATE_APPLIED,
                     patching_v1.PATCH_STATE_COMMITTED]:
                 applied_patch_ids.append(patch_id)
-        self.debug_log(strategy_step, "RegionOne applied_patch_ids: %s" % applied_patch_ids)
+        self.debug_log(strategy_step,
+                       "RegionOne applied_patch_ids: %s" % applied_patch_ids)
 
         region = self.get_region_name(strategy_step)
         # Retrieve all the patches that are present in this subcloud.
@@ -96,7 +98,7 @@ class UpdatingPatchesState(BaseState):
             if subcloud_patches[patch_id]['repostate'] == \
                     patching_v1.PATCH_STATE_APPLIED:
                 if subcloud_patches[patch_id]['patchstate'] != \
-                    patching_v1.PATCH_STATE_APPLIED:
+                        patching_v1.PATCH_STATE_APPLIED:
                     self.info_log(strategy_step,
                                   "Patch %s will be removed from subcloud" %
                                   (patch_id))

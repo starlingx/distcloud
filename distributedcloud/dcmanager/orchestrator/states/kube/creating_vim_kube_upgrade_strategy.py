@@ -1,8 +1,9 @@
 #
-# Copyright (c) 2020-2021 Wind River Systems, Inc.
+# Copyright (c) 2020-2021, 2024 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
+
 from dccommon.consts import DEFAULT_REGION_NAME
 from dccommon.drivers.openstack import vim
 from dcmanager.common import consts
@@ -48,7 +49,9 @@ class CreatingVIMKubeUpgradeStrategyState(CreatingVIMStrategyState):
             if to_version is None:
                 sys_kube_versions = \
                     self.get_sysinv_client(DEFAULT_REGION_NAME).get_kube_versions()
-                to_version = dcmanager_utils.get_active_kube_version(sys_kube_versions)
+                to_version = dcmanager_utils.get_active_kube_version(
+                    sys_kube_versions
+                )
                 if to_version is None:
                     # No active target kube version on the system controller means
                     # the system controller is part-way through a kube upgrade
@@ -59,7 +62,9 @@ class CreatingVIMKubeUpgradeStrategyState(CreatingVIMStrategyState):
             kube_versions = \
                 self.get_sysinv_client(region).get_kube_versions()
             target_kube_version = \
-                dcmanager_utils.select_available_kube_version(kube_versions, to_version)
+                dcmanager_utils.select_available_kube_version(
+                    kube_versions, to_version
+                )
 
         # Get the update options
         opts_dict = dcmanager_utils.get_sw_update_opts(

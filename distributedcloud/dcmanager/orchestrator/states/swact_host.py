@@ -1,8 +1,9 @@
 #
-# Copyright (c) 2020-2022 Wind River Systems, Inc.
+# Copyright (c) 2020-2022, 2024 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
+
 import time
 
 from dcmanager.common import consts
@@ -49,8 +50,10 @@ class SwactHostState(BaseState):
         active_host = self.get_sysinv_client(region).get_host(self.active)
         standby_host = self.get_sysinv_client(region).get_host(self.standby)
 
-        # if the desired active host is already the Active Controller, no need for action
-        if active_host.capabilities.get('Personality') == consts.PERSONALITY_CONTROLLER_ACTIVE:
+        # if the desired active host is already the Active Controller, no need for
+        # action
+        if active_host.capabilities.get('Personality') == \
+                consts.PERSONALITY_CONTROLLER_ACTIVE:
             msg = "Host: %s already the active controller." % (self.active)
             self.info_log(strategy_step, msg)
             return self.next_state
@@ -71,7 +74,8 @@ class SwactHostState(BaseState):
             try:
                 # query the administrative state to see if it is the new state.
                 host = self.get_sysinv_client(region).get_host(self.active)
-                if host.capabilities.get('Personality') == consts.PERSONALITY_CONTROLLER_ACTIVE:
+                if host.capabilities.get('Personality') == \
+                        consts.PERSONALITY_CONTROLLER_ACTIVE:
                     msg = "Host: %s is now the active controller." % (self.active)
                     self.info_log(strategy_step, msg)
                     break

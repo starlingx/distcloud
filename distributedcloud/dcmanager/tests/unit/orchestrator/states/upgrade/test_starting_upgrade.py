@@ -1,8 +1,9 @@
 #
-# Copyright (c) 2020, 2022 Wind River Systems, Inc.
+# Copyright (c) 2020, 2022, 2024 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
+
 import itertools
 import mock
 
@@ -11,8 +12,8 @@ from dcmanager.orchestrator.states.upgrade import starting_upgrade
 
 from dcmanager.tests.unit.orchestrator.states.fakes import FakeSystem
 from dcmanager.tests.unit.orchestrator.states.fakes import FakeUpgrade
-from dcmanager.tests.unit.orchestrator.states.upgrade.test_base \
-    import TestSwUpgradeState
+from dcmanager.tests.unit.orchestrator.states.upgrade.test_base import \
+    TestSwUpgradeState
 
 UPGRADE_ABORTING = FakeUpgrade(state='aborting')
 UPGRADE_STARTING = FakeUpgrade(state='starting')
@@ -37,8 +38,8 @@ class TestSwUpgradeSimplexStartingUpgradeStage(TestSwUpgradeState):
         self.subcloud = self.setup_subcloud()
 
         # Add the strategy_step state being processed by this unit test
-        self.strategy_step = \
-            self.setup_strategy_step(self.subcloud.id, consts.STRATEGY_STATE_STARTING_UPGRADE)
+        self.strategy_step = self.setup_strategy_step(
+            self.subcloud.id, consts.STRATEGY_STATE_STARTING_UPGRADE)
 
         # Add mock API endpoints for sysinv client calls invoked by this state
         self.sysinv_client.upgrade_start = mock.MagicMock()
@@ -209,7 +210,8 @@ class TestSwUpgradeSimplexStartingUpgradeStage(TestSwUpgradeState):
             ".DEFAULT_MAX_QUERIES", 3)
 @mock.patch("dcmanager.orchestrator.states.upgrade.starting_upgrade"
             ".DEFAULT_SLEEP_DURATION", 1)
-class TestSwUpgradeDuplexStartingUpgradeStage(TestSwUpgradeSimplexStartingUpgradeStage):
+class TestSwUpgradeDuplexStartingUpgradeStage(
+        TestSwUpgradeSimplexStartingUpgradeStage):
 
     def setUp(self):
         super(TestSwUpgradeDuplexStartingUpgradeStage, self).setUp()

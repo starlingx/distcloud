@@ -1,19 +1,18 @@
 #
-# Copyright (c) 2020, 2022 Wind River Systems, Inc.
+# Copyright (c) 2020, 2022, 2024 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
+
 import mock
+from tsconfig.tsconfig import SW_VERSION
 
 from dcmanager.common import consts
 from dcmanager.db.sqlalchemy import api as db_api
-
 from dcmanager.tests.unit.orchestrator.states.fakes import FakeLoad
 from dcmanager.tests.unit.orchestrator.states.fakes import PREVIOUS_VERSION
 from dcmanager.tests.unit.orchestrator.states.upgrade.test_base \
     import TestSwUpgradeState
-
-from tsconfig.tsconfig import SW_VERSION
 
 # UpgradingSimplexState uses SW_VERSION as the upgraded version check
 UPGRADED_VERSION = SW_VERSION
@@ -38,8 +37,8 @@ class TestSwUpgradeUpgradingSimplexStage(TestSwUpgradeState):
         self.subcloud = self.setup_subcloud()
 
         # Add the strategy_step state being processed by this unit test
-        self.strategy_step = \
-            self.setup_strategy_step(self.subcloud.id, consts.STRATEGY_STATE_UPGRADING_SIMPLEX)
+        self.strategy_step = self.setup_strategy_step(
+            self.subcloud.id, consts.STRATEGY_STATE_UPGRADING_SIMPLEX)
 
         # simulate get_vault_load_files finding the iso and sig in the vault
         p = mock.patch('dcmanager.common.utils.get_vault_load_files')

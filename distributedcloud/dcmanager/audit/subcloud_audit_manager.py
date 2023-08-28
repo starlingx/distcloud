@@ -1,32 +1,30 @@
 # Copyright 2017 Ericsson AB.
-# Copyright (c) 2017-2023 Wind River Systems, Inc.
+# Copyright (c) 2017-2024 Wind River Systems, Inc.
 #
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
+#    Licensed under the Apache License, Version 2.0 (the "License"); you may
+#    not use this file except in compliance with the License. You may obtain
+#    a copy of the License at
 #
-#    http://www.apache.org/licenses/LICENSE-2.0
+#         http://www.apache.org/licenses/LICENSE-2.0
 #
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or
-# implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
+#    Unless required by applicable law or agreed to in writing, software
+#    distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+#    WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
+#    License for the specific language governing permissions and limitations
+#    under the License.
 #
 
 import datetime
-import eventlet
 import os
 import time
-from tsconfig.tsconfig import CONFIG_PATH
 
+import eventlet
 from oslo_config import cfg
 from oslo_log import log as logging
+from tsconfig.tsconfig import CONFIG_PATH
 
 from dccommon import consts as dccommon_consts
 from dccommon.drivers.openstack import sysinv_v1
-
 from dcmanager.audit import firmware_audit
 from dcmanager.audit import kube_rootca_update_audit
 from dcmanager.audit import kubernetes_audit
@@ -81,7 +79,8 @@ class SubcloudAuditManager(manager.Manager):
         super(SubcloudAuditManager, self).__init__(
             service_name="subcloud_audit_manager")
         self.context = context.get_admin_context()
-        self.audit_worker_rpc_client = dcmanager_audit_rpc_client.ManagerAuditWorkerClient()
+        self.audit_worker_rpc_client = (
+            dcmanager_audit_rpc_client.ManagerAuditWorkerClient())
         # Number of audits since last subcloud state update
         self.audit_count = SUBCLOUD_STATE_UPDATE_ITERATIONS - 2
         # Number of patch audits
@@ -100,11 +99,13 @@ class SubcloudAuditManager(manager.Manager):
     def _add_missing_endpoints(self):
         # Update this flag file based on the most recent new endpoint
         file_path_list = []
-        file_path_list.append(os.path.join(CONFIG_PATH,
-                              '.kube_rootca_update_endpoint_added'))
+        file_path_list.append(os.path.join(
+            CONFIG_PATH, '.kube_rootca_update_endpoint_added')
+        )
         if cfg.CONF.use_usm:
-            file_path_list.append(os.path.join(CONFIG_PATH,
-                                  '.usm_endpoint_added'))
+            file_path_list.append(os.path.join(
+                CONFIG_PATH, '.usm_endpoint_added')
+            )
         for file_path in file_path_list:
             # If file exists on the controller, all the endpoints have been
             # added to DB since last time an endpoint was added
@@ -118,7 +119,9 @@ class SubcloudAuditManager(manager.Manager):
                                                        subcloud.id)
                     # Use set difference to find missing endpoints
                     if cfg.CONF.use_usm:
-                        endpoint_type_set = set(dccommon_consts.ENDPOINT_TYPES_LIST_USM)
+                        endpoint_type_set = set(
+                            dccommon_consts.ENDPOINT_TYPES_LIST_USM
+                        )
                     else:
                         endpoint_type_set = set(dccommon_consts.ENDPOINT_TYPES_LIST)
                     subcloud_set = set()
@@ -265,17 +268,18 @@ class SubcloudAuditManager(manager.Manager):
                     SubcloudAuditManager.force_patch_audit):
                 LOG.info("Trigger load audit")
                 audit_load = True
-            if (self.patch_audit_count % 4 == 1):
+            if self.patch_audit_count % 4 == 1:
                 LOG.info("Trigger firmware audit")
                 audit_firmware = True
                 # Reset force_firmware_audit only when firmware audit has been fired
                 SubcloudAuditManager.reset_force_firmware_audit()
-            if (self.patch_audit_count % KUBERNETES_AUDIT_RATE == 1):
+            if self.patch_audit_count % KUBERNETES_AUDIT_RATE == 1:
                 LOG.info("Trigger kubernetes audit")
                 audit_kubernetes = True
-                # Reset force_kubernetes_audit only when kubernetes audit has been fired
+                # Reset force_kubernetes_audit only when kubernetes audit has been
+                # fired
                 SubcloudAuditManager.reset_force_kubernetes_audit()
-            if (self.patch_audit_count % KUBE_ROOTCA_UPDATE_AUDIT_RATE == 1):
+            if self.patch_audit_count % KUBE_ROOTCA_UPDATE_AUDIT_RATE == 1:
                 LOG.info("Trigger kube rootca update audit")
                 audit_kube_rootca_updates = True
                 # Reset force_kube_rootca_update_audit only if audit is fired
@@ -319,7 +323,8 @@ class SubcloudAuditManager(manager.Manager):
         if audit_patch:
             if cfg.CONF.use_usm:
                 # Query RegionOne releases
-                software_audit_data = self.patch_audit.get_software_regionone_audit_data()
+                software_audit_data = \
+                    self.patch_audit.get_software_regionone_audit_data()
             else:
                 # Query RegionOne patches and software version
                 patch_audit_data = self.patch_audit.get_regionone_audit_data()
@@ -396,7 +401,8 @@ class SubcloudAuditManager(manager.Manager):
             self.context, last_audit_fixup_threshold)
         end = datetime.datetime.utcnow()
         if num_fixed > 0:
-            LOG.info('Fixed up subcloud audit timestamp for %s subclouds.' % num_fixed)
+            LOG.info(
+                'Fixed up subcloud audit timestamp for %s subclouds.' % num_fixed)
             LOG.info('Fixup took %s seconds' % (end - start))
 
         subcloud_ids = []
@@ -452,7 +458,8 @@ class SubcloudAuditManager(manager.Manager):
                      kube_rootca_update_audit_data))
 
         # We want a chunksize of at least 1 so add the number of workers.
-        chunksize = (len(subcloud_audits) + CONF.audit_worker_workers) // CONF.audit_worker_workers
+        chunksize = (len(subcloud_audits) + CONF.audit_worker_workers) // (
+            CONF.audit_worker_workers)
         for audit in subcloud_audits:
             subcloud_ids.append(audit.subcloud_id)
             if len(subcloud_ids) == chunksize:
@@ -466,7 +473,10 @@ class SubcloudAuditManager(manager.Manager):
                     do_openstack_audit,
                     kube_rootca_update_audit_data,
                     software_audit_data)
-                LOG.debug('Sent subcloud audit request message for subclouds: %s' % subcloud_ids)
+                LOG.debug(
+                    'Sent subcloud audit request message for subclouds: %s' %
+                    subcloud_ids
+                )
                 subcloud_ids = []
         if len(subcloud_ids) > 0:
             # We've got a partial batch...send it off for processing.
@@ -479,6 +489,9 @@ class SubcloudAuditManager(manager.Manager):
                 do_openstack_audit,
                 kube_rootca_update_audit_data,
                 software_audit_data)
-            LOG.debug('Sent final subcloud audit request message for subclouds: %s' % subcloud_ids)
+            LOG.debug(
+                'Sent final subcloud audit request message for subclouds: %s' %
+                subcloud_ids
+            )
         else:
             LOG.debug('Done sending audit request messages.')

@@ -1,4 +1,6 @@
-# Copyright (c) 2021 Wind River Systems, Inc.
+# Copyright (c) 2021, 2024 Wind River Systems, Inc.
+# All Rights Reserved.
+#
 #    Licensed under the Apache License, Version 2.0 (the "License"); you may
 #    not use this file except in compliance with the License. You may obtain
 #    a copy of the License at
@@ -19,14 +21,15 @@ DC Manager Audit Worker Service.
 import eventlet
 eventlet.monkey_patch()
 
-from oslo_config import cfg
-from oslo_i18n import _lazy
-from oslo_log import log as logging
-from oslo_service import service
+# pylint: disable=wrong-import-position
+from oslo_config import cfg  # noqa: E402
+from oslo_i18n import _lazy  # noqa: E402
+from oslo_log import log as logging  # noqa: E402
+from oslo_service import service  # noqa: E402
 
-from dcmanager.common import config
-from dcmanager.common import messaging
-
+from dcmanager.common import config  # noqa: E402
+from dcmanager.common import messaging  # noqa: E402
+# pylint: enable=wrong-import-position
 
 _lazy.enable_lazy()
 config.register_options()
@@ -54,6 +57,7 @@ def main():
     cfg.CONF.log_opt_values(LOG, logging.DEBUG)
 
     launcher.wait()
+
 
 if __name__ == '__main__':
     main()

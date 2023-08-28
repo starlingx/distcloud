@@ -1,8 +1,9 @@
 #
-# Copyright (c) 2020-2023 Wind River Systems, Inc.
+# Copyright (c) 2020-2024 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
+
 from dccommon import consts as dccommon_consts
 from dcmanager.common import consts
 from dcmanager.common import exceptions
@@ -52,9 +53,10 @@ class InstallingLicenseState(BaseState):
                 return self.next_state
             else:
                 # An unexpected error occurred querying the license
-                message = ('An unexpected error occurred querying the license %s. Detail: %s' %
-                           (dccommon_consts.SYSTEM_CONTROLLER_NAME,
-                            target_error))
+                message = (
+                    'An unexpected error occurred querying the license %s. '
+                    'Detail: %s' % (dccommon_consts.SYSTEM_CONTROLLER_NAME,
+                                    target_error))
                 db_api.subcloud_update(
                     self.context, strategy_step.subcloud_id,
                     error_description=message[0:consts.ERROR_DESCRIPTION_LENGTH])

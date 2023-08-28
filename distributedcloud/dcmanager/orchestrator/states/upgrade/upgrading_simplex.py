@@ -1,12 +1,13 @@
 #
-# Copyright (c) 2020-2023 Wind River Systems, Inc.
+# Copyright (c) 2020-2024 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
+
 import json
-import keyring
 import os
 
+import keyring
 from oslo_serialization import base64
 from tsconfig.tsconfig import SW_VERSION
 
@@ -88,7 +89,8 @@ class UpgradingSimplexState(BaseState):
         subcloud data_install are obtained from:
 
         dcmanager database:
-            subcloud.subcloud_install_initial::for values which are persisted at subcloud_add time
+            subcloud.subcloud_install_initial::for values which are persisted at
+            subcloud_add time
 
             INSTALL: (needed for upgrade install)
                 bootstrap_interface
@@ -103,7 +105,8 @@ class UpgradingSimplexState(BaseState):
                 # Set this options for https with self-signed certificate
                 # no_check_certificate
 
-                # Override default filesystem device: also from host-show, but is static.
+                # Override default filesystem device: also from host-show, but is
+                static.
                 # rootfs_device: "/dev/disk/by-path/pci-0000:00:1f.2-ata-1.0"
                 # boot_device: "/dev/disk/by-path/pci-0000:00:1f.2-ata-1.0"
 
@@ -111,22 +114,24 @@ class UpgradingSimplexState(BaseState):
                 # rd.net.timeout.ipv6dad: 300
 
             BOOTSTRAP: (also needed for bootstrap)
-                # If the subcloud's bootstrap IP interface and the system controller are not on the
-                # same network then the customer must configure a default route or static route
-                # so that the Central Cloud can login bootstrap the newly installed subcloud.
-                # If nexthop_gateway is specified and the network_address is not specified then a
-                # default route will be configured. Otherwise, if a network_address is specified
-                then
-                # a static route will be configured.
+                # If the subcloud's bootstrap IP interface and the system controller
+                # are not on the same network then the customer must configure a
+                # default route or static route so that the Central Cloud can login
+                # bootstrap the newly installed subcloud. If nexthop_gateway is
+                # specified and the network_address is not specified then a default
+                # route will be configured. Otherwise, if a network_address is
+                # specified then a static route will be configured.
                 nexthop_gateway: default_route_address
                 network_address: static_route_address
                 network_mask: static_route_mask
 
             subcloud.data_upgrade - persist for upgrade duration
-                for values from subcloud online sysinv host-show (persist since upgrade-start)
+                for values from subcloud online sysinv host-show
+                (persist since upgrade-start)
                     bmc_address  # sysinv_v1 host-show
                     bmc_username # sysinv_v1 host-show
-                for values from barbican_client (as barbican user), or from upgrade-start:
+                for values from barbican_client (as barbican user),
+                or from upgrade-start:
                     bmc_password --- obtain from barbican_client as barbican user
         """
 
@@ -239,7 +244,7 @@ class UpgradingSimplexState(BaseState):
         return upgrade_data_install
 
     def _get_subcloud_upgrade_data(
-        self, strategy_step, subcloud_sysinv_client, subcloud_barbican_client):
+            self, strategy_step, subcloud_sysinv_client, subcloud_barbican_client):
         """Get the subcloud data required for upgrades.
 
            In case the subcloud is no longer reachable, get upgrade_data from
@@ -323,8 +328,9 @@ class UpgradingSimplexState(BaseState):
 
     def perform_subcloud_install(self, strategy_step, install_values):
 
-        log_file = os.path.join(consts.DC_ANSIBLE_LOG_DIR, strategy_step.subcloud.name) + \
-            '_playbook_output.log'
+        log_file = os.path.join(
+            consts.DC_ANSIBLE_LOG_DIR,
+            strategy_step.subcloud.name) + '_playbook_output.log'
         db_api.subcloud_update(
             self.context, strategy_step.subcloud_id,
             deploy_status=consts.DEPLOY_STATE_PRE_INSTALL)
@@ -375,7 +381,8 @@ class UpgradingSimplexState(BaseState):
             # Detailed error message for subcloud error description field.
             # Exception message for strategy_step detail.
             msg = utils.find_ansible_error_msg(
-                strategy_step.subcloud.name, log_file, consts.DEPLOY_STATE_INSTALLING)
+                strategy_step.subcloud.name, log_file,
+                consts.DEPLOY_STATE_INSTALLING)
             db_api.subcloud_update(
                 self.context, strategy_step.subcloud_id,
                 deploy_status=consts.DEPLOY_STATE_INSTALL_FAILED,

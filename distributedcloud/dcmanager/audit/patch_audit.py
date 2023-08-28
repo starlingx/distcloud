@@ -1,18 +1,17 @@
 # Copyright 2017 Ericsson AB.
-# Copyright (c) 2017-2023 Wind River Systems, Inc.
+# Copyright (c) 2017-2024 Wind River Systems, Inc.
 #
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
+#    Licensed under the Apache License, Version 2.0 (the "License"); you may
+#    not use this file except in compliance with the License. You may obtain
+#    a copy of the License at
 #
-#    http://www.apache.org/licenses/LICENSE-2.0
+#         http://www.apache.org/licenses/LICENSE-2.0
 #
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or
-# implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
+#    Unless required by applicable law or agreed to in writing, software
+#    distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+#    WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
+#    License for the specific language governing permissions and limitations
+#    under the License.
 #
 
 from keystoneauth1 import exceptions as keystone_exceptions
@@ -25,7 +24,6 @@ from dccommon.drivers.openstack.sdk_platform import OpenStackDriver
 from dccommon.drivers.openstack import software_v1
 from dccommon.drivers.openstack.software_v1 import SoftwareClient
 from dccommon.drivers.openstack.sysinv_v1 import SysinvClient
-
 from dcmanager.common import utils
 
 LOG = logging.getLogger(__name__)
@@ -155,7 +153,8 @@ class PatchAudit(object):
             m_os_ks_client = OpenStackDriver(
                 region_name=dccommon_consts.DEFAULT_REGION_NAME,
                 region_clients=None).keystone_client
-            patching_endpoint = m_os_ks_client.endpoint_cache.get_endpoint('patching')
+            patching_endpoint = m_os_ks_client.endpoint_cache.get_endpoint(
+                'patching')
             sysinv_endpoint = m_os_ks_client.endpoint_cache.get_endpoint('sysinv')
             patching_client = PatchingClient(
                 dccommon_consts.DEFAULT_REGION_NAME, m_os_ks_client.session,
@@ -195,10 +194,14 @@ class PatchAudit(object):
         return PatchAuditData(regionone_patches, applied_patch_ids,
                               committed_patch_ids, regionone_software_version)
 
-    def subcloud_audit(self, subcloud_name, subcloud_region, audit_data, software_audit_data,
-                       do_load_audit):
+    def subcloud_audit(
+        self, subcloud_name, subcloud_region, audit_data, software_audit_data,
+        do_load_audit
+    ):
         if software_audit_data:
-            self.subcloud_software_audit(subcloud_name, subcloud_region, software_audit_data)
+            self.subcloud_software_audit(
+                subcloud_name, subcloud_region, software_audit_data
+            )
         else:
             self.subcloud_patch_audit(subcloud_name, subcloud_region, audit_data,
                                       do_load_audit)

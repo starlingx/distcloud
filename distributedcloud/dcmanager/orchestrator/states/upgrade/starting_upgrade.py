@@ -1,8 +1,9 @@
 #
-# Copyright (c) 2020-2023 Wind River Systems, Inc.
+# Copyright (c) 2020-2024 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
+
 import time
 
 from dccommon.drivers.openstack.vim import ALARM_RESTRICTIONS_RELAXED
@@ -96,10 +97,12 @@ class StartingUpgradeState(BaseState):
             if upgrade_state in UPGRADE_RETRY_STATES:
                 retry_counter += 1
                 if retry_counter >= self.max_failed_retries:
-                    error_msg = utils.get_failure_msg(strategy_step.subcloud.region_name)
+                    error_msg = utils.get_failure_msg(
+                        strategy_step.subcloud.region_name)
                     db_api.subcloud_update(
                         self.context, strategy_step.subcloud_id,
-                        error_description=error_msg[0:consts.ERROR_DESCRIPTION_LENGTH])
+                        error_description=error_msg[
+                            0:consts.ERROR_DESCRIPTION_LENGTH])
                     details = ("Failed to start upgrade. Please "
                                "check sysinv.log on the subcloud or "
                                "%s on central for details." %
@@ -110,7 +113,8 @@ class StartingUpgradeState(BaseState):
                               % upgrade_state)
                 try:
                     self.get_sysinv_client(
-                        strategy_step.subcloud.region_name).upgrade_start(force=force_flag)
+                        strategy_step.subcloud.region_name).upgrade_start(
+                        force=force_flag)
                 except Exception as exception:
                     self.warn_log(strategy_step,
                                   "Encountered exception: %s, "

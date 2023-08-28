@@ -1,8 +1,9 @@
 #
-# Copyright (c) 2020-2023 Wind River Systems, Inc.
+# Copyright (c) 2020-2024 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
+
 import itertools
 import mock
 
@@ -20,12 +21,12 @@ ACTIVATING_FAILED = FakeUpgrade(state='activation-failed')
 ALREADY_ACTIVATED_UPGRADE = FakeUpgrade(state='activation-complete')
 
 
-@mock.patch("dcmanager.orchestrator.states.upgrade.activating.DEFAULT_MAX_QUERIES",
-            5)
-@mock.patch("dcmanager.orchestrator.states.upgrade.activating.DEFAULT_SLEEP_DURATION",
-            1)
-@mock.patch("dcmanager.orchestrator.states.upgrade.activating.MAX_FAILED_RETRIES",
-            3)
+@mock.patch(
+    "dcmanager.orchestrator.states.upgrade.activating.DEFAULT_MAX_QUERIES", 5)
+@mock.patch(
+    "dcmanager.orchestrator.states.upgrade.activating.DEFAULT_SLEEP_DURATION", 1)
+@mock.patch(
+    "dcmanager.orchestrator.states.upgrade.activating.MAX_FAILED_RETRIES", 3)
 class TestSwUpgradeActivatingStage(TestSwUpgradeState):
 
     def setUp(self):
@@ -38,8 +39,8 @@ class TestSwUpgradeActivatingStage(TestSwUpgradeState):
         self.subcloud = self.setup_subcloud()
 
         # Add the strategy_step state being processed by this unit test
-        self.strategy_step = \
-            self.setup_strategy_step(self.subcloud.id, consts.STRATEGY_STATE_ACTIVATING_UPGRADE)
+        self.strategy_step = self.setup_strategy_step(
+            self.subcloud.id, consts.STRATEGY_STATE_ACTIVATING_UPGRADE)
 
         # Add mock API endpoints for sysinv client calls invoked by this state
         self.sysinv_client.upgrade_activate = mock.MagicMock()
@@ -89,7 +90,9 @@ class TestSwUpgradeActivatingStage(TestSwUpgradeState):
         # verify the DB update was invoked
         updated_subcloud = db_api.subcloud_get(self.ctx,
                                                self.subcloud.id)
-        self.assertEqual(updated_subcloud.deploy_status, consts.DEPLOY_STATE_UPGRADE_ACTIVATED)
+        self.assertEqual(
+            updated_subcloud.deploy_status, consts.DEPLOY_STATE_UPGRADE_ACTIVATED
+        )
 
         # On success, the state should be updated to the next state
         self.assert_step_updated(self.strategy_step.subcloud_id,

@@ -1,19 +1,20 @@
 # Copyright 2017 Ericsson AB.
-# Copyright (c) 2017-2023 Wind River Systems, Inc.
+# Copyright (c) 2017-2024 Wind River Systems, Inc.
+# All Rights Reserved.
 #
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
+#    Licensed under the Apache License, Version 2.0 (the "License"); you may
+#    not use this file except in compliance with the License. You may obtain
+#    a copy of the License at
 #
-#    http://www.apache.org/licenses/LICENSE-2.0
+#         http://www.apache.org/licenses/LICENSE-2.0
 #
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or
-# implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
+#    Unless required by applicable law or agreed to in writing, software
+#    distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+#    WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
+#    License for the specific language governing permissions and limitations
+#    under the License.
 #
+
 from __future__ import division
 
 import base64
@@ -95,7 +96,8 @@ ANSIBLE_SUBCLOUD_UPDATE_PLAYBOOK = \
 # the support of rehoming a subcloud with a software version below 22.12
 ANSIBLE_VALIDATE_KEYSTONE_PASSWORD_SCRIPT = \
     consts.ANSIBLE_CURRENT_VERSION_BASE_PATH + \
-    '/roles/rehome-subcloud/update-keystone-data/files/validate_keystone_passwords.sh'
+    '/roles/rehome-subcloud/update-keystone-data/files/' + \
+    'validate_keystone_passwords.sh'
 
 USERS_TO_REPLICATE = [
     'sysinv',
@@ -344,14 +346,15 @@ class SubcloudManager(manager.Manager):
                   software_version if software_version else SW_VERSION]
         return bootstrap_command
 
-    def compose_config_command(self, subcloud_name, ansible_subcloud_inventory_file, payload):
+    def compose_config_command(
+            self, subcloud_name, ansible_subcloud_inventory_file, payload):
         config_command = [
             "ansible-playbook", payload[consts.DEPLOY_PLAYBOOK],
             "-e", "@%s" % dccommon_consts.ANSIBLE_OVERRIDES_PATH + "/" +
                   subcloud_name + '_deploy_values.yml',
             "-i", ansible_subcloud_inventory_file,
             "--limit", subcloud_name
-            ]
+        ]
         return config_command
 
     def compose_backup_command(self, subcloud_name, ansible_subcloud_inventory_file):
@@ -359,34 +362,42 @@ class SubcloudManager(manager.Manager):
             "ansible-playbook", ANSIBLE_SUBCLOUD_BACKUP_CREATE_PLAYBOOK,
             "-i", ansible_subcloud_inventory_file,
             "--limit", subcloud_name,
-            "-e", "subcloud_bnr_overrides=%s" % dccommon_consts.ANSIBLE_OVERRIDES_PATH + "/" +
-            subcloud_name + "_backup_create_values.yml"]
-
+            "-e",
+            "subcloud_bnr_overrides=%s" % (
+                dccommon_consts.ANSIBLE_OVERRIDES_PATH + "/" + subcloud_name +
+                "_backup_create_values.yml"
+            )
+        ]
         return backup_command
 
     def compose_backup_delete_command(self, subcloud_name,
                                       ansible_subcloud_inventory_file=None):
         backup_command = [
             "ansible-playbook", ANSIBLE_SUBCLOUD_BACKUP_DELETE_PLAYBOOK,
-            "-e", "subcloud_bnr_overrides=%s" % dccommon_consts.ANSIBLE_OVERRIDES_PATH + "/" +
-            subcloud_name + "_backup_delete_values.yml"]
+            "-e", "subcloud_bnr_overrides=%s" %
+            dccommon_consts.ANSIBLE_OVERRIDES_PATH + "/" +
+            subcloud_name + "_backup_delete_values.yml"
+        ]
         if ansible_subcloud_inventory_file:
             # Backup stored in subcloud storage
             backup_command.extend(("-i", ansible_subcloud_inventory_file,
-                                  "--limit", subcloud_name))
+                                   "--limit", subcloud_name))
         else:
             # Backup stored in central storage
             backup_command.extend(("-e", "inventory_hostname=%s" % subcloud_name))
         return backup_command
 
-    def compose_backup_restore_command(self, subcloud_name, ansible_subcloud_inventory_file):
+    def compose_backup_restore_command(
+            self, subcloud_name, ansible_subcloud_inventory_file):
         backup_command = [
             "ansible-playbook", ANSIBLE_SUBCLOUD_BACKUP_RESTORE_PLAYBOOK,
             "-i", ansible_subcloud_inventory_file,
             "--limit", subcloud_name,
-            "-e", "subcloud_bnr_overrides=%s" % dccommon_consts.ANSIBLE_OVERRIDES_PATH + "/" +
-            subcloud_name + "_backup_restore_values.yml"]
-
+            "-e", "subcloud_bnr_overrides=%s" % (
+                dccommon_consts.ANSIBLE_OVERRIDES_PATH + "/" + subcloud_name +
+                "_backup_restore_values.yml"
+            )
+        ]
         return backup_command
 
     def compose_update_command(self, subcloud_name, ansible_subcloud_inventory_file):
@@ -395,8 +406,11 @@ class SubcloudManager(manager.Manager):
             "-i", ansible_subcloud_inventory_file,
             "--limit", subcloud_name,
             "--timeout", UPDATE_PLAYBOOK_TIMEOUT,
-            "-e", "subcloud_update_overrides=%s" % dccommon_consts.ANSIBLE_OVERRIDES_PATH + "/" +
-            subcloud_name + "_update_values.yml"]
+            "-e", "subcloud_update_overrides=%s" % (
+                dccommon_consts.ANSIBLE_OVERRIDES_PATH + "/" + subcloud_name +
+                "_update_values.yml"
+            )
+        ]
         return subcloud_update_command
 
     def compose_rehome_command(self, subcloud_name, subcloud_region,
@@ -447,7 +461,7 @@ class SubcloudManager(manager.Manager):
             while True:
                 offline_seconds = time.monotonic() - job_done_ts
                 if subcloud.availability_status == \
-                    dccommon_consts.AVAILABILITY_OFFLINE:
+                        dccommon_consts.AVAILABILITY_OFFLINE:
                     if offline_seconds >= consts.BATCH_REHOME_MGMT_STATES_TIMEOUT:
                         LOG.warning("Skip trying to manage subcloud: %s, "
                                     "wait online timeout [%d]" %
@@ -487,7 +501,7 @@ class SubcloudManager(manager.Manager):
                 self.context, association.system_peer_id)
             # Get 'available' system peer
             if system_peer.availability_state != \
-                consts.SYSTEM_PEER_AVAILABILITY_STATE_AVAILABLE:
+                    consts.SYSTEM_PEER_AVAILABILITY_STATE_AVAILABLE:
                 LOG.warning("Peer system %s offline, skip checking" %
                             system_peer.peer_name)
                 continue
@@ -607,16 +621,19 @@ class SubcloudManager(manager.Manager):
             # subcloud_ref could be int type id.
             subcloud = utils.subcloud_get_by_ref(context, str(subcloud_ref))
             if not subcloud:
-                LOG.error("Failed to migrate, non-existent subcloud %s" % subcloud_ref)
+                LOG.error(
+                    "Failed to migrate, non-existent subcloud %s" % subcloud_ref
+                )
                 return
             if 'sysadmin_password' not in payload:
-                LOG.error("Failed to migrate subcloud: %s, must provide sysadmin_password" %
-                          subcloud.name)
+                LOG.error("Failed to migrate subcloud: %s, must provide "
+                          "sysadmin_password" % subcloud.name)
                 return
 
-            if subcloud.deploy_status not in [consts.DEPLOY_STATE_SECONDARY,
-                                              consts.DEPLOY_STATE_REHOME_FAILED,
-                                              consts.DEPLOY_STATE_REHOME_PREP_FAILED]:
+            if subcloud.deploy_status not in [
+                consts.DEPLOY_STATE_SECONDARY, consts.DEPLOY_STATE_REHOME_FAILED,
+                consts.DEPLOY_STATE_REHOME_PREP_FAILED
+            ]:
                 LOG.error("Failed to migrate subcloud: %s, "
                           "must be in secondary or rehome failure state" %
                           subcloud.name)
@@ -628,7 +645,8 @@ class SubcloudManager(manager.Manager):
             rehome_data = json.loads(subcloud.rehome_data)
             saved_payload = rehome_data['saved_payload']
             # Update sysadmin_password
-            sysadmin_password = base64.b64decode(payload['sysadmin_password']).decode('utf-8')
+            sysadmin_password = \
+                base64.b64decode(payload['sysadmin_password']).decode('utf-8')
             saved_payload['sysadmin_password'] = sysadmin_password
             # Decode admin_password
             if 'admin_password' in saved_payload:
@@ -814,7 +832,8 @@ class SubcloudManager(manager.Manager):
         :param subcloud_id: id of the subcloud
         :param payload: subcloud configuration
         """
-        LOG.info(f"Adding subcloud {payload['name']} with region {payload['region_name']}.")
+        LOG.info(f"Adding subcloud {payload['name']} with region "
+                 f"{payload['region_name']}.")
 
         rehoming = payload.get('migrate', '').lower() == "true"
         secondary = (payload.get('secondary', '').lower() == "true")
@@ -1202,8 +1221,9 @@ class SubcloudManager(manager.Manager):
         :param payload: subcloud resume payload
         :param deploy_states_to_run: deploy phases pending execution
         """
-        LOG.info("Resuming deployment of subcloud %s. Deploy phases to be executed: %s"
-                 % (subcloud_name, ', '.join(deploy_states_to_run)))
+        LOG.info(
+            "Resuming deployment of subcloud %s. Deploy phases to be executed: %s" %
+            (subcloud_name, ', '.join(deploy_states_to_run)))
 
         self.run_deploy_phases(context, subcloud_id, payload,
                                deploy_states_to_run,
@@ -1294,7 +1314,8 @@ class SubcloudManager(manager.Manager):
         :param payload: subcloud configuration
         :param rehoming: flag indicating if this is part of a rehoming operation
         :param initial_deployment: initial_deployment flag from subcloud inventory
-        :param return_as_dict: converts the subcloud DB object to a dict before returning
+        :param return_as_dict: converts the subcloud DB object to a dict before
+        returning
         :return: resulting subcloud DB object or dictionary
         """
         LOG.info("Creating subcloud %s." % payload['name'])
@@ -1454,7 +1475,8 @@ class SubcloudManager(manager.Manager):
                 if 'admin_password' in original_payload:
                     # Encode admin_password
                     original_payload['admin_password'] = base64.b64encode(
-                        original_payload['admin_password'].encode("utf-8")).decode('utf-8')
+                        original_payload['admin_password'].encode("utf-8")
+                    ).decode('utf-8')
                 bootstrap_info = utils.create_subcloud_rehome_data_template()
                 bootstrap_info['saved_payload'] = original_payload
                 rehome_data = json.dumps(bootstrap_info)
@@ -1914,11 +1936,13 @@ class SubcloudManager(manager.Manager):
         return subcloud, success
 
     @staticmethod
-    def _build_subcloud_operation_notice(operation, failed_subclouds, invalid_subclouds):
+    def _build_subcloud_operation_notice(
+            operation, failed_subclouds, invalid_subclouds):
         invalid_subcloud_names = [subcloud.name for subcloud in invalid_subclouds]
         failed_subcloud_names = [subcloud.name for subcloud in failed_subclouds]
 
-        notice = "Subcloud backup %s operation completed with warnings:\n" % operation
+        notice = (
+            "Subcloud backup %s operation completed with warnings:\n" % operation)
         if invalid_subclouds:
             notice += ("The following subclouds were skipped for local backup "
                        "%s operation: %s."
@@ -2417,15 +2441,21 @@ class SubcloudManager(manager.Manager):
         # both controllers.
         management_subnet = netaddr.IPNetwork(subcloud.management_subnet)
         endpoint = keystone_client.endpoint_cache.get_endpoint('sysinv')
-        sysinv_client = SysinvClient(dccommon_consts.DEFAULT_REGION_NAME, keystone_client.session,
-                                     endpoint=endpoint)
-        cached_regionone_data = self._get_cached_regionone_data(keystone_client, sysinv_client)
+        sysinv_client = SysinvClient(
+            dccommon_consts.DEFAULT_REGION_NAME,
+            keystone_client.session,
+            endpoint=endpoint
+        )
+        cached_regionone_data = self._get_cached_regionone_data(
+            keystone_client, sysinv_client)
         for mgmt_if_uuid in cached_regionone_data['mgmt_interface_uuids']:
-            sysinv_client.delete_route(mgmt_if_uuid,
-                                       str(management_subnet.ip),
-                                       management_subnet.prefixlen,
-                                       str(netaddr.IPAddress(subcloud.systemcontroller_gateway_ip)),
-                                       1)
+            sysinv_client.delete_route(
+                mgmt_if_uuid,
+                str(management_subnet.ip),
+                management_subnet.prefixlen,
+                str(netaddr.IPAddress(subcloud.systemcontroller_gateway_ip)),
+                1
+            )
 
     @staticmethod
     def _delete_subcloud_cert(subcloud_region):
@@ -2558,7 +2588,7 @@ class SubcloudManager(manager.Manager):
             mkey = list(data.keys())[0]
 
             if mkey in data and 'hosts' in data[mkey] and \
-                cur_sc_name in data[mkey]['hosts']:
+                    cur_sc_name in data[mkey]['hosts']:
 
                 data[mkey]['hosts'][new_sc_name] = \
                     data[mkey]['hosts'].pop(cur_sc_name)
@@ -2758,8 +2788,11 @@ class SubcloudManager(manager.Manager):
                 # it's necessary to save it first, then put it back after
                 # after bootstrap_values is updated.
                 if 'bootstrap-address' in rehome_data_dict['saved_payload']:
-                    _bootstrap_address = rehome_data_dict['saved_payload']['bootstrap-address']
-            bootstrap_values_dict = yaml.load(bootstrap_values, Loader=yaml.SafeLoader)
+                    _bootstrap_address = \
+                        rehome_data_dict['saved_payload']['bootstrap-address']
+            bootstrap_values_dict = yaml.load(
+                bootstrap_values, Loader=yaml.SafeLoader
+            )
 
             # remove sysadmin_password,ansible_ssh_pass,ansible_become_pass
             # encode admin_password
@@ -2771,11 +2804,13 @@ class SubcloudManager(manager.Manager):
                 del bootstrap_values_dict['ansible_become_pass']
             if 'admin_password' in bootstrap_values_dict:
                 bootstrap_values_dict['admin_password'] = base64.b64encode(
-                    bootstrap_values_dict['admin_password'].encode("utf-8")).decode('utf-8')
+                    bootstrap_values_dict['admin_password'].encode("utf-8")
+                ).decode('utf-8')
             rehome_data_dict['saved_payload'] = bootstrap_values_dict
             # put bootstrap_address back into rehome_data_dict
             if _bootstrap_address:
-                rehome_data_dict['saved_payload']['bootstrap-address'] = _bootstrap_address
+                rehome_data_dict['saved_payload'][
+                    'bootstrap-address'] = _bootstrap_address
 
         # update bootstrap_address
         if bootstrap_address:
@@ -2784,7 +2819,8 @@ class SubcloudManager(manager.Manager):
                     resource='subcloud',
                     msg='Cannot update bootstrap_address into rehome data, '
                         'need to import bootstrap_values first')
-            rehome_data_dict['saved_payload']['bootstrap-address'] = bootstrap_address
+            rehome_data_dict['saved_payload'][
+                'bootstrap-address'] = bootstrap_address
 
         rehome_data = None
         if rehome_data_dict:
@@ -3195,7 +3231,9 @@ class SubcloudManager(manager.Manager):
         try:
             subcloud = db_api.subcloud_get_by_region_name(context, subcloud_region)
         except Exception:
-            LOG.exception("Failed to get subcloud by region name: %s" % subcloud_region)
+            LOG.exception(
+                "Failed to get subcloud by region name: %s" % subcloud_region
+            )
             raise
 
         try:
@@ -3256,9 +3294,10 @@ class SubcloudManager(manager.Manager):
         return prestage.prestage_subcloud(context, payload)
 
     @utils.synchronized("regionone-data-cache", external=False)
-    def _get_cached_regionone_data(self, regionone_keystone_client, regionone_sysinv_client=None):
-        if (not SubcloudManager.regionone_data or
-                SubcloudManager.regionone_data['expiry'] <= datetime.datetime.utcnow()):
+    def _get_cached_regionone_data(
+            self, regionone_keystone_client, regionone_sysinv_client=None):
+        if (not SubcloudManager.regionone_data or SubcloudManager.regionone_data[
+                'expiry'] <= datetime.datetime.utcnow()):
             user_list = regionone_keystone_client.get_enabled_users(id_only=False)
             for user in user_list:
                 if user.name == dccommon_consts.ADMIN_USER_NAME:
@@ -3268,15 +3307,18 @@ class SubcloudManager(manager.Manager):
                 elif user.name == dccommon_consts.DCMANAGER_USER_NAME:
                     SubcloudManager.regionone_data['dcmanager_user_id'] = user.id
 
-            project_list = regionone_keystone_client.get_enabled_projects(id_only=False)
+            project_list = regionone_keystone_client.get_enabled_projects(
+                id_only=False)
             for project in project_list:
                 if project.name == dccommon_consts.ADMIN_PROJECT_NAME:
                     SubcloudManager.regionone_data['admin_project_id'] = project.id
                 elif project.name == dccommon_consts.SERVICES_USER_NAME:
-                    SubcloudManager.regionone_data['services_project_id'] = project.id
+                    SubcloudManager.regionone_data['services_project_id'] = \
+                        project.id
 
             if regionone_sysinv_client is None:
-                endpoint = regionone_keystone_client.endpoint_cache.get_endpoint('sysinv')
+                endpoint = regionone_keystone_client.endpoint_cache.get_endpoint(
+                    'sysinv')
                 regionone_sysinv_client = SysinvClient(
                     dccommon_consts.DEFAULT_REGION_NAME,
                     regionone_keystone_client.session,
@@ -3289,8 +3331,8 @@ class SubcloudManager(manager.Manager):
                     controller.hostname)
                 if mgmt_interface is not None:
                     mgmt_interface_uuids.append(mgmt_interface.uuid)
-            SubcloudManager.regionone_data['mgmt_interface_uuids'] = mgmt_interface_uuids
-
+            SubcloudManager.regionone_data['mgmt_interface_uuids'] = \
+                mgmt_interface_uuids
             SubcloudManager.regionone_data['mgmt_pool'] = \
                 regionone_sysinv_client.get_management_address_pool()
             SubcloudManager.regionone_data['oam_addresses'] = \
@@ -3298,7 +3340,8 @@ class SubcloudManager(manager.Manager):
 
             SubcloudManager.regionone_data['expiry'] = \
                 datetime.datetime.utcnow() + datetime.timedelta(hours=1)
-            LOG.info("RegionOne cached data updated %s" % SubcloudManager.regionone_data)
+            LOG.info(
+                "RegionOne cached data updated %s" % SubcloudManager.regionone_data)
 
         cached_regionone_data = SubcloudManager.regionone_data
         return cached_regionone_data

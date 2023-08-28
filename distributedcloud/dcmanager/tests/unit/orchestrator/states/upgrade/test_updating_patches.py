@@ -1,13 +1,14 @@
 #
-# Copyright (c) 2020, 2023 Wind River Systems, Inc.
+# Copyright (c) 2020, 2023-2024 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
-import mock
+
 from os import path as os_path
 
-from dcmanager.common import consts
+import mock
 
+from dcmanager.common import consts
 from dcmanager.tests.unit.orchestrator.states.fakes import FakeLoad
 from dcmanager.tests.unit.orchestrator.states.upgrade.test_base \
     import TestSwUpgradeState
@@ -97,10 +98,11 @@ class TestSwUpgradeUpdatingPatchesStage(TestSwUpgradeState):
         self.subcloud = self.setup_subcloud()
 
         # Add the strategy_step state being processed by this unit test
-        self.strategy_step = \
-            self.setup_strategy_step(self.subcloud.id, consts.STRATEGY_STATE_UPDATING_PATCHES)
+        self.strategy_step = self.setup_strategy_step(
+            self.subcloud.id, consts.STRATEGY_STATE_UPDATING_PATCHES)
 
-        # Add mock API endpoints for patching and sysinv client calls invoked by this state
+        # Add mock API endpoints for patching and sysinv client calls invoked by
+        # this state
         self.patching_client.query = mock.MagicMock()
         self.sysinv_client.get_loads = mock.MagicMock()
         self.patching_client.remove = mock.MagicMock()

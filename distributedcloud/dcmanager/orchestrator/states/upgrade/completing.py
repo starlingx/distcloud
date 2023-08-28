@@ -1,16 +1,17 @@
 #
-# Copyright (c) 2020-2022 Wind River Systems, Inc.
+# Copyright (c) 2020-2022, 2024 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
-import retrying
+
 import time
+
+import retrying
 
 from dcmanager.common import consts
 from dcmanager.common.exceptions import StrategyStoppedException
 from dcmanager.db import api as db_api
 from dcmanager.orchestrator.states.base import BaseState
-
 
 # Max time: 10 minutes = 60 queries x 10 seconds between each query
 DEFAULT_MAX_QUERIES = 60

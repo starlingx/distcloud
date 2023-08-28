@@ -1,5 +1,5 @@
 # Copyright 2015 Huawei Technologies Co., Ltd.
-# Copyright (c) 2017, 2019, 2021 Wind River Systems, Inc.
+# Copyright (c) 2017, 2019, 2021, 2024 Wind River Systems, Inc.
 # All Rights Reserved.
 #
 #    Licensed under the Apache License, Version 2.0 (the "License"); you may
@@ -19,24 +19,25 @@
 # see http://git.openstack.org/cgit/openstack/ironic/tree/ironic/cmd/api.py
 
 
+import logging as std_logging
 import sys
 
 import eventlet
 eventlet.monkey_patch(os=False)
 
-from oslo_config import cfg
-from oslo_log import log as logging
-from oslo_service import systemd
-from oslo_service import wsgi
+# pylint: disable=wrong-import-position
+from oslo_config import cfg  # noqa: E402
+from oslo_log import log as logging  # noqa: E402
+from oslo_service import systemd  # noqa: E402
+from oslo_service import wsgi  # noqa: E402
 
-import logging as std_logging
+from dcmanager.api import api_config  # noqa: E402
+from dcmanager.api import app  # noqa: E402
+from dcmanager.common import config  # noqa: E402
+from dcmanager.common import messaging  # noqa: E402
+from dcorch.common import messaging as dcorch_messaging  # noqa: E402
+# pylint: enable=wrong-import-position
 
-from dcmanager.api import api_config
-from dcmanager.api import app
-
-from dcmanager.common import config
-from dcmanager.common import messaging
-from dcorch.common import messaging as dcorch_messaging
 CONF = cfg.CONF
 config.register_options()
 LOG = logging.getLogger('dcmanager.api')

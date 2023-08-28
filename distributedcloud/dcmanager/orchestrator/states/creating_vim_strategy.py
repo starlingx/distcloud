@@ -1,8 +1,9 @@
 #
-# Copyright (c) 2020-2021 Wind River Systems, Inc.
+# Copyright (c) 2020-2021, 2024 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
+
 import time
 
 from dccommon.drivers.openstack import vim
@@ -120,8 +121,8 @@ class CreatingVIMStrategyState(BaseState):
                 raise_error_if_missing=True)
 
             # Check for skip criteria where a failed 'build' might be expected
-            skip_state = self.skip_check(strategy_step,  # pylint: disable=assignment-from-none
-                                         subcloud_strategy)
+            # pylint: disable-next=assignment-from-none
+            skip_state = self.skip_check(strategy_step, subcloud_strategy)
             if skip_state is not None:
                 self.info_log(strategy_step,
                               "Skip forward to state:(%s)" % skip_state)

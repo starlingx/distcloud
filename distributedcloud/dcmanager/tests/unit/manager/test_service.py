@@ -1,29 +1,33 @@
-# Copyright (c) 2017-2023 Wind River Systems, Inc.
-# Licensed under the Apache License, Version 2.0 (the "License"); you may
-# not use this file except in compliance with the License. You may obtain
-# a copy of the License at
+# Copyright (c) 2017-2024 Wind River Systems, Inc.
+# All Rights Reserved.
+#
+#    Licensed under the Apache License, Version 2.0 (the "License"); you may
+#    not use this file except in compliance with the License. You may obtain
+#    a copy of the License at
 #
 #         http://www.apache.org/licenses/LICENSE-2.0
 #
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
-# WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
-# License for the specific language governing permissions and limitations
-# under the License.
+#    Unless required by applicable law or agreed to in writing, software
+#    distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+#    WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
+#    License for the specific language governing permissions and limitations
+#    under the License.
 #
 
-import mock
 import os.path
 import sys
-sys.modules['fm_core'] = mock.Mock()
+
+import mock
+
+from oslo_config import cfg
+from oslo_utils import uuidutils
 
 from dcmanager.common import scheduler
 from dcmanager.manager import service
 from dcmanager.tests import base
 from dcmanager.tests import utils
-from oslo_config import cfg
-from oslo_utils import uuidutils
 
+sys.modules['fm_core'] = mock.Mock()
 CONF = cfg.CONF
 FAKE_USER = utils.UUID1
 FAKE_JOB = utils.UUID2
@@ -100,7 +104,9 @@ class TestDCManagerService(base.DCManagerTestCase):
             self.context, subcloud_id=1,
             management_state='testmgmtstatus')
         mock_subcloud_manager().update_subcloud.assert_called_once_with(
-            self.context, 1, 'testmgmtstatus', None, None, None, None, None, None, None, None, None)
+            self.context, 1, 'testmgmtstatus', None, None, None, None, None, None,
+            None, None, None
+        )
 
     @mock.patch.object(service, 'SubcloudManager')
     @mock.patch.object(service, 'rpc_messaging')

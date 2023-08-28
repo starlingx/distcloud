@@ -10,7 +10,7 @@
 # License for the specific language governing permissions and limitations
 # under the License.
 #
-# Copyright (c) 2017-2023 Wind River Systems, Inc.
+# Copyright (c) 2017-2024 Wind River Systems, Inc.
 #
 # The right to copy, distribute, modify, or otherwise make use
 # of this software may be licensed only pursuant to the terms
@@ -112,12 +112,11 @@ class DCManagerStateService(service.Service):
         super(DCManagerStateService, self).stop()
 
     @request_context
-    def update_subcloud_endpoint_status(self, context, subcloud_name=None,
-                                        subcloud_region=None,
-                                        endpoint_type=None,
-                                        sync_status=dccommon_consts.SYNC_STATUS_OUT_OF_SYNC,
-                                        alarmable=True,
-                                        ignore_endpoints=None):
+    def update_subcloud_endpoint_status(
+        self, context, subcloud_name=None, subcloud_region=None, endpoint_type=None,
+        sync_status=dccommon_consts.SYNC_STATUS_OUT_OF_SYNC, alarmable=True,
+        ignore_endpoints=None
+    ):
         # Updates subcloud endpoint sync status
         LOG.info("Handling update_subcloud_endpoint_status request for "
                  "subcloud: (%s) endpoint: (%s) status:(%s) "

@@ -1,5 +1,5 @@
 # Copyright (c) 2015 Ericsson AB
-# Copyright (c) 2017-2022 Wind River Systems, Inc.
+# Copyright (c) 2017-2022, 2024 Wind River Systems, Inc.
 # All Rights Reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License"); you may
@@ -15,14 +15,14 @@
 # under the License.
 #
 
-import eventlet
 import random
 import string
 import uuid
 
+import eventlet
+
 from dcmanager.common import context
 from dcmanager.db import api as db_api
-
 
 get_engine = db_api.get_engine
 
@@ -41,7 +41,7 @@ class UUIDStub(object):
 
 
 UUIDs = (UUID1, UUID2, UUID3, UUID4, UUID5) = sorted([str(uuid.uuid4())
-                                                     for x in range(5)])
+                                                      for x in range(5)])
 
 
 def random_name():

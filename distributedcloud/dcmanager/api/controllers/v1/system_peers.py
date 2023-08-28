@@ -1,4 +1,4 @@
-# Copyright (c) 2023 Wind River Systems, Inc.
+# Copyright (c) 2023-2024 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -132,7 +132,7 @@ class SystemPeersController(restcomm.GenericPathController):
 
     def _validate_manager_endpoint(self, endpoint):
         if not endpoint or len(endpoint) >= MAX_SYSTEM_PEER_MANAGER_ENDPOINT_LEN or \
-            not endpoint.startswith(("http", "https")):
+                not endpoint.startswith(("http", "https")):
             LOG.debug("Invalid manager_endpoint: %s" % endpoint)
             return False
         return True
@@ -176,7 +176,7 @@ class SystemPeersController(restcomm.GenericPathController):
 
         # We do not support less than min or greater than max
         if val < MIN_SYSTEM_PEER_HEARTBEAT_INTERVAL or \
-            val > MAX_SYSTEM_PEER_HEARTBEAT_INTERVAL:
+                val > MAX_SYSTEM_PEER_HEARTBEAT_INTERVAL:
             LOG.debug("Invalid heartbeat_interval: %s" % heartbeat_interval)
             return False
         return True
@@ -193,15 +193,14 @@ class SystemPeersController(restcomm.GenericPathController):
 
         # We do not support less than min or greater than max
         if val < MIN_SYSTEM_PEER_HEARTBEAT_FAILURE_THRESHOLD or \
-            val > MAX_SYSTEM_PEER_HEARTBEAT_FAILURE_THRESHOLD:
+                val > MAX_SYSTEM_PEER_HEARTBEAT_FAILURE_THRESHOLD:
             LOG.debug("Invalid heartbeat_failure_threshold: %s" %
                       heartbeat_failure_threshold)
             return False
         return True
 
     def _validate_heartbeat_failure_policy(self, heartbeat_failure_policy):
-        if heartbeat_failure_policy not in \
-            SYSTEM_PEER_HEARTBEAT_FAILURE_POLICY_LIST:
+        if heartbeat_failure_policy not in SYSTEM_PEER_HEARTBEAT_FAILURE_POLICY_LIST:
             LOG.debug("Invalid heartbeat_failure_policy: %s" %
                       heartbeat_failure_policy)
             return False
@@ -219,7 +218,7 @@ class SystemPeersController(restcomm.GenericPathController):
 
         # We do not support less than min or greater than max
         if val < MIN_SYSTEM_PEER_HEARTBEAT_MAINTENACE_TIMEOUT or \
-            val > MAX_SYSTEM_PEER_HEARTBEAT_MAINTENACE_TIMEOUT:
+                val > MAX_SYSTEM_PEER_HEARTBEAT_MAINTENACE_TIMEOUT:
             LOG.debug("Invalid heartbeat_maintenance_timeout: %s" %
                       heartbeat_maintenance_timeout)
             return False
@@ -287,7 +286,7 @@ class SystemPeersController(restcomm.GenericPathController):
             payload.get('heartbeat_failure_threshold')
         if heartbeat_failure_threshold is not None:
             if not self._validate_heartbeat_failure_threshold(
-                heartbeat_failure_threshold):
+                    heartbeat_failure_threshold):
                 pecan.abort(httpclient.BAD_REQUEST,
                             _('Invalid peer heartbeat_failure_threshold'))
             kwargs['heartbeat_failure_threshold'] = heartbeat_failure_threshold
@@ -295,7 +294,7 @@ class SystemPeersController(restcomm.GenericPathController):
         heartbeat_failure_policy = payload.get('heartbeat_failure_policy')
         if heartbeat_failure_policy:
             if not self._validate_heartbeat_failure_policy(
-                heartbeat_failure_policy):
+                    heartbeat_failure_policy):
                 pecan.abort(httpclient.BAD_REQUEST,
                             _('Invalid peer heartbeat_failure_policy'))
             kwargs['heartbeat_failure_policy'] = heartbeat_failure_policy
@@ -304,7 +303,7 @@ class SystemPeersController(restcomm.GenericPathController):
             payload.get('heartbeat_maintenance_timeout')
         if heartbeat_maintenance_timeout is not None:
             if not self._validate_heartbeat_maintenance_timeout(
-                heartbeat_maintenance_timeout):
+                    heartbeat_maintenance_timeout):
                 pecan.abort(httpclient.BAD_REQUEST,
                             _('Invalid peer heartbeat_maintenance_timeout'))
             kwargs['heartbeat_maintenance_timeout'] = \
@@ -419,19 +418,19 @@ class SystemPeersController(restcomm.GenericPathController):
 
         if heartbeat_failure_threshold:
             if not self._validate_heartbeat_failure_threshold(
-                heartbeat_failure_threshold):
+                    heartbeat_failure_threshold):
                 pecan.abort(httpclient.BAD_REQUEST,
                             _('Invalid peer heartbeat_failure_threshold'))
 
         if heartbeat_failure_policy:
             if not self._validate_heartbeat_failure_policy(
-                heartbeat_failure_policy):
+                    heartbeat_failure_policy):
                 pecan.abort(httpclient.BAD_REQUEST,
                             _('Invalid peer heartbeat_failure_policy'))
 
         if heartbeat_maintenance_timeout:
             if not self._validate_heartbeat_maintenance_timeout(
-                heartbeat_maintenance_timeout):
+                    heartbeat_maintenance_timeout):
                 pecan.abort(httpclient.BAD_REQUEST,
                             _('Invalid peer heartbeat_maintenance_timeout'))
 

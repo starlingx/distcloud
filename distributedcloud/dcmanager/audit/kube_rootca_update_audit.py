@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2021-2023 Wind River Systems, Inc.
+# Copyright (c) 2021-2024 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -114,7 +114,7 @@ class KubeRootcaUpdateAudit(Auditor):
         # the distributed cloud and the subcloud running on old software
         # version that cannot search for the k8s root CA cert id.
         if dccommon_utils.is_centos(subcloud.software_version) or \
-            not subcloud.rehomed:
+                not subcloud.rehomed:
             self.subcloud_audit_alarm_based(subcloud_name, subcloud_region,
                                             session)
             return

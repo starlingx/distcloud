@@ -1,8 +1,9 @@
 #
-# Copyright (c) 2020, 2022 Wind River Systems, Inc.
+# Copyright (c) 2020, 2022, 2024 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
+
 import itertools
 import mock
 
@@ -10,8 +11,8 @@ from dcmanager.common import consts
 from dcmanager.orchestrator.states import lock_host
 
 from dcmanager.tests.unit.orchestrator.states.fakes import FakeController
-from dcmanager.tests.unit.orchestrator.states.upgrade.test_base \
-    import TestSwUpgradeState
+from dcmanager.tests.unit.orchestrator.states.upgrade.test_base import \
+    TestSwUpgradeState
 
 
 @mock.patch("dcmanager.orchestrator.states.lock_host.DEFAULT_MAX_QUERIES", 3)
@@ -38,19 +39,20 @@ class TestSwUpgradeLockSimplexStage(TestSwUpgradeState):
         self.setup_fake_controllers('controller-0')
 
     def setup_fake_controllers(self, host_name):
-        self.CONTROLLER_UNLOCKED = FakeController(hostname=host_name,
-                                                  administrative=consts.ADMIN_UNLOCKED)
-        self.CONTROLLER_LOCKED = FakeController(hostname=host_name,
-                                                administrative=consts.ADMIN_LOCKED)
-        self.CONTROLLER_LOCKING = FakeController(hostname=host_name,
-                                                 administrative=consts.ADMIN_UNLOCKED,
-                                                 ihost_action='lock',
-                                                 task='Locking')
-        self.CONTROLLER_LOCKING_FAILED = \
-            FakeController(hostname=host_name,
-                           administrative=consts.ADMIN_UNLOCKED,
-                           ihost_action='force-swact',
-                           task='Swacting')
+        self.CONTROLLER_UNLOCKED = FakeController(
+            hostname=host_name, administrative=consts.ADMIN_UNLOCKED)
+        self.CONTROLLER_LOCKED = FakeController(
+            hostname=host_name, administrative=consts.ADMIN_LOCKED)
+        self.CONTROLLER_LOCKING = FakeController(
+            hostname=host_name,
+            administrative=consts.ADMIN_UNLOCKED,
+            ihost_action='lock',
+            task='Locking')
+        self.CONTROLLER_LOCKING_FAILED = FakeController(
+            hostname=host_name,
+            administrative=consts.ADMIN_UNLOCKED,
+            ihost_action='force-swact',
+            task='Swacting')
 
     def test_lock_success(self):
         """Test the lock command returns a success"""

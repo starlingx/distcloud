@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2023 Wind River Systems, Inc.
+# Copyright (c) 2023-2024 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -150,7 +150,7 @@ class PeerGroupAssociationsController(restcomm.GenericPathController):
             return False
         # Less than min or greater than max priority is not supported.
         if val < MIN_PEER_GROUP_ASSOCIATION_PRIORITY or \
-            val > MAX_PEER_GROUP_ASSOCIATION_PRIORITY:
+                val > MAX_PEER_GROUP_ASSOCIATION_PRIORITY:
             LOG.debug("Invalid Peer Group Priority out of support range: %s"
                       % peer_group_priority)
             return False
@@ -187,7 +187,7 @@ class PeerGroupAssociationsController(restcomm.GenericPathController):
         peer_group = db_api.subcloud_peer_group_get(context, peer_group_id)
 
         if peer_group_priority is not None and not \
-            self._validate_peer_group_priority(peer_group_priority):
+                self._validate_peer_group_priority(peer_group_priority):
             pecan.abort(httpclient.BAD_REQUEST,
                         _('Invalid peer_group_priority'))
 

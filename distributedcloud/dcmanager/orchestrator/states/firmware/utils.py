@@ -1,8 +1,9 @@
 #
-# Copyright (c) 2020 Wind River Systems, Inc.
+# Copyright (c) 2020, 2024 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
+
 import os
 
 # Device Image Status - duplicated from sysinv/common/device.py
@@ -105,7 +106,7 @@ def determine_image_fields(image):
                   'bmc',
                   'retimer_included']
     fields = dict((k, str(v)) for (k, v) in vars(image).items()
-                  if k in field_list and not (v is None))
+                  if k in field_list and v)
     return fields
 
 
@@ -116,10 +117,10 @@ def check_for_label_match(subcloud_host_device_label_list,
     # todo(abailey): should this compare pci_device_uuid or vendor/device
     for device_label in subcloud_host_device_label_list:
         if device_label.pcidevice_uuid and \
-            device_uuid == device_label.pcidevice_uuid and \
-            label_key == device_label.label_key and \
-            label_value == device_label.label_value:
-                return True
+                device_uuid == device_label.pcidevice_uuid and \
+                label_key == device_label.label_key and \
+                label_value == device_label.label_value:
+            return True
     return False
 
 

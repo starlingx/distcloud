@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2023 Wind River Systems, Inc.
+# Copyright (c) 2023-2024 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -116,7 +116,8 @@ class SystemPeerManager(manager.Manager):
         """
         if SystemPeerManager.get_subcloud_deploy_status(subcloud) not in (
             consts.DEPLOY_STATE_SECONDARY_FAILED,
-            consts.DEPLOY_STATE_SECONDARY):
+            consts.DEPLOY_STATE_SECONDARY
+        ):
             return False
         return True
 
@@ -305,7 +306,7 @@ class SystemPeerManager(manager.Manager):
 
             validation = self._is_valid_for_subcloud_sync(subcloud)
             if validation != VERIFY_SUBCLOUD_SYNC_IGNORE and \
-                validation != VERIFY_SUBCLOUD_SYNC_VALID:
+                    validation != VERIFY_SUBCLOUD_SYNC_VALID:
                 LOG.error(validation)
                 error_msg[subcloud_name] = validation
                 continue
@@ -675,7 +676,7 @@ class SystemPeerManager(manager.Manager):
                     LOG.info(f"Deleted Subcloud Peer Group {peer_group_name} "
                              f"on peer site.")
                 except dccommon_exceptions.\
-                    SubcloudPeerGroupDeleteFailedAssociated:
+                        SubcloudPeerGroupDeleteFailedAssociated:
                     LOG.error(f"Subcloud Peer Group {peer_group_name} "
                               "delete failed as it is associated with System "
                               "Peer on peer site.")

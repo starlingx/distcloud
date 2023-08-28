@@ -1,5 +1,5 @@
 # Copyright (c) 2015 Huawei Tech. Co., Ltd.
-# Copyright (c) 2017, 2019, 2021 Wind River Systems, Inc.
+# Copyright (c) 2017, 2019, 2021, 2024 Wind River Systems, Inc.
 # All Rights Reserved.
 #
 #    Licensed under the Apache License, Version 2.0 (the "License"); you may
@@ -42,13 +42,13 @@ class RootController(object):
                         {
                             "rel": "self",
                             "href": pecan.request.application_url + "/v1.0/"
-                            }
-                        ],
+                        }
+                    ],
                     "id": "v1.0",
                     "updated": "2017-10-2"
-                    }
-                ]
-            }
+                }
+            ]
+        }
 
     @index.when(method='POST')
     @index.when(method='PUT')

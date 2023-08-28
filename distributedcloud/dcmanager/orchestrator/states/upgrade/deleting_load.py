@@ -1,8 +1,9 @@
 #
-# Copyright (c) 2020-2023 Wind River Systems, Inc.
+# Copyright (c) 2020-2024 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
+
 import time
 
 from dcmanager.common import consts
@@ -53,7 +54,8 @@ class DeletingLoadState(BaseState):
 
                 # Get a sysinv client each time. It will automatically renew the
                 # token if it is about to expire.
-                sysinv_client = self.get_sysinv_client(strategy_step.subcloud.region_name)
+                sysinv_client = \
+                    self.get_sysinv_client(strategy_step.subcloud.region_name)
                 if len(sysinv_client.get_loads()) == 1:
                     msg = "Load %s deleted." % load_version
                     self.info_log(strategy_step, msg)

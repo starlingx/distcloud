@@ -1,5 +1,5 @@
 # Copyright (c) 2015 Ericsson AB
-# Copyright (c) 2017-2023 Wind River Systems, Inc.
+# Copyright (c) 2017-2024 Wind River Systems, Inc.
 # All Rights Reserved.
 #
 #    Licensed under the Apache License, Version 2.0 (the "License"); you may
@@ -14,6 +14,7 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 #
+
 """
 SQLAlchemy models for dcmanager data.
 """
@@ -22,25 +23,19 @@ import datetime
 import json
 
 from oslo_db.sqlalchemy import models
-
-from sqlalchemy.orm import backref
-from sqlalchemy.orm import relationship
-from sqlalchemy.orm import session as orm_session
-
 from sqlalchemy import Boolean
 from sqlalchemy import Column
 from sqlalchemy import DateTime
+from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy import ForeignKey
 from sqlalchemy import Integer
+from sqlalchemy.orm import backref
+from sqlalchemy.orm import relationship
+from sqlalchemy.orm import session as orm_session
 from sqlalchemy import String
 from sqlalchemy import Text
-
-from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.types import TypeDecorator
 from sqlalchemy.types import VARCHAR
-
-
-# from dcmanager.common import consts
 
 BASE = declarative_base()
 
@@ -209,14 +204,17 @@ class SubcloudAudits(BASE, DCManagerBase):
     subcloud_id = Column(Integer,
                          ForeignKey('subclouds.id', ondelete='CASCADE'),
                          unique=True)
-    audit_started_at = Column(DateTime(timezone=False), default=datetime.datetime.min)
-    audit_finished_at = Column(DateTime(timezone=False), default=datetime.datetime.min)
+    audit_started_at = Column(DateTime(timezone=False),
+                              default=datetime.datetime.min)
+    audit_finished_at = Column(DateTime(timezone=False),
+                               default=datetime.datetime.min)
     state_update_requested = Column(Boolean, nullable=False, default=False)
     patch_audit_requested = Column(Boolean, nullable=False, default=False)
     load_audit_requested = Column(Boolean, nullable=False, default=False)
     firmware_audit_requested = Column(Boolean, nullable=False, default=False)
     kubernetes_audit_requested = Column(Boolean, nullable=False, default=False)
-    kube_rootca_update_audit_requested = Column(Boolean, nullable=False, default=False)
+    kube_rootca_update_audit_requested = Column(Boolean, nullable=False,
+                                                default=False)
     spare_audit_requested = Column(Boolean, nullable=False, default=False)
     spare2_audit_requested = Column(Boolean, nullable=False, default=False)
     reserved = Column(Text)

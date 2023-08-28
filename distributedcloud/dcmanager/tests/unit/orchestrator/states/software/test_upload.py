@@ -1,15 +1,19 @@
 #
-# Copyright (c) 2023 Wind River Systems, Inc.
+# Copyright (c) 2023-2024 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
-import mock
+
 import os
+
+import mock
+
 from oslo_config import cfg
 
 from dcmanager.common import consts
 from dcmanager.orchestrator.states.software.upload import UploadState
-from dcmanager.tests.unit.orchestrator.states.software.test_base import TestSoftwareOrchestrator
+from dcmanager.tests.unit.orchestrator.states.software.test_base \
+    import TestSoftwareOrchestrator
 
 REGION_ONE_RELEASES = {"DC_20.12.1": {"sw_version": "20.12.1",
                                       "state": "deployed"},
@@ -77,10 +81,10 @@ class TestUploadState(TestSoftwareOrchestrator):
         # invoke the strategy state operation on the orch thread
         self.worker.perform_state_action(self.strategy_step)
 
-        self.software_client.upload.assert_called_once_with([consts.RELEASE_VAULT_DIR +
-                                                             '/20.12/DC_20.12.3.patch',
-                                                             consts.RELEASE_VAULT_DIR +
-                                                             '/20.12/DC_20.12.4.patch'])
+        self.software_client.upload.assert_called_once_with([
+            consts.RELEASE_VAULT_DIR + '/20.12/DC_20.12.3.patch',
+            consts.RELEASE_VAULT_DIR + '/20.12/DC_20.12.4.patch'
+        ])
 
         # On success, the state should transition to the next state
         self.assert_step_updated(self.strategy_step.subcloud_id,
@@ -98,10 +102,10 @@ class TestUploadState(TestSoftwareOrchestrator):
         # invoke the strategy state operation on the orch thread
         self.worker.perform_state_action(self.strategy_step)
 
-        self.software_client.upload.assert_called_once_with([consts.RELEASE_VAULT_DIR +
-                                                             '/20.12/DC_20.12.3.patch',
-                                                             consts.RELEASE_VAULT_DIR +
-                                                             '/20.12/DC_20.12.4.patch'])
+        self.software_client.upload.assert_called_once_with([
+            consts.RELEASE_VAULT_DIR + '/20.12/DC_20.12.3.patch',
+            consts.RELEASE_VAULT_DIR + '/20.12/DC_20.12.4.patch'
+        ])
 
         # On success, the state should transition to the next state
         self.assert_step_updated(self.strategy_step.subcloud_id,
@@ -152,15 +156,16 @@ class TestUploadState(TestSoftwareOrchestrator):
         mock_read_from_cache.side_effect = [REGION_ONE_RELEASES_2, False]
         mock_is_dir.return_value = True
         mock_listdir.return_value = ["DC_22.12.0.iso", "DC_22.12.0.sig"]
-        self.software_client.query.side_effect = [SUBCLOUD_RELEASES, REGION_ONE_RELEASES_2]
+        self.software_client.query.side_effect = [
+            SUBCLOUD_RELEASES, REGION_ONE_RELEASES_2]
 
         # invoke the strategy state operation on the orch thread
         self.worker.perform_state_action(self.strategy_step)
 
-        self.software_client.upload.assert_called_once_with([consts.RELEASE_VAULT_DIR +
-                                                             '/22.12/DC_22.12.0.iso',
-                                                             consts.RELEASE_VAULT_DIR +
-                                                             '/22.12/DC_22.12.0.sig'])
+        self.software_client.upload.assert_called_once_with([
+            consts.RELEASE_VAULT_DIR + '/22.12/DC_22.12.0.iso',
+            consts.RELEASE_VAULT_DIR + '/22.12/DC_22.12.0.sig'
+        ])
 
         # On success, the state should transition to the next state
         self.assert_step_updated(self.strategy_step.subcloud_id,
@@ -183,10 +188,10 @@ class TestUploadState(TestSoftwareOrchestrator):
         # invoke the strategy state operation on the orch thread
         self.worker.perform_state_action(self.strategy_step)
 
-        self.software_client.upload.assert_called_once_with([consts.RELEASE_VAULT_DIR +
-                                                             '/22.12/DC_22.12.0.iso',
-                                                             consts.RELEASE_VAULT_DIR +
-                                                             '/22.12/DC_22.12.0.sig'])
+        self.software_client.upload.assert_called_once_with([
+            consts.RELEASE_VAULT_DIR + '/22.12/DC_22.12.0.iso',
+            consts.RELEASE_VAULT_DIR + '/22.12/DC_22.12.0.sig'
+        ])
 
         # On success, the state should transition to the next state
         self.assert_step_updated(self.strategy_step.subcloud_id,
@@ -209,12 +214,11 @@ class TestUploadState(TestSoftwareOrchestrator):
         # invoke the strategy state operation on the orch thread
         self.worker.perform_state_action(self.strategy_step)
 
-        self.software_client.upload.assert_called_once_with([consts.RELEASE_VAULT_DIR +
-                                                             '/22.12/DC_22.12.1.patch',
-                                                             consts.RELEASE_VAULT_DIR +
-                                                             '/22.12/DC_22.12.0.iso',
-                                                             consts.RELEASE_VAULT_DIR +
-                                                             '/22.12/DC_22.12.0.sig'])
+        self.software_client.upload.assert_called_once_with([
+            consts.RELEASE_VAULT_DIR + '/22.12/DC_22.12.1.patch',
+            consts.RELEASE_VAULT_DIR + '/22.12/DC_22.12.0.iso',
+            consts.RELEASE_VAULT_DIR + '/22.12/DC_22.12.0.sig'
+        ])
 
         # On success, the state should transition to the next state
         self.assert_step_updated(self.strategy_step.subcloud_id,

@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2023 Wind River Systems, Inc.
+# Copyright (c) 2023-2024 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -128,14 +128,16 @@ class UploadState(BaseState):
 
                     if iso_release in subcloud_releases:
                         if potential_missing_patches:
-                            # Retrieve patches that are present in the system controller and
-                            #  not in the subcloud after uploading load to the subcloud.
+                            # Retrieve patches that are present in the system
+                            # controller and not in the subcloud after uploading
+                            # load to the subcloud.
                             missing_patches = self. \
                                 _find_missing_patches(subcloud_releases,
                                                       potential_missing_patches)
 
                             if missing_patches:
-                                message = (f"Release files {missing_patches} are missing")
+                                message = \
+                                    (f"Release files {missing_patches} are missing")
                                 self.error_log(strategy_step, message)
                                 raise Exception(message)
                         break
@@ -148,14 +150,19 @@ class UploadState(BaseState):
             else:
                 # No load was uploaded therefore the patches are really missing.
                 if potential_missing_patches:
-                    message = (f"Release files {potential_missing_patches} are missing")
+                    message = \
+                        (f"Release files {potential_missing_patches} are missing")
                     self.error_log(strategy_step, message)
                     raise Exception(message)
 
         if upload_only:
-            self.info_log(strategy_step,
-                          (f"{consts.EXTRA_ARGS_UPLOAD_ONLY} option enabled, skipping"
-                           f" forward to state:({consts.STRATEGY_STATE_COMPLETE})"))
+            self.info_log(
+                strategy_step,
+                (
+                    f"{consts.EXTRA_ARGS_UPLOAD_ONLY} option enabled, skipping"
+                    f" forward to state:({consts.STRATEGY_STATE_COMPLETE})"
+                )
+            )
             return consts.STRATEGY_STATE_COMPLETE
 
         return self.next_state

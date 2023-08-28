@@ -1,8 +1,9 @@
 #
-# Copyright (c) 2020-2023 Wind River Systems, Inc.
+# Copyright (c) 2020-2024 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
+
 from dccommon.drivers.openstack import patching_v1
 from dcmanager.common import consts
 from dcmanager.common.exceptions import StrategyStoppedException
@@ -46,8 +47,9 @@ class FinishingPatchStrategyState(BaseState):
             state=patching_v1.PATCH_STATE_COMMITTED
         )
 
-        self.debug_log(strategy_step,
-                       "regionone_committed_patches: %s" % regionone_committed_patches)
+        self.debug_log(
+            strategy_step,
+            "regionone_committed_patches: %s" % regionone_committed_patches)
 
         committed_patch_ids = list()
         for patch_id in regionone_committed_patches.keys():
@@ -77,8 +79,9 @@ class FinishingPatchStrategyState(BaseState):
             elif subcloud_patches[patch_id]['patchstate'] == \
                     patching_v1.PATCH_STATE_APPLIED:
                 if patch_id in committed_patch_ids:
-                    self.info_log(strategy_step,
-                                  "Patch %s will be committed in subcloud" % patch_id)
+                    self.info_log(
+                        strategy_step,
+                        "Patch %s will be committed in subcloud" % patch_id)
                     patches_to_commit.append(patch_id)
 
         if patches_to_delete:

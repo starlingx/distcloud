@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2022-2023 Wind River Systems, Inc.
+# Copyright (c) 2022-2024 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -98,7 +98,8 @@ class SubcloudBackupController(object):
             if param in request.POST:
                 file_item = request.POST[param]
                 file_item.file.seek(0, os.SEEK_SET)
-                data = utils.yaml_safe_load(file_item.file.read().decode('utf8'), param)
+                data = \
+                    utils.yaml_safe_load(file_item.file.read().decode('utf8'), param)
                 payload.update({param: data})
                 del request.POST[param]
 
@@ -176,7 +177,8 @@ class SubcloudBackupController(object):
             operation (string): Subcloud backup operation
         """
         subclouds = request_entity.subclouds
-        error_msg = _('Subcloud(s) must be in a valid state for backup %s.' % operation)
+        error_msg = _(
+            'Subcloud(s) must be in a valid state for backup %s.' % operation)
         has_valid_subclouds = False
         valid_subclouds = list()
         for subcloud in subclouds:
@@ -361,8 +363,10 @@ class SubcloudBackupController(object):
                 payload.get('restore_values', {}).get('bootstrap_address', {})
 
             if not isinstance(bootstrap_address_dict, dict):
-                pecan.abort(400, _('The bootstrap_address provided in restore_values '
-                                   'is in invalid format.'))
+                pecan.abort(
+                    400, _('The bootstrap_address provided in restore_values '
+                           'is in invalid format.')
+                )
 
             restore_subclouds = self._validate_subclouds(
                 request_entity, verb, bootstrap_address_dict)
@@ -376,13 +380,16 @@ class SubcloudBackupController(object):
                 ]
                 if subclouds_without_install_values:
                     subclouds_str = ', '.join(subclouds_without_install_values)
-                    pecan.abort(400, _('The restore operation was requested with_install, '
-                                       'but the following subcloud(s) does not contain '
-                                       'install values: %s' % subclouds_str))
+                    pecan.abort(
+                        400, _('The restore operation was requested with_install, '
+                               'but the following subcloud(s) does not contain '
+                               'install values: %s' % subclouds_str)
+                    )
                 # Confirm the requested or active load is still in dc-vault
                 payload['software_version'] = utils.get_sw_version(
                     payload.get('release'))
-                matching_iso, err_msg = utils.get_matching_iso(payload['software_version'])
+                matching_iso, err_msg = \
+                    utils.get_matching_iso(payload['software_version'])
                 if err_msg:
                     LOG.exception(err_msg)
                     pecan.abort(400, _(err_msg))
@@ -391,8 +398,10 @@ class SubcloudBackupController(object):
 
             try:
                 # local update to deploy_status - this is just for CLI response
+                # pylint: disable-next=consider-using-enumerate
                 for i in range(len(restore_subclouds)):
-                    restore_subclouds[i].deploy_status = consts.DEPLOY_STATE_PRE_RESTORE
+                    restore_subclouds[i].deploy_status = (
+                        consts.DEPLOY_STATE_PRE_RESTORE)
                 message = self.dcmanager_rpc_client.restore_subcloud_backups(
                     context, payload)
                 return utils.subcloud_db_list_to_dict(restore_subclouds)

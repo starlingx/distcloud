@@ -1,8 +1,9 @@
 #
-# Copyright (c) 2020 Wind River Systems, Inc.
+# Copyright (c) 2020, 2024 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
+
 import time
 
 from dccommon.drivers.openstack import vim
@@ -30,7 +31,8 @@ class ApplyingVIMStrategyState(BaseState):
 
     def __init__(self, region_name):
         super(ApplyingVIMStrategyState, self).__init__(
-            next_state=consts.STRATEGY_STATE_FINISHING_FW_UPDATE, region_name=region_name)
+            next_state=consts.STRATEGY_STATE_FINISHING_FW_UPDATE,
+            region_name=region_name)
         self.max_failed_queries = DEFAULT_MAX_FAILED_QUERIES
         self.wait_attempts = DEFAULT_MAX_WAIT_ATTEMPTS
         self.wait_interval = WAIT_INTERVAL

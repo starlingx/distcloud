@@ -1,5 +1,5 @@
 # Copyright (c) 2015 Ericsson AB.
-# Copyright (c) 2017, 2019, 2021 Wind River Systems, Inc.
+# Copyright (c) 2017, 2019, 2021, 2024 Wind River Systems, Inc.
 # All Rights Reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License"); you may
@@ -16,11 +16,10 @@
 #
 
 import mock
+from oslo_versionedobjects import fields as obj_fields
 
 from dcmanager.objects import base as obj_base
 from dcmanager.tests import base
-
-from oslo_versionedobjects import fields as obj_fields
 
 
 class TestBaseObject(base.DCManagerTestCase):

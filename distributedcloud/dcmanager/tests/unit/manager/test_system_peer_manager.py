@@ -1,12 +1,13 @@
 #
-# Copyright (c) 2023 Wind River Systems, Inc.
+# Copyright (c) 2023-2024 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
 
 import json
-import mock
 import uuid
+
+import mock
 
 from dccommon import exceptions as dccommon_exceptions
 from dcmanager.db.sqlalchemy import api as db_api
@@ -432,8 +433,8 @@ class TestSystemPeerManager(base.DCManagerTestCase):
     @mock.patch.object(system_peer_manager, 'SysinvClient')
     @mock.patch.object(system_peer_manager, 'DcmanagerClient')
     def test_delete_peer_group_association_peer_site_association_not_exsit(
-        self, mock_dc_client, mock_sysinv_client, mock_keystone_client,
-        mock_utils):
+        self, mock_dc_client, mock_sysinv_client, mock_keystone_client, mock_utils
+    ):
         mock_keystone_client().keystone_client = FakeKeystoneClient()
         mock_sysinv_client.return_value = FakeSysinvClient()
         mock_dc_client.return_value = FakeDcmanagerClient()

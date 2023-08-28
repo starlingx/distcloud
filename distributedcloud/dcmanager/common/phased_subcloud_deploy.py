@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2023 Wind River Systems, Inc.
+# Copyright (c) 2023-2024 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -241,13 +241,13 @@ def validate_subcloud_config(context, payload, operation=None,
         LOG.exception(e)
         pecan.abort(400, _("management_end_address invalid: %s") % e)
 
-    if not management_start_ip < management_end_ip:
+    if management_start_ip > management_end_ip:
         pecan.abort(
             400,
-            _("management_start_address  not less than "
+            _("management_start_address greater than "
                 "management_end_address"))
 
-    if not len(netaddr.IPRange(management_start_ip, management_end_ip)) >= \
+    if len(netaddr.IPRange(management_start_ip, management_end_ip)) < \
             MIN_MANAGEMENT_ADDRESSES:
         pecan.abort(
             400,
@@ -379,13 +379,13 @@ def validate_admin_network_config(admin_subnet_str,
         LOG.exception(e)
         pecan.abort(400, _("admin_end_address invalid: %s") % e)
 
-    if not admin_start_ip < admin_end_ip:
+    if admin_start_ip > admin_end_ip:
         pecan.abort(
             400,
-            _("admin_start_address  not less than "
+            _("admin_start_address greater than "
                 "admin_end_address"))
 
-    if not len(netaddr.IPRange(admin_start_ip, admin_end_ip)) >= \
+    if len(netaddr.IPRange(admin_start_ip, admin_end_ip)) < \
             MIN_ADMIN_ADDRESSES:
         pecan.abort(
             400,
@@ -975,7 +975,9 @@ def populate_payload_with_pre_existing_data(payload: dict,
                 msg = _("Required %s file was not provided and it was not "
                         "previously available.") % value
                 pecan.abort(400, msg)
-            payload.update(dict(list(existing_values.items()) + list(payload.items())))
+            payload.update(
+                dict(list(existing_values.items()) + list(payload.items()))
+            )
         elif value == consts.DEPLOY_CONFIG:
             if not payload.get(consts.DEPLOY_CONFIG):
                 fn = get_config_file_path(subcloud.name, value)

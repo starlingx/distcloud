@@ -1,5 +1,7 @@
 #!/usr/bin/env python
-# Copyright (c) 2017-2021 Wind River Systems, Inc.
+# Copyright (c) 2017-2021, 2024 Wind River Systems, Inc.
+# All Rights Reserved.
+#
 #    Licensed under the Apache License, Version 2.0 (the "License"); you may
 #    not use this file except in compliance with the License. You may obtain
 #    a copy of the License at
@@ -18,18 +20,20 @@ DC Manager Engine Server.
 """
 
 import eventlet
+
+# pylint: disable=wrong-import-position
+from oslo_config import cfg  # noqa: E402
+from oslo_i18n import _lazy  # noqa: E402
+from oslo_log import log as logging  # noqa: E402
+from oslo_service import service  # noqa: E402
+
+from dcmanager.common import config  # noqa: E402
+from dcmanager.common import consts  # noqa: E402
+from dcmanager.common import messaging  # noqa: E402
+from dcorch.common import messaging as dcorch_messaging  # noqa: E402
+# pylint: enable=wrong-import-position
+
 eventlet.monkey_patch()
-
-from oslo_config import cfg
-from oslo_i18n import _lazy
-from oslo_log import log as logging
-from oslo_service import service
-
-from dcmanager.common import config
-from dcmanager.common import consts
-from dcmanager.common import messaging
-from dcorch.common import messaging as dcorch_messaging
-
 _lazy.enable_lazy()
 config.register_options()
 config.register_keystone_options()
@@ -58,6 +62,7 @@ def main():
     # the following periodic tasks are intended serve as HA checking
     # srv.create_periodic_tasks()
     launcher.wait()
+
 
 if __name__ == '__main__':
     main()

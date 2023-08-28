@@ -1,5 +1,5 @@
 # Copyright (c) 2015 Ericsson AB.
-# Copyright (c) 2017-2023 Wind River Systems, Inc.
+# Copyright (c) 2017-2024 Wind River Systems, Inc.
 # All Rights Reserved.
 #
 #    Licensed under the Apache License, Version 2.0 (the "License"); you may
@@ -14,6 +14,7 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 #
+
 """
 Interface for database access.
 
@@ -136,13 +137,12 @@ def subcloud_create(context, name, description, location, software_version,
                     systemcontroller_gateway_ip, deploy_status, error_description,
                     region_name, openstack_installed, group_id, data_install=None):
     """Create a subcloud."""
-    return IMPL.subcloud_create(context, name, description, location,
-                                software_version,
-                                management_subnet, management_gateway_ip,
-                                management_start_ip, management_end_ip,
-                                systemcontroller_gateway_ip, deploy_status,
-                                error_description, region_name, openstack_installed, group_id,
-                                data_install)
+    return IMPL.subcloud_create(
+        context, name, description, location, software_version, management_subnet,
+        management_gateway_ip, management_start_ip, management_end_ip,
+        systemcontroller_gateway_ip, deploy_status, error_description, region_name,
+        openstack_installed, group_id, data_install
+    )
 
 
 def subcloud_get(context, subcloud_id):
@@ -185,29 +185,26 @@ def subcloud_get_all_with_status(context):
     return IMPL.subcloud_get_all_with_status(context)
 
 
-def subcloud_update(context, subcloud_id, management_state=None,
-                    availability_status=None, software_version=None, name=None,
-                    description=None, management_subnet=None, management_gateway_ip=None,
-                    management_start_ip=None, management_end_ip=None,
-                    location=None, audit_fail_count=None,
-                    deploy_status=None, backup_status=None,
-                    backup_datetime=None, error_description=None,
-                    openstack_installed=None, group_id=None,
-                    data_install=None, data_upgrade=None,
-                    first_identity_sync_complete=None,
-                    systemcontroller_gateway_ip=None,
-                    peer_group_id=None, rehome_data=None, rehomed=None):
+def subcloud_update(
+    context, subcloud_id, management_state=None, availability_status=None,
+    software_version=None, name=None, description=None, management_subnet=None,
+    management_gateway_ip=None, management_start_ip=None, management_end_ip=None,
+    location=None, audit_fail_count=None, deploy_status=None, backup_status=None,
+    backup_datetime=None, error_description=None, openstack_installed=None,
+    group_id=None, data_install=None, data_upgrade=None,
+    first_identity_sync_complete=None, systemcontroller_gateway_ip=None,
+    peer_group_id=None, rehome_data=None, rehomed=None
+):
     """Update a subcloud or raise if it does not exist."""
-    return IMPL.subcloud_update(context, subcloud_id, management_state,
-                                availability_status, software_version, name,
-                                description, management_subnet, management_gateway_ip,
-                                management_start_ip, management_end_ip, location,
-                                audit_fail_count, deploy_status, backup_status,
-                                backup_datetime, error_description, openstack_installed,
-                                group_id, data_install, data_upgrade,
-                                first_identity_sync_complete,
-                                systemcontroller_gateway_ip, peer_group_id,
-                                rehome_data, rehomed)
+    return IMPL.subcloud_update(
+        context, subcloud_id, management_state, availability_status,
+        software_version, name, description, management_subnet,
+        management_gateway_ip, management_start_ip, management_end_ip, location,
+        audit_fail_count, deploy_status, backup_status, backup_datetime,
+        error_description, openstack_installed, group_id, data_install, data_upgrade,
+        first_identity_sync_complete, systemcontroller_gateway_ip, peer_group_id,
+        rehome_data, rehomed
+    )
 
 
 def subcloud_bulk_update_by_ids(context, subcloud_ids, update_form):
@@ -219,8 +216,6 @@ def subcloud_destroy(context, subcloud_id):
     """Destroy the subcloud or raise if it does not exist."""
     return IMPL.subcloud_destroy(context, subcloud_id)
 
-
-###################
 
 def subcloud_status_create(context, subcloud_id, endpoint_type):
     """Create a subcloud status for an endpoint_type."""
@@ -261,7 +256,6 @@ def subcloud_endpoint_status_db_model_to_dict(subcloud_status):
 
 
 def subcloud_status_get(context, subcloud_id, endpoint_type):
-
     """Retrieve the subcloud status for an endpoint
 
     Will raise if subcloud does not exist.
@@ -766,7 +760,6 @@ def sw_update_opts_update(context, subcloud_id,
                           max_parallel_workers=None,
                           alarm_restriction_type=None,
                           default_instance_action=None):
-
     """Update sw update options or raise if it does not exist."""
     return IMPL.sw_update_opts_update(context, subcloud_id,
                                       storage_apply_type,
@@ -806,7 +799,6 @@ def sw_update_opts_default_update(context,
                                   max_parallel_workers=None,
                                   alarm_restriction_type=None,
                                   default_instance_action=None):
-
     """Update default sw update options."""
     return IMPL.sw_update_opts_default_update(context,
                                               storage_apply_type,

@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2020-2021 Wind River Systems, Inc.
+# Copyright (c) 2020-2021, 2024 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -24,7 +24,9 @@ class UpgradingDuplexState(BaseState):
 
     def __init__(self, region_name):
         super(UpgradingDuplexState, self).__init__(
-            next_state=consts.STRATEGY_STATE_UNLOCKING_CONTROLLER_1, region_name=region_name)
+            next_state=consts.STRATEGY_STATE_UNLOCKING_CONTROLLER_1,
+            region_name=region_name
+        )
         self.target_hostname = "controller-1"
         # max time to wait (in seconds) is: sleep_duration * max_queries
         self.sleep_duration = DEFAULT_SLEEP_DURATION
@@ -61,8 +63,12 @@ class UpgradingDuplexState(BaseState):
                 upgrades = self.get_sysinv_client(region).get_upgrades()
 
                 if len(upgrades) != 0:
-                    if (upgrades[0].state == consts.UPGRADE_STATE_DATA_MIGRATION_FAILED or
-                            upgrades[0].state == consts.UPGRADE_STATE_DATA_MIGRATION_COMPLETE):
+                    if (
+                        upgrades[0].state ==
+                        consts.UPGRADE_STATE_DATA_MIGRATION_FAILED or
+                        upgrades[0].state ==
+                        consts.UPGRADE_STATE_DATA_MIGRATION_COMPLETE
+                    ):
                         msg = "Upgrade state is %s now" % (upgrades[0].state)
                         self.info_log(strategy_step, msg)
                         break
@@ -79,10 +85,11 @@ class UpgradingDuplexState(BaseState):
                 continue
             api_counter += 1
             if api_counter >= self.max_queries:
-                raise Exception("Timeout waiting for update state to be updated to "
-                                "updated to 'data-migration-failed' or 'data-migration-complete'."
-                                "Please check sysinv.log on the subcloud "
-                                "for details.")
+                raise Exception(
+                    "Timeout waiting for update state to be updated to "
+                    "'data-migration-failed' or 'data-migration-complete'. "
+                    "Please check sysinv.log on the subcloud for details."
+                )
             time.sleep(self.sleep_duration)
 
         # If the upgrade state is 'data-migration-complete' we move to the
@@ -95,7 +102,9 @@ class UpgradingDuplexState(BaseState):
 
         # The list of upgrades will never contain more than one entry.
         if upgrades[0].state == consts.UPGRADE_STATE_DATA_MIGRATION_FAILED:
-            raise Exception("Data migration failed on host %s" % self.target_hostname)
+            raise Exception(
+                "Data migration failed on host %s" % self.target_hostname
+            )
 
         # If we reach at this point, the upgrade state is 'data-migration-complete'
         # and we can move to the next state.

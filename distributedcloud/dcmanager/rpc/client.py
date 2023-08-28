@@ -1,15 +1,17 @@
 # Copyright (c) 2017-2024 Wind River Systems, Inc.
-# Licensed under the Apache License, Version 2.0 (the "License"); you may
-# not use this file except in compliance with the License. You may obtain
-# a copy of the License at
+# All Rights Reserved.
+#
+#    Licensed under the Apache License, Version 2.0 (the "License"); you may
+#    not use this file except in compliance with the License. You may obtain
+#    a copy of the License at
 #
 #         http://www.apache.org/licenses/LICENSE-2.0
 #
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
-# WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
-# License for the specific language governing permissions and limitations
-# under the License.
+#    Unless required by applicable law or agreed to in writing, software
+#    distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+#    WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
+#    License for the specific language governing permissions and limitations
+#    under the License.
 #
 
 """
@@ -83,12 +85,11 @@ class SubcloudStateClient(RPCClient):
                           update_state_only=update_state_only,
                           audit_fail_count=audit_fail_count))
 
-    def update_subcloud_endpoint_status(self, ctxt, subcloud_name=None,
-                                        subcloud_region=None,
-                                        endpoint_type=None,
-                                        sync_status=dccommon_consts.SYNC_STATUS_OUT_OF_SYNC,
-                                        ignore_endpoints=None,
-                                        alarmable=True):
+    def update_subcloud_endpoint_status(
+        self, ctxt, subcloud_name=None, subcloud_region=None, endpoint_type=None,
+        sync_status=dccommon_consts.SYNC_STATUS_OUT_OF_SYNC, ignore_endpoints=None,
+        alarmable=True
+    ):
         # Note: This is an asynchronous operation.
         # See below for synchronous method call
         return self.cast(ctxt, self.make_msg('update_subcloud_endpoint_status',
@@ -99,12 +100,11 @@ class SubcloudStateClient(RPCClient):
                                              ignore_endpoints=ignore_endpoints,
                                              alarmable=alarmable))
 
-    def update_subcloud_endpoint_status_sync(self, ctxt, subcloud_name=None,
-                                             subcloud_region=None,
-                                             endpoint_type=None,
-                                             sync_status=dccommon_consts.SYNC_STATUS_OUT_OF_SYNC,
-                                             ignore_endpoints=None,
-                                             alarmable=True):
+    def update_subcloud_endpoint_status_sync(
+        self, ctxt, subcloud_name=None, subcloud_region=None, endpoint_type=None,
+        sync_status=dccommon_consts.SYNC_STATUS_OUT_OF_SYNC, ignore_endpoints=None,
+        alarmable=True
+    ):
         # Note: synchronous
         return self.call(ctxt, self.make_msg('update_subcloud_endpoint_status',
                                              subcloud_name=subcloud_name,
@@ -144,16 +144,20 @@ class ManagerClient(RPCClient):
         return self.call(ctxt, self.make_msg('delete_subcloud',
                                              subcloud_id=subcloud_id))
 
-    def rename_subcloud(self, ctxt, subcloud_id, curr_subcloud_name, new_subcloud_name=None):
+    def rename_subcloud(
+        self, ctxt, subcloud_id, curr_subcloud_name, new_subcloud_name=None
+    ):
         return self.call(ctxt, self.make_msg('rename_subcloud',
                                              subcloud_id=subcloud_id,
                                              curr_subcloud_name=curr_subcloud_name,
                                              new_subcloud_name=new_subcloud_name))
 
-    def update_subcloud(self, ctxt, subcloud_id, management_state=None,
-                        description=None, location=None, group_id=None,
-                        data_install=None, force=None,
-                        deploy_status=None, peer_group_id=None, bootstrap_values=None, bootstrap_address=None):
+    def update_subcloud(
+        self, ctxt, subcloud_id, management_state=None, description=None,
+        location=None, group_id=None, data_install=None, force=None,
+        deploy_status=None, peer_group_id=None, bootstrap_values=None,
+        bootstrap_address=None
+    ):
         return self.call(ctxt, self.make_msg('update_subcloud',
                                              subcloud_id=subcloud_id,
                                              management_state=management_state,
@@ -242,11 +246,12 @@ class ManagerClient(RPCClient):
 
     def subcloud_deploy_resume(self, ctxt, subcloud_id, subcloud_name,
                                payload, deploy_states_to_run):
-        return self.cast(ctxt, self.make_msg('subcloud_deploy_resume',
-                                             subcloud_id=subcloud_id,
-                                             subcloud_name=subcloud_name,
-                                             payload=payload,
-                                             deploy_states_to_run=deploy_states_to_run))
+        return self.cast(ctxt, self.make_msg(
+            'subcloud_deploy_resume',
+            subcloud_id=subcloud_id,
+            subcloud_name=subcloud_name,
+            payload=payload,
+            deploy_states_to_run=deploy_states_to_run))
 
     def get_subcloud_name_by_region_name(self, ctxt, subcloud_region):
         return self.call(ctxt, self.make_msg('get_subcloud_name_by_region_name',

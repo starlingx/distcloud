@@ -1,12 +1,14 @@
 #
-# Copyright (c) 2023 Wind River Systems, Inc.
+# Copyright (c) 2023-2024 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
 
-import mock
-from six.moves import http_client
 import uuid
+
+import mock
+
+from six.moves import http_client
 
 from dcmanager.db.sqlalchemy import api as db_api
 from dcmanager.rpc import client as rpc_client
@@ -308,7 +310,9 @@ class TestPeerGroupAssociationUpdate(testroot.DCManagerApiTest,
     @mock.patch.object(psd_common, 'OpenStackDriver')
     @mock.patch.object(peer_group_association, 'SysinvClient')
     @mock.patch.object(rpc_client, 'ManagerClient')
-    def test_sync_association(self, mock_client, mock_sysinv_client, mock_keystone_client):
+    def test_sync_association(
+        self, mock_client, mock_sysinv_client, mock_keystone_client
+    ):
         mock_client().sync_subcloud_peer_group.return_value = True
         mock_keystone_client().keystone_client = FakeKeystoneClient()
         mock_sysinv_client.return_value = FakeSysinvClient()

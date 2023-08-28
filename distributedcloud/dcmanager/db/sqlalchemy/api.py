@@ -1,18 +1,18 @@
 # Copyright (c) 2015 Ericsson AB.
-# Copyright (c) 2017-2023 Wind River Systems, Inc.
+# Copyright (c) 2017-2024 Wind River Systems, Inc.
 # All Rights Reserved.
 #
-# Licensed under the Apache License, Version 2.0 (the "License"); you may
-# not use this file except in compliance with the License. You may obtain
-# a copy of the License at
+#    Licensed under the Apache License, Version 2.0 (the "License"); you may
+#    not use this file except in compliance with the License. You may obtain
+#    a copy of the License at
 #
 #         http://www.apache.org/licenses/LICENSE-2.0
 #
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
-# WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
-# License for the specific language governing permissions and limitations
-# under the License.
+#    Unless required by applicable law or agreed to in writing, software
+#    distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+#    WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
+#    License for the specific language governing permissions and limitations
+#    under the License.
 #
 
 """
@@ -20,7 +20,6 @@ Implementation of SQLAlchemy backend.
 """
 
 import datetime
-import sqlalchemy
 import sys
 import threading
 
@@ -31,7 +30,7 @@ from oslo_db.sqlalchemy import enginefacade
 from oslo_log import log as logging
 from oslo_utils import strutils
 from oslo_utils import uuidutils
-
+import sqlalchemy
 from sqlalchemy import desc
 from sqlalchemy import or_
 from sqlalchemy.orm.exc import MultipleResultsFound
@@ -198,12 +197,14 @@ def subcloud_audits_get_all_need_audit(context, last_audit_threshold):
     with read_session() as session:
         result = session.query(models.SubcloudAudits).\
             filter_by(deleted=0).\
-            filter(models.SubcloudAudits.audit_started_at <= models.SubcloudAudits.audit_finished_at).\
+            filter(models.SubcloudAudits.audit_started_at <=
+                   models.SubcloudAudits.audit_finished_at).\
             filter((models.SubcloudAudits.audit_finished_at < last_audit_threshold) |
                    (models.SubcloudAudits.patch_audit_requested == true()) |
                    (models.SubcloudAudits.firmware_audit_requested == true()) |
                    (models.SubcloudAudits.load_audit_requested == true()) |
-                   (models.SubcloudAudits.kube_rootca_update_audit_requested == true()) |
+                   (models.SubcloudAudits.kube_rootca_update_audit_requested ==
+                    true()) |
                    (models.SubcloudAudits.kubernetes_audit_requested == true())).\
             all()
     return result
@@ -334,10 +335,9 @@ def subcloud_get_by_region_name(context, region_name):
 
 @require_context
 def subcloud_get_by_name_or_region_name(context, name):
-    result = model_query(context, models.Subcloud). \
-        filter_by(deleted=0). \
-        filter(or_(models.Subcloud.name == name, models.Subcloud.region_name == name)). \
-        first()
+    result = model_query(context, models.Subcloud).filter_by(deleted=0).filter(
+        or_(models.Subcloud.name == name, models.Subcloud.region_name == name)
+    ).first()
 
     if not result:
         raise exception.SubcloudNameOrRegionNameNotFound(name=name)

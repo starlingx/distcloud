@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2023 Wind River Systems, Inc.
+# Copyright (c) 2023-2024 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -7,10 +7,10 @@
 import base64
 import copy
 import json
-
-import mock
 import os
 from os import path as os_path
+
+import mock
 import six
 from tsconfig.tsconfig import SW_VERSION
 import webtest
@@ -172,7 +172,8 @@ class TestSubcloudDeployBootstrap(testroot.DCManagerApiTest):
     @mock.patch.object(dutils, 'load_yaml_file')
     @mock.patch.object(os_path, 'exists')
     def test_subcloud_bootstrap_no_bootstrap_values_on_request(
-        self, mock_path_exists, mock_load_yaml_file):
+        self, mock_path_exists, mock_load_yaml_file
+    ):
         mock_path_exists.side_effect = [False, False, False, False, True]
         fake_bootstrap_values = copy.copy(
             fake_subcloud.FAKE_BOOTSTRAP_FILE_DATA)
@@ -219,7 +220,7 @@ class TestSubcloudDeployBootstrap(testroot.DCManagerApiTest):
             name="existing_subcloud",
             deploy_status=consts.DEPLOY_STATE_DONE,
             **conflicting_subnet
-            )
+        )
 
         subcloud = fake_subcloud.create_fake_subcloud(
             self.ctx,
@@ -264,13 +265,15 @@ class TestSubcloudDeployConfig(testroot.DCManagerApiTest):
             self, mock_load_yaml, mock_path_exists
     ):
         subcloud = fake_subcloud.create_fake_subcloud(self.ctx, data_install='')
-        fake_password = (base64.b64encode('testpass'.encode("utf-8"))).decode('ascii')
+        fake_password = \
+            (base64.b64encode('testpass'.encode("utf-8"))).decode('ascii')
         data = {'sysadmin_password': fake_password}
 
         self.mock_rpc_client().subcloud_deploy_config.return_value = True
         self.mock_get_request_data.return_value = data
         overrides_file = psd_common.get_config_file_path(subcloud.name)
-        mock_path_exists.side_effect = lambda x: True if x == overrides_file else False
+        mock_path_exists.side_effect = \
+            lambda x: True if x == overrides_file else False
         mock_load_yaml.return_value = {
             consts.BOOTSTRAP_ADDRESS:
                 fake_subcloud.FAKE_BOOTSTRAP_VALUE[consts.BOOTSTRAP_ADDRESS]}
@@ -289,7 +292,8 @@ class TestSubcloudDeployConfig(testroot.DCManagerApiTest):
         subcloud = fake_subcloud.create_fake_subcloud(
             self.ctx, data_install=json.dumps(data_install)
         )
-        fake_password = (base64.b64encode('testpass'.encode("utf-8"))).decode('ascii')
+        fake_password = \
+            (base64.b64encode('testpass'.encode("utf-8"))).decode('ascii')
         data = {'sysadmin_password': fake_password}
 
         self.mock_rpc_client().subcloud_deploy_config.return_value = True
@@ -391,7 +395,8 @@ class TestSubcloudDeployInstall(testroot.DCManagerApiTest):
         mock_initial_deployment.return_value = True
 
         self.mock_rpc_client().subcloud_deploy_install.return_value = True
-        self.mock_get_vault_load_files.return_value = ('iso_file_path', 'sig_file_path')
+        self.mock_get_vault_load_files.return_value = \
+            ('iso_file_path', 'sig_file_path')
 
         response = self.app.patch_json(
             FAKE_URL + '/' + str(subcloud.id) + '/install',
@@ -427,10 +432,12 @@ class TestSubcloudDeployInstall(testroot.DCManagerApiTest):
         mock_initial_deployment.return_value = True
 
         self.mock_rpc_client().subcloud_deploy_install.return_value = True
-        self.mock_get_vault_load_files.return_value = ('iso_file_path', 'sig_file_path')
+        self.mock_get_vault_load_files.return_value = \
+            ('iso_file_path', 'sig_file_path')
 
-        with mock.patch('builtins.open',
-                        mock.mock_open(read_data=fake_subcloud.FAKE_UPGRADES_METADATA)):
+        with mock.patch('builtins.open', mock.mock_open(
+            read_data=fake_subcloud.FAKE_UPGRADES_METADATA
+        )):
             response = self.app.patch_json(
                 FAKE_URL + '/' + str(subcloud.id) + '/install',
                 headers=FAKE_HEADERS, params=install_payload)
@@ -441,7 +448,8 @@ class TestSubcloudDeployInstall(testroot.DCManagerApiTest):
 
     @mock.patch.object(psd_common, 'is_initial_deployment')
     def test_install_subcloud_not_initial_deployment(
-        self, mock_initial_deployment):
+        self, mock_initial_deployment
+    ):
 
         subcloud = fake_subcloud.create_fake_subcloud(
             self.ctx,
@@ -463,7 +471,8 @@ class TestSubcloudDeployInstall(testroot.DCManagerApiTest):
         self.mock_get_subcloud_db_install_values.return_value = install_data
 
         self.mock_rpc_client().subcloud_deploy_install.return_value = True
-        self.mock_get_vault_load_files.return_value = ('iso_file_path', 'sig_file_path')
+        self.mock_get_vault_load_files.return_value = \
+            ('iso_file_path', 'sig_file_path')
         mock_initial_deployment.return_value = False
 
         six.assertRaisesRegex(self, webtest.app.AppError, "400 *",
@@ -489,7 +498,8 @@ class TestSubcloudDeployInstall(testroot.DCManagerApiTest):
 
     @mock.patch.object(psd_common, 'is_initial_deployment')
     def test_install_subcloud_no_install_values_on_request_or_db(
-        self, mock_initial_deployment):
+        self, mock_initial_deployment
+    ):
 
         subcloud = fake_subcloud.create_fake_subcloud(
             self.ctx,
@@ -513,7 +523,8 @@ class TestSubcloudDeployInstall(testroot.DCManagerApiTest):
 
     @mock.patch.object(psd_common, 'is_initial_deployment')
     def test_install_subcloud_no_install_values_on_request(
-        self, mock_initial_deployment):
+        self, mock_initial_deployment
+    ):
 
         subcloud = fake_subcloud.create_fake_subcloud(
             self.ctx,
@@ -533,7 +544,8 @@ class TestSubcloudDeployInstall(testroot.DCManagerApiTest):
         self.mock_get_subcloud_db_install_values.return_value = install_data
 
         self.mock_rpc_client().subcloud_deploy_install.return_value = True
-        self.mock_get_vault_load_files.return_value = ('iso_file_path', 'sig_file_path')
+        self.mock_get_vault_load_files.return_value = \
+            ('iso_file_path', 'sig_file_path')
         mock_initial_deployment.return_value = True
 
         response = self.app.patch_json(
@@ -688,8 +700,8 @@ class TestSubcloudDeployResume(testroot.DCManagerApiTest):
     @mock.patch.object(os_path, 'isdir')
     @mock.patch.object(os, 'listdir')
     def test_resume_subcloud(
-        self, mock_os_listdir, mock_os_isdir, mock_initial_deployment,
-        mock_load_yaml):
+        self, mock_os_listdir, mock_os_isdir, mock_initial_deployment, mock_load_yaml
+    ):
         mock_os_isdir.return_value = True
         mock_os_listdir.return_value = ['deploy_chart_fake.tgz',
                                         'deploy_overrides_fake.yaml',
@@ -705,7 +717,8 @@ class TestSubcloudDeployResume(testroot.DCManagerApiTest):
             data_install=json.dumps(data_install)
         )
 
-        self.mock_get_vault_load_files.return_value = ('iso_file_path', 'sig_file_path')
+        self.mock_get_vault_load_files.return_value = \
+            ('iso_file_path', 'sig_file_path')
         self.mock_rpc_client().subcloud_deploy_resume.return_value = True
         mock_initial_deployment.return_value = True
         mock_load_yaml.return_value = {
@@ -722,7 +735,8 @@ class TestSubcloudDeployResume(testroot.DCManagerApiTest):
             install_request = {'install_values': data_install,
                                'sysadmin_password': fake_sysadmin_password,
                                'bmc_password': fake_bmc_password}
-            bootstrap_request = {'bootstrap_values': fake_subcloud.FAKE_BOOTSTRAP_FILE_DATA}
+            bootstrap_request = \
+                {'bootstrap_values': fake_subcloud.FAKE_BOOTSTRAP_FILE_DATA}
             config_request = {'deploy_config': 'deploy config values',
                               'sysadmin_password': fake_sysadmin_password}
             resume_request = {**install_request,
@@ -758,7 +772,8 @@ class TestSubcloudDeployResume(testroot.DCManagerApiTest):
             deploy_status=consts.DEPLOY_STATE_CREATED,
             software_version=SW_VERSION)
 
-        self.mock_get_vault_load_files.return_value = ('iso_file_path', 'sig_file_path')
+        self.mock_get_vault_load_files.return_value = \
+            ('iso_file_path', 'sig_file_path')
         self.mock_rpc_client().subcloud_deploy_resume.return_value = True
         mock_initial_deployment.return_value = False
 
@@ -780,7 +795,8 @@ class TestSubcloudDeployResume(testroot.DCManagerApiTest):
             deploy_status=consts.DEPLOY_STATE_CREATED,
             software_version=SW_VERSION)
 
-        self.mock_get_vault_load_files.return_value = ('iso_file_path', 'sig_file_path')
+        self.mock_get_vault_load_files.return_value = \
+            ('iso_file_path', 'sig_file_path')
         self.mock_rpc_client().subcloud_deploy_resume.return_value = True
         invalid_resume_states = [consts.DEPLOY_STATE_INSTALLING,
                                  consts.DEPLOY_STATE_BOOTSTRAPPING,
@@ -826,7 +842,8 @@ class TestSubcloudDeployResume(testroot.DCManagerApiTest):
         mock_os_listdir.return_value = ['deploy_chart_fake.tgz',
                                         'deploy_overrides_fake.yaml',
                                         'deploy_playbook_fake.yaml']
-        self.mock_get_vault_load_files.return_value = ('iso_file_path', 'sig_file_path')
+        self.mock_get_vault_load_files.return_value = \
+            ('iso_file_path', 'sig_file_path')
         self.mock_rpc_client().subcloud_deploy_resume.return_value = True
         mock_initial_deployment.return_value = True
 

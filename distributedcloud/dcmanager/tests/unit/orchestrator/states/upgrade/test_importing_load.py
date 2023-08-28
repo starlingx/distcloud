@@ -1,8 +1,9 @@
 #
-# Copyright (c) 2020-2022 Wind River Systems, Inc.
+# Copyright (c) 2020-2022, 2024 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
+
 import itertools
 import mock
 
@@ -109,8 +110,8 @@ class TestSwUpgradeImportingLoadStage(TestSwUpgradeState):
         self.subcloud = self.setup_subcloud()
 
         # Add the strategy_step state being processed by this unit test
-        self.strategy_step = \
-            self.setup_strategy_step(self.subcloud.id, consts.STRATEGY_STATE_IMPORTING_LOAD)
+        self.strategy_step = self.setup_strategy_step(
+            self.subcloud.id, consts.STRATEGY_STATE_IMPORTING_LOAD)
 
         # Mock the get_vault_load_files utility method
         p = mock.patch(
@@ -185,7 +186,7 @@ class TestSwUpgradeImportingLoadStage(TestSwUpgradeState):
                                  self.on_success_state)
 
     def test_upgrade_sx_subcloud_import_load_vault_load_abort(self):
-        """Test import_load_metadata retry invoked and strategy continues as expected"""
+        """Import_load_metadata retry invoked and strategy continues as expected"""
         system_values = FakeSystem()
         system_values.system_mode = consts.SYSTEM_MODE_SIMPLEX
         self.sysinv_client.get_system.return_value = system_values
@@ -211,7 +212,7 @@ class TestSwUpgradeImportingLoadStage(TestSwUpgradeState):
                                  self.on_success_state)
 
     def test_upgrade_subcloud_dx_importing_import_load_retry(self):
-        """Test importing load on AIO-DX where import_load HTTP error requires retry."""
+        """Importing load on AIO-DX where import_load HTTP error requires retry."""
 
         # Simulate the target load has not been imported yet on the subcloud
         self.sysinv_client.get_loads.return_value = DEST_LOAD_MISSING

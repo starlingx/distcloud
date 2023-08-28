@@ -1,8 +1,9 @@
 #
-# Copyright (c) 2020, 2022 Wind River Systems, Inc.
+# Copyright (c) 2020, 2022, 2024 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
+
 import mock
 
 from dcmanager.common import consts
@@ -10,8 +11,8 @@ from dcmanager.db.sqlalchemy import api as db_api
 from dcmanager.orchestrator.states.upgrade import migrating_data
 
 from dcmanager.tests.unit.orchestrator.states.fakes import FakeController
-from dcmanager.tests.unit.orchestrator.states.upgrade.test_base  \
-    import TestSwUpgradeState
+from dcmanager.tests.unit.orchestrator.states.upgrade.test_base import \
+    TestSwUpgradeState
 
 CONTROLLER_0_LOCKED = FakeController(administrative=consts.ADMIN_LOCKED)
 CONTROLLER_0_UNLOCKING = \
@@ -42,8 +43,8 @@ class TestSwUpgradeMigratingDataStage(TestSwUpgradeState):
         self.subcloud = self.setup_subcloud()
 
         # Add the strategy_step state being processed by this unit test
-        self.strategy_step = \
-            self.setup_strategy_step(self.subcloud.id, consts.STRATEGY_STATE_MIGRATING_DATA)
+        self.strategy_step = self.setup_strategy_step(
+            self.subcloud.id, consts.STRATEGY_STATE_MIGRATING_DATA)
 
         # Add mock API endpoints for sysinv client calls invoked by this state
         self.sysinv_client.get_host = mock.MagicMock()
@@ -53,8 +54,8 @@ class TestSwUpgradeMigratingDataStage(TestSwUpgradeState):
 
         # Simulate a failed subprocess call to the platform upgrade playbook
         # on the subcloud.
-        p = mock.patch(
-            'dcmanager.orchestrator.states.upgrade.migrating_data.migrate_subcloud_data')
+        p = mock.patch("dcmanager.orchestrator.states.upgrade.migrating_data."
+                       "migrate_subcloud_data")
         self.mock_platform_upgrade_call = p.start()
         self.mock_platform_upgrade_call.side_effect = Exception("Bad day!")
         self.addCleanup(p.stop)
@@ -71,8 +72,8 @@ class TestSwUpgradeMigratingDataStage(TestSwUpgradeState):
 
         # Simulate a successful subprocess call to the platform upgrade playbook
         # on the subcloud.
-        p = mock.patch(
-            'dcmanager.orchestrator.states.upgrade.migrating_data.migrate_subcloud_data')
+        p = mock.patch("dcmanager.orchestrator.states.upgrade.migrating_data."
+                       "migrate_subcloud_data")
         self.mock_platform_upgrade_call = p.start()
         self.mock_platform_upgrade_call.return_value = 0
         self.addCleanup(p.stop)
@@ -149,8 +150,8 @@ class TestSwUpgradeMigratingDataStage(TestSwUpgradeState):
 
         # Simulate a successful subprocess call to the platform upgrade playbook
         # on the subcloud.
-        p = mock.patch(
-            'dcmanager.orchestrator.states.upgrade.migrating_data.migrate_subcloud_data')
+        p = mock.patch("dcmanager.orchestrator.states.upgrade.migrating_data."
+                       "migrate_subcloud_data")
         self.mock_platform_upgrade_call = p.start()
         self.mock_platform_upgrade_call.return_value = 0
         self.addCleanup(p.stop)
@@ -177,8 +178,8 @@ class TestSwUpgradeMigratingDataStage(TestSwUpgradeState):
 
         # Simulate a successful subprocess call to the platform upgrade playbook
         # on the subcloud.
-        p = mock.patch(
-            'dcmanager.orchestrator.states.upgrade.migrating_data.migrate_subcloud_data')
+        p = mock.patch("dcmanager.orchestrator.states.upgrade.migrating_data."
+                       "migrate_subcloud_data")
         self.mock_platform_upgrade_call = p.start()
         self.mock_platform_upgrade_call.return_value = 0
         self.addCleanup(p.stop)

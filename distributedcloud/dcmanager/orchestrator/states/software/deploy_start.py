@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2023 Wind River Systems, Inc.
+# Copyright (c) 2023-2024 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -42,7 +42,7 @@ class DeployStartState(BaseState):
 
         # Find the max version deployed on the SystemController
         max_version = None
-        for release_id in deployed_releases:
+        for release_id, _ in deployed_releases.items():
             release_sw_version = deployed_releases[release_id]['sw_version']
             if max_version is None or release_sw_version > max_version:
                 max_version = release_sw_version

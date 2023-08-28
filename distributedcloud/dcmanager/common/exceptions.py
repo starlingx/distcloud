@@ -1,6 +1,6 @@
 # Copyright 2015 Huawei Technologies Co., Ltd.
 # Copyright 2015 Ericsson AB.
-# Copyright (c) 2017-2023 Wind River Systems, Inc.
+# Copyright (c) 2017-2024 Wind River Systems, Inc.
 # All Rights Reserved.
 #
 #    Licensed under the Apache License, Version 2.0 (the "License"); you may
@@ -39,14 +39,14 @@ class DCManagerException(Exception):
 
     def __init__(self, **kwargs):
         try:
-            super(DCManagerException, self).__init__(self.message % kwargs)  # pylint: disable=W1645
+            super(DCManagerException, self).__init__(self.message % kwargs)
             self.msg = self.message % kwargs  # pylint: disable=W1645
         except Exception:
             with excutils.save_and_reraise_exception() as ctxt:
                 if not self.use_fatal_exceptions():
                     ctxt.reraise = False
                     # at least get the core message out if something happened
-                    super(DCManagerException, self).__init__(self.message)  # pylint: disable=W1645
+                    super(DCManagerException, self).__init__(self.message)
 
     if six.PY2:
         def __unicode__(self):
@@ -259,6 +259,7 @@ class PrestagePreCheckFailedException(DCManagerException):
     the subcloud can be skipped during orchestrated prestage
     operations.
     """
+
     def __init__(self, subcloud, details, orch_skip=False):
         self.orch_skip = orch_skip
         # Subcloud can be none if we are failing

@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2023 Wind River Systems, Inc.
+# Copyright (c) 2023-2024 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -30,8 +30,10 @@ class FinishStrategyState(BaseState):
             state=software_v1.COMMITTED
         )
 
-        self.debug_log(strategy_step,
-                       "regionone_committed_releases: %s" % regionone_committed_releases)
+        self.debug_log(
+            strategy_step,
+            "regionone_committed_releases: %s" % regionone_committed_releases
+        )
 
         try:
             software_client = self.get_software_client(self.region_name)
@@ -66,8 +68,9 @@ class FinishStrategyState(BaseState):
             try:
                 software_client.delete(releases_to_delete)
             except Exception:
-                message = ("Cannot delete releases from subcloud. Please see logs for"
-                           " details.")
+                message = \
+                    ("Cannot delete releases from subcloud. Please see logs for"
+                     " details.")
                 self.exception_log(strategy_step, message)
                 raise Exception(message)
 

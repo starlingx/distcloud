@@ -1,4 +1,4 @@
-# Copyright (c) 2023 Wind River Systems, Inc.
+# Copyright (c) 2023-2024 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -45,46 +45,41 @@ class SubcloudPeerGroupAPIMixin(APIMixin):
     def _get_test_subcloud_peer_group_request(self, **kw):
         # id should not be part of the structure
         group = {
-            'peer-group-name': kw.get('peer_group_name', SAMPLE_SUBCLOUD_PEER_GROUP_NAME),
+            'peer-group-name': kw.get(
+                'peer_group_name', SAMPLE_SUBCLOUD_PEER_GROUP_NAME
+            ),
             'system-leader-id': kw.get(
-                'system_leader_id',
-                '62c9592d-f799-4db9-8d40-6786a74d6021'),
+                'system_leader_id', '62c9592d-f799-4db9-8d40-6786a74d6021'
+            ),
             'system-leader-name': kw.get(
-                'system_leader_name',
-                'dc-test'),
-            'group-priority': kw.get(
-                'group_priority',
-                '0'),
-            'group-state': kw.get(
-                'group_state',
-                'enabled'),
+                'system_leader_name', 'dc-test'
+            ),
+            'group-priority': kw.get('group_priority', '0'),
+            'group-state': kw.get('group_state', 'enabled'),
             'max-subcloud-rehoming': kw.get(
                 'max_subcloud_rehoming',
-                SAMPLE_SUBCLOUD_PEER_GROUP_MAX_SUBCLOUDS_REHOMING)
+                SAMPLE_SUBCLOUD_PEER_GROUP_MAX_SUBCLOUDS_REHOMING
+            )
         }
         return group
 
     def _get_test_subcloud_peer_group_dict(self, **kw):
         # id should not be part of the structure
         group = {
-            'peer_group_name': kw.get('peer_group_name', SAMPLE_SUBCLOUD_PEER_GROUP_NAME),
+            'peer_group_name': kw.get(
+                'peer_group_name', SAMPLE_SUBCLOUD_PEER_GROUP_NAME
+            ),
             'system_leader_id': kw.get(
-                'system_leader_id',
-                '62c9592d-f799-4db9-8d40-6786a74d6021'),
-            'system_leader_name': kw.get(
-                'system_leader_name',
-                'dc-test'),
-            'group_priority': kw.get(
-                'group_priority',
-                '0'),
-            'group_state': kw.get(
-                'group_state',
-                'enabled'),
+                'system_leader_id', '62c9592d-f799-4db9-8d40-6786a74d6021'
+            ),
+            'system_leader_name': kw.get('system_leader_name', 'dc-test'),
+            'group_priority': kw.get('group_priority', '0'),
+            'group_state': kw.get('group_state', 'enabled'),
             'max_subcloud_rehoming': kw.get(
                 'max_subcloud_rehoming',
-                SAMPLE_SUBCLOUD_PEER_GROUP_MAX_SUBCLOUDS_REHOMING),
+                SAMPLE_SUBCLOUD_PEER_GROUP_MAX_SUBCLOUDS_REHOMING
+            ),
             'migration_status': None
-
         }
         return group
 

@@ -1,9 +1,12 @@
 #
-# Copyright (c) 2023 Wind River Systems, Inc.
+# Copyright (c) 2023-2024 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
+
 from collections import namedtuple
+
+import mock
 
 from dccommon.drivers.openstack import vim
 from dcmanager.common import consts
@@ -12,7 +15,6 @@ from dcmanager.tests.unit.orchestrator.states.patch.test_base import \
     TestPatchState
 from dcmanager.tests.unit.orchestrator.states.test_creating_vim_strategy import \
     CreatingVIMStrategyStageMixin
-import mock
 
 
 BuildPhase = namedtuple("BuildPhase", "reason")

@@ -1,11 +1,12 @@
 #
-# Copyright (c) 2023 Wind River Systems, Inc.
+# Copyright (c) 2023-2024 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
 
-from dcmanager.api.policies import base
 from oslo_policy import policy
+
+from dcmanager.api.policies import base
 
 POLICY_ROOT = 'dc_api:phased_subcloud_deploy:%s'
 

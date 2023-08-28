@@ -1,8 +1,9 @@
 #
-# Copyright (c) 2021-2023 Wind River Systems, Inc.
+# Copyright (c) 2021-2024 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
+
 import abc
 import six
 
@@ -31,7 +32,9 @@ class Auditor(object):
 
     def set_subcloud_endpoint_in_sync(self, sc_name, sc_region):
         """Set the endpoint sync status of this subcloud to be in sync"""
-        self._set_subcloud_sync_status(sc_name, sc_region, dccommon_consts.SYNC_STATUS_IN_SYNC)
+        self._set_subcloud_sync_status(
+            sc_name, sc_region, dccommon_consts.SYNC_STATUS_IN_SYNC
+        )
 
     def set_subcloud_endpoint_out_of_sync(self, sc_name, sc_region):
         """Set the endpoint sync status of this subcloud to be out of sync"""

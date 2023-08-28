@@ -1,14 +1,15 @@
 #
-# Copyright (c) 2023 Wind River Systems, Inc.
+# Copyright (c) 2023-2024 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
+
+from oslo_log import log as logging
 
 from dccommon import consts as dccommon_consts
 from dccommon.drivers.openstack import patching_v1
 from dcmanager.common import utils
 from dcmanager.orchestrator.orch_thread import OrchThread
-from oslo_log import log as logging
 
 LOG = logging.getLogger(__name__)
 

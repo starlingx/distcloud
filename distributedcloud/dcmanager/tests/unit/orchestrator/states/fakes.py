@@ -1,14 +1,15 @@
 #
-# Copyright (c) 2020-2023 Wind River Systems, Inc.
+# Copyright (c) 2020-2024 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
-import mock
+
 import uuid
+
+import mock
 
 from dccommon import consts as dccommon_consts
 from dcmanager.common import consts
-
 
 PREVIOUS_PREVIOUS_VERSION = '01.23'
 PREVIOUS_VERSION = '12.34'

@@ -12,17 +12,16 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 #
-# Copyright (c) 2020-2023 Wind River Systems, Inc.
+# Copyright (c) 2020-2024 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
 
 import os
 
+import http.client as httpclient
 from oslo_config import cfg
 from oslo_log import log as logging
-
-import http.client as httpclient
 import pecan
 from pecan import expose
 from pecan import request
@@ -34,7 +33,6 @@ from dcmanager.api import policy
 from dcmanager.common import consts
 from dcmanager.common.i18n import _
 from dcmanager.common import utils
-
 
 CONF = cfg.CONF
 LOG = logging.getLogger(__name__)
@@ -96,16 +94,19 @@ class SubcloudDeployController(object):
         if len(missing_options) > 0:
             if ((consts.DEPLOY_PRESTAGE in missing_options and size != 1) or
                     (consts.DEPLOY_PRESTAGE not in missing_options and size != 3)):
-                        missing_str = str()
-                        for missing in missing_options:
-                            if missing is not consts.DEPLOY_PRESTAGE:
-                                missing_str += '--%s ' % missing
-                        error_msg = "error: argument %s is required" % missing_str.rstrip()
-                        pecan.abort(httpclient.BAD_REQUEST, error_msg)
+                missing_str = str()
+                for missing in missing_options:
+                    if missing is not consts.DEPLOY_PRESTAGE:
+                        missing_str += '--%s ' % missing
+                error_msg = "error: argument %s is required" % missing_str.rstrip()
+                pecan.abort(httpclient.BAD_REQUEST, error_msg)
 
-        deploy_dicts['software_version'] = utils.get_sw_version(request.POST.get('release'))
+        deploy_dicts['software_version'] = \
+            utils.get_sw_version(request.POST.get('release'))
 
-        dir_path = os.path.join(dccommon_consts.DEPLOY_DIR, deploy_dicts['software_version'])
+        dir_path = os.path.join(
+            dccommon_consts.DEPLOY_DIR, deploy_dicts['software_version']
+        )
         for f in consts.DEPLOY_COMMON_FILE_OPTIONS:
             if f not in request.POST:
                 continue
@@ -139,7 +140,9 @@ class SubcloudDeployController(object):
                          restcomm.extract_credentials_for_policy())
         deploy_dicts = dict()
         deploy_dicts['software_version'] = utils.get_sw_version(release)
-        dir_path = os.path.join(dccommon_consts.DEPLOY_DIR, deploy_dicts['software_version'])
+        dir_path = os.path.join(
+            dccommon_consts.DEPLOY_DIR, deploy_dicts['software_version']
+        )
         for f in consts.DEPLOY_COMMON_FILE_OPTIONS:
             filename = None
             if os.path.isdir(dir_path):
@@ -159,10 +162,13 @@ class SubcloudDeployController(object):
         policy.authorize(subcloud_deploy_policy.POLICY_ROOT % "delete", {},
                          restcomm.extract_credentials_for_policy())
 
-        is_prestage_images = request.params.get('prestage_images', '').lower() == 'true'
-        is_deployment_files = request.params.get('deployment_files', '').lower() == 'true'
+        is_prestage_images = \
+            request.params.get('prestage_images', '').lower() == 'true'
+        is_deployment_files = \
+            request.params.get('deployment_files', '').lower() == 'true'
 
-        dir_path = os.path.join(dccommon_consts.DEPLOY_DIR, utils.get_sw_version(release))
+        dir_path = \
+            os.path.join(dccommon_consts.DEPLOY_DIR, utils.get_sw_version(release))
         if not os.path.isdir(dir_path):
             pecan.abort(httpclient.NOT_FOUND,
                         _("Directory not found: %s" % dir_path))

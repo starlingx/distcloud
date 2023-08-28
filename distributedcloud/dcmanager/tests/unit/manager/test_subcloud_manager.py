@@ -1,34 +1,33 @@
-# Copyright (c) 2017-2023 Wind River Systems, Inc.
-# Licensed under the Apache License, Version 2.0 (the "License"); you may
-# not use this file except in compliance with the License. You may obtain
-# a copy of the License at
+# Copyright (c) 2017-2024 Wind River Systems, Inc.
+# All Rights Reserved.
+#
+#    Licensed under the Apache License, Version 2.0 (the "License"); you may
+#    not use this file except in compliance with the License. You may obtain
+#    a copy of the License at
 #
 #         http://www.apache.org/licenses/LICENSE-2.0
 #
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
-# WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
-# License for the specific language governing permissions and limitations
-# under the License.
+#    Unless required by applicable law or agreed to in writing, software
+#    distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+#    WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
+#    License for the specific language governing permissions and limitations
+#    under the License.
 #
+
 import base64
 import collections
 import copy
 import datetime
 import json
 import os
+from os import path as os_path
+import sys
+import threading
 
 import mock
-
-from os import path as os_path
 from oslo_concurrency import lockutils
 from oslo_utils import timeutils
-
-import sys
-
-sys.modules['fm_core'] = mock.Mock()
-
-import threading
+from tsconfig.tsconfig import SW_VERSION
 
 from dccommon import consts as dccommon_consts
 from dccommon.drivers.openstack import dcmanager_v1
@@ -46,11 +45,11 @@ from dcmanager.tests import base
 from dcmanager.tests.unit.common import fake_subcloud
 from dcmanager.tests.unit.manager import test_system_peer_manager
 from dcmanager.tests import utils
-from tsconfig.tsconfig import SW_VERSION
 
+sys.modules['fm_core'] = mock.Mock()
+
+ANS_PATH = dccommon_consts.ANSIBLE_OVERRIDES_PATH
 FAKE_PREVIOUS_SW_VERSION = '21.12'
-
-
 FAKE_ADMIN_USER_ID = 1
 FAKE_SYSINV_USER_ID = 2
 FAKE_DCMANAGER_USER_ID = 3
@@ -486,7 +485,8 @@ class TestSubcloudManager(base.DCManagerTestCase):
         sm.subcloud_deploy_install(self.ctx, subcloud.id, payload=fake_payload)
         mock_compose_install_command.assert_called_once_with(
             subcloud_name,
-            cutils.get_ansible_filename(subcloud_name, consts.INVENTORY_FILE_POSTFIX),
+            cutils.get_ansible_filename(subcloud_name,
+                                        consts.INVENTORY_FILE_POSTFIX),
             FAKE_PREVIOUS_SW_VERSION)
 
         # Verify subcloud was updated with correct values
@@ -650,13 +650,13 @@ class TestSubcloudManager(base.DCManagerTestCase):
             name='subcloud1',
             deploy_status=consts.DEPLOY_STATE_PRE_CONFIG)
 
-        fake_payload = {"sysadmin_password": "testpass",
-                        "deploy_playbook": "test_playbook.yaml",
-                        "deploy_overrides": "test_overrides.yaml",
-                        "deploy_chart": "test_chart.yaml",
-                        "deploy_config": "subcloud1.yaml",
-                        consts.BOOTSTRAP_ADDRESS:
-                            fake_subcloud.FAKE_BOOTSTRAP_VALUE[consts.BOOTSTRAP_ADDRESS]}
+        fake_payload = {
+            "sysadmin_password": "testpass", "deploy_playbook": "test_playbook.yaml",
+            "deploy_overrides": "test_overrides.yaml",
+            "deploy_chart": "test_chart.yaml", "deploy_config": "subcloud1.yaml",
+            consts.BOOTSTRAP_ADDRESS:
+            fake_subcloud.FAKE_BOOTSTRAP_VALUE[consts.BOOTSTRAP_ADDRESS]
+        }
         sm = subcloud_manager.SubcloudManager()
         sm.subcloud_deploy_config(self.ctx,
                                   subcloud.id,
@@ -676,7 +676,8 @@ class TestSubcloudManager(base.DCManagerTestCase):
     def test_subcloud_deploy_resume(
         self, mock_run_playbook, mock_get_playbook_for_software_version,
         mock_update_yml, mock_keyring, mock_create_subcloud_inventory,
-        mock_prepare_for_deployment, mock_run_subcloud_install):
+        mock_prepare_for_deployment, mock_run_subcloud_install
+    ):
 
         mock_get_playbook_for_software_version.return_value = "22.12"
         mock_keyring.get_password.return_value = "testpass"
@@ -814,17 +815,12 @@ class TestSubcloudManager(base.DCManagerTestCase):
     @mock.patch.object(subcloud_manager,
                        'keyring')
     def test_add_subcloud_with_migration_option(
-        self, mock_keyring,
-        mock_write_subcloud_ansible_config,
-        mock_create_subcloud_inventory,
-        mock_create_addn_hosts,
-        mock_get_cached_regionone_data,
-        mock_sysinv_client,
-        mock_keystone_client,
-        mock_delete_subcloud_inventory,
-        mock_create_intermediate_ca_cert,
-        mock_compose_rehome_command,
-        mock_run_playbook):
+        self, mock_keyring, mock_write_subcloud_ansible_config,
+        mock_create_subcloud_inventory, mock_create_addn_hosts,
+        mock_get_cached_regionone_data, mock_sysinv_client, mock_keystone_client,
+        mock_delete_subcloud_inventory, mock_create_intermediate_ca_cert,
+        mock_compose_rehome_command, mock_run_playbook
+    ):
         values = utils.create_subcloud_dict(base.SUBCLOUD_SAMPLE_DATA_0)
         values['deploy_status'] = consts.DEPLOY_STATE_NONE
         values['migrate'] = 'true'
@@ -871,7 +867,8 @@ class TestSubcloudManager(base.DCManagerTestCase):
 
     @mock.patch.object(subcloud_manager, 'OpenStackDriver')
     @mock.patch.object(subcloud_manager, 'SysinvClient')
-    @mock.patch.object(subcloud_manager.SubcloudManager, '_get_cached_regionone_data')
+    @mock.patch.object(subcloud_manager.SubcloudManager,
+                       '_get_cached_regionone_data')
     def test_add_subcloud_create_failed(self,
                                         mock_get_cached_regionone_data,
                                         mock_sysinv_client,
@@ -900,10 +897,11 @@ class TestSubcloudManager(base.DCManagerTestCase):
     @mock.patch.object(subcloud_manager, 'keyring')
     @mock.patch.object(subcloud_manager, 'OpenStackDriver')
     @mock.patch.object(subcloud_manager, 'SysinvClient')
-    @mock.patch.object(subcloud_manager.SubcloudManager, '_get_cached_regionone_data')
+    @mock.patch.object(subcloud_manager.SubcloudManager,
+                       '_get_cached_regionone_data')
     def test_add_subcloud_with_migrate_option_prep_failed(
-        self, mock_get_cached_regionone_data, mock_sysinv_client,
-        mock_keystone_client, mock_keyring):
+            self, mock_get_cached_regionone_data, mock_sysinv_client,
+            mock_keystone_client, mock_keyring):
 
         values = utils.create_subcloud_dict(base.SUBCLOUD_SAMPLE_DATA_0)
         values['migrate'] = 'true'
@@ -930,7 +928,8 @@ class TestSubcloudManager(base.DCManagerTestCase):
 
     @mock.patch.object(subcloud_manager.SubcloudManager,
                        '_delete_subcloud_cert')
-    @mock.patch.object(subcloud_manager.SubcloudManager, '_get_cached_regionone_data')
+    @mock.patch.object(subcloud_manager.SubcloudManager,
+                       '_get_cached_regionone_data')
     @mock.patch.object(subcloud_manager, 'SysinvClient')
     @mock.patch.object(subcloud_manager, 'OpenStackDriver')
     @mock.patch.object(subcloud_manager.SubcloudManager,
@@ -961,9 +960,11 @@ class TestSubcloudManager(base.DCManagerTestCase):
             self.ctx,
             name='subcloud1',
             deploy_status=consts.DEPLOY_STATE_DONE)
-        db_api.subcloud_update(self.ctx,
-                               subcloud.id,
-                               availability_status=dccommon_consts.AVAILABILITY_ONLINE)
+        db_api.subcloud_update(
+            self.ctx,
+            subcloud.id,
+            availability_status=dccommon_consts.AVAILABILITY_ONLINE
+        )
 
         fake_dcmanager_notification = FakeDCManagerNotifications()
 
@@ -1090,9 +1091,11 @@ class TestSubcloudManager(base.DCManagerTestCase):
             self.ctx,
             name='subcloud1',
             deploy_status=consts.DEPLOY_STATE_DONE)
-        db_api.subcloud_update(self.ctx,
-                               subcloud.id,
-                               availability_status=dccommon_consts.AVAILABILITY_ONLINE)
+        db_api.subcloud_update(
+            self.ctx,
+            subcloud.id,
+            availability_status=dccommon_consts.AVAILABILITY_ONLINE
+        )
 
         sm = subcloud_manager.SubcloudManager()
         fake_dcmanager_cermon_api = FakeDCManagerNotifications()
@@ -1168,9 +1171,10 @@ class TestSubcloudManager(base.DCManagerTestCase):
             self.ctx,
             name='subcloud1',
             deploy_status=consts.DEPLOY_STATE_DONE)
-        db_api.subcloud_update(self.ctx,
-                               subcloud.id,
-                               availability_status=dccommon_consts.AVAILABILITY_OFFLINE)
+        db_api.subcloud_update(
+            self.ctx,
+            subcloud.id,
+            availability_status=dccommon_consts.AVAILABILITY_OFFLINE)
         sm = subcloud_manager.SubcloudManager()
         self.assertRaises(exceptions.SubcloudNotOnline,
                           sm.update_subcloud, self.ctx,
@@ -1182,9 +1186,10 @@ class TestSubcloudManager(base.DCManagerTestCase):
             self.ctx,
             name='subcloud1',
             deploy_status=consts.DEPLOY_STATE_DONE)
-        db_api.subcloud_update(self.ctx,
-                               subcloud.id,
-                               availability_status=dccommon_consts.AVAILABILITY_OFFLINE)
+        db_api.subcloud_update(
+            self.ctx,
+            subcloud.id,
+            availability_status=dccommon_consts.AVAILABILITY_OFFLINE)
 
         fake_dcmanager_cermon_api = FakeDCManagerNotifications()
 
@@ -1217,9 +1222,10 @@ class TestSubcloudManager(base.DCManagerTestCase):
             self.ctx,
             name='subcloud1',
             deploy_status=consts.DEPLOY_STATE_DONE)
-        db_api.subcloud_update(self.ctx,
-                               subcloud.id,
-                               availability_status=dccommon_consts.AVAILABILITY_ONLINE)
+        db_api.subcloud_update(
+            self.ctx,
+            subcloud.id,
+            availability_status=dccommon_consts.AVAILABILITY_ONLINE)
 
         fake_dcmanager_cermon_api = FakeDCManagerNotifications()
 
@@ -1507,16 +1513,20 @@ class TestSubcloudManager(base.DCManagerTestCase):
         self.assertIsNotNone(subcloud)
 
         # Set the subcloud to online/managed
-        db_api.subcloud_update(self.ctx, subcloud.id,
-                               management_state=dccommon_consts.MANAGEMENT_UNMANAGED,
-                               availability_status=dccommon_consts.AVAILABILITY_ONLINE)
+        db_api.subcloud_update(
+            self.ctx, subcloud.id,
+            management_state=dccommon_consts.MANAGEMENT_UNMANAGED,
+            availability_status=dccommon_consts.AVAILABILITY_ONLINE
+        )
 
         ssm = subcloud_state_manager.SubcloudStateManager()
 
         with mock.patch.object(db_api, "subcloud_update") as subcloud_update_mock:
-            ssm.update_subcloud_availability(self.ctx, subcloud.region_name,
-                                             availability_status=dccommon_consts.AVAILABILITY_ONLINE,
-                                             update_state_only=True)
+            ssm.update_subcloud_availability(
+                self.ctx, subcloud.region_name,
+                availability_status=dccommon_consts.AVAILABILITY_ONLINE,
+                update_state_only=True
+            )
             # Verify that the subcloud was not updated
             subcloud_update_mock.assert_not_called()
 
@@ -1584,9 +1594,11 @@ class TestSubcloudManager(base.DCManagerTestCase):
         self.assertIsNotNone(subcloud)
 
         # Set the subcloud to online/managed
-        db_api.subcloud_update(self.ctx, subcloud.id,
-                               management_state=dccommon_consts.MANAGEMENT_MANAGED,
-                               availability_status=dccommon_consts.AVAILABILITY_ONLINE)
+        db_api.subcloud_update(
+            self.ctx,
+            subcloud.id,
+            management_state=dccommon_consts.MANAGEMENT_MANAGED,
+            availability_status=dccommon_consts.AVAILABILITY_ONLINE)
 
         ssm = subcloud_state_manager.SubcloudStateManager()
 
@@ -1659,10 +1671,12 @@ class TestSubcloudManager(base.DCManagerTestCase):
         ssm = subcloud_state_manager.SubcloudStateManager()
 
         # Set the subcloud to online/managed
-        db_api.subcloud_update(self.ctx, subcloud.id,
-                               management_state=dccommon_consts.MANAGEMENT_MANAGED,
-                               first_identity_sync_complete=True,
-                               availability_status=dccommon_consts.AVAILABILITY_ONLINE)
+        db_api.subcloud_update(
+            self.ctx,
+            subcloud.id,
+            management_state=dccommon_consts.MANAGEMENT_MANAGED,
+            first_identity_sync_complete=True,
+            availability_status=dccommon_consts.AVAILABILITY_ONLINE)
 
         # Update identity endpoints statuses
         endpoint = dccommon_consts.ENDPOINT_TYPE_IDENTITY
@@ -1684,7 +1698,8 @@ class TestSubcloudManager(base.DCManagerTestCase):
                 trigger_subcloud_audits = \
                     self.fake_dcmanager_audit_api.trigger_subcloud_audits.call_count
 
-                # Update identity to new status and get the count of the trigger again
+                # Update identity to new status and get the count of the trigger
+                # again
                 ssm.update_subcloud_endpoint_status(
                     self.ctx, subcloud_region=subcloud.region_name,
                     endpoint_type=endpoint,
@@ -1757,29 +1772,26 @@ class TestSubcloudManager(base.DCManagerTestCase):
     def test_get_ansible_filename(self):
         filename = cutils.get_ansible_filename('subcloud1',
                                                consts.INVENTORY_FILE_POSTFIX)
-        self.assertEqual(filename,
-                         f'{dccommon_consts.ANSIBLE_OVERRIDES_PATH}/subcloud1_inventory.yml')
+        self.assertEqual(
+            filename,
+            f'{ANS_PATH}/subcloud1_inventory.yml'
+        )
 
     def test_compose_install_command(self):
         sm = subcloud_manager.SubcloudManager()
         install_command = sm.compose_install_command(
             'subcloud1',
-            f'{dccommon_consts.ANSIBLE_OVERRIDES_PATH}/subcloud1_inventory.yml',
+            f'{ANS_PATH}/subcloud1_inventory.yml',
             FAKE_PREVIOUS_SW_VERSION)
         self.assertEqual(
             install_command,
-            [
-                'ansible-playbook',
-                dccommon_consts.ANSIBLE_SUBCLOUD_INSTALL_PLAYBOOK,
-                '-i', f'{dccommon_consts.ANSIBLE_OVERRIDES_PATH}/subcloud1_inventory.yml',
-                '--limit', 'subcloud1',
-                '-e', f"@{dccommon_consts.ANSIBLE_OVERRIDES_PATH}/subcloud1/install_values.yml",
-                '-e', "install_release_version=%s" % FAKE_PREVIOUS_SW_VERSION,
-                '-e', "rvmc_config_file=%s" %
-                      os.path.join(dccommon_consts.ANSIBLE_OVERRIDES_PATH,
-                                   'subcloud1',
-                                   dccommon_consts.RVMC_CONFIG_FILE_NAME)
-            ]
+            ['ansible-playbook', dccommon_consts.ANSIBLE_SUBCLOUD_INSTALL_PLAYBOOK,
+             '-i', f'{ANS_PATH}/subcloud1_inventory.yml', '--limit', 'subcloud1',
+             '-e', f"@{dccommon_consts.ANSIBLE_OVERRIDES_PATH}/subcloud1/"
+             'install_values.yml', '-e', "install_release_version=%s"
+             % FAKE_PREVIOUS_SW_VERSION, '-e', "rvmc_config_file=%s" % os.path.join(
+                 dccommon_consts.ANSIBLE_OVERRIDES_PATH, 'subcloud1',
+                 dccommon_consts.RVMC_CONFIG_FILE_NAME)]
         )
 
     @mock.patch('os.path.isfile')
@@ -1800,7 +1812,8 @@ class TestSubcloudManager(base.DCManagerTestCase):
                 cutils.get_playbook_for_software_version(
                     subcloud_manager.ANSIBLE_SUBCLOUD_PLAYBOOK,
                     FAKE_PREVIOUS_SW_VERSION),
-                '-i', f'{dccommon_consts.ANSIBLE_OVERRIDES_PATH}/subcloud1_inventory.yml',
+                '-i',
+                f'{dccommon_consts.ANSIBLE_OVERRIDES_PATH}/subcloud1_inventory.yml',
                 '--limit', '%s' % subcloud_name, '-e',
                 str("override_files_dir='%s' region_name=%s") %
                 (dccommon_consts.ANSIBLE_OVERRIDES_PATH, subcloud_region),
@@ -1817,14 +1830,14 @@ class TestSubcloudManager(base.DCManagerTestCase):
                         "deploy_config": "subcloud1.yaml"}
         config_command = sm.compose_config_command(
             'subcloud1',
-            f'{dccommon_consts.ANSIBLE_OVERRIDES_PATH}/subcloud1_inventory.yml',
+            f'{ANS_PATH}/subcloud1_inventory.yml',
             fake_payload)
         self.assertEqual(
             config_command,
             [
                 'ansible-playbook', 'test_playbook.yaml', '-e',
-                f'@{dccommon_consts.ANSIBLE_OVERRIDES_PATH}/subcloud1_deploy_values.yml', '-i',
-                f'{dccommon_consts.ANSIBLE_OVERRIDES_PATH}/subcloud1_inventory.yml',
+                f'@{ANS_PATH}/subcloud1_deploy_values.yml', '-i',
+                f'{ANS_PATH}/subcloud1_inventory.yml',
                 '--limit', 'subcloud1'
             ]
         )
@@ -1854,10 +1867,10 @@ class TestSubcloudManager(base.DCManagerTestCase):
                 cutils.get_playbook_for_software_version(
                     subcloud_manager.ANSIBLE_SUBCLOUD_REHOME_PLAYBOOK,
                     FAKE_PREVIOUS_SW_VERSION),
-                '-i', f'{dccommon_consts.ANSIBLE_OVERRIDES_PATH}/subcloud1_inventory.yml',
-                '--limit', subcloud_name,
-                '--timeout', subcloud_manager.REHOME_PLAYBOOK_TIMEOUT,
-                '-e', extra_vars
+                '-i',
+                f'{dccommon_consts.ANSIBLE_OVERRIDES_PATH}/subcloud1_inventory.yml',
+                '--limit', subcloud_name, '--timeout',
+                subcloud_manager.REHOME_PLAYBOOK_TIMEOUT, '-e', extra_vars
             ]
         )
 
@@ -1881,7 +1894,8 @@ class TestSubcloudManager(base.DCManagerTestCase):
                 cutils.get_playbook_for_software_version(
                     subcloud_manager.ANSIBLE_SUBCLOUD_REHOME_PLAYBOOK,
                     SW_VERSION),
-                '-i', f'{dccommon_consts.ANSIBLE_OVERRIDES_PATH}/subcloud1_inventory.yml',
+                '-i',
+                f'{dccommon_consts.ANSIBLE_OVERRIDES_PATH}/subcloud1_inventory.yml',
                 '--limit', subcloud_name,
                 '--timeout', subcloud_manager.REHOME_PLAYBOOK_TIMEOUT,
                 '-e', str("override_files_dir='%s' region_name=%s") %
@@ -2232,12 +2246,13 @@ class TestSubcloudManager(base.DCManagerTestCase):
             name='subcloud1',
             deploy_status=consts.DEPLOY_STATE_DONE)
 
-        db_api.subcloud_update(self.ctx,
-                               subcloud.id,
-                               availability_status=dccommon_consts.AVAILABILITY_ONLINE,
-                               management_state=dccommon_consts.MANAGEMENT_MANAGED,
-                               backup_datetime=None,
-                               backup_status=consts.BACKUP_STATE_UNKNOWN)
+        db_api.subcloud_update(
+            self.ctx,
+            subcloud.id,
+            availability_status=dccommon_consts.AVAILABILITY_ONLINE,
+            management_state=dccommon_consts.MANAGEMENT_MANAGED,
+            backup_datetime=None,
+            backup_status=consts.BACKUP_STATE_UNKNOWN)
 
         sm = subcloud_manager.SubcloudManager()
         sm.create_subcloud_backups(self.ctx, payload=values)
@@ -2249,7 +2264,8 @@ class TestSubcloudManager(base.DCManagerTestCase):
         mock_run_playbook.assert_called_once()
         mock_is_healthy.assert_called_once()
 
-        # Verify that subcloud has the correct deploy status consts.PRESTAGE_STATE_PACKAGES
+        # Verify that subcloud has the correct deploy status
+        # consts.PRESTAGE_STATE_PACKAGES
         updated_subcloud = db_api.subcloud_get_by_name(self.ctx, subcloud.name)
         self.assertEqual(consts.BACKUP_STATE_PRE_BACKUP,
                          updated_subcloud.backup_status)
@@ -2264,19 +2280,21 @@ class TestSubcloudManager(base.DCManagerTestCase):
             name='subcloud1',
             deploy_status=consts.DEPLOY_STATE_NONE)
 
-        db_api.subcloud_update(self.ctx,
-                               subcloud.id,
-                               availability_status=dccommon_consts.AVAILABILITY_ONLINE,
-                               management_state=dccommon_consts.MANAGEMENT_UNMANAGED,
-                               backup_datetime=None,
-                               backup_status=consts.BACKUP_STATE_UNKNOWN)
+        db_api.subcloud_update(
+            self.ctx,
+            subcloud.id,
+            availability_status=dccommon_consts.AVAILABILITY_ONLINE,
+            management_state=dccommon_consts.MANAGEMENT_UNMANAGED,
+            backup_datetime=None,
+            backup_status=consts.BACKUP_STATE_UNKNOWN)
 
         sm = subcloud_manager.SubcloudManager()
         sm.create_subcloud_backups(self.ctx, payload=values)
 
         mock_parallel_group_operation.assert_called_once()
 
-        # Verify that subcloud has the correct deploy status consts.PRESTAGE_STATE_PACKAGES
+        # Verify that subcloud has the correct deploy status
+        # consts.PRESTAGE_STATE_PACKAGES
         updated_subcloud = db_api.subcloud_get_by_name(self.ctx, subcloud.name)
         self.assertEqual(consts.BACKUP_STATE_VALIDATE_FAILED,
                          updated_subcloud.backup_status)
@@ -2291,19 +2309,21 @@ class TestSubcloudManager(base.DCManagerTestCase):
             name='subcloud1',
             deploy_status=consts.DEPLOY_STATE_NONE)
 
-        db_api.subcloud_update(self.ctx,
-                               subcloud.id,
-                               availability_status=dccommon_consts.AVAILABILITY_OFFLINE,
-                               management_state=dccommon_consts.MANAGEMENT_UNMANAGED,
-                               backup_datetime=None,
-                               backup_status=consts.BACKUP_STATE_UNKNOWN)
+        db_api.subcloud_update(
+            self.ctx,
+            subcloud.id,
+            availability_status=dccommon_consts.AVAILABILITY_OFFLINE,
+            management_state=dccommon_consts.MANAGEMENT_UNMANAGED,
+            backup_datetime=None,
+            backup_status=consts.BACKUP_STATE_UNKNOWN)
 
         sm = subcloud_manager.SubcloudManager()
         sm.create_subcloud_backups(self.ctx, payload=values)
 
         mock_parallel_group_operation.assert_called_once()
 
-        # Verify that subcloud has the correct deploy status consts.PRESTAGE_STATE_PACKAGES
+        # Verify that subcloud has the correct deploy status
+        # consts.PRESTAGE_STATE_PACKAGES
         updated_subcloud = db_api.subcloud_get_by_name(self.ctx, subcloud.name)
         self.assertEqual(consts.BACKUP_STATE_VALIDATE_FAILED,
                          updated_subcloud.backup_status)
@@ -2318,19 +2338,21 @@ class TestSubcloudManager(base.DCManagerTestCase):
             name='subcloud1',
             deploy_status=consts.DEPLOY_STATE_NONE)
 
-        db_api.subcloud_update(self.ctx,
-                               subcloud.id,
-                               availability_status=dccommon_consts.AVAILABILITY_OFFLINE,
-                               management_state=dccommon_consts.MANAGEMENT_MANAGED,
-                               backup_datetime=None,
-                               backup_status=consts.BACKUP_STATE_UNKNOWN)
+        db_api.subcloud_update(
+            self.ctx,
+            subcloud.id,
+            availability_status=dccommon_consts.AVAILABILITY_OFFLINE,
+            management_state=dccommon_consts.MANAGEMENT_MANAGED,
+            backup_datetime=None,
+            backup_status=consts.BACKUP_STATE_UNKNOWN)
 
         sm = subcloud_manager.SubcloudManager()
         sm.create_subcloud_backups(self.ctx, payload=values)
 
         mock_parallel_group_operation.assert_called_once()
 
-        # Verify that subcloud has the correct deploy status consts.PRESTAGE_STATE_PACKAGES
+        # Verify that subcloud has the correct deploy status
+        # consts.PRESTAGE_STATE_PACKAGES
         updated_subcloud = db_api.subcloud_get_by_name(self.ctx, subcloud.name)
         self.assertEqual(consts.BACKUP_STATE_VALIDATE_FAILED,
                          updated_subcloud.backup_status)
@@ -2346,19 +2368,22 @@ class TestSubcloudManager(base.DCManagerTestCase):
             name='subcloud1',
             deploy_status=consts.DEPLOY_STATE_NONE)
 
-        db_api.subcloud_update(self.ctx,
-                               subcloud.id,
-                               availability_status=dccommon_consts.AVAILABILITY_ONLINE,
-                               management_state=dccommon_consts.MANAGEMENT_MANAGED,
-                               backup_datetime=None,
-                               backup_status=consts.BACKUP_STATE_UNKNOWN)
+        db_api.subcloud_update(
+            self.ctx,
+            subcloud.id,
+            availability_status=dccommon_consts.AVAILABILITY_ONLINE,
+            management_state=dccommon_consts.MANAGEMENT_MANAGED,
+            backup_datetime=None,
+            backup_status=consts.BACKUP_STATE_UNKNOWN)
 
         sm = subcloud_manager.SubcloudManager()
-        sm.delete_subcloud_backups(self.ctx, payload=values, release_version=release_version)
+        sm.delete_subcloud_backups(self.ctx, payload=values,
+                                   release_version=release_version)
 
         mock_parallel_group_operation.assert_called_once()
 
-        # Verify that subcloud has the correct deploy status consts.PRESTAGE_STATE_PACKAGES
+        # Verify that subcloud has the correct deploy status
+        # consts.PRESTAGE_STATE_PACKAGES
         updated_subcloud = db_api.subcloud_get_by_name(self.ctx, subcloud.name)
         self.assertEqual(consts.BACKUP_STATE_UNKNOWN,
                          updated_subcloud.backup_status)
@@ -2374,19 +2399,22 @@ class TestSubcloudManager(base.DCManagerTestCase):
             name='subcloud1',
             deploy_status=consts.DEPLOY_STATE_NONE)
 
-        db_api.subcloud_update(self.ctx,
-                               subcloud.id,
-                               availability_status=dccommon_consts.AVAILABILITY_ONLINE,
-                               management_state=dccommon_consts.MANAGEMENT_MANAGED,
-                               backup_datetime=None,
-                               backup_status=consts.BACKUP_STATE_UNKNOWN)
+        db_api.subcloud_update(
+            self.ctx,
+            subcloud.id,
+            availability_status=dccommon_consts.AVAILABILITY_ONLINE,
+            management_state=dccommon_consts.MANAGEMENT_MANAGED,
+            backup_datetime=None,
+            backup_status=consts.BACKUP_STATE_UNKNOWN)
 
         sm = subcloud_manager.SubcloudManager()
-        sm.delete_subcloud_backups(self.ctx, payload=values, release_version=release_version)
+        sm.delete_subcloud_backups(self.ctx, payload=values,
+                                   release_version=release_version)
 
         mock_parallel_group_operation.assert_called_once()
 
-        # Verify that subcloud has the correct deploy status consts.PRESTAGE_STATE_PACKAGES
+        # Verify that subcloud has the correct deploy status
+        # consts.PRESTAGE_STATE_PACKAGES
         updated_subcloud = db_api.subcloud_get_by_name(self.ctx, subcloud.name)
         self.assertEqual(consts.BACKUP_STATE_UNKNOWN,
                          updated_subcloud.backup_status)
@@ -2405,11 +2433,11 @@ class TestSubcloudManager(base.DCManagerTestCase):
     @mock.patch.object(cutils, 'create_subcloud_inventory')
     @mock.patch.object(subcloud_manager, 'OpenStackDriver')
     def test_backup_create_subcloud(
-        self, mock_keystone_client,
-        mock_create_subcloud_inventory, mock_compose_backup_command,
-        mock_clear_subcloud_failure_alarm, mock_run_playbook,
-        mock_oam_address, mock_keyring, mock_create_backup_file,
-        mock_delete_subcloud_inventory, mock_is_healthy):
+            self, mock_keystone_client,
+            mock_create_subcloud_inventory, mock_compose_backup_command,
+            mock_clear_subcloud_failure_alarm, mock_run_playbook,
+            mock_oam_address, mock_keyring, mock_create_backup_file,
+            mock_delete_subcloud_inventory, mock_is_healthy):
 
         subcloud = self.create_subcloud_static(
             self.ctx,
@@ -2419,7 +2447,7 @@ class TestSubcloudManager(base.DCManagerTestCase):
         values = copy.copy(FAKE_BACKUP_CREATE_LOAD_1)
 
         override_file = os_path.join(
-            dccommon_consts.ANSIBLE_OVERRIDES_PATH, subcloud.name + "_backup_create_values.yml"
+            ANS_PATH, subcloud.name + "_backup_create_values.yml"
         )
         mock_create_backup_file.return_value = override_file
 
@@ -2448,7 +2476,7 @@ class TestSubcloudManager(base.DCManagerTestCase):
     @mock.patch.object(subcloud_manager.SubcloudManager,
                        '_create_subcloud_inventory_file')
     def test_backup_create_subcloud_fail_to_create(
-        self, mock_create_subcloud_inventory_file):
+            self, mock_create_subcloud_inventory_file):
 
         subcloud = self.create_subcloud_static(
             self.ctx,
@@ -2478,10 +2506,10 @@ class TestSubcloudManager(base.DCManagerTestCase):
                        '_create_backup_overrides_file')
     def test_delete_subcloud_backup(
         self, mock_create_backup_overrides_file,
-        mock_compose_backup_delete_command,
-        mock_run_playbook, mock_keystone_client,
+        mock_compose_backup_delete_command, mock_run_playbook, mock_keystone_client,
         mock_oam_address, mock_create_subcloud_inventory,
-        mock_delete_subcloud_inventory):
+        mock_delete_subcloud_inventory
+    ):
 
         subcloud = self.create_subcloud_static(
             self.ctx,
@@ -2492,13 +2520,15 @@ class TestSubcloudManager(base.DCManagerTestCase):
         RELEASE_VERSION = '22.12'
 
         override_file = os_path.join(
-            dccommon_consts.ANSIBLE_OVERRIDES_PATH, subcloud.name + "_backup_delete_values.yml"
+            ANS_PATH, subcloud.name + "_backup_delete_values.yml"
         )
         mock_create_backup_overrides_file.return_value = override_file
 
         sm = subcloud_manager.SubcloudManager()
         sm._delete_subcloud_backup(
-            self.ctx, payload=values, release_version=RELEASE_VERSION, subcloud=subcloud)
+            self.ctx, payload=values,
+            release_version=RELEASE_VERSION, subcloud=subcloud
+        )
 
         mock_create_backup_overrides_file.assert_called_once()
         mock_compose_backup_delete_command.assert_called_once()
@@ -2539,13 +2569,15 @@ class TestSubcloudManager(base.DCManagerTestCase):
         RELEASE_VERSION = '22.12'
 
         override_file = os_path.join(
-            dccommon_consts.ANSIBLE_OVERRIDES_PATH, subcloud.name + "_backup_delete_values.yml"
+            dccommon_consts.ANSIBLE_OVERRIDES_PATH,
+            subcloud.name + "_backup_delete_values.yml"
         )
         mock_create_subcloud_inventory_file.return_value = override_file
 
         sm = subcloud_manager.SubcloudManager()
         sm._delete_subcloud_backup(
-            self.ctx, payload=values, release_version=RELEASE_VERSION, subcloud=subcloud)
+            self.ctx, payload=values,
+            release_version=RELEASE_VERSION, subcloud=subcloud)
 
         mock_create_subcloud_inventory_file.assert_called_once()
         mock_compose_backup_delete_command.assert_called_once()
@@ -2582,10 +2614,11 @@ class TestSubcloudManager(base.DCManagerTestCase):
                                                 mock_isdir):
 
         values = copy.copy(FAKE_PRESTAGE_PAYLOAD)
-        subcloud = self.create_subcloud_static(self.ctx,
-                                               name='subcloud1',
-                                               deploy_status=consts.DEPLOY_STATE_NONE,
-                                               software_version=FAKE_SUBCLOUD_SW_VERSION)
+        subcloud = self.create_subcloud_static(
+            self.ctx,
+            name='subcloud1',
+            deploy_status=consts.DEPLOY_STATE_NONE,
+            software_version=FAKE_SUBCLOUD_SW_VERSION)
 
         mock_run_ansible.return_value = None
         mock_get_filename_by_prefix.return_value = 'prestage_images_list.txt'
@@ -2601,10 +2634,13 @@ class TestSubcloudManager(base.DCManagerTestCase):
         self.assertEqual(mock_run_ansible.call_count, 2)
         # Verify the "image_list_file" was passed to the prestage image playbook
         # for the remote prestage
-        self.assertIn('image_list_file', mock_run_ansible.call_args_list[1].args[1][5])
+        self.assertIn('image_list_file',
+                      mock_run_ansible.call_args_list[1].args[1][5])
         # Verify the prestage request release was passed to the playbooks
-        self.assertIn(FAKE_PRESTAGE_RELEASE, mock_run_ansible.call_args_list[0].args[1][5])
-        self.assertIn(FAKE_PRESTAGE_RELEASE, mock_run_ansible.call_args_list[1].args[1][5])
+        self.assertIn(FAKE_PRESTAGE_RELEASE,
+                      mock_run_ansible.call_args_list[0].args[1][5])
+        self.assertIn(FAKE_PRESTAGE_RELEASE,
+                      mock_run_ansible.call_args_list[1].args[1][5])
 
     @mock.patch.object(os_path, 'isdir')
     @mock.patch.object(cutils, 'get_filename_by_prefix')
@@ -2614,10 +2650,11 @@ class TestSubcloudManager(base.DCManagerTestCase):
                                                    mock_isdir):
 
         values = copy.copy(FAKE_PRESTAGE_PAYLOAD)
-        subcloud = self.create_subcloud_static(self.ctx,
-                                               name='subcloud1',
-                                               deploy_status=consts.DEPLOY_STATE_NONE,
-                                               software_version=FAKE_SUBCLOUD_SW_VERSION)
+        subcloud = self.create_subcloud_static(
+            self.ctx,
+            name='subcloud1',
+            deploy_status=consts.DEPLOY_STATE_NONE,
+            software_version=FAKE_SUBCLOUD_SW_VERSION)
 
         mock_run_ansible.return_value = None
         mock_get_filename_by_prefix.return_value = None
@@ -2644,10 +2681,11 @@ class TestSubcloudManager(base.DCManagerTestCase):
                                                mock_isdir):
 
         values = copy.copy(FAKE_PRESTAGE_PAYLOAD)
-        subcloud = self.create_subcloud_static(self.ctx,
-                                               name='subcloud1',
-                                               deploy_status=consts.DEPLOY_STATE_NONE,
-                                               software_version=FAKE_PRESTAGE_RELEASE)
+        subcloud = self.create_subcloud_static(
+            self.ctx,
+            name='subcloud1',
+            deploy_status=consts.DEPLOY_STATE_NONE,
+            software_version=FAKE_PRESTAGE_RELEASE)
 
         mock_run_ansible.return_value = None
         mock_get_filename_by_prefix.return_value = 'prestage_images_list.txt'
@@ -2679,10 +2717,11 @@ class TestSubcloudManager(base.DCManagerTestCase):
                                                   mock_isdir):
 
         values = copy.copy(FAKE_PRESTAGE_PAYLOAD)
-        subcloud = self.create_subcloud_static(self.ctx,
-                                               name='subcloud1',
-                                               deploy_status=consts.DEPLOY_STATE_NONE,
-                                               software_version=FAKE_PRESTAGE_RELEASE)
+        subcloud = self.create_subcloud_static(
+            self.ctx,
+            name='subcloud1',
+            deploy_status=consts.DEPLOY_STATE_NONE,
+            software_version=FAKE_PRESTAGE_RELEASE)
 
         mock_run_ansible.return_value = None
         mock_get_filename_by_prefix.return_value = None
@@ -2701,8 +2740,10 @@ class TestSubcloudManager(base.DCManagerTestCase):
         self.assertTrue(
             'image_list_file' not in mock_run_ansible.call_args_list[1].args[1][5])
         # Verify the prestage request release was passed to the playbooks
-        self.assertIn(FAKE_PRESTAGE_RELEASE, mock_run_ansible.call_args_list[0].args[1][5])
-        self.assertIn(FAKE_PRESTAGE_RELEASE, mock_run_ansible.call_args_list[1].args[1][5])
+        self.assertIn(FAKE_PRESTAGE_RELEASE,
+                      mock_run_ansible.call_args_list[0].args[1][5])
+        self.assertIn(FAKE_PRESTAGE_RELEASE,
+                      mock_run_ansible.call_args_list[1].args[1][5])
 
     @mock.patch.object(prestage, 'prestage_images')
     @mock.patch.object(prestage, 'prestage_packages')
@@ -2715,9 +2756,10 @@ class TestSubcloudManager(base.DCManagerTestCase):
                                         mock_prestage_images):
 
         values = copy.copy(FAKE_PRESTAGE_PAYLOAD)
-        subcloud = self.create_subcloud_static(self.ctx,
-                                               name='subcloud1',
-                                               deploy_status=consts.DEPLOY_STATE_NONE)
+        subcloud = self.create_subcloud_static(
+            self.ctx,
+            name='subcloud1',
+            deploy_status=consts.DEPLOY_STATE_NONE)
         prestage._prestage_standalone_thread(self.ctx, subcloud, payload=values)
         mock_run_ansible.return_value = None
         mock_prestage_packages.assert_called_once_with(self.ctx, subcloud, values)
@@ -2749,8 +2791,9 @@ class TestSubcloudManager(base.DCManagerTestCase):
         # The expiry timestamp is likely a couple of seconds less than the time
         # the cache is set when it gets here so check if the expiry is greater than
         # 59m55s from now.
-        self.assertGreater(cached_regionone_data['expiry'],
-                           datetime.datetime.utcnow() + datetime.timedelta(seconds=3595))
+        self.assertGreater(
+            cached_regionone_data['expiry'],
+            datetime.datetime.utcnow() + datetime.timedelta(seconds=3595))
         cached_regionone_data = sm._get_cached_regionone_data(
             mock_keystone_client, mock_sysinv_client)
         expiry2 = cached_regionone_data['expiry']
@@ -2776,13 +2819,15 @@ class TestSubcloudManager(base.DCManagerTestCase):
             name='subcloud1',
             deploy_status=consts.DEPLOY_STATE_DONE)
 
-        data_install = str(fake_subcloud.FAKE_SUBCLOUD_INSTALL_VALUES).replace('\'', '"')
+        data_install = str(fake_subcloud.FAKE_SUBCLOUD_INSTALL_VALUES).replace(
+            '\'', '"')
 
-        db_api.subcloud_update(self.ctx,
-                               subcloud.id,
-                               availability_status=dccommon_consts.AVAILABILITY_ONLINE,
-                               management_state=dccommon_consts.MANAGEMENT_UNMANAGED,
-                               data_install=data_install)
+        db_api.subcloud_update(
+            self.ctx,
+            subcloud.id,
+            availability_status=dccommon_consts.AVAILABILITY_ONLINE,
+            management_state=dccommon_consts.MANAGEMENT_UNMANAGED,
+            data_install=data_install)
 
         sm = subcloud_manager.SubcloudManager()
         sm.restore_subcloud_backups(self.ctx, payload=values)
@@ -2814,13 +2859,15 @@ class TestSubcloudManager(base.DCManagerTestCase):
             name='subcloud1',
             deploy_status=consts.DEPLOY_STATE_NONE)
 
-        data_install = str(fake_subcloud.FAKE_SUBCLOUD_INSTALL_VALUES).replace('\'', '"')
+        data_install = str(fake_subcloud.FAKE_SUBCLOUD_INSTALL_VALUES).replace(
+            '\'', '"')
 
-        db_api.subcloud_update(self.ctx,
-                               subcloud.id,
-                               availability_status=dccommon_consts.AVAILABILITY_ONLINE,
-                               management_state=dccommon_consts.MANAGEMENT_MANAGED,
-                               data_install=data_install)
+        db_api.subcloud_update(
+            self.ctx,
+            subcloud.id,
+            availability_status=dccommon_consts.AVAILABILITY_ONLINE,
+            management_state=dccommon_consts.MANAGEMENT_MANAGED,
+            data_install=data_install)
 
         sm = subcloud_manager.SubcloudManager()
         return_log = sm.restore_subcloud_backups(self.ctx, payload=values)
@@ -2847,13 +2894,15 @@ class TestSubcloudManager(base.DCManagerTestCase):
             name='subcloud1',
             deploy_status=consts.DEPLOY_STATE_NONE)
 
-        data_install = str(fake_subcloud.FAKE_SUBCLOUD_INSTALL_VALUES).replace('\'', '"')
+        data_install = str(fake_subcloud.FAKE_SUBCLOUD_INSTALL_VALUES).replace(
+            '\'', '"')
 
-        db_api.subcloud_update(self.ctx,
-                               subcloud.id,
-                               availability_status=dccommon_consts.AVAILABILITY_OFFLINE,
-                               management_state=dccommon_consts.MANAGEMENT_UNMANAGED,
-                               data_install=data_install)
+        db_api.subcloud_update(
+            self.ctx,
+            subcloud.id,
+            availability_status=dccommon_consts.AVAILABILITY_OFFLINE,
+            management_state=dccommon_consts.MANAGEMENT_UNMANAGED,
+            data_install=data_install)
 
         sm = subcloud_manager.SubcloudManager()
         sm.restore_subcloud_backups(self.ctx, payload=values)
@@ -2875,10 +2924,11 @@ class TestSubcloudManager(base.DCManagerTestCase):
             name='subcloud1',
             deploy_status=consts.DEPLOY_STATE_NONE)
 
-        db_api.subcloud_update(self.ctx,
-                               subcloud.id,
-                               availability_status=dccommon_consts.AVAILABILITY_OFFLINE,
-                               management_state=dccommon_consts.MANAGEMENT_MANAGED)
+        db_api.subcloud_update(
+            self.ctx,
+            subcloud.id,
+            availability_status=dccommon_consts.AVAILABILITY_OFFLINE,
+            management_state=dccommon_consts.MANAGEMENT_MANAGED)
 
         sm = subcloud_manager.SubcloudManager()
         return_log = sm.restore_subcloud_backups(self.ctx, payload=values)
@@ -2911,7 +2961,8 @@ class TestSubcloudManager(base.DCManagerTestCase):
         mock_subcloud_install.return_value = True
         mock_run_restore_playbook.return_value = True
 
-        data_install = str(fake_subcloud.FAKE_SUBCLOUD_INSTALL_VALUES).replace('\'', '"')
+        data_install = str(fake_subcloud.FAKE_SUBCLOUD_INSTALL_VALUES).replace(
+            '\'', '"')
 
         values = copy.copy(FAKE_BACKUP_RESTORE_LOAD_WITH_INSTALL)
         values['with_install'] = True
@@ -2921,10 +2972,11 @@ class TestSubcloudManager(base.DCManagerTestCase):
             data_install=data_install,
             deploy_status=consts.DEPLOY_STATE_DONE)
 
-        db_api.subcloud_update(self.ctx,
-                               subcloud.id,
-                               availability_status=dccommon_consts.AVAILABILITY_ONLINE,
-                               management_state=dccommon_consts.MANAGEMENT_UNMANAGED)
+        db_api.subcloud_update(
+            self.ctx,
+            subcloud.id,
+            availability_status=dccommon_consts.AVAILABILITY_ONLINE,
+            management_state=dccommon_consts.MANAGEMENT_UNMANAGED)
 
         sm = subcloud_manager.SubcloudManager()
         sm.restore_subcloud_backups(self.ctx, payload=values)
@@ -2995,7 +3047,7 @@ class TestSubcloudManager(base.DCManagerTestCase):
             self.ctx,
             name="sub_migrateable",
             deploy_status=consts.DEPLOY_STATE_SECONDARY
-            )
+        )
         db_api.subcloud_update(
             self.ctx,
             subcloud.id,
@@ -3006,7 +3058,7 @@ class TestSubcloudManager(base.DCManagerTestCase):
             self.ctx,
             name="sub_no_rehome_data",
             deploy_status=consts.DEPLOY_STATE_SECONDARY
-            )
+        )
         db_api.subcloud_update(
             self.ctx,
             subcloud.id,
@@ -3015,7 +3067,7 @@ class TestSubcloudManager(base.DCManagerTestCase):
         subcloud = self.create_subcloud_static(
             self.ctx,
             name="sub_no_secondary"
-            )
+        )
         db_api.subcloud_update(
             self.ctx,
             subcloud.id,
@@ -3025,7 +3077,7 @@ class TestSubcloudManager(base.DCManagerTestCase):
         subcloud = self.create_subcloud_static(
             self.ctx,
             name="sub_no_saved_payload"
-            )
+        )
         db_api.subcloud_update(
             self.ctx,
             subcloud.id,
@@ -3044,7 +3096,8 @@ class TestSubcloudManager(base.DCManagerTestCase):
     @mock.patch.object(subcloud_manager.SubcloudManager,
                        '_unmanage_system_peer_subcloud')
     def test_migrate_manage_subcloud_called_unmanage_peer_subcloud(
-        self, mock_unmanage_system_peer_subcloud):
+        self, mock_unmanage_system_peer_subcloud
+    ):
         sm = subcloud_manager.SubcloudManager()
         system_peer_test = test_system_peer_manager.TestSystemPeerManager
         system_peer = system_peer_test.create_system_peer_static(self.ctx)
@@ -3056,7 +3109,8 @@ class TestSubcloudManager(base.DCManagerTestCase):
     @mock.patch.object(subcloud_manager.SubcloudManager,
                        '_unmanage_system_peer_subcloud')
     def test_migrate_manage_subcloud_not_called_unmanage_peer_subcloud(
-        self, mock_unmanage_system_peer_subcloud):
+        self, mock_unmanage_system_peer_subcloud
+    ):
         sm = subcloud_manager.SubcloudManager()
         subcloud = self.create_subcloud_static(self.ctx)
         # Give empty system peers
@@ -3068,7 +3122,8 @@ class TestSubcloudManager(base.DCManagerTestCase):
     @mock.patch.object(system_peer_manager.SystemPeerManager,
                        'get_peer_dc_client')
     def test_unmanage_system_peer_subcloud_ret_false(
-        self, mock_get_peer_dc_client):
+        self, mock_get_peer_dc_client
+    ):
         sm = subcloud_manager.SubcloudManager()
         system_peer_test = test_system_peer_manager.TestSystemPeerManager
         system_peer = system_peer_test.create_system_peer_static(self.ctx)
@@ -3114,7 +3169,8 @@ class TestSubcloudManager(base.DCManagerTestCase):
         # Call add_subcloud method with the test data
         sm.add_subcloud(mock.MagicMock(), 1, values)
 
-        # Assert that the rehome_subcloud and run_deploy_phases methods were not called
+        # Assert that the rehome_subcloud and run_deploy_phases methods were not
+        # called
         mock_rehome_subcloud.assert_not_called()
         mock_run_deploy_phases.assert_not_called()
 
@@ -3126,15 +3182,17 @@ class TestSubcloudManager(base.DCManagerTestCase):
     def test_update_subcloud_bootstrap_values(self):
 
         fake_bootstrap_values = "{'name': 'TestSubcloud', 'system_mode': 'simplex'}"
-        fake_result = '{"saved_payload": {"name": "TestSubcloud", "system_mode": "simplex"}}'
+        fake_result = ('{"saved_payload": {"name": "TestSubcloud", '
+                       '"system_mode": "simplex"}}')
 
         subcloud = self.create_subcloud_static(
             self.ctx,
             name='subcloud1',
             deploy_status=consts.DEPLOY_STATE_DONE)
-        db_api.subcloud_update(self.ctx,
-                               subcloud.id,
-                               availability_status=dccommon_consts.AVAILABILITY_ONLINE)
+        db_api.subcloud_update(
+            self.ctx,
+            subcloud.id,
+            availability_status=dccommon_consts.AVAILABILITY_ONLINE)
 
         fake_dcmanager_cermon_api = FakeDCManagerNotifications()
 
@@ -3163,9 +3221,10 @@ class TestSubcloudManager(base.DCManagerTestCase):
             name='subcloud1',
             deploy_status=consts.DEPLOY_STATE_DONE)
 
-        db_api.subcloud_update(self.ctx,
-                               subcloud.id,
-                               availability_status=dccommon_consts.AVAILABILITY_ONLINE)
+        db_api.subcloud_update(
+            self.ctx,
+            subcloud.id,
+            availability_status=dccommon_consts.AVAILABILITY_ONLINE)
 
         fake_dcmanager_cermon_api = FakeDCManagerNotifications()
 

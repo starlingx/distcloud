@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2023 Wind River Systems, Inc.
+# Copyright (c) 2023-2024 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -22,7 +22,7 @@ class PreCheckState(BaseState):
         alarms = self.get_fm_client(self.region_name).get_alarms()
         for alarm in alarms:
             if alarm.mgmt_affecting == "True" and \
-                alarm.alarm_id not in ignored_alarms:
+                    alarm.alarm_id not in ignored_alarms:
                 return True
         # No management affecting alarms
         return False

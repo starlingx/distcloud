@@ -1,8 +1,9 @@
 #
-# Copyright (c) 2020-2023 Wind River Systems, Inc.
+# Copyright (c) 2020-2024 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
+
 import time
 
 from dccommon import consts as dccommon_consts
@@ -107,7 +108,8 @@ class FinishingFwUpdateState(BaseState):
                 break
             except Exception:
                 if fail_counter >= self.max_failed_queries:
-                    raise Exception("Timeout waiting to query subcloud device image info")
+                    raise Exception(
+                        "Timeout waiting to query subcloud device image info")
                 fail_counter += 1
                 time.sleep(self.failed_sleep_duration)
 

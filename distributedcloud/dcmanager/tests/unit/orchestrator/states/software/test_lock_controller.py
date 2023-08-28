@@ -1,8 +1,9 @@
 #
-# Copyright (c) 2023 Wind River Systems, Inc.
+# Copyright (c) 2023-2024 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
+
 import itertools
 import mock
 
@@ -43,14 +44,17 @@ class TestSwLockSimplexStage(TestSoftwareOrchestrator):
         self.setup_fake_controllers('controller-0')
 
     def setup_fake_controllers(self, host_name):
-        self.CONTROLLER_UNLOCKED = FakeController(hostname=host_name,
-                                                  administrative=consts.ADMIN_UNLOCKED)
+        self.CONTROLLER_UNLOCKED = FakeController(
+            hostname=host_name, administrative=consts.ADMIN_UNLOCKED
+        )
         self.CONTROLLER_LOCKED = FakeController(hostname=host_name,
                                                 administrative=consts.ADMIN_LOCKED)
-        self.CONTROLLER_LOCKING = FakeController(hostname=host_name,
-                                                 administrative=consts.ADMIN_UNLOCKED,
-                                                 ihost_action='lock',
-                                                 task='Locking')
+        self.CONTROLLER_LOCKING = FakeController(
+            hostname=host_name,
+            administrative=consts.ADMIN_UNLOCKED,
+            ihost_action='lock',
+            task='Locking'
+        )
         self.CONTROLLER_LOCKING_FAILED = \
             FakeController(hostname=host_name,
                            administrative=consts.ADMIN_UNLOCKED,

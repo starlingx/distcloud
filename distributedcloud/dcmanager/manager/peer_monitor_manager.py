@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2023 Wind River Systems, Inc.
+# Copyright (c) 2023-2024 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -131,17 +131,21 @@ class PeerMonitor(object):
                         self._raise_failure()
                         db_api.system_peer_update(
                             self.context, self.peer.id,
-                            availability_state=consts.SYSTEM_PEER_AVAILABILITY_STATE_UNAVAILABLE)
+                            availability_state=  # noqa: E251
+                            consts.SYSTEM_PEER_AVAILABILITY_STATE_UNAVAILABLE
+                        )
                         failure_count = 0
                         self._set_require_audit_flag_to_associated_peer_groups()
                 else:
                     failure_count = 0
                     self._audit_local_peer_groups(remote_pg_list)
                     if self.peer.availability_state != \
-                        consts.SYSTEM_PEER_AVAILABILITY_STATE_AVAILABLE:
+                            consts.SYSTEM_PEER_AVAILABILITY_STATE_AVAILABLE:
                         db_api.system_peer_update(
                             self.context, self.peer.id,
-                            availability_state=consts.SYSTEM_PEER_AVAILABILITY_STATE_AVAILABLE)
+                            availability_state=  # noqa: E251
+                            consts.SYSTEM_PEER_AVAILABILITY_STATE_AVAILABLE
+                        )
                         LOG.info("DC %s back online, clear alarm" %
                                  self.peer.peer_name)
                         self._clear_failure()
@@ -167,9 +171,8 @@ class PeerMonitor(object):
                 # Audit for require_audit_flag is True or
                 # Remote peer group is in 'complete' state.
                 if (pgam_obj.require_audit_flag
-                    or remote_peer_group.get("migration_status")
-                    == consts.PEER_GROUP_MIGRATION_COMPLETE
-                    ):
+                    or remote_peer_group.get("migration_status") ==
+                        consts.PEER_GROUP_MIGRATION_COMPLETE):
                     pgam_obj.audit_peer_group_from_system(
                         self.peer, remote_peer_group, peer_group)
             else:
@@ -191,7 +194,7 @@ class PeerMonitor(object):
         return msg
 
     def _clean_peer_group_audit_threads(self):
-        for peer_group_id in self.peer_group_audit_obj_map:
+        for peer_group_id, _ in self.peer_group_audit_obj_map.items():
             pgam_obj = \
                 self.peer_group_audit_obj_map[peer_group_id]
             pgam_obj.stop()
@@ -235,6 +238,7 @@ class PeerMonitor(object):
 
 class PeerMonitorManager(manager.Manager):
     """Manages tasks related to peer monitor."""
+
     def __init__(self, subcloud_manager):
         LOG.debug('PeerMonitorManager initialization...')
 

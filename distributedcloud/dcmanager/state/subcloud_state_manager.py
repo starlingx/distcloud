@@ -10,32 +10,30 @@
 # License for the specific language governing permissions and limitations
 # under the License.
 #
-# Copyright (c) 2017-2023 Wind River Systems, Inc.
+# Copyright (c) 2017-2024 Wind River Systems, Inc.
 #
 # The right to copy, distribute, modify, or otherwise make use
 # of this software may be licensed only pursuant to the terms
 # of an applicable Wind River license agreement.
 #
 
+from fm_api import constants as fm_const
+from fm_api import fm_api
 from oslo_log import log as logging
 
 from dccommon import consts as dccommon_consts
-from dcorch.rpc import client as dcorch_rpc_client
-
 from dcmanager.audit import rpcapi as dcmanager_audit_rpc_client
 from dcmanager.common import consts
 from dcmanager.common import context
 from dcmanager.common import exceptions
 from dcmanager.common import manager
 from dcmanager.common import utils
-from dcmanager.rpc import client as rpc_client
-
 from dcmanager.db import api as db_api
-
-from fm_api import constants as fm_const
-from fm_api import fm_api
+from dcmanager.rpc import client as rpc_client
+from dcorch.rpc import client as dcorch_rpc_client
 
 LOG = logging.getLogger(__name__)
+ALARM_OUT_OF_SYNC = fm_const.FM_ALARM_ID_DC_SUBCLOUD_RESOURCE_OUT_OF_SYNC
 
 
 def sync_update_subcloud_endpoint_status(func):
@@ -133,27 +131,31 @@ class SubcloudStateManager(manager.Manager):
 
                 # Trigger subcloud audits for the subcloud after
                 # its identity endpoint turns to other status from unknown
+                is_sync_unknown = sync_status != dccommon_consts.SYNC_STATUS_UNKNOWN
+                is_identity_unknown = (
+                    original_identity_status == dccommon_consts.SYNC_STATUS_UNKNOWN
+                )
                 if endpoint_type == dccommon_consts.ENDPOINT_TYPE_IDENTITY \
-                        and sync_status != dccommon_consts.SYNC_STATUS_UNKNOWN \
-                        and original_identity_status == dccommon_consts.SYNC_STATUS_UNKNOWN:
+                        and is_sync_unknown and is_identity_unknown:
                     if not subcloud.first_identity_sync_complete:
                         db_api.subcloud_update(context, subcloud_id,
                                                first_identity_sync_complete=True)
                     LOG.debug('Request for audits for %s after updating '
                               'identity out of unknown' % subcloud.name)
-                    self.audit_rpc_client.trigger_subcloud_audits(context, subcloud_id)
+                    self.audit_rpc_client.trigger_subcloud_audits(
+                        context, subcloud_id)
 
                 entity_instance_id = "subcloud=%s.resource=%s" % \
                                      (subcloud.name, endpoint_type)
                 fault = self.fm_api.get_fault(
-                    fm_const.FM_ALARM_ID_DC_SUBCLOUD_RESOURCE_OUT_OF_SYNC,
+                    ALARM_OUT_OF_SYNC,
                     entity_instance_id)
 
                 if (sync_status != dccommon_consts.SYNC_STATUS_OUT_OF_SYNC) \
                         and fault:
                     try:
                         self.fm_api.clear_fault(
-                            fm_const.FM_ALARM_ID_DC_SUBCLOUD_RESOURCE_OUT_OF_SYNC,  # noqa
+                            ALARM_OUT_OF_SYNC,
                             entity_instance_id)
                     except Exception as e:
                         LOG.exception(e)
@@ -162,8 +164,9 @@ class SubcloudStateManager(manager.Manager):
                         (sync_status == dccommon_consts.SYNC_STATUS_OUT_OF_SYNC):
                     entity_type_id = fm_const.FM_ENTITY_TYPE_SUBCLOUD
                     try:
+
                         fault = fm_api.Fault(
-                            alarm_id=fm_const.FM_ALARM_ID_DC_SUBCLOUD_RESOURCE_OUT_OF_SYNC,  # noqa
+                            alarm_id=ALARM_OUT_OF_SYNC,
                             alarm_state=fm_const.FM_ALARM_STATE_SET,
                             entity_type_id=entity_type_id,
                             entity_instance_id=entity_instance_id,
@@ -208,7 +211,7 @@ class SubcloudStateManager(manager.Manager):
                                          (subcloud.name, endpoint)
 
                     fault = self.fm_api.get_fault(
-                        fm_const.FM_ALARM_ID_DC_SUBCLOUD_RESOURCE_OUT_OF_SYNC,
+                        ALARM_OUT_OF_SYNC,
                         entity_instance_id)
 
                     # TODO(yuxing): batch clear all the out-of-sync alarms of a
@@ -219,7 +222,7 @@ class SubcloudStateManager(manager.Manager):
                             and fault:
                         try:
                             self.fm_api.clear_fault(
-                                fm_const.FM_ALARM_ID_DC_SUBCLOUD_RESOURCE_OUT_OF_SYNC,  # noqa
+                                ALARM_OUT_OF_SYNC,
                                 entity_instance_id)
                         except Exception as e:
                             LOG.exception(e)
@@ -229,7 +232,7 @@ class SubcloudStateManager(manager.Manager):
                         entity_type_id = fm_const.FM_ENTITY_TYPE_SUBCLOUD
                         try:
                             fault = fm_api.Fault(
-                                alarm_id=fm_const.FM_ALARM_ID_DC_SUBCLOUD_RESOURCE_OUT_OF_SYNC,  # noqa
+                                alarm_id=ALARM_OUT_OF_SYNC,
                                 alarm_state=fm_const.FM_ALARM_STATE_SET,
                                 entity_type_id=entity_type_id,
                                 entity_instance_id=entity_instance_id,
@@ -250,9 +253,11 @@ class SubcloudStateManager(manager.Manager):
 
                 if endpoint_to_update_list:
                     try:
-                        db_api.subcloud_status_update_endpoints(context, subcloud_id,
-                                                                endpoint_to_update_list,
-                                                                sync_status)
+                        db_api.subcloud_status_update_endpoints(
+                            context,
+                            subcloud_id,
+                            endpoint_to_update_list,
+                            sync_status)
                     except Exception as e:
                         LOG.exception(e)
 
@@ -441,7 +446,9 @@ class SubcloudStateManager(manager.Manager):
         try:
             subcloud = db_api.subcloud_get_by_region_name(context, subcloud_region)
         except Exception:
-            LOG.exception("Failed to get subcloud by region name %s" % subcloud_region)
+            LOG.exception(
+                "Failed to get subcloud by region name %s" % subcloud_region
+            )
             raise
 
         if update_state_only:
@@ -529,7 +536,9 @@ class SubcloudStateManager(manager.Manager):
         try:
             subcloud = db_api.subcloud_get_by_region_name(context, subcloud_region)
         except Exception:
-            LOG.exception("Failed to get subcloud by region name: %s" % subcloud_region)
+            LOG.exception(
+                "Failed to get subcloud by region name: %s" % subcloud_region
+            )
             raise
 
         try:

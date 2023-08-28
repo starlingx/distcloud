@@ -1,5 +1,5 @@
 # Copyright (c) 2017 Ericsson AB.
-# Copyright (c) 2017-2022 Wind River Systems, Inc.
+# Copyright (c) 2017-2022, 2024 Wind River Systems, Inc.
 # All Rights Reserved.
 #
 #    Licensed under the Apache License, Version 2.0 (the "License"); you may
@@ -15,14 +15,14 @@
 #    under the License.
 #
 
+from oslo_log import log as logging
+from pecan import expose
+
 from dcmanager.api.controllers import restcomm
 from dcmanager.api.policies import alarm_manager as alarm_manager_policy
 from dcmanager.api import policy
 from dcmanager.common import consts
 from dcmanager.db import api as db_api
-
-from oslo_log import log as logging
-from pecan import expose
 
 LOG = logging.getLogger(__name__)
 

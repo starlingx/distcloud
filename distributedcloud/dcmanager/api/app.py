@@ -1,5 +1,5 @@
 # Copyright (c) 2015 Huawei, Tech. Co,. Ltd.
-# Copyright (c) 2017, 2019, 2021 Wind River Systems, Inc.
+# Copyright (c) 2017, 2019, 2021, 2024 Wind River Systems, Inc.
 # All Rights Reserved.
 #
 #    Licensed under the Apache License, Version 2.0 (the "License"); you may
@@ -42,9 +42,9 @@ def setup_app(*args, **kwargs):
             'errors': {
                 400: '/error',
                 '__force_dict__': True
-                }
             }
         }
+    }
 
     pecan_config = pecan.configuration.conf_from_dict(config)
 

@@ -12,7 +12,7 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 #
-# Copyright (c) 2022 Wind River Systems, Inc.
+# Copyright (c) 2022, 2024 Wind River Systems, Inc.
 #
 # The right to copy, distribute, modify, or otherwise make use
 # of this software may be licensed only pursuant to the terms
@@ -26,14 +26,16 @@ DC Manager State Engine Server.
 import eventlet
 eventlet.monkey_patch()
 
-from oslo_config import cfg
-from oslo_i18n import _lazy
-from oslo_log import log as logging
-from oslo_service import service
+# pylint: disable=wrong-import-position
+from oslo_config import cfg  # noqa: E402
+from oslo_i18n import _lazy  # noqa: E402
+from oslo_log import log as logging  # noqa: E402
+from oslo_service import service  # noqa: E402
 
-from dcmanager.common import config
-from dcmanager.common import messaging
-from dcorch.common import messaging as dcorch_messaging
+from dcmanager.common import config  # noqa: E402
+from dcmanager.common import messaging  # noqa: E402
+from dcorch.common import messaging as dcorch_messaging  # noqa: E402
+# pylint: enable=wrong-import-position
 
 _lazy.enable_lazy()
 config.register_options()
@@ -64,6 +66,7 @@ def main():
     srv = state.DCManagerStateService(cfg.CONF.host)
     launcher = service.launch(cfg.CONF, srv, workers=cfg.CONF.state_workers)
     launcher.wait()
+
 
 if __name__ == '__main__':
     main()

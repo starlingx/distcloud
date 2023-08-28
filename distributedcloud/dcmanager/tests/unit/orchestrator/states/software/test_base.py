@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2023 Wind River Systems, Inc.
+# Copyright (c) 2023-2024 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -26,7 +26,8 @@ class TestSoftwareOrchestrator(TestSwUpdate):
             return_value=self.software_client,
         )
         self.sysinv_cache_client_mock = mock.patch(
-            "%s.get_sysinv_client" % CACHE_CLIENT_PATH, return_value=self.sysinv_client
+            "%s.get_sysinv_client" % CACHE_CLIENT_PATH,
+            return_value=self.sysinv_client
         )
         self.software_cache_client_mock.start()
         self.sysinv_cache_client_mock.start()

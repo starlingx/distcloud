@@ -1,6 +1,6 @@
 # Copyright 2010 United States Government as represented by the
 # Administrator of the National Aeronautics and Space Administration.
-# Copyright (c) 2017, 2019, 2021 Wind River Systems, Inc.
+# Copyright (c) 2017, 2019, 2021, 2024 Wind River Systems, Inc.
 # All Rights Reserved.
 #
 #    Licensed under the Apache License, Version 2.0 (the "License"); you may
@@ -72,7 +72,6 @@ class Manager(PeriodicTasks):
         return self.run_periodic_tasks(context, raise_on_error=raise_on_error)
 
     def init_host(self):
-
         """init_host
 
         Hook to do additional manager initialization when one requests
@@ -84,7 +83,6 @@ class Manager(PeriodicTasks):
         pass
 
     def cleanup_host(self):
-
         """cleanup_host
 
         Hook to do cleanup work when the service shuts down.
@@ -94,7 +92,6 @@ class Manager(PeriodicTasks):
         pass
 
     def pre_start_hook(self):
-
         """pre_start_hook
 
         Hook to provide the manager the ability to do additional
@@ -107,7 +104,6 @@ class Manager(PeriodicTasks):
         pass
 
     def post_start_hook(self):
-
         """post_start_hook
 
         Hook to provide the manager the ability to do additional

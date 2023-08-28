@@ -1,8 +1,9 @@
 #
-# Copyright (c) 2020, 2023 Wind River Systems, Inc.
+# Copyright (c) 2020, 2023-2024 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
+
 import mock
 
 from dcmanager.common import consts
@@ -57,8 +58,8 @@ class TestSwUpgradeFinishingPatchStrategyStage(TestSwUpgradeState):
         self.subcloud = self.setup_subcloud()
 
         # Add the strategy_step state being processed by this unit test
-        self.strategy_step = \
-            self.setup_strategy_step(self.subcloud.id, consts.STRATEGY_STATE_FINISHING_PATCH_STRATEGY)
+        self.strategy_step = self.setup_strategy_step(
+            self.subcloud.id, consts.STRATEGY_STATE_FINISHING_PATCH_STRATEGY)
 
         # Add mock API endpoints for patching client calls invoked by this state
         self.patching_client.query = mock.MagicMock()

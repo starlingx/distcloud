@@ -1,14 +1,16 @@
 #
-# Copyright (c) 2023 Wind River Systems, Inc.
+# Copyright (c) 2023-2024 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
+
+import mock
+
 from dcmanager.common import consts
 from dcmanager.orchestrator.states.patch.pre_check import IGNORED_ALARMS_IDS
 from dcmanager.tests.unit.orchestrator.states.fakes import FakeAlarm
 from dcmanager.tests.unit.orchestrator.states.patch.test_base import \
     TestPatchState
-import mock
 
 
 class TestPatchPreCheckStage(TestPatchState):

@@ -1,5 +1,5 @@
 # Copyright 2017 Ericsson AB.
-# Copyright (c) 2017-2023 Wind River Systems, Inc.
+# Copyright (c) 2017-2024 Wind River Systems, Inc.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -112,16 +112,12 @@ class FirmwareAudit(object):
             # Filter images which have been applied on RegionOne
             for image in local_device_images:
                 if image.applied:
-                    filtered_images.append(FirmwareAuditData(image.bitstream_type,
-                                                             image.bitstream_id,
-                                                             image.bmc,
-                                                             image.retimer_included,
-                                                             image.key_signature,
-                                                             image.revoke_key_id,
-                                                             image.applied,
-                                                             image.pci_vendor,
-                                                             image.pci_device,
-                                                             image.applied_labels))
+                    filtered_images.append(FirmwareAuditData(
+                        image.bitstream_type, image.bitstream_id, image.bmc,
+                        image.retimer_included, image.key_signature,
+                        image.revoke_key_id, image.applied, image.pci_vendor,
+                        image.pci_device, image.applied_labels
+                    ))
             LOG.debug("RegionOne applied_images: %s" % filtered_images)
         except Exception:
             LOG.exception('Cannot retrieve device images for RegionOne, '
@@ -133,24 +129,33 @@ class FirmwareAudit(object):
                                label_key, label_value):
         for device_label in subcloud_host_device_label_list:
             if device_label.pcidevice_uuid and \
-                device_uuid == device_label.pcidevice_uuid and \
-                label_key == device_label.label_key and \
-                label_value == device_label.label_value:
+                    device_uuid == device_label.pcidevice_uuid and \
+                    label_key == device_label.label_key and \
+                    label_value == device_label.label_value:
                 return True
         return False
 
-    def _check_image_match(self,
-                           subcloud_image,
-                           system_controller_image):
-        if ((system_controller_image.bitstream_type == consts.BITSTREAM_TYPE_ROOT_KEY and
-             system_controller_image.key_signature == subcloud_image.key_signature) or
-            (system_controller_image.bitstream_type == consts.BITSTREAM_TYPE_FUNCTIONAL and
-             system_controller_image.bitstream_id == subcloud_image.bitstream_id and
-             system_controller_image.bmc == subcloud_image.bmc and
-             system_controller_image.retimer_included == subcloud_image.retimer_included) or
-            (system_controller_image.bitstream_type == consts.BITSTREAM_TYPE_KEY_REVOCATION and
-             system_controller_image.revoke_key_id == subcloud_image.revoke_key_id)):
-                return True
+    def _check_image_match(self, subcloud_image, system_controller_image):
+        if (
+            (
+                system_controller_image.bitstream_type ==
+                consts.BITSTREAM_TYPE_ROOT_KEY and
+                system_controller_image.key_signature == subcloud_image.key_signature
+            ) or (
+                system_controller_image.bitstream_type ==
+                consts.BITSTREAM_TYPE_FUNCTIONAL and
+                system_controller_image.bitstream_id ==
+                subcloud_image.bitstream_id and
+                system_controller_image.bmc == subcloud_image.bmc and
+                system_controller_image.retimer_included ==
+                subcloud_image.retimer_included
+            ) or (
+                system_controller_image.bitstream_type ==
+                consts.BITSTREAM_TYPE_KEY_REVOCATION and
+                system_controller_image.revoke_key_id == subcloud_image.revoke_key_id
+            )
+        ):
+            return True
         return False
 
     def _check_subcloud_device_has_image(self,
@@ -197,7 +202,7 @@ class FirmwareAudit(object):
                     continue
 
             if image.pci_vendor == device.pvendor_id and \
-                image.pci_device == device.pdevice_id:
+                    image.pci_device == device.pdevice_id:
                 device_image_state = None
                 subcloud_image = None
                 for device_image_state_obj in subcloud_device_image_states:
@@ -220,7 +225,7 @@ class FirmwareAudit(object):
                     return False
 
                 if device_image_state and \
-                    device_image_state.status != "completed":
+                        device_image_state.status != "completed":
                     # If device image state is not completed it means
                     # that the image has not been written to the device yet
                     return False
@@ -303,12 +308,10 @@ class FirmwareAudit(object):
         for image in audit_data:
             # audit_data will be a dict from passing through RPC, so objectify
             image = FirmwareAuditData.from_dict(image)
-            proceed = self._check_subcloud_device_has_image(subcloud_name,
-                                                            sysinv_client,
-                                                            image,
-                                                            enabled_host_device_list,
-                                                            subcloud_device_image_states,
-                                                            subcloud_device_label_list)
+            proceed = self._check_subcloud_device_has_image(
+                subcloud_name, sysinv_client, image, enabled_host_device_list,
+                subcloud_device_image_states, subcloud_device_label_list
+            )
             if not proceed:
                 out_of_sync = True
                 break

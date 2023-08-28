@@ -1,8 +1,9 @@
 #
-# Copyright (c) 2020-2023 Wind River Systems, Inc.
+# Copyright (c) 2020-2024 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
+
 import time
 
 import retrying
@@ -113,7 +114,8 @@ class UnlockHostState(BaseState):
             try:
                 # query the administrative state to see if it is the new state.
                 host = self.get_sysinv_client(
-                    strategy_step.subcloud.region_name).get_host(self.target_hostname)
+                    strategy_step.subcloud.region_name
+                ).get_host(self.target_hostname)
                 if self.check_host_ready(host):
                     # Success. Break out of the loop.
                     msg = "Host: %s is now: %s %s %s" % (self.target_hostname,

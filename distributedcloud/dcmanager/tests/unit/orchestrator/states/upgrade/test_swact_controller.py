@@ -1,8 +1,9 @@
 #
-# Copyright (c) 2021-2022 Wind River Systems, Inc.
+# Copyright (c) 2021-2022, 2024 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
+
 import itertools
 import mock
 
@@ -43,10 +44,10 @@ class TestSwUpgradeSwactToController0Stage(TestSwUpgradeState):
 
     def setup_fake_controllers(self, host_name):
         self.CONTROLLER_ACTIVE = FakeController(hostname=host_name)
-        self.CONTROLLER_STANDBY = FakeController(hostname=host_name,
-                                                 capabilities={"Personality": "Controller-Standby"})
-        self.CONTROLLER_SWACTING = FakeController(hostname=host_name,
-                                                  task='Swacting')
+        self.CONTROLLER_STANDBY = FakeController(
+            hostname=host_name, capabilities={"Personality": "Controller-Standby"})
+        self.CONTROLLER_SWACTING = FakeController(
+            hostname=host_name, task='Swacting')
 
     def test_swact_success(self):
         """Test the swact command returns a success"""
@@ -89,7 +90,7 @@ class TestSwUpgradeSwactToController0Stage(TestSwUpgradeState):
                                  self.on_success_state)
 
     def test_swact_attempt_timeout(self):
-        """Test swact invoked and fails if timeout before host becomes active controller"""
+        """Test swact invoked and fails if timeout before host becomes active"""
 
         # mock the get_host queries
         # all remaining queries, the host returns 'Controller-Standby'

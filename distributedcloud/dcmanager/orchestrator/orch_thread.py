@@ -1,19 +1,20 @@
 # Copyright 2017 Ericsson AB.
-# Copyright (c) 2017-2023 Wind River Systems, Inc.
+# Copyright (c) 2017-2024 Wind River Systems, Inc.
+# All Rights Reserved.
 #
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
+#    Licensed under the Apache License, Version 2.0 (the "License"); you may
+#    not use this file except in compliance with the License. You may obtain
+#    a copy of the License at
 #
-#    http://www.apache.org/licenses/LICENSE-2.0
+#         http://www.apache.org/licenses/LICENSE-2.0
 #
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or
-# implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
+#    Unless required by applicable law or agreed to in writing, software
+#    distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+#    WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
+#    License for the specific language governing permissions and limitations
+#    under the License.
 #
+
 import abc
 import datetime
 import threading
@@ -196,7 +197,8 @@ class OrchThread(threading.Thread):
         return state_operator(
             region_name=OrchThread.get_region_name(strategy_step))
 
-    def strategy_step_update(self, subcloud_id, state=None, details=None, stage=None):
+    def strategy_step_update(
+            self, subcloud_id, state=None, details=None, stage=None):
         """Update the strategy step in the DB
 
         Sets the start and finished timestamp if necessary, based on state.
@@ -219,9 +221,10 @@ class OrchThread(threading.Thread):
                                            finished_at=finished_at)
 
     def _delete_subcloud_worker(self, region, subcloud_id):
-        db_api.strategy_step_update(self.context,
-                                    subcloud_id,
-                                    stage=consts.STAGE_SUBCLOUD_ORCHESTRATION_PROCESSED)
+        db_api.strategy_step_update(
+            self.context,
+            subcloud_id,
+            stage=consts.STAGE_SUBCLOUD_ORCHESTRATION_PROCESSED)
         if region in self.subcloud_workers:
             # The orchestration for this subcloud has either
             # completed/failed/aborted, remove it from the
@@ -387,8 +390,8 @@ class OrchThread(threading.Thread):
                 continue
             elif strategy_step.state == \
                     consts.STRATEGY_STATE_INITIAL:
-                if sw_update_strategy.max_parallel_subclouds > len(self.subcloud_workers) \
-                   and not stop:
+                if sw_update_strategy.max_parallel_subclouds > \
+                        len(self.subcloud_workers) and not stop:
                     # Don't start upgrading this subcloud if it has been
                     # unmanaged by the user. If orchestration was already
                     # started, it will be allowed to complete.

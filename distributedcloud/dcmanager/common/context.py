@@ -1,27 +1,29 @@
-# Copyright (c) 2017-2022 Wind River Systems, Inc.
-# Licensed under the Apache License, Version 2.0 (the "License"); you may
-# not use this file except in compliance with the License. You may obtain
-# a copy of the License at
+# Copyright (c) 2017-2022, 2024 Wind River Systems, Inc.
+# All Rights Reserved.
+#
+#    Licensed under the Apache License, Version 2.0 (the "License"); you may
+#    not use this file except in compliance with the License. You may obtain
+#    a copy of the License at
 #
 #         http://www.apache.org/licenses/LICENSE-2.0
 #
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
-# WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
-# License for the specific language governing permissions and limitations
-# under the License.
+#    Unless required by applicable law or agreed to in writing, software
+#    distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+#    WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
+#    License for the specific language governing permissions and limitations
+#    under the License.
 #
 
-import pecan
-from pecan import hooks
 import re
-from six.moves.urllib.parse import urlparse
 import time
 
 from oslo_context import context as base_context
 from oslo_log import log
 from oslo_utils import encodeutils
 from oslo_utils import uuidutils
+import pecan
+from pecan import hooks
+from six.moves.urllib.parse import urlparse
 
 from dcmanager.api.policies import base as base_policy
 from dcmanager.api import policy
@@ -52,7 +54,6 @@ class RequestContext(base_context.RequestContext):
                  user_domain_name=None, project_domain_name=None,
                  auth_token_info=None, region_name=None, roles=None,
                  password=None, **kwargs):
-
         """Initializer of request context."""
         # We still have 'tenant' param because oslo_context still use it.
         # pylint: disable=E1123
@@ -244,8 +245,8 @@ class AuditLoggingHook(hooks.PecanHook):
         # [req-088ed3b6-a2c9-483e-b2ad-f1b2d03e06e6
         #  3d76d3c1376744e8ad9916a6c3be3e5f
         #  ca53e70c76d847fd860693f8eb301546]
-        # When the ctx is defined, the formatter (defined in common/log.py) requires that keys
-        # request_id, user, tenant be defined within the ctx
+        # When the ctx is defined, the formatter (defined in common/log.py) requires
+        # that keys request_id, user, tenant be defined within the ctx
         ctx = {'request_id': request_id,
                'user': user_id,
                'tenant': tenant_id}
@@ -261,4 +262,5 @@ class AuditLoggingHook(hooks.PecanHook):
             auditLOG.exception("Exception in AuditLoggingHook on event 'after'")
 
     def on_error(self, state, e):
-        auditLOG.exception("Exception in AuditLoggingHook passed to event 'on_error': " + str(e))
+        auditLOG.exception("Exception in AuditLoggingHook passed to event "
+                           "'on_error': " + str(e))

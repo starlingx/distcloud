@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2023 Wind River Systems, Inc.
+# Copyright (c) 2023-2024 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -278,9 +278,12 @@ class PhasedSubcloudDeployController(object):
                 utils.get_management_gateway_address(payload)
             subcloud_dict['management-start-ip'] = \
                 utils.get_management_start_address(payload)
-            subcloud_dict['management-end-ip'] = utils.get_management_end_address(payload)
+            subcloud_dict['management-end-ip'] = \
+                utils.get_management_end_address(payload)
             subcloud_dict['systemcontroller-gateway-ip'] = payload.get(
-                "systemcontroller_gateway_address", subcloud.systemcontroller_gateway_ip)
+                "systemcontroller_gateway_address",
+                subcloud.systemcontroller_gateway_ip
+            )
             return subcloud_dict
 
         except RemoteError as e:
@@ -425,10 +428,13 @@ class PhasedSubcloudDeployController(object):
         # Consider the incoming release parameter only if install is one
         # of the pending deploy states
         if INSTALL in deploy_states_to_run:
-            unvalidated_sw_version = payload.get('release', subcloud.software_version)
+            unvalidated_sw_version = \
+                payload.get('release', subcloud.software_version)
         else:
-            LOG.debug('Disregarding release parameter for %s as installation is complete.'
-                      % subcloud.name)
+            LOG.debug(
+                'Disregarding release parameter for %s as installation is complete.'
+                % subcloud.name
+            )
             unvalidated_sw_version = subcloud.software_version
 
         # get_sw_version will simply return back the passed
@@ -474,9 +480,12 @@ class PhasedSubcloudDeployController(object):
                 utils.get_management_gateway_address(payload)
             subcloud_dict['management-start-ip'] = \
                 utils.get_management_start_address(payload)
-            subcloud_dict['management-end-ip'] = utils.get_management_end_address(payload)
+            subcloud_dict['management-end-ip'] = \
+                utils.get_management_end_address(payload)
             subcloud_dict['systemcontroller-gateway-ip'] = payload.get(
-                "systemcontroller_gateway_address", subcloud.systemcontroller_gateway_ip)
+                "systemcontroller_gateway_address",
+                subcloud.systemcontroller_gateway_ip
+            )
             return subcloud_dict
         except RemoteError as e:
             pecan.abort(422, e.value)

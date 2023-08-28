@@ -1,8 +1,9 @@
 #
-# Copyright (c) 2021-2022 Wind River Systems, Inc.
+# Copyright (c) 2021-2022, 2024 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
+
 import re
 
 from dccommon.consts import DEFAULT_REGION_NAME
@@ -14,8 +15,8 @@ from dcmanager.common import utils
 from dcmanager.db import api as db_api
 from dcmanager.orchestrator.states.base import BaseState
 
-# These following alarms can occur during a vim orchestrated k8s upgrade on the subcloud.
-# By ignoring the alarms, subcloud k8s upgrade can be
+# These following alarms can occur during a vim orchestrated k8s upgrade on the
+# subcloud. By ignoring the alarms, subcloud k8s upgrade can be
 # retried after a failure using DC orchestrator.
 ALARM_IGNORE_LIST = ['100.003', '200.001', '700.004', '750.006',
                      '900.007', '900.401']
@@ -45,7 +46,8 @@ class KubeUpgradePreCheckState(BaseState):
         rather than the 'available' version in the subcloud.  This allows
         a partially upgraded subcloud to be skipped.
         """
-        system_health = self.get_sysinv_client(self.region_name).get_kube_upgrade_health()
+        system_health = self.get_sysinv_client(
+            self.region_name).get_kube_upgrade_health()
         fails = re.findall("\[Fail\]", system_health)
         failed_alarm_check = re.findall("No alarms: \[Fail\]", system_health)
         no_mgmt_alarms = re.findall("\[0\] of which are management affecting",
@@ -57,17 +59,19 @@ class KubeUpgradePreCheckState(BaseState):
             for alarm in alarms:
                 if alarm.alarm_id not in ALARM_IGNORE_LIST:
                     if alarm.mgmt_affecting == "True":
-                        error_desc_msg = ("Kubernetes upgrade health check failed due to alarm %s. "
-                                          "Kubernetes upgrade health: \n %s" %
-                                          (alarm.alarm_id, system_health))
+                        error_desc_msg = (
+                            "Kubernetes upgrade health check failed due to alarm "
+                            "%s. Kubernetes upgrade health: \n %s" % (
+                                alarm.alarm_id, system_health))
                         db_api.subcloud_update(
                             self.context, strategy_step.subcloud_id,
                             error_description=error_desc_msg)
                         self.error_log(strategy_step, "\n" + system_health)
-                        raise Exception(("Kubernetes upgrade health check failed due to alarm %s. "
-                                         "Please run 'system health-query-kube-upgrade' "
-                                         "command on the subcloud or %s on central for details." %
-                                         (alarm.alarm_id, ERROR_DESC_CMD)))
+                        raise Exception((
+                            "Kubernetes upgrade health check failed due to alarm "
+                            "%s. Please run 'system health-query-kube-upgrade' "
+                            "command on the subcloud or %s on central for details." %
+                            (alarm.alarm_id, ERROR_DESC_CMD)))
         else:
             error_desc_msg = ("Kubernetes upgrade health check failed. \n %s" %
                               system_health)
@@ -114,7 +118,9 @@ class KubeUpgradePreCheckState(BaseState):
             subcloud_kube_versions = \
                 self.get_sysinv_client(self.region_name).get_kube_versions()
             target_version = \
-                utils.select_available_kube_version(subcloud_kube_versions, to_version)
+                utils.select_available_kube_version(
+                    subcloud_kube_versions, to_version
+                )
             self.debug_log(strategy_step,
                            "Pre-Check. Available Kubernetes upgrade:(%s)"
                            % target_version)
