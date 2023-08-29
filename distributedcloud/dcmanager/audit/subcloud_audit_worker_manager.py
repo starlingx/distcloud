@@ -121,7 +121,7 @@ class SubcloudAuditWorkerManager(manager.Manager):
                      consts.DEPLOY_STATE_PRE_INSTALL_FAILED,
                      consts.DEPLOY_STATE_INSTALLING,
                      consts.DEPLOY_STATE_DATA_MIGRATION_FAILED,
-                     consts.DEPLOY_STATE_MIGRATED,
+                     consts.DEPLOY_STATE_UPGRADE_ACTIVATED,
                      consts.DEPLOY_STATE_RESTORING,
                      consts.DEPLOY_STATE_RESTORE_PREP_FAILED,
                      consts.DEPLOY_STATE_RESTORE_FAILED]

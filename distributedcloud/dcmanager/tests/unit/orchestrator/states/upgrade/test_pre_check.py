@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2020-2022 Wind River Systems, Inc.
+# Copyright (c) 2020-2023 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -423,16 +423,16 @@ class TestSwUpgradePreCheckStage(TestSwUpgradeState):
 
 class TestSwUpgradePreCheckSimplexStage(TestSwUpgradePreCheckStage):
 
-    def test_upgrade_pre_check_subcloud_online_migrated(self):
+    def test_upgrade_pre_check_subcloud_online_activated(self):
         """Test pre check step where the subcloud is online and running N+1 load
 
-        The pre-check in this scenario should advance directly to 'activating upgrade'.
+        The pre-check in this scenario should advance directly to 'completing upgrade'.
         """
 
         # Update the subcloud to have deploy state as "migrated"
         db_api.subcloud_update(self.ctx,
                                self.subcloud.id,
-                               deploy_status=consts.DEPLOY_STATE_MIGRATED)
+                               deploy_status=consts.DEPLOY_STATE_UPGRADE_ACTIVATED)
 
         # invoke the strategy state operation on the orch thread
         self.worker.perform_state_action(self.strategy_step)
@@ -443,9 +443,9 @@ class TestSwUpgradePreCheckSimplexStage(TestSwUpgradePreCheckStage):
         # verify the get host filesystem API call was not invoked
         self.sysinv_client.get_host_filesystem.assert_not_called()
 
-        # Verify the expected next state happened (activating upgrade)
+        # Verify the expected next state happened (completing upgrade)
         self.assert_step_updated(self.strategy_step.subcloud_id,
-                                 consts.STRATEGY_STATE_ACTIVATING_UPGRADE)
+                                 consts.STRATEGY_STATE_COMPLETING_UPGRADE)
 
     def test_upgrade_pre_check_subcloud_online_migrate_failed(self):
         """Test pre check step where the subcloud is online following an unlock timeout
@@ -479,6 +479,30 @@ class TestSwUpgradePreCheckSimplexStage(TestSwUpgradePreCheckStage):
         updated_subcloud = db_api.subcloud_get(self.ctx,
                                                self.subcloud.id)
         self.assertEqual(updated_subcloud.deploy_status, consts.DEPLOY_STATE_MIGRATED)
+
+        # Verify the expected next state happened (activating upgrade)
+        self.assert_step_updated(self.strategy_step.subcloud_id,
+                                 consts.STRATEGY_STATE_ACTIVATING_UPGRADE)
+
+    def test_upgrade_pre_check_subcloud_online_migrated(self):
+        """Test pre check step where the subcloud is online following an activation failure
+
+        The pre-check in this scenario should advance directly to 'activating upgrade'.
+        """
+
+        # Update the subcloud to have deploy state as "migrated"
+        db_api.subcloud_update(self.ctx,
+                               self.subcloud.id,
+                               deploy_status=consts.DEPLOY_STATE_MIGRATED)
+
+        # invoke the strategy state operation on the orch thread
+        self.worker.perform_state_action(self.strategy_step)
+
+        # verify the get system health API call was not invoked
+        self.sysinv_client.get_system_health_upgrade.assert_not_called()
+
+        # verify the get host filesystem API call was not invoked
+        self.sysinv_client.get_host_filesystem.assert_not_called()
 
         # Verify the expected next state happened (activating upgrade)
         self.assert_step_updated(self.strategy_step.subcloud_id,
@@ -620,6 +644,28 @@ class TestSwUpgradePreCheckSimplexStage(TestSwUpgradePreCheckStage):
         # Verify the expected next state happened (migrating data)
         self.assert_step_updated(self.strategy_step.subcloud_id,
                                  consts.STRATEGY_STATE_MIGRATING_DATA)
+
+    def test_upgrade_pre_check_subcloud_jumps_to_activating(self):
+        """Test pre check step which jumps to activating upgrade state
+
+        The pre-check should transition in this scenario to activating upgrade
+        state if the subcloud is now offline, and the deploy status can be
+        handled by that state.
+        """
+
+        # Update the subcloud to have deploy state as "migrated",
+        # and availability status as "offline"
+        db_api.subcloud_update(self.ctx,
+                               self.subcloud.id,
+                               deploy_status=consts.DEPLOY_STATE_MIGRATED,
+                               availability_status=dccommon_consts.AVAILABILITY_OFFLINE)
+
+        # invoke the strategy state operation on the orch thread
+        self.worker.perform_state_action(self.strategy_step)
+
+        # Verify the expected next state happened (activating upgrade)
+        self.assert_step_updated(self.strategy_step.subcloud_id,
+                                 consts.STRATEGY_STATE_ACTIVATING_UPGRADE)
 
     def test_upgrade_pre_check_subcloud_jumps_to_upgrading(self):
         """Test pre check step which jumps to the upgrading state

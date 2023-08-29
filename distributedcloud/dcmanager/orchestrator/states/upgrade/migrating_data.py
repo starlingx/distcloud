@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2020-2022 Wind River Systems, Inc.
+# Copyright (c) 2020-2023 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -30,9 +30,6 @@ DEFAULT_FAILED_SLEEP = 60
 DEFAULT_MAX_API_QUERIES = 30
 DEFAULT_API_SLEEP = 60
 
-# sleep for 3 minutes after ansible completes
-DEFAULT_ANSIBLE_SLEEP = 180
-
 
 def migrate_subcloud_data(migrate_command, log_file):
     try:
@@ -51,7 +48,6 @@ class MigratingDataState(BaseState):
         super(MigratingDataState, self).__init__(
             next_state=consts.STRATEGY_STATE_UNLOCKING_CONTROLLER_0, region_name=region_name)
 
-        self.ansible_sleep = DEFAULT_ANSIBLE_SLEEP
         self.max_api_queries = DEFAULT_MAX_API_QUERIES
         self.api_sleep_duration = DEFAULT_API_SLEEP
         self.max_failed_queries = DEFAULT_MAX_FAILED_QUERIES
@@ -170,10 +166,6 @@ class MigratingDataState(BaseState):
             self.error_log(strategy_step, str(e))
             raise
 
-        # Ansible invokes an unlock. Need to wait for the unlock to complete.
-        # Wait for 3 minutes for mtc/scripts to shut down services
-        # todo(abailey): split this into smaller sleeps to allow stopping early
-        time.sleep(self.ansible_sleep)
         # wait up to 60 minutes for reboot to complete
         self.wait_for_unlock(strategy_step)
 

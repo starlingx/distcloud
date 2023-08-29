@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2020-2022 Wind River Systems, Inc.
+# Copyright (c) 2020-2023 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -245,8 +245,9 @@ class PreCheckState(BaseState):
                     return self.next_state
 
                 # Skip subcloud online checks if the subcloud deploy status is
-                # "migrated".
-                if subcloud.deploy_status == consts.DEPLOY_STATE_MIGRATED:
+                # either "migrated" or "upgrade-activated".
+                if subcloud.deploy_status in [consts.DEPLOY_STATE_MIGRATED,
+                                              consts.DEPLOY_STATE_UPGRADE_ACTIVATED]:
                     self.info_log(strategy_step, "Online subcloud checks skipped.")
                 else:
                     self._perform_subcloud_online_checks(strategy_step,
@@ -254,19 +255,29 @@ class PreCheckState(BaseState):
                                                          subcloud_fm_client,
                                                          host, upgrades)
 
-                if subcloud.deploy_status == consts.DEPLOY_STATE_MIGRATED:
-                    # If the subcloud has completed data migration, advance directly
-                    # to activating upgrade step.
-                    self.override_next_state(consts.STRATEGY_STATE_ACTIVATING_UPGRADE)
+                if subcloud.deploy_status == consts.DEPLOY_STATE_UPGRADE_ACTIVATED:
+                    # If the subcloud has completed upgrade activation, advance directly
+                    # to completing step.
+                    self.override_next_state(consts.STRATEGY_STATE_COMPLETING_UPGRADE)
                 elif subcloud.deploy_status == consts.DEPLOY_STATE_DATA_MIGRATION_FAILED:
                     # If the subcloud deploy status is data-migration-failed but
                     # it is online and has passed subcloud online checks, it must have
-                    # timed out while waiting for the subcloud to reboot previously and
+                    # timed out while waiting for the subcloud to unlock previously and
                     # has succesfully been unlocked since. Update the subcloud deploy
                     # status and advance to activating upgrade step.
                     db_api.subcloud_update(
                         self.context, strategy_step.subcloud_id,
                         deploy_status=consts.DEPLOY_STATE_MIGRATED)
+                    self.override_next_state(consts.STRATEGY_STATE_ACTIVATING_UPGRADE)
+                elif subcloud.deploy_status == consts.DEPLOY_STATE_MIGRATED:
+                    # If the subcloud deploy status is migrated but it is online, it
+                    # must have undergone 2 upgrade attempts:
+                    #   - in 1st upgrade attempt: strategy timed out while waiting
+                    #     for the subcloud to unlock
+                    #   - in 2nd upgrade attempt: the subcloud was unlocked successfully
+                    #     (with or without manual interventions) but failed to activate.
+                    # Advance to activating upgrade step so activation can be retried
+                    # after the manual intervention.
                     self.override_next_state(consts.STRATEGY_STATE_ACTIVATING_UPGRADE)
             else:
                 # Duplex case

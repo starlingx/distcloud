@@ -30,8 +30,6 @@ CONTROLLER_0_UNLOCKED = \
             "DEFAULT_API_SLEEP", 1)
 @mock.patch("dcmanager.orchestrator.states.upgrade.migrating_data."
             "DEFAULT_FAILED_SLEEP", 1)
-@mock.patch("dcmanager.orchestrator.states.upgrade.migrating_data."
-            "DEFAULT_ANSIBLE_SLEEP", 3)
 class TestSwUpgradeMigratingDataStage(TestSwUpgradeState):
 
     def setUp(self):

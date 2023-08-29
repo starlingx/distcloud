@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2023 Wind River Systems, Inc.
+# Copyright (c) 2020-2023 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -21,7 +21,7 @@ ACTIVATING_IN_PROGRESS_STATES = ['activating', 'activating-hosts', ]
 # Max time: 60 minutes = 60 queries x 60 seconds sleep between queries
 DEFAULT_MAX_QUERIES = 60
 DEFAULT_SLEEP_DURATION = 60
-MAX_FAILED_RETRIES = 10
+MAX_FAILED_RETRIES = 3
 
 
 class ActivatingUpgradeState(BaseState):
@@ -122,6 +122,7 @@ class ActivatingUpgradeState(BaseState):
             upgrade_state = self.get_upgrade_state(strategy_step)
             if upgrade_state in ACTIVATING_RETRY_STATES:
                 # We failed.  Better try again
+                time.sleep(self.sleep_duration * activate_retry_counter)
                 activate_retry_counter += 1
                 self.info_log(strategy_step,
                               "Activation failed, retrying... State=%s"
@@ -159,4 +160,6 @@ class ActivatingUpgradeState(BaseState):
 
         # When we return from this method without throwing an exception, the
         # state machine can proceed to the next state
+        db_api.subcloud_update(self.context, strategy_step.subcloud_id,
+                               deploy_status=consts.DEPLOY_STATE_UPGRADE_ACTIVATED)
         return self.next_state

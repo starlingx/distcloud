@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2020, 2022 Wind River Systems, Inc.
+# Copyright (c) 2020-2023 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -7,6 +7,7 @@ import itertools
 import mock
 
 from dcmanager.common import consts
+from dcmanager.db.sqlalchemy import api as db_api
 from dcmanager.orchestrator.states.upgrade import activating
 
 from dcmanager.tests.unit.orchestrator.states.fakes import FakeUpgrade
@@ -84,6 +85,11 @@ class TestSwUpgradeActivatingStage(TestSwUpgradeState):
 
         # verify the API call was invoked
         self.sysinv_client.upgrade_activate.assert_called()
+
+        # verify the DB update was invoked
+        updated_subcloud = db_api.subcloud_get(self.ctx,
+                                               self.subcloud.id)
+        self.assertEqual(updated_subcloud.deploy_status, consts.DEPLOY_STATE_UPGRADE_ACTIVATED)
 
         # On success, the state should be updated to the next state
         self.assert_step_updated(self.strategy_step.subcloud_id,
