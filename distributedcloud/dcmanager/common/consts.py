@@ -25,6 +25,7 @@ TOPIC_DC_MANAGER_ORCHESTRATOR = "dcmanager-orchestrator"
 CERTS_VAULT_DIR = "/opt/dc-vault/certs"
 LOADS_VAULT_DIR = "/opt/dc-vault/loads"
 PATCH_VAULT_DIR = "/opt/dc-vault/patches"
+RELEASE_VAULT_DIR = "/opt/dc-vault/software"
 
 BOOTSTRAP_VALUES = 'bootstrap_values'
 BOOTSTRAP_ADDRESS = 'bootstrap-address'
@@ -90,6 +91,9 @@ SW_UPDATE_STATE_ABORTED = "aborted"
 SW_UPDATE_STATE_FAILED = "failed"
 SW_UPDATE_STATE_DELETING = "deleting"
 SW_UPDATE_STATE_DELETED = "deleted"
+
+# Software misc info
+ISO_VERSION = "0"
 
 # Software update actions
 SW_UPDATE_ACTION_APPLY = "apply"

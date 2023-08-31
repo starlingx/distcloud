@@ -406,7 +406,10 @@ def get_vault_load_files(target_version):
     in 'iso' or 'sig'.
     : param target_version: The software version to search under the vault
     """
-    vault_dir = "{}/{}/".format(consts.LOADS_VAULT_DIR, target_version)
+    if cfg.CONF.use_usm:
+        vault_dir = "{}/{}/".format(consts.RELEASE_VAULT_DIR, target_version)
+    else:
+        vault_dir = "{}/{}/".format(consts.LOADS_VAULT_DIR, target_version)
 
     matching_iso = None
     matching_sig = None

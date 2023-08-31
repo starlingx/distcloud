@@ -175,6 +175,7 @@ class SoftwareClient(base.DriverBase):
 
     def upload(self, releases, timeout=REST_DEFAULT_TIMEOUT):
         """Upload"""
+        to_upload_files = {}
         for software_file in sorted(set(releases)):
             if os.path.isdir(software_file):
                 message = ("Error: %s is a directory. Please use upload-dir" %
@@ -187,23 +188,24 @@ class SoftwareClient(base.DriverBase):
                 LOG.error(message)
                 raise FileNotFoundError(message)
 
-            enc = MultipartEncoder(
-                fields={'file': (software_file, open(software_file, 'rb'), )})
-            url = self.endpoint + '/upload'
-            headers = {"X-Auth-Token": self.token, "Content-Type": enc.content_type}
-            response = requests.post(url,
-                                     data=enc,
-                                     headers=headers,
-                                     timeout=timeout)
-            if response.status_code != 200:
-                LOG.error("Upload failed with RC: %d" % response.status_code)
-                raise exceptions.ApiException(endpoint="Upload",
-                                              rc=response.status_code)
-            data = response.json()
-            if data.get('error'):
-                message = "Upload failed with error: %s" % data["error"]
-                LOG.error(message)
-                raise Exception(message)
+            to_upload_files[software_file] = (software_file, open(software_file, 'rb'))
+
+        enc = MultipartEncoder(fields=to_upload_files)
+        url = self.endpoint + '/upload'
+        headers = {"X-Auth-Token": self.token, "Content-Type": enc.content_type}
+        response = requests.post(url,
+                                 data=enc,
+                                 headers=headers,
+                                 timeout=timeout)
+        if response.status_code != 200:
+            LOG.error("Upload failed with RC: %d" % response.status_code)
+            raise exceptions.ApiException(endpoint="Upload",
+                                          rc=response.status_code)
+        data = response.json()
+        if data.get('error'):
+            message = "Upload failed with error: %s" % data["error"]
+            LOG.error(message)
+            raise Exception(message)
         return data.get('sd', [])
 
     def query_hosts(self, timeout=REST_DEFAULT_TIMEOUT):
