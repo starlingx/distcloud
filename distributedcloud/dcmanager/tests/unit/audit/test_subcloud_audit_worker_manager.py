@@ -24,9 +24,11 @@ from dccommon import consts as dccommon_consts
 from dcmanager.audit import subcloud_audit_manager
 from dcmanager.audit import subcloud_audit_worker_manager
 from dcmanager.common import consts
+from dcmanager.common import scheduler
 from dcmanager.db.sqlalchemy import api as db_api
 
 from dcmanager.tests import base
+from keystoneauth1 import exceptions as keystone_exceptions
 
 
 class FakeDCManagerAPI(object):
@@ -869,6 +871,120 @@ class TestAuditWorkerManager(base.DCManagerTestCase):
 
         # Verify kube rootca update audit is not called
         self.fake_kube_rootca_update_audit.subcloud_audit.assert_not_called()
+
+    @mock.patch.object(scheduler.ThreadGroupManager, 'start')
+    @mock.patch.object(subcloud_audit_worker_manager.db_api,
+                       'subcloud_audits_end_audit')
+    def test_online_subcloud_audit_not_skipping_while_installing(
+        self, mock_subcloud_audits_end_audit, mock_thread_start):
+
+        subcloud = self.create_subcloud_static(self.ctx, name='subcloud1')
+        self.assertIsNotNone(subcloud)
+
+        wm = subcloud_audit_worker_manager.SubcloudAuditWorkerManager()
+
+        # Set the subcloud to unmanaged/online/installing
+        subcloud = db_api.subcloud_update(
+            self.ctx, subcloud.id,
+            management_state='unmanaged',
+            first_identity_sync_complete=True,
+            availability_status=dccommon_consts.AVAILABILITY_ONLINE,
+            deploy_status=consts.DEPLOY_STATE_INSTALLING)
+
+        wm.audit_subclouds(context=self.ctx,
+                           subcloud_ids=[subcloud.id],
+                           patch_audit_data=True,
+                           firmware_audit_data=True,
+                           kubernetes_audit_data=True,
+                           do_openstack_audit=False,
+                           kube_rootca_update_audit_data=True)
+
+        # Verify if audit was not skipped
+        mock_subcloud_audits_end_audit.assert_not_called()
+        mock_thread_start.assert_called_once()
+
+    def test_audit_subcloud_going_offline_while_installing(self):
+        subcloud = self.create_subcloud_static(self.ctx, name='subcloud1')
+        self.assertIsNotNone(subcloud)
+
+        am = subcloud_audit_manager.SubcloudAuditManager()
+        wm = subcloud_audit_worker_manager.SubcloudAuditWorkerManager()
+
+        # Set the subcloud to managed/online
+        subcloud = db_api.subcloud_update(
+            self.ctx, subcloud.id,
+            management_state='unmanaged',
+            first_identity_sync_complete=True,
+            availability_status=dccommon_consts.AVAILABILITY_ONLINE,
+            deploy_status=consts.DEPLOY_STATE_INSTALLING,
+            audit_fail_count=1)
+
+        # Simulate a connection timeout
+        self.mock_openstack_driver.side_effect = keystone_exceptions.ConnectTimeout()
+
+        # Audit the subcloud
+        do_patch_audit = True
+        do_load_audit = True
+        do_firmware_audit = True
+        do_kubernetes_audit = True
+        do_kube_rootca_update_audit = True
+        (patch_audit_data, firmware_audit_data,
+         kubernetes_audit_data, kube_rootca_update_audit_data) = \
+            am._get_audit_data(do_patch_audit,
+                               do_firmware_audit,
+                               do_kubernetes_audit,
+                               do_kube_rootca_update_audit)
+        # Convert to dict like what would happen calling via RPC
+        patch_audit_data = patch_audit_data.to_dict()
+        wm._audit_subcloud(subcloud, update_subcloud_state=False,
+                           do_audit_openstack=False,
+                           patch_audit_data=patch_audit_data,
+                           firmware_audit_data=firmware_audit_data,
+                           kubernetes_audit_data=kubernetes_audit_data,
+                           kube_rootca_update_audit_data=kube_rootca_update_audit_data,
+                           do_patch_audit=do_patch_audit,
+                           do_load_audit=do_load_audit,
+                           do_firmware_audit=do_firmware_audit,
+                           do_kubernetes_audit=do_kubernetes_audit,
+                           do_kube_rootca_update_audit=do_kube_rootca_update_audit)
+
+        # Verify that the subcloud was updated to offline
+        audit_fail_count = 2
+        self.fake_dcmanager_state_api.update_subcloud_availability.\
+            assert_called_once_with(mock.ANY, "subcloud1",
+                                    mock.ANY, dccommon_consts.AVAILABILITY_OFFLINE,
+                                    False, audit_fail_count)
+
+    @mock.patch.object(scheduler.ThreadGroupManager, 'start')
+    @mock.patch.object(subcloud_audit_worker_manager.db_api,
+                       'subcloud_audits_end_audit')
+    def test_offline_subcloud_audit_skip_while_installing(
+        self, mock_subcloud_audits_end_audit, mock_thread_start):
+
+        subcloud = self.create_subcloud_static(self.ctx, name='subcloud1')
+        self.assertIsNotNone(subcloud)
+
+        wm = subcloud_audit_worker_manager.SubcloudAuditWorkerManager()
+
+        # Set the subcloud to unmanaged/offline/installing
+        subcloud = db_api.subcloud_update(
+            self.ctx, subcloud.id,
+            management_state='unmanaged',
+            first_identity_sync_complete=True,
+            availability_status=dccommon_consts.AVAILABILITY_OFFLINE,
+            deploy_status=consts.DEPLOY_STATE_INSTALLING)
+
+        wm.audit_subclouds(context=self.ctx,
+                           subcloud_ids=[subcloud.id],
+                           patch_audit_data=True,
+                           firmware_audit_data=True,
+                           kubernetes_audit_data=True,
+                           do_openstack_audit=False,
+                           kube_rootca_update_audit_data=True)
+
+        # Verify if audit was skipped
+        mock_subcloud_audits_end_audit.assert_called_once()
+        mock_thread_start.assert_not_called()
 
     def test_audit_subcloud_offline_update_audit_fail_count_only(self):
         subcloud = self.create_subcloud_static(self.ctx, name='subcloud1')
