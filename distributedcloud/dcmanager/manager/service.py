@@ -14,6 +14,7 @@
 
 import os
 import six
+import threading
 
 import functools
 from oslo_config import cfg
@@ -35,6 +36,17 @@ from dcmanager.manager.subcloud_manager import SubcloudManager
 
 CONF = cfg.CONF
 LOG = logging.getLogger(__name__)
+
+
+# The RPC server has a thread limit (defaults to 64), by manually
+# threading the functions the RPC cast returns earlier, allowing to
+# run multiple operations in parallel past the RPC limit.
+def run_in_thread(fn):
+    """Decorator to run a function in a separate thread."""
+    def wrapper(*args, **kwargs):
+        thread = threading.Thread(target=fn, args=args, kwargs=kwargs)
+        thread.start()
+    return wrapper
 
 
 def request_context(func):
@@ -98,6 +110,7 @@ class DCManagerService(service.Service):
         self.subcloud_manager.handle_subcloud_operations_in_progress()
         super(DCManagerService, self).start()
 
+    @run_in_thread
     @request_context
     def add_subcloud(self, context, subcloud_id, payload):
         # Adds a subcloud
@@ -138,6 +151,7 @@ class DCManagerService(service.Service):
                                                                            subcloud_id,
                                                                            payload)
 
+    @run_in_thread
     @request_context
     def redeploy_subcloud(self, context, subcloud_id, payload):
         # Redeploy a subcloud
@@ -197,6 +211,7 @@ class DCManagerService(service.Service):
                                                             subcloud_id,
                                                             payload)
 
+    @run_in_thread
     @request_context
     def subcloud_deploy_bootstrap(self, context, subcloud_id, payload):
         # Bootstraps a subcloud
@@ -206,6 +221,7 @@ class DCManagerService(service.Service):
                                                                subcloud_id,
                                                                payload)
 
+    @run_in_thread
     @request_context
     def subcloud_deploy_config(self, context, subcloud_id, payload):
         # Configures a subcloud
@@ -214,6 +230,7 @@ class DCManagerService(service.Service):
                                                             subcloud_id,
                                                             payload)
 
+    @run_in_thread
     @request_context
     def subcloud_deploy_install(self, context, subcloud_id, payload):
         # Install a subcloud
@@ -228,6 +245,7 @@ class DCManagerService(service.Service):
         LOG.info("Handling subcloud_deploy_complete request for: %s" % subcloud_id)
         return self.subcloud_manager.subcloud_deploy_complete(context, subcloud_id)
 
+    @run_in_thread
     @request_context
     def subcloud_deploy_abort(self, context, subcloud_id, deploy_status):
         # Abort the subcloud deployment
@@ -242,6 +260,7 @@ class DCManagerService(service.Service):
                  subcloud_ref)
         return self.subcloud_manager.migrate_subcloud(context, subcloud_ref, payload)
 
+    @run_in_thread
     @request_context
     def subcloud_deploy_resume(self, context, subcloud_id, subcloud_name,
                                payload, deploy_states_to_run):
