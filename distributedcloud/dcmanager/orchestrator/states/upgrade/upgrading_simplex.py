@@ -38,9 +38,9 @@ class UpgradingSimplexState(BaseState):
         subcloud_barbican_client = None
         try:
             subcloud_sysinv_client = self.get_sysinv_client(
-                strategy_step.subcloud.name)
+                strategy_step.subcloud.region_name)
             subcloud_barbican_client = self.get_barbican_client(
-                strategy_step.subcloud.name)
+                strategy_step.subcloud.region_name)
         except Exception:
             # if getting the token times out, the orchestrator may have
             # restarted and subcloud may be offline; so will attempt

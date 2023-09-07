@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2020 Wind River Systems, Inc.
+# Copyright (c) 2020-2023 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -32,7 +32,7 @@ class DeletingLoadState(BaseState):
         Any exceptions raised by this method set the strategy to FAILED.
         """
         # get the sysinv client for the subcloud
-        sysinv_client = self.get_sysinv_client(strategy_step.subcloud.name)
+        sysinv_client = self.get_sysinv_client(strategy_step.subcloud.region_name)
         current_loads = sysinv_client.get_loads()
         load_id = None
 

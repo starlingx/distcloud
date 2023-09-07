@@ -201,7 +201,7 @@ class SubcloudBackupController(object):
                     and request_entity.type == 'subcloud'):
                 # Check the system health only if the command was issued
                 # to a single subcloud to avoid huge delays.
-                if not utils.is_subcloud_healthy(subcloud.name):
+                if not utils.is_subcloud_healthy(subcloud.region_name):
                     msg = _('Subcloud %s must be in good health for '
                             'subcloud-backup create.' % subcloud.name)
                     pecan.abort(400, msg)

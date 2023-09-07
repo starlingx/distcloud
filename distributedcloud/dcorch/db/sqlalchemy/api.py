@@ -377,12 +377,12 @@ def add_identity_filter(query, value,
 
     :return: Modified query.
     """
-    if strutils.is_int_like(value):
+    if use_region_name:
+        return query.filter_by(region_name=value)
+    elif strutils.is_int_like(value):
         return query.filter_by(id=value)
     elif uuidutils.is_uuid_like(value):
         return query.filter_by(uuid=value)
-    elif use_region_name:
-        return query.filter_by(region_name=value)
     elif use_resource_type:
         return query.filter_by(resource_type=value)
     else:

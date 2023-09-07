@@ -87,6 +87,7 @@ class SyncThread(object):
         self.log_extra = {
             "instance": self.subcloud_name + ": "}
         self.dcmanager_state_rpc_client = dcmanager_rpc_client.SubcloudStateClient()
+        self.dcmanager_rpc_client = dcmanager_rpc_client.ManagerClient()
 
         self.sc_admin_session = None
         self.admin_session = None
@@ -298,15 +299,35 @@ class SyncThread(object):
                  self.subcloud_name, sync_status, alarmable),
                  extra=self.log_extra)
 
-        self.dcmanager_state_rpc_client.update_subcloud_endpoint_status(
-            self.ctxt, self.subcloud_name,
-            self.endpoint_type, sync_status,
-            alarmable=alarmable)
+        try:
+            # This block is required to get the real subcloud name
+            # dcorch uses the subcloud name as the region name.
+            # The region name cannot be changed, so at this point it
+            # is necessary to query the subcloud name as it is required
+            # for logging purposes.
 
-        db_api.subcloud_sync_update(
-            self.ctxt, self.subcloud_name, self.endpoint_type,
-            values={'sync_status_reported': sync_status,
-                    'sync_status_report_time': timeutils.utcnow()})
+            # Save current subcloud name (region name from dcorch DB)
+            dcorch_subcloud_region = self.subcloud_name
+
+            # Get the subcloud name from dcmanager database supplying
+            # the dcorch region name
+            subcloud_name = self.dcmanager_rpc_client \
+                .get_subcloud_name_by_region_name(self.ctxt,
+                                                  dcorch_subcloud_region)
+
+            # Updates the endpoint status supplying the subcloud name and
+            # the region name
+            self.dcmanager_state_rpc_client.update_subcloud_endpoint_status(
+                self.ctxt, subcloud_name, dcorch_subcloud_region,
+                self.endpoint_type, sync_status,
+                alarmable=alarmable)
+
+            db_api.subcloud_sync_update(
+                self.ctxt, dcorch_subcloud_region, self.endpoint_type,
+                values={'sync_status_reported': sync_status,
+                        'sync_status_report_time': timeutils.utcnow()})
+        except Exception:
+            raise
 
     def sync(self, engine_id):
         LOG.debug("{}: starting sync routine".format(self.subcloud_name),

@@ -36,6 +36,29 @@ get_engine = api.get_engine
 from sqlalchemy.engine import Engine
 from sqlalchemy import event
 
+SUBCLOUD_1 = {'name': 'subcloud1',
+              'region_name': '2ec93dfb654846909efe61d1b39dd2ce'}
+SUBCLOUD_2 = {'name': 'subcloud2',
+              'region_name': 'ca2761ee7aa34cbe8415ec9a3c86854f'}
+SUBCLOUD_3 = {'name': 'subcloud3',
+              'region_name': '659e12e5f7ad411abfcd83f5cedca0bf'}
+SUBCLOUD_4 = {'name': 'subcloud4',
+              'region_name': 'c25f3b0553384104b664789bd93a2ba8'}
+SUBCLOUD_5 = {'name': 'subcloud5',
+              'region_name': '809581dc2d154e008480bac1f43b7aff'}
+SUBCLOUD_6 = {'name': 'subcloud6',
+              'region_name': '8c60b99f3e1245b7bc5a049802ade8d2'}
+SUBCLOUD_7 = {'name': 'subcloud7',
+              'region_name': '9fde6dca22fa422bb1e8cf03bedc18e4'}
+SUBCLOUD_8 = {'name': 'subcloud8',
+              'region_name': 'f3cb0b109c4543fda3ed50ed5783279d'}
+SUBCLOUD_9 = {'name': 'subcloud9',
+              'region_name': '1cfab1df7b444bb3bd562894d684f352'}
+SUBCLOUD_10 = {'name': 'subcloud10',
+               'region_name': '6d0040199b4f4a9fb4a1f2ed4d498159'}
+SUBCLOUD_11 = {'name': 'subcloud11',
+               'region_name': '169e6fc231e94959ad6ff0a66fbcb753'}
+
 SUBCLOUD_SAMPLE_DATA_0 = [
     6,  # id
     "subcloud-4",  # name
@@ -63,6 +86,7 @@ SUBCLOUD_SAMPLE_DATA_0 = [
     1,  # group_id
     consts.DEPLOY_STATE_DONE,  # deploy_status
     consts.ERROR_DESC_EMPTY,  # error_description
+    SUBCLOUD_4['region_name'],  # region_name
     json.dumps({'data_install': 'test data install values'}),  # data_install
 ]
 

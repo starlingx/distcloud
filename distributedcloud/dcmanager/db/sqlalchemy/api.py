@@ -32,6 +32,7 @@ from oslo_utils import strutils
 from oslo_utils import uuidutils
 
 from sqlalchemy import desc
+from sqlalchemy import or_
 from sqlalchemy.orm.exc import MultipleResultsFound
 from sqlalchemy.orm.exc import NoResultFound
 from sqlalchemy.orm import joinedload_all
@@ -318,6 +319,32 @@ def subcloud_get_by_name(context, name):
 
 
 @require_context
+def subcloud_get_by_region_name(context, region_name):
+    result = model_query(context, models.Subcloud). \
+        filter_by(deleted=0). \
+        filter_by(region_name=region_name). \
+        first()
+
+    if not result:
+        raise exception.SubcloudRegionNameNotFound(region_name=region_name)
+
+    return result
+
+
+@require_context
+def subcloud_get_by_name_or_region_name(context, name):
+    result = model_query(context, models.Subcloud). \
+        filter_by(deleted=0). \
+        filter(or_(models.Subcloud.name == name, models.Subcloud.region_name == name)). \
+        first()
+
+    if not result:
+        raise exception.SubcloudNameOrRegionNameNotFound(name=name)
+
+    return result
+
+
+@require_context
 def subcloud_get_all(context):
     return model_query(context, models.Subcloud). \
         filter_by(deleted=0). \
@@ -349,7 +376,7 @@ def subcloud_create(context, name, description, location, software_version,
                     management_subnet, management_gateway_ip,
                     management_start_ip, management_end_ip,
                     systemcontroller_gateway_ip, deploy_status, error_description,
-                    openstack_installed, group_id,
+                    region_name, openstack_installed, group_id,
                     data_install=None):
     with write_session() as session:
         subcloud_ref = models.Subcloud()
@@ -366,6 +393,7 @@ def subcloud_create(context, name, description, location, software_version,
         subcloud_ref.systemcontroller_gateway_ip = systemcontroller_gateway_ip
         subcloud_ref.deploy_status = deploy_status
         subcloud_ref.error_description = error_description
+        subcloud_ref.region_name = region_name
         subcloud_ref.audit_fail_count = 0
         subcloud_ref.openstack_installed = openstack_installed
         subcloud_ref.group_id = group_id
@@ -381,7 +409,7 @@ def subcloud_create(context, name, description, location, software_version,
 @require_admin_context
 def subcloud_update(context, subcloud_id, management_state=None,
                     availability_status=None, software_version=None,
-                    description=None, management_subnet=None,
+                    name=None, description=None, management_subnet=None,
                     management_gateway_ip=None, management_start_ip=None,
                     management_end_ip=None, location=None, audit_fail_count=None,
                     deploy_status=None, backup_status=None,
@@ -401,6 +429,8 @@ def subcloud_update(context, subcloud_id, management_state=None,
             subcloud_ref.availability_status = availability_status
         if software_version is not None:
             subcloud_ref.software_version = software_version
+        if name is not None:
+            subcloud_ref.name = name
         if description is not None:
             subcloud_ref.description = description
         if management_subnet is not None:
@@ -1221,3 +1251,12 @@ def subcloud_alarms_delete(context, name):
     with write_session() as session:
         session.query(models.SubcloudAlarmSummary).\
             filter_by(name=name).delete()
+
+
+@require_admin_context
+def subcloud_rename_alarms(context, subcloud_name, new_name):
+    with write_session() as session:
+        result = _subcloud_alarms_get(context, subcloud_name)
+        result.name = new_name
+        result.save(session)
+        return result

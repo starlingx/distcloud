@@ -17,6 +17,7 @@ from dcmanager.common import consts
 from dcmanager.db.sqlalchemy import api as db_api
 from dcmanager.rpc import client as rpc_client
 
+from dcmanager.tests import base
 from dcmanager.tests.unit.api import test_root_controller as testroot
 from dcmanager.tests.unit.common import fake_subcloud
 from dcmanager.tests import utils
@@ -1059,7 +1060,9 @@ class TestSubcloudRestore(testroot.DCManagerApiTest):
 
         test_group_id = 1
         subcloud = fake_subcloud.create_fake_subcloud(self.ctx, group_id=test_group_id)
-        subcloud2 = fake_subcloud.create_fake_subcloud(self.ctx, group_id=test_group_id, name='subcloud2')
+        subcloud2 = fake_subcloud.create_fake_subcloud(self.ctx, group_id=test_group_id,
+                                                       name=base.SUBCLOUD_2['name'],
+                                                       region_name=base.SUBCLOUD_2['region_name'])
         # Valid subcloud, management state is 'unmanaged'
         db_api.subcloud_update(self.ctx,
                                subcloud.id,

@@ -15,6 +15,7 @@
 import datetime
 
 from oslo_db import exception as db_exception
+from oslo_utils import uuidutils
 
 from dcmanager.common import exceptions as exception
 from dcmanager.db import api as api
@@ -40,6 +41,7 @@ class DBAPISubcloudAuditsTest(base.DCManagerTestCase):
             'systemcontroller_gateway_ip': "192.168.204.101",
             'deploy_status': "not-deployed",
             'error_description': 'No errors present',
+            'region_name': uuidutils.generate_uuid().replace("-", ""),
             'openstack_installed': False,
             'group_id': 1,
         }

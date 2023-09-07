@@ -36,7 +36,7 @@ class StartingUpgradeState(BaseState):
     def get_upgrade_state(self, strategy_step):
         try:
             upgrades = self.get_sysinv_client(
-                strategy_step.subcloud.name).get_upgrades()
+                strategy_step.subcloud.region_name).get_upgrades()
         except Exception as exception:
             self.warn_log(strategy_step,
                           "Encountered exception: %s, "
@@ -58,7 +58,7 @@ class StartingUpgradeState(BaseState):
         # Check if an existing upgrade is already in progress.
         # The list of upgrades will never contain more than one entry.
         upgrades = self.get_sysinv_client(
-            strategy_step.subcloud.name).get_upgrades()
+            strategy_step.subcloud.region_name).get_upgrades()
         if upgrades is not None and len(upgrades) > 0:
             for upgrade in upgrades:
                 # If a previous upgrade exists (even one that failed) skip
@@ -79,7 +79,7 @@ class StartingUpgradeState(BaseState):
 
             # This call is asynchronous and throws an exception on failure.
             self.get_sysinv_client(
-                strategy_step.subcloud.name).upgrade_start(force=force_flag)
+                strategy_step.subcloud.region_name).upgrade_start(force=force_flag)
 
         # Do not move to the next state until the upgrade state is correct
         counter = 0
@@ -96,7 +96,7 @@ class StartingUpgradeState(BaseState):
             if upgrade_state in UPGRADE_RETRY_STATES:
                 retry_counter += 1
                 if retry_counter >= self.max_failed_retries:
-                    error_msg = utils.get_failure_msg(strategy_step.subcloud.name)
+                    error_msg = utils.get_failure_msg(strategy_step.subcloud.region_name)
                     db_api.subcloud_update(
                         self.context, strategy_step.subcloud_id,
                         error_description=error_msg[0:consts.ERROR_DESCRIPTION_LENGTH])
@@ -110,7 +110,7 @@ class StartingUpgradeState(BaseState):
                               % upgrade_state)
                 try:
                     self.get_sysinv_client(
-                        strategy_step.subcloud.name).upgrade_start(force=force_flag)
+                        strategy_step.subcloud.region_name).upgrade_start(force=force_flag)
                 except Exception as exception:
                     self.warn_log(strategy_step,
                                   "Encountered exception: %s, "

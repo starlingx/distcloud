@@ -1,5 +1,5 @@
 # Copyright 2017 Ericsson AB.
-# Copyright (c) 2017-2022 Wind River Systems, Inc.
+# Copyright (c) 2017-2023 Wind River Systems, Inc.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -62,11 +62,12 @@ class PatchAudit(object):
         self.state_rpc_client = dcmanager_state_rpc_client
         self.audit_count = 0
 
-    def _update_subcloud_sync_status(self, sc_name, sc_endpoint_type,
+    def _update_subcloud_sync_status(self, sc_name, sc_region, sc_endpoint_type,
                                      sc_status):
         self.state_rpc_client.update_subcloud_endpoint_status(
             self.context,
             subcloud_name=sc_name,
+            subcloud_region=sc_region,
             endpoint_type=sc_endpoint_type,
             sync_status=sc_status)
 
@@ -132,19 +133,19 @@ class PatchAudit(object):
         return PatchAuditData(regionone_patches, applied_patch_ids,
                               committed_patch_ids, regionone_software_version)
 
-    def subcloud_patch_audit(self, subcloud_name, audit_data, do_load_audit):
+    def subcloud_patch_audit(self, subcloud_name, subcloud_region, audit_data, do_load_audit):
         LOG.info('Triggered patch audit for: %s.' % subcloud_name)
         try:
-            sc_os_client = OpenStackDriver(region_name=subcloud_name,
+            sc_os_client = OpenStackDriver(region_name=subcloud_region,
                                            region_clients=None).keystone_client
             session = sc_os_client.session
             patching_endpoint = sc_os_client.endpoint_cache.get_endpoint('patching')
             sysinv_endpoint = sc_os_client.endpoint_cache.get_endpoint('sysinv')
             patching_client = PatchingClient(
-                subcloud_name, session,
+                subcloud_region, session,
                 endpoint=patching_endpoint)
             sysinv_client = SysinvClient(
-                subcloud_name, session,
+                subcloud_region, session,
                 endpoint=sysinv_endpoint)
         except (keystone_exceptions.EndpointNotFound,
                 keystone_exceptions.ConnectFailure,
@@ -227,11 +228,13 @@ class PatchAudit(object):
 
         if out_of_sync:
             self._update_subcloud_sync_status(
-                subcloud_name, dccommon_consts.ENDPOINT_TYPE_PATCHING,
+                subcloud_name,
+                subcloud_region, dccommon_consts.ENDPOINT_TYPE_PATCHING,
                 dccommon_consts.SYNC_STATUS_OUT_OF_SYNC)
         else:
             self._update_subcloud_sync_status(
-                subcloud_name, dccommon_consts.ENDPOINT_TYPE_PATCHING,
+                subcloud_name,
+                subcloud_region, dccommon_consts.ENDPOINT_TYPE_PATCHING,
                 dccommon_consts.SYNC_STATUS_IN_SYNC)
 
         # Check subcloud software version every other audit cycle
@@ -251,16 +254,19 @@ class PatchAudit(object):
 
                 if subcloud_software_version == audit_data.software_version:
                     self._update_subcloud_sync_status(
-                        subcloud_name, dccommon_consts.ENDPOINT_TYPE_LOAD,
+                        subcloud_name,
+                        subcloud_region, dccommon_consts.ENDPOINT_TYPE_LOAD,
                         dccommon_consts.SYNC_STATUS_IN_SYNC)
                 else:
                     self._update_subcloud_sync_status(
-                        subcloud_name, dccommon_consts.ENDPOINT_TYPE_LOAD,
+                        subcloud_name,
+                        subcloud_region, dccommon_consts.ENDPOINT_TYPE_LOAD,
                         dccommon_consts.SYNC_STATUS_OUT_OF_SYNC)
             else:
                 # As upgrade is still in progress, set the subcloud load
                 # status as out-of-sync.
                 self._update_subcloud_sync_status(
-                    subcloud_name, dccommon_consts.ENDPOINT_TYPE_LOAD,
+                    subcloud_name,
+                    subcloud_region, dccommon_consts.ENDPOINT_TYPE_LOAD,
                     dccommon_consts.SYNC_STATUS_OUT_OF_SYNC)
         LOG.info('Patch audit completed for: %s.' % subcloud_name)

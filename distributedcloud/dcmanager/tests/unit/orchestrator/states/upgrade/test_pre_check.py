@@ -8,6 +8,7 @@ import mock
 from dccommon import consts as dccommon_consts
 from dcmanager.common import consts
 from dcmanager.db.sqlalchemy import api as db_api
+from dcmanager.tests import base
 from dcmanager.tests.unit.common import fake_strategy
 from dcmanager.tests.unit.common import fake_subcloud
 from dcmanager.tests.unit.orchestrator.states.fakes import FakeAlarm
@@ -520,7 +521,8 @@ class TestSwUpgradePreCheckSimplexStage(TestSwUpgradePreCheckStage):
         # and no data install values
         self.subcloud = fake_subcloud.create_fake_subcloud(
             self.ctx,
-            name="subcloud2",
+            name=base.SUBCLOUD_2['name'],
+            region_name=base.SUBCLOUD_2['region_name'],
             data_install=None
         )
 
@@ -604,7 +606,8 @@ class TestSwUpgradePreCheckSimplexStage(TestSwUpgradePreCheckStage):
         # availability status as "offline" and no data install values
         self.subcloud = fake_subcloud.create_fake_subcloud(
             self.ctx,
-            name="subcloud2",
+            name=base.SUBCLOUD_2['name'],
+            region_name=base.SUBCLOUD_2['region_name'],
             data_install=None,
             deploy_status=consts.DEPLOY_STATE_INSTALL_FAILED
         )

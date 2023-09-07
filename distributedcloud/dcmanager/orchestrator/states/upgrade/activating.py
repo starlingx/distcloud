@@ -38,7 +38,7 @@ class ActivatingUpgradeState(BaseState):
     def get_upgrade_state(self, strategy_step):
         try:
             upgrades = self.get_sysinv_client(
-                strategy_step.subcloud.name).get_upgrades()
+                strategy_step.subcloud.region_name).get_upgrades()
 
         except Exception as exception:
             self.warn_log(strategy_step,
@@ -86,7 +86,7 @@ class ActivatingUpgradeState(BaseState):
 
             # if max retries have occurred, fail the state
             if activate_retry_counter >= self.max_failed_retries:
-                error_msg = utils.get_failure_msg(strategy_step.subcloud.name)
+                error_msg = utils.get_failure_msg(strategy_step.subcloud.region_name)
                 db_api.subcloud_update(
                     self.context, strategy_step.subcloud_id,
                     error_description=error_msg[0:consts.ERROR_DESCRIPTION_LENGTH])
@@ -104,7 +104,7 @@ class ActivatingUpgradeState(BaseState):
                 # (no upgrade found, bad host state, auth)
                 try:
                     self.get_sysinv_client(
-                        strategy_step.subcloud.name).upgrade_activate()
+                        strategy_step.subcloud.region_name).upgrade_activate()
                     first_activate = False  # clear first activation flag
                     activate_retry_counter = 0  # reset activation retries
                 except Exception as exception:
@@ -129,7 +129,7 @@ class ActivatingUpgradeState(BaseState):
                               % upgrade_state)
                 try:
                     self.get_sysinv_client(
-                        strategy_step.subcloud.name).upgrade_activate()
+                        strategy_step.subcloud.region_name).upgrade_activate()
                 except Exception as exception:
                     self.warn_log(strategy_step,
                                   "Encountered exception: %s, "
@@ -147,7 +147,7 @@ class ActivatingUpgradeState(BaseState):
                 break
             audit_counter += 1
             if audit_counter >= self.max_queries:
-                error_msg = utils.get_failure_msg(strategy_step.subcloud.name)
+                error_msg = utils.get_failure_msg(strategy_step.subcloud.region_name)
                 db_api.subcloud_update(
                     self.context, strategy_step.subcloud_id,
                     error_description=error_msg[0:consts.ERROR_DESCRIPTION_LENGTH])

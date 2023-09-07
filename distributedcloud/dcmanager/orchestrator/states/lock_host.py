@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2020-2021 Wind River Systems, Inc.
+# Copyright (c) 2020-2023 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -33,7 +33,7 @@ class LockHostState(BaseState):
         """
 
         # Create a sysinv client on the subcloud
-        sysinv_client = self.get_sysinv_client(strategy_step.subcloud.name)
+        sysinv_client = self.get_sysinv_client(strategy_step.subcloud.region_name)
 
         host = sysinv_client.get_host(self.target_hostname)
 
@@ -58,7 +58,7 @@ class LockHostState(BaseState):
                 raise StrategyStoppedException()
             # query the administrative state to see if it is the new state.
             host = self.get_sysinv_client(
-                strategy_step.subcloud.name).get_host(self.target_hostname)
+                strategy_step.subcloud.region_name).get_host(self.target_hostname)
             if host.administrative == consts.ADMIN_LOCKED:
                 msg = "Host: %s is now: %s" % (self.target_hostname,
                                                host.administrative)

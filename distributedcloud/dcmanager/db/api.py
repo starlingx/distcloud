@@ -112,6 +112,7 @@ def subcloud_db_model_to_dict(subcloud):
               "backup-status": subcloud.backup_status,
               "backup-datetime": subcloud.backup_datetime,
               "error-description": subcloud.error_description,
+              'region-name': subcloud.region_name,
               "management-subnet": subcloud.management_subnet,
               "management-start-ip": subcloud.management_start_ip,
               "management-end-ip": subcloud.management_end_ip,
@@ -132,14 +133,14 @@ def subcloud_create(context, name, description, location, software_version,
                     management_subnet, management_gateway_ip,
                     management_start_ip, management_end_ip,
                     systemcontroller_gateway_ip, deploy_status, error_description,
-                    openstack_installed, group_id, data_install=None):
+                    region_name, openstack_installed, group_id, data_install=None):
     """Create a subcloud."""
     return IMPL.subcloud_create(context, name, description, location,
                                 software_version,
                                 management_subnet, management_gateway_ip,
                                 management_start_ip, management_end_ip,
                                 systemcontroller_gateway_ip, deploy_status,
-                                error_description, openstack_installed, group_id,
+                                error_description, region_name, openstack_installed, group_id,
                                 data_install)
 
 
@@ -158,6 +159,16 @@ def subcloud_get_by_name(context, name) -> models.Subcloud:
     return IMPL.subcloud_get_by_name(context, name)
 
 
+def subcloud_get_by_region_name(context, region_name):
+    """Retrieve a subcloud by region name or raise if it does not exist."""
+    return IMPL.subcloud_get_by_region_name(context, region_name)
+
+
+def subcloud_get_by_name_or_region_name(context, name):
+    """Retrieve a subcloud by name or region name or raise if it does not exist."""
+    return IMPL.subcloud_get_by_name_or_region_name(context, name)
+
+
 def subcloud_get_all(context):
     """Retrieve all subclouds."""
     return IMPL.subcloud_get_all(context)
@@ -174,7 +185,7 @@ def subcloud_get_all_with_status(context):
 
 
 def subcloud_update(context, subcloud_id, management_state=None,
-                    availability_status=None, software_version=None,
+                    availability_status=None, software_version=None, name=None,
                     description=None, management_subnet=None, management_gateway_ip=None,
                     management_start_ip=None, management_end_ip=None,
                     location=None, audit_fail_count=None,
@@ -187,7 +198,7 @@ def subcloud_update(context, subcloud_id, management_state=None,
                     rehome_data=None):
     """Update a subcloud or raise if it does not exist."""
     return IMPL.subcloud_update(context, subcloud_id, management_state,
-                                availability_status, software_version,
+                                availability_status, software_version, name,
                                 description, management_subnet, management_gateway_ip,
                                 management_start_ip, management_end_ip, location,
                                 audit_fail_count, deploy_status, backup_status,
@@ -677,3 +688,7 @@ def subcloud_alarms_update(context, name, values):
 
 def subcloud_alarms_delete(context, name):
     return IMPL.subcloud_alarms_delete(context, name)
+
+
+def subcloud_rename_alarms(context, subcloud_name, new_name):
+    return IMPL.subcloud_rename_alarms(context, subcloud_name, new_name)

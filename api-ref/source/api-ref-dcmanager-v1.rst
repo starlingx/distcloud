@@ -78,6 +78,7 @@ Response
   - deploy-status: deploy_status
   - backup-status: backup_status
   - backup-datetime: backup_datetime
+  - region-name: region_name
   - openstack-installed: openstack_installed
   - management-state: management_state
   - systemcontroller-gateway-ip: systemcontroller_gateway_ip
@@ -173,6 +174,7 @@ Request Example
   - management-gateway-ip: management_gateway_ip
   - management-start-ip: management_start_ip
   - management-end-ip: management_end_ip
+  - region-name: region_name
 
 Response Example
 ----------------
@@ -283,6 +285,7 @@ This operation does not accept a request body.
   - deploy-status: deploy_status
   - backup-status: backup_status
   - backup-datetime: backup_datetime
+  - region-name: region_name
   - openstack-installed: openstack_installed
   - management-state: management_state
   - systemcontroller-gateway-ip: systemcontroller_gateway_ip
@@ -313,6 +316,8 @@ Modifies a specific subcloud
 .. rest_method:: PATCH /v1.0/subclouds/​{subcloud}​
 
 The attributes of a subcloud which are modifiable:
+
+-  name
 
 -  description
 
@@ -349,6 +354,7 @@ serviceUnavailable (503)
 .. rest_parameters:: parameters.yaml
 
   - subcloud: subcloud_uri
+  - name: subcloud_name
   - description: subcloud_description
   - location: subcloud_location
   - management-state: subcloud_management_state
@@ -382,6 +388,7 @@ Request Example
   - deploy-status: deploy_status
   - backup-status: backup_status
   - backup-datetime: backup_datetime
+  - region-name: region_name
   - openstack-installed: openstack_installed
   - management-state: management_state
   - systemcontroller-gateway-ip: systemcontroller_gateway_ip
@@ -526,6 +533,7 @@ Request Example
   - deploy-status: deploy_status
   - backup-status: backup_status
   - backup-datetime: backup_datetime
+  - region-name: region_name
   - openstack-installed: openstack_installed
   - management-state: management_state
   - systemcontroller-gateway-ip: systemcontroller_gateway_ip
@@ -857,6 +865,7 @@ This operation does not accept a request body.
   - deploy-status: deploy_status
   - backup-status: backup_status
   - backup-datetime: backup_datetime
+  - region-name: region_name
   - openstack-installed: openstack_installed
   - management-state: management_state
   - systemcontroller-gateway-ip: systemcontroller_gateway_ip
@@ -1025,6 +1034,7 @@ Request Example
   - deploy-status: deploy_status
   - backup-status: backup_status
   - backup-datetime: backup_datetime
+  - region-name: region_name
   - openstack-installed: openstack_installed
   - management-state: management_state
   - systemcontroller-gateway-ip: systemcontroller_gateway_ip
@@ -1136,6 +1146,7 @@ Request Example
   - deploy-status: deploy_status
   - backup-status: backup_status
   - backup-datetime: backup_datetime
+  - region-name: region_name
   - openstack-installed: openstack_installed
   - management-state: management_state
   - systemcontroller-gateway-ip: systemcontroller_gateway_ip
@@ -1830,6 +1841,7 @@ Request Example
   - backup-status: backup_status
   - backup-datetime: backup_datetime
   - error-description: error_description
+  - region-name: region_name
   - management-subnet: management_subnet
   - management-start-ip: management_start_ip
   - management-end-ip: management_end_ip
@@ -1897,6 +1909,7 @@ Request Example
   - backup-status: backup_status
   - backup-datetime: backup_datetime
   - error-description: error_description
+  - region-name: region_name
   - management-subnet: management_subnet
   - management-start-ip: management_start_ip
   - management-end-ip: management_end_ip
@@ -1963,6 +1976,7 @@ Request Example
   - deploy-status: deploy_status
   - backup-status: backup_status
   - backup-datetime: backup_datetime
+  - region-name: region_name
   - openstack-installed: openstack_installed
   - management-state: management_state
   - systemcontroller-gateway-ip: systemcontroller_gateway_ip
@@ -2036,6 +2050,7 @@ Request Example
   - deploy-status: deploy_status
   - backup-status: backup_status
   - backup-datetime: backup_datetime
+  - region-name: region_name
   - openstack-installed: openstack_installed
   - management-state: management_state
   - systemcontroller-gateway-ip: systemcontroller_gateway_ip
@@ -2103,6 +2118,7 @@ Request Example
   - deploy-status: deploy_status
   - backup-status: backup_status
   - backup-datetime: backup_datetime
+  - region-name: region_name
   - openstack-installed: openstack_installed
   - management-state: management_state
   - systemcontroller-gateway-ip: systemcontroller_gateway_ip
@@ -2170,6 +2186,7 @@ Request Example
   - deploy-status: deploy_status
   - backup-status: backup_status
   - backup-datetime: backup_datetime
+  - region-name: region_name
   - openstack-installed: openstack_installed
   - management-state: management_state
   - systemcontroller-gateway-ip: systemcontroller_gateway_ip
@@ -2246,6 +2263,7 @@ Request Example
   - backup-status: backup_status
   - backup-datetime: backup_datetime
   - error-description: error_description
+  - region-name: region_name
   - management-subnet: management_subnet
   - management-start-ip: management_start_ip
   - management-end-ip: management_end_ip

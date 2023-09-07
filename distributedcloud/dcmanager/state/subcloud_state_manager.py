@@ -42,9 +42,9 @@ def sync_update_subcloud_endpoint_status(func):
     """Synchronized lock decorator for _update_subcloud_endpoint_status. """
 
     def _get_lock_and_call(*args, **kwargs):
-        """Get a single fair lock per subcloud based on subcloud name. """
+        """Get a single fair lock per subcloud based on subcloud region. """
 
-        # subcloud name is the 3rd argument to
+        # subcloud region is the 3rd argument to
         # _update_subcloud_endpoint_status()
         @utils.synchronized(args[2], external=True, fair=True)
         def _call_func(*args, **kwargs):
@@ -262,7 +262,7 @@ class SubcloudStateManager(manager.Manager):
     @sync_update_subcloud_endpoint_status
     def _update_subcloud_endpoint_status(
             self, context,
-            subcloud_name,
+            subcloud_region,
             endpoint_type=None,
             sync_status=dccommon_consts.SYNC_STATUS_OUT_OF_SYNC,
             alarmable=True,
@@ -270,7 +270,7 @@ class SubcloudStateManager(manager.Manager):
         """Update subcloud endpoint status
 
         :param context: request context object
-        :param subcloud_name: name of subcloud to update
+        :param subcloud_region: name of subcloud region to update
         :param endpoint_type: endpoint type to update
         :param sync_status: sync status to set
         :param alarmable: controls raising an alarm if applicable
@@ -281,13 +281,13 @@ class SubcloudStateManager(manager.Manager):
         if ignore_endpoints is None:
             ignore_endpoints = []
 
-        if not subcloud_name:
+        if not subcloud_region:
             raise exceptions.BadRequest(
                 resource='subcloud',
-                msg='Subcloud name not provided')
+                msg='Subcloud region not provided')
 
         try:
-            subcloud = db_api.subcloud_get_by_name(context, subcloud_name)
+            subcloud = db_api.subcloud_get_by_region_name(context, subcloud_region)
         except Exception as e:
             LOG.exception(e)
             raise e
@@ -327,12 +327,12 @@ class SubcloudStateManager(manager.Manager):
         else:
             LOG.info("Ignoring subcloud sync_status update for subcloud:%s "
                      "availability:%s management:%s endpoint:%s sync:%s" %
-                     (subcloud_name, subcloud.availability_status,
+                     (subcloud.name, subcloud.availability_status,
                       subcloud.management_state, endpoint_type, sync_status))
 
     def update_subcloud_endpoint_status(
             self, context,
-            subcloud_name=None,
+            subcloud_region=None,
             endpoint_type=None,
             sync_status=dccommon_consts.SYNC_STATUS_OUT_OF_SYNC,
             alarmable=True,
@@ -340,7 +340,7 @@ class SubcloudStateManager(manager.Manager):
         """Update subcloud endpoint status
 
         :param context: request context object
-        :param subcloud_name: name of subcloud to update
+        :param subcloud_region: region of subcloud to update
         :param endpoint_type: endpoint type to update
         :param sync_status: sync status to set
         :param alarmable: controls raising an alarm if applicable
@@ -351,18 +351,18 @@ class SubcloudStateManager(manager.Manager):
         if ignore_endpoints is None:
             ignore_endpoints = []
 
-        if subcloud_name:
+        if subcloud_region:
             self._update_subcloud_endpoint_status(
-                context, subcloud_name, endpoint_type, sync_status, alarmable,
+                context, subcloud_region, endpoint_type, sync_status, alarmable,
                 ignore_endpoints)
         else:
             # update all subclouds
             for subcloud in db_api.subcloud_get_all(context):
                 self._update_subcloud_endpoint_status(
-                    context, subcloud.name, endpoint_type, sync_status,
+                    context, subcloud.region_name, endpoint_type, sync_status,
                     alarmable, ignore_endpoints)
 
-    def _update_subcloud_state(self, context, subcloud_name,
+    def _update_subcloud_state(self, context, subcloud_name, subcloud_region,
                                management_state, availability_status):
         try:
             LOG.info('Notifying dcorch, subcloud:%s management: %s, '
@@ -372,7 +372,7 @@ class SubcloudStateManager(manager.Manager):
                       availability_status))
 
             self.dcorch_rpc_client.update_subcloud_states(
-                context, subcloud_name, management_state, availability_status)
+                context, subcloud_region, management_state, availability_status)
 
         except Exception:
             LOG.exception('Problem informing dcorch of subcloud state change,'
@@ -418,20 +418,21 @@ class SubcloudStateManager(manager.Manager):
                 LOG.exception("Failed to raise offline alarm for subcloud: %s",
                               subcloud_name)
 
-    def update_subcloud_availability(self, context, subcloud_name,
+    def update_subcloud_availability(self, context, subcloud_region,
                                      availability_status,
                                      update_state_only=False,
                                      audit_fail_count=None):
         try:
-            subcloud = db_api.subcloud_get_by_name(context, subcloud_name)
+            subcloud = db_api.subcloud_get_by_region_name(context, subcloud_region)
         except Exception:
-            LOG.exception("Failed to get subcloud by name: %s" % subcloud_name)
+            LOG.exception("Failed to get subcloud by region name %s" % subcloud_region)
             raise
 
         if update_state_only:
             # Nothing has changed, but we want to send a state update for this
             # subcloud as an audit. Get the most up-to-date data.
-            self._update_subcloud_state(context, subcloud_name,
+            self._update_subcloud_state(context, subcloud.name,
+                                        subcloud.region_name,
                                         subcloud.management_state,
                                         availability_status)
         elif availability_status is None:
@@ -443,17 +444,17 @@ class SubcloudStateManager(manager.Manager):
                 # slim possibility subcloud could have been deleted since
                 # we found it in db, ignore this benign error.
                 LOG.info('Ignoring SubcloudNotFound when attempting '
-                         'audit_fail_count update: %s' % subcloud_name)
+                         'audit_fail_count update: %s' % subcloud.name)
                 return
         else:
-            self._raise_or_clear_subcloud_status_alarm(subcloud_name,
+            self._raise_or_clear_subcloud_status_alarm(subcloud.name,
                                                        availability_status)
 
             if availability_status == dccommon_consts.AVAILABILITY_OFFLINE:
                 # Subcloud is going offline, set all endpoint statuses to
                 # unknown.
                 self._update_subcloud_endpoint_status(
-                    context, subcloud_name, endpoint_type=None,
+                    context, subcloud.region_name, endpoint_type=None,
                     sync_status=dccommon_consts.SYNC_STATUS_UNKNOWN)
 
             try:
@@ -466,27 +467,28 @@ class SubcloudStateManager(manager.Manager):
                 # slim possibility subcloud could have been deleted since
                 # we found it in db, ignore this benign error.
                 LOG.info('Ignoring SubcloudNotFound when attempting state'
-                         ' update: %s' % subcloud_name)
+                         ' update: %s' % subcloud.name)
                 return
 
             if availability_status == dccommon_consts.AVAILABILITY_ONLINE:
                 # Subcloud is going online
                 # Tell cert-mon to audit endpoint certificate.
-                LOG.info('Request for online audit for %s' % subcloud_name)
+                LOG.info('Request for online audit for %s' % subcloud.name)
                 dc_notification = rpc_client.DCManagerNotifications()
-                dc_notification.subcloud_online(context, subcloud_name)
+                dc_notification.subcloud_online(context, subcloud.region_name)
                 # Trigger all the audits for the subcloud so it can update the
                 # sync status ASAP.
                 self.audit_rpc_client.trigger_subcloud_audits(context,
                                                               subcloud.id)
 
             # Send dcorch a state update
-            self._update_subcloud_state(context, subcloud_name,
+            self._update_subcloud_state(context, subcloud.name,
+                                        subcloud.region_name,
                                         updated_subcloud.management_state,
                                         availability_status)
 
     def update_subcloud_sync_endpoint_type(self, context,
-                                           subcloud_name,
+                                           subcloud_region,
                                            endpoint_type_list,
                                            openstack_installed):
         operation = 'add' if openstack_installed else 'remove'
@@ -502,17 +504,17 @@ class SubcloudStateManager(manager.Manager):
         }
 
         try:
-            subcloud = db_api.subcloud_get_by_name(context, subcloud_name)
+            subcloud = db_api.subcloud_get_by_region_name(context, subcloud_region)
         except Exception:
-            LOG.exception("Failed to get subcloud by name: %s" % subcloud_name)
+            LOG.exception("Failed to get subcloud by region name: %s" % subcloud_region)
             raise
 
         try:
             # Notify dcorch to add/remove sync endpoint type list
-            func_switcher[operation][0](self.context, subcloud_name,
+            func_switcher[operation][0](self.context, subcloud_region,
                                         endpoint_type_list)
             LOG.info('Notifying dcorch, subcloud: %s new sync endpoint: %s' %
-                     (subcloud_name, endpoint_type_list))
+                     (subcloud.name, endpoint_type_list))
 
             # Update subcloud status table by adding/removing openstack sync
             # endpoint types
@@ -524,4 +526,4 @@ class SubcloudStateManager(manager.Manager):
                                    openstack_installed=openstack_installed)
         except Exception:
             LOG.exception('Problem informing dcorch of subcloud sync endpoint'
-                          ' type change, subcloud: %s' % subcloud_name)
+                          ' type change, subcloud: %s' % subcloud.name)

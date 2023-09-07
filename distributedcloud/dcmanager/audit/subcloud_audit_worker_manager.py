@@ -153,7 +153,7 @@ class SubcloudAuditWorkerManager(manager.Manager):
             # Create a new greenthread for each subcloud to allow the audits
             # to be done in parallel. If there are not enough greenthreads
             # in the pool, this will block until one becomes available.
-            self.subcloud_workers[subcloud.name] = \
+            self.subcloud_workers[subcloud.region_name] = \
                 self.thread_group_manager.start(self._do_audit_subcloud,
                                                 subcloud,
                                                 update_subcloud_state,
@@ -204,12 +204,13 @@ class SubcloudAuditWorkerManager(manager.Manager):
                      'audit_fail_count for subcloud: %s' % subcloud.name)
 
     def _update_subcloud_availability(self, subcloud_name,
+                                      subcloud_region,
                                       availability_status=None,
                                       update_state_only=False,
                                       audit_fail_count=None):
         try:
             self.state_rpc_client.update_subcloud_availability(
-                self.context, subcloud_name, availability_status,
+                self.context, subcloud_name, subcloud_region, availability_status,
                 update_state_only, audit_fail_count)
             LOG.info('Notifying dcmanager-state, subcloud:%s, availability:%s' %
                      (subcloud_name,
@@ -339,7 +340,7 @@ class SubcloudAuditWorkerManager(manager.Manager):
         db_api.subcloud_audits_end_audit(self.context,
                                          subcloud.id, audits_done)
         # Remove the worker for this subcloud
-        self.subcloud_workers.pop(subcloud.name, None)
+        self.subcloud_workers.pop(subcloud.region_name, None)
         LOG.debug("PID: %s, done auditing subcloud: %s." %
                   (self.pid, subcloud.name))
 
@@ -361,6 +362,7 @@ class SubcloudAuditWorkerManager(manager.Manager):
         avail_status_current = subcloud.availability_status
         audit_fail_count = subcloud.audit_fail_count
         subcloud_name = subcloud.name
+        subcloud_region = subcloud.region_name
         audits_done = list()
         failures = list()
 
@@ -371,7 +373,7 @@ class SubcloudAuditWorkerManager(manager.Manager):
         fm_client = None
         avail_to_set = dccommon_consts.AVAILABILITY_OFFLINE
         try:
-            os_client = OpenStackDriver(region_name=subcloud_name,
+            os_client = OpenStackDriver(region_name=subcloud_region,
                                         thread_name='subcloud-audit',
                                         region_clients=['fm', 'sysinv'])
             sysinv_client = os_client.sysinv_client
@@ -452,6 +454,7 @@ class SubcloudAuditWorkerManager(manager.Manager):
                       (avail_to_set, subcloud_name))
             self._update_subcloud_availability(
                 subcloud_name,
+                subcloud_region,
                 availability_status=avail_to_set,
                 audit_fail_count=audit_fail_count)
 
@@ -470,6 +473,7 @@ class SubcloudAuditWorkerManager(manager.Manager):
                       % subcloud_name)
             self._update_subcloud_availability(
                 subcloud_name,
+                subcloud_region,
                 availability_status=avail_status_current,
                 update_state_only=True)
 
@@ -488,6 +492,7 @@ class SubcloudAuditWorkerManager(manager.Manager):
             if do_patch_audit and patch_audit_data:
                 try:
                     self.patch_audit.subcloud_patch_audit(subcloud_name,
+                                                          subcloud_region,
                                                           patch_audit_data,
                                                           do_load_audit)
                     audits_done.append('patch')
@@ -504,6 +509,7 @@ class SubcloudAuditWorkerManager(manager.Manager):
             if do_firmware_audit:
                 try:
                     self.firmware_audit.subcloud_firmware_audit(subcloud_name,
+                                                                subcloud_region,
                                                                 firmware_audit_data)
                     audits_done.append('firmware')
                 except Exception:
@@ -514,6 +520,7 @@ class SubcloudAuditWorkerManager(manager.Manager):
                 try:
                     self.kubernetes_audit.subcloud_kubernetes_audit(
                         subcloud_name,
+                        subcloud_region,
                         kubernetes_audit_data)
                     audits_done.append('kubernetes')
                 except Exception:
@@ -524,6 +531,7 @@ class SubcloudAuditWorkerManager(manager.Manager):
                 try:
                     self.kube_rootca_update_audit.subcloud_audit(
                         subcloud_name,
+                        subcloud_region,
                         kube_rootca_update_audit_data)
                     audits_done.append('kube-rootca-update')
                 except Exception:
@@ -536,7 +544,7 @@ class SubcloudAuditWorkerManager(manager.Manager):
                 # audits_done to be empty:
                 try:
                     self._audit_subcloud_openstack_app(
-                        subcloud_name, sysinv_client, subcloud.openstack_installed)
+                        subcloud_region, sysinv_client, subcloud.openstack_installed)
                 except Exception:
                     LOG.exception(failmsg % (subcloud.name, 'openstack'))
                     failures.append('openstack')

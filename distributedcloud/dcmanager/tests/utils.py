@@ -93,4 +93,5 @@ def create_subcloud_dict(data_list):
             'group_id': data_list[23],
             'deploy_status': data_list[24],
             'error_description': data_list[25],
-            'data_install': data_list[26]}
+            'region_name': data_list[26],
+            'data_install': data_list[27]}

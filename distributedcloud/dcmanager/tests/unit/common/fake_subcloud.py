@@ -9,6 +9,7 @@ import base64
 from dcmanager.common import consts
 from dcmanager.db.sqlalchemy import api as db_api
 
+from dcmanager.tests import base
 from dcmanager.tests import utils
 
 FAKE_TENANT = utils.UUID1
@@ -33,6 +34,7 @@ FAKE_SUBCLOUD_DATA = {"id": FAKE_ID,
                       "systemcontroller_gateway_address": "192.168.204.101",
                       "deploy_status": consts.DEPLOY_STATE_DONE,
                       'error_description': consts.ERROR_DESC_EMPTY,
+                      'region_name': base.SUBCLOUD_1['region_name'],
                       "external_oam_subnet": "10.10.10.0/24",
                       "external_oam_gateway_address": "10.10.10.1",
                       "external_oam_floating_address": "10.10.10.12",
@@ -128,6 +130,7 @@ def create_fake_subcloud(ctxt, **kwargs):
         "systemcontroller_gateway_ip": "192.168.204.101",
         'deploy_status': consts.DEPLOY_STATE_DONE,
         'error_description': consts.ERROR_DESC_EMPTY,
+        'region_name': base.SUBCLOUD_1['region_name'],
         'openstack_installed': False,
         'group_id': 1,
         'data_install': 'data from install',

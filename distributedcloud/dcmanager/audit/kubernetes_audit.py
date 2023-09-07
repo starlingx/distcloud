@@ -1,5 +1,5 @@
 # Copyright 2017 Ericsson AB.
-# Copyright (c) 2017-2022 Wind River Systems, Inc.
+# Copyright (c) 2017-2023 Wind River Systems, Inc.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -55,11 +55,12 @@ class KubernetesAudit(object):
         self.state_rpc_client = dcmanager_state_rpc_client
         self.audit_count = 0
 
-    def _update_subcloud_sync_status(self, sc_name, sc_endpoint_type,
+    def _update_subcloud_sync_status(self, sc_name, sc_region, sc_endpoint_type,
                                      sc_status):
         self.state_rpc_client.update_subcloud_endpoint_status(
             self.context,
             subcloud_name=sc_name,
+            subcloud_region=sc_region,
             endpoint_type=sc_endpoint_type,
             sync_status=sc_status)
 
@@ -90,19 +91,20 @@ class KubernetesAudit(object):
         LOG.debug("RegionOne kubernetes versions: %s" % region_one_data)
         return region_one_data
 
-    def subcloud_kubernetes_audit(self, subcloud_name, audit_data):
+    def subcloud_kubernetes_audit(self, subcloud_name, subcloud_region, audit_data):
         LOG.info('Triggered kubernetes audit for: %s' % subcloud_name)
         if not audit_data:
             self._update_subcloud_sync_status(
-                subcloud_name, dccommon_consts.ENDPOINT_TYPE_KUBERNETES,
+                subcloud_name,
+                subcloud_region, dccommon_consts.ENDPOINT_TYPE_KUBERNETES,
                 dccommon_consts.SYNC_STATUS_IN_SYNC)
             LOG.debug('No region one audit data, exiting kubernetes audit')
             return
         try:
-            sc_os_client = OpenStackDriver(region_name=subcloud_name,
+            sc_os_client = OpenStackDriver(region_name=subcloud_region,
                                            region_clients=None).keystone_client
             endpoint = sc_os_client.endpoint_cache.get_endpoint('sysinv')
-            sysinv_client = SysinvClient(subcloud_name, sc_os_client.session,
+            sysinv_client = SysinvClient(subcloud_region, sc_os_client.session,
                                          endpoint=endpoint)
         except (keystone_exceptions.EndpointNotFound,
                 keystone_exceptions.ConnectFailure,
@@ -152,10 +154,12 @@ class KubernetesAudit(object):
 
         if out_of_sync:
             self._update_subcloud_sync_status(
-                subcloud_name, dccommon_consts.ENDPOINT_TYPE_KUBERNETES,
+                subcloud_name,
+                subcloud_region, dccommon_consts.ENDPOINT_TYPE_KUBERNETES,
                 dccommon_consts.SYNC_STATUS_OUT_OF_SYNC)
         else:
             self._update_subcloud_sync_status(
-                subcloud_name, dccommon_consts.ENDPOINT_TYPE_KUBERNETES,
+                subcloud_name,
+                subcloud_region, dccommon_consts.ENDPOINT_TYPE_KUBERNETES,
                 dccommon_consts.SYNC_STATUS_IN_SYNC)
         LOG.info('Kubernetes audit completed for: %s' % subcloud_name)

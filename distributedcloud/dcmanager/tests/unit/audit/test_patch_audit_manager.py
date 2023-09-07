@@ -1,4 +1,4 @@
-# Copyright (c) 2017-2022 Wind River Systems, Inc.
+# Copyright (c) 2017-2023 Wind River Systems, Inc.
 # Licensed under the Apache License, Version 2.0 (the "License"); you may
 # not use this file except in compliance with the License. You may obtain
 # a copy of the License at
@@ -26,7 +26,6 @@ from dcmanager.audit import patch_audit
 from dcmanager.audit import subcloud_audit_manager
 from dcmanager.tests import base
 from dcmanager.tests import utils
-
 
 CONF = cfg.CONF
 
@@ -85,7 +84,8 @@ class FakePatchingClientInSync(object):
                                        'repostate': 'Applied',
                                        'patchstate': 'Applied'},
                     }
-        elif self.region in ['subcloud1', 'subcloud2']:
+        elif self.region in [base.SUBCLOUD_1['region_name'],
+                             base.SUBCLOUD_2['region_name']]:
             return {'DC.1': {'sw_version': '17.07',
                              'repostate': 'Applied',
                              'patchstate': 'Applied'},
@@ -117,25 +117,25 @@ class FakePatchingClientOutOfSync(object):
                     'DC.2': {'sw_version': '17.07',
                              'repostate': 'Applied',
                              'patchstate': 'Applied'}}
-        elif self.region == 'subcloud1':
+        elif self.region == base.SUBCLOUD_1['region_name']:
             return {'DC.1': {'sw_version': '17.07',
                              'repostate': 'Applied',
                              'patchstate': 'Applied'},
                     'DC.2': {'sw_version': '17.07',
                              'repostate': 'Available',
                              'patchstate': 'Available'}}
-        elif self.region == 'subcloud2':
+        elif self.region == base.SUBCLOUD_2['region_name']:
             return {'DC.1': {'sw_version': '17.07',
                              'repostate': 'Applied',
                              'patchstate': 'Applied'}}
-        elif self.region == 'subcloud3':
+        elif self.region == base.SUBCLOUD_3['region_name']:
             return {'DC.1': {'sw_version': '17.07',
                              'repostate': 'Applied',
                              'patchstate': 'Applied'},
                     'DC.2': {'sw_version': '17.07',
                              'repostate': 'Applied',
                              'patchstate': 'Applied'}}
-        elif self.region == 'subcloud4':
+        elif self.region == base.SUBCLOUD_4['region_name']:
             return {'DC.1': {'sw_version': '17.07',
                              'repostate': 'Applied',
                              'patchstate': 'Applied'},
@@ -219,7 +219,7 @@ class FakeSysinvClientOneLoadUnmatchedSoftwareVersion(object):
         return self.upgrades
 
     def get_system(self):
-        if self.region == 'subcloud2':
+        if self.region == base.SUBCLOUD_2['region_name']:
             return System('17.06')
         else:
             return self.system
@@ -238,7 +238,7 @@ class FakeSysinvClientOneLoadUpgradeInProgress(object):
         return self.loads
 
     def get_upgrades(self):
-        if self.region == 'subcloud2':
+        if self.region == base.SUBCLOUD_2['region_name']:
             return [Upgrade('started')]
         else:
             return self.upgrades
@@ -302,15 +302,19 @@ class TestPatchAudit(base.DCManagerTestCase):
         do_load_audit = True
         patch_audit_data = self.get_patch_audit_data(am)
 
-        for name in ['subcloud1', 'subcloud2']:
-            pm.subcloud_patch_audit(name, patch_audit_data, do_load_audit)
+        subclouds = {base.SUBCLOUD_1['name']: base.SUBCLOUD_1['region_name'],
+                     base.SUBCLOUD_2['name']: base.SUBCLOUD_2['region_name']}
+        for name, region in subclouds.items():
+            pm.subcloud_patch_audit(name, region, patch_audit_data, do_load_audit)
             expected_calls = [
                 mock.call(mock.ANY,
                           subcloud_name=name,
+                          subcloud_region=region,
                           endpoint_type=dccommon_consts.ENDPOINT_TYPE_PATCHING,
                           sync_status=dccommon_consts.SYNC_STATUS_IN_SYNC),
                 mock.call(mock.ANY,
                           subcloud_name=name,
+                          subcloud_region=region,
                           endpoint_type=dccommon_consts.ENDPOINT_TYPE_LOAD,
                           sync_status=dccommon_consts.SYNC_STATUS_IN_SYNC)]
             self.fake_dcmanager_state_api.update_subcloud_endpoint_status. \
@@ -336,40 +340,52 @@ class TestPatchAudit(base.DCManagerTestCase):
         do_load_audit = True
         patch_audit_data = self.get_patch_audit_data(am)
 
-        for name in ['subcloud1', 'subcloud2', 'subcloud3', 'subcloud4']:
-            pm.subcloud_patch_audit(name, patch_audit_data, do_load_audit)
+        subclouds = {base.SUBCLOUD_1['name']: base.SUBCLOUD_1['region_name'],
+                     base.SUBCLOUD_2['name']: base.SUBCLOUD_2['region_name'],
+                     base.SUBCLOUD_3['name']: base.SUBCLOUD_3['region_name'],
+                     base.SUBCLOUD_4['name']: base.SUBCLOUD_4['region_name']}
+        for name, region in subclouds.items():
+            pm.subcloud_patch_audit(name, region, patch_audit_data, do_load_audit)
 
         expected_calls = [
             mock.call(mock.ANY,
-                      subcloud_name='subcloud1',
+                      subcloud_name=base.SUBCLOUD_1['name'],
+                      subcloud_region=base.SUBCLOUD_1['region_name'],
                       endpoint_type=dccommon_consts.ENDPOINT_TYPE_PATCHING,
                       sync_status=dccommon_consts.SYNC_STATUS_OUT_OF_SYNC),
             mock.call(mock.ANY,
-                      subcloud_name='subcloud1',
+                      subcloud_name=base.SUBCLOUD_1['name'],
+                      subcloud_region=base.SUBCLOUD_1['region_name'],
                       endpoint_type=dccommon_consts.ENDPOINT_TYPE_LOAD,
                       sync_status=dccommon_consts.SYNC_STATUS_IN_SYNC),
             mock.call(mock.ANY,
-                      subcloud_name='subcloud2',
+                      subcloud_name=base.SUBCLOUD_2['name'],
+                      subcloud_region=base.SUBCLOUD_2['region_name'],
                       endpoint_type=dccommon_consts.ENDPOINT_TYPE_PATCHING,
                       sync_status=dccommon_consts.SYNC_STATUS_OUT_OF_SYNC),
             mock.call(mock.ANY,
-                      subcloud_name='subcloud2',
+                      subcloud_name=base.SUBCLOUD_2['name'],
+                      subcloud_region=base.SUBCLOUD_2['region_name'],
                       endpoint_type=dccommon_consts.ENDPOINT_TYPE_LOAD,
                       sync_status=dccommon_consts.SYNC_STATUS_IN_SYNC),
             mock.call(mock.ANY,
-                      subcloud_name='subcloud3',
+                      subcloud_name=base.SUBCLOUD_3['name'],
+                      subcloud_region=base.SUBCLOUD_3['region_name'],
                       endpoint_type=dccommon_consts.ENDPOINT_TYPE_PATCHING,
                       sync_status=dccommon_consts.SYNC_STATUS_IN_SYNC),
             mock.call(mock.ANY,
-                      subcloud_name='subcloud3',
+                      subcloud_name=base.SUBCLOUD_3['name'],
+                      subcloud_region=base.SUBCLOUD_3['region_name'],
                       endpoint_type=dccommon_consts.ENDPOINT_TYPE_LOAD,
                       sync_status=dccommon_consts.SYNC_STATUS_IN_SYNC),
             mock.call(mock.ANY,
-                      subcloud_name='subcloud4',
+                      subcloud_name=base.SUBCLOUD_4['name'],
+                      subcloud_region=base.SUBCLOUD_4['region_name'],
                       endpoint_type=dccommon_consts.ENDPOINT_TYPE_PATCHING,
                       sync_status=dccommon_consts.SYNC_STATUS_OUT_OF_SYNC),
             mock.call(mock.ANY,
-                      subcloud_name='subcloud4',
+                      subcloud_name=base.SUBCLOUD_4['name'],
+                      subcloud_region=base.SUBCLOUD_4['region_name'],
                       endpoint_type=dccommon_consts.ENDPOINT_TYPE_LOAD,
                       sync_status=dccommon_consts.SYNC_STATUS_IN_SYNC),
             ]
@@ -397,15 +413,19 @@ class TestPatchAudit(base.DCManagerTestCase):
         do_load_audit = True
         patch_audit_data = self.get_patch_audit_data(am)
 
-        for name in ['subcloud1', 'subcloud2']:
-            pm.subcloud_patch_audit(name, patch_audit_data, do_load_audit)
+        subclouds = {base.SUBCLOUD_1['name']: base.SUBCLOUD_1['region_name'],
+                     base.SUBCLOUD_2['name']: base.SUBCLOUD_2['region_name']}
+        for name, region in subclouds.items():
+            pm.subcloud_patch_audit(name, region, patch_audit_data, do_load_audit)
             expected_calls = [
                 mock.call(mock.ANY,
                           subcloud_name=name,
+                          subcloud_region=region,
                           endpoint_type=dccommon_consts.ENDPOINT_TYPE_PATCHING,
                           sync_status=dccommon_consts.SYNC_STATUS_OUT_OF_SYNC),
                 mock.call(mock.ANY,
                           subcloud_name=name,
+                          subcloud_region=region,
                           endpoint_type=dccommon_consts.ENDPOINT_TYPE_LOAD,
                           sync_status=dccommon_consts.SYNC_STATUS_IN_SYNC)]
             self.fake_dcmanager_state_api.update_subcloud_endpoint_status.\
@@ -431,24 +451,30 @@ class TestPatchAudit(base.DCManagerTestCase):
         do_load_audit = True
         patch_audit_data = self.get_patch_audit_data(am)
 
-        for name in ['subcloud1', 'subcloud2']:
-            pm.subcloud_patch_audit(name, patch_audit_data, do_load_audit)
+        subclouds = {base.SUBCLOUD_1['name']: base.SUBCLOUD_1['region_name'],
+                     base.SUBCLOUD_2['name']: base.SUBCLOUD_2['region_name']}
+        for name, region in subclouds.items():
+            pm.subcloud_patch_audit(name, region, patch_audit_data, do_load_audit)
 
         expected_calls = [
             mock.call(mock.ANY,
-                      subcloud_name='subcloud1',
+                      subcloud_name=base.SUBCLOUD_1['name'],
+                      subcloud_region=base.SUBCLOUD_1['region_name'],
                       endpoint_type=dccommon_consts.ENDPOINT_TYPE_PATCHING,
                       sync_status=dccommon_consts.SYNC_STATUS_IN_SYNC),
             mock.call(mock.ANY,
-                      subcloud_name='subcloud1',
+                      subcloud_name=base.SUBCLOUD_1['name'],
+                      subcloud_region=base.SUBCLOUD_1['region_name'],
                       endpoint_type=dccommon_consts.ENDPOINT_TYPE_LOAD,
                       sync_status=dccommon_consts.SYNC_STATUS_IN_SYNC),
             mock.call(mock.ANY,
-                      subcloud_name='subcloud2',
+                      subcloud_name=base.SUBCLOUD_2['name'],
+                      subcloud_region=base.SUBCLOUD_2['region_name'],
                       endpoint_type=dccommon_consts.ENDPOINT_TYPE_PATCHING,
                       sync_status=dccommon_consts.SYNC_STATUS_IN_SYNC),
             mock.call(mock.ANY,
-                      subcloud_name='subcloud2',
+                      subcloud_name=base.SUBCLOUD_2['name'],
+                      subcloud_region=base.SUBCLOUD_2['region_name'],
                       endpoint_type=dccommon_consts.ENDPOINT_TYPE_LOAD,
                       sync_status=dccommon_consts.SYNC_STATUS_OUT_OF_SYNC),
         ]
@@ -475,24 +501,30 @@ class TestPatchAudit(base.DCManagerTestCase):
         do_load_audit = True
         patch_audit_data = self.get_patch_audit_data(am)
 
-        for name in ['subcloud1', 'subcloud2']:
-            pm.subcloud_patch_audit(name, patch_audit_data, do_load_audit)
+        subclouds = {base.SUBCLOUD_1['name']: base.SUBCLOUD_1['region_name'],
+                     base.SUBCLOUD_2['name']: base.SUBCLOUD_2['region_name']}
+        for name, region in subclouds.items():
+            pm.subcloud_patch_audit(name, region, patch_audit_data, do_load_audit)
 
         expected_calls = [
             mock.call(mock.ANY,
-                      subcloud_name='subcloud1',
+                      subcloud_name=base.SUBCLOUD_1['name'],
+                      subcloud_region=base.SUBCLOUD_1['region_name'],
                       endpoint_type=dccommon_consts.ENDPOINT_TYPE_PATCHING,
                       sync_status=dccommon_consts.SYNC_STATUS_IN_SYNC),
             mock.call(mock.ANY,
-                      subcloud_name='subcloud1',
+                      subcloud_name=base.SUBCLOUD_1['name'],
+                      subcloud_region=base.SUBCLOUD_1['region_name'],
                       endpoint_type=dccommon_consts.ENDPOINT_TYPE_LOAD,
                       sync_status=dccommon_consts.SYNC_STATUS_IN_SYNC),
             mock.call(mock.ANY,
-                      subcloud_name='subcloud2',
+                      subcloud_name=base.SUBCLOUD_2['name'],
+                      subcloud_region=base.SUBCLOUD_2['region_name'],
                       endpoint_type=dccommon_consts.ENDPOINT_TYPE_PATCHING,
                       sync_status=dccommon_consts.SYNC_STATUS_IN_SYNC),
             mock.call(mock.ANY,
-                      subcloud_name='subcloud2',
+                      subcloud_name=base.SUBCLOUD_2['name'],
+                      subcloud_region=base.SUBCLOUD_2['region_name'],
                       endpoint_type=dccommon_consts.ENDPOINT_TYPE_LOAD,
                       sync_status=dccommon_consts.SYNC_STATUS_OUT_OF_SYNC),
         ]

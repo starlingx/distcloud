@@ -204,8 +204,8 @@ class PreCheckState(BaseState):
         if subcloud.availability_status == dccommon_consts.AVAILABILITY_ONLINE:
             subcloud_sysinv_client = None
             try:
-                subcloud_sysinv_client = self.get_sysinv_client(strategy_step.subcloud.name)
-                subcloud_fm_client = self.get_fm_client(strategy_step.subcloud.name)
+                subcloud_sysinv_client = self.get_sysinv_client(strategy_step.subcloud.region_name)
+                subcloud_fm_client = self.get_fm_client(strategy_step.subcloud.region_name)
             except Exception:
                 # if getting the token times out, the orchestrator may have
                 # restarted and subcloud may be offline; so will attempt
@@ -220,7 +220,7 @@ class PreCheckState(BaseState):
 
             host = subcloud_sysinv_client.get_host("controller-0")
             subcloud_type = self.get_sysinv_client(
-                strategy_step.subcloud.name).get_system().system_mode
+                strategy_step.subcloud.region_name).get_system().system_mode
 
             upgrades = subcloud_sysinv_client.get_upgrades()
             if subcloud_type == consts.SYSTEM_MODE_SIMPLEX:
@@ -324,7 +324,7 @@ class PreCheckState(BaseState):
 
                         all_hosts_upgraded = True
                         subcloud_hosts = self.get_sysinv_client(
-                            strategy_step.subcloud.name).get_hosts()
+                            strategy_step.subcloud.region_name).get_hosts()
                         for subcloud_host in subcloud_hosts:
                             if(subcloud_host.software_load != target_version or
                                subcloud_host.administrative == consts.ADMIN_LOCKED or

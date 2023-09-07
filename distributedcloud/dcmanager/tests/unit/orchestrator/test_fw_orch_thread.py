@@ -4,6 +4,7 @@
 # SPDX-License-Identifier: Apache-2.0
 #
 import mock
+from oslo_utils import uuidutils
 
 from dccommon import consts as dccommon_consts
 from dccommon.drivers.openstack import vim
@@ -39,6 +40,7 @@ class TestFwOrchThread(TestSwUpdate):
             "systemcontroller_gateway_ip": "192.168.204.101",
             'deploy_status': "not-deployed",
             'error_description': 'No errors present',
+            'region_name': uuidutils.generate_uuid().replace("-", ""),
             'openstack_installed': False,
             'group_id': group_id,
             'data_install': 'data from install',
