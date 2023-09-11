@@ -732,24 +732,17 @@ class SubcloudInstall(object):
         # create the install override file
         self.create_install_override_file(override_path, payload)
 
-    def install(self, log_file_dir, install_command, abortable=False):
+    def install(self, log_file_dir, install_command):
         LOG.info("Start remote install %s", self.name)
         log_file = os.path.join(log_file_dir, self.name) + '_playbook_output.log'
 
         try:
             # Since this is a long-running task we want to register
             # for cleanup on process restart/SWACT.
-            if abortable:
-                # Install phase of subcloud deployment
-                run_ansible = dccommon_utils.RunAnsible()
-                aborted = run_ansible.exec_playbook(log_file, install_command, self.name)
-                # Returns True if the playbook was aborted and False otherwise
-                return aborted
-            else:
-                dccommon_utils.run_playbook(log_file, install_command)
-                # Always return false because this playbook execution
-                # method cannot be aborted
-                return False
+            ansible = dccommon_utils.AnsiblePlaybook(self.name)
+            aborted = ansible.run_playbook(log_file, install_command)
+            # Returns True if the playbook was aborted and False otherwise
+            return aborted
         except exceptions.PlaybookExecutionFailed:
             msg = ("Failed to install %s, check individual "
                    "log at %s or run %s for details"

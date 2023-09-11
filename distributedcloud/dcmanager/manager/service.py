@@ -220,29 +220,29 @@ class DCManagerService(service.Service):
                                                             payload)
 
     @request_context
-    def subcloud_deploy_bootstrap(self, context, subcloud_id, payload):
+    def subcloud_deploy_bootstrap(self, context, subcloud_id, payload,
+                                  initial_deployment):
         # Bootstraps a subcloud
         LOG.info("Handling subcloud_deploy_bootstrap request for: %s" %
                  payload.get('name'))
-        return self.subcloud_manager.subcloud_deploy_bootstrap(context,
-                                                               subcloud_id,
-                                                               payload)
+        return self.subcloud_manager.subcloud_deploy_bootstrap(
+            context, subcloud_id, payload, initial_deployment)
 
     @request_context
-    def subcloud_deploy_config(self, context, subcloud_id, payload):
+    def subcloud_deploy_config(self, context, subcloud_id, payload,
+                               initial_deployment):
         # Configures a subcloud
         LOG.info("Handling subcloud_deploy_config request for: %s" % subcloud_id)
-        return self.subcloud_manager.subcloud_deploy_config(context,
-                                                            subcloud_id,
-                                                            payload)
+        return self.subcloud_manager.subcloud_deploy_config(
+            context, subcloud_id, payload, initial_deployment)
 
     @request_context
-    def subcloud_deploy_install(self, context, subcloud_id, payload):
+    def subcloud_deploy_install(self, context, subcloud_id, payload,
+                                initial_deployment):
         # Install a subcloud
         LOG.info("Handling subcloud_deploy_install request for: %s" % subcloud_id)
-        return self.subcloud_manager.subcloud_deploy_install(context,
-                                                             subcloud_id,
-                                                             payload)
+        return self.subcloud_manager.subcloud_deploy_install(
+            context, subcloud_id, payload, initial_deployment)
 
     @request_context
     def subcloud_deploy_complete(self, context, subcloud_id):

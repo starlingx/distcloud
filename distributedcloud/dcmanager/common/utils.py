@@ -338,7 +338,8 @@ def get_filename_by_prefix(dir_path, prefix):
 
 
 def create_subcloud_inventory(subcloud,
-                              inventory_file):
+                              inventory_file,
+                              initial_deployment=False):
     """Create the ansible inventory file for the specified subcloud"""
 
     # Delete the file if it already exists
@@ -351,6 +352,7 @@ def create_subcloud_inventory(subcloud,
             '  vars:\n'
             '    ansible_ssh_user: sysadmin\n'
             '    ansible_ssh_extra_args: "-o UserKnownHostsFile=/dev/null"\n'
+            '    initial_deployment: ' + str(initial_deployment) + '\n'
             '  hosts:\n'
             '    ' + subcloud['name'] + ':\n'
             '      ansible_host: ' +
@@ -361,7 +363,8 @@ def create_subcloud_inventory(subcloud,
 def create_subcloud_inventory_with_admin_creds(subcloud_name,
                                                inventory_file,
                                                subcloud_bootstrap_address,
-                                               ansible_pass):
+                                               ansible_pass,
+                                               initial_deployment=False):
     """Create the ansible inventory file for the specified subcloud.
 
     Includes ansible_become_pass attribute.
@@ -379,6 +382,7 @@ def create_subcloud_inventory_with_admin_creds(subcloud_name,
              '    ansible_ssh_pass: {0}\n'
              '    ansible_become_pass: {0}\n'
              '    ansible_ssh_extra_args: "-o UserKnownHostsFile=/dev/null"\n'
+             '    initial_deployment: ' + str(initial_deployment) + '\n'
              '  hosts:\n'
              '    {1}:\n'
              '      ansible_host: {2}\n').format(ansible_pass,
@@ -1116,19 +1120,31 @@ def get_value_from_yaml_file(filename, key):
     return value
 
 
-def update_values_on_yaml_file(filename, values, yaml_dump=True):
+def update_values_on_yaml_file(filename, values, values_to_keep=None,
+                               yaml_dump=True):
     """Update all specified key values from the given yaml file.
+
+    If values_to_keep is provided, all values other than specified
+    will be deleted from the loaded file prior to update.
 
     :param filename: the yaml filename
     :param values: dict with yaml keys and values to replace
+    :param values_to_keep: list of values to keep on original file
     :param yaml_dump: write file using yaml dump (default is True)
     """
+    if values_to_keep is None:
+        values_to_keep = []
     update_file = False
     if not os.path.isfile(filename):
         return
     with open(os.path.abspath(filename), 'r') as f:
         data = f.read()
     data = yaml.load(data, Loader=yaml.SafeLoader)
+    if values_to_keep:
+        for key in data.copy():
+            if key not in values_to_keep:
+                data.pop(key)
+                update_file = True
     for key, value in values.items():
         if key not in data or value != data.get(key):
             data.update({key: value})

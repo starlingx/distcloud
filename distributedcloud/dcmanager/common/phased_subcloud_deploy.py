@@ -879,6 +879,31 @@ def add_subcloud_to_database(context, payload):
     return subcloud
 
 
+def is_initial_deployment(subcloud_name: str) -> bool:
+    """Get initial deployment flag from inventory file"""
+
+    postfix = consts.INVENTORY_FILE_POSTFIX
+    filename = utils.get_ansible_filename(subcloud_name, postfix)
+
+    # Assume initial deployment if inventory file is missing
+    if not os.path.exists(filename):
+        return True
+
+    content = utils.load_yaml_file(filename)
+    initial_deployment = content['all']['vars'].get('initial_deployment')
+    return initial_deployment
+
+
+def update_payload_from_overrides_file(payload, subcloud_name, values):
+    """Update payload with values from existing overrides file"""
+
+    overrides_filename = get_config_file_path(subcloud_name)
+    content = utils.load_yaml_file(overrides_filename)
+    for value in values:
+        if not payload.get(value):
+            payload[value] = content.get(value)
+
+
 def get_request_data(request: pecan.Request,
                      subcloud: models.Subcloud,
                      subcloud_file_contents: typing.Sequence):

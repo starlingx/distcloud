@@ -34,7 +34,7 @@ from dccommon.drivers.openstack.sdk_platform import OpenStackDriver
 from dccommon.drivers.openstack.sysinv_v1 import SysinvClient
 from dccommon.exceptions import PlaybookExecutionFailed
 from dccommon.exceptions import PlaybookExecutionTimeout
-from dccommon.utils import run_playbook
+from dccommon.utils import AnsiblePlaybook
 
 from dcmanager.common import consts
 from dcmanager.common import exceptions
@@ -340,8 +340,9 @@ def _run_ansible(context, prestage_command, phase,
         ansible_pass=utils.decode_and_normalize_passwd(sysadmin_password))
 
     try:
-        run_playbook(log_file, prestage_command,
-                     timeout=timeout_seconds, register_cleanup=True)
+        ansible = AnsiblePlaybook(subcloud.name)
+        ansible.run_playbook(log_file, prestage_command, timeout=timeout_seconds,
+                             register_cleanup=True)
     except PlaybookExecutionFailed as ex:
         timeout_msg = ''
         if isinstance(ex, PlaybookExecutionTimeout):
