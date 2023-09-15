@@ -314,9 +314,95 @@ class SubcloudPeerGroupsController(restcomm.GenericPathController):
                 pecan.abort(httpclient.INTERNAL_SERVER_ERROR,
                             _('Unable to update subcloud peer group'))
         elif verb == 'migrate':
-            # TODO(tao): Subcloud Peer Group migrate implementation will
-            # be submitted in the follow-up review.
-            pass
+            payload = json.loads(request.body)
+            LOG.info("Handling migrate subcloud peer group request for: %s" %
+                     group_ref)
+            if not payload:
+                pecan.abort(httpclient.BAD_REQUEST, _('Body required'))
+            if 'sysadmin_password' not in payload:
+                msg = ("Unable to migrate subcloud peer group: %s "
+                       "need sysadmin_password" % group_ref)
+                LOG.error(msg)
+                pecan.abort(400, _(msg))
+            payload['peer_group'] = group_ref
+            # Validate subclouds
+            subclouds = db_api.subcloud_get_for_peer_group(context, group.id)
+            rehome_ready_subclouds = []
+            err_msg_list = []
+            for tmp_subcloud in subclouds:
+                # Verify rehome data
+                rehome_data_json_str = tmp_subcloud.rehome_data
+                if not rehome_data_json_str:
+                    msg = ("Unable to migrate subcloud: %s "
+                           "required rehoming data is missing" %
+                           tmp_subcloud.name)
+                    err_msg_list.append(msg)
+                    continue
+                tmp_rehome_data = json.loads(rehome_data_json_str)
+                if 'saved_payload' not in tmp_rehome_data:
+                    msg = ("Unable to migrate subcloud: %s "
+                           "saved_payload is missing in "
+                           "rehoming data" % tmp_subcloud.name)
+                    err_msg_list.append(msg)
+                    continue
+                saved_payload = tmp_rehome_data['saved_payload']
+
+                # Validate saved_payload
+                if not saved_payload:
+                    msg = ("Unable to migrate subcloud: %s saved_payload "
+                           "is empty" % tmp_subcloud.name)
+                    err_msg_list.append(msg)
+                    continue
+                if 'bootstrap-address' not in saved_payload:
+                    msg = ("Unable to migrate subcloud: %s, "
+                           "bootstrap-address is missing in rehoming "
+                           "data" % tmp_subcloud.name)
+                    err_msg_list.append(msg)
+                    continue
+
+                # If any subcloud in the peer group is in 'rehoming'
+                # or 'pre-rehome'state, we consider the peer group
+                # is already in batch rehoming, then abort.
+                rehome_states = [consts.DEPLOY_STATE_PRE_REHOME,
+                                 consts.DEPLOY_STATE_REHOMING]
+                if tmp_subcloud.deploy_status in rehome_states:
+                    msg = ("Unable to migrate subcloud peer group %s, "
+                           "subcloud %s already in rehoming process" %
+                           (group.peer_group_name, tmp_subcloud.name))
+                    err_msg_list.append(msg)
+                    continue
+                # Filter for unmanage and secondary subclouds,
+                # which is the correct state for rehoming
+                if (tmp_subcloud.management_state ==
+                        dccommon_consts.MANAGEMENT_UNMANAGED and
+                        tmp_subcloud.deploy_status ==
+                        consts.DEPLOY_STATE_SECONDARY):
+                    rehome_ready_subclouds.append(tmp_subcloud)
+                else:
+                    LOG.info("Excluding subcloud: %s from batch migration: "
+                             "not unmanaged or deploy status not 'secondary'" %
+                             tmp_subcloud.name)
+            if err_msg_list:
+                for m in err_msg_list:
+                    LOG.error(m)
+                pecan.abort(500, _("Batch migrate subclouds error: %s" %
+                                   err_msg_list))
+
+            if not rehome_ready_subclouds:
+                pecan.abort(400, _('Nothing to migrate, no unmanaged and '
+                                   'secondary subcloud in %s, ' % group.peer_group_name))
+
+            # Call batch migrate
+            try:
+                self.rpc_client.batch_migrate_subcloud(context, payload)
+                return utils.subcloud_db_list_to_dict(rehome_ready_subclouds)
+            except RemoteError as e:
+                pecan.abort(422, e.value)
+            except Exception:
+                LOG.exception(
+                    "Unable to batch migrate peer group %s" % group.peer_group_name)
+                pecan.abort(500, _('Unable to batch migrate '
+                                   'peer group %s' % group.peer_group_name))
         else:
             pecan.abort(400, _('Invalid request'))
 

@@ -2877,8 +2877,7 @@ class TestSubcloudManager(base.DCManagerTestCase):
                     "system_mode": "simplex",
                     "name": "testsub",
                     "bootstrap-address": "128.224.119.56",
-                    "sysadmin_password": "Li69nux",
-                    "ansible_ssh_pass": "Li69nux",
+                    "sysadmin_password": "Li69nux"
                 }
             },
         }
@@ -2893,6 +2892,68 @@ class TestSubcloudManager(base.DCManagerTestCase):
         mock_rehome_subcloud.assert_called_once_with(mock.ANY, mock.ANY)
 
         self.assertFalse(mock_db_api.subcloud_update.called)
+
+    @mock.patch.object(subcloud_manager.SubcloudManager,
+                       '_run_parallel_group_operation')
+    def test_batch_migrate_subcloud(self, mock_run_parallel_group_operation):
+        # Prepare the test data
+        subcloud_pg = self.create_subcloud_peer_group_static(self.ctx)
+        rehome_data = '{"saved_payload": {"system_mode": "simplex",\
+            "name": "test_sub_migrate", "bootstrap-address": "128.224.119.56"}}'
+        payload = {
+            "sysadmin_password": "TGk2OW51eA==",
+            "peer_group": subcloud_pg.peer_group_name
+        }
+        sm = subcloud_manager.SubcloudManager()
+        subcloud = self.create_subcloud_static(
+            self.ctx,
+            name="sub_migrateable",
+            deploy_status=consts.DEPLOY_STATE_SECONDARY
+            )
+        db_api.subcloud_update(
+            self.ctx,
+            subcloud.id,
+            peer_group_id=subcloud_pg.id,
+            rehome_data=rehome_data,
+            management_state=dccommon_consts.MANAGEMENT_UNMANAGED)
+        subcloud = self.create_subcloud_static(
+            self.ctx,
+            name="sub_no_rehome_data",
+            deploy_status=consts.DEPLOY_STATE_SECONDARY
+            )
+        db_api.subcloud_update(
+            self.ctx,
+            subcloud.id,
+            peer_group_id=subcloud_pg.id,
+            management_state=dccommon_consts.MANAGEMENT_UNMANAGED)
+        subcloud = self.create_subcloud_static(
+            self.ctx,
+            name="sub_no_secondary"
+            )
+        db_api.subcloud_update(
+            self.ctx,
+            subcloud.id,
+            peer_group_id=subcloud_pg.id,
+            rehome_data=rehome_data,
+            management_state=dccommon_consts.MANAGEMENT_UNMANAGED)
+        subcloud = self.create_subcloud_static(
+            self.ctx,
+            name="sub_no_saved_payload"
+            )
+        db_api.subcloud_update(
+            self.ctx,
+            subcloud.id,
+            peer_group_id=subcloud_pg.id,
+            rehome_data="{}",
+            management_state=dccommon_consts.MANAGEMENT_UNMANAGED)
+
+        sm.batch_migrate_subcloud(self.ctx, payload)
+        mock_run_parallel_group_operation.assert_called_with(
+            "migrate", mock.ANY, mock.ANY, mock.ANY)
+        actual_args, _ = mock_run_parallel_group_operation.call_args
+        expect_subclouds = actual_args[3]
+        self.assertEqual(1, len(expect_subclouds))
+        self.assertEqual("sub_migrateable", expect_subclouds[0].name)
 
     @mock.patch.object(subcloud_manager.SubcloudManager, 'subcloud_deploy_create')
     @mock.patch.object(subcloud_manager.SubcloudManager, 'rehome_subcloud')

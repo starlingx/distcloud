@@ -279,6 +279,37 @@ class TestSubcloudPeerGroupGet(testroot.DCManagerApiTest,
         self.assertIn('total_subclouds', response.json)
         self.assertIn('peer_group_id', response.json)
 
+    @mock.patch.object(rpc_client, 'ManagerClient')
+    def test_migrate(self, mock_client):
+        context = utils.dummy_context()
+
+        # Create subcloud peer group
+        group_name = 'TestGroup'
+        system_id = '0907033e-b7ec-4832-92ad-4b0913580b3b'
+        pg = self._create_db_object(
+            context, peer_group_name=group_name, system_leader_id=system_id)
+
+        subcloud = self._create_subcloud_db_object(context)
+        # Set necessary data for a subcloud
+        db_api.subcloud_update(context, subcloud.id,
+                               management_state='unmanaged',
+                               deploy_status='secondary',
+                               rehome_data="{\"saved_payload\": "
+                               "{\"system_mode\": \"simplex\","
+                               "\"bootstrap-address\": \"192.168.100.100\"}}")
+        # Set peer-group-id as above subcloud-peer-group
+        self._update_subcloud_peer_group_id(context, subcloud, pg.id)
+        update_data = {
+            'sysadmin_password': 'xxxx'
+        }
+        url = '%s/%s/migrate' % (API_PREFIX, pg.id)
+        response = self.app.patch_json(url,
+                                       headers=self.get_api_headers(),
+                                       params=update_data,
+                                       expect_errors=False)
+        self.assertEqual(response.content_type, 'application/json')
+        self.assertEqual(response.status_code, http_client.OK)
+
 
 class TestSubcloudPeerGroupUpdate(testroot.DCManagerApiTest,
                                   SubcloudPeerGroupAPIMixin):

@@ -252,6 +252,10 @@ class ManagerClient(RPCClient):
         return self.call(ctxt, self.make_msg('get_subcloud_name_by_region_name',
                                              subcloud_region=subcloud_region))
 
+    def batch_migrate_subcloud(self, ctxt, payload):
+        return self.cast(ctxt, self.make_msg('batch_migrate_subcloud',
+                                             payload=payload))
+
 
 class DCManagerNotifications(RPCClient):
     """DC Manager Notification interface to broadcast subcloud state changed

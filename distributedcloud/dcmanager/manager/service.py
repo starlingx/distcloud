@@ -294,6 +294,12 @@ class DCManagerService(service.Service):
                                                             payload,
                                                             deploy_states_to_run)
 
+    @request_context
+    def batch_migrate_subcloud(self, context, payload):
+        LOG.info("Handling batch_migrate_subcloud request for peer_group: %s",
+                 payload['peer_group'])
+        return self.subcloud_manager.batch_migrate_subcloud(context, payload)
+
     def _stop_rpc_server(self):
         # Stop RPC connection to prevent new requests
         LOG.debug(_("Attempting to stop RPC service..."))
