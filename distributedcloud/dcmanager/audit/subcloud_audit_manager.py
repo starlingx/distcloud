@@ -99,33 +99,41 @@ class SubcloudAuditManager(manager.Manager):
 
     def _add_missing_endpoints(self):
         # Update this flag file based on the most recent new endpoint
-        file_path = os.path.join(CONFIG_PATH,
-                                 '.kube_rootca_update_endpoint_added')
-        # If file exists on the controller, all the endpoints have been
-        # added to DB since last time an endpoint was added
-        if not os.path.isfile(file_path):
-            # Ensures all endpoints exist for all subclouds
-            # If the endpoint doesn't exist, an entry will be made
-            # in endpoint_status table
-            for subcloud in db_api.subcloud_get_all(self.context):
-                subcloud_statuses = \
-                    db_api.subcloud_status_get_all(self.context,
-                                                   subcloud.id)
-                # Use set difference to find missing endpoints
-                endpoint_type_set = set(dccommon_consts.ENDPOINT_TYPES_LIST)
-                subcloud_set = set()
-                for subcloud_status in subcloud_statuses:
-                    subcloud_set.add(subcloud_status.endpoint_type)
+        file_path_list = []
+        file_path_list.append(os.path.join(CONFIG_PATH,
+                              '.kube_rootca_update_endpoint_added'))
+        if cfg.CONF.use_usm:
+            file_path_list.append(os.path.join(CONFIG_PATH,
+                                  '.usm_endpoint_added'))
+        for file_path in file_path_list:
+            # If file exists on the controller, all the endpoints have been
+            # added to DB since last time an endpoint was added
+            if not os.path.isfile(file_path):
+                # Ensures all endpoints exist for all subclouds
+                # If the endpoint doesn't exist, an entry will be made
+                # in endpoint_status table
+                for subcloud in db_api.subcloud_get_all(self.context):
+                    subcloud_statuses = \
+                        db_api.subcloud_status_get_all(self.context,
+                                                       subcloud.id)
+                    # Use set difference to find missing endpoints
+                    if cfg.CONF.use_usm:
+                        endpoint_type_set = set(dccommon_consts.ENDPOINT_TYPES_LIST_USM)
+                    else:
+                        endpoint_type_set = set(dccommon_consts.ENDPOINT_TYPES_LIST)
+                    subcloud_set = set()
+                    for subcloud_status in subcloud_statuses:
+                        subcloud_set.add(subcloud_status.endpoint_type)
 
-                missing_endpoints = list(endpoint_type_set - subcloud_set)
+                    missing_endpoints = list(endpoint_type_set - subcloud_set)
 
-                for endpoint in missing_endpoints:
-                    db_api.subcloud_status_create(self.context,
-                                                  subcloud.id,
-                                                  endpoint)
-            # Add a flag on a replicated filesystem to avoid re-running
-            # the DB checks for missing subcloud endpoints
-            open(file_path, 'w').close()
+                    for endpoint in missing_endpoints:
+                        db_api.subcloud_status_create(self.context,
+                                                      subcloud.id,
+                                                      endpoint)
+                # Add a flag on a replicated filesystem to avoid re-running
+                # the DB checks for missing subcloud endpoints
+                open(file_path, 'w').close()
 
     @classmethod
     def trigger_firmware_audit(cls, context):
@@ -304,12 +312,17 @@ class SubcloudAuditManager(manager.Manager):
                         audit_kube_rootca_updates):
         """Return the patch / firmware / kubernetes audit data as needed."""
         patch_audit_data = None
+        software_audit_data = None
         firmware_audit_data = None
         kubernetes_audit_data = None
         kube_rootca_update_audit_data = None
         if audit_patch:
-            # Query RegionOne patches and software version
-            patch_audit_data = self.patch_audit.get_regionone_audit_data()
+            if cfg.CONF.use_usm:
+                # Query RegionOne releases
+                software_audit_data = self.patch_audit.get_software_regionone_audit_data()
+            else:
+                # Query RegionOne patches and software version
+                patch_audit_data = self.patch_audit.get_regionone_audit_data()
         if audit_firmware:
             # Query RegionOne firmware
             firmware_audit_data = self.firmware_audit.get_regionone_audit_data()
@@ -321,7 +334,8 @@ class SubcloudAuditManager(manager.Manager):
             kube_rootca_update_audit_data = \
                 self.kube_rootca_update_audit.get_regionone_audit_data()
         return (patch_audit_data, firmware_audit_data,
-                kubernetes_audit_data, kube_rootca_update_audit_data)
+                kubernetes_audit_data, kube_rootca_update_audit_data,
+                software_audit_data)
 
     def _periodic_subcloud_audit_loop(self):
         """Audit availability of subclouds loop."""
@@ -422,7 +436,8 @@ class SubcloudAuditManager(manager.Manager):
                  % (audit_patch, audit_firmware,
                     audit_kubernetes, audit_kube_rootca_update))
         (patch_audit_data, firmware_audit_data,
-         kubernetes_audit_data, kube_rootca_update_audit_data) = \
+         kubernetes_audit_data, kube_rootca_update_audit_data,
+         software_audit_data) = \
             self._get_audit_data(audit_patch,
                                  audit_firmware,
                                  audit_kubernetes,
@@ -449,7 +464,8 @@ class SubcloudAuditManager(manager.Manager):
                     firmware_audit_data,
                     kubernetes_audit_data,
                     do_openstack_audit,
-                    kube_rootca_update_audit_data)
+                    kube_rootca_update_audit_data,
+                    software_audit_data)
                 LOG.debug('Sent subcloud audit request message for subclouds: %s' % subcloud_ids)
                 subcloud_ids = []
         if len(subcloud_ids) > 0:
@@ -461,7 +477,8 @@ class SubcloudAuditManager(manager.Manager):
                 firmware_audit_data,
                 kubernetes_audit_data,
                 do_openstack_audit,
-                kube_rootca_update_audit_data)
+                kube_rootca_update_audit_data,
+                software_audit_data)
             LOG.debug('Sent final subcloud audit request message for subclouds: %s' % subcloud_ids)
         else:
             LOG.debug('Done sending audit request messages.')

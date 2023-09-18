@@ -86,7 +86,8 @@ class SubcloudAuditWorkerManager(manager.Manager):
                         firmware_audit_data,
                         kubernetes_audit_data,
                         do_openstack_audit,
-                        kube_rootca_update_audit_data):
+                        kube_rootca_update_audit_data,
+                        software_audit_data):
         """Run audits of the specified subcloud(s)"""
 
         LOG.debug('PID: %s, subclouds to audit: %s, do_openstack_audit: %s' %
@@ -162,6 +163,7 @@ class SubcloudAuditWorkerManager(manager.Manager):
                                                 firmware_audit_data,
                                                 kubernetes_audit_data,
                                                 kube_rootca_update_audit_data,
+                                                software_audit_data,
                                                 do_patch_audit,
                                                 do_load_audit,
                                                 do_firmware_audit,
@@ -304,6 +306,7 @@ class SubcloudAuditWorkerManager(manager.Manager):
                            firmware_audit_data,
                            kubernetes_audit_data,
                            kube_rootca_update_audit_data,
+                           software_audit_data,
                            do_patch_audit,
                            do_load_audit,
                            do_firmware_audit,
@@ -321,6 +324,7 @@ class SubcloudAuditWorkerManager(manager.Manager):
                 firmware_audit_data,
                 kubernetes_audit_data,
                 kube_rootca_update_audit_data,
+                software_audit_data,
                 do_patch_audit,
                 do_load_audit,
                 do_firmware_audit,
@@ -352,6 +356,7 @@ class SubcloudAuditWorkerManager(manager.Manager):
                         firmware_audit_data,
                         kubernetes_audit_data,
                         kube_rootca_update_audit_data,
+                        software_audit_data,
                         do_patch_audit,
                         do_load_audit,
                         do_firmware_audit,
@@ -489,12 +494,13 @@ class SubcloudAuditWorkerManager(manager.Manager):
             failmsg = "Audit failure subcloud: %s, endpoint: %s"
 
             # If we have patch audit data, audit the subcloud
-            if do_patch_audit and patch_audit_data:
+            if do_patch_audit and (patch_audit_data or software_audit_data):
                 try:
-                    self.patch_audit.subcloud_patch_audit(subcloud_name,
-                                                          subcloud_region,
-                                                          patch_audit_data,
-                                                          do_load_audit)
+                    self.patch_audit.subcloud_audit(subcloud_name,
+                                                    subcloud_region,
+                                                    patch_audit_data,
+                                                    software_audit_data,
+                                                    do_load_audit)
                     audits_done.append('patch')
                     if do_load_audit:
                         audits_done.append('load')

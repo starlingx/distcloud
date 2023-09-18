@@ -1,4 +1,4 @@
-# Copyright (c) 2017-2022 Wind River Systems, Inc.
+# Copyright (c) 2017-2023 Wind River Systems, Inc.
 # Licensed under the Apache License, Version 2.0 (the "License"); you may
 # not use this file except in compliance with the License. You may obtain
 # a copy of the License at
@@ -141,8 +141,8 @@ class TestKubernetesAudit(base.DCManagerTestCase):
         return dict_results
 
     def get_kube_audit_data(self, am):
-        patch_audit_data, firmware_audit_data, kubernetes_audit_data, kube_rootca = \
-            am._get_audit_data(True, True, True, True)
+        patch_audit_data, firmware_audit_data, kubernetes_audit_data, kube_rootca, \
+            software_audit_data = am._get_audit_data(True, True, True, True)
         # Convert to dict like what would happen calling via RPC
         kubernetes_audit_data = self._rpc_convert(kubernetes_audit_data)
         return kubernetes_audit_data

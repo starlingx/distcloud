@@ -133,7 +133,8 @@ class DCManagerStateService(service.Service):
 
         # If the patching sync status is being set to unknown, trigger the
         # patching audit so it can update the sync status ASAP.
-        if endpoint_type == dccommon_consts.ENDPOINT_TYPE_PATCHING and \
+        if (endpoint_type == dccommon_consts.ENDPOINT_TYPE_PATCHING
+            or endpoint_type == dccommon_consts.ENDPOINT_TYPE_SOFTWARE) and \
                 sync_status == dccommon_consts.SYNC_STATUS_UNKNOWN:
             self.audit_rpc_client.trigger_patch_audit(context)
 

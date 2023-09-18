@@ -105,6 +105,16 @@ ENDPOINT_TYPES_LIST = [ENDPOINT_TYPE_PLATFORM,
                        ENDPOINT_TYPE_KUBERNETES,
                        ENDPOINT_TYPE_KUBE_ROOTCA]
 
+ENDPOINT_TYPES_LIST_USM = [ENDPOINT_TYPE_PLATFORM,
+                           ENDPOINT_TYPE_PATCHING,
+                           ENDPOINT_TYPE_IDENTITY,
+                           ENDPOINT_TYPE_LOAD,
+                           ENDPOINT_TYPE_DC_CERT,
+                           ENDPOINT_TYPE_FIRMWARE,
+                           ENDPOINT_TYPE_KUBERNETES,
+                           ENDPOINT_TYPE_KUBE_ROOTCA,
+                           ENDPOINT_TYPE_SOFTWARE]
+
 # All endpoint audit requests
 ENDPOINT_AUDIT_REQUESTS = {
     ENDPOINT_TYPE_FIRMWARE: 'firmware_audit_requested',

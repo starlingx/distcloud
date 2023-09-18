@@ -62,7 +62,7 @@ class ManagerRpcAuditAPITestCase(base.DCManagerTestCase):
         # Without fanout the target is the same
         rpcapi.audit_subclouds(
             self.context, ['subcloud1', 'subcloud2'],
-            True, False, True, True, False)
+            True, False, True, True, False, False)
 
         exp_msg2 = {'method': 'audit_subclouds',
                     'args': {'subcloud_ids': ['subcloud1', 'subcloud2'],
@@ -70,7 +70,8 @@ class ManagerRpcAuditAPITestCase(base.DCManagerTestCase):
                              'firmware_audit_data': False,
                              'kubernetes_audit_data': True,
                              'do_openstack_audit': True,
-                             'kube_rootca_update_audit_data': False},
+                             'kube_rootca_update_audit_data': False,
+                             'software_audit_data': False},
                     'version': '1.0'}
 
         transport._send.assert_called_with(rpcapi._client.target,

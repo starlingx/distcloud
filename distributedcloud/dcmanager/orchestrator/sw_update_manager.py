@@ -138,11 +138,21 @@ class SwUpdateManager(manager.Manager):
         elif strategy_type == consts.SW_UPDATE_TYPE_UPGRADE:
             # force option only has an effect in offline case for upgrade
             if force and (availability_status != dccommon_consts.AVAILABILITY_ONLINE):
+                if cfg.CONF.use_usm:
+                    return (subcloud_status.endpoint_type ==
+                            dccommon_consts.ENDPOINT_TYPE_SOFTWARE and
+                            subcloud_status.sync_status !=
+                            dccommon_consts.SYNC_STATUS_IN_SYNC)
                 return (subcloud_status.endpoint_type ==
                         dccommon_consts.ENDPOINT_TYPE_LOAD and
                         subcloud_status.sync_status !=
                         dccommon_consts.SYNC_STATUS_IN_SYNC)
             else:
+                if cfg.CONF.use_usm:
+                    return (subcloud_status.endpoint_type ==
+                            dccommon_consts.ENDPOINT_TYPE_SOFTWARE and
+                            subcloud_status.sync_status ==
+                            dccommon_consts.SYNC_STATUS_OUT_OF_SYNC)
                 return (subcloud_status.endpoint_type ==
                         dccommon_consts.ENDPOINT_TYPE_LOAD and
                         subcloud_status.sync_status ==
@@ -332,8 +342,12 @@ class SwUpdateManager(manager.Manager):
 
             if strategy_type == consts.SW_UPDATE_TYPE_UPGRADE:
                 # Make sure subcloud requires upgrade
-                subcloud_status = db_api.subcloud_status_get(
-                    context, subcloud.id, dccommon_consts.ENDPOINT_TYPE_LOAD)
+                if cfg.CONF.use_usm:
+                    subcloud_status = db_api.subcloud_status_get(
+                        context, subcloud.id, dccommon_consts.ENDPOINT_TYPE_SOFTWARE)
+                else:
+                    subcloud_status = db_api.subcloud_status_get(
+                        context, subcloud.id, dccommon_consts.ENDPOINT_TYPE_LOAD)
                 if subcloud_status.sync_status == dccommon_consts.SYNC_STATUS_IN_SYNC:
                     raise exceptions.BadRequest(
                         resource='strategy',
@@ -453,6 +467,15 @@ class SwUpdateManager(manager.Manager):
                 if subcloud.availability_status != dccommon_consts.AVAILABILITY_ONLINE:
                     if not force:
                         continue
+                elif cfg.CONF.use_usm:
+                    if (subcloud_status.endpoint_type ==
+                            dccommon_consts.ENDPOINT_TYPE_SOFTWARE and
+                        subcloud_status.sync_status ==
+                            dccommon_consts.SYNC_STATUS_UNKNOWN):
+                        raise exceptions.BadRequest(
+                            resource='strategy',
+                            msg='Software sync status is unknown for one or more '
+                                'subclouds')
                 elif (subcloud_status.endpoint_type ==
                       dccommon_consts.ENDPOINT_TYPE_LOAD and
                         subcloud_status.sync_status ==

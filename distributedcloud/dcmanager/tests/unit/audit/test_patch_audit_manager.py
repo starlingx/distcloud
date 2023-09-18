@@ -269,7 +269,8 @@ class TestPatchAudit(base.DCManagerTestCase):
 
     def get_patch_audit_data(self, am):
         (patch_audit_data, firmware_audit_data,
-         kubernetes_audit_data, kube_rootca_data) = \
+         kubernetes_audit_data, kube_rootca_data,
+         software_audit_data) = \
             am._get_audit_data(True, True, True, True)
         # Convert to dict like what would happen calling via RPC
         patch_audit_data = patch_audit_data.to_dict()

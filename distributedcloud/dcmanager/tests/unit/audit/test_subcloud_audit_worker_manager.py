@@ -58,6 +58,7 @@ class FakeAlarmAggregation(object):
 class FakePatchAudit(object):
 
     def __init__(self):
+        self.subcloud_audit = mock.MagicMock()
         self.subcloud_patch_audit = mock.MagicMock()
         self.get_regionone_audit_data = mock.MagicMock()
 
@@ -409,7 +410,8 @@ class TestAuditWorkerManager(base.DCManagerTestCase):
         do_kubernetes_audit = True
         do_kube_rootca_update_audit = True
         (patch_audit_data, firmware_audit_data,
-         kubernetes_audit_data, kube_rootca_update_audit_data) = \
+         kubernetes_audit_data, kube_rootca_update_audit_data,
+         software_audit_data) = \
             am._get_audit_data(do_patch_audit,
                                do_firmware_audit,
                                do_kubernetes_audit,
@@ -424,6 +426,7 @@ class TestAuditWorkerManager(base.DCManagerTestCase):
                            firmware_audit_data,
                            kubernetes_audit_data,
                            kube_rootca_update_audit_data,
+                           software_audit_data,
                            do_patch_audit,
                            do_load_audit,
                            do_firmware_audit,
@@ -449,8 +452,9 @@ class TestAuditWorkerManager(base.DCManagerTestCase):
             subcloud.name, self.fake_openstack_client.fm_client)
 
         # Verify patch audit is called
-        self.fake_patch_audit.subcloud_patch_audit.assert_called_with(
-            subcloud.name, subcloud.region_name, patch_audit_data, do_load_audit)
+        self.fake_patch_audit.subcloud_audit.assert_called_with(
+            subcloud.name, subcloud.region_name, patch_audit_data,
+            software_audit_data, do_load_audit)
 
         # Verify firmware audit is called
         self.fake_firmware_audit.subcloud_firmware_audit.assert_called_with(
@@ -486,7 +490,8 @@ class TestAuditWorkerManager(base.DCManagerTestCase):
         do_kubernetes_audit = True
         do_kube_rootca_update_audit = True
         (patch_audit_data, firmware_audit_data,
-         kubernetes_audit_data, kube_rootca_update_audit_data) = \
+         kubernetes_audit_data, kube_rootca_update_audit_data,
+         software_audit_data) = \
             am._get_audit_data(do_patch_audit,
                                do_firmware_audit,
                                do_kubernetes_audit,
@@ -501,6 +506,7 @@ class TestAuditWorkerManager(base.DCManagerTestCase):
                            firmware_audit_data,
                            kubernetes_audit_data,
                            kube_rootca_update_audit_data,
+                           software_audit_data,
                            do_patch_audit,
                            do_load_audit,
                            do_firmware_audit,
@@ -553,7 +559,8 @@ class TestAuditWorkerManager(base.DCManagerTestCase):
         do_kubernetes_audit = True
         do_kube_rootca_update_audit = True
         (patch_audit_data, firmware_audit_data,
-         kubernetes_audit_data, kube_rootca_update_audit_data) = \
+         kubernetes_audit_data, kube_rootca_update_audit_data,
+         software_audit_data) = \
             am._get_audit_data(do_patch_audit,
                                do_firmware_audit,
                                do_kubernetes_audit,
@@ -568,6 +575,7 @@ class TestAuditWorkerManager(base.DCManagerTestCase):
                            firmware_audit_data,
                            kubernetes_audit_data,
                            kube_rootca_update_audit_data,
+                           software_audit_data,
                            do_patch_audit,
                            do_load_audit,
                            do_firmware_audit,
@@ -621,6 +629,7 @@ class TestAuditWorkerManager(base.DCManagerTestCase):
                            firmware_audit_data=None,
                            kubernetes_audit_data=None,
                            kube_rootca_update_audit_data=None,
+                           software_audit_data=None,
                            do_patch_audit=False,
                            do_load_audit=False,
                            do_firmware_audit=False,
@@ -664,6 +673,7 @@ class TestAuditWorkerManager(base.DCManagerTestCase):
                            firmware_audit_data=None,
                            kubernetes_audit_data=None,
                            kube_rootca_update_audit_data=None,
+                           software_audit_data=None,
                            do_patch_audit=False,
                            do_load_audit=False,
                            do_firmware_audit=False,
@@ -727,7 +737,8 @@ class TestAuditWorkerManager(base.DCManagerTestCase):
         do_kubernetes_audit = True
         do_kube_rootca_update_audit = True
         (patch_audit_data, firmware_audit_data,
-         kubernetes_audit_data, kube_rootca_update_audit_data) = \
+         kubernetes_audit_data, kube_rootca_update_audit_data,
+         software_audit_data) = \
             am._get_audit_data(do_patch_audit,
                                do_firmware_audit,
                                do_kubernetes_audit,
@@ -740,6 +751,7 @@ class TestAuditWorkerManager(base.DCManagerTestCase):
                            firmware_audit_data=firmware_audit_data,
                            kubernetes_audit_data=kubernetes_audit_data,
                            kube_rootca_update_audit_data=kube_rootca_update_audit_data,
+                           software_audit_data=software_audit_data,
                            do_patch_audit=do_patch_audit,
                            do_load_audit=do_load_audit,
                            do_firmware_audit=do_firmware_audit,
@@ -767,6 +779,7 @@ class TestAuditWorkerManager(base.DCManagerTestCase):
                            firmware_audit_data=firmware_audit_data,
                            kubernetes_audit_data=kubernetes_audit_data,
                            kube_rootca_update_audit_data=kube_rootca_update_audit_data,
+                           software_audit_data=software_audit_data,
                            do_patch_audit=do_patch_audit,
                            do_load_audit=do_load_audit,
                            do_firmware_audit=do_firmware_audit,
@@ -787,8 +800,8 @@ class TestAuditWorkerManager(base.DCManagerTestCase):
             subcloud.name, self.fake_openstack_client.fm_client)
 
         # Verify patch audit is called only once
-        self.fake_patch_audit.subcloud_patch_audit.assert_called_once_with(
-            subcloud.name, subcloud.region_name, mock.ANY, True)
+        self.fake_patch_audit.subcloud_audit.assert_called_once_with(
+            subcloud.name, subcloud.region_name, mock.ANY, mock.ANY, True)
 
         # Verify firmware audit is only called once
         self.fake_firmware_audit.subcloud_firmware_audit.assert_called_once_with(
@@ -825,7 +838,8 @@ class TestAuditWorkerManager(base.DCManagerTestCase):
         do_kubernetes_audit = True
         do_kube_rootca_update_audit = True
         (patch_audit_data, firmware_audit_data,
-         kubernetes_audit_data, kube_rootca_update_audit_data) = \
+         kubernetes_audit_data, kube_rootca_update_audit_data,
+         software_audit_data) = \
             am._get_audit_data(do_patch_audit,
                                do_firmware_audit,
                                do_kubernetes_audit,
@@ -838,6 +852,7 @@ class TestAuditWorkerManager(base.DCManagerTestCase):
                            firmware_audit_data=firmware_audit_data,
                            kubernetes_audit_data=kubernetes_audit_data,
                            kube_rootca_update_audit_data=kube_rootca_update_audit_data,
+                           software_audit_data=software_audit_data,
                            do_patch_audit=do_patch_audit,
                            do_load_audit=do_load_audit,
                            do_firmware_audit=do_firmware_audit,
@@ -897,7 +912,8 @@ class TestAuditWorkerManager(base.DCManagerTestCase):
                            firmware_audit_data=True,
                            kubernetes_audit_data=True,
                            do_openstack_audit=False,
-                           kube_rootca_update_audit_data=True)
+                           kube_rootca_update_audit_data=True,
+                           software_audit_data=False)
 
         # Verify if audit was not skipped
         mock_subcloud_audits_end_audit.assert_not_called()
@@ -929,7 +945,8 @@ class TestAuditWorkerManager(base.DCManagerTestCase):
         do_kubernetes_audit = True
         do_kube_rootca_update_audit = True
         (patch_audit_data, firmware_audit_data,
-         kubernetes_audit_data, kube_rootca_update_audit_data) = \
+         kubernetes_audit_data, kube_rootca_update_audit_data,
+         software_audit_data) = \
             am._get_audit_data(do_patch_audit,
                                do_firmware_audit,
                                do_kubernetes_audit,
@@ -942,6 +959,7 @@ class TestAuditWorkerManager(base.DCManagerTestCase):
                            firmware_audit_data=firmware_audit_data,
                            kubernetes_audit_data=kubernetes_audit_data,
                            kube_rootca_update_audit_data=kube_rootca_update_audit_data,
+                           software_audit_data=software_audit_data,
                            do_patch_audit=do_patch_audit,
                            do_load_audit=do_load_audit,
                            do_firmware_audit=do_firmware_audit,
@@ -980,7 +998,8 @@ class TestAuditWorkerManager(base.DCManagerTestCase):
                            firmware_audit_data=True,
                            kubernetes_audit_data=True,
                            do_openstack_audit=False,
-                           kube_rootca_update_audit_data=True)
+                           kube_rootca_update_audit_data=True,
+                           software_audit_data=False)
 
         # Verify if audit was skipped
         mock_subcloud_audits_end_audit.assert_called_once()
@@ -1011,7 +1030,9 @@ class TestAuditWorkerManager(base.DCManagerTestCase):
         do_kubernetes_audit = True
         do_kube_rootca_update_audit = True
         (patch_audit_data, firmware_audit_data,
-         kubernetes_audit_data, kube_rootca_update_audit_data) = \
+         kubernetes_audit_data, kube_rootca_update_audit_data,
+         software_audit_data
+         ) = \
             am._get_audit_data(do_patch_audit,
                                do_firmware_audit,
                                do_kubernetes_audit,
@@ -1024,6 +1045,7 @@ class TestAuditWorkerManager(base.DCManagerTestCase):
                            firmware_audit_data=firmware_audit_data,
                            kubernetes_audit_data=kubernetes_audit_data,
                            kube_rootca_update_audit_data=kube_rootca_update_audit_data,
+                           software_audit_data=software_audit_data,
                            do_patch_audit=do_patch_audit,
                            do_load_audit=do_load_audit,
                            do_firmware_audit=do_firmware_audit,
@@ -1097,6 +1119,7 @@ class TestAuditWorkerManager(base.DCManagerTestCase):
                            None,  # firmware_audit_data
                            None,  # kubernetes_audit_data
                            None,  # kube_rootca_update_audit_data
+                           None,  # software_audit_data
                            False,  # do_patch_audit
                            False,  # do_load_audit
                            False,  # do_firmware_audit
@@ -1160,6 +1183,7 @@ class TestAuditWorkerManager(base.DCManagerTestCase):
                            None,  # firmware_audit_data
                            None,  # kubernetes_audit_data
                            None,  # kube_roota_update_audit_data
+                           None,  # software_audit_data
                            False,  # do_patch_audit
                            False,  # do_load_audit,
                            False,  # do_firmware_audit
@@ -1222,6 +1246,7 @@ class TestAuditWorkerManager(base.DCManagerTestCase):
                            None,  # firmware_audit_data
                            None,  # kubernetes_audit_data
                            None,  # kube_rootca_update_audit_data
+                           None,  # software_audit_data
                            False,  # do_patch_audit
                            False,  # do_load_audit
                            False,  # do_firmware_audit
@@ -1278,7 +1303,8 @@ class TestAuditWorkerManager(base.DCManagerTestCase):
         do_kubernetes_audit = False
         do_kube_rootca_audit = False
         (patch_audit_data, firmware_audit_data,
-         kubernetes_audit_data, kube_rootca_update_audit_data) = \
+         kubernetes_audit_data, kube_rootca_update_audit_data,
+         software_audit_data) = \
             am._get_audit_data(do_patch_audit,
                                do_firmware_audit,
                                do_kubernetes_audit,
@@ -1304,6 +1330,7 @@ class TestAuditWorkerManager(base.DCManagerTestCase):
                               firmware_audit_data,
                               kubernetes_audit_data,
                               kube_rootca_update_audit_data,
+                              software_audit_data,
                               do_patch_audit,
                               do_load_audit,
                               do_firmware_audit,
@@ -1311,8 +1338,9 @@ class TestAuditWorkerManager(base.DCManagerTestCase):
                               do_kube_rootca_audit)
 
         # Verify patch audit is called
-        self.fake_patch_audit.subcloud_patch_audit.assert_called_with(
-            subcloud.name, subcloud.region_name, patch_audit_data, do_load_audit)
+        self.fake_patch_audit.subcloud_audit.assert_called_with(
+            subcloud.name, subcloud.region_name, patch_audit_data,
+            software_audit_data, do_load_audit)
 
         # Verify the _update_subcloud_audit_fail_count is not called
         with mock.patch.object(wm, '_update_subcloud_audit_fail_count') as \
