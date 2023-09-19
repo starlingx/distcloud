@@ -15,7 +15,6 @@ import pecan
 from pecan import expose
 from pecan import request as pecan_request
 from pecan import response
-import tsconfig.tsconfig as tsc
 import yaml
 
 from dcmanager.api.controllers import restcomm
@@ -370,7 +369,8 @@ class SubcloudBackupController(object):
 
             if payload.get('with_install'):
                 # Confirm the requested or active load is still in dc-vault
-                payload['software_version'] = payload.get('release', tsc.SW_VERSION)
+                payload['software_version'] = utils.get_sw_version(
+                    payload.get('release'))
                 matching_iso, err_msg = utils.get_matching_iso(payload['software_version'])
                 if err_msg:
                     LOG.exception(err_msg)

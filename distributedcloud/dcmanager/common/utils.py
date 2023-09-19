@@ -21,6 +21,7 @@ import itertools
 import json
 import netaddr
 import os
+import pecan
 import pwd
 import re
 import resource as sys_resource
@@ -46,6 +47,7 @@ from dccommon import exceptions as dccommon_exceptions
 from dccommon import kubeoperator
 from dcmanager.common import consts
 from dcmanager.common import exceptions
+from dcmanager.common.i18n import _
 from dcmanager.db import api as db_api
 
 LOG = logging.getLogger(__name__)
@@ -1225,6 +1227,28 @@ def create_subcloud_rehome_data_template():
     return {'saved_payload': {}}
 
 
+def get_sw_version(release=None):
+    """Get the sw_version to be used.
+
+    Return the sw_version by first validating a set release version.
+    If a release is not specified then use the current system controller
+    software_version.
+    """
+
+    if release:
+        try:
+            validate_release_version_supported(release)
+            return release
+        except exceptions.ValidateFail as e:
+            pecan.abort(400,
+                        _("Error: invalid release version parameter. %s" % e))
+        except Exception:
+            pecan.abort(500,
+                        _('Error: unable to validate the release version.'))
+    else:
+        return tsc.SW_VERSION
+
+
 def validate_release_version_supported(release_version_to_check):
     """Given a release version, check whether it's supported by the current active version.
 
@@ -1242,7 +1266,8 @@ def validate_release_version_supported(release_version_to_check):
     supported_versions = get_current_supported_upgrade_versions()
 
     if release_version_to_check not in supported_versions:
-        msg = "%s is not a supported release version" % release_version_to_check
+        msg = "%s is not a supported release version (%s)" % \
+            (release_version_to_check, ",".join(supported_versions))
         raise exceptions.ValidateFail(msg)
 
     return True

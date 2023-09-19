@@ -32,11 +32,8 @@ from dcmanager.api.controllers import restcomm
 from dcmanager.api.policies import subcloud_deploy as subcloud_deploy_policy
 from dcmanager.api import policy
 from dcmanager.common import consts
-from dcmanager.common import exceptions
 from dcmanager.common.i18n import _
 from dcmanager.common import utils
-
-import tsconfig.tsconfig as tsc
 
 
 CONF = cfg.CONF
@@ -106,20 +103,9 @@ class SubcloudDeployController(object):
                         error_msg = "error: argument %s is required" % missing_str.rstrip()
                         pecan.abort(httpclient.BAD_REQUEST, error_msg)
 
-        software_version = tsc.SW_VERSION
-        if request.POST.get('release'):
-            try:
-                utils.validate_release_version_supported(request.POST.get('release'))
-                software_version = request.POST.get('release')
-            except exceptions.ValidateFail as e:
-                pecan.abort(httpclient.BAD_REQUEST,
-                            _("Error: invalid release version parameter. %s" % e))
-            except Exception:
-                pecan.abort(httpclient.INTERNAL_SERVER_ERROR,
-                            _('Error: unable to validate the release version.'))
-        deploy_dicts['software_version'] = software_version
+        deploy_dicts['software_version'] = utils.get_sw_version(request.POST.get('release'))
 
-        dir_path = os.path.join(dccommon_consts.DEPLOY_DIR, software_version)
+        dir_path = os.path.join(dccommon_consts.DEPLOY_DIR, deploy_dicts['software_version'])
         for f in consts.DEPLOY_COMMON_FILE_OPTIONS:
             if f not in request.POST:
                 continue
@@ -152,10 +138,8 @@ class SubcloudDeployController(object):
         policy.authorize(subcloud_deploy_policy.POLICY_ROOT % "get", {},
                          restcomm.extract_credentials_for_policy())
         deploy_dicts = dict()
-        if not release:
-            release = tsc.SW_VERSION
-        deploy_dicts['software_version'] = release
-        dir_path = os.path.join(dccommon_consts.DEPLOY_DIR, release)
+        deploy_dicts['software_version'] = utils.get_sw_version(release)
+        dir_path = os.path.join(dccommon_consts.DEPLOY_DIR, deploy_dicts['software_version'])
         for f in consts.DEPLOY_COMMON_FILE_OPTIONS:
             filename = None
             if os.path.isdir(dir_path):

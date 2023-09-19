@@ -41,8 +41,6 @@ from dccommon import exceptions as dccommon_exceptions
 
 from keystoneauth1 import exceptions as keystone_exceptions
 
-import tsconfig.tsconfig as tsc
-
 from dcmanager.api.controllers import restcomm
 from dcmanager.api.policies import subclouds as subclouds_policy
 from dcmanager.api import policy
@@ -748,9 +746,7 @@ class SubcloudsController(object):
                 LOG.warning(msg)
                 pecan.abort(400, msg)
 
-            # If a subcloud release is not passed, use the current
-            # system controller software_version
-            payload['software_version'] = payload.get('release', tsc.SW_VERSION)
+            payload['software_version'] = utils.get_sw_version(payload.get('release'))
 
             # Don't load previously stored bootstrap_values if they are present in
             # the request, as this would override the already loaded values from it.
@@ -831,8 +827,8 @@ class SubcloudsController(object):
                 LOG.exception("validate_prestage failed")
                 pecan.abort(400, _(str(exc)))
 
-            prestage_software_version = payload.get(
-                consts.PRESTAGE_REQUEST_RELEASE, tsc.SW_VERSION)
+            prestage_software_version = utils.get_sw_version(
+                payload.get(consts.PRESTAGE_REQUEST_RELEASE))
 
             try:
                 self.dcmanager_rpc_client.prestage_subcloud(context, payload)

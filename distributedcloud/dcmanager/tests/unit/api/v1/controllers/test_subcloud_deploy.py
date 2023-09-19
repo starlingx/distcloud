@@ -25,6 +25,7 @@ from dcmanager.common import consts
 from dcmanager.common import phased_subcloud_deploy as psd_common
 from dcmanager.common import utils as dutils
 from dcmanager.tests.unit.api import test_root_controller as testroot
+from dcmanager.tests.unit.common import fake_subcloud
 from dcmanager.tests import utils
 
 from tsconfig.tsconfig import SW_VERSION
@@ -48,12 +49,6 @@ FAKE_DEPLOY_FILES = {
     FAKE_DEPLOY_CHART_PREFIX: FAKE_DEPLOY_CHART_FILE,
 }
 
-FAKE_UPGRADES_METADATA = '''
-    <build>\n<version>0.2</version>\n<supported_upgrades>
-    \n<upgrade>\n<version>%s</version>\n<required_patches>PATCH_0001</required_patches>
-    \n</upgrade>\n</supported_upgrades>\n</build>
-''' % FAKE_SOFTWARE_VERSION
-
 
 class TestSubcloudDeploy(testroot.DCManagerApiTest):
     def setUp(self):
@@ -72,7 +67,8 @@ class TestSubcloudDeploy(testroot.DCManagerApiTest):
         mock_upload_files.return_value = True
         params += fields
 
-        with mock.patch('builtins.open', mock.mock_open(read_data=FAKE_UPGRADES_METADATA)):
+        with mock.patch('builtins.open',
+                        mock.mock_open(read_data=fake_subcloud.FAKE_UPGRADES_METADATA)):
             response = self.app.post(FAKE_URL,
                                      headers=FAKE_HEADERS,
                                      params=params)
@@ -218,7 +214,11 @@ class TestSubcloudDeploy(testroot.DCManagerApiTest):
         mock_get_filename_by_prefix.side_effect = \
             get_filename_by_prefix_side_effect
         url = FAKE_URL + '/' + FAKE_SOFTWARE_VERSION
-        response = self.app.get(url, headers=FAKE_HEADERS)
+
+        with mock.patch('builtins.open',
+                        mock.mock_open(read_data=fake_subcloud.FAKE_UPGRADES_METADATA)):
+            response = self.app.get(url, headers=FAKE_HEADERS)
+
         self.assertEqual(response.status_code, http_client.OK)
         self.assertEqual(FAKE_SOFTWARE_VERSION,
                          response.json['subcloud_deploy']['software_version'])

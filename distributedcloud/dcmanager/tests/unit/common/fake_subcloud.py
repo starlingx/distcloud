@@ -116,6 +116,14 @@ FAKE_SUBCLOUD_INSTALL_VALUES_WITH_PERSISTENT_SIZE = {
     "persistent_size": 40000,
 }
 
+FAKE_UPGRADES_METADATA = '''
+    <build>\n<version>0.1</version>\n<supported_upgrades>
+    \n<upgrade>\n<version>%s</version>\n</upgrade>
+    \n<upgrade>\n<version>21.12</version>\n</upgrade>
+    \n<upgrade>\n<version>22.12</version>\n</upgrade>
+    \n</supported_upgrades>\n</build>
+''' % FAKE_SOFTWARE_VERSION
+
 
 def create_fake_subcloud(ctxt, **kwargs):
     values = {

@@ -206,7 +206,11 @@ class PhasedSubcloudDeployController(object):
             pecan.abort(400, _('The deploy install command can only be used '
                                'during initial deployment.'))
 
-        payload['software_version'] = payload.get('release', subcloud.software_version)
+        unvalidated_sw_version = payload.get('release', subcloud.software_version)
+        # get_sw_version will simply return back
+        # the passed unvalidated_sw_version after validating it.
+        payload['software_version'] = utils.get_sw_version(unvalidated_sw_version)
+
         psd_common.populate_payload_with_pre_existing_data(
             payload, subcloud, SUBCLOUD_INSTALL_GET_FILE_CONTENTS)
 
@@ -426,11 +430,15 @@ class PhasedSubcloudDeployController(object):
         # Consider the incoming release parameter only if install is one
         # of the pending deploy states
         if INSTALL in deploy_states_to_run:
-            payload['software_version'] = payload.get('release', subcloud.software_version)
+            unvalidated_sw_version = payload.get('release', subcloud.software_version)
         else:
             LOG.debug('Disregarding release parameter for %s as installation is complete.'
                       % subcloud.name)
-            payload['software_version'] = subcloud.software_version
+            unvalidated_sw_version = subcloud.software_version
+
+        # get_sw_version will simply return back the passed
+        # unvalidated_sw_version after validating it.
+        payload['software_version'] = utils.get_sw_version(unvalidated_sw_version)
 
         # Need to remove bootstrap_values from the list of files to populate
         # pre existing data so it does not overwrite newly loaded values

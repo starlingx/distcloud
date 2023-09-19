@@ -554,11 +554,13 @@ class TestSubcloudPost(testroot.DCManagerApiTest,
              base64.b64encode('fake pass'.encode("utf-8")).decode("utf-8"),
              'release': '21.12'})
 
-        response = self.app.post(self.get_api_prefix(),
-                                 params=params,
-                                 upload_files=upload_files,
-                                 headers=self.get_api_headers(),
-                                 expect_errors=True)
+        with mock.patch('builtins.open',
+                        mock.mock_open(read_data=fake_subcloud.FAKE_UPGRADES_METADATA)):
+            response = self.app.post(self.get_api_prefix(),
+                                     params=params,
+                                     upload_files=upload_files,
+                                     headers=self.get_api_headers(),
+                                     expect_errors=True)
 
         # Verify the request was rejected
         self.assertEqual(response.status_code, http_client.BAD_REQUEST)
@@ -585,11 +587,13 @@ class TestSubcloudPost(testroot.DCManagerApiTest,
              base64.b64encode('fake pass'.encode("utf-8")).decode("utf-8"),
              'release': software_version})
 
-        response = self.app.post(self.get_api_prefix(),
-                                 params=params,
-                                 upload_files=upload_files,
-                                 headers=self.get_api_headers(),
-                                 expect_errors=True)
+        with mock.patch('builtins.open',
+                        mock.mock_open(read_data=fake_subcloud.FAKE_UPGRADES_METADATA)):
+            response = self.app.post(self.get_api_prefix(),
+                                     params=params,
+                                     upload_files=upload_files,
+                                     headers=self.get_api_headers(),
+                                     expect_errors=True)
 
         self.assertEqual(response.status_code, http_client.OK)
         self.assertEqual(software_version, response.json['software-version'])
@@ -719,11 +723,15 @@ class TestSubcloudPost(testroot.DCManagerApiTest,
         self.set_list_of_post_files(subclouds.SUBCLOUD_ADD_GET_FILE_CONTENTS)
         self.install_data = copy.copy(self.FAKE_INSTALL_DATA)
         upload_files = self.get_post_upload_files()
-        response = self.app.post(self.get_api_prefix(),
-                                 params=params,
-                                 upload_files=upload_files,
-                                 headers=self.get_api_headers(),
-                                 expect_errors=True)
+
+        with mock.patch('builtins.open',
+                        mock.mock_open(read_data=fake_subcloud.FAKE_UPGRADES_METADATA)):
+            response = self.app.post(self.get_api_prefix(),
+                                     params=params,
+                                     upload_files=upload_files,
+                                     headers=self.get_api_headers(),
+                                     expect_errors=True)
+
         self.assertEqual(response.status_code, http_client.BAD_REQUEST)
 
         # Revert the change of bootstrap_data
@@ -1689,10 +1697,12 @@ class TestSubcloudAPIOther(testroot.DCManagerApiTest):
                         ("deploy_config", "config_fake_filename",
                          json.dumps(config_data).encode("utf-8"))]
 
-        response = self.app.patch(
-            FAKE_URL + '/' + str(subcloud.id) + '/redeploy',
-            headers=FAKE_HEADERS, params=redeploy_data,
-            upload_files=upload_files)
+        with mock.patch('builtins.open',
+                        mock.mock_open(read_data=fake_subcloud.FAKE_UPGRADES_METADATA)):
+            response = self.app.patch(
+                FAKE_URL + '/' + str(subcloud.id) + '/redeploy',
+                headers=FAKE_HEADERS, params=redeploy_data,
+                upload_files=upload_files)
 
         mock_validate_bootstrap_values.assert_called_once()
         mock_validate_subcloud_config.assert_called_once()

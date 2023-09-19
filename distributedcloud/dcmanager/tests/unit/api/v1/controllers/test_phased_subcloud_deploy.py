@@ -404,9 +404,11 @@ class TestSubcloudDeployInstall(testroot.DCManagerApiTest):
         self.mock_rpc_client().subcloud_deploy_install.return_value = True
         self.mock_get_vault_load_files.return_value = ('iso_file_path', 'sig_file_path')
 
-        response = self.app.patch_json(
-            FAKE_URL + '/' + str(subcloud.id) + '/install',
-            headers=FAKE_HEADERS, params=install_payload)
+        with mock.patch('builtins.open',
+                        mock.mock_open(read_data=fake_subcloud.FAKE_UPGRADES_METADATA)):
+            response = self.app.patch_json(
+                FAKE_URL + '/' + str(subcloud.id) + '/install',
+                headers=FAKE_HEADERS, params=install_payload)
 
         self.assertEqual(response.status_int, 200)
         self.assertEqual(consts.DEPLOY_STATE_PRE_INSTALL,
