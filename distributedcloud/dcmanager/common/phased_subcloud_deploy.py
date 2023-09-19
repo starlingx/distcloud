@@ -731,18 +731,7 @@ def upload_deploy_config_file(request, payload):
         pecan.abort(400, _("No %s file uploaded" % consts.DEPLOY_CONFIG))
 
     file_item.file.seek(0, os.SEEK_SET)
-    file_lines = file_item.file.readlines()
-
-    # Updates the OS_REGION_NAME param which is required for deployment
-    contents = ""
-    for line in file_lines:
-        dec_line = line.decode('utf8')
-        if consts.OS_REGION_NAME in dec_line:
-            os_reg_item = dec_line.split(":")
-            dec_line = os_reg_item[0] + ": " + payload['region_name'] + "\n"
-            contents = contents + dec_line
-    contents = contents.encode()
-
+    contents = file_item.file.read()
     # the deploy config needs to upload to the override location
     fn = get_config_file_path(payload['name'], consts.DEPLOY_CONFIG)
     upload_config_file(contents, fn, consts.DEPLOY_CONFIG)
