@@ -641,43 +641,86 @@ def get_region_from_subcloud_address(payload):
     """Retrieves the current region from the subcloud being migrated
 
     param: payload = Subcloud payload
-    returns the OS_REGION_NAME value from subcloud
+    returns the OS_REGION_NAME param value from subcloud and error cause if
+    occurs
     """
-    cmd = [
-        "sshpass",
-        "-p",
-        str(payload['sysadmin_password']),
-        "ssh",
-        "-q",
-        "sysadmin@" + str(payload['bootstrap-address']),
-        REGION_VALUE_CMD,
-    ]
+    bootstrap_addr = None
+    bootstrap_pwd = None
+    subcloud_region = None
+    err_cause = None
+
+    if not payload:
+        err_cause = ("Unable to get subcloud connection data: payload is empty")
+        return (subcloud_region, err_cause)
 
     try:
-        LOG.info("Getting region value from subcloud %s" % payload['name'])
+        bootstrap_addr = payload.get('bootstrap-address')
+        bootstrap_pwd = payload.get('sysadmin_password')
+
+        if not bootstrap_addr:
+            err_cause = ("Unable to get subcloud connection data: missing "
+                         "bootstrap-address")
+            return (subcloud_region, err_cause)
+
+        if not bootstrap_pwd:
+            err_cause = ("Unable to get subcloud connection data: missing "
+                         "sysadmin_password")
+            return (subcloud_region, err_cause)
+
+        ip_address = netaddr.IPAddress(bootstrap_addr)
+
+        if ip_address.version not in [4, 6]:
+            err_cause = ("Invalid subcloud bootstrap address")
+            return (subcloud_region, err_cause)
+
+        cmd = [
+            "sshpass",
+            "-p",
+            str(bootstrap_pwd),
+            "ssh",
+            "-q",
+            "-o",
+            "StrictHostKeyChecking=no",
+            "-o",
+            "UserKnownHostsFile=/dev/null",
+            "sysadmin@" + str(bootstrap_addr),
+            REGION_VALUE_CMD,
+        ]
+
         task = subprocess.check_output(
             cmd,
             stderr=subprocess.STDOUT).decode('utf-8')
         if len(task) < 1:
-            return None
+            err_cause = ("Malformed subcloud region")
+            return (subcloud_region, err_cause)
         subcloud_region = str(task.split("=")[1]).strip()
-    except Exception:
-        LOG.error("Unable to get region value from subcloud %s"
-                  % payload['name'])
-        raise
+    except Exception as e:
+        # check_output() will raise CalledProcessError if the called
+        # process returns a non-zero return code.
+        # We are printing the exception name to avoid any sensitive
+        # connection data
+        err_cause = ("exception %s occurred" % type(e).__name__)
+        subcloud_region = None
 
     system_regions = [dccommon_consts.DEFAULT_REGION_NAME,
                       dccommon_consts.SYSTEM_CONTROLLER_NAME]
 
     if subcloud_region in system_regions:
-        LOG.error("Invalid region value: %s" % subcloud_region)
-        raise exceptions.InvalidParameterValue(
-            err="Invalid region value: %s" % subcloud_region)
+        err_cause = ("region %s is not valid for a subcloud" %
+                     subcloud_region)
+        subcloud_region = None
 
-    # Returns the region value from result:
-    # Current systems: export OS_REGION_NAME=subcloudX
-    # New systems: export OS_REGION_NAME=abcdefghhijlkmnopqrstuvqxyz12342
-    return subcloud_region
+    if err_cause:
+        LOG.error(err_cause)
+
+    # Returns
+    #   subcloud_region value if subcloud is reachable, otherwise None
+    #   err_cause message if an exception occurs, otherwise None
+    # For old systems the region value is the same as subcloud name:
+    #   export OS_REGION_NAME=[human readable based region value]
+    # For new systems the region is uuid format based:
+    #   export OS_REGION_NAME=[uuid based region value]
+    return (subcloud_region, err_cause)
 
 
 def find_ansible_error_msg(subcloud_name, log_file, stage=None):
