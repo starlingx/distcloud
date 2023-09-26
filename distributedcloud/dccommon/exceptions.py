@@ -14,7 +14,7 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 #
-# Copyright (c) 2020 Wind River Systems, Inc.
+# Copyright (c) 2020-2023 Wind River Systems, Inc.
 #
 
 """
@@ -123,3 +123,7 @@ class ImageNotInLocalRegistry(NotFound):
 
 class SubcloudShutdownError(PlaybookExecutionFailed):
     message = _("Subcloud %(subcloud_name)s could not be shut down.")
+
+
+class ApiException(DCCommonException):
+    message = _("%(endpoint)s failed with status code: %(rc)d")

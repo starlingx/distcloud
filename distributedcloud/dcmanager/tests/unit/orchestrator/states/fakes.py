@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2020-2022 Wind River Systems, Inc.
+# Copyright (c) 2020-2023 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -174,6 +174,11 @@ class FakeSysinvClient(object):
 
 
 class FakePatchingClient(object):
+    def __init__(self):
+        pass
+
+
+class FakeSoftwareClient(object):
     def __init__(self):
         pass
 

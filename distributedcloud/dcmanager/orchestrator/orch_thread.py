@@ -25,6 +25,7 @@ from oslo_log import log as logging
 from dccommon import consts as dccommon_consts
 from dccommon.drivers.openstack.patching_v1 import PatchingClient
 from dccommon.drivers.openstack.sdk_platform import OpenStackDriver
+from dccommon.drivers.openstack.software_v1 import SoftwareClient
 from dccommon.drivers.openstack.sysinv_v1 import SysinvClient
 from dccommon.drivers.openstack import vim
 from dcmanager.common import consts
@@ -147,6 +148,12 @@ class OrchThread(threading.Thread):
         return SysinvClient(region_name,
                             ks_client.session,
                             endpoint=endpoint)
+
+    @staticmethod
+    def get_software_client(region_name=dccommon_consts.DEFAULT_REGION_NAME):
+        ks_client = OrchThread.get_ks_client(region_name)
+        return SoftwareClient(region_name, ks_client.session,
+                              endpoint=ks_client.endpoint_cache.get_endpoint('usm'))
 
     @staticmethod
     def get_patching_client(region_name=dccommon_consts.DEFAULT_REGION_NAME):
