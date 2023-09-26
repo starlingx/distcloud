@@ -1,5 +1,5 @@
 # Copyright 2016 Ericsson AB
-# Copyright (c) 2017-2022 Wind River Systems, Inc.
+# Copyright (c) 2017-2023 Wind River Systems, Inc.
 # Licensed under the Apache License, Version 2.0 (the "License"); you may
 # not use this file except in compliance with the License. You may obtain
 # a copy of the License at
@@ -164,6 +164,11 @@ common_opts = [
                help='global ansible playbook timeout (seconds)'),
 ]
 
+usm_opts = [
+    cfg.BoolOpt('use_usm', default=False,
+                help='parameter to enable usm api')
+]
+
 scheduler_opt_group = cfg.OptGroup(name='scheduler',
                                    title='Scheduler options for periodic job')
 keystone_opt_group = cfg.OptGroup(name='keystone_authtoken',
@@ -186,6 +191,7 @@ def list_opts():
     yield pecan_group.name, pecan_opts
     yield None, global_opts
     yield None, common_opts
+    yield None, usm_opts
 
 
 def register_options():
