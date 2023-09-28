@@ -190,8 +190,12 @@ class SwUpdateManager(manager.Manager):
             # For prestage we reuse the ENDPOINT_TYPE_LOAD.
             # We just need to key off a unique endpoint,
             # so that the strategy is created only once.
-            return (subcloud_status.endpoint_type
-                    == dccommon_consts.ENDPOINT_TYPE_LOAD)
+            if cfg.CONF.use_usm:
+                return (subcloud_status.endpoint_type
+                        == dccommon_consts.ENDPOINT_TYPE_SOFTWARE)
+            else:
+                return (subcloud_status.endpoint_type
+                        == dccommon_consts.ENDPOINT_TYPE_LOAD)
         # Unimplemented strategy_type status check. Log an error
         LOG.error("_validate_subcloud_status_sync for %s not implemented" %
                   strategy_type)

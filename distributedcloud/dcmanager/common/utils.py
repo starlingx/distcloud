@@ -41,6 +41,8 @@ from oslo_serialization import base64
 
 from dccommon import consts as dccommon_consts
 from dccommon.drivers.openstack.sdk_platform import OpenStackDriver
+from dccommon.drivers.openstack import software_v1
+from dccommon.drivers.openstack.software_v1 import SoftwareClient
 from dccommon.drivers.openstack.sysinv_v1 import SysinvClient
 from dccommon.drivers.openstack import vim
 from dccommon import exceptions as dccommon_exceptions
@@ -1007,14 +1009,38 @@ def get_systemcontroller_installed_loads():
         LOG.exception("Failed to get keystone client for %s",
                       dccommon_consts.SYSTEM_CONTROLLER_NAME)
         raise
-
     ks_client = os_client.keystone_client
-    sysinv_client = SysinvClient(
-        dccommon_consts.SYSTEM_CONTROLLER_NAME, ks_client.session,
-        endpoint=ks_client.endpoint_cache.get_endpoint('sysinv'))
+    if cfg.CONF.use_usm:
+        software_client = SoftwareClient(
+            dccommon_consts.SYSTEM_CONTROLLER_NAME,
+            ks_client.session,
+            endpoint=ks_client.endpoint_cache.get_endpoint('usm'))
+        releases = software_client.query()
+        return get_loads_for_prestage_usm(releases)
+    else:
+        sysinv_client = SysinvClient(
+            dccommon_consts.SYSTEM_CONTROLLER_NAME, ks_client.session,
+            endpoint=ks_client.endpoint_cache.get_endpoint('sysinv'))
 
-    loads = sysinv_client.get_loads()
-    return get_loads_for_prestage(loads)
+        loads = sysinv_client.get_loads()
+        return get_loads_for_prestage(loads)
+
+
+def get_loads_for_prestage_usm(releases):
+    """Filter the loads that can be prestaged.
+
+    Return their software versions with the XX.XX format (e.g. 24.03).
+    """
+    valid_states = [
+        software_v1.AVAILABLE,
+        software_v1.DEPLOYED,
+        software_v1.UNAVAILABLE,
+        software_v1.COMMITTED
+    ]
+    return [".".join(releases[release]['sw_version'].split('.', 2)[:2])
+            for release in releases
+            if (releases[release]['state'] in valid_states and
+                releases[release]['sw_version'].endswith('.0'))]
 
 
 def get_certificate_from_secret(secret_name, secret_ns):
