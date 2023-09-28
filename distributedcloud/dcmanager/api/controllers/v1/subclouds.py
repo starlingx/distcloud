@@ -594,6 +594,7 @@ class SubcloudsController(object):
                     or subcloud.deploy_status not in consts.STATES_FOR_SUBCLOUD_RENAME:
                     msg = ('Subcloud %s must be unmanaged and in a valid deploy state '
                            'for the subcloud rename operation.' % subcloud.name)
+                    pecan.abort(400, msg)
 
                 # Validates new name
                 if not utils.is_subcloud_name_format_valid(new_subcloud_name):
