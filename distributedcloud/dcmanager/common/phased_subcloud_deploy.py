@@ -638,6 +638,16 @@ def validate_install_values(payload, subcloud=None):
             LOG.exception(e)
             pecan.abort(400, _("rd.net.timeout.ipv6dad invalid: %s") % e)
 
+    if 'rvmc_debug_level' in install_values:
+        try:
+            rvmc_debug_level = int(install_values['rvmc_debug_level'])
+            if rvmc_debug_level < 0 or rvmc_debug_level > 4:
+                pecan.abort(400, _("rvmc_debug_level must be an integer "
+                                   "between 0 and 4."))
+        except ValueError as e:
+            LOG.exception(e)
+            pecan.abort(400, _("Invalid value of rvmc_debug_level: %s") % e)
+
 
 def validate_k8s_version(payload):
     """Validate k8s version.

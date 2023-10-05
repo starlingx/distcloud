@@ -263,6 +263,10 @@ ERR_MSG_DICT = {
 
     "ping_bmc": "Check reachability to the BMC: ping <<BMC_URL>>",
 
+    "rvmc_process": "Ensure the previous RVMC process is terminated.",
+
+    "rvmc_timeout": "Please check the dcmanager ansible log for details.",
+
     "dm_pod_failed": """-  Ensure you are using the correct tarball that \
 corresponds to the image.
 -  Check helm overrides files, ensure the deployment manager images exist in \

@@ -121,10 +121,6 @@ class ImageNotInLocalRegistry(NotFound):
                 "system registry-image-tags %(image_name)s")
 
 
-class SubcloudShutdownError(PlaybookExecutionFailed):
-    message = _("Subcloud %(subcloud_name)s could not be shut down.")
-
-
 class ApiException(DCCommonException):
     message = _("%(endpoint)s failed with status code: %(rc)d")
 
@@ -140,3 +136,12 @@ class SubcloudPeerGroupNotFound(NotFound):
 class SubcloudPeerGroupDeleteFailedAssociated(DCCommonException):
     message = _("Subcloud Peer Group %(peer_group_ref)s delete failed "
                 "cause it is associated with a system peer.")
+
+
+class RvmcException(Exception):
+    def __init__(self, message=None):
+        super(RvmcException, self).__init__(message)
+
+
+class RvmcExit(DCCommonException):
+    message = _("Rvmc failed with status code: %(rc)d")

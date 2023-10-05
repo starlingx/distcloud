@@ -14,6 +14,9 @@ BIN_DIR = $(ROOT)/usr/bin
 %:
 	dh $@ --with python3 --buildsystem=pybuild
 
+override_dh_usrlocal:
+	# skip running dh_usrlocal
+
 override_dh_install:
 	python3 setup.py install -f --install-layout=deb \
 		--root=$(CURDIR)/debian/tmp
@@ -76,6 +79,10 @@ override_dh_install:
 		--config-file ./dcdbsync/config-generator.conf \
 		--output-file ./dcdbsync/dcdbsync.conf.sample
 	install -p -D -m 640 ./dcdbsync/dcdbsync.conf.sample $(SYS_CONF_DIR)/dcdbsync/dcdbsync.conf
+
+	# install rvmc_install.py script
+	install -d $(ROOT)/usr/local/bin/
+	install -p -D -m 700 scripts/rvmc_install.py $(ROOT)/usr/local/bin
 
 	rm -rf $(ROOT)/usr/lib/python3/dist-packages/dcmanagerclient/tests
 	rm -rf $(ROOT)/usr/lib/python3/dist-packages/dccommon/tests

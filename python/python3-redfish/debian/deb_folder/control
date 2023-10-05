@@ -1,0 +1,18 @@
+Source: redfish
+Section: admin
+Priority: optional
+Maintainer: StarlingX Developers <starlingx-discuss@lists.starlingx.io>
+Build-Depends: debhelper-compat (= 13),
+ dh-python,
+ flake8,
+ python3-setuptools,
+ python3-all,
+ python3-jsonpath-rw,
+ python3-requests-unixsocket
+Standards-Version: 4.5.1
+
+Package: python3-redfish
+Architecture: all
+Depends: ${python3:Depends}, ${misc:Depends}
+Description: Python library for Redfish operations
+ This package provides the Redfish Python library.

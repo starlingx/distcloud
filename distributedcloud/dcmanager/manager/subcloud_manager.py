@@ -46,9 +46,9 @@ from dccommon.exceptions import PlaybookExecutionFailed
 from dccommon.exceptions import SubcloudNotFound
 from dccommon import kubeoperator
 from dccommon.subcloud_install import SubcloudInstall
-from dccommon.subcloud_install import SubcloudShutdown
 from dccommon.utils import AnsiblePlaybook
 from dccommon.utils import LAST_SW_VERSION_IN_CENTOS
+from dccommon.utils import send_subcloud_shutdown_signal
 from dcmanager.audit import rpcapi as dcmanager_audit_rpc_client
 from dcmanager.common import consts
 from dcmanager.common.consts import INVENTORY_FILE_POSTFIX
@@ -291,7 +291,11 @@ class SubcloudManager(manager.Manager):
             "-e", "@%s" % dccommon_consts.ANSIBLE_OVERRIDES_PATH + "/" +
                   subcloud_name + '/' + "install_values.yml",
             "-e", "install_release_version=%s" %
-                  software_version if software_version else SW_VERSION]
+                  software_version if software_version else SW_VERSION,
+            "-e", "rvmc_config_file=%s" %
+                  os.path.join(dccommon_consts.ANSIBLE_OVERRIDES_PATH,
+                               subcloud_name,
+                               dccommon_consts.RVMC_CONFIG_FILE_NAME)]
         return install_command
 
     def compose_bootstrap_command(self, subcloud_name,
@@ -1107,24 +1111,11 @@ class SubcloudManager(manager.Manager):
                 return
 
             if subcloud.deploy_status == consts.DEPLOY_STATE_ABORTING_INSTALL:
-                # First delete the k8s job and pod, stopping the current
-                # installation attempt if exists
-                # Then send shutdown signal to subcloud
-                kube = kubeoperator.KubeOperator()
-                shutdown_subcloud = SubcloudShutdown(subcloud.name)
-                namespace = dccommon_consts.RVMC_NAME_PREFIX
-                jobname = '%s-%s' % (namespace, subcloud.name)
-                pod_basename = '%s-' % jobname
-                all_pods = kube.get_pods_by_namespace(namespace)
-                desired_pod = next((s for s in all_pods if pod_basename in s), None)
-                if desired_pod:
-                    kube.kube_delete_job(jobname, namespace)
-                    kube.kube_delete_pod(desired_pod, namespace)
-                    while kube.pod_exists(desired_pod, namespace):
-                        time.sleep(2)
-                shutdown_subcloud.send_shutdown_signal()
+                # Send shutdown signal to subcloud
+                send_subcloud_shutdown_signal(subcloud.name)
         except Exception as ex:
-            LOG.error("Subcloud deploy abort failed for subcloud %s" % subcloud.name)
+            LOG.error("Subcloud deploy abort failed for subcloud %s: %s" %
+                      (subcloud.name, str(ex)))
             utils.update_abort_status(context, subcloud.id, subcloud.deploy_status,
                                       abort_failed=True)
             # exception is logged above

@@ -13,40 +13,30 @@
 # limitations under the License.
 #
 
-import json
 import os
 import shutil
 import socket
-import ssl
 import tempfile
-import time
 
 from eventlet.green import subprocess
 import netaddr
-from oslo_concurrency import lockutils
 from oslo_log import log as logging
 from six.moves.urllib import error as urllib_error
 from six.moves.urllib import parse
 from six.moves.urllib import request
-import yaml
 
 from dccommon import consts
 from dccommon.drivers.openstack.keystone_v3 import KeystoneClient
 from dccommon.drivers.openstack.sysinv_v1 import SysinvClient
 from dccommon import exceptions
-from dccommon import kubeoperator
 from dccommon import utils as dccommon_utils
 from dcmanager.common import consts as dcmanager_consts
 from dcmanager.common import utils
 
+
 LOG = logging.getLogger(__name__)
 
 BOOT_MENU_TIMEOUT = '5'
-
-# The RVMC_IMAGE_NAME:RVMC_IMAGE_TAG must align with the one specified
-# in system images in the ansible install/upgrade playbook
-RVMC_IMAGE_NAME = 'docker.io/starlingx/rvmc'
-RVMC_IMAGE_TAG = 'stx.8.0-v1.0.2'
 
 SUBCLOUD_ISO_PATH = '/opt/platform/iso'
 SUBCLOUD_ISO_DOWNLOAD_PATH = '/var/www/pages/iso'
@@ -59,104 +49,6 @@ NETWORK_SCRIPTS = '/etc/sysconfig/network-scripts'
 NETWORK_INTERFACE_PREFIX = 'ifcfg'
 NETWORK_ROUTE_PREFIX = 'route'
 LOCAL_REGISTRY_PREFIX = 'registry.local:9001/'
-
-# Redfish constants
-ACTION_URL = '/Actions/ComputerSystem.Reset'
-POWER_OFF_PAYLOAD = {'Action': 'Reset', 'ResetType': 'ForceOff'}
-REDFISH_HEADER = {'Content-Type': 'application/json',
-                  'Accept': 'application/json'}
-REDFISH_SYSTEMS_URL = '/redfish/v1/Systems'
-SUCCESSFUL_STATUS_CODES = [200, 202, 204]
-
-RVMC_LOCK_NAME = 'dc-rvmc-install'
-RVMC_NAMESPACE = 'rvmc'
-KUBE_SYSTEM_NAMESPACE = 'kube-system'
-DEFAULT_REGISTRY_KEY = 'default-registry-key'
-
-
-class SubcloudShutdown(object):
-    """Sends a shutdown signal to a Redfish controlled subcloud
-
-    Approach:
-
-    To shutdown a Redfish controlled subcloud, it's needed to first
-    send a GET request to find the @odata.id of the member, and then
-    send a POST request with the shutdown signal. Since this is
-    intended as a way to turn off the subcloud during the deploy abort
-    process, only the ForceOff option is considered.
-    """
-    def __init__(self, subcloud_name):
-        self.target = subcloud_name
-        self.rvmc_data = self._get_subcloud_data()
-
-    def _get_subcloud_data(self):
-        rvmc_config_file_path = os.path.join(consts.ANSIBLE_OVERRIDES_PATH,
-                                             self.target, consts.RVMC_CONFIG_FILE_NAME)
-        if not os.path.isfile(rvmc_config_file_path):
-            raise Exception('Missing rvmc files for %s' % self.target)
-        with open(os.path.abspath(rvmc_config_file_path), 'r') as f:
-            rvmc_data = f.read()
-        rvmc_config_values = yaml.load(rvmc_data, Loader=yaml.SafeLoader)
-        base_url = "https://" + rvmc_config_values['bmc_address']
-        bmc_username = rvmc_config_values['bmc_username']
-        bmc_password = rvmc_config_values['bmc_password']
-        credentials = ("%s:%s" % (bmc_username.rstrip(), bmc_password)).encode("utf-8")
-        return {'base_url': base_url, 'credentials': credentials}
-
-    def _make_request(self, url, credentials, method, retry=5):
-        if method == 'get':
-            payload = None
-        else:
-            payload = json.dumps(POWER_OFF_PAYLOAD).encode('utf-8')
-
-        try:
-            context = ssl._create_unverified_context()
-            req = request.Request(url, headers=REDFISH_HEADER, method=method)
-            req.add_header('Authorization', 'Basic %s' % credentials)
-            response = request.urlopen(req, data=payload, context=context)
-            status_code = response.getcode()
-
-            if status_code not in SUCCESSFUL_STATUS_CODES:
-                if retry <= 0:
-                    raise exceptions.SubcloudShutdownError(
-                        subcloud_name=self.target)
-                retry -= retry
-                time.sleep(2)
-                self._make_request(url, credentials, method, retry=retry)
-        except urllib_error.URLError:
-            # This occurs when the BMC is not available anymore,
-            # so we just ignore it.
-            return None
-        except Exception as ex:
-            raise ex
-
-        return response
-
-    def _get_data_id(self):
-        base_url = self.rvmc_data['base_url']
-        credentials = self.rvmc_data['credentials']
-        url = base_url + REDFISH_SYSTEMS_URL
-        response = self._make_request(url, credentials, method='GET')
-        if not response:
-            return None
-        r = json.loads(response.read().decode())
-
-        for member in r['Members']:
-            if member.get('@odata.id'):
-                url_with_id = member['@odata.id']
-                break
-
-        return url_with_id
-
-    def send_shutdown_signal(self):
-        base_url = self.rvmc_data['base_url']
-        credentials = self.rvmc_data['credentials']
-        url_with_id = self._get_data_id()
-        if not url_with_id:
-            return None
-        url = base_url + url_with_id + ACTION_URL
-        response = self._make_request(url, credentials, method='POST')
-        return response
 
 
 class SubcloudInstall(object):
@@ -256,17 +148,6 @@ class SubcloudInstall(object):
 
         return "%s://%s:%s" % (protocol, self.get_oam_address(), port)
 
-    def check_image_exists(self, image_name, image_tag):
-        tags = self.sysinv_client.get_registry_image_tags(image_name)
-        if tags:
-            if any(getattr(tag, 'tag') == image_tag for tag in tags):
-                return
-        msg = "Error: Image %s:%s not found in the local registry." % (
-            image_name, image_tag)
-        LOG.error(msg)
-        raise exceptions.ImageNotInLocalRegistry(image_name=image_name,
-                                                 image_tag=image_tag)
-
     @staticmethod
     def create_rvmc_config_file(override_path, payload):
 
@@ -279,39 +160,17 @@ class SubcloudInstall(object):
                 if k in consts.BMC_INSTALL_VALUES or k == 'image':
                     f_out_rvmc_config_file.write(k + ': ' + v + '\n')
 
-    @lockutils.synchronized(RVMC_LOCK_NAME)
-    def copy_default_registry_key(self):
-        """Copy default-registry-key secret for pulling rvmc image."""
-        kube = kubeoperator.KubeOperator()
-        try:
-            if kube.kube_get_secret(DEFAULT_REGISTRY_KEY, RVMC_NAMESPACE) is None:
-                if not kube.kube_get_namespace(RVMC_NAMESPACE):
-                    LOG.info("Creating rvmc namespace")
-                    kube.kube_create_namespace(RVMC_NAMESPACE)
-                LOG.info("Copying default-registry-key secret to rvmc namespace")
-                kube.kube_copy_secret(
-                    DEFAULT_REGISTRY_KEY, KUBE_SYSTEM_NAMESPACE, RVMC_NAMESPACE)
-        except Exception as e:
-            LOG.exception("Failed to copy default-registry-key secret")
-            raise e
-
     def create_install_override_file(self, override_path, payload):
 
         LOG.debug("create install override file")
-        self.check_image_exists(RVMC_IMAGE_NAME, RVMC_IMAGE_TAG)
-        rvmc_image = LOCAL_REGISTRY_PREFIX + RVMC_IMAGE_NAME + ':' +\
-            RVMC_IMAGE_TAG
         install_override_file = os.path.join(override_path,
                                              'install_values.yml')
-        rvmc_name = "%s-%s" % (consts.RVMC_NAME_PREFIX, self.name)
         host_name = socket.gethostname()
 
         with open(install_override_file, 'w') as f_out_override_file:
             f_out_override_file.write(
                 '---'
                 '\npassword_change: true'
-                '\nrvmc_image: ' + rvmc_image +
-                '\nrvmc_name: ' + rvmc_name +
                 '\nhost_name: ' + host_name +
                 '\nrvmc_config_dir: ' + override_path
                 + '\n'
@@ -686,9 +545,6 @@ class SubcloudInstall(object):
 
         # create the rvmc config file
         self.create_rvmc_config_file(override_path, payload)
-
-        # copy the default_registry_key secret to rvmc namespace
-        self.copy_default_registry_key()
 
         # remove the bmc values from the payload
         for k in consts.BMC_INSTALL_VALUES:
