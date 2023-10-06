@@ -585,9 +585,9 @@ class SysinvAPIController(APIController):
                                           os.path.basename(src_filepath))
             shutil.copyfile(src_filepath, load_file_path)
             LOG.info("copied %s to %s" % (src_filepath, load_file_path))
-        except Exception:
+        except Exception as e:
             msg = _("Failed to store load in vault. Please check "
-                    "dcorch log for details.")
+                    "dcorch log for more details: %s" % e)
             raise webob.exc.HTTPInsufficientStorage(explanation=msg)
         return load_file_path
 
@@ -714,8 +714,8 @@ class SysinvAPIController(APIController):
             error = False
         except webob.exc.HTTPInternalServerError:
             raise
-        except Exception:
-            msg = _("Unexpected error copying load to vault")
+        except Exception as e:
+            msg = _("Unexpected error copying load to vault: %s" % e)
             raise webob.exc.HTTPInternalServerError(explanation=msg)
         finally:
             if error and os.path.exists(proxy_consts.LOAD_FILES_STAGING_DIR):

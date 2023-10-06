@@ -74,8 +74,13 @@ class ApiFiller(Middleware):
             # 1 time on internal temporary copy to be shared with sysinv
             if not utils.is_space_available("/scratch",
                                             3 * req.content_length):
-                msg = _("Insufficient space on /scratch for request %s"
-                        % req.path)
+                msg = _(
+                    "Insufficient space on /scratch for request %s, "
+                    "/scratch must have at least %d bytes of free space. "
+                    "You can delete unused files from /scratch or increase the size of it "
+                    "with: 'system host-fs-modify <hostname> scratch=<new_size_in_GiB>'"
+                ) % (req.path, 3 * req.content_length)
+
                 raise webob.exc.HTTPInternalServerError(explanation=msg)
 
         if ('HTTP_USER_HEADER' in req.environ and
