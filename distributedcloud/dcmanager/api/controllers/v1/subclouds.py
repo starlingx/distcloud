@@ -426,18 +426,19 @@ class SubcloudsController(object):
                     pecan.abort(404, _('Subcloud not found'))
             else:
                 try:
-                    # This method replaces subcloud_get_by_name, since it
-                    # allows to lookup the subcloud either by region name
-                    # or subcloud name.
                     # When the request comes from the cert-monitor, it is
                     # based on the region name (which is UUID format).
                     # Whereas, if the request comes from a client other
                     # than cert-monitor, it will do the lookup based on
                     # the subcloud name.
-                    subcloud = db_api.subcloud_get_by_name_or_region_name(
-                        context,
-                        subcloud_ref)
-                except exceptions.SubcloudNameOrRegionNameNotFound:
+                    if utils.is_req_from_cert_mon_agent(request):
+                        subcloud = db_api.\
+                            subcloud_get_by_region_name(context, subcloud_ref)
+                    else:
+                        subcloud = db_api.subcloud_get_by_name(context,
+                                                               subcloud_ref)
+                except (exceptions.SubcloudRegionNameNotFound,
+                        exceptions.SubcloudNameNotFound):
                     pecan.abort(404, _('Subcloud not found'))
 
             subcloud_id = subcloud.id
@@ -564,19 +565,20 @@ class SubcloudsController(object):
                 pecan.abort(404, _('Subcloud not found'))
         else:
             try:
-                # This method replaces subcloud_get_by_name, since it
-                # allows to lookup the subcloud either by region name
-                # or subcloud name.
                 # When the request comes from the cert-monitor, it is
                 # based on the region name (which is UUID format).
                 # Whereas, if the request comes from a client other
                 # than cert-monitor, it will do the lookup based on
                 # the subcloud name.
-                subcloud = db_api.subcloud_get_by_name_or_region_name(
-                    context,
-                    subcloud_ref)
-            except exceptions.SubcloudNameOrRegionNameNotFound:
-                    pecan.abort(404, _('Subcloud not found'))
+                if utils.is_req_from_cert_mon_agent(request):
+                    subcloud = db_api.\
+                        subcloud_get_by_region_name(context, subcloud_ref)
+                else:
+                    subcloud = db_api.subcloud_get_by_name(context,
+                                                           subcloud_ref)
+            except (exceptions.SubcloudRegionNameNotFound,
+                    exceptions.SubcloudNameNotFound):
+                pecan.abort(404, _('Subcloud not found'))
 
         subcloud_id = subcloud.id
 
