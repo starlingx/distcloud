@@ -1272,9 +1272,11 @@ class TestSubcloudRestore(testroot.DCManagerApiTest):
         mock_listdir.return_value = ['test.iso', 'test.sig']
         mock_rpc_client().restore_subcloud_backups.return_value = True
 
-        response = self.app.patch_json(FAKE_URL_RESTORE,
-                                       headers=FAKE_HEADERS,
-                                       params=data)
+        with mock.patch('builtins.open',
+                        mock.mock_open(read_data=fake_subcloud.FAKE_UPGRADES_METADATA)):
+            response = self.app.patch_json(FAKE_URL_RESTORE,
+                                           headers=FAKE_HEADERS,
+                                           params=data)
 
         self.assertEqual(response.status_int, 200)
 

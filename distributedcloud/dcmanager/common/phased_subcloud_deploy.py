@@ -972,9 +972,7 @@ def pre_deploy_create(payload: dict, context: RequestContext,
 
     validate_bootstrap_values(payload)
 
-    # If a subcloud release is not passed, use the current
-    # system controller software_version
-    payload['software_version'] = payload.get('release', tsc.SW_VERSION)
+    payload['software_version'] = utils.get_sw_version(payload.get('release'))
 
     validate_subcloud_name_availability(context, payload['name'])
 

@@ -1,5 +1,5 @@
 # Copyright (c) 2017 Ericsson AB.
-# Copyright (c) 2017-2022 Wind River Systems, Inc.
+# Copyright (c) 2017-2023 Wind River Systems, Inc.
 # All Rights Reserved.
 #
 #    Licensed under the Apache License, Version 2.0 (the "License"); you may
@@ -204,6 +204,10 @@ class SwUpdateStrategyController(object):
                                                         subcloud_group)
                 if group is None:
                     pecan.abort(400, _('Invalid group_id'))
+
+            # get_sw_version is used here to validate the
+            # release parameter if specified.
+            utils.get_sw_version(payload.get('release'))
 
             # Not adding validation for extra args. Passing them through.
             try:
