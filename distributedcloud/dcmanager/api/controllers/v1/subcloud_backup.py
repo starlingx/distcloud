@@ -159,12 +159,16 @@ class SubcloudBackupController(object):
                 payload[param_name] = default
 
     @staticmethod
-    def _validate_subclouds(request_entity, operation):
+    def _validate_subclouds(request_entity, operation, bootstrap_address_dict=None):
         """Validate the subcloud according to the operation
 
         Create/Delete: The subcloud is managed, online and in complete state.
         Restore: The subcloud is unmanaged, and not in the process of
-        installation, boostrap, deployment or rehoming.
+        installation, boostrap, deployment or rehoming. It should also have
+        one of the following to obtain the bootstrap_address:
+        - Restore values with bootstrap_address information
+        - Install values
+        - Previous inventory
 
         If none of the subclouds are valid, the operation will be aborted.
 
@@ -178,7 +182,8 @@ class SubcloudBackupController(object):
         valid_subclouds = list()
         for subcloud in subclouds:
             try:
-                is_valid = utils.is_valid_for_backup_operation(operation, subcloud)
+                is_valid = utils.is_valid_for_backup_operation(
+                    operation, subcloud, bootstrap_address_dict)
 
                 if operation == 'create':
                     backup_in_progress = subcloud.backup_status in \
@@ -353,21 +358,28 @@ class SubcloudBackupController(object):
                                                           request_entity.id)
                 pecan.abort(400, _(msg))
 
-            restore_subclouds = self._validate_subclouds(request_entity,
-                                                         verb)
+            bootstrap_address_dict = \
+                payload.get('restore_values', {}).get('bootstrap_address', {})
+
+            if not isinstance(bootstrap_address_dict, dict):
+                pecan.abort(400, _('The bootstrap_address provided in restore_values '
+                                   'is in invalid format.'))
+
+            restore_subclouds = self._validate_subclouds(
+                request_entity, verb, bootstrap_address_dict)
 
             payload[request_entity.type] = request_entity.id
 
-            valid_subclouds = [subcloud for subcloud in
-                               request_entity.subclouds if
-                               subcloud.data_install]
-
-            if not valid_subclouds:
-                pecan.abort(400, _('Cannot proceed with the restore operation '
-                                   'since the subcloud(s) do not contain '
-                                   'install data.'))
-
             if payload.get('with_install'):
+                subclouds_without_install_values = [
+                    subcloud.name for subcloud in request_entity.subclouds if
+                    not subcloud.data_install
+                ]
+                if subclouds_without_install_values:
+                    subclouds_str = ', '.join(subclouds_without_install_values)
+                    pecan.abort(400, _('The restore operation was requested with_install, '
+                                       'but the following subcloud(s) does not contain '
+                                       'install values: %s' % subclouds_str))
                 # Confirm the requested or active load is still in dc-vault
                 payload['software_version'] = utils.get_sw_version(
                     payload.get('release'))

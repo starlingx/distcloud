@@ -759,8 +759,13 @@ class SubcloudManager(manager.Manager):
             else db_api.subcloud_get_for_group(context, group_id)
         )
 
+        bootstrap_address_dict = \
+            payload.get('restore_values', {}).get('bootstrap_address', {})
+
         restore_subclouds, invalid_subclouds = (
-            self._validate_subclouds_for_backup(subclouds, 'restore')
+            self._validate_subclouds_for_backup(subclouds,
+                                                'restore',
+                                                bootstrap_address_dict)
         )
 
         if restore_subclouds:
@@ -1419,13 +1424,16 @@ class SubcloudManager(manager.Manager):
             else:
                 i += 1
 
-    def _validate_subclouds_for_backup(self, subclouds, operation):
+    def _validate_subclouds_for_backup(self, subclouds, operation,
+                                       bootstrap_address_dict=None):
         valid_subclouds = []
         invalid_subclouds = []
         for subcloud in subclouds:
             is_valid = False
             try:
-                if utils.is_valid_for_backup_operation(operation, subcloud):
+                if utils.is_valid_for_backup_operation(operation,
+                                                       subcloud,
+                                                       bootstrap_address_dict):
                     is_valid = True
 
             except exceptions.ValidateFail:
@@ -1595,14 +1603,37 @@ class SubcloudManager(manager.Manager):
     def _restore_subcloud_backup(self, context, payload, subcloud):
         log_file = (os.path.join(consts.DC_ANSIBLE_LOG_DIR, subcloud.name) +
                     '_playbook_output.log')
-        data_install = json.loads(subcloud.data_install)
+
+        # To get the bootstrap_address for the subcloud, we considered
+        # the following order:
+        # 1) Use the value from restore_values if present
+        # 2) Use the value from install_values if present
+        # 3) Use the value from the current inventory file if it exist
+        # To reach this part of the code, one of the above conditions is True
+        bootstrap_address_dict = \
+            payload.get('restore_values', {}).get('bootstrap_address', {})
+        if bootstrap_address_dict.get(subcloud.name):
+            LOG.debug('Using bootstrap_address from restore_values for subcloud %s'
+                      % subcloud.name)
+            bootstrap_address = bootstrap_address_dict.get(subcloud.name)
+        elif subcloud.data_install:
+            LOG.debug('Using bootstrap_address from install_values for subcloud %s'
+                      % subcloud.name)
+            data_install = json.loads(subcloud.data_install)
+            bootstrap_address = data_install.get('bootstrap_address')
+        else:
+            LOG.debug('Using bootstrap_address from previous inventory file '
+                      'for subcloud %s' % subcloud.name)
+            bootstrap_address = \
+                utils.get_ansible_host_ip_from_inventory(subcloud.name)
+
         try:
             db_api.subcloud_update(
                 context, subcloud.id,
                 deploy_status=consts.DEPLOY_STATE_PRE_RESTORE
             )
             subcloud_inventory_file = self._create_subcloud_inventory_file(
-                subcloud, data_install=data_install)
+                subcloud, bootstrap_address=bootstrap_address)
             # Prepare for restore
             overrides_file = self._create_overrides_for_backup_or_restore(
                 'restore', payload, subcloud.name
@@ -1619,6 +1650,7 @@ class SubcloudManager(manager.Manager):
             return subcloud, False
 
         if payload.get('with_install'):
+            data_install = json.loads(subcloud.data_install)
             software_version = payload.get('software_version')
             install_command = self.compose_install_command(
                 subcloud.name, subcloud_inventory_file, software_version)
@@ -1657,27 +1689,23 @@ class SubcloudManager(manager.Manager):
                        % (operation, ' ,'.join(failed_subcloud_names)))
         return notice
 
-    def _create_subcloud_inventory_file(self, subcloud, data_install=None,
+    def _create_subcloud_inventory_file(self, subcloud, bootstrap_address=None,
                                         initial_deployment=False):
         # Ansible inventory filename for the specified subcloud
         ansible_subcloud_inventory_file = self._get_ansible_filename(
             subcloud.name, INVENTORY_FILE_POSTFIX)
 
-        oam_fip = None
-        # Restore is restrict to Redfish enabled subclouds
-        if data_install:
-            oam_fip = data_install.get('bootstrap_address')
-        else:
+        if not bootstrap_address:
             # Use subcloud floating IP for host reachability
             keystone_client = OpenStackDriver(
                 region_name=subcloud.region_name,
                 region_clients=None).keystone_client
-            oam_fip = utils.get_oam_addresses(subcloud, keystone_client)\
+            bootstrap_address = utils.get_oam_addresses(subcloud, keystone_client)\
                 .oam_floating_ip
 
         # Add parameters used to generate inventory
         subcloud_params = {'name': subcloud.name,
-                           'bootstrap-address': oam_fip}
+                           'bootstrap-address': bootstrap_address}
 
         utils.create_subcloud_inventory(subcloud_params,
                                         ansible_subcloud_inventory_file,
