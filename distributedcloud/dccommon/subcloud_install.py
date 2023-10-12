@@ -46,7 +46,7 @@ BOOT_MENU_TIMEOUT = '5'
 # The RVMC_IMAGE_NAME:RVMC_IMAGE_TAG must align with the one specified
 # in system images in the ansible install/upgrade playbook
 RVMC_IMAGE_NAME = 'docker.io/starlingx/rvmc'
-RVMC_IMAGE_TAG = 'stx.8.0-v1.0.1'
+RVMC_IMAGE_TAG = 'stx.8.0-v1.0.2'
 
 SUBCLOUD_ISO_PATH = '/opt/platform/iso'
 SUBCLOUD_ISO_DOWNLOAD_PATH = '/var/www/pages/iso'
