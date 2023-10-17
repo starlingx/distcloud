@@ -1779,7 +1779,7 @@ class TestSubcloudManager(base.DCManagerTestCase):
         )
 
     @mock.patch('os.path.isfile')
-    def test_compose_rehome_command(self, mock_isfile):
+    def test_compose_rehome_command_with_previous_sw_version(self, mock_isfile):
         mock_isfile.return_value = True
         sm = subcloud_manager.SubcloudManager()
         subcloud_name = base.SUBCLOUD_1['name']
@@ -1790,6 +1790,12 @@ class TestSubcloudManager(base.DCManagerTestCase):
             subcloud_region,
             f'{dccommon_consts.ANSIBLE_OVERRIDES_PATH}/subcloud1_inventory.yml',
             FAKE_PREVIOUS_SW_VERSION)
+
+        extra_vars = "override_files_dir='%s' region_name=%s" % (
+            dccommon_consts.ANSIBLE_OVERRIDES_PATH, subcloud_region)
+        extra_vars += (" validate_keystone_passwords_script='%s'" %
+                       subcloud_manager.ANSIBLE_VALIDATE_KEYSTONE_PASSWORD_SCRIPT)
+
         self.assertEqual(
             rehome_command,
             [
@@ -1797,6 +1803,33 @@ class TestSubcloudManager(base.DCManagerTestCase):
                 cutils.get_playbook_for_software_version(
                     subcloud_manager.ANSIBLE_SUBCLOUD_REHOME_PLAYBOOK,
                     FAKE_PREVIOUS_SW_VERSION),
+                '-i', f'{dccommon_consts.ANSIBLE_OVERRIDES_PATH}/subcloud1_inventory.yml',
+                '--limit', subcloud_name,
+                '--timeout', subcloud_manager.REHOME_PLAYBOOK_TIMEOUT,
+                '-e', extra_vars
+            ]
+        )
+
+    @mock.patch('os.path.isfile')
+    def test_compose_rehome_command(self, mock_isfile):
+        mock_isfile.return_value = True
+        sm = subcloud_manager.SubcloudManager()
+        subcloud_name = base.SUBCLOUD_1['name']
+        subcloud_region = base.SUBCLOUD_1['region_name']
+
+        rehome_command = sm.compose_rehome_command(
+            subcloud_name,
+            subcloud_region,
+            f'{dccommon_consts.ANSIBLE_OVERRIDES_PATH}/subcloud1_inventory.yml',
+            SW_VERSION)
+
+        self.assertEqual(
+            rehome_command,
+            [
+                'ansible-playbook',
+                cutils.get_playbook_for_software_version(
+                    subcloud_manager.ANSIBLE_SUBCLOUD_REHOME_PLAYBOOK,
+                    SW_VERSION),
                 '-i', f'{dccommon_consts.ANSIBLE_OVERRIDES_PATH}/subcloud1_inventory.yml',
                 '--limit', subcloud_name,
                 '--timeout', subcloud_manager.REHOME_PLAYBOOK_TIMEOUT,

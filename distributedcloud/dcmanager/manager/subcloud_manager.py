@@ -47,6 +47,7 @@ from dccommon import kubeoperator
 from dccommon.subcloud_install import SubcloudInstall
 from dccommon.subcloud_install import SubcloudShutdown
 from dccommon.utils import AnsiblePlaybook
+from dccommon.utils import LAST_SW_VERSION_IN_CENTOS
 from dcmanager.audit import rpcapi as dcmanager_audit_rpc_client
 from dcmanager.common import consts
 from dcmanager.common.consts import INVENTORY_FILE_POSTFIX
@@ -83,6 +84,12 @@ ANSIBLE_SUBCLOUD_REHOME_PLAYBOOK = \
     '/usr/share/ansible/stx-ansible/playbooks/rehome_subcloud.yml'
 ANSIBLE_SUBCLOUD_UPDATE_PLAYBOOK = \
     '/usr/share/ansible/stx-ansible/playbooks/update_subcloud.yml'
+
+# TODO(yuxing) Remove the ANSIBLE_VALIDATE_KEYSTONE_PASSWORD_SCRIPT when end
+# the support of rehoming a subcloud with a software version below 22.12
+ANSIBLE_VALIDATE_KEYSTONE_PASSWORD_SCRIPT = \
+    consts.ANSIBLE_CURRENT_VERSION_BASE_PATH + \
+    '/roles/rehome-subcloud/update-keystone-data/files/validate_keystone_passwords.sh'
 
 USERS_TO_REPLICATE = [
     'sysinv',
@@ -362,6 +369,15 @@ class SubcloudManager(manager.Manager):
     def compose_rehome_command(self, subcloud_name, subcloud_region,
                                ansible_subcloud_inventory_file,
                                software_version):
+        extra_vars = "override_files_dir='%s' region_name=%s" % (
+            dccommon_consts.ANSIBLE_OVERRIDES_PATH, subcloud_region)
+
+        # TODO(yuxing) Remove the validate_keystone_passwords_script when end
+        # the support of rehoming a subcloud with a software version below 22.12
+        if software_version <= LAST_SW_VERSION_IN_CENTOS:
+            extra_vars += (" validate_keystone_passwords_script='%s'" %
+                           ANSIBLE_VALIDATE_KEYSTONE_PASSWORD_SCRIPT)
+
         rehome_command = [
             "ansible-playbook",
             utils.get_playbook_for_software_version(
@@ -369,8 +385,7 @@ class SubcloudManager(manager.Manager):
             "-i", ansible_subcloud_inventory_file,
             "--limit", subcloud_name,
             "--timeout", REHOME_PLAYBOOK_TIMEOUT,
-            "-e", str("override_files_dir='%s' region_name=%s") % (
-                dccommon_consts.ANSIBLE_OVERRIDES_PATH, subcloud_region)]
+            "-e", extra_vars]
         return rehome_command
 
     def _migrate_manage_subcloud(self, context, payload, subcloud):
@@ -1027,6 +1042,7 @@ class SubcloudManager(manager.Manager):
                 payload['users'][user] = \
                     str(keyring.get_password(
                         user, dccommon_consts.SERVICES_USER_NAME))
+
             if 'region_name' not in payload:
                 payload['region_name'] = subcloud.region_name
 
@@ -1187,6 +1203,13 @@ class SubcloudManager(manager.Manager):
                 payload['users'][user] = \
                     str(keyring.get_password(
                         user, dccommon_consts.SERVICES_USER_NAME))
+
+            # TODO(Yuxing) remove replicating the smapi user when end the support
+            # of rehoming a subcloud with a software version below 22.12
+            if rehoming and subcloud.software_version <= LAST_SW_VERSION_IN_CENTOS:
+                payload['users']['smapi'] = \
+                    str(keyring.get_password(
+                        'smapi', dccommon_consts.SERVICES_USER_NAME))
 
             # Ansible inventory filename for the specified subcloud
             ansible_subcloud_inventory_file = utils.get_ansible_filename(
