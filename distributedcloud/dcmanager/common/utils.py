@@ -339,6 +339,18 @@ def get_filename_by_prefix(dir_path, prefix):
     return None
 
 
+def get_ansible_host_ip_from_inventory(subcloud_name: str):
+    """Get ansible host ip from inventory file for the specified subcloud"""
+
+    postfix = consts.INVENTORY_FILE_POSTFIX
+    filename = get_ansible_filename(subcloud_name, postfix)
+
+    content = load_yaml_file(filename)
+    bootstrap_address = \
+        content['all']['hosts'].get(subcloud_name, {}).get('ansible_host')
+    return bootstrap_address
+
+
 def create_subcloud_inventory(subcloud,
                               inventory_file,
                               initial_deployment=False):
@@ -875,14 +887,14 @@ def summarize_message(error_msg):
     return brief_message
 
 
-def is_valid_for_backup_operation(operation, subcloud):
+def is_valid_for_backup_operation(operation, subcloud, bootstrap_address_dict=None):
 
     if operation == 'create':
         return _is_valid_for_backup_create(subcloud)
     elif operation == 'delete':
         return _is_valid_for_backup_delete(subcloud)
     elif operation == 'restore':
-        return _is_valid_for_backup_restore(subcloud)
+        return _is_valid_for_backup_restore(subcloud, bootstrap_address_dict)
     else:
         msg = "Invalid operation %s" % operation
         LOG.error(msg)
@@ -913,15 +925,24 @@ def _is_valid_for_backup_delete(subcloud):
     return True
 
 
-def _is_valid_for_backup_restore(subcloud):
+def _is_valid_for_backup_restore(subcloud, bootstrap_address_dict=None):
 
     msg = None
+    ansible_subcloud_inventory_file = get_ansible_filename(
+        subcloud.name, consts.INVENTORY_FILE_POSTFIX)
+    has_bootstrap_address = (bootstrap_address_dict and
+                             subcloud.name in bootstrap_address_dict)
+    has_install_values = subcloud.data_install is not None
+    has_inventory_file = os.path.exists(ansible_subcloud_inventory_file)
+
     if subcloud.management_state != dccommon_consts.MANAGEMENT_UNMANAGED \
         or subcloud.deploy_status in consts.INVALID_DEPLOY_STATES_FOR_RESTORE:
         msg = ('Subcloud %s must be unmanaged and in a valid deploy state '
                'for the subcloud-backup restore operation.' % subcloud.name)
-    elif not subcloud.data_install:
-        msg = ('Data installation on %s is missing.' % subcloud.name)
+    elif not (has_bootstrap_address or has_install_values or has_inventory_file):
+        msg = ('Unable to obtain the subcloud %s bootstrap_address from either '
+               'restore or install values. Please ensure bootstrap_address is '
+               'specified in the restore-values.yml and try again.' % subcloud.name)
     if msg:
         raise exceptions.ValidateFail(msg)
 
