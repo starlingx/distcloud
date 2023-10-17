@@ -127,3 +127,11 @@ class SubcloudShutdownError(PlaybookExecutionFailed):
 
 class ApiException(DCCommonException):
     message = _("%(endpoint)s failed with status code: %(rc)d")
+
+
+class SubcloudNotFound(NotFound):
+    message = _("Subcloud %(subcloud_ref)s not found")
+
+
+class SubcloudPeerGroupNotFound(NotFound):
+    message = _("Subcloud Peer Group %(peer_group_ref)s not found")
