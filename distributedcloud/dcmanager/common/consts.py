@@ -78,6 +78,7 @@ SW_UPDATE_TYPE_KUBERNETES = "kubernetes"
 SW_UPDATE_TYPE_PATCH = "patch"
 SW_UPDATE_TYPE_PRESTAGE = "prestage"
 SW_UPDATE_TYPE_UPGRADE = "upgrade"
+SW_UPDATE_TYPE_SOFTWARE = "software"
 
 # Software update states
 SW_UPDATE_STATE_INITIAL = "initial"
@@ -143,6 +144,22 @@ STRATEGY_STATE_COMPLETING_UPGRADE = "completing upgrade"
 STRATEGY_STATE_CREATING_VIM_UPGRADE_STRATEGY = "creating VIM upgrade strategy"
 STRATEGY_STATE_APPLYING_VIM_UPGRADE_STRATEGY = "applying VIM upgrade strategy"
 STRATEGY_STATE_DELETING_LOAD = "deleting load"
+
+# Software orchestration states
+STRATEGY_STATE_SW_PRE_CHECK = "software pre check"
+STRATEGY_STATE_SW_INSTALL_LICENSE = "software install license"
+STRATEGY_STATE_SW_UPLOAD = "software upload"
+STRATEGY_STATE_SW_DEPLOY_PRE_CHECK = "software deploy pre check"
+STRATEGY_STATE_SW_DEPLOY_START = "software deploy start"
+STRATEGY_STATE_SW_LOCK_CONTROLLER = "software lock controller"
+STRATEGY_STATE_SW_UNLOCK_CONTROLLER = "software unlock controller"
+STRATEGY_STATE_SW_SWACT_CONTROLLER = "software swact controller"
+STRATEGY_STATE_SW_DEPLOY_HOST = "software deploy host"
+STRATEGY_STATE_SW_DEPLOY_ACTIVATE = "software deploy activate"
+STRATEGY_STATE_SW_DEPLOY_COMPLETE = "software deploy complete"
+STRATEGY_STATE_SW_CREATE_VIM_STRATEGY = "create VIM software strategy"
+STRATEGY_STATE_SW_APPLY_VIM_STRATEGY = "apply VIM software strategy"
+STRATEGY_STATE_SW_FINISH_STRATEGY = "finish software strategy"
 
 # Firmware update orchestration states
 STRATEGY_STATE_IMPORTING_FIRMWARE = "importing firmware"

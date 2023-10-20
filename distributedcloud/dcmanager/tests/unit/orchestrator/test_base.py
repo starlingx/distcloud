@@ -115,6 +115,19 @@ class TestSwUpdate(base.DCManagerTestCase):
                 self.fake_sw_upgrade_orch_thread
             self.addCleanup(p.stop)
 
+        if strategy_type == consts.SW_UPDATE_TYPE_SOFTWARE:
+            sw_update_manager.SoftwareOrchThread.stopped = lambda x: False
+            worker = sw_update_manager.SoftwareOrchThread(
+                mock_strategy_lock, mock_dcmanager_audit_api)
+        else:
+            # mock the software orch thread
+            self.fake_software_orch_thread = FakeOrchThread()
+            p = mock.patch.object(sw_update_manager, 'SoftwareOrchThread')
+            self.mock_software_orch_thread = p.start()
+            self.mock_software_orch_thread.return_value = \
+                self.fake_software_orch_thread
+            self.addCleanup(p.stop)
+
         if strategy_type == consts.SW_UPDATE_TYPE_PATCH:
             sw_update_manager.PatchOrchThread.stopped = lambda x: False
             worker = \
