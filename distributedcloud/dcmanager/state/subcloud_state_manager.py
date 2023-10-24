@@ -429,6 +429,13 @@ class SubcloudStateManager(manager.Manager):
             raise
 
         if update_state_only:
+            # Ensure that the status alarm is consistent with the
+            # subcloud's availability. This is required to compensate
+            # for rare alarm update failures, which may occur during
+            # availability updates.
+            self._raise_or_clear_subcloud_status_alarm(subcloud.name,
+                                                       availability_status)
+
             # Nothing has changed, but we want to send a state update for this
             # subcloud as an audit. Get the most up-to-date data.
             self._update_subcloud_state(context, subcloud.name,
