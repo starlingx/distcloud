@@ -1,4 +1,5 @@
 #    Copyright 2016 Ericsson AB
+#    Copyright (c) 2020-2023 Wind River Systems, Inc.
 #    Licensed under the Apache License, Version 2.0 (the "License"); you may
 #    not use this file except in compliance with the License. You may obtain
 #    a copy of the License at
@@ -213,6 +214,24 @@ fernet_opts = [
                help='Hours between running fernet key rotation tasks.')
 ]
 
+usm_opts = [
+    cfg.BoolOpt('use_usm', default=False,
+                help='parameter to enable USM API')
+]
+
+usm_proxy_opts = [
+    cfg.StrOpt('bind_host',
+               default="0.0.0.0",
+               help='IP address for API proxy to listen for incoming connections'),
+    cfg.IntOpt('bind_port',
+               default=25497,
+               help='listen port for API proxy'),
+    cfg.StrOpt('remote_host', default='0.0.0.0',
+               help="The remote host address used for outgoing API proxy connection"),
+    cfg.IntOpt('remote_port', default=5497,
+               help="The remote port used for outgoing API proxy connection")
+]
+
 scheduler_opt_group = cfg.OptGroup('scheduler',
                                    title='Scheduler options for periodic job')
 # The group stores DC Orchestrator global limit for all the projects.
@@ -221,6 +240,9 @@ default_quota_group = cfg.OptGroup(name='dc_orch_global_limit',
 # The group stores the pecan configurations.
 pecan_group = cfg.OptGroup(name='pecan',
                            title='Pecan options')
+
+usm_group = cfg.OptGroup(name='usm',
+                         title='USM proxy options')
 
 cache_opt_group = cfg.OptGroup(name='cache',
                                title='OpenStack Admin Credentials')
@@ -246,8 +268,10 @@ def list_opts():
     yield scheduler_opt_group.name, scheduler_opts
     yield pecan_group.name, pecan_opts
     yield fernet_opt_group.name, fernet_opts
+    yield usm_group.name, usm_proxy_opts
     yield None, global_opts
     yield None, common_opts
+    yield None, usm_opts
 
 
 def register_options():
