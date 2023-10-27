@@ -1382,3 +1382,35 @@ def is_req_from_cert_mon_agent(request):
         return True
     else:
         return False
+
+
+def yaml_safe_load(contents, content_type):
+    """Wrapper for yaml.safe_load with error logging and reporting.
+
+    :param contents: decoded contents to load
+    :param content_type: values being loaded
+    :returns dict constructed from parsed contents
+    """
+    error = False
+    msg = "Error: Unable to load " + content_type + " file contents ({})."
+
+    try:
+        data = yaml.safe_load(contents)
+        if data is None:
+            error = True
+            msg = msg.format("empty file provided")
+    except yaml.YAMLError as e:
+        error = True
+        if hasattr(e, 'problem_mark'):
+            mark = e.problem_mark
+            msg = msg.format("problem on line: " + str(mark.line))
+        else:
+            msg = msg.format("please see logs for more details")
+
+        LOG.exception(e)
+
+    if error:
+        LOG.error(msg)
+        pecan.abort(400, _(msg))
+
+    return data

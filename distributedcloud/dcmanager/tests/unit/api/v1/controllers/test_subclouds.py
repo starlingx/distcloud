@@ -27,6 +27,7 @@ import six
 from six.moves import http_client
 from tsconfig.tsconfig import SW_VERSION
 import webtest
+import yaml
 
 from dccommon import consts as dccommon_consts
 from dcmanager.api.controllers.v1 import phased_subcloud_deploy as psd
@@ -339,6 +340,40 @@ class TestSubcloudPost(testroot.DCManagerApiTest,
                               self.get_api_prefix(),
                               params={},
                               headers=self.get_api_headers())
+
+    @mock.patch.object(cutils, 'LOG')
+    def test_post_subcloud_boostrap_file_malformed(self, mock_logging):
+        """Test POST operation with malformed bootstrap file contents."""
+
+        params = self.get_post_params()
+
+        valid_keyval = "key: val"
+        invalid_keyval = "key:val"  # A space is required after the colon
+        fake_name = consts.BOOTSTRAP_VALUES + "_fake"
+
+        corrupt_fake_content = \
+            (yaml.dump(self.FAKE_BOOTSTRAP_DATA) + invalid_keyval).encode("utf-8")
+        upload_files = list()
+        upload_files.append((consts.BOOTSTRAP_VALUES, fake_name, corrupt_fake_content))
+        response = self.app.post(self.get_api_prefix(),
+                                 params=params,
+                                 upload_files=upload_files,
+                                 headers=self.get_api_headers(),
+                                 expect_errors=True)
+        self.assertEqual(mock_logging.error.call_count, 1)
+        log_string = mock_logging.error.call_args[0][0]
+        self.assertIn('Error: Unable to load bootstrap_values file contents', log_string)
+        self.assertEqual(http_client.BAD_REQUEST, response.status_code)
+
+        # try with valid new entry and verify it works
+        valid_content = (yaml.dump(self.FAKE_BOOTSTRAP_DATA) + valid_keyval).encode("utf-8")
+        upload_files = list()
+        upload_files.append((consts.BOOTSTRAP_VALUES, fake_name, valid_content))
+        response = self.app.post(self.get_api_prefix(),
+                                 params=params,
+                                 upload_files=upload_files,
+                                 headers=self.get_api_headers())
+        self._verify_post_success(response)
 
     def test_post_subcloud_boostrap_entries_missing(self):
         """Test POST operation with some mandatory boostrap fields missing.

@@ -14,7 +14,6 @@ from oslo_log import log as logging
 from oslo_utils import uuidutils
 import pecan
 import tsconfig.tsconfig as tsc
-import yaml
 
 from dccommon import consts as dccommon_consts
 from dccommon.drivers.openstack import patching_v1
@@ -907,7 +906,7 @@ def get_request_data(request: pecan.Request,
                 upload_config_file(contents, fn, f)
                 payload.update({f: fn})
             else:
-                data = yaml.safe_load(contents.decode('utf8'))
+                data = utils.yaml_safe_load(contents.decode('utf8'), f)
                 if f == consts.BOOTSTRAP_VALUES:
                     payload.update(data)
                 else:
@@ -1059,7 +1058,7 @@ def get_bootstrap_subcloud_name(request: pecan.Request):
     if bootstrap_values is not None:
         bootstrap_values.file.seek(0, os.SEEK_SET)
         contents = bootstrap_values.file.read()
-        data = yaml.safe_load(contents.decode('utf8'))
+        data = utils.yaml_safe_load(contents.decode('utf8'), consts.BOOTSTRAP_VALUES)
         bootstrap_sc_name = data.get('name')
 
     return bootstrap_sc_name
