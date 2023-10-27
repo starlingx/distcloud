@@ -1484,6 +1484,37 @@ class TestSubcloudManager(base.DCManagerTestCase):
         fake_dcmanager_cermon_api.subcloud_online.\
             assert_called_once_with(self.ctx, subcloud.region_name)
 
+    @mock.patch.object(subcloud_state_manager.SubcloudStateManager,
+                       '_raise_or_clear_subcloud_status_alarm')
+    def test_update_state_only(self, mock_update_status_alarm):
+        subcloud = self.create_subcloud_static(self.ctx, name='subcloud1')
+        self.assertIsNotNone(subcloud)
+
+        # Set the subcloud to online/managed
+        db_api.subcloud_update(self.ctx, subcloud.id,
+                               management_state=dccommon_consts.MANAGEMENT_UNMANAGED,
+                               availability_status=dccommon_consts.AVAILABILITY_ONLINE)
+
+        ssm = subcloud_state_manager.SubcloudStateManager()
+
+        with mock.patch.object(db_api, "subcloud_update") as subcloud_update_mock:
+            ssm.update_subcloud_availability(self.ctx, subcloud.region_name,
+                                             availability_status=dccommon_consts.AVAILABILITY_ONLINE,
+                                             update_state_only=True)
+            # Verify that the subcloud was not updated
+            subcloud_update_mock.assert_not_called()
+
+        # Verify alarm status update was attempted
+        mock_update_status_alarm.assert_called_once()
+
+        # Verify dcorch was notified
+        self.fake_dcorch_api.update_subcloud_states.assert_called_once_with(
+            self.ctx, subcloud.region_name, subcloud.management_state,
+            dccommon_consts.AVAILABILITY_ONLINE)
+
+        # Verify audits were not triggered
+        self.fake_dcmanager_audit_api.trigger_subcloud_audits.assert_not_called()
+
     def test_update_subcloud_availability_go_online_unmanaged(self):
         # create a subcloud
         subcloud = self.create_subcloud_static(self.ctx, name='subcloud1')
