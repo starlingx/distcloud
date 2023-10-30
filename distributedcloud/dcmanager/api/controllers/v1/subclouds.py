@@ -28,7 +28,6 @@ from oslo_config import cfg
 from oslo_log import log as logging
 from oslo_messaging import RemoteError
 import re
-import yaml
 
 import pecan
 from pecan import expose
@@ -115,7 +114,7 @@ class SubcloudsController(object):
 
             # only the install_values field is yaml, force should be bool
             if field_name in [consts.INSTALL_VALUES, 'force']:
-                field_content = yaml.safe_load(field_content)
+                field_content = utils.yaml_safe_load(field_content, field_name)
 
             payload[field_name] = field_content
 

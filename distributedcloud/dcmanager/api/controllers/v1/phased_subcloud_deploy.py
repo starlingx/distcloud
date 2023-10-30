@@ -10,7 +10,6 @@ import os
 from oslo_log import log as logging
 from oslo_messaging import RemoteError
 import pecan
-import yaml
 
 from dcmanager.api.controllers import restcomm
 from dcmanager.api.policies import phased_subcloud_deploy as \
@@ -142,7 +141,7 @@ def get_create_payload(request: pecan.Request) -> dict:
         if f in request.POST:
             file_item = request.POST[f]
             file_item.file.seek(0, os.SEEK_SET)
-            data = yaml.safe_load(file_item.file.read().decode('utf8'))
+            data = utils.yaml_safe_load(file_item.file.read().decode('utf8'), f)
             if f == consts.BOOTSTRAP_VALUES:
                 payload.update(data)
             else:

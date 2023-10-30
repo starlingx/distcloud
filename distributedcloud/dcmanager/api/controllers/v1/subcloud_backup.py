@@ -15,7 +15,6 @@ import pecan
 from pecan import expose
 from pecan import request as pecan_request
 from pecan import response
-import yaml
 
 from dcmanager.api.controllers import restcomm
 from dcmanager.api.policies import subcloud_backup as subcloud_backup_policy
@@ -99,7 +98,7 @@ class SubcloudBackupController(object):
             if param in request.POST:
                 file_item = request.POST[param]
                 file_item.file.seek(0, os.SEEK_SET)
-                data = yaml.safe_load(file_item.file.read().decode('utf8'))
+                data = utils.yaml_safe_load(file_item.file.read().decode('utf8'), param)
                 payload.update({param: data})
                 del request.POST[param]
 
