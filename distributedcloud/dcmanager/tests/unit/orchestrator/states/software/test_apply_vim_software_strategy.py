@@ -13,7 +13,7 @@ class TestApplyVIMSoftwareStrategyState(TestSoftwareOrchestrator):
     def setUp(self):
         super(TestApplyVIMSoftwareStrategyState, self).setUp()
 
-        self.on_success_state = consts.STRATEGY_STATE_SW_DEPLOY_ACTIVATE
+        self.on_success_state = consts.STRATEGY_STATE_SW_SWACT_CONTROLLER_1
 
         # Add the subcloud being processed by this unit test
         self.subcloud = self.setup_subcloud()

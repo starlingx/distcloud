@@ -13,7 +13,7 @@ class ApplyVIMSoftwareStrategyState(BaseState):
 
     def __init__(self, region_name):
         super(ApplyVIMSoftwareStrategyState, self).__init__(
-            next_state=consts.STRATEGY_STATE_SW_DEPLOY_ACTIVATE,
+            next_state=consts.STRATEGY_STATE_SW_SWACT_CONTROLLER_1,
             region_name=region_name
         )
 
