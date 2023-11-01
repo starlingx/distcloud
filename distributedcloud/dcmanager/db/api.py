@@ -434,14 +434,14 @@ def peer_group_get_for_system_peer(context, peer_id):
 
 
 def system_peer_update(context, peer_id,
-                       peer_uuid, peer_name,
-                       endpoint, username, password,
-                       gateway_ip,
-                       administrative_state,
-                       heartbeat_interval,
-                       heartbeat_failure_threshold,
-                       heartbeat_failure_policy,
-                       heartbeat_maintenance_timeout,
+                       peer_uuid=None, peer_name=None,
+                       endpoint=None, username=None, password=None,
+                       gateway_ip=None,
+                       administrative_state=None,
+                       heartbeat_interval=None,
+                       heartbeat_failure_threshold=None,
+                       heartbeat_failure_policy=None,
+                       heartbeat_maintenance_timeout=None,
                        heartbeat_status=None):
     """Update the system peer or raise if it does not exist."""
     return IMPL.system_peer_update(context, peer_id,
@@ -473,13 +473,16 @@ def subcloud_peer_group_db_model_to_dict(subcloud_peer_group):
               "max_subcloud_rehoming": subcloud_peer_group.max_subcloud_rehoming,
               "system_leader_id": subcloud_peer_group.system_leader_id,
               "system_leader_name": subcloud_peer_group.system_leader_name,
+              "migration_status": subcloud_peer_group.migration_status,
               "created-at": subcloud_peer_group.created_at,
               "updated-at": subcloud_peer_group.updated_at}
     return result
 
 
-def subcloud_peer_group_create(context, peer_group_name, group_priority, group_state,
-                               max_subcloud_rehoming, system_leader_id, system_leader_name):
+def subcloud_peer_group_create(context, peer_group_name, group_priority,
+                               group_state, max_subcloud_rehoming,
+                               system_leader_id, system_leader_name,
+                               migration_status=None):
     """Create a subcloud_peer_group."""
     return IMPL.subcloud_peer_group_create(context,
                                            peer_group_name,
@@ -487,7 +490,8 @@ def subcloud_peer_group_create(context, peer_group_name, group_priority, group_s
                                            group_state,
                                            max_subcloud_rehoming,
                                            system_leader_id,
-                                           system_leader_name)
+                                           system_leader_name,
+                                           migration_status)
 
 
 def subcloud_peer_group_destroy(context, group_id):
@@ -523,9 +527,12 @@ def subcloud_peer_group_get_all(context):
     return IMPL.subcloud_peer_group_get_all(context)
 
 
-def subcloud_peer_group_update(context, group_id, peer_group_name, group_priority,
-                               group_state, max_subcloud_rehoming, system_leader_id,
-                               system_leader_name):
+def subcloud_peer_group_update(context, group_id, peer_group_name=None,
+                               group_priority=None, group_state=None,
+                               max_subcloud_rehoming=None,
+                               system_leader_id=None,
+                               system_leader_name=None,
+                               migration_status=None):
     """Update the subcloud peer group or raise if it does not exist."""
     return IMPL.subcloud_peer_group_update(context,
                                            group_id,
@@ -534,7 +541,8 @@ def subcloud_peer_group_update(context, group_id, peer_group_name, group_priorit
                                            group_state,
                                            max_subcloud_rehoming,
                                            system_leader_id,
-                                           system_leader_name)
+                                           system_leader_name,
+                                           migration_status)
 ###################
 
 

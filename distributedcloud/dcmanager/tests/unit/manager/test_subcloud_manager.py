@@ -30,6 +30,7 @@ sys.modules['fm_core'] = mock.Mock()
 import threading
 
 from dccommon import consts as dccommon_consts
+from dccommon.drivers.openstack import dcmanager_v1
 from dccommon import subcloud_install
 from dccommon.utils import AnsiblePlaybook
 from dcmanager.common import consts
@@ -38,9 +39,11 @@ from dcmanager.common import prestage
 from dcmanager.common import utils as cutils
 from dcmanager.db.sqlalchemy import api as db_api
 from dcmanager.manager import subcloud_manager
+from dcmanager.manager import system_peer_manager
 from dcmanager.state import subcloud_state_manager
 from dcmanager.tests import base
 from dcmanager.tests.unit.common import fake_subcloud
+from dcmanager.tests.unit.manager import test_system_peer_manager
 from dcmanager.tests import utils
 from tsconfig.tsconfig import SW_VERSION
 
@@ -439,7 +442,8 @@ class TestSubcloudManager(base.DCManagerTestCase):
             "system_leader_name": "DC0",
             "group_priority": 0,
             "group_state": "enabled",
-            "max_subcloud_rehoming": 50
+            "max_subcloud_rehoming": 50,
+            "migration_status": None
         }
         values.update(kwargs)
         return db_api.subcloud_peer_group_create(ctxt, **values)
@@ -3018,6 +3022,57 @@ class TestSubcloudManager(base.DCManagerTestCase):
         expect_subclouds = actual_args[3]
         self.assertEqual(1, len(expect_subclouds))
         self.assertEqual("sub_migrateable", expect_subclouds[0].name)
+
+    @mock.patch.object(subcloud_manager.SubcloudManager,
+                       '_unmanage_system_peer_subcloud')
+    def test_migrate_manage_subcloud_called_unmanage_peer_subcloud(
+        self, mock_unmanage_system_peer_subcloud):
+        sm = subcloud_manager.SubcloudManager()
+        system_peer_test = test_system_peer_manager.TestSystemPeerManager
+        system_peer = system_peer_test.create_system_peer_static(self.ctx)
+        subcloud = self.create_subcloud_static(self.ctx)
+        sm._migrate_manage_subcloud(self.ctx, mock.ANY, [system_peer],
+                                    subcloud)
+        mock_unmanage_system_peer_subcloud.assert_called()
+
+    @mock.patch.object(subcloud_manager.SubcloudManager,
+                       '_unmanage_system_peer_subcloud')
+    def test_migrate_manage_subcloud_not_called_unmanage_peer_subcloud(
+        self, mock_unmanage_system_peer_subcloud):
+        sm = subcloud_manager.SubcloudManager()
+        subcloud = self.create_subcloud_static(self.ctx)
+        # Give empty system peers
+        system_peers = []
+        sm._migrate_manage_subcloud(self.ctx,
+                                    mock.ANY, system_peers, subcloud)
+        mock_unmanage_system_peer_subcloud.assert_not_called()
+
+    @mock.patch.object(system_peer_manager.SystemPeerManager,
+                       'get_peer_dc_client')
+    def test_unmanage_system_peer_subcloud_ret_false(
+        self, mock_get_peer_dc_client):
+        sm = subcloud_manager.SubcloudManager()
+        system_peer_test = test_system_peer_manager.TestSystemPeerManager
+        system_peer = system_peer_test.create_system_peer_static(self.ctx)
+        subcloud = self.create_subcloud_static(self.ctx)
+        mock_get_peer_dc_client.return_value = None
+        ret = sm._unmanage_system_peer_subcloud([system_peer], subcloud)
+        self.assertEqual(ret, False)
+
+    @mock.patch.object(system_peer_manager.SystemPeerManager,
+                       'get_peer_dc_client')
+    @mock.patch.object(dcmanager_v1.DcmanagerClient, 'update_subcloud')
+    def test_unmanage_system_peer_subcloud_ret_true(self,
+                                                    mock_get_peer_dc_client,
+                                                    mock_update_subcloud):
+        sm = subcloud_manager.SubcloudManager()
+        system_peer_test = test_system_peer_manager.TestSystemPeerManager
+        system_peer = system_peer_test.create_system_peer_static(self.ctx)
+        subcloud = self.create_subcloud_static(self.ctx)
+        mock_get_peer_dc_client.return_value = mock.MagicMock()
+        mock_update_subcloud.side_effect = exceptions.SubcloudNotUnmanaged()
+        ret = sm._unmanage_system_peer_subcloud([system_peer], subcloud)
+        self.assertEqual(ret, True)
 
     @mock.patch.object(subcloud_manager.SubcloudManager, 'subcloud_deploy_create')
     @mock.patch.object(subcloud_manager.SubcloudManager, 'rehome_subcloud')

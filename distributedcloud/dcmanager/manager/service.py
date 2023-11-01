@@ -32,6 +32,7 @@ from dcmanager.common import exceptions
 from dcmanager.common.i18n import _
 from dcmanager.common import messaging as rpc_messaging
 from dcmanager.common import utils
+from dcmanager.manager.peer_monitor_manager import PeerMonitorManager
 from dcmanager.manager.subcloud_manager import SubcloudManager
 from dcmanager.manager.system_peer_manager import SystemPeerManager
 
@@ -85,11 +86,15 @@ class DCManagerService(service.Service):
         self.target = None
         self._rpc_server = None
         self.subcloud_manager = None
+        self.peer_monitor_manager = None
+        self.system_peer_manager = None
         self.audit_rpc_client = None
+        self.context = context.get_admin_context()
 
     def init_managers(self):
         self.subcloud_manager = SubcloudManager()
-        self.syspeer_manager = SystemPeerManager()
+        self.peer_monitor_manager = PeerMonitorManager(self.subcloud_manager)
+        self.system_peer_manager = SystemPeerManager(self.peer_monitor_manager)
 
     def start(self):
         utils.set_open_file_limit(cfg.CONF.worker_rlimit_nofile)
@@ -110,6 +115,10 @@ class DCManagerService(service.Service):
         os.makedirs(dccommon_consts.ANSIBLE_OVERRIDES_PATH, 0o600, exist_ok=True)
 
         self.subcloud_manager.handle_subcloud_operations_in_progress()
+
+        # Send notify to peer monitor.
+        self.peer_monitor_manager.peer_monitor_notify(self.context)
+
         super(DCManagerService, self).start()
 
     @run_in_thread
@@ -303,18 +312,30 @@ class DCManagerService(service.Service):
         return self.subcloud_manager.batch_migrate_subcloud(context, payload)
 
     @request_context
+    def peer_monitor_notify(self, context):
+        LOG.info("Handling peer monitor notify")
+        return self.peer_monitor_manager.peer_monitor_notify(context)
+
+    @request_context
+    def peer_group_audit_notify(self, context, peer_group_name, payload):
+        LOG.info("Handling peer group audit notify of peer group "
+                 f"{peer_group_name}")
+        return self.peer_monitor_manager.peer_group_audit_notify(
+            context, peer_group_name, payload)
+
+    @request_context
     def sync_subcloud_peer_group(self, context, association_id,
                                  sync_subclouds=True, priority=None):
         LOG.info("Handling sync_subcloud_peer_group request for: %s",
                  association_id)
-        return self.syspeer_manager.sync_subcloud_peer_group(
+        return self.system_peer_manager.sync_subcloud_peer_group(
             context, association_id, sync_subclouds, priority)
 
     @request_context
     def delete_peer_group_association(self, context, association_id):
         LOG.info("Handling delete_peer_group_association request for: %s",
                  association_id)
-        return self.syspeer_manager.delete_peer_group_association(
+        return self.system_peer_manager.delete_peer_group_association(
             context, association_id)
 
     def _stop_rpc_server(self):

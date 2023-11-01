@@ -2653,6 +2653,7 @@ internalServerError (500), serviceUnavailable (503)
   - max_subcloud_rehoming: subcloud_peer_group_max_subcloud_rehoming
   - system_leader_id: subcloud_peer_group_system_leader_id
   - system_leader_name: subcloud_peer_group_system_leader_name
+  - migration_status: subcloud_peer_group_migration_status
   - created_at: created_at
   - updated_at: updated_at
 
@@ -2707,6 +2708,7 @@ Request Example
   - max_subcloud_rehoming: subcloud_peer_group_max_subcloud_rehoming
   - system_leader_id: subcloud_peer_group_system_leader_id
   - system_leader_name: subcloud_peer_group_system_leader_name
+  - migration_status: subcloud_peer_group_migration_status
   - created_at: created_at
   - updated_at: updated_at
 
@@ -2752,6 +2754,7 @@ This operation does not accept a request body.
   - max_subcloud_rehoming: subcloud_peer_group_max_subcloud_rehoming
   - system_leader_id: subcloud_peer_group_system_leader_id
   - system_leader_name: subcloud_peer_group_system_leader_name
+  - migration_status: subcloud_peer_group_migration_status
   - created_at: created_at
   - updated_at: updated_at
 
@@ -2841,6 +2844,8 @@ The attributes of a subcloud peer group which are modifiable:
 
 -  system_leader_name
 
+-  migration_status
+
 
 **Normal response codes**
 
@@ -2863,6 +2868,7 @@ serviceUnavailable (503)
   - max_subcloud_rehoming: subcloud_peer_group_max_subcloud_rehoming
   - system_leader_id: subcloud_peer_group_system_leader_id
   - system_leader_name: subcloud_peer_group_system_leader_name
+  - migration_status: subcloud_peer_group_migration_status
 
 Request Example
 ----------------
@@ -2880,6 +2886,7 @@ Request Example
   - max_subcloud_rehoming: subcloud_peer_group_max_subcloud_rehoming
   - system_leader_id: subcloud_peer_group_system_leader_id
   - system_leader_name: subcloud_peer_group_system_leader_name
+  - migration_status: subcloud_peer_group_migration_status
   - created_at: created_at
   - updated_at: updated_at
 
@@ -2942,6 +2949,55 @@ internalServerError (500), serviceUnavailable (503)
   - subcloud-peer-group: subcloud_peer_group_uri
 
 This operation does not accept a request body.
+
+
+************************************
+Audit a specific subcloud peer group
+************************************
+
+.. rest_method:: PATCH /v1.0/subcloud-peer-groups/​{subcloud-peer-group}​/audit
+
+**Normal response codes**
+
+200
+
+**Error response codes**
+
+badRequest (400), unauthorized (401), forbidden (403), badMethod (405),
+HTTPUnprocessableEntity (422), internalServerError (500),
+serviceUnavailable (503)
+
+**Request parameters**
+
+.. rest_parameters:: parameters.yaml
+
+  - peer_uuid: peer_uuid
+  - id: subcloud_peer_group_id
+  - peer_group_name: subcloud_peer_group_name
+  - group_priority: subcloud_peer_group_priority
+  - group_state: subcloud_peer_group_administrative_state
+  - max_subcloud_rehoming: subcloud_peer_group_max_subcloud_rehoming
+  - system_leader_id: subcloud_peer_group_system_leader_id
+  - system_leader_name: subcloud_peer_group_system_leader_name
+  - migration_status: subcloud_peer_group_migration_status
+
+Request Example
+----------------
+.. literalinclude:: samples/subcloud-peer-groups/subcloud-peer-group-audit-request.json
+         :language: json
+
+**Response parameters**
+
+.. rest_parameters:: parameters.yaml
+
+  - message: subcloud_peer_group_audit_error_message
+
+Response Example
+----------------
+
+.. literalinclude:: samples/subcloud-peer-groups/subcloud-peer-group-audit-response.json
+         :language: json
+
 
 ----------------------
 Peer Group Association

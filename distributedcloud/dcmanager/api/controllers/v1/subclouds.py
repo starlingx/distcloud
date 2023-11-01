@@ -423,12 +423,13 @@ class SubcloudsController(object):
                     pecan.abort(404, _('Subcloud not found'))
             else:
                 try:
-                    # When the request comes from the cert-monitor, it is
-                    # based on the region name (which is UUID format).
+                    # When the request comes from the cert-monitor or another
+                    # DC, it is based on the region name (which is UUID format).
                     # Whereas, if the request comes from a client other
                     # than cert-monitor, it will do the lookup based on
                     # the subcloud name.
-                    if utils.is_req_from_cert_mon_agent(request):
+                    if (utils.is_req_from_cert_mon_agent(request) or
+                            utils.is_req_from_another_dc(request)):
                         subcloud = db_api.\
                             subcloud_get_by_region_name(context, subcloud_ref)
                     else:
@@ -573,12 +574,13 @@ class SubcloudsController(object):
                 pecan.abort(404, _('Subcloud not found'))
         else:
             try:
-                # When the request comes from the cert-monitor, it is
-                # based on the region name (which is UUID format).
+                # When the request comes from the cert-monitor or another DC,
+                # it is based on the region name (which is UUID format).
                 # Whereas, if the request comes from a client other
                 # than cert-monitor, it will do the lookup based on
                 # the subcloud name.
-                if utils.is_req_from_cert_mon_agent(request):
+                if (utils.is_req_from_cert_mon_agent(request) or
+                        utils.is_req_from_another_dc(request)):
                     subcloud = db_api.\
                         subcloud_get_by_region_name(context, subcloud_ref)
                 else:

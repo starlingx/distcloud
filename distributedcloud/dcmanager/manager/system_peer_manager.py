@@ -35,9 +35,9 @@ VERIFY_SUBCLOUD_SYNC_IGNORE = 'ignore'
 class SystemPeerManager(manager.Manager):
     """Manages tasks related to system peers."""
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, peer_monitor_manager, *args, **kwargs):
         LOG.debug(_('SystemPeerManager initialization...'))
-
+        self.peer_monitor_manager = peer_monitor_manager
         super(SystemPeerManager, self).__init__(
             service_name="system_peer_manager", *args, **kwargs)
 
@@ -445,6 +445,8 @@ class SystemPeerManager(manager.Manager):
             association = db_api.peer_group_association_update(
                 context, association_id, **association_update)
 
+            self.peer_monitor_manager.peer_monitor_notify(context)
+
             return db_api.peer_group_association_db_model_to_dict(association)
 
         except Exception as exception:
@@ -501,6 +503,7 @@ class SystemPeerManager(manager.Manager):
                           "on peer site.")
 
             db_api.peer_group_association_destroy(context, association_id)
+            self.peer_monitor_manager.peer_monitor_notify(context)
 
         except Exception as exception:
             LOG.exception("Failed to delete peer_group_association "

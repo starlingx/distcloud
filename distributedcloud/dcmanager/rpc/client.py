@@ -274,6 +274,14 @@ class ManagerClient(RPCClient):
         return self.call(ctxt, self.make_msg('delete_peer_group_association',
                                              association_id=association_id))
 
+    def peer_monitor_notify(self, ctxt):
+        return self.call(ctxt, self.make_msg('peer_monitor_notify'))
+
+    def peer_group_audit_notify(self, ctxt, peer_group_name, payload):
+        return self.call(ctxt, self.make_msg('peer_group_audit_notify',
+                                             peer_group_name=peer_group_name,
+                                             payload=payload))
+
 
 class DCManagerNotifications(RPCClient):
     """DC Manager Notification interface to broadcast subcloud state changed

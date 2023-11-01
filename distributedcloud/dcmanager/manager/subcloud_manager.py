@@ -43,6 +43,7 @@ from dccommon import consts as dccommon_consts
 from dccommon.drivers.openstack.sdk_platform import OpenStackDriver
 from dccommon.drivers.openstack.sysinv_v1 import SysinvClient
 from dccommon.exceptions import PlaybookExecutionFailed
+from dccommon.exceptions import SubcloudNotFound
 from dccommon import kubeoperator
 from dccommon.subcloud_install import SubcloudInstall
 from dccommon.subcloud_install import SubcloudShutdown
@@ -61,6 +62,8 @@ from dcmanager.common import prestage
 from dcmanager.common import utils
 from dcmanager.db import api as db_api
 from dcmanager.db.sqlalchemy.models import Subcloud
+from dcmanager.manager.peer_group_audit_manager import PeerGroupAuditManager
+from dcmanager.manager.system_peer_manager import SystemPeerManager
 from dcmanager.rpc import client as dcmanager_rpc_client
 from dcorch.rpc import client as dcorch_rpc_client
 
@@ -388,10 +391,20 @@ class SubcloudManager(manager.Manager):
             "-e", extra_vars]
         return rehome_command
 
-    def _migrate_manage_subcloud(self, context, payload, subcloud):
+    def _migrate_manage_subcloud(
+            self, context, payload, alive_system_peers, subcloud):
+        success = True
+        # Try to unmanage the subcloud on peer system
+        if alive_system_peers:
+            if self._unmanage_system_peer_subcloud(alive_system_peers,
+                                                   subcloud):
+                success = False
+                LOG.warning("Unmanged subcloud: %s error on peer system, "
+                            "exit migration" % subcloud.name)
+                return subcloud, success
+
         # migrate and set managed for
         # online and complete subclouds.
-        success = True
         self.migrate_subcloud(context, subcloud.id, payload)
         subcloud = db_api.subcloud_get(context, subcloud.id)
 
@@ -430,6 +443,100 @@ class SubcloudManager(manager.Manager):
 
         return subcloud, success
 
+    def _get_peer_system_list(self, peer_group):
+        system_peers = list()
+        # Get associations by peer group
+        associations = db_api.peer_group_association_get_by_peer_group_id(
+            self.context, peer_group.id)
+        if not associations:
+            LOG.info("No association found for peer group %s" %
+                     peer_group.peer_group_name)
+            return system_peers
+        for association in associations:
+            system_peer = db_api.system_peer_get(
+                self.context, association.system_peer_id)
+            # Get 'alive' system peer
+            if system_peer.heartbeat_status != \
+                consts.SYSTEM_PEER_HEARTBEAT_STATUS_ALIVE:
+                LOG.warning("Peer system %s offline, skip checking" %
+                            system_peer.peer_name)
+                continue
+            else:
+                system_peers.append(system_peer)
+
+        return system_peers
+
+    def _unmanage_system_peer_subcloud(self, system_peers, subcloud):
+        unmanaged_error = False
+        for system_peer in system_peers:
+            LOG.debug("Get subcloud: %s from system_peer: %s" %
+                      (subcloud.name, system_peer.peer_name))
+            for attempt in range(3):
+                try:
+                    dc_client = \
+                        SystemPeerManager.get_peer_dc_client(system_peer)
+                    # Get remote subcloud by region_name from
+                    # system peer
+                    remote_subcloud = dc_client.get_subcloud(
+                        subcloud.region_name, is_region_name=True)
+                    if remote_subcloud.get('management-state') == \
+                        dccommon_consts.MANAGEMENT_UNMANAGED:
+                        LOG.info("Remote subcloud %s from system peer %s is "
+                                 "already unmanaged, skipping unmanage attempt"
+                                 % (system_peer.peer_name,
+                                    remote_subcloud.get('name')))
+                        break
+
+                    payload = {"management-state": "unmanaged"}
+                    try:
+                        remote_subcloud = dc_client.update_subcloud(
+                            subcloud.region_name,
+                            files=None,
+                            data=payload,
+                            is_region_name=True)
+                        LOG.info("Successfully updated subcloud: %s on "
+                                 "peer system %s to unmanaged state"
+                                 % (remote_subcloud.get('name'),
+                                    system_peer.peer_name))
+                        return unmanaged_error
+                    except Exception as e:
+                        raise exceptions.SubcloudNotUnmanaged() from e
+
+                except SubcloudNotFound:
+                    LOG.info("No identical subcloud: %s found on "
+                             "peer system: %s" %
+                             (subcloud.region_name, system_peer.peer_name))
+                    break
+                except exceptions.SubcloudNotUnmanaged:
+                    LOG.exception("Unmanaged error on subcloud: %s "
+                                  "on system %s" %
+                                  (subcloud.region_name,
+                                   system_peer.peer_name))
+                    unmanaged_error = True
+                except Exception:
+                    LOG.exception("Failed to set unmanged for "
+                                  "subcloud: %s on system %s attempt: %d"
+                                  % (subcloud.region_name,
+                                     system_peer.peer_name, attempt))
+                    time.sleep(1)
+        return unmanaged_error
+
+    def _clear_alarm_for_peer_group(self, peer_group):
+        # Get alarms related to peer group
+        faults = self.fm_api.get_faults_by_id(
+            fm_const.FM_ALARM_ID_DC_SUBCLOUD_PEER_GROUP_NOT_MANAGED)
+        if not faults:
+            return
+        for fault in faults:
+            entity_instance_id_str = "peer_group=%s,peer=" % \
+                (peer_group.peer_group_name)
+            if entity_instance_id_str in fault.entity_instance_id:
+                LOG.info("Clear alarm for peer group %s" %
+                         peer_group.peer_group_name)
+                self.fm_api.clear_fault(
+                    fm_const.FM_ALARM_ID_DC_SUBCLOUD_PEER_GROUP_NOT_MANAGED,
+                    fault.entity_instance_id)
+
     def migrate_subcloud(self, context, subcloud_ref, payload):
         '''migrate_subcloud function is for day-2's rehome purpose.
 
@@ -463,6 +570,10 @@ class SubcloudManager(manager.Manager):
             # Update sysadmin_password
             sysadmin_password = base64.b64decode(payload['sysadmin_password']).decode('utf-8')
             saved_payload['sysadmin_password'] = sysadmin_password
+            # Decode admin_password
+            if 'admin_password' in saved_payload:
+                saved_payload['admin_password'] = base64.b64decode(
+                    saved_payload['admin_password']).decode('utf-8')
 
             # Re-generate ansible config based on latest rehome_data
             subcloud = self.subcloud_migrate_generate_ansible_config(
@@ -547,6 +658,15 @@ class SubcloudManager(manager.Manager):
                      % str(peer_group.peer_group_name))
             return
 
+        # Set migration_status to migrating
+        db_api.subcloud_peer_group_update(
+            self.context,
+            peer_group.id,
+            migration_status=consts.PEER_GROUP_MIGRATING)
+
+        # Try to get peer system by peer group
+        system_peers = self._get_peer_system_list(peer_group)
+
         # Use thread pool to limit number of operations in parallel
         migrate_pool = greenpool.GreenPool(
             size=peer_group.max_subcloud_rehoming)
@@ -554,12 +674,35 @@ class SubcloudManager(manager.Manager):
         tmp_payload = {'sysadmin_password': sysadmin_password}
         migrate_function = functools.partial(self._migrate_manage_subcloud,
                                              context,
-                                             tmp_payload)
+                                             tmp_payload,
+                                             system_peers)
 
         self._run_parallel_group_operation('migrate',
                                            migrate_function,
                                            migrate_pool,
                                            subclouds_ready_to_migrate)
+
+        # Set migration_status to complete,
+        # Update system leader id and name
+        local_system = utils.get_local_system()
+        peer_group = db_api.subcloud_peer_group_update(
+            self.context,
+            peer_group.id,
+            system_leader_id=local_system.uuid,
+            system_leader_name=local_system.name,
+            migration_status=consts.PEER_GROUP_MIGRATION_COMPLETE)
+
+        # Try to send audit request to system peer
+        resp = PeerGroupAuditManager.send_audit_peer_group(
+            system_peers, peer_group)
+        if resp:
+            LOG.warning("Audit peer group %s response: %s" %
+                        (peer_group.peer_group_name, resp))
+
+        # Try to clear existing alarm if we rehomed a '0' priority peer group
+        if peer_group.group_priority == 0:
+            self._clear_alarm_for_peer_group(peer_group)
+
         LOG.info("Batch migrate operation finished")
 
     def rehome_subcloud(self, context, subcloud):
@@ -1043,6 +1186,13 @@ class SubcloudManager(manager.Manager):
                     str(keyring.get_password(
                         user, dccommon_consts.SERVICES_USER_NAME))
 
+            # TODO(Yuxing) remove replicating the smapi user when end the support
+            # of rehoming a subcloud with a software version below 22.12
+            if subcloud.software_version <= LAST_SW_VERSION_IN_CENTOS:
+                payload['users']['smapi'] = \
+                    str(keyring.get_password(
+                        'smapi', dccommon_consts.SERVICES_USER_NAME))
+
             if 'region_name' not in payload:
                 payload['region_name'] = subcloud.region_name
 
@@ -1238,6 +1388,12 @@ class SubcloudManager(manager.Manager):
                     del original_payload['ansible_ssh_pass']
                 if 'sysadmin_password' in original_payload:
                     del original_payload['sysadmin_password']
+                if 'ansible_become_pass' in original_payload:
+                    del original_payload['ansible_become_pass']
+                if 'admin_password' in original_payload:
+                    # Encode admin_password
+                    original_payload['admin_password'] = base64.b64encode(
+                        original_payload['admin_password'].encode("utf-8")).decode('utf-8')
                 bootstrap_info = utils.create_subcloud_rehome_data_template()
                 bootstrap_info['saved_payload'] = original_payload
                 rehome_data = json.dumps(bootstrap_info)
@@ -2548,6 +2704,18 @@ class SubcloudManager(manager.Manager):
                 if 'bootstrap-address' in rehome_data_dict['saved_payload']:
                     _bootstrap_address = rehome_data_dict['saved_payload']['bootstrap-address']
             bootstrap_values_dict = yaml.load(bootstrap_values, Loader=yaml.SafeLoader)
+
+            # remove sysadmin_password,ansible_ssh_pass,ansible_become_pass
+            # encode admin_password
+            if 'sysadmin_password' in bootstrap_values_dict:
+                del bootstrap_values_dict['sysadmin_password']
+            if 'ansible_ssh_pass' in bootstrap_values_dict:
+                del bootstrap_values_dict['ansible_ssh_pass']
+            if 'ansible_become_pass' in bootstrap_values_dict:
+                del bootstrap_values_dict['ansible_become_pass']
+            if 'admin_password' in bootstrap_values_dict:
+                bootstrap_values_dict['admin_password'] = base64.b64encode(
+                    bootstrap_values_dict['admin_password'].encode("utf-8")).decode('utf-8')
             rehome_data_dict['saved_payload'] = bootstrap_values_dict
             # put bootstrap_address back into rehome_data_dict
             if _bootstrap_address:

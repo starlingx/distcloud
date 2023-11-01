@@ -29,6 +29,7 @@ def upgrade(migrate_engine):
         sqlalchemy.Column('system_leader_id', sqlalchemy.String(255)),
         sqlalchemy.Column('system_leader_name', sqlalchemy.String(255)),
         sqlalchemy.Column('max_subcloud_rehoming', sqlalchemy.Integer),
+        sqlalchemy.Column('migration_status', sqlalchemy.String(255)),
         sqlalchemy.Column('reserved_1', sqlalchemy.Text),
         sqlalchemy.Column('reserved_2', sqlalchemy.Text),
         sqlalchemy.Column('created_at', sqlalchemy.DateTime),

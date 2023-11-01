@@ -75,6 +75,11 @@ _subcloud_peer_groups_rules = [
             {
                 'method': 'PATCH',
                 'path': '/v1.0/subcloud-peer-groups/{subcloud_peer_group}/migrate'
+            },
+            # Trigger a peer group audit
+            {
+                'method': 'PATCH',
+                'path': '/v1.0/subcloud-peer-groups/{subcloud_peer_group}/audit'
             }
         ]
     )

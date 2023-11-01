@@ -151,6 +151,10 @@ SSL_CERT_CA_DIR = "/etc/pki/ca-trust/source/anchors/"
 RVMC_NAME_PREFIX = 'rvmc'
 RVMC_CONFIG_FILE_NAME = 'rvmc-config.yaml'
 
+# Required for GEO-redundancy
+# User-Agent check for subcloud by region_name request.
+DCMANAGER_V1_HTTP_AGENT = 'dcmanager/1.0'
+
 # Subcloud installation values
 BMC_INSTALL_VALUES = [
     'bmc_username',

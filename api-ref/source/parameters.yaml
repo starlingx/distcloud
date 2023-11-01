@@ -727,6 +727,13 @@ subcloud_peer_group_administrative_state:
   in: body
   required: false
   type: string
+subcloud_peer_group_audit_error_message:
+  description: |
+    The error message from a peer DC's peer group
+    audit result.
+  in: body
+  required: true
+  type: string
 subcloud_peer_group_id:
   description: |
     The ID of the subcloud peer group associated with this object.
@@ -739,6 +746,12 @@ subcloud_peer_group_max_subcloud_rehoming:
   in: body
   required: false
   type: integer
+subcloud_peer_group_migration_status:
+  description: |
+    The migration status of the subcloud peer group.
+  in: body
+  required: false
+  type: string
 subcloud_peer_group_name:
   description: |
     The NAME of the subcloud peer group.

@@ -1414,3 +1414,26 @@ def yaml_safe_load(contents, content_type):
         pecan.abort(400, _(msg))
 
     return data
+
+
+# Feature: Subcloud Name Reconfiguration
+# This method is useful to determine the origin of the request
+# towards the api.
+def is_req_from_another_dc(request):
+    ua = request.headers.get("User-Agent")
+    if ua == consts.DCMANAGER_V1_HTTP_AGENT:
+        return True
+    else:
+        return False
+
+
+def get_local_system():
+    m_ks_client = OpenStackDriver(
+        region_name=dccommon_consts.DEFAULT_REGION_NAME,
+        region_clients=None).keystone_client
+    endpoint = m_ks_client.endpoint_cache.get_endpoint('sysinv')
+    sysinv_client = SysinvClient(dccommon_consts.DEFAULT_REGION_NAME,
+                                 m_ks_client.session,
+                                 endpoint=endpoint)
+    system = sysinv_client.get_system()
+    return system

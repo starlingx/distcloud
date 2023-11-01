@@ -1170,7 +1170,8 @@ def subcloud_peer_group_create(context,
                                group_state,
                                max_subcloud_rehoming,
                                system_leader_id,
-                               system_leader_name):
+                               system_leader_name,
+                               migration_status):
     with write_session() as session:
         subcloud_peer_group_ref = models.SubcloudPeerGroup()
         subcloud_peer_group_ref.peer_group_name = peer_group_name
@@ -1179,6 +1180,7 @@ def subcloud_peer_group_create(context,
         subcloud_peer_group_ref.max_subcloud_rehoming = max_subcloud_rehoming
         subcloud_peer_group_ref.system_leader_id = system_leader_id
         subcloud_peer_group_ref.system_leader_name = system_leader_name
+        subcloud_peer_group_ref.migration_status = migration_status
         session.add(subcloud_peer_group_ref)
         return subcloud_peer_group_ref
 
@@ -1198,7 +1200,8 @@ def subcloud_peer_group_update(context,
                                group_state=None,
                                max_subcloud_rehoming=None,
                                system_leader_id=None,
-                               system_leader_name=None):
+                               system_leader_name=None,
+                               migration_status=None):
     with write_session() as session:
         subcloud_peer_group_ref = subcloud_peer_group_get(context, group_id)
         if peer_group_name is not None:
@@ -1213,6 +1216,11 @@ def subcloud_peer_group_update(context,
             subcloud_peer_group_ref.system_leader_id = system_leader_id
         if system_leader_name is not None:
             subcloud_peer_group_ref.system_leader_name = system_leader_name
+        if migration_status is not None:
+            if str(migration_status).lower() == 'none':
+                subcloud_peer_group_ref.migration_status = None
+            else:
+                subcloud_peer_group_ref.migration_status = migration_status
         subcloud_peer_group_ref.save(session)
         return subcloud_peer_group_ref
 ##########################

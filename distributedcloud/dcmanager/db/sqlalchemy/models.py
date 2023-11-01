@@ -144,6 +144,7 @@ class SubcloudPeerGroup(BASE, DCManagerBase):
     max_subcloud_rehoming = Column(Integer)
     system_leader_id = Column(String(255))
     system_leader_name = Column(String(255))
+    migration_status = Column(String(255))
 
 
 class PeerGroupAssociation(BASE, DCManagerBase):

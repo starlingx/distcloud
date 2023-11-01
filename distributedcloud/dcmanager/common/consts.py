@@ -443,6 +443,10 @@ OS_REGION_NAME = "OS_REGION_NAME"
 STATES_FOR_SUBCLOUD_RENAME = [DEPLOY_STATE_DONE,
                               PRESTAGE_STATE_COMPLETE]
 
+# Required for GEO-redundancy
+# User-Agent check for subcloud by region_name request.
+DCMANAGER_V1_HTTP_AGENT = 'dcmanager/1.0'
+
 # batch rehome manage state wait timeout
 BATCH_REHOME_MGMT_STATES_TIMEOUT = 900
 
@@ -450,8 +454,16 @@ BATCH_REHOME_MGMT_STATES_TIMEOUT = 900
 SYSTEM_PEER_HEARTBEAT_STATUS_ALIVE = 'alive'
 SYSTEM_PEER_HEARTBEAT_STATUS_FAILURE = 'failure'
 
+# Peer group migration status
+PEER_GROUP_MIGRATING = 'migrating'
+PEER_GROUP_MIGRATION_COMPLETE = 'complete'
+PEER_GROUP_MIGRATION_NONE = 'none'
+
 # Peer group association sync status
 ASSOCIATION_SYNC_STATUS_SYNCING = 'syncing'
 ASSOCIATION_SYNC_STATUS_SYNCED = 'synced'
 ASSOCIATION_SYNC_STATUS_FAILED = 'failed'
 ASSOCIATION_SYNC_STATUS_DISABLED = 'disabled'
+
+# Peer monitor heartbeat policy
+HEARTBEAT_FAILURE_POLICY_ALARM = 'alarm'

@@ -1,10 +1,9 @@
 {
-  "id": 1,
   "peer_group_name": "dc1-pg",
   "group_priority": 0,
   "group_state": "enabled",
-  "max_subcloud_rehoming": 10,
   "system_leader_id": "ac62f555-9386-42f1-b3a1-51ecb709409d",
   "system_leader_name": "dc1-name",
-  "migration_status": null
+  "migration_status": null,
+  "peer_uuid": "ac62f555-9386-42f1-b3a1-51ecb709409d"
 }

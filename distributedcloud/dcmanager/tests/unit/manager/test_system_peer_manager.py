@@ -159,7 +159,8 @@ class TestSystemPeerManager(base.DCManagerTestCase):
             "group_priority": FAKE_SITE0_PEER_GROUP_PRIORITY,
             "group_state": FAKE_SITE0_PEER_GROUP_STATE,
             "max_subcloud_rehoming":
-            FAKE_SITE0_PEER_GROUP_MAX_SUBCLOUDS_REHOMING
+            FAKE_SITE0_PEER_GROUP_MAX_SUBCLOUDS_REHOMING,
+            "migration_status": None
         }
         values.update(kwargs)
         return db_api.subcloud_peer_group_create(ctxt, **values)
@@ -177,7 +178,7 @@ class TestSystemPeerManager(base.DCManagerTestCase):
         return db_api.peer_group_association_create(ctxt, **values)
 
     def test_init(self):
-        spm = system_peer_manager.SystemPeerManager()
+        spm = system_peer_manager.SystemPeerManager(mock.MagicMock())
         self.assertIsNotNone(spm)
         self.assertEqual('system_peer_manager', spm.service_name)
         self.assertEqual('localhost', spm.host)
@@ -235,7 +236,7 @@ class TestSystemPeerManager(base.DCManagerTestCase):
         mock_dc_client().update_subcloud.side_effect = [
             peer_subcloud1, peer_subcloud1, peer_subcloud2]
 
-        spm = system_peer_manager.SystemPeerManager()
+        spm = system_peer_manager.SystemPeerManager(mock.MagicMock())
         spm._sync_subclouds(self.ctx, peer, peer_group.id,
                             FAKE_SITE1_PEER_GROUP_ID)
 
@@ -281,7 +282,7 @@ class TestSystemPeerManager(base.DCManagerTestCase):
             system_peer_id=peer.id,
             peer_group_id=peer_group.id)
 
-        spm = system_peer_manager.SystemPeerManager()
+        spm = system_peer_manager.SystemPeerManager(mock.MagicMock())
         spm.sync_subcloud_peer_group(self.ctx, association.id, False)
 
         mock_dc_client().get_subcloud_peer_group.assert_called_once_with(
@@ -319,7 +320,7 @@ class TestSystemPeerManager(base.DCManagerTestCase):
         mock_dc_client().get_subcloud_peer_group.side_effect = \
             dccommon_exceptions.SubcloudPeerGroupNotFound
 
-        spm = system_peer_manager.SystemPeerManager()
+        spm = system_peer_manager.SystemPeerManager(mock.MagicMock())
         spm.sync_subcloud_peer_group(self.ctx, association.id, False)
 
         mock_dc_client().get_subcloud_peer_group.assert_called_once_with(
@@ -375,7 +376,7 @@ class TestSystemPeerManager(base.DCManagerTestCase):
             'group_priority': 1
         }
 
-        spm = system_peer_manager.SystemPeerManager()
+        spm = system_peer_manager.SystemPeerManager(mock.MagicMock())
         spm.delete_peer_group_association(self.ctx, association.id)
 
         mock_dc_client().delete_subcloud.assert_has_calls([

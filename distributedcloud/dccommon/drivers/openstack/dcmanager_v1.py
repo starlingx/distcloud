@@ -37,11 +37,11 @@ class DcmanagerClient(base.DriverBase):
         """Get subcloud."""
         if subcloud_ref is None:
             raise ValueError("subcloud_ref is required.")
-        url = f"{self.endpoint}/subclouds/{subcloud_ref}"
+        url = f"{self.endpoint}/subclouds/{subcloud_ref}/detail"
 
         headers = {"X-Auth-Token": self.token}
         if is_region_name:
-            headers["User-Agent"] = "dcmanager/1.0"
+            headers["User-Agent"] = consts.DCMANAGER_V1_HTTP_AGENT
         response = requests.get(url, headers=headers, timeout=self.timeout)
 
         if response.status_code == 200:
@@ -221,7 +221,31 @@ class DcmanagerClient(base.DriverBase):
             LOG.error(message)
             raise Exception(message)
 
-    def update_subcloud(self, subcloud_ref, files, data):
+    def audit_subcloud_peer_group(self, peer_group_ref, **kwargs):
+        """Audit the subcloud peer group."""
+        if peer_group_ref is None:
+            raise ValueError("peer_group_ref is required.")
+        url = f"{self.endpoint}/subcloud-peer-groups/{peer_group_ref}/audit"
+
+        headers = {"X-Auth-Token": self.token,
+                   "Content-Type": "application/json"}
+        response = requests.patch(url, json=kwargs, headers=headers,
+                                  timeout=self.timeout)
+
+        if response.status_code == 200:
+            return response.json()
+        else:
+            if response.status_code == 404 and \
+                'Subcloud Peer Group not found' in response.text:
+                raise exceptions.SubcloudPeerGroupNotFound(
+                    peer_group_ref=peer_group_ref)
+            message = "Audit Subcloud Peer Group: peer_group_ref %s, %s, " \
+                "failed with RC: %d" % (peer_group_ref, kwargs,
+                                        response.status_code)
+            LOG.error(message)
+            raise Exception(message)
+
+    def update_subcloud(self, subcloud_ref, files, data, is_region_name=False):
         """Update the subcloud."""
         if subcloud_ref is None:
             raise ValueError("subcloud_ref is required.")
@@ -237,6 +261,10 @@ class DcmanagerClient(base.DriverBase):
         enc = MultipartEncoder(fields=fields)
         headers = {"X-Auth-Token": self.token,
                    "Content-Type": enc.content_type}
+        # Add header to flag the request is from another DC,
+        # server will treat subcloud_ref as a region_name
+        if is_region_name:
+            headers["User-Agent"] = consts.DCMANAGER_V1_HTTP_AGENT
         response = requests.patch(url, headers=headers, data=enc,
                                   timeout=self.timeout)
 

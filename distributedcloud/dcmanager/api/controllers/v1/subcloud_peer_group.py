@@ -263,6 +263,12 @@ class SubcloudPeerGroupsController(restcomm.GenericPathController):
             system_leader_id = payload.get('system-leader-id')
             system_leader_name = payload.get('system-leader-name')
             max_subcloud_rehoming = payload.get('max-subcloud-rehoming')
+            if 'migration_status' in payload:
+                migration_status = payload.get('migration_status')
+                if migration_status is None:
+                    migration_status = consts.PEER_GROUP_MIGRATION_NONE
+            else:
+                migration_status = None
 
             if not (
                 peer_group_name
@@ -271,6 +277,7 @@ class SubcloudPeerGroupsController(restcomm.GenericPathController):
                 or system_leader_id
                 or system_leader_name
                 or max_subcloud_rehoming
+                or migration_status
             ):
                 pecan.abort(httpclient.BAD_REQUEST, _('nothing to update'))
 
@@ -294,6 +301,12 @@ class SubcloudPeerGroupsController(restcomm.GenericPathController):
                not self._validate_system_leader_name(system_leader_name)):
                     pecan.abort(httpclient.BAD_REQUEST,
                                 _('Invalid system-leader-name'))
+            if (migration_status and
+                migration_status.lower() not in [consts.PEER_GROUP_MIGRATING,
+                                                 consts.PEER_GROUP_MIGRATION_COMPLETE,
+                                                 consts.PEER_GROUP_MIGRATION_NONE]):
+                pecan.abort(httpclient.BAD_REQUEST,
+                            _('Invalid migration_status'))
 
             try:
                 updated_peer_group = db_api.subcloud_peer_group_update(
@@ -304,7 +317,8 @@ class SubcloudPeerGroupsController(restcomm.GenericPathController):
                     group_state=group_state,
                     max_subcloud_rehoming=max_subcloud_rehoming,
                     system_leader_id=system_leader_id,
-                    system_leader_name=system_leader_name)
+                    system_leader_name=system_leader_name,
+                    migration_status=migration_status)
                 return db_api.subcloud_peer_group_db_model_to_dict(updated_peer_group)
             except RemoteError as e:
                 pecan.abort(httpclient.UNPROCESSABLE_ENTITY, e.value)
@@ -403,6 +417,47 @@ class SubcloudPeerGroupsController(restcomm.GenericPathController):
                     "Unable to batch migrate peer group %s" % group.peer_group_name)
                 pecan.abort(500, _('Unable to batch migrate '
                                    'peer group %s' % group.peer_group_name))
+        elif verb == 'audit':
+            payload = json.loads(request.body)
+            if 'peer_uuid' not in payload:
+                pecan.abort(400, _('Unable to audit peer group '
+                            '%s, missing peer_uuid' %
+                                   group.peer_group_name))
+            if 'peer_group_name' not in payload:
+                pecan.abort(400, _('Unable to audit peer group '
+                            '%s, missing peer_group_name' %
+                                   group.peer_group_name))
+            if 'group_priority' not in payload:
+                pecan.abort(400, _('Unable to audit peer group '
+                            '%s, missing group_priority' %
+                                   group.peer_group_name))
+            if 'group_state' not in payload:
+                pecan.abort(400, _('Unable to audit peer group '
+                            '%s, missing group_state' %
+                                   group.peer_group_name))
+            if 'system_leader_id' not in payload:
+                pecan.abort(400, _('Unable to audit peer group '
+                            '%s, missing system_leader_id' %
+                                   group.peer_group_name))
+            if 'system_leader_name' not in payload:
+                pecan.abort(400, _('Unable to audit peer group '
+                            '%s, missing system_leader_name' %
+                                   group.peer_group_name))
+            if 'migration_status' not in payload:
+                pecan.abort(400, _('Unable to audit peer group '
+                            '%s, missing migration_status' %
+                                   group.peer_group_name))
+            try:
+                msg = self.rpc_client.peer_group_audit_notify(
+                    context,
+                    group.peer_group_name,
+                    payload)
+                return {"message": msg}
+            except Exception:
+                LOG.exception('Unable to audit peer group %s' %
+                              group.peer_group_name)
+                pecan.abort(500, _('Unable to audit peer group %s' %
+                                   group.peer_group_name))
         else:
             pecan.abort(400, _('Invalid request'))
 

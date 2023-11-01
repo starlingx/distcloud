@@ -128,7 +128,8 @@ class PeerGroupAssociationAPIMixin(APIMixin):
                 SAMPLE_SUBCLOUD_PEER_GROUP_STATE),
             'max_subcloud_rehoming': kw.get(
                 'max_subcloud_rehoming',
-                SAMPLE_SUBCLOUD_PEER_GROUP_MAX_SUBCLOUDS_REHOMING)
+                SAMPLE_SUBCLOUD_PEER_GROUP_MAX_SUBCLOUDS_REHOMING),
+            'migration_status': None
         }
         return group
 

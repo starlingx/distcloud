@@ -227,6 +227,8 @@ class PeerGroupAssociationsController(restcomm.GenericPathController):
             if sync_enabled:
                 # Sync the subcloud peer group to peer site
                 self.rpc_client.sync_subcloud_peer_group(context, association.id)
+            else:
+                self.rpc_client.peer_monitor_notify(context)
             return db_api.peer_group_association_db_model_to_dict(association)
         except RemoteError as e:
             pecan.abort(httpclient.UNPROCESSABLE_ENTITY, e.value)
@@ -343,8 +345,10 @@ class PeerGroupAssociationsController(restcomm.GenericPathController):
             sync_disabled = association.sync_status == consts.\
                 ASSOCIATION_SYNC_STATUS_DISABLED
             if sync_disabled:
-                return db_api.peer_group_association_destroy(context,
-                                                             association_id)
+                result = db_api.peer_group_association_destroy(context,
+                                                               association_id)
+                self.rpc_client.peer_monitor_notify(context)
+                return result
             # Ask system-peer-manager to delete the association.
             # It will do all the real work...
             return self.rpc_client.delete_peer_group_association(
