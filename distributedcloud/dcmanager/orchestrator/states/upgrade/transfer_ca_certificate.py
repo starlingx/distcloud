@@ -53,12 +53,13 @@ class TransferCACertificateState(BaseState):
                     self.get_sysinv_client(strategy_step.subcloud.region_name)
 
                 data = {'mode': 'openldap_ca'}
-                ldap_ca_cert, ldap_ca_key = utils.get_certificate_from_secret(
-                    consts.OPENLDAP_CA_CERT_SECRET_NAME,
-                    consts.CERT_NAMESPACE_PLATFORM_CA_CERTS)
+                ldap_ca_cert, ldap_ca_key, rca_crt = \
+                    utils.get_certificate_from_secret(
+                        consts.OPENLDAP_CA_CERT_SECRET_NAME,
+                        consts.CERT_NAMESPACE_PLATFORM_CA_CERTS)
 
                 sysinv_client.update_certificate(
-                    '', ldap_ca_cert + ldap_ca_key, data)
+                    '', ldap_ca_cert + rca_crt + ldap_ca_key, data)
                 break
             except Exception as e:
                 self.warn_log(strategy_step,
