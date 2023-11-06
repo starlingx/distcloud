@@ -2508,33 +2508,7 @@ class SubcloudManager(manager.Manager):
         except Exception as e:
             LOG.exception(e)
 
-    def delete_subcloud(self, context, subcloud_id):
-        """Delete subcloud and notify orchestrators.
-
-        :param context: request context object.
-        :param subcloud_id: id of subcloud to delete
-        """
-        LOG.info("Deleting subcloud %s." % subcloud_id)
-
-        # Retrieve the subcloud details from the database
-        subcloud = db_api.subcloud_get(context, subcloud_id)
-
-        # Semantic checking
-        if subcloud.management_state != dccommon_consts.MANAGEMENT_UNMANAGED:
-            raise exceptions.SubcloudNotUnmanaged()
-
-        if subcloud.availability_status == \
-                dccommon_consts.AVAILABILITY_ONLINE:
-            raise exceptions.SubcloudNotOffline()
-
-        # Ansible inventory filename for the specified subcloud
-        ansible_subcloud_inventory_file = self._get_ansible_filename(
-            subcloud.name, INVENTORY_FILE_POSTFIX)
-
-        self._remove_subcloud_details(context,
-                                      subcloud,
-                                      ansible_subcloud_inventory_file)
-
+    def _clear_subcloud_alarms(self, subcloud: Subcloud):
         # Clear any subcloud alarms.
         # Note that endpoint out-of-sync alarms should have been cleared when
         # the subcloud was unmanaged and the endpoint sync statuses were set to
@@ -2564,6 +2538,35 @@ class SubcloudManager(manager.Manager):
                     "Problem clearing fault for subcloud %s, alarm_id=%s" %
                     (subcloud.name, alarm_id))
                 LOG.exception(e)
+
+    def delete_subcloud(self, context, subcloud_id):
+        """Delete subcloud and notify orchestrators.
+
+        :param context: request context object.
+        :param subcloud_id: id of subcloud to delete
+        """
+        LOG.info("Deleting subcloud %s." % subcloud_id)
+
+        # Retrieve the subcloud details from the database
+        subcloud = db_api.subcloud_get(context, subcloud_id)
+
+        # Semantic checking
+        if subcloud.management_state != dccommon_consts.MANAGEMENT_UNMANAGED:
+            raise exceptions.SubcloudNotUnmanaged()
+
+        if subcloud.availability_status == \
+                dccommon_consts.AVAILABILITY_ONLINE:
+            raise exceptions.SubcloudNotOffline()
+
+        # Ansible inventory filename for the specified subcloud
+        ansible_subcloud_inventory_file = self._get_ansible_filename(
+            subcloud.name, INVENTORY_FILE_POSTFIX)
+
+        self._remove_subcloud_details(context,
+                                      subcloud,
+                                      ansible_subcloud_inventory_file)
+
+        self._clear_subcloud_alarms(subcloud)
 
     def rename_subcloud(self,
                         context,
@@ -2621,73 +2624,54 @@ class SubcloudManager(manager.Manager):
 
         return subcloud_name
 
-    def update_subcloud(self,
-                        context,
-                        subcloud_id,
-                        management_state=None,
-                        description=None,
-                        location=None,
-                        group_id=None,
-                        data_install=None,
-                        force=None,
-                        deploy_status=None,
-                        peer_group_id=None,
-                        bootstrap_values=None,
-                        bootstrap_address=None):
-        """Update subcloud and notify orchestrators.
+    def _validate_management_state_update(self, new_management_state: str,
+                                          new_deploy_status: str,
+                                          subcloud: Subcloud, force: bool):
+        if new_management_state == dccommon_consts.MANAGEMENT_UNMANAGED:
+            if subcloud.management_state == dccommon_consts.MANAGEMENT_UNMANAGED:
+                msg = f"Subcloud {subcloud.name} already unmanaged"
+                LOG.warning(msg)
+                raise exceptions.BadRequest(resource="subcloud", msg=msg)
 
-        :param context: request context object
-        :param subcloud_id: id of subcloud to update
-        :param management_state: new management state
-        :param description: new description
-        :param location: new location
-        :param group_id: new subcloud group id
-        :param data_install: subcloud install values
-        :param force: force flag
-        :param deploy_status: update to expected deploy status
-        :param peer_group_id: id of peer group
-        :param bootstrap_values: bootstrap_values yaml content
-        :param bootstrap_address: oam IP for rehome
-        """
+        elif new_management_state == dccommon_consts.MANAGEMENT_MANAGED:
+            if subcloud.management_state == dccommon_consts.MANAGEMENT_MANAGED:
+                msg = f"Subcloud {subcloud.name} already managed"
+                LOG.warning(msg)
+                raise exceptions.BadRequest(resource="subcloud", msg=msg)
 
-        LOG.info("Updating subcloud %s." % subcloud_id)
+            if force:
+                # No need for further validation
+                return
 
-        # Get the subcloud details from the database
-        subcloud = db_api.subcloud_get(context, subcloud_id)
-        original_management_state = subcloud.management_state
+            deploy_status_complete = (
+                subcloud.deploy_status == consts.DEPLOY_STATE_DONE
+                or prestage.is_deploy_status_prestage(subcloud.deploy_status)
+            )
+            allowed_deploy_transition = (
+                subcloud.deploy_status == consts.DEPLOY_STATE_REHOME_PENDING
+                and new_deploy_status == consts.DEPLOY_STATE_DONE
+            )
 
-        # Semantic checking
-        if management_state:
-            if management_state == dccommon_consts.MANAGEMENT_UNMANAGED:
-                if subcloud.management_state == dccommon_consts.MANAGEMENT_UNMANAGED:
-                    LOG.warning("Subcloud %s already unmanaged" % subcloud_id)
-                    raise exceptions.BadRequest(
-                        resource='subcloud',
-                        msg='Subcloud is already unmanaged')
-            elif management_state == dccommon_consts.MANAGEMENT_MANAGED:
-                if subcloud.management_state == dccommon_consts.MANAGEMENT_MANAGED:
-                    LOG.warning("Subcloud %s already managed" % subcloud_id)
-                    raise exceptions.BadRequest(
-                        resource='subcloud',
-                        msg='Subcloud is already managed')
-                elif not force:
-                    if (subcloud.deploy_status != consts.DEPLOY_STATE_DONE and
-                            not prestage.is_deploy_status_prestage(
-                                subcloud.deploy_status)):
-                        LOG.warning("Subcloud %s can be managed only when"
-                                    "deploy_status is complete" % subcloud_id)
-                        raise exceptions.BadRequest(
-                            resource='subcloud',
-                            msg='Subcloud can be managed only if deploy status is complete')
-                    if subcloud.availability_status != \
-                            dccommon_consts.AVAILABILITY_ONLINE:
-                        LOG.warning("Subcloud %s is not online" % subcloud_id)
-                        raise exceptions.SubcloudNotOnline()
-            else:
-                LOG.error("Invalid management_state %s" % management_state)
-                raise exceptions.InternalError()
+            if not deploy_status_complete and not allowed_deploy_transition:
+                msg = (f"Unable to manage {subcloud.name}: its deploy_status "
+                       f"must be either '{consts.DEPLOY_STATE_DONE}' or "
+                       f"'{consts.DEPLOY_STATE_REHOME_PENDING}'")
+                LOG.warning(msg)
+                raise exceptions.BadRequest(resource="subcloud", msg=msg)
 
-        # update bootstrap values into rehome_data
+            if (subcloud.availability_status !=
+                    dccommon_consts.AVAILABILITY_ONLINE):
+                LOG.warning(f"Subcloud {subcloud.name} is not online")
+                raise exceptions.SubcloudNotOnline()
+
+        # The management state can be 'unmanaged', 'managed' or None (which
+        # means that it's not being changed), any other value is invalid
+        elif new_management_state is not None:
+            LOG.error(f"Invalid management_state {new_management_state}")
+            raise exceptions.InvalidInputError()
+
+    def _prepare_rehome_data(self, subcloud: Subcloud,
+                             bootstrap_values, bootstrap_address):
         rehome_data_dict = None
         # load the existing data if it exists
         if subcloud.rehome_data:
@@ -2721,44 +2705,6 @@ class SubcloudManager(manager.Manager):
             if _bootstrap_address:
                 rehome_data_dict['saved_payload']['bootstrap-address'] = _bootstrap_address
 
-        # update deploy status, ONLY apply for unmanaged subcloud
-        new_deploy_status = None
-        if deploy_status is not None:
-            if subcloud.management_state != dccommon_consts.MANAGEMENT_UNMANAGED:
-                raise exceptions.BadRequest(
-                      resource='subcloud',
-                      msg='deploy_status can only be updated on unmanaged subcloud')
-            new_deploy_status = deploy_status
-            # set all endpoint statuses to unknown
-            # no endpoint will be audited for secondary
-            # subclouds
-            self.state_rpc_client.update_subcloud_endpoint_status_sync(
-                context,
-                subcloud_name=subcloud.name,
-                endpoint_type=None,
-                sync_status=dccommon_consts.SYNC_STATUS_UNKNOWN)
-
-            # clear existing fault alarm of secondary subcloud
-            for alarm_id, entity_instance_id in (
-                    (fm_const.FM_ALARM_ID_DC_SUBCLOUD_OFFLINE,
-                        "subcloud=%s" % subcloud.name),
-                    (fm_const.FM_ALARM_ID_DC_SUBCLOUD_RESOURCE_OUT_OF_SYNC,
-                        "subcloud=%s.resource=%s" %
-                        (subcloud.name, dccommon_consts.ENDPOINT_TYPE_DC_CERT)),
-                    (fm_const.FM_ALARM_ID_DC_SUBCLOUD_BACKUP_FAILED,
-                        "subcloud=%s" % subcloud.name)):
-                try:
-                    fault = self.fm_api.get_fault(alarm_id,
-                                                  entity_instance_id)
-                    if fault:
-                        self.fm_api.clear_fault(alarm_id,
-                                                entity_instance_id)
-                except Exception as e:
-                    LOG.info(
-                        "Failed to clear fault for subcloud %s, alarm_id=%s" %
-                        (subcloud.name, alarm_id))
-                    LOG.exception(e)
-
         # update bootstrap_address
         if bootstrap_address:
             if rehome_data_dict is None:
@@ -2768,10 +2714,79 @@ class SubcloudManager(manager.Manager):
                         'need to import bootstrap_values first')
             rehome_data_dict['saved_payload']['bootstrap-address'] = bootstrap_address
 
+        rehome_data = None
         if rehome_data_dict:
             rehome_data = json.dumps(rehome_data_dict)
-        else:
-            rehome_data = None
+
+        return rehome_data
+
+    def update_subcloud(self,
+                        context,
+                        subcloud_id,
+                        management_state=None,
+                        description=None,
+                        location=None,
+                        group_id=None,
+                        data_install=None,
+                        force=None,
+                        deploy_status=None,
+                        peer_group_id=None,
+                        bootstrap_values=None,
+                        bootstrap_address=None):
+        """Update subcloud and notify orchestrators.
+
+        :param context: request context object
+        :param subcloud_id: id of subcloud to update
+        :param management_state: new management state
+        :param description: new description
+        :param location: new location
+        :param group_id: new subcloud group id
+        :param data_install: subcloud install values
+        :param force: force flag
+        :param deploy_status: update to expected deploy status
+        :param peer_group_id: id of peer group
+        :param bootstrap_values: bootstrap_values yaml content
+        :param bootstrap_address: oam IP for rehome
+        """
+
+        LOG.info("Updating subcloud %s." % subcloud_id)
+
+        # Get the subcloud details from the database
+        subcloud: Subcloud = db_api.subcloud_get(context, subcloud_id)
+        original_management_state = subcloud.management_state
+        original_deploy_status = subcloud.deploy_status
+
+        # When trying to manage a 'rehome-pending' subcloud, revert its deploy
+        # status back to 'complete' if its not specified
+        if (management_state == dccommon_consts.MANAGEMENT_MANAGED and
+            subcloud.deploy_status == consts.DEPLOY_STATE_REHOME_PENDING and
+                not deploy_status):
+            deploy_status = consts.DEPLOY_STATE_DONE
+
+        # management_state semantic checking
+        self._validate_management_state_update(management_state, deploy_status,
+                                               subcloud, force)
+
+        # Update bootstrap values into rehome_data
+        rehome_data = self._prepare_rehome_data(subcloud, bootstrap_values,
+                                                bootstrap_address)
+        if deploy_status:
+            msg = None
+            # Only update deploy_status if subcloud is or will be unmanaged
+            if dccommon_consts.MANAGEMENT_UNMANAGED not in (
+                    management_state, subcloud.management_state):
+                msg = ("Unable to update deploy_status of subcloud "
+                       f"{subcloud.name} to {deploy_status}: subcloud "
+                       "must also be unmanaged")
+            # Only allow managing if the deploy status is also set to 'complete'
+            if (management_state == dccommon_consts.MANAGEMENT_MANAGED and
+                    deploy_status != consts.DEPLOY_STATE_DONE):
+                msg = (f"Unable to manage {subcloud.name} while also updating "
+                       f"its deploy_status to {deploy_status}: not allowed")
+            if msg:
+                LOG.warning(msg)
+                raise exceptions.BadRequest(resource='subcloud', msg=msg)
+
         subcloud = db_api.subcloud_update(
             context,
             subcloud_id,
@@ -2780,7 +2795,7 @@ class SubcloudManager(manager.Manager):
             location=location,
             group_id=group_id,
             data_install=data_install,
-            deploy_status=new_deploy_status,
+            deploy_status=deploy_status,
             peer_group_id=peer_group_id,
             rehome_data=rehome_data
         )
@@ -2806,11 +2821,16 @@ class SubcloudManager(manager.Manager):
                          'state change, resume to original state, subcloud: %s'
                          % subcloud.name)
                 management_state = original_management_state
+                # Also revert the deploy_status otherwise we could have a
+                # managed subcloud with the 'secondary' or other invalid deploy
+                # status/management state combination.
+                deploy_status = original_deploy_status
                 subcloud = \
                     db_api.subcloud_update(context, subcloud_id,
                                            management_state=management_state,
                                            description=description,
-                                           location=location)
+                                           location=location,
+                                           deploy_status=deploy_status)
 
             if management_state == dccommon_consts.MANAGEMENT_UNMANAGED:
                 # set all endpoint statuses to unknown, except the dc-cert
@@ -2829,6 +2849,20 @@ class SubcloudManager(manager.Manager):
                 LOG.info('Request certmon audit for %s' % subcloud.name)
                 dc_notification = dcmanager_rpc_client.DCManagerNotifications()
                 dc_notification.subcloud_managed(context, subcloud.region_name)
+
+        # Set all endpoint statuses to unknown, no endpoint
+        # will be audited for secondary or rehome-pending subclouds
+        if subcloud.deploy_status in (consts.DEPLOY_STATE_SECONDARY,
+                                      consts.DEPLOY_STATE_REHOME_PENDING):
+            self.state_rpc_client.update_subcloud_endpoint_status_sync(
+                context,
+                subcloud_name=subcloud.name,
+                endpoint_type=None,
+                sync_status=dccommon_consts.SYNC_STATUS_UNKNOWN)
+
+        # Clear existing fault alarm of secondary subcloud
+        if subcloud.deploy_status == consts.DEPLOY_STATE_SECONDARY:
+            self._clear_subcloud_alarms(subcloud)
 
         return db_api.subcloud_db_model_to_dict(subcloud)
 

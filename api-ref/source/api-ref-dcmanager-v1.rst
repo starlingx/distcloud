@@ -343,6 +343,10 @@ The attributes of a subcloud which are modifiable:
 
 -  bootstrap_address
 
+Extra flags:
+
+- migrate
+
 **Normal response codes**
 
 200
@@ -371,6 +375,7 @@ serviceUnavailable (503)
   - bootstrap-address: bootstrap_address
   - sysadmin-password: sysadmin_password
   - bootstrap-values: bootstrap_values_for_rehome
+  - migrate: rehome_pending
 
 Request Example
 ----------------

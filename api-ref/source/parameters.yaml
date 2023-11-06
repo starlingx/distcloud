@@ -470,6 +470,13 @@ rehome_data:
   in: body
   required: true
   type: string
+rehome_pending:
+  description: |
+    A flag indicating if the subcloud will be rehomed away. Its deploy status
+    will be set to 'rehome-pending'
+  in: body
+  required: false
+  type: boolean
 release:
   description: |
     The subcloud software version.

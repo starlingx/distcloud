@@ -1281,7 +1281,8 @@ class TestSubcloudAPIOther(testroot.DCManagerApiTest):
             force=None,
             peer_group_id=None,
             bootstrap_values=None,
-            bootstrap_address=None)
+            bootstrap_address=None,
+            deploy_status=None)
         self.assertEqual(response.status_int, 200)
 
     @mock.patch.object(psd_common, 'get_network_address_pool')
@@ -1355,7 +1356,8 @@ class TestSubcloudAPIOther(testroot.DCManagerApiTest):
             force=None,
             peer_group_id=None,
             bootstrap_values=None,
-            bootstrap_address=None)
+            bootstrap_address=None,
+            deploy_status=None)
         self.assertEqual(response.status_int, 200)
 
     @mock.patch.object(subclouds.SubcloudsController, '_get_patch_data')
@@ -1395,7 +1397,8 @@ class TestSubcloudAPIOther(testroot.DCManagerApiTest):
             force=None,
             peer_group_id=None,
             bootstrap_values=None,
-            bootstrap_address=None)
+            bootstrap_address=None,
+            deploy_status=None)
         self.assertEqual(response.status_int, 200)
 
     @mock.patch.object(subclouds.SubcloudsController, '_get_patch_data')
@@ -1461,7 +1464,8 @@ class TestSubcloudAPIOther(testroot.DCManagerApiTest):
             force=True,
             peer_group_id=None,
             bootstrap_values=None,
-            bootstrap_address=None)
+            bootstrap_address=None,
+            deploy_status=None)
         self.assertEqual(response.status_int, 200)
 
     @mock.patch.object(subclouds.SubcloudsController, '_get_updatestatus_payload')

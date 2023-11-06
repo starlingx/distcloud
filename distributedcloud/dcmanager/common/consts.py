@@ -230,9 +230,12 @@ DEPLOY_STATE_RESTORE_PREP_FAILED = 'restore-prep-failed'
 DEPLOY_STATE_RESTORING = 'restoring'
 DEPLOY_STATE_RESTORE_FAILED = 'restore-failed'
 DEPLOY_STATE_PRE_REHOME = 'pre-rehome'
+# If any of the following rehoming or secondary statuses
+# are modified, cert-mon code will need to be updated.
 DEPLOY_STATE_REHOMING = 'rehoming'
 DEPLOY_STATE_REHOME_FAILED = 'rehome-failed'
 DEPLOY_STATE_REHOME_PREP_FAILED = 'rehome-prep-failed'
+DEPLOY_STATE_REHOME_PENDING = 'rehome-pending'
 DEPLOY_STATE_SECONDARY = 'secondary'
 DEPLOY_STATE_SECONDARY_FAILED = 'secondary-failed'
 DEPLOY_STATE_DONE = 'complete'

@@ -54,6 +54,7 @@ from dcmanager.db import api as db_api
 from dcmanager.rpc import client as rpc_client
 from fm_api.constants import FM_ALARM_ID_UNSYNCHRONIZED_RESOURCE
 
+
 CONF = cfg.CONF
 LOG = logging.getLogger(__name__)
 
@@ -318,6 +319,30 @@ class SubcloudsController(object):
                           "need sysadmin_password" % subcloud.name)
             pecan.abort(500, _("Unable to migrate subcloud %s, "
                                "need sysadmin_password" % subcloud.name))
+
+    def _validate_rehome_pending(self, subcloud, management_state):
+        unmanaged = dccommon_consts.MANAGEMENT_UNMANAGED
+        error_msg = None
+
+        # Can only set the subcloud to rehome-pending
+        # if the deployment is done
+        if subcloud.deploy_status != consts.DEPLOY_STATE_DONE:
+            error_msg = (
+                "The deploy status can only be updated to "
+                f"'{consts.DEPLOY_STATE_REHOME_PENDING}' if the current "
+                f"deploy status is '{consts.DEPLOY_STATE_DONE}'")
+
+        # Can only set the subcloud to rehome-pending if the subcloud is
+        # being unmanaged or is already unmanaged
+        if management_state != unmanaged and (
+            management_state or subcloud.management_state != unmanaged
+        ):
+            error_msg = (
+                f"Subcloud must be {unmanaged} for its deploy status to "
+                f"be updated to '{consts.DEPLOY_STATE_REHOME_PENDING}'")
+
+        if error_msg:
+            pecan.abort(400, error_msg)
 
     @staticmethod
     def _append_static_err_content(subcloud):
@@ -668,6 +693,14 @@ class SubcloudsController(object):
             peer_group = payload.get('peer_group')
             bootstrap_address = payload.get('bootstrap_address')
 
+            # If the migrate flag is present we need to update the deploy status
+            # to consts.DEPLOY_STATE_REHOME_PENDING
+            deploy_status = None
+            if (payload.get('migrate') == 'true' and subcloud.deploy_status !=
+                    consts.DEPLOY_STATE_REHOME_PENDING):
+                self._validate_rehome_pending(subcloud, management_state)
+                deploy_status = consts.DEPLOY_STATE_REHOME_PENDING
+
             # Syntax checking
             if management_state and \
                     management_state not in [dccommon_consts.MANAGEMENT_UNMANAGED,
@@ -733,7 +766,8 @@ class SubcloudsController(object):
                     force=force_flag,
                     peer_group_id=peer_group_id,
                     bootstrap_values=bootstrap_values,
-                    bootstrap_address=bootstrap_address)
+                    bootstrap_address=bootstrap_address,
+                    deploy_status=deploy_status)
                 return subcloud
             except RemoteError as e:
                 pecan.abort(422, e.value)
