@@ -230,7 +230,8 @@ class DCManagerAuditWorkerService(service.Service):
                         firmware_audit_data,
                         kubernetes_audit_data,
                         do_openstack_audit,
-                        kube_rootca_update_audit_data):
+                        kube_rootca_update_audit_data,
+                        software_audit_data):
         """Used to trigger audits of the specified subcloud(s)"""
         self.subcloud_audit_worker_manager.audit_subclouds(
             context,
@@ -239,7 +240,8 @@ class DCManagerAuditWorkerService(service.Service):
             firmware_audit_data,
             kubernetes_audit_data,
             do_openstack_audit,
-            kube_rootca_update_audit_data)
+            kube_rootca_update_audit_data,
+            software_audit_data)
 
     @request_context
     def update_subcloud_endpoints(self, context, subcloud_name, endpoints):

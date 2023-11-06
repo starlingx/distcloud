@@ -24,6 +24,7 @@ import sqlalchemy
 import sys
 import threading
 
+from oslo_config import cfg
 from oslo_db import exception as db_exc
 from oslo_db.exception import DBDuplicateEntry
 from oslo_db.sqlalchemy import enginefacade
@@ -543,7 +544,11 @@ def subcloud_status_create(context, subcloud_id, endpoint_type):
 @require_admin_context
 def subcloud_status_create_all(context, subcloud_id):
     with write_session() as session:
-        for endpoint_type in dccommon_consts.ENDPOINT_TYPES_LIST:
+        if cfg.CONF.use_usm:
+            endpoint_type_list = dccommon_consts.ENDPOINT_TYPES_LIST_USM
+        else:
+            endpoint_type_list = dccommon_consts.ENDPOINT_TYPES_LIST
+        for endpoint_type in endpoint_type_list:
             subcloud_status_ref = models.SubcloudStatus()
             subcloud_status_ref.subcloud_id = subcloud_id
             subcloud_status_ref.endpoint_type = endpoint_type

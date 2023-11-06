@@ -129,7 +129,8 @@ class ManagerAuditWorkerClient(object):
                         firmware_audit_data=None,
                         kubernetes_audit_data=None,
                         do_openstack_audit=False,
-                        kube_rootca_update_data=None):
+                        kube_rootca_update_data=None,
+                        software_audit_data=None):
         """Tell audit-worker to perform audit on the subclouds with these
 
            subcloud IDs.
@@ -141,7 +142,8 @@ class ManagerAuditWorkerClient(object):
             firmware_audit_data=firmware_audit_data,
             kubernetes_audit_data=kubernetes_audit_data,
             do_openstack_audit=do_openstack_audit,
-            kube_rootca_update_audit_data=kube_rootca_update_data))
+            kube_rootca_update_audit_data=kube_rootca_update_data,
+            software_audit_data=software_audit_data))
 
     def update_subcloud_endpoints(self, ctxt, subcloud_name, endpoints):
         """Update endpoints of services for a subcloud region"""
