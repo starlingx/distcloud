@@ -113,7 +113,9 @@ class PeerGroupAuditManager(manager.Manager):
                   local_peer_group.group_priority))
 
         # if remote subcloud peer group's migration_status is 'migrating',
-        # 'unmanaged' all local subclouds in local peer group
+        # 'unmanaged' all local subclouds in local peer group and change its
+        # deploy status to consts.DEPLOY_STATE_REHOME_PENDING to stop cert-mon
+        # audits.
         if remote_peer_group.get("migration_status") == \
             consts.PEER_GROUP_MIGRATING:
             # Unmanaged all local subclouds of peer group
@@ -124,13 +126,30 @@ class PeerGroupAuditManager(manager.Manager):
                                                            local_peer_group.id)
             for subcloud in subclouds:
                 try:
+                    # update_subcloud raises an exception when trying to umanage
+                    # an already unmanaged subcloud, so the deploy status
+                    # update must be done separately
                     if subcloud.management_state != \
                         dccommon_consts.MANAGEMENT_UNMANAGED:
+                        # Unmanage and update the deploy-status
+                        LOG.info("Unmanaging and setting the local subcloud "
+                                 f"{subcloud.name} deploy status to "
+                                 f"{consts.DEPLOY_STATE_REHOME_PENDING}")
                         self.subcloud_manager.update_subcloud(
                             self.context,
                             subcloud.id,
                             management_state=dccommon_consts.
-                            MANAGEMENT_UNMANAGED)
+                            MANAGEMENT_UNMANAGED,
+                            deploy_status=consts.DEPLOY_STATE_REHOME_PENDING)
+                    else:
+                        # Already unmanaged, just update the deploy-status
+                        LOG.info(f"Setting the local subcloud {subcloud.name} "
+                                 "deploy status to "
+                                 f"{consts.DEPLOY_STATE_REHOME_PENDING}")
+                        self.subcloud_manager.update_subcloud(
+                            self.context,
+                            subcloud.id,
+                            deploy_status=consts.DEPLOY_STATE_REHOME_PENDING)
                 except Exception as e:
                     LOG.exception("Fail to unmanage local subcloud %s, err: "
                                   "%s" % (subcloud.name, e))

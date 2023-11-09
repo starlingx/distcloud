@@ -475,29 +475,54 @@ class SubcloudManager(manager.Manager):
                 try:
                     dc_client = \
                         SystemPeerManager.get_peer_dc_client(system_peer)
-                    # Get remote subcloud by region_name from
-                    # system peer
+                    # Get remote subcloud by region_name from system peer
                     remote_subcloud = dc_client.get_subcloud(
                         subcloud.region_name, is_region_name=True)
-                    if remote_subcloud.get('management-state') == \
-                        dccommon_consts.MANAGEMENT_UNMANAGED:
+                    is_unmanaged = remote_subcloud.get('management-state') == \
+                        dccommon_consts.MANAGEMENT_UNMANAGED
+                    is_rehome_pending = remote_subcloud.get('deploy-status') == \
+                        consts.DEPLOY_STATE_REHOME_PENDING
+
+                    # Check if it's already in the correct state
+                    if is_unmanaged and is_rehome_pending:
                         LOG.info("Remote subcloud %s from system peer %s is "
-                                 "already unmanaged, skipping unmanage attempt"
+                                 "already unmanaged and rehome-pending, "
+                                 "skipping unmanage attempt"
                                  % (system_peer.peer_name,
                                     remote_subcloud.get('name')))
                         break
 
-                    payload = {"management-state": "unmanaged"}
                     try:
-                        remote_subcloud = dc_client.update_subcloud(
-                            subcloud.region_name,
-                            files=None,
-                            data=payload,
-                            is_region_name=True)
-                        LOG.info("Successfully updated subcloud: %s on "
-                                 "peer system %s to unmanaged state"
-                                 % (remote_subcloud.get('name'),
-                                    system_peer.peer_name))
+                        if not is_unmanaged:
+                            # Unmanage and update the deploy-status
+                            payload = {
+                                "management-state":
+                                    dccommon_consts.MANAGEMENT_UNMANAGED,
+                                "migrate": "true"}
+                            remote_subcloud = dc_client.update_subcloud(
+                                subcloud.region_name,
+                                files=None,
+                                data=payload,
+                                is_region_name=True)
+                            LOG.info("Successfully updated subcloud: "
+                                     f"{remote_subcloud.get('name')} on peer "
+                                     f"system {system_peer.peer_name} to "
+                                     f"{dccommon_consts.MANAGEMENT_UNMANAGED} "
+                                     f"and {consts.DEPLOY_STATE_REHOME_PENDING}"
+                                     " state.")
+                        else:
+                            # Already unmanaged, just update the deploy-status
+                            payload = {"migrate": "true"}
+                            remote_subcloud = dc_client.update_subcloud(
+                                subcloud.region_name,
+                                files=None,
+                                data=payload,
+                                is_region_name=True)
+                            LOG.info("Successfully updated subcloud: "
+                                     f"{remote_subcloud.get('name')} on peer "
+                                     f"system {system_peer.peer_name} to "
+                                     f"{consts.DEPLOY_STATE_REHOME_PENDING}"
+                                     " state.")
                         return unmanaged_error
                     except Exception as e:
                         raise exceptions.SubcloudNotUnmanaged() from e
