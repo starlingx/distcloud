@@ -2857,6 +2857,7 @@ class SubcloudManager(manager.Manager):
             self.state_rpc_client.update_subcloud_endpoint_status_sync(
                 context,
                 subcloud_name=subcloud.name,
+                subcloud_region=subcloud.region_name,
                 endpoint_type=None,
                 sync_status=dccommon_consts.SYNC_STATUS_UNKNOWN)
 
