@@ -264,8 +264,12 @@ class PeerGroupAuditManager(manager.Manager):
                 LOG.exception("audit error occured: %s" % e)
 
     def stop(self):
-        self.thread.join()
-        LOG.info("stopped peer group %s audit thread" % self.peer_group_id)
+        if self.thread:
+            self.thread.join()
+            LOG.info("stopped peer group %s audit thread" % self.peer_group_id)
+        else:
+            LOG.info("No peer group %s audit thread to stop" %
+                     self.peer_group_id)
 
     def start(self, system_peer, remote_peer_group, local_peer_group):
         if self.thread_lock.locked():
