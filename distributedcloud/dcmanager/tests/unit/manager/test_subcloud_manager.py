@@ -1762,7 +1762,11 @@ class TestSubcloudManager(base.DCManagerTestCase):
                 '-i', f'{dccommon_consts.ANSIBLE_OVERRIDES_PATH}/subcloud1_inventory.yml',
                 '--limit', 'subcloud1',
                 '-e', f"@{dccommon_consts.ANSIBLE_OVERRIDES_PATH}/subcloud1/install_values.yml",
-                '-e', "install_release_version=%s" % FAKE_PREVIOUS_SW_VERSION
+                '-e', "install_release_version=%s" % FAKE_PREVIOUS_SW_VERSION,
+                '-e', "rvmc_config_file=%s" %
+                      os.path.join(dccommon_consts.ANSIBLE_OVERRIDES_PATH,
+                                   'subcloud1',
+                                   dccommon_consts.RVMC_CONFIG_FILE_NAME)
             ]
         )
 

@@ -356,12 +356,17 @@ class UpgradingSimplexState(BaseState):
         utils.create_subcloud_inventory(install_values,
                                         ansible_subcloud_inventory_file)
 
+        rvmc_config_file = os.path.join(dccommon_consts.ANSIBLE_OVERRIDES_PATH,
+                                        strategy_step.subcloud.name,
+                                        dccommon_consts.RVMC_CONFIG_FILE_NAME)
+
         # SubcloudInstall.prep creates data_install.yml (install overrides)
         install_command = [
             "ansible-playbook", dccommon_consts.ANSIBLE_SUBCLOUD_INSTALL_PLAYBOOK,
             "-i", ansible_subcloud_inventory_file,
             "-e", "@%s" % dccommon_consts.ANSIBLE_OVERRIDES_PATH + "/" +
-                  strategy_step.subcloud.name + '/' + "install_values.yml"
+                  strategy_step.subcloud.name + '/' + "install_values.yml",
+            "-e", "rvmc_config_file=%s" % rvmc_config_file
         ]
 
         # Run the remote install playbook

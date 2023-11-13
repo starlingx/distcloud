@@ -2,3 +2,4 @@ etc/logrotate.d/distcloud.conf
 etc/syslog-ng/conf.d/distcloud.conf
 usr/lib/python3/dist-packages/dccommon/*
 usr/lib/python3/dist-packages/distributedcloud-*.egg-info
+usr/local/bin/rvmc_install.py

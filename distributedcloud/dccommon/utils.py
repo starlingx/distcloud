@@ -30,6 +30,7 @@ from dccommon import consts
 from dccommon import exceptions
 from dccommon.exceptions import PlaybookExecutionFailed
 from dccommon.exceptions import PlaybookExecutionTimeout
+from dccommon import rvmc
 from dccommon.subprocess_cleanup import kill_subprocess_group
 from dccommon.subprocess_cleanup import SubprocessCleanup
 from dcorch.common.i18n import _
@@ -356,3 +357,19 @@ def get_ssl_cert_ca_file():
     return os.path.join(
         consts.SSL_CERT_CA_DIR,
         consts.CERT_CA_FILE_DEBIAN if is_debian() else consts.CERT_CA_FILE_CENTOS)
+
+
+def send_subcloud_shutdown_signal(subcloud_name):
+    """Sends a shutdown signal to a Redfish controlled subcloud.
+
+    :param subcloud_name: the name of the subcloud to be shut down
+    :type subcloud_name: str
+    """
+    # All logs are expected to originate from the rvmc module,
+    # so the log churn from the 'redfish.rest.v1' module is disabled.
+    logging.getLogger('redfish.rest.v1').setLevel(logging.CRITICAL)
+
+    rvmc_config_file = os.path.join(consts.ANSIBLE_OVERRIDES_PATH,
+                                    subcloud_name,
+                                    consts.RVMC_CONFIG_FILE_NAME)
+    rvmc.power_off(subcloud_name, rvmc_config_file, LOG)
