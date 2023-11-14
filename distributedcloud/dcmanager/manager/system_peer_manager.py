@@ -28,6 +28,7 @@ LOG = logging.getLogger(__name__)
 
 TEMP_BOOTSTRAP_PREFIX = 'peer_subcloud_bootstrap_yaml'
 MAX_PARALLEL_SUBCLOUD_SYNC = 10
+MAX_PARALLEL_SUBCLOUD_DELETE = 10
 VERIFY_SUBCLOUD_SYNC_VALID = 'valid'
 VERIFY_SUBCLOUD_SYNC_IGNORE = 'ignore'
 
@@ -95,14 +96,18 @@ class SystemPeerManager(manager.Manager):
             LOG.warn(f"Subcloud {subcloud_name} does not exist on peer site.")
 
     @staticmethod
+    def get_subcloud_deploy_status(subcloud):
+        deploy_status = 'deploy-status' if 'deploy-status' in subcloud else \
+            'deploy_status'
+        return subcloud.get(deploy_status)
+
+    @staticmethod
     def is_subcloud_secondary(subcloud):
         """Check if subcloud on peer site is secondary.
 
         :param subcloud: peer subcloud dictionary
         """
-        deploy_status = 'deploy-status' if 'deploy-status' in subcloud else \
-            'deploy_status'
-        if subcloud.get(deploy_status) not in (
+        if SystemPeerManager.get_subcloud_deploy_status(subcloud) not in (
             consts.DEPLOY_STATE_SECONDARY_FAILED,
             consts.DEPLOY_STATE_SECONDARY):
             return False
@@ -201,8 +206,19 @@ class SystemPeerManager(manager.Manager):
                           f"{region_name}) with subcloud peer group id "
                           f"{dc_peer_pg_id} on peer site.")
                 # Update subcloud associated peer group on peer site
-                dc_client.update_subcloud(subcloud_name, files=None,
-                                          data={"peer_group": str(dc_peer_pg_id)})
+                peer_subcloud = dc_client.update_subcloud(
+                    subcloud_name, files=None, data={"peer_group":
+                                                     str(dc_peer_pg_id)})
+
+                # Need to check the subcloud only in secondary, otherwise it
+                # should be recorded as a failure.
+                peer_subcloud_deploy_status = self.get_subcloud_deploy_status(
+                    peer_subcloud)
+                if peer_subcloud_deploy_status != consts.DEPLOY_STATE_SECONDARY:
+                    subcloud.msg = "Subcloud's deploy status not correct: %s" \
+                        % peer_subcloud_deploy_status
+                    return subcloud, False
+
                 return subcloud, True
             except Exception as e:
                 subcloud.msg = str(e)  # Store error message for subcloud
@@ -210,6 +226,18 @@ class SystemPeerManager(manager.Manager):
                           f"(region_name: {region_name}) "
                           f"on peer site: {str(e)}")
                 return subcloud, False
+
+    def _delete_subcloud(self, dc_client, subcloud):
+        """Delete subcloud on peer site in parallel."""
+        try:
+            subcloud_name = subcloud.get('name')
+            self.delete_peer_secondary_subcloud(dc_client, subcloud_name)
+            return subcloud, True
+        except Exception as e:
+            subcloud.msg = str(e)
+            LOG.exception(f"Failed to delete Subcloud {subcloud_name} on peer "
+                          f"site: {str(e)}")
+            return subcloud, False
 
     def _is_valid_for_subcloud_sync(self, subcloud):
         """Verify subcloud data for sync."""
@@ -286,6 +314,7 @@ class SystemPeerManager(manager.Manager):
                           " as is not in secondary state."
                     LOG.info(msg)
                     error_msg[subcloud_name] = msg
+                    continue
 
                 valid_subclouds.append(subcloud)
 
@@ -485,11 +514,23 @@ class SystemPeerManager(manager.Manager):
                 raise exceptions.SubcloudPeerGroupHasWrongPriority(
                     priority=dc_peer_pg_priority)
 
+            # Use thread pool to limit number of operations in parallel
+            delete_pool = greenpool.GreenPool(size=MAX_PARALLEL_SUBCLOUD_DELETE)
             subclouds = db_api.subcloud_get_for_peer_group(context,
                                                            peer_group.id)
-            for subcloud in subclouds:
-                self.delete_peer_secondary_subcloud(dc_client,
-                                                    subcloud.name)
+            # Spawn threads to delete each subcloud
+            clean_function = functools.partial(self._delete_subcloud, dc_client)
+
+            _, delete_error_msg = self._run_parallel_group_operation(
+                'peer subcloud clean', clean_function, delete_pool, subclouds)
+
+            if delete_error_msg:
+                association = db_api.peer_group_association_update(
+                    context, association_id,
+                    sync_status=consts.ASSOCIATION_SYNC_STATUS_FAILED,
+                    sync_message=json.dumps(delete_error_msg))
+                return
+
             try:
                 dc_client.delete_subcloud_peer_group(peer_group.peer_group_name)
                 LOG.info("Deleted Subcloud Peer Group "

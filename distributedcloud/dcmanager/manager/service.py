@@ -129,6 +129,13 @@ class DCManagerService(service.Service):
         return self.subcloud_manager.add_subcloud(context, subcloud_id, payload)
 
     @request_context
+    def add_secondary_subcloud(self, context, subcloud_id, payload):
+        # Adds a secondary subcloud
+        LOG.info("Handling add_secondary_subcloud request for: %s" %
+                 payload.get('name'))
+        return self.subcloud_manager.add_subcloud(context, subcloud_id, payload)
+
+    @request_context
     def delete_subcloud(self, context, subcloud_id):
         # Deletes a subcloud
         LOG.info("Handling delete_subcloud request for: %s" % subcloud_id)
