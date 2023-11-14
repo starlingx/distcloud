@@ -3,10 +3,10 @@ debname: redfish
 debver: 3.2.1
 dl_path:
     name: redfish-3.2.1.tar.gz
-    url: >
-      https://files.pythonhosted.org/packages/ea/04/
-      0e08ec3ad8af6de811edc864c7f3c505e22af14a7da735c45c512dfe9e9c/
-      redfish-3.2.1.tar.gz
+    url:
+        "https://files.pythonhosted.org/packages/ea/04/\
+        0e08ec3ad8af6de811edc864c7f3c505e22af14a7da735c45c512dfe9e9c/\
+        redfish-3.2.1.tar.gz"
     md5sum: 8203bb777f2559e65302e988eee9f1cc
     sha256sum: c10b11ff5a4e6cab0888b577c51facae689f4c6002b7ce34b1741707290aca78
 revision:
