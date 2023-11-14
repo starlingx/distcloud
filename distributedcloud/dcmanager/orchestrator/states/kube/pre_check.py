@@ -80,26 +80,6 @@ class KubeUpgradePreCheckState(BaseState):
                              "command on the subcloud or %s on central for details"
                              % (ERROR_DESC_CMD)))
 
-        # Get any  existing kubernetes upgrade operation in the subcloud,
-        # and use its to-version rather than the 'available' version for
-        # determining whether or not to skip.
-        subcloud_kube_upgrades =  \
-            self.get_sysinv_client(self.region_name).get_kube_upgrades()
-        if len(subcloud_kube_upgrades) > 0:
-            target_version = subcloud_kube_upgrades[0].to_version
-            self.debug_log(strategy_step,
-                           "Pre-Check. Existing Kubernetes upgrade:(%s) exists"
-                           % target_version)
-        else:
-            # The subcloud can only be upgraded to an 'available' version
-            subcloud_kube_versions = \
-                self.get_sysinv_client(self.region_name).get_kube_versions()
-            target_version = \
-                utils.get_available_kube_version(subcloud_kube_versions)
-            self.debug_log(strategy_step,
-                           "Pre-Check. Available Kubernetes upgrade:(%s)"
-                           % target_version)
-
         # check extra_args for the strategy
         # if there is a to-version, use that when checking against the subcloud
         # target version, otherwise compare to the sytem controller version
@@ -118,6 +98,26 @@ class KubeUpgradePreCheckState(BaseState):
                 message = "System Controller has no active target kube version"
                 self.warn_log(strategy_step, message)
                 raise Exception(message)
+
+        # Get any  existing kubernetes upgrade operation in the subcloud,
+        # and use its to-version rather than the 'available' version for
+        # determining whether or not to skip.
+        subcloud_kube_upgrades =  \
+            self.get_sysinv_client(self.region_name).get_kube_upgrades()
+        if len(subcloud_kube_upgrades) > 0:
+            target_version = subcloud_kube_upgrades[0].to_version
+            self.debug_log(strategy_step,
+                           "Pre-Check. Existing Kubernetes upgrade:(%s) exists"
+                           % target_version)
+        else:
+            # The subcloud can only be upgraded to an 'available' version
+            subcloud_kube_versions = \
+                self.get_sysinv_client(self.region_name).get_kube_versions()
+            target_version = \
+                utils.select_available_kube_version(subcloud_kube_versions, to_version)
+            self.debug_log(strategy_step,
+                           "Pre-Check. Available Kubernetes upgrade:(%s)"
+                           % target_version)
 
         # For the to-version, the code currently allows a partial version
         # ie: v1.20  or a version that is much higher than is installed.
