@@ -250,6 +250,7 @@ class PeerMonitorManager(manager.Manager):
     def _remove_peer_monitor_task(self, system_peer_id):
         peer_mon_obj = self.peer_monitor_thread_map[system_peer_id]
         peer_mon_obj.stop()
+        del self.peer_monitor_thread_map[system_peer_id]
 
     def _create_peer_monitor_task(self, system_peer_id):
         peer = db_api.system_peer_get(self.context,
