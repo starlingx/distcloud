@@ -407,11 +407,22 @@ class SysinvAPIController(APIController):
         # folder to be processed by sysinv
         if self._is_load_import(request.path) and not cfg.CONF.use_usm:
             req_body = self._store_load_to_vault(req)
-            if 'active' in request.POST:
-                req_body['active'] = request.POST['active']
+            params_dict = request.POST
+            try:
+                # If load import is done with --local, the params active
+                # and inactive comes from the request body.
+                # If not done with --local, the params comes from request.POST
+                # in this case, the decode below will raise an exception
+                # and params_dict will continue point to request.POST
+                params_dict = json.loads(request.body.decode('utf-8'))
+            except UnicodeDecodeError:
+                pass
 
-            if 'inactive' in request.POST:
-                req_body['inactive'] = request.POST['inactive']
+            if 'active' in params_dict:
+                req_body['active'] = params_dict['active']
+
+            if 'inactive' in params_dict:
+                req_body['inactive'] = params_dict['inactive']
 
             # sysinv will handle a simple application/json request
             # with the file location
