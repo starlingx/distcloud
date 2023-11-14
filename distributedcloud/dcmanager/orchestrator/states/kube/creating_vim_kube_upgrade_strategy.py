@@ -3,6 +3,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 #
+from dccommon.consts import DEFAULT_REGION_NAME
 from dccommon.drivers.openstack import vim
 from dcmanager.common import consts
 from dcmanager.common import utils as dcmanager_utils
@@ -34,12 +35,31 @@ class CreatingVIMKubeUpgradeStrategyState(CreatingVIMStrategyState):
             target_kube_version = subcloud_kube_upgrades[0].to_version
         else:
             # Creating a new kube upgrade, rather than resuming.
-            # Subcloud can only be upgraded to its available version
+            # Subcloud can only be upgraded to an available version.
             # Pre-Check does rejection logic.
+
+            # The following chooses to_version using the same logic as in
+            # KubeUpgradePreCheckState.perform_state_action()
+            extra_args = dcmanager_utils.get_sw_update_strategy_extra_args(
+                self.context, update_type=consts.SW_UPDATE_TYPE_KUBERNETES)
+            if extra_args is None:
+                extra_args = {}
+            to_version = extra_args.get('to-version', None)
+            if to_version is None:
+                sys_kube_versions = \
+                    self.get_sysinv_client(DEFAULT_REGION_NAME).get_kube_versions()
+                to_version = dcmanager_utils.get_active_kube_version(sys_kube_versions)
+                if to_version is None:
+                    # No active target kube version on the system controller means
+                    # the system controller is part-way through a kube upgrade
+                    message = "System Controller has no active target kube version"
+                    self.warn_log(strategy_step, message)
+                    raise Exception(message)
+
             kube_versions = \
                 self.get_sysinv_client(region).get_kube_versions()
             target_kube_version = \
-                dcmanager_utils.get_available_kube_version(kube_versions)
+                dcmanager_utils.select_available_kube_version(kube_versions, to_version)
 
         # Get the update options
         opts_dict = dcmanager_utils.get_sw_update_opts(

@@ -457,16 +457,42 @@ def get_active_kube_version(kube_versions):
     return matching_kube_version
 
 
-def get_available_kube_version(kube_versions):
-    """Returns first available kubernetes version from a list of versions"""
+def select_available_kube_version(kube_versions, to_version):
+    """Return selected kube version based on desired version
 
-    matching_kube_version = None
-    for kube in kube_versions:
+    If the desired "to_version" is higher than the highest "available" version
+    then return the highest "available" version.
+    If the desired "to_version" is "available", we want to select it.
+    Otherwise we want to select the highest "available" kubernetes version.
+    """
+    # Check if the desired version is higher than the highest "available" version.
+    for kube in reversed(kube_versions):
         kube_dict = kube.to_dict()
         if kube_dict.get('state') == 'available':
-            matching_kube_version = kube_dict.get('version')
-            break
-    return matching_kube_version
+            version = kube_dict.get('version')
+            if kube_version_compare(version, to_version) == -1:
+                return version
+            else:
+                break
+
+    # Check if the desired version is "available"
+    for kube in reversed(kube_versions):
+        kube_dict = kube.to_dict()
+        version = kube_dict.get('version')
+        if kube_version_compare(version, to_version) == 0:
+            if kube_dict.get('state') == 'available':
+                return version
+            else:
+                break
+
+    # Return the highest "available" version
+    for kube in reversed(kube_versions):
+        kube_dict = kube.to_dict()
+        if kube_dict.get('state') == 'available':
+            return kube_dict.get('version')
+
+    # There are no "available" versions
+    return None
 
 
 def kube_version_compare(left, right):
