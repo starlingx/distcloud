@@ -53,7 +53,7 @@ class DeletingLoadState(BaseState):
 
                 # Get a sysinv client each time. It will automatically renew the
                 # token if it is about to expire.
-                sysinv_client = self.get_sysinv_client(strategy_step.subcloud.name)
+                sysinv_client = self.get_sysinv_client(strategy_step.subcloud.region_name)
                 if len(sysinv_client.get_loads()) == 1:
                     msg = "Load %s deleted." % load_version
                     self.info_log(strategy_step, msg)
