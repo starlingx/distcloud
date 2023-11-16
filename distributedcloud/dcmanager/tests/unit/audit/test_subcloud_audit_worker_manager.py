@@ -80,7 +80,7 @@ class FakeKubernetesAudit(object):
 class FakeKubeRootcaUpdateAudit(object):
 
     def __init__(self):
-        self.subcloud_audit = mock.MagicMock()
+        self.subcloud_kube_rootca_audit = mock.MagicMock()
         self.get_regionone_audit_data = mock.MagicMock()
 
 
@@ -465,8 +465,8 @@ class TestAuditWorkerManager(base.DCManagerTestCase):
             subcloud.name, subcloud.region_name, kubernetes_audit_data)
 
         # Verify kube rootca update audit is called
-        self.fake_kube_rootca_update_audit.subcloud_audit.assert_called_with(
-            subcloud.name, subcloud.region_name, kube_rootca_update_audit_data)
+        self.fake_kube_rootca_update_audit.subcloud_kube_rootca_audit.\
+            assert_called_with(subcloud, kube_rootca_update_audit_data)
 
     def test_audit_subcloud_online_first_identity_sync_not_complete(self):
 
@@ -540,7 +540,8 @@ class TestAuditWorkerManager(base.DCManagerTestCase):
         self.fake_kubernetes_audit.subcloud_kubernetes_audit.assert_not_called()
 
         # Verify kube rootca update audit is not called
-        self.fake_kube_rootca_update_audit.subcloud_audit.assert_not_called()
+        self.fake_kube_rootca_update_audit.subcloud_kube_rootca_audit.\
+            assert_not_called()
 
     def test_audit_subcloud_online_unmanaged(self):
 
@@ -609,7 +610,8 @@ class TestAuditWorkerManager(base.DCManagerTestCase):
         self.fake_kubernetes_audit.subcloud_kubernetes_audit.assert_not_called()
 
         # Verify kube rootca update audit is not called
-        self.fake_kube_rootca_update_audit.subcloud_audit.assert_not_called()
+        self.fake_kube_rootca_update_audit.subcloud_kube_rootca_audit.\
+            assert_not_called()
 
     def test_audit_subcloud_online_no_change(self):
 
@@ -707,7 +709,8 @@ class TestAuditWorkerManager(base.DCManagerTestCase):
         self.fake_kubernetes_audit.subcloud_kubernetes_audit.assert_not_called()
 
         # Verify kube rootca update audit is not called
-        self.fake_kube_rootca_update_audit.subcloud_audit.assert_not_called()
+        self.fake_kube_rootca_update_audit.subcloud_kube_rootca_audit.\
+            assert_not_called()
 
     def test_audit_subcloud_go_offline(self):
 
@@ -758,6 +761,26 @@ class TestAuditWorkerManager(base.DCManagerTestCase):
                            do_kubernetes_audit=do_kubernetes_audit,
                            do_kube_rootca_update_audit=do_kube_rootca_update_audit)
 
+        # Verify alarm update is called once
+        self.fake_alarm_aggr.update_alarm_summary.assert_called_once_with(
+            subcloud.name, self.fake_openstack_client.fm_client)
+
+        # Verify patch audit is called once
+        self.fake_patch_audit.subcloud_audit.assert_called_once_with(
+            subcloud.name, subcloud.region_name, mock.ANY, mock.ANY, True)
+
+        # Verify firmware audit is called once
+        self.fake_firmware_audit.subcloud_firmware_audit.assert_called_once_with(
+            subcloud.name, subcloud.region_name, mock.ANY)
+
+        # Verify kubernetes audit is called once
+        self.fake_kubernetes_audit.subcloud_kubernetes_audit.assert_called_once_with(
+            subcloud.name, subcloud.region_name, mock.ANY)
+
+        # Verify kube rootca update audit is called once
+        self.fake_kube_rootca_update_audit.subcloud_kube_rootca_audit.\
+            assert_called_once_with(subcloud, mock.ANY)
+
         # Verify the audit fail count was updated in db
         audit_fail_count = 1
         subcloud = db_api.subcloud_get(self.ctx, subcloud.id)
@@ -796,24 +819,20 @@ class TestAuditWorkerManager(base.DCManagerTestCase):
         self.fake_dcmanager_state_api.update_subcloud_availability.assert_not_called()
 
         # Verify alarm update is called only once
-        self.fake_alarm_aggr.update_alarm_summary.assert_called_once_with(
-            subcloud.name, self.fake_openstack_client.fm_client)
+        self.fake_alarm_aggr.update_alarm_summary.assert_called_once()
 
         # Verify patch audit is called only once
-        self.fake_patch_audit.subcloud_audit.assert_called_once_with(
-            subcloud.name, subcloud.region_name, mock.ANY, mock.ANY, True)
+        self.fake_patch_audit.subcloud_audit.assert_called_once()
 
         # Verify firmware audit is only called once
-        self.fake_firmware_audit.subcloud_firmware_audit.assert_called_once_with(
-            subcloud.name, subcloud.region_name, mock.ANY)
+        self.fake_firmware_audit.subcloud_firmware_audit.assert_called_once()
 
         # Verify kubernetes audit is only called once
-        self.fake_kubernetes_audit.subcloud_kubernetes_audit.assert_called_once_with(
-            subcloud.name, subcloud.region_name, mock.ANY)
+        self.fake_kubernetes_audit.subcloud_kubernetes_audit.assert_called_once()
 
         # Verify kube rootca update audit is only called once
-        self.fake_kube_rootca_update_audit.subcloud_audit.assert_called_once_with(
-            subcloud.name, subcloud.region_name, mock.ANY)
+        self.fake_kube_rootca_update_audit.subcloud_kube_rootca_audit.\
+            assert_called_once()
 
     def test_audit_subcloud_offline_no_change(self):
         subcloud = self.create_subcloud_static(self.ctx, name='subcloud1')
@@ -885,7 +904,8 @@ class TestAuditWorkerManager(base.DCManagerTestCase):
         self.fake_kubernetes_audit.subcloud_kubernetes_audit.assert_not_called()
 
         # Verify kube rootca update audit is not called
-        self.fake_kube_rootca_update_audit.subcloud_audit.assert_not_called()
+        self.fake_kube_rootca_update_audit.subcloud_kube_rootca_audit.\
+            assert_not_called()
 
     @mock.patch.object(scheduler.ThreadGroupManager, 'start')
     @mock.patch.object(subcloud_audit_worker_manager.db_api,
@@ -1078,7 +1098,8 @@ class TestAuditWorkerManager(base.DCManagerTestCase):
         self.fake_kubernetes_audit.subcloud_kubernetes_audit.assert_not_called()
 
         # Verify kube rootca update audit is not called
-        self.fake_kube_rootca_update_audit.subcloud_audit.assert_not_called()
+        self.fake_kube_rootca_update_audit.subcloud_kube_rootca_audit.\
+            assert_not_called()
 
     @mock.patch.object(subcloud_audit_worker_manager, 'LOG')
     def test_update_subcloud_audit_fail_count_subcloud_deleted(self, mock_logging):
@@ -1155,7 +1176,8 @@ class TestAuditWorkerManager(base.DCManagerTestCase):
         self.fake_kubernetes_audit.subcloud_kubernetes_audit.assert_not_called()
 
         # Verify kube rootca update audit is not called
-        self.fake_kube_rootca_update_audit.subcloud_audit.assert_not_called()
+        self.fake_kube_rootca_update_audit.subcloud_kube_rootca_audit.\
+            assert_not_called()
 
     def test_audit_subcloud_online_with_openstack_removed(self):
 
@@ -1218,7 +1240,8 @@ class TestAuditWorkerManager(base.DCManagerTestCase):
         self.fake_kubernetes_audit.subcloud_kubernetes_audit.assert_not_called()
 
         # Verify kube rootca update audit is not called
-        self.fake_kube_rootca_update_audit.subcloud_audit.assert_not_called()
+        self.fake_kube_rootca_update_audit.subcloud_kube_rootca_audit.\
+            assert_not_called()
 
     def test_audit_subcloud_online_with_openstack_inactive(self):
 
@@ -1281,7 +1304,8 @@ class TestAuditWorkerManager(base.DCManagerTestCase):
         self.fake_kubernetes_audit.subcloud_kubernetes_audit.assert_not_called()
 
         # Verify kube rootca update audit is not called
-        self.fake_kube_rootca_update_audit.subcloud_audit.assert_not_called()
+        self.fake_kube_rootca_update_audit.subcloud_kube_rootca_audit.\
+            assert_not_called()
 
     def test_audit_subcloud_partial_subaudits(self):
         subcloud = self.create_subcloud_static(self.ctx, name='subcloud1')
@@ -1354,7 +1378,8 @@ class TestAuditWorkerManager(base.DCManagerTestCase):
         self.fake_kubernetes_audit.subcloud_kubernetes_audit.assert_not_called()
 
         # Verify kube rootca update audit is not called
-        self.fake_kube_rootca_update_audit.subcloud_audit.assert_not_called()
+        self.fake_kube_rootca_update_audit.subcloud_kube_rootca_audit.\
+            assert_not_called()
 
         # Ensure the subaudits that didn't run are still requested
         audits = db_api.subcloud_audits_get(self.ctx, subcloud.id)

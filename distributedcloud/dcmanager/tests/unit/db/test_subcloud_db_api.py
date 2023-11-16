@@ -1,5 +1,5 @@
 # Copyright (c) 2015 Ericsson AB
-# Copyright (c) 2017-2022 Wind River Systems, Inc.
+# Copyright (c) 2017-2023 Wind River Systems, Inc.
 # All Rights Reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License"); you may
@@ -191,6 +191,7 @@ class DBAPISubcloudTest(base.DCManagerTestCase):
         admin_start_ip = '192.168.102.5'
         admin_end_ip = '192.168.102.49'
         admin_gateway_ip = '192.168.102.1'
+        rehomed = True
         updated = db_api.subcloud_update(
             self.ctx, subcloud.id,
             management_state=management_state,
@@ -199,7 +200,8 @@ class DBAPISubcloudTest(base.DCManagerTestCase):
             management_subnet=admin_subnet,
             management_start_ip=admin_start_ip,
             management_end_ip=admin_end_ip,
-            management_gateway_ip=admin_gateway_ip)
+            management_gateway_ip=admin_gateway_ip,
+            rehomed=rehomed)
         self.assertIsNotNone(updated)
         self.assertEqual(management_state, updated.management_state)
         self.assertEqual(availability_status, updated.availability_status)
@@ -208,6 +210,7 @@ class DBAPISubcloudTest(base.DCManagerTestCase):
         self.assertEqual(admin_start_ip, updated.management_start_ip)
         self.assertEqual(admin_end_ip, updated.management_end_ip)
         self.assertEqual(admin_gateway_ip, updated.management_gateway_ip)
+        self.assertEqual(rehomed, updated.rehomed)
 
         updated_subcloud = db_api.subcloud_get(self.ctx, subcloud.id)
         self.assertEqual(management_state,
@@ -224,6 +227,8 @@ class DBAPISubcloudTest(base.DCManagerTestCase):
                          updated_subcloud.management_end_ip)
         self.assertEqual(admin_gateway_ip,
                          updated_subcloud.management_gateway_ip)
+        self.assertEqual(rehomed,
+                         updated_subcloud.rehomed)
 
     def test_delete_subcloud(self):
         fake_subcloud = utils.create_subcloud_dict(base.SUBCLOUD_SAMPLE_DATA_0)

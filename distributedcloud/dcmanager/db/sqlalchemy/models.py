@@ -196,6 +196,7 @@ class Subcloud(BASE, DCManagerBase):
                       ForeignKey('subcloud_group.id'))
     group = relationship(SubcloudGroup,
                          backref=backref('subcloud'))
+    rehomed = Column(Boolean, default=False)
 
 
 class SubcloudAudits(BASE, DCManagerBase):

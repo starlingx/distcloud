@@ -606,6 +606,8 @@ class TestSubcloudManager(base.DCManagerTestCase):
                                                        payload['name'])
         self.assertEqual(consts.DEPLOY_STATE_BOOTSTRAPPED,
                          updated_subcloud.deploy_status)
+        # Verify the subcloud rehomed flag is False after bootstrapped
+        self.assertFalse(updated_subcloud.rehomed)
 
     @mock.patch.object(subcloud_manager.SubcloudManager,
                        '_deploy_bootstrap_prep')
@@ -848,6 +850,8 @@ class TestSubcloudManager(base.DCManagerTestCase):
         updated_subcloud = db_api.subcloud_get_by_name(self.ctx, values['name'])
         self.assertEqual(consts.DEPLOY_STATE_DONE,
                          updated_subcloud.deploy_status)
+        # Verify subcloud rehomed flag is true
+        self.assertTrue(updated_subcloud.rehomed)
 
         # Verify that the password fields are present
         written_payload = mock_write_subcloud_ansible_config.call_args.args[1]
@@ -1939,6 +1943,8 @@ class TestSubcloudManager(base.DCManagerTestCase):
                                                        subcloud.name)
         self.assertEqual(consts.DEPLOY_STATE_DONE,
                          updated_subcloud.deploy_status)
+        # Verify subcloud rehomed flag is False after re-deploy
+        self.assertFalse(updated_subcloud.rehomed)
 
     def test_handle_subcloud_operations_in_progress(self):
         subcloud1 = self.create_subcloud_static(

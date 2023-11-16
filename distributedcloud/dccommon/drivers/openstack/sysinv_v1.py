@@ -814,6 +814,22 @@ class SysinvClient(base.DriverBase):
         """Retrieve the list of kubernetes versions known to the system."""
         return self.sysinv_client.kube_version.list()
 
+    def get_kube_rootca_cert_id(self):
+        """Retrieve the ID of kubernetes rootca cert"""
+        try:
+            cert_id = self.sysinv_client.kube_rootca_update.get_cert_id()
+        except HTTPBadRequest as e:
+            # The get_cert_id may not implemented in the subcloud.
+            if "Expected a uuid" in str(e):
+                return False, None
+            LOG.error("get Kube root CA ID exception {}".format(e))
+            raise e
+        except Exception as e:
+            LOG.error("get Kube root CA ID exception {}".format(e))
+            raise e
+
+        return True, cert_id
+
     def apply_device_image(self, device_image_id, labels=None):
         """Apply a device image.
 

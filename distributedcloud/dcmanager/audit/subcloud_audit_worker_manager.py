@@ -535,10 +535,8 @@ class SubcloudAuditWorkerManager(manager.Manager):
             # Perform kube rootca update audit
             if do_kube_rootca_update_audit:
                 try:
-                    self.kube_rootca_update_audit.subcloud_audit(
-                        subcloud_name,
-                        subcloud_region,
-                        kube_rootca_update_audit_data)
+                    self.kube_rootca_update_audit.subcloud_kube_rootca_audit(
+                        subcloud, kube_rootca_update_audit_data)
                     audits_done.append('kube-rootca-update')
                 except Exception:
                     LOG.exception(failmsg % (subcloud.name,

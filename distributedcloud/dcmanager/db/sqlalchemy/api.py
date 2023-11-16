@@ -422,7 +422,7 @@ def subcloud_update(context, subcloud_id, management_state=None,
                     first_identity_sync_complete=None,
                     systemcontroller_gateway_ip=None,
                     peer_group_id=None,
-                    rehome_data=None):
+                    rehome_data=None, rehomed=None):
     with write_session() as session:
         subcloud_ref = subcloud_get(context, subcloud_id)
         if management_state is not None:
@@ -475,6 +475,8 @@ def subcloud_update(context, subcloud_id, management_state=None,
                 subcloud_ref.peer_group_id = peer_group_id
         if rehome_data is not None:
             subcloud_ref.rehome_data = rehome_data
+        if rehomed is not None:
+            subcloud_ref.rehomed = rehomed
         subcloud_ref.save(session)
         return subcloud_ref
 

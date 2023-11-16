@@ -768,10 +768,12 @@ class SubcloudManager(manager.Manager):
                 context, subcloud.id,
                 deploy_status=consts.DEPLOY_STATE_REHOME_FAILED)
             return
-        # Update the deploy status to complete
+        # Update the deploy status to complete and rehomed flag to true only
+        # after playbook execution succeeded.
         db_api.subcloud_update(
             context, subcloud.id,
-            deploy_status=consts.DEPLOY_STATE_DONE)
+            deploy_status=consts.DEPLOY_STATE_DONE,
+            rehomed=True)
         LOG.info("Successfully rehomed subcloud %s" % subcloud.name)
 
     def add_subcloud(self, context, subcloud_id, payload):
@@ -2270,10 +2272,13 @@ class SubcloudManager(manager.Manager):
         if aborted:
             return False
 
+        # Ensure rehomed=False after bootstrapped from central cloud, it
+        # applies on both initial deployment and re-deployment.
         db_api.subcloud_update(
             context, subcloud.id,
             deploy_status=consts.DEPLOY_STATE_BOOTSTRAPPED,
-            error_description=consts.ERROR_DESC_EMPTY)
+            error_description=consts.ERROR_DESC_EMPTY,
+            rehomed=False)
 
         LOG.info("Successfully bootstrapped %s" % subcloud.name)
         return True
