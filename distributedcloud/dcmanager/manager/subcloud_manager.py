@@ -2494,26 +2494,32 @@ class SubcloudManager(manager.Manager):
         for cur_file in ansible_file_list + log_file_list:
             new_file = cur_file.replace(cur_sc_name, new_sc_name)
             if os.path.exists(cur_file) and new_sc_name in new_file:
+                LOG.debug("Renaming file %s to %s" % (cur_file, new_file))
                 os.rename(cur_file, new_file)
 
         # Gets new ansible inventory file
         ansible_inv_file = self._get_ansible_filename(new_sc_name,
                                                       INVENTORY_FILE_POSTFIX)
 
-        # Updates inventory host param with the new subcloud name
-        with open(ansible_inv_file, 'r') as f:
-            data = yaml.safe_load(f)
+        if os.path.exists(ansible_inv_file):
+            # Updates inventory host param with the new subcloud name
+            with open(ansible_inv_file, 'r') as f:
+                data = yaml.safe_load(f)
 
-        mkey = list(data.keys())[0]
+            mkey = list(data.keys())[0]
 
-        if mkey in data and 'hosts' in data[mkey] and \
-            cur_sc_name in data[mkey]['hosts']:
+            if mkey in data and 'hosts' in data[mkey] and \
+                cur_sc_name in data[mkey]['hosts']:
 
-            data[mkey]['hosts'][new_sc_name] = \
-                data[mkey]['hosts'].pop(cur_sc_name)
+                data[mkey]['hosts'][new_sc_name] = \
+                    data[mkey]['hosts'].pop(cur_sc_name)
 
-            with open(ansible_inv_file, 'w') as f:
-                yaml.dump(data, f, sort_keys=False)
+                with open(ansible_inv_file, 'w') as f:
+                    yaml.dump(data, f, sort_keys=False)
+        else:
+            msg = ("Could not rename inventory file %s because it does not "
+                   "exist." % ansible_inv_file)
+            LOG.warn(msg)
 
     @staticmethod
     def _delete_subcloud_backup_data(subcloud_name):
