@@ -136,7 +136,7 @@ class ManagerClient(RPCClient):
                                              payload=payload))
 
     def add_secondary_subcloud(self, ctxt, subcloud_id, payload):
-        return self.call(ctxt, self.make_msg('add_subcloud',
+        return self.call(ctxt, self.make_msg('add_secondary_subcloud',
                                              subcloud_id=subcloud_id,
                                              payload=payload))
 
