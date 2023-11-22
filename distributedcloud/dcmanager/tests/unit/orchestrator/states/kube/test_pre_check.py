@@ -63,6 +63,32 @@ MEMORY_THRESHOLD_ALARM = FakeAlarm('100.101', 'True')
 KUBERNETES_UPGRADE_ALARM = FakeAlarm('900.007', 'True')
 CONFIG_OUT_OF_DATE_ALARM = FakeAlarm('250.001', 'False')
 
+KUBE_VERSION_LIST = [
+    FakeKubeVersion(obj_id=1,
+                    version='v1.2.3',
+                    target=True,
+                    state='active'),
+    FakeKubeVersion(obj_id=2,
+                    version='v1.2.5',
+                    target=False,
+                    state='available'),
+    ]
+
+KUBE_VERSION_LIST_2 = [
+    FakeKubeVersion(obj_id=1,
+                    version='v1.2.3',
+                    target=True,
+                    state='active'),
+    FakeKubeVersion(obj_id=2,
+                    version='v1.2.5',
+                    target=False,
+                    state='available'),
+    FakeKubeVersion(obj_id=3,
+                    version='v1.2.6',
+                    target=False,
+                    state='available'),
+    ]
+
 
 class TestKubeUpgradePreCheckStage(TestKubeUpgradeState):
 
@@ -421,3 +447,75 @@ class TestKubeUpgradePreCheckStage(TestKubeUpgradeState):
         subcloud_version = "v1.2"
         self._test_pre_check_subcloud_existing_upgrade_resume(target_version,
                                                               subcloud_version)
+
+    def test_pre_check_skip_when_target_version_is_greater_than_to_version(self):
+        """Test creating pre check when target version is greater than to_version."""
+        next_state = STRATEGY_STATE_COMPLETE
+        # Update the subcloud to have deploy state as "complete"
+        db_api.subcloud_update(self.ctx,
+                               self.subcloud.id,
+                               deploy_status=DEPLOY_STATE_DONE)
+
+        # Setup a fake kube upgrade in progress
+        self.sysinv_client.get_kube_versions.return_value = KUBE_VERSION_LIST
+
+        # Setup a fake kube upgrade strategy with the to-version specified
+        extra_args = {"to-version": "v1.2.4"}
+        self.strategy = fake_strategy.create_fake_strategy(
+            self.ctx,
+            self.DEFAULT_STRATEGY_TYPE,
+            extra_args=extra_args)
+
+        # invoke the strategy state operation on the orch thread
+        self.worker.perform_state_action(self.strategy_step)
+
+        # Verify the transition to the  expected next state
+        self.assert_step_updated(self.strategy_step.subcloud_id, next_state)
+
+    def test_pre_check_skip_when_there_is_no_version_available(self):
+        """Test creating pre check when there is no version available."""
+        next_state = STRATEGY_STATE_COMPLETE
+        # Update the subcloud to have deploy state as "complete"
+        db_api.subcloud_update(self.ctx,
+                               self.subcloud.id,
+                               deploy_status=DEPLOY_STATE_DONE)
+
+        # Setup a fake kube upgrade in progress
+        self.sysinv_client.get_kube_versions.return_value = []
+
+        # Setup a fake kube upgrade strategy with the to-version specified
+        extra_args = {"to-version": "v1.2.4"}
+        self.strategy = fake_strategy.create_fake_strategy(
+            self.ctx,
+            self.DEFAULT_STRATEGY_TYPE,
+            extra_args=extra_args)
+
+        # invoke the strategy state operation on the orch thread
+        self.worker.perform_state_action(self.strategy_step)
+
+        # Verify the transition to the  expected next state
+        self.assert_step_updated(self.strategy_step.subcloud_id, next_state)
+
+    def test_pre_check_skip_when_there_are_multiple_available_versions(self):
+        """Test creating pre check when there are multiple_available_versions."""
+        next_state = STRATEGY_STATE_KUBE_CREATING_VIM_KUBE_UPGRADE_STRATEGY
+        # Update the subcloud to have deploy state as "complete"
+        db_api.subcloud_update(self.ctx,
+                               self.subcloud.id,
+                               deploy_status=DEPLOY_STATE_DONE)
+
+        # Setup a fake kube upgrade in progress
+        self.sysinv_client.get_kube_versions.return_value = KUBE_VERSION_LIST_2
+
+        # Setup a fake kube upgrade strategy with the to-version specified
+        extra_args = {"to-version": "v1.2.6"}
+        self.strategy = fake_strategy.create_fake_strategy(
+            self.ctx,
+            self.DEFAULT_STRATEGY_TYPE,
+            extra_args=extra_args)
+
+        # invoke the strategy state operation on the orch thread
+        self.worker.perform_state_action(self.strategy_step)
+
+        # Verify the transition to the  expected next state
+        self.assert_step_updated(self.strategy_step.subcloud_id, next_state)
