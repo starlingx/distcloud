@@ -14,12 +14,15 @@
 #
 
 import os
+import pty
 import shutil
 import socket
 import tempfile
+import threading
 
 from eventlet.green import subprocess
 import netaddr
+from oslo_config import cfg
 from oslo_log import log as logging
 from six.moves.urllib import error as urllib_error
 from six.moves.urllib import parse
@@ -36,6 +39,7 @@ from dcmanager.common import utils
 
 LOG = logging.getLogger(__name__)
 
+CONF = cfg.CONF
 BOOT_MENU_TIMEOUT = '5'
 
 SUBCLOUD_ISO_PATH = '/opt/platform/iso'
@@ -49,6 +53,8 @@ NETWORK_SCRIPTS = '/etc/sysconfig/network-scripts'
 NETWORK_INTERFACE_PREFIX = 'ifcfg'
 NETWORK_ROUTE_PREFIX = 'route'
 LOCAL_REGISTRY_PREFIX = 'registry.local:9001/'
+SERIAL_CONSOLE_INSTALL_TYPES = (0, 2, 4)
+RVMC_DEBUG_LEVEL_IPMI_CAPTURE = 1
 
 
 class SubcloudInstall(object):
@@ -66,6 +72,7 @@ class SubcloudInstall(object):
         self.input_iso = None
         self.www_root = None
         self.https_enabled = None
+        self.ipmi_logger = None
 
     @staticmethod
     def config_device(ks_cfg, interface, vlan=False):
@@ -173,8 +180,8 @@ class SubcloudInstall(object):
                 '---'
                 '\npassword_change: true'
                 '\nhost_name: ' + host_name +
-                '\nrvmc_config_dir: ' + override_path
-                + '\n'
+                '\nrvmc_config_dir: ' + override_path +
+                '\n'
             )
             for k, v in payload.items():
                 f_out_override_file.write("%s: %s\n" % (k, v))
@@ -392,17 +399,19 @@ class SubcloudInstall(object):
                                     stderr=subprocess.STDOUT)
             if result.returncode == 0:
                 # Note: watch for non-exit 0 errors in this output as well
-                msg = f'Finished install cleanup: {cleanup_cmd}'
-                LOG.info("%s returncode: %s, output: %s",
-                         msg,
-                         result.returncode,
-                         result.stdout.decode('utf-8').replace('\n', ', '))
+                LOG.info(
+                    "Finished install cleanup: %s returncode: %s, output: %s",
+                    " ".join(cleanup_cmd),
+                    result.returncode,
+                    result.stdout.decode("utf-8").replace("\n", ", "),
+                )
             else:
-                msg = f'Failed install cleanup: {cleanup_cmd}'
-                LOG.error("%s returncode: %s, output: %s",
-                          msg,
-                          result.returncode,
-                          result.stdout.decode('utf-8').replace('\n', ', '))
+                LOG.error(
+                    "Failed install cleanup: %s returncode: %s, output: %s",
+                    " ".join(cleanup_cmd),
+                    result.returncode,
+                    result.stdout.decode("utf-8").replace("\n", ", "),
+                )
 
     # TODO(kmacleod): utils.synchronized should be moved into dccommon
     @utils.synchronized("packages-list-from-bootimage", external=True)
@@ -490,9 +499,20 @@ class SubcloudInstall(object):
                  "%s/ostree_repo" % source_path,
                  ostree_repo_mount_path])
 
+    @staticmethod
+    def is_serial_console(install_type):
+        return (install_type is not None
+                and install_type in SERIAL_CONSOLE_INSTALL_TYPES)
+
     def prep(self, override_path, payload):
         """Update the iso image and create the config files for the subcloud"""
         LOG.info("Prepare for %s remote install" % (self.name))
+
+        if SubcloudInstall.is_serial_console(
+            payload.get("install_type")
+        ) and IpmiLogger.is_enabled(payload.get("rvmc_debug_level", 0)):
+            self.ipmi_logger = IpmiLogger(self.name, override_path)
+
         iso_values = {}
         for k in consts.MANDATORY_INSTALL_VALUES:
             if k in list(consts.GEN_ISO_OPTIONS.keys()):
@@ -591,17 +611,180 @@ class SubcloudInstall(object):
 
     def install(self, log_file_dir, install_command):
         LOG.info("Start remote install %s", self.name)
-        log_file = os.path.join(log_file_dir, self.name) + '_playbook_output.log'
-
+        subcloud_log_base_path = os.path.join(log_file_dir, self.name)
+        playbook_log_file = f"{subcloud_log_base_path}_playbook_output.log"
+        console_log_file = f"{subcloud_log_base_path}_serial_console.log"
+        if self.ipmi_logger:
+            self.ipmi_logger.start_logging(console_log_file)
         try:
             # Since this is a long-running task we want to register
             # for cleanup on process restart/SWACT.
             ansible = dccommon_utils.AnsiblePlaybook(self.name)
-            aborted = ansible.run_playbook(log_file, install_command)
+            aborted = ansible.run_playbook(playbook_log_file, install_command)
             # Returns True if the playbook was aborted and False otherwise
             return aborted
         except exceptions.PlaybookExecutionFailed:
-            msg = ("Failed to install %s, check individual "
-                   "log at %s or run %s for details"
-                   % (self.name, log_file, dcmanager_consts.ERROR_DESC_CMD))
+            msg = (
+                f"Failed to install {self.name}, check individual "
+                f"logs at {playbook_log_file}. "
+            )
+            if self.ipmi_logger:
+                msg += f"Console log files are available at {console_log_file}. "
+            msg += f"Run {dcmanager_consts.ERROR_DESC_CMD} for details"
             raise Exception(msg)
+        finally:
+            if self.ipmi_logger:
+                self.ipmi_logger.stop_logging()
+
+
+class IpmiLogger(object):
+    """Captures serial console log via external ipmitool script."""
+
+    def __init__(self, subcloud_name, override_path):
+        self.name = subcloud_name
+        self.override_path = os.path.join(override_path, subcloud_name)
+        # Note: will not exist yet, but is created before ipmicap_start:
+        self.rvmc_config_file = os.path.join(self.override_path,
+                                             consts.RVMC_CONFIG_FILE_NAME)
+
+    @staticmethod
+    def is_enabled(rvmc_debug_level):
+        """Determine if IPMI capture is enabled.
+
+        Decision is based on the global CONF.ipmi_capture value and the given
+        rvmc_debug_level. The global CONF.ipmi_capture value defaults to 1,
+        which defers the configuration to the per-subcloud rvmc_debug_level
+        install value. The CONF.ipmi_capture can be set in
+        /etc/dcmanager/dcmanager.conf to override this setting for all
+        subclouds.
+
+        CONF.ipmi_capture options:
+            0: globally disabled
+            1: enabled based on rvmc_debug_level
+            2: globally enabled
+        """
+        if CONF.ipmi_capture == 0:
+            LOG.debug("IPMI capture is globally disabled")
+            return False
+        if CONF.ipmi_capture == 2:
+            LOG.debug("IPMI capture is globally enabled")
+            return True
+        try:
+            return int(rvmc_debug_level) >= RVMC_DEBUG_LEVEL_IPMI_CAPTURE
+        except ValueError:
+            LOG.exception(
+                f"Invalid rvmc_debug_level in payload: '{rvmc_debug_level}'"
+            )
+            return False
+
+    def start_logging(self, log_file):
+        """Run the IPMI capture script to capture the serial console logs.
+
+        We must allocate a pty for the shell process for ipmitool to
+        properly connect.
+
+        This is required for proper process cleanup on termination:
+        Run this script in a separate thread so that we can wait for the
+        process to end while not blocking the caller.
+        """
+        def ipmicap_start(log_file):
+            """Thread function: Invoke the IPMI capture script.
+
+            Wait for it to finish.
+            """
+            try:
+                ipmi_cmd = [
+                    "/usr/local/bin/ipmicap.sh",
+                    "--force-deactivate", "--redirect",
+                    "--rvmc-config",
+                    self.rvmc_config_file,
+                    "--log", log_file,
+                ]
+                msg = "IPMI capture"
+
+                # Unless ipmitool has a console for stdin it fails with error:
+                #     tcgetattr: Inappropriate ioctl for device
+                # Open a pty and use it for our process:
+                master_fd, slave_fd = pty.openpty()
+
+                LOG.info(
+                    "%s start %s: %s, pty:%s",
+                    msg, self.name, " ".join(ipmi_cmd), os.ttyname(slave_fd),
+                )
+                try:
+                    result = subprocess.run(
+                        ipmi_cmd,
+                        stdin=slave_fd,
+                        # capture both streams in stdout:
+                        stdout=subprocess.PIPE,
+                        stderr=subprocess.STDOUT,
+                    )
+                    output = result.stdout.decode("utf-8").replace("\n", ", ")
+                    if result.returncode == 0:
+                        if output:
+                            LOG.info(
+                                "%s finished %s, output: %s",
+                                msg, self.name, output,
+                            )
+                        else:
+                            LOG.info("%s finished %s", msg, self.name)
+                    else:
+                        LOG.warn(
+                            "%s failed %s, returncode: %s, output: %s",
+                            msg, self.name, result.returncode, output,
+                        )
+                finally:
+                    try:
+                        os.close(slave_fd)
+                    except Exception:
+                        LOG.exception(f"Close slave_fd failed: {slave_fd}")
+                    try:
+                        os.close(master_fd)
+                    except Exception:
+                        LOG.exception(f"Close master_fd failed {master_fd}")
+
+            except Exception:
+                LOG.exception(f"IPMI capture start failed: {self.name}")
+
+        try:
+            capture_thread = threading.Thread(
+                target=ipmicap_start,
+                args=(log_file, )
+            )
+            capture_thread.start()
+
+        except Exception:
+            LOG.exception(f"IPMI capture start threading failed: {self.name}")
+
+    def stop_logging(self):
+        """Kill the IPMI capture script"""
+        msg = "IPMI capture stop"
+        try:
+            ipmi_cmd = [
+                "/usr/local/bin/ipmicap.sh",
+                "--kill",
+                "--rvmc-config",
+                self.rvmc_config_file,
+            ]
+            LOG.info("%s invoking %s", msg, " ".join(ipmi_cmd))
+            result = subprocess.run(
+                ipmi_cmd,
+                # capture both streams in stdout:
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+            )
+            if result.returncode == 0:
+                LOG.info(
+                    "%s %s, output: %s",
+                    msg, self.name,
+                    result.stdout.decode("utf-8").replace("\n", ", "),
+                )
+            else:
+                LOG.warn(
+                    "%s %s failed, returncode: %s, output: %s",
+                    msg, self.name, result.returncode,
+                    result.stdout.decode("utf-8").replace("\n", ", "),
+                )
+
+        except Exception:
+            LOG.exception("%s %s failed with exception", msg, self.name)

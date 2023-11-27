@@ -162,6 +162,9 @@ common_opts = [
                help='hostname of the machine'),
     cfg.IntOpt('playbook_timeout', default=3600,
                help='global ansible playbook timeout (seconds)'),
+    cfg.IntOpt('ipmi_capture', default=1,
+               help='global IPMI capture control. 0: globally disabled '
+                    '1:enabled via rvmc_debug_level, 2:globally enabled')
 ]
 
 usm_opts = [
