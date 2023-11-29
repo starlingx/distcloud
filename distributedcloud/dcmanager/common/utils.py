@@ -971,6 +971,12 @@ def _is_valid_for_backup_restore(subcloud, bootstrap_address_dict=None):
         msg = ('Unable to obtain the subcloud %s bootstrap_address from either '
                'restore or install values. Please ensure bootstrap_address is '
                'specified in the restore-values.yml and try again.' % subcloud.name)
+    elif has_bootstrap_address:
+        try:
+            netaddr.IPAddress(bootstrap_address_dict[subcloud.name])
+        except netaddr.AddrFormatError:
+            msg = (f'Subcloud {subcloud.name} must have a valid bootstrap address: '
+                   f'{bootstrap_address_dict[subcloud.name]}')
     if msg:
         raise exceptions.ValidateFail(msg)
 

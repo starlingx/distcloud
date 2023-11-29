@@ -81,6 +81,16 @@ FAKE_SYSTEM_HEALTH_K8S_FAIL = \
      "[2] alarms found, [2] of which are management affecting\n"
      "All kubernetes nodes are ready: [OK]\n"
      "All kubernetes control plane pods are ready: [OK]\n")
+FAKE_RESTORE_VALUES_INVALID_IP = {
+    'bootstrap_address': {
+        'subcloud1': '10.10.20.12.22'
+    }
+}
+FAKE_RESTORE_VALUES_VALID_IP = {
+    'bootstrap_address': {
+        'subcloud1': '10.10.20.12'
+    }
+}
 
 
 class TestSubcloudCreate(testroot.DCManagerApiTest):
@@ -1020,6 +1030,48 @@ class TestSubcloudRestore(testroot.DCManagerApiTest):
                                        params=data)
 
         self.assertEqual(response.status_int, 200)
+
+    @mock.patch.object(rpc_client, 'ManagerClient')
+    def test_backup_restore_subcloud_valid_restore_values(self, mock_rpc_client):
+
+        subcloud = fake_subcloud.create_fake_subcloud(self.ctx)
+        db_api.subcloud_update(self.ctx,
+                               subcloud.id,
+                               availability_status=dccommon_consts.AVAILABILITY_ONLINE,
+                               management_state=dccommon_consts.MANAGEMENT_UNMANAGED,
+                               backup_datetime=None,
+                               backup_status=consts.BACKUP_STATE_UNKNOWN)
+
+        fake_password = (base64.b64encode('testpass'.encode("utf-8"))).decode('ascii')
+        data = {'sysadmin_password': fake_password, 'subcloud': '1',
+                'restore_values': FAKE_RESTORE_VALUES_VALID_IP}
+
+        mock_rpc_client().restore_subcloud_backups.return_value = True
+        response = self.app.patch_json(FAKE_URL_RESTORE,
+                                       headers=FAKE_HEADERS,
+                                       params=data)
+
+        self.assertEqual(response.status_int, 200)
+
+    @mock.patch.object(rpc_client, 'ManagerClient')
+    def test_backup_restore_subcloud_invalid_restore_values(self, mock_rpc_client):
+
+        subcloud = fake_subcloud.create_fake_subcloud(self.ctx)
+        db_api.subcloud_update(self.ctx,
+                               subcloud.id,
+                               availability_status=dccommon_consts.AVAILABILITY_ONLINE,
+                               management_state=dccommon_consts.MANAGEMENT_UNMANAGED,
+                               backup_datetime=None,
+                               backup_status=consts.BACKUP_STATE_UNKNOWN)
+
+        fake_password = (base64.b64encode('testpass'.encode("utf-8"))).decode('ascii')
+        data = {'sysadmin_password': fake_password, 'subcloud': '1',
+                'restore_values': FAKE_RESTORE_VALUES_INVALID_IP}
+
+        mock_rpc_client().restore_subcloud_backups.return_value = True
+        six.assertRaisesRegex(self, webtest.app.AppError, "400 *",
+                              self.app.patch_json, FAKE_URL_RESTORE,
+                              headers=FAKE_HEADERS, params=data)
 
     @mock.patch.object(rpc_client, 'ManagerClient')
     def test_backup_restore_unknown_subcloud(self, mock_rpc_client):
