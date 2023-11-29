@@ -65,11 +65,8 @@ class UpgradingSimplexState(BaseState):
         install_values = self.get_subcloud_upgrade_install_values(
             strategy_step, subcloud_sysinv_client, subcloud_barbican_client)
 
-        local_ks_client = self.get_keystone_client()
-
         # Upgrade the subcloud to the install_values image
-        self.perform_subcloud_install(
-            strategy_step, local_ks_client.session, install_values)
+        self.perform_subcloud_install(strategy_step, install_values)
         return self.next_state
 
     def _check_load_already_active(self, target_version, subcloud_sysinv_client):
@@ -324,18 +321,15 @@ class UpgradingSimplexState(BaseState):
                 install_type = 2
         return install_type
 
-    def perform_subcloud_install(self, strategy_step, session, install_values):
+    def perform_subcloud_install(self, strategy_step, install_values):
 
         log_file = os.path.join(consts.DC_ANSIBLE_LOG_DIR, strategy_step.subcloud.name) + \
             '_playbook_output.log'
         db_api.subcloud_update(
             self.context, strategy_step.subcloud_id,
             deploy_status=consts.DEPLOY_STATE_PRE_INSTALL)
-        self.context.auth_token = session.get_token()
-        self.context.project = session.get_project_id()
         try:
-            install = SubcloudInstall(
-                self.context, strategy_step.subcloud.name)
+            install = SubcloudInstall(strategy_step.subcloud.name)
             install.prep(dccommon_consts.ANSIBLE_OVERRIDES_PATH,
                          install_values)
         except Exception as e:
@@ -345,7 +339,8 @@ class UpgradingSimplexState(BaseState):
                 error_description=str(e)[0:consts.ERROR_DESCRIPTION_LENGTH])
             self.error_log(strategy_step, str(e))
             # TODO(jkung): cleanup to be implemented within SubcloudInstall
-            install.cleanup()
+            if install:
+                install.cleanup()
             raise
 
         ansible_subcloud_inventory_file = os.path.join(

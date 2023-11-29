@@ -2209,15 +2209,15 @@ class SubcloudManager(manager.Manager):
                 deploy_status=consts.DEPLOY_STATE_PRE_INSTALL,
                 software_version=software_version)
         try:
-            install = SubcloudInstall(context, subcloud.name)
+            install = SubcloudInstall(subcloud.name)
             install.prep(dccommon_consts.ANSIBLE_OVERRIDES_PATH, payload)
         except Exception as e:
             LOG.exception(e)
             db_api.subcloud_update(
                 context, subcloud.id,
                 deploy_status=consts.DEPLOY_STATE_PRE_INSTALL_FAILED)
-            LOG.error(str(e))
-            install.cleanup(software_version)
+            if install:
+                install.cleanup(software_version)
             return False
 
         # Run the remote install playbook
