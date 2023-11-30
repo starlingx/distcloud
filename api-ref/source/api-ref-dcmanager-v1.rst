@@ -1791,6 +1791,37 @@ Response Example
          :language: json
 
 
+************************************
+Delete Subcloud Deploy Files
+************************************
+
+.. rest_method:: DELETE /v1.0/subcloud-deploy
+
+**Normal response codes**
+
+200
+
+**Error response codes**
+
+badRequest (400), unauthorized (401), forbidden (403), notFound (404),
+HTTPUnprocessableEntity (422), internalServerError (500),
+serviceUnavailable (503)
+
+**Request parameters**
+
+.. rest_parameters:: parameters.yaml
+
+  - release: release_uri
+  - deployment_files: delete_subcloud_deployment_files
+  - prestage_images: delete_subcloud_deploy_prestage_images
+
+Request Example
+----------------
+
+.. literalinclude:: samples/subcloud-deploy/subcloud-deploy-delete-request.json
+         :language: json
+
+
 ----------------------
 Phased Subcloud Deploy
 ----------------------

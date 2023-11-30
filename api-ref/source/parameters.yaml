@@ -233,6 +233,20 @@ default_instance_action:
   in: body
   required: true
   type: string
+delete_subcloud_deploy_prestage_images:
+  description: |
+    The flag to indicate the deployment manager prestage images
+    file to be deleted.
+  in: body
+  required: false
+  type: boolean
+delete_subcloud_deployment_files:
+  description: |
+    The flag to indicate the deploy playbook, deploy overrides,
+    deploy chart files to be deleted.
+  in: body
+  required: false
+  type: boolean
 deploy_config:
   description: |
     The content of a file containing the resource definitions describing
