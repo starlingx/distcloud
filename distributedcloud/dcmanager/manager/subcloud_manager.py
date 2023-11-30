@@ -33,6 +33,7 @@ from fm_api import constants as fm_const
 from fm_api import fm_api
 import keyring
 import netaddr
+from oslo_config import cfg
 from oslo_log import log as logging
 from oslo_messaging import RemoteError
 from tsconfig.tsconfig import CONFIG_PATH
@@ -69,6 +70,7 @@ from dcorch.rpc import client as dcorch_rpc_client
 
 
 LOG = logging.getLogger(__name__)
+CONF = cfg.CONF
 
 # Name of our distributed cloud addn_hosts file for dnsmasq
 # to read.  This file is referenced in dnsmasq.conf
@@ -2062,7 +2064,8 @@ class SubcloudManager(manager.Manager):
         # Run the subcloud backup restore playbook
         try:
             ansible = AnsiblePlaybook(subcloud.name)
-            ansible.run_playbook(log_file, restore_command)
+            ansible.run_playbook(log_file, restore_command,
+                                 timeout=CONF.playbook_timeout)
             LOG.info("Successfully restore subcloud %s" % subcloud.name)
             db_api.subcloud_update(
                 context, subcloud.id,
