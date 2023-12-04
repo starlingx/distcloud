@@ -54,10 +54,9 @@ LOCAL_REGISTRY_PREFIX = 'registry.local:9001/'
 class SubcloudInstall(object):
     """Class to encapsulate the subcloud install operations"""
 
-    def __init__(self, context, subcloud_name):
+    def __init__(self, subcloud_name):
         ks_client = KeystoneClient(region_name=consts.CLOUD_0)
-        session = ks_client.endpoint_cache.get_session_from_token(
-            context.auth_token, context.project)
+        session = ks_client.session
         endpoint = ks_client.endpoint_cache.get_endpoint('sysinv')
         self.sysinv_client = SysinvClient(consts.CLOUD_0,
                                           session, endpoint=endpoint)
