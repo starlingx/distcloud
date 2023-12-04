@@ -117,7 +117,7 @@ class SystemPeer(BASE, DCManagerBase):
     heartbeat_failure_threshold = Column(Integer)
     heartbeat_failure_policy = Column(String(255))
     heartbeat_maintenance_timeout = Column(Integer)
-    heartbeat_status = Column(String(255))
+    availability_state = Column(String(255))
 
 
 class SubcloudGroup(BASE, DCManagerBase):

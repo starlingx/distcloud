@@ -382,7 +382,7 @@ def system_peer_db_model_to_dict(system_peer):
               "heartbeat-failure-policy": system_peer.heartbeat_failure_policy,
               "heartbeat-maintenance-timeout": system_peer.
               heartbeat_maintenance_timeout,
-              "heartbeat-status": system_peer.heartbeat_status,
+              "availability-state": system_peer.availability_state,
               "created-at": system_peer.created_at,
               "updated-at": system_peer.updated_at}
     return result
@@ -443,7 +443,7 @@ def system_peer_update(context, peer_id,
                        heartbeat_failure_threshold=None,
                        heartbeat_failure_policy=None,
                        heartbeat_maintenance_timeout=None,
-                       heartbeat_status=None):
+                       availability_state=None):
     """Update the system peer or raise if it does not exist."""
     return IMPL.system_peer_update(context, peer_id,
                                    peer_uuid, peer_name,
@@ -454,7 +454,7 @@ def system_peer_update(context, peer_id,
                                    heartbeat_failure_threshold,
                                    heartbeat_failure_policy,
                                    heartbeat_maintenance_timeout,
-                                   heartbeat_status)
+                                   availability_state)
 
 
 def system_peer_destroy(context, peer_id):

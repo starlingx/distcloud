@@ -61,7 +61,7 @@ def upgrade(migrate_engine):
         sqlalchemy.Column('heartbeat_failure_threshold', sqlalchemy.Integer),
         sqlalchemy.Column('heartbeat_failure_policy', sqlalchemy.String(255)),
         sqlalchemy.Column('heartbeat_maintenance_timeout', sqlalchemy.Integer),
-        sqlalchemy.Column('heartbeat_status', sqlalchemy.String(255)),
+        sqlalchemy.Column('availability_state', sqlalchemy.String(255)),
         sqlalchemy.Column('reserved_1', sqlalchemy.Text),
         sqlalchemy.Column('reserved_2', sqlalchemy.Text),
         sqlalchemy.Column('created_at', sqlalchemy.DateTime),

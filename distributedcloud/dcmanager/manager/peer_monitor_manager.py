@@ -131,17 +131,17 @@ class PeerMonitor(object):
                         self._raise_failure()
                         db_api.system_peer_update(
                             self.context, self.peer.id,
-                            heartbeat_status=consts.SYSTEM_PEER_HEARTBEAT_STATUS_FAILURE)
+                            availability_state=consts.SYSTEM_PEER_AVAILABILITY_STATE_UNAVAILABLE)
                         failure_count = 0
                         self._set_require_audit_flag_to_associated_peer_groups()
                 else:
                     failure_count = 0
                     self._audit_local_peer_groups(remote_pg_list)
-                    if self.peer.heartbeat_status != \
-                        consts.SYSTEM_PEER_HEARTBEAT_STATUS_ALIVE:
+                    if self.peer.availability_state != \
+                        consts.SYSTEM_PEER_AVAILABILITY_STATE_AVAILABLE:
                         db_api.system_peer_update(
                             self.context, self.peer.id,
-                            heartbeat_status=consts.SYSTEM_PEER_HEARTBEAT_STATUS_ALIVE)
+                            availability_state=consts.SYSTEM_PEER_AVAILABILITY_STATE_AVAILABLE)
                         LOG.info("DC %s back online, clear alarm" %
                                  self.peer.peer_name)
                         self._clear_failure()

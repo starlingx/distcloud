@@ -398,11 +398,11 @@ class SubcloudManager(manager.Manager):
         return rehome_command
 
     def _migrate_manage_subcloud(
-            self, context, payload, alive_system_peers, subcloud):
+            self, context, payload, available_system_peers, subcloud):
         success = True
         # Try to unmanage the subcloud on peer system
-        if alive_system_peers:
-            if self._unmanage_system_peer_subcloud(alive_system_peers,
+        if available_system_peers:
+            if self._unmanage_system_peer_subcloud(available_system_peers,
                                                    subcloud):
                 success = False
                 LOG.warning("Unmanged subcloud: %s error on peer system, "
@@ -461,9 +461,9 @@ class SubcloudManager(manager.Manager):
         for association in associations:
             system_peer = db_api.system_peer_get(
                 self.context, association.system_peer_id)
-            # Get 'alive' system peer
-            if system_peer.heartbeat_status != \
-                consts.SYSTEM_PEER_HEARTBEAT_STATUS_ALIVE:
+            # Get 'available' system peer
+            if system_peer.availability_state != \
+                consts.SYSTEM_PEER_AVAILABILITY_STATE_AVAILABLE:
                 LOG.warning("Peer system %s offline, skip checking" %
                             system_peer.peer_name)
                 continue

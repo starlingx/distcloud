@@ -31,7 +31,7 @@ SAMPLE_HEARTBEAT_INTERVAL = 10
 SAMPLE_HEARTBEAT_FAILURE_THRESHOLD = 3
 SAMPLE_HEARTBEAT_FAILURES_POLICY = 'alarm'
 SAMPLE_HEARTBEAT_MAINTENANCE_TIMEOUT = 600
-SAMPLE_HEARTBEAT_STATUS_ALIVE = 'alive'
+SAMPLE_AVAILABILITY_STATE_AVAILABLE = 'available'
 
 # SAMPLE SUBCLOUD PEER GROUP DATA
 SAMPLE_SUBCLOUD_PEER_GROUP_NAME = 'GroupX'
@@ -207,8 +207,9 @@ class TestPeerGroupAssociationPost(testroot.DCManagerApiTest,
         context = utils.dummy_context()
         self.context = context
         peer_id, _ = self._create_db_related_objects(context)
-        db_api.system_peer_update(context, peer_id=peer_id,
-                                  heartbeat_status=SAMPLE_HEARTBEAT_STATUS_ALIVE)
+        db_api.system_peer_update(
+            context, peer_id=peer_id,
+            availability_state=SAMPLE_AVAILABILITY_STATE_AVAILABLE)
 
     def verify_post_failure(self, response):
         # Failures will return text rather than JSON

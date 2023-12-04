@@ -892,7 +892,7 @@ def system_peer_create(context,
                        heartbeat_failure_threshold=3,
                        heartbeat_failure_policy="alarm",
                        heartbeat_maintenance_timeout=600,
-                       heartbeat_status="created"):
+                       availability_state="created"):
     with write_session() as session:
         system_peer_ref = models.SystemPeer()
         system_peer_ref.peer_uuid = peer_uuid
@@ -908,7 +908,7 @@ def system_peer_create(context,
         system_peer_ref.heartbeat_failure_policy = heartbeat_failure_policy
         system_peer_ref.heartbeat_maintenance_timeout = \
             heartbeat_maintenance_timeout
-        system_peer_ref.heartbeat_status = heartbeat_status
+        system_peer_ref.availability_state = availability_state
         session.add(system_peer_ref)
         return system_peer_ref
 
@@ -923,7 +923,7 @@ def system_peer_update(context, peer_id,
                        heartbeat_failure_threshold=None,
                        heartbeat_failure_policy=None,
                        heartbeat_maintenance_timeout=None,
-                       heartbeat_status=None):
+                       availability_state=None):
     with write_session() as session:
         system_peer_ref = system_peer_get(context, peer_id)
         if peer_uuid is not None:
@@ -950,8 +950,8 @@ def system_peer_update(context, peer_id,
         if heartbeat_maintenance_timeout is not None:
             system_peer_ref.heartbeat_maintenance_timeout = \
                 heartbeat_maintenance_timeout
-        if heartbeat_status is not None:
-            system_peer_ref.heartbeat_status = heartbeat_status
+        if availability_state is not None:
+            system_peer_ref.availability_state = availability_state
         system_peer_ref.save(session)
         return system_peer_ref
 

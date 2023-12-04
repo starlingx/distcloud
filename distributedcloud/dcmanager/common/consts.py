@@ -457,9 +457,9 @@ DCMANAGER_V1_HTTP_AGENT = 'dcmanager/1.0'
 # batch rehome manage state wait timeout
 BATCH_REHOME_MGMT_STATES_TIMEOUT = 900
 
-# System peer heartbeat status
-SYSTEM_PEER_HEARTBEAT_STATUS_ALIVE = 'alive'
-SYSTEM_PEER_HEARTBEAT_STATUS_FAILURE = 'failure'
+# System peer availability state
+SYSTEM_PEER_AVAILABILITY_STATE_AVAILABLE = 'available'
+SYSTEM_PEER_AVAILABILITY_STATE_UNAVAILABLE = 'unavailable'
 
 # Peer group migration status
 PEER_GROUP_MIGRATING = 'migrating'
