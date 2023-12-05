@@ -1485,6 +1485,45 @@ def is_req_from_another_dc(request):
         return False
 
 
+def validate_name(name, prohibited_name_list=[],
+                  invalid_chars=".*+?|()[]{}^$", max_length=255,
+                  case_sensitive=False):
+    """validate name string.
+
+    :param name: name string
+    :param prohibited_name_list: a list containing prohibited string
+    :param max_length: max length of name
+    :param invalid_chars: default is regular expression chars
+    :param case_sensitive: case sensitive setting for prohibited_name_list
+    :returns boolean value as result
+    """
+    special_chars = set(invalid_chars)
+    if not name:
+        return False
+    if name.isdigit():
+        LOG.warning("Invalid name [%s], can not be digit" % name)
+        return False
+    if len(name) > max_length:
+        LOG.warning("Invalid name length")
+        return False
+    for char in name:
+        if char in special_chars:
+            LOG.warning("Invalid name, Prohibited to use regular "
+                        "expression characters: %s" % name)
+            return False
+
+    normalized_name = name if case_sensitive else name.lower()
+    normalized_prohibited_list = (
+        prohibited_name_list
+        if case_sensitive
+        else [s.lower() for s in prohibited_name_list]
+    )
+    if normalized_name in normalized_prohibited_list:
+        LOG.warning("Invalid name, cannot use '%s' as name" % name)
+        return False
+    return True
+
+
 def get_local_system():
     m_ks_client = OpenStackDriver(
         region_name=dccommon_consts.DEFAULT_REGION_NAME,

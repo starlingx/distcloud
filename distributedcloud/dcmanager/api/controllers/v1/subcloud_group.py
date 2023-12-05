@@ -99,22 +99,6 @@ class SubcloudGroupsController(restcomm.GenericPathController):
         subcloud_group_dict = db_api.subcloud_group_db_model_to_dict(group)
         return subcloud_group_dict
 
-    def _validate_name(self, name):
-        # Reject post and update operations for name that:
-        # - attempt to set to None
-        # - attempt to set to a number
-        # - attempt to set to the Default subcloud group
-        # - exceed the max length
-        if not name:
-            return False
-        if name.isdigit():
-            return False
-        if name == consts.DEFAULT_SUBCLOUD_GROUP_NAME:
-            return False
-        if len(name) >= MAX_SUBCLOUD_GROUP_NAME_LEN:
-            return False
-        return True
-
     def _validate_description(self, description):
         if not description:
             return False
@@ -162,7 +146,9 @@ class SubcloudGroupsController(restcomm.GenericPathController):
         max_parallel_subclouds = payload.get('max_parallel_subclouds')
 
         # Validate payload
-        if not self._validate_name(name):
+        if not utils.validate_name(name,
+                                   prohibited_name_list=[
+                                       consts.DEFAULT_SUBCLOUD_GROUP_NAME]):
             pecan.abort(httpclient.BAD_REQUEST, _('Invalid group name'))
         if not self._validate_description(description):
             pecan.abort(httpclient.BAD_REQUEST, _('Invalid group description'))
@@ -222,7 +208,9 @@ class SubcloudGroupsController(restcomm.GenericPathController):
 
         # Check value is not None or empty before calling validate
         if name:
-            if not self._validate_name(name):
+            if not utils.validate_name(name,
+                                       prohibited_name_list=[
+                                           consts.DEFAULT_SUBCLOUD_GROUP_NAME]):
                 pecan.abort(httpclient.BAD_REQUEST,
                             _('Invalid group name'))
             # Special case. Default group name cannot be changed

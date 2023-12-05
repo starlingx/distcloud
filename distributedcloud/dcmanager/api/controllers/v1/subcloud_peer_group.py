@@ -36,7 +36,6 @@ LOG = logging.getLogger(__name__)
 MAX_SUBCLOUD_PEER_GROUP_NAME_LEN = 255
 MIN_SUBCLOUD_PEER_GROUP_SUBCLOUD_REHOMING = 1
 MAX_SUBCLOUD_PEER_GROUP_SUBCLOUD_REHOMING = 250
-MAX_SYSTEM_LEADER_NAME_LEN = 255
 MAX_SUBCLOUD_PEER_GROUP_PRIORITY = 65536
 MIN_SUBCLOUD_PEER_GROUP_PRIORITY = 0
 DEFAULT_SUBCLOUD_PEER_GROUP_PRIORITY = 0
@@ -173,7 +172,8 @@ class SubcloudPeerGroupsController(restcomm.GenericPathController):
         local_system = None
         # Validate payload
         # peer_group_name is mandatory
-        if not self._validate_name(peer_group_name):
+        if not utils.validate_name(peer_group_name,
+                                   prohibited_name_list=['none']):
             pecan.abort(httpclient.BAD_REQUEST, _('Invalid peer-group-name'))
         if not system_leader_id:
             # 1.Operator does not need to (and should not) specify
@@ -195,7 +195,7 @@ class SubcloudPeerGroupsController(restcomm.GenericPathController):
             if not local_system:
                 local_system = self._get_local_system()
             system_leader_name = local_system.name
-        elif not self._validate_system_leader_name(system_leader_name):
+        elif not utils.validate_name(system_leader_name):
             pecan.abort(httpclient.BAD_REQUEST,
                         _('Invalid system-leader-name'))
         if not group_priority:
@@ -282,7 +282,9 @@ class SubcloudPeerGroupsController(restcomm.GenericPathController):
                 pecan.abort(httpclient.BAD_REQUEST, _('nothing to update'))
 
             # Check value is not None or empty before calling validation function
-            if peer_group_name and not self._validate_name(peer_group_name):
+            if (peer_group_name is not None and
+                    not utils.validate_name(peer_group_name,
+                                            prohibited_name_list=['none'])):
                     pecan.abort(httpclient.BAD_REQUEST, _('Invalid peer-group-name'))
             if group_priority and not self._validate_group_priority(group_priority):
                     pecan.abort(httpclient.BAD_REQUEST, _('Invalid group-priority'))
@@ -297,8 +299,8 @@ class SubcloudPeerGroupsController(restcomm.GenericPathController):
                not self._validate_system_leader_id(system_leader_id)):
                     pecan.abort(httpclient.BAD_REQUEST,
                                 _('Invalid system-leader-id'))
-            if (system_leader_name and
-               not self._validate_system_leader_name(system_leader_name)):
+            if (system_leader_name is not None and
+               not utils.validate_name(system_leader_name)):
                     pecan.abort(httpclient.BAD_REQUEST,
                                 _('Invalid system-leader-name'))
             if (migration_status and
@@ -464,25 +466,6 @@ class SubcloudPeerGroupsController(restcomm.GenericPathController):
         else:
             pecan.abort(400, _('Invalid request'))
 
-    def _validate_name(self, name):
-        # Reject post and update operations for name that:
-        # - attempt to set to None
-        # - attempt to set to a number
-        # - exceed the max length
-        if not name:
-            return False
-        if name.isdigit():
-            LOG.warning("Invalid name [%s], can not be digit" % name)
-            return False
-        if len(name) > MAX_SUBCLOUD_PEER_GROUP_NAME_LEN:
-            LOG.warning("Invalid name length")
-            return False
-        # none is not a valid name
-        if name.lower() == 'none':
-            LOG.warning("Invalid name, cannot use 'none' as name")
-            return False
-        return True
-
     def _validate_group_priority(self, priority):
         try:
             # Check the value is an integer
@@ -512,11 +495,6 @@ class SubcloudPeerGroupsController(restcomm.GenericPathController):
         if val < MIN_SUBCLOUD_PEER_GROUP_SUBCLOUD_REHOMING:
             return False
         if val > MAX_SUBCLOUD_PEER_GROUP_SUBCLOUD_REHOMING:
-            return False
-        return True
-
-    def _validate_system_leader_name(self, name):
-        if len(name) > MAX_SYSTEM_LEADER_NAME_LEN:
             return False
         return True
 
