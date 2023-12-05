@@ -207,7 +207,7 @@ class SubcloudPeerGroupsController(restcomm.GenericPathController):
         elif not self._validate_group_state(group_state):
             pecan.abort(httpclient.BAD_REQUEST,
                         _('Invalid group-state'))
-        if not max_subcloud_rehoming:
+        if max_subcloud_rehoming is None:
             max_subcloud_rehoming = DEFAULT_SUBCLOUD_PEER_GROUP_MAX_REHOMING
         elif not self._validate_max_subcloud_rehoming(max_subcloud_rehoming):
             pecan.abort(httpclient.BAD_REQUEST,
@@ -276,7 +276,7 @@ class SubcloudPeerGroupsController(restcomm.GenericPathController):
                 or group_state
                 or system_leader_id
                 or system_leader_name
-                or max_subcloud_rehoming
+                or max_subcloud_rehoming is not None
                 or migration_status
             ):
                 pecan.abort(httpclient.BAD_REQUEST, _('nothing to update'))
@@ -289,10 +289,10 @@ class SubcloudPeerGroupsController(restcomm.GenericPathController):
             if group_state and not self._validate_group_state(group_state):
                     pecan.abort(httpclient.BAD_REQUEST,
                                 _('Invalid group-state'))
-            if (max_subcloud_rehoming and
-               not self._validate_max_subcloud_rehoming(max_subcloud_rehoming)):
-                    pecan.abort(httpclient.BAD_REQUEST,
-                                _('Invalid max-subcloud-rehoming'))
+            if (max_subcloud_rehoming is not None and
+                    not self._validate_max_subcloud_rehoming(max_subcloud_rehoming)):
+                pecan.abort(httpclient.BAD_REQUEST,
+                            _('Invalid max-subcloud-rehoming'))
             if (system_leader_id and
                not self._validate_system_leader_id(system_leader_id)):
                     pecan.abort(httpclient.BAD_REQUEST,
