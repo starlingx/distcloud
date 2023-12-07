@@ -13,7 +13,6 @@ from dcmanager.common.consts \
     import STRATEGY_STATE_KUBE_CREATING_VIM_KUBE_UPGRADE_STRATEGY
 from dcmanager.common.consts import STRATEGY_STATE_KUBE_UPGRADE_PRE_CHECK
 from dcmanager.db.sqlalchemy import api as db_api
-
 from dcmanager.tests.unit.common import fake_strategy
 from dcmanager.tests.unit.orchestrator.states.fakes import FakeAlarm
 from dcmanager.tests.unit.orchestrator.states.fakes import FakeKubeUpgrade
@@ -60,34 +59,31 @@ KUBERNETES_UPGRADE_HEALTH_RESPONSE_NON_MGMT_AFFECTING_ALARM = \
     "All kubernetes control plane pods are ready: [OK]\n" \
     "All kubernetes applications are in a valid state: [OK]"
 
+KUBERNETES_UPGRADE_HEALTH_RESPONSE_MGMT_AFFECTING_AND_KUBERNETES_ALARM = \
+    "System Health:\n" \
+    "All hosts are provisioned: [OK]\n" \
+    "All hosts are unlocked/enabled: [OK]\n" \
+    "All hosts have current configurations: [OK]\n" \
+    "All hosts are patch current: [OK]\n" \
+    "No alarms: [Fail]\n" \
+    "[2] alarms found, [2] of which are management affecting\n" \
+    "All kubernetes nodes are ready: [Fail]\n" \
+    "All kubernetes control plane pods are ready: [OK]\n" \
+    "All kubernetes applications are in a valid state: [OK]"
+
 MEMORY_THRESHOLD_ALARM = FakeAlarm('100.101', 'True')
 KUBERNETES_UPGRADE_ALARM = FakeAlarm('900.007', 'True')
 CONFIG_OUT_OF_DATE_ALARM = FakeAlarm('250.001', 'False')
 
 KUBE_VERSION_LIST = [
-    FakeKubeVersion(obj_id=1,
-                    version='v1.2.3',
-                    target=True,
-                    state='active'),
-    FakeKubeVersion(obj_id=2,
-                    version='v1.2.5',
-                    target=False,
-                    state='available'),
+    FakeKubeVersion(obj_id=1, version='v1.2.3', target=True, state='active'),
+    FakeKubeVersion(obj_id=2, version='v1.2.5', target=False, state='available'),
 ]
 
 KUBE_VERSION_LIST_2 = [
-    FakeKubeVersion(obj_id=1,
-                    version='v1.2.3',
-                    target=True,
-                    state='active'),
-    FakeKubeVersion(obj_id=2,
-                    version='v1.2.5',
-                    target=False,
-                    state='available'),
-    FakeKubeVersion(obj_id=3,
-                    version='v1.2.6',
-                    target=False,
-                    state='available'),
+    FakeKubeVersion(obj_id=1, version='v1.2.3', target=True, state='active'),
+    FakeKubeVersion(obj_id=2, version='v1.2.5', target=False, state='available'),
+    FakeKubeVersion(obj_id=3, version='v1.2.6', target=False, state='available'),
 ]
 
 
@@ -123,6 +119,7 @@ class TestKubeUpgradePreCheckStage(TestKubeUpgradeState):
         When a kube upgrade exists in the subcloud, do not skip, go to the
         next step, which is 'create the vim kube upgrade strategy'
         """
+
         next_state = STRATEGY_STATE_KUBE_CREATING_VIM_KUBE_UPGRADE_STRATEGY
         # Update the subcloud to have deploy state as "complete"
         db_api.subcloud_update(self.ctx,
@@ -144,6 +141,31 @@ class TestKubeUpgradePreCheckStage(TestKubeUpgradeState):
         self.sysinv_client.get_kube_versions.assert_called_once()
 
         # Verify the transition to the  expected next state
+        self.assert_step_updated(self.strategy_step.subcloud_id, next_state)
+
+    def test_pre_check_succeeds_with_strategy_without_extra_args(self):
+        """Test pre-check succeeds with strategy without extra args"""
+
+        self.strategy = fake_strategy.create_fake_strategy(
+            self.ctx, self.DEFAULT_STRATEGY_TYPE
+        )
+        next_state = STRATEGY_STATE_KUBE_CREATING_VIM_KUBE_UPGRADE_STRATEGY
+
+        db_api.subcloud_update(
+            self.ctx, self.subcloud.id, deploy_status=DEPLOY_STATE_DONE
+        )
+        self.sysinv_client.get_kube_upgrades.return_value = [FakeKubeUpgrade()]
+
+        self.sysinv_client.get_kube_versions.return_value = [
+            FakeKubeVersion(
+                obj_id=1, version=UPGRADED_KUBE_VERSION, target=True, state='active'
+            )
+        ]
+
+        self.worker.perform_state_action(self.strategy_step)
+
+        self.sysinv_client.get_kube_versions.assert_called_once()
+
         self.assert_step_updated(self.strategy_step.subcloud_id, next_state)
 
     def test_pre_check_subcloud_failed_health_check_with_management_alarms(self):
@@ -169,8 +191,31 @@ class TestKubeUpgradePreCheckStage(TestKubeUpgradeState):
         self.assert_step_updated(self.strategy_step.subcloud_id,
                                  STRATEGY_STATE_FAILED)
 
+    def test_pre_check_subcloud_failed_health_check_with_mgmt_and_kubernetes_alarm(
+        self
+    ):
+        """Test pre check step where subcloud has management and kubernetes
+
+        affecting alarms
+        """
+
+        db_api.subcloud_update(
+            self.ctx, self.subcloud.id, deploy_status=DEPLOY_STATE_DONE
+        )
+
+        self.sysinv_client.get_kube_upgrade_health.return_value = \
+            KUBERNETES_UPGRADE_HEALTH_RESPONSE_MGMT_AFFECTING_AND_KUBERNETES_ALARM
+
+        self.worker.perform_state_action(self.strategy_step)
+
+        self.sysinv_client.get_kube_upgrade_health.assert_called_once()
+        self.assert_step_updated(
+            self.strategy_step.subcloud_id, STRATEGY_STATE_FAILED
+        )
+
     def test_pre_check_subcloud_failed_health_check_with_allowed_management_alarms(
-            self):
+        self
+    ):
         """Test pre check step where subcloud has management affecting alarms"""
 
         db_api.subcloud_update(self.ctx,
@@ -225,6 +270,7 @@ class TestKubeUpgradePreCheckStage(TestKubeUpgradeState):
         The target version is derived from the system controller.  Inability
         to query that version should fail orchestration.
         """
+
         next_state = STRATEGY_STATE_FAILED
         # Update the subcloud to have deploy state as "complete"
         db_api.subcloud_update(self.ctx,
@@ -265,6 +311,7 @@ class TestKubeUpgradePreCheckStage(TestKubeUpgradeState):
         Expectation:
         - Skip orchestration,  jump to 'complete' for this state.
         """
+
         # Update the subcloud to have deploy state as "complete"
         db_api.subcloud_update(self.ctx,
                                self.subcloud.id,
@@ -312,6 +359,7 @@ class TestKubeUpgradePreCheckStage(TestKubeUpgradeState):
         When a kube upgrade exists in the subcloud, it is skipped if to-version
         if less than its version.  This test should not skip the subcloud.
         """
+
         next_state = STRATEGY_STATE_KUBE_CREATING_VIM_KUBE_UPGRADE_STRATEGY
         # Update the subcloud to have deploy state as "complete"
         db_api.subcloud_update(self.ctx,
@@ -355,6 +403,7 @@ class TestKubeUpgradePreCheckStage(TestKubeUpgradeState):
         For this test, the subcloud version is higher than the target, so
         it should not be resumed and the skip should occur.
         """
+
         next_state = STRATEGY_STATE_COMPLETE
         # Update the subcloud to have deploy state as "complete"
         db_api.subcloud_update(self.ctx,
@@ -409,6 +458,7 @@ class TestKubeUpgradePreCheckStage(TestKubeUpgradeState):
         is the same or higher.  The to-version can be a partial version.
         Test supports partial values for target_version and subcloud_version
         """
+
         next_state = STRATEGY_STATE_KUBE_CREATING_VIM_KUBE_UPGRADE_STRATEGY
         # Update the subcloud to have deploy state as "complete"
         db_api.subcloud_update(self.ctx,
@@ -460,6 +510,7 @@ class TestKubeUpgradePreCheckStage(TestKubeUpgradeState):
 
     def test_pre_check_skip_when_target_version_is_greater_than_to_version(self):
         """Test creating pre check when target version is greater than to_version."""
+
         next_state = STRATEGY_STATE_COMPLETE
         # Update the subcloud to have deploy state as "complete"
         db_api.subcloud_update(self.ctx,
@@ -484,6 +535,7 @@ class TestKubeUpgradePreCheckStage(TestKubeUpgradeState):
 
     def test_pre_check_skip_when_there_is_no_version_available(self):
         """Test creating pre check when there is no version available."""
+
         next_state = STRATEGY_STATE_COMPLETE
         # Update the subcloud to have deploy state as "complete"
         db_api.subcloud_update(self.ctx,
@@ -508,6 +560,7 @@ class TestKubeUpgradePreCheckStage(TestKubeUpgradeState):
 
     def test_pre_check_skip_when_there_are_multiple_available_versions(self):
         """Test creating pre check when there are multiple_available_versions."""
+
         next_state = STRATEGY_STATE_KUBE_CREATING_VIM_KUBE_UPGRADE_STRATEGY
         # Update the subcloud to have deploy state as "complete"
         db_api.subcloud_update(self.ctx,
