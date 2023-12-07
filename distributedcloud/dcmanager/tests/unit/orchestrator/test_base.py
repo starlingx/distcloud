@@ -202,10 +202,9 @@ class TestSwUpdate(base.DCManagerTestCase):
 
         return worker
 
-    def setup_subcloud(self):
+    def setup_subcloud(self, deploy_status=consts.DEPLOY_STATE_INSTALLED):
         subcloud_id = fake_subcloud.create_fake_subcloud(
-            self.ctx,
-            deploy_status=consts.DEPLOY_STATE_INSTALLED,
+            self.ctx, deploy_status=deploy_status,
         ).id
         return db_api.subcloud_update(
             self.ctx,
