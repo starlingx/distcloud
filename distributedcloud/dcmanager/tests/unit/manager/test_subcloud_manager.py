@@ -720,7 +720,7 @@ class TestSubcloudManager(base.DCManagerTestCase):
 
     @mock.patch.object(cutils, 'get_oam_addresses')
     @mock.patch.object(subcloud_install.SubcloudInstall, 'prep')
-    @mock.patch.object(subcloud_install, 'KeystoneClient')
+    @mock.patch.object(subcloud_install, 'OpenStackDriver')
     @mock.patch.object(subcloud_install, 'SysinvClient')
     @mock.patch.object(subcloud_manager.SubcloudManager,
                        '_write_subcloud_ansible_config')
@@ -744,7 +744,8 @@ class TestSubcloudManager(base.DCManagerTestCase):
                           mock_openstack_driver, mock_create_addn_hosts,
                           mock_create_intermediate_ca_cert,
                           mock_write_subcloud_ansible_config,
-                          mock_install_ks_client, mock_install_sysinvclient,
+                          mock_install_sysinvclient,
+                          mock_install_openstack_driver,
                           mock_install_prep, mock_oam_address):
         # Prepare the payload
         install_values = copy.copy(fake_subcloud.FAKE_SUBCLOUD_INSTALL_VALUES)
