@@ -2966,10 +2966,10 @@ class TestSubcloudManager(base.DCManagerTestCase):
         sm.migrate_subcloud(self.ctx, subcloud.id, payload)
 
         mock_subcloud_migrate_generate_ansible_config.assert_called_once_with(
-            mock.ANY, mock.ANY, payload_result['rehome_data']['saved_payload'])
+            mock.ANY, payload_result['rehome_data']['saved_payload'])
         mock_rehome_subcloud.assert_called_once_with(mock.ANY, mock.ANY)
-
-        self.assertFalse(mock_db_api.subcloud_update.called)
+        mock_db_api.subcloud_update.assert_called_once_with(
+            mock.ANY, mock.ANY, deploy_status=consts.DEPLOY_STATE_PRE_REHOME)
 
     @mock.patch.object(subcloud_manager.SubcloudManager,
                        '_run_parallel_group_operation')

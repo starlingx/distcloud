@@ -583,19 +583,24 @@ class SubcloudManager(manager.Manager):
             # subcloud_ref could be int type id.
             subcloud = utils.subcloud_get_by_ref(context, str(subcloud_ref))
             if not subcloud:
-                LOG.exception("Failed to migrate, non-existent subcloud %s" % subcloud_ref)
-                raise Exception("Failed to migrate, non-existent subcloud %s" % subcloud_ref)
+                LOG.error("Failed to migrate, non-existent subcloud %s" % subcloud_ref)
+                return
             if 'sysadmin_password' not in payload:
-                raise Exception("Failed to migrate subcloud: %s, must provide sysadmin_password" %
-                                subcloud.name)
+                LOG.error("Failed to migrate subcloud: %s, must provide sysadmin_password" %
+                          subcloud.name)
+                return
 
             if subcloud.deploy_status not in [consts.DEPLOY_STATE_SECONDARY,
                                               consts.DEPLOY_STATE_REHOME_FAILED,
                                               consts.DEPLOY_STATE_REHOME_PREP_FAILED]:
-                raise Exception("Failed to migrate subcloud: %s, "
-                                "must be in secondary or rehome failure state" %
-                                subcloud.name)
+                LOG.error("Failed to migrate subcloud: %s, "
+                          "must be in secondary or rehome failure state" %
+                          subcloud.name)
+                return
 
+            db_api.subcloud_update(
+                context, subcloud.id,
+                deploy_status=consts.DEPLOY_STATE_PRE_REHOME)
             rehome_data = json.loads(subcloud.rehome_data)
             saved_payload = rehome_data['saved_payload']
             # Update sysadmin_password
@@ -608,7 +613,7 @@ class SubcloudManager(manager.Manager):
 
             # Re-generate ansible config based on latest rehome_data
             subcloud = self.subcloud_migrate_generate_ansible_config(
-                context, subcloud.id,
+                subcloud,
                 saved_payload)
             self.rehome_subcloud(context, subcloud)
         except Exception:
@@ -618,7 +623,8 @@ class SubcloudManager(manager.Manager):
                 LOG.exception("Failed to migrate subcloud %s" % subcloud.name)
                 db_api.subcloud_update(
                     context, subcloud.id,
-                    deploy_status=consts.DEPLOY_STATE_REHOME_FAILED)
+                    deploy_status=consts.DEPLOY_STATE_REHOME_PREP_FAILED)
+            return
 
     def batch_migrate_subcloud(self, context, payload):
         if 'peer_group' not in payload:
@@ -1169,20 +1175,14 @@ class SubcloudManager(manager.Manager):
                                deploy_states_to_run,
                                initial_deployment=True)
 
-    def subcloud_migrate_generate_ansible_config(self, context, subcloud_id, payload):
+    def subcloud_migrate_generate_ansible_config(self, subcloud, payload):
         """Generate latest ansible config based on given payload for day-2 rehoming purpose.
 
-        :param context: request context object
-        :param subcloud_id: subcloud_id from db
+        :param subcloud: subcloud object
         :param payload: subcloud configuration
         :return: resulting subcloud DB object
         """
         LOG.info("Generate subcloud %s ansible config." % payload['name'])
-
-        deploy_state = consts.DEPLOY_STATE_PRE_REHOME
-        subcloud = db_api.subcloud_update(
-            context, subcloud_id,
-            deploy_status=deploy_state)
 
         try:
             # Write ansible based on rehome_data
@@ -1236,12 +1236,7 @@ class SubcloudManager(manager.Manager):
 
         except Exception:
             LOG.exception("Failed to generate subcloud %s config" % payload['name'])
-            # If we failed to generate the subcloud config, update the deployment status
-            deploy_state = consts.DEPLOY_STATE_REHOME_PREP_FAILED
-            subcloud = db_api.subcloud_update(
-                context, subcloud_id,
-                deploy_status=deploy_state)
-            return subcloud
+            raise
 
     def subcloud_deploy_create(self, context, subcloud_id, payload,
                                rehoming=False, initial_deployment=True,
