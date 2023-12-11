@@ -87,7 +87,7 @@ class LoggingUtil(object):
     output stream.
     """
 
-    def __init__(self, logger=None, subcloud_name='', debug_level=0):
+    def __init__(self, logger=None, subcloud_name='', debug_level=0, mute_on=False):
         """Logger object constructor.
 
         :param logger: the logger of the class which is calling rvmc module
@@ -97,11 +97,14 @@ class LoggingUtil(object):
         :type subcloud_name: str.
         :param debug_level: the debug level
         :type debug_level: int.
+        :mute_on: mute info level logs if setting to True
+        :type mute_on: bool.
         """
 
         self.logger = logger
         self.subcloud_name = subcloud_name
         self.debug_level = debug_level
+        self.mute_on = mute_on
 
     def t(self):
         """Return current time for log functions."""
@@ -111,12 +114,13 @@ class LoggingUtil(object):
     def ilog(self, string):
         """Info Log Utility"""
 
-        if self.logger:
-            self.logger.info(
-                self.subcloud_name + ': ' + string if self.subcloud_name
-                else string)
-        else:
-            sys.stdout.write("\n%s Info  : %s" % (self.t(), string))
+        if not self.mute_on:
+            if self.logger:
+                self.logger.info(
+                    self.subcloud_name + ': ' + string if self.subcloud_name
+                    else string)
+            else:
+                sys.stdout.write("\n%s Info  : %s" % (self.t(), string))
 
     def wlog(self, string):
         """Warning Log Utility"""
@@ -141,12 +145,13 @@ class LoggingUtil(object):
     def alog(self, string):
         """Action Log Utility"""
 
-        if self.logger:
-            self.logger.info(
-                self.subcloud_name + ': ' + string if self.subcloud_name
-                else string)
-        else:
-            sys.stdout.write("\n%s Action: %s" % (self.t(), string))
+        if not self.mute_on:
+            if self.logger:
+                self.logger.info(
+                    self.subcloud_name + ': ' + string if self.subcloud_name
+                    else string)
+            else:
+                sys.stdout.write("\n%s Action: %s" % (self.t(), string))
 
     def dlog1(self, string, level=1):
         """Debug Log - Level"""
@@ -178,12 +183,13 @@ class LoggingUtil(object):
     def slog(self, stage):
         """Execution Stage Log"""
 
-        if self.logger:
-            self.logger.info(
-                self.subcloud_name + ': ' + stage if self.subcloud_name
-                else stage)
-        else:
-            sys.stdout.write("\n%s Stage : %s" % (self.t(), stage))
+        if not self.mute_on:
+            if self.logger:
+                self.logger.info(
+                    self.subcloud_name + ': ' + stage if self.subcloud_name
+                    else stage)
+            else:
+                sys.stdout.write("\n%s Stage : %s" % (self.t(), stage))
 
 
 class ExitHandler(object):
@@ -1663,7 +1669,7 @@ def power_off(subcloud_name, config_file, logger):
     if not subcloud_name or subcloud_name == '':
         raise exceptions.RvmcException("Subcloud name is missing.")
 
-    logging_util = LoggingUtil(logger, subcloud_name)
+    logging_util = LoggingUtil(logger, subcloud_name, mute_on=True)
     exit_handler = ExitHandler()
 
     if not (config_file and os.path.exists(config_file)):
