@@ -26,7 +26,7 @@ from six.moves.urllib import parse
 from six.moves.urllib import request
 
 from dccommon import consts
-from dccommon.drivers.openstack.keystone_v3 import KeystoneClient
+from dccommon.drivers.openstack.sdk_platform import OpenStackDriver
 from dccommon.drivers.openstack.sysinv_v1 import SysinvClient
 from dccommon import exceptions
 from dccommon import utils as dccommon_utils
@@ -55,7 +55,9 @@ class SubcloudInstall(object):
     """Class to encapsulate the subcloud install operations"""
 
     def __init__(self, subcloud_name):
-        ks_client = KeystoneClient(region_name=consts.CLOUD_0)
+        ks_client = OpenStackDriver(
+            region_name=consts.DEFAULT_REGION_NAME,
+            region_clients=None).keystone_client
         session = ks_client.session
         endpoint = ks_client.endpoint_cache.get_endpoint('sysinv')
         self.sysinv_client = SysinvClient(consts.CLOUD_0,
