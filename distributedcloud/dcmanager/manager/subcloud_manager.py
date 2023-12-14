@@ -24,6 +24,7 @@ import filecmp
 import functools
 import json
 import os
+import random
 import shutil
 import threading
 import time
@@ -160,6 +161,11 @@ ENDPOINT_URLS = {
     dccommon_consts.ENDPOINT_TYPE_SOFTWARE: "https://{}:5498",
 }
 
+# Values for the exponential backoff retry to get subcloud's
+# certificate secret.
+MAX_ATTEMPTS_TO_GET_INTERMEDIATE_CA_CERT = 15
+MIN_WAIT_BEFORE_RETRY_KUBE_REQUEST = 1
+
 # Values present on the overrides file generated during
 # subcloud_deploy_create. They should not be deleted from
 # the overrides if it's needed to recreate the file.
@@ -248,12 +254,30 @@ class SubcloudManager(manager.Manager):
         }
 
         kube = kubeoperator.KubeOperator()
+        # Time delay is set to prevent the aggravation of stress scenarios in
+        # the system while performing the parallel addition of many subclouds.
+        delay = random.uniform(0, 10)
+        time.sleep(delay)
         kube.apply_cert_manager_certificate(CERT_NAMESPACE, cert_name, cert)
 
-        for count in range(1, 20):
+        # May wait from ~2s to ~3min30s for the certificate secret to be ready.
+        # Exponential backoff retry is implemented to define the wait time
+        # between each attempt to request the certificate secret object.
+        # wait_per_request = min_wait*2**retry_times + random_number between
+        # 0-min_wait with a total maximum wait time of 210s, e.g:
+        #    1st retry: 1*2**(0*0.3 + 1) + 1, max wait time 3s,
+        #    2nd retry: 1*2**(1*0.3 + 1) + 1, max wait time ~3.46s,
+        #    ...
+        #    10th retry: 1*2**(9*0.3 + 1) + 1, max wait time ~13.99s,
+        #    ...
+        #    15th retry: 1*2**(14*0.3 + 1) + 1, max wait time ~37.76s.
+        for count in range(MAX_ATTEMPTS_TO_GET_INTERMEDIATE_CA_CERT):
             secret = kube.kube_get_secret(secret_name, CERT_NAMESPACE)
+            wait_per_request = \
+                MIN_WAIT_BEFORE_RETRY_KUBE_REQUEST * 2 ** (count * 0.3 + 1) \
+                + random.uniform(0, MIN_WAIT_BEFORE_RETRY_KUBE_REQUEST)
             if not hasattr(secret, 'data'):
-                time.sleep(1)
+                time.sleep(wait_per_request)
                 LOG.debug('Wait for %s ... %s' % (secret_name, count))
                 continue
 
@@ -264,7 +288,7 @@ class SubcloudManager(manager.Manager):
                 # ca cert, certificate and key pair are needed and must exist
                 # for creating an intermediate ca. If not, certificate is not
                 # ready yet.
-                time.sleep(1)
+                time.sleep(wait_per_request)
                 LOG.debug('Wait for %s ... %s' % (secret_name, count))
                 continue
 
