@@ -4,7 +4,10 @@ parallel = True
 source =
     dcmanager
     dcorch
-omit = 
+    dccommon
+    dcagent
+    dcdbsync
+omit =
     */tests/*
 
 [report]
