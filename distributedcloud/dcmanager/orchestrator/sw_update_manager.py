@@ -443,7 +443,8 @@ class SwUpdateManager(manager.Manager):
                 consts.PRESTAGE_SOFTWARE_VERSION:
                     software_version if software_version else SW_VERSION
             }
-        elif strategy_type == consts.SW_UPDATE_TYPE_PATCH:
+        elif (strategy_type == consts.SW_UPDATE_TYPE_PATCH or
+              strategy_type == consts.SW_UPDATE_TYPE_UPGRADE):
             upload_only_str = payload.get(consts.EXTRA_ARGS_UPLOAD_ONLY)
             upload_only_bool = True if upload_only_str == 'true' else False
             extra_args = {consts.EXTRA_ARGS_UPLOAD_ONLY: upload_only_bool}

@@ -70,9 +70,8 @@ class TestUploadState(TestSoftwareOrchestrator):
     def test_software_upload_strategy_success(self, mock_is_file,
                                               mock_read_from_cache):
         """Test software upload when the API call succeeds."""
-        mock_read_from_cache.return_value = REGION_ONE_RELEASES
+        mock_read_from_cache.side_effect = [REGION_ONE_RELEASES, False]
         mock_is_file.return_value = True
-
         self.software_client.query.side_effect = [SUBCLOUD_RELEASES]
 
         # invoke the strategy state operation on the orch thread
@@ -88,10 +87,31 @@ class TestUploadState(TestSoftwareOrchestrator):
                                  self.on_success_state)
 
     @mock.patch.object(UploadState, '_read_from_cache')
+    @mock.patch.object(os.path, 'isfile')
+    def test_software_upload_strategy_upload_only(self, mock_is_file,
+                                                  mock_read_from_cache):
+        """Test software upload when the API call succeeds."""
+        mock_read_from_cache.side_effect = [REGION_ONE_RELEASES, True]
+        mock_is_file.return_value = True
+        self.software_client.query.side_effect = [SUBCLOUD_RELEASES]
+
+        # invoke the strategy state operation on the orch thread
+        self.worker.perform_state_action(self.strategy_step)
+
+        self.software_client.upload.assert_called_once_with([consts.RELEASE_VAULT_DIR +
+                                                             '/20.12/DC_20.12.3.patch',
+                                                             consts.RELEASE_VAULT_DIR +
+                                                             '/20.12/DC_20.12.4.patch'])
+
+        # On success, the state should transition to the next state
+        self.assert_step_updated(self.strategy_step.subcloud_id,
+                                 consts.SW_UPDATE_STATE_COMPLETE)
+
+    @mock.patch.object(UploadState, '_read_from_cache')
     def test_software_upload_strategy_no_operation_required(self,
                                                             mock_read_from_cache):
         """Test software upload when no software operation is required."""
-        mock_read_from_cache.return_value = REGION_ONE_RELEASES
+        mock_read_from_cache.side_effect = [REGION_ONE_RELEASES, False]
 
         self.software_client.query.side_effect = [REGION_ONE_RELEASES]
 
@@ -109,7 +129,7 @@ class TestUploadState(TestSoftwareOrchestrator):
     def test_software_upload_strategy_missing_sig(self, mock_is_dir, mock_listdir,
                                                   mock_read_from_cache):
         """Test software upload when release is missing signature"""
-        mock_read_from_cache.return_value = REGION_ONE_RELEASES_2
+        mock_read_from_cache.side_effect = [REGION_ONE_RELEASES_2, False]
         mock_is_dir.return_value = True
         mock_listdir.return_value = ["DC_22.12.0.iso"]
         self.software_client.query.side_effect = [SUBCLOUD_RELEASES]
@@ -129,7 +149,7 @@ class TestUploadState(TestSoftwareOrchestrator):
     def test_software_upload_strategy_success_load(self, mock_is_dir, mock_listdir,
                                                    mock_read_from_cache):
         """Test software upload when the API call succeeds."""
-        mock_read_from_cache.return_value = REGION_ONE_RELEASES_2
+        mock_read_from_cache.side_effect = [REGION_ONE_RELEASES_2, False]
         mock_is_dir.return_value = True
         mock_listdir.return_value = ["DC_22.12.0.iso", "DC_22.12.0.sig"]
         self.software_client.query.side_effect = [SUBCLOUD_RELEASES, REGION_ONE_RELEASES_2]
@@ -154,7 +174,7 @@ class TestUploadState(TestSoftwareOrchestrator):
                                              mock_is_dir, mock_listdir,
                                              mock_read_from_cache):
         """Test software upload when release is a prepatched iso."""
-        mock_read_from_cache.return_value = REGION_ONE_RELEASES_3
+        mock_read_from_cache.side_effect = [REGION_ONE_RELEASES_3, False]
         mock_is_dir.return_value = True
         mock_isfile.return_value = False
         mock_listdir.return_value = ["DC_22.12.0.iso", "DC_22.12.0.sig"]
@@ -180,7 +200,7 @@ class TestUploadState(TestSoftwareOrchestrator):
                                             mock_is_dir, mock_listdir,
                                             mock_read_from_cache):
         """Test software upload when both patch and load is uploaded."""
-        mock_read_from_cache.return_value = REGION_ONE_RELEASES_3
+        mock_read_from_cache.side_effect = [REGION_ONE_RELEASES_3, False]
         mock_is_dir.return_value = True
         mock_isfile.return_value = True
         mock_listdir.return_value = ["DC_22.12.0.iso", "DC_22.12.0.sig"]
