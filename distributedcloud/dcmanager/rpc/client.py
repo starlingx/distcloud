@@ -265,10 +265,10 @@ class ManagerClient(RPCClient):
         return self.cast(ctxt, self.make_msg(
             'sync_subcloud_peer_group', association_id=association_id))
 
-    def update_subcloud_peer_group(self, ctxt, association_id, priority):
+    def update_subcloud_peer_group(self, ctxt, association_id):
         return self.call(ctxt, self.make_msg(
             'sync_subcloud_peer_group', association_id=association_id,
-            sync_subclouds=False, priority=priority))
+            sync_subclouds=False))
 
     def delete_peer_group_association(self, ctxt, association_id):
         return self.call(ctxt, self.make_msg('delete_peer_group_association',

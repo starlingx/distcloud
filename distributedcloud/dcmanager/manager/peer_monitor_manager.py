@@ -216,6 +216,7 @@ class PeerMonitor(object):
                 pgam.PeerGroupAuditManager(self.subcloud_manager,
                                            peer_group_id)
         self.peer_group_id_set = peer_group_id_set
+        self._set_require_audit_flag_to_associated_peer_groups()
 
     def start(self):
         if self.thread is not None:

@@ -31,8 +31,14 @@ from dcmanager.rpc import client as rpc_client
 CONF = cfg.CONF
 LOG = logging.getLogger(__name__)
 
+PEER_GROUP_PRIMARY_PRIORITY = 0
 MIN_PEER_GROUP_ASSOCIATION_PRIORITY = 1
 MAX_PEER_GROUP_ASSOCIATION_PRIORITY = 65536
+ASSOCIATION_SYNC_STATUS_LIST = \
+    [consts.ASSOCIATION_SYNC_STATUS_SYNCING,
+     consts.ASSOCIATION_SYNC_STATUS_IN_SYNC,
+     consts.ASSOCIATION_SYNC_STATUS_OUT_OF_SYNC,
+     consts.ASSOCIATION_SYNC_STATUS_FAILED]
 
 
 class PeerGroupAssociationsController(restcomm.GenericPathController):
@@ -150,6 +156,12 @@ class PeerGroupAssociationsController(restcomm.GenericPathController):
             return False
         return True
 
+    def _validate_sync_status(self, sync_status):
+        if sync_status not in ASSOCIATION_SYNC_STATUS_LIST:
+            LOG.debug("Invalid sync_status: %s" % sync_status)
+            return False
+        return True
+
     @index.when(method='POST', template='json')
     def post(self):
         """Create a new peer group association."""
@@ -174,20 +186,22 @@ class PeerGroupAssociationsController(restcomm.GenericPathController):
         peer_group_priority = payload.get('peer_group_priority')
         peer_group = db_api.subcloud_peer_group_get(context, peer_group_id)
 
-        if (peer_group.group_priority == 0 and not peer_group_priority) or \
-            (peer_group.group_priority > 0 and peer_group_priority):
-            pecan.abort(httpclient.BAD_REQUEST,
-                        _('Peer Group Association create with peer_group_'
-                          'priority is required when the subcloud peer group '
-                          'priority is 0, and it is not allowed when the '
-                          'subcloud peer group priority is greater than 0.'))
-
-        if peer_group_priority and not self._validate_peer_group_priority(
-            peer_group_priority):
+        if peer_group_priority is not None and not \
+            self._validate_peer_group_priority(peer_group_priority):
             pecan.abort(httpclient.BAD_REQUEST,
                         _('Invalid peer_group_priority'))
 
-        sync_enabled = peer_group.group_priority == 0
+        if (peer_group.group_priority == PEER_GROUP_PRIMARY_PRIORITY and
+            peer_group_priority is None) or (
+                peer_group.group_priority > PEER_GROUP_PRIMARY_PRIORITY and
+                peer_group_priority is not None):
+            pecan.abort(httpclient.BAD_REQUEST,
+                        _('Peer Group Association create is not allowed when '
+                          'the subcloud peer group priority is greater than 0 '
+                          'and it is required when the subcloud peer group '
+                          'priority is 0.'))
+
+        is_primary = peer_group.group_priority == PEER_GROUP_PRIMARY_PRIORITY
 
         # only one combination of peer_group_id + system_peer_id can exists
         association = None
@@ -198,9 +212,8 @@ class PeerGroupAssociationsController(restcomm.GenericPathController):
                     peer_group_id,
                     system_peer_id)
         except exception.PeerGroupAssociationCombinationNotFound:
-            LOG.warning("Peer Group Association Combination Not Found, "
-                        "peer_group_id: %s, system_peer_id: %s"
-                        % (peer_group_id, system_peer_id))
+            # This is a normal scenario, no need to log or raise an error
+            pass
         except Exception as e:
             LOG.warning("Peer Group Association get failed: %s;"
                         "peer_group_id: %s, system_peer_id: %s"
@@ -209,22 +222,22 @@ class PeerGroupAssociationsController(restcomm.GenericPathController):
                         _('peer_group_association_get_by_peer_group_and_'
                           'system_peer_id failed: %s' % e))
         if association:
-            LOG.info("Failed to create Peer group association, association \
-                     with peer_group_id:[%s],system_peer_id:[%s] \
-                     already exists" % (peer_group_id, system_peer_id))
+            LOG.warning("Failed to create Peer group association, association "
+                        "with peer_group_id:[%s],system_peer_id:[%s] "
+                        "already exists" % (peer_group_id, system_peer_id))
             pecan.abort(httpclient.BAD_REQUEST,
                         _('A Peer group association with same peer_group_id, '
                           'system_peer_id already exists'))
 
         # Create the peer group association
         try:
-            sync_status = consts.ASSOCIATION_SYNC_STATUS_SYNCING if \
-                sync_enabled else consts.ASSOCIATION_SYNC_STATUS_DISABLED
+            association_type = consts.ASSOCIATION_TYPE_PRIMARY if is_primary \
+                else consts.ASSOCIATION_TYPE_NON_PRIMARY
             association = db_api.peer_group_association_create(
                 context, peer_group_id, system_peer_id, peer_group_priority,
-                sync_status)
+                association_type, consts.ASSOCIATION_SYNC_STATUS_SYNCING)
 
-            if sync_enabled:
+            if is_primary:
                 # Sync the subcloud peer group to peer site
                 self.rpc_client.sync_subcloud_peer_group(context, association.id)
             else:
@@ -236,6 +249,103 @@ class PeerGroupAssociationsController(restcomm.GenericPathController):
             LOG.exception(e)
             pecan.abort(httpclient.INTERNAL_SERVER_ERROR,
                         _('Unable to create peer group association'))
+
+    def _sync_association(self, context, association, is_non_primary):
+        if is_non_primary:
+            self.rpc_client.peer_monitor_notify(context)
+            pecan.abort(httpclient.BAD_REQUEST,
+                        _('Peer Group Association sync is not allowed '
+                          'when the association type is non-primary. But the '
+                          'peer monitor notify was triggered.'))
+        else:
+            peer_group = db_api.subcloud_peer_group_get(
+                context, association.peer_group_id)
+            if not self._validate_peer_group_leader_id(peer_group.
+                                                       system_leader_id):
+                pecan.abort(httpclient.BAD_REQUEST,
+                            _('Peer Group Association sync is not allowed when '
+                              'the subcloud peer group system_leader_id is not '
+                              'the current system controller UUID.'))
+            try:
+                # Sync the subcloud peer group to peer site
+                self.rpc_client.sync_subcloud_peer_group(context,
+                                                         association.id)
+                association = db_api.peer_group_association_update(
+                    context, id=association.id,
+                    sync_status=consts.ASSOCIATION_SYNC_STATUS_SYNCING,
+                    sync_message='None')
+                return db_api.peer_group_association_db_model_to_dict(
+                    association)
+            except RemoteError as e:
+                pecan.abort(httpclient.UNPROCESSABLE_ENTITY, e.value)
+            except Exception as e:
+                # additional exceptions.
+                LOG.exception(e)
+                pecan.abort(httpclient.INTERNAL_SERVER_ERROR,
+                            _('Unable to sync peer group association'))
+
+    def _update_association(self, context, association, is_non_primary):
+        payload = self._get_payload(request)
+        if not payload:
+            pecan.abort(httpclient.BAD_REQUEST, _('Body required'))
+
+        peer_group_priority = payload.get('peer_group_priority')
+        sync_status = payload.get('sync_status')
+        # Check value is not None or empty before calling validate
+        if not (peer_group_priority is not None or sync_status):
+            pecan.abort(httpclient.BAD_REQUEST, _('nothing to update'))
+        elif peer_group_priority is not None and sync_status:
+            pecan.abort(httpclient.BAD_REQUEST,
+                        _('peer_group_priority and sync_status cannot be '
+                          'updated at the same time.'))
+        if peer_group_priority is not None:
+            if not self._validate_peer_group_priority(peer_group_priority):
+                pecan.abort(httpclient.BAD_REQUEST,
+                            _('Invalid peer_group_priority'))
+            if is_non_primary:
+                self.rpc_client.peer_monitor_notify(context)
+                pecan.abort(httpclient.BAD_REQUEST,
+                            _('Peer Group Association peer_group_priority is '
+                              'not allowed to update when the association type '
+                              'is non-primary.'))
+            else:
+                db_api.peer_group_association_update(
+                    context, id=association.id,
+                    peer_group_priority=peer_group_priority)
+        if sync_status:
+            if not self._validate_sync_status(sync_status):
+                pecan.abort(httpclient.BAD_REQUEST,
+                            _('Invalid sync_status'))
+
+            if not is_non_primary:
+                self.rpc_client.peer_monitor_notify(context)
+                pecan.abort(httpclient.BAD_REQUEST,
+                            _('Peer Group Association sync_status is not '
+                              'allowed to update when the association type is '
+                              'primary.'))
+            else:
+                sync_message = 'Primary association sync to current site ' + \
+                    'failed.' if sync_status == \
+                    consts.ASSOCIATION_SYNC_STATUS_FAILED else 'None'
+                association = db_api.peer_group_association_update(
+                    context, id=association.id, sync_status=sync_status,
+                    sync_message=sync_message)
+                self.rpc_client.peer_monitor_notify(context)
+                return db_api.peer_group_association_db_model_to_dict(
+                    association)
+
+        try:
+            # Ask dcmanager-manager to update the subcloud peer group priority
+            # to peer site. It will do the real work...
+            return self.rpc_client.update_subcloud_peer_group(context,
+                                                              association.id)
+        except RemoteError as e:
+            pecan.abort(httpclient.UNPROCESSABLE_ENTITY, e.value)
+        except Exception as e:
+            # additional exceptions.
+            LOG.exception(e)
+            pecan.abort(httpclient.INTERNAL_SERVER_ERROR,
+                        _('Unable to update peer group association'))
 
     @index.when(method='PATCH', template='json')
     def patch(self, association_id, sync=False):
@@ -262,64 +372,13 @@ class PeerGroupAssociationsController(restcomm.GenericPathController):
             pecan.abort(httpclient.NOT_FOUND,
                         _('Peer Group Association not found'))
 
-        sync_disabled = association.sync_status == consts.\
-            ASSOCIATION_SYNC_STATUS_DISABLED
-        if sync_disabled:
-            pecan.abort(httpclient.BAD_REQUEST,
-                        _('Peer Group Association sync or update is not allowed'
-                          ' when the sync_status is disabled.'))
+        is_non_primary = association.association_type == consts.\
+            ASSOCIATION_TYPE_NON_PRIMARY
 
         if sync:
-            peer_group = db_api.subcloud_peer_group_get(
-                context, association.peer_group_id)
-            if not self._validate_peer_group_leader_id(peer_group.
-                                                       system_leader_id):
-                pecan.abort(httpclient.BAD_REQUEST,
-                            _('Peer Group Association sync is not allowed when '
-                              'the subcloud peer group system_leader_id is not '
-                              'the current system controller UUID.'))
-            try:
-                # Sync the subcloud peer group to peer site
-                self.rpc_client.sync_subcloud_peer_group(context,
-                                                         association.id)
-                association = db_api.peer_group_association_update(
-                    context, id=association_id,
-                    sync_status=consts.ASSOCIATION_SYNC_STATUS_SYNCING,
-                    sync_message='None')
-                return db_api.peer_group_association_db_model_to_dict(
-                    association)
-            except RemoteError as e:
-                pecan.abort(httpclient.UNPROCESSABLE_ENTITY, e.value)
-            except Exception as e:
-                # additional exceptions.
-                LOG.exception(e)
-                pecan.abort(httpclient.INTERNAL_SERVER_ERROR,
-                            _('Unable to sync peer group association'))
-
-        payload = self._get_payload(request)
-        if not payload:
-            pecan.abort(httpclient.BAD_REQUEST, _('Body required'))
-
-        peer_group_priority = payload.get('peer_group_priority')
-        # Check value is not None or empty before calling validate
-        if not peer_group_priority:
-            pecan.abort(httpclient.BAD_REQUEST, _('nothing to update'))
-        if not self._validate_peer_group_priority(peer_group_priority):
-            pecan.abort(httpclient.BAD_REQUEST,
-                        _('Invalid peer_group_priority'))
-
-        try:
-            # Ask dcmanager-manager to update the subcloud peer group priority
-            # to peer site. It will do the real work...
-            return self.rpc_client.update_subcloud_peer_group(
-                context, association.id, peer_group_priority)
-        except RemoteError as e:
-            pecan.abort(httpclient.UNPROCESSABLE_ENTITY, e.value)
-        except Exception as e:
-            # additional exceptions.
-            LOG.exception(e)
-            pecan.abort(httpclient.INTERNAL_SERVER_ERROR,
-                        _('Unable to update peer group association'))
+            return self._sync_association(context, association, is_non_primary)
+        else:
+            return self._update_association(context, association, is_non_primary)
 
     @index.when(method='delete', template='json')
     def delete(self, association_id):
@@ -342,17 +401,18 @@ class PeerGroupAssociationsController(restcomm.GenericPathController):
         try:
             association = db_api.peer_group_association_get(context,
                                                             association_id)
-            sync_disabled = association.sync_status == consts.\
-                ASSOCIATION_SYNC_STATUS_DISABLED
-            if sync_disabled:
+            is_non_primary = association.association_type == consts.\
+                ASSOCIATION_TYPE_NON_PRIMARY
+            if is_non_primary:
                 result = db_api.peer_group_association_destroy(context,
                                                                association_id)
                 self.rpc_client.peer_monitor_notify(context)
                 return result
-            # Ask system-peer-manager to delete the association.
-            # It will do all the real work...
-            return self.rpc_client.delete_peer_group_association(
-                context, association_id)
+            else:
+                # Ask system-peer-manager to delete the association.
+                # It will do all the real work...
+                return self.rpc_client.delete_peer_group_association(
+                    context, association_id)
         except exception.PeerGroupAssociationNotFound:
             pecan.abort(httpclient.NOT_FOUND,
                         _('Peer Group Association not found'))

@@ -555,6 +555,7 @@ def peer_group_association_db_model_to_dict(peer_group_association):
               "peer-group-id": peer_group_association.peer_group_id,
               "system-peer-id": peer_group_association.system_peer_id,
               "peer-group-priority": peer_group_association.peer_group_priority,
+              "association-type": peer_group_association.association_type,
               "sync-status": peer_group_association.sync_status,
               "sync-message": peer_group_association.sync_message,
               "created-at": peer_group_association.created_at,
@@ -563,13 +564,14 @@ def peer_group_association_db_model_to_dict(peer_group_association):
 
 
 def peer_group_association_create(context, peer_group_id, system_peer_id,
-                                  peer_group_priority, sync_status=None,
-                                  sync_message=None):
+                                  peer_group_priority, association_type=None,
+                                  sync_status=None, sync_message=None):
     """Create a peer_group_association."""
     return IMPL.peer_group_association_create(context,
                                               peer_group_id,
                                               system_peer_id,
                                               peer_group_priority,
+                                              association_type,
                                               sync_status,
                                               sync_message)
 

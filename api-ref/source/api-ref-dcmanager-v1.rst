@@ -2333,7 +2333,7 @@ Response
   - peer-controller-gateway-address: peer_controller_gateway_address
   - administrative-state: administrative_state
   - heartbeat-interval: heartbeat_interval
-  - heartbeat-failure-threshold: heartbeat_failure_threshold 
+  - heartbeat-failure-threshold: heartbeat_failure_threshold
   - heartbeat-failure-policy: heartbeat_failure_policy
   - heartbeat-maintenance-timeout: heartbeat_maintenance_timeout
   - created-at: created_at
@@ -2377,7 +2377,7 @@ serviceUnavailable (503)
   - peer_controller_gateway_address: peer_controller_gateway_address
   - administrative_state: administrative_state
   - heartbeat_interval: heartbeat_interval
-  - heartbeat_failure_threshold: heartbeat_failure_threshold 
+  - heartbeat_failure_threshold: heartbeat_failure_threshold
   - heartbeat_failure_policy: heartbeat_failure_policy
   - heartbeat_maintenance_timeout: heartbeat_maintenance_timeout
 
@@ -2400,7 +2400,7 @@ Request Example
   - peer-controller-gateway-address: peer_controller_gateway_address
   - administrative-state: administrative_state
   - heartbeat-interval: heartbeat_interval
-  - heartbeat-failure-threshold: heartbeat_failure_threshold 
+  - heartbeat-failure-threshold: heartbeat_failure_threshold
   - heartbeat-failure-policy: heartbeat_failure_policy
   - heartbeat-maintenance-timeout: heartbeat_maintenance_timeout
   - created-at: created_at
@@ -2449,7 +2449,7 @@ This operation does not accept a request body.
   - peer-controller-gateway-address: peer_controller_gateway_address
   - administrative-state: administrative_state
   - heartbeat-interval: heartbeat_interval
-  - heartbeat-failure-threshold: heartbeat_failure_threshold 
+  - heartbeat-failure-threshold: heartbeat_failure_threshold
   - heartbeat-failure-policy: heartbeat_failure_policy
   - heartbeat-maintenance-timeout: heartbeat_maintenance_timeout
   - created-at: created_at
@@ -2561,7 +2561,7 @@ serviceUnavailable (503)
   - peer_controller_gateway_address: peer_controller_gateway_address
   - administrative_state: administrative_state
   - heartbeat_interval: heartbeat_interval
-  - heartbeat_failure_threshold: heartbeat_failure_threshold 
+  - heartbeat_failure_threshold: heartbeat_failure_threshold
   - heartbeat_failure_policy: heartbeat_failure_policy
   - heartbeat_maintenance_timeout: heartbeat_maintenance_timeout
 
@@ -2582,7 +2582,7 @@ Request Example
   - peer-controller-gateway-address: peer_controller_gateway_address
   - administrative-state: administrative_state
   - heartbeat-interval: heartbeat_interval
-  - heartbeat-failure-threshold: heartbeat_failure_threshold 
+  - heartbeat-failure-threshold: heartbeat_failure_threshold
   - heartbeat-failure-policy: heartbeat_failure_policy
   - heartbeat-maintenance-timeout: heartbeat_maintenance_timeout
   - created-at: created_at
@@ -2625,7 +2625,7 @@ Subcloud Peer Groups
 
 Subcloud Peer Groups are logical groupings managed by a central System Controller.
 It's a group of the current managed subclouds which are supposed to be duplicated
-in a peer site as secondary subclouds 
+in a peer site as secondary subclouds
 
 ******************************
 Lists all subcloud peer groups
@@ -3040,6 +3040,7 @@ internalServerError (500), serviceUnavailable (503)
   - peer-group-id: association_peer_group_id
   - system-peer-id: system_peer_id
   - peer-group-priority: association_peer_group_priority
+  - association-type: association_type
   - sync-status: association_sync_status
   - created-at: created_at
   - updated-at: updated_at
@@ -3089,6 +3090,7 @@ Request Example
   - peer-group-id: association_peer_group_id
   - system-peer-id: system_peer_id
   - peer-group-priority: association_peer_group_priority
+  - association-type: association_type
   - sync-status: association_sync_status
   - sync-message: association_sync_message
   - created-at: created_at
@@ -3133,6 +3135,7 @@ This operation does not accept a request body.
   - peer-group-id: association_peer_group_id
   - system-peer-id: system_peer_id
   - peer-group-priority: association_peer_group_priority
+  - association-type: association_type
   - sync-status: association_sync_status
   - sync-message: association_sync_message
   - created-at: created_at
@@ -3175,6 +3178,7 @@ internalServerError (500), serviceUnavailable (503)
   - peer-group-id: association_peer_group_id
   - system-peer-id: system_peer_id
   - peer-group-priority: association_peer_group_priority
+  - association-type: association_type
   - sync-status: association_sync_status
   - sync-message: association_sync_message
   - created-at: created_at
@@ -3213,6 +3217,7 @@ serviceUnavailable (503)
 
   - associate_id: peer_group_association_uri
   - peer_group_priority: association_peer_group_priority
+  - sync-status: association_sync_status
 
 Request Example
 ----------------
@@ -3227,6 +3232,7 @@ Request Example
   - peer-group-id: association_peer_group_id
   - system-peer-id: system_peer_id
   - peer-group-priority: association_peer_group_priority
+  - association-type: association_type
   - sync-status: association_sync_status
   - sync-message: association_sync_message
   - created-at: created_at

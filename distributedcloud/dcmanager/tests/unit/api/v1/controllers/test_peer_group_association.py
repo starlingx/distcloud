@@ -48,6 +48,7 @@ SAMPLE_PEER_GROUP_PRIORITY = 1
 SAMPLE_PEER_GROUP_PRIORITY_UPDATED = 99
 SAMPLE_SYNC_STATUS = 'synced'
 SAMPLE_SYNC_MESSAGE = 'None'
+SAMPLE_ASSOCIATION_TYPE = 'primary'
 
 
 class FakeSystem(object):
@@ -142,7 +143,9 @@ class PeerGroupAssociationAPIMixin(APIMixin):
             'peer_group_priority': kw.get('peer_group_priority',
                                           SAMPLE_PEER_GROUP_PRIORITY),
             'sync_status': kw.get('sync_status', SAMPLE_SYNC_STATUS),
-            'sync_message': kw.get('sync_message', SAMPLE_SYNC_MESSAGE)
+            'sync_message': kw.get('sync_message', SAMPLE_SYNC_MESSAGE),
+            'association_type': kw.get('association_type',
+                                       SAMPLE_ASSOCIATION_TYPE)
         }
         return association
 

@@ -1241,6 +1241,7 @@ def peer_group_association_create(context,
                                   peer_group_id,
                                   system_peer_id,
                                   peer_group_priority,
+                                  association_type,
                                   sync_status,
                                   sync_message):
     with write_session() as session:
@@ -1248,6 +1249,7 @@ def peer_group_association_create(context,
         peer_group_association_ref.peer_group_id = peer_group_id
         peer_group_association_ref.system_peer_id = system_peer_id
         peer_group_association_ref.peer_group_priority = peer_group_priority
+        peer_group_association_ref.association_type = association_type
         peer_group_association_ref.sync_status = sync_status
         peer_group_association_ref.sync_message = sync_message
         session.add(peer_group_association_ref)

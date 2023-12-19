@@ -155,6 +155,7 @@ class PeerGroupAssociation(BASE, DCManagerBase):
     id = Column(Integer, primary_key=True, autoincrement=True, nullable=False)
     peer_group_id = Column(Integer)
     system_peer_id = Column(Integer)
+    association_type = Column(String(255))
     peer_group_priority = Column(Integer)
     sync_status = Column(String(255))
     sync_message = Column(Text())

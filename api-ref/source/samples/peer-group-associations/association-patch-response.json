@@ -2,6 +2,7 @@
   "id": 9,
   "peer-group-id": 1,
   "system-peer-id": 1,
+  "association-type": "primary",
   "peer-group-priority": 99,
   "sync-status": "synced",
   "sync-message": null,
