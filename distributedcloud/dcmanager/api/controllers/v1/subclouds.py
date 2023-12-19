@@ -748,6 +748,10 @@ class SubcloudsController(object):
                     pgrp = utils.subcloud_peer_group_get_by_ref(context, peer_group)
                     if not pgrp:
                         pecan.abort(400, _('Invalid peer group'))
+                    if (not utils.is_req_from_another_dc(request)
+                            and pgrp.group_priority > 0):
+                        pecan.abort(500, _("Cannot set the subcloud to a peer"
+                                           " group with non-zero priority."))
                     peer_group_id = pgrp.id
 
             if consts.INSTALL_VALUES in payload:
