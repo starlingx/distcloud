@@ -1,4 +1,4 @@
-# Copyright (c) 2020-2022 Wind River Systems, Inc.
+# Copyright (c) 2020-2024 Wind River Systems, Inc.
 # Licensed under the Apache License, Version 2.0 (the "License"); you may
 # not use this file except in compliance with the License. You may obtain
 # a copy of the License at
@@ -12,60 +12,67 @@
 # under the License.
 #
 
-from six.moves import http_client
-
 from dcmanager.db.sqlalchemy import api as db_api
-
-from dcmanager.tests.unit.api import test_root_controller as testroot
+from dcmanager.tests.unit.api.test_root_controller import DCManagerApiTest
 from dcmanager.tests import utils
 
-FAKE_URL = '/v1.0/alarms'
-FAKE_TENANT = utils.UUID1
-FAKE_ID = '1'
-FAKE_HEADERS = {'X-Tenant-Id': FAKE_TENANT, 'X_ROLE': 'admin,member,reader',
-                'X-Identity-Status': 'Confirmed', 'X-Project-Name': 'admin'}
 
+class BaseTestSubcloudAlarmController(DCManagerApiTest):
+    """Base class for testing the SubcloudAlarmController"""
 
-class TestSubcloudAlarmController(testroot.DCManagerApiTest):
     def setUp(self):
-        super(TestSubcloudAlarmController, self).setUp()
-        self.ctx = utils.dummy_context()
+        super().setUp()
 
-    def test_get_alarms(self):
-        get_url = FAKE_URL
-        subcloud_summary = [{'region_name': 'subcloud1',
-                             'uuid': utils.UUID2,
-                             'critical_alarms': 1,
-                             'major_alarms': 2,
-                             'minor_alarms': 3,
-                             'warnings': 0,
-                             'cloud_status': 'critical'},
-                            {'region_name': 'subcloud2',
-                             'uuid': utils.UUID3,
-                             'critical_alarms': 0,
-                             'major_alarms': 2,
-                             'minor_alarms': 3,
-                             'warnings': 4,
-                             'cloud_status': 'degraded'}]
+        self.url = '/v1.0/alarms'
 
-        db_api.subcloud_alarms_create(self.ctx,
-                                      'subcloud2',
-                                      values={'uuid': utils.UUID3,
-                                              'critical_alarms': 0,
-                                              'major_alarms': 2,
-                                              'minor_alarms': 3,
-                                              'warnings': 4,
-                                              'cloud_status': 'degraded'})
-        db_api.subcloud_alarms_create(self.ctx,
-                                      'subcloud1',
-                                      values={'uuid': utils.UUID2,
-                                              'critical_alarms': 1,
-                                              'major_alarms': 2,
-                                              'minor_alarms': 3,
-                                              'warnings': 0,
-                                              'cloud_status': 'critical'})
 
-        response = self.app.get(get_url, headers=FAKE_HEADERS)
-        self.assertEqual(response.content_type, 'application/json')
-        self.assertEqual(response.status_code, http_client.OK)
+class TestSubcloudAlarmController(BaseTestSubcloudAlarmController):
+    """Test class for SubcloudAlarmController"""
+
+    def setUp(self):
+        super().setUp()
+
+    def test_unmapped_method(self):
+        """Test requesting an unmapped method results in success with null content"""
+
+        self.method = self.app.put
+
+        response = self._send_request()
+
+        self._assert_response(response)
+        self.assertEqual(response.text, 'null')
+
+
+class TestSubcloudAlarmControllerGet(BaseTestSubcloudAlarmController):
+    """Test class for get requests"""
+
+    def setUp(self):
+        super().setUp()
+
+        self.method = self.app.get
+
+    def test_get_succeeds(self):
+        """Test get succeeds"""
+
+        subcloud1_values = {
+            'uuid': utils.UUID2, 'critical_alarms': 1, 'major_alarms': 2,
+            'minor_alarms': 3, 'warnings': 0, 'cloud_status': 'critical'
+        }
+
+        subcloud2_values = {
+            'uuid': utils.UUID3, 'critical_alarms': 0, 'major_alarms': 2,
+            'minor_alarms': 3, 'warnings': 4, 'cloud_status': 'degraded'
+        }
+
+        subcloud_summary = [
+            {'region_name': 'subcloud1', **subcloud1_values},
+            {'region_name': 'subcloud2', **subcloud2_values}
+        ]
+
+        db_api.subcloud_alarms_create(self.ctx, 'subcloud2', values=subcloud2_values)
+        db_api.subcloud_alarms_create(self.ctx, 'subcloud1', values=subcloud1_values)
+
+        response = self._send_request()
+
+        self._assert_response(response)
         self.assertEqual(subcloud_summary, response.json.get('alarm_summary'))

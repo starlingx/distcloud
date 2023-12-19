@@ -1,4 +1,4 @@
-# Copyright (c) 2021-2022 Wind River Systems, Inc.
+# Copyright (c) 2021-2024 Wind River Systems, Inc.
 # Licensed under the Apache License, Version 2.0 (the "License"); you may
 # not use this file except in compliance with the License. You may obtain
 # a copy of the License at
@@ -12,43 +12,93 @@
 # under the License.
 #
 
+import http.client
 import json
-import mock
-from six.moves import http_client
 
-from dcmanager.audit import rpcapi as audit_rpc_client
-from dcmanager.tests.unit.api import test_root_controller as testroot
-from dcmanager.tests import utils
-
-FAKE_URL = '/v1.0/notifications'
-FAKE_TENANT = utils.UUID1
-FAKE_HEADERS = {'X-Tenant-Id': FAKE_TENANT, 'X_ROLE': 'admin,member,reader',
-                'X-Identity-Status': 'Confirmed', 'X-Project-Name': 'admin'}
+from dcmanager.tests.unit.api.test_root_controller import DCManagerApiTest
+from dcmanager.tests.unit.common import consts as test_consts
 
 
-class TestNotificationsController(testroot.DCManagerApiTest):
+class BaseTestNotificationsController(DCManagerApiTest):
+    """Base class for testing the NotificationsController"""
+
     def setUp(self):
-        super(TestNotificationsController, self).setUp()
-        self.ctx = utils.dummy_context()
+        super().setUp()
 
-    @mock.patch.object(audit_rpc_client, 'ManagerAuditClient')
-    def test_post(self, mock_audit_rpc_client):
-        mock_audit_rpc_client().trigger_load_audit.return_value = None
-        post_url = FAKE_URL
-        params = json.dumps({'events': ['platform-upgrade-completed']})
-        response = self.app.post(post_url, params=params, headers=FAKE_HEADERS)
-        self.assertEqual(response.content_type, 'application/json')
-        self.assertEqual(response.status_code, http_client.OK)
-        mock_audit_rpc_client().trigger_load_audit.assert_called_once_with(
-            mock.ANY)
+        self.url = '/v1.0/notifications'
 
-    @mock.patch.object(audit_rpc_client, 'ManagerAuditClient')
-    def test_post_k8(self, mock_audit_rpc_client):
-        mock_audit_rpc_client().trigger_kubernetes_audit.return_value = None
-        post_url = FAKE_URL
-        params = json.dumps({'events': ['k8s-upgrade-completed']})
-        response = self.app.post(post_url, params=params, headers=FAKE_HEADERS)
-        self.assertEqual(response.content_type, 'application/json')
-        self.assertEqual(response.status_code, http_client.OK)
-        mock_audit_rpc_client().trigger_kubernetes_audit.assert_called_once_with(
-            mock.ANY)
+        self._mock_audit_rpc_client()
+
+
+class TestNotificationsController(BaseTestNotificationsController):
+    """Test class for NotificationsController"""
+
+    def setUp(self):
+        super().setUp()
+
+    def test_unmapped_method(self):
+        """Test requesting an unmapped method results in success with null content"""
+
+        self.method = self.app.put
+
+        response = self._send_request()
+
+        self._assert_response(response)
+        self.assertEqual(response.text, 'null')
+
+
+class TestNotificationsControllerPost(BaseTestNotificationsController):
+    """Test class for post requests"""
+
+    def setUp(self):
+        super().setUp()
+
+        self.method = self.app.post
+
+    def test_post_succeeds_with_platform_upgrade_completed(self):
+        """Test post succeeds with platform upgrade completed event"""
+
+        self.params = json.dumps({'events': ['platform-upgrade-completed']})
+
+        response = self._send_request()
+
+        self.mock_audit_rpc_client().trigger_load_audit.assert_called_once()
+
+        self._assert_response(response)
+
+    def test_post_succeeds_with_k8s_upgrade_completed(self):
+        """Test post succeeds with k8s upgrade completed event"""
+
+        self.params = json.dumps({'events': ['k8s-upgrade-completed']})
+
+        response = self._send_request()
+
+        self.mock_audit_rpc_client().trigger_kubernetes_audit.assert_called_once()
+
+        self._assert_response(response)
+
+    def test_post_succeeds_with_kube_rootca_update_completed_in_events(self):
+        """Tests post succeeds when kube-rootca-update-completed in events"""
+
+        self.params = json.dumps({'events': ['kube-rootca-update-completed']})
+
+        response = self._send_request()
+
+        self.mock_audit_rpc_client().\
+            trigger_kube_rootca_update_audit.assert_called_once()
+
+        self._assert_response(response)
+
+    def test_post_fails_without_events_in_request_body(self):
+        """Tests post fails when body doesn't have events"""
+
+        self.params = json.dumps({})
+
+        response = self._send_request()
+
+        self._assert_response(
+            response, http.client.BAD_REQUEST, content_type=test_consts.TEXT_PLAIN
+        )
+        self._assert_pecan(
+            http.client.BAD_REQUEST, "Missing required notification events"
+        )
