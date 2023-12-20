@@ -385,16 +385,17 @@ class SubcloudPeerGroupsController(restcomm.GenericPathController):
                            (group.peer_group_name, tmp_subcloud.name))
                     err_msg_list.append(msg)
                     continue
-                # Filter for unmanage and secondary subclouds,
-                # which is the correct state for rehoming
-                if (tmp_subcloud.management_state ==
-                        dccommon_consts.MANAGEMENT_UNMANAGED and
-                        tmp_subcloud.deploy_status ==
-                        consts.DEPLOY_STATE_SECONDARY):
+                # Filter for secondary/rehome-failed/rehome-prep-failed
+                # subclouds, which is the correct state for rehoming
+                if (tmp_subcloud.deploy_status in
+                        [consts.DEPLOY_STATE_SECONDARY,
+                         consts.DEPLOY_STATE_REHOME_FAILED,
+                         consts.DEPLOY_STATE_REHOME_PREP_FAILED]):
                     rehome_ready_subclouds.append(tmp_subcloud)
                 else:
                     LOG.info("Excluding subcloud: %s from batch migration: "
-                             "not unmanaged or deploy status not 'secondary'" %
+                             "subcloud deploy_status is not secondary, "
+                             "rehome-failed or rehome-prep-failed" %
                              tmp_subcloud.name)
             if err_msg_list:
                 for m in err_msg_list:
@@ -403,8 +404,10 @@ class SubcloudPeerGroupsController(restcomm.GenericPathController):
                                    err_msg_list))
 
             if not rehome_ready_subclouds:
-                pecan.abort(400, _('Nothing to migrate, no unmanaged and '
-                                   'secondary subcloud in %s, ' % group.peer_group_name))
+                pecan.abort(400, _("Nothing to migrate, no "
+                                   "secondary, rehome-failed or "
+                                   "rehome-prep-failed subcloud in peer "
+                                   "group %s" % group.peer_group_name))
 
             # Call batch migrate
             try:

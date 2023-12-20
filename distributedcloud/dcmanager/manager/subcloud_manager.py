@@ -700,18 +700,17 @@ class SubcloudManager(manager.Manager):
                     context, tmp_subcloud.id,
                     deploy_status=consts.DEPLOY_STATE_REHOME_PREP_FAILED)
                 continue
-            if not (tmp_subcloud.management_state ==
-                    dccommon_consts.MANAGEMENT_UNMANAGED and
-                    tmp_subcloud.deploy_status ==
-                    consts.DEPLOY_STATE_SECONDARY):
-                LOG.info("Skipping subcloud %s from batch migration: "
-                         "not unmanaged or deploy status not 'secondary'" %
-                         tmp_subcloud.name)
-                continue
+            if (tmp_subcloud.deploy_status in
+                    [consts.DEPLOY_STATE_SECONDARY,
+                     consts.DEPLOY_STATE_REHOME_FAILED,
+                     consts.DEPLOY_STATE_REHOME_PREP_FAILED]):
+                subclouds_ready_to_migrate.append(tmp_subcloud)
             else:
-                LOG.info("Subcloud %s in secondary and unmanaged state,"
-                         "ready to migrate" % tmp_subcloud.name)
-            subclouds_ready_to_migrate.append(tmp_subcloud)
+                LOG.info("Skipping subcloud %s from batch migration: "
+                         "subcloud deploy_status is not in "
+                         "secondary, rehome-failed or rehome-prep-failed" %
+                         tmp_subcloud.name)
+
         # If no subcloud need to rehome, exit
         if not subclouds_ready_to_migrate:
             LOG.info("No subclouds to be migrated in peer group: %s"
