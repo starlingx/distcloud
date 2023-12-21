@@ -748,10 +748,19 @@ class SubcloudsController(object):
                     pgrp = utils.subcloud_peer_group_get_by_ref(context, peer_group)
                     if not pgrp:
                         pecan.abort(400, _('Invalid peer group'))
-                    if (not utils.is_req_from_another_dc(request)
-                            and pgrp.group_priority > 0):
-                        pecan.abort(500, _("Cannot set the subcloud to a peer"
-                                           " group with non-zero priority."))
+                    if not utils.is_req_from_another_dc(request):
+                        if pgrp.group_priority > 0:
+                            pecan.abort(400, _("Cannot set the subcloud to a peer"
+                                               " group with non-zero priority."))
+                        elif not (subcloud.deploy_status in [consts.DEPLOY_STATE_DONE,
+                                                             consts.PRESTAGE_STATE_COMPLETE]
+                                  and subcloud.management_state ==
+                                  dccommon_consts.MANAGEMENT_MANAGED
+                                  and subcloud.availability_status ==
+                                  dccommon_consts.AVAILABILITY_ONLINE):
+                            pecan.abort(400, _("Only subclouds that are "
+                                               "managed and online can be "
+                                               "added to a peer group."))
                     peer_group_id = pgrp.id
 
             if consts.INSTALL_VALUES in payload:
