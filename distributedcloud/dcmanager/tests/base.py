@@ -248,6 +248,13 @@ class DCManagerTestCase(base.BaseTestCase):
         self.mock_get_vault_load_files = mock_patch_object.start()
         self.addCleanup(mock_patch_object.stop)
 
+    def _mock_load_yaml_file(self):
+        """Mock dcmanager util's load_yaml_file"""
+
+        mock_patch_object = mock.patch.object(dutils, 'load_yaml_file')
+        self.mock_load_yaml_file = mock_patch_object.start()
+        self.addCleanup(mock_patch_object.stop)
+
     def _mock_os_remove(self):
         """Mock os' remove"""
 
@@ -276,17 +283,24 @@ class DCManagerTestCase(base.BaseTestCase):
         self.mock_os_path_isdir = mock_patch_object.start()
         self.addCleanup(mock_patch_object.stop)
 
+    def _mock_os_path_exists(self):
+        """Mock os' path.exists"""
+
+        mock_patch_object = mock.patch.object(os_path, 'exists')
+        self.mock_os_path_exists = mock_patch_object.start()
+        self.addCleanup(mock_patch_object.stop)
+
     def _mock_builtins_open(self):
         """Mock builtins' open"""
 
-        mock_patch = mock.patch.object(builtins, 'open')
-        self.mock_builtins_open = mock_patch.start()
-        self.addCleanup(mock_patch.stop)
+        mock_patch_object = mock.patch.object(builtins, 'open')
+        self.mock_builtins_open = mock_patch_object.start()
+        self.addCleanup(mock_patch_object.stop)
 
     def _mock_log(self, target):
-        mock_patch = mock.patch.object(target, 'LOG')
-        self.mock_log = mock_patch.start()
-        self.addCleanup(mock_patch.stop)
+        mock_patch_object = mock.patch.object(target, 'LOG')
+        self.mock_log = mock_patch_object.start()
+        self.addCleanup(mock_patch_object.stop)
 
     def _assert_pecan(self, http_status, content=None, call_count=1):
         """Assert pecan was called with the correct arguments"""
