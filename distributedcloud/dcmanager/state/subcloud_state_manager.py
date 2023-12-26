@@ -294,7 +294,8 @@ class SubcloudStateManager(manager.Manager):
 
         # Rules for updating sync status:
         #
-        # Skip audit any 'secondary' state subclouds
+        # For secondary subclouds, only update if the new sync_status is
+        # 'unknown'
         #
         # For others, always update if not in-sync.
         #
@@ -308,11 +309,22 @@ class SubcloudStateManager(manager.Manager):
         # This means if a subcloud is going offline or unmanaged, then
         # the sync status update must be done first.
         #
-        if ((sync_status != dccommon_consts.SYNC_STATUS_IN_SYNC or
-            ((subcloud.availability_status == dccommon_consts.AVAILABILITY_ONLINE) and
-             (subcloud.management_state == dccommon_consts.MANAGEMENT_MANAGED
-              or endpoint_type == dccommon_consts.ENDPOINT_TYPE_DC_CERT))) and
-                subcloud.deploy_status != consts.DEPLOY_STATE_SECONDARY):
+        is_in_sync = sync_status == dccommon_consts.SYNC_STATUS_IN_SYNC
+        is_online = subcloud.availability_status == \
+            dccommon_consts.AVAILABILITY_ONLINE
+        is_managed = subcloud.management_state == \
+            dccommon_consts.MANAGEMENT_MANAGED
+        is_endpoint_type_dc_cert = endpoint_type == \
+            dccommon_consts.ENDPOINT_TYPE_DC_CERT
+        is_secondary = subcloud.deploy_status == consts.DEPLOY_STATE_SECONDARY
+        is_sync_unknown = sync_status == dccommon_consts.SYNC_STATUS_UNKNOWN
+        is_secondary_and_sync_unknown = is_secondary and is_sync_unknown
+
+        if (
+            (not is_in_sync
+             or (is_online and (is_managed or is_endpoint_type_dc_cert)))
+            and not is_secondary
+        ) or is_secondary_and_sync_unknown:
             # update a single subcloud
             try:
                 self._do_update_subcloud_endpoint_status(context,
@@ -379,7 +391,8 @@ class SubcloudStateManager(manager.Manager):
                           'subcloud: %s' % subcloud_name)
 
     def _raise_or_clear_subcloud_status_alarm(self, subcloud_name,
-                                              availability_status):
+                                              availability_status,
+                                              deploy_status=None):
         entity_instance_id = "subcloud=%s" % subcloud_name
         fault = self.fm_api.get_fault(
             fm_const.FM_ALARM_ID_DC_SUBCLOUD_OFFLINE,
@@ -394,8 +407,11 @@ class SubcloudStateManager(manager.Manager):
                 LOG.exception("Failed to clear offline alarm for subcloud: %s",
                               subcloud_name)
 
+        # Raise the alarm if the subcloud became offline and it's not a
+        # secondary subcloud
         elif not fault and \
-                (availability_status == dccommon_consts.AVAILABILITY_OFFLINE):
+                (availability_status == dccommon_consts.AVAILABILITY_OFFLINE and
+                 deploy_status != consts.DEPLOY_STATE_SECONDARY):
             try:
                 fault = fm_api.Fault(
                     alarm_id=fm_const.FM_ALARM_ID_DC_SUBCLOUD_OFFLINE,

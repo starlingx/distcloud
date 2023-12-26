@@ -2709,7 +2709,8 @@ class SubcloudManager(manager.Manager):
                 raise exceptions.BadRequest(resource="subcloud", msg=msg)
 
             if (subcloud.availability_status !=
-                    dccommon_consts.AVAILABILITY_ONLINE):
+                dccommon_consts.AVAILABILITY_ONLINE) and (
+                    subcloud.deploy_status != consts.DEPLOY_STATE_REHOME_PENDING):
                 LOG.warning(f"Subcloud {subcloud.name} is not online")
                 raise exceptions.SubcloudNotOnline()
 
@@ -2885,13 +2886,23 @@ class SubcloudManager(manager.Manager):
                 # set all endpoint statuses to unknown, except the dc-cert
                 # endpoint which continues to be audited for unmanaged
                 # subclouds
+                ignore_endpoints = [dccommon_consts.ENDPOINT_TYPE_DC_CERT]
+
+                # Do not ignore the dc-cert endpoint for secondary or rehome
+                # pending subclouds as cert-mon does not audit them
+                if subcloud.deploy_status in (
+                    consts.DEPLOY_STATE_SECONDARY,
+                    consts.DEPLOY_STATE_REHOME_PENDING
+                ):
+                    ignore_endpoints = None
+
                 self.state_rpc_client.update_subcloud_endpoint_status_sync(
                     context,
                     subcloud_name=subcloud.name,
                     subcloud_region=subcloud.region_name,
                     endpoint_type=None,
                     sync_status=dccommon_consts.SYNC_STATUS_UNKNOWN,
-                    ignore_endpoints=[dccommon_consts.ENDPOINT_TYPE_DC_CERT])
+                    ignore_endpoints=ignore_endpoints)
             elif management_state == dccommon_consts.MANAGEMENT_MANAGED:
                 # Subcloud is managed
                 # Tell cert-mon to audit endpoint certificate
@@ -2899,16 +2910,15 @@ class SubcloudManager(manager.Manager):
                 dc_notification = dcmanager_rpc_client.DCManagerNotifications()
                 dc_notification.subcloud_managed(context, subcloud.region_name)
 
-        # Set all endpoint statuses to unknown, no endpoint
-        # will be audited for secondary or rehome-pending subclouds
-        if subcloud.deploy_status in (consts.DEPLOY_STATE_SECONDARY,
-                                      consts.DEPLOY_STATE_REHOME_PENDING):
-            self.state_rpc_client.update_subcloud_endpoint_status_sync(
+        # Request the state client to update the subcloud availability
+        # status to OFFLINE if subcloud is 'secondary'. The state
+        # service will set all endpoint statuses to 'unknown'.
+        if deploy_status == consts.DEPLOY_STATE_SECONDARY:
+            self.state_rpc_client.update_subcloud_availability(
                 context,
-                subcloud_name=subcloud.name,
-                subcloud_region=subcloud.region_name,
-                endpoint_type=None,
-                sync_status=dccommon_consts.SYNC_STATUS_UNKNOWN)
+                subcloud.name,
+                subcloud.region_name,
+                dccommon_consts.AVAILABILITY_OFFLINE)
 
         # Clear existing fault alarm of secondary subcloud
         if subcloud.deploy_status == consts.DEPLOY_STATE_SECONDARY:
