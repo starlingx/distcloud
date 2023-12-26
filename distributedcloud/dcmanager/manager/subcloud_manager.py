@@ -796,9 +796,12 @@ class SubcloudManager(manager.Manager):
                   f" for subcloud {subcloud.name}, check individual log at " \
                   f"{log_file} for detailed output."
             LOG.error(msg)
+            msg = utils.find_ansible_error_msg(
+                subcloud.name, log_file, consts.DEPLOY_STATE_REHOMING)
             db_api.subcloud_update(
                 context, subcloud.id,
-                deploy_status=consts.DEPLOY_STATE_REHOME_FAILED)
+                deploy_status=consts.DEPLOY_STATE_REHOME_FAILED,
+                error_description=msg[0:consts.ERROR_DESCRIPTION_LENGTH])
             return
         # Update the deploy status to complete and rehomed flag to true only
         # after playbook execution succeeded.
