@@ -14,12 +14,10 @@
 #    under the License.
 #
 
+import http.client
 import os
-from os import path as os_path
 
 import mock
-import six
-from six.moves import http_client
 from tsconfig.tsconfig import SW_VERSION
 import webtest
 
@@ -28,260 +26,335 @@ from dcmanager.api.controllers.v1 import subcloud_deploy
 from dcmanager.common import consts
 from dcmanager.common import phased_subcloud_deploy as psd_common
 from dcmanager.common import utils as dutils
-from dcmanager.tests.unit.api import test_root_controller as testroot
+from dcmanager.tests.base import FakeException
+from dcmanager.tests.unit.api.test_root_controller import DCManagerApiTest
 from dcmanager.tests.unit.common import fake_subcloud
-from dcmanager.tests import utils
 
-FAKE_SOFTWARE_VERSION = '22.12'
-FAKE_TENANT = utils.UUID1
-FAKE_ID = "1"
-FAKE_URL = "/v1.0/subcloud-deploy"
-FAKE_HEADERS = {
-    "X-Tenant-Id": FAKE_TENANT,
-    "X_ROLE": "admin,member,reader",
-    "X-Identity-Status": "Confirmed",
-    "X-Project-Name": "admin",
-}
-
-FAKE_DEPLOY_PLAYBOOK_PREFIX = consts.DEPLOY_PLAYBOOK + '_'
-FAKE_DEPLOY_OVERRIDES_PREFIX = consts.DEPLOY_OVERRIDES + '_'
-FAKE_DEPLOY_CHART_PREFIX = consts.DEPLOY_CHART + '_'
-FAKE_PRESTAGE_IMAGES_PREFIX = consts.DEPLOY_PRESTAGE + '_'
+FAKE_SOFTWARE_VERSION = "22.12"
 FAKE_DEPLOY_PLAYBOOK_FILE = 'deployment-manager.yaml'
 FAKE_DEPLOY_OVERRIDES_FILE = 'deployment-manager-overrides-subcloud.yaml'
 FAKE_DEPLOY_CHART_FILE = 'deployment-manager.tgz'
 FAKE_DEPLOY_FILES = {
-    FAKE_DEPLOY_PLAYBOOK_PREFIX: FAKE_DEPLOY_PLAYBOOK_FILE,
-    FAKE_DEPLOY_OVERRIDES_PREFIX: FAKE_DEPLOY_OVERRIDES_FILE,
-    FAKE_DEPLOY_CHART_PREFIX: FAKE_DEPLOY_CHART_FILE,
-}
-FAKE_DEPLOY_DELETE_FILES = {
-    FAKE_DEPLOY_PLAYBOOK_PREFIX:
-        '/opt/platform/deploy/22.12/deployment-manager.yaml',
-    FAKE_DEPLOY_OVERRIDES_PREFIX:
-        '/opt/platform/deploy/22.12/deployment-manager-overrides-subcloud.yaml',
-    FAKE_DEPLOY_CHART_PREFIX: '/opt/platform/deploy/22.12/deployment-manager.tgz',
-    FAKE_PRESTAGE_IMAGES_PREFIX: '/opt/platform/deploy/22.12/prestage_images.yml'
+    f"{consts.DEPLOY_PLAYBOOK}_": FAKE_DEPLOY_PLAYBOOK_FILE,
+    f"{consts.DEPLOY_OVERRIDES}_": FAKE_DEPLOY_OVERRIDES_FILE,
+    f"{consts.DEPLOY_CHART}_": FAKE_DEPLOY_CHART_FILE,
 }
 
 
-def get_filename_by_prefix_side_effect(dir_path, prefix):
-    filename = FAKE_DEPLOY_FILES.get(prefix)
-    if filename:
-        return prefix + FAKE_DEPLOY_FILES.get(prefix)
-    else:
-        return None
+class BaseTestSubcloudDeployController(DCManagerApiTest):
+    """Base class for testing the SubcloudDeployController"""
 
-
-class TestSubcloudDeploy(testroot.DCManagerApiTest):
     def setUp(self):
-        super(TestSubcloudDeploy, self).setUp()
-        self.ctx = utils.dummy_context()
+        super().setUp()
 
-    @mock.patch.object(subcloud_deploy.SubcloudDeployController, "_upload_files")
-    def test_post_subcloud_deploy(self, mock_upload_files):
-        params = [("release", FAKE_SOFTWARE_VERSION)]
-        fields = list()
-        for opt in consts.DEPLOY_COMMON_FILE_OPTIONS:
-            fake_name = opt + "_fake"
-            fake_content = "fake content".encode("utf-8")
-            fields.append((opt, webtest.Upload(fake_name, fake_content)))
-        mock_upload_files.return_value = True
-        params += fields
+        self.url = "/v1.0/subcloud-deploy"
 
-        with mock.patch('builtins.open',
-                        mock.mock_open(
-                            read_data=fake_subcloud.FAKE_UPGRADES_METADATA
-                        )):
-            response = self.app.post(FAKE_URL,
-                                     headers=FAKE_HEADERS,
-                                     params=params)
+        self._mock_os_path_isdir()
+        self._mock_os_remove()
+        self._mock_os_mkdir()
+        self._mock_os_open()
+        self._mock_os_write()
+        self._mock_builtins_open()
+        self._mock_get_filename_by_prefix()
+        self._setup_get_filename_by_prefix()
 
-        self.assertEqual(response.status_code, http_client.OK)
-        self.assertEqual(FAKE_SOFTWARE_VERSION, response.json["software_version"])
+    def _mock_os_open(self):
+        """Mock os' open"""
 
-    @mock.patch.object(subcloud_deploy.SubcloudDeployController, "_upload_files")
-    def test_post_subcloud_deploy_without_release(self, mock_upload_files):
-        fields = list()
-        for opt in consts.DEPLOY_COMMON_FILE_OPTIONS:
-            fake_name = opt + "_fake"
-            fake_content = "fake content".encode("utf-8")
-            fields.append((opt, fake_name, fake_content))
-        mock_upload_files.return_value = True
-        response = self.app.post(FAKE_URL, headers=FAKE_HEADERS, upload_files=fields)
-        self.assertEqual(response.status_code, http_client.OK)
-        # Verify the active release will be returned if release doesn't present
-        self.assertEqual(SW_VERSION, response.json["software_version"])
+        mock_patch_object = mock.patch.object(os, 'open')
+        self.mock_os_open = mock_patch_object.start()
+        self.addCleanup(mock_patch_object.stop)
 
-    @mock.patch.object(subcloud_deploy.SubcloudDeployController, "_upload_files")
-    def test_post_subcloud_deploy_missing_chart(self, mock_upload_files):
-        opts = [
-            consts.DEPLOY_PLAYBOOK,
-            consts.DEPLOY_OVERRIDES,
-            consts.DEPLOY_PRESTAGE,
-        ]
-        fields = list()
-        for opt in opts:
-            fake_name = opt + "_fake"
-            fake_content = "fake content".encode("utf-8")
-            fields.append((opt, fake_name, fake_content))
-        mock_upload_files.return_value = True
-        response = self.app.post(
-            FAKE_URL, headers=FAKE_HEADERS, upload_files=fields, expect_errors=True
+    def _mock_os_write(self):
+        """Mock os' write"""
+
+        mock_patch_object = mock.patch.object(os, 'write')
+        self.mock_os_write = mock_patch_object.start()
+        self.addCleanup(mock_patch_object.stop)
+
+    def _mock_get_filename_by_prefix(self):
+        """Mock dutils' get_filename_by_prefix"""
+
+        mock_patch_object = mock.patch.object(
+            dutils, "get_filename_by_prefix"
         )
-        self.assertEqual(response.status_code, http_client.BAD_REQUEST)
+        self.mock_get_filename_by_prefix = mock_patch_object.start()
+        self.addCleanup(mock_patch_object.stop)
 
-    @mock.patch.object(subcloud_deploy.SubcloudDeployController, "_upload_files")
-    def test_post_subcloud_deploy_missing_chart_prestages(self, mock_upload_files):
-        opts = [consts.DEPLOY_PLAYBOOK, consts.DEPLOY_OVERRIDES]
-        fields = list()
-        for opt in opts:
-            fake_name = opt + "_fake"
-            fake_content = "fake content".encode("utf-8")
-            fields.append((opt, fake_name, fake_content))
-        mock_upload_files.return_value = True
-        response = self.app.post(
-            FAKE_URL, headers=FAKE_HEADERS, upload_files=fields, expect_errors=True
-        )
-        self.assertEqual(response.status_code, http_client.BAD_REQUEST)
+    def _setup_get_filename_by_prefix(self):
+        self.mock_get_filename_by_prefix.side_effect = \
+            self._mock_get_filename_by_prefix_side_effect
 
-    @mock.patch.object(subcloud_deploy.SubcloudDeployController, "_upload_files")
-    def test_post_subcloud_deploy_missing_playbook_overrides(
-        self, mock_upload_files
+    def _mock_get_filename_by_prefix_side_effect(self, _, prefix):
+        filename = FAKE_DEPLOY_FILES.get(prefix)
+
+        return f"{prefix}{filename}" if filename else None
+
+    def _create_fake_fields(
+        self, file_options=consts.DEPLOY_COMMON_FILE_OPTIONS, is_file_upload=True
     ):
-        opts = [consts.DEPLOY_CHART, consts.DEPLOY_PRESTAGE]
-        fields = list()
-        for opt in opts:
-            fake_name = opt + "_fake"
-            fake_content = "fake content".encode("utf-8")
-            fields.append((opt, fake_name, fake_content))
-        mock_upload_files.return_value = True
-        response = self.app.post(
-            FAKE_URL, headers=FAKE_HEADERS, upload_files=fields, expect_errors=True
-        )
-        self.assertEqual(response.status_code, http_client.BAD_REQUEST)
+        fields = []
 
-    @mock.patch.object(subcloud_deploy.SubcloudDeployController, "_upload_files")
-    def test_post_subcloud_deploy_missing_prestage(self, mock_upload_files):
-        opts = [consts.DEPLOY_PLAYBOOK, consts.DEPLOY_OVERRIDES, consts.DEPLOY_CHART]
-        fields = list()
-        for opt in opts:
-            fake_name = opt + "_fake"
+        for file_option in file_options:
+            fake_name = f"{file_option}_fake"
             fake_content = "fake content".encode("utf-8")
-            fields.append((opt, fake_name, fake_content))
-        mock_upload_files.return_value = True
-        response = self.app.post(FAKE_URL, headers=FAKE_HEADERS, upload_files=fields)
-        self.assertEqual(response.status_code, http_client.OK)
 
-    @mock.patch.object(subcloud_deploy.SubcloudDeployController, "_upload_files")
-    def test_post_subcloud_deploy_all_input(self, mock_upload_files):
-        opts = [
-            consts.DEPLOY_PLAYBOOK,
-            consts.DEPLOY_OVERRIDES,
-            consts.DEPLOY_CHART,
-            consts.DEPLOY_PRESTAGE,
-        ]
-        fields = list()
-        for opt in opts:
-            fake_name = opt + "_fake"
-            fake_content = "fake content".encode("utf-8")
-            fields.append((opt, fake_name, fake_content))
-        mock_upload_files.return_value = True
-        response = self.app.post(FAKE_URL, headers=FAKE_HEADERS, upload_files=fields)
-        self.assertEqual(response.status_code, http_client.OK)
-
-    @mock.patch.object(subcloud_deploy.SubcloudDeployController, "_upload_files")
-    def test_post_subcloud_deploy_prestage(self, mock_upload_files):
-        opts = [consts.DEPLOY_PRESTAGE]
-        fields = list()
-        for opt in opts:
-            fake_name = opt + "_fake"
-            fake_content = "fake content".encode("utf-8")
-            fields.append((opt, fake_name, fake_content))
-        mock_upload_files.return_value = True
-        response = self.app.post(FAKE_URL, headers=FAKE_HEADERS, upload_files=fields)
-        self.assertEqual(response.status_code, http_client.OK)
-
-    @mock.patch.object(subcloud_deploy.SubcloudDeployController, "_upload_files")
-    def test_post_subcloud_deploy_missing_file_name(self, mock_upload_files):
-        fields = list()
-        for opt in consts.DEPLOY_COMMON_FILE_OPTIONS:
-            fake_content = "fake content".encode("utf-8")
-            fields.append((opt, "", fake_content))
-        mock_upload_files.return_value = True
-        response = self.app.post(
-            FAKE_URL, headers=FAKE_HEADERS, upload_files=fields, expect_errors=True
-        )
-        self.assertEqual(response.status_code, http_client.BAD_REQUEST)
-
-    @mock.patch.object(dutils, "get_filename_by_prefix")
-    def test_get_subcloud_deploy_with_release(self, mock_get_filename_by_prefix):
-        def get_filename_by_prefix_side_effect(dir_path, prefix):
-            filename = FAKE_DEPLOY_FILES.get(prefix)
-            if filename:
-                return prefix + FAKE_DEPLOY_FILES.get(prefix)
+            if is_file_upload:
+                fields.append([file_option, webtest.Upload(fake_name, fake_content)])
             else:
-                return None
+                fields.append([file_option, fake_name, fake_content])
 
-        os.path.isdir = mock.Mock(return_value=True)
-        mock_get_filename_by_prefix.side_effect = \
-            get_filename_by_prefix_side_effect
-        url = FAKE_URL + '/' + FAKE_SOFTWARE_VERSION
+        return fields
 
-        with mock.patch('builtins.open',
-                        mock.mock_open(
-                            read_data=fake_subcloud.FAKE_UPGRADES_METADATA
-                        )):
-            response = self.app.get(url, headers=FAKE_HEADERS)
 
-        self.assertEqual(response.status_code, http_client.OK)
+class TestSubcloudDeployController(BaseTestSubcloudDeployController):
+    """Test class for SubcloudDeployController"""
+
+    def setUp(self):
+        super().setUp()
+
+    def test_unmapped_method(self):
+        """Test requesting an unmapped method results in success with null content"""
+
+        self.method = self.app.put
+
+        response = self._send_request()
+
+        self._assert_response(response)
+        self.assertEqual(response.text, 'null')
+
+
+class TestSubcloudDeployPost(BaseTestSubcloudDeployController):
+    """Test class for post requests"""
+
+    def setUp(self):
+        super().setUp()
+
+        self.method = self.app.post
+        self.upload_files = self._create_fake_fields(is_file_upload=False)
+
+        self.mock_builtins_open.side_effect = mock.mock_open(
+            read_data=fake_subcloud.FAKE_UPGRADES_METADATA
+        )
+
+    def _assert_file_open_calls(self, builtins_call_count=1, os_call_count=3):
+        """Asserts that the mock_builtins_open and os_open were called correctly
+
+        Depending on the file, either the builtins or the os function will be called.
+        The consts.DEPLOY_COMMON_FILE_OPTIONS, which is the default variable used
+        when creating the upload files, results in one call to builtins and three for
+        os. That is the reason for this function's default values.
+        """
+
+        self.assertEqual(self.mock_builtins_open.call_count, builtins_call_count)
+        self.assertEqual(self.mock_os_open.call_count, os_call_count)
+
+    def test_post_succeeds_with_params(self):
+        """Test post succeeds with params"""
+
+        self.params = [("release", FAKE_SOFTWARE_VERSION)]
+        self.params += self._create_fake_fields()
+        self.upload_files = None
+
+        response = self._send_request()
+
+        self._assert_response(response)
+        self.assertEqual(FAKE_SOFTWARE_VERSION, response.json["software_version"])
+        self._assert_file_open_calls(2, len(self.params) - 2)
+
+    def test_post_succeeds_without_release(self):
+        """Test post succeeds without release"""
+
+        response = self._send_request()
+
+        self._assert_response(response)
+        # Verify the active release will be returned if release isn't present
+        self.assertEqual(SW_VERSION, response.json["software_version"])
+        self._assert_file_open_calls()
+
+    def test_post_fails_with_missing_deploy_chart(self):
+        """Test post fails with missing deploy chart"""
+
+        file_options = [
+            consts.DEPLOY_PLAYBOOK, consts.DEPLOY_OVERRIDES, consts.DEPLOY_PRESTAGE
+        ]
+        self.upload_files = self._create_fake_fields(file_options, False)
+
+        response = self._send_request()
+
+        self._assert_pecan_and_response(
+            response, http.client.BAD_REQUEST,
+            f"error: argument --{consts.DEPLOY_CHART} is required"
+        )
+
+    def test_post_fails_with_missing_deploy_chart_and_deploy_prestage(self):
+        """Test post fails with missing deploy chart and deploy prestage"""
+
+        file_options = [consts.DEPLOY_PLAYBOOK, consts.DEPLOY_OVERRIDES]
+        self.upload_files = self._create_fake_fields(file_options, False)
+
+        response = self._send_request()
+
+        self._assert_pecan_and_response(
+            response, http.client.BAD_REQUEST,
+            f"error: argument --{consts.DEPLOY_CHART} is required"
+        )
+
+    def test_post_fails_with_missing_deploy_playbook(self):
+        """Test post fails with missing deploy playbook"""
+
+        file_options = [
+            consts.DEPLOY_CHART, consts.DEPLOY_OVERRIDES, consts.DEPLOY_PRESTAGE
+        ]
+        self.upload_files = self._create_fake_fields(file_options, False)
+
+        response = self._send_request()
+
+        self._assert_pecan_and_response(
+            response, http.client.BAD_REQUEST,
+            f"error: argument --{consts.DEPLOY_PLAYBOOK} is required"
+        )
+
+    def test_post_fails_with_missing_deploy_overrides(self):
+        """Test post fails with missing deploy overrides"""
+
+        file_options = [
+            consts.DEPLOY_PLAYBOOK, consts.DEPLOY_CHART, consts.DEPLOY_PRESTAGE
+        ]
+        self.upload_files = self._create_fake_fields(file_options, False)
+
+        response = self._send_request()
+
+        self._assert_pecan_and_response(
+            response, http.client.BAD_REQUEST,
+            f"error: argument --{consts.DEPLOY_OVERRIDES} is required"
+        )
+
+    def test_post_succeeds_with_missing_deploy_prestage(self):
+        """Test post succeeds with missing deploy prestage"""
+
+        file_options = [
+            consts.DEPLOY_PLAYBOOK, consts.DEPLOY_OVERRIDES, consts.DEPLOY_CHART
+        ]
+        self.upload_files = self._create_fake_fields(file_options, False)
+
+        response = self._send_request()
+
+        self._assert_response(response)
+        self._assert_file_open_calls(1, len(self.upload_files) - 1)
+
+    def test_post_succeeds_with_empty_dir_path(self):
+        """Test post succeeds with empty dir_path"""
+
+        self.mock_os_path_isdir.return_value = False
+
+        response = self._send_request()
+
+        self._assert_response(response)
+        self._assert_file_open_calls()
+
+    def test_post_succeeds_with_deploy_prestage(self):
+        """Test post succeeds with deploy prestage"""
+
+        file_options = [consts.DEPLOY_PRESTAGE]
+        self.upload_files = self._create_fake_fields(file_options, False)
+
+        response = self._send_request()
+
+        self._assert_response(response)
+        self._assert_file_open_calls(0, len(self.upload_files))
+
+    def test_post_fails_for_subcloud_deploy_missing_file_name(self):
+        """Test post fails when a file option has an empty name is missing"""
+
+        self.upload_files = self._create_fake_fields(is_file_upload=False)
+        self.upload_files[0][1] = ""
+
+        response = self._send_request()
+
+        self._assert_pecan_and_response(
+            response, http.client.BAD_REQUEST,
+            f"No {consts.DEPLOY_PLAYBOOK} file uploaded"
+        )
+
+    def test_post_fails_with_internal_server_error(self):
+        """Test post fails with internal server error"""
+
+        self.mock_os_remove.side_effect = FakeException("fake file name")
+
+        response = self._send_request()
+
+        self._assert_pecan_and_response(
+            response, http.client.INTERNAL_SERVER_ERROR,
+            f"Failed to upload {consts.DEPLOY_PLAYBOOK} file: fake file name"
+        )
+
+
+class TestSubcloudDeployGet(BaseTestSubcloudDeployController):
+    """Test class for get requests"""
+
+    def setUp(self):
+        super().setUp()
+
+        self.url = f"{self.url}/{FAKE_SOFTWARE_VERSION}"
+        self.method = self.app.get
+
+        self._mock_get_filename_by_prefix()
+        self._setup_get_filename_by_prefix()
+
+        self.mock_builtins_open.side_effect = mock.mock_open(
+            read_data=fake_subcloud.FAKE_UPGRADES_METADATA
+        )
+
+    def test_get_succeeds_with_release(self):
+        """Test get succeeds with release"""
+
+        response = self._send_request()
+
+        self._assert_response(response)
         self.assertEqual(
             FAKE_SOFTWARE_VERSION,
-            response.json["subcloud_deploy"]["software_version"],
+            response.json["subcloud_deploy"]["software_version"]
         )
         self.assertEqual(
             FAKE_DEPLOY_PLAYBOOK_FILE,
-            response.json["subcloud_deploy"][consts.DEPLOY_PLAYBOOK],
+            response.json["subcloud_deploy"][consts.DEPLOY_PLAYBOOK]
         )
         self.assertEqual(
             FAKE_DEPLOY_OVERRIDES_FILE,
-            response.json["subcloud_deploy"][consts.DEPLOY_OVERRIDES],
+            response.json["subcloud_deploy"][consts.DEPLOY_OVERRIDES]
         )
         self.assertEqual(
             FAKE_DEPLOY_CHART_FILE,
-            response.json["subcloud_deploy"][consts.DEPLOY_CHART],
+            response.json["subcloud_deploy"][consts.DEPLOY_CHART]
         )
         self.assertEqual(
             None, response.json["subcloud_deploy"][consts.DEPLOY_PRESTAGE]
         )
 
-    @mock.patch.object(dutils, "get_filename_by_prefix")
-    def test_get_subcloud_deploy_without_release(self, mock_get_filename_by_prefix):
-        def get_filename_by_prefix_side_effect(dir_path, prefix):
-            filename = FAKE_DEPLOY_FILES.get(prefix)
-            if filename:
-                return prefix + FAKE_DEPLOY_FILES.get(prefix)
-            else:
-                return None
+    def test_get_succeeds_without_release(self):
+        """Test get succeeds without release"""
 
-        os.path.isdir = mock.Mock(return_value=True)
-        mock_get_filename_by_prefix.side_effect = get_filename_by_prefix_side_effect
-        response = self.app.get(FAKE_URL, headers=FAKE_HEADERS)
-        self.assertEqual(response.status_code, http_client.OK)
+        self.mock_os_path_isdir.return_value = True
+
+        response = self._send_request()
+
+        self._assert_response(response)
         self.assertEqual(
-            SW_VERSION, response.json["subcloud_deploy"]["software_version"]
+            FAKE_SOFTWARE_VERSION,
+            response.json["subcloud_deploy"]["software_version"]
         )
         self.assertEqual(
             FAKE_DEPLOY_PLAYBOOK_FILE,
-            response.json["subcloud_deploy"][consts.DEPLOY_PLAYBOOK],
+            response.json["subcloud_deploy"][consts.DEPLOY_PLAYBOOK]
         )
         self.assertEqual(
             FAKE_DEPLOY_OVERRIDES_FILE,
-            response.json["subcloud_deploy"][consts.DEPLOY_OVERRIDES],
+            response.json["subcloud_deploy"][consts.DEPLOY_OVERRIDES]
         )
         self.assertEqual(
             FAKE_DEPLOY_CHART_FILE,
-            response.json["subcloud_deploy"][consts.DEPLOY_CHART],
+            response.json["subcloud_deploy"][consts.DEPLOY_CHART]
         )
         self.assertEqual(
             None, response.json["subcloud_deploy"][consts.DEPLOY_PRESTAGE]
@@ -295,138 +368,110 @@ class TestSubcloudDeploy(testroot.DCManagerApiTest):
         deploy_config = psd_common.get_config_file_path(
             "subcloud1", consts.DEPLOY_CONFIG
         )
+
         self.assertEqual(
             bootstrap_file, f"{dccommon_consts.ANSIBLE_OVERRIDES_PATH}/subcloud1.yml"
         )
         self.assertEqual(
             install_values,
-            f"{dccommon_consts.ANSIBLE_OVERRIDES_PATH}/subcloud1/install_values.yml",
+            f"{dccommon_consts.ANSIBLE_OVERRIDES_PATH}/subcloud1/install_values.yml"
         )
         self.assertEqual(
             deploy_config,
-            f"{dccommon_consts.ANSIBLE_OVERRIDES_PATH}/subcloud1_deploy_config.yml",
+            f"{dccommon_consts.ANSIBLE_OVERRIDES_PATH}/subcloud1_deploy_config.yml"
         )
 
-    @mock.patch.object(os_path, 'isdir')
-    @mock.patch.object(dutils, 'get_sw_version')
-    def test_subcloud_deploy_delete_directory_not_found(self,
-                                                        mock_get_sw_version,
-                                                        mock_path_isdir):
 
-        mock_get_sw_version.return_value = '21.12'
-        url = FAKE_URL + '?prestage_images=' + \
-            str(False) + '&deployment_files=' + str(False)
-        mock_path_isdir.side_effect = lambda x: True \
-            if x == '/opt/platform/deploy/22.12' else False
-        six.assertRaisesRegex(self, webtest.app.AppError, "404 *",
-                              self.app.delete, url,
-                              headers=FAKE_HEADERS)
+class TestSubcloudDeployDelete(BaseTestSubcloudDeployController):
+    """Test class for delete requests"""
 
-    @mock.patch.object(os_path, 'isdir')
-    @mock.patch.object(dutils, 'get_sw_version')
-    def test_subcloud_deploy_delete_internal_server_error(self,
-                                                          mock_get_sw_version,
-                                                          mock_path_isdir):
+    def setUp(self):
+        super().setUp()
 
-        mock_get_sw_version.return_value = '22.12'
-        mock_path_isdir.side_effect = lambda x: True \
-            if x == '/opt/platform/deploy/22.12' else False
-        six.assertRaisesRegex(self, webtest.app.AppError, "500 *",
-                              self.app.delete, FAKE_URL,
-                              headers=FAKE_HEADERS)
+        self.method = self.app.delete
 
-    @mock.patch.object(os_path, 'isdir')
-    @mock.patch.object(dutils, 'get_sw_version')
-    @mock.patch.object(dutils, 'get_filename_by_prefix')
-    @mock.patch.object(os, 'remove')
-    def test_subcloud_deploy_delete_with_release(self, mock_os_remove,
-                                                 mock_get_filename_by_prefix,
-                                                 mock_get_sw_version,
-                                                 mock_path_isdir):
+        self._mock_log(subcloud_deploy)
+        self._mock_get_sw_version()
 
-        mock_os_remove.return_value = None
-        mock_get_sw_version.return_value = '22.12'
+        self.sw_version_directory = "/opt/platform/deploy/"
+        self.version = FAKE_SOFTWARE_VERSION
 
-        mock_get_filename_by_prefix.side_effect = \
-            get_filename_by_prefix_side_effect
-        mock_path_isdir.return_value = True
-        url = FAKE_URL + '/' + FAKE_SOFTWARE_VERSION + \
-            '?prestage_images=' + str(False) + '&deployment_files=' + str(False)
-        response = self.app.delete(url, headers=FAKE_HEADERS)
-        self.assertEqual(response.status_code, http_client.OK)
+        self.mock_get_sw_version.return_value = self.version
+        self.mock_os_path_isdir.side_effect = self._mock_os_path_isdir_side_effect
+        self.mock_os_remove.return_value = None
 
-    @mock.patch.object(os_path, 'isdir')
-    @mock.patch.object(dutils, 'get_sw_version')
-    @mock.patch.object(dutils, 'get_filename_by_prefix')
-    @mock.patch.object(os, 'remove')
-    def test_subcloud_deploy_delete_without_release(self, mock_os_remove,
-                                                    mock_get_filename_by_prefix,
-                                                    mock_get_sw_version,
-                                                    mock_path_isdir):
+    def _mock_get_sw_version(self):
+        mock_patch_object = mock.patch.object(dutils, "get_sw_version")
+        self.mock_get_sw_version = mock_patch_object.start()
+        self.addCleanup(mock_patch_object.stop)
 
-        mock_os_remove.return_value = None
-        mock_get_sw_version.return_value = '22.12'
-        url = FAKE_URL + '?prestage_images=' + \
-            str(True) + '&deployment_files=' + str(True)
-        mock_get_filename_by_prefix.side_effect = \
-            get_filename_by_prefix_side_effect
-        mock_path_isdir.return_value = True
-        response = self.app.delete(url, headers=FAKE_HEADERS)
-        self.assertEqual(response.status_code, http_client.OK)
+    def _mock_os_path_isdir_side_effect(self, dir_path):
+        return dir_path == f"{self.sw_version_directory}{self.version}"
 
-    @mock.patch.object(os_path, 'isdir')
-    @mock.patch.object(dutils, 'get_sw_version')
-    @mock.patch.object(dutils, 'get_filename_by_prefix')
-    @mock.patch.object(os, 'remove')
-    def test_subcloud_deploy_delete_deployment_files(self, mock_os_remove,
-                                                     mock_get_filename_by_prefix,
-                                                     mock_get_sw_version,
-                                                     mock_path_isdir):
-        mock_os_remove.return_value = None
-        mock_get_sw_version.return_value = '22.12'
-        url = FAKE_URL + '?prestage_images=' + \
-            str(False) + '&deployment_files=' + str(True)
-        mock_get_filename_by_prefix.side_effect = \
-            get_filename_by_prefix_side_effect
-        mock_path_isdir.side_effect = lambda x: True \
-            if x == '/opt/platform/deploy/22.12' else False
-        response = self.app.delete(url, headers=FAKE_HEADERS)
-        self.assertEqual(response.status_code, http_client.OK)
+    def test_delete_succeeds_with_release(self):
+        """Test delete succeeds with release"""
 
-    @mock.patch.object(os_path, 'isdir')
-    @mock.patch.object(dutils, 'get_sw_version')
-    @mock.patch.object(dutils, 'get_filename_by_prefix')
-    @mock.patch.object(os, 'remove')
-    def test_subcloud_deploy_delete_prestage_images(self, mock_os_remove,
-                                                    mock_get_filename_by_prefix,
-                                                    mock_get_sw_version,
-                                                    mock_path_isdir):
-        mock_os_remove.return_value = None
-        mock_get_sw_version.return_value = '22.12'
-        url = FAKE_URL + '?prestage_images=' + \
-            str(True) + '&deployment_files=' + str(False)
-        mock_get_filename_by_prefix.side_effect = \
-            get_filename_by_prefix_side_effect
-        mock_path_isdir.side_effect = lambda x: True \
-            if x == '/opt/platform/deploy/22.12' else False
-        response = self.app.delete(url, headers=FAKE_HEADERS)
-        self.assertEqual(response.status_code, http_client.OK)
+        self.url = f"{self.url}/{self.version}?prestage_images=False"\
+            "&deployment_files=False"
 
-    @mock.patch.object(os_path, 'isdir')
-    @mock.patch.object(dutils, 'get_sw_version')
-    @mock.patch.object(dutils, 'get_filename_by_prefix')
-    @mock.patch.object(os, 'remove')
-    def test_subcloud_deploy_delete_with_both_parameters(self, mock_os_remove,
-                                                         mock_get_filename_by_prefix,
-                                                         mock_get_sw_version,
-                                                         mock_path_isdir):
-        mock_os_remove.return_value = None
-        mock_get_sw_version.return_value = '22.12'
-        url = FAKE_URL + '?prestage_images=' + \
-            str(True) + '&deployment_files=' + str(True)
-        mock_get_filename_by_prefix.side_effect = \
-            get_filename_by_prefix_side_effect
-        mock_path_isdir.side_effect = lambda x: True \
-            if x == '/opt/platform/deploy/22.12' else False
-        response = self.app.delete(url, headers=FAKE_HEADERS)
-        self.assertEqual(response.status_code, http_client.OK)
+        response = self._send_request()
+
+        self._assert_response(response)
+        self.assertEqual(self.mock_os_remove.call_count, 3)
+
+    def test_delete_succeeds_with_deployment_files(self):
+        """Test delete succeeds with deployment files"""
+
+        self.url = f"{self.url}?prestage_images=False&deployment_files=True"
+
+        response = self._send_request()
+
+        self._assert_response(response)
+        self.assertEqual(self.mock_os_remove.call_count, 3)
+
+    def test_delete_succeeds_with_prestage_images(self):
+        """Test delete succeeds with prestage images"""
+
+        self.url = f"{self.url}?prestage_images=True&deployment_files=False"
+
+        response = self._send_request()
+
+        self._assert_response(response)
+        self.mock_log.warning.assert_called_with("prestage_images file not present")
+
+    def test_delete_succeeds_with_prestage_images_and_deployment_files(self):
+        """Test delete succeeds with prestage images and deployment files"""
+
+        self.url = f"{self.url}?prestage_images=True&deployment_files=True"
+
+        response = self._send_request()
+
+        self._assert_response(response)
+        self.assertEqual(self.mock_os_remove.call_count, 3)
+
+    def test_delete_fails_with_directory_not_found(self):
+        """Test delete fails with directory not found"""
+
+        self.url = f"{self.url}?prestage_images=False&deployment_files=False"
+
+        version = "21.12"
+        self.mock_get_sw_version.return_value = version
+
+        response = self._send_request()
+
+        self._assert_pecan_and_response(
+            response, http.client.NOT_FOUND,
+            f"Directory not found: {self.sw_version_directory}{version}"
+        )
+
+    def test_delete_fails_with_internal_server_error(self):
+        """Test delete fails with internal server error"""
+
+        self.mock_os_remove.side_effect = FakeException("fake file name")
+
+        response = self._send_request()
+
+        self._assert_pecan_and_response(
+            response, http.client.INTERNAL_SERVER_ERROR,
+            "Failed to delete file: fake file name"
+        )

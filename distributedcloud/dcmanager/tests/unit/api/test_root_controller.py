@@ -58,6 +58,7 @@ class DCManagerApiTest(base.DCManagerTestCase):
         # implementation on controllers in case the method is not specified
         self.method = self.app.put
         self.params = {}
+        self.upload_files = None
         self.verb = None
         self.headers = {
             'X-Tenant-Id': utils.UUID1, 'X_ROLE': 'admin,member,reader',
@@ -82,8 +83,14 @@ class DCManagerApiTest(base.DCManagerTestCase):
     def _send_request(self):
         """Send a request to a url"""
 
+        kwargs = {}
+
+        if self.upload_files:
+            kwargs = {'upload_files': self.upload_files}
+
         return self.method(
-            self.url, headers=self.headers, params=self.params, expect_errors=True
+            self.url, headers=self.headers, params=self.params,
+            expect_errors=True, **kwargs
         )
 
     def _assert_response(

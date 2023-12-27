@@ -20,12 +20,12 @@ import builtins
 import json
 import os
 import os.path as os_path
-import pecan
 
 import mock
 from oslo_config import cfg
 from oslo_db import options
 from oslotest import base
+import pecan
 import sqlalchemy
 from sqlalchemy.engine import Engine
 from sqlalchemy import event
@@ -248,6 +248,27 @@ class DCManagerTestCase(base.BaseTestCase):
         self.mock_get_vault_load_files = mock_patch_object.start()
         self.addCleanup(mock_patch_object.stop)
 
+    def _mock_os_remove(self):
+        """Mock os' remove"""
+
+        mock_patch_object = mock.patch.object(os, 'remove')
+        self.mock_os_remove = mock_patch_object.start()
+        self.addCleanup(mock_patch_object.stop)
+
+    def _mock_os_mkdir(self):
+        """Mock os' mkdir"""
+
+        mock_patch_object = mock.patch.object(os, 'mkdir')
+        self.mock_os_mkdir = mock_patch_object.start()
+        self.addCleanup(mock_patch_object.stop)
+
+    def _mock_os_listdir(self):
+        """Mock os.listdir"""
+
+        mock_patch_object = mock.patch.object(os, 'listdir')
+        self.mock_os_listdir = mock_patch_object.start()
+        self.addCleanup(mock_patch_object.stop)
+
     def _mock_os_path_isdir(self):
         """Mock os' path.isdir"""
 
@@ -260,6 +281,11 @@ class DCManagerTestCase(base.BaseTestCase):
 
         mock_patch = mock.patch.object(builtins, 'open')
         self.mock_builtins_open = mock_patch.start()
+        self.addCleanup(mock_patch.stop)
+
+    def _mock_log(self, target):
+        mock_patch = mock.patch.object(target, 'LOG')
+        self.mock_log = mock_patch.start()
         self.addCleanup(mock_patch.stop)
 
     def _assert_pecan(self, http_status, content=None, call_count=1):
@@ -290,17 +316,3 @@ class DCManagerTestCase(base.BaseTestCase):
         mock_patch = mock.patch.object(target, 'PeerMonitorManager')
         self.mock_PeerMonitor_Manager = mock_patch.start()
         self.addCleanup(mock_patch.stop)
-
-    def _mock_os_mkdir(self):
-        """Mock os.mkdir"""
-
-        mock_patch_object = mock.patch.object(os, 'mkdir')
-        self.mock_os_mkdir = mock_patch_object.start()
-        self.addCleanup(mock_patch_object.stop)
-
-    def _mock_os_listdir(self):
-        """Mock os.listdir"""
-
-        mock_patch_object = mock.patch.object(os, 'listdir')
-        self.mock_os_listdir = mock_patch_object.start()
-        self.addCleanup(mock_patch_object.stop)
