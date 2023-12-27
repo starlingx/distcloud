@@ -263,7 +263,7 @@ class DCManagerTestCase(base.BaseTestCase):
         self.addCleanup(mock_patch_object.stop)
 
     def _mock_os_listdir(self):
-        """Mock os.listdir"""
+        """Mock os' listdir"""
 
         mock_patch_object = mock.patch.object(os, 'listdir')
         self.mock_os_listdir = mock_patch_object.start()

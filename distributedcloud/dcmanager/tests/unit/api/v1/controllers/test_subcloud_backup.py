@@ -4,1626 +4,1189 @@
 # SPDX-License-Identifier: Apache-2.0
 #
 
-import base64
-import copy
+import http.client
+import json
 
 import mock
-from oslo_utils import timeutils
-import six
-import webtest
+from oslo_messaging import RemoteError
 
 from dccommon import consts as dccommon_consts
 from dcmanager.common import consts
+import dcmanager.common.utils
 from dcmanager.db.sqlalchemy import api as db_api
-from dcmanager.rpc import client as rpc_client
-
 from dcmanager.tests import base
-from dcmanager.tests.unit.api import test_root_controller as testroot
+from dcmanager.tests.unit.api.test_root_controller import DCManagerApiTest
 from dcmanager.tests.unit.common import fake_subcloud
-from dcmanager.tests import utils
 
-FAKE_TENANT = utils.UUID1
-FAKE_URL_CREATE = '/v1.0/subcloud-backup'
-FAKE_URL_DELETE = '/v1.0/subcloud-backup/delete/'
-FAKE_URL_RESTORE = '/v1.0/subcloud-backup/restore'
-FAKE_HEADERS = {'X-Tenant-Id': FAKE_TENANT, 'X_ROLE': 'admin,member,reader',
-                'X-Identity-Status': 'Confirmed', 'X-Project-Name': 'admin',
-                'Content-Type': 'json'}
-FAKE_GOOD_SYSTEM_HEALTH = \
-    ("System Health:\n"
-     "All hosts are provisioned: [OK]\n"
-     "All hosts are unlocked/enabled: [OK]\n"
-     "All hosts have current configurations: [OK]\n"
-     "All hosts are patch current: [OK]\n"
-     "No alarms: [Fail]\n"
-     "[1] alarms found, [0] of which are management affecting\n"
-     "All kubernetes nodes are ready: [OK]\n"
-     "All kubernetes control plane pods are ready: [OK]\n")
-FAKE_GOOD_SYSTEM_HEALTH_NO_ALARMS = \
-    ("System Health:"
-     "All hosts are provisioned: [OK]"
-     "All hosts are unlocked/enabled: [OK]"
-     "All hosts have current configurations: [OK]"
-     "All hosts are patch current: [OK]"
-     "No alarms: [OK]"
-     "All kubernetes nodes are ready: [OK]"
-     "All kubernetes control plane pods are ready: [OK]")
-FAKE_SYSTEM_HEALTH_CEPH_FAIL = \
-    ("System Health:\n"
-     "All hosts are provisioned: [OK]\n"
-     "All hosts are unlocked/enabled: [OK]\n"
-     "All hosts have current configurations: [OK]\n"
-     "All hosts are patch current: [OK]\n"
-     "Ceph Storage Healthy: [Fail]\n"
-     "No alarms: [Fail]\n"
-     "[2] alarms found, [2] of which are management affecting\n"
-     "All kubernetes nodes are ready: [OK]\n"
-     "All kubernetes control plane pods are ready: [OK]\n")
-FAKE_SYSTEM_HEALTH_MGMT_ALARM = \
-    ("System Health:\n"
-     "All hosts are provisioned: [OK]\n"
-     "All hosts are unlocked/enabled: [OK]\n"
-     "All hosts have current configurations: [OK]\n"
-     "All hosts are patch current: [OK]\n"
-     "Ceph Storage Healthy: [Fail]\n"
-     "No alarms: [Fail]\n"
-     "[2] alarms found, [2] of which are management affecting\n"
-     "All kubernetes nodes are ready: [OK]\n"
-     "All kubernetes control plane pods are ready: [OK]\n")
-FAKE_SYSTEM_HEALTH_K8S_FAIL = \
-    ("System Health:\n"
-     "All hosts are provisioned: [OK]\n"
-     "All hosts are unlocked/enabled: [OK]\n"
-     "All hosts have current configurations: [OK]\n"
-     "All hosts are patch current: [OK]\n"
-     "Ceph Storage Healthy: [Fail]\n"
-     "No alarms: [Fail]\n"
-     "[2] alarms found, [2] of which are management affecting\n"
-     "All kubernetes nodes are ready: [OK]\n"
-     "All kubernetes control plane pods are ready: [OK]\n")
+FAKE_GOOD_SYSTEM_HEALTH = (
+    "System Health:\n"
+    "All hosts are provisioned: [OK]\n"
+    "All hosts are unlocked/enabled: [OK]\n"
+    "All hosts have current configurations: [OK]\n"
+    "All hosts are patch current: [OK]\n"
+    "No alarms: [Fail]\n"
+    "[1] alarms found, [0] of which are management affecting\n"
+    "All kubernetes nodes are ready: [OK]\n"
+    "All kubernetes control plane pods are ready: [OK]\n"
+)
+FAKE_GOOD_SYSTEM_HEALTH_NO_ALARMS = (
+    "System Health:"
+    "All hosts are provisioned: [OK]"
+    "All hosts are unlocked/enabled: [OK]"
+    "All hosts have current configurations: [OK]"
+    "All hosts are patch current: [OK]"
+    "No alarms: [OK]"
+    "All kubernetes nodes are ready: [OK]"
+    "All kubernetes control plane pods are ready: [OK]"
+)
+FAKE_SYSTEM_HEALTH_CEPH_FAIL = (
+    "System Health:\n"
+    "All hosts are provisioned: [OK]\n"
+    "All hosts are unlocked/enabled: [OK]\n"
+    "All hosts have current configurations: [OK]\n"
+    "All hosts are patch current: [OK]\n"
+    "Ceph Storage Healthy: [Fail]\n"
+    "No alarms: [Fail]\n"
+    "[2] alarms found, [2] of which are management affecting\n"
+    "All kubernetes nodes are ready: [OK]\n"
+    "All kubernetes control plane pods are ready: [OK]\n"
+)
+FAKE_SYSTEM_HEALTH_MGMT_ALARM = (
+    "System Health:\n"
+    "All hosts are provisioned: [OK]\n"
+    "All hosts are unlocked/enabled: [OK]\n"
+    "All hosts have current configurations: [OK]\n"
+    "All hosts are patch current: [OK]\n"
+    "Ceph Storage Healthy: [Fail]\n"
+    "No alarms: [Fail]\n"
+    "[2] alarms found, [2] of which are management affecting\n"
+    "All kubernetes nodes are ready: [OK]\n"
+    "All kubernetes control plane pods are ready: [OK]\n"
+)
+FAKE_SYSTEM_HEALTH_K8S_FAIL = (
+    "System Health:\n"
+    "All hosts are provisioned: [OK]\n"
+    "All hosts are unlocked/enabled: [OK]\n"
+    "All hosts have current configurations: [OK]\n"
+    "All hosts are patch current: [OK]\n"
+    "Ceph Storage Healthy: [Fail]\n"
+    "No alarms: [Fail]\n"
+    "[2] alarms found, [2] of which are management affecting\n"
+    "All kubernetes nodes are ready: [OK]\n"
+    "All kubernetes control plane pods are ready: [OK]\n"
+)
 FAKE_RESTORE_VALUES_INVALID_IP = {
-    'bootstrap_address': {
-        'subcloud1': '10.10.20.12.22'
+    "bootstrap_address": {
+        "subcloud1": "10.10.20.12.22"
     }
 }
 FAKE_RESTORE_VALUES_VALID_IP = {
-    'bootstrap_address': {
-        'subcloud1': '10.10.20.12'
+    "bootstrap_address": {
+        "subcloud1": "10.10.20.12"
     }
 }
 
 
-class TestSubcloudCreate(testroot.DCManagerApiTest):
+class BaseTestSubcloudBackupController(DCManagerApiTest):
+    """Base class for testing the SubcloudBackupController"""
+
     def setUp(self):
-        super(TestSubcloudCreate, self).setUp()
-        self.ctx = utils.dummy_context()
+        super().setUp()
 
-        p = mock.patch.object(rpc_client, "SubcloudStateClient")
-        self.fake_password = base64.b64encode("testpass".encode("utf-8")).decode(
-            "ascii"
-        )
-        self.mock_rpc_state_client = p.start()
-        self.addCleanup(p.stop)
+        self.url = '/v1.0/subcloud-backup'
 
-    @mock.patch("dcmanager.common.utils.OpenStackDriver")
-    @mock.patch("dcmanager.common.utils.SysinvClient")
-    @mock.patch.object(rpc_client, "ManagerClient")
-    def test_backup_create_subcloud(
-        self, mock_rpc_client, mock_sysinv, mock_openstack
+        self.subcloud = fake_subcloud.create_fake_subcloud(self.ctx)
+
+        self._mock_rpc_client()
+        self._mock_rpc_subcloud_state_client()
+        self._mock_openstack_driver(dcmanager.common.utils)
+        self._mock_sysinv_client(dcmanager.common.utils)
+
+    def _update_subcloud(
+        self, availability_status=dccommon_consts.AVAILABILITY_ONLINE,
+        management_state=dccommon_consts.MANAGEMENT_MANAGED,
+        deploy_status=consts.DEPLOY_STATE_DONE,
+        backup_datetime=None, backup_status=consts.BACKUP_STATE_UNKNOWN,
+        data_install=None, group_id=None
     ):
-        mock_rpc_client().backup_subclouds.return_value = True
-        subcloud = fake_subcloud.create_fake_subcloud(self.ctx)
-        data = {"sysadmin_password": self.fake_password, "subcloud": "1"}
+        db_api.subcloud_update(
+            self.ctx, self.subcloud.id, availability_status=availability_status,
+            management_state=management_state, backup_datetime=backup_datetime,
+            backup_status=backup_status, deploy_status=deploy_status,
+            data_install=data_install, group_id=group_id
+        )
+
+
+class TestSubcloudBackupController(BaseTestSubcloudBackupController):
+    """Test class for SubcloudBackupController"""
+
+    def setUp(self):
+        super().setUp()
+
+    def test_unmapped_method(self):
+        """Test requesting an unmapped method results in success with null content"""
+
+        self.method = self.app.put
+
+        response = self._send_request()
+
+        self._assert_response(response)
+        self.assertEqual(response.text, 'null')
+
+
+class BaseTestSubcloudBackupPost(BaseTestSubcloudBackupController):
+    """Base test class for post requests"""
+
+    def setUp(self):
+        super().setUp()
+
+        self.method = self.app.post
+
+
+class TestSubcloudBackupPost(BaseTestSubcloudBackupPost):
+    """Test class for post requests"""
+
+    def setUp(self):
+        super().setUp()
+
+    def test_post_fails_with_invalid_payload(self):
+        """Test post fails with invalid payload"""
+
+        self.params = '[{"key": "value"}]'
+
+        response = self._send_request()
+
+        self._assert_pecan_and_response(
+            response, http.client.BAD_REQUEST, "Invalid request body format"
+        )
+
+    def test_post_fails_with_unexpected_parameter(self):
+        """Test post fails with unexpected parameter
+
+        Even though the restore_values is a parameter accepted by the
+        _get_multipart_payload, it isn't valid for POST requests, which leads to
+        the failure.
+        """
+
+        fake_restore_values = json.dumps(FAKE_RESTORE_VALUES_VALID_IP).encode()
+        self.upload_files = [
+            ("restore_values", "fake_restore_values", fake_restore_values)
+        ]
+
+        response = self._send_request()
+
+        self._assert_pecan_and_response(
+            response, http.client.BAD_REQUEST, "Unexpected parameter received"
+        )
+
+    def test_post_fails_without_sysadmin_password_in_multipart_payload(self):
+        """Test post fails without sysadmin password in multipart payload"""
+
+        self.upload_files = [
+            ("subcloud", "fake_subcloud", json.dumps(self.subcloud.id).encode()),
+        ]
+
+        self._update_subcloud()
+
+        response = self._send_request()
+
+        self._assert_pecan_and_response(
+            response, http.client.BAD_REQUEST, "subcloud sysadmin_password required"
+        )
+
+    def test_post_fails_with_invalid_password(self):
+        """Test post fails with invalid password"""
+
+        self.params = f'{{"sysadmin_password": "{"keyword".encode("utf-8")}"}}'
+
+        response = self._send_request()
+
+        self._assert_pecan_and_response(
+            response, http.client.BAD_REQUEST, "Failed to decode subcloud "
+            "sysadmin_password, verify the password is base64 encoded"
+        )
+
+    def test_post_fails_with_subcloud_and_group(self):
+        """Test post fails with subcloud and group"""
+
+        self.params = f'{{"sysadmin_password": "{self._create_password()}",' \
+            f'"subcloud": "{self.subcloud.id}", "group": {self.subcloud.id}}}'
+
+        response = self._send_request()
+
+        self._assert_pecan_and_response(
+            response, http.client.BAD_REQUEST, "'subcloud' and 'group' parameters "
+            "should not be given at the same time"
+        )
+
+    def test_post_fails_without_subcloud_and_group(self):
+        """Test post fails without subcloud and group"""
+
+        self.params = f'{{"sysadmin_password": "{self._create_password()}"}}'
+
+        response = self._send_request()
+
+        self._assert_pecan_and_response(
+            response, http.client.BAD_REQUEST,
+            "'subcloud' or 'group' parameter is required"
+        )
+
+
+class TestSubcloudBackupPostSubcloud(BaseTestSubcloudBackupPost):
+    """Test class for post requests for subcloud resource"""
+
+    def setUp(self):
+        super().setUp()
+
+        self.params = f'{{"sysadmin_password": "{self._create_password()}",' \
+            f'"subcloud": "{self.subcloud.id}"}}'
+
+    def test_post_subcloud_succeeds(self):
+        """Test post subcloud succeeds"""
+
         good_health_states = [
-            FAKE_GOOD_SYSTEM_HEALTH,
-            FAKE_GOOD_SYSTEM_HEALTH_NO_ALARMS,
+            FAKE_GOOD_SYSTEM_HEALTH, FAKE_GOOD_SYSTEM_HEALTH_NO_ALARMS
         ]
 
         for system_health in good_health_states:
-            mock_sysinv().get_system_health.return_value = system_health
-            db_api.subcloud_update(
-                self.ctx,
-                subcloud.id,
-                availability_status=dccommon_consts.AVAILABILITY_ONLINE,
-                management_state=dccommon_consts.MANAGEMENT_MANAGED,
-                backup_datetime=None,
-                backup_status=consts.BACKUP_STATE_UNKNOWN,
-            )
+            self._update_subcloud()
+            self.mock_sysinv_client().get_system_health.return_value = system_health
 
-            response = self.app.post_json(
-                FAKE_URL_CREATE, headers=FAKE_HEADERS, params=data
-            )
+            response = self._send_request()
 
-            self.assertEqual(response.status_int, 200)
+            self._assert_response(response)
 
-    @mock.patch("dcmanager.common.utils.OpenStackDriver")
-    @mock.patch("dcmanager.common.utils.SysinvClient")
-    @mock.patch.object(rpc_client, "ManagerClient")
-    def test_backup_create_subcloud_with_bad_system_health(
-        self, mock_rpc_client, mock_sysinv, mock_openstack
-    ):
-        subcloud = fake_subcloud.create_fake_subcloud(self.ctx)
-        mock_rpc_client().backup_subclouds.return_value = True
-
-        data = {"sysadmin_password": self.fake_password, "subcloud": "1"}
+    def test_post_subcloud_fails_with_bad_system_health(self):
+        """Test post subcloud fails with bad system health"""
 
         bad_health_states = [
-            FAKE_SYSTEM_HEALTH_MGMT_ALARM,
-            FAKE_SYSTEM_HEALTH_CEPH_FAIL,
-            FAKE_SYSTEM_HEALTH_K8S_FAIL,
+            FAKE_SYSTEM_HEALTH_MGMT_ALARM, FAKE_SYSTEM_HEALTH_CEPH_FAIL,
+            FAKE_SYSTEM_HEALTH_K8S_FAIL
         ]
 
-        for system_health in bad_health_states:
-            mock_sysinv().get_system_health.return_value = system_health
-            db_api.subcloud_update(
-                self.ctx,
-                subcloud.id,
-                availability_status=dccommon_consts.AVAILABILITY_ONLINE,
-                management_state=dccommon_consts.MANAGEMENT_MANAGED,
-                backup_datetime=None,
-                backup_status=consts.BACKUP_STATE_UNKNOWN,
+        for index, system_health in enumerate(bad_health_states, start=1):
+            self._update_subcloud()
+            self.mock_sysinv_client().get_system_health.return_value = system_health
+
+            response = self._send_request()
+
+            self._assert_pecan_and_response(
+                response, http.client.BAD_REQUEST, f"Subcloud {self.subcloud.name} "
+                "must be in good health for subcloud-backup create.", index
             )
 
-            six.assertRaisesRegex(
-                self,
-                webtest.app.AppError,
-                "404 *",
-                self.app.post_json,
-                FAKE_URL_CREATE,
-                headers=FAKE_HEADERS,
-                params=data,
-            )
+    def test_post_subcloud_fails_with_unknown_subcloud(self):
+        """Test post subcloud fails with unknown subcloud"""
 
-    @mock.patch.object(rpc_client, "ManagerClient")
-    def test_backup_create_unknown_subcloud(self, mock_rpc_client):
-        subcloud = fake_subcloud.create_fake_subcloud(self.ctx)
+        self.params = f'{{"sysadmin_password": "{self._create_password()}",' \
+            f'"subcloud": "123"}}'
 
-        db_api.subcloud_update(
-            self.ctx,
-            subcloud.id,
-            availability_status=dccommon_consts.AVAILABILITY_ONLINE,
-            management_state=dccommon_consts.MANAGEMENT_MANAGED,
-            backup_datetime=None,
-            backup_status=consts.BACKUP_STATE_UNKNOWN,
+        response = self._send_request()
+
+        self._assert_pecan_and_response(
+            response, http.client.BAD_REQUEST, "Subcloud not found"
         )
 
-        data = {"sysadmin_password": self.fake_password, "subcloud": "123"}
+    def test_post_subcloud_fails_with_subcloud_offline(self):
+        """Test post subcloud fails with subcloud offline"""
 
-        mock_rpc_client().backup_subclouds.return_value = True
-
-        six.assertRaisesRegex(
-            self,
-            webtest.app.AppError,
-            "404 *",
-            self.app.post_json,
-            FAKE_URL_CREATE,
-            headers=FAKE_HEADERS,
-            params=data,
+        self._update_subcloud(
+            availability_status=dccommon_consts.AVAILABILITY_OFFLINE
         )
 
-    @mock.patch.object(rpc_client, "ManagerClient")
-    def test_backup_create_offline_subcloud(self, mock_rpc_client):
-        subcloud = fake_subcloud.create_fake_subcloud(self.ctx)
+        response = self._send_request()
 
-        db_api.subcloud_update(
-            self.ctx,
-            subcloud.id,
-            availability_status=dccommon_consts.AVAILABILITY_OFFLINE,
-            management_state=dccommon_consts.MANAGEMENT_MANAGED,
-            backup_datetime=None,
-            backup_status=consts.BACKUP_STATE_UNKNOWN,
+        self._assert_pecan_and_response(
+            response, http.client.BAD_REQUEST, f"Subcloud {self.subcloud.name} must "
+            "be deployed, online, managed, and no ongoing prestage for the "
+            "subcloud-backup create operation."
         )
 
-        data = {"sysadmin_password": self.fake_password, "subcloud": "1"}
+    def test_post_subcloud_fails_with_unmanaged_subcloud(self):
+        """Test post subcloud fails with unmanaged subcloud"""
 
-        mock_rpc_client().backup_subclouds.return_value = True
+        self._update_subcloud(management_state=dccommon_consts.MANAGEMENT_UNMANAGED)
 
-        six.assertRaisesRegex(
-            self,
-            webtest.app.AppError,
-            "400 *",
-            self.app.post_json,
-            FAKE_URL_CREATE,
-            headers=FAKE_HEADERS,
-            params=data,
+        response = self._send_request()
+
+        self._assert_pecan_and_response(
+            response, http.client.BAD_REQUEST, f"Subcloud {self.subcloud.name} must "
+            "be deployed, online, managed, and no ongoing prestage for the "
+            "subcloud-backup create operation."
         )
 
-    @mock.patch.object(rpc_client, "ManagerClient")
-    def test_backup_create_unmanaged_subcloud(self, mock_rpc_client):
-        subcloud = fake_subcloud.create_fake_subcloud(self.ctx)
+    def test_post_subcloud_fails_with_subcloud_in_invalid_deploy_state(self):
+        """Test post subcloud fails with subcloud in invalid deploy state"""
 
-        db_api.subcloud_update(
-            self.ctx,
-            subcloud.id,
-            availability_status=dccommon_consts.AVAILABILITY_ONLINE,
-            management_state=dccommon_consts.MANAGEMENT_UNMANAGED,
-            backup_datetime=None,
-            backup_status=consts.BACKUP_STATE_UNKNOWN,
+        self._update_subcloud(deploy_status=consts.DEPLOY_STATE_BOOTSTRAPPING)
+
+        response = self._send_request()
+
+        self._assert_pecan_and_response(
+            response, http.client.BAD_REQUEST, f"Subcloud {self.subcloud.name} must "
+            "be deployed, online, managed, and no ongoing prestage for the "
+            "subcloud-backup create operation."
         )
 
-        data = {"sysadmin_password": self.fake_password, "subcloud": "1"}
+    def test_post_subcloud_succeeds_with_backup_values(self):
+        """Test post subcloud succeeds with backup values"""
 
-        mock_rpc_client().backup_subclouds.return_value = True
+        self.params = f'{{"sysadmin_password": "{self._create_password()}",' \
+            f'"subcloud": "{self.subcloud.id}",' \
+            f'"backup_values": "TestFileDirectory"}}'
 
-        six.assertRaisesRegex(
-            self,
-            webtest.app.AppError,
-            "404 *",
-            self.app.post_json,
-            FAKE_URL_CREATE,
-            headers=FAKE_HEADERS,
-            params=data,
+        self._update_subcloud()
+
+        self.mock_sysinv_client().get_system_health.return_value = \
+            FAKE_GOOD_SYSTEM_HEALTH
+
+        response = self._send_request()
+
+        self._assert_response(response)
+
+    def test_post_subcloud_fails_without_password(self):
+        """Test post subcloud fails without password"""
+
+        self.params = f'{{"subcloud": "{self.subcloud.id}"}}'
+
+        response = self._send_request()
+
+        self._assert_pecan_and_response(
+            response, http.client.BAD_REQUEST, "subcloud sysadmin_password required"
         )
 
-    @mock.patch.object(rpc_client, "ManagerClient")
-    def test_backup_create_subcloud_invalid_state(self, mock_rpc_client):
-        subcloud = fake_subcloud.create_fake_subcloud(self.ctx)
+    def test_post_subcloud_succeeds_with_local_only(self):
+        """Test post subcloud succeeds with local only"""
 
-        db_api.subcloud_update(
-            self.ctx,
-            subcloud.id,
-            availability_status=dccommon_consts.AVAILABILITY_ONLINE,
-            management_state=dccommon_consts.MANAGEMENT_MANAGED,
-            backup_datetime=None,
-            backup_status=consts.BACKUP_STATE_UNKNOWN,
-            deploy_status=consts.DEPLOY_STATE_BOOTSTRAPPING,
+        self.params = f'{{"sysadmin_password": "{self._create_password()}",' \
+            f'"subcloud": "{self.subcloud.id}", "local_only": "True"}}'
+
+        self._update_subcloud()
+
+        self.mock_sysinv_client().get_system_health.return_value = \
+            FAKE_GOOD_SYSTEM_HEALTH
+
+        response = self._send_request()
+
+        self._assert_response(response)
+
+    def test_post_subcloud_fails_with_invalid_local_only(self):
+        """Test post subcloud fails with invalid local only"""
+
+        self.params = f'{{"sysadmin_password": "{self._create_password()}",' \
+            f'"subcloud": "{self.subcloud.id}", "local_only": "fake"}}'
+
+        self._update_subcloud()
+
+        self.mock_sysinv_client().get_system_health.return_value = \
+            FAKE_GOOD_SYSTEM_HEALTH
+
+        response = self._send_request()
+
+        self._assert_pecan_and_response(
+            response, http.client.BAD_REQUEST,
+            "Invalid local_only value, should be boolean"
         )
 
-        data = {"sysadmin_password": self.fake_password, "subcloud": "1"}
+    def test_post_subcloud_succeeds_with_local_only_and_registry_images(self):
+        """Test post subcloud succeeds with local only and registry images"""
 
-        mock_rpc_client().backup_subclouds.return_value = True
+        self.params = f'{{"sysadmin_password": "{self._create_password()}",' \
+            f'"subcloud": "{self.subcloud.id}", "local_only": "True", ' \
+            f'"registry_images": "True"}}'
 
-        six.assertRaisesRegex(
-            self,
-            webtest.app.AppError,
-            "400 *",
-            self.app.post_json,
-            FAKE_URL_CREATE,
-            headers=FAKE_HEADERS,
-            params=data,
+        self._update_subcloud()
+
+        self.mock_sysinv_client().get_system_health.return_value = \
+            FAKE_GOOD_SYSTEM_HEALTH
+
+        response = self._send_request()
+
+        self._assert_response(response)
+
+    def test_post_subcloud_fails_with_registry_images(self):
+        """Test post subcloud fails with registry images"""
+
+        self.params = f'{{"sysadmin_password": "{self._create_password()}",' \
+            f'"subcloud": "{self.subcloud.id}", "registry_images": "True"}}'
+
+        response = self._send_request()
+
+        self._assert_pecan_and_response(
+            response, http.client.BAD_REQUEST, "Option registry_images can not be "
+            "used without local_only option."
         )
 
-    @mock.patch.object(rpc_client, "ManagerClient")
-    def test_backup_create_group(self, mock_rpc_client):
-        subcloud = fake_subcloud.create_fake_subcloud(self.ctx)
+    def test_post_subcloud_fails_with_unknown_parameter(self):
+        """Test post subcloud fails with unknown parameter"""
 
-        db_api.subcloud_update(
-            self.ctx,
-            subcloud.id,
-            availability_status=dccommon_consts.AVAILABILITY_ONLINE,
-            management_state=dccommon_consts.MANAGEMENT_MANAGED,
-            backup_datetime=None,
-            backup_status=consts.BACKUP_STATE_UNKNOWN,
+        self.params = f'{{"sysadmin_password": "{self._create_password()}",' \
+            f'"subcloud": "{self.subcloud.id}", "unknown_parameter": "fake"}}'
+
+        response = self._send_request()
+
+        self._assert_pecan_and_response(
+            response, http.client.BAD_REQUEST, "Unexpected parameter received"
         )
 
-        data = {"sysadmin_password": self.fake_password, "group": "1"}
+    def test_post_subcloud_fails_with_invalid_payload(self):
+        """Test post subcloud fails with invalid payload"""
 
-        mock_rpc_client().backup_subclouds.return_value = True
+        self.params = "payload"
 
-        response = self.app.post_json(
-            FAKE_URL_CREATE, headers=FAKE_HEADERS, params=data
+        response = self._send_request()
+
+        self._assert_pecan_and_response(
+            response, http.client.BAD_REQUEST, "Request body is malformed."
         )
 
-        self.assertEqual(response.status_int, 200)
-
-    @mock.patch.object(rpc_client, "ManagerClient")
-    def test_backup_create_unknown_group(self, mock_rpc_client):
-        subcloud = fake_subcloud.create_fake_subcloud(self.ctx)
-
-        db_api.subcloud_update(
-            self.ctx,
-            subcloud.id,
-            availability_status=dccommon_consts.AVAILABILITY_ONLINE,
-            management_state=dccommon_consts.MANAGEMENT_MANAGED,
-            backup_datetime=None,
-            backup_status=consts.BACKUP_STATE_UNKNOWN,
-        )
-
-        data = {"sysadmin_password": self.fake_password, "group": "Fake"}
-
-        mock_rpc_client().backup_subclouds.return_value = True
-
-        six.assertRaisesRegex(
-            self,
-            webtest.app.AppError,
-            "404 *",
-            self.app.post_json,
-            FAKE_URL_CREATE,
-            headers=FAKE_HEADERS,
-            params=data,
-        )
-
-    @mock.patch.object(rpc_client, "ManagerClient")
-    def test_backup_create_group_not_online(self, mock_rpc_client):
-        subcloud = fake_subcloud.create_fake_subcloud(self.ctx)
-
-        db_api.subcloud_update(
-            self.ctx,
-            subcloud.id,
-            availability_status=dccommon_consts.AVAILABILITY_OFFLINE,
-            management_state=dccommon_consts.MANAGEMENT_MANAGED,
-            backup_datetime=None,
-            backup_status=consts.BACKUP_STATE_UNKNOWN,
-        )
-
-        data = {"sysadmin_password": self.fake_password, "group": "1"}
-
-        mock_rpc_client().backup_subclouds.return_value = True
-
-        six.assertRaisesRegex(
-            self,
-            webtest.app.AppError,
-            "400 *",
-            self.app.post_json,
-            FAKE_URL_CREATE,
-            headers=FAKE_HEADERS,
-            params=data,
-        )
-
-    @mock.patch.object(rpc_client, "ManagerClient")
-    def test_backup_create_group_not_managed(self, mock_rpc_client):
-        subcloud = fake_subcloud.create_fake_subcloud(self.ctx)
-
-        db_api.subcloud_update(
-            self.ctx,
-            subcloud.id,
-            availability_status=dccommon_consts.AVAILABILITY_ONLINE,
-            management_state=dccommon_consts.MANAGEMENT_UNMANAGED,
-            backup_datetime=None,
-            backup_status=consts.BACKUP_STATE_UNKNOWN,
-        )
-
-        data = {"sysadmin_password": self.fake_password, "group": "1"}
-
-        mock_rpc_client().backup_subclouds.return_value = True
-
-        six.assertRaisesRegex(
-            self,
-            webtest.app.AppError,
-            "400 *",
-            self.app.post_json,
-            FAKE_URL_CREATE,
-            headers=FAKE_HEADERS,
-            params=data,
-        )
-
-    @mock.patch.object(rpc_client, "ManagerClient")
-    def test_backup_create_group_no_valid_state(self, mock_rpc_client):
-        subcloud = fake_subcloud.create_fake_subcloud(self.ctx)
-
-        db_api.subcloud_update(
-            self.ctx,
-            subcloud.id,
-            availability_status=dccommon_consts.AVAILABILITY_ONLINE,
-            management_state=dccommon_consts.MANAGEMENT_MANAGED,
-            backup_datetime=None,
-            backup_status=consts.BACKUP_STATE_UNKNOWN,
-            deploy_status=consts.DEPLOY_STATE_BOOTSTRAPPING,
-        )
-
-        data = {"sysadmin_password": self.fake_password, "group": "1"}
-
-        mock_rpc_client().backup_subclouds.return_value = True
-
-        six.assertRaisesRegex(
-            self,
-            webtest.app.AppError,
-            "400 *",
-            self.app.post_json,
-            FAKE_URL_CREATE,
-            headers=FAKE_HEADERS,
-            params=data,
-        )
-
-    @mock.patch.object(rpc_client, "ManagerClient")
-    def test_backup_create_subcloud_and_group(self, mock_rpc_client):
-        subcloud = fake_subcloud.create_fake_subcloud(self.ctx)
-
-        db_api.subcloud_update(
-            self.ctx,
-            subcloud.id,
-            availability_status=dccommon_consts.AVAILABILITY_ONLINE,
-            management_state=dccommon_consts.MANAGEMENT_MANAGED,
-            backup_datetime=None,
-            backup_status=consts.BACKUP_STATE_UNKNOWN,
-        )
-
-        data = {
-            "sysadmin_password": self.fake_password,
-            "subcloud": "1",
-            "group": "1",
-        }
-
-        mock_rpc_client().backup_subclouds.return_value = True
-
-        six.assertRaisesRegex(
-            self,
-            webtest.app.AppError,
-            "400 *",
-            self.app.post_json,
-            FAKE_URL_CREATE,
-            headers=FAKE_HEADERS,
-            params=data,
-        )
-
-    @mock.patch.object(rpc_client, "ManagerClient")
-    def test_backup_create_no_subcloud_no_group(self, mock_rpc_client):
-        subcloud = fake_subcloud.create_fake_subcloud(self.ctx)
-
-        db_api.subcloud_update(
-            self.ctx,
-            subcloud.id,
-            availability_status=dccommon_consts.AVAILABILITY_ONLINE,
-            management_state=dccommon_consts.MANAGEMENT_MANAGED,
-            backup_datetime=None,
-            backup_status=consts.BACKUP_STATE_UNKNOWN,
-        )
-
-        data = {"sysadmin_password": self.fake_password}
-
-        mock_rpc_client().backup_subclouds.return_value = True
-
-        six.assertRaisesRegex(
-            self,
-            webtest.app.AppError,
-            "400 *",
-            self.app.post_json,
-            FAKE_URL_CREATE,
-            headers=FAKE_HEADERS,
-            params=data,
-        )
-
-    @mock.patch("dcmanager.common.utils.OpenStackDriver")
-    @mock.patch("dcmanager.common.utils.SysinvClient")
-    @mock.patch.object(rpc_client, "ManagerClient")
-    def test_backup_create_subcloud_backup_values(
-        self, mock_rpc_client, mock_sysinv, mock_openstack
-    ):
-        subcloud = fake_subcloud.create_fake_subcloud(self.ctx)
-
-        db_api.subcloud_update(
-            self.ctx,
-            subcloud.id,
-            availability_status=dccommon_consts.AVAILABILITY_ONLINE,
-            management_state=dccommon_consts.MANAGEMENT_MANAGED,
-            backup_datetime=None,
-            backup_status=consts.BACKUP_STATE_UNKNOWN,
-        )
-
-        data = {
-            "sysadmin_password": self.fake_password,
-            "subcloud": "1",
-            "backup_values": "TestFileDirectory",
-        }
-
-        mock_rpc_client().backup_subclouds.return_value = True
-        mock_sysinv().get_system_health.return_value = FAKE_GOOD_SYSTEM_HEALTH
-
-        response = self.app.post_json(
-            FAKE_URL_CREATE, headers=FAKE_HEADERS, params=data
-        )
-
-        self.assertEqual(response.status_int, 200)
-
-    @mock.patch.object(rpc_client, "ManagerClient")
-    def test_backup_create_no_password(self, mock_rpc_client):
-        subcloud = fake_subcloud.create_fake_subcloud(self.ctx)
-
-        db_api.subcloud_update(
-            self.ctx,
-            subcloud.id,
-            availability_status=dccommon_consts.AVAILABILITY_ONLINE,
-            management_state=dccommon_consts.MANAGEMENT_MANAGED,
-            backup_datetime=None,
-            backup_status=consts.BACKUP_STATE_UNKNOWN,
-        )
-
-        data = {"subcloud": "1"}
-        mock_rpc_client().backup_subclouds.return_value = True
-
-        six.assertRaisesRegex(
-            self,
-            webtest.app.AppError,
-            "400 *",
-            self.app.post_json,
-            FAKE_URL_CREATE,
-            headers=FAKE_HEADERS,
-            params=data,
-        )
-
-    @mock.patch("dcmanager.common.utils.OpenStackDriver")
-    @mock.patch("dcmanager.common.utils.SysinvClient")
-    @mock.patch.object(rpc_client, "ManagerClient")
-    def test_backup_create_subcloud_local_only(
-        self, mock_rpc_client, mock_sysinv, mock_openstack
-    ):
-        subcloud = fake_subcloud.create_fake_subcloud(self.ctx)
-
-        db_api.subcloud_update(
-            self.ctx,
-            subcloud.id,
-            availability_status=dccommon_consts.AVAILABILITY_ONLINE,
-            management_state=dccommon_consts.MANAGEMENT_MANAGED,
-            backup_datetime=None,
-            backup_status=consts.BACKUP_STATE_UNKNOWN,
-        )
-
-        data = {
-            "sysadmin_password": self.fake_password,
-            "subcloud": "1",
-            "local_only": "True",
-        }
-        mock_rpc_client().backup_subclouds.return_value = True
-        mock_sysinv().get_system_health.return_value = FAKE_GOOD_SYSTEM_HEALTH
-
-        response = self.app.post_json(
-            FAKE_URL_CREATE, headers=FAKE_HEADERS, params=data
-        )
-
-        self.assertEqual(response.status_int, 200)
-
-    @mock.patch("dcmanager.common.utils.OpenStackDriver")
-    @mock.patch("dcmanager.common.utils.SysinvClient")
-    @mock.patch.object(rpc_client, "ManagerClient")
-    def test_backup_create_subcloud_local_only_registry_images(
-        self, mock_rpc_client, mock_sysinv, mock_openstack
-    ):
-        subcloud = fake_subcloud.create_fake_subcloud(self.ctx)
-
-        db_api.subcloud_update(
-            self.ctx,
-            subcloud.id,
-            availability_status=dccommon_consts.AVAILABILITY_ONLINE,
-            management_state=dccommon_consts.MANAGEMENT_MANAGED,
-            backup_datetime=None,
-            backup_status=consts.BACKUP_STATE_UNKNOWN,
-        )
-
-        data = {
-            "sysadmin_password": self.fake_password,
-            "subcloud": "1",
-            "local_only": "True",
-            "registry_images": "True",
-        }
-        mock_rpc_client().backup_subclouds.return_value = True
-        mock_sysinv().get_system_health.return_value = FAKE_GOOD_SYSTEM_HEALTH
-
-        response = self.app.post_json(
-            FAKE_URL_CREATE, headers=FAKE_HEADERS, params=data
-        )
-
-        self.assertEqual(response.status_int, 200)
-
-    @mock.patch("dcmanager.common.utils.OpenStackDriver")
-    @mock.patch("dcmanager.common.utils.SysinvClient")
-    @mock.patch.object(rpc_client, "ManagerClient")
-    def test_backup_create_subcloud_no_local_only_registry_images(
-        self, mock_rpc_client, mock_sysinv, mock_openstack
-    ):
-        subcloud = fake_subcloud.create_fake_subcloud(self.ctx)
-
-        db_api.subcloud_update(
-            self.ctx,
-            subcloud.id,
-            availability_status=dccommon_consts.AVAILABILITY_ONLINE,
-            management_state=dccommon_consts.MANAGEMENT_MANAGED,
-            backup_datetime=None,
-            backup_status=consts.BACKUP_STATE_UNKNOWN,
-        )
-
-        data = {
-            "sysadmin_password": self.fake_password,
-            "subcloud": "1",
-            "registry_images": "True",
-        }
-
-        mock_rpc_client().backup_subclouds.return_value = True
-        mock_sysinv().get_system_health.return_value = FAKE_GOOD_SYSTEM_HEALTH
-
-        six.assertRaisesRegex(
-            self,
-            webtest.app.AppError,
-            "400 *",
-            self.app.post_json,
-            FAKE_URL_CREATE,
-            headers=FAKE_HEADERS,
-            params=data,
-        )
-
-    @mock.patch.object(rpc_client, "ManagerClient")
-    def test_backup_create_subcloud_unknown_parameter(self, mock_rpc_client):
-        subcloud = fake_subcloud.create_fake_subcloud(self.ctx)
-
-        db_api.subcloud_update(
-            self.ctx,
-            subcloud.id,
-            availability_status=dccommon_consts.AVAILABILITY_ONLINE,
-            management_state=dccommon_consts.MANAGEMENT_MANAGED,
-            backup_datetime=None,
-            backup_status=consts.BACKUP_STATE_UNKNOWN,
-        )
-
-        data = {
-            "sysadmin_password": self.fake_password,
-            "subcloud": "1",
-            "unkown_variable": "FakeValue",
-        }
-
-        mock_rpc_client().backup_subclouds.return_value = True
-
-        six.assertRaisesRegex(
-            self,
-            webtest.app.AppError,
-            "400 *",
-            self.app.post_json,
-            FAKE_URL_CREATE,
-            headers=FAKE_HEADERS,
-            params=data,
-        )
-
-    @mock.patch.object(rpc_client, "ManagerClient")
-    def test_backup_create_subcloud_invalid_payload_format(self, mock_rpc_client):
-        subcloud = fake_subcloud.create_fake_subcloud(self.ctx)
-
-        db_api.subcloud_update(
-            self.ctx,
-            subcloud.id,
-            availability_status=dccommon_consts.AVAILABILITY_ONLINE,
-            management_state=dccommon_consts.MANAGEMENT_MANAGED,
-            backup_datetime=None,
-            backup_status=consts.BACKUP_STATE_UNKNOWN,
-        )
-
-        data = "WrongFormat"
-        mock_rpc_client().backup_subclouds.return_value = True
-
-        six.assertRaisesRegex(
-            self,
-            webtest.app.AppError,
-            "400 *",
-            self.app.post_json,
-            FAKE_URL_CREATE,
-            headers=FAKE_HEADERS,
-            params=data,
-        )
-
-    @mock.patch("dcmanager.common.utils.OpenStackDriver")
-    @mock.patch("dcmanager.common.utils.SysinvClient")
-    @mock.patch.object(rpc_client, "ManagerClient")
-    def test_backup_create_subcloud_json_file(
-        self, mock_rpc_client, mock_sysinv, mock_openstack
-    ):
-        subcloud = fake_subcloud.create_fake_subcloud(self.ctx)
-
-        db_api.subcloud_update(
-            self.ctx,
-            subcloud.id,
-            availability_status=dccommon_consts.AVAILABILITY_ONLINE,
-            management_state=dccommon_consts.MANAGEMENT_MANAGED,
-            backup_datetime=None,
-            backup_status=consts.BACKUP_STATE_UNKNOWN,
-        )
-
-        data = {"sysadmin_password": self.fake_password, "subcloud": "1"}
-        mock_rpc_client().backup_subclouds.return_value = True
-        mock_sysinv().get_system_health.return_value = FAKE_GOOD_SYSTEM_HEALTH
-
-        response = self.app.post_json(
-            FAKE_URL_CREATE, headers=FAKE_HEADERS, params=data
-        )
-
-        self.assertEqual(response.status_int, 200)
-
-    @mock.patch("dcmanager.common.utils.OpenStackDriver")
-    @mock.patch("dcmanager.common.utils.SysinvClient")
-    @mock.patch.object(rpc_client, "ManagerClient")
-    def test_create_concurrent_backup(
-        self, mock_rpc_client, mock_sysinv, mock_openstack
-    ):
-        mock_sysinv().get_system_health.return_value = FAKE_GOOD_SYSTEM_HEALTH
-        mock_rpc_client().backup_subclouds.return_value = True
-        subcloud = fake_subcloud.create_fake_subcloud(self.ctx)
-
-        data = {"sysadmin_password": self.fake_password, "subcloud": "1"}
-        db_api.subcloud_update(
-            self.ctx,
-            subcloud.id,
-            deploy_status=consts.DEPLOY_STATE_DONE,
-            availability_status=dccommon_consts.AVAILABILITY_ONLINE,
-            management_state=dccommon_consts.MANAGEMENT_MANAGED,
-        )
-
-        ongoing_backup_states = [
-            consts.BACKUP_STATE_INITIAL,
-            consts.BACKUP_STATE_VALIDATING,
-            consts.BACKUP_STATE_PRE_BACKUP,
-            consts.BACKUP_STATE_IN_PROGRESS,
-        ]
+    def test_post_subcloud_succeeds_with_final_backup_states(self):
+        """Test post subcloud succeeds with final backup states"""
+
+        self.mock_sysinv_client().get_system_health.return_value = \
+            FAKE_GOOD_SYSTEM_HEALTH
 
         final_backup_states = [
-            consts.BACKUP_STATE_VALIDATE_FAILED,
-            consts.BACKUP_STATE_PREP_FAILED,
-            consts.BACKUP_STATE_FAILED,
-            consts.BACKUP_STATE_UNKNOWN,
-            consts.BACKUP_STATE_COMPLETE_CENTRAL,
-            consts.BACKUP_STATE_COMPLETE_LOCAL,
-            consts.BACKUP_STATE_IN_PROGRESS,
+            consts.BACKUP_STATE_VALIDATE_FAILED, consts.BACKUP_STATE_PREP_FAILED,
+            consts.BACKUP_STATE_FAILED, consts.BACKUP_STATE_UNKNOWN,
+            consts.BACKUP_STATE_COMPLETE_CENTRAL, consts.BACKUP_STATE_COMPLETE_LOCAL
         ]
 
-        for backup_state in ongoing_backup_states + final_backup_states:
-            db_api.subcloud_update(self.ctx, subcloud.id, backup_status=backup_state)
-            if backup_state in ongoing_backup_states:
-                # Expect the operation to fail
-                six.assertRaisesRegex(
-                    self,
-                    webtest.app.AppError,
-                    "400 *",
-                    self.app.post_json,
-                    FAKE_URL_CREATE,
-                    headers=FAKE_HEADERS,
-                    params=data,
-                )
-            else:
-                # Expect the operation to succeed
-                response = self.app.post_json(
-                    FAKE_URL_CREATE, headers=FAKE_HEADERS, params=data
-                )
-                self.assertEqual(response.status_int, 200)
+        for backup_state in final_backup_states:
+            self._update_subcloud(backup_status=backup_state)
+
+            response = self._send_request()
+
+            self._assert_response(response)
+
+    def test_post_subcloud_fails_with_ongoing_backup_states(self):
+        """Test post subcloud fails with ongoing backup states"""
+
+        self.mock_sysinv_client().get_system_health.return_value = \
+            FAKE_GOOD_SYSTEM_HEALTH
+
+        for index, state in enumerate(consts.STATES_FOR_ONGOING_BACKUP, start=1):
+            self._update_subcloud(backup_status=state)
+
+            response = self._send_request()
+
+            self._assert_pecan_and_response(
+                response, http.client.BAD_REQUEST, "Subcloud(s) already have a "
+                "backup operation in progress.", call_count=index
+            )
 
 
-class TestSubcloudDelete(testroot.DCManagerApiTest):
+class TestSubcloudBackupPostGroup(BaseTestSubcloudBackupPost):
+    """Test class for post requests for group resource"""
+
     def setUp(self):
-        super(TestSubcloudDelete, self).setUp()
-        self.ctx = utils.dummy_context()
+        super().setUp()
 
-        self.fake_password = base64.b64encode("testpass".encode("utf-8")).decode(
-            "ascii"
-        )
-        p = mock.patch.object(rpc_client, "SubcloudStateClient")
-        self.mock_rpc_state_client = p.start()
-        self.addCleanup(p.stop)
+        self.params = f'{{"sysadmin_password": "{self._create_password()}",' \
+            f'"group": "{self.subcloud.id}"}}'
 
-    @mock.patch.object(rpc_client, "ManagerClient")
-    def test_backup_delete_subcloud(self, mock_rpc_client):
-        subcloud = fake_subcloud.create_fake_subcloud(self.ctx)
+    def test_post_group_succeeds(self):
+        """Test post group succeeds"""
 
-        db_api.subcloud_update(
-            self.ctx,
-            subcloud.id,
-            availability_status=dccommon_consts.AVAILABILITY_ONLINE,
-            management_state=dccommon_consts.MANAGEMENT_MANAGED,
-            backup_datetime=timeutils.utcnow(),
-            backup_status=consts.BACKUP_STATE_COMPLETE_CENTRAL,
-        )
+        self._update_subcloud()
 
-        release_version = "22.12"
+        response = self._send_request()
 
-        data = {"sysadmin_password": self.fake_password, "subcloud": "1"}
+        self._assert_response(response)
 
-        mock_rpc_client().delete_subcloud_backups.return_value = True
+    def test_post_group_fails_with_unknown_group(self):
+        """Test post group fails with unknown group"""
 
-        response = self.app.patch_json(
-            FAKE_URL_DELETE + release_version, headers=FAKE_HEADERS, params=data
+        self.params = f'{{"sysadmin_password": "{self._create_password()}",' \
+            f'"group": "123"}}'
+
+        response = self._send_request()
+
+        self._assert_pecan_and_response(
+            response, http.client.NOT_FOUND, "Group not found"
         )
 
-        self.assertEqual(response.status_int, 207)
+    def test_post_group_fails_with_subcloud_offline(self):
+        """Test post group fails with subcloud offline"""
 
-    @mock.patch.object(rpc_client, "ManagerClient")
-    def test_backup_delete_unknown_group(self, mock_rpc_client):
-        subcloud = fake_subcloud.create_fake_subcloud(self.ctx)
-
-        db_api.subcloud_update(
-            self.ctx,
-            subcloud.id,
-            availability_status=dccommon_consts.AVAILABILITY_OFFLINE,
-            management_state=dccommon_consts.MANAGEMENT_MANAGED,
-            backup_datetime=timeutils.utcnow(),
-            backup_status=consts.BACKUP_STATE_COMPLETE_CENTRAL,
+        self._update_subcloud(
+            availability_status=dccommon_consts.AVAILABILITY_OFFLINE
         )
 
-        release_version = "22.12"
+        response = self._send_request()
 
-        data = {"sysadmin_password": self.fake_password, "group": "999"}
-
-        mock_rpc_client().delete_subcloud_backups.return_value = True
-        six.assertRaisesRegex(
-            self,
-            webtest.app.AppError,
-            "404 *",
-            self.app.patch_json,
-            FAKE_URL_DELETE + release_version,
-            headers=FAKE_HEADERS,
-            params=data,
+        self._assert_pecan_and_response(
+            response, http.client.BAD_REQUEST, "None of the subclouds in group "
+            f"{self.subcloud.id} are in a valid state for subcloud-backup create"
         )
 
-    @mock.patch.object(rpc_client, "ManagerClient")
-    def _test_backup_delete_subcloud_unmanaged(self, mock_rpc_client):
-        subcloud = fake_subcloud.create_fake_subcloud(self.ctx)
+    def test_post_group_fails_with_unmanaged_subcloud(self):
+        """Test post group fails with unmanaged subcloud"""
 
-        db_api.subcloud_update(
-            self.ctx,
-            subcloud.id,
-            availability_status=dccommon_consts.AVAILABILITY_ONLINE,
-            management_state=dccommon_consts.MANAGEMENT_UNMANAGED,
-            backup_datetime=timeutils.utcnow(),
-            backup_status=consts.BACKUP_STATE_COMPLETE_CENTRAL,
+        self._update_subcloud(management_state=dccommon_consts.MANAGEMENT_UNMANAGED)
+
+        response = self._send_request()
+
+        self._assert_pecan_and_response(
+            response, http.client.BAD_REQUEST, "None of the subclouds in group "
+            f"{self.subcloud.id} are in a valid state for subcloud-backup create"
         )
 
-        release_version = "22.12"
+    def test_post_group_fails_with_subcloud_in_invalid_deploy_state(self):
+        """Test post group fails with subcloud in invalid deploy state"""
 
-        data = {"sysadmin_password": self.fake_password, "group": "1"}
+        self._update_subcloud(deploy_status=consts.DEPLOY_STATE_BOOTSTRAPPING)
 
-        mock_rpc_client().delete_subcloud_backups.return_value = True
+        response = self._send_request()
 
-        six.assertRaisesRegex(
-            self,
-            webtest.app.AppError,
-            "400 *",
-            self.app.patch_json,
-            FAKE_URL_DELETE + release_version,
-            headers=FAKE_HEADERS,
-            params=data,
+        self._assert_pecan_and_response(
+            response, http.client.BAD_REQUEST, "None of the subclouds in group "
+            f"{self.subcloud.id} are in a valid state for subcloud-backup create"
         )
 
-    @mock.patch.object(rpc_client, "ManagerClient")
-    def test_backup_delete_group(self, mock_rpc_client):
-        subcloud = fake_subcloud.create_fake_subcloud(self.ctx)
+    def test_post_group_fails_with_rpc_client_remote_error(self):
+        """Test post group fails with rpc client remote error"""
 
-        db_api.subcloud_update(
-            self.ctx,
-            subcloud.id,
-            availability_status=dccommon_consts.AVAILABILITY_ONLINE,
-            management_state=dccommon_consts.MANAGEMENT_MANAGED,
-            backup_datetime=timeutils.utcnow(),
-            backup_status=consts.BACKUP_STATE_COMPLETE_CENTRAL,
+        self._update_subcloud()
+
+        self.mock_rpc_client().backup_subclouds.side_effect = \
+            RemoteError("msg", "value")
+
+        response = self._send_request()
+
+        self._assert_pecan_and_response(
+            response, http.client.UNPROCESSABLE_ENTITY, "value"
         )
 
-        release_version = "22.12"
+    def test_post_group_fails_with_rpc_client_generic_exception(self):
+        """Test post group fails with rpc client generic exception"""
 
-        data = {"sysadmin_password": self.fake_password, "group": "1"}
+        self._update_subcloud()
 
-        mock_rpc_client().delete_subcloud_backups.return_value = True
+        self.mock_rpc_client().backup_subclouds.side_effect = Exception()
 
-        response = self.app.patch_json(
-            FAKE_URL_DELETE + release_version, headers=FAKE_HEADERS, params=data
-        )
+        response = self._send_request()
 
-        self.assertEqual(response.status_int, 207)
-
-    @mock.patch.object(rpc_client, "ManagerClient")
-    def test_backup_delete_subcloud_and_group(self, mock_rpc_client):
-        subcloud = fake_subcloud.create_fake_subcloud(self.ctx)
-
-        db_api.subcloud_update(
-            self.ctx,
-            subcloud.id,
-            availability_status=dccommon_consts.AVAILABILITY_ONLINE,
-            management_state=dccommon_consts.MANAGEMENT_MANAGED,
-            backup_datetime=timeutils.utcnow(),
-            backup_status=consts.BACKUP_STATE_COMPLETE_CENTRAL,
-        )
-        HEADER = copy.copy(FAKE_HEADERS)
-        release_version = "22.12"
-
-        data = {
-            "sysadmin_password": self.fake_password,
-            "subcloud": "1",
-            "group": "1",
-        }
-
-        mock_rpc_client().delete_subcloud_backups.return_value = True
-
-        six.assertRaisesRegex(
-            self,
-            webtest.app.AppError,
-            "400 *",
-            self.app.patch_json,
-            FAKE_URL_DELETE + release_version,
-            headers=HEADER,
-            params=data,
-        )
-
-    @mock.patch.object(rpc_client, "ManagerClient")
-    def test_backup_delete_no_subcloud_no_group(self, mock_rpc_client):
-        subcloud = fake_subcloud.create_fake_subcloud(self.ctx)
-
-        db_api.subcloud_update(
-            self.ctx,
-            subcloud.id,
-            availability_status=dccommon_consts.AVAILABILITY_ONLINE,
-            management_state=dccommon_consts.MANAGEMENT_MANAGED,
-            backup_datetime=timeutils.utcnow(),
-            backup_status=consts.BACKUP_STATE_COMPLETE_CENTRAL,
-        )
-
-        release_version = "22.12"
-
-        data = {"sysadmin_password": self.fake_password}
-
-        mock_rpc_client().delete_subcloud_backups.return_value = True
-
-        six.assertRaisesRegex(
-            self,
-            webtest.app.AppError,
-            "400 *",
-            self.app.patch_json,
-            FAKE_URL_DELETE + release_version,
-            headers=FAKE_HEADERS,
-            params=data,
-        )
-
-    @mock.patch.object(rpc_client, "ManagerClient")
-    def test_backup_delete_invalid_url(self, mock_rpc_client):
-        subcloud = fake_subcloud.create_fake_subcloud(self.ctx)
-
-        db_api.subcloud_update(
-            self.ctx,
-            subcloud.id,
-            availability_status=dccommon_consts.AVAILABILITY_ONLINE,
-            management_state=dccommon_consts.MANAGEMENT_MANAGED,
-            backup_datetime=timeutils.utcnow(),
-            backup_status=consts.BACKUP_STATE_COMPLETE_CENTRAL,
-        )
-
-        invalid_url = "/v1.0/subcloud-backup/fake/"
-
-        data = {"sysadmin_password": self.fake_password, "subcloud": "1"}
-
-        mock_rpc_client().delete_subcloud_backups.return_value = True
-
-        six.assertRaisesRegex(
-            self,
-            webtest.app.AppError,
-            "404 *",
-            self.app.patch_json,
-            invalid_url,
-            headers=FAKE_HEADERS,
-            params=data,
-        )
-
-    @mock.patch.object(rpc_client, "ManagerClient")
-    def test_backup_delete_no_release_version(self, mock_rpc_client):
-        subcloud = fake_subcloud.create_fake_subcloud(self.ctx)
-
-        db_api.subcloud_update(
-            self.ctx,
-            subcloud.id,
-            availability_status=dccommon_consts.AVAILABILITY_ONLINE,
-            management_state=dccommon_consts.MANAGEMENT_MANAGED,
-            backup_datetime=timeutils.utcnow(),
-            backup_status=consts.BACKUP_STATE_COMPLETE_CENTRAL,
-        )
-
-        data = {"sysadmin_password": self.fake_password, "subcloud": "1"}
-
-        mock_rpc_client().delete_subcloud_backups.return_value = True
-
-        six.assertRaisesRegex(
-            self,
-            webtest.app.AppError,
-            "400 *",
-            self.app.patch_json,
-            FAKE_URL_DELETE,
-            headers=FAKE_HEADERS,
-            params=data,
-        )
-
-    @mock.patch.object(rpc_client, "ManagerClient")
-    def test_backup_delete_no_content(self, mock_rpc_client):
-        subcloud = fake_subcloud.create_fake_subcloud(self.ctx)
-
-        db_api.subcloud_update(
-            self.ctx,
-            subcloud.id,
-            availability_status=dccommon_consts.AVAILABILITY_ONLINE,
-            management_state=dccommon_consts.MANAGEMENT_MANAGED,
-            backup_datetime=timeutils.utcnow(),
-            backup_status=consts.BACKUP_STATE_COMPLETE_CENTRAL,
-        )
-
-        release_version = "22.12"
-
-        data = {"sysadmin_password": self.fake_password, "subcloud": "1"}
-
-        mock_rpc_client().delete_subcloud_backups.return_value = None
-
-        response = self.app.patch_json(
-            FAKE_URL_DELETE + release_version, headers=FAKE_HEADERS, params=data
-        )
-
-        self.assertEqual(response.status_int, 204)
-
-    @mock.patch.object(rpc_client, "ManagerClient")
-    def test_backup_delete_exception(self, mock_rpc_client):
-        subcloud = fake_subcloud.create_fake_subcloud(self.ctx)
-
-        db_api.subcloud_update(
-            self.ctx,
-            subcloud.id,
-            availability_status=dccommon_consts.AVAILABILITY_ONLINE,
-            management_state=dccommon_consts.MANAGEMENT_MANAGED,
-            backup_datetime=timeutils.utcnow(),
-            backup_status=consts.BACKUP_STATE_COMPLETE_CENTRAL,
-        )
-
-        release_version = "22.12"
-
-        data = {"sysadmin_password": self.fake_password, "subcloud": "1"}
-
-        mock_rpc_client().delete_subcloud_backups.side_effect = Exception()
-
-        six.assertRaisesRegex(
-            self,
-            webtest.app.AppError,
-            "500 *",
-            self.app.patch_json,
-            FAKE_URL_DELETE + release_version,
-            headers=FAKE_HEADERS,
-            params=data,
-        )
-
-    @mock.patch.object(rpc_client, "ManagerClient")
-    def test_backup_delete_local_only(self, mock_rpc_client):
-        subcloud = fake_subcloud.create_fake_subcloud(self.ctx)
-
-        db_api.subcloud_update(
-            self.ctx,
-            subcloud.id,
-            availability_status=dccommon_consts.AVAILABILITY_ONLINE,
-            management_state=dccommon_consts.MANAGEMENT_MANAGED,
-            backup_datetime=timeutils.utcnow(),
-            backup_status=consts.BACKUP_STATE_COMPLETE_LOCAL,
-        )
-
-        release_version = "22.12"
-
-        data = {
-            "sysadmin_password": self.fake_password,
-            "subcloud": "1",
-            "local_only": "True",
-        }
-
-        mock_rpc_client().delete_subcloud_backups.return_value = True
-
-        response = self.app.patch_json(
-            FAKE_URL_DELETE + release_version, headers=FAKE_HEADERS, params=data
-        )
-
-        self.assertEqual(response.status_int, 207)
-
-    @mock.patch.object(rpc_client, "ManagerClient")
-    def test_backup_delete_central(self, mock_rpc_client):
-        subcloud = fake_subcloud.create_fake_subcloud(self.ctx)
-
-        db_api.subcloud_update(
-            self.ctx,
-            subcloud.id,
-            availability_status=dccommon_consts.AVAILABILITY_ONLINE,
-            management_state=dccommon_consts.MANAGEMENT_MANAGED,
-            backup_datetime=timeutils.utcnow(),
-            backup_status=consts.BACKUP_STATE_COMPLETE_CENTRAL,
-        )
-
-        release_version = "22.12"
-
-        data = {
-            "sysadmin_password": self.fake_password,
-            "subcloud": "1",
-            "local_only": "False",
-        }
-
-        mock_rpc_client().delete_subcloud_backups.return_value = True
-
-        response = self.app.patch_json(
-            FAKE_URL_DELETE + release_version, headers=FAKE_HEADERS, params=data
-        )
-
-        self.assertEqual(response.status_int, 207)
-
-    @mock.patch.object(rpc_client, "ManagerClient")
-    def test_backup_delete_invalid_local_only(self, mock_rpc_client):
-        subcloud = fake_subcloud.create_fake_subcloud(self.ctx)
-
-        db_api.subcloud_update(
-            self.ctx,
-            subcloud.id,
-            availability_status=dccommon_consts.AVAILABILITY_ONLINE,
-            management_state=dccommon_consts.MANAGEMENT_MANAGED,
-            backup_datetime=timeutils.utcnow(),
-            backup_status=consts.BACKUP_STATE_COMPLETE_LOCAL,
-        )
-
-        release_version = "22.12"
-
-        data = {
-            "sysadmin_password": self.fake_password,
-            "subcloud": "1",
-            "local_only": "Fake",
-        }
-
-        mock_rpc_client().delete_subcloud_backups.return_value = True
-
-        six.assertRaisesRegex(
-            self,
-            webtest.app.AppError,
-            "400 *",
-            self.app.patch_json,
-            FAKE_URL_DELETE + release_version,
-            headers=FAKE_HEADERS,
-            params=data,
-        )
-
-    @mock.patch.object(rpc_client, "ManagerClient")
-    def test_backup_delete_local_only_unknown_subcloud(self, mock_rpc_client):
-        subcloud = fake_subcloud.create_fake_subcloud(self.ctx)
-
-        db_api.subcloud_update(
-            self.ctx,
-            subcloud.id,
-            availability_status=dccommon_consts.AVAILABILITY_ONLINE,
-            management_state=dccommon_consts.MANAGEMENT_MANAGED,
-            backup_datetime=timeutils.utcnow(),
-            backup_status=consts.BACKUP_STATE_COMPLETE_LOCAL,
-        )
-
-        release_version = "22.12"
-
-        data = {
-            "sysadmin_password": self.fake_password,
-            "subcloud": "123",
-            "local_only": "True",
-        }
-
-        mock_rpc_client().delete_subcloud_backups.return_value = True
-
-        six.assertRaisesRegex(
-            self,
-            webtest.app.AppError,
-            "404 *",
-            self.app.patch_json,
-            FAKE_URL_DELETE + release_version,
-            headers=FAKE_HEADERS,
-            params=data,
+        self._assert_pecan_and_response(
+            response, http.client.INTERNAL_SERVER_ERROR, "Unable to backup subcloud"
         )
 
 
-class TestSubcloudRestore(testroot.DCManagerApiTest):
+class BaseTestSubcloudBackupPatch(BaseTestSubcloudBackupController):
+    """Base test class for patch requests"""
+
     def setUp(self):
-        super(TestSubcloudRestore, self).setUp()
-        self.ctx = utils.dummy_context()
-        self.fake_password = base64.b64encode("testpass".encode("utf-8")).decode(
-            "ascii"
-        )
-        p = mock.patch.object(rpc_client, "SubcloudStateClient")
-        self.mock_rpc_state_client = p.start()
-        self.addCleanup(p.stop)
+        super().setUp()
 
-    @mock.patch.object(rpc_client, "ManagerClient")
-    def test_backup_restore_subcloud(self, mock_rpc_client):
-        subcloud = fake_subcloud.create_fake_subcloud(self.ctx)
-        db_api.subcloud_update(
-            self.ctx,
-            subcloud.id,
-            availability_status=dccommon_consts.AVAILABILITY_ONLINE,
-            management_state=dccommon_consts.MANAGEMENT_UNMANAGED,
-            backup_datetime=None,
-            backup_status=consts.BACKUP_STATE_UNKNOWN,
+        self.method = self.app.patch_json
+
+
+class TestSubcloudBackupPatch(BaseTestSubcloudBackupPatch):
+    """Test class for patch requests"""
+
+    def test_patch_fails_with_invalid_verb(self):
+        """Test patch fails with invalid verb"""
+
+        self.url = f"{self.url}/fake"
+
+        response = self._send_request()
+
+        self._assert_pecan_and_response(
+            response, http.client.BAD_REQUEST, "Unexpected verb received"
         )
 
-        data = {"sysadmin_password": self.fake_password, "subcloud": "1"}
+    def test_patch_fails_with_existing_verb(self):
+        """Test patch fails with existing verb
 
-        mock_rpc_client().restore_subcloud_backups.return_value = True
-        response = self.app.patch_json(
-            FAKE_URL_RESTORE, headers=FAKE_HEADERS, params=data
+        When performing a request to the endpoint, the payload is verified for
+        specific verbs, i.e. create, delete and restore. Because of that, for the
+        patch request to reach the Invalid request error it is necessary to use a
+        verb mapped in the _get_payload method but that isn't mapped in the patch
+        endpoint
+        """
+
+        self.url = f"{self.url}/create"
+
+        response = self._send_request()
+
+        self._assert_pecan_and_response(
+            response, http.client.BAD_REQUEST, "Invalid request"
         )
 
-        self.assertEqual(response.status_int, 200)
 
-    @mock.patch.object(rpc_client, 'ManagerClient')
-    def test_backup_restore_subcloud_valid_restore_values(self, mock_rpc_client):
+class BaseTestSubcloudBackupPatchDelete(BaseTestSubcloudBackupPatch):
+    """Base test class for patch requests with delete verb"""
 
-        subcloud = fake_subcloud.create_fake_subcloud(self.ctx)
-        db_api.subcloud_update(
-            self.ctx, subcloud.id,
-            availability_status=dccommon_consts.AVAILABILITY_ONLINE,
-            management_state=dccommon_consts.MANAGEMENT_UNMANAGED,
-            backup_datetime=None,
-            backup_status=consts.BACKUP_STATE_UNKNOWN)
+    def setUp(self):
+        super().setUp()
 
-        fake_password = \
-            (base64.b64encode('testpass'.encode("utf-8"))).decode('ascii')
-        data = {'sysadmin_password': fake_password, 'subcloud': '1',
-                'restore_values': FAKE_RESTORE_VALUES_VALID_IP}
+        self.url = f"{self.url}/delete/22.12"
 
-        mock_rpc_client().restore_subcloud_backups.return_value = True
-        response = self.app.patch_json(FAKE_URL_RESTORE,
-                                       headers=FAKE_HEADERS,
-                                       params=data)
-
-        self.assertEqual(response.status_int, 200)
-
-    @mock.patch.object(rpc_client, 'ManagerClient')
-    def test_backup_restore_subcloud_invalid_restore_values(self, mock_rpc_client):
-
-        subcloud = fake_subcloud.create_fake_subcloud(self.ctx)
-        db_api.subcloud_update(
-            self.ctx, subcloud.id,
-            availability_status=dccommon_consts.AVAILABILITY_ONLINE,
-            management_state=dccommon_consts.MANAGEMENT_UNMANAGED,
-            backup_datetime=None,
-            backup_status=consts.BACKUP_STATE_UNKNOWN)
-
-        fake_password = \
-            (base64.b64encode('testpass'.encode("utf-8"))).decode('ascii')
-        data = {'sysadmin_password': fake_password, 'subcloud': '1',
-                'restore_values': FAKE_RESTORE_VALUES_INVALID_IP}
-
-        mock_rpc_client().restore_subcloud_backups.return_value = True
-        six.assertRaisesRegex(self, webtest.app.AppError, "400 *",
-                              self.app.patch_json, FAKE_URL_RESTORE,
-                              headers=FAKE_HEADERS, params=data)
-
-    @mock.patch.object(rpc_client, 'ManagerClient')
-    def test_backup_restore_unknown_subcloud(self, mock_rpc_client):
-        data = {"sysadmin_password": self.fake_password, "subcloud": "999"}
-
-        mock_rpc_client().restore_subcloud_backups.return_value = True
-
-        six.assertRaisesRegex(
-            self,
-            webtest.app.AppError,
-            "400 *",
-            self.app.patch_json,
-            FAKE_URL_RESTORE,
-            headers=FAKE_HEADERS,
-            params=data,
+        self.mock_rpc_client().delete_subcloud_backups.return_value = (
+            "delete_subcloud_backups", {"release_version": "22.12"}
         )
 
-    @mock.patch.object(rpc_client, "ManagerClient")
-    def test_backup_restore_subcloud_group(self, mock_rpc_client):
-        test_group_id = 1
-        subcloud = fake_subcloud.create_fake_subcloud(
-            self.ctx, group_id=test_group_id
-        )
-        db_api.subcloud_update(
-            self.ctx,
-            subcloud.id,
-            availability_status=dccommon_consts.AVAILABILITY_ONLINE,
-            management_state=dccommon_consts.MANAGEMENT_UNMANAGED,
-            backup_datetime=None,
-            backup_status=consts.BACKUP_STATE_UNKNOWN,
-        )
 
-        data = {"sysadmin_password": self.fake_password, "group": str(test_group_id)}
+class TestSubcloudBackupPatchDelete(BaseTestSubcloudBackupPatchDelete):
+    """Test class for patch requests with delete verb"""
 
-        mock_rpc_client().restore_subcloud_backups.return_value = True
-        response = self.app.patch_json(
-            FAKE_URL_RESTORE, headers=FAKE_HEADERS, params=data
-        )
+    def setUp(self):
+        super().setUp()
 
-        self.assertEqual(response.status_int, 200)
+    def test_patch_delete_fails_with_subcloud_and_group(self):
+        """Test patch delete fails with subcloud and group"""
 
-    @mock.patch.object(rpc_client, "ManagerClient")
-    def test_backup_restore_group_single_valid_subcloud(self, mock_rpc_client):
-        test_group_id = 1
-        subcloud = fake_subcloud.create_fake_subcloud(
-            self.ctx, group_id=test_group_id
-        )
-        subcloud2 = fake_subcloud.create_fake_subcloud(
-            self.ctx, group_id=test_group_id, name=base.SUBCLOUD_2['name'],
-            region_name=base.SUBCLOUD_2['region_name']
-        )
-        # Valid subcloud, management state is 'unmanaged'
-        db_api.subcloud_update(
-            self.ctx,
-            subcloud.id,
-            availability_status=dccommon_consts.AVAILABILITY_ONLINE,
-            management_state=dccommon_consts.MANAGEMENT_UNMANAGED,
-            backup_datetime=None,
-            backup_status=consts.BACKUP_STATE_UNKNOWN,
-        )
-        # Invalid subcloud, management state is 'managed'
-        db_api.subcloud_update(
-            self.ctx,
-            subcloud2.id,
-            availability_status=dccommon_consts.AVAILABILITY_ONLINE,
-            management_state=dccommon_consts.MANAGEMENT_MANAGED,
-            backup_datetime=None,
-            backup_status=consts.BACKUP_STATE_UNKNOWN,
-        )
-
-        data = {"sysadmin_password": self.fake_password, "group": str(test_group_id)}
-
-        mock_rpc_client().restore_subcloud_backups.return_value = True
-        response = self.app.patch_json(
-            FAKE_URL_RESTORE, headers=FAKE_HEADERS, params=data
-        )
-
-        self.assertEqual(response.status_int, 200)
-
-    @mock.patch.object(rpc_client, "ManagerClient")
-    def test_backup_restore_unknown_subcloud_group(self, mock_rpc_client):
-        data = {"sysadmin_password": self.fake_password, "group": "123"}
-
-        mock_rpc_client().restore_subcloud_backups.return_value = True
-
-        six.assertRaisesRegex(
-            self,
-            webtest.app.AppError,
-            "404 *",
-            self.app.patch_json,
-            FAKE_URL_RESTORE,
-            headers=FAKE_HEADERS,
-            params=data,
-        )
-
-    @mock.patch.object(rpc_client, "ManagerClient")
-    def test_backup_restore_no_payload(self, mock_rpc_client):
-        test_group_id = 1
-        subcloud = fake_subcloud.create_fake_subcloud(
-            self.ctx, group_id=test_group_id
-        )
-        db_api.subcloud_update(
-            self.ctx,
-            subcloud.id,
-            availability_status=dccommon_consts.AVAILABILITY_ONLINE,
-            management_state=dccommon_consts.MANAGEMENT_UNMANAGED,
-            backup_datetime=None,
-            backup_status=consts.BACKUP_STATE_UNKNOWN,
-        )
-
-        mock_rpc_client().restore_subcloud_backups.return_value = True
-
-        six.assertRaisesRegex(
-            self,
-            webtest.app.AppError,
-            "400 *",
-            self.app.patch_json,
-            FAKE_URL_RESTORE,
-            headers=FAKE_HEADERS,
-        )
-
-    @mock.patch.object(rpc_client, "ManagerClient")
-    def test_backup_restore_no_local_only_registry_images(self, mock_rpc_client):
-        subcloud = fake_subcloud.create_fake_subcloud(self.ctx)
-        db_api.subcloud_update(
-            self.ctx,
-            subcloud.id,
-            availability_status=dccommon_consts.AVAILABILITY_ONLINE,
-            management_state=dccommon_consts.MANAGEMENT_UNMANAGED,
-            backup_datetime=None,
-            backup_status=consts.BACKUP_STATE_UNKNOWN,
-        )
-
-        data = {
-            "sysadmin_password": self.fake_password,
-            "subcloud": "1",
-            "local_only": "false",
-            "registry_images": "true",
+        self.params = {
+            "sysadmin_password": self._create_password(),
+            "subcloud": str(self.subcloud.id),
+            "group": str(self.subcloud.id)
         }
 
-        mock_rpc_client().restore_subcloud_backups.return_value = True
-        six.assertRaisesRegex(
-            self,
-            webtest.app.AppError,
-            "400 *",
-            self.app.patch_json,
-            FAKE_URL_RESTORE,
-            headers=FAKE_HEADERS,
-            params=data,
+        response = self._send_request()
+
+        self._assert_pecan_and_response(
+            response, http.client.BAD_REQUEST, "'subcloud' and 'group' parameters "
+            "should not be given at the same time"
         )
 
-    @mock.patch.object(rpc_client, "ManagerClient")
-    def test_backup_restore_subcloud_managed(self, mock_rpc_client):
-        subcloud = fake_subcloud.create_fake_subcloud(self.ctx)
-        db_api.subcloud_update(
-            self.ctx,
-            subcloud.id,
-            availability_status=dccommon_consts.AVAILABILITY_ONLINE,
-            management_state=dccommon_consts.MANAGEMENT_MANAGED,
-            backup_datetime=None,
-            backup_status=consts.BACKUP_STATE_UNKNOWN,
+    def test_patch_delete_fails_without_subcloud_and_group(self):
+        """Test patch delete fails without subcloud and group"""
+
+        self.params = {"sysadmin_password": self._create_password()}
+
+        response = self._send_request()
+
+        self._assert_pecan_and_response(
+            response, http.client.BAD_REQUEST,
+            "'subcloud' or 'group' parameter is required"
         )
 
-        data = {"sysadmin_password": self.fake_password, "subcloud": "1"}
+    def test_patch_delete_fails_without_release_version(self):
+        """Test patch delete fails without release version"""
 
-        mock_rpc_client().restore_subcloud_backups.return_value = True
-        six.assertRaisesRegex(
-            self,
-            webtest.app.AppError,
-            "400 *",
-            self.app.patch_json,
-            FAKE_URL_RESTORE,
-            headers=FAKE_HEADERS,
-            params=data,
+        self.url = "/v1.0/subcloud-backup/delete"
+
+        response = self._send_request()
+
+        self._assert_pecan_and_response(
+            response, http.client.BAD_REQUEST,
+            "Release version required"
         )
 
-    @mock.patch.object(rpc_client, "ManagerClient")
-    def test_backup_restore_subcloud_invalid_deploy_states(self, mock_rpc_client):
-        subcloud = fake_subcloud.create_fake_subcloud(self.ctx)
 
-        data = {"sysadmin_password": self.fake_password, "subcloud": "1"}
-        mock_rpc_client().restore_subcloud_backups.return_value = True
+class TestSubcloudBackupPatchDeleteSubcloud(BaseTestSubcloudBackupPatchDelete):
+    """Test class for patch requests with delete verb for subcloud resource"""
 
-        for status in consts.INVALID_DEPLOY_STATES_FOR_RESTORE:
-            db_api.subcloud_update(
-                self.ctx,
-                subcloud.id,
-                availability_status=dccommon_consts.AVAILABILITY_ONLINE,
-                management_state=dccommon_consts.MANAGEMENT_MANAGED,
-                deploy_status=status,
-                backup_datetime=None,
-                backup_status=consts.BACKUP_STATE_UNKNOWN)
+    def setUp(self):
+        super().setUp()
 
-            six.assertRaisesRegex(self, webtest.app.AppError, "400 *",
-                                  self.app.patch_json, FAKE_URL_RESTORE,
-                                  headers=FAKE_HEADERS, params=data)
+        self.params = {
+            "sysadmin_password": self._create_password(),
+            "subcloud": str(self.subcloud.id)
+        }
 
-    @mock.patch.object(rpc_client, 'ManagerClient')
-    def test_backup_restore_subcloud_and_group(self, mock_rpc_client):
-        subcloud = fake_subcloud.create_fake_subcloud(self.ctx)
-        db_api.subcloud_update(
-            self.ctx,
-            subcloud.id,
-            availability_status=dccommon_consts.AVAILABILITY_ONLINE,
+    def test_patch_delete_subcloud_succeeds(self):
+        """Test patch delete subcloud succeeds"""
+
+        response = self._send_request()
+
+        self._assert_response(response, http.client.MULTI_STATUS)
+
+    def test_patch_delete_subcloud_succeeds_with_no_content(self):
+        """Test patch delete subcloud succeeds with no content"""
+
+        self.mock_rpc_client().delete_subcloud_backups.return_value = None
+
+        response = self._send_request()
+
+        self._assert_response(response, http.client.NO_CONTENT, None)
+
+    def test_patch_delete_subcloud_succeeds_with_local_only(self):
+        """Test patch delete subcloud succeeds with local only"""
+
+        self.params["local_only"] = "True"
+
+        self._update_subcloud()
+
+        response = self._send_request()
+
+        self._assert_response(response, http.client.MULTI_STATUS)
+
+    def test_patch_delete_subcloud_succeeds_with_false_local_only(self):
+        """Test patch delete subcloud succeeds with false local only"""
+
+        self.params["local_only"] = "False"
+
+        response = self._send_request()
+
+        self._assert_response(response, http.client.MULTI_STATUS)
+
+    def test_patch_delete_subcloud_fails_with_invalid_local_only(self):
+        """Test patch delete subcloud fails with invalid local only"""
+
+        self.params["local_only"] = "fake"
+
+        response = self._send_request()
+
+        self._assert_pecan_and_response(
+            response, http.client.BAD_REQUEST,
+            "Invalid local_only value, should be boolean"
+        )
+
+    def test_patch_delete_subcloud_fails_with_unknown_subcloud(self):
+        """Test patch delete subcloud fails with unknown subcloud"""
+
+        self.params["subcloud"] = "999"
+
+        response = self._send_request()
+
+        self._assert_pecan_and_response(
+            response, http.client.BAD_REQUEST, "Subcloud not found"
+        )
+
+    def test_patch_delete_subcloud_fails_with_rpc_client_remote_error(self):
+        """Test patch delete subcloud fails with rpc client remote error"""
+
+        self.mock_rpc_client().delete_subcloud_backups.side_effect = \
+            RemoteError("msg", "value")
+
+        response = self._send_request()
+
+        self._assert_pecan_and_response(
+            response, http.client.UNPROCESSABLE_ENTITY, "value"
+        )
+
+    def test_patch_delete_subcloud_fails_with_rpc_client_generic_exception(self):
+        """Test patch delete subcloud fails with rpc client generic exception"""
+
+        self.mock_rpc_client().delete_subcloud_backups.side_effect = Exception()
+
+        response = self._send_request()
+
+        self._assert_pecan_and_response(
+            response, http.client.INTERNAL_SERVER_ERROR,
+            "Unable to delete subcloud backups"
+        )
+
+
+class TestSubcloudBackupPatchGroup(BaseTestSubcloudBackupPatchDelete):
+    """Test class for patch requests with delete verb for group resource"""
+
+    def setUp(self):
+        super().setUp()
+
+        self.params = {
+            "sysadmin_password": self._create_password(),
+            "group": str(self.subcloud.id)
+        }
+
+    def test_patch_delete_group_succeeds(self):
+        """Test patch delete group succeeds"""
+
+        response = self._send_request()
+
+        self._assert_response(response, http.client.MULTI_STATUS)
+
+    def test_patch_delete_group_fails_with_unknown_group(self):
+        """Test patch delete group fails with unknown group"""
+
+        self._update_subcloud(
+            availability_status=dccommon_consts.AVAILABILITY_OFFLINE
+        )
+
+        self.params["group"] = "999"
+
+        response = self._send_request()
+
+        self._assert_pecan_and_response(
+            response, http.client.NOT_FOUND, "Group not found"
+        )
+
+    def test_patch_delete_group_fails_with_unmanaged_subcloud(self):
+        """Test patch delete group fails with unmanaged subcloud
+
+        The subclouds in a group are only validated when the local_only parameter
+        is sent in the request. Otherwise, the validation is skipped.
+        """
+
+        self.params["local_only"] = "True"
+
+        self._update_subcloud(management_state=dccommon_consts.MANAGEMENT_UNMANAGED)
+
+        response = self._send_request()
+
+        self._assert_pecan_and_response(
+            response, http.client.BAD_REQUEST, "None of the subclouds in group "
+            f"{self.subcloud.id} are in a valid state for subcloud-backup delete"
+        )
+
+
+class BaseTestSubcloudBackupPatchRestore(BaseTestSubcloudBackupPatch):
+    """Base test class for patch requests with restore verb"""
+
+    def setUp(self):
+        super().setUp()
+
+        self.url = f"{self.url}/restore"
+
+
+class TestSubcloudBackupPatchRestore(BaseTestSubcloudBackupPatchRestore):
+    """Test class for patch requests with restore verb"""
+
+    def setUp(self):
+        super().setUp()
+
+    def test_patch_restore_fails_without_params(self):
+        """Test patch restore fails without params"""
+
+        response = self._send_request()
+
+        self._assert_pecan_and_response(
+            response, http.client.BAD_REQUEST, "Body required"
+        )
+
+    def test_patch_restore_fails_with_subcloud_and_group(self):
+        """Test patch restore fails with subcloud and group"""
+
+        self.params = {
+            "sysadmin_password": self._create_password(),
+            "subcloud": str(self.subcloud.id),
+            "group": str(self.subcloud.id)
+        }
+
+        response = self._send_request()
+
+        self._assert_pecan_and_response(
+            response, http.client.BAD_REQUEST, "'subcloud' and 'group' parameters "
+            "should not be given at the same time"
+        )
+
+    def test_patch_restore_fails_without_subcloud_and_group(self):
+        """Test patch restore fails without subcloud and group"""
+
+        self.params = {"sysadmin_password": self._create_password()}
+
+        response = self._send_request()
+
+        self._assert_pecan_and_response(
+            response, http.client.BAD_REQUEST,
+            "'subcloud' or 'group' parameter is required"
+        )
+
+
+class TestSubcloudBackupPatchRestoreSubcloud(BaseTestSubcloudBackupPatchRestore):
+    """Test class for patch requests with restore verb for subcloud resource"""
+
+    def setUp(self):
+        super().setUp()
+
+        self.params = {
+            "sysadmin_password": self._create_password(),
+            "subcloud": str(self.subcloud.id)
+        }
+
+        self._mock_os_listdir()
+        self._mock_os_path_isdir()
+
+        self.mock_os_listdir.return_value = ["test.iso", "test.sig"]
+        self.mock_os_path_isdir.return_value = True
+
+    def test_patch_restore_subcloud_succeeds(self):
+        """Test patch restore subcloud succeeds"""
+
+        response = self._send_request()
+
+        self._assert_response(response)
+
+    def test_patch_restore_subcloud_succeeds_with_restore_values(self):
+        """Test patch restore subcloud succeeds with restore values"""
+
+        self.params["restore_values"] = FAKE_RESTORE_VALUES_VALID_IP
+
+        response = self._send_request()
+
+        self._assert_response(response)
+
+    def test_patch_restore_subcloud_fails_with_invalid_ip_in_restore_values(self):
+        """Test patch restore subcloud fails with invalid ip in restore values"""
+
+        self.params["restore_values"] = FAKE_RESTORE_VALUES_INVALID_IP
+
+        response = self._send_request()
+
+        self._assert_pecan_and_response(
+            response, http.client.BAD_REQUEST, f"Subcloud {self.subcloud.name} must "
+            "have a valid bootstrap address: 10.10.20.12.22"
+        )
+
+    def test_patch_restore_subcloud_fails_with_invalid_restore_values(self):
+        """Test patch restore subcloud fails with invalid restore values"""
+
+        self.params["restore_values"] = {"bootstrap_address": "fake"}
+
+        response = self._send_request()
+
+        self._assert_pecan_and_response(
+            response, http.client.BAD_REQUEST, "The bootstrap_address provided in "
+            "restore_values is in invalid format."
+        )
+
+    def test_patch_restore_subcloud_fails_with_unknown_subcloud(self):
+        """Test patch restore subcloud succeeds with invalid restore values"""
+
+        self.params["subcloud"] = "999"
+
+        response = self._send_request()
+
+        self._assert_pecan_and_response(
+            response, http.client.BAD_REQUEST, "Subcloud not found"
+        )
+
+    def test_patch_restore_subcloud_fails_with_registry_images_only(self):
+        """Test patch restore subcloud fails with registry images only"""
+
+        self.params["registry_images"] = "True"
+
+        response = self._send_request()
+
+        self._assert_pecan_and_response(
+            response, http.client.BAD_REQUEST, "Option registry_images cannot be "
+            "used without local_only option."
+        )
+
+    def test_patch_restore_subcloud_fails_with_managed_subcloud(self):
+        """Test patch restore subcloud fails with managed subcloud"""
+
+        self._update_subcloud()
+
+        response = self._send_request()
+
+        self._assert_pecan_and_response(
+            response, http.client.BAD_REQUEST, f"Subcloud {self.subcloud.name} "
+            "must be unmanaged and in a valid deploy state for the "
+            "subcloud-backup restore operation."
+        )
+
+    def test_patch_restore_subcloud_fails_with_subcloud_in_invalid_state(self):
+        """Test patch restore subcloud fails with subcloud in invalid state"""
+
+        for index, status in \
+                enumerate(consts.INVALID_DEPLOY_STATES_FOR_RESTORE, start=1):
+            self._update_subcloud(deploy_status=status)
+
+            response = self._send_request()
+
+            self._assert_pecan_and_response(
+                response, http.client.BAD_REQUEST, f"Subcloud {self.subcloud.name} "
+                "must be unmanaged and in a valid deploy state for the "
+                "subcloud-backup restore operation.", call_count=index
+            )
+
+    def test_patch_restore_subcloud_succeeds_with_install_without_release(self):
+        """Test patch restore subcloud succeeds with install without release"""
+
+        self.params["with_install"] = "True"
+
+        data_install = \
+            str(fake_subcloud.FAKE_SUBCLOUD_INSTALL_VALUES).replace('/', '"')
+        self._update_subcloud(
             management_state=dccommon_consts.MANAGEMENT_UNMANAGED,
-            backup_datetime=None,
-            backup_status=consts.BACKUP_STATE_UNKNOWN,
+            data_install=data_install
         )
 
-        data = {
-            "sysadmin_password": self.fake_password,
-            "subcloud": "1",
-            "group": "1",
-        }
-        mock_rpc_client().restore_subcloud_backups.return_value = True
-        six.assertRaisesRegex(
-            self,
-            webtest.app.AppError,
-            "400 *",
-            self.app.patch_json,
-            FAKE_URL_RESTORE,
-            headers=FAKE_HEADERS,
-            params=data,
-        )
+        response = self._send_request()
 
-    @mock.patch.object(rpc_client, "ManagerClient")
-    def test_backup_restore_no_subcloud_no_group(self, mock_rpc_client):
-        subcloud = fake_subcloud.create_fake_subcloud(self.ctx)
-        db_api.subcloud_update(
-            self.ctx,
-            subcloud.id,
-            availability_status=dccommon_consts.AVAILABILITY_ONLINE,
+        self._assert_response(response)
+
+    def test_patch_restore_subcloud_succeeds_with_install_and_release(self):
+        """Test patch restore subcloud succeeds with install and release"""
+
+        self.params["with_install"] = "True"
+        self.params["release"] = "22.12"
+
+        data_install = \
+            str(fake_subcloud.FAKE_SUBCLOUD_INSTALL_VALUES).replace('/', '"')
+        self._update_subcloud(
             management_state=dccommon_consts.MANAGEMENT_UNMANAGED,
-            backup_datetime=None,
-            backup_status=consts.BACKUP_STATE_UNKNOWN,
+            data_install=data_install
         )
 
-        data = {"sysadmin_password": self.fake_password}
-        mock_rpc_client().restore_subcloud_backups.return_value = True
+        with mock.patch(
+            'builtins.open', mock.mock_open(
+                read_data=fake_subcloud.FAKE_UPGRADES_METADATA
+            )
+        ):
+            response = self._send_request()
 
-        six.assertRaisesRegex(
-            self,
-            webtest.app.AppError,
-            "400 *",
-            self.app.patch_json,
-            FAKE_URL_RESTORE,
-            headers=FAKE_HEADERS,
-            params=data,
-        )
+        self._assert_response(response)
 
-    @mock.patch.object(rpc_client, "ManagerClient")
-    @mock.patch("os.path.isdir")
-    @mock.patch("os.listdir")
-    def test_backup_restore_subcloud_with_install_no_release(
-        self, mock_listdir, mock_isdir, mock_rpc_client
-    ):
-        subcloud = fake_subcloud.create_fake_subcloud(self.ctx)
-        data_install = str(fake_subcloud.FAKE_SUBCLOUD_INSTALL_VALUES).replace(
-            "'", '"'
-        )
-        db_api.subcloud_update(
-            self.ctx,
-            subcloud.id,
-            availability_status=dccommon_consts.AVAILABILITY_ONLINE,
+    def test_patch_restore_subcloud_succeeds_with_release_without_with_install(self):
+        """Test patch restore subcloud succeeds with release without with install"""
+
+        self.params["release"] = "22.12"
+
+        data_install = \
+            str(fake_subcloud.FAKE_SUBCLOUD_INSTALL_VALUES).replace('/', '"')
+        self._update_subcloud(
             management_state=dccommon_consts.MANAGEMENT_UNMANAGED,
-            data_install=data_install,
+            data_install=data_install
         )
 
-        data = {
-            "sysadmin_password": self.fake_password,
-            "subcloud": "1",
-            "with_install": "True",
+        with mock.patch(
+            'builtins.open', mock.mock_open(
+                read_data=fake_subcloud.FAKE_UPGRADES_METADATA
+            )
+        ):
+            response = self._send_request()
+
+        self._assert_pecan_and_response(
+            response, http.client.BAD_REQUEST, "Option release cannot be used "
+            "without with_install option."
+        )
+
+    def test_patch_restore_subcloud_fails_with_install_without_install_values(self):
+        """Test patch restore subcloud fails with install without install values"""
+
+        self.params["with_install"] = "True"
+
+        self._update_subcloud(
+            management_state=dccommon_consts.MANAGEMENT_UNMANAGED, data_install=""
+        )
+
+        response = self._send_request()
+
+        self._assert_pecan_and_response(
+            response, http.client.BAD_REQUEST, "The restore operation was requested "
+            "with_install, but the following subcloud(s) does not contain install "
+            f"values: {self.subcloud.name}"
+        )
+
+    def test_patch_restore_subcloud_fails_with_install_without_matching_iso(self):
+        """Test patch restore subcloud fails with install without matching iso"""
+
+        self.params["with_install"] = "True"
+
+        self._update_subcloud(management_state=dccommon_consts.MANAGEMENT_UNMANAGED)
+
+        self.mock_os_listdir.return_value = ["test.sig"]
+
+        response = self._send_request()
+
+        self._assert_pecan_and_response(
+            response, http.client.BAD_REQUEST, "No matching: .iso found in vault: "
+            "/opt/dc-vault/loads/TEST.SW.VERSION/"
+        )
+
+    def test_patch_restore_subcloud_fails_with_install_without_matching_sig(self):
+        """Test patch restore subcloud fails with install without matching sig"""
+
+        self.params["with_install"] = "True"
+
+        self._update_subcloud(management_state=dccommon_consts.MANAGEMENT_UNMANAGED)
+
+        self.mock_os_listdir.return_value = ["test.iso"]
+
+        response = self._send_request()
+
+        self._assert_pecan_and_response(
+            response, http.client.BAD_REQUEST, "No matching: .sig found in vault: "
+            "/opt/dc-vault/loads/TEST.SW.VERSION/"
+        )
+
+    @mock.patch('dcmanager.common.utils.get_matching_iso')
+    def test_patch_restore_subcloud_fails_with_invalid_release(self, matching_iso):
+        """Test patch restore subcloud fails with invalid release"""
+
+        self.params["with_install"] = "True"
+        self.params["release"] = "00.00"
+
+        matching_iso.return_value = [None, True]
+
+        response = self._send_request()
+
+        self._assert_pecan_and_response(
+            response, http.client.INTERNAL_SERVER_ERROR,
+            "Error: unable to validate the release version."
+        )
+
+
+class TestSubcloudBackupPatchRestoreGroup(BaseTestSubcloudBackupPatchRestore):
+    """Test class for patch requests with restore verb for group resource"""
+
+    def setUp(self):
+        super().setUp()
+
+        self.params = {
+            "sysadmin_password": self._create_password(),
+            "group": str(self.subcloud.id)
         }
 
-        mock_isdir.return_value = True
-        mock_listdir.return_value = ["test.iso", "test.sig"]
-        mock_rpc_client().restore_subcloud_backups.return_value = True
-        response = self.app.patch_json(
-            FAKE_URL_RESTORE, headers=FAKE_HEADERS, params=data
+    def test_patch_restore_group_succeeds(self):
+        """Test patch restore group succeeds"""
+
+        response = self._send_request()
+
+        self._assert_response(response)
+
+    def test_patch_restore_group_succeeds_with_multiple_subclouds(self):
+        """Test patch restore group succeeds with multiple subclouds
+
+        The subcloud, when created, starts with the management_state as UNMANAGED.
+        Because of that, there'll be an invalid and a valid subcloud in the group.
+        """
+
+        fake_subcloud.create_fake_subcloud(
+            self.ctx, group_id=self.subcloud.id, name=base.SUBCLOUD_2["name"],
+            region_name=base.SUBCLOUD_2["region_name"]
         )
 
-        self.assertEqual(response.status_int, 200)
+        self._update_subcloud()
 
-    @mock.patch.object(rpc_client, "ManagerClient")
-    @mock.patch("os.path.isdir")
-    @mock.patch("os.listdir")
-    def test_backup_restore_subcloud_with_install_with_release(
-        self, mock_listdir, mock_isdir, mock_rpc_client
-    ):
-        subcloud = fake_subcloud.create_fake_subcloud(self.ctx)
-        data_install = str(fake_subcloud.FAKE_SUBCLOUD_INSTALL_VALUES).replace(
-            "'", '"'
-        )
-        db_api.subcloud_update(
-            self.ctx,
-            subcloud.id,
-            availability_status=dccommon_consts.AVAILABILITY_ONLINE,
-            management_state=dccommon_consts.MANAGEMENT_UNMANAGED,
-            data_install=data_install,
+        response = self._send_request()
+
+        self._assert_response(response)
+
+    def test_patch_restore_group_fails_with_unknown_group(self):
+        """Test patch restore group fails with unknown group"""
+
+        self.params["group"] = "999"
+
+        response = self._send_request()
+
+        self._assert_pecan_and_response(
+            response, http.client.NOT_FOUND, "Group not found"
         )
 
-        data = {
-            "sysadmin_password": self.fake_password,
-            "subcloud": "1",
-            "with_install": "True",
-            "release": "22.12",
-        }
+    def test_patch_restore_group_without_subclouds_in_group(self):
+        """Test patch restore group without subclouds in group"""
 
-        mock_isdir.return_value = True
-        mock_listdir.return_value = ["test.iso", "test.sig"]
-        mock_rpc_client().restore_subcloud_backups.return_value = True
+        self._update_subcloud(group_id=999)
 
-        with mock.patch('builtins.open',
-                        mock.mock_open(
-                            read_data=fake_subcloud.FAKE_UPGRADES_METADATA
-                        )):
-            response = self.app.patch_json(FAKE_URL_RESTORE,
-                                           headers=FAKE_HEADERS,
-                                           params=data)
+        response = self._send_request()
 
-        self.assertEqual(response.status_int, 200)
-
-    @mock.patch.object(rpc_client, "ManagerClient")
-    def test_backup_restore_subcloud_no_install_with_release(self, mock_rpc_client):
-        data = {
-            "sysadmin_password": self.fake_password,
-            "subcloud": "1",
-            "release": "22.12",
-        }
-
-        mock_rpc_client().restore_subcloud_backups.return_value = True
-
-        six.assertRaisesRegex(
-            self,
-            webtest.app.AppError,
-            "400 *",
-            self.app.patch_json,
-            FAKE_URL_RESTORE,
-            headers=FAKE_HEADERS,
-            params=data,
+        self._assert_pecan_and_response(
+            response, http.client.BAD_REQUEST, "No subclouds present in group"
         )
 
-    @mock.patch.object(rpc_client, "ManagerClient")
-    @mock.patch("dcmanager.common.utils.get_matching_iso")
-    def test_backup_restore_subcloud_invalid_release(
-        self, mock_rpc_client, mock_matching_iso
-    ):
-        data = {
-            "sysadmin_password": self.fake_password,
-            "subcloud": "1",
-            "release": "00.00",
-        }
+    def test_patch_restore_fails_with_rpc_client_remote_error(self):
+        """Test patch restore fails when rpc client raises a remote error"""
 
-        mock_rpc_client().restore_subcloud_backups.return_value = True
-        mock_matching_iso.return_value = [None, True]
+        self.mock_rpc_client().restore_subcloud_backups.side_effect = \
+            RemoteError("msg", "value")
 
-        six.assertRaisesRegex(
-            self,
-            webtest.app.AppError,
-            "400 *",
-            self.app.patch_json,
-            FAKE_URL_RESTORE,
-            headers=FAKE_HEADERS,
-            params=data,
+        response = self._send_request()
+
+        self._assert_pecan_and_response(
+            response, http.client.UNPROCESSABLE_ENTITY, "value"
+        )
+
+    def test_patch_restore_fails_with_rpc_client_generic_exception(self):
+        """Test patch restore fails when rpc client raises a generic exception"""
+
+        self.mock_rpc_client().restore_subcloud_backups.side_effect = Exception()
+
+        response = self._send_request()
+
+        self._assert_pecan_and_response(
+            response, http.client.INTERNAL_SERVER_ERROR, "Unable to restore subcloud"
         )
