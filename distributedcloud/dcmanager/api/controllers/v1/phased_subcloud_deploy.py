@@ -401,8 +401,8 @@ class PhasedSubcloudDeployController(object):
         has_config_values = has_original_config_values or has_new_config_values
         has_install_values = has_original_install_values or has_new_install_values
 
-        deploy_states_to_run = RESUMABLE_STATES[subcloud.deploy_status]
-        if deploy_states_to_run == [CONFIG] and not has_config_values:
+        base_deploy_states = RESUMABLE_STATES[subcloud.deploy_status]
+        if base_deploy_states == [CONFIG] and not has_config_values:
             msg = _("Only deploy phase left is deploy config. "
                     "Required %s file was not provided and it was not "
                     "previously available. If manually configuring the "
@@ -415,13 +415,14 @@ class PhasedSubcloudDeployController(object):
         # and they are not available from previous executions.
         # Add the deploy complete phase if deploy config is not going to be executed.
         files_for_resume = []
-        for state in deploy_states_to_run:
+        deploy_states_to_run = []
+        for state in base_deploy_states:
             if state == INSTALL and not has_install_values:
-                deploy_states_to_run.remove(state)
+                continue
             elif state == CONFIG and not has_config_values:
-                deploy_states_to_run.remove(state)
                 deploy_states_to_run.append(COMPLETE)
             else:
+                deploy_states_to_run.append(state)
                 files_for_resume.extend(FILES_MAPPING[state])
 
         payload = psd_common.get_request_data(request, subcloud, files_for_resume)
