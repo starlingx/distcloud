@@ -1,5 +1,5 @@
 # Copyright 2017 Ericsson AB.
-# Copyright (c) 2017-2023 Wind River Systems, Inc.
+# Copyright (c) 2017-2024 Wind River Systems, Inc.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -62,7 +62,7 @@ class SubcloudAuditWorkerManager(manager.Manager):
         self.state_rpc_client = dcmanager_rpc_client.SubcloudStateClient()
         # Keeps track of greenthreads we create to do work.
         self.thread_group_manager = scheduler.ThreadGroupManager(
-            thread_pool_size=100)
+            thread_pool_size=150)
         # Track workers created for each subcloud.
         self.subcloud_workers = dict()
         self.alarm_aggr = alarm_aggregation.AlarmAggregation(self.context)
