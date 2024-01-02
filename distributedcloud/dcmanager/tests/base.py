@@ -15,7 +15,11 @@
 # under the License.
 #
 
+import base64
+import builtins
 import json
+import mock
+import pecan
 
 from oslo_config import cfg
 from oslo_db import options
@@ -24,9 +28,14 @@ import sqlalchemy
 from sqlalchemy.engine import Engine
 from sqlalchemy import event
 
+from dcmanager.audit import rpcapi as audit_rpc_client
 from dcmanager.common import consts
+from dcmanager.common import phased_subcloud_deploy as psd_common
+from dcmanager.common import utils as dutils
 from dcmanager.db import api
 from dcmanager.db.sqlalchemy import api as db_api
+from dcmanager.rpc import client as rpc_client
+
 from dcmanager.tests import utils
 
 get_engine = api.get_engine
@@ -108,6 +117,14 @@ def set_sqlite_pragma(dbapi_connection, connection_record):
     cursor.close()
 
 
+class FakeException(Exception):
+    """Exception used to throw a generic exception in the application
+
+    Using the Exception class might lead to linter errors for being too broad. In
+    these cases, the FakeException is used
+    """
+
+
 class DCManagerTestCase(base.BaseTestCase):
     """Test case base class for all unit tests."""
 
@@ -136,3 +153,112 @@ class DCManagerTestCase(base.BaseTestCase):
         self.addCleanup(self.reset_dummy_db)
         self.setup_dummy_db()
         self.ctx = utils.dummy_context()
+        self._mock_pecan()
+
+    def _mock_pecan(self):
+        """Mock pecan's abort"""
+
+        mock_patch = mock.patch.object(pecan, 'abort', wraps=pecan.abort)
+        self.mock_pecan_abort = mock_patch.start()
+        self.addCleanup(mock_patch.stop)
+
+    def _mock_audit_rpc_client(self):
+        """Mock rpc's manager audit client"""
+
+        mock_patch = mock.patch.object(audit_rpc_client, 'ManagerAuditClient')
+        self.mock_audit_rpc_client = mock_patch.start()
+        self.addCleanup(mock_patch.stop)
+
+    def _mock_rpc_client(self):
+        """Mock rpc's manager client"""
+
+        mock_patch = mock.patch.object(rpc_client, 'ManagerClient')
+        self.mock_rpc_client = mock_patch.start()
+        self.addCleanup(mock_patch.stop)
+
+    def _mock_rpc_subcloud_state_client(self):
+        """Mock rpc's subcloud state client"""
+
+        mock_patch = mock.patch.object(rpc_client, 'SubcloudStateClient')
+        self.mock_rpc_subcloud_state_client = mock_patch.start()
+        self.addCleanup(mock_patch.stop)
+
+    def _mock_openstack_driver(self, target):
+        """Mock the target's OpenStackDriver"""
+
+        mock_patch = mock.patch.object(target, 'OpenStackDriver')
+        self.mock_openstack_driver = mock_patch.start()
+        self.addCleanup(mock_patch.stop)
+
+    def _mock_sysinv_client(self, target):
+        """Mock the target's SysinvClient"""
+
+        mock_patch = mock.patch.object(target, 'SysinvClient')
+        self.mock_sysinv_client = mock_patch.start()
+        self.addCleanup(mock_patch.stop)
+
+    def _mock_get_network_address_pool(self):
+        """Mock phased subcloud deploy's get_network_address_pool"""
+
+        mock_patch_object = mock.patch.object(psd_common, 'get_network_address_pool')
+        self.mock_get_network_address_pool = mock_patch_object.start()
+        self.addCleanup(mock_patch_object.stop)
+
+    def _mock_get_ks_client(self):
+        """Mock phased subcloud deploy's get_ks_client"""
+
+        mock_patch_object = mock.patch.object(psd_common, 'get_ks_client')
+        self.mock_get_ks_client = mock_patch_object.start()
+        self.addCleanup(mock_patch_object.stop)
+
+    def _mock_query(self):
+        """Mock phased subcloud deploy's query"""
+
+        mock_patch_object = mock.patch.object(psd_common.PatchingClient, 'query')
+        self.mock_query = mock_patch_object.start()
+        self.addCleanup(mock_patch_object.stop)
+
+    def _mock_get_subcloud_db_install_values(self):
+        """Mock phased subcloud deploy's get_subcloud_db_install_values"""
+
+        mock_patch_object = mock.patch.object(
+            psd_common, 'get_subcloud_db_install_values'
+        )
+        self.mock_get_subcloud_db_install_values = mock_patch_object.start()
+        self.addCleanup(mock_patch_object.stop)
+
+    def _mock_validate_k8s_version(self):
+        """Mock phased subcloud deploy's validate_k8s_version"""
+
+        mock_patch_object = mock.patch.object(psd_common, 'validate_k8s_version')
+        self.mock_validate_k8s_version = mock_patch_object.start()
+        self.addCleanup(mock_patch_object.stop)
+
+    def _mock_get_vault_load_files(self):
+        """Mock dcmanager util's get_vault_load_files"""
+
+        mock_patch_object = mock.patch.object(dutils, 'get_vault_load_files')
+        self.mock_get_vault_load_files = mock_patch_object.start()
+        self.addCleanup(mock_patch_object.stop)
+
+    def _mock_builtins_open(self):
+        """Mock builtins' open"""
+
+        mock_patch = mock.patch.object(builtins, 'open')
+        self.mock_builtins_open = mock_patch.start()
+        self.addCleanup(mock_patch.stop)
+
+    def _assert_pecan(self, http_status, content=None, call_count=1):
+        """Assert pecan was called with the correct arguments"""
+
+        self.assertEqual(self.mock_pecan_abort.call_count, call_count)
+
+        if content:
+            self.mock_pecan_abort.assert_called_with(http_status, content)
+        else:
+            self.mock_pecan_abort.assert_called_with(http_status)
+
+    def _create_password(self, keyword='default'):
+        """Create a password with based on the specified keyword"""
+
+        return base64.b64encode(keyword.encode("utf-8")).decode("utf-8")
