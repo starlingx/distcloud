@@ -186,6 +186,8 @@ class Subcloud(BASE, DCManagerBase):
     peer_group_id = Column(Integer,
                            ForeignKey('subcloud_peer_group.id'))
     rehome_data = Column(Text())
+    prestage_status = Column(String(255))
+    prestage_versions = Column(String(255))
 
     # multiple subclouds can be in a particular group
     group_id = Column(Integer,

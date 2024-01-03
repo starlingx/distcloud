@@ -119,6 +119,8 @@ def subcloud_db_model_to_dict(subcloud):
               "management-end-ip": subcloud.management_end_ip,
               "management-gateway-ip": subcloud.management_gateway_ip,
               "openstack-installed": subcloud.openstack_installed,
+              "prestage-status": subcloud.prestage_status,
+              "prestage-versions": subcloud.prestage_versions,
               "systemcontroller-gateway-ip":
                   subcloud.systemcontroller_gateway_ip,
               "data_install": subcloud.data_install,
@@ -193,7 +195,8 @@ def subcloud_update(
     backup_datetime=None, error_description=None, openstack_installed=None,
     group_id=None, data_install=None, data_upgrade=None,
     first_identity_sync_complete=None, systemcontroller_gateway_ip=None,
-    peer_group_id=None, rehome_data=None, rehomed=None
+    peer_group_id=None, rehome_data=None, rehomed=None,
+    prestage_status=None, prestage_versions=None
 ):
     """Update a subcloud or raise if it does not exist."""
     return IMPL.subcloud_update(
@@ -203,7 +206,7 @@ def subcloud_update(
         audit_fail_count, deploy_status, backup_status, backup_datetime,
         error_description, openstack_installed, group_id, data_install, data_upgrade,
         first_identity_sync_complete, systemcontroller_gateway_ip, peer_group_id,
-        rehome_data, rehomed
+        rehome_data, rehomed, prestage_status, prestage_versions
     )
 
 

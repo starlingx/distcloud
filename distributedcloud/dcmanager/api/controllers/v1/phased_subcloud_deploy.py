@@ -20,7 +20,6 @@ from dcmanager.common.context import RequestContext
 from dcmanager.common import exceptions
 from dcmanager.common.i18n import _
 from dcmanager.common import phased_subcloud_deploy as psd_common
-from dcmanager.common import prestage
 from dcmanager.common import utils
 from dcmanager.db import api as db_api
 from dcmanager.db.sqlalchemy import models
@@ -301,11 +300,14 @@ class PhasedSubcloudDeployController(object):
         if not payload:
             pecan.abort(400, _('Body required'))
 
-        if not (subcloud.deploy_status in VALID_STATES_FOR_DEPLOY_CONFIG or
-                prestage.is_deploy_status_prestage(subcloud.deploy_status)):
+        if subcloud.deploy_status not in VALID_STATES_FOR_DEPLOY_CONFIG:
             allowed_states_str = ', '.join(VALID_STATES_FOR_DEPLOY_CONFIG)
-            pecan.abort(400, _('Subcloud deploy status must be either '
-                               '%s or prestage-...') % allowed_states_str)
+            pecan.abort(400, _('Subcloud deploy status must be %s') %
+                        allowed_states_str)
+
+        if subcloud.prestage_status in consts.STATES_FOR_ONGOING_PRESTAGE:
+            pecan.abort(400, _('Subcloud prestage is ongoing %s') %
+                        subcloud.prestage_status)
 
         psd_common.populate_payload_with_pre_existing_data(
             payload, subcloud, SUBCLOUD_CONFIG_GET_FILE_CONTENTS)

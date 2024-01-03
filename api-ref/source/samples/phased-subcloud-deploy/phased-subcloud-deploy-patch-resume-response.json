@@ -9,6 +9,8 @@
     "deploy-status": "pre-install",
     "backup-status": null,
     "backup-datetime": null,
+    "prestage-status": null,
+    "prestage-versions": null,
     "error-description": "No errors present",
     "region-name": "bbadb3e8e2ab473792c80ef09c5a12a4",
     "management-subnet": "192.168.102.0/24",

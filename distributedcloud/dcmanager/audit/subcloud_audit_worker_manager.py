@@ -33,7 +33,6 @@ from dcmanager.common import context
 from dcmanager.common import exceptions
 from dcmanager.common.i18n import _
 from dcmanager.common import manager
-from dcmanager.common import prestage
 from dcmanager.common import scheduler
 from dcmanager.db import api as db_api
 from dcmanager.rpc import client as dcmanager_rpc_client
@@ -124,9 +123,7 @@ class SubcloudAuditWorkerManager(manager.Manager):
                      consts.DEPLOY_STATE_RESTORING,
                      consts.DEPLOY_STATE_RESTORE_PREP_FAILED,
                      consts.DEPLOY_STATE_RESTORE_FAILED,
-                     consts.DEPLOY_STATE_REHOME_PENDING]
-                    and not prestage.is_deploy_status_prestage(
-                        subcloud.deploy_status)) or (
+                     consts.DEPLOY_STATE_REHOME_PENDING]) or (
                     (subcloud.deploy_status in [
                         consts.DEPLOY_STATE_INSTALLING,
                         consts.DEPLOY_STATE_REHOME_PENDING])
@@ -431,8 +428,7 @@ class SubcloudAuditWorkerManager(manager.Manager):
             # Avoid a network call to sysinv here if possible:
             # If prestaging is active we can assume that the subcloud
             # is online (otherwise prestaging will fail):
-            if subcloud.deploy_status in (consts.PRESTAGE_STATE_PACKAGES,
-                                          consts.PRESTAGE_STATE_IMAGES):
+            if subcloud.prestage_status in consts.STATES_FOR_ONGOING_PRESTAGE:
                 avail_to_set = dccommon_consts.AVAILABILITY_ONLINE
             else:
                 avail_to_set = self._get_subcloud_availability_status(
