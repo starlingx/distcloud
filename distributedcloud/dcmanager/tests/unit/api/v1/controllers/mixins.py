@@ -1,5 +1,5 @@
 # Copyright (c) 2017 Ericsson AB
-# Copyright (c) 2020-2022 Wind River Systems, Inc.
+# Copyright (c) 2020-2022, 2024 Wind River Systems, Inc.
 # All Rights Reserved.
 #
 #    Licensed under the Apache License, Version 2.0 (the "License"); you may
@@ -15,12 +15,13 @@
 #    under the License.
 #
 
+import http.client
+
 import contextlib
 import mock
-from six.moves import http_client
+import pecan
 
 from dcmanager.rpc import client as rpc_client
-
 from dcmanager.tests import utils
 
 
@@ -105,12 +106,12 @@ class PostMixin(object):
                                                       'ManagerClient'))
             params = self.get_post_params()
             upload_files = self.get_post_upload_files()
-            response = self.app.post(self.get_api_prefix(),
-                                     params=params,
-                                     upload_files=upload_files,
-                                     headers=self.get_api_headers())
+            response = self.app.post(
+                self.get_api_prefix(), params=params,
+                upload_files=upload_files, headers=self.get_api_headers()
+            )
             self.assertEqual(response.content_type, 'application/json')
-            self.assertEqual(response.status_code, http_client.OK)
+            self.assertEqual(response.status_code, http.client.OK)
             self.assert_fields(response.json)
 
 
@@ -118,29 +119,30 @@ class PostRejectedMixin(object):
     # Test that a POST operation is blocked by the API
     # API should return 400 BAD_REQUEST or FORBIDDEN 403
     @mock.patch.object(rpc_client, 'ManagerClient')
-    def test_create_not_allowed(self, mock_client):
-        params = self.get_post_params()
-        upload_files = self.get_post_upload_files()
-        response = self.app.post(self.API_PREFIX,
-                                 params=params,
-                                 upload_files=upload_files,
-                                 headers=self.get_api_headers(),
-                                 expect_errors=True)
-        self.assertEqual(response.status_code, http_client.FORBIDDEN)
-        self.assertTrue(response.json['error_message'])
-        self.assertIn("Operation not permitted.",
-                      response.json['error_message'])
+    @mock.patch.object(pecan, 'abort', wraps=pecan.abort)
+    def test_create_not_allowed(self, mock_pecan_abort, _):
+        response = self.app.post(
+            self.API_PREFIX, params=self.get_post_params(),
+            upload_files=self.get_post_upload_files(),
+            headers=self.get_api_headers(), expect_errors=True
+        )
+
+        self.assertEqual(response.status_code, http.client.FORBIDDEN)
+        mock_pecan_abort.assert_called_once()
+        mock_pecan_abort.assert_called_with(
+            http.client.FORBIDDEN, 'Operation not permitted.'
+        )
 
 
 class PostJSONMixin(object):
 
     @mock.patch.object(rpc_client, 'ManagerClient')
-    def test_create_success(self, mock_client):
+    def test_create_success(self, _):
         # Test that a POST (post_json) operation is supported by the API
         ndict = self.get_post_object()
-        response = self.app.post_json(self.get_api_prefix(),
-                                      ndict,
-                                      headers=self.get_api_headers())
+        response = self.app.post_json(
+            self.get_api_prefix(), ndict, headers=self.get_api_headers()
+        )
         self.assertEqual(response.content_type, 'application/json')
 
 
@@ -148,16 +150,18 @@ class PostJSONRejectedMixin(object):
     # Test that a POST (post_json) operation is blocked by the API
     # API should return 400 BAD_REQUEST or FORBIDDEN 403
     @mock.patch.object(rpc_client, 'ManagerClient')
-    def test_create_not_allowed(self, mock_client):
-        ndict = self.get_post_object()
-        response = self.app.post_json(self.API_PREFIX,
-                                      ndict,
-                                      headers=self.get_api_headers(),
-                                      expect_errors=True)
-        self.assertEqual(response.status_code, http_client.FORBIDDEN)
-        self.assertTrue(response.json['error_message'])
-        self.assertIn("Operation not permitted.",
-                      response.json['error_message'])
+    @mock.patch.object(pecan, 'abort', wraps=pecan.abort)
+    def test_create_not_allowed(self, mock_pecan_abort, _):
+        response = self.app.post_json(
+            self.API_PREFIX, self.get_post_object(), headers=self.get_api_headers(),
+            expect_errors=True
+        )
+
+        self.assertEqual(response.status_code, http.client.FORBIDDEN)
+        mock_pecan_abort.assert_called_once()
+        mock_pecan_abort.assert_called_with(
+            http.client.FORBIDDEN, 'Operation not permitted.'
+        )
 
 
 # ------  API GET mixin
@@ -182,16 +186,17 @@ class GetMixin(object):
 
     def validate_list_response(self, expected_length, response):
         self.assertEqual(response.content_type, 'application/json')
-        self.assertEqual(response.status_code, http_client.OK)
+        self.assertEqual(response.status_code, http.client.OK)
 
         # validate the list length
         self.validate_list(expected_length, response.json)
 
     @mock.patch.object(rpc_client, 'ManagerClient')
-    def test_initial_list_size(self, mock_client):
+    def test_initial_list_size(self, _):
         # Test that a GET operation for a list is supported by the API
-        response = self.app.get(self.get_api_prefix(),
-                                headers=self.get_api_headers())
+        response = self.app.get(
+            self.get_api_prefix(), headers=self.get_api_headers()
+        )
         # Validate the initial length
         self.validate_list_response(self.initial_list_size, response)
 
@@ -199,31 +204,36 @@ class GetMixin(object):
         context = utils.dummy_context()
         self._create_db_object(context)
 
-        response = self.app.get(self.get_api_prefix(),
-                                headers=self.get_api_headers())
+        response = self.app.get(
+            self.get_api_prefix(), headers=self.get_api_headers()
+        )
         self.validate_list_response(self.initial_list_size + 1, response)
 
     @mock.patch.object(rpc_client, 'ManagerClient')
-    def test_fail_get_single(self, mock_client):
+    @mock.patch.object(pecan, 'abort', wraps=pecan.abort)
+    def test_fail_get_single(self, mock_pecan_abort, _):
         # Test that a GET operation for an invalid ID returns the
         # appropriate error results
-        response = self.app.get(self.get_single_url(self.invalid_id),
-                                headers=self.get_api_headers(),
-                                expect_errors=True)
-        # Failures will return text rather than json
-        self.assertEqual(response.content_type, 'text/plain')
-        self.assertEqual(response.status_code, http_client.NOT_FOUND)
+        response = self.app.get(
+            self.get_single_url(self.invalid_id), headers=self.get_api_headers(),
+            expect_errors=True
+        )
+
+        self.assertEqual(response.status_code, http.client.NOT_FOUND)
+        mock_pecan_abort.assert_called_once()
+        mock_pecan_abort.assert_called_with(http.client.NOT_FOUND, mock.ANY)
 
     @mock.patch.object(rpc_client, 'ManagerClient')
-    def test_get_single(self, mock_client):
+    def test_get_single(self, _):
         context = utils.dummy_context()
         db_obj = self._create_db_object(context)
 
         # Test that a GET operation for a valid ID works
-        response = self.app.get(self.get_single_url(db_obj.id),
-                                headers=self.get_api_headers())
+        response = self.app.get(
+            self.get_single_url(db_obj.id), headers=self.get_api_headers()
+        )
         self.assertEqual(response.content_type, 'application/json')
-        self.assertEqual(response.status_code, http_client.OK)
+        self.assertEqual(response.status_code, http.client.OK)
         self.validate_entry(response.json)
 
 
@@ -235,54 +245,64 @@ class UpdateMixin(object):
             self.assertEqual(value, full_obj.get(key))
 
     @mock.patch.object(rpc_client, 'ManagerClient')
-    def test_update_success(self, mock_client):
+    def test_update_success(self, _):
         context = utils.dummy_context()
         single_obj = self._create_db_object(context)
         update_data = self.get_update_object()
-        response = self.app.patch_json(self.get_single_url(single_obj.id),
-                                       headers=self.get_api_headers(),
-                                       params=update_data)
+
+        response = self.app.patch_json(
+            self.get_single_url(single_obj.id), headers=self.get_api_headers(),
+            params=update_data
+        )
         self.assertEqual(response.content_type, 'application/json')
-        self.assertEqual(response.status_code, http_client.OK)
+        self.assertEqual(response.status_code, http.client.OK)
         self.validate_updated_fields(update_data, response.json)
 
     @mock.patch.object(rpc_client, 'ManagerClient')
-    def test_update_empty_changeset(self, mock_client):
+    @mock.patch.object(pecan, 'abort', wraps=pecan.abort)
+    def test_update_empty_changeset(self, mock_pecan_abort, _):
         context = utils.dummy_context()
         single_obj = self._create_db_object(context)
-        update_data = {}
-        response = self.app.patch_json(self.get_single_url(single_obj.id),
-                                       headers=self.get_api_headers(),
-                                       params=update_data,
-                                       expect_errors=True)
-        # Failures will return text rather than json
-        self.assertEqual(response.content_type, 'text/plain')
-        self.assertEqual(response.status_code, http_client.BAD_REQUEST)
+
+        response = self.app.patch_json(
+            self.get_single_url(single_obj.id), headers=self.get_api_headers(),
+            params={}, expect_errors=True
+        )
+
+        self.assertEqual(response.status_code, http.client.BAD_REQUEST)
+        mock_pecan_abort.assert_called_once()
+        mock_pecan_abort.assert_called_with(http.client.BAD_REQUEST, 'Body required')
 
 
 # ------ API  Delete Mixin
 class DeleteMixin(object):
 
     @mock.patch.object(rpc_client, 'ManagerClient')
-    def test_delete_success(self, mock_client):
+    def test_delete_success(self, _):
         context = utils.dummy_context()
         single_obj = self._create_db_object(context)
         response = self.app.delete(self.get_single_url(single_obj.id),
                                    headers=self.get_api_headers())
         self.assertEqual(response.content_type, 'application/json')
-        self.assertEqual(response.status_code, http_client.OK)
+        self.assertEqual(response.status_code, http.client.OK)
 
     @mock.patch.object(rpc_client, 'ManagerClient')
-    def test_double_delete(self, mock_client):
+    @mock.patch.object(pecan, 'abort', wraps=pecan.abort)
+    def test_double_delete(self, mock_pecan_abort, _):
         context = utils.dummy_context()
         single_obj = self._create_db_object(context)
-        response = self.app.delete(self.get_single_url(single_obj.id),
-                                   headers=self.get_api_headers())
-        self.assertEqual(response.content_type, 'application/json')
-        self.assertEqual(response.status_code, http_client.OK)
+
+        response = self.app.delete(
+            self.get_single_url(single_obj.id), headers=self.get_api_headers()
+        )
+        self.assertEqual(response.status_code, http.client.OK)
+
         # delete the same object a second time. this should fail (NOT_FOUND)
-        response = self.app.delete(self.get_single_url(single_obj.id),
-                                   headers=self.get_api_headers(),
-                                   expect_errors=True)
-        self.assertEqual(response.content_type, 'text/plain')
-        self.assertEqual(response.status_code, http_client.NOT_FOUND)
+        response = self.app.delete(
+            self.get_single_url(single_obj.id), headers=self.get_api_headers(),
+            expect_errors=True
+        )
+        self.assertEqual(response.status_code, http.client.NOT_FOUND)
+
+        mock_pecan_abort.assert_called_once()
+        mock_pecan_abort.assert_called_with(http.client.NOT_FOUND, mock.ANY)
