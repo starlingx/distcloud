@@ -19,9 +19,11 @@ from dccommon.drivers.openstack.peer_site import PeerSiteDriver
 from dccommon.drivers.openstack.sysinv_v1 import SysinvClient
 from dccommon import exceptions as dccommon_exceptions
 from dcmanager.common import consts
+from dcmanager.common import context as dcmanager_context
 from dcmanager.common import exceptions
 from dcmanager.common.i18n import _
 from dcmanager.common import manager
+from dcmanager.common import utils
 from dcmanager.db import api as db_api
 
 LOG = logging.getLogger(__name__)
@@ -32,12 +34,17 @@ MAX_PARALLEL_SUBCLOUD_DELETE = 10
 VERIFY_SUBCLOUD_SYNC_VALID = 'valid'
 VERIFY_SUBCLOUD_SYNC_IGNORE = 'ignore'
 
+TRANSITORY_STATES = {
+    consts.ASSOCIATION_SYNC_STATUS_SYNCING: consts.ASSOCIATION_SYNC_STATUS_FAILED
+}
+
 
 class SystemPeerManager(manager.Manager):
     """Manages tasks related to system peers."""
 
     def __init__(self, peer_monitor_manager, *args, **kwargs):
         LOG.debug(_('SystemPeerManager initialization...'))
+        self.context = dcmanager_context.get_admin_context()
         self.peer_monitor_manager = peer_monitor_manager
         super(SystemPeerManager, self).__init__(
             service_name="system_peer_manager", *args, **kwargs)
@@ -192,7 +199,7 @@ class SystemPeerManager(manager.Manager):
                                                                  files, data)
                     LOG.info(f"Updated Subcloud {dc_peer_subcloud.get('name')} "
                              "(region_name: "
-                             f"{dc_peer_subcloud.get('region_name')}) on peer "
+                             f"{dc_peer_subcloud.get('region-name')}) on peer "
                              "site.")
                 else:
                     # Create subcloud on peer site if not exist
@@ -200,15 +207,18 @@ class SystemPeerManager(manager.Manager):
                         add_subcloud_with_secondary_status(files, data)
                     LOG.info(f"Created Subcloud {dc_peer_subcloud.get('name')} "
                              "(region_name: "
-                             f"{dc_peer_subcloud.get('region_name')}) on peer "
+                             f"{dc_peer_subcloud.get('region-name')}) on peer "
                              "site.")
                 LOG.debug(f"Updating subcloud {subcloud_name} (region_name: "
                           f"{region_name}) with subcloud peer group id "
                           f"{dc_peer_pg_id} on peer site.")
-                # Update subcloud associated peer group on peer site
+                # Update subcloud associated peer group on peer site.
+                # The peer_group update will check the header and should
+                # use the region_name as subcloud_ref.
                 peer_subcloud = dc_client.update_subcloud(
-                    subcloud_name, files=None, data={"peer_group":
-                                                     str(dc_peer_pg_id)})
+                    dc_peer_subcloud.get('region-name'), files=None,
+                    data={"peer_group": str(dc_peer_pg_id)},
+                    is_region_name=True)
 
                 # Need to check the subcloud only in secondary, otherwise it
                 # should be recorded as a failure.
@@ -382,14 +392,73 @@ class SystemPeerManager(manager.Manager):
 
         return error_msg
 
+    def _update_sync_status(self, context, association_id, sync_status,
+                            sync_message, dc_peer_association_id=None,
+                            dc_client=None, **kwargs):
+        """Update sync status of association."""
+        if dc_peer_association_id is not None:
+            if dc_client is None:
+                association = db_api.peer_group_association_get(context,
+                                                                association_id)
+                peer = db_api.system_peer_get(context,
+                                              association.system_peer_id)
+                dc_client = self.get_peer_dc_client(peer)
+            dc_client.update_peer_group_association_sync_status(
+                dc_peer_association_id, sync_status)
+            LOG.info(f"Updated non-primary Peer Group Association "
+                     f"{dc_peer_association_id} sync_status to {sync_status}.")
+        return db_api.peer_group_association_update(
+            context, association_id, sync_status=sync_status,
+            sync_message=sync_message, **kwargs)
+
+    def _update_sync_status_to_failed(self, context, association_id,
+                                      failed_message,
+                                      dc_peer_association_id=None):
+        """Update sync status to failed."""
+        return self._update_sync_status(context, association_id,
+                                        consts.ASSOCIATION_SYNC_STATUS_FAILED,
+                                        failed_message,
+                                        dc_peer_association_id)
+
+    def _get_non_primary_association(self, dc_client, dc_peer_system_peer_id,
+                                     dc_peer_pg_id):
+        """Get non-primary Association from peer site."""
+        try:
+            return dc_client.get_peer_group_association_with_peer_id_and_pg_id(
+                dc_peer_system_peer_id, dc_peer_pg_id)
+        except dccommon_exceptions.PeerGroupAssociationNotFound:
+            LOG.error(f"Peer Group association does not exist on peer site."
+                      f"Peer Group ID: {dc_peer_pg_id}, Peer System Peer ID: "
+                      f"{dc_peer_system_peer_id}")
+            return None
+
+    def _get_peer_site_pg_by_name(self, dc_client, peer_group_name):
+        """Get remote Peer Group from peer site by name."""
+        try:
+            return dc_client.get_subcloud_peer_group(peer_group_name)
+        except dccommon_exceptions.SubcloudPeerGroupNotFound:
+            LOG.error(f"Peer Group {peer_group_name} does not exist on peer "
+                      f"site.")
+            return None
+
+    def _get_peer_site_system_peer(self, dc_client, peer_uuid=None):
+        """Get System Peer from peer site."""
+        try:
+            peer_uuid = peer_uuid if peer_uuid is not None else \
+                utils.get_local_system().uuid
+            return dc_client.get_system_peer(peer_uuid)
+        except dccommon_exceptions.SystemPeerNotFound:
+            LOG.error(f"Peer Site System Peer {peer_uuid} does not exist.")
+            return None
+
     def sync_subcloud_peer_group(self, context, association_id,
-                                 sync_subclouds=True, priority=None):
+                                 sync_subclouds=True):
         """Sync subcloud peer group to peer site.
 
         This function synchronizes subcloud peer groups from current site
         to peer site, supporting two scenarios:
 
-        1. When creating an association between the system peer and a subcloud
+        1. When creating the association between the system peer and a subcloud
         peer group. This function creates the subcloud peer group on the
         peer site and synchronizes the subclouds to it.
 
@@ -411,13 +480,12 @@ class SystemPeerManager(manager.Manager):
         dc_local_pg = db_api.subcloud_peer_group_get(context,
                                                      association.peer_group_id)
         peer_group_name = dc_local_pg.peer_group_name
+        dc_peer_association_id = None
 
         try:
-            sysinv_client = self.get_peer_sysinv_client(peer)
-
             # Check if the system_uuid of the peer site matches with the
             # peer_uuid
-            system = sysinv_client.get_system()
+            system = self.get_peer_sysinv_client(peer).get_system()
             if system.uuid != peer.peer_uuid:
                 LOG.error(f"Peer site system uuid {system.uuid} does not match "
                           f"with the peer_uuid {peer.peer_uuid}")
@@ -426,6 +494,65 @@ class SystemPeerManager(manager.Manager):
 
             dc_client = self.get_peer_dc_client(peer)
 
+            # Get current site system information
+            local_system_uuid = utils.get_local_system().uuid
+
+            # Get peer site system peer
+            dc_peer_system_peer = self._get_peer_site_system_peer(
+                dc_client, local_system_uuid)
+
+            if dc_peer_system_peer is None:
+                failed_message = f"System Peer {local_system_uuid} does not" + \
+                    " exist on peer site."
+                return db_api.peer_group_association_db_model_to_dict(
+                    self._update_sync_status_to_failed(context, association_id,
+                                                       failed_message))
+            dc_peer_system_peer_id = dc_peer_system_peer.get('id')
+
+            # Get peer site peer group, create if not exist
+            dc_peer_pg = self._get_peer_site_pg_by_name(dc_client,
+                                                        peer_group_name)
+            if dc_peer_pg is None:
+                peer_group_kwargs = {
+                    'group-priority': association.peer_group_priority,
+                    'group-state': dc_local_pg.group_state,
+                    'system-leader-id': dc_local_pg.system_leader_id,
+                    'system-leader-name': dc_local_pg.system_leader_name,
+                    'max-subcloud-rehoming': dc_local_pg.max_subcloud_rehoming
+                }
+                peer_group_kwargs['peer-group-name'] = peer_group_name
+                dc_peer_pg = dc_client.add_subcloud_peer_group(
+                    **peer_group_kwargs)
+                LOG.info(f"Created Subcloud Peer Group {peer_group_name} on "
+                         f"peer site. ID is {dc_peer_pg.get('id')}.")
+            dc_peer_pg_id = dc_peer_pg.get('id')
+            dc_peer_pg_priority = dc_peer_pg.get('group_priority')
+            # Check if the peer group priority is 0, if so, raise exception
+            if dc_peer_pg_priority == 0:
+                LOG.error(f"Skip update. Peer Site {peer_group_name} "
+                          f"has priority 0.")
+                raise exceptions.SubcloudPeerGroupHasWrongPriority(
+                    priority=dc_peer_pg_priority)
+
+            # Get peer site non-primary association, create if not exist
+            dc_peer_association = self._get_non_primary_association(
+                dc_client, dc_peer_system_peer_id, dc_peer_pg_id)
+            if dc_peer_association is None:
+                non_primary_association_kwargs = {
+                    'peer_group_id': dc_peer_pg_id,
+                    'system_peer_id': dc_peer_system_peer_id
+                }
+                dc_peer_association = dc_client.add_peer_group_association(
+                    **non_primary_association_kwargs)
+                LOG.info(f"Created \"non-primary\" Peer Group Association "
+                         f"{dc_peer_association.get('id')} on peer site.")
+            dc_peer_association_id = dc_peer_association.get("id")
+
+            # Update peer group association sync status to syncing
+            dc_client.update_peer_group_association_sync_status(
+                dc_peer_association_id, consts.ASSOCIATION_SYNC_STATUS_SYNCING)
+
+            # Update peer group on peer site
             peer_group_kwargs = {
                 'group-priority': association.peer_group_priority,
                 'group-state': dc_local_pg.group_state,
@@ -433,34 +560,16 @@ class SystemPeerManager(manager.Manager):
                 'system-leader-name': dc_local_pg.system_leader_name,
                 'max-subcloud-rehoming': dc_local_pg.max_subcloud_rehoming
             }
-            if priority:
-                peer_group_kwargs['group-priority'] = priority
-            try:
-                dc_peer_pg = dc_client.get_subcloud_peer_group(
-                    peer_group_name)
-                dc_peer_pg_id = dc_peer_pg.get('id')
-                dc_peer_pg_priority = dc_peer_pg.get('group_priority')
-                if dc_peer_pg_priority == 0:
-                    LOG.error(f"Skip update. Peer Site {peer_group_name} "
-                              f"has priority 0.")
-                    raise exceptions.SubcloudPeerGroupHasWrongPriority(
-                        priority=dc_peer_pg_priority)
-
-                dc_peer_pg = dc_client.update_subcloud_peer_group(
-                    peer_group_name, **peer_group_kwargs)
-                LOG.info(f"Updated Subcloud Peer Group {peer_group_name} on "
-                         f"peer site, ID is {dc_peer_pg.get('id')}.")
-            except dccommon_exceptions.SubcloudPeerGroupNotFound:
-                peer_group_kwargs['peer-group-name'] = peer_group_name
-                dc_peer_pg = dc_client.add_subcloud_peer_group(
-                    **peer_group_kwargs)
-                dc_peer_pg_id = dc_peer_pg.get('id')
-                LOG.info(f"Created Subcloud Peer Group {peer_group_name} on "
-                         f"peer site, ID is {dc_peer_pg_id}.")
+            dc_peer_pg = dc_client.update_subcloud_peer_group(
+                peer_group_name, **peer_group_kwargs)
+            LOG.info(f"Updated Subcloud Peer Group {peer_group_name} on "
+                     f"peer site, ID is {dc_peer_pg.get('id')}.")
 
             association_update = {
-                'sync_status': consts.ASSOCIATION_SYNC_STATUS_SYNCED,
-                'sync_message': None
+                'sync_status': consts.ASSOCIATION_SYNC_STATUS_IN_SYNC,
+                'sync_message': 'None',
+                'dc_peer_association_id': dc_peer_association_id,
+                'dc_client': dc_client
             }
             if sync_subclouds:
                 error_msg = self._sync_subclouds(context, peer, dc_local_pg.id,
@@ -469,9 +578,7 @@ class SystemPeerManager(manager.Manager):
                     association_update['sync_status'] = \
                         consts.ASSOCIATION_SYNC_STATUS_FAILED
                     association_update['sync_message'] = json.dumps(error_msg)
-            if priority:
-                association_update['peer_group_priority'] = priority
-            association = db_api.peer_group_association_update(
+            association = self._update_sync_status(
                 context, association_id, **association_update)
 
             self.peer_monitor_manager.peer_monitor_notify(context)
@@ -481,11 +588,16 @@ class SystemPeerManager(manager.Manager):
         except Exception as exception:
             LOG.exception(f"Failed to sync peer group {peer_group_name} to "
                           f"peer site {peer.peer_name}")
-            db_api.peer_group_association_update(
-                context, association_id,
-                sync_status=consts.ASSOCIATION_SYNC_STATUS_FAILED,
-                sync_message=str(exception))
+            self._update_sync_status_to_failed(context, association_id,
+                                               str(exception),
+                                               dc_peer_association_id)
             raise exception
+
+    def _delete_primary_association(self, context, association_id):
+        """Delete primary peer group association."""
+        result = db_api.peer_group_association_destroy(context, association_id)
+        self.peer_monitor_manager.peer_monitor_notify(context)
+        return result
 
     def delete_peer_group_association(self, context, association_id):
         """Delete association and remove related association from peer site.
@@ -499,25 +611,52 @@ class SystemPeerManager(manager.Manager):
         association = db_api.peer_group_association_get(context,
                                                         association_id)
         peer = db_api.system_peer_get(context, association.system_peer_id)
-        peer_group = db_api.subcloud_peer_group_get(context,
-                                                    association.peer_group_id)
+        dc_local_pg = db_api.subcloud_peer_group_get(context,
+                                                     association.peer_group_id)
+        peer_group_name = dc_local_pg.peer_group_name
 
         try:
+            # Check if the system_uuid of the peer site matches with the
+            # peer_uuid
+            system = self.get_peer_sysinv_client(peer).get_system()
+            if system.uuid != peer.peer_uuid:
+                LOG.warning(f"Peer site system uuid {system.uuid} does not "
+                            f"match with the peer_uuid {peer.peer_uuid}")
+                return self._delete_primary_association(context, association_id)
+
             dc_client = self.get_peer_dc_client(peer)
-            dc_peer_pg = dc_client.get_subcloud_peer_group(
-                peer_group.peer_group_name)
+
+            # Get current site system information
+            local_system_uuid = utils.get_local_system().uuid
+
+            # Get peer site system peer
+            dc_peer_system_peer = self._get_peer_site_system_peer(
+                dc_client, local_system_uuid)
+
+            # Get peer site peer group
+            dc_peer_pg = self._get_peer_site_pg_by_name(dc_client,
+                                                        peer_group_name)
+
+            if dc_peer_pg is None:
+                # peer group does not exist on peer site, the association should
+                # be deleted
+                LOG.warning(f"Subcloud Peer Group {peer_group_name} does "
+                            f"not exist on peer site.")
+                return self._delete_primary_association(context, association_id)
+
+            dc_peer_pg_id = dc_peer_pg.get('id')
             dc_peer_pg_priority = dc_peer_pg.get('group_priority')
+            # Check if the peer group priority is 0, if so, raise exception
             if dc_peer_pg_priority == 0:
-                LOG.error(f"Failed to delete peer_group_association. "
-                          f"Peer Group {peer_group.peer_group_name} "
-                          f"has priority 0 on peer site.")
+                LOG.error(f"Failed to delete peer_group_association. Peer Group"
+                          f" {peer_group_name} has priority 0 on peer site.")
                 raise exceptions.SubcloudPeerGroupHasWrongPriority(
                     priority=dc_peer_pg_priority)
 
             # Use thread pool to limit number of operations in parallel
             delete_pool = greenpool.GreenPool(size=MAX_PARALLEL_SUBCLOUD_DELETE)
             subclouds = db_api.subcloud_get_for_peer_group(context,
-                                                           peer_group.id)
+                                                           dc_local_pg.id)
             # Spawn threads to delete each subcloud
             clean_function = functools.partial(self._delete_subcloud, dc_client)
 
@@ -525,28 +664,78 @@ class SystemPeerManager(manager.Manager):
                 'peer subcloud clean', clean_function, delete_pool, subclouds)
 
             if delete_error_msg:
-                association = db_api.peer_group_association_update(
-                    context, association_id,
-                    sync_status=consts.ASSOCIATION_SYNC_STATUS_FAILED,
-                    sync_message=json.dumps(delete_error_msg))
+                self._update_sync_status_to_failed(context, association_id,
+                                                   json.dumps(delete_error_msg))
                 return
 
-            try:
-                dc_client.delete_subcloud_peer_group(peer_group.peer_group_name)
-                LOG.info("Deleted Subcloud Peer Group "
-                         f"{peer_group.peer_group_name} on peer site.")
-            except dccommon_exceptions.SubcloudPeerGroupNotFound:
-                LOG.debug(f"Subcloud Peer Group {peer_group.peer_group_name} "
-                          "does not exist on peer site.")
-            except dccommon_exceptions.SubcloudPeerGroupDeleteFailedAssociated:
-                LOG.debug(f"Subcloud Peer Group {peer_group.peer_group_name} "
-                          "delete failed as it is associated with system peer "
-                          "on peer site.")
+            # System Peer does not exist on peer site, delete peer group
+            if dc_peer_system_peer is None:
+                try:
+                    dc_client.delete_subcloud_peer_group(peer_group_name)
+                    LOG.info(f"Deleted Subcloud Peer Group {peer_group_name} "
+                             f"on peer site.")
+                except dccommon_exceptions.\
+                    SubcloudPeerGroupDeleteFailedAssociated:
+                    LOG.error(f"Subcloud Peer Group {peer_group_name} "
+                              "delete failed as it is associated with System "
+                              "Peer on peer site.")
+                return self._delete_primary_association(context, association_id)
+            dc_peer_system_peer_id = dc_peer_system_peer.get('id')
 
-            db_api.peer_group_association_destroy(context, association_id)
-            self.peer_monitor_manager.peer_monitor_notify(context)
+            # Get peer site non-primary association
+            dc_peer_association = self._get_non_primary_association(
+                dc_client, dc_peer_system_peer_id, dc_peer_pg_id)
+            # Delete peer group association on peer site if exist
+            if dc_peer_association is not None:
+                dc_peer_association_id = dc_peer_association.get("id")
+                dc_client.delete_peer_group_association(
+                    dc_peer_association_id)
+            elif dc_peer_association is None:
+                LOG.warning(f"PeerGroupAssociation does not exist on peer site."
+                            f"Peer Group ID: {dc_peer_pg_id}, peer site System "
+                            f"Peer ID: {dc_peer_system_peer_id}")
+
+            try:
+                dc_client.delete_subcloud_peer_group(peer_group_name)
+                LOG.info("Deleted Subcloud Peer Group "
+                         f"{peer_group_name} on peer site.")
+            except dccommon_exceptions.SubcloudPeerGroupDeleteFailedAssociated:
+                failed_message = f"Subcloud Peer Group {peer_group_name} " \
+                    + "delete failed as it is associated with system peer " \
+                    + "on peer site."
+                self._update_sync_status_to_failed(context, association_id,
+                                                   failed_message)
+                LOG.error(failed_message)
+                raise
+
+            return self._delete_primary_association(context, association_id)
 
         except Exception as exception:
             LOG.exception("Failed to delete peer_group_association "
                           f"{association.id}")
             raise exception
+
+    def handle_association_operations_in_progress(self):
+        """Identify associations in transitory stages and update association
+
+        state to failure.
+        """
+
+        LOG.info('Identifying associations in transitory stages.')
+
+        associations = db_api.peer_group_association_get_all(self.context)
+
+        for association in associations:
+            # Identify associations in transitory states
+            new_sync_status = TRANSITORY_STATES.get(association.sync_status)
+
+            # update syncing states to the corresponding failure states
+            if new_sync_status:
+                LOG.info(f"Changing association {association.id} sync status "
+                         f"from {association.sync_status} to {new_sync_status}")
+
+                db_api.peer_group_association_update(
+                    self.context,
+                    association.id,
+                    sync_status=new_sync_status or association.sync_status,
+                    sync_message="Service restart during syncing")

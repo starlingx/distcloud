@@ -115,6 +115,7 @@ class DCManagerService(service.Service):
         os.makedirs(dccommon_consts.ANSIBLE_OVERRIDES_PATH, 0o600, exist_ok=True)
 
         self.subcloud_manager.handle_subcloud_operations_in_progress()
+        self.system_peer_manager.handle_association_operations_in_progress()
 
         # Send notify to peer monitor.
         self.peer_monitor_manager.peer_monitor_notify(self.context)
@@ -332,11 +333,11 @@ class DCManagerService(service.Service):
 
     @request_context
     def sync_subcloud_peer_group(self, context, association_id,
-                                 sync_subclouds=True, priority=None):
+                                 sync_subclouds=True):
         LOG.info("Handling sync_subcloud_peer_group request for: %s",
                  association_id)
         return self.system_peer_manager.sync_subcloud_peer_group(
-            context, association_id, sync_subclouds, priority)
+            context, association_id, sync_subclouds)
 
     @request_context
     def delete_peer_group_association(self, context, association_id):

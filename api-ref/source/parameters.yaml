@@ -108,6 +108,12 @@ association_sync_status:
   in: body
   required: true
   type: string
+association_type:
+  description: |
+    The type of association.
+  in: body
+  required: true
+  type: string
 availability_status:
   description: |
     The availability status of the subcloud.

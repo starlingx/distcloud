@@ -87,6 +87,7 @@ def upgrade(migrate_engine):
                           sqlalchemy.ForeignKey('system_peer.id',
                                                 ondelete='CASCADE')),
         sqlalchemy.Column('peer_group_priority', sqlalchemy.Integer),
+        sqlalchemy.Column('association_type', sqlalchemy.String(255)),
         sqlalchemy.Column('sync_status', sqlalchemy.String(255)),
         sqlalchemy.Column('sync_message', sqlalchemy.Text),
         sqlalchemy.Column('reserved_1', sqlalchemy.Text),

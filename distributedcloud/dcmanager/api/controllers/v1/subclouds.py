@@ -556,7 +556,7 @@ class SubcloudsController(object):
             # Ask dcmanager-manager to add the subcloud.
             # It will do all the real work...
             # If the subcloud is secondary, it will be synchronous operation.
-            # A normal subcloud add will be a synchronous operation.
+            # A normal subcloud add will be asynchronous operation.
             if 'secondary' in payload:
                 self.dcmanager_rpc_client.add_secondary_subcloud(
                     context, subcloud.id, payload)

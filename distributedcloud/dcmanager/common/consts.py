@@ -470,11 +470,15 @@ PEER_GROUP_MIGRATING = 'migrating'
 PEER_GROUP_MIGRATION_COMPLETE = 'complete'
 PEER_GROUP_MIGRATION_NONE = 'none'
 
+# Peer group association type
+ASSOCIATION_TYPE_PRIMARY = 'primary'
+ASSOCIATION_TYPE_NON_PRIMARY = 'non-primary'
+
 # Peer group association sync status
 ASSOCIATION_SYNC_STATUS_SYNCING = 'syncing'
-ASSOCIATION_SYNC_STATUS_SYNCED = 'synced'
+ASSOCIATION_SYNC_STATUS_IN_SYNC = 'in-sync'
 ASSOCIATION_SYNC_STATUS_FAILED = 'failed'
-ASSOCIATION_SYNC_STATUS_DISABLED = 'disabled'
+ASSOCIATION_SYNC_STATUS_OUT_OF_SYNC = 'out-of-sync'
 
 # Peer monitor heartbeat policy
 HEARTBEAT_FAILURE_POLICY_ALARM = 'alarm'

@@ -4,6 +4,7 @@
       "id": 9,
       "peer-group-id": 1,
       "system-peer-id": 1,
+      "association-type": "primary",
       "peer-group-priority": 1,
       "sync-status": "synced",
       "created-at": "2023-08-21 09:24:07.394961",

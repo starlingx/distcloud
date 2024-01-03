@@ -125,12 +125,20 @@ class ApiException(DCCommonException):
     message = _("%(endpoint)s failed with status code: %(rc)d")
 
 
+class SystemPeerNotFound(NotFound):
+    message = _("System Peer %(system_peer)s not found")
+
+
 class SubcloudNotFound(NotFound):
     message = _("Subcloud %(subcloud_ref)s not found")
 
 
 class SubcloudPeerGroupNotFound(NotFound):
     message = _("Subcloud Peer Group %(peer_group_ref)s not found")
+
+
+class PeerGroupAssociationNotFound(NotFound):
+    message = _("Peer Group Association %(association_id)s not found")
 
 
 class SubcloudPeerGroupDeleteFailedAssociated(DCCommonException):
