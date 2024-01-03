@@ -131,10 +131,13 @@ class AnsiblePlaybook(object):
                                         '.%s_deploy_not_abortable' % self.subcloud_name)
         subp = AnsiblePlaybook.abort_status[self.subcloud_name]['subp']
         while os.path.exists(unabortable_flag) and timeout > 0:
+            # If subprocess ended (subp.poll is not None), no further abort
+            # action is necessary
+            if subp.poll():
+                return False
             time.sleep(1)
             timeout -= 1
-        kill_subprocess_group(subp)
-        return True
+        return kill_subprocess_group(subp)
 
     def run_playbook(self, log_file, playbook_command, timeout=None,
                      register_cleanup=True):
