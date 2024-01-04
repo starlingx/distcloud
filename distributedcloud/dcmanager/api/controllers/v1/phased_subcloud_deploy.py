@@ -251,14 +251,12 @@ class PhasedSubcloudDeployController(object):
             if not has_bootstrap_values:
                 psd_common.populate_payload_with_pre_existing_data(
                     payload, subcloud, SUBCLOUD_BOOTSTRAP_GET_FILE_CONTENTS)
-            else:
-                psd_common.update_payload_from_overrides_file(
-                    payload, subcloud.name, [consts.BOOTSTRAP_ADDRESS])
-                payload['software_version'] = subcloud.software_version
         elif not has_bootstrap_values:
             msg = _("Required bootstrap-values file was not provided and it was"
                     " not previously available at %s") % (override_file)
             pecan.abort(400, msg)
+
+        payload['software_version'] = subcloud.software_version
 
         psd_common.pre_deploy_bootstrap(context, payload, subcloud,
                                         has_bootstrap_values)
@@ -309,10 +307,7 @@ class PhasedSubcloudDeployController(object):
         psd_common.populate_payload_with_pre_existing_data(
             payload, subcloud, SUBCLOUD_CONFIG_GET_FILE_CONTENTS)
 
-        psd_common.validate_sysadmin_password(payload)
-
-        psd_common.update_payload_from_overrides_file(payload, subcloud.name,
-                                                      [consts.BOOTSTRAP_ADDRESS])
+        psd_common.pre_deploy_config(payload, subcloud)
 
         try:
             self.dcmanager_rpc_client.subcloud_deploy_config(
@@ -446,11 +441,6 @@ class PhasedSubcloudDeployController(object):
                                 not in FILES_MAPPING[BOOTSTRAP]]
         psd_common.populate_payload_with_pre_existing_data(
             payload, subcloud, files_for_resume)
-        # Update payload with bootstrap-address from overrides file
-        # if not present already
-        if consts.BOOTSTRAP_ADDRESS not in payload:
-            psd_common.update_payload_from_overrides_file(payload, subcloud.name,
-                                                          [consts.BOOTSTRAP_ADDRESS])
 
         psd_common.validate_sysadmin_password(payload)
         for state in deploy_states_to_run:
@@ -461,9 +451,8 @@ class PhasedSubcloudDeployController(object):
                                                 has_bootstrap_values,
                                                 validate_password=False)
             elif state == CONFIG:
-                # Currently the only pre_deploy_config step is validate_sysadmin_password
-                # which can't be executed more than once
-                pass
+                psd_common.pre_deploy_config(payload, subcloud,
+                                             validate_password=False)
 
         try:
             self.dcmanager_rpc_client.subcloud_deploy_resume(

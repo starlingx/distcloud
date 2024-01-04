@@ -1258,12 +1258,14 @@ def update_values_on_yaml_file(filename, values, values_to_keep=None,
     :param values: dict with yaml keys and values to replace
     :param values_to_keep: list of values to keep on original file
     :param yaml_dump: write file using yaml dump (default is True)
+
+    returns True if the yaml file exists else False
     """
     if values_to_keep is None:
         values_to_keep = []
     update_file = False
     if not os.path.isfile(filename):
-        return
+        return False
     with open(os.path.abspath(filename), 'r') as f:
         data = f.read()
     data = yaml.load(data, Loader=yaml.SafeLoader)
@@ -1284,12 +1286,36 @@ def update_values_on_yaml_file(filename, values, values_to_keep=None,
                 f.write('---\n')
                 for k, v in data.items():
                     f.write("%s: %s\n" % (k, json.dumps(v)))
+    return True
 
 
 def load_yaml_file(filename: str):
     with open(os.path.abspath(filename), 'r') as f:
         data = yaml.load(f, Loader=yaml.loader.SafeLoader)
     return data
+
+
+def update_install_values_with_new_bootstrap_address(context, payload, subcloud):
+    """Update install values with new bootstrap address provided on request
+
+    This is necessary during deploy bootstrap if the user provided a new
+    bootstrap_address, so future redeploy/upgrade is not affected
+
+    :param context: request context object
+    :param payload: subcloud payload
+    :param subcloud: subcloud object
+    """
+
+    if not subcloud.data_install:
+        return
+    bootstrap_address = payload.get(consts.BOOTSTRAP_ADDRESS)
+    install_values = json.loads(subcloud.data_install)
+    if (bootstrap_address and
+            bootstrap_address != install_values.get('bootstrap_address')):
+        install_values['bootstrap_address'] = bootstrap_address
+        db_api.subcloud_update(
+            context, subcloud.id,
+            data_install=json.dumps(install_values))
 
 
 def decode_and_normalize_passwd(input_passwd):
