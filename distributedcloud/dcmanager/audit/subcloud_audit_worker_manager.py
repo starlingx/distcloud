@@ -125,10 +125,13 @@ class SubcloudAuditWorkerManager(manager.Manager):
                      consts.DEPLOY_STATE_UPGRADE_ACTIVATED,
                      consts.DEPLOY_STATE_RESTORING,
                      consts.DEPLOY_STATE_RESTORE_PREP_FAILED,
-                     consts.DEPLOY_STATE_RESTORE_FAILED]
+                     consts.DEPLOY_STATE_RESTORE_FAILED,
+                     consts.DEPLOY_STATE_REHOME_PENDING]
                     and not prestage.is_deploy_status_prestage(
                         subcloud.deploy_status)) or (
-                    subcloud.deploy_status == consts.DEPLOY_STATE_INSTALLING and
+                    (subcloud.deploy_status in [
+                        consts.DEPLOY_STATE_INSTALLING,
+                        consts.DEPLOY_STATE_REHOME_PENDING]) and
                     subcloud.availability_status == dccommon_consts.AVAILABILITY_OFFLINE):
                 LOG.debug("Skip subcloud %s audit, deploy_status: %s" %
                           (subcloud.name, subcloud.deploy_status))
