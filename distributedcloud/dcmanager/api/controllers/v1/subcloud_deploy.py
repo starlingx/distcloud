@@ -149,3 +149,44 @@ class SubcloudDeployController(object):
                     filename = filename.replace(prefix, '', 1)
             deploy_dicts.update({f: filename})
         return dict(subcloud_deploy=deploy_dicts)
+
+    @index.when(method='DELETE', template='json')
+    def delete(self, release=None):
+        """Delete the subcloud deploy files.
+
+        :param release: release version
+        """
+        policy.authorize(subcloud_deploy_policy.POLICY_ROOT % "delete", {},
+                         restcomm.extract_credentials_for_policy())
+
+        is_prestage_images = request.params.get('prestage_images', '').lower() == 'true'
+        is_deployment_files = request.params.get('deployment_files', '').lower() == 'true'
+
+        dir_path = os.path.join(dccommon_consts.DEPLOY_DIR, utils.get_sw_version(release))
+        if not os.path.isdir(dir_path):
+            pecan.abort(httpclient.NOT_FOUND,
+                        _("Directory not found: %s" % dir_path))
+        try:
+            file_options = []
+            if is_prestage_images:
+                file_options.append(consts.DEPLOY_PRESTAGE)
+
+            if is_deployment_files:
+                file_options.extend([consts.DEPLOY_OVERRIDES, consts.DEPLOY_CHART,
+                                     consts.DEPLOY_PLAYBOOK])
+
+            if not (is_deployment_files or is_prestage_images):
+                file_options.extend(consts.DEPLOY_COMMON_FILE_OPTIONS)
+
+            for file_option in file_options:
+                prefix = file_option + '_'
+                file_name = utils.get_filename_by_prefix(dir_path, prefix)
+                if file_name:
+                    os.remove(os.path.join(dir_path, file_name))
+                else:
+                    LOG.warning('%s file not present' % file_option)
+
+        except Exception as e:
+            pecan.abort(httpclient.INTERNAL_SERVER_ERROR,
+                        _("Failed to delete file: %s" % e))
+        return None

@@ -36,6 +36,21 @@ subcloud_deploy_rules = [
                 'path': '/v1.0/subcloud-deploy/{release}'
             }
         ]
+    ),
+    policy.DocumentedRuleDefault(
+        name=POLICY_ROOT % 'delete',
+        check_str='rule:' + base.ADMIN_IN_SYSTEM_PROJECTS,
+        description="Delete subcloud deploy files.",
+        operations=[
+            {
+                'method': 'DELETE',
+                'path': '/v1.0/subcloud-deploy'
+            },
+            {
+                'method': 'DELETE',
+                'path': '/v1.0/subcloud-deploy/{release}'
+            }
+        ]
     )
 ]
 
