@@ -946,6 +946,7 @@ def get_subcloud_db_install_values(subcloud):
 def populate_payload_with_pre_existing_data(payload: dict,
                                             subcloud: models.Subcloud,
                                             mandatory_values: typing.Sequence):
+    software_version = payload.get('software_version', subcloud.software_version)
     for value in mandatory_values:
         if value == consts.INSTALL_VALUES:
             if not payload.get(consts.INSTALL_VALUES):
@@ -971,7 +972,7 @@ def populate_payload_with_pre_existing_data(payload: dict,
                             "previously available.") % consts.DEPLOY_CONFIG
                     pecan.abort(400, msg)
                 payload.update({value: fn})
-            get_common_deploy_files(payload, subcloud.software_version)
+            get_common_deploy_files(payload, software_version)
 
 
 def pre_deploy_create(payload: dict, context: RequestContext,
