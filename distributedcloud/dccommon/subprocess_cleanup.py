@@ -60,7 +60,7 @@ def kill_subprocess_group(subp, logmsg=None):
     if exitcode:
         LOG.info("kill_subprocess_tree: subprocess has already "
                  "terminated, pid: %s, exitcode=%s", subp.pid, exitcode)
-        return
+        return False
 
     if logmsg:
         LOG.warn(logmsg)
@@ -71,3 +71,4 @@ def kill_subprocess_group(subp, logmsg=None):
     # are shutdown (best-effort), since we don't want to wait around before
     # issueing a SIGKILL (fast shutdown)
     os.killpg(subp.pid, signal.SIGTERM)
+    return True
