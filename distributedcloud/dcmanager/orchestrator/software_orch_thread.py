@@ -33,8 +33,10 @@ from dcmanager.orchestrator.states.software.lock_controller \
     import LockControllerState
 from dcmanager.orchestrator.states.software.pre_check \
     import PreCheckState
-from dcmanager.orchestrator.states.software.swact_controller \
-    import SwactControllerState
+from dcmanager.orchestrator.states.software.swact_controller0 \
+    import SwactController0State
+from dcmanager.orchestrator.states.software.swact_controller1 \
+    import SwactController1State
 from dcmanager.orchestrator.states.software.unlock_controller \
     import UnlockControllerState
 from dcmanager.orchestrator.states.software.upload \
@@ -70,9 +72,10 @@ class SoftwareOrchThread(OrchThread):
         consts.STRATEGY_STATE_SW_LOCK_CONTROLLER: LockControllerState,
         consts.STRATEGY_STATE_SW_DEPLOY_HOST: DeployHostState,
         consts.STRATEGY_STATE_SW_UNLOCK_CONTROLLER: UnlockControllerState,
-        consts.STRATEGY_STATE_SW_SWACT_CONTROLLER: SwactControllerState,
+        consts.STRATEGY_STATE_SW_SWACT_CONTROLLER_0: SwactController0State,
         consts.STRATEGY_STATE_SW_CREATE_VIM_STRATEGY: CreateVIMSoftwareStrategyState,
         consts.STRATEGY_STATE_SW_APPLY_VIM_STRATEGY: ApplyVIMSoftwareStrategyState,
+        consts.STRATEGY_STATE_SW_SWACT_CONTROLLER_1: SwactController1State,
         consts.STRATEGY_STATE_SW_DEPLOY_ACTIVATE: DeployActivateState,
         consts.STRATEGY_STATE_SW_DEPLOY_COMPLETE: DeployCompleteState,
         consts.STRATEGY_STATE_SW_FINISH_STRATEGY: FinishStrategyState,
