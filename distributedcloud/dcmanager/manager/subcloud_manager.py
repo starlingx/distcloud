@@ -636,7 +636,7 @@ class SubcloudManager(manager.Manager):
                     saved_payload['admin_password']).decode('utf-8')
 
             # Re-generate ansible config based on latest rehome_data
-            subcloud = self.subcloud_migrate_generate_ansible_config(
+            subcloud = self.generate_subcloud_ansible_config(
                 subcloud,
                 saved_payload)
             self.rehome_subcloud(context, subcloud)
@@ -1060,14 +1060,25 @@ class SubcloudManager(manager.Manager):
         # Update the ansible overrides file
         overrides_file = os.path.join(dccommon_consts.ANSIBLE_OVERRIDES_PATH,
                                       subcloud.name + '.yml')
-        utils.update_values_on_yaml_file(overrides_file,
-                                         payload_for_overrides_file,
-                                         values_to_keep=GENERATED_OVERRIDES_VALUES)
+        overrides_file_exists = utils.update_values_on_yaml_file(
+            overrides_file, payload_for_overrides_file,
+            values_to_keep=GENERATED_OVERRIDES_VALUES)
 
-        # Update the ansible inventory for the subcloud
-        utils.create_subcloud_inventory(payload,
-                                        ansible_subcloud_inventory_file,
-                                        initial_deployment)
+        if not overrides_file_exists:
+            # Overrides file doesn't exist, so we generate a new one
+            self.generate_subcloud_ansible_config(
+                subcloud, payload, initial_deployment=initial_deployment)
+        else:
+            # Since we generate an inventory already when generating the
+            # new Ansible overrides, only create the inventory here when
+            # the overrides already existed
+            utils.create_subcloud_inventory(payload,
+                                            ansible_subcloud_inventory_file,
+                                            initial_deployment)
+
+        utils.update_install_values_with_new_bootstrap_address(context,
+                                                               payload,
+                                                               subcloud)
 
         bootstrap_command = self.compose_bootstrap_command(
             subcloud.name,
@@ -1198,14 +1209,20 @@ class SubcloudManager(manager.Manager):
                                deploy_states_to_run,
                                initial_deployment=True)
 
-    def subcloud_migrate_generate_ansible_config(self, subcloud, payload):
-        """Generate latest ansible config based on given payload for day-2 rehoming purpose.
+    def generate_subcloud_ansible_config(self, subcloud, payload,
+                                         initial_deployment=False):
+        """Generate latest ansible config based on given payload.
 
         :param subcloud: subcloud object
         :param payload: subcloud configuration
+        :param initial_deployment: if being called during initial deployment
         :return: resulting subcloud DB object
         """
-        LOG.info("Generate subcloud %s ansible config." % payload['name'])
+        if initial_deployment:
+            LOG.debug(f"Overrides file not found for {payload['name']}. "
+                      "Generating new overrides file.")
+        else:
+            LOG.info("Generate subcloud %s ansible config." % payload['name'])
 
         try:
             # Write ansible based on rehome_data
@@ -1245,13 +1262,19 @@ class SubcloudManager(manager.Manager):
 
             # Create the ansible inventory for the new subcloud
             utils.create_subcloud_inventory(payload,
-                                            ansible_subcloud_inventory_file)
+                                            ansible_subcloud_inventory_file,
+                                            initial_deployment=initial_deployment)
 
-            # create subcloud intermediate certificate and pass in keys
-            self._create_intermediate_ca_cert(payload)
+            # Create subcloud intermediate certificate and pass in keys
+            # On initial deployment, this was already created by subcloud
+            # deploy create, so we just get the existing secret
+            if initial_deployment:
+                self._populate_payload_with_dc_intermediate_ca_cert(payload)
+            else:
+                self._create_intermediate_ca_cert(payload)
 
             # Write this subclouds overrides to file
-            # NOTE: This file should not be deleted if subcloud migrate fails
+            # NOTE: This file should not be deleted if subcloud operation fails
             # as it is used for debugging
             self._write_subcloud_ansible_config(cached_regionone_data, payload)
 
@@ -3300,3 +3323,14 @@ class SubcloudManager(manager.Manager):
             payload['ansible_ssh_pass'] = payload['sysadmin_password']
             payload['admin_password'] = str(keyring.get_password('CGCS',
                                                                  'admin'))
+
+    def _populate_payload_with_dc_intermediate_ca_cert(self, payload):
+        subcloud_region = payload["region_name"]
+        secret_name = SubcloudManager._get_subcloud_cert_secret_name(
+            subcloud_region)
+        kube = kubeoperator.KubeOperator()
+        secret = kube.kube_get_secret(secret_name, CERT_NAMESPACE)
+        data = secret.data
+        payload['dc_root_ca_cert'] = data['ca.crt']
+        payload['sc_ca_cert'] = data['tls.crt']
+        payload['sc_ca_key'] = data['tls.key']

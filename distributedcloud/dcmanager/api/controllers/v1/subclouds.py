@@ -814,13 +814,16 @@ class SubcloudsController(object):
             psd_common.populate_payload_with_pre_existing_data(
                 payload, subcloud, files_for_redeploy)
 
+            payload['bootstrap-address'] = \
+                payload['install_values']['bootstrap_address']
             psd_common.validate_sysadmin_password(payload)
             psd_common.pre_deploy_install(payload, validate_password=False)
             psd_common.pre_deploy_bootstrap(context, payload, subcloud,
                                             has_bootstrap_values,
                                             validate_password=False)
-            payload['bootstrap-address'] = \
-                payload['install_values']['bootstrap_address']
+            if has_config_values:
+                psd_common.pre_deploy_config(payload, subcloud,
+                                             validate_password=False)
 
             try:
                 # Align the software version of the subcloud with redeploy

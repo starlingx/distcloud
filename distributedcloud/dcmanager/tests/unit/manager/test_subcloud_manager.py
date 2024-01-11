@@ -15,6 +15,7 @@ import base64
 import collections
 import copy
 import datetime
+import json
 import os
 
 import mock
@@ -583,18 +584,24 @@ class TestSubcloudManager(base.DCManagerTestCase):
     def test_subcloud_deploy_bootstrap(self, mock_run_playbook, mock_update_yml,
                                        mock_get_playbook_for_software_version,
                                        mock_keyring, mock_create_subcloud_inventory):
-        mock_get_playbook_for_software_version.return_value = "22.12"
+        mock_get_playbook_for_software_version.return_value = SW_VERSION
         mock_keyring.get_password.return_value = "testpass"
         mock_run_playbook.return_value = False
+        fake_install_values = \
+            copy.copy(fake_subcloud.FAKE_SUBCLOUD_INSTALL_VALUES)
+        fake_install_values['software_version'] = SW_VERSION
 
         subcloud = fake_subcloud.create_fake_subcloud(
             self.ctx,
             name=fake_subcloud.FAKE_BOOTSTRAP_FILE_DATA["name"],
-            deploy_status=consts.DEPLOY_STATE_INSTALLED)
+            deploy_status=consts.DEPLOY_STATE_INSTALLED,
+            data_install=json.dumps(fake_install_values)
+        )
 
         payload = {**fake_subcloud.FAKE_BOOTSTRAP_VALUE,
                    **fake_subcloud.FAKE_BOOTSTRAP_FILE_DATA}
         payload["sysadmin_password"] = "testpass"
+        payload["bootstrap-address"] = "10.10.10.12"
 
         sm = subcloud_manager.SubcloudManager()
         sm.subcloud_deploy_bootstrap(self.ctx, subcloud.id, payload)
@@ -2932,10 +2939,10 @@ class TestSubcloudManager(base.DCManagerTestCase):
 
     @mock.patch.object(subcloud_manager, 'db_api', side_effect=db_api)
     @mock.patch.object(subcloud_manager.SubcloudManager,
-                       'subcloud_migrate_generate_ansible_config')
+                       'generate_subcloud_ansible_config')
     @mock.patch.object(subcloud_manager.SubcloudManager, 'rehome_subcloud')
     def test_migrate_subcloud(self, mock_rehome_subcloud,
-                              mock_subcloud_migrate_generate_ansible_config,
+                              mock_generate_subcloud_ansible_config,
                               mock_db_api):
         # Prepare the test data
         subcloud = self.create_subcloud_static(self.ctx)
@@ -2966,7 +2973,7 @@ class TestSubcloudManager(base.DCManagerTestCase):
                                rehome_data=saved_payload['rehome_data'])
         sm.migrate_subcloud(self.ctx, subcloud.id, payload)
 
-        mock_subcloud_migrate_generate_ansible_config.assert_called_once_with(
+        mock_generate_subcloud_ansible_config.assert_called_once_with(
             mock.ANY, payload_result['rehome_data']['saved_payload'])
         mock_rehome_subcloud.assert_called_once_with(mock.ANY, mock.ANY)
         mock_db_api.subcloud_update.assert_called_once_with(
@@ -3182,8 +3189,8 @@ class TestSubcloudManager(base.DCManagerTestCase):
     @mock.patch('os.remove')
     @mock.patch('shutil.rmtree')
     @mock.patch.object(os_path, 'exists')
-    def test_cleanup_ansible_files(self, moch_path_exists, mock_rmtree, mock_remove):
-        moch_path_exists.return_value = True
+    def test_cleanup_ansible_files(self, mock_path_exists, mock_rmtree, mock_remove):
+        mock_path_exists.return_value = True
 
         sm = subcloud_manager.SubcloudManager()
         sm._cleanup_ansible_files('subcloud1')

@@ -258,17 +258,42 @@ class TestSubcloudDeployConfig(testroot.DCManagerApiTest):
         self.mock_get_request_data = p.start()
         self.addCleanup(p.stop)
 
+    @mock.patch.object(os_path, 'exists')
     @mock.patch.object(dutils, 'load_yaml_file')
-    def test_configure_subcloud(self, mock_load_yaml):
-        subcloud = fake_subcloud.create_fake_subcloud(self.ctx)
+    def test_configure_subcloud_bootstrap_address_from_overrides(
+            self, mock_load_yaml, mock_path_exists
+    ):
+        subcloud = fake_subcloud.create_fake_subcloud(self.ctx, data_install='')
         fake_password = (base64.b64encode('testpass'.encode("utf-8"))).decode('ascii')
         data = {'sysadmin_password': fake_password}
 
         self.mock_rpc_client().subcloud_deploy_config.return_value = True
         self.mock_get_request_data.return_value = data
+        overrides_file = psd_common.get_config_file_path(subcloud.name)
+        mock_path_exists.side_effect = lambda x: True if x == overrides_file else False
         mock_load_yaml.return_value = {
             consts.BOOTSTRAP_ADDRESS:
                 fake_subcloud.FAKE_BOOTSTRAP_VALUE[consts.BOOTSTRAP_ADDRESS]}
+
+        response = self.app.patch_json(FAKE_URL + '/' + str(subcloud.id) +
+                                       '/configure',
+                                       headers=FAKE_HEADERS,
+                                       params=data)
+        self.mock_rpc_client().subcloud_deploy_config.assert_called_once_with(
+            mock.ANY, subcloud.id, data, initial_deployment=True)
+        self.assertEqual(response.status_int, 200)
+
+    def test_configure_subcloud_bootstrap_address_from_data_install(self):
+        data_install = copy.copy(FAKE_SUBCLOUD_INSTALL_VALUES)
+        data_install.pop('software_version')
+        subcloud = fake_subcloud.create_fake_subcloud(
+            self.ctx, data_install=json.dumps(data_install)
+        )
+        fake_password = (base64.b64encode('testpass'.encode("utf-8"))).decode('ascii')
+        data = {'sysadmin_password': fake_password}
+
+        self.mock_rpc_client().subcloud_deploy_config.return_value = True
+        self.mock_get_request_data.return_value = data
 
         response = self.app.patch_json(FAKE_URL + '/' + str(subcloud.id) +
                                        '/configure',
@@ -670,13 +695,15 @@ class TestSubcloudDeployResume(testroot.DCManagerApiTest):
                                         'deploy_overrides_fake.yaml',
                                         'deploy_playbook_fake.yaml']
 
+        data_install = copy.copy(FAKE_SUBCLOUD_INSTALL_VALUES)
+        data_install.pop('software_version')
         subcloud = fake_subcloud.create_fake_subcloud(
             self.ctx,
             name=fake_subcloud.FAKE_BOOTSTRAP_FILE_DATA["name"],
             deploy_status=consts.DEPLOY_STATE_CREATED,
-            software_version=SW_VERSION)
-        install_data = copy.copy(FAKE_SUBCLOUD_INSTALL_VALUES)
-        install_data.pop('software_version')
+            software_version=SW_VERSION,
+            data_install=json.dumps(data_install)
+        )
 
         self.mock_get_vault_load_files.return_value = ('iso_file_path', 'sig_file_path')
         self.mock_rpc_client().subcloud_deploy_resume.return_value = True
@@ -691,8 +718,8 @@ class TestSubcloudDeployResume(testroot.DCManagerApiTest):
             fake_bmc_password = base64.b64encode(
                 'bmc_password'.encode("utf-8")).decode('utf-8')
             bmc_password = {'bmc_password': fake_bmc_password}
-            install_data.update(bmc_password)
-            install_request = {'install_values': install_data,
+            data_install.update(bmc_password)
+            install_request = {'install_values': data_install,
                                'sysadmin_password': fake_sysadmin_password,
                                'bmc_password': fake_bmc_password}
             bootstrap_request = {'bootstrap_values': fake_subcloud.FAKE_BOOTSTRAP_FILE_DATA}
@@ -776,12 +803,17 @@ class TestSubcloudDeployResume(testroot.DCManagerApiTest):
     @mock.patch.object(os, 'listdir')
     def test_resume_subcloud_no_request_data(
         self, mock_os_listdir, mock_os_isdir, mock_path_exists,
-        mock_load_yaml, mock_initial_deployment):
+        mock_load_yaml, mock_initial_deployment
+    ):
+        data_install = copy.copy(FAKE_SUBCLOUD_INSTALL_VALUES)
+        data_install.pop('software_version')
         subcloud = fake_subcloud.create_fake_subcloud(
             self.ctx,
             name=fake_subcloud.FAKE_BOOTSTRAP_FILE_DATA["name"],
             deploy_status=consts.DEPLOY_STATE_CREATED,
-            software_version=SW_VERSION)
+            software_version=SW_VERSION,
+            data_install=json.dumps(data_install)
+        )
 
         config_file = psd_common.get_config_file_path(subcloud.name,
                                                       consts.DEPLOY_CONFIG)

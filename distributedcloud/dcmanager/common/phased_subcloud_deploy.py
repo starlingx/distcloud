@@ -892,14 +892,26 @@ def is_initial_deployment(subcloud_name: str) -> bool:
     return initial_deployment
 
 
-def update_payload_from_overrides_file(payload, subcloud_name, values):
-    """Update payload with values from existing overrides file"""
+def update_payload_with_bootstrap_address(payload, subcloud: models.Subcloud):
+    """Add bootstrap address to payload if not present already"""
 
-    overrides_filename = get_config_file_path(subcloud_name)
-    content = utils.load_yaml_file(overrides_filename)
-    for value in values:
-        if not payload.get(value):
-            payload[value] = content.get(value)
+    if payload.get(consts.BOOTSTRAP_ADDRESS):
+        return
+    if subcloud.data_install:
+        data_install = json.loads(subcloud.data_install)
+        bootstrap_address = data_install['bootstrap_address']
+    else:
+        overrides_filename = get_config_file_path(subcloud.name)
+        msg = _('The bootstrap-address was not provided and it was not '
+                'previously available. Please provide it in the request '
+                'or update the subcloud with install-values and try again.')
+        if not os.path.exists(overrides_filename):
+            pecan.abort(400, msg)
+        content = utils.load_yaml_file(overrides_filename)
+        bootstrap_address = content.get(consts.BOOTSTRAP_ADDRESS)
+        if not bootstrap_address:
+            pecan.abort(400, msg)
+    payload[consts.BOOTSTRAP_ADDRESS] = bootstrap_address
 
 
 def get_request_data(request: pecan.Request,
@@ -1038,6 +1050,8 @@ def pre_deploy_bootstrap(context: RequestContext, payload: dict,
                          validate_password=True):
     if validate_password:
         validate_sysadmin_password(payload)
+
+    update_payload_with_bootstrap_address(payload, subcloud)
     if has_bootstrap_values:
         # Need to validate the new values
         payload_name = payload.get('name')
@@ -1061,6 +1075,14 @@ def pre_deploy_bootstrap(context: RequestContext, payload: dict,
     # again:
     validate_system_controller_patch_status("bootstrap")
     validate_k8s_version(payload)
+
+
+def pre_deploy_config(payload: dict, subcloud: models.Subcloud,
+                      validate_password=True):
+    if validate_password:
+        validate_sysadmin_password(payload)
+
+    update_payload_with_bootstrap_address(payload, subcloud)
 
 
 def get_bootstrap_subcloud_name(request: pecan.Request):
