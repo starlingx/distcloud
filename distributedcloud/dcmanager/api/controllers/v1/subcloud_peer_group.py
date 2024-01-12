@@ -198,7 +198,7 @@ class SubcloudPeerGroupsController(restcomm.GenericPathController):
         elif not utils.validate_name(system_leader_name):
             pecan.abort(httpclient.BAD_REQUEST,
                         _('Invalid system-leader-name'))
-        if not group_priority:
+        if group_priority is None:
             group_priority = DEFAULT_SUBCLOUD_PEER_GROUP_PRIORITY
         elif not self._validate_group_priority(group_priority):
             pecan.abort(httpclient.BAD_REQUEST, _('Invalid group-priority'))
@@ -272,7 +272,7 @@ class SubcloudPeerGroupsController(restcomm.GenericPathController):
 
             if not (
                 peer_group_name
-                or group_priority
+                or group_priority is not None
                 or group_state
                 or system_leader_id
                 or system_leader_name
@@ -286,7 +286,8 @@ class SubcloudPeerGroupsController(restcomm.GenericPathController):
                     not utils.validate_name(peer_group_name,
                                             prohibited_name_list=['none'])):
                     pecan.abort(httpclient.BAD_REQUEST, _('Invalid peer-group-name'))
-            if group_priority and not self._validate_group_priority(group_priority):
+            if (group_priority is not None and
+                    not self._validate_group_priority(group_priority)):
                     pecan.abort(httpclient.BAD_REQUEST, _('Invalid group-priority'))
             if group_state and not self._validate_group_state(group_state):
                     pecan.abort(httpclient.BAD_REQUEST,
