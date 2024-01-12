@@ -27,7 +27,6 @@ CONF = cfg.CONF
 LOG = logging.getLogger(__name__)
 
 # validation constants for System Peer
-MAX_SYSTEM_PEER_NAME_LEN = 255
 MAX_SYSTEM_PEER_MANAGER_ENDPOINT_LEN = 255
 MAX_SYSTEM_PEER_MANAGER_USERNAME_LEN = 255
 MAX_SYSTEM_PEER_MANAGER_PASSWORD_LEN = 255
@@ -130,12 +129,6 @@ class SystemPeersController(restcomm.GenericPathController):
         except ValueError:
             LOG.exception("Invalid UUID: %s" % _uuid)
             return False
-
-    def _validate_name(self, name):
-        if not name or name.isdigit() or len(name) >= MAX_SYSTEM_PEER_NAME_LEN:
-            LOG.debug("Invalid name: %s" % name)
-            return False
-        return True
 
     def _validate_manager_endpoint(self, endpoint):
         if not endpoint or len(endpoint) >= MAX_SYSTEM_PEER_MANAGER_ENDPOINT_LEN or \
@@ -251,7 +244,7 @@ class SystemPeersController(restcomm.GenericPathController):
             pecan.abort(httpclient.BAD_REQUEST, _('Invalid peer uuid'))
 
         peer_name = payload.get('peer_name')
-        if not self._validate_name(peer_name):
+        if not utils.validate_name(peer_name):
             pecan.abort(httpclient.BAD_REQUEST, _('Invalid peer name'))
 
         endpoint = payload.get('manager_endpoint')
@@ -391,7 +384,7 @@ class SystemPeersController(restcomm.GenericPathController):
                 pecan.abort(httpclient.BAD_REQUEST, _('Invalid peer uuid'))
 
         if peer_name:
-            if not self._validate_name(peer_name):
+            if not utils.validate_name(peer_name):
                 pecan.abort(httpclient.BAD_REQUEST, _('Invalid peer name'))
 
         if endpoint:
