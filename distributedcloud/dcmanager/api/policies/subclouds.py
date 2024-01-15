@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2022 Wind River Systems, Inc.
+# Copyright (c) 2022-2024 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -84,10 +84,6 @@ subclouds_rules = [
             {
                 'method': 'PATCH',
                 'path': '/v1.0/subclouds/{subcloud}/update_status'
-            },
-            {
-                'method': 'PATCH',
-                'path': '/v1.0/subclouds/{subcloud}/migrate'
             }
         ]
     )

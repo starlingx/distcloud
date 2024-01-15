@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2023 Wind River Systems, Inc.
+# Copyright (c) 2023-2024 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -156,12 +156,11 @@ class PeerGroupAuditManager(manager.Manager):
                     raise e
             self.require_audit_flag = False
 
-        # if remote subcloud peer group's migration_status is 'complete'
-        # or self.require_audit_flag is True, get remote subclouds.
-        # For 'managed+online' subclouds, set 'unmanaged+secondary' to
-        # local on same subclouds
+        # if remote subcloud peer group's migration_status is 'complete',
+        # get remote subclouds. For 'managed+online' subclouds,
+        # set 'unmanaged+secondary' to local on same subclouds
         elif remote_peer_group.get("migration_status") == \
-            consts.PEER_GROUP_MIGRATION_COMPLETE or self.require_audit_flag:
+            consts.PEER_GROUP_MIGRATION_COMPLETE:
             remote_subclouds = \
                 self._get_subclouds_by_peer_group_from_system_peer(
                     system_peer,

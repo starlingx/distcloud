@@ -1,4 +1,4 @@
-# Copyright (c) 2017-2023 Wind River Systems, Inc.
+# Copyright (c) 2017-2024 Wind River Systems, Inc.
 # Licensed under the Apache License, Version 2.0 (the "License"); you may
 # not use this file except in compliance with the License. You may obtain
 # a copy of the License at
@@ -247,11 +247,6 @@ class ManagerClient(RPCClient):
                                              subcloud_name=subcloud_name,
                                              payload=payload,
                                              deploy_states_to_run=deploy_states_to_run))
-
-    def migrate_subcloud(self, ctxt, subcloud_ref, payload):
-        return self.cast(ctxt, self.make_msg('migrate_subcloud',
-                                             subcloud_ref=subcloud_ref,
-                                             payload=payload))
 
     def get_subcloud_name_by_region_name(self, ctxt, subcloud_region):
         return self.call(ctxt, self.make_msg('get_subcloud_name_by_region_name',

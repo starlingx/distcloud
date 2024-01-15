@@ -1,5 +1,5 @@
 # Copyright (c) 2017 Ericsson AB.
-# Copyright (c) 2017-2023 Wind River Systems, Inc.
+# Copyright (c) 2017-2024 Wind River Systems, Inc.
 # All Rights Reserved.
 #
 #    Licensed under the Apache License, Version 2.0 (the "License"); you may
@@ -287,38 +287,6 @@ class SubcloudsController(object):
         sync_status = dccommon_consts.DEPLOY_CONFIG_OUT_OF_DATE if out_of_date \
             else dccommon_consts.DEPLOY_CONFIG_UP_TO_DATE
         return sync_status
-
-    def _validate_migrate(self, payload, subcloud):
-        # Verify rehome data
-        if not subcloud.rehome_data:
-            LOG.exception("Unable to migrate subcloud %s, "
-                          "required rehoming data is missing" % subcloud.name)
-            pecan.abort(500, _("Unable to migrate subcloud %s, "
-                               "required rehoming data is missing" % subcloud.name))
-        rehome_data = json.loads(subcloud.rehome_data)
-        if 'saved_payload' not in rehome_data:
-            LOG.exception("Unable to migrate subcloud %s, "
-                          "saved_payload is missing in rehoming data" % subcloud.name)
-            pecan.abort(500, _("Unable to migrate subcloud %s, "
-                               "saved_payload is missing in rehoming data" % subcloud.name))
-        saved_payload = rehome_data['saved_payload']
-        # Validate saved_payload
-        if len(saved_payload) == 0:
-            LOG.exception("Unable to migrate subcloud %s, "
-                          "saved_payload is empty" % subcloud.name)
-            pecan.abort(500, _("Unable to migrate subcloud %s, "
-                               "saved_payload is empty" % subcloud.name))
-        if 'bootstrap-address' not in saved_payload:
-            LOG.exception("Unable to migrate subcloud %s, "
-                          "bootstrap-address is missing in rehoming data" % subcloud.name)
-            pecan.abort(500, _("Unable to migrate subcloud %s, "
-                               "bootstrap-address is missing in rehoming data" % subcloud.name))
-        # Validate sysadmin_password is in payload
-        if 'sysadmin_password' not in payload:
-            LOG.exception("Unable to migrate subcloud %s, "
-                          "need sysadmin_password" % subcloud.name)
-            pecan.abort(500, _("Unable to migrate subcloud %s, "
-                               "need sysadmin_password" % subcloud.name))
 
     def _validate_rehome_pending(self, subcloud, management_state):
         unmanaged = dccommon_consts.MANAGEMENT_UNMANAGED
@@ -909,29 +877,6 @@ class SubcloudsController(object):
             except Exception:
                 LOG.exception("Unable to prestage subcloud %s" % subcloud.name)
                 pecan.abort(500, _('Unable to prestage subcloud'))
-        elif verb == 'migrate':
-            try:
-                # Reject if not in secondary/rehome-failed/rehome-prep-failed state
-                if subcloud.deploy_status not in [consts.DEPLOY_STATE_SECONDARY,
-                                                  consts.DEPLOY_STATE_REHOME_FAILED,
-                                                  consts.DEPLOY_STATE_REHOME_PREP_FAILED]:
-                    LOG.exception("Unable to migrate subcloud %s, "
-                                  "must be in secondary or rehome failure state" % subcloud.name)
-                    pecan.abort(400, _("Unable to migrate subcloud %s, "
-                                       "must be in secondary or rehome failure state" %
-                                       subcloud.name))
-                payload = json.loads(request.body)
-                self._validate_migrate(payload, subcloud)
-
-                # Call migrate
-                self.dcmanager_rpc_client.migrate_subcloud(context, subcloud.id, payload)
-                return db_api.subcloud_db_model_to_dict(subcloud)
-            except RemoteError as e:
-                pecan.abort(422, e.value)
-            except Exception:
-                LOG.exception(
-                    "Unable to migrate subcloud %s" % subcloud.name)
-                pecan.abort(500, _('Unable to migrate subcloud'))
 
     @utils.synchronized(LOCK_NAME)
     @index.when(method='delete', template='json')

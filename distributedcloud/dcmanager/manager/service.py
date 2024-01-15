@@ -1,4 +1,4 @@
-# Copyright (c) 2017-2023 Wind River Systems, Inc.
+# Copyright (c) 2017-2024 Wind River Systems, Inc.
 # Licensed under the Apache License, Version 2.0 (the "License"); you may
 # not use this file except in compliance with the License. You may obtain
 # a copy of the License at
@@ -294,12 +294,6 @@ class DCManagerService(service.Service):
         return self.subcloud_manager.subcloud_deploy_abort(context,
                                                            subcloud_id,
                                                            deploy_status)
-
-    @request_context
-    def migrate_subcloud(self, context, subcloud_ref, payload):
-        LOG.info("Handling migrate_subcloud request for: %s",
-                 subcloud_ref)
-        return self.subcloud_manager.migrate_subcloud(context, subcloud_ref, payload)
 
     @run_in_thread
     @request_context
