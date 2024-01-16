@@ -1004,7 +1004,14 @@ def pre_deploy_create(payload: dict, context: RequestContext,
 
     validate_subcloud_config(context, payload)
 
-    validate_install_values(payload)
+    # install_values of secondary subclouds are validated on peer site
+    if consts.DEPLOY_STATE_SECONDARY in payload and \
+            utils.is_req_from_another_dc(request):
+        LOG.debug("Skipping install_values validation for subcloud "
+                  f"{payload['name']}. Subcloud is secondary and "
+                  "request is from a peer site.")
+    else:
+        validate_install_values(payload)
 
     validate_k8s_version(payload)
 

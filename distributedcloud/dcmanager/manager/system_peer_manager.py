@@ -5,6 +5,7 @@
 #
 
 import base64
+from contextlib import nullcontext
 import functools
 import json
 import tempfile
@@ -25,10 +26,12 @@ from dcmanager.common.i18n import _
 from dcmanager.common import manager
 from dcmanager.common import utils
 from dcmanager.db import api as db_api
+from dcmanager.db.sqlalchemy import models
 
 LOG = logging.getLogger(__name__)
 
 TEMP_BOOTSTRAP_PREFIX = 'peer_subcloud_bootstrap_yaml'
+TEMP_INSTALL_PREFIX = 'peer_subcloud_install_yaml'
 MAX_PARALLEL_SUBCLOUD_SYNC = 10
 MAX_PARALLEL_SUBCLOUD_DELETE = 10
 VERIFY_SUBCLOUD_SYNC_VALID = 'valid'
@@ -168,12 +171,16 @@ class SystemPeerManager(manager.Manager):
 
         return failed_subclouds, error_msg
 
-    def _add_or_update_subcloud(self, dc_client, peer_controller_gateway_ip,
-                                dc_peer_pg_id, subcloud):
+    def _add_or_update_subcloud(self, dc_client: DcmanagerClient,
+                                peer_controller_gateway_ip: str,
+                                dc_peer_pg_id: int,
+                                subcloud: models.Subcloud):
         """Add or update subcloud on peer site in parallel."""
-        with tempfile.NamedTemporaryFile(prefix=TEMP_BOOTSTRAP_PREFIX,
-                                         suffix=".yaml",
-                                         mode='w') as temp_file:
+        with tempfile.NamedTemporaryFile(
+            prefix=TEMP_BOOTSTRAP_PREFIX, suffix=".yaml", mode="w"
+        ) as temp_bootstrap_file, tempfile.NamedTemporaryFile(
+            prefix=TEMP_INSTALL_PREFIX, suffix=".yaml", mode="w"
+        ) if subcloud.data_install else nullcontext() as temp_install_file:
             subcloud_name = subcloud.get('name')
             region_name = subcloud.get('region_name')
             rehome_data = json.loads(subcloud.rehome_data)
@@ -182,22 +189,29 @@ class SystemPeerManager(manager.Manager):
             subcloud_payload['systemcontroller_gateway_address'] = \
                 peer_controller_gateway_ip
 
-            yaml.dump(subcloud_payload, temp_file)
+            yaml.dump(subcloud_payload, temp_bootstrap_file)
 
-            files = {"bootstrap_values": temp_file.name}
+            files = {consts.BOOTSTRAP_VALUES: temp_bootstrap_file.name}
             data = {
-                "bootstrap-address": subcloud_payload['bootstrap-address'],
+                consts.BOOTSTRAP_ADDRESS: subcloud_payload[
+                    consts.BOOTSTRAP_ADDRESS],
                 "region_name": subcloud.region_name,
                 "location": subcloud.location,
                 "description": subcloud.description
             }
 
+            if temp_install_file:
+                data_install = json.loads(subcloud.data_install)
+                yaml.dump(data_install, temp_install_file)
+                files[consts.INSTALL_VALUES] = temp_install_file.name
+
             try:
                 # Sync subcloud information to peer site
                 peer_subcloud = self.get_peer_subcloud(dc_client, subcloud_name)
                 if peer_subcloud:
-                    dc_peer_subcloud = dc_client.update_subcloud(subcloud_name,
-                                                                 files, data)
+                    dc_peer_subcloud = dc_client.update_subcloud(region_name,
+                                                                 files, data,
+                                                                 is_region_name=True)
                     LOG.info(f"Updated Subcloud {dc_peer_subcloud.get('name')} "
                              "(region_name: "
                              f"{dc_peer_subcloud.get('region-name')}) on peer "

@@ -754,7 +754,15 @@ class SubcloudsController(object):
                     peer_group_id = pgrp.id
 
             if consts.INSTALL_VALUES in payload:
-                psd_common.validate_install_values(payload, subcloud)
+                # install_values of secondary subclouds are validated on
+                # peer site
+                if utils.subcloud_is_secondary_state(subcloud.deploy_status) \
+                        and utils.is_req_from_another_dc(request):
+                    LOG.debug("Skipping install_values validation for subcloud "
+                              f"{subcloud.name}. Subcloud is secondary and "
+                              "request is from a peer site.")
+                else:
+                    psd_common.validate_install_values(payload, subcloud)
                 payload['data_install'] = json.dumps(payload[consts.INSTALL_VALUES])
 
             try:

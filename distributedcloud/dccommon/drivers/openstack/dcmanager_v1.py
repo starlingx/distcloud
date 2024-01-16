@@ -231,7 +231,8 @@ class DcmanagerClient(base.DriverBase):
         fields.update(data)
         enc = MultipartEncoder(fields=fields)
         headers = {"X-Auth-Token": self.token,
-                   "Content-Type": enc.content_type}
+                   "Content-Type": enc.content_type,
+                   "User-Agent": consts.DCMANAGER_V1_HTTP_AGENT}
         response = requests.post(url, headers=headers, data=enc,
                                  timeout=self.timeout)
 
