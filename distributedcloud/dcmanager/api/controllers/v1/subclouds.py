@@ -40,7 +40,9 @@ from keystoneauth1 import exceptions as keystone_exceptions
 
 from dccommon import consts as dccommon_consts
 from dccommon.drivers.openstack.fm import FmClient
+from dccommon.drivers.openstack.sdk_platform import OpenStackDriver
 from dccommon.drivers.openstack.sysinv_v1 import SysinvClient
+from dccommon.drivers.openstack import vim
 from dccommon import exceptions as dccommon_exceptions
 
 from dcmanager.api.controllers import restcomm
@@ -169,6 +171,56 @@ class SubcloudsController(object):
         payload = dict()
         payload.update(json.loads(request.body))
         return payload
+
+    def _check_existing_vim_strategy(self, context, subcloud):
+        """Check existing vim strategy by state.
+
+        An on-going vim strategy may interfere with subcloud reconfiguration
+        attempt and result in unrecoverable failure. Check if there is an
+        on-going strategy and whether it is in a state that is safe to proceed.
+
+        :param context: request context object.
+        :param subcloud: subcloud object.
+
+        :returns bool: True if on-going vim strategy found or not searchable,
+                       otherwise False.
+        """
+
+        strategy_steps = None
+        # Firstly, check the DC orchestrated vim strategies from database
+        try:
+            strategy_steps = db_api.strategy_step_get(context, subcloud.id)
+        except exceptions.StrategyStepNotFound:
+            LOG.debug(f"No existing vim strategy steps on subcloud: {subcloud.name}")
+        except Exception:
+            LOG.exception("Failed to get strategy steps on subcloud: "
+                          f"{subcloud.name}.")
+            return True
+
+        if strategy_steps and strategy_steps.state not in (
+            consts.STRATEGY_STATE_COMPLETE,
+            consts.STRATEGY_STATE_ABORTED,
+            consts.STRATEGY_STATE_FAILED
+        ):
+            return True
+
+        # Then check the system config update strategy
+        try:
+            keystone_client = OpenStackDriver(
+                region_name=subcloud.region_name,
+                region_clients=None).keystone_client
+            vim_client = vim.VimClient(subcloud.region_name,
+                                       keystone_client.session)
+            strategy = vim_client.get_strategy(
+                strategy_name=vim.STRATEGY_NAME_SYS_CONFIG_UPDATE,
+                raise_error_if_missing=False)
+        except Exception:
+            # Don't block the operation when the vim service is inaccessible
+            LOG.warning(f"Openstack admin endpoints on subcloud: {subcloud.name} "
+                        "are unaccessible")
+            return False
+
+        return strategy and strategy.state in vim.TRANSITORY_STATES
 
     # TODO(nicodemos): Check if subcloud is online and network already exist in the
     # subcloud when the lock/unlock is not required for network reconfiguration
@@ -671,6 +723,15 @@ class SubcloudsController(object):
                 )
                 # Validation
                 self._validate_network_reconfiguration(payload, subcloud)
+                # Validate there's no on-going vim strategy
+                if self._check_existing_vim_strategy(context, subcloud):
+                    error_msg = (
+                        "Reconfiguring subcloud network is not allowed while "
+                        "there is an on-going orchestrated operation in this "
+                        "subcloud. Please try again after the strategy has "
+                        "completed."
+                    )
+                    pecan.abort(400, error_msg)
 
             management_state = payload.get('management-state')
             group_id = payload.get('group_id')

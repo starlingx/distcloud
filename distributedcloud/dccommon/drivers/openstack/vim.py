@@ -1,5 +1,5 @@
 # Copyright 2016 Ericsson AB
-# Copyright (c) 2017-2022 Wind River Systems, Inc.
+# Copyright (c) 2017-2022,2024 Wind River Systems, Inc.
 # Licensed under the Apache License, Version 2.0 (the "License"); you may
 # not use this file except in compliance with the License. You may obtain
 # a copy of the License at
@@ -29,6 +29,7 @@ STRATEGY_NAME_KUBE_ROOTCA_UPDATE = 'kube-rootca-update'
 STRATEGY_NAME_KUBE_UPGRADE = 'kube-upgrade'
 STRATEGY_NAME_SW_PATCH = 'sw-patch'
 STRATEGY_NAME_SW_UPGRADE = 'sw-upgrade'
+STRATEGY_NAME_SYS_CONFIG_UPDATE = "system-config-update"
 
 APPLY_TYPE_SERIAL = 'serial'
 APPLY_TYPE_PARALLEL = 'parallel'
@@ -63,6 +64,12 @@ STATE_ABORTING = 'aborting'
 STATE_ABORT_FAILED = 'abort-failed'
 STATE_ABORT_TIMEOUT = 'abort-timeout'
 STATE_ABORTED = 'aborted'
+
+TRANSITORY_STATES = [STATE_INITIAL,
+                     STATE_BUILDING,
+                     STATE_READY_TO_APPLY,
+                     STATE_APPLYING,
+                     STATE_ABORTING]
 
 # The exception message when vim authorization fails
 VIM_AUTHORIZATION_FAILED = "Authorization failed"

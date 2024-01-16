@@ -42,7 +42,9 @@ from dcmanager.rpc import client as rpc_client
 from dcmanager.tests.unit.api import test_root_controller as testroot
 from dcmanager.tests.unit.api.v1.controllers.mixins import APIMixin
 from dcmanager.tests.unit.api.v1.controllers.mixins import PostMixin
+from dcmanager.tests.unit.common import fake_strategy
 from dcmanager.tests.unit.common import fake_subcloud
+from dcmanager.tests.unit.fakes import FakeVimStrategy
 from dcmanager.tests import utils
 
 SAMPLE_SUBCLOUD_NAME = "SubcloudX"
@@ -1405,17 +1407,15 @@ class TestSubcloudAPIOther(testroot.DCManagerApiTest):
             deploy_status=None)
         self.assertEqual(response.status_int, 200)
 
+    @mock.patch.object(subclouds.SubcloudsController,
+                       "_check_existing_vim_strategy")
     @mock.patch.object(psd_common, "get_network_address_pool")
-    @mock.patch.object(
-        subclouds.SubcloudsController, "_validate_network_reconfiguration"
-    )
+    @mock.patch.object(subclouds.SubcloudsController,
+                       "_validate_network_reconfiguration")
     @mock.patch.object(subclouds.SubcloudsController, "_get_patch_data")
     def test_patch_subcloud_network_values(
-        self,
-        mock_get_patch_data,
-        mock_validate_network_reconfiguration,
-        mock_mgmt_address_pool,
-    ):
+            self, mock_get_patch_data, mock_validate_network_reconfiguration,
+            mock_mgmt_address_pool, mock_check_existing_vim_strategy):
         subcloud = fake_subcloud.create_fake_subcloud(self.ctx)
         db_api.subcloud_update(
             self.ctx,
@@ -1438,6 +1438,7 @@ class TestSubcloudAPIOther(testroot.DCManagerApiTest):
             "192.168.204.0", 24, "192.168.204.2", "192.168.204.100"
         )
         mock_mgmt_address_pool.return_value = fake_management_address_pool
+        mock_check_existing_vim_strategy.return_value = False
 
         self.mock_rpc_client().update_subcloud_with_network_reconfig.return_value = (
             True
@@ -1454,11 +1455,54 @@ class TestSubcloudAPIOther(testroot.DCManagerApiTest):
         )
         self.assertEqual(response.status_int, 200)
 
+    @mock.patch.object(subclouds.SubcloudsController,
+                       "_check_existing_vim_strategy")
+    @mock.patch.object(psd_common, "get_network_address_pool")
+    @mock.patch.object(subclouds.SubcloudsController,
+                       "_validate_network_reconfiguration")
+    @mock.patch.object(subclouds.SubcloudsController, "_get_patch_data")
+    def test_patch_subcloud_network_values_with_onging_strategy(
+            self, mock_get_patch_data, mock_validate_network_reconfiguration,
+            mock_mgmt_address_pool, mock_check_existing_vim_strategy):
+        subcloud = fake_subcloud.create_fake_subcloud(self.ctx)
+        db_api.subcloud_update(
+            self.ctx, subcloud.id,
+            availability_status=dccommon_consts.AVAILABILITY_ONLINE)
+        fake_password = (
+            base64.b64encode('testpass'.encode("utf-8"))).decode('ascii')
+        payload = {'sysadmin_password': fake_password,
+                   'bootstrap_address': "192.168.102.2",
+                   'management_subnet': "192.168.102.0/24",
+                   'management_start_ip': "192.168.102.5",
+                   'management_end_ip': "192.168.102.49",
+                   'management_gateway_ip': "192.168.102.1"}
+
+        fake_management_address_pool = FakeAddressPool('192.168.204.0', 24,
+                                                       '192.168.204.2',
+                                                       '192.168.204.100')
+        mock_mgmt_address_pool.return_value = fake_management_address_pool
+        mock_check_existing_vim_strategy.return_value = True
+
+        self.mock_rpc_client().update_subcloud_with_network_reconfig.\
+            return_value = True
+        mock_get_patch_data.return_value = payload
+        six.assertRaisesRegex(
+            self,
+            webtest.app.AppError,
+            "400 *",
+            self.app.patch_json,
+            f"{ FAKE_URL }/{ subcloud.id }",
+            headers=FAKE_HEADERS,
+            params=payload,
+        )
+        mock_validate_network_reconfiguration.assert_called_once()
+        self.mock_rpc_client().update_subcloud_with_network_reconfig.\
+            assert_not_called()
+
     @mock.patch.object(subclouds.SubcloudsController, "_get_patch_data")
     @mock.patch.object(cutils, "get_vault_load_files")
-    def test_patch_subcloud_install_values(
-        self, mock_vault_files, mock_get_patch_data
-    ):
+    def test_patch_subcloud_install_values(self, mock_vault_files,
+                                           mock_get_patch_data):
         mock_vault_files.return_value = ("fake_iso", "fake_sig")
         subcloud = fake_subcloud.create_fake_subcloud(self.ctx, data_install=None)
         payload = {}
@@ -2866,3 +2910,85 @@ class TestSubcloudAPIOther(testroot.DCManagerApiTest):
             existing_networks=None,
             operation=None,
         )
+
+    @mock.patch.object(subclouds, "OpenStackDriver")
+    @mock.patch.object(subclouds.vim, "VimClient")
+    def test_check_other_strategy_exists(self, mock_vim_client, mock_os_driver):
+        subcloud = fake_subcloud.create_fake_subcloud(self.ctx)
+        fake_strategy.create_fake_strategy_step(
+            self.ctx,
+            subcloud_id=subcloud.id,
+            state=consts.STRATEGY_STATE_INITIAL)
+        sc = subclouds.SubcloudsController()
+        result = sc._check_existing_vim_strategy(self.ctx, subcloud)
+        self.assertTrue(result)
+        mock_os_driver.assert_not_called()
+        mock_vim_client.assert_not_called()
+
+    @mock.patch.object(subclouds, "db_api")
+    @mock.patch.object(subclouds, "OpenStackDriver")
+    @mock.patch.object(subclouds.vim, "VimClient")
+    def test_no_vim_strategy(self, mock_vim_client, mock_os_driver, mock_db_api):
+        subcloud = fake_subcloud.create_fake_subcloud(self.ctx)
+        sc = subclouds.SubcloudsController()
+        result = sc._check_existing_vim_strategy(self.ctx, subcloud)
+        mock_vim_client_instance = mock_vim_client.return_value
+        mock_vim_client_instance.get_strategy.return_value = None
+        mock_db_api.strategy_step_get.side_effect = \
+            exceptions.StrategyStepNotFound
+
+        sc = subclouds.SubcloudsController()
+        result = sc._check_existing_vim_strategy(self.ctx, subcloud)
+
+        mock_os_driver.assert_called_with(region_name=subcloud.region_name,
+                                          region_clients=None)
+        mock_vim_client.assert_called_with(
+            subcloud.region_name,
+            mock_os_driver.return_value.keystone_client.session)
+        self.assertFalse(result)
+
+    @mock.patch.object(subclouds, "db_api")
+    @mock.patch.object(subclouds, "OpenStackDriver")
+    @mock.patch.object(subclouds.vim, "VimClient")
+    def test_check_system_config_update_strategy_exists(
+        self, mock_vim_client, mock_os_driver, mock_db_api
+    ):
+        subcloud = fake_subcloud.create_fake_subcloud(self.ctx)
+        fake_strategy = FakeVimStrategy(state=subclouds.vim.STATE_APPLYING)
+        mock_db_api.strategy_step_get.side_effect = \
+            exceptions.StrategyStepNotFound
+        mock_vim_client_instance = mock_vim_client.return_value
+        mock_vim_client_instance.get_strategy.return_value = fake_strategy
+
+        sc = subclouds.SubcloudsController()
+        result = sc._check_existing_vim_strategy(self.ctx, subcloud)
+
+        mock_os_driver.assert_called_with(region_name=subcloud.region_name,
+                                          region_clients=None)
+        mock_vim_client.assert_called_with(
+            subcloud.region_name,
+            mock_os_driver.return_value.keystone_client.session)
+        self.assertTrue(result)
+
+    @mock.patch.object(subclouds, "db_api")
+    @mock.patch.object(subclouds, "OpenStackDriver")
+    @mock.patch.object(subclouds.vim, "VimClient")
+    def test_check_system_config_update_strategy_applied(
+        self, mock_vim_client, mock_os_driver, mock_db_api
+    ):
+        subcloud = fake_subcloud.create_fake_subcloud(self.ctx)
+        fake_strategy = FakeVimStrategy(state=subclouds.vim.STATE_APPLIED)
+        mock_db_api.strategy_step_get.side_effect = \
+            exceptions.StrategyStepNotFound
+        mock_vim_client_instance = mock_vim_client.return_value
+        mock_vim_client_instance.get_strategy.return_value = fake_strategy
+
+        sc = subclouds.SubcloudsController()
+        result = sc._check_existing_vim_strategy(self.ctx, subcloud)
+
+        mock_os_driver.assert_called_with(region_name=subcloud.region_name,
+                                          region_clients=None)
+        mock_vim_client.assert_called_with(
+            subcloud.region_name,
+            mock_os_driver.return_value.keystone_client.session)
+        self.assertFalse(result)
