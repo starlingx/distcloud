@@ -136,8 +136,8 @@ class UploadState(BaseState):
                                                       potential_missing_patches)
 
                             if missing_patches:
-                                message = \
-                                    (f"Release files {missing_patches} are missing")
+                                message = (f"Release files {missing_patches} "
+                                           "are missing")
                                 self.error_log(strategy_step, message)
                                 raise Exception(message)
                         break
@@ -150,8 +150,8 @@ class UploadState(BaseState):
             else:
                 # No load was uploaded therefore the patches are really missing.
                 if potential_missing_patches:
-                    message = \
-                        (f"Release files {potential_missing_patches} are missing")
+                    message = (f"Release files {potential_missing_patches} "
+                               "are missing")
                     self.error_log(strategy_step, message)
                     raise Exception(message)
 

@@ -44,9 +44,8 @@ class PreCheckState(BaseState):
             next_state=consts.STRATEGY_STATE_INSTALLING_LICENSE,
             region_name=region_name)
 
-    def _check_health(
-            self, strategy_step, subcloud_sysinv_client, subcloud_fm_client,
-            host, upgrades):
+    def _check_health(self, strategy_step, subcloud_sysinv_client,
+                      subcloud_fm_client, host, upgrades):
 
         # Check system upgrade health
         #

@@ -21,6 +21,8 @@ DC Manager Engine Server.
 
 import eventlet
 
+eventlet.monkey_patch()
+
 # pylint: disable=wrong-import-position
 from oslo_config import cfg  # noqa: E402
 from oslo_i18n import _lazy  # noqa: E402
@@ -33,7 +35,6 @@ from dcmanager.common import messaging  # noqa: E402
 from dcorch.common import messaging as dcorch_messaging  # noqa: E402
 # pylint: enable=wrong-import-position
 
-eventlet.monkey_patch()
 _lazy.enable_lazy()
 config.register_options()
 config.register_keystone_options()

@@ -379,10 +379,10 @@ def validate_admin_network_config(admin_subnet_str,
         LOG.exception(e)
         pecan.abort(400, _("admin_end_address invalid: %s") % e)
 
-    if admin_start_ip > admin_end_ip:
+    if admin_start_ip >= admin_end_ip:
         pecan.abort(
             400,
-            _("admin_start_address greater than "
+            _("admin_start_address greater than or equal to "
                 "admin_end_address"))
 
     if len(netaddr.IPRange(admin_start_ip, admin_end_ip)) < \

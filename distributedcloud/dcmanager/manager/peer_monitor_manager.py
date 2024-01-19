@@ -194,9 +194,7 @@ class PeerMonitor(object):
         return msg
 
     def _clean_peer_group_audit_threads(self):
-        for peer_group_id, _ in self.peer_group_audit_obj_map.items():
-            pgam_obj = \
-                self.peer_group_audit_obj_map[peer_group_id]
+        for pgam_obj in self.peer_group_audit_obj_map.values():
             pgam_obj.stop()
         self.peer_group_audit_obj_map.clear()
 

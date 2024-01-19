@@ -243,8 +243,8 @@ class UpgradingSimplexState(BaseState):
 
         return upgrade_data_install
 
-    def _get_subcloud_upgrade_data(
-            self, strategy_step, subcloud_sysinv_client, subcloud_barbican_client):
+    def _get_subcloud_upgrade_data(self, strategy_step, subcloud_sysinv_client,
+                                   subcloud_barbican_client):
         """Get the subcloud data required for upgrades.
 
            In case the subcloud is no longer reachable, get upgrade_data from

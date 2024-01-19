@@ -161,7 +161,7 @@ class PeerGroupAuditManager(manager.Manager):
         # get remote subclouds. For 'managed+online' subclouds,
         # set 'unmanaged+secondary' to local on same subclouds
         elif remote_peer_group.get("migration_status") == \
-                consts.PEER_GROUP_MIGRATION_COMPLETE or self.require_audit_flag:
+                consts.PEER_GROUP_MIGRATION_COMPLETE:
             remote_subclouds = \
                 self._get_subclouds_by_peer_group_from_system_peer(
                     system_peer,

@@ -1397,9 +1397,7 @@ def get_sw_version(release=None):
 
 
 def validate_release_version_supported(release_version_to_check):
-    """Given a release version, check whether it's supported by the current active
-
-    version.
+    """Check if a release version is supported by the current active version.
 
     :param release_version_to_check: version string to validate
 

@@ -106,7 +106,7 @@ def determine_image_fields(image):
                   'bmc',
                   'retimer_included']
     fields = dict((k, str(v)) for (k, v) in vars(image).items()
-                  if k in field_list and v)
+                  if k in field_list and v is not None)
     return fields
 
 

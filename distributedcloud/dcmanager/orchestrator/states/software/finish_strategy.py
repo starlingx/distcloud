@@ -68,9 +68,8 @@ class FinishStrategyState(BaseState):
             try:
                 software_client.delete(releases_to_delete)
             except Exception:
-                message = \
-                    ("Cannot delete releases from subcloud. Please see logs for"
-                     " details.")
+                message = ("Cannot delete releases from subcloud. Please see "
+                           "logs for details.")
                 self.exception_log(strategy_step, message)
                 raise Exception(message)
 
