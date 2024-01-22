@@ -519,7 +519,7 @@ class SysinvClient(base.DriverBase):
     def _validate_certificate(self, signature, certificate):
         # JKUNG need to look at the crypto public serial id
         certificate_sig = hashlib.md5(
-            encodeutils.safe_encode(certificate)).hexdigest()
+            encodeutils.safe_encode(certificate), usedforsecurity=False).hexdigest()
 
         if certificate_sig == signature:
             return True
