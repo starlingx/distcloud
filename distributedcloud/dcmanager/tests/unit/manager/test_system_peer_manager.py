@@ -218,19 +218,22 @@ class TestSystemPeerManager(base.DCManagerTestCase):
             }
         }
         # Create local dc subcloud1 mock data in database
+        data_install = json.dumps(fake_subcloud.FAKE_SUBCLOUD_INSTALL_VALUES)
         self.create_subcloud_with_pg_static(
             self.ctx,
             peer_group_id=peer_group.id,
             rehome_data=json.dumps(rehome_data),
             name='subcloud1',
-            region_name='subcloud1')
+            region_name='subcloud1',
+            data_install=data_install)
         # Create local dc subcloud2 mock data in database
         self.create_subcloud_with_pg_static(
             self.ctx,
             peer_group_id=peer_group.id,
             rehome_data=json.dumps(rehome_data),
             name='subcloud2',
-            region_name='subcloud2')
+            region_name='subcloud2',
+            data_install=None)
         peer_subcloud1 = FAKE_SITE1_SUBCLOUD1_DATA
         peer_subcloud2 = FAKE_SITE1_SUBCLOUD2_DATA
         peer_subcloud3 = FAKE_SITE1_SUBCLOUD3_DATA
@@ -256,7 +259,7 @@ class TestSystemPeerManager(base.DCManagerTestCase):
             mock.call(peer_subcloud3.get('name'))
         ])
         mock_dc_client().update_subcloud.assert_has_calls([
-            mock.call('subcloud1', mock.ANY, mock.ANY),
+            mock.call('subcloud1', mock.ANY, mock.ANY, is_region_name=True),
             mock.call(FAKE_SITE1_SUBCLOUD1_REGION_NAME, files=None,
                       data={'peer_group': str(FAKE_SITE1_PEER_GROUP_ID)},
                       is_region_name=True),
