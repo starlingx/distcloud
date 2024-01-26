@@ -788,7 +788,6 @@ def find_ansible_error_msg(subcloud_name, log_file, stage=None):
     error_found = False
     error_msg = []
     failed_task = ''
-    files_for_search = []
 
     cmd_1 = 'awk'
     # awk command to get the information iside the last match found
@@ -801,23 +800,16 @@ def find_ansible_error_msg(subcloud_name, log_file, stage=None):
             f = f ? (f "\\n" $0) : $0}      # assign or append to f
             END {print f}
             ''')
-
-    # necessary check since is possible to have
-    # the error in rotated ansible log
-    log_file_temp = log_file + '.1'
-    if os.path.exists(log_file_temp):
-        files_for_search.append(log_file_temp)
-        if os.path.exists(log_file):
-            files_for_search.append(log_file)
-    else:
-        files_for_search.append(log_file)
-
-    if len(files_for_search) < 2:
-        cmd_list = ([cmd_1, cmd_2, files_for_search[0]])
-    else:
-        cmd_list = ([cmd_1, cmd_2, files_for_search[0], files_for_search[1]])
-
     try:
+        # necessary check since is possible to have
+        # the error in rotated ansible log
+        files_for_search = add_latest_rotated_file(log_file)
+
+        if len(files_for_search) < 2:
+            cmd_list = ([cmd_1, cmd_2, files_for_search[0]])
+        else:
+            cmd_list = ([cmd_1, cmd_2, files_for_search[0], files_for_search[1]])
+
         error_msg_raw = subprocess.check_output(
             cmd_list,
             stderr=subprocess.STDOUT).decode('utf-8')
@@ -849,6 +841,38 @@ def find_ansible_error_msg(subcloud_name, log_file, stage=None):
                 subcloud_name,
                 log_file)
     return msg
+
+
+def add_latest_rotated_file(log_file):
+    """Find the latest rotated file for the given log file.
+
+    Check the existence of the given log file with its latest rotated file.
+
+    Returns the log file itself if it exists and the latest rotated file
+    doesn't exist;
+    or the log file and its latest rotated file if both exist;
+    or the latest rotated file only if it exists but the log file itself
+    doesn't exit.
+
+    Raises exception if both of the log file and its latest rotated file
+    don't exist.
+    """
+
+    log_files = []
+
+    # the latest rotated log file
+    log_file_temp = log_file + '.1'
+    if os.path.exists(log_file_temp):
+        log_files.append(log_file_temp)
+
+    if os.path.exists(log_file):
+        log_files.append(log_file)
+
+    if len(log_files) == 0:
+        raise Exception("Log file %s and its latest rotated file don't exist."
+                        % log_file)
+
+    return log_files
 
 
 def get_failed_task(files):
@@ -933,9 +957,10 @@ def is_valid_for_backup_operation(operation, subcloud, bootstrap_address_dict=No
 def _is_valid_for_backup_create(subcloud):
     if subcloud.availability_status != dccommon_consts.AVAILABILITY_ONLINE \
             or subcloud.management_state != dccommon_consts.MANAGEMENT_MANAGED \
-            or subcloud.deploy_status not in consts.VALID_DEPLOY_STATES_FOR_BACKUP:
-        msg = ('Subcloud %s must be online, managed and have valid '
-               'deploy-status for the subcloud-backup '
+            or subcloud.deploy_status != consts.DEPLOY_STATE_DONE \
+            or subcloud.prestage_status in consts.STATES_FOR_ONGOING_PRESTAGE:
+        msg = ('Subcloud %s must be deployed, online, managed, '
+               'and no ongoing prestage for the subcloud-backup '
                'create operation.' % subcloud.name)
         raise exceptions.ValidateFail(msg)
 
@@ -1559,3 +1584,47 @@ def get_local_system():
                                  endpoint=endpoint)
     system = sysinv_client.get_system()
     return system
+
+
+def get_msg_output_info(log_file, target_task, target_str):
+    """Get msg output by searching the target string from the given task.
+
+    It receives an ansible log file and searches for the last msg output
+    matching the target string from the given task.
+
+    Returns the msg output
+    """
+
+    # awk command to get the last occurrence string after 'msg: {target_str}'
+    # between 'TASK \[{target_task}' and 'PLAY RECAP' delimiters.
+    awk_script = f'''
+    /TASK \[{target_task}/,/PLAY RECAP/ {{
+        if ($0 ~ /msg: \'{target_str}(.+)\'/) {{
+            result = $0
+        }}
+    }}
+    END {{
+        if (result) {{
+            match(result, /msg: \'{target_str}(.+)\'/, arr)
+            print arr[1]
+        }}
+    }}
+    '''
+    try:
+        # necessary check since is possible to have
+        # the message in rotated ansible log
+        files_for_search = add_latest_rotated_file(log_file)
+        awk_cmd = ['awk', awk_script] + files_for_search
+        # Run the AWK script using subprocess
+        result = subprocess.run(
+            awk_cmd, capture_output=True, text=True, check=True)
+        return result.stdout.strip()
+    except Exception as e:
+        LOG.error("Failed getting msg output by searching '%s' "
+                  "from task '%s': %s" % (target_str, target_task, e))
+        return None
+
+
+def get_subcloud_ansible_log_file(subcloud_name):
+    return os.path.join(consts.DC_ANSIBLE_LOG_DIR,
+                        subcloud_name + '_playbook_output.log')

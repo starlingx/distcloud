@@ -10,6 +10,8 @@
     "deploy-status": "secondary",
     "backup-status": null,
     "backup-datetime": null,
+    "prestage-status": null,
+    "prestage-versions": null,
     "error-description": "No errors present",
     "management-subnet": "192.168.38.0/24",
     "management-start-ip": "192.168.38.2",

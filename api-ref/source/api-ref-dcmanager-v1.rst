@@ -78,6 +78,8 @@ Response
   - deploy-status: deploy_status
   - backup-status: backup_status
   - backup-datetime: backup_datetime
+  - prestage-status: prestage_status
+  - prestage-versions: prestage_versions
   - region-name: region_name
   - openstack-installed: openstack_installed
   - management-state: management_state
@@ -222,6 +224,8 @@ This operation does not accept a request body.
   - deploy-status: deploy_status
   - backup-status: backup_status
   - backup-datetime: backup_datetime
+  - prestage-status: prestage_status
+  - prestage-versions: prestage_versions
   - openstack-installed: openstack_installed
   - management-state: management_state
   - systemcontroller-gateway-ip: systemcontroller_gateway_ip
@@ -286,6 +290,8 @@ This operation does not accept a request body.
   - deploy-status: deploy_status
   - backup-status: backup_status
   - backup-datetime: backup_datetime
+  - prestage-status: prestage_status
+  - prestage-versions: prestage_versions
   - region-name: region_name
   - openstack-installed: openstack_installed
   - management-state: management_state
@@ -399,6 +405,8 @@ Request Example
   - deploy-status: deploy_status
   - backup-status: backup_status
   - backup-datetime: backup_datetime
+  - prestage-status: prestage_status
+  - prestage-versions: prestage_versions
   - region-name: region_name
   - openstack-installed: openstack_installed
   - management-state: management_state
@@ -473,6 +481,8 @@ Request Example
   - deploy-status: deploy_status
   - backup-status: backup_status
   - backup-datetime: backup_datetime
+  - prestage-status: prestage_status
+  - prestage-versions: prestage_versions
   - openstack-installed: openstack_installed
   - management-state: management_state
   - systemcontroller-gateway-ip: systemcontroller_gateway_ip
@@ -544,6 +554,8 @@ Request Example
   - deploy-status: deploy_status
   - backup-status: backup_status
   - backup-datetime: backup_datetime
+  - prestage-status: prestage_status
+  - prestage-versions: prestage_versions
   - region-name: region_name
   - openstack-installed: openstack_installed
   - management-state: management_state
@@ -809,6 +821,8 @@ This operation does not accept a request body.
   - deploy-status: deploy_status
   - backup-status: backup_status
   - backup-datetime: backup_datetime
+  - prestage-status: prestage_status
+  - prestage-versions: prestage_versions
   - region-name: region_name
   - openstack-installed: openstack_installed
   - management-state: management_state
@@ -978,6 +992,8 @@ Request Example
   - deploy-status: deploy_status
   - backup-status: backup_status
   - backup-datetime: backup_datetime
+  - prestage-status: prestage_status
+  - prestage-versions: prestage_versions
   - region-name: region_name
   - openstack-installed: openstack_installed
   - management-state: management_state
@@ -1090,6 +1106,8 @@ Request Example
   - deploy-status: deploy_status
   - backup-status: backup_status
   - backup-datetime: backup_datetime
+  - prestage-status: prestage_status
+  - prestage-versions: prestage_versions
   - region-name: region_name
   - openstack-installed: openstack_installed
   - management-state: management_state
@@ -1815,6 +1833,8 @@ Request Example
   - deploy-status: deploy_status
   - backup-status: backup_status
   - backup-datetime: backup_datetime
+  - prestage-status: prestage_status
+  - prestage-versions: prestage_versions
   - error-description: error_description
   - region-name: region_name
   - management-subnet: management_subnet
@@ -1883,6 +1903,8 @@ Request Example
   - deploy-status: deploy_status
   - backup-status: backup_status
   - backup-datetime: backup_datetime
+  - prestage-status: prestage_status
+  - prestage-versions: prestage_versions
   - error-description: error_description
   - region-name: region_name
   - management-subnet: management_subnet
@@ -1951,6 +1973,8 @@ Request Example
   - deploy-status: deploy_status
   - backup-status: backup_status
   - backup-datetime: backup_datetime
+  - prestage-status: prestage_status
+  - prestage-versions: prestage_versions
   - region-name: region_name
   - openstack-installed: openstack_installed
   - management-state: management_state
@@ -2025,6 +2049,8 @@ Request Example
   - deploy-status: deploy_status
   - backup-status: backup_status
   - backup-datetime: backup_datetime
+  - prestage-status: prestage_status
+  - prestage-versions: prestage_versions
   - region-name: region_name
   - openstack-installed: openstack_installed
   - management-state: management_state
@@ -2093,6 +2119,8 @@ Request Example
   - deploy-status: deploy_status
   - backup-status: backup_status
   - backup-datetime: backup_datetime
+  - prestage-status: prestage_status
+  - prestage-versions: prestage_versions
   - region-name: region_name
   - openstack-installed: openstack_installed
   - management-state: management_state
@@ -2161,6 +2189,8 @@ Request Example
   - deploy-status: deploy_status
   - backup-status: backup_status
   - backup-datetime: backup_datetime
+  - prestage-status: prestage_status
+  - prestage-versions: prestage_versions
   - region-name: region_name
   - openstack-installed: openstack_installed
   - management-state: management_state
@@ -2237,6 +2267,8 @@ Request Example
   - deploy-status: deploy_status
   - backup-status: backup_status
   - backup-datetime: backup_datetime
+  - prestage-status: prestage_status
+  - prestage-versions: prestage_versions
   - error-description: error_description
   - region-name: region_name
   - management-subnet: management_subnet
@@ -2774,6 +2806,8 @@ This operation does not accept a request body.
   - deploy-status: deploy_status
   - backup-status: backup_status
   - backup-datetime: backup_datetime
+  - prestage-status: prestage_status
+  - prestage-versions: prestage_versions
   - openstack-installed: openstack_installed
   - management-state: management_state
   - systemcontroller-gateway-ip: systemcontroller_gateway_ip

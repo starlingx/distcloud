@@ -478,6 +478,18 @@ prestage_software_version:
   in: body
   required: true
   type: string
+prestage_status:
+  description: |
+    The prestage status of the subcloud.
+  in: body
+  required: true
+  type: string
+prestage_versions:
+  description: |
+    All of the prestage versions of the subcloud.
+  in: body
+  required: true
+  type: string
 region_name:
   description: |
     The name provisioned for the subcloud (synonym for subcloud name).

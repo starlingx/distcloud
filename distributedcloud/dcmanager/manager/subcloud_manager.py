@@ -135,8 +135,6 @@ TRANSITORY_STATES = {
     consts.DEPLOY_STATE_RESTORING: consts.DEPLOY_STATE_RESTORE_FAILED,
     consts.DEPLOY_STATE_PRE_REHOME: consts.DEPLOY_STATE_REHOME_PREP_FAILED,
     consts.DEPLOY_STATE_REHOMING: consts.DEPLOY_STATE_REHOME_FAILED,
-    consts.PRESTAGE_STATE_PACKAGES: consts.PRESTAGE_STATE_FAILED,
-    consts.PRESTAGE_STATE_IMAGES: consts.PRESTAGE_STATE_FAILED,
     # The next two states are needed due to upgrade scenario:
     # TODO(gherzman): remove states when they are no longer needed
     consts.DEPLOY_STATE_PRE_DEPLOY: consts.DEPLOY_STATE_PRE_CONFIG_FAILED,
@@ -147,6 +145,11 @@ TRANSITORY_BACKUP_STATES = {
     consts.BACKUP_STATE_VALIDATING: consts.BACKUP_STATE_VALIDATE_FAILED,
     consts.BACKUP_STATE_PRE_BACKUP: consts.BACKUP_STATE_PREP_FAILED,
     consts.BACKUP_STATE_IN_PROGRESS: consts.BACKUP_STATE_FAILED
+}
+
+TRANSITORY_PRESTAGE_STATES = {
+    consts.PRESTAGE_STATE_PACKAGES: consts.PRESTAGE_STATE_FAILED,
+    consts.PRESTAGE_STATE_IMAGES: consts.PRESTAGE_STATE_FAILED
 }
 
 MAX_PARALLEL_SUBCLOUD_BACKUP_CREATE = 250
@@ -2744,16 +2747,13 @@ class SubcloudManager(manager.Manager):
                 # No need for further validation
                 return
 
-            deploy_status_complete = (
-                subcloud.deploy_status == consts.DEPLOY_STATE_DONE
-                or prestage.is_deploy_status_prestage(subcloud.deploy_status)
-            )
             allowed_deploy_transition = (
                 subcloud.deploy_status == consts.DEPLOY_STATE_REHOME_PENDING
                 and new_deploy_status == consts.DEPLOY_STATE_DONE
             )
 
-            if not deploy_status_complete and not allowed_deploy_transition:
+            if (subcloud.deploy_status != consts.DEPLOY_STATE_DONE and
+                    not allowed_deploy_transition):
                 msg = (f"Unable to manage {subcloud.name}: its deploy_status "
                        f"must be either '{consts.DEPLOY_STATE_DONE}' or "
                        f"'{consts.DEPLOY_STATE_REHOME_PENDING}'")
@@ -3269,9 +3269,12 @@ class SubcloudManager(manager.Manager):
             # Identify subclouds in transitory states
             new_deploy_status = TRANSITORY_STATES.get(subcloud.deploy_status)
             new_backup_status = TRANSITORY_BACKUP_STATES.get(subcloud.backup_status)
+            new_prestage_status = TRANSITORY_PRESTAGE_STATES.get(
+                subcloud.prestage_status)
 
-            # update deploy and backup states to the corresponding failure states
-            if new_deploy_status or new_backup_status:
+            # update deploy, backup and prestage states to
+            # the corresponding failure states
+            if new_deploy_status or new_backup_status or new_prestage_status:
                 if new_deploy_status:
                     LOG.info("Changing subcloud %s deploy status from %s to %s."
                              % (subcloud.name, subcloud.deploy_status,
@@ -3281,11 +3284,18 @@ class SubcloudManager(manager.Manager):
                              % (subcloud.name, subcloud.backup_status,
                                 new_backup_status))
 
+                if new_prestage_status:
+                    LOG.info("Changing subcloud %s prestage status from %s"
+                             " to %s."
+                             % (subcloud.name, subcloud.prestage_status,
+                                new_prestage_status))
+
                 db_api.subcloud_update(
                     self.context,
                     subcloud.id,
                     deploy_status=new_deploy_status or subcloud.deploy_status,
-                    backup_status=new_backup_status or subcloud.backup_status
+                    backup_status=new_backup_status or subcloud.backup_status,
+                    prestage_status=new_prestage_status or subcloud.prestage_status
                 )
 
     @staticmethod

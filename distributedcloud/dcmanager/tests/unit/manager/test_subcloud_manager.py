@@ -2264,8 +2264,8 @@ class TestSubcloudManager(base.DCManagerTestCase):
         mock_run_playbook.assert_called_once()
         mock_is_healthy.assert_called_once()
 
-        # Verify that subcloud has the correct deploy status
-        # consts.PRESTAGE_STATE_PACKAGES
+        # Verify that subcloud has the correct backup status
+        # consts.BACKUP_STATE_PRE_BACKUP
         updated_subcloud = db_api.subcloud_get_by_name(self.ctx, subcloud.name)
         self.assertEqual(consts.BACKUP_STATE_PRE_BACKUP,
                          updated_subcloud.backup_status)
@@ -2293,8 +2293,8 @@ class TestSubcloudManager(base.DCManagerTestCase):
 
         mock_parallel_group_operation.assert_called_once()
 
-        # Verify that subcloud has the correct deploy status
-        # consts.PRESTAGE_STATE_PACKAGES
+        # Verify that subcloud has the correct backup status
+        # consts.BACKUP_STATE_VALIDATE_FAILED
         updated_subcloud = db_api.subcloud_get_by_name(self.ctx, subcloud.name)
         self.assertEqual(consts.BACKUP_STATE_VALIDATE_FAILED,
                          updated_subcloud.backup_status)
@@ -2322,8 +2322,8 @@ class TestSubcloudManager(base.DCManagerTestCase):
 
         mock_parallel_group_operation.assert_called_once()
 
-        # Verify that subcloud has the correct deploy status
-        # consts.PRESTAGE_STATE_PACKAGES
+        # Verify that subcloud has the correct backup status
+        # consts.BACKUP_STATE_VALIDATE_FAILED
         updated_subcloud = db_api.subcloud_get_by_name(self.ctx, subcloud.name)
         self.assertEqual(consts.BACKUP_STATE_VALIDATE_FAILED,
                          updated_subcloud.backup_status)
@@ -2351,8 +2351,8 @@ class TestSubcloudManager(base.DCManagerTestCase):
 
         mock_parallel_group_operation.assert_called_once()
 
-        # Verify that subcloud has the correct deploy status
-        # consts.PRESTAGE_STATE_PACKAGES
+        # Verify that subcloud has the correct backup status
+        # consts.BACKUP_STATE_VALIDATE_FAILED
         updated_subcloud = db_api.subcloud_get_by_name(self.ctx, subcloud.name)
         self.assertEqual(consts.BACKUP_STATE_VALIDATE_FAILED,
                          updated_subcloud.backup_status)
@@ -2382,8 +2382,8 @@ class TestSubcloudManager(base.DCManagerTestCase):
 
         mock_parallel_group_operation.assert_called_once()
 
-        # Verify that subcloud has the correct deploy status
-        # consts.PRESTAGE_STATE_PACKAGES
+        # Verify that subcloud has the correct backup status
+        # consts.BACKUP_STATE_UNKNOWN
         updated_subcloud = db_api.subcloud_get_by_name(self.ctx, subcloud.name)
         self.assertEqual(consts.BACKUP_STATE_UNKNOWN,
                          updated_subcloud.backup_status)
@@ -2413,8 +2413,8 @@ class TestSubcloudManager(base.DCManagerTestCase):
 
         mock_parallel_group_operation.assert_called_once()
 
-        # Verify that subcloud has the correct deploy status
-        # consts.PRESTAGE_STATE_PACKAGES
+        # Verify that subcloud has the correct backup status
+        # consts.BACKUP_STATE_UNKNOWN
         updated_subcloud = db_api.subcloud_get_by_name(self.ctx, subcloud.name)
         self.assertEqual(consts.BACKUP_STATE_UNKNOWN,
                          updated_subcloud.backup_status)
@@ -2628,7 +2628,7 @@ class TestSubcloudManager(base.DCManagerTestCase):
         # Verify that subcloud has the correct deploy status
         updated_subcloud = db_api.subcloud_get_by_name(self.ctx, subcloud.name)
         self.assertEqual(consts.PRESTAGE_STATE_COMPLETE,
-                         updated_subcloud.deploy_status)
+                         updated_subcloud.prestage_status)
 
         # Verify both of prestage package and image ansible playbooks were called
         self.assertEqual(mock_run_ansible.call_count, 2)
@@ -2664,7 +2664,7 @@ class TestSubcloudManager(base.DCManagerTestCase):
         # Verify that subcloud has the correct deploy status
         updated_subcloud = db_api.subcloud_get_by_name(self.ctx, subcloud.name)
         self.assertEqual(consts.PRESTAGE_STATE_COMPLETE,
-                         updated_subcloud.deploy_status)
+                         updated_subcloud.prestage_status)
 
         # Verify that only prestage package playbook is called
         self.assertEqual(mock_run_ansible.call_count, 1)
@@ -2695,7 +2695,7 @@ class TestSubcloudManager(base.DCManagerTestCase):
         # Verify that subcloud has the correct deploy status
         updated_subcloud = db_api.subcloud_get_by_name(self.ctx, subcloud.name)
         self.assertEqual(consts.PRESTAGE_STATE_COMPLETE,
-                         updated_subcloud.deploy_status)
+                         updated_subcloud.prestage_status)
 
         # Verify both of prestage package and image ansible playbooks were called
         self.assertEqual(mock_run_ansible.call_count, 2)
@@ -2731,7 +2731,7 @@ class TestSubcloudManager(base.DCManagerTestCase):
         # Verify that subcloud has the correct deploy status
         updated_subcloud = db_api.subcloud_get_by_name(self.ctx, subcloud.name)
         self.assertEqual(consts.PRESTAGE_STATE_COMPLETE,
-                         updated_subcloud.deploy_status)
+                         updated_subcloud.prestage_status)
 
         # Verify both of prestage package and image ansible playbooks were called
         self.assertEqual(mock_run_ansible.call_count, 2)
@@ -2769,7 +2769,7 @@ class TestSubcloudManager(base.DCManagerTestCase):
         # Verify that subcloud has the "prestage-complete" deploy status
         updated_subcloud = db_api.subcloud_get_by_name(self.ctx, subcloud.name)
         self.assertEqual(consts.PRESTAGE_STATE_COMPLETE,
-                         updated_subcloud.deploy_status)
+                         updated_subcloud.prestage_status)
 
     def test_get_cached_regionone_data(self):
         mock_keystone_client = FakeKeystoneClient()
@@ -3096,7 +3096,7 @@ class TestSubcloudManager(base.DCManagerTestCase):
     @mock.patch.object(subcloud_manager.SubcloudManager,
                        '_unmanage_system_peer_subcloud')
     def test_migrate_manage_subcloud_called_unmanage_peer_subcloud(
-        self, mock_unmanage_system_peer_subcloud
+            self, mock_unmanage_system_peer_subcloud
     ):
         sm = subcloud_manager.SubcloudManager()
         system_peer_test = test_system_peer_manager.TestSystemPeerManager

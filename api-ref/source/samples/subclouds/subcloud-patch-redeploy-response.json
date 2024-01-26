@@ -11,6 +11,8 @@
   "deploy-status": "pre-install",
   "backup-status": "complete",
   "backup-datetime": "2022-07-08 11:23:58.132134",
+  "prestage-status": "complete",
+  "prestage-versions": "21.12,22.12",
   "description": "Ottawa Site",
   "group_id": 1,
   "location": "YOW",

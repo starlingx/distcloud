@@ -9,6 +9,8 @@
   "deploy-status": "complete",
   "backup-status": "complete",
   "backup-datetime": "2022-07-08 11:23:58.132134",
+  "prestage-status": "complete",
+  "prestage-versions": "21.12,22.12",
   "openstack-installed": false,
   "management-state": "managed",
   "systemcontroller-gateway-ip": "192.168.204.101",

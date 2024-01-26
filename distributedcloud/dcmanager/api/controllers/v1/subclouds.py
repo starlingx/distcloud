@@ -601,16 +601,16 @@ class SubcloudsController(object):
             # Rename the subcloud
             new_subcloud_name = payload.get('name')
             if new_subcloud_name is not None:
-                # To be renamed the subcloud must be in unmanaged and valid deploy
-                # state
+                # To be renamed the subcloud must be in unmanaged, valid deploy
+                # state, and no going prestage
                 if (subcloud.management_state !=
                     dccommon_consts.MANAGEMENT_UNMANAGED or
-                    subcloud.deploy_status not in
-                        consts.STATES_FOR_SUBCLOUD_RENAME):
-                    msg = (
-                        'Subcloud %s must be unmanaged and in a valid deploy state '
-                        'for the subcloud rename operation.' % subcloud.name
-                    )
+                    subcloud.deploy_status != consts.DEPLOY_STATE_DONE or
+                        subcloud.prestage_status in
+                        consts.STATES_FOR_ONGOING_PRESTAGE):
+                    msg = ('Subcloud %s must be deployed, unmanaged and '
+                           'no ongoing prestage for the subcloud rename '
+                           'operation.' % subcloud.name)
                     pecan.abort(400, msg)
 
                 # Validates new name
@@ -898,8 +898,9 @@ class SubcloudsController(object):
 
             try:
                 self.dcmanager_rpc_client.prestage_subcloud(context, payload)
-                # local update to deploy_status - this is just for CLI response:
-                subcloud.deploy_status = consts.PRESTAGE_STATE_PACKAGES
+                # local update to prestage_status - this is just for
+                # CLI response:
+                subcloud.prestage_status = consts.PRESTAGE_STATE_PACKAGES
 
                 subcloud_dict = db_api.subcloud_db_model_to_dict(subcloud)
                 subcloud_dict.update(

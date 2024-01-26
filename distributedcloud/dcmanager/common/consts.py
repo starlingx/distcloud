@@ -325,8 +325,12 @@ UPGRADE_STATE_ACTIVATION_COMPLETE = 'activation-complete'
 # Prestage States
 PRESTAGE_STATE_PACKAGES = STRATEGY_STATE_PRESTAGE_PACKAGES
 PRESTAGE_STATE_IMAGES = STRATEGY_STATE_PRESTAGE_IMAGES
-PRESTAGE_STATE_FAILED = 'prestage-failed'
-PRESTAGE_STATE_COMPLETE = 'prestage-complete'
+PRESTAGE_STATE_FAILED = 'failed'
+PRESTAGE_STATE_COMPLETE = 'complete'
+
+# States to indicate if a prestage operation is currently in progress
+STATES_FOR_ONGOING_PRESTAGE = [PRESTAGE_STATE_PACKAGES,
+                               PRESTAGE_STATE_IMAGES]
 
 # Alarm aggregation
 ALARMS_DISABLED = "disabled"
@@ -406,10 +410,6 @@ DEFAULT_PERSISTENT_SIZE = 30000
 PLATFORM_RETRY_MAX_ATTEMPTS = 5
 PLATFORM_RETRY_SLEEP_MILLIS = 5000
 
-# States to reject when processing a subcloud-backup create request
-VALID_DEPLOY_STATES_FOR_BACKUP = [DEPLOY_STATE_DONE,
-                                  PRESTAGE_STATE_COMPLETE]
-
 # States to reject when processing a subcloud-backup restore request
 INVALID_DEPLOY_STATES_FOR_RESTORE = [DEPLOY_STATE_CREATING,
                                      DEPLOY_STATE_PRE_INSTALL,
@@ -455,8 +455,6 @@ SUPPORTED_UPGRADES_METADATA_FILE_PATH = '/usr/rootdirs/opt/upgrades/metadata.xml
 # Required for subcloud name configuration
 CERT_MON_HTTP_AGENT = 'cert-mon/1.0'
 OS_REGION_NAME = "OS_REGION_NAME"
-STATES_FOR_SUBCLOUD_RENAME = [DEPLOY_STATE_DONE,
-                              PRESTAGE_STATE_COMPLETE]
 
 # Required for GEO-redundancy
 # User-Agent check for subcloud by region_name request.
