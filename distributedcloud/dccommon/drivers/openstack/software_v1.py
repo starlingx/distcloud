@@ -46,7 +46,7 @@ class SoftwareClient(base.DriverBase):
         # The usm systemcontroller endpoint ends with a slash but the regionone
         # and the subcloud endpoint don't. The slash is removed to standardize
         # with the other endpoints.
-        self.endpoint = self.endpoint.rstrip('/') + '/software'
+        self.endpoint = self.endpoint.rstrip('/') + '/v1/software'
         self.token = session.get_token()
 
     def query(self, state='all', release=None, timeout=REST_DEFAULT_TIMEOUT):
