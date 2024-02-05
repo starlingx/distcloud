@@ -362,7 +362,8 @@ class TestDcmanagerClient(base.DCCommonTestCase):
         result = client.delete_subcloud(SUBCLOUD_NAME)
         mock_delete.assert_called_once_with(
             FAKE_ENDPOINT + '/subclouds/' + SUBCLOUD_NAME,
-            headers={"X-Auth-Token": FAKE_TOKEN},
+            headers={"X-Auth-Token": FAKE_TOKEN,
+                     "User-Agent": dccommon_consts.DCMANAGER_V1_HTTP_AGENT},
             timeout=FAKE_TIMEOUT
         )
         self.assertEqual(result, '')

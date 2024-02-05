@@ -427,7 +427,8 @@ class DcmanagerClient(base.DriverBase):
             raise ValueError("subcloud_ref is required.")
         url = f"{self.endpoint}/subclouds/{subcloud_ref}"
 
-        headers = {"X-Auth-Token": self.token}
+        headers = {"X-Auth-Token": self.token,
+                   "User-Agent": consts.DCMANAGER_V1_HTTP_AGENT}
         response = requests.delete(url, headers=headers,
                                    timeout=self.timeout)
 
