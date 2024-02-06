@@ -4,8 +4,6 @@
 # SPDX-License-Identifier: Apache-2.0
 #
 from dcmanager.common import consts
-from dcmanager.common import context
-from dcmanager.common import utils
 from dcmanager.orchestrator.states.software.cache import clients
 from dcmanager.orchestrator.states.software.cache.clients import \
     CLIENT_READ_EXCEPTIONS
@@ -50,7 +48,6 @@ class CacheSpecification(object):
 REGION_ONE_LICENSE_CACHE_TYPE = 'RegionOne system license'
 REGION_ONE_SYSTEM_INFO_CACHE_TYPE = 'RegionOne system info'
 REGION_ONE_RELEASE_USM_CACHE_TYPE = 'RegionOne release usm'
-STRATEGY_EXTRA_ARGS_CACHE_TYPE = 'Strategy extra args'
 
 """Cache specifications"""
 
@@ -71,26 +68,18 @@ REGION_ONE_RELEASE_USM_CACHE_SPECIFICATION = CacheSpecification(
     {'state'}
 )
 
-STRATEGY_EXTRA_ARGS_CACHE_SPECIFICATION = CacheSpecification(
-    lambda: utils.get_sw_update_strategy_extra_args(context.get_admin_context()).get(
-        consts.EXTRA_ARGS_UPLOAD_ONLY
-    )
-)
-
 # Map each expected operation type to its required cache types
 CACHE_TYPES_BY_OPERATION_TYPE = {
     consts.SW_UPDATE_TYPE_SOFTWARE: {REGION_ONE_LICENSE_CACHE_TYPE,
                                      REGION_ONE_SYSTEM_INFO_CACHE_TYPE,
-                                     REGION_ONE_RELEASE_USM_CACHE_TYPE,
-                                     STRATEGY_EXTRA_ARGS_CACHE_TYPE}
+                                     REGION_ONE_RELEASE_USM_CACHE_TYPE}
 }
 
 # Map each cache type to its corresponding cache specification
 SPECIFICATION_BY_CACHE_TYPE = {
     REGION_ONE_LICENSE_CACHE_TYPE: REGION_ONE_LICENSE_CACHE_SPECIFICATION,
     REGION_ONE_SYSTEM_INFO_CACHE_TYPE: REGION_ONE_SYSTEM_INFO_CACHE_SPECIFICATION,
-    REGION_ONE_RELEASE_USM_CACHE_TYPE: REGION_ONE_RELEASE_USM_CACHE_SPECIFICATION,
-    STRATEGY_EXTRA_ARGS_CACHE_TYPE: STRATEGY_EXTRA_ARGS_CACHE_SPECIFICATION
+    REGION_ONE_RELEASE_USM_CACHE_TYPE: REGION_ONE_RELEASE_USM_CACHE_SPECIFICATION
 }
 
 
