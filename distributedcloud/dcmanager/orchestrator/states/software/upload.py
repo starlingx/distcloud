@@ -14,8 +14,6 @@ from dcmanager.common import utils
 from dcmanager.orchestrator.states.base import BaseState
 from dcmanager.orchestrator.states.software.cache.cache_specifications import \
     REGION_ONE_RELEASE_USM_CACHE_TYPE
-from dcmanager.orchestrator.states.software.cache.cache_specifications import \
-    STRATEGY_EXTRA_ARGS_CACHE_TYPE
 
 # Max time: 30 minutes = 180 queries x 10 seconds between
 DEFAULT_MAX_QUERIES = 180
@@ -45,6 +43,7 @@ class UploadState(BaseState):
     def perform_state_action(self, strategy_step):
         """Upload releases in this subcloud"""
         self.info_log(strategy_step, "Uploading releases")
+
         regionone_releases = self._read_from_cache(REGION_ONE_RELEASE_USM_CACHE_TYPE)
         applied_releases_ids = list()
         for release_id in regionone_releases:
@@ -52,8 +51,6 @@ class UploadState(BaseState):
                     software_v1.DEPLOYED,
                     software_v1.COMMITTED]:
                 applied_releases_ids.append(release_id)
-
-        upload_only = self._read_from_cache(STRATEGY_EXTRA_ARGS_CACHE_TYPE)
 
         # Retrieve all subcloud releases
         try:
@@ -154,15 +151,5 @@ class UploadState(BaseState):
                                "are missing")
                     self.error_log(strategy_step, message)
                     raise Exception(message)
-
-        if upload_only:
-            self.info_log(
-                strategy_step,
-                (
-                    f"{consts.EXTRA_ARGS_UPLOAD_ONLY} option enabled, skipping"
-                    f" forward to state:({consts.STRATEGY_STATE_COMPLETE})"
-                )
-            )
-            return consts.STRATEGY_STATE_COMPLETE
 
         return self.next_state
