@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2023 Wind River Systems, Inc.
+# Copyright (c) 2023-2024 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -11,7 +11,7 @@ from dcmanager.tests.unit.orchestrator.states.software.test_base import \
 
 class TestPreCheckState(TestSoftwareOrchestrator):
     def setUp(self):
-        super(TestPreCheckState, self).setUp()
+        super().setUp()
 
         self.on_success_state = consts.STRATEGY_STATE_SW_INSTALL_LICENSE
 

@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2023 Wind River Systems, Inc.
+# Copyright (c) 2023-2024 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -12,8 +12,8 @@ class ApplyVIMSoftwareStrategyState(BaseState):
     """Apply VIM Software Strategy software orchestration state"""
 
     def __init__(self, region_name):
-        super(ApplyVIMSoftwareStrategyState, self).__init__(
-            next_state=consts.STRATEGY_STATE_SW_SWACT_CONTROLLER_1,
+        super().__init__(
+            next_state=consts.STRATEGY_STATE_SW_FINISH_STRATEGY,
             region_name=region_name
         )
 

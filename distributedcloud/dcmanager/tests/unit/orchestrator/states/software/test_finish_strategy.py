@@ -1,9 +1,10 @@
 #
-# Copyright (c) 2023 Wind River Systems, Inc.
+# Copyright (c) 2023-2024 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
 import mock
+
 from oslo_config import cfg
 
 from dcmanager.common import consts
@@ -38,7 +39,7 @@ class TestFinishStrategyState(TestSoftwareOrchestrator):
         self.mock_use_usm = p.start()
         self.mock_use_usm.return_value = True
         self.addCleanup(p.stop)
-        super(TestFinishStrategyState, self).setUp()
+        super().setUp()
 
         self.on_success_state = consts.STRATEGY_STATE_COMPLETE
 
