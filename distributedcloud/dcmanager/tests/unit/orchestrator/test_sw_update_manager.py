@@ -201,6 +201,14 @@ class TestSwUpdateManager(base.DCManagerTestCase):
         )
         self.addCleanup(p.stop)
 
+        self.fake_software_orch_thread = FakeOrchThread()
+        p = mock.patch.object(sw_update_manager, "SoftwareOrchThread")
+        self.fake_software_orch_thread = p.start()
+        self.fake_software_orch_thread.return_value = (
+            self.fake_software_orch_thread
+        )
+        self.addCleanup(p.stop)
+
         self.fake_fw_update_orch_thread = FakeOrchThread()
         p = mock.patch.object(sw_update_manager, "FwUpdateOrchThread")
         self.mock_fw_update_orch_thread = p.start()

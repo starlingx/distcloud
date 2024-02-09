@@ -245,7 +245,7 @@ class FakeSysinvClientOneLoadUpgradeInProgress(object):
 
 class TestPatchAudit(base.DCManagerTestCase):
     def setUp(self):
-        super(TestPatchAudit, self).setUp()
+        super().setUp()
         self.ctxt = utils.dummy_context()
 
         # Mock the DCManager subcloud state API
@@ -261,6 +261,11 @@ class TestPatchAudit(base.DCManagerTestCase):
         p = mock.patch('dcmanager.audit.rpcapi.ManagerAuditWorkerClient')
         self.mock_audit_worker_api = p.start()
         self.mock_audit_worker_api.return_value = self.fake_audit_worker_api
+        self.addCleanup(p.stop)
+
+        # Mock the Software Client
+        p = mock.patch.object(patch_audit, 'SoftwareClient')
+        self.mock_patch_audit_sc = p.start()
         self.addCleanup(p.stop)
 
     def get_patch_audit_data(self, am):

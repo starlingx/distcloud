@@ -5,8 +5,6 @@
 #
 import mock
 
-from oslo_config import cfg
-
 from dcmanager.common import consts
 from dcmanager.orchestrator.states.software.finish_strategy import \
     FinishStrategyState
@@ -35,10 +33,6 @@ SUBCLOUD_RELEASES = {"DC.1": {"sw_version": "20.12",
 
 class TestFinishStrategyState(TestSoftwareOrchestrator):
     def setUp(self):
-        p = mock.patch.object(cfg.CONF, 'use_usm')
-        self.mock_use_usm = p.start()
-        self.mock_use_usm.return_value = True
-        self.addCleanup(p.stop)
         super().setUp()
 
         self.on_success_state = consts.STRATEGY_STATE_COMPLETE

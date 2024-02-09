@@ -40,28 +40,19 @@ from dcorch.common import context
 LOG = logging.getLogger(__name__)
 
 CONF = cfg.CONF
-if cfg.CONF.use_usm:
-    patch_opts = [
-        cfg.StrOpt('patch_vault',
-                   default='/opt/dc-vault/software/',
-                   help='file system for software storage on SystemController'),
-    ]
-else:
-    patch_opts = [
-        cfg.StrOpt('patch_vault',
-                   default='/opt/dc-vault/patches/',
-                   help='file system for patch storage on SystemController'),
-    ]
+patch_opts = [
+    cfg.StrOpt('patch_vault',
+               default='/opt/dc-vault/patches/',
+               help='file system for patch storage on SystemController'),
+]
 
 CONF.register_opts(patch_opts, CONF.type)
 
 
 class PatchAPIController(Middleware):
 
-    if cfg.CONF.use_usm:
-        ENDPOINT_TYPE = dccommon_consts.ENDPOINT_TYPE_SOFTWARE
-    else:
-        ENDPOINT_TYPE = dccommon_consts.ENDPOINT_TYPE_PATCHING
+    ENDPOINT_TYPE = dccommon_consts.ENDPOINT_TYPE_PATCHING
+    USM_ENDPOINT_TYPE = dccommon_consts.ENDPOINT_TYPE_SOFTWARE
 
     OK_STATUS_CODE = [
         webob.exc.HTTPOk.code,
@@ -75,22 +66,15 @@ class PatchAPIController(Middleware):
         self.ctxt = context.get_admin_context()
         self._default_dispatcher = APIDispatcher(app)
         self.dcmanager_state_rpc_client = dcmanager_rpc_client.SubcloudStateClient()
-        if cfg.CONF.use_usm:
-            self.response_hander_map = {
-                proxy_consts.SOFTWARE_ACTION_UPLOAD: self.patch_upload_usm_req,
-                proxy_consts.SOFTWARE_ACTION_UPLOAD_DIR: self.patch_upload_dir_req,
-                proxy_consts.SOFTWARE_ACTION_DELETE: self.patch_delete_req,
-                proxy_consts.SOFTWARE_ACTION_COMMIT_PATCH: self.notify,
-            }
-        else:
-            self.response_hander_map = {
-                proxy_consts.PATCH_ACTION_UPLOAD: self.patch_upload_req,
-                proxy_consts.PATCH_ACTION_UPLOAD_DIR: self.patch_upload_dir_req,
-                proxy_consts.PATCH_ACTION_DELETE: self.patch_delete_req,
-                proxy_consts.PATCH_ACTION_APPLY: self.notify,
-                proxy_consts.PATCH_ACTION_COMMIT: self.notify,
-                proxy_consts.PATCH_ACTION_REMOVE: self.notify,
-            }
+        self.response_hander_map = {
+            proxy_consts.PATCH_ACTION_UPLOAD: self.patch_upload_req,
+            proxy_consts.PATCH_ACTION_UPLOAD_DIR: self.patch_upload_dir_req,
+            proxy_consts.PATCH_ACTION_DELETE: self.patch_delete_req,
+            proxy_consts.PATCH_ACTION_APPLY: self.notify,
+            proxy_consts.PATCH_ACTION_COMMIT: self.notify,
+            proxy_consts.PATCH_ACTION_REMOVE: self.notify,
+            proxy_consts.SOFTWARE_ACTION_COMMIT_PATCH: self.notify_usm,
+        }
 
     @webob.dec.wsgify(RequestClass=Request)
     def __call__(self, req):
@@ -115,8 +99,6 @@ class PatchAPIController(Middleware):
     def copy_patch_to_version_vault(self, patch):
         try:
             sw_version = get_release_from_patch(patch)
-            if cfg.CONF.use_usm:
-                sw_version = ".".join(sw_version.split('.', 2)[:2])
         except Exception:
             msg = "Unable to fetch release version from patch"
             LOG.error(msg)
@@ -143,10 +125,10 @@ class PatchAPIController(Middleware):
                     os.remove(fn)
                     return
                 except OSError:
-                    msg = ("Unable to remove patch file (%s) from the central"
-                           "storage." % fn)
+                    msg = (f"Unable to remove patch file {fn} from the central "
+                           "storage.")
                     raise webob.exc.HTTPUnprocessableEntity(explanation=msg)
-        LOG.info("Patch (%s) was not found in (%s)", patch, vault)
+        LOG.info(f"Patch {patch} was not found in {vault}")
 
     def store_patch_file(self, filename, fileno):
         # the following copy method is taken from from api/controllers/root.py
@@ -189,31 +171,6 @@ class PatchAPIController(Middleware):
         proxy_utils.cleanup(request.environ)
         return response
 
-    # TODO(cdeolive): update to handle upload and delete of loads
-    # when USM upgrade API is ready. Rename de iso and sig with
-    # metadata ID
-    def patch_upload_usm_req(self, request, response):
-        # stores release in the release storage
-        file_items = []
-        for key in request.POST.keys():
-            file_items.append(request.POST[key])
-        try:
-            for file_item in file_items:
-                self.store_patch_file(file_item.filename, file_item.file.fileno())
-        except Exception:
-            LOG.exception("Failed to store the release to vault")
-            # return a warning and prompt the user to try again
-            if hasattr(response, 'text'):
-                from builtins import str as text
-                data = json.loads(response.text)
-                if 'warning' in data:
-                    msg = _('The release file could not be stored in the vault, '
-                            'please upload the release again!')
-                    data['warning'] += msg
-                    response.text = text(json.dumps(data))
-        proxy_utils.cleanup(request.environ)
-        return response
-
     def patch_upload_dir_req(self, request, response):
         files = []
         for key, path in request.GET.items():
@@ -229,21 +186,25 @@ class PatchAPIController(Middleware):
 
     def notify(self, request, response):
         # Send a RPC to dcmanager
-        LOG.info("Send RPC to dcmanager to set patching sync status to "
-                 "unknown")
+        LOG.info("Send RPC to dcmanager to set patching sync status to unknown")
         self.dcmanager_state_rpc_client.update_subcloud_endpoint_status(
             self.ctxt,
             endpoint_type=self.ENDPOINT_TYPE,
             sync_status=dccommon_consts.SYNC_STATUS_UNKNOWN)
         return response
 
+    def notify_usm(self, request, response):
+        # Send a RPC to dcmanager
+        LOG.info("Send RPC to dcmanager to set software sync status to unknown")
+        self.dcmanager_state_rpc_client.update_subcloud_endpoint_status(
+            self.ctxt,
+            endpoint_type=self.USM_ENDPOINT_TYPE,
+            sync_status=dccommon_consts.SYNC_STATUS_UNKNOWN)
+        return response
+
     def patch_delete_req(self, request, response):
-        if cfg.CONF.use_usm:
-            patch_ids = proxy_utils.get_routing_match_value(request.environ,
-                                                            'release_id')
-        else:
-            patch_ids = proxy_utils.get_routing_match_value(request.environ,
-                                                            'patch_id')
+        patch_ids = proxy_utils.get_routing_match_value(request.environ,
+                                                        'patch_id')
         LOG.info("Deleting patches: %s", patch_ids)
         patch_list = os.path.normpath(patch_ids).split(os.path.sep)
         for patch_file in patch_list:

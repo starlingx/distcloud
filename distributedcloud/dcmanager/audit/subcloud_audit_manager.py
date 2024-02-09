@@ -98,14 +98,10 @@ class SubcloudAuditManager(manager.Manager):
 
     def _add_missing_endpoints(self):
         # Update this flag file based on the most recent new endpoint
-        file_path_list = []
-        file_path_list.append(os.path.join(
-            CONFIG_PATH, '.kube_rootca_update_endpoint_added')
-        )
-        if cfg.CONF.use_usm:
-            file_path_list.append(os.path.join(
-                CONFIG_PATH, '.usm_endpoint_added')
-            )
+        file_path_list = [
+            os.path.join(CONFIG_PATH, '.kube_rootca_update_endpoint_added'),
+            os.path.join(CONFIG_PATH, '.usm_endpoint_added')
+        ]
         for file_path in file_path_list:
             # If file exists on the controller, all the endpoints have been
             # added to DB since last time an endpoint was added
@@ -114,16 +110,10 @@ class SubcloudAuditManager(manager.Manager):
                 # If the endpoint doesn't exist, an entry will be made
                 # in endpoint_status table
                 for subcloud in db_api.subcloud_get_all(self.context):
-                    subcloud_statuses = \
-                        db_api.subcloud_status_get_all(self.context,
-                                                       subcloud.id)
+                    subcloud_statuses = db_api.subcloud_status_get_all(
+                        self.context, subcloud.id)
                     # Use set difference to find missing endpoints
-                    if cfg.CONF.use_usm:
-                        endpoint_type_set = set(
-                            dccommon_consts.ENDPOINT_TYPES_LIST_USM
-                        )
-                    else:
-                        endpoint_type_set = set(dccommon_consts.ENDPOINT_TYPES_LIST)
+                    endpoint_type_set = set(dccommon_consts.ENDPOINT_TYPES_LIST)
                     subcloud_set = set()
                     for subcloud_status in subcloud_statuses:
                         subcloud_set.add(subcloud_status.endpoint_type)
@@ -320,14 +310,17 @@ class SubcloudAuditManager(manager.Manager):
         firmware_audit_data = None
         kubernetes_audit_data = None
         kube_rootca_update_audit_data = None
+
+        # TODO(nicodemos): After the integration with VIM the patch audit and patch
+        # orchestration will be removed from the dcmanager. The audit_patch will
+        # be substituted by the software_audit. The software_audit will be
+        # responsible for the patch and load audit.
         if audit_patch:
-            if cfg.CONF.use_usm:
-                # Query RegionOne releases
-                software_audit_data = \
-                    self.patch_audit.get_software_regionone_audit_data()
-            else:
-                # Query RegionOne patches and software version
-                patch_audit_data = self.patch_audit.get_regionone_audit_data()
+            # Query RegionOne releases
+            software_audit_data = (
+                self.patch_audit.get_software_regionone_audit_data())
+            # Query RegionOne patches and software version
+            patch_audit_data = self.patch_audit.get_regionone_audit_data()
         if audit_firmware:
             # Query RegionOne firmware
             firmware_audit_data = self.firmware_audit.get_regionone_audit_data()

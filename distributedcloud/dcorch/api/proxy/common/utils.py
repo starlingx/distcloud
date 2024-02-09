@@ -1,4 +1,4 @@
-# Copyright 2017-2023 Wind River
+# Copyright 2017-2024 Wind River
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -42,11 +42,10 @@ def get_host_port_options(cfg):
         return cfg.platform.bind_host, cfg.platform.bind_port
     elif cfg.type == consts.ENDPOINT_TYPE_NETWORK:
         return cfg.network.bind_host, cfg.network.bind_port
+    elif cfg.type == dccommon_consts.ENDPOINT_TYPE_SOFTWARE:
+        return cfg.usm.bind_host, cfg.usm.bind_port
     elif cfg.type == dccommon_consts.ENDPOINT_TYPE_PATCHING:
-        if cfg.use_usm:
-            return cfg.usm.bind_host, cfg.usm.bind_port
-        else:
-            return cfg.patching.bind_host, cfg.patching.bind_port
+        return cfg.patching.bind_host, cfg.patching.bind_port
     elif cfg.type == consts.ENDPOINT_TYPE_VOLUME:
         return cfg.volume.bind_host, cfg.volume.bind_port
     elif cfg.type == dccommon_consts.ENDPOINT_TYPE_IDENTITY:
@@ -63,11 +62,10 @@ def get_remote_host_port_options(cfg):
         return cfg.platform.remote_host, cfg.platform.remote_port
     elif cfg.type == consts.ENDPOINT_TYPE_NETWORK:
         return cfg.network.remote_host, cfg.network.remote_port
+    elif cfg.type == dccommon_consts.ENDPOINT_TYPE_SOFTWARE:
+        return cfg.usm.remote_host, cfg.usm.remote_port
     elif cfg.type == dccommon_consts.ENDPOINT_TYPE_PATCHING:
-        if cfg.use_usm:
-            return cfg.usm.remote_host, cfg.usm.remote_port
-        else:
-            return cfg.patching.remote_host, cfg.patching.remote_port
+        return cfg.patching.remote_host, cfg.patching.remote_port
     elif cfg.type == consts.ENDPOINT_TYPE_VOLUME:
         return cfg.volume.remote_host, cfg.volume.remote_port
     elif cfg.type == dccommon_consts.ENDPOINT_TYPE_IDENTITY:
