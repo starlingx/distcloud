@@ -21,7 +21,6 @@ from pecan import expose
 from dcmanager.api.controllers import restcomm
 from dcmanager.api.policies import alarm_manager as alarm_manager_policy
 from dcmanager.api import policy
-from dcmanager.common import consts
 from dcmanager.db import api as db_api
 
 LOG = logging.getLogger(__name__)
@@ -34,11 +33,6 @@ class SubcloudAlarmController(object):
 
     def __init__(self, *args, **kwargs):
         super(SubcloudAlarmController, self).__init__(*args, **kwargs)
-
-    # to do the version compatibility for future purpose
-    def _determine_version_cap(self, target):
-        version_cap = 1.0
-        return version_cap
 
     @expose(generic=True, template='json')
     def index(self):
@@ -68,21 +62,3 @@ class SubcloudAlarmController(object):
         policy.authorize(alarm_manager_policy.POLICY_ROOT % "get", {},
                          restcomm.extract_credentials_for_policy())
         return self._get_alarm_aggregates()
-
-    def _get_alarm_summary(self):
-        alarms = self._get_alarm_aggregates()
-        summary = {consts.ALARM_CRITICAL_STATUS: 0,
-                   consts.ALARM_DEGRADED_STATUS: 0,
-                   consts.ALARM_OK_STATUS: 0}
-        for alarm in alarms['alarm_summary']:
-            summary[alarm['cloud_status']] += 1
-        return summary
-
-    @index.when(method='summary', template='json')
-    def summary(self):
-        """Get an agregate of all subcloud status
-
-        """
-        policy.authorize(alarm_manager_policy.POLICY_ROOT % "get", {},
-                         restcomm.extract_credentials_for_policy())
-        return self._get_alarm_summary()
