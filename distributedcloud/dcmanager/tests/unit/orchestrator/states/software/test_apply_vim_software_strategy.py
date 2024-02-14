@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2023 Wind River Systems, Inc.
+# Copyright (c) 2023-2024 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -11,9 +11,9 @@ from dcmanager.tests.unit.orchestrator.states.software.test_base import \
 
 class TestApplyVIMSoftwareStrategyState(TestSoftwareOrchestrator):
     def setUp(self):
-        super(TestApplyVIMSoftwareStrategyState, self).setUp()
+        super().setUp()
 
-        self.on_success_state = consts.STRATEGY_STATE_SW_SWACT_CONTROLLER_1
+        self.on_success_state = consts.STRATEGY_STATE_SW_FINISH_STRATEGY
 
         # Add the subcloud being processed by this unit test
         self.subcloud = self.setup_subcloud()
@@ -28,5 +28,5 @@ class TestApplyVIMSoftwareStrategyState(TestSoftwareOrchestrator):
         self.worker.perform_state_action(self.strategy_step)
 
         # On success, the state should transition to the next state
-        self.assert_step_updated(self.strategy_step.subcloud_id,
-                                 self.on_success_state)
+        self.assert_step_updated(
+            self.strategy_step.subcloud_id, self.on_success_state)

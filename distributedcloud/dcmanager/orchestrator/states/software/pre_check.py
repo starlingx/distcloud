@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2023 Wind River Systems, Inc.
+# Copyright (c) 2023-2024 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -12,7 +12,7 @@ class PreCheckState(BaseState):
     """Pre check software orchestration state"""
 
     def __init__(self, region_name):
-        super(PreCheckState, self).__init__(
+        super().__init__(
             next_state=consts.STRATEGY_STATE_SW_INSTALL_LICENSE,
             region_name=region_name,
         )

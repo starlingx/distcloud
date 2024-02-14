@@ -18,15 +18,15 @@ class TestSoftwareOrchestrator(TestSwUpdate):
     DEFAULT_STRATEGY_TYPE = consts.SW_UPDATE_TYPE_SOFTWARE
 
     def setUp(self):
-        super(TestSoftwareOrchestrator, self).setUp()
+        super().setUp()
 
         # Modify cache helpers to return client mocks
         self.software_cache_client_mock = mock.patch(
-            "%s.get_software_client" % CACHE_CLIENT_PATH,
+            f"{CACHE_CLIENT_PATH}.get_software_client",
             return_value=self.software_client,
         )
         self.sysinv_cache_client_mock = mock.patch(
-            "%s.get_sysinv_client" % CACHE_CLIENT_PATH,
+            f"{CACHE_CLIENT_PATH}.get_sysinv_client",
             return_value=self.sysinv_client
         )
         self.software_cache_client_mock.start()
@@ -35,4 +35,4 @@ class TestSoftwareOrchestrator(TestSwUpdate):
     def tearDown(self):
         self.software_cache_client_mock.stop()
         self.sysinv_cache_client_mock.stop()
-        super(TestSoftwareOrchestrator, self).tearDown()
+        super().tearDown()
