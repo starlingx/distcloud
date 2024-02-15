@@ -214,11 +214,6 @@ fernet_opts = [
                help='Hours between running fernet key rotation tasks.')
 ]
 
-usm_opts = [
-    cfg.BoolOpt('use_usm', default=False,
-                help='parameter to enable USM API')
-]
-
 usm_proxy_opts = [
     cfg.StrOpt('bind_host', default="0.0.0.0",
                help='IP address for API proxy to listen for incoming connections'),
@@ -270,7 +265,6 @@ def list_opts():
     yield usm_group.name, usm_proxy_opts
     yield None, global_opts
     yield None, common_opts
-    yield None, usm_opts
 
 
 def register_options():

@@ -110,6 +110,10 @@ class TestKubernetesAudit(base.DCManagerTestCase):
         self.mock_patch_audit_pc.return_value = mock.MagicMock()
         self.addCleanup(p.stop)
 
+        p = mock.patch.object(patch_audit, 'SoftwareClient')
+        self.mock_patch_audit_sc = p.start()
+        self.addCleanup(p.stop)
+
         p = mock.patch.object(firmware_audit, 'OpenStackDriver')
         self.mock_firmware_audit_driver = p.start()
         self.mock_firmware_audit_driver.return_value = mock.MagicMock()

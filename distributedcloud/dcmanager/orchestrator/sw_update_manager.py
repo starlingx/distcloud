@@ -19,7 +19,6 @@ import os
 import shutil
 import threading
 
-from oslo_config import cfg
 from oslo_log import log as logging
 from tsconfig.tsconfig import SW_VERSION
 
@@ -58,58 +57,56 @@ class SwUpdateManager(manager.Manager):
         # Used to notify dcmanager-audit
         self.audit_rpc_client = dcmanager_audit_rpc_client.ManagerAuditClient()
 
-        # Define which API will be used
-        self.use_usm = cfg.CONF.use_usm
-
         # todo(abailey): refactor/decouple orch threads into a list
         # Start worker threads
 
-        if self.use_usm:
-            # - software orchestration thread
-            self.software_orch_thread = SoftwareOrchThread(self.strategy_lock,
-                                                           self.audit_rpc_client)
-            self.software_orch_thread.start()
-        else:
-            # - patch orchestration thread
-            self.patch_orch_thread = PatchOrchThread(self.strategy_lock,
-                                                     self.audit_rpc_client)
-            self.patch_orch_thread.start()
-            # - sw upgrade orchestration thread
-            self.sw_upgrade_orch_thread = SwUpgradeOrchThread(self.strategy_lock,
-                                                              self.audit_rpc_client)
-            self.sw_upgrade_orch_thread.start()
-            # - fw update orchestration thread
-        self.fw_update_orch_thread = FwUpdateOrchThread(self.strategy_lock,
-                                                        self.audit_rpc_client)
+        # - software orchestration thread
+        self.software_orch_thread = SoftwareOrchThread(
+            self.strategy_lock, self.audit_rpc_client)
+        self.software_orch_thread.start()
+
+        # - patch orchestration thread
+        self.patch_orch_thread = PatchOrchThread(
+            self.strategy_lock, self.audit_rpc_client)
+        self.patch_orch_thread.start()
+
+        # - sw upgrade orchestration thread
+        self.sw_upgrade_orch_thread = SwUpgradeOrchThread(
+            self.strategy_lock, self.audit_rpc_client)
+        self.sw_upgrade_orch_thread.start()
+
+        # - fw update orchestration thread
+        self.fw_update_orch_thread = FwUpdateOrchThread(
+            self.strategy_lock, self.audit_rpc_client)
         self.fw_update_orch_thread.start()
+
         # - kube upgrade orchestration thread
-        self.kube_upgrade_orch_thread = \
-            KubeUpgradeOrchThread(self.strategy_lock, self.audit_rpc_client)
+        self.kube_upgrade_orch_thread = KubeUpgradeOrchThread(
+            self.strategy_lock, self.audit_rpc_client)
         self.kube_upgrade_orch_thread.start()
 
         # - kube rootca update orchestration thread
-        self.kube_rootca_update_orch_thread = \
-            KubeRootcaUpdateOrchThread(self.strategy_lock,
-                                       self.audit_rpc_client)
+        self.kube_rootca_update_orch_thread = KubeRootcaUpdateOrchThread(
+            self.strategy_lock, self.audit_rpc_client)
         self.kube_rootca_update_orch_thread.start()
 
-        self.prestage_orch_thread = PrestageOrchThread(self.strategy_lock,
-                                                       self.audit_rpc_client)
+        # - prestage orchestration thread
+        self.prestage_orch_thread = PrestageOrchThread(
+            self.strategy_lock, self.audit_rpc_client)
         self.prestage_orch_thread.start()
 
     def stop(self):
         # Stop (and join) the worker threads
-        if self.use_usm:
-            # - software orchestration thread
-            self.software_orch_thread.stop()
-            self.software_orch_thread.join()
-        else:
-            # - patch orchestration thread
-            self.patch_orch_thread.stop()
-            self.patch_orch_thread.join()
-            # - sw upgrade orchestration thread
-            self.sw_upgrade_orch_thread.stop()
-            self.sw_upgrade_orch_thread.join()
+
+        # - software orchestration thread
+        self.software_orch_thread.stop()
+        self.software_orch_thread.join()
+        # - patch orchestration thread
+        self.patch_orch_thread.stop()
+        self.patch_orch_thread.join()
+        # - sw upgrade orchestration thread
+        self.sw_upgrade_orch_thread.stop()
+        self.sw_upgrade_orch_thread.join()
         # - fw update orchestration thread
         self.fw_update_orch_thread.stop()
         self.fw_update_orch_thread.join()
@@ -137,26 +134,25 @@ class SwUpdateManager(manager.Manager):
                     dccommon_consts.SYNC_STATUS_OUT_OF_SYNC)
         elif strategy_type == consts.SW_UPDATE_TYPE_UPGRADE:
             # force option only has an effect in offline case for upgrade
-            if force and (
-                availability_status != dccommon_consts.AVAILABILITY_ONLINE
-            ):
-                if cfg.CONF.use_usm:
-                    return (subcloud_status.endpoint_type ==
-                            dccommon_consts.ENDPOINT_TYPE_SOFTWARE and
-                            subcloud_status.sync_status !=
-                            dccommon_consts.SYNC_STATUS_IN_SYNC)
+            if force and availability_status != dccommon_consts.AVAILABILITY_ONLINE:
                 return (subcloud_status.endpoint_type ==
                         dccommon_consts.ENDPOINT_TYPE_LOAD and
                         subcloud_status.sync_status !=
                         dccommon_consts.SYNC_STATUS_IN_SYNC)
             else:
-                if cfg.CONF.use_usm:
-                    return (subcloud_status.endpoint_type ==
-                            dccommon_consts.ENDPOINT_TYPE_SOFTWARE and
-                            subcloud_status.sync_status ==
-                            dccommon_consts.SYNC_STATUS_OUT_OF_SYNC)
                 return (subcloud_status.endpoint_type ==
                         dccommon_consts.ENDPOINT_TYPE_LOAD and
+                        subcloud_status.sync_status ==
+                        dccommon_consts.SYNC_STATUS_OUT_OF_SYNC)
+        elif strategy_type == consts.SW_UPDATE_TYPE_SOFTWARE:
+            if force and availability_status != dccommon_consts.AVAILABILITY_ONLINE:
+                return (subcloud_status.endpoint_type ==
+                        dccommon_consts.ENDPOINT_TYPE_SOFTWARE and
+                        subcloud_status.sync_status !=
+                        dccommon_consts.SYNC_STATUS_IN_SYNC)
+            else:
+                return (subcloud_status.endpoint_type ==
+                        dccommon_consts.ENDPOINT_TYPE_SOFTWARE and
                         subcloud_status.sync_status ==
                         dccommon_consts.SYNC_STATUS_OUT_OF_SYNC)
         elif strategy_type == consts.SW_UPDATE_TYPE_FIRMWARE:
@@ -192,12 +188,8 @@ class SwUpdateManager(manager.Manager):
             # For prestage we reuse the ENDPOINT_TYPE_LOAD.
             # We just need to key off a unique endpoint,
             # so that the strategy is created only once.
-            if cfg.CONF.use_usm:
-                return (subcloud_status.endpoint_type
-                        == dccommon_consts.ENDPOINT_TYPE_SOFTWARE)
-            else:
-                return (subcloud_status.endpoint_type
-                        == dccommon_consts.ENDPOINT_TYPE_LOAD)
+            return (subcloud_status.endpoint_type ==
+                    dccommon_consts.ENDPOINT_TYPE_LOAD)
         # Unimplemented strategy_type status check. Log an error
         LOG.error("_validate_subcloud_status_sync for %s not implemented" %
                   strategy_type)
@@ -348,17 +340,21 @@ class SwUpdateManager(manager.Manager):
 
             if strategy_type == consts.SW_UPDATE_TYPE_UPGRADE:
                 # Make sure subcloud requires upgrade
-                if cfg.CONF.use_usm:
-                    subcloud_status = db_api.subcloud_status_get(
-                        context, subcloud.id, dccommon_consts.ENDPOINT_TYPE_SOFTWARE)
-                else:
-                    subcloud_status = db_api.subcloud_status_get(
-                        context, subcloud.id, dccommon_consts.ENDPOINT_TYPE_LOAD)
+                subcloud_status = db_api.subcloud_status_get(
+                    context, subcloud.id, dccommon_consts.ENDPOINT_TYPE_LOAD)
                 if subcloud_status.sync_status == \
                         dccommon_consts.SYNC_STATUS_IN_SYNC:
                     raise exceptions.BadRequest(
                         resource='strategy',
                         msg='Subcloud %s does not require upgrade' % cloud_name)
+            elif strategy_type == consts.SW_UPDATE_TYPE_SOFTWARE:
+                subcloud_status = db_api.subcloud_status_get(
+                    context, subcloud.id, dccommon_consts.ENDPOINT_TYPE_SOFTWARE)
+                if subcloud_status.sync_status == \
+                        dccommon_consts.SYNC_STATUS_IN_SYNC:
+                    raise exceptions.BadRequest(
+                        resource='strategy',
+                        msg=f'Subcloud {cloud_name} does not require deploy')
             elif strategy_type == consts.SW_UPDATE_TYPE_FIRMWARE:
                 subcloud_status = db_api.subcloud_status_get(
                     context, subcloud.id, dccommon_consts.ENDPOINT_TYPE_FIRMWARE)
@@ -479,15 +475,6 @@ class SwUpdateManager(manager.Manager):
                         dccommon_consts.AVAILABILITY_ONLINE:
                     if not force:
                         continue
-                elif cfg.CONF.use_usm:
-                    if (subcloud_status.endpoint_type ==
-                            dccommon_consts.ENDPOINT_TYPE_SOFTWARE and
-                        subcloud_status.sync_status ==
-                            dccommon_consts.SYNC_STATUS_UNKNOWN):
-                        raise exceptions.BadRequest(
-                            resource='strategy',
-                            msg='Software sync status is unknown for one or more '
-                                'subclouds')
                 elif (subcloud_status.endpoint_type ==
                       dccommon_consts.ENDPOINT_TYPE_LOAD and
                         subcloud_status.sync_status ==
@@ -495,6 +482,19 @@ class SwUpdateManager(manager.Manager):
                     raise exceptions.BadRequest(
                         resource='strategy',
                         msg='Upgrade sync status is unknown for one or more '
+                            'subclouds')
+            elif strategy_type == consts.SW_UPDATE_TYPE_SOFTWARE:
+                if subcloud.availability_status != \
+                        dccommon_consts.AVAILABILITY_ONLINE:
+                    if not force:
+                        continue
+                if (subcloud_status.endpoint_type ==
+                        dccommon_consts.ENDPOINT_TYPE_SOFTWARE and
+                    subcloud_status.sync_status ==
+                        dccommon_consts.SYNC_STATUS_UNKNOWN):
+                    raise exceptions.BadRequest(
+                        resource='strategy',
+                        msg='Software sync status is unknown for one or more '
                             'subclouds')
             elif strategy_type == consts.SW_UPDATE_TYPE_PATCH:
                 if subcloud.availability_status != \

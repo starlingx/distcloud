@@ -405,7 +405,7 @@ class SysinvAPIController(APIController):
 
         # load-import is stored in dc-vault and on /scratch temporary
         # folder to be processed by sysinv
-        if self._is_load_import(request.path) and not cfg.CONF.use_usm:
+        if self._is_load_import(request.path):
             req_body = self._store_load_to_vault(req)
             params_dict = request.POST
             try:
@@ -455,14 +455,13 @@ class SysinvAPIController(APIController):
             operation_type = proxy_utils.get_operation_type(environ)
             if self.get_status_code(response) in self.OK_STATUS_CODE:
                 if resource_type == consts.RESOURCE_TYPE_SYSINV_LOAD:
-                    if not cfg.CONF.use_usm:
-                        if operation_type == consts.OPERATION_TYPE_POST:
-                            new_load = json.loads(response.body)
-                            self._save_load_to_vault(new_load['software_version'])
-                        else:
-                            sw_version = \
-                                json.loads(response.body)['software_version']
-                            self._remove_load_from_vault(sw_version)
+                    if operation_type == consts.OPERATION_TYPE_POST:
+                        new_load = json.loads(response.body)
+                        self._save_load_to_vault(new_load['software_version'])
+                    else:
+                        sw_version = \
+                            json.loads(response.body)['software_version']
+                        self._remove_load_from_vault(sw_version)
                 elif resource_type == consts.RESOURCE_TYPE_SYSINV_DEVICE_IMAGE:
                     notify = True
                     if operation_type == consts.OPERATION_TYPE_POST:

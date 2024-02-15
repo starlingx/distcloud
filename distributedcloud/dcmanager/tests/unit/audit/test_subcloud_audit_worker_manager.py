@@ -63,6 +63,7 @@ class FakePatchAudit(object):
         self.subcloud_audit = mock.MagicMock()
         self.subcloud_patch_audit = mock.MagicMock()
         self.get_regionone_audit_data = mock.MagicMock()
+        self.get_software_regionone_audit_data = mock.MagicMock()
 
 
 class FakeFirmwareAudit(object):

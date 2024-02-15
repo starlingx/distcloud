@@ -27,7 +27,6 @@ TOPIC_DC_MANAGER_ORCHESTRATOR = "dcmanager-orchestrator"
 CERTS_VAULT_DIR = "/opt/dc-vault/certs"
 LOADS_VAULT_DIR = "/opt/dc-vault/loads"
 PATCH_VAULT_DIR = "/opt/dc-vault/patches"
-RELEASE_VAULT_DIR = "/opt/dc-vault/software"
 
 BOOTSTRAP_VALUES = 'bootstrap_values'
 BOOTSTRAP_ADDRESS = 'bootstrap-address'

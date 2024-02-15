@@ -22,16 +22,11 @@ import json
 import os
 import pwd
 import re
+import resource as sys_resource
 import string
 import subprocess
 import uuid
-
-import resource as sys_resource
 import xml.etree.ElementTree as ElementTree
-
-import yaml
-
-import pecan
 
 from keystoneauth1 import exceptions as keystone_exceptions
 import netaddr
@@ -39,13 +34,13 @@ from oslo_concurrency import lockutils
 from oslo_config import cfg
 from oslo_log import log as logging
 from oslo_serialization import base64
+import pecan
 import six.moves
 import tsconfig.tsconfig as tsc
+import yaml
 
 from dccommon import consts as dccommon_consts
 from dccommon.drivers.openstack.sdk_platform import OpenStackDriver
-from dccommon.drivers.openstack import software_v1
-from dccommon.drivers.openstack.software_v1 import SoftwareClient
 from dccommon.drivers.openstack.sysinv_v1 import SysinvClient
 from dccommon.drivers.openstack import vim
 from dccommon import exceptions as dccommon_exceptions
@@ -423,10 +418,7 @@ def get_vault_load_files(target_version):
     in 'iso' or 'sig'.
     : param target_version: The software version to search under the vault
     """
-    if cfg.CONF.use_usm:
-        vault_dir = "{}/{}/".format(consts.RELEASE_VAULT_DIR, target_version)
-    else:
-        vault_dir = "{}/{}/".format(consts.LOADS_VAULT_DIR, target_version)
+    vault_dir = "{}/{}/".format(consts.LOADS_VAULT_DIR, target_version)
 
     matching_iso = None
     matching_sig = None
@@ -1066,37 +1058,12 @@ def get_systemcontroller_installed_loads():
                       dccommon_consts.SYSTEM_CONTROLLER_NAME)
         raise
     ks_client = os_client.keystone_client
-    if cfg.CONF.use_usm:
-        software_client = SoftwareClient(
-            dccommon_consts.SYSTEM_CONTROLLER_NAME,
-            ks_client.session,
-            endpoint=ks_client.endpoint_cache.get_endpoint('usm'))
-        releases = software_client.query()
-        return get_loads_for_prestage_usm(releases)
-    else:
-        sysinv_client = SysinvClient(
-            dccommon_consts.SYSTEM_CONTROLLER_NAME, ks_client.session,
-            endpoint=ks_client.endpoint_cache.get_endpoint('sysinv'))
+    sysinv_client = SysinvClient(
+        dccommon_consts.SYSTEM_CONTROLLER_NAME, ks_client.session,
+        endpoint=ks_client.endpoint_cache.get_endpoint('sysinv'))
 
-        loads = sysinv_client.get_loads()
-        return get_loads_for_prestage(loads)
-
-
-def get_loads_for_prestage_usm(releases):
-    """Filter the loads that can be prestaged.
-
-    Return their software versions with the XX.XX format (e.g. 24.03).
-    """
-    valid_states = [
-        software_v1.AVAILABLE,
-        software_v1.DEPLOYED,
-        software_v1.UNAVAILABLE,
-        software_v1.COMMITTED
-    ]
-    return [".".join(releases[release]['sw_version'].split('.', 2)[:2])
-            for release in releases
-            if (releases[release]['state'] in valid_states and
-                releases[release]['sw_version'].endswith('.0'))]
+    loads = sysinv_client.get_loads()
+    return get_loads_for_prestage(loads)
 
 
 def get_certificate_from_secret(secret_name, secret_ns):

@@ -1,4 +1,4 @@
-# Copyright 2017-2023 Wind River
+# Copyright 2017-2024 Wind River
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -184,53 +184,32 @@ NEUTRON_PATH_MAP = {
 
 # Software
 SOFTWARE_ACTION_QUERY = 'query'
-SOFTWARE_ACTION_DELETE = 'delete'
-SOFTWARE_ACTION_UPLOAD = 'upload'
 SOFTWARE_ACTION_QUERY_DEPENDENCIES = 'query_dependencies'
 SOFTWARE_ACTION_COMMIT_PATCH = 'commit-patch'
-SOFTWARE_ACTION_UPLOAD_DIR = 'upload_dir'
 SOFTWARE_ACTION_SHOW = 'show'
 
 
-SOFTWARE_UPLOAD_PATHS = [
-    '/v1/upload',
-    '/software/upload',
-]
-
-SOFTWARE_UPLOAD_DIR_PATHS = [
-    '/v1/upload_dir',
-    '/software/upload_dir',
-]
-
 SOFTWARE_QUERY_PATHS = [
     '/v1/query',
-    '/software/query',
-]
-
-SOFTWARE_DELETE_PATHS = [
-    '/v1/delete/{release_id}',
-    '/software/delete/{release_id:.*?}',
+    '/v1/software/query',
 ]
 
 SOFTWARE_SHOW_PATHS = [
     '/v1/show/{release_id}',
-    '/software/show/{release_id:.*?}',
+    '/v1/software/show/{release_id:.*?}',
 ]
 
 SOFTWARE_COMMIT_PATCH_PATHS = [
-    '/software/commit_dry_run/{release_id:.*?}',
-    '/software/commit_patch/{release_id:.*?}',
+    '/v1/software/commit_dry_run/{release_id:.*?}',
+    '/v1/software/commit_patch/{release_id:.*?}',
 ]
 
 SOFTWARE_QUERY_DEPENDENCIES_PATHS = [
-    '/software/query_dependencies/{release_id:.*?}',
+    '/v1/software/query_dependencies/{release_id:.*?}',
 ]
 
 SOFTWARE_PATH_MAP = {
-    SOFTWARE_ACTION_UPLOAD: SOFTWARE_UPLOAD_PATHS,
-    SOFTWARE_ACTION_UPLOAD_DIR: SOFTWARE_UPLOAD_DIR_PATHS,
     SOFTWARE_ACTION_QUERY: SOFTWARE_QUERY_PATHS,
-    SOFTWARE_ACTION_DELETE: SOFTWARE_DELETE_PATHS,
     SOFTWARE_ACTION_SHOW: SOFTWARE_SHOW_PATHS,
     SOFTWARE_ACTION_COMMIT_PATCH: SOFTWARE_COMMIT_PATCH_PATHS,
     SOFTWARE_ACTION_QUERY_DEPENDENCIES: SOFTWARE_QUERY_DEPENDENCIES_PATHS
@@ -403,9 +382,6 @@ ROUTE_METHOD_MAP = {
         SOFTWARE_ACTION_SHOW: ['GET'],
         SOFTWARE_ACTION_QUERY_DEPENDENCIES: ['GET'],
         SOFTWARE_ACTION_COMMIT_PATCH: ['POST'],
-        SOFTWARE_ACTION_DELETE: ['POST'],
-        SOFTWARE_ACTION_UPLOAD: ['POST'],
-        SOFTWARE_ACTION_UPLOAD_DIR: ['POST']
     },
     dccommon_consts.ENDPOINT_TYPE_IDENTITY: {
         consts.RESOURCE_TYPE_IDENTITY_USERS:

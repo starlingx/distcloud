@@ -110,12 +110,10 @@ class Acceptor(Router):
 
     def add_patch_routes(self, app, conf, mapper):
         api_controller = PatchAPIController(app, conf)
-        if cfg.CONF.use_usm:
-            for key, value in proxy_consts.SOFTWARE_PATH_MAP.items():
-                self._add_resource(mapper, api_controller, value, key, CONF.type)
-        else:
-            for key, value in proxy_consts.PATCH_PATH_MAP.items():
-                self._add_resource(mapper, api_controller, value, key, CONF.type)
+        for key, value in proxy_consts.SOFTWARE_PATH_MAP.items():
+            self._add_resource(mapper, api_controller, value, key, CONF.type)
+        for key, value in proxy_consts.PATCH_PATH_MAP.items():
+            self._add_resource(mapper, api_controller, value, key, CONF.type)
 
     def add_identity_routes(self, app, conf, mapper):
         api_controller = IdentityAPIController(app, conf)

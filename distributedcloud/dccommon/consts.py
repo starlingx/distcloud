@@ -1,4 +1,4 @@
-# Copyright (c) 2020-2023 Wind River Systems, Inc.
+# Copyright (c) 2020-2024 Wind River Systems, Inc.
 # Licensed under the Apache License, Version 2.0 (the "License"); you may
 # not use this file except in compliance with the License. You may obtain
 # a copy of the License at
@@ -103,17 +103,8 @@ ENDPOINT_TYPES_LIST = [ENDPOINT_TYPE_PLATFORM,
                        ENDPOINT_TYPE_DC_CERT,
                        ENDPOINT_TYPE_FIRMWARE,
                        ENDPOINT_TYPE_KUBERNETES,
-                       ENDPOINT_TYPE_KUBE_ROOTCA]
-
-ENDPOINT_TYPES_LIST_USM = [ENDPOINT_TYPE_PLATFORM,
-                           ENDPOINT_TYPE_PATCHING,
-                           ENDPOINT_TYPE_IDENTITY,
-                           ENDPOINT_TYPE_LOAD,
-                           ENDPOINT_TYPE_DC_CERT,
-                           ENDPOINT_TYPE_FIRMWARE,
-                           ENDPOINT_TYPE_KUBERNETES,
-                           ENDPOINT_TYPE_KUBE_ROOTCA,
-                           ENDPOINT_TYPE_SOFTWARE]
+                       ENDPOINT_TYPE_KUBE_ROOTCA,
+                       ENDPOINT_TYPE_SOFTWARE]
 
 # All endpoint audit requests
 ENDPOINT_AUDIT_REQUESTS = {

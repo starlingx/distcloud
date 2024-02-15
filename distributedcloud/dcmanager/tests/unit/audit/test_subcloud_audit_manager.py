@@ -37,6 +37,7 @@ class FakePatchAudit(object):
 
     def __init__(self):
         self.get_regionone_audit_data = mock.MagicMock()
+        self.get_software_regionone_audit_data = mock.MagicMock()
 
 
 class FakeFirmwareAudit(object):
