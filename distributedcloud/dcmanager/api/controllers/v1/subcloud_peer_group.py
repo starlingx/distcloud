@@ -290,6 +290,25 @@ class SubcloudPeerGroupsController(restcomm.GenericPathController):
             ):
                 pecan.abort(httpclient.BAD_REQUEST, _('nothing to update'))
 
+            # The flag to indicate if the update needs to be synced to
+            # the peer site(s).
+            sync_needed = ((peer_group_name and
+                            peer_group_name != group.peer_group_name) or
+                           (group_state and
+                            group_state != group.group_state) or
+                           (max_subcloud_rehoming is not None and
+                            max_subcloud_rehoming != group.max_subcloud_rehoming))
+
+            any_update = (sync_needed or
+                          ((group_priority is not None and
+                            group_priority != group.group_priority) or
+                           (system_leader_id and
+                            system_leader_id != group.system_leader_id) or
+                           (system_leader_name and
+                            system_leader_name != group.system_leader_name)))
+            if not any_update:
+                return db_api.subcloud_peer_group_db_model_to_dict(group)
+
             # Check value is not None or empty before calling validation function
             if (peer_group_name is not None and
                     not utils.validate_name(peer_group_name,
@@ -321,6 +340,27 @@ class SubcloudPeerGroupsController(restcomm.GenericPathController):
                     ]):
                 pecan.abort(httpclient.BAD_REQUEST,
                             _('Invalid migration_status'))
+
+            # Update on peer site(s)
+            if (not utils.is_req_from_another_dc(request)) and sync_needed:
+                success_peer_ids, failed_peer_ids = \
+                    self.rpc_client.update_subcloud_peer_group(
+                        context, group.id, group_state, max_subcloud_rehoming,
+                        group.peer_group_name, peer_group_name)
+                if failed_peer_ids:
+                    if not success_peer_ids:
+                        # Reject if all failed
+                        pecan.abort(
+                            httpclient.FORBIDDEN,
+                            _('Unable to sync the update to the peer site(s)'))
+                    # Local update will continue if it's only partial
+                    # failure.
+                    LOG.error(f"Failed to sync the subcloud peer group "
+                              f"{group.id} update on the peer site(s) "
+                              f"{failed_peer_ids} with the values: "
+                              f"{group_state=}, "
+                              f"{max_subcloud_rehoming=}, "
+                              f"{peer_group_name=}")
 
             try:
                 updated_peer_group = db_api.subcloud_peer_group_update(

@@ -1595,3 +1595,19 @@ def get_msg_output_info(log_file, target_task, target_str):
 def get_subcloud_ansible_log_file(subcloud_name):
     return os.path.join(consts.DC_ANSIBLE_LOG_DIR,
                         subcloud_name + '_playbook_output.log')
+
+
+def is_leader_on_local_site(peer_group):
+    return peer_group.system_leader_id == get_local_system().uuid
+
+
+def generate_sync_info_message(association_ids):
+    info_message = None
+    if association_ids:
+        info_message = ("The operation has caused the SPG to be out-of-sync. "
+                        "Please run peer-group-association sync command to push "
+                        "the subcloud peer group changes to the peer site:\n")
+        for association_id in association_ids:
+            info_message += (f"$ dcmanager peer-group-association"
+                             f" sync {association_id}\n")
+    return info_message

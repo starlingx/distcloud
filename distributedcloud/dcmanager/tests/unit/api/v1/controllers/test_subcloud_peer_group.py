@@ -18,7 +18,11 @@ from dcmanager.tests import utils
 
 SAMPLE_SUBCLOUD_PEER_GROUP_NAME = 'GroupX'
 SAMPLE_SUBCLOUD_PEER_GROUP_MAX_SUBCLOUDS_REHOMING = 50
+SAMPLE_SUBCLOUD_PEER_GROUP_STATE = 'enabled'
 SAMPLE_SUBCLOUD_PEER_GROUP_PIRORITY = 0
+
+NEW_SUBCLOUD_PEER_GROUP_NAME = 'GroupY'
+NEW_SUBCLOUD_PEER_GROUP_MAX_SUBCLOUDS_REHOMING = 20
 
 API_PREFIX = '/v1.0/subcloud-peer-groups'
 RESULT_KEY = 'subcloud_peer_groups'
@@ -74,7 +78,8 @@ class SubcloudPeerGroupAPIMixin(APIMixin):
             ),
             'system_leader_name': kw.get('system_leader_name', 'dc-test'),
             'group_priority': kw.get('group_priority', '0'),
-            'group_state': kw.get('group_state', 'enabled'),
+            'group_state': kw.get(
+                'group_state', SAMPLE_SUBCLOUD_PEER_GROUP_STATE),
             'max_subcloud_rehoming': kw.get(
                 'max_subcloud_rehoming',
                 SAMPLE_SUBCLOUD_PEER_GROUP_MAX_SUBCLOUDS_REHOMING
@@ -342,6 +347,29 @@ class TestSubcloudPeerGroupUpdate(testroot.DCManagerApiTest,
         # Failures will return text rather than json
         self.assertEqual(response.content_type, 'text/plain')
         self.assertEqual(response.status_code, http_client.BAD_REQUEST)
+
+    @mock.patch.object(rpc_client, 'ManagerClient')
+    def test_rename_subcloud_peer_group(self, mock_client):
+        mock_client().update_subcloud_peer_group.return_value = \
+            (set(), set(mock.MagicMock()))
+        context = utils.dummy_context()
+        single_obj = self._create_db_object(context)
+        update_data = {
+            'peer-group-name': NEW_SUBCLOUD_PEER_GROUP_NAME,
+            'max-subcloud-rehoming':
+                NEW_SUBCLOUD_PEER_GROUP_MAX_SUBCLOUDS_REHOMING
+        }
+        response = self.app.patch_json(self.get_single_url(single_obj.id),
+                                       headers=self.get_api_headers(),
+                                       params=update_data,
+                                       expect_errors=False)
+        self.assertEqual(response.status_code, http_client.OK)
+
+        mock_client().update_subcloud_peer_group.assert_called_once_with(
+            mock.ANY, single_obj.id, None,
+            NEW_SUBCLOUD_PEER_GROUP_MAX_SUBCLOUDS_REHOMING,
+            SAMPLE_SUBCLOUD_PEER_GROUP_NAME,
+            NEW_SUBCLOUD_PEER_GROUP_NAME)
 
 
 class TestSubcloudPeerGroupDelete(testroot.DCManagerApiTest,

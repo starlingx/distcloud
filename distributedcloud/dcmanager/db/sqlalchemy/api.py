@@ -1272,7 +1272,10 @@ def peer_group_association_update(context,
         if sync_status is not None:
             association_ref.sync_status = sync_status
         if sync_message is not None:
-            association_ref.sync_message = sync_message
+            if str(sync_message).lower() == 'none':
+                association_ref.sync_message = None
+            else:
+                association_ref.sync_message = sync_message
         association_ref.save(session)
         return association_ref
 

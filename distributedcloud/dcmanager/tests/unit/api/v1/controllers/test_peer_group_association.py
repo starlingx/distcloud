@@ -294,7 +294,7 @@ class TestPeerGroupAssociationUpdate(testroot.DCManagerApiTest,
 
     @mock.patch.object(rpc_client, 'ManagerClient')
     def test_update_success(self, mock_client):
-        mock_client().update_subcloud_peer_group.return_value = {
+        mock_client().sync_subcloud_peer_group_only.return_value = {
             'peer-group-priority': SAMPLE_PEER_GROUP_PRIORITY_UPDATED
         }
         context = utils.dummy_context()

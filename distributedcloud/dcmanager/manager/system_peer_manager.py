@@ -66,10 +66,9 @@ class SystemPeerManager(manager.Manager):
             return [association] if association else []
 
     @staticmethod
-    def update_sync_status_on_peer_site(ctx, peer, sync_status, local_pg=None,
-                                        remote_pg=None, message="None",
-                                        association=None):
-        """Update sync status of association on peer site.
+    def update_sync_status(ctx, peer, sync_status, local_pg=None,
+                           remote_pg=None, message="None", association=None):
+        """Update sync status of association.
 
         This function updates the sync status of the association on the peer
         site and then updates the sync status of the association on the
@@ -84,7 +83,7 @@ class SystemPeerManager(manager.Manager):
         :param association: peer group association object
         """
 
-        def _update_association_on_peer_site(association, peer, sync_status,
+        def _update_association_on_peer_site(peer, sync_status,
                                              local_pg, remote_pg, message):
             try:
                 # Get peer site dcmanager client
@@ -120,7 +119,6 @@ class SystemPeerManager(manager.Manager):
 
             return sync_status, message
 
-        associations = list()
         if association is None:
             associations = SystemPeerManager.get_local_associations(
                 ctx, peer, local_pg)
@@ -138,7 +136,7 @@ class SystemPeerManager(manager.Manager):
             local_pg = local_pg if local_pg is not None else db_api.\
                 subcloud_peer_group_get(ctx, association.peer_group_id)
             sync_status, message = _update_association_on_peer_site(
-                association, peer, sync_status, local_pg, remote_pg, message)
+                peer, sync_status, local_pg, remote_pg, message)
 
             if association.sync_status == sync_status and sync_status != \
                     consts.ASSOCIATION_SYNC_STATUS_FAILED:
@@ -535,6 +533,120 @@ class SystemPeerManager(manager.Manager):
                                         failed_message,
                                         dc_peer_association_id)
 
+    def update_association_sync_status(self, context, peer_group_id,
+                                       sync_status, sync_message=None):
+        """Update PGA sync status on primary and peer site(s).
+
+        The update of PGA sync status is always triggered on the primary site,
+        therefore, this method can only be called on the primary site.
+
+        :param context: request context object
+        :param peer_group_id: id of the peer group used to fetch corresponding PGA
+        :param sync_status: the sync status to be updated to
+        :param sync_message: The sync message to be updated to
+        """
+        # Collect the association IDs to be synced.
+        out_of_sync_associations_ids = set()
+        local_peer_gp = db_api.subcloud_peer_group_get(self.context, peer_group_id)
+        # Get associations by peer group id
+        associations = db_api.peer_group_association_get_by_peer_group_id(
+            context, peer_group_id)
+        if not associations:
+            LOG.debug("No association found for peer group %s" % peer_group_id)
+        else:
+            for association in associations:
+                if sync_status == consts.ASSOCIATION_SYNC_STATUS_OUT_OF_SYNC:
+                    out_of_sync_associations_ids.add(association.id)
+
+                pre_sync_status = association.sync_status
+                new_sync_status = sync_status
+                new_sync_message = sync_message
+                if sync_status in (consts.ASSOCIATION_SYNC_STATUS_IN_SYNC,
+                                   consts.ASSOCIATION_SYNC_STATUS_OUT_OF_SYNC):
+                    # We don't need sync_message for in-sync and out-of-sync
+                    # status, so clear the previous remained message for these
+                    # two status.
+                    new_sync_message = 'None'
+
+                # If the local sync_status already set to unknown, indicating
+                # that the peer site is unreachable, we'll change the sync_status
+                # to failed directly on the local site without trying to sync
+                # the status to the peer site. When the peer site becomes
+                # reachable, the primary site monitor will update the failed
+                # status to out-of-sync on both sites.
+                if pre_sync_status == consts.ASSOCIATION_SYNC_STATUS_UNKNOWN:
+                    if sync_status != consts.ASSOCIATION_SYNC_STATUS_IN_SYNC:
+                        new_sync_status = consts.ASSOCIATION_SYNC_STATUS_FAILED
+                        new_sync_message = ("Failed to update sync_status, "
+                                            "because the peer site is unreachable.")
+                # Update peer site peer association sync_status
+                else:
+                    # Get system peer by peer id from the association
+                    system_peer = db_api.system_peer_get(
+                        context, association.system_peer_id)
+                    if pre_sync_status != sync_status:
+                        SystemPeerManager.update_sync_status(
+                            context, system_peer, sync_status, local_peer_gp,
+                            None, new_sync_message, association)
+                        # Already update sync_status on both peer and local sites
+                        continue
+
+                if pre_sync_status != new_sync_status:
+                    # Update local site peer association sync_status
+                    db_api.peer_group_association_update(
+                        context,
+                        association.id,
+                        sync_status=new_sync_status,
+                        sync_message=new_sync_message)
+                    LOG.debug(
+                        f"Updated Local Peer Group Association {association.id} "
+                        f"sync_status to {new_sync_status}.")
+
+        return out_of_sync_associations_ids
+
+    def update_subcloud_peer_group(self, context, peer_group_id,
+                                   group_state, max_subcloud_rehoming,
+                                   group_name, new_group_name=None):
+        # Collect the success and failed peer ids.
+        success_peer_ids = set()
+        failed_peer_ids = set()
+
+        # Get associations by peer group id
+        associations = db_api.peer_group_association_get_by_peer_group_id(
+            context, peer_group_id)
+        if not associations:
+            LOG.info("No association found for peer group %s" % peer_group_id)
+        else:
+            for association in associations:
+                # Get system peer by peer id from the association
+                system_peer = db_api.system_peer_get(
+                    context, association.system_peer_id)
+                # Get 'available' system peer
+                if system_peer.availability_state != \
+                        consts.SYSTEM_PEER_AVAILABILITY_STATE_AVAILABLE:
+                    LOG.warning("Peer system %s offline" % system_peer.id)
+                    failed_peer_ids.add(system_peer.id)
+                else:
+                    try:
+                        # Get a client for sending request to this system peer
+                        dc_client = self.get_peer_dc_client(system_peer)
+                        peer_group_kwargs = {
+                            'peer-group-name': new_group_name,
+                            'group-state': group_state,
+                            'max-subcloud-rehoming': max_subcloud_rehoming
+                        }
+                        # Make an API call to update peer group on peer site
+                        dc_client.update_subcloud_peer_group(
+                            group_name, **peer_group_kwargs)
+                        success_peer_ids.add(system_peer.id)
+                    except Exception:
+                        LOG.error(f"Failed to update Subcloud Peer Group "
+                                  f"{group_name} on peer site {system_peer.id}"
+                                  f" with the values: {peer_group_kwargs}")
+                        failed_peer_ids.add(system_peer.id)
+
+        return success_peer_ids, failed_peer_ids
+
     def _get_non_primary_association(self, dc_client, dc_peer_system_peer_id,
                                      dc_peer_pg_id):
         """Get non-primary Association from peer site."""
@@ -690,9 +802,14 @@ class SystemPeerManager(manager.Manager):
                 error_msg = self._sync_subclouds(context, peer, dc_local_pg.id,
                                                  dc_peer_pg_id)
                 if len(error_msg) > 0:
+                    LOG.error(f"Failed to sync subcloud(s) in the Subcloud "
+                              f"Peer Group {peer_group_name}: "
+                              f"{json.dumps(error_msg)}")
                     association_update['sync_status'] = \
                         consts.ASSOCIATION_SYNC_STATUS_FAILED
-                    association_update['sync_message'] = json.dumps(error_msg)
+                    association_update['sync_message'] = \
+                        (f"Failed to sync {error_msg.keys()} in the Subcloud "
+                         f"Peer Group {peer_group_name}.")
             association = self._update_sync_status(
                 context, association_id, **association_update)
 
@@ -779,8 +896,14 @@ class SystemPeerManager(manager.Manager):
                 'peer subcloud clean', clean_function, delete_pool, subclouds)
 
             if delete_error_msg:
+                LOG.error(f"Failed to delete subcloud(s) from "
+                          f"the Subcloud Peer Group {peer_group_name} "
+                          f"on peer site: {json.dumps(delete_error_msg)}")
+                sync_message = (f"Deletion of {delete_error_msg.keys()} from "
+                                f"the Subcloud Peer Group {peer_group_name} "
+                                f"on the peer site failed.")
                 self._update_sync_status_to_failed(context, association_id,
-                                                   json.dumps(delete_error_msg))
+                                                   sync_message)
                 return
 
             # System Peer does not exist on peer site, delete peer group

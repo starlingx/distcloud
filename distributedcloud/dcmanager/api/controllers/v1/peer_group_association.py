@@ -37,7 +37,8 @@ ASSOCIATION_SYNC_STATUS_LIST = \
     [consts.ASSOCIATION_SYNC_STATUS_SYNCING,
      consts.ASSOCIATION_SYNC_STATUS_IN_SYNC,
      consts.ASSOCIATION_SYNC_STATUS_OUT_OF_SYNC,
-     consts.ASSOCIATION_SYNC_STATUS_FAILED]
+     consts.ASSOCIATION_SYNC_STATUS_FAILED,
+     consts.ASSOCIATION_SYNC_STATUS_UNKNOWN]
 
 
 class PeerGroupAssociationsController(restcomm.GenericPathController):
@@ -336,8 +337,8 @@ class PeerGroupAssociationsController(restcomm.GenericPathController):
         try:
             # Ask dcmanager-manager to update the subcloud peer group priority
             # to peer site. It will do the real work...
-            return self.rpc_client.update_subcloud_peer_group(context,
-                                                              association.id)
+            return self.rpc_client.sync_subcloud_peer_group_only(
+                context, association.id)
         except RemoteError as e:
             pecan.abort(httpclient.UNPROCESSABLE_ENTITY, e.value)
         except Exception as e:

@@ -338,11 +338,30 @@ class DCManagerService(service.Service):
             context, association_id, sync_subclouds)
 
     @request_context
+    def update_subcloud_peer_group(self, context, peer_group_id,
+                                   group_state, max_subcloud_rehoming,
+                                   group_name, new_group_name=None):
+        LOG.info("Handling update_subcloud_peer_group request for "
+                 "peer group %s" % peer_group_id)
+        return self.system_peer_manager.update_subcloud_peer_group(
+            context, peer_group_id, group_state, max_subcloud_rehoming,
+            group_name, new_group_name)
+
+    @request_context
     def delete_peer_group_association(self, context, association_id):
         LOG.info("Handling delete_peer_group_association request for: %s",
                  association_id)
         return self.system_peer_manager.delete_peer_group_association(
             context, association_id)
+
+    @request_context
+    def update_association_sync_status(self, context, peer_group_id,
+                                       sync_status, sync_message=None):
+        # Updates peer group association sync_status
+        LOG.info("Handling update_peer_association_sync_status request for: %s"
+                 % peer_group_id)
+        return self.system_peer_manager.update_association_sync_status(
+            context, peer_group_id, sync_status, sync_message)
 
     def _stop_rpc_server(self):
         # Stop RPC connection to prevent new requests

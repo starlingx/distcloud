@@ -265,14 +265,32 @@ class ManagerClient(RPCClient):
         return self.cast(ctxt, self.make_msg(
             'sync_subcloud_peer_group', association_id=association_id))
 
-    def update_subcloud_peer_group(self, ctxt, association_id):
+    def sync_subcloud_peer_group_only(self, ctxt, association_id):
+        # Without synchronizing subclouds
         return self.call(ctxt, self.make_msg(
             'sync_subcloud_peer_group', association_id=association_id,
             sync_subclouds=False))
 
+    def update_subcloud_peer_group(self, ctxt, peer_group_id,
+                                   group_state, max_subcloud_rehoming,
+                                   group_name, new_group_name=None):
+        return self.call(ctxt, self.make_msg(
+            'update_subcloud_peer_group',
+            peer_group_id=peer_group_id,
+            group_state=group_state,
+            max_subcloud_rehoming=max_subcloud_rehoming,
+            group_name=group_name, new_group_name=new_group_name))
+
     def delete_peer_group_association(self, ctxt, association_id):
         return self.call(ctxt, self.make_msg('delete_peer_group_association',
                                              association_id=association_id))
+
+    def update_association_sync_status(self, ctxt, peer_group_id,
+                                       sync_status, sync_message=None):
+        return self.call(ctxt, self.make_msg('update_association_sync_status',
+                                             peer_group_id=peer_group_id,
+                                             sync_status=sync_status,
+                                             sync_message=sync_message))
 
     def peer_monitor_notify(self, ctxt):
         return self.call(ctxt, self.make_msg('peer_monitor_notify'))

@@ -161,7 +161,7 @@ class PeerMonitor(object):
                 sync_status = consts.ASSOCIATION_SYNC_STATUS_IN_SYNC
             dc_local_pg = db_api.subcloud_peer_group_get(
                 self.context, association.peer_group_id)
-            SystemPeerManager.update_sync_status_on_peer_site(
+            SystemPeerManager.update_sync_status(
                 self.context, self.peer, sync_status, dc_local_pg,
                 association=association)
 

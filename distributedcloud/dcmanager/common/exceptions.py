@@ -210,6 +210,10 @@ class SubcloudBackupOperationFailed(DCManagerException):
                 "'dcmanager subcloud error' command for details")
 
 
+class SubcloudSyncFailedException(DCManagerException):
+    message = _("Failed to sync subcloud update to peer site %(peer_id)s")
+
+
 class ConnectionRefused(DCManagerException):
     message = _("Connection to the service endpoint is refused")
 

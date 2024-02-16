@@ -40,6 +40,9 @@ FAKE_SITE0_PEER_GROUP_STATE = 'enabled'
 
 # FAKE SUBCLOUD PEER GROUP DATA (SITE1)
 FAKE_SITE1_PEER_GROUP_ID = 9
+FAKE_SITE1_PEER_GROUP_NAME = 'PeerGroup2'
+FAKE_SITE1_PEER_GROUP_MAX_SUBCLOUDS_REHOMING = 20
+FAKE_SITE1_PEER_GROUP_STATE = 'enabled'
 
 # FAKE SYSTEM PEER DATA (SITE1)
 FAKE_SITE1_SYSTEM_PEER_ID = 10
@@ -156,7 +159,9 @@ class TestSystemPeerManager(base.DCManagerTestCase):
             'endpoint': FAKE_MANAGER_ENDPOINT,
             'username': FAKE_MANAGER_USERNAME,
             'password': FAKE_MANAGER_PASSWORD,
-            'gateway_ip': FAKE_PEER_CONTROLLER_GATEWAY_IP
+            'gateway_ip': FAKE_PEER_CONTROLLER_GATEWAY_IP,
+            'availability_state':
+                consts.SYSTEM_PEER_AVAILABILITY_STATE_AVAILABLE
         }
         values.update(kwargs)
         return db_api.system_peer_create(ctxt, **values)
@@ -492,8 +497,7 @@ class TestSystemPeerManager(base.DCManagerTestCase):
                 'utils.get_local_system')
     @mock.patch('dcmanager.manager.system_peer_manager.'
                 'SystemPeerManager.get_peer_dc_client')
-    def test_update_sync_status_on_peer_site(
-            self, mock_client, mock_utils):
+    def test_update_sync_status(self, mock_client, mock_utils):
         mock_dc_client = mock.MagicMock()
         mock_dc_client().get_subcloud_peer_group = mock.MagicMock()
         mock_dc_client().get_system_peer = mock.MagicMock()
@@ -521,7 +525,7 @@ class TestSystemPeerManager(base.DCManagerTestCase):
             return_value = {'id': FAKE_SITE1_ASSOCIATION_ID}
 
         spm = system_peer_manager.SystemPeerManager(mock.MagicMock())
-        spm.update_sync_status_on_peer_site(
+        spm.update_sync_status(
             self.ctx, peer, consts.ASSOCIATION_SYNC_STATUS_IN_SYNC)
 
         mock_dc_client().get_subcloud_peer_group.assert_called_once_with(
@@ -539,3 +543,101 @@ class TestSystemPeerManager(base.DCManagerTestCase):
             self.ctx, association.id)
         self.assertEqual(consts.ASSOCIATION_SYNC_STATUS_IN_SYNC,
                          association_new.sync_status)
+
+    @mock.patch.object(system_peer_manager.SystemPeerManager,
+                       'update_sync_status')
+    def test_update_association_sync_status(self, mock_update_sync_status):
+        peer = self.create_system_peer_static(
+            self.ctx,
+            peer_name='SystemPeer1')
+        peer_group = self.create_subcloud_peer_group_static(
+            self.ctx,
+            peer_group_name='SubcloudPeerGroup1')
+        self.create_peer_group_association_static(
+            self.ctx,
+            system_peer_id=peer.id,
+            peer_group_id=peer_group.id,
+            sync_status=consts.ASSOCIATION_SYNC_STATUS_IN_SYNC)
+
+        spm = system_peer_manager.SystemPeerManager(mock.MagicMock())
+        spm.update_association_sync_status(
+            self.ctx, peer_group.id,
+            consts.ASSOCIATION_SYNC_STATUS_OUT_OF_SYNC)
+
+        mock_update_sync_status.assert_called_once_with(
+            self.ctx, mock.ANY, consts.ASSOCIATION_SYNC_STATUS_OUT_OF_SYNC,
+            mock.ANY, None, 'None', mock.ANY)
+
+    @mock.patch.object(system_peer_manager.SystemPeerManager,
+                       'update_sync_status')
+    def test_update_association_sync_status_when_peer_site_down(
+            self, mock_update_sync_status):
+        peer = self.create_system_peer_static(
+            self.ctx,
+            peer_name='SystemPeer1')
+        peer_group = self.create_subcloud_peer_group_static(
+            self.ctx,
+            peer_group_name='SubcloudPeerGroup1')
+        self.create_peer_group_association_static(
+            self.ctx,
+            system_peer_id=peer.id,
+            peer_group_id=peer_group.id,
+            sync_status=consts.ASSOCIATION_SYNC_STATUS_UNKNOWN)
+
+        spm = system_peer_manager.SystemPeerManager(mock.MagicMock())
+        spm.update_association_sync_status(
+            self.ctx, peer_group.id,
+            consts.ASSOCIATION_SYNC_STATUS_OUT_OF_SYNC)
+
+        association = db_api. \
+            peer_group_association_get_by_peer_group_and_system_peer_id(
+                self.ctx, peer_group.id, peer.id)
+        self.assertEqual(consts.ASSOCIATION_SYNC_STATUS_FAILED,
+                         association.sync_status)
+        self.assertEqual("Failed to update sync_status, "
+                         "because the peer site is unreachable.",
+                         association.sync_message)
+
+        mock_update_sync_status.assert_not_called()
+
+    @mock.patch.object(system_peer_manager, 'PeerSiteDriver')
+    @mock.patch.object(system_peer_manager, 'SysinvClient')
+    @mock.patch.object(system_peer_manager, 'DcmanagerClient')
+    def test_update_subcloud_peer_group(self,
+                                        mock_dc_client,
+                                        mock_sysinv_client,
+                                        mock_keystone_client):
+        mock_keystone_client().keystone_client = FakeKeystoneClient()
+        mock_sysinv_client.return_value = FakeSysinvClient()
+        mock_dc_client.return_value = FakeDcmanagerClient()
+        mock_dc_client().get_subcloud_peer_group = mock.MagicMock()
+        mock_dc_client().update_subcloud_peer_group = mock.MagicMock()
+        mock_dc_client().get_system_peer = mock.MagicMock()
+
+        peer = self.create_system_peer_static(
+            self.ctx,
+            peer_name='SystemPeer1')
+        peer_group = self.create_subcloud_peer_group_static(
+            self.ctx,
+            peer_group_name=FAKE_SITE0_PEER_GROUP_NAME)
+        self.create_peer_group_association_static(
+            self.ctx,
+            system_peer_id=peer.id,
+            peer_group_id=peer_group.id)
+
+        spm = system_peer_manager.SystemPeerManager(mock.MagicMock())
+        spm.update_subcloud_peer_group(
+            self.ctx, peer_group.id,
+            FAKE_SITE1_PEER_GROUP_STATE,
+            FAKE_SITE1_PEER_GROUP_MAX_SUBCLOUDS_REHOMING,
+            FAKE_SITE0_PEER_GROUP_NAME,
+            FAKE_SITE1_PEER_GROUP_NAME)
+
+        peer_group_kwargs = {
+            'peer-group-name': FAKE_SITE1_PEER_GROUP_NAME,
+            'group-state': FAKE_SITE1_PEER_GROUP_STATE,
+            'max-subcloud-rehoming':
+                FAKE_SITE1_PEER_GROUP_MAX_SUBCLOUDS_REHOMING
+        }
+        mock_dc_client().update_subcloud_peer_group.assert_called_once_with(
+            FAKE_SITE0_PEER_GROUP_NAME, **peer_group_kwargs)
