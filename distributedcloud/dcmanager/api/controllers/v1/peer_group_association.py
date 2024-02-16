@@ -31,7 +31,6 @@ from dcmanager.rpc import client as rpc_client
 CONF = cfg.CONF
 LOG = logging.getLogger(__name__)
 
-PEER_GROUP_PRIMARY_PRIORITY = 0
 MIN_PEER_GROUP_ASSOCIATION_PRIORITY = 1
 MAX_PEER_GROUP_ASSOCIATION_PRIORITY = 65536
 ASSOCIATION_SYNC_STATUS_LIST = \
@@ -191,9 +190,9 @@ class PeerGroupAssociationsController(restcomm.GenericPathController):
             pecan.abort(httpclient.BAD_REQUEST,
                         _('Invalid peer_group_priority'))
 
-        if (peer_group.group_priority == PEER_GROUP_PRIMARY_PRIORITY and
+        if (peer_group.group_priority == consts.PEER_GROUP_PRIMARY_PRIORITY and
             peer_group_priority is None) or (
-                peer_group.group_priority > PEER_GROUP_PRIMARY_PRIORITY and
+                peer_group.group_priority > consts.PEER_GROUP_PRIMARY_PRIORITY and
                 peer_group_priority is not None):
             pecan.abort(httpclient.BAD_REQUEST,
                         _('Peer Group Association create is not allowed when '
@@ -201,7 +200,7 @@ class PeerGroupAssociationsController(restcomm.GenericPathController):
                           'and it is required when the subcloud peer group '
                           'priority is 0.'))
 
-        is_primary = peer_group.group_priority == PEER_GROUP_PRIMARY_PRIORITY
+        is_primary = peer_group.group_priority == consts.PEER_GROUP_PRIMARY_PRIORITY
 
         # only one combination of peer_group_id + system_peer_id can exists
         association = None

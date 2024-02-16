@@ -28,6 +28,8 @@ from dcmanager.tests.unit.api.v1.controllers.test_subclouds import \
 from dcmanager.tests.unit.api.v1.controllers.test_subclouds import \
     TestSubcloudPost
 from dcmanager.tests.unit.common import fake_subcloud
+from dcmanager.tests.unit.manager.test_system_peer_manager import \
+    TestSystemPeerManager
 from dcmanager.tests import utils
 
 FAKE_URL = '/v1.0/phased-subcloud-deploy'
@@ -339,6 +341,48 @@ class TestSubcloudDeployConfig(testroot.DCManagerApiTest):
         data = {'sysadmin_password': fake_password}
         self.mock_rpc_client().subcloud_deploy_config.return_value = True
         self.mock_get_request_data.return_value = data
+
+        six.assertRaisesRegex(self, webtest.app.AppError, "400 *",
+                              self.app.patch_json, FAKE_URL + '/' +
+                              str(subcloud.id) + '/configure',
+                              headers=FAKE_HEADERS, params=data)
+
+    def test_configure_primary_subcloud_peer_group(self):
+        data_install = copy.copy(FAKE_SUBCLOUD_INSTALL_VALUES)
+        data_install.pop('software_version')
+
+        fake_password = \
+            (base64.b64encode('testpass'.encode("utf-8"))).decode('ascii')
+        data = {'sysadmin_password': fake_password}
+
+        self.mock_rpc_client().subcloud_deploy_config.return_value = True
+        self.mock_get_request_data.return_value = data
+
+        # Create a subcloud and add it to SPG with primary priority
+        peer_group = TestSystemPeerManager.create_subcloud_peer_group_static(
+            self.ctx,
+            group_priority=consts.PEER_GROUP_PRIMARY_PRIORITY,
+            peer_group_name='SubcloudPeerGroup1')
+
+        subcloud = TestSystemPeerManager.create_subcloud_with_pg_static(
+            self.ctx,
+            peer_group_id=peer_group.id,
+            name='subcloud1',
+            data_install=json.dumps(data_install))
+
+        response = self.app.patch_json(FAKE_URL + '/' + str(subcloud.id) +
+                                       '/configure',
+                                       headers=FAKE_HEADERS,
+                                       params=data)
+        self.mock_rpc_client().subcloud_deploy_config.assert_called_once_with(
+            mock.ANY, subcloud.id, data, initial_deployment=True)
+        self.assertEqual(response.status_int, 200)
+
+        # Change the SPG as if it was on peer site
+        db_api.subcloud_peer_group_update(
+            self.ctx,
+            peer_group.id,
+            group_priority=consts.PEER_GROUP_PRIMARY_PRIORITY + 1)
 
         six.assertRaisesRegex(self, webtest.app.AppError, "400 *",
                               self.app.patch_json, FAKE_URL + '/' +

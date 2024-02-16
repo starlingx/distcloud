@@ -309,6 +309,17 @@ class PhasedSubcloudDeployController(object):
             pecan.abort(400, _('Subcloud prestage is ongoing %s') %
                         subcloud.prestage_status)
 
+        # If the subcloud belongs to a peer group, ensure that
+        # it's not being configured in a secondary site.
+        if subcloud.peer_group_id is not None:
+            peer_group = utils.subcloud_peer_group_get_by_ref(
+                context, str(subcloud.peer_group_id))
+            if peer_group is not None:
+                if peer_group.group_priority != consts.PEER_GROUP_PRIMARY_PRIORITY:
+                    pecan.abort(400,
+                                _('Subcloud can only be configured in'
+                                  ' its primary site.'))
+
         psd_common.populate_payload_with_pre_existing_data(
             payload, subcloud, SUBCLOUD_CONFIG_GET_FILE_CONTENTS)
 
