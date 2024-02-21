@@ -21,8 +21,6 @@ from dccommon import consts as dccommon_consts
 from dccommon.drivers.openstack import patching_v1
 from dccommon.drivers.openstack.patching_v1 import PatchingClient
 from dccommon.drivers.openstack.sdk_platform import OpenStackDriver
-from dccommon.drivers.openstack import software_v1
-from dccommon.drivers.openstack.software_v1 import SoftwareClient
 from dccommon.drivers.openstack.sysinv_v1 import SysinvClient
 from dcmanager.common import utils
 
@@ -44,27 +42,6 @@ class PatchAuditData(object):
             'applied_patch_ids': self.applied_patch_ids,
             'committed_patch_ids': self.committed_patch_ids,
             'software_version': self.software_version,
-        }
-
-    @classmethod
-    def from_dict(cls, values):
-        if values is None:
-            return None
-        return cls(**values)
-
-
-class SoftwareAuditData(object):
-    def __init__(self, releases, deployed_release_ids,
-                 committed_release_ids):
-        self.releases = releases
-        self.deployed_release_ids = deployed_release_ids
-        self.committed_release_ids = committed_release_ids
-
-    def to_dict(self):
-        return {
-            'releases': self.releases,
-            'deployed_release_ids': self.deployed_release_ids,
-            'committed_release_ids': self.committed_release_ids,
         }
 
     @classmethod
@@ -101,45 +78,6 @@ class PatchAudit(object):
             LOG.exception('Cannot retrieve upgrade info for subcloud: %s' %
                           sysinv_client.region_name)
         return upgrades
-
-    def get_software_regionone_audit_data(self):
-        """Query RegionOne to determine what releases should be deployed
-
-        to the system as well as the current software version
-
-        :return: A new SoftwareAuditData object
-        """
-        try:
-            m_os_ks_client = OpenStackDriver(
-                region_name=dccommon_consts.DEFAULT_REGION_NAME,
-                region_clients=None).keystone_client
-            software_endpoint = m_os_ks_client.endpoint_cache.get_endpoint(
-                dccommon_consts.ENDPOINT_TYPE_SOFTWARE)
-            software_client = SoftwareClient(dccommon_consts.DEFAULT_REGION_NAME,
-                                             m_os_ks_client.session,
-                                             endpoint=software_endpoint)
-        except Exception:
-            LOG.exception('Failure initializing OS Client, skip software audit.')
-            return None
-        # First query RegionOne to determine what releases should be deployed
-        # to the system.
-        regionone_releases = software_client.query()
-        LOG.debug("regionone_releases: %s" % regionone_releases)
-        # Build lists of releases that should be deployed or committed in all
-        # subclouds, based on their state in RegionOne.
-        deployed_release_ids = list()
-        committed_release_ids = list()
-        for release_id in regionone_releases.keys():
-            if regionone_releases[release_id]['state'] == \
-                    software_v1.DEPLOYED:
-                deployed_release_ids.append(release_id)
-            elif regionone_releases[release_id]['state'] == \
-                    software_v1.COMMITTED:
-                committed_release_ids.append(release_id)
-        LOG.debug("RegionOne deployed_release_ids: %s" % deployed_release_ids)
-        LOG.debug("RegionOne committed_release_ids: %s" % committed_release_ids)
-        return SoftwareAuditData(regionone_releases, deployed_release_ids,
-                                 committed_release_ids)
 
     def get_regionone_audit_data(self):
         """Query RegionOne to determine what patches should be applied
@@ -193,104 +131,6 @@ class PatchAudit(object):
         LOG.debug("RegionOne committed_patch_ids: %s" % committed_patch_ids)
         return PatchAuditData(regionone_patches, applied_patch_ids,
                               committed_patch_ids, regionone_software_version)
-
-    def subcloud_audit(
-        self, subcloud_name, subcloud_region, audit_data, software_audit_data,
-        do_load_audit
-    ):
-        if software_audit_data:
-            self.subcloud_software_audit(
-                subcloud_name, subcloud_region, software_audit_data
-            )
-        else:
-            self.subcloud_patch_audit(subcloud_name, subcloud_region, audit_data,
-                                      do_load_audit)
-
-    def subcloud_software_audit(self, subcloud_name, subcloud_region, audit_data):
-        LOG.info('Triggered software audit for: %s.' % subcloud_name)
-        try:
-            sc_os_client = OpenStackDriver(region_name=subcloud_region,
-                                           region_clients=None).keystone_client
-            session = sc_os_client.session
-            software_endpoint = sc_os_client.endpoint_cache. \
-                get_endpoint(dccommon_consts.ENDPOINT_TYPE_SOFTWARE)
-            software_client = SoftwareClient(
-                subcloud_region, session,
-                endpoint=software_endpoint)
-        except (keystone_exceptions.EndpointNotFound,
-                keystone_exceptions.ConnectFailure,
-                keystone_exceptions.ConnectTimeout,
-                IndexError):
-            LOG.exception("Endpoint for online subcloud %s not found, skip "
-                          "software audit." % subcloud_name)
-            return
-
-        # Retrieve all the releases that are present in this subcloud.
-        try:
-            subcloud_releases = software_client.query()
-            LOG.debug("Releases for subcloud %s: %s" %
-                      (subcloud_name, subcloud_releases))
-        except Exception:
-            LOG.warn('Cannot retrieve releases for subcloud: %s, skip software '
-                     'audit' % subcloud_name)
-            return
-
-        out_of_sync = False
-
-        # audit_data will be a dict due to passing through RPC so objectify it
-        audit_data = SoftwareAuditData.from_dict(audit_data)
-
-        # Check that all releases in this subcloud are in the correct
-        # state, based on the state of the release in RegionOne. For the
-        # subcloud.
-        for release_id in subcloud_releases.keys():
-            if subcloud_releases[release_id]['state'] == \
-                    software_v1.DEPLOYED:
-                if release_id not in audit_data.deployed_release_ids:
-                    if release_id not in audit_data.committed_release_ids:
-                        LOG.debug("Release %s should not be deployed in %s" %
-                                  (release_id, subcloud_name))
-                    else:
-                        LOG.debug("Release %s should be committed in %s" %
-                                  (release_id, subcloud_name))
-                    out_of_sync = True
-            elif subcloud_releases[release_id]['state'] == \
-                    software_v1.COMMITTED:
-                if (release_id not in audit_data.committed_release_ids and
-                        release_id not in audit_data.deployed_release_ids):
-                    LOG.warn("Release %s should not be committed in %s" %
-                             (release_id, subcloud_name))
-                    out_of_sync = True
-            else:
-                # In steady state, all releases should either be deployed
-                # or committed in each subcloud. Release in other
-                # states mean a sync is required.
-                out_of_sync = True
-
-        # Check that all deployed or committed releases in RegionOne are
-        # present in the subcloud.
-        for release_id in audit_data.deployed_release_ids:
-            if release_id not in subcloud_releases:
-                LOG.debug("Release %s missing from %s" %
-                          (release_id, subcloud_name))
-                out_of_sync = True
-        for release_id in audit_data.committed_release_ids:
-            if release_id not in subcloud_releases:
-                LOG.debug("Release %s missing from %s" %
-                          (release_id, subcloud_name))
-                out_of_sync = True
-
-        if out_of_sync:
-            self._update_subcloud_sync_status(
-                subcloud_name,
-                subcloud_region, dccommon_consts.ENDPOINT_TYPE_SOFTWARE,
-                dccommon_consts.SYNC_STATUS_OUT_OF_SYNC)
-        else:
-            self._update_subcloud_sync_status(
-                subcloud_name,
-                subcloud_region, dccommon_consts.ENDPOINT_TYPE_SOFTWARE,
-                dccommon_consts.SYNC_STATUS_IN_SYNC)
-        LOG.info('Software audit completed for: %s.' % subcloud_name)
 
     def subcloud_patch_audit(self, subcloud_name, subcloud_region, audit_data,
                              do_load_audit):

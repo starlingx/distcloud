@@ -30,6 +30,7 @@ from dcmanager.audit import kube_rootca_update_audit
 from dcmanager.audit import kubernetes_audit
 from dcmanager.audit import patch_audit
 from dcmanager.audit import rpcapi as dcmanager_audit_rpc_client
+from dcmanager.audit import software_audit
 from dcmanager.audit import utils as audit_utils
 from dcmanager.common import context
 from dcmanager.common.i18n import _
@@ -41,15 +42,16 @@ LOG = logging.getLogger(__name__)
 
 # We will update the state of each subcloud in the dcorch about once per hour.
 # Calculate how many iterations that will be.
-SUBCLOUD_STATE_UPDATE_ITERATIONS = \
+SUBCLOUD_STATE_UPDATE_ITERATIONS = (
     dccommon_consts.SECONDS_IN_HOUR // CONF.scheduler.subcloud_audit_interval
+)
 
 # Patch audit normally happens every CONF.scheduler.patch_audit_interval
 # seconds, but can be forced to happen on the next audit interval by calling
 # trigger_patch_audit.
 
 # Name of starlingx openstack helm application
-HELM_APP_OPENSTACK = 'openstack'
+HELM_APP_OPENSTACK = "openstack"
 
 # Every 4 audits triggers a kubernetes audit
 KUBERNETES_AUDIT_RATE = 4
@@ -73,60 +75,61 @@ class SubcloudAuditManager(manager.Manager):
     # Used to force kubernetes audit on the next interval
     force_kubernetes_audit = False
 
+    # Used to force patch audit on the next interval
+    force_software_audit = False
+
     def __init__(self, *args, **kwargs):
-        LOG.debug(_('SubcloudAuditManager initialization...'))
+        LOG.debug(_("SubcloudAuditManager initialization..."))
 
         super(SubcloudAuditManager, self).__init__(
-            service_name="subcloud_audit_manager")
+            service_name="subcloud_audit_manager"
+        )
         self.context = context.get_admin_context()
         self.audit_worker_rpc_client = (
-            dcmanager_audit_rpc_client.ManagerAuditWorkerClient())
+            dcmanager_audit_rpc_client.ManagerAuditWorkerClient()
+        )
         # Number of audits since last subcloud state update
         self.audit_count = SUBCLOUD_STATE_UPDATE_ITERATIONS - 2
+        self.patch_audit = patch_audit.PatchAudit(self.context, None)
         # Number of patch audits
         self.patch_audit_count = 0
-        self.patch_audit = patch_audit.PatchAudit(
-            self.context, None)
         # trigger a patch audit on startup
         self.patch_audit_time = 0
-        self.firmware_audit = firmware_audit.FirmwareAudit(
-            self.context, None)
-        self.kubernetes_audit = kubernetes_audit.KubernetesAudit(
-            self.context, None)
-        self.kube_rootca_update_audit = \
+        self.firmware_audit = firmware_audit.FirmwareAudit(self.context, None)
+        self.kubernetes_audit = kubernetes_audit.KubernetesAudit(self.context, None)
+        self.kube_rootca_update_audit = (
             kube_rootca_update_audit.KubeRootcaUpdateAudit(self.context, None)
+        )
+        self.software_audit = software_audit.SoftwareAudit(self.context, None)
 
     def _add_missing_endpoints(self):
         # Update this flag file based on the most recent new endpoint
-        file_path_list = [
-            os.path.join(CONFIG_PATH, '.kube_rootca_update_endpoint_added'),
-            os.path.join(CONFIG_PATH, '.usm_endpoint_added')
-        ]
-        for file_path in file_path_list:
-            # If file exists on the controller, all the endpoints have been
-            # added to DB since last time an endpoint was added
-            if not os.path.isfile(file_path):
-                # Ensures all endpoints exist for all subclouds
-                # If the endpoint doesn't exist, an entry will be made
-                # in endpoint_status table
-                for subcloud in db_api.subcloud_get_all(self.context):
-                    subcloud_statuses = db_api.subcloud_status_get_all(
-                        self.context, subcloud.id)
-                    # Use set difference to find missing endpoints
-                    endpoint_type_set = set(dccommon_consts.ENDPOINT_TYPES_LIST)
-                    subcloud_set = set()
-                    for subcloud_status in subcloud_statuses:
-                        subcloud_set.add(subcloud_status.endpoint_type)
+        file_path = os.path.join(CONFIG_PATH, ".kube_rootca_update_endpoint_added")
+        # If file exists on the controller, all the endpoints have been
+        # added to DB since last time an endpoint was added
+        if not os.path.isfile(file_path):
+            # Ensures all endpoints exist for all subclouds
+            # If the endpoint doesn't exist, an entry will be made
+            # in endpoint_status table
+            for subcloud in db_api.subcloud_get_all(self.context):
+                subcloud_statuses = db_api.subcloud_status_get_all(
+                    self.context, subcloud.id
+                )
+                # Use set difference to find missing endpoints
+                endpoint_type_set = set(dccommon_consts.ENDPOINT_TYPES_LIST)
+                subcloud_set = set()
+                for subcloud_status in subcloud_statuses:
+                    subcloud_set.add(subcloud_status.endpoint_type)
 
-                    missing_endpoints = list(endpoint_type_set - subcloud_set)
+                missing_endpoints = list(endpoint_type_set - subcloud_set)
 
-                    for endpoint in missing_endpoints:
-                        db_api.subcloud_status_create(self.context,
-                                                      subcloud.id,
-                                                      endpoint)
-                # Add a flag on a replicated filesystem to avoid re-running
-                # the DB checks for missing subcloud endpoints
-                open(file_path, 'w').close()
+                for endpoint in missing_endpoints:
+                    db_api.subcloud_status_create(
+                        self.context, subcloud.id, endpoint
+                    )
+            # Add a flag on a replicated filesystem to avoid re-running
+            # the DB checks for missing subcloud endpoints
+            open(file_path, "w").close()
 
     @classmethod
     def trigger_firmware_audit(cls, context):
@@ -181,21 +184,35 @@ class SubcloudAuditManager(manager.Manager):
     def reset_force_patch_audit(cls):
         cls.force_patch_audit = False
 
+    @classmethod
+    def trigger_software_audit(cls, context):
+        """Trigger software audit at next interval.
+
+        This can be called from outside the dcmanager audit
+        """
+        cls.force_software_audit = True
+
+    @classmethod
+    def reset_software_audit(cls):
+        cls.force_software_audit = False
+
     def trigger_subcloud_audits(self, context, subcloud_id, exclude_endpoints):
         """Trigger all subcloud audits for one subcloud."""
         values = {
-            'patch_audit_requested': True,
-            'firmware_audit_requested': True,
-            'load_audit_requested': True,
-            'kubernetes_audit_requested': True,
-            'kube_rootca_update_audit_requested': True,
+            "patch_audit_requested": True,
+            "firmware_audit_requested": True,
+            "load_audit_requested": True,
+            "kubernetes_audit_requested": True,
+            "kube_rootca_update_audit_requested": True,
+            "spare_audit_requested": True,
         }
         # For the endpoints excluded in the audit, set it to False in db
         # to disable the audit explicitly.
         if exclude_endpoints:
             for exclude_endpoint in exclude_endpoints:
                 exclude_request = dccommon_consts.ENDPOINT_AUDIT_REQUESTS.get(
-                    exclude_endpoint)
+                    exclude_endpoint
+                )
                 if exclude_request:
                     values.update({exclude_request: False})
         db_api.subcloud_audits_update(context, subcloud_id, values)
@@ -211,7 +228,8 @@ class SubcloudAuditManager(manager.Manager):
     def trigger_subcloud_endpoints_update(self, context, subcloud_name, endpoints):
         """Trigger update endpoints of services for a subcloud region."""
         self.audit_worker_rpc_client.update_subcloud_endpoints(
-            context, subcloud_name, endpoints)
+            context, subcloud_name, endpoints
+        )
 
     def periodic_subcloud_audit(self):
         """Audit availability of subclouds."""
@@ -223,13 +241,13 @@ class SubcloudAuditManager(manager.Manager):
         # audit them and request all sub-audits.
         # (This is for swact and process restart.)
         db_api.subcloud_audits_fix_expired_audits(
-            self.context, datetime.datetime.utcnow(), trigger_audits=True)
+            self.context, datetime.datetime.utcnow(), trigger_audits=True
+        )
         # Blanket catch all exceptions in the audit so that the audit
         # does not die.
         while True:
             try:
-                eventlet.greenthread.sleep(
-                    CONF.scheduler.subcloud_audit_interval)
+                eventlet.greenthread.sleep(CONF.scheduler.subcloud_audit_interval)
                 self._periodic_subcloud_audit_loop()
             except eventlet.greenlet.GreenletExit:
                 # We have been told to exit
@@ -244,20 +262,30 @@ class SubcloudAuditManager(manager.Manager):
         audit_firmware = False
         audit_kubernetes = False
         audit_kube_rootca_updates = False
+        audit_software = False
         current_time = time.time()
+
         # Determine whether to trigger a patch audit of each subcloud
-        if (SubcloudAuditManager.force_patch_audit or
-                (current_time - self.patch_audit_time >=
-                    CONF.scheduler.patch_audit_interval)):
+        if SubcloudAuditManager.force_patch_audit or (
+            current_time - self.patch_audit_time
+            >= CONF.scheduler.patch_audit_interval
+        ):
             LOG.info("Trigger patch audit")
             audit_patch = True
             self.patch_audit_time = current_time
             self.patch_audit_count += 1
             # Check subcloud software version every other patch audit cycle
-            if (self.patch_audit_count % 2 != 0 or
-                    SubcloudAuditManager.force_patch_audit):
+            if (
+                self.patch_audit_count % 2 != 0
+                or SubcloudAuditManager.force_patch_audit
+            ):
                 LOG.info("Trigger load audit")
                 audit_load = True
+            if self.patch_audit_count % 2 != 0:
+                LOG.info("Trigger software audit")
+                audit_software = True
+                # Reset force_software_audit only when software audit has been
+                SubcloudAuditManager.reset_software_audit()
             if self.patch_audit_count % 4 == 1:
                 LOG.info("Trigger firmware audit")
                 audit_firmware = True
@@ -296,31 +324,47 @@ class SubcloudAuditManager(manager.Manager):
             audit_kube_rootca_updates = True
             SubcloudAuditManager.reset_force_kube_rootca_update_audit()
 
-        return (audit_patch, audit_load, audit_firmware,
-                audit_kubernetes, audit_kube_rootca_updates)
+        # Trigger a software audit as it is changed through proxy
+        if SubcloudAuditManager.force_software_audit:
+            LOG.info("Trigger software audit")
+            audit_software = True
+            SubcloudAuditManager.reset_software_audit()
 
-    def _get_audit_data(self,
-                        audit_patch,
-                        audit_firmware,
-                        audit_kubernetes,
-                        audit_kube_rootca_updates):
+        return (
+            audit_patch,
+            audit_load,
+            audit_firmware,
+            audit_kubernetes,
+            audit_kube_rootca_updates,
+            audit_software,
+        )
+
+    def _get_audit_data(
+        self,
+        audit_patch,
+        audit_firmware,
+        audit_kubernetes,
+        audit_kube_rootca_updates,
+        audit_software,
+    ):
         """Return the patch / firmware / kubernetes audit data as needed."""
         patch_audit_data = None
         software_audit_data = None
         firmware_audit_data = None
         kubernetes_audit_data = None
         kube_rootca_update_audit_data = None
+        software_audit_data = None
 
         # TODO(nicodemos): After the integration with VIM the patch audit and patch
         # orchestration will be removed from the dcmanager. The audit_patch will
         # be substituted by the software_audit. The software_audit will be
         # responsible for the patch and load audit.
         if audit_patch:
-            # Query RegionOne releases
-            software_audit_data = (
-                self.patch_audit.get_software_regionone_audit_data())
             # Query RegionOne patches and software version
             patch_audit_data = self.patch_audit.get_regionone_audit_data()
+        if audit_software:
+            # Query RegionOne releases
+            software_audit_data = self.patch_audit.get_regionone_audit_data()
         if audit_firmware:
             # Query RegionOne firmware
             firmware_audit_data = self.firmware_audit.get_regionone_audit_data()
@@ -329,17 +373,22 @@ class SubcloudAuditManager(manager.Manager):
             kubernetes_audit_data = self.kubernetes_audit.get_regionone_audit_data()
         if audit_kube_rootca_updates:
             # Query RegionOne kube rootca update info
-            kube_rootca_update_audit_data = \
+            kube_rootca_update_audit_data = (
                 self.kube_rootca_update_audit.get_regionone_audit_data()
-        return (patch_audit_data, firmware_audit_data,
-                kubernetes_audit_data, kube_rootca_update_audit_data,
-                software_audit_data)
+            )
+        return (
+            patch_audit_data,
+            firmware_audit_data,
+            kubernetes_audit_data,
+            kube_rootca_update_audit_data,
+            software_audit_data,
+        )
 
     def _periodic_subcloud_audit_loop(self):
         """Audit availability of subclouds loop."""
 
         # We will be running in our own green thread here.
-        LOG.debug('Triggered subcloud audit.')
+        LOG.debug("Triggered subcloud audit.")
         self.audit_count += 1
 
         # Determine whether to trigger a state update to each subcloud.
@@ -350,14 +399,26 @@ class SubcloudAuditManager(manager.Manager):
             update_subcloud_state = False
 
         # Determine whether we want to trigger specialty audits.
-        (audit_patch, audit_load, audit_firmware,
-         audit_kubernetes,
-         audit_kube_rootca_update) = self._get_audits_needed()
+        (
+            audit_patch,
+            audit_load,
+            audit_firmware,
+            audit_kubernetes,
+            audit_kube_rootca_update,
+            audit_software,
+        ) = self._get_audits_needed()
 
         # Set desired audit flags for all subclouds.
         audit_utils.request_subcloud_audits(
-            self.context, update_subcloud_state, audit_patch, audit_load,
-            audit_firmware, audit_kubernetes, audit_kube_rootca_update)
+            self.context,
+            update_subcloud_state,
+            audit_patch,
+            audit_load,
+            audit_firmware,
+            audit_kubernetes,
+            audit_kube_rootca_update,
+            audit_software,
+        )
 
         do_openstack_audit = False
 
@@ -379,28 +440,35 @@ class SubcloudAuditManager(manager.Manager):
 
         current_time = datetime.datetime.utcnow()
         last_audit_threshold = current_time - datetime.timedelta(
-            seconds=CONF.scheduler.subcloud_audit_interval)
+            seconds=CONF.scheduler.subcloud_audit_interval
+        )
         # The sysinv and patching subcloud REST API timeouts are 600 sec,
         # and we need to be greater than that, so lets go with that plus
         # an extra audit interval.
         last_audit_fixup_threshold = current_time - datetime.timedelta(
-            seconds=(sysinv_v1.SYSINV_CLIENT_REST_DEFAULT_TIMEOUT +
-                     CONF.scheduler.subcloud_audit_interval))
+            seconds=(
+                sysinv_v1.SYSINV_CLIENT_REST_DEFAULT_TIMEOUT
+                + CONF.scheduler.subcloud_audit_interval
+            )
+        )
 
         # Fix up any stale audit timestamps for subclouds that started an
         # audit but never finished it.
         start = datetime.datetime.utcnow()
         num_fixed = db_api.subcloud_audits_fix_expired_audits(
-            self.context, last_audit_fixup_threshold)
+            self.context, last_audit_fixup_threshold
+        )
         end = datetime.datetime.utcnow()
         if num_fixed > 0:
             LOG.info(
-                'Fixed up subcloud audit timestamp for %s subclouds.' % num_fixed)
-            LOG.info('Fixup took %s seconds' % (end - start))
+                "Fixed up subcloud audit timestamp for %s subclouds." % num_fixed
+            )
+            LOG.info("Fixup took %s seconds" % (end - start))
 
         subcloud_ids = []
         subcloud_audits = db_api.subcloud_audits_get_all_need_audit(
-            self.context, last_audit_threshold)
+            self.context, last_audit_threshold
+        )
 
         # Now check whether any of these subclouds need patch audit or firmware
         # audit data and grab it if needed.
@@ -430,29 +498,55 @@ class SubcloudAuditManager(manager.Manager):
                     LOG.debug("DB says kube-rootca-update audit needed")
                     audit_kube_rootca_update = True
                     break
-        LOG.info("Triggered subcloud audit: patch=(%s) firmware=(%s) "
-                 "kube=(%s) kube-rootca=(%s)"
-                 % (audit_patch, audit_firmware,
-                    audit_kubernetes, audit_kube_rootca_update))
-        (patch_audit_data, firmware_audit_data,
-         kubernetes_audit_data, kube_rootca_update_audit_data,
-         software_audit_data) = \
-            self._get_audit_data(audit_patch,
-                                 audit_firmware,
-                                 audit_kubernetes,
-                                 audit_kube_rootca_update)
-        LOG.debug("patch_audit_data: %s, "
-                  "firmware_audit_data: %s, "
-                  "kubernetes_audit_data: %s, "
-                  "kube_rootca_update_audit_data: : %s, "
-                  % (patch_audit_data,
-                     firmware_audit_data,
-                     kubernetes_audit_data,
-                     kube_rootca_update_audit_data))
+        if not audit_software:
+            for audit in subcloud_audits:
+                if audit.spare_audit_requested:
+                    LOG.debug("DB says software audit needed")
+                    audit_software = True
+                    break
+        LOG.info(
+            "Triggered subcloud audit: patch=(%s) firmware=(%s) "
+            "kube=(%s) kube-rootca=(%s) software=(%s)"
+            % (
+                audit_patch,
+                audit_firmware,
+                audit_kubernetes,
+                audit_kube_rootca_update,
+                audit_software,
+            )
+        )
+        (
+            patch_audit_data,
+            firmware_audit_data,
+            kubernetes_audit_data,
+            kube_rootca_update_audit_data,
+            software_audit_data,
+        ) = self._get_audit_data(
+            audit_patch,
+            audit_firmware,
+            audit_kubernetes,
+            audit_kube_rootca_update,
+            audit_software,
+        )
+        LOG.debug(
+            "patch_audit_data: %s, "
+            "firmware_audit_data: %s, "
+            "kubernetes_audit_data: %s, "
+            "kube_rootca_update_audit_data: : %s, "
+            "software_audit_data: %s"
+            % (
+                patch_audit_data,
+                firmware_audit_data,
+                kubernetes_audit_data,
+                kube_rootca_update_audit_data,
+                software_audit_data,
+            )
+        )
 
         # We want a chunksize of at least 1 so add the number of workers.
         chunksize = (len(subcloud_audits) + CONF.audit_worker_workers) // (
-            CONF.audit_worker_workers)
+            CONF.audit_worker_workers
+        )
         for audit in subcloud_audits:
             subcloud_ids.append(audit.subcloud_id)
             if len(subcloud_ids) == chunksize:
@@ -465,10 +559,11 @@ class SubcloudAuditManager(manager.Manager):
                     kubernetes_audit_data,
                     do_openstack_audit,
                     kube_rootca_update_audit_data,
-                    software_audit_data)
+                    software_audit_data,
+                )
                 LOG.debug(
-                    'Sent subcloud audit request message for subclouds: %s' %
-                    subcloud_ids
+                    "Sent subcloud audit request message for subclouds: %s"
+                    % subcloud_ids
                 )
                 subcloud_ids = []
         if len(subcloud_ids) > 0:
@@ -481,10 +576,11 @@ class SubcloudAuditManager(manager.Manager):
                 kubernetes_audit_data,
                 do_openstack_audit,
                 kube_rootca_update_audit_data,
-                software_audit_data)
+                software_audit_data,
+            )
             LOG.debug(
-                'Sent final subcloud audit request message for subclouds: %s' %
-                subcloud_ids
+                "Sent final subcloud audit request message for subclouds: %s"
+                % subcloud_ids
             )
         else:
-            LOG.debug('Done sending audit request messages.')
+            LOG.debug("Done sending audit request messages.")

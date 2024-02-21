@@ -413,10 +413,6 @@ class TestFirmwareAudit(base.DCManagerTestCase):
         self.mock_audit_worker_api.return_value = self.fake_audit_worker_api
         self.addCleanup(p.stop)
 
-        p = mock.patch.object(patch_audit, 'SoftwareClient')
-        self.mock_patch_audit_sc = p.start()
-        self.addCleanup(p.stop)
-
     def _rpc_convert(self, object_list):
         # Convert to dict like what would happen calling via RPC
         dict_results = []
@@ -425,8 +421,13 @@ class TestFirmwareAudit(base.DCManagerTestCase):
         return dict_results
 
     def get_fw_audit_data(self, am):
-        patch_audit_data, firmware_audit_data, kubernetes_audit_data, kube_root,\
-            software_audit_data = am._get_audit_data(True, True, True, True)
+        (
+            _,
+            firmware_audit_data,
+            _,
+            _,
+            _
+        ) = am._get_audit_data(True, True, True, True, True)
 
         # Convert to dict like what would happen calling via RPC
         firmware_audit_data = self._rpc_convert(firmware_audit_data)

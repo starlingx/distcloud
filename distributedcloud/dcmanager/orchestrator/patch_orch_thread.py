@@ -28,8 +28,7 @@ from dcmanager.orchestrator.states.patch.finishing_patch_strategy import \
     FinishingPatchStrategyState
 from dcmanager.orchestrator.states.patch.job_data import PatchJobData
 from dcmanager.orchestrator.states.patch.pre_check import PreCheckState
-from dcmanager.orchestrator.states.patch.updating_patches import \
-    UpdatingPatchesState
+from dcmanager.orchestrator.states.patch.updating_patches import UpdatingPatchesState
 
 LOG = logging.getLogger(__name__)
 

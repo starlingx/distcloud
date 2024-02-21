@@ -203,20 +203,23 @@ class SubcloudAudits(BASE, DCManagerBase):
     __tablename__ = 'subcloud_audits'
 
     id = Column(Integer, primary_key=True, nullable=False)
-    subcloud_id = Column(Integer,
-                         ForeignKey('subclouds.id', ondelete='CASCADE'),
-                         unique=True)
-    audit_started_at = Column(DateTime(timezone=False),
-                              default=datetime.datetime.min)
-    audit_finished_at = Column(DateTime(timezone=False),
-                               default=datetime.datetime.min)
+    subcloud_id = Column(
+        Integer, ForeignKey('subclouds.id', ondelete='CASCADE'), unique=True
+    )
+    audit_started_at = Column(
+        DateTime(timezone=False), default=datetime.datetime.min
+    )
+    audit_finished_at = Column(
+        DateTime(timezone=False), default=datetime.datetime.min
+    )
     state_update_requested = Column(Boolean, nullable=False, default=False)
     patch_audit_requested = Column(Boolean, nullable=False, default=False)
     load_audit_requested = Column(Boolean, nullable=False, default=False)
     firmware_audit_requested = Column(Boolean, nullable=False, default=False)
     kubernetes_audit_requested = Column(Boolean, nullable=False, default=False)
-    kube_rootca_update_audit_requested = Column(Boolean, nullable=False,
-                                                default=False)
+    kube_rootca_update_audit_requested = Column(
+        Boolean, nullable=False, default=False
+    )
     spare_audit_requested = Column(Boolean, nullable=False, default=False)
     spare2_audit_requested = Column(Boolean, nullable=False, default=False)
     reserved = Column(Text)

@@ -32,8 +32,7 @@ from oslo_utils import uuidutils
 import sqlalchemy
 from sqlalchemy import desc
 from sqlalchemy import or_
-from sqlalchemy.orm.exc import MultipleResultsFound
-from sqlalchemy.orm.exc import NoResultFound
+from sqlalchemy.orm import exc
 from sqlalchemy.orm import joinedload_all
 from sqlalchemy.orm import load_only
 from sqlalchemy.sql.expression import true
@@ -204,7 +203,8 @@ def subcloud_audits_get_all_need_audit(context, last_audit_threshold):
                    (models.SubcloudAudits.load_audit_requested == true()) |
                    (models.SubcloudAudits.kube_rootca_update_audit_requested ==
                     true()) |
-                   (models.SubcloudAudits.kubernetes_audit_requested == true())).\
+                   (models.SubcloudAudits.kubernetes_audit_requested == true()) |
+                   (models.SubcloudAudits.spare_audit_requested == true())).\
             all()
     return result
 
@@ -239,6 +239,8 @@ def subcloud_audits_end_audit(context, subcloud_id, audits_done):
             subcloud_audits_ref.kube_rootca_update_audit_requested = False
         if 'kubernetes' in audits_done:
             subcloud_audits_ref.kubernetes_audit_requested = False
+        if 'software' in audits_done:
+            subcloud_audits_ref.spare_audit_requested = False
         subcloud_audits_ref.save(session)
         return subcloud_audits_ref
 
@@ -260,6 +262,7 @@ def subcloud_audits_fix_expired_audits(context, last_audit_threshold,
         values['load_audit_requested'] = True
         values['kubernetes_audit_requested'] = True
         values['kube_rootca_update_audit_requested'] = True
+        values['spare_audit_requested'] = True
     with write_session() as session:
         result = session.query(models.SubcloudAudits).\
             options(load_only("deleted", "audit_started_at",
@@ -817,9 +820,9 @@ def system_peer_get(context, peer_id):
             filter_by(deleted=0). \
             filter_by(id=peer_id). \
             one()
-    except NoResultFound:
+    except exc.NoResultFound:
         raise exception.SystemPeerNotFound(peer_id=peer_id)
-    except MultipleResultsFound:
+    except exc.MultipleResultsFound:
         raise exception.InvalidParameterValue(
             err="Multiple entries found for system peer %s" % peer_id)
 
@@ -833,9 +836,9 @@ def system_peer_get_by_name(context, name):
             filter_by(deleted=0). \
             filter_by(peer_name=name). \
             one()
-    except NoResultFound:
+    except exc.NoResultFound:
         raise exception.SystemPeerNameNotFound(name=name)
-    except MultipleResultsFound:
+    except exc.MultipleResultsFound:
         # This exception should never happen due to the UNIQUE setting for name
         raise exception.InvalidParameterValue(
             err="Multiple entries found for system peer %s" % name)
@@ -850,9 +853,9 @@ def system_peer_get_by_uuid(context, uuid):
             filter_by(deleted=0). \
             filter_by(peer_uuid=uuid). \
             one()
-    except NoResultFound:
+    except exc.NoResultFound:
         raise exception.SystemPeerUUIDNotFound(uuid=uuid)
-    except MultipleResultsFound:
+    except exc.MultipleResultsFound:
         # This exception should never happen due to the UNIQUE setting for uuid
         raise exception.InvalidParameterValue(
             err="Multiple entries found for system peer %s" % uuid)
@@ -973,9 +976,9 @@ def subcloud_group_get(context, group_id):
             filter_by(deleted=0). \
             filter_by(id=group_id). \
             one()
-    except NoResultFound:
+    except exc.NoResultFound:
         raise exception.SubcloudGroupNotFound(group_id=group_id)
-    except MultipleResultsFound:
+    except exc.MultipleResultsFound:
         raise exception.InvalidParameterValue(
             err="Multiple entries found for subcloud group %s" % group_id)
 
@@ -989,9 +992,9 @@ def subcloud_group_get_by_name(context, name):
             filter_by(deleted=0). \
             filter_by(name=name). \
             one()
-    except NoResultFound:
+    except exc.NoResultFound:
         raise exception.SubcloudGroupNameNotFound(name=name)
-    except MultipleResultsFound:
+    except exc.MultipleResultsFound:
         # This exception should never happen due to the UNIQUE setting for name
         raise exception.InvalidParameterValue(
             err="Multiple entries found for subcloud group %s" % name)
@@ -1109,9 +1112,9 @@ def subcloud_peer_group_get(context, group_id):
             filter_by(deleted=0). \
             filter_by(id=group_id). \
             one()
-    except NoResultFound:
+    except exc.NoResultFound:
         raise exception.SubcloudPeerGroupNotFound(group_id=group_id)
-    except MultipleResultsFound:
+    except exc.MultipleResultsFound:
         raise exception.InvalidParameterValue(
             err="Multiple entries found for subcloud peer group %s" % group_id)
 
@@ -1149,9 +1152,9 @@ def subcloud_peer_group_get_by_name(context, name):
             filter_by(deleted=0). \
             filter_by(peer_group_name=name). \
             one()
-    except NoResultFound:
+    except exc.NoResultFound:
         raise exception.SubcloudPeerGroupNameNotFound(name=name)
-    except MultipleResultsFound:
+    except exc.MultipleResultsFound:
         # This exception should never happen due to the UNIQUE setting for name
         raise exception.InvalidParameterValue(
             err="Multiple entries found for subcloud peer group %s" % name)
@@ -1288,10 +1291,10 @@ def peer_group_association_get(context, association_id):
             filter_by(deleted=0). \
             filter_by(id=association_id). \
             one()
-    except NoResultFound:
+    except exc.NoResultFound:
         raise exception.PeerGroupAssociationNotFound(
             association_id=association_id)
-    except MultipleResultsFound:
+    except exc.MultipleResultsFound:
         raise exception.InvalidParameterValue(
             err="Multiple entries found for peer group association %s" %
             association_id)
@@ -1321,10 +1324,10 @@ def peer_group_association_get_by_peer_group_and_system_peer_id(context,
             filter_by(peer_group_id=peer_group_id). \
             filter_by(system_peer_id=system_peer_id). \
             one()
-    except NoResultFound:
+    except exc.NoResultFound:
         raise exception.PeerGroupAssociationCombinationNotFound(
             peer_group_id=peer_group_id, system_peer_id=system_peer_id)
-    except MultipleResultsFound:
+    except exc.MultipleResultsFound:
         # This exception should never happen due to the UNIQUE setting for name
         raise exception.InvalidParameterValue(
             err="Multiple entries found for peer group association %s,%s" %
@@ -1485,9 +1488,9 @@ def _subcloud_alarms_get(context, name):
 
     try:
         return query.one()
-    except NoResultFound:
+    except exc.NoResultFound:
         raise exception.SubcloudNameNotFound(name=name)
-    except MultipleResultsFound:
+    except exc.MultipleResultsFound:
         raise exception.InvalidParameterValue(
             err="Multiple entries found for subcloud %s" % name)
 
