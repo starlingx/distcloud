@@ -508,7 +508,6 @@ class SubcloudsController(object):
             self._append_static_err_content(subcloud_dict)
 
             subcloud_region = subcloud.region_name
-            subcloud_dict.pop('region-name')
             if detail is not None:
                 oam_floating_ip = "unavailable"
                 deploy_config_sync_status = "unknown"
@@ -532,7 +531,6 @@ class SubcloudsController(object):
                 extra_details = {
                     "oam_floating_ip": oam_floating_ip,
                     "deploy_config_sync_status": deploy_config_sync_status,
-                    "region_name": subcloud_region
                 }
 
                 subcloud_dict.update(extra_details)
