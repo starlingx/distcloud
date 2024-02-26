@@ -295,7 +295,8 @@ class DcmanagerClient(base.DriverBase):
         url = f"{self.endpoint}/subcloud-peer-groups/{peer_group_ref}"
 
         headers = {"X-Auth-Token": self.token,
-                   "Content-Type": "application/json"}
+                   "Content-Type": "application/json",
+                   "User-Agent": consts.DCMANAGER_V1_HTTP_AGENT}
         response = requests.patch(url, json=kwargs, headers=headers,
                                   timeout=self.timeout)
 
