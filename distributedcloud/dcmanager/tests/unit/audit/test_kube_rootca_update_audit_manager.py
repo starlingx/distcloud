@@ -9,7 +9,6 @@ import mock
 from dccommon import consts as dccommon_consts
 from dcmanager.audit import kube_rootca_update_audit
 from dcmanager.audit import subcloud_audit_manager
-
 from dcmanager.tests import base
 from dcmanager.tests import utils
 
@@ -106,9 +105,13 @@ class TestKubeRootcaUpdateAudit(base.DCManagerTestCase):
         self.rootca_fm_client.get_alarms_by_ids.return_value = None
 
     def get_rootca_audit_data(self, am):
-        patch_audit_data, firmware_audit_data, kubernetes_audit_data, \
-            kube_rootca_audit_data, software_audit_data = am._get_audit_data(
-                True, True, True, True)
+        (
+            _,
+            _,
+            _,
+            kube_rootca_audit_data,
+            _
+        ) = am._get_audit_data(True, True, True, True, True)
 
         return kube_rootca_audit_data
 

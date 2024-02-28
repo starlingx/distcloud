@@ -7,16 +7,16 @@
 from dccommon.drivers.openstack import vim
 from dcmanager.common import consts
 from dcmanager.orchestrator.orch_thread import OrchThread
-from dcmanager.orchestrator.states.software.apply_vim_software_strategy \
-    import ApplyVIMSoftwareStrategyState
+from dcmanager.orchestrator.states.software.apply_vim_software_strategy import \
+    ApplyVIMSoftwareStrategyState
 from dcmanager.orchestrator.states.software.cache.shared_cache_repository import \
     SharedCacheRepository
-from dcmanager.orchestrator.states.software.create_vim_software_strategy \
-    import CreateVIMSoftwareStrategyState
-from dcmanager.orchestrator.states.software.finish_strategy \
-    import FinishStrategyState
-from dcmanager.orchestrator.states.software.install_license \
-    import InstallLicenseState
+from dcmanager.orchestrator.states.software.create_vim_software_strategy import \
+    CreateVIMSoftwareStrategyState
+from dcmanager.orchestrator.states.software.finish_strategy import \
+    FinishStrategyState
+from dcmanager.orchestrator.states.software.install_license import \
+    InstallLicenseState
 from dcmanager.orchestrator.states.software.pre_check import PreCheckState
 
 
@@ -59,8 +59,8 @@ class SoftwareOrchThread(OrchThread):
         self._shared_caches.initialize_caches()
 
     def trigger_audit(self):
-        """Trigger an audit for upgrade (which is combined with patch audit)"""
-        self.audit_rpc_client.trigger_patch_audit(self.context)
+        """Trigger an audit for software"""
+        self.audit_rpc_client.trigger_software_audit(self.context)
 
     def pre_apply_setup(self):
         # Restart caches for next strategy

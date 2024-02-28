@@ -18,15 +18,14 @@
 #
 
 import functools
-import six
 
 from oslo_config import cfg
 from oslo_log import log as logging
 import oslo_messaging
 from oslo_service import service
+import six
 
 from dccommon import consts as dccommon_consts
-
 from dcmanager.audit import rpcapi as dcmanager_audit_rpc_client
 from dcmanager.common import consts
 from dcmanager.common import context
@@ -82,9 +81,9 @@ class DCManagerStateService(service.Service):
         LOG.info("Starting %s", self.__class__.__name__)
         utils.set_open_file_limit(cfg.CONF.worker_rlimit_nofile)
         self._init_managers()
-        target = oslo_messaging.Target(version=self.rpc_api_version,
-                                       server=self.host,
-                                       topic=self.topic)
+        target = oslo_messaging.Target(
+            version=self.rpc_api_version, server=self.host, topic=self.topic
+        )
         self.target = target
         self._rpc_server = rpc_messaging.get_rpc_server(self.target, self)
         self._rpc_server.start()
@@ -99,10 +98,9 @@ class DCManagerStateService(service.Service):
         try:
             self._rpc_server.stop()
             self._rpc_server.wait()
-            LOG.info('Engine service stopped successfully')
+            LOG.info("Engine service stopped successfully")
         except Exception as ex:
-            LOG.error('Failed to stop engine service: %s',
-                      six.text_type(ex))
+            LOG.error("Failed to stop engine service: %s", six.text_type(ex))
 
     def stop(self):
         LOG.info("Stopping %s", self.__class__.__name__)
@@ -113,57 +111,83 @@ class DCManagerStateService(service.Service):
 
     @request_context
     def update_subcloud_endpoint_status(
-        self, context, subcloud_name=None, subcloud_region=None, endpoint_type=None,
-        sync_status=dccommon_consts.SYNC_STATUS_OUT_OF_SYNC, alarmable=True,
-        ignore_endpoints=None
+        self,
+        context,
+        subcloud_name=None,
+        subcloud_region=None,
+        endpoint_type=None,
+        sync_status=dccommon_consts.SYNC_STATUS_OUT_OF_SYNC,
+        alarmable=True,
+        ignore_endpoints=None,
     ):
         # Updates subcloud endpoint sync status
-        LOG.info("Handling update_subcloud_endpoint_status request for "
-                 "subcloud: (%s) endpoint: (%s) status:(%s) "
-                 % (subcloud_name, endpoint_type, sync_status))
+        LOG.info(
+            "Handling update_subcloud_endpoint_status request for "
+            "subcloud: (%s) endpoint: (%s) status:(%s) "
+            % (subcloud_name, endpoint_type, sync_status)
+        )
 
-        self.subcloud_state_manager. \
-            update_subcloud_endpoint_status(context,
-                                            subcloud_region,
-                                            endpoint_type,
-                                            sync_status,
-                                            alarmable,
-                                            ignore_endpoints)
+        self.subcloud_state_manager.update_subcloud_endpoint_status(
+            context,
+            subcloud_region,
+            endpoint_type,
+            sync_status,
+            alarmable,
+            ignore_endpoints,
+        )
 
         # If the patching sync status is being set to unknown, trigger the
         # patching audit so it can update the sync status ASAP.
-        if (endpoint_type == dccommon_consts.ENDPOINT_TYPE_PATCHING
-            or endpoint_type == dccommon_consts.ENDPOINT_TYPE_SOFTWARE) and \
-                sync_status == dccommon_consts.SYNC_STATUS_UNKNOWN:
+        if (
+            endpoint_type == dccommon_consts.ENDPOINT_TYPE_PATCHING
+            and sync_status == dccommon_consts.SYNC_STATUS_UNKNOWN
+        ):
             self.audit_rpc_client.trigger_patch_audit(context)
+
+        # If the software sync status is being set to unknown, trigger the
+        # software audit so it can update the sync status ASAP.
+        if (
+            endpoint_type == dccommon_consts.ENDPOINT_TYPE_SOFTWARE
+            and sync_status == dccommon_consts.SYNC_STATUS_UNKNOWN
+        ):
+            self.audit_rpc_client.trigger_software_audit(context)
 
         # If the firmware sync status is being set to unknown, trigger the
         # firmware audit so it can update the sync status ASAP.
-        if endpoint_type == dccommon_consts.ENDPOINT_TYPE_FIRMWARE and \
-                sync_status == dccommon_consts.SYNC_STATUS_UNKNOWN:
+        if (
+            endpoint_type == dccommon_consts.ENDPOINT_TYPE_FIRMWARE
+            and sync_status == dccommon_consts.SYNC_STATUS_UNKNOWN
+        ):
             self.audit_rpc_client.trigger_firmware_audit(context)
 
         # If the kubernetes sync status is being set to unknown, trigger the
         # kubernetes audit so it can update the sync status ASAP.
-        if endpoint_type == dccommon_consts.ENDPOINT_TYPE_KUBERNETES and \
-                sync_status == dccommon_consts.SYNC_STATUS_UNKNOWN:
+        if (
+            endpoint_type == dccommon_consts.ENDPOINT_TYPE_KUBERNETES
+            and sync_status == dccommon_consts.SYNC_STATUS_UNKNOWN
+        ):
             self.audit_rpc_client.trigger_kubernetes_audit(context)
 
         return
 
     @request_context
-    def update_subcloud_availability(self, context,
-                                     subcloud_name,
-                                     subcloud_region,
-                                     availability_status,
-                                     update_state_only=False,
-                                     audit_fail_count=None):
+    def update_subcloud_availability(
+        self,
+        context,
+        subcloud_name,
+        subcloud_region,
+        availability_status,
+        update_state_only=False,
+        audit_fail_count=None,
+    ):
         # Updates subcloud availability
-        LOG.info("Handling update_subcloud_availability request for: %s" %
-                 subcloud_name)
+        LOG.info(
+            "Handling update_subcloud_availability request for: %s" % subcloud_name
+        )
         self.subcloud_state_manager.update_subcloud_availability(
             context,
             subcloud_region,
             availability_status,
             update_state_only,
-            audit_fail_count)
+            audit_fail_count,
+        )

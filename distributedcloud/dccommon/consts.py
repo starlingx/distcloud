@@ -107,12 +107,16 @@ ENDPOINT_TYPES_LIST = [ENDPOINT_TYPE_PLATFORM,
                        ENDPOINT_TYPE_SOFTWARE]
 
 # All endpoint audit requests
+# TODO(nicodemos): The ENDPOINT_TYPE_SOFTWARE will use the 'spare_audit_requested'
+# temporarily until the USM feature is fully complete. Afterward, the software audit
+# will replace the patch audit.
 ENDPOINT_AUDIT_REQUESTS = {
     ENDPOINT_TYPE_FIRMWARE: 'firmware_audit_requested',
     ENDPOINT_TYPE_KUBERNETES: 'kubernetes_audit_requested',
     ENDPOINT_TYPE_KUBE_ROOTCA: 'kube_rootca_update_audit_requested',
     ENDPOINT_TYPE_LOAD: 'load_audit_requested',
     ENDPOINT_TYPE_PATCHING: 'patch_audit_requested',
+    ENDPOINT_TYPE_SOFTWARE: 'spare_audit_requested',
 }
 
 # Well known region names

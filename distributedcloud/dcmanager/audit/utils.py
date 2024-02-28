@@ -26,7 +26,8 @@ def request_subcloud_audits(context,
                             audit_load=False,
                             audit_firmware=False,
                             audit_kubernetes=False,
-                            audit_kube_rootca=False):
+                            audit_kube_rootca=False,
+                            audit_software=False,):
     values = {}
     if update_subcloud_state:
         values['state_update_requested'] = True
@@ -40,4 +41,6 @@ def request_subcloud_audits(context,
         values['kubernetes_audit_requested'] = True
     if audit_kube_rootca:
         values['kube_rootca_update_audit_requested'] = True
+    if audit_software:
+        values['spare_audit_requested'] = True
     db_api.subcloud_audits_update_all(context, values)

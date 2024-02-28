@@ -110,10 +110,6 @@ class TestKubernetesAudit(base.DCManagerTestCase):
         self.mock_patch_audit_pc.return_value = mock.MagicMock()
         self.addCleanup(p.stop)
 
-        p = mock.patch.object(patch_audit, 'SoftwareClient')
-        self.mock_patch_audit_sc = p.start()
-        self.addCleanup(p.stop)
-
         p = mock.patch.object(firmware_audit, 'OpenStackDriver')
         self.mock_firmware_audit_driver = p.start()
         self.mock_firmware_audit_driver.return_value = mock.MagicMock()
@@ -147,8 +143,13 @@ class TestKubernetesAudit(base.DCManagerTestCase):
         return dict_results
 
     def get_kube_audit_data(self, am):
-        patch_audit_data, firmware_audit_data, kubernetes_audit_data, kube_rootca, \
-            software_audit_data = am._get_audit_data(True, True, True, True)
+        (
+            _,
+            _,
+            kubernetes_audit_data,
+            _,
+            _
+        ) = am._get_audit_data(True, True, True, True, True)
         # Convert to dict like what would happen calling via RPC
         kubernetes_audit_data = self._rpc_convert(kubernetes_audit_data)
         return kubernetes_audit_data

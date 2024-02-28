@@ -71,6 +71,9 @@ class ManagerAuditClient(object):
     def trigger_load_audit(self, ctxt):
         return self.cast(ctxt, self.make_msg('trigger_load_audit'))
 
+    def trigger_software_audit(self, ctxt):
+        return self.cast(ctxt, self.make_msg('trigger_software_audit'))
+
     def trigger_subcloud_audits(self, ctxt, subcloud_id, exclude_endpoints=None):
         return self.cast(ctxt, self.make_msg('trigger_subcloud_audits',
                                              subcloud_id=subcloud_id,

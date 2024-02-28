@@ -27,6 +27,7 @@ from dcmanager.audit import firmware_audit
 from dcmanager.audit import kube_rootca_update_audit
 from dcmanager.audit import kubernetes_audit
 from dcmanager.audit import patch_audit
+from dcmanager.audit import software_audit
 from dcmanager.audit.subcloud_audit_manager import HELM_APP_OPENSTACK
 from dcmanager.common import consts
 from dcmanager.common import context
@@ -70,10 +71,13 @@ class SubcloudAuditWorkerManager(manager.Manager):
             self.context, self.state_rpc_client)
         self.kubernetes_audit = kubernetes_audit.KubernetesAudit(
             self.context, self.state_rpc_client)
-        self.kube_rootca_update_audit = \
+        self.kube_rootca_update_audit = (
             kube_rootca_update_audit.KubeRootcaUpdateAudit(
-                self.context,
-                self.state_rpc_client)
+                self.context, self.state_rpc_client
+            )
+        )
+        self.software_audit = software_audit.SoftwareAudit(
+            self.context, self.state_rpc_client)
         self.pid = os.getpid()
 
     def audit_subclouds(self,
@@ -149,6 +153,7 @@ class SubcloudAuditWorkerManager(manager.Manager):
             do_kube_rootca_update_audit = \
                 subcloud_audits.kube_rootca_update_audit_requested
             update_subcloud_state = subcloud_audits.state_update_requested
+            do_software_audit = subcloud_audits.spare_audit_requested
 
             # Create a new greenthread for each subcloud to allow the audits
             # to be done in parallel. If there are not enough greenthreads
@@ -167,7 +172,8 @@ class SubcloudAuditWorkerManager(manager.Manager):
                                                 do_load_audit,
                                                 do_firmware_audit,
                                                 do_kubernetes_audit,
-                                                do_kube_rootca_update_audit)
+                                                do_kube_rootca_update_audit,
+                                                do_software_audit)
 
     def update_subcloud_endpoints(self, context, subcloud_name, endpoints):
         try:
@@ -310,7 +316,8 @@ class SubcloudAuditWorkerManager(manager.Manager):
                            do_load_audit,
                            do_firmware_audit,
                            do_kubernetes_audit,
-                           do_kube_rootca_update_audit):
+                           do_kube_rootca_update_audit,
+                           do_software_audit):
         audits_done = list()
         failures = list()
         # Do the actual subcloud audit.
@@ -328,7 +335,8 @@ class SubcloudAuditWorkerManager(manager.Manager):
                 do_load_audit,
                 do_firmware_audit,
                 do_kubernetes_audit,
-                do_kube_rootca_update_audit)
+                do_kube_rootca_update_audit,
+                do_software_audit)
         except Exception:
             LOG.exception("Got exception auditing subcloud: %s" % subcloud.name)
 
@@ -360,7 +368,8 @@ class SubcloudAuditWorkerManager(manager.Manager):
                         do_load_audit,
                         do_firmware_audit,
                         do_kubernetes_audit,
-                        do_kube_rootca_update_audit):
+                        do_kube_rootca_update_audit,
+                        do_software_audit):
         """Audit a single subcloud."""
 
         avail_status_current = subcloud.availability_status
@@ -492,13 +501,12 @@ class SubcloudAuditWorkerManager(manager.Manager):
             failmsg = "Audit failure subcloud: %s, endpoint: %s"
 
             # If we have patch audit data, audit the subcloud
-            if do_patch_audit and (patch_audit_data or software_audit_data):
+            if do_patch_audit and patch_audit_data:
                 try:
-                    self.patch_audit.subcloud_audit(subcloud_name,
-                                                    subcloud_region,
-                                                    patch_audit_data,
-                                                    software_audit_data,
-                                                    do_load_audit)
+                    self.patch_audit.subcloud_patch_audit(subcloud_name,
+                                                          subcloud_region,
+                                                          patch_audit_data,
+                                                          do_load_audit)
                     audits_done.append('patch')
                     if do_load_audit:
                         audits_done.append('load')
@@ -550,4 +558,13 @@ class SubcloudAuditWorkerManager(manager.Manager):
                 except Exception:
                     LOG.exception(failmsg % (subcloud.name, 'openstack'))
                     failures.append('openstack')
+            # Perform software audit
+            if do_software_audit:
+                try:
+                    self.software_audit.subcloud_software_audit(
+                        subcloud_name, subcloud_region, software_audit_data)
+                    audits_done.append('software')
+                except Exception:
+                    LOG.exception(failmsg % (subcloud.name, 'software'))
+                    failures.append('software')
         return audits_done, failures
