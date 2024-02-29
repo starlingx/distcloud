@@ -1,5 +1,5 @@
 # Copyright (c) 2017 Ericsson AB
-# Copyright (c) 2020-2022 Wind River Systems, Inc.
+# Copyright (c) 2020-2022, 2024 Wind River Systems, Inc.
 # All Rights Reserved.
 #
 #    Licensed under the Apache License, Version 2.0 (the "License"); you may
@@ -15,22 +15,21 @@
 #    under the License.
 #
 
-import mock
-from six.moves import http_client
+import http.client
 
+import mock
+from oslo_messaging import RemoteError
+
+from dcmanager.api.controllers.v1 import subcloud_group
 from dcmanager.common import consts
 from dcmanager.db.sqlalchemy import api as db_api
-from dcmanager.rpc import client as rpc_client
-
-from dcmanager.tests.unit.api import test_root_controller as testroot
+from dcmanager.tests.unit.api.test_root_controller import DCManagerApiTest
 from dcmanager.tests.unit.api.v1.controllers.mixins import APIMixin
 from dcmanager.tests.unit.api.v1.controllers.mixins import DeleteMixin
 from dcmanager.tests.unit.api.v1.controllers.mixins import GetMixin
 from dcmanager.tests.unit.api.v1.controllers.mixins import PostJSONMixin
 from dcmanager.tests.unit.api.v1.controllers.mixins import UpdateMixin
-from dcmanager.tests.unit.api.v1.controllers.test_subclouds \
-    import FAKE_SUBCLOUD_DATA
-from dcmanager.tests import utils
+from dcmanager.tests.unit.common import fake_subcloud
 
 SAMPLE_SUBCLOUD_GROUP_NAME = 'GroupX'
 SAMPLE_SUBCLOUD_GROUP_DESCRIPTION = 'A Group of mystery'
@@ -39,42 +38,31 @@ SAMPLE_SUBCLOUD_GROUP_MAX_PARALLEL_SUBCLOUDS = 3
 
 
 class SubcloudGroupAPIMixin(APIMixin):
-
     API_PREFIX = '/v1.0/subcloud-groups'
     RESULT_KEY = 'subcloud_groups'
-    EXPECTED_FIELDS = ['id',
-                       'name',
-                       'description',
-                       'max_parallel_subclouds',
-                       'update_apply_type',
-                       'created-at',
-                       'updated-at']
+    EXPECTED_FIELDS = [
+        'id', 'name', 'description', 'max_parallel_subclouds', 'update_apply_type',
+        'created-at', 'updated-at'
+    ]
 
     def setUp(self):
-        super(SubcloudGroupAPIMixin, self).setUp()
-        self.fake_rpc_client.some_method = mock.MagicMock()
+        super().setUp()
 
     def _get_test_subcloud_group_dict(self, **kw):
         # id should not be part of the structure
-        group = {
+        return {
             'name': kw.get('name', SAMPLE_SUBCLOUD_GROUP_NAME),
-            'description': kw.get('description',
-                                  SAMPLE_SUBCLOUD_GROUP_DESCRIPTION),
+            'description': kw.get('description', SAMPLE_SUBCLOUD_GROUP_DESCRIPTION),
             'update_apply_type': kw.get(
-                'update_apply_type',
-                SAMPLE_SUBCLOUD_GROUP_UPDATE_APPLY_TYPE),
+                'update_apply_type', SAMPLE_SUBCLOUD_GROUP_UPDATE_APPLY_TYPE
+            ),
             'max_parallel_subclouds': kw.get(
                 'max_parallel_subclouds',
-                SAMPLE_SUBCLOUD_GROUP_MAX_PARALLEL_SUBCLOUDS)
+                SAMPLE_SUBCLOUD_GROUP_MAX_PARALLEL_SUBCLOUDS
+            )
         }
-        return group
-
-    def _post_get_test_subcloud_group(self, **kw):
-        post_body = self._get_test_subcloud_group_dict(**kw)
-        return post_body
 
     # The following methods are required for subclasses of APIMixin
-
     def get_api_prefix(self):
         return self.API_PREFIX
 
@@ -92,227 +80,484 @@ class SubcloudGroupAPIMixin(APIMixin):
         return db_api.subcloud_group_create(context, **creation_fields)
 
     def get_post_object(self):
-        return self._post_get_test_subcloud_group()
+        return self._get_test_subcloud_group_dict()
 
     def get_update_object(self):
-        update_object = {
-            'description': 'Updated description'
-        }
-        return update_object
+        return {"description": "Updated description"}
 
 
-# Combine Subcloud Group API with mixins to test post, get, update and delete
-class TestSubcloudGroupPost(testroot.DCManagerApiTest,
-                            SubcloudGroupAPIMixin,
-                            PostJSONMixin):
-    def setUp(self):
-        super(TestSubcloudGroupPost, self).setUp()
-
-    def verify_post_failure(self, response):
-        # Failures will return text rather than json
-        self.assertEqual(response.content_type, 'text/plain')
-        self.assertEqual(response.status_code, http_client.BAD_REQUEST)
-
-    @mock.patch.object(rpc_client, 'ManagerClient')
-    def test_create_with_numerical_name_fails(self, mock_client):
-        # A numerical name is not permitted. otherwise the 'get' operations
-        # which support getting by either name or ID could become confused
-        # if a name for one group was the same as an ID for another.
-        ndict = self.get_post_object()
-        ndict['name'] = '123'
-        response = self.app.post_json(self.get_api_prefix(),
-                                      ndict,
-                                      headers=self.get_api_headers(),
-                                      expect_errors=True)
-        self.verify_post_failure(response)
-
-    @mock.patch.object(rpc_client, 'ManagerClient')
-    def test_create_with_blank_name_fails(self, mock_client):
-        # An empty name is not permitted
-        ndict = self.get_post_object()
-        ndict['name'] = ''
-        response = self.app.post_json(self.get_api_prefix(),
-                                      ndict,
-                                      headers=self.get_api_headers(),
-                                      expect_errors=True)
-        self.verify_post_failure(response)
-
-    @mock.patch.object(rpc_client, 'ManagerClient')
-    def test_create_with_default_name_fails(self, mock_client):
-        # A name that is the same as the 'Default' group is not permitted.
-        # This would be a duplicate, and names must be unique.
-        ndict = self.get_post_object()
-        ndict['name'] = 'Default'
-        response = self.app.post_json(self.get_api_prefix(),
-                                      ndict,
-                                      headers=self.get_api_headers(),
-                                      expect_errors=True)
-        self.verify_post_failure(response)
-
-    @mock.patch.object(rpc_client, 'ManagerClient')
-    def test_create_with_empty_description_fails(self, mock_client):
-        # An empty description is considered invalid
-        ndict = self.get_post_object()
-        ndict['description'] = ''
-        response = self.app.post_json(self.get_api_prefix(),
-                                      ndict,
-                                      headers=self.get_api_headers(),
-                                      expect_errors=True)
-        self.verify_post_failure(response)
-
-    @mock.patch.object(rpc_client, 'ManagerClient')
-    def test_create_with_bad_apply_type(self, mock_client):
-        # update_apply_type must be either 'serial' or 'parallel'
-        ndict = self.get_post_object()
-        ndict['update_apply_type'] = 'something_invalid'
-        response = self.app.post_json(self.get_api_prefix(),
-                                      ndict,
-                                      headers=self.get_api_headers(),
-                                      expect_errors=True)
-        self.verify_post_failure(response)
-
-    @mock.patch.object(rpc_client, 'ManagerClient')
-    def test_create_with_bad_max_parallel_subclouds(self, mock_client):
-        # max_parallel_subclouds must be an integer between 1 and 500
-        ndict = self.get_post_object()
-        # All the entries in bad_values should be considered invalid
-        bad_values = [0, 501, -1, 'abc']
-        for bad_value in bad_values:
-            ndict['max_parallel_subclouds'] = bad_value
-            response = self.app.post_json(self.get_api_prefix(),
-                                          ndict,
-                                          headers=self.get_api_headers(),
-                                          expect_errors=True)
-            self.verify_post_failure(response)
-
-
-class TestSubcloudGroupGet(testroot.DCManagerApiTest,
-                           SubcloudGroupAPIMixin,
-                           GetMixin):
+class BaseTestSubcloudGroupController(DCManagerApiTest, SubcloudGroupAPIMixin):
+    """Base class for testing the SubcloudGroupController"""
 
     def setUp(self):
-        super(TestSubcloudGroupGet, self).setUp()
+        super().setUp()
+
+        self.url = self.API_PREFIX
+
+        self._mock_rpc_client()
+
+
+class TestSubcloudGroupController(BaseTestSubcloudGroupController):
+    """Test class for SubcloudGroupController"""
+
+    def setUp(self):
+        super().setUp()
+
+    def test_unmapped_method(self):
+        """Test requesting an unmapped method results in success with null content"""
+
+        self.method = self.app.put
+
+        response = self._send_request()
+
+        self._assert_response(response)
+        self.assertEqual(response.text, "null")
+
+
+class TestSubcloudGroupPost(BaseTestSubcloudGroupController, PostJSONMixin):
+    """Test class for post requests"""
+
+    def setUp(self):
+        super().setUp()
+
+        self.method = self.app.post_json
+        self.params = self.get_post_object()
+
+    def test_post_fails_without_params(self):
+        """Test post fails without params"""
+
+        self.params = {}
+
+        response = self._send_request()
+
+        self._assert_pecan_and_response(
+            response, http.client.BAD_REQUEST, "Body required"
+        )
+
+    def test_post_fails_with_numerical_name(self):
+        """Test post fails with numerical name
+
+        A numerical name is not permitted, otherwise the 'get' operations
+        which support getting by either name or ID could become confusing
+        if a group's name was the same as the id of another.
+        """
+
+        self.params["name"] = "999"
+
+        response = self._send_request()
+
+        self._assert_pecan_and_response(
+            response, http.client.BAD_REQUEST, "Invalid group name"
+        )
+
+    def test_post_fails_with_empty_name(self):
+        """Test post fails with empty name"""
+
+        self.params["name"] = ""
+
+        response = self._send_request()
+
+        self._assert_pecan_and_response(
+            response, http.client.BAD_REQUEST, "Invalid group name"
+        )
+
+    def test_post_fails_with_default_name(self):
+        """Test post fails with default name
+
+        The name 'Default' is not permitted because it would be a duplicate, but it
+        should be unique
+        """
+
+        self.params["name"] = consts.DEFAULT_SUBCLOUD_GROUP_NAME
+
+        response = self._send_request()
+
+        self._assert_pecan_and_response(
+            response, http.client.BAD_REQUEST, "Invalid group name"
+
+        )
+
+    def test_post_fails_with_invalid_description(self):
+        """Test post fails with invalid description"""
+
+        invalid_values = [
+            "", "a" * (subcloud_group.MAX_SUBCLOUD_GROUP_DESCRIPTION_LEN + 1)
+        ]
+
+        for index, invalid_value in enumerate(invalid_values, start=1):
+            self.params["description"] = invalid_value
+
+            response = self._send_request()
+
+            self._assert_pecan_and_response(
+                response, http.client.BAD_REQUEST, "Invalid group description",
+                call_count=index
+            )
+
+    def test_post_fails_with_invalid_update_apply_type(self):
+        """Test post fails with invalid update apply type
+
+        The update apply type should be either serial or parallel
+        """
+
+        self.params["update_apply_type"] = "fake"
+
+        response = self._send_request()
+
+        self._assert_pecan_and_response(
+            response, http.client.BAD_REQUEST, "Invalid group update_apply_type"
+        )
+
+    def test_post_fails_without_update_apply_type(self):
+        """Test post fails without update apply type"""
+
+        del self.params["update_apply_type"]
+
+        response = self._send_request()
+
+        self._assert_pecan_and_response(
+            response, http.client.BAD_REQUEST, "Invalid group update_apply_type"
+        )
+
+    def test_post_fails_with_invalid_max_parallel_subclouds(self):
+        """Test post fails with invalid max parallel subclouds
+
+        The acceptable range is between 1 and 500
+        """
+
+        invalid_values = [0, 501, -1, "fake"]
+
+        for index, invalid_value in enumerate(invalid_values, start=1):
+            self.params["max_parallel_subclouds"] = invalid_value
+
+            response = self._send_request()
+
+            self._assert_pecan_and_response(
+                response, http.client.BAD_REQUEST,
+                "Invalid group max_parallel_subclouds", call_count=index
+            )
+
+    def test_post_fails_with_db_api_duplicate_entry(self):
+        """Test post fails with db api duplicate entry"""
+
+        self._create_db_object(self.ctx)
+
+        response = self._send_request()
+
+        self._assert_pecan_and_response(
+            response, http.client.BAD_REQUEST,
+            "A subcloud group with this name already exists"
+        )
+
+    @mock.patch.object(db_api, "subcloud_group_create")
+    def test_post_fails_with_db_api_remote_error(self, mock_db_api):
+        """Test post fails with db api remote error"""
+
+        mock_db_api.side_effect = RemoteError("msg", "value")
+
+        response = self._send_request()
+
+        self._assert_pecan_and_response(
+            response, http.client.UNPROCESSABLE_ENTITY, "value"
+        )
+
+    @mock.patch.object(db_api, "subcloud_group_create")
+    def test_post_fails_with_db_api_generic_exception(self, mock_db_api):
+        """Test post fails with db api generic exception"""
+
+        mock_db_api.side_effect = Exception()
+
+        response = self._send_request()
+
+        self._assert_pecan_and_response(
+            response, http.client.INTERNAL_SERVER_ERROR,
+            "Unable to create subcloud group"
+        )
+
+
+class BaseTestSubcloudGroupGet(BaseTestSubcloudGroupController):
+    """Base test class for get requests"""
+
+    def setUp(self):
+        super().setUp()
+
+        self.subcloud_group = db_api.subcloud_group_get(self.ctx, 1)
+
+        self.url = f"{self.url}/{self.subcloud_group.id}"
+        self.method = self.app.get
+
+
+class TestSubcloudGroupGet(BaseTestSubcloudGroupGet, GetMixin):
+    """Test class for get requests"""
+
+    def setUp(self):
+        super().setUp()
+
         # Override initial_list_size. Default group is setup during db sync
         self.initial_list_size = 1
 
-    @mock.patch.object(rpc_client, 'ManagerClient')
-    def test_get_single_by_name(self, mock_client):
-        # create a group
-        context = utils.dummy_context()
-        # todo(abailey) make this a generic method
-        group_name = 'TestGroup'
-        self._create_db_object(context, name=group_name)
+    def test_get_succeeds_with_id(self):
+        """Test get succeeds with id"""
 
-        # Test that a GET operation for a valid ID works
-        response = self.app.get(self.get_single_url(group_name),
-                                headers=self.get_api_headers())
-        self.assertEqual(response.content_type, 'application/json')
-        self.assertEqual(response.status_code, http_client.OK)
-        self.validate_entry(response.json)
+        response = self._send_request()
 
-    @mock.patch.object(rpc_client, 'ManagerClient')
-    def test_list_subclouds_empty(self, mock_client):
-        # API GET on: subcloud-groups/<uuid>/subclouds
-        uuid = 1  # The Default Subcloud Group is always ID=1
-        url = '%s/%s/subclouds' % (self.get_api_prefix(), uuid)
-        response = self.app.get(url,
-                                headers=self.get_api_headers())
+        self._assert_response(response)
+
+    def test_get_succeeds_with_name(self):
+        """Test get succeeds with name"""
+
+        self.url = f"{self.API_PREFIX}/{self.subcloud_group.name}"
+
+        response = self._send_request()
+
+        self._assert_response(response)
+
+
+class TestSubcloudGroupGetSubclouds(BaseTestSubcloudGroupGet):
+    """Test class for get requests with subclouds verb"""
+
+    def setUp(self):
+        super().setUp()
+
+        self.url = f"{self.url}/subclouds"
+
+    def test_get_subclouds_succeeds(self):
+        """Test get subclouds succeeds
+
+        The list size is 0 because there isn't a subcloud associated to the group
+        """
+
+        response = self._send_request()
+
+        self._assert_response(response)
         # This API returns 'subclouds' rather than 'subcloud-groups'
         self.assertIn('subclouds', response.json)
-        # no subclouds exist yet, so this length should be zero
-        result_list = response.json.get('subclouds')
-        self.assertEqual(0, len(result_list))
+        self.assertEqual(0, len(response.json.get('subclouds')))
 
-    def _create_subcloud_db_object(self, context):
-        creation_fields = {
-            'name': FAKE_SUBCLOUD_DATA.get('name'),
-            'description': FAKE_SUBCLOUD_DATA.get('description'),
-            'location': FAKE_SUBCLOUD_DATA.get('location'),
-            'software_version': FAKE_SUBCLOUD_DATA.get('software_version'),
-            'management_subnet': FAKE_SUBCLOUD_DATA.get('management_subnet'),
-            'management_gateway_ip':
-                FAKE_SUBCLOUD_DATA.get('management_gateway_ip'),
-            'management_start_ip':
-                FAKE_SUBCLOUD_DATA.get('management_start_ip'),
-            'management_end_ip': FAKE_SUBCLOUD_DATA.get('management_end_ip'),
-            'systemcontroller_gateway_ip':
-                FAKE_SUBCLOUD_DATA.get('systemcontroller_gateway_ip'),
-            'deploy_status': FAKE_SUBCLOUD_DATA.get('deploy_status'),
-            'error_description': FAKE_SUBCLOUD_DATA.get('error_description'),
-            'region_name': FAKE_SUBCLOUD_DATA.get('region_name'),
-            'openstack_installed':
-                FAKE_SUBCLOUD_DATA.get('openstack_installed'),
-            'group_id': FAKE_SUBCLOUD_DATA.get('group_id', 1)
-        }
-        return db_api.subcloud_create(context, **creation_fields)
+    def test_get_subclouds_succeeds_with_subcloud_in_group(self):
+        """Test get subclouds succeeds with subcloud in group
 
-    @mock.patch.object(rpc_client, 'ManagerClient')
-    def test_list_subclouds_populated(self, mock_client):
+        When a subcloud is created, it is associated with the Default group
+        """
+
         # subclouds are to Default group by default (unless specified)
-        context = utils.dummy_context()
-        self._create_subcloud_db_object(context)
+        fake_subcloud.create_fake_subcloud(self.ctx)
 
-        # API GET on: subcloud-groups/<uuid>/subclouds
-        uuid = 1  # The Default Subcloud Group is always ID=1
-        url = '%s/%s/subclouds' % (self.get_api_prefix(), uuid)
-        response = self.app.get(url,
-                                headers=self.get_api_headers())
-        # This API returns 'subclouds' rather than 'subcloud-groups'
+        response = self._send_request()
+
         self.assertIn('subclouds', response.json)
-        # the subcloud created earlier will have been queried
-        result_list = response.json.get('subclouds')
-        self.assertEqual(1, len(result_list))
+        self.assertEqual(1, len(response.json.get('subclouds')))
 
 
-class TestSubcloudGroupUpdate(testroot.DCManagerApiTest,
-                              SubcloudGroupAPIMixin,
-                              UpdateMixin):
+class TestSubcloudGroupPatch(BaseTestSubcloudGroupController, UpdateMixin):
+    """Test class for patch requests"""
+
     def setUp(self):
-        super(TestSubcloudGroupUpdate, self).setUp()
+        super().setUp()
 
-    @mock.patch.object(rpc_client, 'ManagerClient')
-    def test_update_invalid_apply_type(self, mock_client):
-        context = utils.dummy_context()
-        single_obj = self._create_db_object(context)
-        update_data = {
-            'update_apply_type': 'something_bad'
+        self.subcloud_group = db_api.subcloud_group_get(self.ctx, 1)
+
+        self.method = self.app.patch_json
+        self.url = f"{self.url}/{self.subcloud_group.id}"
+
+    def test_patch_succeeds_with_name_and_max_parallel_subclouds(self):
+        """Test patch succeeds with name and max parallel subclouds"""
+
+        self.subcloud_group = self._create_db_object(self.ctx)
+
+        self.url = f"{self.API_PREFIX}/{self.subcloud_group.id}"
+
+        self.params = {"name": "new name", "max_parallel_subclouds": 2}
+
+        response = self._send_request()
+
+        self._assert_response(response)
+
+    def test_patch_fails_with_group_not_found(self):
+        """Test patch fails with group not found"""
+
+        self.url = f"{self.API_PREFIX}/999"
+        self.params = {"update_apply_type": "fake"}
+
+        response = self._send_request()
+
+        self._assert_pecan_and_response(
+            response, http.client.NOT_FOUND, "Subcloud Group not found"
+        )
+
+    def test_patch_fails_with_invalid_property_to_update(self):
+        """Test patch fails with invalid property to update"""
+
+        self.params = {"fake": "value"}
+
+        response = self._send_request()
+
+        self._assert_pecan_and_response(
+            response, http.client.BAD_REQUEST, "nothing to update"
+        )
+
+    def test_patch_fails_with_invalid_name(self):
+        """Test patch fails with invalid name"""
+
+        self.params = {"name": consts.DEFAULT_SUBCLOUD_GROUP_NAME}
+
+        response = self._send_request()
+
+        self._assert_pecan_and_response(
+            response, http.client.BAD_REQUEST, "Invalid group name"
+        )
+
+    def test_patch_fails_with_new_name_for_default_group(self):
+        """Test patch fails with new name for default group"""
+
+        self.params = {"name": "new name"}
+
+        response = self._send_request()
+
+        self._assert_pecan_and_response(
+            response, http.client.BAD_REQUEST, "Default group name cannot be changed"
+        )
+
+    def test_patch_fails_with_invalid_update_apply_type(self):
+        """Test patch fails with invalid update apply type"""
+
+        self.params = {"update_apply_type": "fake"}
+
+        response = self._send_request()
+
+        self._assert_pecan_and_response(
+            response, http.client.BAD_REQUEST, "Invalid group update_apply_type"
+        )
+
+    def test_patch_fails_with_invalid_max_parallel_subclouds(self):
+        """Test patch fails with invalid max parallel subclouds"""
+
+        invalid_values = [0, 501, -1, "fake"]
+
+        for index, invalid_value in enumerate(invalid_values, start=1):
+            self.params = {"max_parallel_subclouds": str(invalid_value)}
+
+            response = self._send_request()
+
+            self._assert_pecan_and_response(
+                response, http.client.BAD_REQUEST,
+                "Invalid group max_parallel_subclouds", call_count=index
+            )
+
+    def test_patch_fails_with_invalid_description(self):
+        """Test patch fails with invalid description"""
+
+        self.params = {
+            "description":
+            "a" * (subcloud_group.MAX_SUBCLOUD_GROUP_DESCRIPTION_LEN + 1)
         }
-        response = self.app.patch_json(self.get_single_url(single_obj.id),
-                                       headers=self.get_api_headers(),
-                                       params=update_data,
-                                       expect_errors=True)
-        # Failures will return text rather than json
-        self.assertEqual(response.content_type, 'text/plain')
-        self.assertEqual(response.status_code, http_client.BAD_REQUEST)
 
-    @mock.patch.object(rpc_client, 'ManagerClient')
-    def test_update_invalid_max_parallel(self, mock_client):
-        context = utils.dummy_context()
-        single_obj = self._create_db_object(context)
-        update_data = {
-            'max_parallel_subclouds': -1
-        }
-        response = self.app.patch_json(self.get_single_url(single_obj.id),
-                                       headers=self.get_api_headers(),
-                                       params=update_data,
-                                       expect_errors=True)
-        # Failures will return text rather than json
-        self.assertEqual(response.content_type, 'text/plain')
-        self.assertEqual(response.status_code, http_client.BAD_REQUEST)
+        response = self._send_request()
+
+        self._assert_pecan_and_response(
+            response, http.client.BAD_REQUEST, "Invalid group description",
+        )
+
+    @mock.patch.object(db_api, "subcloud_group_update")
+    def test_patch_fails_with_db_api_remote_error(self, mock_db_api):
+        """Test patch fails with db api remote error"""
+
+        self.params = {"update_apply_type": "serial"}
+
+        mock_db_api.side_effect = RemoteError("msg", "value")
+
+        response = self._send_request()
+
+        self._assert_pecan_and_response(
+            response, http.client.UNPROCESSABLE_ENTITY, "value"
+        )
+
+    @mock.patch.object(db_api, "subcloud_group_update")
+    def test_patch_fails_with_db_api_generic_exception(self, mock_db_api):
+        """Test patch fails with db api generic exception"""
+
+        self.params = {"update_apply_type": "serial"}
+
+        mock_db_api.side_effect = Exception()
+
+        response = self._send_request()
+
+        self._assert_pecan_and_response(
+            response, http.client.INTERNAL_SERVER_ERROR,
+            "Unable to update subcloud group"
+        )
 
 
-class TestSubcloudGroupDelete(testroot.DCManagerApiTest,
-                              SubcloudGroupAPIMixin,
-                              DeleteMixin):
+class TestSubcloudGroupDelete(BaseTestSubcloudGroupController, DeleteMixin):
+    """Test class for delete requests"""
+
     def setUp(self):
-        super(TestSubcloudGroupDelete, self).setUp()
+        super().setUp()
 
-    @mock.patch.object(rpc_client, 'ManagerClient')
-    def test_delete_default_fails(self, mock_client):
-        default_zone_id = 1
-        response = self.app.delete(self.get_single_url(default_zone_id),
-                                   headers=self.get_api_headers(),
-                                   expect_errors=True)
-        # Failures will return text rather than json
-        self.assertEqual(response.content_type, 'text/plain')
-        self.assertEqual(response.status_code, http_client.BAD_REQUEST)
+        self.subcloud_group = db_api.subcloud_group_get(self.ctx, 1)
+
+        self.method = self.app.delete
+        self.url = f"{self.url}/{self.subcloud_group.id}"
+
+    def test_delete_fails_for_default(self):
+        """Test delete fails for default
+
+        The default subcloud group can't be deleted
+        """
+
+        response = self._send_request()
+
+        self._assert_pecan_and_response(
+            response, http.client.BAD_REQUEST,
+            "Default Subcloud Group may not be deleted"
+        )
+
+    def test_delete_fails_with_subcloud_in_group(self):
+        """Test delete fails with subcloud in group"""
+
+        subcloud_group = self._create_db_object(self.ctx)
+        fake_subcloud.create_fake_subcloud(
+            self.ctx, group_id=subcloud_group.id
+        )
+
+        self.url = f"{self.API_PREFIX}/{subcloud_group.id}"
+
+        response = self._send_request()
+
+        self._assert_pecan_and_response(
+            response, http.client.INTERNAL_SERVER_ERROR,
+            "Unable to delete subcloud group", call_count=2
+        )
+
+    @mock.patch.object(db_api, "subcloud_group_destroy")
+    def test_delete_fails_with_db_api_remote_error(self, mock_db_api):
+        """Test delete fails with db api remote error"""
+
+        self.subcloud_group = self._create_db_object(self.ctx)
+
+        self.url = f"{self.API_PREFIX}/{self.subcloud_group.id}"
+
+        mock_db_api.side_effect = RemoteError("msg", "value")
+
+        response = self._send_request()
+
+        self._assert_pecan_and_response(
+            response, http.client.UNPROCESSABLE_ENTITY, "value"
+        )
+
+    @mock.patch.object(db_api, "subcloud_group_destroy")
+    def test_delete_fails_with_db_api_generic_exception(self, mock_db_api):
+        """Test delete fails with db api generic exception"""
+
+        self.subcloud_group = self._create_db_object(self.ctx)
+
+        self.url = f"{self.API_PREFIX}/{self.subcloud_group.id}"
+
+        mock_db_api.side_effect = Exception()
+
+        response = self._send_request()
+
+        self._assert_pecan_and_response(
+            response, http.client.INTERNAL_SERVER_ERROR,
+            "Unable to delete subcloud group"
+        )
