@@ -27,7 +27,7 @@ from pecan.testing import load_test_app
 
 from dcmanager.api import api_config
 from dcmanager.common import config
-from dcmanager.tests import base
+from dcmanager.tests.base import DCManagerTestCase
 from dcmanager.tests.unit.common import consts as test_consts
 from dcmanager.tests import utils
 
@@ -36,7 +36,7 @@ OPT_GROUP_NAME = 'keystone_authtoken'
 cfg.CONF.import_group(OPT_GROUP_NAME, "keystonemiddleware.auth_token")
 
 
-class DCManagerApiTest(base.DCManagerTestCase):
+class DCManagerApiTest(DCManagerTestCase):
 
     def setUp(self):
         super().setUp()
