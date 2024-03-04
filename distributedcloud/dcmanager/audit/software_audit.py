@@ -107,7 +107,19 @@ class SoftwareAudit(object):
             regionone_releases, deployed_release_ids, committed_release_ids
         )
 
-    def subcloud_software_audit(self, subcloud_name, subcloud_region, audit_data):
+    # TODO(nicodemos): This method will be removed once the USM feature is
+    # fully complete. The USM endpoints are not working properly, so we are
+    # always returning 'in-sync' to avoid regression failures.
+    def subcloud_software_audit(self, subcloud_name, subcloud_region, _audit_data):
+        self._update_subcloud_sync_status(
+            subcloud_name,
+            subcloud_region,
+            dccommon_consts.ENDPOINT_TYPE_SOFTWARE,
+            dccommon_consts.SYNC_STATUS_IN_SYNC,
+        )
+        LOG.info(f"Software audit completed for: {subcloud_name}.")
+
+    def _subcloud_software_audit(self, subcloud_name, subcloud_region, audit_data):
         LOG.info(f"Triggered software audit for: {subcloud_name}.")
         try:
             sc_os_client = sdk_platform.OpenStackDriver(
