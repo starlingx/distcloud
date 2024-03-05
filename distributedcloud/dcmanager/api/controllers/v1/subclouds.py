@@ -648,6 +648,100 @@ class SubcloudsController(object):
             if not payload:
                 pecan.abort(400, _('Body required'))
 
+            peer_group = payload.get('peer_group')
+            # Verify the peer_group is valid
+            peer_group_id = None
+            if peer_group is not None:
+                # peer_group may be passed in the payload as an int or str
+                peer_group = str(peer_group)
+                # Get current site system information
+                local_system_uuid = utils.get_local_system().uuid
+                # Check if user wants to remove a subcloud
+                # from a subcloud-peer-group by
+                # setting peer_group_id as 'none',
+                # then we will pass 'none' string as
+                # the peer_group_id,
+                # update_subcloud() will handle it and
+                # Set the peer_group_id DB into None.
+                if peer_group.lower() == 'none':
+                    if subcloud.peer_group_id is not None:
+                        # Get the peer group of the subcloud
+                        original_pgrp = db_api.subcloud_peer_group_get(
+                            context, subcloud.peer_group_id)
+                        # Check the system leader is not on this site
+                        if original_pgrp.system_leader_id != local_system_uuid:
+                            pecan.abort(400, _("Removing subcloud from a "
+                                               "peer group not led by the "
+                                               "current site is prohibited."))
+                        # Get associations by peer group id
+                        associations = db_api.\
+                            peer_group_association_get_by_peer_group_id(
+                                context, original_pgrp.id)
+                        for association in associations:
+                            system_peer = db_api.system_peer_get(
+                                context, association.system_peer_id)
+                            # If system peer is available, then does not allow
+                            # to remove the subcloud from secondary peer group
+                            if system_peer.availability_state == consts.\
+                                    SYSTEM_PEER_AVAILABILITY_STATE_AVAILABLE \
+                                    and original_pgrp.group_priority > 0:
+                                pecan.abort(400, _(
+                                    "Removing subcloud from a peer group "
+                                    "associated with an available system peer "
+                                    "is prohibited."))
+                        peer_group_id = 'none'
+                else:
+                    if subcloud.peer_group_id is not None and \
+                            str(subcloud.peer_group_id) != peer_group:
+                        original_pgrp = utils.subcloud_peer_group_get_by_ref(
+                            context, str(subcloud.peer_group_id))
+                        if original_pgrp and original_pgrp.group_priority > 0:
+                            pecan.abort(400, _(
+                                "Cannot update subcloud to a new peer group "
+                                "if the original peer group has non-zero "
+                                "priority."))
+                    pgrp = utils.subcloud_peer_group_get_by_ref(context, peer_group)
+                    if not pgrp:
+                        pecan.abort(400, _('Invalid peer group'))
+                    if not utils.is_req_from_another_dc(request):
+                        if pgrp.group_priority > 0:
+                            pecan.abort(400, _("Cannot set the subcloud to a peer"
+                                               " group with non-zero priority."))
+                        elif pgrp.system_leader_id != local_system_uuid:
+                            pecan.abort(400, _("Update subcloud to a peer "
+                                               "group that is not led by the "
+                                               "current site is prohibited."))
+                        elif not (
+                            subcloud.deploy_status == consts.DEPLOY_STATE_DONE
+                            and subcloud.management_state ==
+                            dccommon_consts.MANAGEMENT_MANAGED
+                            and subcloud.availability_status ==
+                                dccommon_consts.AVAILABILITY_ONLINE):
+                            pecan.abort(400, _("Only subclouds that are "
+                                               "managed and online can be "
+                                               "added to a peer group."))
+                    peer_group_id = pgrp.id
+
+            # Subcloud can only be updated while it is managed in
+            # the primary site because the sync command can only be issued
+            # in the site where the SPG was created.
+            if subcloud.peer_group_id is not None and peer_group_id is None \
+                    and not utils.is_req_from_another_dc(request):
+                # Get the peer group of the subcloud
+                original_pgrp = db_api.subcloud_peer_group_get(
+                    context, subcloud.peer_group_id)
+                if original_pgrp.group_priority > 0:
+                    pecan.abort(400, _("Subcloud update is only allowed when "
+                                       "its peer group priority value is 0."))
+                # Get current site system information
+                local_system_uuid = utils.get_local_system().uuid
+                # Updating a subcloud under the peer group on primary site
+                # that the peer group should be led by the primary site.
+                if original_pgrp.system_leader_id != local_system_uuid:
+                    pecan.abort(400, _("Updating subcloud from a "
+                                       "peer group not led by the "
+                                       "current site is prohibited."))
+
             # Rename the subcloud
             new_subcloud_name = payload.get('name')
             if new_subcloud_name is not None:
@@ -736,7 +830,6 @@ class SubcloudsController(object):
             description = payload.get('description')
             location = payload.get('location')
             bootstrap_values = payload.get('bootstrap_values')
-            peer_group = payload.get('peer_group')
             bootstrap_address = payload.get('bootstrap_address')
 
             # If the migrate flag is present we need to update the deploy status
@@ -752,6 +845,11 @@ class SubcloudsController(object):
                     management_state not in [dccommon_consts.MANAGEMENT_UNMANAGED,
                                              dccommon_consts.MANAGEMENT_MANAGED]:
                 pecan.abort(400, _('Invalid management-state'))
+            if management_state and subcloud.peer_group_id is not None \
+                    and not utils.is_req_from_another_dc(request):
+                pecan.abort(400, _('Cannot update the management state of a '
+                                   'subcloud that is associated with '
+                                   'a peer group.'))
 
             force_flag = payload.get('force')
             if force_flag is not None:
@@ -775,41 +873,6 @@ class SubcloudsController(object):
                 except (exceptions.SubcloudGroupNameNotFound,
                         exceptions.SubcloudGroupNotFound):
                     pecan.abort(400, _('Invalid group'))
-
-            # Verify the peer_group is valid
-            peer_group_id = None
-            if peer_group is not None:
-                # peer_group may be passed in the payload as an int or str
-                peer_group = str(peer_group)
-                # Check if user wants to remove a subcloud
-                # from a subcloud-peer-group by
-                # setting peer_group_id as 'none',
-                # then we will pass 'none' string as
-                # the peer_group_id,
-                # update_subcloud() will handle it and
-                # Set the peer_group_id DB into None.
-                if peer_group.lower() == 'none':
-                    peer_group_id = 'none'
-                else:
-                    pgrp = utils.subcloud_peer_group_get_by_ref(context, peer_group)
-                    if not pgrp:
-                        pecan.abort(400, _('Invalid peer group'))
-                    if not utils.is_req_from_another_dc(request):
-                        if pgrp.group_priority > 0:
-                            pecan.abort(400, _("Cannot set the subcloud to a peer"
-                                               " group with non-zero priority."))
-                        elif not (
-                            subcloud.deploy_status in [
-                                consts.DEPLOY_STATE_DONE,
-                                consts.PRESTAGE_STATE_COMPLETE
-                            ] and subcloud.management_state ==
-                            dccommon_consts.MANAGEMENT_MANAGED
-                            and subcloud.availability_status ==
-                                dccommon_consts.AVAILABILITY_ONLINE):
-                            pecan.abort(400, _("Only subclouds that are "
-                                               "managed and online can be "
-                                               "added to a peer group."))
-                    peer_group_id = pgrp.id
 
             if consts.INSTALL_VALUES in payload:
                 # install_values of secondary subclouds are validated on
@@ -998,6 +1061,20 @@ class SubcloudsController(object):
                 pecan.abort(404, _('Subcloud not found'))
 
         subcloud_id = subcloud.id
+        peer_group_id = subcloud.peer_group_id
+        subcloud_management_state = subcloud.management_state
+
+        # Check if the subcloud is "managed" status
+        if subcloud_management_state == dccommon_consts.MANAGEMENT_MANAGED \
+                and not utils.is_req_from_another_dc(request):
+            pecan.abort(400, _('Cannot delete a subcloud that is "managed" '
+                               'status'))
+
+        # Check if the subcloud is part of a peer group
+        if peer_group_id is not None and \
+                not utils.is_req_from_another_dc(request):
+            pecan.abort(400, _('Cannot delete a subcloud that is part of '
+                               'a peer group on this site'))
 
         try:
             # Ask dcmanager-manager to delete the subcloud.
