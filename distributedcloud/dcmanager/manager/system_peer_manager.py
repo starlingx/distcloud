@@ -53,6 +53,106 @@ class SystemPeerManager(manager.Manager):
             service_name="system_peer_manager", *args, **kwargs)
 
     @staticmethod
+    def get_local_associations(ctx, peer, local_pg=None):
+        if local_pg is None:
+            # Get associations by system peer id
+            return db_api.peer_group_association_get_by_system_peer_id(ctx,
+                                                                       peer.id)
+        else:
+            # Get association by system peer id and peer group id
+            association = db_api.\
+                peer_group_association_get_by_peer_group_and_system_peer_id(
+                    ctx, local_pg.id, peer.id)
+            return [association] if association else []
+
+    @staticmethod
+    def update_sync_status_on_peer_site(ctx, peer, sync_status, local_pg=None,
+                                        remote_pg=None, message="None",
+                                        association=None):
+        """Update sync status of association on peer site.
+
+        This function updates the sync status of the association on the peer
+        site and then updates the sync status of the association on the
+        primary site.
+
+        :param ctx: request context object
+        :param peer: system peer object of the current site
+        :param sync_status: sync status to update
+        :param local_pg: local peer group object
+        :param remote_pg: remote peer group object
+        :param message: sync message
+        :param association: peer group association object
+        """
+
+        def _update_association_on_peer_site(association, peer, sync_status,
+                                             local_pg, remote_pg, message):
+            try:
+                # Get peer site dcmanager client
+                dc_client = SystemPeerManager.get_peer_dc_client(peer)
+
+                # Get peer site peer group if not exist
+                remote_pg = remote_pg if remote_pg is not None else dc_client.\
+                    get_subcloud_peer_group(local_pg.peer_group_name)
+                # Get peer site system peer
+                dc_peer_system_peer = dc_client.get_system_peer(
+                    utils.get_local_system().uuid)
+                # Get peer site group association
+                dc_peer_association = dc_client.\
+                    get_peer_group_association_with_peer_id_and_pg_id(
+                        dc_peer_system_peer.get('id'),
+                        remote_pg.get('id'))
+
+                # Update peer site association sync_status only if the
+                # sync_status is different from the current sync_status
+                if dc_peer_association.get('sync_status') != sync_status:
+                    # Update peer site association sync_status
+                    dc_peer_association_id = dc_peer_association.get('id')
+                    dc_client.update_peer_group_association_sync_status(
+                        dc_peer_association_id, sync_status)
+                    LOG.info(f"Updated Peer site {dc_peer_system_peer.get('id')} "
+                             f"Peer Group Association {dc_peer_association_id} "
+                             f"sync_status to {sync_status}.")
+            except Exception as e:
+                message = f"Failed to Update Peer Site ({peer.peer_uuid}) " \
+                          f"Association sync_status to {sync_status}."
+                LOG.exception(f"{message} Error: {e}")
+                sync_status = consts.ASSOCIATION_SYNC_STATUS_FAILED
+
+            return sync_status, message
+
+        associations = list()
+        if association is None:
+            associations = SystemPeerManager.get_local_associations(
+                ctx, peer, local_pg)
+        else:
+            associations = [association]
+
+        for association in associations:
+            if association.association_type == \
+                    consts.ASSOCIATION_TYPE_NON_PRIMARY:
+                LOG.debug(f"Skip update Peer Site association "
+                          f"sync_status to {sync_status} as current "
+                          f"site Association is not primary.")
+                continue
+
+            local_pg = local_pg if local_pg is not None else db_api.\
+                subcloud_peer_group_get(ctx, association.peer_group_id)
+            sync_status, message = _update_association_on_peer_site(
+                association, peer, sync_status, local_pg, remote_pg, message)
+
+            if association.sync_status == sync_status and sync_status != \
+                    consts.ASSOCIATION_SYNC_STATUS_FAILED:
+                LOG.debug(f"Skip update current site association "
+                          f"sync_status to {sync_status} as current "
+                          f"site Association is already in the same status.")
+                continue
+            # Update primary site association sync_status
+            db_api.peer_group_association_update(
+                ctx, association.id,
+                sync_status=sync_status,
+                sync_message=message)
+
+    @staticmethod
     def get_peer_ks_client(peer):
         """This will get a new peer keystone client (and new token)"""
         try:

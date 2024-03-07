@@ -111,6 +111,60 @@ class PeerMonitor(object):
                           self.peer.peer_name)
         return failed, dc_peer_subcloud_peer_group_list
 
+    def _update_sync_status_when_secondary_site_becomes_unreachable(self):
+        # Get associations by system peer
+        associations = SystemPeerManager.get_local_associations(self.context,
+                                                                self.peer)
+        for association in associations:
+            # If the association is not primary, skip it.
+            if association.association_type == consts.\
+                    ASSOCIATION_TYPE_NON_PRIMARY:
+                LOG.debug("Skip update the Association sync_status as "
+                          "it is not primary.")
+                continue
+            # If the secondary site is down, set the association sync status
+            #     "in-sync" -> "unknown"
+            #     "unknown" -> "unknown"
+            #     "out-of-sync" -> "failed"
+            #     "syncing" -> "failed"
+            #     "failed" -> "failed"
+            sync_status = consts.ASSOCIATION_SYNC_STATUS_UNKNOWN
+            message = f"Peer site ({self.peer.peer_name}) is unreachable."
+            if association.sync_status not in [
+                    consts.ASSOCIATION_SYNC_STATUS_IN_SYNC,
+                    consts.ASSOCIATION_SYNC_STATUS_UNKNOWN]:
+                sync_status = consts.ASSOCIATION_SYNC_STATUS_FAILED
+            db_api.peer_group_association_update(
+                self.context, association.id,
+                sync_status=sync_status,
+                sync_message=message)
+
+    def _update_sync_status_when_secondary_site_becomes_reachable(self):
+        # Get associations by system peer
+        associations = SystemPeerManager.get_local_associations(self.context,
+                                                                self.peer)
+        for association in associations:
+            # If the association is not primary, skip it.
+            if association.association_type == consts.\
+                    ASSOCIATION_TYPE_NON_PRIMARY:
+                LOG.debug("Skip update Peer Site Association sync_status as "
+                          "current site Association is not primary.")
+                continue
+            # Upon detecting that the secondary site is reachable again,
+            # the PGA sync_status will be set for both sites by the primary
+            # site monitor thread as follows:
+            #     "unknown" -> "in-sync"
+            #     "failed" -> "out-of-sync"
+            sync_status = consts.ASSOCIATION_SYNC_STATUS_OUT_OF_SYNC
+            if association.sync_status == \
+                    consts.ASSOCIATION_SYNC_STATUS_UNKNOWN:
+                sync_status = consts.ASSOCIATION_SYNC_STATUS_IN_SYNC
+            dc_local_pg = db_api.subcloud_peer_group_get(
+                self.context, association.peer_group_id)
+            SystemPeerManager.update_sync_status_on_peer_site(
+                self.context, self.peer, sync_status, dc_local_pg,
+                association=association)
+
     def _do_monitor_peer(self):
         failure_count = 0
         LOG.info("Start monitoring thread for peer %s" %
@@ -134,6 +188,8 @@ class PeerMonitor(object):
                             availability_state=  # noqa: E251
                             consts.SYSTEM_PEER_AVAILABILITY_STATE_UNAVAILABLE
                         )
+                        # pylint: disable=line-too-long
+                        self._update_sync_status_when_secondary_site_becomes_unreachable()  # noqa: E501
                         failure_count = 0
                         self._set_require_audit_flag_to_associated_peer_groups()
                 else:
@@ -146,6 +202,8 @@ class PeerMonitor(object):
                             availability_state=  # noqa: E251
                             consts.SYSTEM_PEER_AVAILABILITY_STATE_AVAILABLE
                         )
+                        # pylint: disable=line-too-long
+                        self._update_sync_status_when_secondary_site_becomes_reachable()  # noqa: E501
                         LOG.info("DC %s back online, clear alarm" %
                                  self.peer.peer_name)
                         self._clear_failure()

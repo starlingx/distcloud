@@ -259,6 +259,12 @@ class SubcloudPeerGroupsController(restcomm.GenericPathController):
             if not payload:
                 pecan.abort(httpclient.BAD_REQUEST, _('Body required'))
 
+            if group.group_priority > 0 and \
+                    not utils.is_req_from_another_dc(request):
+                pecan.abort(httpclient.BAD_REQUEST,
+                            _("Cannot update a peer group from a non-primary "
+                              "site."))
+
             LOG.info("Handling update subcloud peer group request for: %s" % payload)
             peer_group_name = payload.get('peer-group-name')
             group_priority = payload.get('group-priority')

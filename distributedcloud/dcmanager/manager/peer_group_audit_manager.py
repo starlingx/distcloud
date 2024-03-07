@@ -176,6 +176,10 @@ class PeerGroupAuditManager(manager.Manager):
                     LOG.exception(f"Fail to unmanage local subcloud "
                                   f"{subcloud.name}, err: {e}")
                     raise e
+            SystemPeerManager.update_sync_status_on_peer_site(
+                self.context, system_peer,
+                consts.ASSOCIATION_SYNC_STATUS_OUT_OF_SYNC,
+                local_peer_group, remote_peer_group)
             self.require_audit_flag = False
 
         # if remote subcloud peer group's migration_status is 'complete',
@@ -204,6 +208,10 @@ class PeerGroupAuditManager(manager.Manager):
                         self.context, subcloud.id)
                     LOG.info(f"Deleted local subcloud {subcloud.name}")
                 except Exception as e:
+                    SystemPeerManager.update_sync_status_on_peer_site(
+                        self.context, system_peer,
+                        consts.ASSOCIATION_SYNC_STATUS_OUT_OF_SYNC,
+                        local_peer_group, remote_peer_group)
                     LOG.exception(f"Failed to delete local subcloud "
                                   f"[{subcloud.name}] that does not exist "
                                   f"under the same subcloud_peer_group on "
@@ -224,6 +232,10 @@ class PeerGroupAuditManager(manager.Manager):
                 system_peer,
                 remote_peer_group.get("peer_group_name"),
                 None)
+            SystemPeerManager.update_sync_status_on_peer_site(
+                self.context, system_peer,
+                consts.ASSOCIATION_SYNC_STATUS_IN_SYNC,
+                local_peer_group, remote_peer_group)
             self.require_audit_flag = False
         else:
             # If remote peer group migration_status is 'None'
