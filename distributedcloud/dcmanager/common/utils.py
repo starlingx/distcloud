@@ -1044,6 +1044,8 @@ def is_subcloud_healthy(subcloud_region):
             (len(fails) == 1 and failed_alarm_check and no_mgmt_alarms)):
         return True
 
+    LOG.error(f"Subcloud {subcloud_region} failed health check. Health output: "
+              f"\n{system_health}\n")
     return False
 
 
