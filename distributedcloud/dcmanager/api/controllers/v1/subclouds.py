@@ -708,11 +708,19 @@ class SubcloudsController(object):
                                     "is prohibited."))
                         peer_group_id = 'none'
                 else:
+                    if not (subcloud.rehome_data or (
+                            payload.get('bootstrap_values') and
+                            payload.get('bootstrap_address'))):
+                        pecan.abort(400, _("Cannot update the subcloud "
+                                           "peer group: must provide both the "
+                                           "bootstrap-values and "
+                                           "bootstrap-address."))
                     if original_pgrp and original_pgrp.group_priority > 0 and \
                             str(subcloud.peer_group_id) != peer_group:
                         pecan.abort(400, _(
-                            "Cannot update subcloud to a new peer group "
-                            "if the original peer group has non-zero priority."))
+                            "Cannot move subcloud to a new peer group if the "
+                            "original peer group is not primary (non-zero "
+                            "priority)."))
                     pgrp = utils.subcloud_peer_group_get_by_ref(context, peer_group)
                     if not pgrp:
                         pecan.abort(400, _('Invalid peer group'))

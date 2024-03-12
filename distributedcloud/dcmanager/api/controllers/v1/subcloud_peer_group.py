@@ -355,6 +355,9 @@ class SubcloudPeerGroupsController(restcomm.GenericPathController):
                             _('Unable to sync the update to the peer site(s)'))
                     # Local update will continue if it's only partial
                     # failure.
+                    # TODO(gherzmann): update the association sync status to
+                    # out-of-date on partial failures when support for multiple
+                    # associations is added (geo-redundancy phase 2)
                     LOG.error(f"Failed to sync the subcloud peer group "
                               f"{group.id} update on the peer site(s) "
                               f"{failed_peer_ids} with the values: "

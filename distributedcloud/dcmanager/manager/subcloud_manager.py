@@ -2719,6 +2719,15 @@ class SubcloudManager(manager.Manager):
         self._rename_subcloud_ansible_files(curr_subcloud_name,
                                             new_subcloud_name)
 
+        # Update the subcloud rehome_data with the new name
+        if subcloud.rehome_data:
+            rehome_data_dict = json.loads(subcloud.rehome_data)
+            if 'saved_payload' in rehome_data_dict:
+                rehome_data_dict['saved_payload']['name'] = new_subcloud_name
+                rehome_data = json.dumps(rehome_data_dict)
+                subcloud = db_api.subcloud_update(context, subcloud_id,
+                                                  rehome_data=rehome_data)
+
         return subcloud
 
     def get_subcloud_name_by_region_name(self,
