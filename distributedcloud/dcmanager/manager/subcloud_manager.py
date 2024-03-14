@@ -532,11 +532,12 @@ class SubcloudManager(manager.Manager):
 
                     # Check if it's already in the correct state
                     if is_unmanaged and is_rehome_pending:
-                        LOG.info("Remote subcloud %s from system peer %s is "
-                                 "already unmanaged and rehome-pending, "
-                                 "skipping unmanage attempt"
-                                 % (system_peer.peer_name,
-                                    remote_subcloud.get('name')))
+                        LOG.info(
+                            f"Remote subcloud {remote_subcloud.get('name')} "
+                            f"from system peer {system_peer.peer_name} is "
+                            "already unmanaged and rehome-pending, "
+                            "skipping unmanage attempt"
+                        )
                         break
 
                     try:

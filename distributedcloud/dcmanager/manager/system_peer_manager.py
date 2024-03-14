@@ -808,8 +808,8 @@ class SystemPeerManager(manager.Manager):
                     association_update['sync_status'] = \
                         consts.ASSOCIATION_SYNC_STATUS_FAILED
                     association_update['sync_message'] = \
-                        (f"Failed to sync {error_msg.keys()} in the Subcloud "
-                         f"Peer Group {peer_group_name}.")
+                        (f"Failed to sync {list(error_msg.keys())} in the "
+                         f"Subcloud Peer Group {peer_group_name}.")
             association = self._update_sync_status(
                 context, association_id, **association_update)
 
@@ -899,9 +899,9 @@ class SystemPeerManager(manager.Manager):
                 LOG.error(f"Failed to delete subcloud(s) from "
                           f"the Subcloud Peer Group {peer_group_name} "
                           f"on peer site: {json.dumps(delete_error_msg)}")
-                sync_message = (f"Deletion of {delete_error_msg.keys()} from "
-                                f"the Subcloud Peer Group {peer_group_name} "
-                                f"on the peer site failed.")
+                sync_message = (f"Deletion of {list(delete_error_msg.keys())} "
+                                "from the Subcloud Peer Group "
+                                f"{peer_group_name} on the peer site failed.")
                 self._update_sync_status_to_failed(context, association_id,
                                                    sync_message)
                 return
