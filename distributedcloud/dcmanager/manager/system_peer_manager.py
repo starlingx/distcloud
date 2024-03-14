@@ -307,6 +307,9 @@ class SystemPeerManager(manager.Manager):
                 # Sync subcloud information to peer site
                 peer_subcloud = self.get_peer_subcloud(dc_client, subcloud_name)
                 if peer_subcloud:
+                    # The subcloud update API expects 'bootstrap_address'
+                    # instead of 'bootstrap-address'
+                    data["bootstrap_address"] = data.pop(consts.BOOTSTRAP_ADDRESS)
                     dc_peer_subcloud = dc_client.update_subcloud(region_name,
                                                                  files, data,
                                                                  is_region_name=True)
