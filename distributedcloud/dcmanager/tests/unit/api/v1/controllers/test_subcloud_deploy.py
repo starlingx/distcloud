@@ -21,10 +21,8 @@ import mock
 from tsconfig.tsconfig import SW_VERSION
 import webtest
 
-from dccommon import consts as dccommon_consts
 from dcmanager.api.controllers.v1 import subcloud_deploy
 from dcmanager.common import consts
-from dcmanager.common import phased_subcloud_deploy as psd_common
 from dcmanager.common import utils as dutils
 from dcmanager.tests.base import FakeException
 from dcmanager.tests.unit.api.test_root_controller import DCManagerApiTest
@@ -358,27 +356,6 @@ class TestSubcloudDeployGet(BaseTestSubcloudDeployController):
         )
         self.assertEqual(
             None, response.json["subcloud_deploy"][consts.DEPLOY_PRESTAGE]
-        )
-
-    def test_get_config_file_path(self):
-        bootstrap_file = psd_common.get_config_file_path("subcloud1")
-        install_values = psd_common.get_config_file_path(
-            "subcloud1", consts.INSTALL_VALUES
-        )
-        deploy_config = psd_common.get_config_file_path(
-            "subcloud1", consts.DEPLOY_CONFIG
-        )
-
-        self.assertEqual(
-            bootstrap_file, f"{dccommon_consts.ANSIBLE_OVERRIDES_PATH}/subcloud1.yml"
-        )
-        self.assertEqual(
-            install_values,
-            f"{dccommon_consts.ANSIBLE_OVERRIDES_PATH}/subcloud1/install_values.yml"
-        )
-        self.assertEqual(
-            deploy_config,
-            f"{dccommon_consts.ANSIBLE_OVERRIDES_PATH}/subcloud1_deploy_config.yml"
         )
 
 

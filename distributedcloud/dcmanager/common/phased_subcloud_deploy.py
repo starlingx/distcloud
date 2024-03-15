@@ -601,7 +601,7 @@ def validate_install_values(payload, subcloud=None):
             gateway_ip = netaddr.IPAddress(install_values['nexthop_gateway'])
         except netaddr.AddrFormatError as e:
             LOG.exception(e)
-            pecan.abort(400, _("nexthop_gateway address invalid: %s") % e)
+            pecan.abort(400, _("nexthop_gateway invalid: %s") % e)
         if gateway_ip.version != ip_version:
             pecan.abort(400, _("nexthop_gateway and bootstrap_address "
                                "must be the same IP version"))

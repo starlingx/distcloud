@@ -84,7 +84,7 @@ def global_prestage_validate(payload):
     if is_system_controller_upgrading():
         raise exceptions.PrestagePreCheckFailedException(
             subcloud=dccommon_consts.SYSTEM_CONTROLLER_NAME,
-            details='Prestage operations not allowed while system'
+            details='Prestage operations are not allowed while system'
                     ' controller upgrade is in progress.')
 
     if ('sysadmin_password' not in payload
