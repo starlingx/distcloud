@@ -43,10 +43,10 @@ class PeerGroupAuditManager(manager.Manager):
         self.thread_lock = threading.Lock()
 
     def _get_subclouds_by_peer_group_from_system_peer(self,
+                                                      dc_client,
                                                       system_peer,
                                                       peer_group_name):
         try:
-            dc_client = SystemPeerManager.get_peer_dc_client(system_peer)
             subclouds = dc_client.get_subcloud_list_by_peer_group(
                 peer_group_name)
             return subclouds
@@ -54,6 +54,22 @@ class PeerGroupAuditManager(manager.Manager):
             LOG.exception(f"Failed to get subclouds of peer group "
                           f"{peer_group_name} from DC: "
                           f"{system_peer.peer_name}")
+
+    @staticmethod
+    def _get_association_sync_status_from_peer_site(dc_client,
+                                                    system_peer,
+                                                    peer_group_id):
+        try:
+            # Get peer site system peer
+            dc_peer_system_peer = dc_client.get_system_peer(
+                utils.get_local_system().uuid)
+            association = dc_client. \
+                get_peer_group_association_with_peer_id_and_pg_id(
+                    dc_peer_system_peer.get('id'), peer_group_id)
+            return association.get("sync-status")
+        except Exception:
+            LOG.exception(f"Failed to get subclouds of peer group "
+                          f"{peer_group_id} from DC: {system_peer.peer_name}")
 
     def _update_remote_peer_group_migration_status(self,
                                                    system_peer,
@@ -71,9 +87,11 @@ class PeerGroupAuditManager(manager.Manager):
 
     def _get_local_subclouds_to_update_and_delete(self,
                                                   local_peer_group,
-                                                  remote_subclouds):
+                                                  remote_subclouds,
+                                                  remote_sync_status):
         local_subclouds_to_update = list()
         local_subclouds_to_delete = list()
+        any_rehome_failed = False
         remote_subclouds_dict = {remote_subcloud.get('region-name'):
                                  remote_subcloud for remote_subcloud
                                  in remote_subclouds}
@@ -92,10 +110,30 @@ class PeerGroupAuditManager(manager.Manager):
                     not utils.subcloud_is_secondary_state(
                         local_subcloud.deploy_status)):
                     local_subclouds_to_update.append(local_subcloud)
+                    # Sync rehome_data from remote to local subcloud if the remote
+                    # PGA sync_status is out-of-sync once migration completes,
+                    # indicating any bootstrap values/address updates to
+                    # the subcloud on the remote site.
+                    if remote_sync_status == \
+                            consts.ASSOCIATION_SYNC_STATUS_OUT_OF_SYNC:
+                        self._sync_rehome_data(
+                            local_subcloud.id, remote_subcloud.get('rehome_data'))
+                elif remote_subcloud.get('deploy-status') in \
+                    (consts.DEPLOY_STATE_REHOME_FAILED,
+                     consts.DEPLOY_STATE_REHOME_PREP_FAILED):
+                    # Set local subcloud to rehome-failed if the remote is
+                    # rehome-failed or rehome-prep-failed, otherwise, the
+                    # deploy_status will remain rehome-pending, which will
+                    # block the correction of the bootstrap values/address.
+                    db_api.subcloud_update(
+                        self.context, local_subcloud.id,
+                        deploy_status=consts.DEPLOY_STATE_REHOME_FAILED)
+                    any_rehome_failed = True
             else:
                 local_subclouds_to_delete.append(local_subcloud)
 
-        return local_subclouds_to_update, local_subclouds_to_delete
+        return local_subclouds_to_update, local_subclouds_to_delete, \
+            any_rehome_failed
 
     def _set_local_subcloud_to_secondary(self, subcloud):
         try:
@@ -117,6 +155,9 @@ class PeerGroupAuditManager(manager.Manager):
             LOG.exception(f"Failed to update local non-secondary "
                           f"and offline subcloud [{subcloud.name}], err: {e}")
             raise e
+
+    def _sync_rehome_data(self, subcloud_id, rehome_data):
+        db_api.subcloud_update(self.context, subcloud_id, rehome_data=rehome_data)
 
     def audit(self, system_peer, remote_peer_group, local_peer_group):
         if local_peer_group.migration_status == consts.PEER_GROUP_MIGRATING:
@@ -187,14 +228,22 @@ class PeerGroupAuditManager(manager.Manager):
         # set 'unmanaged+secondary' to local on same subclouds
         elif remote_peer_group.get("migration_status") == \
                 consts.PEER_GROUP_MIGRATION_COMPLETE:
+            dc_client = SystemPeerManager.get_peer_dc_client(system_peer)
             remote_subclouds = \
                 self._get_subclouds_by_peer_group_from_system_peer(
+                    dc_client,
                     system_peer,
                     remote_peer_group.get("peer_group_name"))
+            remote_sync_status = \
+                self._get_association_sync_status_from_peer_site(
+                    dc_client,
+                    system_peer,
+                    remote_peer_group.get("id"))
 
-            local_subclouds_to_update, local_subclouds_to_delete = \
+            local_subclouds_to_update, local_subclouds_to_delete, \
+                any_rehome_failed = \
                 self._get_local_subclouds_to_update_and_delete(
-                    local_peer_group, remote_subclouds)
+                    local_peer_group, remote_subclouds, remote_sync_status)
 
             for subcloud in local_subclouds_to_update:
                 self._set_local_subcloud_to_secondary(subcloud)
@@ -218,7 +267,7 @@ class PeerGroupAuditManager(manager.Manager):
                                   f"peer site, err: {e}")
                     raise e
 
-            if local_subclouds_to_update or local_subclouds_to_delete:
+            if remote_peer_group.get("system_leader_id") == system_peer.peer_uuid:
                 self._clear_or_raise_alarm(system_peer,
                                            local_peer_group,
                                            remote_peer_group)
@@ -232,10 +281,13 @@ class PeerGroupAuditManager(manager.Manager):
                 system_peer,
                 remote_peer_group.get("peer_group_name"),
                 None)
-            SystemPeerManager.update_sync_status(
-                self.context, system_peer,
-                consts.ASSOCIATION_SYNC_STATUS_IN_SYNC,
-                local_peer_group, remote_peer_group)
+
+            if not (remote_sync_status == consts.ASSOCIATION_SYNC_STATUS_OUT_OF_SYNC
+                    and any_rehome_failed):
+                SystemPeerManager.update_sync_status(
+                    self.context, system_peer,
+                    consts.ASSOCIATION_SYNC_STATUS_IN_SYNC,
+                    local_peer_group, remote_peer_group)
             self.require_audit_flag = False
         else:
             # If remote peer group migration_status is 'None'

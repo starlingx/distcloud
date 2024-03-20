@@ -305,7 +305,9 @@ class SubcloudPeerGroupsController(restcomm.GenericPathController):
                            (system_leader_id and
                             system_leader_id != group.system_leader_id) or
                            (system_leader_name and
-                            system_leader_name != group.system_leader_name)))
+                            system_leader_name != group.system_leader_name) or
+                           (migration_status and
+                            migration_status != group.migration_status)))
             if not any_update:
                 return db_api.subcloud_peer_group_db_model_to_dict(group)
 

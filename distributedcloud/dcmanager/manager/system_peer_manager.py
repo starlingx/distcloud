@@ -236,10 +236,14 @@ class SystemPeerManager(manager.Manager):
                      f"it doesn't exist.")
             return
 
-        is_secondary = SystemPeerManager.is_subcloud_secondary(peer_subcloud)
-        if not is_secondary:
+        if SystemPeerManager.get_subcloud_deploy_status(peer_subcloud) not in (
+                consts.DEPLOY_STATE_SECONDARY_FAILED,
+                consts.DEPLOY_STATE_SECONDARY,
+                consts.DEPLOY_STATE_REHOME_FAILED,
+                consts.DEPLOY_STATE_REHOME_PREP_FAILED
+        ):
             LOG.info(f"Ignoring delete Peer Site Subcloud {subcloud_ref} "
-                     f"as is not in secondary state.")
+                     f"as is not in secondary or rehome failed state.")
             return
 
         dc_client.delete_subcloud(subcloud_ref)
@@ -340,7 +344,10 @@ class SystemPeerManager(manager.Manager):
                 # should be recorded as a failure.
                 peer_subcloud_deploy_status = self.get_subcloud_deploy_status(
                     peer_subcloud)
-                if peer_subcloud_deploy_status != consts.DEPLOY_STATE_SECONDARY:
+                if peer_subcloud_deploy_status not in \
+                        (consts.DEPLOY_STATE_SECONDARY,
+                         consts.DEPLOY_STATE_REHOME_FAILED,
+                         consts.DEPLOY_STATE_REHOME_PREP_FAILED):
                     subcloud.msg = "Subcloud's deploy status not correct: %s" \
                         % peer_subcloud_deploy_status
                     return subcloud, False
@@ -427,6 +434,9 @@ class SystemPeerManager(manager.Manager):
                 continue
 
             try:
+                # TODO(lzhu1): Sending requests to fetch the subcloud one by one
+                #  should be optimized to fetch them all with one request by calling
+                #  the "get_subcloud_list_by_peer_group" method
                 peer_subcloud = self.get_peer_subcloud(dc_client, subcloud_name)
                 if not peer_subcloud:
                     LOG.info(f"Subcloud {subcloud_name} (region_name: "
@@ -434,10 +444,12 @@ class SystemPeerManager(manager.Manager):
                     valid_subclouds.append(subcloud)
                     continue
 
-                if not self.is_subcloud_secondary(peer_subcloud):
-                    msg = "Ignoring update Peer Site Subcloud " + \
-                          f"{subcloud_name} (region_name: {region_name})" + \
-                          " as is not in secondary state."
+                if not self.is_subcloud_secondary(peer_subcloud) and \
+                        self.get_subcloud_deploy_status(peer_subcloud) not in \
+                        (consts.DEPLOY_STATE_REHOME_FAILED,
+                         consts.DEPLOY_STATE_REHOME_PREP_FAILED):
+                    msg = (f"Subcloud {subcloud_name} is not in the right state "
+                           f"for sync.")
                     LOG.info(msg)
                     error_msg[subcloud_name] = msg
                     continue

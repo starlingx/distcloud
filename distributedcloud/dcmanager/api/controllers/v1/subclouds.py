@@ -343,13 +343,19 @@ class SubcloudsController(object):
             else dccommon_consts.DEPLOY_CONFIG_UP_TO_DATE
         return sync_status
 
-    def _validate_rehome_pending(self, subcloud, management_state):
+    def _validate_rehome_pending(self, subcloud, management_state, request):
         unmanaged = dccommon_consts.MANAGEMENT_UNMANAGED
         error_msg = None
 
         # Can only set the subcloud to rehome-pending
-        # if the deployment is done
-        if subcloud.deploy_status != consts.DEPLOY_STATE_DONE:
+        # if the deployment is done or request from another site.
+        # The reason that we skip the validation if the request is from
+        # another site is when migrating the subcloud back to a peer site,
+        # the site will attempt to set the remote subcloud's deploy status
+        # to "rehome-pending." However, the remote subcloud might be in a
+        # "rehome-failed" state from a previous failed rehoming attempt.
+        if (subcloud.deploy_status != consts.DEPLOY_STATE_DONE and
+                not utils.is_req_from_another_dc(request)):
             error_msg = (
                 "The deploy status can only be updated to "
                 f"'{consts.DEPLOY_STATE_REHOME_PENDING}' if the current "
@@ -656,19 +662,34 @@ class SubcloudsController(object):
             req_from_another_dc = utils.is_req_from_another_dc(request)
             original_pgrp = None
             leader_on_local_site = False
+            peer_site_available = True
+            pga = None
+            update_in_non_primary_site = False
             if subcloud.peer_group_id is not None:
                 # Get the original peer group of the subcloud
                 original_pgrp = db_api.subcloud_peer_group_get(
                     context, subcloud.peer_group_id)
                 leader_on_local_site = utils.is_leader_on_local_site(original_pgrp)
                 # A sync command is required after updating a subcloud
-                # in an SPG that is already associated with a PGA on the primary
+                # in an SPG that is already associated with a PGA in the primary
                 # and leader site. The existence of the PGA will be checked
                 # by the update_association_sync_status method later.
                 if (original_pgrp.group_priority == 0 and
                         leader_on_local_site and
                         not req_from_another_dc):
                     sync_peer_groups.add(subcloud.peer_group_id)
+
+                # Get the peer site availability and PGA sync status
+                # TODO(lzhu1): support multiple sites
+                associations = db_api.peer_group_association_get_by_peer_group_id(
+                    context, original_pgrp.id)
+                for association in associations:
+                    pga = association
+                    system_peer = db_api.system_peer_get(
+                        context, association.system_peer_id)
+                    peer_site_available = \
+                        system_peer.availability_state == \
+                        consts.SYSTEM_PEER_AVAILABILITY_STATE_AVAILABLE
 
             peer_group = payload.get('peer_group')
             # Verify the peer_group is valid
@@ -690,22 +711,13 @@ class SubcloudsController(object):
                             pecan.abort(400, _("Removing subcloud from a "
                                                "peer group not led by the "
                                                "current site is prohibited."))
-                        # Get associations by peer group id
-                        associations = db_api.\
-                            peer_group_association_get_by_peer_group_id(
-                                context, original_pgrp.id)
-                        for association in associations:
-                            system_peer = db_api.system_peer_get(
-                                context, association.system_peer_id)
-                            # If system peer is available, then does not allow
-                            # to remove the subcloud from secondary peer group
-                            if system_peer.availability_state == consts.\
-                                    SYSTEM_PEER_AVAILABILITY_STATE_AVAILABLE \
-                                    and original_pgrp.group_priority > 0:
-                                pecan.abort(400, _(
-                                    "Removing subcloud from a peer group "
-                                    "associated with an available system peer "
-                                    "is prohibited."))
+                        # If system peer is available, then does not allow
+                        # to remove the subcloud from secondary peer group
+                        if peer_site_available and original_pgrp.group_priority > 0:
+                            pecan.abort(400, _(
+                                "Removing subcloud from a peer group "
+                                "associated with an available system peer "
+                                "is prohibited."))
                         peer_group_id = 'none'
                 else:
                     if not (subcloud.rehome_data or (
@@ -744,16 +756,39 @@ class SubcloudsController(object):
                         sync_peer_groups.add(pgrp.id)
                     peer_group_id = pgrp.id
 
+            bootstrap_values = payload.get('bootstrap_values')
+            bootstrap_address = payload.get('bootstrap_address')
+
             # Subcloud can only be updated while it is managed in
             # the primary site because the sync command can only be issued
-            # in the site where the SPG was created.
+            # in the site where the SPG was created. However, bootstrap
+            # values or address update is an exception.
             if original_pgrp and peer_group_id is None and not req_from_another_dc:
                 if original_pgrp.group_priority > 0:
-                    pecan.abort(400, _("Subcloud update is only allowed when "
-                                       "its peer group priority value is 0."))
+                    if bootstrap_values or bootstrap_address:
+                        if any(field not in
+                               ('bootstrap_values', 'bootstrap_address')
+                               for field in payload):
+                            pecan.abort(400,
+                                        _("Only bootstrap values and address "
+                                          "can be updated in the non-primary site"))
+                        if (subcloud.deploy_status ==
+                                consts.DEPLOY_STATE_REHOME_FAILED and
+                                not peer_site_available):
+                            update_in_non_primary_site = True
+                        else:
+                            pecan.abort(400,
+                                        _("Subcloud bootstrap values or address "
+                                          "update in the non-primary site is only "
+                                          "allowed when rehome failed and the "
+                                          "primary site is unavailable."))
+                    if not update_in_non_primary_site:
+                        pecan.abort(400, _("Subcloud update is only allowed when "
+                                           "its peer group priority value is 0."))
+
                 # Updating a subcloud under the peer group on primary site
                 # that the peer group should be led by the primary site.
-                if not leader_on_local_site:
+                if not leader_on_local_site and not update_in_non_primary_site:
                     pecan.abort(400, _("Updating subcloud from a "
                                        "peer group not led by the "
                                        "current site is prohibited."))
@@ -845,15 +880,13 @@ class SubcloudsController(object):
             group_id = payload.get('group_id')
             description = payload.get('description')
             location = payload.get('location')
-            bootstrap_values = payload.get('bootstrap_values')
-            bootstrap_address = payload.get('bootstrap_address')
 
             # If the migrate flag is present we need to update the deploy status
             # to consts.DEPLOY_STATE_REHOME_PENDING
             deploy_status = None
             if (payload.get('migrate') == 'true' and subcloud.deploy_status !=
                     consts.DEPLOY_STATE_REHOME_PENDING):
-                self._validate_rehome_pending(subcloud, management_state)
+                self._validate_rehome_pending(subcloud, management_state, request)
                 deploy_status = consts.DEPLOY_STATE_REHOME_PENDING
 
             # Syntax checking
@@ -917,7 +950,23 @@ class SubcloudsController(object):
                     bootstrap_address=bootstrap_address,
                     deploy_status=deploy_status)
 
-                if sync_peer_groups:
+                # Update the PGA sync_status to out-of-sync locally
+                # in the non-primary site. This only occurs when the primary site
+                # is unavailable and rehome fails due to the issue with bootstrap
+                # values or address.
+                if (update_in_non_primary_site and
+                        pga.sync_status !=
+                        consts.ASSOCIATION_SYNC_STATUS_OUT_OF_SYNC):
+                    db_api.peer_group_association_update(
+                        context,
+                        pga.id,
+                        sync_status=consts.ASSOCIATION_SYNC_STATUS_OUT_OF_SYNC)
+                    LOG.debug(
+                        f"Updated Local Peer Group Association {pga.id} "
+                        f"sync_status to out-of-sync.")
+                # Sync the PGA out-of-sync status across all sites launched by
+                # the primary site.
+                elif sync_peer_groups:
                     # Collect the affected peer group association IDs.
                     association_ids = set()
                     for pg_id in sync_peer_groups:
