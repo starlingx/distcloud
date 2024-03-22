@@ -18,6 +18,7 @@
 import base64
 import builtins
 import json
+import os
 import os.path as os_path
 import pecan
 
@@ -289,3 +290,17 @@ class DCManagerTestCase(base.BaseTestCase):
         mock_patch = mock.patch.object(target, 'PeerMonitorManager')
         self.mock_PeerMonitor_Manager = mock_patch.start()
         self.addCleanup(mock_patch.stop)
+
+    def _mock_os_mkdir(self):
+        """Mock os.mkdir"""
+
+        mock_patch_object = mock.patch.object(os, 'mkdir')
+        self.mock_os_mkdir = mock_patch_object.start()
+        self.addCleanup(mock_patch_object.stop)
+
+    def _mock_os_listdir(self):
+        """Mock os.listdir"""
+
+        mock_patch_object = mock.patch.object(os, 'listdir')
+        self.mock_os_listdir = mock_patch_object.start()
+        self.addCleanup(mock_patch_object.stop)
