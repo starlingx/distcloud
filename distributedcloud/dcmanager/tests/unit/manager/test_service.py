@@ -39,8 +39,8 @@ class BaseTestDCManagerService(DCManagerTestCase):
                                                     'dcmanager')
         self.payload = {}
         self._mock_audit_rpc_client()
-        self._mock_SubcloudManager(service)
-        self._mock_PeerMonitorManager(service)
+        self._mock_subcloud_manager(service)
+        self._mock_peer_monitor_manager(service)
 
 
 class TestDCManagerServiceInit(BaseTestDCManagerService):
@@ -275,7 +275,7 @@ class TestPeerMonitorManager(BaseTestDCManagerService):
     def test_peer_monitor_notify(self):
         self.service_obj.init_managers()
         self.service_obj.peer_monitor_notify(self.ctx)
-        self.mock_PeerMonitor_Manager().peer_monitor_notify.assert_called_once_with(
+        self.mock_peer_monitor_manager().peer_monitor_notify.assert_called_once_with(
             self.ctx)
 
     def test_peer_group_audit_notify(self):
@@ -283,7 +283,7 @@ class TestPeerMonitorManager(BaseTestDCManagerService):
         self.service_obj.init_managers()
         self.service_obj.peer_group_audit_notify(
             self.ctx, peer_group_name='fake_peer_group', payload=payload)
-        self.mock_PeerMonitor_Manager().peer_group_audit_notify.\
+        self.mock_peer_monitor_manager().peer_group_audit_notify.\
             assert_called_once_with(self.ctx,
                                     'fake_peer_group', payload)
 

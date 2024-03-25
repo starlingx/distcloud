@@ -30,6 +30,7 @@ import sqlalchemy
 from sqlalchemy.engine import Engine
 from sqlalchemy import event
 
+from dccommon.utils import AnsiblePlaybook
 from dcmanager.audit import rpcapi as audit_rpc_client
 from dcmanager.common import consts
 from dcmanager.common import phased_subcloud_deploy as psd_common
@@ -317,16 +318,23 @@ class DCManagerTestCase(base.BaseTestCase):
 
         return base64.b64encode(keyword.encode("utf-8")).decode("utf-8")
 
-    def _mock_SubcloudManager(self, target):
+    def _mock_subcloud_manager(self, target):
         """Mock the target's SubcloudManager"""
 
-        mock_patch = mock.patch.object(target, 'SubcloudManager')
-        self.mock_subcloud_manager = mock_patch.start()
-        self.addCleanup(mock_patch.stop)
+        mock_patch_object = mock.patch.object(target, 'SubcloudManager')
+        self.mock_subcloud_manager = mock_patch_object.start()
+        self.addCleanup(mock_patch_object.stop)
 
-    def _mock_PeerMonitorManager(self, target):
+    def _mock_peer_monitor_manager(self, target):
         """Mock the target's PeerMonitorManager"""
 
-        mock_patch = mock.patch.object(target, 'PeerMonitorManager')
-        self.mock_PeerMonitor_Manager = mock_patch.start()
-        self.addCleanup(mock_patch.stop)
+        mock_patch_object = mock.patch.object(target, 'PeerMonitorManager')
+        self.mock_peer_monitor_manager = mock_patch_object.start()
+        self.addCleanup(mock_patch_object.stop)
+
+    def _mock_ansible_run_playbook(self):
+        """Mock AnsiblePlaybook's run_playbook"""
+
+        mock_patch_object = mock.patch.object(AnsiblePlaybook, 'run_playbook')
+        self.mock_ansible_run_playbook = mock_patch_object.start()
+        self.addCleanup(mock_patch_object.stop)
