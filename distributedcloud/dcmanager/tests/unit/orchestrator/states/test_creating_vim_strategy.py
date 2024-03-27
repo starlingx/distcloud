@@ -1,16 +1,15 @@
 #
-# Copyright (c) 2020-2022 Wind River Systems, Inc.
+# Copyright (c) 2020-2022, 2024 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
+
 import itertools
 import mock
-
 
 from dccommon.drivers.openstack import vim
 from dcmanager.common import consts
 from dcmanager.orchestrator.states import creating_vim_strategy
-
 from dcmanager.tests.unit.fakes import FakeVimStrategy
 from dcmanager.tests.unit.orchestrator.states.upgrade.test_base \
     import TestSwUpgradeState

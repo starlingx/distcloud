@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2020, 2022 Wind River Systems, Inc.
+# Copyright (c) 2020, 2022, 2024 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -9,15 +9,10 @@ import mock
 
 from dccommon.drivers.openstack import vim
 from dcmanager.common import consts
+from dcmanager.orchestrator.states.base import BaseState
 from dcmanager.orchestrator.states.firmware import creating_vim_strategy
-
-from dcmanager.tests.unit.fakes import FakeVimStrategy
 from dcmanager.tests.unit.orchestrator.states.firmware.test_base \
     import TestFwUpdateState
-
-STRATEGY_BUILDING = FakeVimStrategy(state=vim.STATE_BUILDING)
-STRATEGY_DONE_BUILDING = FakeVimStrategy(state=vim.STATE_READY_TO_APPLY)
-STRATEGY_FAILED_BUILDING = FakeVimStrategy(state=vim.STATE_BUILD_FAILED)
 
 
 @mock.patch("dcmanager.orchestrator.states.firmware.creating_vim_strategy."
@@ -52,12 +47,13 @@ class TestFwUpdateCreatingVIMStrategyStage(TestFwUpdateState):
         # remaining api query results are waiting for the strategy to build
         self.vim_client.get_strategy.side_effect = [
             None,
-            STRATEGY_BUILDING,
-            STRATEGY_DONE_BUILDING,
+            self._create_fake_strategy(vim.STATE_BUILDING),
+            self._create_fake_strategy(vim.STATE_READY_TO_APPLY),
         ]
 
         # API calls acts as expected
-        self.vim_client.create_strategy.return_value = STRATEGY_BUILDING
+        self.vim_client.create_strategy.return_value = \
+            self._create_fake_strategy(vim.STATE_BUILDING)
 
         # invoke the strategy state operation on the orch thread
         self.worker.perform_state_action(self.strategy_step)
@@ -90,7 +86,8 @@ class TestFwUpdateCreatingVIMStrategyStage(TestFwUpdateState):
         self.vim_client.get_strategy.return_value = None
 
         # return a failed strategy
-        self.vim_client.create_strategy.return_value = STRATEGY_FAILED_BUILDING
+        self.vim_client.create_strategy.return_value = \
+            self._create_fake_strategy(vim.STATE_BUILD_FAILED)
 
         # invoke the strategy state operation on the orch thread
         self.worker.perform_state_action(self.strategy_step)
@@ -105,12 +102,13 @@ class TestFwUpdateCreatingVIMStrategyStage(TestFwUpdateState):
         # first api query is before the create
         self.vim_client.get_strategy.side_effect = [
             None,
-            STRATEGY_BUILDING,
-            STRATEGY_FAILED_BUILDING,
+            self._create_fake_strategy(vim.STATE_BUILDING),
+            self._create_fake_strategy(vim.STATE_BUILD_FAILED),
         ]
 
         # API calls acts as expected
-        self.vim_client.create_strategy.return_value = STRATEGY_BUILDING
+        self.vim_client.create_strategy.return_value = \
+            self._create_fake_strategy(vim.STATE_BUILDING)
 
         # invoke the strategy state operation on the orch thread
         self.worker.perform_state_action(self.strategy_step)
@@ -124,10 +122,13 @@ class TestFwUpdateCreatingVIMStrategyStage(TestFwUpdateState):
 
         # first api query is before the create
         self.vim_client.get_strategy.side_effect = itertools.chain(
-            [None, ], itertools.repeat(STRATEGY_BUILDING))
+            [None, ],
+            itertools.repeat(self._create_fake_strategy(vim.STATE_BUILDING))
+        )
 
         # API calls acts as expected
-        self.vim_client.create_strategy.return_value = STRATEGY_BUILDING
+        self.vim_client.create_strategy.return_value = \
+            self._create_fake_strategy(vim.STATE_BUILDING)
 
         # invoke the strategy state operation on the orch thread
         self.worker.perform_state_action(self.strategy_step)
@@ -148,12 +149,16 @@ class TestFwUpdateCreatingVIMStrategyStage(TestFwUpdateState):
         # and a new one recreated
         # remainder are during the loop
         self.vim_client.get_strategy.side_effect = [
-            STRATEGY_FAILED_BUILDING,  # old strategy that gets deleted
-            STRATEGY_BUILDING,  # new strategy gets built
-            STRATEGY_DONE_BUILDING,  # new strategy succeeds during while loop
+            # old strategy that gets deleted
+            self._create_fake_strategy(vim.STATE_BUILD_FAILED),
+            # new strategy gets built
+            self._create_fake_strategy(vim.STATE_BUILDING),
+            # new strategy succeeds during while loop
+            self._create_fake_strategy(vim.STATE_READY_TO_APPLY),
         ]
         # The strategy should be deleted and then created
-        self.vim_client.create_strategy.return_value = STRATEGY_BUILDING
+        self.vim_client.create_strategy.return_value = \
+            self._create_fake_strategy(vim.STATE_BUILDING)
 
         # invoke the strategy state operation on the orch thread
         self.worker.perform_state_action(self.strategy_step)
@@ -173,7 +178,7 @@ class TestFwUpdateCreatingVIMStrategyStage(TestFwUpdateState):
         # If it is building,aborting or applying it does not get deleted
         # and the strategy goes to failed state
         self.vim_client.get_strategy.side_effect = [
-            STRATEGY_BUILDING,
+            self._create_fake_strategy(vim.STATE_BUILDING),
         ]
 
         # invoke the strategy state operation on the orch thread
@@ -185,3 +190,54 @@ class TestFwUpdateCreatingVIMStrategyStage(TestFwUpdateState):
         # Failure case
         self.assert_step_updated(self.strategy_step.subcloud_id,
                                  consts.STRATEGY_STATE_FAILED)
+
+    @mock.patch.object(BaseState, 'stopped', return_value=True)
+    def test_creating_vim_strategy_fails_with_strategy_stop(self, _):
+        """Test creating a VIM strategy fails when strategy stops"""
+
+        self.vim_client.get_strategy.side_effect = [None]
+
+        self.vim_client.create_strategy.return_value = \
+            self._create_fake_strategy(vim.STATE_BUILDING)
+
+        self.worker.perform_state_action(self.strategy_step)
+
+        self.assert_step_updated(
+            self.strategy_step.subcloud_id, consts.STRATEGY_STATE_FAILED
+        )
+
+    def test_creating_vim_strategy_fails_with_build_timeout_strategy(self):
+        """Test creating a VIM strategy fails when strategy is build timeout"""
+
+        self.vim_client.get_strategy.side_effect = [
+            None,
+            self._create_fake_strategy(vim.STATE_BUILDING),
+            self._create_fake_strategy(vim.STATE_BUILD_TIMEOUT)
+        ]
+
+        self.vim_client.create_strategy.return_value = \
+            self._create_fake_strategy(vim.STATE_BUILDING)
+
+        self.worker.perform_state_action(self.strategy_step)
+
+        self.assert_step_updated(
+            self.strategy_step.subcloud_id, consts.STRATEGY_STATE_FAILED
+        )
+
+    def test_creating_vim_strategy_fails_with_invalid_strategy(self):
+        """Test creating a VIM strategy fails when strategy is aborted"""
+
+        self.vim_client.get_strategy.side_effect = [
+            None,
+            self._create_fake_strategy(vim.STATE_BUILDING),
+            self._create_fake_strategy(vim.STATE_ABORTED)
+        ]
+
+        self.vim_client.create_strategy.return_value = \
+            self._create_fake_strategy(vim.STATE_BUILDING)
+
+        self.worker.perform_state_action(self.strategy_step)
+
+        self.assert_step_updated(
+            self.strategy_step.subcloud_id, consts.STRATEGY_STATE_FAILED
+        )

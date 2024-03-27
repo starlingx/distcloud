@@ -107,6 +107,9 @@ class FinishingFwUpdateState(BaseState):
                     region).get_device_image_states()
                 break
             except Exception:
+                # TODO(rlima): Invert the fail counter with the validation to fix
+                # the unit tests, because it's always greater than the
+                # DEFAULT_MAX_FAILED_QUERIES
                 if fail_counter >= self.max_failed_queries:
                     raise Exception(
                         "Timeout waiting to query subcloud device image info")
