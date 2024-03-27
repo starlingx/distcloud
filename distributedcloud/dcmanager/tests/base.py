@@ -18,9 +18,10 @@
 import base64
 import builtins
 import json
-import mock
+import os.path as os_path
 import pecan
 
+import mock
 from oslo_config import cfg
 from oslo_db import options
 from oslotest import base
@@ -239,6 +240,13 @@ class DCManagerTestCase(base.BaseTestCase):
 
         mock_patch_object = mock.patch.object(dutils, 'get_vault_load_files')
         self.mock_get_vault_load_files = mock_patch_object.start()
+        self.addCleanup(mock_patch_object.stop)
+
+    def _mock_os_path_isdir(self):
+        """Mock os' path.isdir"""
+
+        mock_patch_object = mock.patch.object(os_path, 'isdir')
+        self.mock_os_path_isdir = mock_patch_object.start()
         self.addCleanup(mock_patch_object.stop)
 
     def _mock_builtins_open(self):
