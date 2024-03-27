@@ -198,6 +198,11 @@ class DCManagerTestCase(base.BaseTestCase):
         self.mock_sysinv_client = mock_patch.start()
         self.addCleanup(mock_patch.stop)
 
+    def _mock_read_from_cache(self, target):
+        mock_patch = mock.patch.object(target, '_read_from_cache')
+        self.mock_read_from_cache = mock_patch.start()
+        self.addCleanup(mock_patch.stop)
+
     def _mock_get_network_address_pool(self):
         """Mock phased subcloud deploy's get_network_address_pool"""
 

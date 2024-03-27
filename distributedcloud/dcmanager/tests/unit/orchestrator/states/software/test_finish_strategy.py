@@ -3,37 +3,65 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 #
+
 import mock
 
 from dcmanager.common import consts
+from dcmanager.orchestrator.states.base import BaseState
 from dcmanager.orchestrator.states.software.finish_strategy import \
     FinishStrategyState
 from dcmanager.tests.unit.orchestrator.states.software.test_base import \
     TestSoftwareOrchestrator
 
 
-REGION_ONE_RELEASES = {"DC.1": {"sw_version": "20.12",
-                                "state": "committed"},
-                       "DC.2": {"sw_version": "20.12",
-                                "state": "committed"},
-                       "DC.3": {"sw_version": "20.12",
-                                "state": "committed"},
-                       "DC.8": {"sw_version": "20.12",
-                                "state": "committed"}}
+REGION_ONE_RELEASES = {
+    "DC.1": {
+        "sw_version": "20.12",
+        "state": "committed"
+    },
+    "DC.2": {
+        "sw_version": "20.12",
+        "state": "committed"
+    },
+    "DC.3": {
+        "sw_version": "20.12",
+        "state": "committed"
+    },
+    "DC.8": {
+        "sw_version": "20.12",
+        "state": "committed"
+    }
+}
 
-SUBCLOUD_RELEASES = {"DC.1": {"sw_version": "20.12",
-                              "state": "committed"},
-                     "DC.2": {"sw_version": "20.12",
-                              "state": "committed"},
-                     "DC.3": {"sw_version": "20.12",
-                              "state": "deployed"},
-                     "DC.9": {"sw_version": "20.12",
-                              "state": "available"}}
+SUBCLOUD_RELEASES = {
+    "DC.1": {
+        "sw_version": "20.12",
+        "state": "committed"
+    },
+    "DC.2": {
+        "sw_version": "20.12",
+        "state": "committed"
+    },
+    "DC.3": {
+        "sw_version": "20.12",
+        "state": "deployed"
+    },
+    "DC.9": {
+        "sw_version": "20.12",
+        "state": "available"
+    },
+    "DC.10": {
+        "sw_version": "20.12",
+        "state": "deployed"
+    }
+}
 
 
 class TestFinishStrategyState(TestSoftwareOrchestrator):
     def setUp(self):
         super().setUp()
+
+        self._mock_read_from_cache(FinishStrategyState)
 
         self.on_success_state = consts.STRATEGY_STATE_COMPLETE
 
@@ -51,10 +79,10 @@ class TestFinishStrategyState(TestSoftwareOrchestrator):
         self.software_client.commit_patch = mock.MagicMock()
         self._read_from_cache = mock.MagicMock()
 
-    @mock.patch.object(FinishStrategyState, '_read_from_cache')
-    def test_finish_strategy_success(self, mock_read_from_cache):
+    def test_finish_strategy_success(self):
         """Test software finish strategy when the API call succeeds."""
-        mock_read_from_cache.return_value = REGION_ONE_RELEASES
+
+        self.mock_read_from_cache.return_value = REGION_ONE_RELEASES
 
         self.software_client.query.side_effect = [SUBCLOUD_RELEASES]
 
@@ -71,10 +99,10 @@ class TestFinishStrategyState(TestSoftwareOrchestrator):
         self.assert_step_updated(self.strategy_step.subcloud_id,
                                  self.on_success_state)
 
-    @mock.patch.object(FinishStrategyState, '_read_from_cache')
-    def test_finish_strategy_no_operation_required(self, mock_read_from_cache):
+    def test_finish_strategy_no_operation_required(self):
         """Test software finish strategy when no operation is required."""
-        mock_read_from_cache.return_value = REGION_ONE_RELEASES
+
+        self.mock_read_from_cache.return_value = REGION_ONE_RELEASES
 
         self.software_client.query.side_effect = [REGION_ONE_RELEASES]
 
@@ -88,3 +116,62 @@ class TestFinishStrategyState(TestSoftwareOrchestrator):
         # On success, the state should transition to the next state
         self.assert_step_updated(self.strategy_step.subcloud_id,
                                  self.on_success_state)
+
+    def test_finish_strategy_fails_when_query_exception(self):
+        """Test finish strategy fails when software client query raises exception"""
+
+        self.mock_read_from_cache.return_value = REGION_ONE_RELEASES
+
+        self.software_client.query.side_effect = Exception()
+
+        self.worker.perform_state_action(self.strategy_step)
+
+        self.assert_step_updated(
+            self.strategy_step.subcloud_id, consts.STRATEGY_STATE_FAILED
+        )
+
+    def test_finish_strategy_fails_when_delete_exception(self):
+        """Test finish strategy fails when software client delete raises exception"""
+
+        self.mock_read_from_cache.return_value = REGION_ONE_RELEASES
+
+        self.software_client.query.side_effect = [SUBCLOUD_RELEASES]
+        self.software_client.delete.side_effect = Exception()
+
+        self.worker.perform_state_action(self.strategy_step)
+
+        self.assert_step_updated(
+            self.strategy_step.subcloud_id, consts.STRATEGY_STATE_FAILED
+        )
+
+    @mock.patch.object(BaseState, 'stopped')
+    def test_finish_strategy_fails_when_stopped(self, mock_base_stopped):
+        """Test finish strategy fails when stopped"""
+        self.mock_read_from_cache.return_value = REGION_ONE_RELEASES
+
+        self.software_client.query.side_effect = [SUBCLOUD_RELEASES]
+
+        mock_base_stopped.return_value = True
+
+        self.worker.perform_state_action(self.strategy_step)
+
+        self.assert_step_updated(
+            self.strategy_step.subcloud_id, consts.STRATEGY_STATE_FAILED
+        )
+
+    def test_finish_strategy_fails_when_commit_patch_exception(self):
+        """Test finish strategy fails when software client commit_patch
+
+        raises exception
+        """
+
+        self.mock_read_from_cache.return_value = REGION_ONE_RELEASES
+
+        self.software_client.query.side_effect = [SUBCLOUD_RELEASES]
+        self.software_client.commit_patch.side_effect = Exception()
+
+        self.worker.perform_state_action(self.strategy_step)
+
+        self.assert_step_updated(
+            self.strategy_step.subcloud_id, consts.STRATEGY_STATE_FAILED
+        )
