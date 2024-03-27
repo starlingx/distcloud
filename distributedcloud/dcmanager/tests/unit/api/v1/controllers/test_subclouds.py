@@ -1874,7 +1874,7 @@ class TestSubcloudAPIOther(testroot.DCManagerApiTest):
             peer_group_id=peer_group.id
         )
         mock_is_leader_on_local_site.return_value = True
-        data = {"bootstrap-address": "10.10.10.11"}
+        data = {"description": "test subcloud"}
         mock_get_patch_data.return_value = data
         six.assertRaisesRegex(
             self,
@@ -1887,6 +1887,146 @@ class TestSubcloudAPIOther(testroot.DCManagerApiTest):
         )
         self.mock_rpc_client().update_subcloud.assert_not_called()
         self.mock_rpc_client().update_association_sync_status.assert_not_called()
+
+    @mock.patch.object(subclouds.SubcloudsController, "_get_patch_data")
+    @mock.patch.object(cutils, 'is_leader_on_local_site')
+    @mock.patch.object(cutils, 'subcloud_peer_group_get_by_ref')
+    def test_update_subcloud_bootstrap_address_on_primary_site(
+            self, mock_get_peer_group, mock_is_leader_on_local_site,
+            mock_get_patch_data):
+        peer_group = test_system_peer_manager.TestSystemPeerManager. \
+            create_subcloud_peer_group_static(
+                self.ctx,
+                peer_group_name='SubcloudPeerGroup1',
+                group_priority=consts.PEER_GROUP_PRIMARY_PRIORITY)
+        mock_get_peer_group.return_value = peer_group
+        subcloud = fake_subcloud.create_fake_subcloud(self.ctx)
+        subcloud = db_api.subcloud_update(
+            self.ctx,
+            subcloud.id,
+            availability_status=dccommon_consts.AVAILABILITY_ONLINE,
+            deploy_status=consts.DEPLOY_STATE_DONE,
+            management_state=dccommon_consts.MANAGEMENT_MANAGED,
+            prestage_status=consts.PRESTAGE_STATE_COMPLETE,
+            peer_group_id=peer_group.id
+        )
+        mock_is_leader_on_local_site.return_value = True
+        data = {"bootstrap_address": "192.168.10.22"}
+        self.mock_rpc_client().update_subcloud.return_value = True
+        mock_get_patch_data.return_value = data
+        response = self.app.patch_json(
+            f"{FAKE_URL}/{subcloud.id}", headers=FAKE_HEADERS,
+            params=data
+        )
+        self.assertEqual(response.status_int, 200)
+        self.mock_rpc_client().update_subcloud.assert_called_once_with(
+            mock.ANY,
+            subcloud.id,
+            management_state=None,
+            description=None,
+            location=None,
+            group_id=None,
+            data_install=None,
+            force=None,
+            peer_group_id=None,
+            bootstrap_values=None,
+            bootstrap_address=data["bootstrap_address"],
+            deploy_status=None)
+        self.mock_rpc_client().update_association_sync_status. \
+            assert_called_once()
+
+    def update_subcloud_bootstrap_address_on_non_primary_site(
+            self, mock_get_peer_group, mock_is_leader_on_local_site,
+            mock_get_patch_data, primary_site_availability_state):
+        peer = test_system_peer_manager.TestSystemPeerManager. \
+            create_system_peer_static(
+                self.ctx, peer_name='SystemPeer1')
+        peer = db_api.system_peer_update(
+            self.ctx, peer.id,
+            availability_state=primary_site_availability_state)
+        peer_group = test_system_peer_manager.TestSystemPeerManager. \
+            create_subcloud_peer_group_static(
+                self.ctx, peer_group_name='SubcloudPeerGroup1', group_priority=1)
+        association = test_system_peer_manager.TestSystemPeerManager. \
+            create_peer_group_association_static(
+                self.ctx, system_peer_id=peer.id, peer_group_id=peer_group.id)
+        mock_get_peer_group.return_value = peer_group
+        subcloud = fake_subcloud.create_fake_subcloud(self.ctx)
+        subcloud = db_api.subcloud_update(
+            self.ctx,
+            subcloud.id,
+            availability_status=dccommon_consts.AVAILABILITY_ONLINE,
+            deploy_status=consts.DEPLOY_STATE_REHOME_FAILED,
+            management_state=dccommon_consts.MANAGEMENT_MANAGED,
+            prestage_status=consts.PRESTAGE_STATE_COMPLETE,
+            peer_group_id=peer_group.id
+        )
+        mock_is_leader_on_local_site.return_value = True
+        patch_data = {"bootstrap_address": "192.168.10.22"}
+        self.mock_rpc_client().update_subcloud.return_value = True
+        mock_get_patch_data.return_value = patch_data
+        return association, subcloud, patch_data
+
+    @mock.patch.object(subclouds.SubcloudsController, "_get_patch_data")
+    @mock.patch.object(cutils, 'is_leader_on_local_site')
+    @mock.patch.object(cutils, 'subcloud_peer_group_get_by_ref')
+    def test_update_subcloud_bootstrap_address_when_primary_site_is_available(
+            self, mock_get_peer_group, mock_is_leader_on_local_site,
+            mock_get_patch_data):
+        association, subcloud, patch_data = \
+            self.update_subcloud_bootstrap_address_on_non_primary_site(
+                mock_get_peer_group,
+                mock_is_leader_on_local_site,
+                mock_get_patch_data,
+                consts.SYSTEM_PEER_AVAILABILITY_STATE_AVAILABLE)
+        six.assertRaisesRegex(
+            self,
+            webtest.app.AppError,
+            "400 *",
+            self.app.patch_json,
+            FAKE_URL + "/" + str(subcloud.id),
+            headers=FAKE_HEADERS,
+            params=patch_data,
+        )
+        self.mock_rpc_client().update_subcloud.assert_not_called()
+        self.mock_rpc_client().update_association_sync_status.assert_not_called()
+        self.assertEqual(consts.ASSOCIATION_SYNC_STATUS_IN_SYNC,
+                         db_api.peer_group_association_get(
+                             self.ctx, association.id).sync_status)
+
+    @mock.patch.object(subclouds.SubcloudsController, "_get_patch_data")
+    @mock.patch.object(cutils, 'is_leader_on_local_site')
+    @mock.patch.object(cutils, 'subcloud_peer_group_get_by_ref')
+    def test_update_subcloud_bootstrap_address_when_primary_site_is_unavailable(
+            self, mock_get_peer_group, mock_is_leader_on_local_site,
+            mock_get_patch_data):
+        association, subcloud, patch_data = \
+            self.update_subcloud_bootstrap_address_on_non_primary_site(
+                mock_get_peer_group,
+                mock_is_leader_on_local_site,
+                mock_get_patch_data,
+                consts.SYSTEM_PEER_AVAILABILITY_STATE_UNAVAILABLE)
+        response = self.app.patch_json(
+            f"{FAKE_URL}/{subcloud.id}", headers=FAKE_HEADERS,
+            params=patch_data
+        )
+        self.assertEqual(response.status_int, 200)
+        self.mock_rpc_client().update_subcloud.assert_called_once_with(
+            mock.ANY,
+            subcloud.id,
+            management_state=None,
+            description=None,
+            location=None,
+            group_id=None,
+            data_install=None,
+            force=None,
+            peer_group_id=None,
+            bootstrap_values=None,
+            bootstrap_address=patch_data["bootstrap_address"],
+            deploy_status=None)
+        self.assertEqual(consts.ASSOCIATION_SYNC_STATUS_OUT_OF_SYNC,
+                         db_api.peer_group_association_get(
+                             self.ctx, association.id).sync_status)
 
     def test_get_config_file_path(self):
         bootstrap_file = psd_common.get_config_file_path("subcloud1")
