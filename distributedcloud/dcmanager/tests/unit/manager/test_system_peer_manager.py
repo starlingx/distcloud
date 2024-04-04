@@ -47,30 +47,8 @@ FAKE_SITE1_PEER_GROUP_STATE = 'enabled'
 # FAKE SYSTEM PEER DATA (SITE1)
 FAKE_SITE1_SYSTEM_PEER_ID = 10
 
-# FAKE SUBCLOUD DATA (SITE1)
-FAKE_SITE1_SUBCLOUD1_ID = 11
 FAKE_SITE1_SUBCLOUD1_REGION_NAME = str(uuid.uuid4())
-FAKE_SITE1_SUBCLOUD1_DEPLOY_STATUS = 'secondary'
-FAKE_SITE1_SUBCLOUD1_DATA = {"id": FAKE_SITE1_SUBCLOUD1_ID,
-                             "name": "subcloud1",
-                             "region-name": FAKE_SITE1_SUBCLOUD1_REGION_NAME,
-                             "deploy-status":
-                             FAKE_SITE1_SUBCLOUD1_DEPLOY_STATUS}
-FAKE_SITE1_SUBCLOUD2_ID = 12
 FAKE_SITE1_SUBCLOUD2_REGION_NAME = str(uuid.uuid4())
-FAKE_SITE1_SUBCLOUD2_DEPLOY_STATUS = 'secondary-failed'
-FAKE_SITE1_SUBCLOUD2_DATA = {"id": FAKE_SITE1_SUBCLOUD2_ID,
-                             "name": "subcloud2",
-                             "region-name": FAKE_SITE1_SUBCLOUD2_REGION_NAME,
-                             "deploy-status":
-                             FAKE_SITE1_SUBCLOUD2_DEPLOY_STATUS}
-FAKE_SITE1_SUBCLOUD3_ID = 13
-FAKE_SITE1_SUBCLOUD3_DEPLOY_STATUS = 'secondary'
-FAKE_SITE1_SUBCLOUD3_DATA = {"id": FAKE_SITE1_SUBCLOUD3_ID,
-                             "name": "subcloud3",
-                             "region-name": "subcloud3",
-                             "deploy-status":
-                             FAKE_SITE1_SUBCLOUD3_DEPLOY_STATUS}
 
 # FAKE PEER GROUP ASSOCIATION DATA (SITE0)
 FAKE_ASSOCIATION_PEER_GROUP_ID = \
@@ -86,26 +64,9 @@ FAKE_ASSOCIATION_TYPE = 'primary'
 FAKE_SITE1_ASSOCIATION_ID = 10
 
 
-class FakeDCManagerAuditAPI(object):
-    def __init__(self):
-        pass
-
-
 class FakeSystem(object):
     def __init__(self, uuid):
         self.uuid = uuid
-
-
-class FakePeerGroup(object):
-    def __init__(self):
-        self.id = FAKE_SITE1_PEER_GROUP_ID
-
-
-class FakeKeystoneClient(object):
-    def __init__(self):
-        self.keystone_client = mock.MagicMock()
-        self.session = mock.MagicMock()
-        self.endpoint_cache = mock.MagicMock()
 
 
 class FakeSysinvClient(object):
@@ -116,32 +77,61 @@ class FakeSysinvClient(object):
         return self.system
 
 
-class FakeDcmanagerClient(object):
-    def __init__(self):
-        self.peer_groups = [FakePeerGroup()]
-
-    def add_subcloud_peer_group(self, **kwargs):
-        return self.peer_groups
-
-    def get_subcloud_peer_group(self, peer_group_name):
-        return self.peer_groups
-
-
-class FakeException(Exception):
-    pass
-
-
 class TestSystemPeerManager(base.DCManagerTestCase):
-    def setUp(self):
-        super(TestSystemPeerManager, self).setUp()
+    """Test class for testing system peer manager"""
 
-        # Mock the DCManager Audit API
-        self.fake_dcmanager_audit_api = FakeDCManagerAuditAPI()
-        p = mock.patch('dcmanager.audit.rpcapi.ManagerAuditClient')
-        self.mock_dcmanager_audit_api = p.start()
-        self.mock_dcmanager_audit_api.return_value = \
-            self.fake_dcmanager_audit_api
-        self.addCleanup(p.stop)
+    def setUp(self):
+        super().setUp()
+
+        self._mock_sysinv_client(system_peer_manager)
+        self._mock_audit_rpc_client()
+        self._mock_get_local_system()
+        self._mock_system_peer_manager_dcmanagerclient()
+        self._mock_system_peer_manager_peersitedriver()
+
+        self.spm = system_peer_manager.SystemPeerManager(mock.MagicMock())
+        self.mock_sysinv_client.return_value = FakeSysinvClient()
+
+        self.peer_subcloud1 = self._fake_site_data(1)
+        self.peer_subcloud2 = self._fake_site_data(2)
+        self.peer_subcloud3 = self._fake_site_data(3)
+
+        self.peer = self.create_system_peer_static(
+            self.ctx, peer_name='SystemPeer1'
+        )
+        self.peer_group = self.create_subcloud_peer_group_static(
+            self.ctx, peer_group_name='SubcloudPeerGroup1'
+        )
+        self.association = self.create_peer_group_association_static(
+            self.ctx,
+            system_peer_id=self.peer.id,
+            peer_group_id=self.peer_group.id)
+
+    def _fake_site_data(self, subcloud_id):
+        # FAKE SITE SUBCLOUD DATA
+        return {
+            'id': subcloud_id,
+            'name': f'subcloud{subcloud_id}',
+            'region-name': FAKE_SITE1_SUBCLOUD1_REGION_NAME if subcloud_id == 1
+            else FAKE_SITE1_SUBCLOUD2_REGION_NAME if subcloud_id == 2
+            else 'subcloud3',
+            'deploy-status': 'secondary' if subcloud_id in [1, 3]
+            else 'secondary-failed'
+        }
+
+    def _mock_system_peer_manager_dcmanagerclient(self):
+        """Mock system_peer_manager's DcmanagerClient"""
+
+        mock_patch = mock.patch.object(system_peer_manager, 'DcmanagerClient')
+        self.mock_dc_client = mock_patch.start()
+        self.addCleanup(mock_patch.stop)
+
+    def _mock_system_peer_manager_peersitedriver(self):
+        """Mock system_peer_manager's PeerSiteDriver"""
+
+        mock_patch = mock.patch.object(system_peer_manager, 'PeerSiteDriver')
+        self.mock_keystone_client = mock_patch.start()
+        self.addCleanup(mock_patch.stop)
 
     @staticmethod
     def create_subcloud_with_pg_static(ctxt, peer_group_id,
@@ -195,31 +185,13 @@ class TestSystemPeerManager(base.DCManagerTestCase):
         return db_api.peer_group_association_create(ctxt, **values)
 
     def test_init(self):
-        spm = system_peer_manager.SystemPeerManager(mock.MagicMock())
-        self.assertIsNotNone(spm)
-        self.assertEqual('system_peer_manager', spm.service_name)
-        self.assertEqual('localhost', spm.host)
+        self.assertIsNotNone(self.spm)
+        self.assertEqual('system_peer_manager', self.spm.service_name)
+        self.assertEqual('localhost', self.spm.host)
 
-    @mock.patch.object(system_peer_manager, 'PeerSiteDriver')
-    @mock.patch.object(system_peer_manager, 'SysinvClient')
-    @mock.patch.object(system_peer_manager, 'DcmanagerClient')
-    def test_sync_subclouds(self, mock_dc_client,
-                            mock_sysinv_client,
-                            mock_keystone_client):
-        mock_keystone_client().keystone_client = FakeKeystoneClient()
-        mock_sysinv_client.return_value = FakeSysinvClient()
-        mock_dc_client.return_value = FakeDcmanagerClient()
-        mock_dc_client().add_subcloud_with_secondary_status = mock.MagicMock()
-        mock_dc_client().add_subcloud_with_secondary_status.return_value = {
+    def test_sync_subclouds(self):
+        self.mock_dc_client().add_subcloud_with_secondary_status.return_value = {
             "region-name": FAKE_SITE1_SUBCLOUD2_REGION_NAME}
-        mock_dc_client().delete_subcloud = mock.MagicMock()
-
-        peer = self.create_system_peer_static(
-            self.ctx,
-            peer_name='SystemPeer1')
-        peer_group = self.create_subcloud_peer_group_static(
-            self.ctx,
-            peer_group_name='SubcloudPeerGroup1')
         rehome_data = {
             "saved_payload": {
                 "bootstrap-address": "192.168.10.10",
@@ -230,7 +202,7 @@ class TestSystemPeerManager(base.DCManagerTestCase):
         data_install = json.dumps(fake_subcloud.FAKE_SUBCLOUD_INSTALL_VALUES)
         self.create_subcloud_with_pg_static(
             self.ctx,
-            peer_group_id=peer_group.id,
+            peer_group_id=self.peer_group.id,
             rehome_data=json.dumps(rehome_data),
             name='subcloud1',
             region_name='subcloud1',
@@ -238,36 +210,29 @@ class TestSystemPeerManager(base.DCManagerTestCase):
         # Create local dc subcloud2 mock data in database
         self.create_subcloud_with_pg_static(
             self.ctx,
-            peer_group_id=peer_group.id,
+            peer_group_id=self.peer_group.id,
             rehome_data=json.dumps(rehome_data),
             name='subcloud2',
             region_name='subcloud2',
             data_install=None)
-        peer_subcloud1 = FAKE_SITE1_SUBCLOUD1_DATA
-        peer_subcloud2 = FAKE_SITE1_SUBCLOUD2_DATA
-        peer_subcloud3 = FAKE_SITE1_SUBCLOUD3_DATA
-        mock_dc_client().get_subcloud = mock.MagicMock()
-        mock_dc_client().get_subcloud.side_effect = [
-            peer_subcloud1, dccommon_exceptions.SubcloudNotFound,
-            peer_subcloud1, dccommon_exceptions.SubcloudNotFound,
-            peer_subcloud3]
-        mock_dc_client().get_subcloud_list_by_peer_group = mock.MagicMock()
-        mock_dc_client().get_subcloud_list_by_peer_group.return_value = [
-            peer_subcloud1, peer_subcloud2, peer_subcloud3]
-        mock_dc_client().update_subcloud = mock.MagicMock()
-        mock_dc_client().update_subcloud.side_effect = [
-            peer_subcloud1, peer_subcloud1, peer_subcloud2]
+        self.mock_dc_client().get_subcloud.side_effect = [
+            self.peer_subcloud1, dccommon_exceptions.SubcloudNotFound,
+            self.peer_subcloud1, dccommon_exceptions.SubcloudNotFound,
+            self.peer_subcloud3]
+        self.mock_dc_client().get_subcloud_list_by_peer_group.return_value = [
+            self.peer_subcloud1, self.peer_subcloud2, self.peer_subcloud3]
+        self.mock_dc_client().update_subcloud.side_effect = [
+            self.peer_subcloud1, self.peer_subcloud1, self.peer_subcloud2]
 
-        spm = system_peer_manager.SystemPeerManager(mock.MagicMock())
-        spm._sync_subclouds(self.ctx, peer, peer_group.id,
-                            FAKE_SITE1_PEER_GROUP_ID)
+        self.spm._sync_subclouds(self.ctx, self.peer, self.peer_group.id,
+                                 FAKE_SITE1_PEER_GROUP_ID)
 
-        mock_dc_client().get_subcloud.assert_has_calls([
-            mock.call(peer_subcloud1.get('name')),
-            mock.call(peer_subcloud2.get('name')),
-            mock.call(peer_subcloud3.get('name'))
+        self.mock_dc_client().get_subcloud.assert_has_calls([
+            mock.call(self.peer_subcloud1.get('name')),
+            mock.call(self.peer_subcloud2.get('name')),
+            mock.call(self.peer_subcloud3.get('name'))
         ])
-        mock_dc_client().update_subcloud.assert_has_calls([
+        self.mock_dc_client().update_subcloud.assert_has_calls([
             mock.call('subcloud1', mock.ANY, mock.ANY, is_region_name=True),
             mock.call(FAKE_SITE1_SUBCLOUD1_REGION_NAME, files=None,
                       data={'peer_group': str(FAKE_SITE1_PEER_GROUP_ID)},
@@ -276,292 +241,141 @@ class TestSystemPeerManager(base.DCManagerTestCase):
                       data={'peer_group': str(FAKE_SITE1_PEER_GROUP_ID)},
                       is_region_name=True)
         ])
-        mock_dc_client().add_subcloud_with_secondary_status. \
+        self.mock_dc_client().add_subcloud_with_secondary_status. \
             assert_called_once()
-        mock_dc_client().delete_subcloud.assert_called_once_with('subcloud3')
+        self.mock_dc_client().delete_subcloud.assert_called_once_with('subcloud3')
 
     @mock.patch.object(
         system_peer_manager.SystemPeerManager, '_sync_subclouds')
-    @mock.patch.object(system_peer_manager, 'utils')
-    @mock.patch.object(system_peer_manager, 'PeerSiteDriver')
-    @mock.patch.object(system_peer_manager, 'SysinvClient')
-    @mock.patch.object(system_peer_manager, 'DcmanagerClient')
     def test_sync_subcloud_peer_group(self,
-                                      mock_dc_client,
-                                      mock_sysinv_client,
-                                      mock_keystone_client,
-                                      mock_utils,
                                       mock_sync_subclouds):
         mock_sync_subclouds.return_value = True
-        mock_keystone_client().keystone_client = FakeKeystoneClient()
-        mock_sysinv_client.return_value = FakeSysinvClient()
-        mock_dc_client.return_value = FakeDcmanagerClient()
-        mock_dc_client().get_subcloud_peer_group = mock.MagicMock()
-        mock_dc_client().update_subcloud_peer_group = mock.MagicMock()
-        mock_dc_client().get_system_peer = mock.MagicMock()
-        mock_dc_client().get_peer_group_association_with_peer_id_and_pg_id = \
-            mock.MagicMock()
-        mock_dc_client().update_peer_group_association_sync_status = \
-            mock.MagicMock()
-        mock_utils().get_local_system = mock.MagicMock()
 
-        peer = self.create_system_peer_static(
-            self.ctx,
-            peer_name='SystemPeer1')
-        peer_group = self.create_subcloud_peer_group_static(
-            self.ctx,
-            peer_group_name='SubcloudPeerGroup1')
-        association = self.create_peer_group_association_static(
-            self.ctx,
-            system_peer_id=peer.id,
-            peer_group_id=peer_group.id)
+        self.spm.sync_subcloud_peer_group(self.ctx, self.association.id, False)
 
-        spm = system_peer_manager.SystemPeerManager(mock.MagicMock())
-        spm.sync_subcloud_peer_group(self.ctx, association.id, False)
-
-        mock_dc_client().get_subcloud_peer_group.assert_called_once_with(
-            peer_group.peer_group_name)
-        mock_dc_client().update_subcloud_peer_group.assert_called_once()
+        self.mock_dc_client().get_subcloud_peer_group.assert_called_once_with(
+            self.peer_group.peer_group_name)
+        self.mock_dc_client().update_subcloud_peer_group.assert_called_once()
 
     @mock.patch.object(
         system_peer_manager.SystemPeerManager, '_sync_subclouds')
-    @mock.patch.object(system_peer_manager, 'utils')
-    @mock.patch.object(system_peer_manager, 'PeerSiteDriver')
-    @mock.patch.object(system_peer_manager, 'SysinvClient')
-    @mock.patch.object(system_peer_manager, 'DcmanagerClient')
-    def test_sync_subcloud_peer_group_not_exist(self, mock_dc_client,
-                                                mock_sysinv_client,
-                                                mock_keystone_client,
-                                                mock_utils,
+    def test_sync_subcloud_peer_group_not_exist(self,
                                                 mock_sync_subclouds):
         mock_sync_subclouds.return_value = True
-        mock_keystone_client().keystone_client = FakeKeystoneClient()
-        mock_sysinv_client.return_value = FakeSysinvClient()
-        mock_dc_client.return_value = FakeDcmanagerClient()
-        mock_dc_client().get_subcloud_peer_group = mock.MagicMock()
-        mock_dc_client().add_subcloud_peer_group = mock.MagicMock()
-        mock_dc_client().update_subcloud_peer_group = mock.MagicMock()
-        mock_dc_client().get_system_peer = mock.MagicMock()
-        mock_dc_client().get_peer_group_association_with_peer_id_and_pg_id = \
-            mock.MagicMock()
-        mock_dc_client().update_peer_group_association_sync_status = \
-            mock.MagicMock()
-        mock_utils().get_local_system = mock.MagicMock()
-
-        peer = self.create_system_peer_static(
-            self.ctx,
-            peer_name='SystemPeer1')
-        peer_group = self.create_subcloud_peer_group_static(
-            self.ctx,
-            peer_group_name='SubcloudPeerGroup1')
-        association = self.create_peer_group_association_static(
-            self.ctx,
-            system_peer_id=peer.id,
-            peer_group_id=peer_group.id)
-
-        mock_dc_client().get_subcloud_peer_group.side_effect = \
+        self.mock_dc_client().get_subcloud_peer_group.side_effect = \
             dccommon_exceptions.SubcloudPeerGroupNotFound
 
-        spm = system_peer_manager.SystemPeerManager(mock.MagicMock())
-        spm.sync_subcloud_peer_group(self.ctx, association.id, False)
+        self.spm.sync_subcloud_peer_group(self.ctx, self.association.id, False)
 
-        mock_dc_client().get_subcloud_peer_group.assert_called_once_with(
-            peer_group.peer_group_name)
-        mock_dc_client().add_subcloud_peer_group.assert_called_once_with(**{
-            'peer-group-name': peer_group.peer_group_name,
-            'group-priority': association.peer_group_priority,
-            'group-state': peer_group.group_state,
-            'system-leader-id': peer_group.system_leader_id,
-            'system-leader-name': peer_group.system_leader_name,
-            'max-subcloud-rehoming': peer_group.max_subcloud_rehoming
+        self.mock_dc_client().get_subcloud_peer_group.assert_called_once_with(
+            self.peer_group.peer_group_name)
+        self.mock_dc_client().add_subcloud_peer_group.assert_called_once_with(**{
+            'peer-group-name': self.peer_group.peer_group_name,
+            'group-priority': self.association.peer_group_priority,
+            'group-state': self.peer_group.group_state,
+            'system-leader-id': self.peer_group.system_leader_id,
+            'system-leader-name': self.peer_group.system_leader_name,
+            'max-subcloud-rehoming': self.peer_group.max_subcloud_rehoming
         })
 
-    @mock.patch.object(system_peer_manager, 'utils')
-    @mock.patch.object(system_peer_manager, 'PeerSiteDriver')
-    @mock.patch.object(system_peer_manager, 'SysinvClient')
-    @mock.patch.object(system_peer_manager, 'DcmanagerClient')
-    def test_delete_peer_group_association(self,
-                                           mock_dc_client,
-                                           mock_sysinv_client,
-                                           mock_keystone_client,
-                                           mock_utils):
-        mock_keystone_client().keystone_client = FakeKeystoneClient()
-        mock_sysinv_client.return_value = FakeSysinvClient()
-        mock_dc_client.return_value = FakeDcmanagerClient()
-        mock_dc_client().delete_subcloud_peer_group = mock.MagicMock()
-        mock_dc_client().delete_subcloud = mock.MagicMock()
-        mock_dc_client().get_subcloud_peer_group = mock.MagicMock()
-        mock_dc_client().get_system_peer = mock.MagicMock()
-        mock_dc_client().get_peer_group_association_with_peer_id_and_pg_id = \
-            mock.MagicMock()
-        mock_dc_client().delete_peer_group_association = mock.MagicMock()
-        mock_utils().get_local_system = mock.MagicMock()
-
-        peer = self.create_system_peer_static(
-            self.ctx,
-            peer_name='SystemPeer1')
-        peer_group = self.create_subcloud_peer_group_static(
-            self.ctx,
-            peer_group_name='SubcloudPeerGroup1')
+    def test_delete_peer_group_association(self):
         # Create local dc subcloud1 mock data in database
         subcloud1 = self.create_subcloud_with_pg_static(
             self.ctx,
-            peer_group_id=peer_group.id,
+            peer_group_id=self.peer_group.id,
             name='subcloud1')
         # Create local dc subcloud2 mock data in database
         subcloud2 = self.create_subcloud_with_pg_static(
             self.ctx,
-            peer_group_id=peer_group.id,
+            peer_group_id=self.peer_group.id,
             name='subcloud2')
-        association = self.create_peer_group_association_static(
-            self.ctx,
-            system_peer_id=peer.id,
-            peer_group_id=peer_group.id)
-        peer_subcloud1 = FAKE_SITE1_SUBCLOUD1_DATA
-        peer_subcloud2 = FAKE_SITE1_SUBCLOUD2_DATA
-        mock_dc_client().get_subcloud = mock.MagicMock()
-        mock_dc_client().get_subcloud.side_effect = [
-            peer_subcloud1, peer_subcloud2]
-        mock_dc_client().get_peer_group_association_with_peer_id_and_pg_id.\
+        self.mock_dc_client().get_subcloud.side_effect = [
+            self.peer_subcloud1, self.peer_subcloud2]
+        self.mock_dc_client().get_peer_group_association_with_peer_id_and_pg_id.\
             return_value = {'id': FAKE_SITE1_ASSOCIATION_ID}
 
-        spm = system_peer_manager.SystemPeerManager(mock.MagicMock())
-        spm.delete_peer_group_association(self.ctx, association.id)
+        self.spm.delete_peer_group_association(self.ctx, self.association.id)
 
-        mock_dc_client().delete_subcloud.assert_has_calls([
+        self.mock_dc_client().delete_subcloud.assert_has_calls([
             mock.call(subcloud1.name),
             mock.call(subcloud2.name)
         ])
-        mock_dc_client().delete_subcloud_peer_group.assert_called_once_with(
-            peer_group.peer_group_name)
-        mock_dc_client().delete_peer_group_association.assert_called_once_with(
+        self.mock_dc_client().delete_subcloud_peer_group.assert_called_once_with(
+            self.peer_group.peer_group_name)
+        self.mock_dc_client().delete_peer_group_association.assert_called_once_with(
             FAKE_SITE1_ASSOCIATION_ID)
 
         associations = db_api.peer_group_association_get_all(self.ctx)
         self.assertEqual(0, len(associations))
 
-    @mock.patch.object(system_peer_manager, 'utils')
-    @mock.patch.object(system_peer_manager, 'PeerSiteDriver')
-    @mock.patch.object(system_peer_manager, 'SysinvClient')
-    @mock.patch.object(system_peer_manager, 'DcmanagerClient')
-    def test_delete_peer_group_association_peer_site_association_not_exsit(
-        self, mock_dc_client, mock_sysinv_client, mock_keystone_client, mock_utils
-    ):
-        mock_keystone_client().keystone_client = FakeKeystoneClient()
-        mock_sysinv_client.return_value = FakeSysinvClient()
-        mock_dc_client.return_value = FakeDcmanagerClient()
-        mock_dc_client().delete_subcloud_peer_group = mock.MagicMock()
-        mock_dc_client().delete_subcloud = mock.MagicMock()
-        mock_dc_client().get_subcloud_peer_group = mock.MagicMock()
-        mock_dc_client().get_system_peer = mock.MagicMock()
-        mock_dc_client().get_peer_group_association_with_peer_id_and_pg_id = \
-            mock.MagicMock()
-        mock_dc_client().delete_peer_group_association = mock.MagicMock()
-        mock_utils().get_local_system = mock.MagicMock()
-
-        peer = self.create_system_peer_static(
-            self.ctx,
-            peer_name='SystemPeer1')
-        peer_group = self.create_subcloud_peer_group_static(
-            self.ctx,
-            peer_group_name='SubcloudPeerGroup1')
+    def test_delete_peer_group_association_peer_site_association_not_exsit(self):
         # Create local dc subcloud1 mock data in database
         subcloud1 = self.create_subcloud_with_pg_static(
             self.ctx,
-            peer_group_id=peer_group.id,
+            peer_group_id=self.peer_group.id,
             name='subcloud1')
-        association = self.create_peer_group_association_static(
-            self.ctx,
-            system_peer_id=peer.id,
-            peer_group_id=peer_group.id)
-        peer_subcloud1 = FAKE_SITE1_SUBCLOUD1_DATA
-        mock_dc_client().get_subcloud = mock.MagicMock()
-        mock_dc_client().get_subcloud.side_effect = [
-            peer_subcloud1, dccommon_exceptions.SubcloudNotFound]
-        mock_dc_client().get_peer_group_association_with_peer_id_and_pg_id.\
+        self.mock_dc_client().get_subcloud.side_effect = [
+            self.peer_subcloud1, dccommon_exceptions.SubcloudNotFound]
+        self.mock_dc_client().get_peer_group_association_with_peer_id_and_pg_id.\
             side_effect = [dccommon_exceptions.PeerGroupAssociationNotFound]
 
-        spm = system_peer_manager.SystemPeerManager(mock.MagicMock())
-        spm.delete_peer_group_association(self.ctx, association.id)
+        self.spm.delete_peer_group_association(self.ctx, self.association.id)
 
-        mock_dc_client().delete_subcloud.assert_has_calls([
+        self.mock_dc_client().delete_subcloud.assert_has_calls([
             mock.call(subcloud1.name)])
-        mock_dc_client().delete_subcloud_peer_group.assert_called_once_with(
-            peer_group.peer_group_name)
-        mock_dc_client().delete_peer_group_association.assert_not_called()
+        self.mock_dc_client().delete_subcloud_peer_group.assert_called_once_with(
+            self.peer_group.peer_group_name)
+        self.mock_dc_client().delete_peer_group_association.assert_not_called()
 
         associations = db_api.peer_group_association_get_all(self.ctx)
         self.assertEqual(0, len(associations))
 
     @mock.patch('dcmanager.manager.system_peer_manager.'
-                'utils.get_local_system')
-    @mock.patch('dcmanager.manager.system_peer_manager.'
                 'SystemPeerManager.get_peer_dc_client')
-    def test_update_sync_status(self, mock_client, mock_utils):
-        mock_dc_client = mock.MagicMock()
-        mock_dc_client().get_subcloud_peer_group = mock.MagicMock()
-        mock_dc_client().get_system_peer = mock.MagicMock()
-        mock_dc_client().get_peer_group_association_with_peer_id_and_pg_id = \
-            mock.MagicMock()
-        mock_dc_client().update_peer_group_association_sync_status = \
-            mock.MagicMock()
-        mock_client.return_value = mock_dc_client()
-        mock_utils.return_value = FakeSystem(FAKE_SITE0_SYSTEM_UUID)
+    def test_update_sync_status(self, mock_client):
+        mock_client.return_value = self.mock_dc_client()
+        self.mock_get_local_system.return_value = FakeSystem(FAKE_SITE0_SYSTEM_UUID)
 
-        peer = self.create_system_peer_static(
-            self.ctx, peer_name='SystemPeer1')
-        peer_group = self.create_subcloud_peer_group_static(
-            self.ctx, peer_group_name='SubcloudPeerGroup1')
-        association = self.create_peer_group_association_static(
-            self.ctx, system_peer_id=peer.id,
-            peer_group_id=peer_group.id,
+        db_api.peer_group_association_update(
+            self.ctx, associate_id=self.association.id,
             sync_status=consts.ASSOCIATION_SYNC_STATUS_UNKNOWN)
 
-        mock_dc_client().get_subcloud_peer_group.return_value = \
+        self.mock_dc_client().get_subcloud_peer_group.return_value = \
             {'id': FAKE_SITE1_PEER_GROUP_ID}
-        mock_dc_client().get_system_peer.return_value = \
+        self.mock_dc_client().get_system_peer.return_value = \
             {'id': FAKE_SITE1_SYSTEM_PEER_ID}
-        mock_dc_client().get_peer_group_association_with_peer_id_and_pg_id.\
+        self.mock_dc_client().get_peer_group_association_with_peer_id_and_pg_id.\
             return_value = {'id': FAKE_SITE1_ASSOCIATION_ID}
 
-        spm = system_peer_manager.SystemPeerManager(mock.MagicMock())
-        spm.update_sync_status(
-            self.ctx, peer, consts.ASSOCIATION_SYNC_STATUS_IN_SYNC)
+        self.spm.update_sync_status(
+            self.ctx, self.peer, consts.ASSOCIATION_SYNC_STATUS_IN_SYNC)
 
-        mock_dc_client().get_subcloud_peer_group.assert_called_once_with(
-            peer_group.peer_group_name)
-        mock_dc_client().get_system_peer.assert_called_once_with(
+        self.mock_dc_client().get_subcloud_peer_group.assert_called_once_with(
+            self.peer_group.peer_group_name)
+        self.mock_dc_client().get_system_peer.assert_called_once_with(
             FAKE_SITE0_SYSTEM_UUID)
-        mock_dc_client().get_peer_group_association_with_peer_id_and_pg_id.\
+        self.mock_dc_client().get_peer_group_association_with_peer_id_and_pg_id.\
             assert_called_once_with(FAKE_SITE1_SYSTEM_PEER_ID,
                                     FAKE_SITE1_PEER_GROUP_ID)
-        mock_dc_client().update_peer_group_association_sync_status.\
+        self.mock_dc_client().update_peer_group_association_sync_status.\
             assert_called_once_with(FAKE_SITE1_ASSOCIATION_ID,
                                     consts.ASSOCIATION_SYNC_STATUS_IN_SYNC)
 
         association_new = db_api.peer_group_association_get(
-            self.ctx, association.id)
+            self.ctx, self.association.id)
         self.assertEqual(consts.ASSOCIATION_SYNC_STATUS_IN_SYNC,
                          association_new.sync_status)
 
     @mock.patch.object(system_peer_manager.SystemPeerManager,
                        'update_sync_status')
     def test_update_association_sync_status(self, mock_update_sync_status):
-        peer = self.create_system_peer_static(
-            self.ctx,
-            peer_name='SystemPeer1')
-        peer_group = self.create_subcloud_peer_group_static(
-            self.ctx,
-            peer_group_name='SubcloudPeerGroup1')
-        self.create_peer_group_association_static(
-            self.ctx,
-            system_peer_id=peer.id,
-            peer_group_id=peer_group.id,
+
+        db_api.peer_group_association_update(
+            self.ctx, associate_id=self.association.id,
             sync_status=consts.ASSOCIATION_SYNC_STATUS_IN_SYNC)
 
-        spm = system_peer_manager.SystemPeerManager(mock.MagicMock())
-        spm.update_association_sync_status(
-            self.ctx, peer_group.id,
+        self.spm.update_association_sync_status(
+            self.ctx, self.peer_group.id,
             consts.ASSOCIATION_SYNC_STATUS_OUT_OF_SYNC)
 
         mock_update_sync_status.assert_called_once_with(
@@ -572,26 +386,18 @@ class TestSystemPeerManager(base.DCManagerTestCase):
                        'update_sync_status')
     def test_update_association_sync_status_when_peer_site_down(
             self, mock_update_sync_status):
-        peer = self.create_system_peer_static(
-            self.ctx,
-            peer_name='SystemPeer1')
-        peer_group = self.create_subcloud_peer_group_static(
-            self.ctx,
-            peer_group_name='SubcloudPeerGroup1')
-        self.create_peer_group_association_static(
-            self.ctx,
-            system_peer_id=peer.id,
-            peer_group_id=peer_group.id,
+
+        db_api.peer_group_association_update(
+            self.ctx, associate_id=self.association.id,
             sync_status=consts.ASSOCIATION_SYNC_STATUS_UNKNOWN)
 
-        spm = system_peer_manager.SystemPeerManager(mock.MagicMock())
-        spm.update_association_sync_status(
-            self.ctx, peer_group.id,
+        self.spm.update_association_sync_status(
+            self.ctx, self.peer_group.id,
             consts.ASSOCIATION_SYNC_STATUS_OUT_OF_SYNC)
 
         association = db_api. \
             peer_group_association_get_by_peer_group_and_system_peer_id(
-                self.ctx, peer_group.id, peer.id)
+                self.ctx, self.peer_group.id, self.peer.id)
         self.assertEqual(consts.ASSOCIATION_SYNC_STATUS_FAILED,
                          association.sync_status)
         self.assertEqual("Failed to update sync_status, "
@@ -600,34 +406,9 @@ class TestSystemPeerManager(base.DCManagerTestCase):
 
         mock_update_sync_status.assert_not_called()
 
-    @mock.patch.object(system_peer_manager, 'PeerSiteDriver')
-    @mock.patch.object(system_peer_manager, 'SysinvClient')
-    @mock.patch.object(system_peer_manager, 'DcmanagerClient')
-    def test_update_subcloud_peer_group(self,
-                                        mock_dc_client,
-                                        mock_sysinv_client,
-                                        mock_keystone_client):
-        mock_keystone_client().keystone_client = FakeKeystoneClient()
-        mock_sysinv_client.return_value = FakeSysinvClient()
-        mock_dc_client.return_value = FakeDcmanagerClient()
-        mock_dc_client().get_subcloud_peer_group = mock.MagicMock()
-        mock_dc_client().update_subcloud_peer_group = mock.MagicMock()
-        mock_dc_client().get_system_peer = mock.MagicMock()
-
-        peer = self.create_system_peer_static(
-            self.ctx,
-            peer_name='SystemPeer1')
-        peer_group = self.create_subcloud_peer_group_static(
-            self.ctx,
-            peer_group_name=FAKE_SITE0_PEER_GROUP_NAME)
-        self.create_peer_group_association_static(
-            self.ctx,
-            system_peer_id=peer.id,
-            peer_group_id=peer_group.id)
-
-        spm = system_peer_manager.SystemPeerManager(mock.MagicMock())
-        spm.update_subcloud_peer_group(
-            self.ctx, peer_group.id,
+    def test_update_subcloud_peer_group(self):
+        self.spm.update_subcloud_peer_group(
+            self.ctx, self.peer_group.id,
             FAKE_SITE1_PEER_GROUP_STATE,
             FAKE_SITE1_PEER_GROUP_MAX_SUBCLOUDS_REHOMING,
             FAKE_SITE0_PEER_GROUP_NAME,
@@ -639,5 +420,5 @@ class TestSystemPeerManager(base.DCManagerTestCase):
             'max-subcloud-rehoming':
                 FAKE_SITE1_PEER_GROUP_MAX_SUBCLOUDS_REHOMING
         }
-        mock_dc_client().update_subcloud_peer_group.assert_called_once_with(
+        self.mock_dc_client().update_subcloud_peer_group.assert_called_once_with(
             FAKE_SITE0_PEER_GROUP_NAME, **peer_group_kwargs)

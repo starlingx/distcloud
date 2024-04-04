@@ -350,6 +350,7 @@ class BaseTestSubcloudManager(base.DCManagerTestCase):
         self._mock_os_path_isdir()
         self._mock_os_path_exists()
         self._mock_os_remove()
+        self._mock_get_local_system()
         self.sm = subcloud_manager.SubcloudManager()
 
         self.subcloud = self.create_subcloud_static(self.ctx)
@@ -1297,8 +1298,7 @@ class TestSubcloudUpdate(BaseTestSubcloudManager):
                                                   mock_peer_dc_client):
         system_peer_test = test_system_peer_manager.TestSystemPeerManager
         system_peer = system_peer_test.create_system_peer_static(self.ctx)
-        mock_peer_dc_client.return_value = test_system_peer_manager.\
-            FakeDcmanagerClient()
+        mock_peer_dc_client.return_value = mock.MagicMock
         ret = self.sm._unmanage_system_peer_subcloud([system_peer], self.subcloud)
         self.assertEqual(ret, False)
 
@@ -3491,14 +3491,12 @@ class TestSubcloudMigrate(BaseTestSubcloudManager):
                          updated_subcloud.rehome_data)
 
     @mock.patch.object(db_api, 'subcloud_peer_group_update')
-    @mock.patch.object(cutils, 'get_local_system')
     @mock.patch.object(subcloud_manager.SubcloudManager,
                        '_run_parallel_group_operation')
     def test_run_batch_migrate(self, mock_run_parallel_group_operation,
-                               mock_get_local_system,
                                mock_subcloud_peer_group_update):
         self._mock_builtins_open()
-        mock_get_local_system.return_value = FakeSysinvClient.get_system(self)
+        self.mock_get_local_system.return_value = FakeSysinvClient.get_system(self)
         self.mock_openstack_driver.keystone_client = FakeKeystoneClient()
         subcloud_pg = self.create_subcloud_peer_group_static(self.ctx)
         db_api.subcloud_peer_group_update(
@@ -3528,9 +3526,8 @@ class TestSubcloudMigrate(BaseTestSubcloudManager):
         self.mock_log.info.assert_has_calls(Calls)
 
     @mock.patch.object(db_api, 'subcloud_peer_group_update')
-    @mock.patch.object(cutils, 'get_local_system')
     def test_run_batch_migrate_no_secondary_subclouds(
-        self, mock_get_local_system, mock_subcloud_peer_group_update
+        self, mock_subcloud_peer_group_update
     ):
         self.mock_sysinv_client().return_value = FakeSysinvClient()
         subcloud_pg = self.create_subcloud_peer_group_static(self.ctx)

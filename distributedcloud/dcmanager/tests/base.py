@@ -278,6 +278,13 @@ class DCManagerTestCase(base.BaseTestCase):
         self.mock_load_yaml_file = mock_patch_object.start()
         self.addCleanup(mock_patch_object.stop)
 
+    def _mock_get_local_system(self):
+        """Mock dcmanager util's get_local_system"""
+
+        mock_patch_object = mock.patch.object(dutils, 'get_local_system')
+        self.mock_get_local_system = mock_patch_object.start()
+        self.addCleanup(mock_patch_object.stop)
+
     def _mock_os_remove(self):
         """Mock os' remove"""
 
