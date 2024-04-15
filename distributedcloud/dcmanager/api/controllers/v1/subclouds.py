@@ -561,6 +561,8 @@ class SubcloudsController(object):
 
         psd_common.validate_secondary_parameter(payload, request)
 
+        psd_common.validate_enroll_parameter(payload, request)
+
         # Compares to match both supplied and bootstrap name param
         # of the subcloud if migrate is on
         if payload.get('migrate') == 'true' and bootstrap_sc_name is not None:

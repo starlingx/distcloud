@@ -162,6 +162,13 @@ def validate_migrate_parameter(payload, request):
                                'not allowed'))
 
 
+def validate_enroll_parameter(payload, request):
+    enroll_str = payload.get('enroll')
+    if enroll_str and enroll_str not in ["true", "false"]:
+        pecan.abort(400, _('The enroll option is invalid, '
+                           'valid options are true and false.'))
+
+
 def validate_secondary_parameter(payload, request):
     secondary_str = payload.get('secondary')
     migrate_str = payload.get('migrate')
