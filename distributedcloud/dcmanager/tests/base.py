@@ -158,47 +158,55 @@ class DCManagerTestCase(base.BaseTestCase):
         self.ctx = utils.dummy_context()
         self._mock_pecan()
 
+    # TODO(rlima): update the mock creation in the methods below
+    def _mock_object(self, target, attribute, name, wraps=None):
+        """Mock a specified target's attribute and save it in a variable"""
+
+        mock_patch_object = mock.patch.object(target, attribute, wraps=wraps)
+        self.__dict__[name] = mock_patch_object.start()
+        self.addCleanup(mock_patch_object.stop)
+
     def _mock_pecan(self):
         """Mock pecan's abort"""
 
-        mock_patch = mock.patch.object(pecan, 'abort', wraps=pecan.abort)
-        self.mock_pecan_abort = mock_patch.start()
-        self.addCleanup(mock_patch.stop)
+        mock_patch_object = mock.patch.object(pecan, 'abort', wraps=pecan.abort)
+        self.mock_pecan_abort = mock_patch_object.start()
+        self.addCleanup(mock_patch_object.stop)
 
     def _mock_audit_rpc_client(self):
         """Mock rpc's manager audit client"""
 
-        mock_patch = mock.patch.object(audit_rpc_client, 'ManagerAuditClient')
-        self.mock_audit_rpc_client = mock_patch.start()
-        self.addCleanup(mock_patch.stop)
+        mock_patch_object = mock.patch.object(audit_rpc_client, 'ManagerAuditClient')
+        self.mock_audit_rpc_client = mock_patch_object.start()
+        self.addCleanup(mock_patch_object.stop)
 
     def _mock_rpc_client(self):
         """Mock rpc's manager client"""
 
-        mock_patch = mock.patch.object(rpc_client, 'ManagerClient')
-        self.mock_rpc_client = mock_patch.start()
-        self.addCleanup(mock_patch.stop)
+        mock_patch_object = mock.patch.object(rpc_client, 'ManagerClient')
+        self.mock_rpc_client = mock_patch_object.start()
+        self.addCleanup(mock_patch_object.stop)
 
     def _mock_rpc_subcloud_state_client(self):
         """Mock rpc's subcloud state client"""
 
-        mock_patch = mock.patch.object(rpc_client, 'SubcloudStateClient')
-        self.mock_rpc_subcloud_state_client = mock_patch.start()
-        self.addCleanup(mock_patch.stop)
+        mock_patch_object = mock.patch.object(rpc_client, 'SubcloudStateClient')
+        self.mock_rpc_subcloud_state_client = mock_patch_object.start()
+        self.addCleanup(mock_patch_object.stop)
 
     def _mock_openstack_driver(self, target):
         """Mock the target's OpenStackDriver"""
 
-        mock_patch = mock.patch.object(target, 'OpenStackDriver')
-        self.mock_openstack_driver = mock_patch.start()
-        self.addCleanup(mock_patch.stop)
+        mock_patch_object = mock.patch.object(target, 'OpenStackDriver')
+        self.mock_openstack_driver = mock_patch_object.start()
+        self.addCleanup(mock_patch_object.stop)
 
     def _mock_sysinv_client(self, target):
         """Mock the target's SysinvClient"""
 
-        mock_patch = mock.patch.object(target, 'SysinvClient')
-        self.mock_sysinv_client = mock_patch.start()
-        self.addCleanup(mock_patch.stop)
+        mock_patch_object = mock.patch.object(target, 'SysinvClient')
+        self.mock_sysinv_client = mock_patch_object.start()
+        self.addCleanup(mock_patch_object.stop)
 
     def _mock_read_from_cache(self, target):
         mock_patch = mock.patch.object(target, '_read_from_cache')
