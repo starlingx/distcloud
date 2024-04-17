@@ -177,6 +177,39 @@ def validate_secondary_parameter(payload, request):
                                'not allowed'))
 
 
+def validate_systemcontroller_gateway_address(gateway_address: str) -> None:
+    """Aborts the request if the systemcontroller gateway address is invalid
+
+    :param gateway_address: systemcontroller gateway address
+    """
+    # Ensure systemcontroller gateway is in the management subnet
+    # for the systemcontroller region.
+    management_address_pool = get_network_address_pool()
+    systemcontroller_subnet_str = "%s/%d" % (
+        management_address_pool.network,
+        management_address_pool.prefix)
+    systemcontroller_subnet = netaddr.IPNetwork(systemcontroller_subnet_str)
+    try:
+        systemcontroller_gw_ip = utils.validate_address_str(
+            gateway_address,
+            systemcontroller_subnet
+        )
+    except exceptions.ValidateFail as e:
+        LOG.exception(e)
+        pecan.abort(400, _("systemcontroller_gateway_address invalid: %s") % e)
+
+    # Ensure systemcontroller gateway is not within the actual
+    # management subnet address pool to prevent address collision.
+    mgmt_address_start = netaddr.IPAddress(management_address_pool.ranges[0][0])
+    mgmt_address_end = netaddr.IPAddress(management_address_pool.ranges[0][1])
+    if ((systemcontroller_gw_ip >= mgmt_address_start) and
+            (systemcontroller_gw_ip <= mgmt_address_end)):
+        pecan.abort(400, _("systemcontroller_gateway_address invalid, "
+                           "is within management pool: %(start)s - "
+                           "%(end)s") %
+                    {'start': mgmt_address_start, 'end': mgmt_address_end})
+
+
 def validate_subcloud_config(context, payload, operation=None,
                              ignore_conflicts_with=None):
     """Check whether subcloud config is valid."""
@@ -299,32 +332,9 @@ def validate_subcloud_config(context, payload, operation=None,
                         'start': subcloud_mgmt_address_start,
                         'end': subcloud_mgmt_address_end})
 
-    # Ensure systemcontroller gateway is in the management subnet
-    # for the systemcontroller region.
-    management_address_pool = get_network_address_pool()
-    systemcontroller_subnet_str = "%s/%d" % (
-        management_address_pool.network,
-        management_address_pool.prefix)
-    systemcontroller_subnet = netaddr.IPNetwork(systemcontroller_subnet_str)
-    try:
-        systemcontroller_gw_ip = utils.validate_address_str(
-            payload.get('systemcontroller_gateway_address'),
-            systemcontroller_subnet
-        )
-    except exceptions.ValidateFail as e:
-        LOG.exception(e)
-        pecan.abort(400, _("systemcontroller_gateway_address invalid: %s") % e)
-
-    # Ensure systemcontroller gateway is not within the actual
-    # management subnet address pool to prevent address collision.
-    mgmt_address_start = netaddr.IPAddress(management_address_pool.ranges[0][0])
-    mgmt_address_end = netaddr.IPAddress(management_address_pool.ranges[0][1])
-    if ((systemcontroller_gw_ip >= mgmt_address_start) and
-            (systemcontroller_gw_ip <= mgmt_address_end)):
-        pecan.abort(400, _("systemcontroller_gateway_address invalid, "
-                           "is within management pool: %(start)s - "
-                           "%(end)s") %
-                    {'start': mgmt_address_start, 'end': mgmt_address_end})
+    validate_systemcontroller_gateway_address(
+        payload.get('systemcontroller_gateway_address')
+    )
 
     validate_oam_network_config(
         payload.get('external_oam_subnet'),

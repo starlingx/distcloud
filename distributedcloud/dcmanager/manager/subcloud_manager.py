@@ -2836,10 +2836,15 @@ class SubcloudManager(manager.Manager):
                 'bootstrap-address'] = bootstrap_address
 
         rehome_data = None
+        systemcontroller_gateway_address = None
         if rehome_data_dict:
             rehome_data = json.dumps(rehome_data_dict)
+            systemcontroller_gateway_address = \
+                rehome_data_dict['saved_payload'].get(
+                    "systemcontroller_gateway_address"
+                )
 
-        return rehome_data
+        return rehome_data, systemcontroller_gateway_address
 
     def update_subcloud(self,
                         context,
@@ -2889,8 +2894,10 @@ class SubcloudManager(manager.Manager):
                                                subcloud, force)
 
         # Update bootstrap values into rehome_data
-        rehome_data = self._prepare_rehome_data(subcloud, bootstrap_values,
-                                                bootstrap_address)
+        rehome_data, systemcontroller_gateway_ip = self._prepare_rehome_data(
+            subcloud, bootstrap_values, bootstrap_address
+        )
+
         if deploy_status:
             msg = None
             # Only update deploy_status if subcloud is or will be unmanaged
@@ -2908,6 +2915,21 @@ class SubcloudManager(manager.Manager):
                 LOG.warning(msg)
                 raise exceptions.BadRequest(resource='subcloud', msg=msg)
 
+        # Update route if the systemcontroller_gateway_ip has been updated
+        if (
+            systemcontroller_gateway_ip is not None and
+            systemcontroller_gateway_ip != subcloud.systemcontroller_gateway_ip
+        ):
+            m_ks_client = OpenStackDriver(
+                region_name=dccommon_consts.DEFAULT_REGION_NAME,
+                region_clients=None).keystone_client
+            self._create_subcloud_route(
+                {'management_subnet': subcloud.management_subnet},
+                m_ks_client, systemcontroller_gateway_ip
+            )
+            # Deletes old routes (subcloud obj holds old gateway ip)
+            self._delete_subcloud_routes(m_ks_client, subcloud)
+
         subcloud = db_api.subcloud_update(
             context,
             subcloud_id,
@@ -2918,7 +2940,8 @@ class SubcloudManager(manager.Manager):
             data_install=data_install,
             deploy_status=deploy_status,
             peer_group_id=peer_group_id,
-            rehome_data=rehome_data
+            rehome_data=rehome_data,
+            systemcontroller_gateway_ip=systemcontroller_gateway_ip
         )
 
         # Inform orchestrators that subcloud has been updated

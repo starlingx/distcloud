@@ -288,6 +288,8 @@ class SystemPeerManager(manager.Manager):
             rehome_data = json.loads(subcloud.rehome_data)
             subcloud_payload = rehome_data['saved_payload']
 
+            # Update bootstrap_values with the peer site
+            # systemcontroller_gateway_address
             subcloud_payload['systemcontroller_gateway_address'] = \
                 peer_controller_gateway_ip
 

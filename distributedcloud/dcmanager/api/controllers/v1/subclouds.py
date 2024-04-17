@@ -33,6 +33,7 @@ from requests_toolbelt.multipart import decoder
 import pecan
 from pecan import expose
 from pecan import request
+import yaml
 
 from fm_api.constants import FM_ALARM_ID_UNSYNCHRONIZED_RESOURCE
 
@@ -875,6 +876,32 @@ class SubcloudsController(object):
                         "completed."
                     )
                     pecan.abort(400, error_msg)
+
+            # If the peer-controller-gateway-address attribute of the
+            # system_peer object on the peer site is updated, the route needs
+            # to be updated, so we validate it here.
+            if bootstrap_values is not None and req_from_another_dc:
+                try:
+                    bootstrap_values_dict = yaml.load(
+                        bootstrap_values, Loader=yaml.SafeLoader
+                    )
+                except Exception:
+                    error_msg = 'bootstrap_values is malformed.'
+                    LOG.exception(error_msg)
+                    pecan.abort(400, _(error_msg))
+
+                systemcontroller_gateway_address = bootstrap_values_dict.get(
+                    "systemcontroller_gateway_address"
+                )
+
+                if (
+                    systemcontroller_gateway_address is not None and
+                    systemcontroller_gateway_address !=
+                        subcloud.systemcontroller_gateway_ip
+                ):
+                    psd_common.validate_systemcontroller_gateway_address(
+                        systemcontroller_gateway_address
+                    )
 
             management_state = payload.get('management-state')
             group_id = payload.get('group_id')

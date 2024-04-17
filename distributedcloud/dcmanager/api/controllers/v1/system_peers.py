@@ -19,9 +19,11 @@ from pecan import request
 from dcmanager.api.controllers import restcomm
 from dcmanager.api.policies import system_peers as system_peer_policy
 from dcmanager.api import policy
+from dcmanager.common import consts
 from dcmanager.common.i18n import _
 from dcmanager.common import utils
 from dcmanager.db import api as db_api
+from dcmanager.rpc import client as rpc_client
 
 CONF = cfg.CONF
 LOG = logging.getLogger(__name__)
@@ -59,6 +61,8 @@ class SystemPeersController(restcomm.GenericPathController):
 
     def __init__(self):
         super(SystemPeersController, self).__init__()
+
+        self.dcmanager_rpc_client = rpc_client.ManagerClient()
 
     @expose(generic=True, template='json')
     def index(self):
@@ -446,7 +450,34 @@ class SystemPeersController(restcomm.GenericPathController):
                 heartbeat_failure_threshold,
                 heartbeat_failure_policy,
                 heartbeat_maintenance_timeout)
-            return db_api.system_peer_db_model_to_dict(updated_peer)
+
+            updated_peer_dict = db_api.system_peer_db_model_to_dict(updated_peer)
+
+            # Set the sync status to out-of-sync if the peer_controller_gateway_ip
+            # was updated
+            if (
+                gateway_ip is not None and
+                gateway_ip != peer.peer_controller_gateway_ip
+            ):
+                associations = db_api.peer_group_association_get_by_system_peer_id(
+                    context, peer.id
+                )
+                association_ids = set()
+                for association in associations:
+                    # Update the sync status on both sites
+                    association_ids.update(
+                        self.dcmanager_rpc_client.update_association_sync_status(
+                            context, association.peer_group_id,
+                            consts.ASSOCIATION_SYNC_STATUS_OUT_OF_SYNC
+                        )
+                    )
+                # Generate an informative message to remind the operator
+                # that the sync command(s) should be executed.
+                info_message = utils.generate_sync_info_message(association_ids)
+                if info_message:
+                    updated_peer_dict["info_message"] = info_message
+
+            return updated_peer_dict
         except RemoteError as e:
             pecan.abort(httpclient.UNPROCESSABLE_ENTITY, e.value)
         except Exception as e:
