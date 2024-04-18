@@ -402,65 +402,40 @@ class SubcloudsController(object):
         if subcloud_ref is None:
             # List of subclouds requested
             subclouds = db_api.subcloud_get_all_with_status(context)
-            result = dict()
-            result['subclouds'] = []
-            first_time = True
-            subcloud_list = []
-            subcloud_status_list = []
+            result = {'subclouds': []}
+            subcloud_dict = {}
 
-            # We get back a subcloud, subcloud_status pair for every
-            # subcloud_status entry corresponding to a subcloud.  (Subcloud
-            # info repeats)
-            # Aggregate all the sync status for each of the
-            # endpoints per subcloud into an overall sync status
-            for subcloud, subcloud_status in subclouds:
-                subcloud_dict = db_api.subcloud_db_model_to_dict(subcloud)
-                subcloud_status_dict = db_api.subcloud_status_db_model_to_dict(
-                    subcloud_status)
-                subcloud_dict.update(subcloud_status_dict)
+            for subcloud, endpoint_type, sync_status in subclouds:
+                subcloud_id = subcloud.id
+                if subcloud_id not in subcloud_dict:
+                    subcloud_dict[subcloud_id] = db_api.subcloud_db_model_to_dict(
+                        subcloud)
+                    self._append_static_err_content(subcloud_dict[subcloud_id])
+                    subcloud_dict[subcloud_id].update(
+                        {consts.SYNC_STATUS: sync_status}
+                    )
+                    subcloud_dict[subcloud_id][consts.ENDPOINT_SYNC_STATUS] = []
 
-                self._append_static_err_content(subcloud_dict)
+                subcloud_dict[subcloud_id][consts.ENDPOINT_SYNC_STATUS].append(
+                    {
+                        consts.ENDPOINT_TYPE: endpoint_type,
+                        consts.SYNC_STATUS: sync_status
+                    }
+                )
 
-                if not first_time:
-                    if subcloud_list[-1]['id'] == subcloud_dict['id']:
-                        # We have a match for this subcloud id already,
-                        # check if we have a same sync_status
-                        if subcloud_list[-1][consts.SYNC_STATUS] != \
-                                subcloud_dict[consts.SYNC_STATUS]:
-                            subcloud_list[-1][consts.SYNC_STATUS] = \
-                                dccommon_consts.SYNC_STATUS_OUT_OF_SYNC
+                # If any of the endpoint sync status is out of sync, then
+                # the subcloud sync status is out of sync
+                if sync_status != subcloud_dict[subcloud_id][consts.SYNC_STATUS]:
+                    subcloud_dict[subcloud_id][consts.SYNC_STATUS] = (
+                        dccommon_consts.SYNC_STATUS_OUT_OF_SYNC
+                    )
 
-                        if subcloud_status:
-                            subcloud_status_list.append(
-                                db_api.subcloud_endpoint_status_db_model_to_dict(
-                                    subcloud_status))
-                        subcloud_list[-1][
-                            consts.ENDPOINT_SYNC_STATUS] = subcloud_status_list
-
-                    else:
-                        subcloud_status_list = []
-                        if subcloud_status:
-                            subcloud_status_list.append(
-                                db_api.subcloud_endpoint_status_db_model_to_dict(
-                                    subcloud_status))
-
-                        subcloud_list.append(subcloud_dict)
-                else:
-                    if subcloud_status:
-                        subcloud_status_list.append(
-                            db_api.subcloud_endpoint_status_db_model_to_dict(
-                                subcloud_status))
-                    subcloud_list.append(subcloud_dict)
-
-                first_time = False
-
-            for s in subcloud_list:
+            for subcloud in subcloud_dict.values():
                 # This is to reduce changes on cert-mon
                 # Overwrites the name value with region
                 if utils.is_req_from_cert_mon_agent(request):
-                    s['name'] = s['region-name']
-                result['subclouds'].append(s)
-
+                    subcloud['name'] = subcloud['region-name']
+                result['subclouds'].append(subcloud)
             return result
         else:
             # Single subcloud requested
