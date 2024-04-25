@@ -1029,7 +1029,7 @@ class IdentitySyncThread(SyncThread):
             update_role(sc_role_id, role_records)
         if not role_ref:
             LOG.error("No role data returned when updating role {} in"
-                      " subcloud.".format(role_id), extra=self.log_extra)
+                      " subcloud.".format(sc_role_id), extra=self.log_extra)
             raise exceptions.SyncRequestFailed
 
         # Persist the subcloud resource.
@@ -1349,7 +1349,7 @@ class IdentitySyncThread(SyncThread):
             get('revocation_event').get('audit_id')
         subcloud_rsrc_id = self.\
             persist_db_subcloud_resource(rsrc.id, revoke_event_ref_id)
-        LOG.info("Created Keystone token revoke event {}:{}"
+        LOG.info("Created Keystone token revocation event {}:{}"
                  .format(rsrc.id, subcloud_rsrc_id),
                  extra=self.log_extra)
 
@@ -1424,7 +1424,7 @@ class IdentitySyncThread(SyncThread):
 
         subcloud_rsrc_id = self.persist_db_subcloud_resource(rsrc.id,
                                                              event_id)
-        LOG.info("Created Keystone token revoke event {}:{}"
+        LOG.info("Created Keystone token revocation event {}:{}"
                  .format(rsrc.id, subcloud_rsrc_id),
                  extra=self.log_extra)
 
