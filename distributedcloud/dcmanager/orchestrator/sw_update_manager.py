@@ -459,91 +459,112 @@ class SwUpdateManager(manager.Manager):
             for sb in db_api.subcloud_get_for_group(context, single_group.id):
                 statuses = db_api.subcloud_status_get_all(context, sb.id)
                 for status in statuses:
-                    subclouds.append((sb, status))
+                    subclouds.append((sb, status.endpoint_type, status.sync_status))
         else:
             subclouds = db_api.subcloud_get_all_with_status(context)
 
         subclouds_processed = list()
-        for subcloud, subcloud_status in subclouds:
-            if (cloud_name and subcloud.name != cloud_name or
-                    subcloud.management_state != dccommon_consts.MANAGEMENT_MANAGED):
+        for subcloud, endpoint_type, sync_status in subclouds:
+            if (
+                cloud_name
+                and subcloud.name != cloud_name
+                or subcloud.management_state != dccommon_consts.MANAGEMENT_MANAGED
+            ):
                 # We are not updating this subcloud
                 continue
 
             if strategy_type == consts.SW_UPDATE_TYPE_UPGRADE:
-                if subcloud.availability_status != \
-                        dccommon_consts.AVAILABILITY_ONLINE:
+                if (
+                    subcloud.availability_status !=
+                    dccommon_consts.AVAILABILITY_ONLINE
+                ):
                     if not force:
                         continue
-                elif (subcloud_status.endpoint_type ==
-                      dccommon_consts.ENDPOINT_TYPE_LOAD and
-                        subcloud_status.sync_status ==
-                      dccommon_consts.SYNC_STATUS_UNKNOWN):
+                elif (
+                    endpoint_type == dccommon_consts.ENDPOINT_TYPE_LOAD
+                    and sync_status == dccommon_consts.SYNC_STATUS_UNKNOWN
+                ):
                     raise exceptions.BadRequest(
-                        resource='strategy',
-                        msg='Upgrade sync status is unknown for one or more '
-                            'subclouds')
+                        resource="strategy",
+                        msg="Upgrade sync status is unknown for one or more "
+                        "subclouds",
+                    )
             elif strategy_type == consts.SW_UPDATE_TYPE_SOFTWARE:
-                if subcloud.availability_status != \
-                        dccommon_consts.AVAILABILITY_ONLINE:
+                if (
+                    subcloud.availability_status !=
+                    dccommon_consts.AVAILABILITY_ONLINE
+                ):
                     if not force:
                         continue
-                if (subcloud_status.endpoint_type ==
-                        dccommon_consts.ENDPOINT_TYPE_SOFTWARE and
-                    subcloud_status.sync_status ==
-                        dccommon_consts.SYNC_STATUS_UNKNOWN):
+                if (
+                    endpoint_type == dccommon_consts.ENDPOINT_TYPE_SOFTWARE
+                    and sync_status == dccommon_consts.SYNC_STATUS_UNKNOWN
+                ):
                     raise exceptions.BadRequest(
-                        resource='strategy',
-                        msg='Software sync status is unknown for one or more '
-                            'subclouds')
+                        resource="strategy",
+                        msg="Software sync status is unknown for one or more "
+                        "subclouds",
+                    )
             elif strategy_type == consts.SW_UPDATE_TYPE_PATCH:
-                if subcloud.availability_status != \
-                        dccommon_consts.AVAILABILITY_ONLINE:
+                if (
+                    subcloud.availability_status !=
+                    dccommon_consts.AVAILABILITY_ONLINE
+                ):
                     continue
-                elif (subcloud_status.endpoint_type ==
-                      dccommon_consts.ENDPOINT_TYPE_PATCHING and
-                        subcloud_status.sync_status ==
-                      dccommon_consts.SYNC_STATUS_UNKNOWN):
+                elif (
+                    endpoint_type == dccommon_consts.ENDPOINT_TYPE_PATCHING
+                    and sync_status == dccommon_consts.SYNC_STATUS_UNKNOWN
+                ):
                     raise exceptions.BadRequest(
-                        resource='strategy',
-                        msg='Patching sync status is unknown for one or more '
-                            'subclouds')
+                        resource="strategy",
+                        msg="Patching sync status is unknown for one or more "
+                        "subclouds",
+                    )
             elif strategy_type == consts.SW_UPDATE_TYPE_FIRMWARE:
-                if subcloud.availability_status != \
-                        dccommon_consts.AVAILABILITY_ONLINE:
+                if (
+                    subcloud.availability_status !=
+                    dccommon_consts.AVAILABILITY_ONLINE
+                ):
                     continue
-                elif (subcloud_status.endpoint_type ==
-                      dccommon_consts.ENDPOINT_TYPE_FIRMWARE and
-                        subcloud_status.sync_status ==
-                      dccommon_consts.SYNC_STATUS_UNKNOWN):
+                elif (
+                    endpoint_type == dccommon_consts.ENDPOINT_TYPE_FIRMWARE
+                    and sync_status == dccommon_consts.SYNC_STATUS_UNKNOWN
+                ):
                     raise exceptions.BadRequest(
-                        resource='strategy',
-                        msg='Firmware sync status is unknown for one or more '
-                            'subclouds')
+                        resource="strategy",
+                        msg="Firmware sync status is unknown for one or more "
+                        "subclouds",
+                    )
             elif strategy_type == consts.SW_UPDATE_TYPE_KUBERNETES:
-                if subcloud.availability_status != \
-                        dccommon_consts.AVAILABILITY_ONLINE:
+                if (
+                    subcloud.availability_status !=
+                    dccommon_consts.AVAILABILITY_ONLINE
+                ):
                     continue
-                elif (subcloud_status.endpoint_type ==
-                      dccommon_consts.ENDPOINT_TYPE_KUBERNETES and
-                        subcloud_status.sync_status ==
-                      dccommon_consts.SYNC_STATUS_UNKNOWN):
+                elif (
+                    endpoint_type == dccommon_consts.ENDPOINT_TYPE_KUBERNETES
+                    and sync_status == dccommon_consts.SYNC_STATUS_UNKNOWN
+                ):
                     raise exceptions.BadRequest(
-                        resource='strategy',
-                        msg='Kubernetes sync status is unknown for one or more '
-                            'subclouds')
+                        resource="strategy",
+                        msg="Kubernetes sync status is unknown for one or more "
+                        "subclouds",
+                    )
             elif strategy_type == consts.SW_UPDATE_TYPE_KUBE_ROOTCA_UPDATE:
-                if subcloud.availability_status != \
-                        dccommon_consts.AVAILABILITY_ONLINE:
+                if (
+                    subcloud.availability_status !=
+                    dccommon_consts.AVAILABILITY_ONLINE
+                ):
                     continue
-                elif (subcloud_status.endpoint_type ==
-                      dccommon_consts.ENDPOINT_TYPE_KUBE_ROOTCA and
-                        subcloud_status.sync_status ==
-                      dccommon_consts.SYNC_STATUS_UNKNOWN):
+                elif (
+                    endpoint_type == dccommon_consts.ENDPOINT_TYPE_KUBE_ROOTCA
+                    and sync_status == dccommon_consts.SYNC_STATUS_UNKNOWN
+                ):
                     raise exceptions.BadRequest(
-                        resource='strategy',
-                        msg='Kube rootca update sync status is unknown for '
-                            'one or more subclouds')
+                        resource="strategy",
+                        msg="Kube rootca update sync status is unknown for "
+                        "one or more subclouds",
+                    )
             elif strategy_type == consts.SW_UPDATE_TYPE_PRESTAGE:
                 if subcloud.name not in subclouds_processed:
                     # Do initial validation for subcloud

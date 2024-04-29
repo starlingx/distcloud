@@ -363,13 +363,14 @@ def subcloud_get_all_ordered_by_id(context):
 
 @require_context
 def subcloud_get_all_with_status(context):
-    result = model_query(context, models.Subcloud, models.SubcloudStatus). \
-        outerjoin(models.SubcloudStatus,
-                  (models.Subcloud.id == models.SubcloudStatus.subcloud_id) |
-                  (not models.SubcloudStatus.subcloud_id)). \
-        filter(models.Subcloud.deleted == 0). \
-        order_by(models.Subcloud.id). \
-        all()
+    result = model_query(
+        context,
+        models.Subcloud,
+        models.SubcloudStatus.endpoint_type,
+        models.SubcloudStatus.sync_status).join(
+            models.SubcloudStatus,
+            models.Subcloud.id == models.SubcloudStatus.subcloud_id).filter(
+                models.Subcloud.deleted == 0).order_by(models.Subcloud.id).all()
 
     return result
 
