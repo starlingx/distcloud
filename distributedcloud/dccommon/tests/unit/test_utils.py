@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2022-2023 Wind River Systems, Inc.
+# Copyright (c) 2022-2024 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -29,11 +29,10 @@ class TestUtils(base.DCCommonTestCase):
     def test_exec_playbook_timeout(self):
         testscript = ['dccommon/tests/unit/test_utils_script.sh', '30']
         ansible = utils.AnsiblePlaybook(FAKE_SUBCLOUD_NAME)
-        self.assertRaises(PlaybookExecutionTimeout,
-                          ansible.run_playbook,
-                          FAKE_LOG_FILE,
-                          testscript,
-                          timeout=2)
+        self.assertRaises(
+            PlaybookExecutionTimeout, ansible.run_playbook, FAKE_LOG_FILE,
+            testscript, timeout=2
+        )
 
     def test_exec_playbook_timeout_requires_kill(self):
         # This option ignores a regular TERM signal, and requires a
@@ -41,8 +40,7 @@ class TestUtils(base.DCCommonTestCase):
         # a hung process
         script = ['dccommon/tests/unit/test_utils_script.sh', '30', 'TERM']
         ansible = utils.AnsiblePlaybook(FAKE_SUBCLOUD_NAME)
-        self.assertRaises(PlaybookExecutionTimeout,
-                          ansible.run_playbook,
-                          FAKE_LOG_FILE,
-                          script,
-                          timeout=2)
+        self.assertRaises(
+            PlaybookExecutionTimeout, ansible.run_playbook, FAKE_LOG_FILE, script,
+            timeout=2
+        )

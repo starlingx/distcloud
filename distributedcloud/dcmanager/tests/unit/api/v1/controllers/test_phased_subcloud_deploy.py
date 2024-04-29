@@ -21,8 +21,7 @@ from dcmanager.db import api as db_api
 from dcmanager.tests.unit.api.test_root_controller import DCManagerApiTest
 from dcmanager.tests.unit.api.v1.controllers.test_subclouds import \
     FakeAddressPool
-from dcmanager.tests.unit.api.v1.controllers.test_subclouds import \
-    TestSubcloudPost
+from dcmanager.tests.unit.api.v1.controllers.test_subclouds import SubcloudAPIMixin
 from dcmanager.tests.unit.common import fake_subcloud
 from dcmanager.tests.unit.manager.test_system_peer_manager import \
     TestSystemPeerManager
@@ -85,24 +84,23 @@ class TestPhasedSubcloudDeployController(BaseTestPhasedSubcloudDeployController)
         self.assertEqual(response.text, "null")
 
 
-# Apply the TestSubcloudPost parameter validation tests to the subcloud deploy
+# Apply the TestSubcloudsPost parameter validation tests to the subcloud deploy
 # add endpoint as it uses the same parameter validation functions
-class TestPhasedSubcloudDeployPost(
-    TestSubcloudPost, BaseTestPhasedSubcloudDeployController
-):
+class TestPhasedSubcloudDeployPost(BaseTestPhasedSubcloudDeployController):
     """Test class for post requests"""
-
-    API_PREFIX = FAKE_URL
-    RESULT_KEY = "phased-subcloud-deploy"
 
     def setUp(self):
         super().setUp()
 
         self.method = self.app.post
 
-        self.params = self.get_post_params()
-        self.upload_files = self.get_post_upload_files()
+        self.params = copy.copy(fake_subcloud.FAKE_BOOTSTRAP_VALUE)
+        self.upload_files = SubcloudAPIMixin.get_post_upload_files(SubcloudAPIMixin)
 
+        self._mock_sysinv_client(psd_common)
+
+        self.mock_sysinv_client().get_management_address_pool.return_value = \
+            FakeAddressPool("192.168.204.0", 24, "192.168.204.2", "192.168.204.100")
         self.mock_rpc_client().subcloud_deploy_create.side_effect = \
             self.subcloud_deploy_create
 
@@ -110,8 +108,29 @@ class TestPhasedSubcloudDeployPost(
         subcloud = db_api.subcloud_get(context, subcloud_id)
         return db_api.subcloud_db_model_to_dict(subcloud)
 
-    def test_post_create_fails_without_bootstrap_address(self):
-        """Test post create fails without bootstrap address"""
+    def test_post_succeeds(self):
+        """Test post succeeds"""
+
+        response = self._send_request()
+
+        self._assert_response(response)
+        self.mock_rpc_client().subcloud_deploy_create.assert_called_once()
+
+    def test_post_fails_without_payload(self):
+        """Test post fails without payload"""
+
+        self.params = {}
+        self.upload_files = None
+
+        response = self._send_request()
+
+        self._assert_pecan_and_response(
+            response, http.client.BAD_REQUEST,
+            "Missing required parameter(s): bootstrap_values, bootstrap-address"
+        )
+
+    def test_post_fails_without_bootstrap_address(self):
+        """Test post fails without bootstrap address"""
 
         del self.params["bootstrap-address"]
 
@@ -123,8 +142,8 @@ class TestPhasedSubcloudDeployPost(
         )
         self.mock_rpc_client().subcloud_deploy_create.assert_not_called()
 
-    def test_post_create_fails_without_bootstrap_values(self):
-        """Test post create fails without bootstrap values"""
+    def test_post_fails_without_bootstrap_values(self):
+        """Test post fails without bootstrap values"""
 
         self.upload_files = None
 
@@ -136,8 +155,8 @@ class TestPhasedSubcloudDeployPost(
         )
         self.mock_rpc_client().subcloud_deploy_create.assert_not_called()
 
-    def test_post_create_fails_with_rpc_client_remote_error(self):
-        """Test post create fails with rpc client remote error"""
+    def test_post_fails_with_rpc_client_remote_error(self):
+        """Test post fails with rpc client remote error"""
 
         self.mock_rpc_client().subcloud_deploy_create.side_effect = \
             RemoteError("msg", "value")
@@ -149,8 +168,8 @@ class TestPhasedSubcloudDeployPost(
         )
         self.mock_rpc_client().subcloud_deploy_create.assert_called_once()
 
-    def test_post_create_fails_with_rpc_client_generic_exception(self):
-        """Test post create fails with rpc client generic exception"""
+    def test_post_fails_with_rpc_client_generic_exception(self):
+        """Test post fails with rpc client generic exception"""
 
         self.mock_rpc_client().subcloud_deploy_create.side_effect = Exception()
 

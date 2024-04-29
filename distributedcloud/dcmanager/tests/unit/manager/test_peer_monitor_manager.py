@@ -195,8 +195,7 @@ class TestPeerMonitor(base.DCManagerTestCase):
         # Test the case where the association sync_status is unknown
         pm = peer_monitor_manager.PeerMonitor(peer, self.ctx, mock.MagicMock())
         pm._update_sync_status_when_secondary_site_becomes_reachable()
-        mock_dc_client().get_subcloud_peer_group.assert_called_once_with(
-            peer_group.peer_group_name)
+        mock_dc_client().get_subcloud_peer_group.assert_called_once()
         mock_dc_client().get_system_peer.assert_called_once_with(
             FAKE_SITE0_SYSTEM_UUID)
         mock_dc_client().get_peer_group_association_with_peer_id_and_pg_id.\

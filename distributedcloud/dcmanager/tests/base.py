@@ -208,10 +208,24 @@ class DCManagerTestCase(base.BaseTestCase):
         self.mock_sysinv_client = mock_patch_object.start()
         self.addCleanup(mock_patch_object.stop)
 
+    def _mock_fm_client(self, target):
+        """Mock the target's FmClient"""
+
+        mock_patch_object = mock.patch.object(target, 'FmClient')
+        self.mock_fm_client = mock_patch_object.start()
+        self.addCleanup(mock_patch_object.stop)
+
     def _mock_read_from_cache(self, target):
         mock_patch = mock.patch.object(target, '_read_from_cache')
         self.mock_read_from_cache = mock_patch.start()
         self.addCleanup(mock_patch.stop)
+
+    def _mock_vim_client(self, target):
+        """Mock the target's VimClient"""
+
+        mock_patch_object = mock.patch.object(target, 'VimClient')
+        self.mock_vim_client = mock_patch_object.start()
+        self.addCleanup(mock_patch_object.stop)
 
     def _mock_get_network_address_pool(self):
         """Mock phased subcloud deploy's get_network_address_pool"""

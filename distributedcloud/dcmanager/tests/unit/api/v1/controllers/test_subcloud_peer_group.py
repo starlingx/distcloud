@@ -18,14 +18,14 @@ from dcmanager.tests.base import FakeException
 from dcmanager.tests.unit.api.test_root_controller import DCManagerApiTest
 from dcmanager.tests.unit.api.v1.controllers.mixins import APIMixin
 from dcmanager.tests.unit.api.v1.controllers.mixins import PostJSONMixin
-from dcmanager.tests.unit.api.v1.controllers.test_subclouds \
-    import FAKE_SUBCLOUD_DATA
+from dcmanager.tests.unit.common import fake_subcloud
 
 SAMPLE_SUBCLOUD_PEER_GROUP_NAME = 'GroupX'
 SAMPLE_SUBCLOUD_PEER_GROUP_MAX_SUBCLOUDS_REHOMING = 50
 SAMPLE_SUBCLOUD_PEER_GROUP_STATE = 'enabled'
 SAMPLE_SUBCLOUD_PEER_GROUP_PIRORITY = 0
 FAKE_UUID = '62c9592d-f799-4db9-8d40-6786a74d6021'
+FAKE_SUBCLOUD_DATA = fake_subcloud.FAKE_SUBCLOUD_DATA
 
 API_PREFIX = '/v1.0/subcloud-peer-groups'
 RESULT_KEY = 'subcloud_peer_groups'
