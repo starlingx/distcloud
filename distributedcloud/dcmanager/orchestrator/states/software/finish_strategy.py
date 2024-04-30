@@ -37,7 +37,7 @@ class FinishStrategyState(BaseState):
 
         try:
             software_client = self.get_software_client(self.region_name)
-            subcloud_releases = software_client.query()
+            subcloud_releases = software_client.list()
         except Exception:
             message = ("Cannot retrieve subcloud releases. Please see logs for "
                        "details.")
@@ -52,16 +52,18 @@ class FinishStrategyState(BaseState):
 
         # For this subcloud, determine which releases should be committed and
         # which should be deleted.
-        for release_id in subcloud_releases:
-            if (subcloud_releases[release_id]['state'] ==
-                    software_v1.AVAILABLE or
-                subcloud_releases[release_id]['state'] ==
-                    software_v1.UNAVAILABLE):
-                releases_to_delete.append(release_id)
-            elif (subcloud_releases[release_id]['state'] ==
-                    software_v1.DEPLOYED):
-                if release_id in regionone_committed_releases:
-                    releases_to_commit.append(release_id)
+        releases_to_delete = [
+            release["release_id"] for release in subcloud_releases
+            if release["state"] in (software_v1.AVAILABLE, software_v1.UNAVAILABLE)
+        ]
+        releases_to_commit = [
+            release["release_id"] for release in subcloud_releases
+            if release["state"] == software_v1.DEPLOYED
+            and any(
+                release["release_id"] == release_regionone["release_id"]
+                for release_regionone in regionone_committed_releases
+            )
+        ]
 
         if releases_to_delete:
             self.info_log(strategy_step, f"Deleting releases {releases_to_delete}")

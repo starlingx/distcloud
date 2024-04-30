@@ -14,47 +14,56 @@ from dcmanager.tests.unit.orchestrator.states.software.test_base import \
     TestSoftwareOrchestrator
 
 
-REGION_ONE_RELEASES = {
-    "DC.1": {
-        "sw_version": "20.12",
-        "state": "committed"
+REGION_ONE_RELEASES = [
+    {
+        "release_id": "starlingx-9.0.0",
+        "state": "committed",
+        "sw_version": "9.0.0",
     },
-    "DC.2": {
-        "sw_version": "20.12",
-        "state": "committed"
+    {
+        "release_id": "starlingx-9.0.1",
+        "state": "committed",
+        "sw_version": "9.0.1",
     },
-    "DC.3": {
-        "sw_version": "20.12",
-        "state": "committed"
+    {
+        "release_id": "starlingx-9.0.2",
+        "state": "committed",
+        "sw_version": "9.0.2",
     },
-    "DC.8": {
-        "sw_version": "20.12",
-        "state": "committed"
-    }
-}
+    {
+        "release_id": "starlingx-9.0.3",
+        "state": "committed",
+        "sw_version": "9.0.3",
+    },
+]
 
-SUBCLOUD_RELEASES = {
-    "DC.1": {
-        "sw_version": "20.12",
-        "state": "committed"
+SUBCLOUD_RELEASES = [
+    {
+        "release_id": "starlingx-9.0.0",
+        "state": "committed",
+        "sw_version": "9.0.0",
     },
-    "DC.2": {
-        "sw_version": "20.12",
-        "state": "committed"
+    {
+        "release_id": "starlingx-9.0.1",
+        "state": "committed",
+        "sw_version": "9.0.1",
     },
-    "DC.3": {
-        "sw_version": "20.12",
-        "state": "deployed"
+    {
+        "release_id": "starlingx-9.0.2",
+        "state": "deployed",
+        "sw_version": "9.0.2",
     },
-    "DC.9": {
-        "sw_version": "20.12",
-        "state": "available"
+    {
+        "release_id": "starlingx-9.0.4",
+        "state": "available",
+        "sw_version": "9.0.4",
     },
-    "DC.10": {
-        "sw_version": "20.12",
-        "state": "deployed"
-    }
-}
+    {
+        "release_id": "starlingx-9.0.5",
+        "state": "deployed",
+        "sw_version": "9.0.5",
+    },
+]
 
 
 class TestFinishStrategyState(TestSoftwareOrchestrator):
@@ -74,7 +83,7 @@ class TestFinishStrategyState(TestSoftwareOrchestrator):
 
         # Add mock API endpoints for software client calls
         # invoked by this state
-        self.software_client.query = mock.MagicMock()
+        self.software_client.list = mock.MagicMock()
         self.software_client.delete = mock.MagicMock()
         self.software_client.commit_patch = mock.MagicMock()
         self._read_from_cache = mock.MagicMock()
@@ -84,16 +93,17 @@ class TestFinishStrategyState(TestSoftwareOrchestrator):
 
         self.mock_read_from_cache.return_value = REGION_ONE_RELEASES
 
-        self.software_client.query.side_effect = [SUBCLOUD_RELEASES]
+        self.software_client.list.side_effect = [SUBCLOUD_RELEASES]
 
         # invoke the strategy state operation on the orch thread
         self.worker.perform_state_action(self.strategy_step)
 
         call_args, _ = self.software_client.delete.call_args_list[0]
-        self.assertItemsEqual(['DC.9'], call_args[0])
+        self.assertItemsEqual(["starlingx-9.0.4"], call_args[0])
 
-        call_args, _ = self.software_client.commit_patch.call_args_list[0]
-        self.assertItemsEqual(['DC.3'], call_args[0])
+        self.software_client.commit_patch.assert_called_once_with(
+            ["starlingx-9.0.2"]
+        )
 
         # On success, the state should transition to the next state
         self.assert_step_updated(self.strategy_step.subcloud_id,
@@ -104,7 +114,7 @@ class TestFinishStrategyState(TestSoftwareOrchestrator):
 
         self.mock_read_from_cache.return_value = REGION_ONE_RELEASES
 
-        self.software_client.query.side_effect = [REGION_ONE_RELEASES]
+        self.software_client.list.side_effect = [REGION_ONE_RELEASES]
 
         # invoke the strategy state operation on the orch thread
         self.worker.perform_state_action(self.strategy_step)
@@ -122,7 +132,7 @@ class TestFinishStrategyState(TestSoftwareOrchestrator):
 
         self.mock_read_from_cache.return_value = REGION_ONE_RELEASES
 
-        self.software_client.query.side_effect = Exception()
+        self.software_client.list.side_effect = Exception()
 
         self.worker.perform_state_action(self.strategy_step)
 
@@ -135,7 +145,7 @@ class TestFinishStrategyState(TestSoftwareOrchestrator):
 
         self.mock_read_from_cache.return_value = REGION_ONE_RELEASES
 
-        self.software_client.query.side_effect = [SUBCLOUD_RELEASES]
+        self.software_client.list.side_effect = [SUBCLOUD_RELEASES]
         self.software_client.delete.side_effect = Exception()
 
         self.worker.perform_state_action(self.strategy_step)
@@ -149,7 +159,7 @@ class TestFinishStrategyState(TestSoftwareOrchestrator):
         """Test finish strategy fails when stopped"""
         self.mock_read_from_cache.return_value = REGION_ONE_RELEASES
 
-        self.software_client.query.side_effect = [SUBCLOUD_RELEASES]
+        self.software_client.list.side_effect = [SUBCLOUD_RELEASES]
 
         mock_base_stopped.return_value = True
 
@@ -167,7 +177,7 @@ class TestFinishStrategyState(TestSoftwareOrchestrator):
 
         self.mock_read_from_cache.return_value = REGION_ONE_RELEASES
 
-        self.software_client.query.side_effect = [SUBCLOUD_RELEASES]
+        self.software_client.list.side_effect = [SUBCLOUD_RELEASES]
         self.software_client.commit_patch.side_effect = Exception()
 
         self.worker.perform_state_action(self.strategy_step)
