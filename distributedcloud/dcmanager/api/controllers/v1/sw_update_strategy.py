@@ -15,10 +15,11 @@
 #    under the License.
 #
 
+import os
+
 from oslo_config import cfg
 from oslo_log import log as logging
 from oslo_messaging import RemoteError
-
 import pecan
 from pecan import expose
 from pecan import request
@@ -159,6 +160,11 @@ class SwUpdateStrategyController(object):
                         consts.SUBCLOUD_APPLY_TYPE_PARALLEL,
                         consts.SUBCLOUD_APPLY_TYPE_SERIAL]:
                     pecan.abort(400, _('subcloud-apply-type invalid'))
+
+            patch_file = payload.get('patch')
+            if patch_file and not os.path.isfile(patch_file):
+                message = f"Patch file {patch_file} is missing."
+                pecan.abort(400, _(message))
 
             max_parallel_subclouds_str = payload.get('max-parallel-subclouds')
             if max_parallel_subclouds_str is not None:
