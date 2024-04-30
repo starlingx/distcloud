@@ -62,7 +62,7 @@ class SubcloudStateManager(manager.Manager):
         super(SubcloudStateManager,
               self).__init__(service_name="subcloud_manager", *args, **kwargs)
         self.context = context.get_admin_context()
-        self.dcorch_rpc_client = dcorch_rpc_client.EngineClient()
+        self.dcorch_rpc_client = dcorch_rpc_client.EngineWorkerClient()
         self.fm_api = fm_api.FaultAPIs()
         self.audit_rpc_client = dcmanager_audit_rpc_client.ManagerAuditClient()
 

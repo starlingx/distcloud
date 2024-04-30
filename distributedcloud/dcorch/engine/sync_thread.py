@@ -343,9 +343,9 @@ class SyncThread(object):
 
         # Early exit in case there are no pending sync requests
         if not sync_requests:
-            LOG.info("Sync resources done for subcloud - "
-                     "no sync requests",
-                     extra=self.log_extra)
+            LOG.debug("Sync resources done for subcloud - "
+                      "no sync requests",
+                      extra=self.log_extra)
             self.set_sync_status(dccommon_consts.SYNC_STATUS_IN_SYNC)
             return
 
@@ -508,8 +508,8 @@ class SyncThread(object):
         if self.endpoint_type in cfg.CONF.disable_audit_endpoints:
             LOG.warn("Audit disabled!", extra=self.log_extra)
             return
-        LOG.info("Engine id={}: sync_audit started".format(engine_id),
-                 extra=self.log_extra)
+        LOG.debug("Engine id={}: sync_audit started".format(engine_id),
+                  extra=self.log_extra)
         self.sync_audit(engine_id)
 
     def sync_audit(self, engine_id):
@@ -580,8 +580,8 @@ class SyncThread(object):
             # Extra resources in subcloud are not impacted by the audit.
 
             if not num_of_audit_jobs:
-                LOG.info("Clean audit run for {}".format(resource_type),
-                         extra=self.log_extra)
+                LOG.debug("Clean audit run for {}".format(resource_type),
+                          extra=self.log_extra)
             else:
                 LOG.info("{} num_of_audit_jobs for {}".
                          format(num_of_audit_jobs, resource_type),
@@ -610,17 +610,20 @@ class SyncThread(object):
 
         LOG.debug("{}: done sync audit".format(
             threading.currentThread().getName()), extra=self.log_extra)
-        from dcorch.engine.generic_sync_manager import GenericSyncManager
-        GenericSyncManager.set_sync_request(self.ctxt, self.subcloud_name,
-                                            self.endpoint_type)
+        SyncThread.set_sync_request(
+            self.ctxt, self.subcloud_name, self.endpoint_type)
         self.post_audit()
 
-    @lockutils.synchronized(AUDIT_LOCK_NAME)
     def post_audit(self):
+        # Some specific SyncThread subclasses may perform post audit actions
+        pass
+
+    @classmethod
+    @lockutils.synchronized(AUDIT_LOCK_NAME)
+    def reset_master_resources_cache(cls):
         # reset the cached master resources
+        LOG.debug("Reset the cached master resources.")
         SyncThread.master_resources_dict = collections.defaultdict(dict)
-        # The specific SyncThread subclasses may perform additional post
-        # audit actions
 
     def audit_find_missing(self, resource_type, m_resources,
                            db_resources, sc_resources,
@@ -931,3 +934,9 @@ class SyncThread(object):
     # exists in subcloud resources.
     def resource_exists_in_subcloud(self, subcloud_rsrc, sc_resources):
         return True
+
+    @classmethod
+    def set_sync_request(cls, ctxt, subcloud_name, endpoint_type):
+        db_api.subcloud_sync_update(
+            ctxt, subcloud_name, endpoint_type,
+            values={'sync_request': consts.SYNC_STATUS_REQUESTED})

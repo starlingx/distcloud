@@ -1,4 +1,4 @@
-# Copyright (c) 2017-2023 Wind River Systems, Inc.
+# Copyright (c) 2017-2024 Wind River Systems, Inc.
 # Licensed under the Apache License, Version 2.0 (the "License"); you may
 # not use this file except in compliance with the License. You may obtain
 # a copy of the License at
@@ -15,12 +15,8 @@
 Client side of the DC Orchestrator RPC API.
 """
 
-from oslo_log import log as logging
-
 from dcorch.common import consts
 from dcorch.common import messaging
-
-LOG = logging.getLogger(__name__)
 
 
 class EngineClient(object):
@@ -57,6 +53,12 @@ class EngineClient(object):
             client = self._client
         return client.cast(ctxt, method, **kwargs)
 
+    # The sync job info has been written to the DB, alert the sync engine
+    # that there is work to do.
+    def sync_request(self, ctxt, endpoint_type):
+        return self.cast(
+            ctxt, self.make_msg('sync_request', endpoint_type=endpoint_type))
+
     def get_usage_for_project_and_user(self, ctxt, endpoint_type,
                                        project_id, user_id=None):
         return self.call(ctxt, self.make_msg('get_usage_for_project_and_user',
@@ -68,6 +70,41 @@ class EngineClient(object):
         return self.cast(ctxt, self.make_msg('quota_sync_for_project',
                                              project_id=project_id,
                                              user_id=user_id))
+
+
+class EngineWorkerClient(object):
+    """Client side of the DC orchestrator engine worker rpc API.
+
+    Version History:
+     1.0 - Initial version
+    """
+
+    BASE_RPC_API_VERSION = '1.0'
+
+    def __init__(self):
+        self._client = messaging.get_rpc_client(
+            topic=consts.TOPIC_ORCH_ENGINE_WORKER,
+            version=self.BASE_RPC_API_VERSION)
+
+    @staticmethod
+    def make_msg(method, **kwargs):
+        return method, kwargs
+
+    def call(self, ctxt, msg, version=None):
+        method, kwargs = msg
+        if version is not None:
+            client = self._client.prepare(version=version)
+        else:
+            client = self._client
+        return client.call(ctxt, method, **kwargs)
+
+    def cast(self, ctxt, msg, fanout=None, version=None):
+        method, kwargs = msg
+        if version or fanout:
+            client = self._client.prepare(fanout=fanout, version=version)
+        else:
+            client = self._client
+        return client.cast(ctxt, method, **kwargs)
 
     def keypair_sync_for_user(self, ctxt, job_id, payload):
         return self.cast(
@@ -116,6 +153,24 @@ class EngineClient(object):
                           subcloud_name=subcloud_name,
                           endpoint_type_list=endpoint_type_list))
 
+    def sync_subclouds(self, ctxt, subcloud_sync_list):
+        return self.cast(
+            ctxt,
+            self.make_msg('sync_subclouds',
+                          subcloud_sync_list=subcloud_sync_list))
+
+    def run_sync_audit(self, ctxt, subcloud_sync_list):
+        return self.cast(
+            ctxt,
+            self.make_msg('run_sync_audit',
+                          subcloud_sync_list=subcloud_sync_list))
+
+    def initial_sync_subclouds(self, ctxt, subcloud_capabilities):
+        return self.cast(
+            ctxt,
+            self.make_msg('initial_sync_subclouds',
+                          subcloud_capabilities=subcloud_capabilities))
+
     def update_subcloud_version(self, ctxt, subcloud_name, sw_version):
         return self.call(
             ctxt,
@@ -126,9 +181,3 @@ class EngineClient(object):
         return self.cast(ctxt, self.make_msg(
             'update_subcloud_endpoints', subcloud_name=subcloud_name,
             endpoints=endpoints), fanout=True, version=self.BASE_RPC_API_VERSION)
-
-    # The sync job info has been written to the DB, alert the sync engine
-    # that there is work to do.
-    def sync_request(self, ctxt, endpoint_type):
-        return self.cast(
-            ctxt, self.make_msg('sync_request', endpoint_type=endpoint_type))

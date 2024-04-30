@@ -1,5 +1,5 @@
 # Copyright (c) 2015 Ericsson AB
-# Copyright (c) 2017-2022 Wind River Systems, Inc.
+# Copyright (c) 2017-2022, 2024 Wind River Systems, Inc.
 # All Rights Reserved.
 #
 #    Licensed under the Apache License, Version 2.0 (the "License"); you may
@@ -293,22 +293,6 @@ class OrchRequest(BASE, OrchestratorBase):
 
     orch_job_id = Column('orch_job_id', Integer,
                          ForeignKey('orch_job.id'), primary_key=True)
-
-
-class SyncLock(BASE, OrchestratorBase):
-    """Store locks to avoid overlapping of audit
-
-    syncing during automatic periodic sync jobs with
-    multiple-engines.
-    """
-
-    __tablename__ = 'sync_lock'
-
-    id = Column(Integer, primary_key=True)
-    engine_id = Column(String(36), nullable=False)
-    subcloud_name = Column(String(255), nullable=False)
-    endpoint_type = Column(String(255), default="none")
-    action = Column(String(64), default="none")
 
 
 class SubcloudSync(BASE, OrchestratorBase):

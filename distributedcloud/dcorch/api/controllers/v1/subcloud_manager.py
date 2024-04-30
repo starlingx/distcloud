@@ -1,4 +1,5 @@
 # Copyright (c) 2017 Ericsson AB.
+# Copyright (c) 2018-2019, 2024 Wind River Systems, Inc.
 # All Rights Reserved.
 #
 #    Licensed under the Apache License, Version 2.0 (the "License"); you may
@@ -36,7 +37,7 @@ class SubcloudController(object):
 
     def __init__(self, *args, **kwargs):
         super(SubcloudController, self).__init__(*args, **kwargs)
-        self.rpc_client = rpc_client.EngineClient()
+        self.rpc_client = rpc_client.EngineWorkerClient()
 
     # to do the version compatibility for future purpose
     def _determine_version_cap(self, target):

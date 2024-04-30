@@ -18,7 +18,6 @@ import collections
 import copy
 import re
 import threading
-import time
 
 from oslo_config import cfg
 from oslo_log import log as logging
@@ -34,7 +33,6 @@ from dcorch.common import manager
 from dcorch.common import utils
 from dcorch.db import api as db_api
 from dcorch.drivers.openstack import sdk
-from dcorch.engine import dc_orch_lock
 
 CONF = cfg.CONF
 LOG = logging.getLogger(__name__)
@@ -73,11 +71,6 @@ class QuotaManager(manager.Manager):
                                            *args, **kwargs)
         self.context = context.get_admin_context()
         self.endpoints = endpoint_cache.EndpointCache()
-
-        # This lock is used to ensure we only have one quota sync audit at
-        # a time.  For better efficiency we could use per-project locks
-        # and/or the ReaderWriterLock from the "fastener" package.
-        self.quota_audit_lock = threading.Lock()
 
     @classmethod
     def calculate_subcloud_project_quotas(cls, project_id, user_id,
@@ -132,19 +125,8 @@ class QuotaManager(manager.Manager):
             pass
         return list(project_user_list)
 
-    def periodic_balance_all(self, engine_id):
+    def periodic_balance_all(self):
         LOG.info("periodically balance quota for all keystone tenants")
-        lock = dc_orch_lock.sync_lock_acquire(engine_id, TASK_TYPE,
-                                              self.quota_audit_lock)
-        if not lock:
-            LOG.error("Not able to acquire lock for %(task_type)s, may"
-                      " be Previous sync job has not finished yet, "
-                      "Aborting this run at: %(time)s ",
-                      {'task_type': TASK_TYPE,
-                       'time': time.strftime("%c")}
-                      )
-            return
-        LOG.info("Successfully acquired lock")
         projects_thread_list = []
 
         # Generate a list of project_id/user_id tuples that need to have their
@@ -192,8 +174,6 @@ class QuotaManager(manager.Manager):
                 # the job(sync all projects quota)
                 for current_thread in projects_thread_list:
                     current_thread.join()
-        dc_orch_lock.sync_lock_release(engine_id, TASK_TYPE,
-                                       self.quota_audit_lock)
 
     def read_quota_usage(self, project_id, user_id, region, usage_queue):
         # Writes usage dict to the Queue in the following format

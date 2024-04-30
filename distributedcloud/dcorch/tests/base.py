@@ -24,6 +24,7 @@ from oslo_db import options
 from oslotest import base
 import sqlalchemy
 
+from dccommon import consts as dccommon_consts
 from dcmanager.rpc import client as dcmanager_rpc_client
 from dcorch.db import api
 from dcorch.db.sqlalchemy import api as db_api
@@ -32,6 +33,12 @@ from dcorch.tests import utils
 
 
 get_engine = api.get_engine
+
+
+CAPABILITES = {
+    'endpoint_types':
+        [dccommon_consts.ENDPOINT_TYPE_PLATFORM,
+         dccommon_consts.ENDPOINT_TYPE_IDENTITY]}
 
 
 class FakeException(Exception):
@@ -81,7 +88,7 @@ class OrchestratorTestCase(base.BaseTestCase):
     def _mock_rpc_client(self):
         """Mock rpc's manager client"""
 
-        mock_patch = mock.patch.object(rpc_client, 'EngineClient')
+        mock_patch = mock.patch.object(rpc_client, 'EngineWorkerClient')
         self.mock_rpc_client = mock_patch.start()
         self.addCleanup(mock_patch.stop)
 

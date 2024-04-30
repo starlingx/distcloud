@@ -124,15 +124,16 @@ class FernetKeyManager(manager.Manager):
 
         self._schedule_work(consts.OPERATION_TYPE_PUT)
 
-    def distribute_keys(self, ctxt, subcloud_name):
-        keys = self._get_master_keys()
+    @staticmethod
+    def distribute_keys(subcloud_name):
+        keys = FernetKeyManager._get_master_keys()
         if not keys:
             LOG.info(_("No fernet keys returned from %s") %
                      dccommon_consts.CLOUD_0)
             return
         resource_info = FernetKeyManager.to_resource_info(keys)
         key_list = FernetKeyManager.from_resource_info(resource_info)
-        self.update_fernet_repo(subcloud_name, key_list)
+        FernetKeyManager.update_fernet_repo(subcloud_name, key_list)
 
     def reset_keys(self, subcloud_name):
         self.update_fernet_repo(subcloud_name)

@@ -199,7 +199,7 @@ scheduler_opts = [
 
 common_opts = [
     cfg.IntOpt('workers', default=5,
-               help='number of workers'),
+               help='number of engine-worker workers'),
     cfg.StrOpt('host',
                default='localhost',
                help='hostname of the machine'),

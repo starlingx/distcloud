@@ -1,5 +1,5 @@
 # Copyright (c) 2015 Ericsson AB.
-# Copyright (c) 2017-2021 Wind River Systems, Inc.
+# Copyright (c) 2017-2021, 2023-2024 Wind River Systems, Inc.
 # All Rights Reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License"); you may
@@ -24,7 +24,6 @@ import datetime
 import sys
 import threading
 
-from oslo_db import api as oslo_db_api
 from oslo_db import exception as db_exc
 from oslo_db.sqlalchemy import enginefacade
 
@@ -33,12 +32,15 @@ from oslo_utils import strutils
 from oslo_utils import timeutils
 from oslo_utils import uuidutils
 
+from sqlalchemy import and_
 from sqlalchemy import asc
 from sqlalchemy import desc
-from sqlalchemy.exc import IntegrityError
+from sqlalchemy import or_
 from sqlalchemy.orm.exc import MultipleResultsFound
 from sqlalchemy.orm.exc import NoResultFound
 from sqlalchemy.orm import joinedload_all
+from sqlalchemy import select
+from sqlalchemy import update
 
 from dcorch.common import consts
 from dcorch.common import exceptions as exception
@@ -451,6 +453,87 @@ def subcloud_get_all(context, region_name=None,
     return query.all()
 
 
+@require_context
+def subcloud_capabilities_get_all(context, region_name=None,
+                                  management_state=None,
+                                  availability_status=None,
+                                  initial_sync_state=None):
+    results = subcloud_get_all(context, region_name, management_state,
+                               availability_status, initial_sync_state)
+    return {result['region_name']: result['capabilities'] for result in results}
+
+
+@require_context
+def subcloud_sync_update_all_to_in_progress(context,
+                                            management_state,
+                                            availability_status,
+                                            initial_sync_state,
+                                            sync_requests):
+    with write_session() as session:
+        # Fetch the records of subcloud_sync that meet the update criteria
+        subcloud_sync_rows = session.query(models.SubcloudSync).join(
+            models.Subcloud,
+            models.Subcloud.region_name == models.SubcloudSync.subcloud_name
+        ).filter(
+            models.Subcloud.management_state == management_state,
+            models.Subcloud.availability_status == availability_status,
+            models.Subcloud.initial_sync_state == initial_sync_state,
+            models.SubcloudSync.sync_request.in_(sync_requests)
+        ).all()
+
+        # Update the sync status to in-progress for the selected subcloud_sync
+        # records
+        updated_rows = []
+        for subcloud_sync in subcloud_sync_rows:
+            subcloud_sync.sync_request = consts.SYNC_STATUS_IN_PROGRESS
+            updated_rows.append((subcloud_sync.subcloud_name,
+                                 subcloud_sync.endpoint_type))
+
+        return updated_rows
+
+
+@require_context
+def subcloud_audit_update_all_to_in_progress(context,
+                                             management_state,
+                                             availability_status,
+                                             initial_sync_state,
+                                             audit_interval):
+    threshold_time = timeutils.utcnow() - datetime.timedelta(seconds=audit_interval)
+
+    with write_session() as session:
+        # Fetch the records of subcloud_sync that meet the update criteria
+        subcloud_sync_rows = session.query(models.SubcloudSync).join(
+            models.Subcloud,
+            models.Subcloud.region_name == models.SubcloudSync.subcloud_name
+        ).filter(
+            models.Subcloud.management_state == management_state,
+            models.Subcloud.availability_status == availability_status,
+            models.Subcloud.initial_sync_state == initial_sync_state,
+            or_(
+                # Search those with conditional audit status
+                # (completed/in-progress) and the last audit time is equal
+                # or greater than the audit interval
+                and_(
+                    models.SubcloudSync.audit_status.in_(
+                        consts.AUDIT_CONDITIONAL_STATUS),
+                    models.SubcloudSync.last_audit_time <= threshold_time
+                ),
+                models.SubcloudSync.audit_status.in_(consts.AUDIT_QUALIFIED_STATUS)
+            )
+        ).all()
+
+        # Update the audit status to in-progress for the selected subcloud_sync
+        # records
+        updated_rows = []
+        for subcloud_sync in subcloud_sync_rows:
+            subcloud_sync.audit_status = consts.AUDIT_STATUS_IN_PROGRESS
+            subcloud_sync.last_audit_time = timeutils.utcnow()
+            updated_rows.append((subcloud_sync.subcloud_name,
+                                 subcloud_sync.endpoint_type))
+
+        return updated_rows
+
+
 @require_admin_context
 def subcloud_create(context, region_name, values):
     with write_session() as session:
@@ -487,6 +570,28 @@ def subcloud_delete(context, region_name):
                 session.delete(subcloud_ref)
         else:
             raise exception.SubcloudNotFound(region_name=region_name)
+
+
+@require_admin_context
+def subcloud_update_initial_state(context, region_name,
+                                  pre_initial_sync_state, initial_sync_state):
+    with write_session() as session:
+        result = session.query(models.Subcloud) \
+            .filter_by(region_name=region_name) \
+            .filter_by(initial_sync_state=pre_initial_sync_state) \
+            .update({models.Subcloud.initial_sync_state: initial_sync_state})
+        return result
+
+
+@require_admin_context
+def subcloud_update_all_initial_state(context, pre_initial_sync_state,
+                                      initial_sync_state):
+    with write_session() as session:
+        updated_count = session.query(models.Subcloud) \
+            .filter_by(deleted=0) \
+            .filter_by(initial_sync_state=pre_initial_sync_state) \
+            .update({models.Subcloud.initial_sync_state: initial_sync_state})
+        return updated_count
 
 
 @require_context
@@ -962,83 +1067,6 @@ def purge_deleted_records(context, age_in_days):
         LOG.info('%d records were purged from resource table.', count)
 
 
-def sync_lock_acquire(
-        context, engine_id, subcloud_name, endpoint_type, action):
-    LOG.debug("sync_lock_acquire: %s/%s/%s/%s" % (engine_id, subcloud_name,
-                                                  endpoint_type, action))
-    with write_session() as session:
-        lock = session.query(models.SyncLock). \
-            filter_by(deleted=0). \
-            filter_by(subcloud_name=subcloud_name). \
-            filter_by(endpoint_type=endpoint_type). \
-            filter_by(action=action).all()
-        if not lock:
-            lock_ref = models.SyncLock()
-            lock_ref.engine_id = engine_id
-            lock_ref.subcloud_name = subcloud_name
-            lock_ref.endpoint_type = endpoint_type
-            lock_ref.action = action
-            try:
-                session.add(lock_ref)
-                return True
-            except IntegrityError:
-                LOG.info("IntegrityError Engine id:%s, subcloud:%s, "
-                         "endpoint_type:%s" %
-                         (engine_id, subcloud_name, endpoint_type))
-            except db_exc.DBDuplicateEntry:
-                LOG.info("DBDuplicateEntry Engine id:%s, subcloud:%s, "
-                         "endpoint_type:%s" %
-                         (engine_id, subcloud_name, endpoint_type))
-            except Exception:
-                LOG.exception("Got session add exception")
-    return False
-
-
-# For robustness, this will attempt max_retries with inc_retry_interval
-# backoff to release the sync_lock.
-@oslo_db_api.wrap_db_retry(max_retries=3, retry_on_deadlock=True,
-                           retry_interval=0.5, inc_retry_interval=True)
-def sync_lock_release(context, subcloud_name, endpoint_type, action):
-    with write_session() as session:
-        session.query(models.SyncLock).filter_by(
-            subcloud_name=subcloud_name). \
-            filter_by(endpoint_type=endpoint_type). \
-            filter_by(action=action). \
-            delete(synchronize_session='fetch')
-
-
-def sync_lock_steal(context, engine_id, subcloud_name, endpoint_type, action):
-    sync_lock_release(context, subcloud_name, endpoint_type, action)
-    return sync_lock_acquire(context, engine_id, subcloud_name, endpoint_type,
-                             action)
-
-
-def sync_lock_delete_by_engine_id(context, engine_id):
-    """Delete all sync_lock entries for a given engine."""
-
-    with write_session() as session:
-        results = session.query(models.SyncLock). \
-            filter_by(engine_id=engine_id).all()
-        for result in results:
-            LOG.info("Deleted sync lock id=%s engine_id=%s" %
-                     (result.id, result.engine_id))
-            session.delete(result)
-
-
-def purge_stale_sync_lock(context):
-    """Delete all sync lock entries where service ID no longer exists."""
-    LOG.info('Purging stale sync_locks')
-    with write_session() as session:
-        # Purging sync_lock table
-        subquery = model_query(context, models.Service.id). \
-            group_by(models.Service.id)
-
-        count = session.query(models.SyncLock). \
-            filter(~models.SyncLock.engine_id.in_(subquery)). \
-            delete(synchronize_session='fetch')
-        LOG.info('%d records were purged from sync_lock table.', count)
-
-
 def _subcloud_sync_get(context, subcloud_name, endpoint_type, session=None):
     query = model_query(context, models.SubcloudSync, session=session). \
         filter_by(subcloud_name=subcloud_name). \
@@ -1080,6 +1108,25 @@ def subcloud_sync_update(context, subcloud_name, endpoint_type, values):
         result.update(values)
         result.save(session)
         return result
+
+
+def subcloud_sync_update_all(context, management_state, endpoint_type, values):
+    with write_session() as session:
+        subquery = select([models.SubcloudSync.id]). \
+            where(models.SubcloudSync.subcloud_name ==
+                  models.Subcloud.region_name). \
+            where(models.Subcloud.management_state == management_state). \
+            where(models.SubcloudSync.endpoint_type == endpoint_type). \
+            where(models.SubcloudSync.deleted == 0). \
+            correlate(models.SubcloudSync)
+
+        stmt = update(models.SubcloudSync). \
+            where(models.SubcloudSync.id.in_(subquery)). \
+            values(values)
+
+        result = session.execute(stmt)
+
+        return result.rowcount
 
 
 def subcloud_sync_delete(context, subcloud_name, endpoint_type):

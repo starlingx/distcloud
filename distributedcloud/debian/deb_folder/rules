@@ -33,6 +33,7 @@ override_dh_install:
 
 	install -p -D -m 644 files/dcorch-api.service $(SYSTEMD_DIR)/dcorch-api.service
 	install -p -D -m 644 files/dcorch-engine.service $(SYSTEMD_DIR)/dcorch-engine.service
+	install -p -D -m 644 files/dcorch-engine-worker.service $(SYSTEMD_DIR)/dcorch-engine-worker.service
 	install -p -D -m 644 files/dcorch-sysinv-api-proxy.service $(SYSTEMD_DIR)/dcorch-sysinv-api-proxy.service
 	install -p -D -m 644 files/dcorch-identity-api-proxy.service $(SYSTEMD_DIR)/dcorch-identity-api-proxy.service
 

@@ -1,5 +1,5 @@
 # Copyright (c) 2016 Ericsson AB.
-# Copyright (c) 2017-2022 Wind River Systems, Inc.
+# Copyright (c) 2017-2022, 2024 Wind River Systems, Inc.
 # Licensed under the Apache License, Version 2.0 (the "License"); you may
 # not use this file except in compliance with the License. You may obtain
 # a copy of the License at
@@ -19,6 +19,7 @@ JOB_PROGRESS = "IN_PROGRESS"
 RPC_API_VERSION = "1.0"
 
 TOPIC_ORCH_ENGINE = "dcorch-engine"
+TOPIC_ORCH_ENGINE_WORKER = "dcorch-engine-worker"
 
 # SyncRequest States
 ORCH_REQUEST_NONE = None
@@ -138,3 +139,11 @@ AUDIT_STATUS_NONE = "none"
 AUDIT_STATUS_IN_PROGRESS = "in-progress"
 AUDIT_STATUS_COMPLETED = "completed"
 AUDIT_STATUS_FAILED = "failed"
+AUDIT_QUALIFIED_STATUS = [
+    AUDIT_STATUS_NONE,
+    AUDIT_STATUS_FAILED
+]
+AUDIT_CONDITIONAL_STATUS = [
+    AUDIT_STATUS_COMPLETED,
+    AUDIT_STATUS_IN_PROGRESS
+]

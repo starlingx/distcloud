@@ -285,7 +285,7 @@ class IdentitySyncThread(SyncThread):
         # service recovery time at subcloud.
 
         # get users from master cloud
-        m_users = self.get_master_resources(
+        m_users = self.get_cached_master_resources(
             consts.RESOURCE_TYPE_IDENTITY_USERS)
 
         if not m_users:
@@ -305,7 +305,7 @@ class IdentitySyncThread(SyncThread):
         self._initial_sync_users(m_users, sc_users)
 
         # get groups from master cloud
-        m_groups = self.get_master_resources(
+        m_groups = self.get_cached_master_resources(
             consts.RESOURCE_TYPE_IDENTITY_GROUPS)
 
         if not m_groups:
@@ -324,7 +324,7 @@ class IdentitySyncThread(SyncThread):
             self._initial_sync_groups(m_groups, sc_groups)
 
         # get projects from master cloud
-        m_projects = self.get_master_resources(
+        m_projects = self.get_cached_master_resources(
             consts.RESOURCE_TYPE_IDENTITY_PROJECTS)
 
         if not m_projects:
@@ -344,7 +344,7 @@ class IdentitySyncThread(SyncThread):
         self._initial_sync_projects(m_projects, sc_projects)
 
         # get roles from master cloud
-        m_roles = self.get_master_resources(
+        m_roles = self.get_cached_master_resources(
             consts.RESOURCE_TYPE_IDENTITY_ROLES)
 
         if not m_roles:
@@ -2057,7 +2057,8 @@ class IdentitySyncThread(SyncThread):
                 consts.RESOURCE_TYPE_IDENTITY_TOKEN_REVOKE_EVENTS_FOR_USER)\
                 and resource.user_id and resource.issued_before:
             event_id = "{}_{}".format(resource.user_id, resource.issued_before)
-            return base64.urlsafe_b64encode(event_id)
+            return base64.urlsafe_b64encode(
+                event_id.encode('utf-8')).decode('utf-8')
         # Default id field retrieved from master cloud
         return resource.id
 

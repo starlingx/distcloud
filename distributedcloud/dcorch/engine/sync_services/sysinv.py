@@ -518,7 +518,8 @@ class SysinvSyncThread(SyncThread):
             return None
 
     def post_audit(self):
-        super(SysinvSyncThread, self).post_audit()
+        # TODO(lzhu1): This should be revisited once the master cache service
+        #  is implemented.
         sdk.OpenStackDriver.delete_region_clients_for_thread(
             self.region_name, 'audit')
         sdk.OpenStackDriver.delete_region_clients_for_thread(

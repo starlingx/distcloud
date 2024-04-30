@@ -138,7 +138,7 @@ class UsersController(object):
         try:
             # user specific event id is in the format of
             # <user_id>_<issued_before> and encoded in base64
-            event_ref = base64.urlsafe_b64decode(str(event_id))
+            event_ref = base64.urlsafe_b64decode(event_id).decode('utf-8')
             event_tags = event_ref.split('_')
             user_id = event_tags[0]
             issued_before = event_tags[1]
@@ -172,7 +172,7 @@ class UsersController(object):
         try:
             # user specific event id is in the format of
             # <user_id>_<issued_before> and encoded in base64
-            event_ref = base64.urlsafe_b64decode(str(event_id))
+            event_ref = base64.urlsafe_b64decode(event_id).decode('utf-8')
             event_tags = event_ref.split('_')
             user_id = event_tags[0]
             issued_before = event_tags[1]

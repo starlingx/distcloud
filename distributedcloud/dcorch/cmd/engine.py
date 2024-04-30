@@ -27,9 +27,7 @@ from oslo_i18n import _lazy  # noqa: E402
 from oslo_log import log as logging  # noqa: E402
 from oslo_service import service  # noqa: E402
 
-from dcmanager.common import messaging as dmanager_messaging  # noqa: E402
 from dcorch.common import config  # noqa: E402
-from dcorch.common import consts  # noqa: E402
 from dcorch.common import messaging  # noqa: E402
 from dcorch.engine import service as engine  # noqa: E402
 # pylint: enable=wrong-import-position
@@ -45,15 +43,11 @@ def main():
     logging.setup(cfg.CONF, 'dcorch-engine')
     logging.set_defaults()
     messaging.setup()
-    dmanager_messaging.setup()
 
-    LOG.info("Launching dcorch-engine, host=%s, workers=%s ...",
-             cfg.CONF.host, cfg.CONF.workers)
+    LOG.info("Launching dcorch-engine, host=%s ...", cfg.CONF.host)
 
-    srv = engine.EngineService(cfg.CONF.host,
-                               consts.TOPIC_ORCH_ENGINE)
-    launcher = service.launch(cfg.CONF,
-                              srv, workers=cfg.CONF.workers)
+    srv = engine.EngineService()
+    launcher = service.launch(cfg.CONF, srv)
     # the following periodic tasks are intended serve as HA checking
     # srv.create_periodic_tasks()
     launcher.wait()

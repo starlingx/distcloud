@@ -129,6 +129,8 @@ class BaseTestIdentitySyncThread(OrchestratorTestCase, mixins.BaseMixin):
             self.log.info.assert_called_with(message, extra=extra)
         elif level == 'error':
             self.log.error.assert_called_with(message, extra=extra)
+        elif level == 'debug':
+            self.log.debug.assert_called_with(message, extra=extra)
 
 
 class BaseTestIdentitySyncThreadUsers(BaseTestIdentitySyncThread):

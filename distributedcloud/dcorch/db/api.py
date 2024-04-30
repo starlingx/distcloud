@@ -13,7 +13,9 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 #
-# Copyright (c) 2020 Wind River Systems, Inc.
+# Copyright (c) 2018-2020, 2024 Wind River Systems, Inc.
+#
+# SPDX-License-Identifier: Apache-2.0
 #
 """
 Interface for database access.
@@ -150,6 +152,43 @@ def subcloud_get_all(context, region_name=None,
                                  initial_sync_state=initial_sync_state)
 
 
+def subcloud_capabilities_get_all(context, region_name=None,
+                                  management_state=None,
+                                  availability_status=None,
+                                  initial_sync_state=None):
+    return IMPL.subcloud_capabilities_get_all(
+        context, region_name=region_name,
+        management_state=management_state,
+        availability_status=availability_status,
+        initial_sync_state=initial_sync_state)
+
+
+def subcloud_sync_update_all_to_in_progress(context,
+                                            management_state,
+                                            availability_status,
+                                            initial_sync_state,
+                                            sync_requests):
+    return IMPL.subcloud_sync_update_all_to_in_progress(
+        context,
+        management_state=management_state,
+        availability_status=availability_status,
+        initial_sync_state=initial_sync_state,
+        sync_requests=sync_requests)
+
+
+def subcloud_audit_update_all_to_in_progress(context,
+                                             management_state,
+                                             availability_status,
+                                             initial_sync_state,
+                                             audit_interval):
+    return IMPL.subcloud_audit_update_all_to_in_progress(
+        context,
+        management_state=management_state,
+        availability_status=availability_status,
+        initial_sync_state=initial_sync_state,
+        audit_interval=audit_interval)
+
+
 def subcloud_create(context, region_name, values):
     return IMPL.subcloud_create(context, region_name, values)
 
@@ -160,6 +199,18 @@ def subcloud_update(context, region_name, values):
 
 def subcloud_delete(context, region_name):
     return IMPL.subcloud_delete(context, region_name)
+
+
+def subcloud_update_initial_state(context, subcloud_name,
+                                  pre_initial_sync_state, initial_sync_state):
+    return IMPL.subcloud_update_initial_state(
+        context, subcloud_name, pre_initial_sync_state, initial_sync_state)
+
+
+def subcloud_update_all_initial_state(context, pre_initial_sync_state,
+                                      initial_sync_state):
+    return IMPL.subcloud_update_all_initial_state(
+        context, pre_initial_sync_state, initial_sync_state)
 
 
 def resource_get_by_type_and_master_id(context, resource_type, master_id):
@@ -310,28 +361,6 @@ def purge_deleted_records(context, age_in_days=1):
     return IMPL.purge_deleted_records(context, age_in_days)
 
 
-def sync_lock_acquire(context, engine_id, subcloud_name, endpoint_type, action):
-    return IMPL.sync_lock_acquire(context, engine_id, subcloud_name,
-                                  endpoint_type, action)
-
-
-def sync_lock_release(context, subcloud_name, endpoint_type, action):
-    return IMPL.sync_lock_release(context, subcloud_name, endpoint_type, action)
-
-
-def sync_lock_steal(context, engine_id, subcloud_name, endpoint_type, action):
-    return IMPL.sync_lock_steal(context, engine_id, subcloud_name,
-                                endpoint_type, action)
-
-
-def sync_lock_delete_by_engine_id(context, engine_id):
-    return IMPL.sync_lock_delete_by_engine_id(context, engine_id)
-
-
-def purge_stale_sync_lock(context):
-    return IMPL.purge_stale_sync_lock(context)
-
-
 def subcloud_sync_get(context, subcloud_name, endpoint_type):
     return IMPL.subcloud_sync_get(context, subcloud_name, endpoint_type)
 
@@ -339,6 +368,11 @@ def subcloud_sync_get(context, subcloud_name, endpoint_type):
 def subcloud_sync_update(context, subcloud_name, endpoint_type, values):
     return IMPL.subcloud_sync_update(context, subcloud_name, endpoint_type,
                                      values)
+
+
+def subcloud_sync_update_all(context, management_state, endpoint_type, values):
+    return IMPL.subcloud_sync_update_all(context, management_state, endpoint_type,
+                                         values)
 
 
 def subcloud_sync_create(context, subcloud_name, endpoint_type, values):

@@ -1,12 +1,11 @@
 [Unit]
-Description=DC Orchestrator Engine Service
+Description=DC Orchestrator Engine-worker Service
 After=syslog.target network.target mysqld.service openstack-keystone.service
 
 [Service]
 Type=simple
-# TODO(Bart): What user?
 User=root
-ExecStart=/usr/bin/dcorch-engine --config-file /etc/dcorch/dcorch.conf
+ExecStart=/usr/bin/dcorch-engine-worker --config-file /etc/dcorch/dcorch.conf
 Restart=on-failure
 
 [Install]

@@ -23,8 +23,10 @@ from oslo_config import cfg
 from oslo_db import options
 import sqlalchemy
 
+from dccommon import consts as dccommon_consts
 from dcorch.common import context
 from dcorch.db import api as db_api
+from dcorch.tests import base
 
 get_engine = db_api.get_engine
 
@@ -95,3 +97,26 @@ def wait_until_true(predicate, timeout=60, sleep=1, exception=None):
     with eventlet.timeout.Timeout(timeout, exception):
         while not predicate():
             eventlet.sleep(sleep)
+
+
+def create_subcloud_static(ctxt, name, **kwargs):
+    values = {
+        'software_version': '10.04',
+        'management_state': dccommon_consts.MANAGEMENT_MANAGED,
+        'availability_status': dccommon_consts.AVAILABILITY_ONLINE,
+        'initial_sync_state': '',
+        'capabilities': base.CAPABILITES
+    }
+    values.update(kwargs)
+    return db_api.subcloud_create(ctxt, name, values=values)
+
+
+def create_subcloud_sync_static(ctxt, name, endpoint_type, **kwargs):
+    values = {
+        'subcloud_name': name,
+        'endpoint_type': endpoint_type,
+        'subcloud_id': '',
+        'sync_request': ''
+    }
+    values.update(kwargs)
+    return db_api.subcloud_sync_create(ctxt, name, endpoint_type, values=values)

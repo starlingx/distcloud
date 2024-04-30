@@ -225,7 +225,8 @@ def retrieve_token_audit_id(fernet_token):
         unpacked_token = _unpack_token(fernet_token, fernet_keys)
         if unpacked_token:
             audit_id = unpacked_token[-1][0]
-            audit_id = base64.urlsafe_b64encode(audit_id).rstrip('=')
+            audit_id = base64.urlsafe_b64encode(
+                audit_id.encode('utf-8')).rstrip(b'=').decode('utf-8')
 
     return audit_id
 

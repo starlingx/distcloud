@@ -399,7 +399,7 @@ class BaseTestSubcloudManager(base.DCManagerTestCase):
     def _mock_dcorch_api(self):
         """Mock the DCOrch API"""
 
-        p = mock.patch('dcorch.rpc.client.EngineClient')
+        p = mock.patch('dcorch.rpc.client.EngineWorkerClient')
         self.mock_dcorch_api = p.start()
         self.addCleanup(p.stop)
 
