@@ -60,7 +60,7 @@ class SubcloudAuditWorkerManager(manager.Manager):
         self.state_rpc_client = dcmanager_rpc_client.SubcloudStateClient()
         # Keeps track of greenthreads we create to do work.
         self.thread_group_manager = scheduler.ThreadGroupManager(
-            thread_pool_size=100)
+            thread_pool_size=150)
         # Track workers created for each subcloud.
         self.subcloud_workers = dict()
         self.alarm_aggr = alarm_aggregation.AlarmAggregation(self.context)
