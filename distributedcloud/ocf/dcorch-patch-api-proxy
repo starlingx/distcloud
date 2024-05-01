@@ -5,7 +5,7 @@
 #   Manages an OpenStack DC Orchestrator Patching Api Proxy Service (dcorch-patch-api-proxy)
 #   process as an HA resource
 #
-# Copyright (c) 2018 Wind River Systems, Inc.
+# Copyright (c) 2018,2024 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -236,7 +236,7 @@ dcorch_patch_api_proxy_confirm_stop() {
 
     my_binary=`which ${OCF_RESKEY_binary}`
     my_type="patching"
-    my_processes=`pgrep -f "^(python|/usr/bin/python|/usr/bin/python2) ${my_binary} .*--type ${my_type}([^\w-]|$)"`
+    my_processes=`pgrep -f "^(python|/usr/bin/python|/usr/bin/python3) ${my_binary} .*--type ${my_type}([^\w-]|$)"`
 
     if [ -n "${my_processes}" ]
     then

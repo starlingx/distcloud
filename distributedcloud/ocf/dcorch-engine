@@ -3,7 +3,7 @@
 #
 # Description:  Manages an OpenStack DC Orchestrator Engine Service (dcorch-engine) process as an HA resource
 #
-# Copyright (c) 2017 Wind River Systems, Inc.
+# Copyright (c) 2017,2024 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -233,12 +233,12 @@ dcorch_engine_confirm_stop() {
     local my_processes
 
     my_binary=`which ${OCF_RESKEY_binary}`
-    my_processes=`pgrep -l -f "^(python|/usr/bin/python|/usr/bin/python2) ${my_binary}([^\w-]|$)"`
+    my_processes=`pgrep -l -f "^(python|/usr/bin/python|/usr/bin/python3) ${my_binary}([^\w-]|$)"`
 
     if [ -n "${my_processes}" ]
     then
         ocf_log info "About to SIGKILL the following: ${my_processes}"
-        pkill -KILL -f "^(python|/usr/bin/python|/usr/bin/python2) ${my_binary}([^\w-]|$)"
+        pkill -KILL -f "^(python|/usr/bin/python|/usr/bin/python3) ${my_binary}([^\w-]|$)"
     fi
 }
 
