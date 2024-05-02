@@ -1076,6 +1076,7 @@ def get_certificate_from_secret(secret_name, secret_ns):
 
     :return: tls_crt: the certificate.
              tls_key: the corresponding private key of the certificate.
+             ca_crt: the CA certificate that issued tls_crt if available.
     raise Exception for kubernetes data errors
     """
 
@@ -1093,11 +1094,17 @@ def get_certificate_from_secret(secret_name, secret_ns):
     try:
         tls_crt = base64.decode_as_text(data['tls.crt'])
         tls_key = base64.decode_as_text(data['tls.key'])
+        if 'ca.crt' in data:
+            ca_crt = base64.decode_as_text(data['ca.crt'])
+        else:
+            LOG.warning("Secret doesn't have required CA data stored:  %s\\%s" %
+                        (secret_ns, secret_name))
+            ca_crt = ''
     except TypeError:
         raise Exception('Certificate secret data is invalid %s\\%s' %
                         (secret_ns, secret_name))
 
-    return tls_crt, tls_key
+    return tls_crt, tls_key, ca_crt
 
 
 def get_management_subnet(payload):
