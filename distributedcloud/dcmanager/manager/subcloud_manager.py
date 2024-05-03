@@ -102,6 +102,7 @@ ANSIBLE_VALIDATE_KEYSTONE_PASSWORD_SCRIPT = \
 USERS_TO_REPLICATE = [
     'sysinv',
     'patching',
+    'usm',
     'vim',
     'mtce',
     'fm',
