@@ -348,7 +348,7 @@ INVENTORY_FILE_POSTFIX = '_inventory.yml'
 # The following password is just a temporary and internal password that is used
 # after a remote install as part of the upgrade. The real sysadmin password
 # will be restored af the subcloud is re-managed at the end of the upgrade.
-TEMP_SYSADMIN_PASSWORD = 'St8rlingX*'
+TEMP_SYSADMIN_PASSWORD = 'St8rlingXCloud*'
 
 # System mode
 SYSTEM_MODE_DUPLEX = "duplex"
