@@ -10,6 +10,7 @@ import mock
 
 from dcmanager.common import consts
 from dcmanager.orchestrator.orch_thread import OrchThread
+from dcmanager.orchestrator.states.base import BaseState
 from dcmanager.tests.unit.common import fake_strategy
 from dcmanager.tests.unit.orchestrator.states.fakes import FakeLoad
 from dcmanager.tests.unit.orchestrator.states.patch.test_base import \
@@ -79,6 +80,29 @@ SUBCLOUD_PATCHES_BAD_STATE = {"DC.1": {"sw_version": "20.12",
                                        "repostate": "Applied",
                                        "patchstate": "Partial-Apply"}}
 
+SUBCLOUD_USM_PATCHES = {
+    "usm": {
+        "sw_version": "stx8",
+        "repostate": "Available",
+        "patchstate": "Available",
+    },
+    "DC.3": {
+        "sw_version": "20.12",
+        "repostate": "Available",
+        "patchstate": "Partial-Remove",
+    },
+    "DC.5": {
+        "sw_version": "20.12",
+        "repostate": "Unknown",
+        "patchstate": "Unknown"
+    },
+    "DC.6": {
+        "sw_version": "20.12",
+        "repostate": "Applied",
+        "patchstate": "Partial-Apply",
+    },
+}
+
 
 @mock.patch("dcmanager.orchestrator.states.patch.updating_patches."
             "DEFAULT_MAX_QUERIES", 3)
@@ -120,9 +144,12 @@ class TestUpdatingPatchesStage(TestPatchState):
         self.fake_load = FakeLoad(1, software_version="20.12",
                                   state=consts.ACTIVE_LOAD_STATE)
 
-    def _create_fake_strategy(self, upload_only=False):
+    def _create_fake_strategy(self, upload_only=False, patch_file=None):
         # setup extra_args used by PatchJobData
-        extra_args = {consts.EXTRA_ARGS_UPLOAD_ONLY: upload_only}
+        extra_args = {
+            consts.EXTRA_ARGS_UPLOAD_ONLY: upload_only,
+            consts.EXTRA_ARGS_PATCH: patch_file
+        }
         return fake_strategy.create_fake_strategy(self.ctx,
                                                   self.DEFAULT_STRATEGY_TYPE,
                                                   extra_args=extra_args)
@@ -182,6 +209,120 @@ class TestUpdatingPatchesStage(TestPatchState):
                                  self.success_state)
 
         self.assert_step_details(self.strategy_step.subcloud_id, "")
+
+    @mock.patch.object(os_path, "isfile")
+    def test_update_subcloud_patches_patch_file_success(self, mock_os_path_isfile):
+        """Test update_patches where the API call succeeds patch parameter."""
+
+        mock_os_path_isfile.return_value = True
+
+        self.patching_client.query.side_effect = [
+            REGION_ONE_PATCHES,
+            SUBCLOUD_PATCHES_SUCCESS,
+        ]
+
+        self._create_fake_strategy(patch_file="usm.patch")
+
+        # invoke the pre apply setup to create the PatchJobData object
+        self.worker.pre_apply_setup()
+
+        # invoke the strategy state operation on the orch thread
+        self.worker.perform_state_action(self.strategy_step)
+
+        self.patching_client.upload.assert_called_with(["usm.patch"])
+
+        call_args, _ = self.patching_client.apply.call_args_list[0]
+        self.assertItemsEqual(["usm"], call_args[0])
+
+        # On success, the state should transition to the next state
+        self.assert_step_updated(self.strategy_step.subcloud_id, self.success_state)
+
+        self.assert_step_details(self.strategy_step.subcloud_id, "")
+
+    def test_update_subcloud_patches_patch_file_no_upload(self):
+        """Test update_patches where the API call patch parameter is not uploaded."""
+
+        self.patching_client.query.side_effect = [
+            REGION_ONE_PATCHES,
+            SUBCLOUD_USM_PATCHES,
+        ]
+
+        self._create_fake_strategy(patch_file="usm.patch")
+
+        # invoke the pre apply setup to create the PatchJobData object
+        self.worker.pre_apply_setup()
+
+        # invoke the strategy state operation on the orch thread
+        self.worker.perform_state_action(self.strategy_step)
+
+        self.patching_client.upload.assert_not_called()
+
+        call_args, _ = self.patching_client.apply.call_args_list[0]
+        self.assertItemsEqual(["usm"], call_args[0])
+
+        # On success, the state should transition to the next state
+        self.assert_step_updated(self.strategy_step.subcloud_id, self.success_state)
+
+        self.assert_step_details(self.strategy_step.subcloud_id, "")
+
+    @mock.patch.object(os_path, "isfile")
+    def test_update_subcloud_patches_patch_file_upload_only_success(
+            self, mock_os_path_isfile
+    ):
+        """Test update_patches where the API call succeeds with patch/upload only."""
+
+        mock_os_path_isfile.return_value = True
+
+        self.patching_client.query.side_effect = [
+            REGION_ONE_PATCHES,
+            SUBCLOUD_PATCHES_SUCCESS,
+        ]
+
+        self._create_fake_strategy(upload_only=True, patch_file="usm.patch")
+
+        # invoke the pre apply setup to create the PatchJobData object
+        self.worker.pre_apply_setup()
+
+        # invoke the strategy state operation on the orch thread
+        self.worker.perform_state_action(self.strategy_step)
+
+        self.patching_client.upload.assert_called_with(["usm.patch"])
+
+        self.patching_client.remove.assert_not_called()
+        self.patching_client.apply.assert_not_called()
+
+        self.assert_step_details(self.strategy_step.subcloud_id, "")
+
+        # On success, the state should transition to the complete state
+        self.assert_step_updated(
+            self.strategy_step.subcloud_id, consts.STRATEGY_STATE_COMPLETE
+        )
+
+    @mock.patch.object(BaseState, "stopped")
+    @mock.patch.object(os_path, "isfile")
+    def test_updating_subcloud_patches_fails_when_stopped(
+        self, mock_os_path_isfile, mock_base_stopped
+    ):
+        """Test finish strategy fails when stopped"""
+        mock_os_path_isfile.return_value = True
+
+        self.patching_client.query.side_effect = [
+            REGION_ONE_PATCHES,
+            SUBCLOUD_PATCHES_SUCCESS,
+        ]
+
+        self._create_fake_strategy(upload_only=True, patch_file="usm.patch")
+
+        # invoke the pre apply setup to create the PatchJobData object
+        self.worker.pre_apply_setup()
+
+        mock_base_stopped.return_value = True
+
+        self.worker.perform_state_action(self.strategy_step)
+
+        self.assert_step_updated(
+            self.strategy_step.subcloud_id, consts.STRATEGY_STATE_FAILED
+        )
 
     @mock.patch.object(os_path, "isfile")
     def test_update_subcloud_patches_bad_committed(self, mock_os_path_isfile):

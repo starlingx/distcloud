@@ -379,6 +379,7 @@ EXTRA_ARGS_FORCE = 'force'
 
 # extra_args for patching
 EXTRA_ARGS_UPLOAD_ONLY = 'upload-only'
+EXTRA_ARGS_PATCH = 'patch'
 
 # http request/response arguments for prestage
 PRESTAGE_SOFTWARE_VERSION = 'prestage-software-version'

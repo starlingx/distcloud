@@ -122,12 +122,30 @@ class SwUpdateManager(manager.Manager):
 
     def _validate_subcloud_status_sync(self, strategy_type,
                                        subcloud_status, force,
-                                       availability_status):
+                                       subcloud, patch_file):
         """Check the appropriate subcloud_status fields for the strategy_type
 
            Returns: True if out of sync.
         """
+        availability_status = subcloud.availability_status
         if strategy_type == consts.SW_UPDATE_TYPE_PATCH:
+            if patch_file:
+                # If a patch file is specified, we need to check the software version
+                # of the subcloud and the system controller. If the software versions
+                # are the same, we cannot apply the patch.
+                LOG.warning(
+                    f"Patch file: {patch_file} specified for "
+                    f"subcloud {subcloud.name}"
+                )
+                if subcloud.software_version == SW_VERSION:
+                    raise exceptions.BadRequest(
+                        resource="strategy",
+                        msg=(
+                            f"Subcloud {subcloud.name} has the same software "
+                            "version than the system controller. The --patch "
+                            "option only works with n-1 subclouds."
+                        ),
+                    )
             return (subcloud_status.endpoint_type ==
                     dccommon_consts.ENDPOINT_TYPE_PATCHING and
                     subcloud_status.sync_status ==
@@ -319,6 +337,7 @@ class SwUpdateManager(manager.Manager):
             else:
                 force = False
 
+        patch_file = payload.get('patch')
         installed_loads = []
         software_version = None
         if payload.get(consts.PRESTAGE_REQUEST_RELEASE):
@@ -401,6 +420,7 @@ class SwUpdateManager(manager.Manager):
                     raise exceptions.BadRequest(
                         resource='strategy',
                         msg='Subcloud %s does not require patching' % cloud_name)
+
             elif strategy_type == consts.SW_UPDATE_TYPE_PRESTAGE:
                 # Do initial validation for subcloud
                 try:
@@ -449,7 +469,10 @@ class SwUpdateManager(manager.Manager):
         elif strategy_type == consts.SW_UPDATE_TYPE_PATCH:
             upload_only_str = payload.get(consts.EXTRA_ARGS_UPLOAD_ONLY)
             upload_only_bool = True if upload_only_str == 'true' else False
-            extra_args = {consts.EXTRA_ARGS_UPLOAD_ONLY: upload_only_bool}
+            extra_args = {
+                consts.EXTRA_ARGS_UPLOAD_ONLY: upload_only_bool,
+                consts.EXTRA_ARGS_PATCH: payload.get(consts.EXTRA_ARGS_PATCH)
+            }
 
         # Don't create a strategy if any of the subclouds is online and the
         # relevant sync status is unknown. Offline subcloud is skipped unless
@@ -628,7 +651,8 @@ class SwUpdateManager(manager.Manager):
                 if self._validate_subcloud_status_sync(strategy_type,
                                                        status,
                                                        force,
-                                                       subcloud.availability_status):
+                                                       subcloud,
+                                                       patch_file):
                     LOG.debug("Creating strategy_step for endpoint_type: %s, "
                               "sync_status: %s, subcloud: %s, id: %s",
                               status.endpoint_type, status.sync_status,
