@@ -25,6 +25,7 @@ import re
 import resource as sys_resource
 import string
 import subprocess
+from typing import Union
 import uuid
 import xml.etree.ElementTree as ElementTree
 
@@ -46,6 +47,7 @@ from dccommon.drivers.openstack import vim
 from dccommon import exceptions as dccommon_exceptions
 from dccommon import kubeoperator
 from dcmanager.common import consts
+from dcmanager.common import context
 from dcmanager.common import exceptions
 from dcmanager.common.i18n import _
 from dcmanager.db import api as db_api
@@ -1620,3 +1622,23 @@ def generate_sync_info_message(association_ids):
             info_message += (f"$ dcmanager peer-group-association"
                              f" sync {association_id}\n")
     return info_message
+
+
+def fetch_subcloud_mgmt_ips(region_name: str = None) -> Union[dict, str]:
+    """Fetch the subcloud(s) management IP(s).
+
+    :param region_name: The subcloud region name, defaults to None
+    :return: A dictionary of region names to IPs (if no region provided)
+        or a single IP string (for specific region).
+    """
+    LOG.info(f"Fetching subcloud(s) management IP(s) ({region_name=})")
+    ctx = context.get_admin_context()
+    if region_name:
+        subcloud = db_api.subcloud_get_by_region_name(ctx, region_name)
+        return subcloud.management_start_ip
+
+    ip_map = {}
+    subclouds = db_api.subcloud_get_all(ctx)
+    for subcloud in subclouds:
+        ip_map[subcloud.region_name] = subcloud.management_start_ip
+    return ip_map
