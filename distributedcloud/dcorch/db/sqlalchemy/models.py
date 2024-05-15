@@ -179,6 +179,7 @@ class Subcloud(BASE, OrchestratorBase):
     capabilities = Column(JSONEncodedDict)
     initial_sync_state = Column('initial_sync_state', String(64),
                                 default=consts.INITIAL_SYNC_STATE_NONE)
+    management_ip = Column('management_ip', String(64))
 
 
 class Resource(BASE, OrchestratorBase):

@@ -228,8 +228,8 @@ class EngineWorkerService(service.Service):
                       '%s' % (self.engine_id, ex))
 
     @request_context
-    def add_subcloud(self, ctxt, subcloud_name, sw_version):
-        self.gswm.add_subcloud(ctxt, subcloud_name, sw_version)
+    def add_subcloud(self, ctxt, subcloud_name, sw_version, management_ip):
+        self.gswm.add_subcloud(ctxt, subcloud_name, sw_version, management_ip)
 
     @request_context
     # todo: add authentication since ctxt not actually needed later
@@ -332,6 +332,10 @@ class EngineWorkerService(service.Service):
     @request_context
     def update_subcloud_endpoints(self, ctxt, subcloud_name, endpoints):
         self.gswm.update_subcloud_endpoints(ctxt, subcloud_name, endpoints)
+
+    @request_context
+    def update_subcloud_management_ip(self, ctxt, subcloud_name, management_ip):
+        self.gswm.update_subcloud_management_ip(ctxt, subcloud_name, management_ip)
 
     def _stop_rpc_server(self):
         # Stop RPC connection to prevent new requests

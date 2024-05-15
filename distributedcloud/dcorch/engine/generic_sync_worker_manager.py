@@ -109,7 +109,7 @@ class GenericSyncWorkerManager(object):
             values={'sync_request': new_state})
         LOG.info(f"End of sync_subcloud {subcloud_name}.")
 
-    def add_subcloud(self, context, name, version):
+    def add_subcloud(self, context, name, version, management_ip):
         # create subcloud in DB and create the sync objects
         LOG.info(f"adding subcloud {name}")
         endpoint_type_list = dco_consts.SYNC_ENDPOINT_TYPES_LIST[:]
@@ -117,7 +117,7 @@ class GenericSyncWorkerManager(object):
 
         sc = subcloud.Subcloud(
             context, region_name=name, software_version=version,
-            capabilities=capabilities)
+            capabilities=capabilities, management_ip=management_ip)
         sc = sc.create()
         for endpoint_type in endpoint_type_list:
             db_api.subcloud_sync_create(context, name, endpoint_type,
@@ -299,6 +299,14 @@ class GenericSyncWorkerManager(object):
                 IndexError):
             LOG.error(f"Failed to update services endpoints for "
                       f"subcloud: {subcloud_name} in dcorch.")
+
+    def update_subcloud_management_ip(self, context, subcloud_name, management_ip):
+        try:
+            sc = subcloud.Subcloud.get_by_name(context, subcloud_name)
+            sc.management_ip = management_ip
+            sc.save()
+        except KeyError:
+            raise exceptions.SubcloudNotFound(region_name=subcloud_name)
 
     def _audit_subcloud(self, context, subcloud_name, endpoint_type, sync_obj):
         new_state = dco_consts.AUDIT_STATUS_COMPLETED

@@ -1416,7 +1416,11 @@ class SubcloudManager(manager.Manager):
 
             # Inform orchestrator that subcloud has been added
             self.dcorch_rpc_client.add_subcloud(
-                context, subcloud.region_name, subcloud.software_version)
+                context,
+                subcloud.region_name,
+                subcloud.software_version,
+                subcloud.management_start_ip
+            )
 
             # create entry into alarm summary table, will get real values later
             alarm_updates = {'critical_alarms': -1,
@@ -3201,8 +3205,13 @@ class SubcloudManager(manager.Manager):
         # Update service URLs in subcloud endpoint cache
         self.audit_rpc_client.trigger_subcloud_endpoints_update(
             context, subcloud_region, services_endpoints)
+        # TODO(gherzm): Remove the update_subcloud_endpoints call once
+        # the OpenStackDriver is moved to be used only in the master process
         self.dcorch_rpc_client.update_subcloud_endpoints(
             context, subcloud_region, services_endpoints)
+        # Update the management ip inside dcorch database
+        self.dcorch_rpc_client.update_subcloud_management_ip(
+            context, subcloud_region, endpoint_ip)
         # Update sysinv URL in cert-mon cache
         dc_notification = dcmanager_rpc_client.DCManagerNotifications()
         dc_notification.subcloud_sysinv_endpoint_update(

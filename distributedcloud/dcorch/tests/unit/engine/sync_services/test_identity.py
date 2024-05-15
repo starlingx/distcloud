@@ -65,7 +65,8 @@ class BaseTestIdentitySyncThread(OrchestratorTestCase, mixins.BaseMixin):
             'management_state': dccommon_consts.MANAGEMENT_MANAGED,
             'availability_status': dccommon_consts.AVAILABILITY_ONLINE,
             'initial_sync_state': '',
-            'capabilities': {}
+            'capabilities': {},
+            'management_ip': '192.168.0.1'
         }
         self.subcloud = db_api.subcloud_create(self.ctx, 'subcloud', values)
         self.subcloud_resource = subcloud_resource.SubcloudResource(

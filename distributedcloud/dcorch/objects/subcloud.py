@@ -42,6 +42,7 @@ class Subcloud(base.OrchestratorObject, base.VersionedObjectDictCompat):
         'availability_status': ovo_fields.StringField(),
         'capabilities': ovo_fields.DictOfListOfStringsField(),
         'initial_sync_state': ovo_fields.StringField(),
+        'management_ip': ovo_fields.StringField()
     }
 
     def create(self):

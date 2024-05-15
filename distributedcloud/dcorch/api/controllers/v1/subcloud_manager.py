@@ -89,6 +89,7 @@ class SubcloudController(object):
         :param result: Result object to return an output.
         """
         name = payload['subcloud']
+        management_ip = payload['management_ip']
         version = '17.06'
-        self.rpc_client.add_subcloud(context, name, version)
+        self.rpc_client.add_subcloud(context, name, version, management_ip)
         return {'added': {'subcloud': name}}

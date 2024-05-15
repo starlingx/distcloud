@@ -117,11 +117,11 @@ class EngineWorkerClient(object):
             ctxt,
             self.make_msg('image_sync', job_id=job_id, payload=payload))
 
-    def add_subcloud(self, ctxt, subcloud_name, sw_version):
+    def add_subcloud(self, ctxt, subcloud_name, sw_version, management_ip):
         return self.call(
             ctxt,
             self.make_msg('add_subcloud', subcloud_name=subcloud_name,
-                          sw_version=sw_version))
+                          sw_version=sw_version, management_ip=management_ip))
 
     def del_subcloud(self, ctxt, subcloud_name):
         return self.call(
@@ -181,3 +181,13 @@ class EngineWorkerClient(object):
         return self.cast(ctxt, self.make_msg(
             'update_subcloud_endpoints', subcloud_name=subcloud_name,
             endpoints=endpoints), fanout=True, version=self.BASE_RPC_API_VERSION)
+
+    def update_subcloud_management_ip(self, ctxt, subcloud_name, management_ip):
+        return self.call(
+            ctxt,
+            self.make_msg(
+                "update_subcloud_management_ip",
+                subcloud_name=subcloud_name,
+                management_ip=management_ip,
+            ),
+        )

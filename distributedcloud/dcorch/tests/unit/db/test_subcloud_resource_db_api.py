@@ -59,6 +59,7 @@ class DBAPISubcloudResourceTest(base.OrchestratorTestCase):
     def create_subcloud(ctxt, region_name, **kwargs):
         values = {
             'management_state': None,
+            'management_ip': '192.168.0.1'
         }
         values.update(kwargs)
         return db_api.subcloud_create(ctxt, region_name, values)
