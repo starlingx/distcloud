@@ -466,7 +466,7 @@ class OptimizedEndpointCache(object):
         user_project: str,
         user_project_domain: str,
         timeout: float = None,
-    ) -> None:
+    ) -> session.Session:
         """Get the admin session.
 
         :param auth_url: The authentication URL.
@@ -508,7 +508,7 @@ class OptimizedEndpointCache(object):
         )
 
     @staticmethod
-    def _is_central_cloud(region_name: str) -> None:
+    def _is_central_cloud(region_name: str) -> bool:
         """Check if the region is a central cloud.
 
         :param region_id: The region ID.

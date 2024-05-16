@@ -15,10 +15,13 @@ from dccommon import consts as dccommon_consts
 from dccommon import utils as dccommon_utils
 
 from dccommon.drivers.openstack.fm import FmClient
-from dccommon.drivers.openstack.sdk_platform import OpenStackDriver
+from dccommon.drivers.openstack.sdk_platform import (
+    OptimizedOpenStackDriver as OpenStackDriver
+)
 from dccommon.drivers.openstack.sysinv_v1 import SysinvClient
 
 from dcmanager.audit.auditor import Auditor
+from dcmanager.common import utils
 
 CONF = cfg.CONF
 LOG = logging.getLogger(__name__)
@@ -52,7 +55,9 @@ class KubeRootcaUpdateAudit(Auditor):
         try:
             m_os_ks_client = OpenStackDriver(
                 region_name=dccommon_consts.DEFAULT_REGION_NAME,
-                region_clients=None).keystone_client
+                region_clients=None,
+                fetch_subcloud_ips=utils.fetch_subcloud_mgmt_ips,
+            ).keystone_client
             endpoint = m_os_ks_client.endpoint_cache.get_endpoint('sysinv')
             sysinv_client = SysinvClient(
                 dccommon_consts.DEFAULT_REGION_NAME, m_os_ks_client.session,
@@ -98,8 +103,11 @@ class KubeRootcaUpdateAudit(Auditor):
                                                  subcloud_name))
 
         try:
-            sc_os_client = OpenStackDriver(region_name=subcloud_region,
-                                           region_clients=None).keystone_client
+            sc_os_client = OpenStackDriver(
+                region_name=subcloud_region,
+                region_clients=None,
+                fetch_subcloud_ips=utils.fetch_subcloud_mgmt_ips,
+            ).keystone_client
             session = sc_os_client.session
             endpoint = sc_os_client.endpoint_cache.get_endpoint('sysinv')
         except (keystone_exceptions.EndpointNotFound,

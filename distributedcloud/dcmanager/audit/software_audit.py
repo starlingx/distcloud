@@ -10,6 +10,7 @@ from oslo_log import log as logging
 from dccommon import consts as dccommon_consts
 from dccommon.drivers.openstack import sdk_platform
 from dccommon.drivers.openstack import software_v1
+from dcmanager.common import utils
 
 LOG = logging.getLogger(__name__)
 
@@ -74,8 +75,10 @@ class SoftwareAudit(object):
         :return: A new SoftwareAuditData object
         """
         try:
-            m_os_ks_client = sdk_platform.OpenStackDriver(
-                region_name=dccommon_consts.DEFAULT_REGION_NAME, region_clients=None
+            m_os_ks_client = sdk_platform.OptimizedOpenStackDriver(
+                region_name=dccommon_consts.DEFAULT_REGION_NAME,
+                region_clients=None,
+                fetch_subcloud_ips=utils.fetch_subcloud_mgmt_ips,
             ).keystone_client
             software_endpoint = m_os_ks_client.endpoint_cache.get_endpoint(
                 dccommon_consts.ENDPOINT_TYPE_SOFTWARE
@@ -122,8 +125,10 @@ class SoftwareAudit(object):
     def _subcloud_software_audit(self, subcloud_name, subcloud_region, audit_data):
         LOG.info(f"Triggered software audit for: {subcloud_name}.")
         try:
-            sc_os_client = sdk_platform.OpenStackDriver(
-                region_name=subcloud_region, region_clients=None
+            sc_os_client = sdk_platform.OptimizedOpenStackDriver(
+                region_name=subcloud_region,
+                region_clients=None,
+                fetch_subcloud_ips=utils.fetch_subcloud_mgmt_ips,
             ).keystone_client
             session = sc_os_client.session
             software_endpoint = sc_os_client.endpoint_cache.get_endpoint(
