@@ -20,7 +20,9 @@ from oslo_log import log as logging
 from dccommon import consts as dccommon_consts
 from dccommon.drivers.openstack import patching_v1
 from dccommon.drivers.openstack.patching_v1 import PatchingClient
-from dccommon.drivers.openstack.sdk_platform import OpenStackDriver
+from dccommon.drivers.openstack.sdk_platform import (
+    OptimizedOpenStackDriver as OpenStackDriver
+)
 from dccommon.drivers.openstack.sysinv_v1 import SysinvClient
 from dcmanager.common import utils
 
@@ -90,7 +92,9 @@ class PatchAudit(object):
         try:
             m_os_ks_client = OpenStackDriver(
                 region_name=dccommon_consts.DEFAULT_REGION_NAME,
-                region_clients=None).keystone_client
+                region_clients=None,
+                fetch_subcloud_ips=utils.fetch_subcloud_mgmt_ips,
+            ).keystone_client
             patching_endpoint = m_os_ks_client.endpoint_cache.get_endpoint(
                 'patching')
             sysinv_endpoint = m_os_ks_client.endpoint_cache.get_endpoint('sysinv')
@@ -136,8 +140,11 @@ class PatchAudit(object):
                              do_load_audit):
         LOG.info('Triggered patch audit for: %s.' % subcloud_name)
         try:
-            sc_os_client = OpenStackDriver(region_name=subcloud_region,
-                                           region_clients=None).keystone_client
+            sc_os_client = OpenStackDriver(
+                region_name=subcloud_region,
+                region_clients=None,
+                fetch_subcloud_ips=utils.fetch_subcloud_mgmt_ips,
+            ).keystone_client
             session = sc_os_client.session
             patching_endpoint = sc_os_client.endpoint_cache.get_endpoint('patching')
             sysinv_endpoint = sc_os_client.endpoint_cache.get_endpoint('sysinv')

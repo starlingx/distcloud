@@ -442,7 +442,7 @@ class OptimizedOpenStackDriver(object):
         :param clients: The list of client names.
         :type clients: list
         """
-        os_clients = OpenStackDriver.os_clients_dict
+        os_clients = OptimizedOpenStackDriver.os_clients_dict
 
         for client in clients:
             client_obj = (

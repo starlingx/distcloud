@@ -1,5 +1,5 @@
 # Copyright 2017 Ericsson AB.
-# Copyright (c) 2017-2023 Wind River Systems, Inc.
+# Copyright (c) 2017-2024 Wind River Systems, Inc.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -19,8 +19,11 @@ from keystoneauth1 import exceptions as keystone_exceptions
 from oslo_log import log as logging
 
 from dccommon import consts as dccommon_consts
-from dccommon.drivers.openstack.sdk_platform import OpenStackDriver
+from dccommon.drivers.openstack.sdk_platform import (
+    OptimizedOpenStackDriver as OpenStackDriver
+)
 from dccommon.drivers.openstack.sysinv_v1 import SysinvClient
+from dcmanager.common import utils
 
 
 LOG = logging.getLogger(__name__)
@@ -73,7 +76,9 @@ class KubernetesAudit(object):
         try:
             m_os_ks_client = OpenStackDriver(
                 region_name=dccommon_consts.DEFAULT_REGION_NAME,
-                region_clients=None).keystone_client
+                region_clients=None,
+                fetch_subcloud_ips=utils.fetch_subcloud_mgmt_ips,
+            ).keystone_client
             endpoint = m_os_ks_client.endpoint_cache.get_endpoint('sysinv')
             sysinv_client = SysinvClient(
                 dccommon_consts.DEFAULT_REGION_NAME, m_os_ks_client.session,
@@ -101,8 +106,11 @@ class KubernetesAudit(object):
             LOG.debug('No region one audit data, exiting kubernetes audit')
             return
         try:
-            sc_os_client = OpenStackDriver(region_name=subcloud_region,
-                                           region_clients=None).keystone_client
+            sc_os_client = OpenStackDriver(
+                region_name=subcloud_region,
+                region_clients=None,
+                fetch_subcloud_ips=utils.fetch_subcloud_mgmt_ips,
+            ).keystone_client
             endpoint = sc_os_client.endpoint_cache.get_endpoint('sysinv')
             sysinv_client = SysinvClient(subcloud_region, sc_os_client.session,
                                          endpoint=endpoint)

@@ -21,7 +21,9 @@ from oslo_config import cfg
 from oslo_log import log as logging
 
 from dccommon import consts as dccommon_consts
-from dccommon.drivers.openstack.sdk_platform import OpenStackDriver
+from dccommon.drivers.openstack.sdk_platform import (
+    OptimizedOpenStackDriver as OpenStackDriver
+)
 from dcmanager.audit import alarm_aggregation
 from dcmanager.audit import firmware_audit
 from dcmanager.audit import kube_rootca_update_audit
@@ -35,6 +37,7 @@ from dcmanager.common import exceptions
 from dcmanager.common.i18n import _
 from dcmanager.common import manager
 from dcmanager.common import scheduler
+from dcmanager.common import utils
 from dcmanager.db import api as db_api
 from dcmanager.rpc import client as dcmanager_rpc_client
 
@@ -180,7 +183,9 @@ class SubcloudAuditWorkerManager(manager.Manager):
             LOG.info("Updating service endpoints for subcloud %s "
                      "in endpoint cache" % subcloud_name)
             endpoint_cache = OpenStackDriver(
-                region_name=dccommon_consts.CLOUD_0).keystone_client.endpoint_cache
+                region_name=dccommon_consts.CLOUD_0,
+                fetch_subcloud_ips=utils.fetch_subcloud_mgmt_ips,
+            ).keystone_client.endpoint_cache
             endpoint_cache.update_master_service_endpoint_region(
                 subcloud_name, endpoints)
         except (keystone_exceptions.EndpointNotFound,
@@ -386,9 +391,12 @@ class SubcloudAuditWorkerManager(manager.Manager):
         fm_client = None
         avail_to_set = dccommon_consts.AVAILABILITY_OFFLINE
         try:
-            os_client = OpenStackDriver(region_name=subcloud_region,
-                                        thread_name='subcloud-audit',
-                                        region_clients=['fm', 'sysinv'])
+            os_client = OpenStackDriver(
+                region_name=subcloud_region,
+                thread_name="subcloud-audit",
+                region_clients=["fm", "sysinv"],
+                fetch_subcloud_ips=utils.fetch_subcloud_mgmt_ips,
+            )
             sysinv_client = os_client.sysinv_client
             fm_client = os_client.fm_client
         except keystone_exceptions.ConnectTimeout:
