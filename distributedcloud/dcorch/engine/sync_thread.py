@@ -23,7 +23,9 @@ from oslo_log import log as logging
 from oslo_utils import timeutils
 
 from dccommon import consts as dccommon_consts
-from dccommon.endpoint_cache import EndpointCache
+from dccommon.drivers.openstack import sdk_platform as sdk
+from dccommon.endpoint_cache import build_subcloud_endpoint
+from dccommon.endpoint_cache import OptimizedEndpointCache
 from dcdbsync.dbsyncclient import client as dbsyncclient
 from dcmanager.rpc import client as dcmanager_rpc_client
 from dcorch.common import consts
@@ -62,6 +64,21 @@ AUDIT_RESOURCE_EXTRA = 'extra_resource'
 AUDIT_LOCK_NAME = 'dcorch-audit'
 
 
+def get_os_client(region, region_clients):
+    # Used by the master clients only. The subcloud clients don't need to be
+    # cached in the openstack driver, because we don't want to hold the admin
+    # sessions for the subclouds.
+    try:
+        os_client = sdk.OptimizedOpenStackDriver(
+            region_name=region,
+            region_clients=region_clients)
+    except Exception as e:
+        LOG.error(
+            f"Failed to get os_client for {region}/{region_clients}: {e}.")
+        raise e
+    return os_client
+
+
 class SyncThread(object):
     """Manages tasks related to resource management."""
 
@@ -75,10 +92,11 @@ class SyncThread(object):
     # used by the audit to cache the master resources
     master_resources_dict = collections.defaultdict(dict)
 
-    def __init__(self, subcloud_name, endpoint_type=None, engine_id=None):
-        super(SyncThread, self).__init__()
+    def __init__(self, subcloud_name, endpoint_type=None, management_ip=None,
+                 engine_id=None):
         self.endpoint_type = endpoint_type      # endpoint type
         self.subcloud_name = subcloud_name      # subcloud name
+        self.management_ip = management_ip
         self.engine_id = engine_id
         self.ctxt = context.get_admin_context()
         self.sync_handler_map = {}
@@ -91,6 +109,7 @@ class SyncThread(object):
         self.dcmanager_rpc_client = dcmanager_rpc_client.ManagerClient()
 
         self.sc_admin_session = None
+        self.sc_auth_url = None
         self.admin_session = None
         self.ks_client = None
         self.dbs_client = None
@@ -129,7 +148,7 @@ class SyncThread(object):
 
         if self.endpoint_type in dccommon_consts.ENDPOINT_TYPES_LIST:
             config = cfg.CONF.endpoint_cache
-            self.admin_session = EndpointCache.get_admin_session(
+            self.admin_session = OptimizedEndpointCache.get_admin_session(
                 config.auth_uri,
                 config.username,
                 config.user_domain_name,
@@ -139,7 +158,7 @@ class SyncThread(object):
                 timeout=60)
         elif self.endpoint_type in dccommon_consts.ENDPOINT_TYPES_LIST_OS:
             config = cfg.CONF.openstack_cache
-            self.admin_session = EndpointCache.get_admin_session(
+            self.admin_session = OptimizedEndpointCache.get_admin_session(
                 config.auth_uri,
                 config.admin_username,
                 config.admin_user_domain_name,
@@ -167,27 +186,16 @@ class SyncThread(object):
         # The specific SyncThread subclasses may extend this
         if (not self.sc_admin_session):
             # Subclouds will use token from the Subcloud specific Keystone,
-            # so define a session against that subcloud's identity
-            identity_service = self.ks_client.services.list(
-                name='keystone', type='identity')
-            sc_auth_url = self.ks_client.endpoints.list(
-                service=identity_service[0].id,
-                interface=dccommon_consts.KS_ENDPOINT_ADMIN,
-                region=self.subcloud_name)
-            try:
-                LOG.info("Found sc_auth_url: {}".format(sc_auth_url))
-                sc_auth_url = sc_auth_url[0].url
-            except IndexError:
-                # It may happen that this subcloud was not managed
-                LOG.info("Cannot find identity auth_url",
-                         extra=self.log_extra)
-                return
+            # so define a session against that subcloud's keystone endpoint
+            self.sc_auth_url = build_subcloud_endpoint(
+                self.management_ip, 'keystone')
+            LOG.debug(f"Built sc_auth_url {self.sc_auth_url} for subcloud "
+                      f"{self.subcloud_name}")
 
-            config = None
             if self.endpoint_type in dccommon_consts.ENDPOINT_TYPES_LIST:
                 config = cfg.CONF.endpoint_cache
-                self.sc_admin_session = EndpointCache.get_admin_session(
-                    sc_auth_url,
+                self.sc_admin_session = OptimizedEndpointCache.get_admin_session(
+                    self.sc_auth_url,
                     config.username,
                     config.user_domain_name,
                     config.password,
@@ -196,8 +204,8 @@ class SyncThread(object):
                     timeout=60)
             elif self.endpoint_type in dccommon_consts.ENDPOINT_TYPES_LIST_OS:
                 config = cfg.CONF.openstack_cache
-                self.sc_admin_session = EndpointCache.get_admin_session(
-                    sc_auth_url,
+                self.sc_admin_session = OptimizedEndpointCache.get_admin_session(
+                    self.sc_auth_url,
                     config.admin_username,
                     config.admin_user_domain_name,
                     config.admin_password,

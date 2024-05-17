@@ -460,7 +460,10 @@ def subcloud_capabilities_get_all(context, region_name=None,
                                   initial_sync_state=None):
     results = subcloud_get_all(context, region_name, management_state,
                                availability_status, initial_sync_state)
-    return {result['region_name']: result['capabilities'] for result in results}
+    return {
+        result['region_name']: (result['capabilities'], result['management_ip'])
+        for result in results
+    }
 
 
 @require_context
@@ -471,7 +474,8 @@ def subcloud_sync_update_all_to_in_progress(context,
                                             sync_requests):
     with write_session() as session:
         # Fetch the records of subcloud_sync that meet the update criteria
-        subcloud_sync_rows = session.query(models.SubcloudSync).join(
+        subcloud_sync_rows = session.query(models.SubcloudSync,
+                                           models.Subcloud.management_ip).join(
             models.Subcloud,
             models.Subcloud.region_name == models.SubcloudSync.subcloud_name
         ).filter(
@@ -484,10 +488,11 @@ def subcloud_sync_update_all_to_in_progress(context,
         # Update the sync status to in-progress for the selected subcloud_sync
         # records
         updated_rows = []
-        for subcloud_sync in subcloud_sync_rows:
+        for subcloud_sync, management_ip in subcloud_sync_rows:
             subcloud_sync.sync_request = consts.SYNC_STATUS_IN_PROGRESS
             updated_rows.append((subcloud_sync.subcloud_name,
-                                 subcloud_sync.endpoint_type))
+                                 subcloud_sync.endpoint_type,
+                                 management_ip))
 
         return updated_rows
 
@@ -502,7 +507,8 @@ def subcloud_audit_update_all_to_in_progress(context,
 
     with write_session() as session:
         # Fetch the records of subcloud_sync that meet the update criteria
-        subcloud_sync_rows = session.query(models.SubcloudSync).join(
+        subcloud_sync_rows = session.query(models.SubcloudSync,
+                                           models.Subcloud.management_ip).join(
             models.Subcloud,
             models.Subcloud.region_name == models.SubcloudSync.subcloud_name
         ).filter(
@@ -525,11 +531,12 @@ def subcloud_audit_update_all_to_in_progress(context,
         # Update the audit status to in-progress for the selected subcloud_sync
         # records
         updated_rows = []
-        for subcloud_sync in subcloud_sync_rows:
+        for subcloud_sync, management_ip in subcloud_sync_rows:
             subcloud_sync.audit_status = consts.AUDIT_STATUS_IN_PROGRESS
             subcloud_sync.last_audit_time = timeutils.utcnow()
             updated_rows.append((subcloud_sync.subcloud_name,
-                                 subcloud_sync.endpoint_type))
+                                 subcloud_sync.endpoint_type,
+                                 management_ip))
 
         return updated_rows
 

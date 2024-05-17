@@ -41,7 +41,7 @@ class InitialSyncWorkerManager(object):
         LOG.debug(f"Engine id:({self.engine_id}) Start initial sync for "
                   f"subclouds {list(subcloud_capabilities.keys())}.")
 
-        for sc_region_name, sc_capabilities in subcloud_capabilities.items():
+        for sc_region_name, sc_capabilities_and_ip in subcloud_capabilities.items():
             # Create a new greenthread for each subcloud to allow the
             # initial syncs to be done in parallel. If there are not enough
             # greenthreads in the pool, this will block until one becomes
@@ -51,12 +51,14 @@ class InitialSyncWorkerManager(object):
                     self._initial_sync_subcloud,
                     self.context,
                     sc_region_name,
-                    sc_capabilities)
+                    sc_capabilities_and_ip[0],
+                    sc_capabilities_and_ip[1])
             except Exception as e:
                 LOG.error(f"Exception occurred when running initial_sync for "
                           f"subcloud {sc_region_name}: {e}")
 
-    def _initial_sync_subcloud(self, context, subcloud_name, subcloud_capabilities):
+    def _initial_sync_subcloud(self, context, subcloud_name, subcloud_capabilities,
+                               management_ip):
         """Perform initial sync for a subcloud.
 
         This runs in a separate greenthread for each subcloud.
@@ -78,7 +80,7 @@ class InitialSyncWorkerManager(object):
 
         # sync_objs stores the sync object per endpoint
         sync_objs = self.gswm.create_sync_objects(
-            subcloud_name, subcloud_capabilities)
+            subcloud_name, subcloud_capabilities, management_ip)
 
         # Initial sync. It's synchronous so that identity
         # get synced before fernet token keys are synced. This is

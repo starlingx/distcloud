@@ -90,8 +90,8 @@ class InitialSyncManager(object):
         chunksize = (len(subclouds) + CONF.workers) // (CONF.workers)
 
         subcloud_capabilities = {}
-        for region_name, capabilities in subclouds.items():
-            subcloud_capabilities[region_name] = capabilities
+        for region_name, capabilities_and_ip in subclouds.items():
+            subcloud_capabilities[region_name] = capabilities_and_ip
             if len(subcloud_capabilities) == chunksize:
                 # We've gathered a batch of subclouds, send it to engine worker
                 # to process.

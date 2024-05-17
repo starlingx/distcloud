@@ -325,6 +325,23 @@ def build_subcloud_endpoints(subcloud_mgmt_ips: dict) -> dict:
     return subcloud_endpoints
 
 
+def build_subcloud_endpoint(ip: str, service: str) -> str:
+    """Builds a service endpoint for a given IP address.
+
+    :param ip: The IP address for constructing the service endpoint.
+    :type ip: str
+    :param service: The service of the endpoint
+    :type service: str
+    :return: The service endpoint URL.
+    :type: str
+    """
+    endpoint = ENDPOINT_URLS.get(service, None)
+    if endpoint:
+        formatted_ip = f"[{ip}]" if netaddr.IPAddress(ip).version == 6 else ip
+        endpoint = endpoint.format(formatted_ip)
+    return endpoint
+
+
 class OptimizedEndpointCache(object):
     """Cache for storing endpoint information.
 

@@ -34,7 +34,7 @@ class FakeGSWM(object):
             subcloud_name,
             values={'initial_sync_state': initial_sync_state})
 
-    def create_sync_objects(self, subcloud_name, capabilities):
+    def create_sync_objects(self, subcloud_name, capabilities, management_ip):
         sync_objs = {}
         endpoint_type_list = capabilities.get('endpoint_types', None)
         if endpoint_type_list:
@@ -104,13 +104,15 @@ class TestInitialSyncWorkerManager(base.OrchestratorTestCase):
         subcloud = utils.create_subcloud_static(
             self.ctx,
             name='subcloud1',
-            initial_sync_state=consts.INITIAL_SYNC_STATE_REQUESTED)
+            initial_sync_state=consts.INITIAL_SYNC_STATE_REQUESTED,
+            management_ip="192.168.1.11")
         self.assertIsNotNone(subcloud)
 
         # Initial sync the subcloud
         self.iswm._initial_sync_subcloud(self.ctx,
                                          subcloud.region_name,
-                                         base.CAPABILITES)
+                                         base.CAPABILITES,
+                                         subcloud.management_ip)
 
         self.mock_distribute_keys.assert_called_once()
 
@@ -126,7 +128,8 @@ class TestInitialSyncWorkerManager(base.OrchestratorTestCase):
         subcloud = utils.create_subcloud_static(
             self.ctx,
             name='subcloud1',
-            initial_sync_state='')
+            initial_sync_state='',
+            management_ip='192.168.1.11')
         self.assertIsNotNone(subcloud)
 
         self.iswm.initial_sync = mock.MagicMock()
@@ -134,7 +137,8 @@ class TestInitialSyncWorkerManager(base.OrchestratorTestCase):
         # Initial sync the subcloud
         self.iswm._initial_sync_subcloud(self.ctx,
                                          subcloud.region_name,
-                                         base.CAPABILITES)
+                                         base.CAPABILITES,
+                                         subcloud.management_ip)
 
         # Verify that the initial sync steps were not done
         self.iswm.initial_sync.assert_not_called()
@@ -149,7 +153,8 @@ class TestInitialSyncWorkerManager(base.OrchestratorTestCase):
         subcloud = utils.create_subcloud_static(
             self.ctx,
             name='subcloud1',
-            initial_sync_state=consts.INITIAL_SYNC_STATE_REQUESTED)
+            initial_sync_state=consts.INITIAL_SYNC_STATE_REQUESTED,
+            management_ip='192.168.1.11')
         self.assertIsNotNone(subcloud)
 
         self.iswm.enable_subcloud = mock.MagicMock()
@@ -159,7 +164,8 @@ class TestInitialSyncWorkerManager(base.OrchestratorTestCase):
         # Initial sync the subcloud
         self.iswm._initial_sync_subcloud(self.ctx,
                                          subcloud.region_name,
-                                         base.CAPABILITES)
+                                         base.CAPABILITES,
+                                         subcloud.management_ip)
 
         # Verify the initial sync was failed
         subcloud = db_api.subcloud_get(self.ctx, 'subcloud1')
@@ -203,13 +209,17 @@ class TestInitialSyncWorkerManager(base.OrchestratorTestCase):
         subcloud1 = utils.create_subcloud_static(
             self.ctx,
             name='subcloud1',
-            initial_sync_state='')
+            initial_sync_state='',
+            management_ip='192.168.1.11')
         subcloud2 = utils.create_subcloud_static(
             self.ctx,
             name='subcloud2',
-            initial_sync_state='')
-        subcloud_capabilities = {subcloud1.region_name: base.CAPABILITES,
-                                 subcloud2.region_name: base.CAPABILITES}
+            initial_sync_state='',
+            management_ip='192.168.1.12')
+        subcloud_capabilities = {
+            subcloud1.region_name: (base.CAPABILITES, subcloud1.management_ip),
+            subcloud2.region_name: (base.CAPABILITES, subcloud2.management_ip)
+        }
 
         self.iswm.initial_sync_subclouds(self.ctx, subcloud_capabilities)
 
@@ -217,10 +227,10 @@ class TestInitialSyncWorkerManager(base.OrchestratorTestCase):
         self.mock_thread_start.assert_any_call(self.iswm._initial_sync_subcloud,
                                                mock.ANY,
                                                subcloud1.region_name,
-                                               subcloud_capabilities.get(
-                                                   subcloud1.region_name))
+                                               base.CAPABILITES,
+                                               subcloud1.management_ip)
         self.mock_thread_start.assert_called_with(self.iswm._initial_sync_subcloud,
                                                   mock.ANY,
                                                   subcloud2.region_name,
-                                                  subcloud_capabilities.get(
-                                                      subcloud2.region_name))
+                                                  base.CAPABILITES,
+                                                  subcloud2.management_ip)

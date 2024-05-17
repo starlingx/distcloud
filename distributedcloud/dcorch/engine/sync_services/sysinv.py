@@ -25,6 +25,8 @@ from oslo_utils import timeutils
 
 from dccommon import consts as dccommon_consts
 from dccommon.drivers.openstack import sdk_platform as sdk
+from dccommon.drivers.openstack.sysinv_v1 import SysinvClient
+from dccommon.endpoint_cache import build_subcloud_endpoint
 from dccommon import exceptions as dccommon_exceptions
 from dcorch.common import consts
 from dcorch.common import exceptions
@@ -33,6 +35,7 @@ from dcorch.engine.fernet_key_manager import FERNET_REPO_MASTER_ID
 from dcorch.engine.fernet_key_manager import FernetKeyManager
 from dcorch.engine.sync_thread import AUDIT_RESOURCE_EXTRA
 from dcorch.engine.sync_thread import AUDIT_RESOURCE_MISSING
+from dcorch.engine.sync_thread import get_os_client
 from dcorch.engine.sync_thread import SyncThread
 
 LOG = logging.getLogger(__name__)
@@ -54,9 +57,11 @@ class SysinvSyncThread(SyncThread):
 
     SYNC_CERTIFICATES = ["ssl_ca", "openstack_ca"]
 
-    def __init__(self, subcloud_name, endpoint_type=None, engine_id=None):
+    def __init__(self, subcloud_name, endpoint_type=None, management_ip=None,
+                 engine_id=None):
         super(SysinvSyncThread, self).__init__(subcloud_name,
                                                endpoint_type=endpoint_type,
+                                               management_ip=management_ip,
                                                engine_id=engine_id)
         if not self.endpoint_type:
             self.endpoint_type = dccommon_consts.ENDPOINT_TYPE_PLATFORM
@@ -81,19 +86,37 @@ class SysinvSyncThread(SyncThread):
             consts.RESOURCE_TYPE_SYSINV_FERNET_REPO,
         ]
 
+        self.sc_sysinv_client = None
+
         LOG.info("SysinvSyncThread initialized", extra=self.log_extra)
+
+    def initialize_sc_clients(self):
+        super().initialize_sc_clients()
+
+        sc_sysinv_url = build_subcloud_endpoint(self.management_ip, 'sysinv')
+        LOG.debug(f"Built sc_sysinv_url {sc_sysinv_url} for subcloud "
+                  f"{self.subcloud_name}")
+
+        self.sc_sysinv_client = SysinvClient(
+            region=self.subcloud_name,
+            session=self.sc_admin_session,
+            endpoint=sc_sysinv_url)
+
+    def get_master_sysinv_client(self):
+        return get_os_client(self.master_region_name, ['sysinv']).sysinv_client
+
+    def get_sc_sysinv_client(self):
+        if self.sc_sysinv_client is None:
+            self.initialize_sc_clients()
+        return self.sc_sysinv_client
 
     def sync_platform_resource(self, request, rsrc):
         try:
-            s_os_client = sdk.OpenStackDriver(
-                region_name=self.region_name,
-                thread_name='sync',
-                region_clients=["sysinv"])
             # invoke the sync method for the requested resource_type
             # I.e. sync_idns
             s_func_name = "sync_" + rsrc.resource_type
             LOG.info("Obj:%s, func:%s" % (type(self), s_func_name))
-            getattr(self, s_func_name)(s_os_client, request, rsrc)
+            getattr(self, s_func_name)(self.get_sc_sysinv_client(), request, rsrc)
         except AttributeError:
             LOG.error("{} not implemented for {}"
                       .format(request.orch_job.operation_type,
@@ -121,16 +144,16 @@ class SysinvSyncThread(SyncThread):
             LOG.exception(e)
             raise exceptions.SyncRequestFailedRetry
 
-    def update_dns(self, s_os_client, nameservers):
+    def update_dns(self, sysinv_client, nameservers):
         try:
-            idns = s_os_client.sysinv_client.update_dns(nameservers)
+            idns = sysinv_client.update_dns(nameservers)
             return idns
         except (AttributeError, TypeError) as e:
             LOG.info("update_dns error {}".format(e),
                      extra=self.log_extra)
             raise exceptions.SyncRequestFailedRetry
 
-    def sync_idns(self, s_os_client, request, rsrc):
+    def sync_idns(self, sysinv_client, request, rsrc):
         # The system is created with default dns; thus there
         # is a prepopulated dns entry.
         LOG.info("sync_idns resource_info={}".format(
@@ -158,7 +181,7 @@ class SysinvSyncThread(SyncThread):
                      extra=self.log_extra)
             nameservers = ""
 
-        idns = self.update_dns(s_os_client, nameservers)
+        idns = self.update_dns(sysinv_client, nameservers)
 
         # Ensure subcloud resource is persisted to the DB for later
         subcloud_rsrc_id = self.persist_db_subcloud_resource(
@@ -167,11 +190,11 @@ class SysinvSyncThread(SyncThread):
                  .format(rsrc.id, subcloud_rsrc_id, nameservers),
                  extra=self.log_extra)
 
-    def update_certificate(self, s_os_client, signature,
+    def update_certificate(self, sysinv_client, signature,
                            certificate=None, data=None):
 
         try:
-            icertificate = s_os_client.sysinv_client.update_certificate(
+            icertificate = sysinv_client.update_certificate(
                 signature, certificate=certificate, data=data)
             return icertificate
         except (AttributeError, TypeError) as e:
@@ -210,7 +233,7 @@ class SysinvSyncThread(SyncThread):
             metadata))
         return certificate, metadata
 
-    def create_certificate(self, s_os_client, request, rsrc):
+    def create_certificate(self, sysinv_client, request, rsrc):
         LOG.info("create_certificate resource_info={}".format(
                  request.orch_job.resource_info),
                  extra=self.log_extra)
@@ -249,7 +272,7 @@ class SysinvSyncThread(SyncThread):
         signature = rsrc.master_id
         if signature and signature != self.CERTIFICATE_SIG_NULL:
             icertificate = self.update_certificate(
-                s_os_client,
+                sysinv_client,
                 signature,
                 certificate=certificate,
                 data=metadata)
@@ -269,13 +292,13 @@ class SysinvSyncThread(SyncThread):
                               sub_certs_updated),
                  extra=self.log_extra)
 
-    def delete_certificate(self, s_os_client, request, rsrc):
+    def delete_certificate(self, sysinv_client, request, rsrc):
         subcloud_rsrc = self.get_db_subcloud_resource(rsrc.id)
         if not subcloud_rsrc:
             return
 
         try:
-            certificates = self.get_certificates_resources(s_os_client)
+            certificates = self.get_certificates_resources(sysinv_client)
             cert_to_delete = None
             for certificate in certificates:
                 if certificate.signature == subcloud_rsrc.subcloud_resource_id:
@@ -285,7 +308,7 @@ class SysinvSyncThread(SyncThread):
                 raise dccommon_exceptions.CertificateNotFound(
                     region_name=self.region_name,
                     signature=subcloud_rsrc.subcloud_resource_id)
-            s_os_client.sysinv_client.delete_certificate(cert_to_delete)
+            sysinv_client.delete_certificate(cert_to_delete)
         except dccommon_exceptions.CertificateNotFound:
             # Certificate already deleted in subcloud, carry on.
             LOG.info("Certificate not in subcloud, may be already deleted",
@@ -303,7 +326,7 @@ class SysinvSyncThread(SyncThread):
                  subcloud_rsrc.subcloud_resource_id),
                  extra=self.log_extra)
 
-    def sync_certificates(self, s_os_client, request, rsrc):
+    def sync_certificates(self, sysinv_client, request, rsrc):
         switcher = {
             consts.OPERATION_TYPE_POST: self.create_certificate,
             consts.OPERATION_TYPE_CREATE: self.create_certificate,
@@ -312,7 +335,7 @@ class SysinvSyncThread(SyncThread):
 
         func = switcher[request.orch_job.operation_type]
         try:
-            func(s_os_client, request, rsrc)
+            func(sysinv_client, request, rsrc)
         except (keystone_exceptions.connection.ConnectTimeout,
                 keystone_exceptions.ConnectFailure) as e:
             LOG.info("sync_certificates: subcloud {} is not reachable [{}]"
@@ -326,23 +349,23 @@ class SysinvSyncThread(SyncThread):
             LOG.exception(e)
             raise exceptions.SyncRequestFailedRetry
 
-    def update_user(self, s_os_client, passwd_hash,
+    def update_user(self, sysinv_client, passwd_hash,
                     root_sig, passwd_expiry_days):
         LOG.info("update_user={} {} {}".format(
                  passwd_hash, root_sig, passwd_expiry_days),
                  extra=self.log_extra)
 
         try:
-            iuser = s_os_client.sysinv_client.update_user(passwd_hash,
-                                                          root_sig,
-                                                          passwd_expiry_days)
+            iuser = sysinv_client.update_user(passwd_hash,
+                                              root_sig,
+                                              passwd_expiry_days)
             return iuser
         except (AttributeError, TypeError) as e:
             LOG.info("update_user error {} region_name".format(e),
                      extra=self.log_extra)
             raise exceptions.SyncRequestFailedRetry
 
-    def sync_iuser(self, s_os_client, request, rsrc):
+    def sync_iuser(self, sysinv_client, request, rsrc):
         # The system is populated with user entry for sysadmin.
         LOG.info("sync_user resource_info={}".format(
                  request.orch_job.resource_info),
@@ -375,7 +398,7 @@ class SysinvSyncThread(SyncThread):
                      extra=self.log_extra)
             return
 
-        iuser = self.update_user(s_os_client, passwd_hash, root_sig,
+        iuser = self.update_user(sysinv_client, passwd_hash, root_sig,
                                  passwd_expiry_days)
 
         # Ensure subcloud resource is persisted to the DB for later
@@ -385,7 +408,7 @@ class SysinvSyncThread(SyncThread):
                  .format(rsrc.id, subcloud_rsrc_id, passwd_hash),
                  extra=self.log_extra)
 
-    def sync_fernet_repo(self, s_os_client, request, rsrc):
+    def sync_fernet_repo(self, sysinv_client, request, rsrc):
         switcher = {
             consts.OPERATION_TYPE_PUT: self.update_fernet_repo,
             consts.OPERATION_TYPE_PATCH: self.update_fernet_repo,
@@ -394,7 +417,7 @@ class SysinvSyncThread(SyncThread):
 
         func = switcher[request.orch_job.operation_type]
         try:
-            func(s_os_client, request, rsrc)
+            func(sysinv_client, request, rsrc)
         except (keystone_exceptions.connection.ConnectTimeout,
                 keystone_exceptions.ConnectFailure) as e:
             LOG.info("sync_fernet_resources: subcloud {} is not reachable [{}]"
@@ -405,7 +428,7 @@ class SysinvSyncThread(SyncThread):
             LOG.exception(e)
             raise exceptions.SyncRequestFailedRetry
 
-    def create_fernet_repo(self, s_os_client, request, rsrc):
+    def create_fernet_repo(self, sysinv_client, request, rsrc):
         LOG.info("create_fernet_repo region {} resource_info={}".format(
             self.region_name,
             request.orch_job.resource_info),
@@ -413,7 +436,7 @@ class SysinvSyncThread(SyncThread):
         resource_info = jsonutils.loads(request.orch_job.resource_info)
 
         try:
-            s_os_client.sysinv_client.post_fernet_repo(
+            sysinv_client.post_fernet_repo(
                 FernetKeyManager.from_resource_info(resource_info))
             # Ensure subcloud resource is persisted to the DB for later
             subcloud_rsrc_id = self.persist_db_subcloud_resource(
@@ -427,7 +450,7 @@ class SysinvSyncThread(SyncThread):
                  subcloud_rsrc_id, resource_info),
                  extra=self.log_extra)
 
-    def update_fernet_repo(self, s_os_client, request, rsrc):
+    def update_fernet_repo(self, sysinv_client, request, rsrc):
         LOG.info("update_fernet_repo region {} resource_info={}".format(
             self.region_name,
             request.orch_job.resource_info),
@@ -435,7 +458,7 @@ class SysinvSyncThread(SyncThread):
         resource_info = jsonutils.loads(request.orch_job.resource_info)
 
         try:
-            s_os_client.sysinv_client.put_fernet_repo(
+            sysinv_client.put_fernet_repo(
                 FernetKeyManager.from_resource_info(resource_info))
             # Ensure subcloud resource is persisted to the DB for later
             subcloud_rsrc_id = self.persist_db_subcloud_resource(
@@ -454,18 +477,15 @@ class SysinvSyncThread(SyncThread):
         LOG.debug("get_master_resources thread:{}".format(
             threading.currentThread().getName()), extra=self.log_extra)
         try:
-            os_client = sdk.OpenStackDriver(
-                region_name=dccommon_consts.CLOUD_0,
-                thread_name='audit',
-                region_clients=["sysinv"])
             if resource_type == consts.RESOURCE_TYPE_SYSINV_DNS:
-                return [self.get_dns_resource(os_client)]
+                return [self.get_dns_resource(self.get_master_sysinv_client())]
             elif resource_type == consts.RESOURCE_TYPE_SYSINV_CERTIFICATE:
-                return self.get_certificates_resources(os_client)
+                return self.get_certificates_resources(
+                    self.get_master_sysinv_client())
             elif resource_type == consts.RESOURCE_TYPE_SYSINV_USER:
-                return [self.get_user_resource(os_client)]
+                return [self.get_user_resource(self.get_master_sysinv_client())]
             elif resource_type == consts.RESOURCE_TYPE_SYSINV_FERNET_REPO:
-                return [self.get_fernet_resources(os_client)]
+                return [self.get_fernet_resources(self.get_master_sysinv_client())]
             else:
                 LOG.error("Wrong resource type {}".format(resource_type),
                           extra=self.log_extra)
@@ -478,17 +498,14 @@ class SysinvSyncThread(SyncThread):
         LOG.debug("get_subcloud_resources thread:{}".format(
             threading.currentThread().getName()), extra=self.log_extra)
         try:
-            os_client = sdk.OpenStackDriver(region_name=self.region_name,
-                                            thread_name='audit',
-                                            region_clients=["sysinv"])
             if resource_type == consts.RESOURCE_TYPE_SYSINV_DNS:
-                return [self.get_dns_resource(os_client)]
+                return [self.get_dns_resource(self.get_sc_sysinv_client())]
             elif resource_type == consts.RESOURCE_TYPE_SYSINV_CERTIFICATE:
-                return self.get_certificates_resources(os_client)
+                return self.get_certificates_resources(self.get_sc_sysinv_client())
             elif resource_type == consts.RESOURCE_TYPE_SYSINV_USER:
-                return [self.get_user_resource(os_client)]
+                return [self.get_user_resource(self.get_sc_sysinv_client())]
             elif resource_type == consts.RESOURCE_TYPE_SYSINV_FERNET_REPO:
-                return [self.get_fernet_resources(os_client)]
+                return [self.get_fernet_resources(self.get_sc_sysinv_client())]
             else:
                 LOG.error("Wrong resource type {}".format(resource_type),
                           extra=self.log_extra)
@@ -525,11 +542,11 @@ class SysinvSyncThread(SyncThread):
         sdk.OpenStackDriver.delete_region_clients_for_thread(
             dccommon_consts.CLOUD_0, 'audit')
 
-    def get_dns_resource(self, os_client):
-        return os_client.sysinv_client.get_dns()
+    def get_dns_resource(self, sysinv_client):
+        return sysinv_client.get_dns()
 
-    def get_certificates_resources(self, os_client):
-        certificate_list = os_client.sysinv_client.get_certificates()
+    def get_certificates_resources(self, sysinv_client):
+        certificate_list = sysinv_client.get_certificates()
         # Only sync the specified certificates to subclouds
         filtered_list = [certificate
                          for certificate in certificate_list
@@ -537,11 +554,11 @@ class SysinvSyncThread(SyncThread):
                          self.SYNC_CERTIFICATES]
         return filtered_list
 
-    def get_user_resource(self, os_client):
-        return os_client.sysinv_client.get_user()
+    def get_user_resource(self, sysinv_client):
+        return sysinv_client.get_user()
 
-    def get_fernet_resources(self, os_client):
-        keys = os_client.sysinv_client.get_fernet_keys()
+    def get_fernet_resources(self, sysinv_client):
+        keys = sysinv_client.get_fernet_keys()
         return FernetKeyManager.to_resource_info(keys)
 
     def get_resource_id(self, resource_type, resource):

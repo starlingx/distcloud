@@ -108,9 +108,36 @@ class OrchestratorTestCase(base.BaseTestCase):
         self.addCleanup(mock_patch.stop)
 
     def _mock_openstack_driver(self):
-        mock_patch = \
-            mock.patch('dccommon.drivers.openstack.sdk_platform.OpenStackDriver')
+        mock_patch = mock.patch(
+            'dccommon.drivers.openstack.sdk_platform.OptimizedOpenStackDriver')
         self.mock_openstack_driver = mock_patch.start()
+        self.addCleanup(mock_patch.stop)
+
+    def _mock_keystone_client(self):
+        mock_patch = mock.patch('keystoneclient.client.Client')
+        self.mock_keystone_client = mock_patch.start()
+        self.addCleanup(mock_patch.stop)
+
+    def _mock_endpoint_cache_from_keystone(self):
+        mock_patch = mock.patch(
+            'dccommon.drivers.openstack.keystone_v3.OptimizedEndpointCache')
+        self.mock_endpoint_cache_from_keystone = mock_patch.start()
+        self.addCleanup(mock_patch.stop)
+
+    def _mock_endpoint_cache(self):
+        mock_patch = mock.patch(
+            'dccommon.endpoint_cache.OptimizedEndpointCache')
+        self.mock_endpoint_cache = mock_patch.start()
+        self.addCleanup(mock_patch.stop)
+
+    def _mock_m_dbs_client(self):
+        mock_patch = mock.patch('dcorch.engine.sync_thread.dbsyncclient.Client')
+        self.mock_m_dbs_client = mock_patch.start()
+        self.addCleanup(mock_patch.stop)
+
+    def _mock_sc_dbs_client(self):
+        mock_patch = mock.patch('dcorch.engine.sync_services.identity.Client')
+        self.mock_sc_dbs_client = mock_patch.start()
         self.addCleanup(mock_patch.stop)
 
     def _mock_sysinv_client(self, target):

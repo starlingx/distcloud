@@ -18,14 +18,17 @@ import base64
 from collections import namedtuple
 
 from keystoneauth1 import exceptions as keystone_exceptions
+from keystoneclient import client as keystoneclient
 from oslo_log import log as logging
 from oslo_serialization import jsonutils
 
 from dccommon import consts as dccommon_consts
 from dccommon.drivers.openstack import sdk_platform as sdk
+from dcdbsync.dbsyncclient.client import Client
 from dcdbsync.dbsyncclient import exceptions as dbsync_exceptions
 from dcorch.common import consts
 from dcorch.common import exceptions
+from dcorch.engine.sync_thread import get_os_client
 from dcorch.engine.sync_thread import SyncThread
 from dcorch.objects import resource
 
@@ -35,9 +38,11 @@ LOG = logging.getLogger(__name__)
 class IdentitySyncThread(SyncThread):
     """Manages tasks related to resource management for keystone."""
 
-    def __init__(self, subcloud_name, endpoint_type=None, engine_id=None):
+    def __init__(self, subcloud_name, endpoint_type=None, management_ip=None,
+                 engine_id=None):
         super(IdentitySyncThread, self).__init__(subcloud_name,
                                                  endpoint_type=endpoint_type,
+                                                 management_ip=management_ip,
                                                  engine_id=engine_id)
         self.region_name = subcloud_name
         if not self.endpoint_type:
@@ -85,35 +90,48 @@ class IdentitySyncThread(SyncThread):
                 []
         }
 
+        # Subcloud clients
+        self.sc_ks_client = None
+        self.sc_dbs_client = None
+
         self.log_extra = {"instance": "{}/{}: ".format(
             self.region_name, self.endpoint_type)}
         LOG.info("IdentitySyncThread initialized", extra=self.log_extra)
 
-    @staticmethod
-    def get_os_client(region):
-        try:
-            os_client = sdk.OpenStackDriver(
-                region_name=region,
-                region_clients=['dbsync'])
-        except Exception as e:
-            LOG.error("Failed to get os_client for region {} {}."
-                      .format(region, str(e)))
-            raise e
-        return os_client
+    def initialize_sc_clients(self):
+        super().initialize_sc_clients()
 
-    def get_ks_client(self, region):
-        return self.get_os_client(region).keystone_client.keystone_client
+        self.sc_ks_client = keystoneclient.Client(
+            session=self.sc_admin_session,
+            region_name=self.region_name)
+        self.sc_dbs_client = Client(
+            endpoint_type=consts.DBS_ENDPOINT_ADMIN,
+            session=self.sc_admin_session)
 
-    def get_dbs_client(self, region):
-        return self.get_os_client(region).dbsync_client
+    def get_master_ks_client(self):
+        return get_os_client(self.master_region_name, ['dbsync']).\
+            keystone_client.keystone_client
+
+    def get_master_dbs_client(self):
+        return get_os_client(self.master_region_name, ['dbsync']).dbsync_client
+
+    def get_sc_ks_client(self):
+        if self.sc_ks_client is None:
+            self.initialize_sc_clients()
+        return self.sc_ks_client
+
+    def get_sc_dbs_client(self):
+        if self.sc_dbs_client is None:
+            self.initialize_sc_clients()
+        return self.sc_dbs_client
 
     def _initial_sync_users(self, m_users, sc_users):
         # Particularly sync users with same name but different ID.  admin,
         # sysinv, and dcmanager users are special cases as the id's will match
         # (as this is forced during the subcloud deploy) but the details will
         # not so we still need to sync them here.
-        m_client = self.get_dbs_client(self.master_region_name).identity_user_manager
-        sc_client = self.get_dbs_client(self.region_name).identity_user_manager
+        m_client = self.get_master_dbs_client().identity_user_manager
+        sc_client = self.get_sc_dbs_client().identity_user_manager
 
         for m_user in m_users:
             for sc_user in sc_users:
@@ -140,11 +158,11 @@ class IdentitySyncThread(SyncThread):
                         LOG.info("Update user {} request failed for {}: {}."
                                  .format(sc_user.id,
                                          self.region_name, str(e)))
-                        # Clear the cache so that the old token will not be validated
-                        sdk.OpenStackDriver.delete_region_clients(self.region_name)
+                        # Recreate the subcloud clients so that the token will be
+                        # refreshed
+                        self.initialize_sc_clients()
                         # Retry with a new token
-                        sc_client = self.get_dbs_client(
-                            self.region_name).identity_user_manager
+                        sc_client = self.get_sc_dbs_client().identity_user_manager
                         user_ref = sc_client.update_user(sc_user.id,
                                                          user_records)
                     if not user_ref:
@@ -154,9 +172,8 @@ class IdentitySyncThread(SyncThread):
 
     def _initial_sync_groups(self, m_groups, sc_groups):
         # Particularly sync groups with same name but different ID.
-        m_client = self.get_dbs_client(
-            self.master_region_name).identity_group_manager
-        sc_client = self.get_dbs_client(self.region_name).identity_group_manager
+        m_client = self.get_master_dbs_client().identity_group_manager
+        sc_client = self.get_sc_dbs_client().identity_group_manager
 
         for m_group in m_groups:
             for sc_group in sc_groups:
@@ -179,10 +196,10 @@ class IdentitySyncThread(SyncThread):
                         LOG.info("Update group {} request failed for {}: {}."
                                  .format(sc_group.id,
                                          self.region_name, str(e)))
-                        # Clear the cache so that the old token will not be validated
-                        sdk.OpenStackDriver.delete_region_clients(self.region_name)
-                        sc_client = self.get_dbs_client(
-                            self.region_name).identity_group_manager
+                        # Recreate the subcloud clients so that the token will be
+                        # refreshed
+                        self.initialize_sc_clients()
+                        sc_client = self.get_sc_dbs_client().identity_group_manager
                         group_ref = sc_client.update_group(sc_group.id,
                                                            group_records)
 
@@ -194,8 +211,8 @@ class IdentitySyncThread(SyncThread):
 
     def _initial_sync_projects(self, m_projects, sc_projects):
         # Particularly sync projects with same name but different ID.
-        m_client = self.get_dbs_client(self.master_region_name).project_manager
-        sc_client = self.get_dbs_client(self.region_name).project_manager
+        m_client = self.get_master_dbs_client().project_manager
+        sc_client = self.get_sc_dbs_client().project_manager
 
         for m_project in m_projects:
             for sc_project in sc_projects:
@@ -218,10 +235,10 @@ class IdentitySyncThread(SyncThread):
                         LOG.info("Update project {} request failed for {}: {}."
                                  .format(sc_project.id,
                                          self.region_name, str(e)))
-                        # Clear the cache so that the old token will not be validated
-                        sdk.OpenStackDriver.delete_region_clients(self.region_name)
-                        sc_client = self.get_dbs_client(
-                            self.region_name).project_manager
+                        # Recreate the subcloud clients so that the token will be
+                        # refreshed
+                        self.initialize_sc_clients()
+                        sc_client = self.get_sc_dbs_client().project_manager
                         project_ref = sc_client.update_project(sc_project.id,
                                                                project_records)
 
@@ -233,8 +250,8 @@ class IdentitySyncThread(SyncThread):
 
     def _initial_sync_roles(self, m_roles, sc_roles):
         # Particularly sync roles with same name but different ID
-        m_client = self.get_dbs_client(self.master_region_name).role_manager
-        sc_client = self.get_dbs_client(self.region_name).role_manager
+        m_client = self.get_master_dbs_client().role_manager
+        sc_client = self.get_sc_dbs_client().role_manager
 
         for m_role in m_roles:
             for sc_role in sc_roles:
@@ -257,10 +274,10 @@ class IdentitySyncThread(SyncThread):
                         LOG.info("Update role {} request failed for {}: {}."
                                  .format(sc_role.id,
                                          self.region_name, str(e)))
-                        # Clear the cache so that the old token will not be validated
-                        sdk.OpenStackDriver.delete_region_clients(self.region_name)
-                        sc_client = self.get_dbs_client(
-                            self.region_name).role_manager
+                        # Recreate the subcloud clients so that the token will be
+                        # refreshed
+                        self.initialize_sc_clients()
+                        sc_client = self.get_sc_dbs_client().role_manager
                         role_ref = sc_client.update_role(sc_role.id,
                                                          role_record)
 
@@ -429,7 +446,7 @@ class IdentitySyncThread(SyncThread):
         # Retrieve DB records of the user just created. The records is in JSON
         # format
         try:
-            user_records = self.get_dbs_client(self.master_region_name).\
+            user_records = self.get_master_dbs_client().\
                 identity_user_manager.user_detail(user_id)
         except dbsync_exceptions.Unauthorized:
             raise dbsync_exceptions.UnauthorizedMaster
@@ -440,8 +457,7 @@ class IdentitySyncThread(SyncThread):
             raise exceptions.SyncRequestFailed
 
         # Create the user on subcloud by pushing the DB records to subcloud
-        user_ref = self.get_dbs_client(
-            self.region_name).identity_user_manager.add_user(
+        user_ref = self.get_sc_dbs_client().identity_user_manager.add_user(
             user_records)
         if not user_ref:
             LOG.error("No user data returned when creating user {} in"
@@ -482,7 +498,7 @@ class IdentitySyncThread(SyncThread):
         # Retrieve DB records of the user. The records is in JSON
         # format
         try:
-            user_records = self.get_dbs_client(self.master_region_name).\
+            user_records = self.get_master_dbs_client().\
                 identity_user_manager.user_detail(user_id)
         except dbsync_exceptions.Unauthorized:
             raise dbsync_exceptions.UnauthorizedMaster
@@ -494,8 +510,8 @@ class IdentitySyncThread(SyncThread):
 
         # Update the corresponding user on subcloud by pushing the DB records
         # to subcloud
-        user_ref = self.get_dbs_client(self.region_name).identity_user_manager.\
-            update_user(sc_user_id, user_records)
+        user_ref = self.get_sc_dbs_client().identity_user_manager.update_user(
+            sc_user_id, user_records)
         if not user_ref:
             LOG.error("No user data returned when updating user {} in"
                       " subcloud.".format(sc_user_id), extra=self.log_extra)
@@ -536,9 +552,8 @@ class IdentitySyncThread(SyncThread):
         user_id = user_subcloud_rsrc.subcloud_resource_id
         original_user_ref = UserReferenceWrapper(id=user_id)
 
-        sc_ks_client = self.get_ks_client(self.region_name)
         # Update the user in the subcloud
-        user_ref = sc_ks_client.users.update(
+        user_ref = self.get_sc_ks_client().users.update(
             original_user_ref,
             name=user_update_dict.pop('name', None),
             domain=user_update_dict.pop('domain', None),
@@ -576,8 +591,7 @@ class IdentitySyncThread(SyncThread):
 
         # Delete the user in the subcloud
         try:
-            sc_ks_client = self.get_ks_client(self.region_name)
-            sc_ks_client.users.delete(original_user_ref)
+            self.get_sc_ks_client().users.delete(original_user_ref)
         except keystone_exceptions.NotFound:
             LOG.info("Delete user: user {} not found in {}, "
                      "considered as deleted.".
@@ -608,7 +622,7 @@ class IdentitySyncThread(SyncThread):
         # Retrieve DB records of the group just created. The records is in JSON
         # format
         try:
-            group_records = self.get_dbs_client(self.master_region_name).\
+            group_records = self.get_master_dbs_client().\
                 identity_group_manager.group_detail(group_id)
         except dbsync_exceptions.Unauthorized:
             raise dbsync_exceptions.UnauthorizedMaster
@@ -619,8 +633,7 @@ class IdentitySyncThread(SyncThread):
             raise exceptions.SyncRequestFailed
 
         # Create the group on subcloud by pushing the DB records to subcloud
-        group_ref = self.get_dbs_client(
-            self.region_name).identity_group_manager.add_group(
+        group_ref = self.get_sc_dbs_client().identity_group_manager.add_group(
             group_records)
         if not group_ref:
             LOG.error("No group data returned when creating group {} in"
@@ -661,7 +674,7 @@ class IdentitySyncThread(SyncThread):
         # Retrieve DB records of the group. The records is in JSON
         # format
         try:
-            group_records = self.get_dbs_client(self.master_region_name).\
+            group_records = self.get_master_dbs_client().\
                 identity_group_manager.group_detail(group_id)
         except dbsync_exceptions.Unauthorized:
             raise dbsync_exceptions.UnauthorizedMaster
@@ -673,8 +686,8 @@ class IdentitySyncThread(SyncThread):
 
         # Update the corresponding group on subcloud by pushing the DB records
         # to subcloud
-        group_ref = self.get_dbs_client(self.region_name).identity_group_manager.\
-            update_group(sc_group_id, group_records)
+        group_ref = self.get_sc_dbs_client().identity_group_manager.update_group(
+            sc_group_id, group_records)
         if not group_ref:
             LOG.error("No group data returned when updating group {} in"
                       " subcloud.".format(sc_group_id), extra=self.log_extra)
@@ -715,9 +728,8 @@ class IdentitySyncThread(SyncThread):
         group_id = group_subcloud_rsrc.subcloud_resource_id
         original_group_ref = GroupReferenceWrapper(id=group_id)
 
-        sc_ks_client = self.get_ks_client(self.region_name)
         # Update the group in the subcloud
-        group_ref = sc_ks_client.groups.update(
+        group_ref = self.get_sc_ks_client().groups.update(
             original_group_ref,
             name=group_update_dict.pop('name', None),
             domain=group_update_dict.pop('domain', None),
@@ -750,8 +762,7 @@ class IdentitySyncThread(SyncThread):
 
         # Delete the group in the subcloud
         try:
-            sc_ks_client = self.get_ks_client(self.region_name)
-            sc_ks_client.groups.delete(original_group_ref)
+            self.get_sc_ks_client().groups.delete(original_group_ref)
         except keystone_exceptions.NotFound:
             LOG.info("Delete group: group {} not found in {}, "
                      "considered as deleted.".
@@ -782,9 +793,8 @@ class IdentitySyncThread(SyncThread):
         # Retrieve DB records of the project just created.
         # The records is in JSON format.
         try:
-            m_dbs_client = self.get_dbs_client(self.master_region_name)
-            project_records = m_dbs_client.project_manager.\
-                project_detail(project_id)
+            project_records = self.get_master_dbs_client().\
+                project_manager.project_detail(project_id)
         except dbsync_exceptions.Unauthorized:
             raise dbsync_exceptions.UnauthorizedMaster
         if not project_records:
@@ -794,9 +804,8 @@ class IdentitySyncThread(SyncThread):
             raise exceptions.SyncRequestFailed
 
         # Create the project on subcloud by pushing the DB records to subcloud
-        sc_dbs_client = self.get_dbs_client(self.region_name)
-        project_ref = sc_dbs_client.project_manager.\
-            add_project(project_records)
+        project_ref = self.get_sc_dbs_client().project_manager.add_project(
+            project_records)
         if not project_ref:
             LOG.error("No project data returned when creating project {} in"
                       " subcloud.".format(project_id), extra=self.log_extra)
@@ -836,9 +845,8 @@ class IdentitySyncThread(SyncThread):
         # Retrieve DB records of the project. The records is in JSON
         # format
         try:
-            m_dbs_client = self.get_dbs_client(self.master_region_name)
-            project_records = m_dbs_client.project_manager.\
-                project_detail(project_id)
+            project_records = self.get_master_dbs_client().\
+                project_manager.project_detail(project_id)
         except dbsync_exceptions.Unauthorized:
             raise dbsync_exceptions.UnauthorizedMaster
         if not project_records:
@@ -849,9 +857,8 @@ class IdentitySyncThread(SyncThread):
 
         # Update the corresponding project on subcloud by pushing the DB
         # records to subcloud
-        sc_dbs_client = self.get_dbs_client(self.region_name)
-        project_ref = sc_dbs_client.project_manager.\
-            update_project(sc_project_id, project_records)
+        project_ref = self.get_sc_dbs_client().project_manager.update_project(
+            sc_project_id, project_records)
         if not project_ref:
             LOG.error("No project data returned when updating project {} in"
                       " subcloud.".format(sc_project_id), extra=self.log_extra)
@@ -892,8 +899,7 @@ class IdentitySyncThread(SyncThread):
         original_proj_ref = ProjectReferenceWrapper(id=proj_id)
 
         # Update the project in the subcloud
-        sc_ks_client = self.get_ks_client(self.region_name)
-        project_ref = sc_ks_client.projects.update(
+        project_ref = self.get_sc_ks_client().projects.update(
             original_proj_ref,
             name=project_update_dict.pop('name', None),
             domain=project_update_dict.pop('domain_id', None),
@@ -927,8 +933,7 @@ class IdentitySyncThread(SyncThread):
 
         # Delete the project in the subcloud
         try:
-            sc_ks_client = self.get_ks_client(self.region_name)
-            sc_ks_client.projects.delete(original_proj_ref)
+            self.get_sc_ks_client().projects.delete(original_proj_ref)
         except keystone_exceptions.NotFound:
             LOG.info("Delete project: project {} not found in {}, "
                      "considered as deleted.".
@@ -959,9 +964,8 @@ class IdentitySyncThread(SyncThread):
         # Retrieve DB records of the role just created. The records is in JSON
         # format.
         try:
-            m_dbs_client = self.get_dbs_client(self.master_region_name)
-            role_records = m_dbs_client.role_manager.\
-                role_detail(role_id)
+            role_records = self.get_master_dbs_client().\
+                role_manager.role_detail(role_id)
         except dbsync_exceptions.Unauthorized:
             raise dbsync_exceptions.UnauthorizedMaster
         if not role_records:
@@ -971,8 +975,7 @@ class IdentitySyncThread(SyncThread):
             raise exceptions.SyncRequestFailed
 
         # Create the role on subcloud by pushing the DB records to subcloud
-        sc_dbs_client = self.get_dbs_client(self.region_name)
-        role_ref = sc_dbs_client.role_manager.add_role(role_records)
+        role_ref = self.get_sc_dbs_client().role_manager.add_role(role_records)
         if not role_ref:
             LOG.error("No role data returned when creating role {} in"
                       " subcloud.".format(role_id), extra=self.log_extra)
@@ -1012,8 +1015,8 @@ class IdentitySyncThread(SyncThread):
         # Retrieve DB records of the role. The records is in JSON
         # format
         try:
-            m_dbs_client = self.get_dbs_client(self.master_region_name)
-            role_records = m_dbs_client.role_manager.role_detail(role_id)
+            role_records = self.get_master_dbs_client().\
+                role_manager.role_detail(role_id)
         except dbsync_exceptions.Unauthorized:
             raise dbsync_exceptions.UnauthorizedMaster
         if not role_records:
@@ -1024,9 +1027,8 @@ class IdentitySyncThread(SyncThread):
 
         # Update the corresponding role on subcloud by pushing the DB records
         # to subcloud
-        sc_dbs_client = self.get_dbs_client(self.region_name)
-        role_ref = sc_dbs_client.role_manager.\
-            update_role(sc_role_id, role_records)
+        role_ref = self.get_sc_dbs_client().role_manager.update_role(
+            sc_role_id, role_records)
         if not role_ref:
             LOG.error("No role data returned when updating role {} in"
                       " subcloud.".format(sc_role_id), extra=self.log_extra)
@@ -1067,8 +1069,7 @@ class IdentitySyncThread(SyncThread):
         original_role_ref = RoleReferenceWrapper(id=role_id)
 
         # Update the role in the subcloud
-        sc_ks_client = self.get_ks_client(self.region_name)
-        role_ref = sc_ks_client.roles.update(
+        role_ref = self.get_sc_ks_client().roles.update(
             original_role_ref,
             name=role_update_dict.pop('name', None))
 
@@ -1099,8 +1100,7 @@ class IdentitySyncThread(SyncThread):
 
         # Delete the role in the subcloud
         try:
-            sc_ks_client = self.get_ks_client(self.region_name)
-            sc_ks_client.roles.delete(original_role_ref)
+            self.get_sc_ks_client().roles.delete(original_role_ref)
         except keystone_exceptions.NotFound:
             LOG.info("Delete role: role {} not found in {}, "
                      "considered as deleted.".
@@ -1135,8 +1135,7 @@ class IdentitySyncThread(SyncThread):
         # Ensure that we have already synced the project, user and role
         # prior to syncing the assignment
         sc_role = None
-        sc_ks_client = self.get_ks_client(self.region_name)
-        sc_role_list = sc_ks_client.roles.list()
+        sc_role_list = self.get_sc_ks_client().roles.list()
         for role in sc_role_list:
             if role.id == role_id:
                 sc_role = role
@@ -1150,7 +1149,7 @@ class IdentitySyncThread(SyncThread):
 
         sc_proj = None
         # refresh client in case the token expires in between API calls
-        sc_proj_list = sc_ks_client.projects.list()
+        sc_proj_list = self.get_sc_ks_client().projects.list()
         for proj in sc_proj_list:
             if proj.id == project_id:
                 sc_proj = proj
@@ -1163,13 +1162,13 @@ class IdentitySyncThread(SyncThread):
             raise exceptions.SyncRequestFailed
 
         sc_user = None
-        sc_user_list = self._get_all_users(sc_ks_client)
+        sc_user_list = self._get_all_users(self.get_sc_ks_client())
         for user in sc_user_list:
             if user.id == actor_id:
                 sc_user = user
                 break
         sc_group = None
-        sc_group_list = self._get_all_groups(sc_ks_client)
+        sc_group_list = self._get_all_groups(self.get_sc_ks_client())
         for group in sc_group_list:
             if group.id == actor_id:
                 sc_group = group
@@ -1183,20 +1182,20 @@ class IdentitySyncThread(SyncThread):
 
         # Create role assignment
         if sc_user:
-            sc_ks_client.roles.grant(
+            self.get_sc_ks_client().roles.grant(
                 sc_role,
                 user=sc_user,
                 project=sc_proj)
-            role_ref = sc_ks_client.role_assignments.list(
+            role_ref = self.get_sc_ks_client().role_assignments.list(
                 user=sc_user,
                 project=sc_proj,
                 role=sc_role)
         elif sc_group:
-            sc_ks_client.roles.grant(
+            self.get_sc_ks_client().roles.grant(
                 sc_role,
                 group=sc_group,
                 project=sc_proj)
-            role_ref = sc_ks_client.role_assignments.list(
+            role_ref = self.get_sc_ks_client().role_assignments.list(
                 group=sc_group,
                 project=sc_proj,
                 role=sc_role)
@@ -1254,8 +1253,7 @@ class IdentitySyncThread(SyncThread):
         # Revoke role assignment
         actor = None
         try:
-            sc_ks_client = self.get_ks_client(self.region_name)
-            sc_ks_client.roles.revoke(
+            self.get_sc_ks_client().roles.revoke(
                 role_id,
                 user=actor_id,
                 project=project_id)
@@ -1267,8 +1265,7 @@ class IdentitySyncThread(SyncThread):
                             self.region_name),
                      extra=self.log_extra)
             try:
-                sc_ks_client = self.get_ks_client(self.region_name)
-                sc_ks_client.roles.revoke(
+                self.get_sc_ks_client().roles.revoke(
                     role_id,
                     group=actor_id,
                     project=project_id)
@@ -1282,12 +1279,12 @@ class IdentitySyncThread(SyncThread):
 
         role_ref = None
         if actor == 'user':
-            role_ref = sc_ks_client.role_assignments.list(
+            role_ref = self.get_sc_ks_client().role_assignments.list(
                 user=actor_id,
                 project=project_id,
                 role=role_id)
         elif actor == 'group':
-            role_ref = sc_ks_client.role_assignments.list(
+            role_ref = self.get_sc_ks_client().role_assignments.list(
                 group=actor_id,
                 project=project_id,
                 role=role_id)
@@ -1322,9 +1319,8 @@ class IdentitySyncThread(SyncThread):
         # Retrieve DB records of the revoke event just created. The records
         # is in JSON format.
         try:
-            m_dbs_client = self.get_dbs_client(self.master_region_name)
-            revoke_event_records = m_dbs_client.revoke_event_manager.\
-                revoke_event_detail(audit_id=audit_id)
+            revoke_event_records = self.get_master_dbs_client().\
+                revoke_event_manager.revoke_event_detail(audit_id=audit_id)
         except dbsync_exceptions.Unauthorized:
             raise dbsync_exceptions.UnauthorizedMaster
         if not revoke_event_records:
@@ -1336,8 +1332,7 @@ class IdentitySyncThread(SyncThread):
 
         # Create the revoke event on subcloud by pushing the DB records to
         # subcloud
-        sc_dbs_client = self.get_dbs_client(self.region_name)
-        revoke_event_ref = sc_dbs_client.revoke_event_manager.\
+        revoke_event_ref = self.get_sc_dbs_client().revoke_event_manager.\
             add_revoke_event(revoke_event_records)
         if not revoke_event_ref:
             LOG.error("No token revocation event data returned when creating"
@@ -1365,8 +1360,7 @@ class IdentitySyncThread(SyncThread):
         # subcloud resource id is the audit_id
         subcloud_resource_id = revoke_event_subcloud_rsrc.subcloud_resource_id
         try:
-            sc_dbs_client = self.get_dbs_client(self.region_name)
-            sc_dbs_client.revoke_event_manager.delete_revoke_event(
+            self.get_sc_dbs_client().revoke_event_manager.delete_revoke_event(
                 audit_id=subcloud_resource_id)
         except dbsync_exceptions.NotFound:
             LOG.info("Delete token revocation event: event {} not found in {},"
@@ -1399,9 +1393,8 @@ class IdentitySyncThread(SyncThread):
         # Retrieve DB records of the revoke event just created. The records
         # is in JSON format.
         try:
-            m_dbs_client = self.get_dbs_client(self.master_region_name)
-            revoke_event_records = m_dbs_client.revoke_event_manager.\
-                revoke_event_detail(user_id=event_id)
+            revoke_event_records = self.get_master_dbs_client().\
+                revoke_event_manager.revoke_event_detail(user_id=event_id)
         except dbsync_exceptions.Unauthorized:
             raise dbsync_exceptions.UnauthorizedMaster
         if not revoke_event_records:
@@ -1413,8 +1406,7 @@ class IdentitySyncThread(SyncThread):
 
         # Create the revoke event on subcloud by pushing the DB records to
         # subcloud
-        sc_dbs_client = self.get_dbs_client(self.region_name)
-        revoke_event_ref = sc_dbs_client.revoke_event_manager.\
+        revoke_event_ref = self.get_sc_dbs_client().revoke_event_manager.\
             add_revoke_event(revoke_event_records)
         if not revoke_event_ref:
             LOG.error("No token revocation event data returned when creating"
@@ -1440,8 +1432,7 @@ class IdentitySyncThread(SyncThread):
         # subcloud resource id is <user_id>_<issued_before> encoded in base64
         subcloud_resource_id = revoke_event_subcloud_rsrc.subcloud_resource_id
         try:
-            sc_dbs_client = self.get_dbs_client(self.region_name)
-            sc_dbs_client.revoke_event_manager.delete_revoke_event(
+            self.get_sc_dbs_client().revoke_event_manager.delete_revoke_event(
                 user_id=subcloud_resource_id)
         except dbsync_exceptions.NotFound:
             LOG.info("Delete token revocation event: event {} not found in {},"
@@ -1920,18 +1911,19 @@ class IdentitySyncThread(SyncThread):
             try:
                 return self._get_resource_audit_handler(
                     resource_type,
-                    self.get_dbs_client(self.master_region_name))
+                    self.get_master_dbs_client())
             except dbsync_exceptions.Unauthorized as e:
                 LOG.info("Get master resource [{}] request failed for {}: {}."
                          .format(resource_type,
                                  dccommon_consts.VIRTUAL_MASTER_CLOUD,
                                  str(e)), extra=self.log_extra)
                 # Clear the cache so that the old token will not be validated
-                sdk.OpenStackDriver.delete_region_clients(self.master_region_name)
+                sdk.OptimizedOpenStackDriver.delete_region_clients(
+                    self.master_region_name)
                 # Retry will get a new token
                 return self._get_resource_audit_handler(
                     resource_type,
-                    self.get_dbs_client(self.master_region_name))
+                    self.get_master_dbs_client())
             except Exception as e:
                 LOG.exception(e)
                 return None
@@ -1939,18 +1931,19 @@ class IdentitySyncThread(SyncThread):
             try:
                 return self._get_resource_audit_handler(
                     resource_type,
-                    self.get_ks_client(self.master_region_name))
+                    self.get_master_ks_client())
             except keystone_exceptions.Unauthorized as e:
                 LOG.info("Get master resource [{}] request failed for {}: {}."
                          .format(resource_type,
                                  dccommon_consts.VIRTUAL_MASTER_CLOUD,
                                  str(e)), extra=self.log_extra)
                 # Clear the cache so that the old token will not be validated
-                sdk.OpenStackDriver.delete_region_clients(self.master_region_name)
+                sdk.OptimizedOpenStackDriver.delete_region_clients(
+                    self.master_region_name)
                 # Retry with get a new token
                 return self._get_resource_audit_handler(
                     resource_type,
-                    self.get_ks_client(self.master_region_name))
+                    self.get_master_ks_client())
             except Exception as e:
                 LOG.exception(e)
                 return None
@@ -1963,34 +1956,36 @@ class IdentitySyncThread(SyncThread):
         if self.is_resource_handled_by_dbs_client(resource_type):
             try:
                 return self._get_resource_audit_handler(
-                    resource_type, self.get_dbs_client(self.region_name))
+                    resource_type, self.get_sc_dbs_client())
             except dbsync_exceptions.Unauthorized as e:
                 LOG.info("Get subcloud resource [{}] request failed for {}: {}."
                          .format(resource_type,
                                  self.region_name,
                                  str(e)), extra=self.log_extra)
-                # Clear the cache so that the old token will not be validated
-                sdk.OpenStackDriver.delete_region_clients(self.region_name)
+                # Recreate the subcloud clients so that the token will be
+                # refreshed
+                self.initialize_sc_clients()
                 # Retry with re-authenticated dbsync client
                 return self._get_resource_audit_handler(
-                    resource_type, self.get_dbs_client(self.region_name))
+                    resource_type, self.get_sc_dbs_client())
             except Exception as e:
                 LOG.exception(e)
                 return None
         else:
             try:
                 return self._get_resource_audit_handler(
-                    resource_type, self.get_ks_client(self.region_name))
+                    resource_type, self.get_sc_ks_client())
             except keystone_exceptions.Unauthorized as e:
                 LOG.info("Get subcloud resource [{}] request failed for {}: {}."
                          .format(resource_type,
                                  self.region_name,
                                  str(e)), extra=self.log_extra)
-                # Clear the cache so that the old token will not be validated
-                sdk.OpenStackDriver.delete_region_clients(self.region_name)
+                # Recreate the subcloud clients so that the token will be
+                # refreshed
+                self.initialize_sc_clients()
                 # Retry with re-authenticated ks client
                 return self._get_resource_audit_handler(
-                    resource_type, self.get_ks_client(self.region_name))
+                    resource_type, self.get_sc_ks_client())
             except Exception as e:
                 LOG.exception(e)
                 return None
