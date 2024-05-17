@@ -100,8 +100,10 @@ class TestInitialSyncManager(base.OrchestratorTestCase):
             subcloud = utils.create_subcloud_static(
                 self.ctx,
                 name='subcloud' + str(i),
-                initial_sync_state=consts.INITIAL_SYNC_STATE_REQUESTED)
-            chunks[chunk_num][subcloud.region_name] = base.CAPABILITES
+                initial_sync_state=consts.INITIAL_SYNC_STATE_REQUESTED,
+                management_ip='192.168.1.' + str(i))
+            chunks[chunk_num][subcloud.region_name] = \
+                (base.CAPABILITES, subcloud.management_ip)
 
         ism = initial_sync_manager.InitialSyncManager()
 

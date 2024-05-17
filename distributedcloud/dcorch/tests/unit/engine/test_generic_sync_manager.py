@@ -113,21 +113,24 @@ class TestGenericSyncManager(base.OrchestratorTestCase):
                 name='subcloud' + str(i),
                 management_state=dccommon_consts.MANAGEMENT_MANAGED,
                 availability_status=dccommon_consts.AVAILABILITY_ONLINE,
-                initial_sync_state=consts.INITIAL_SYNC_STATE_COMPLETED)
+                initial_sync_state=consts.INITIAL_SYNC_STATE_COMPLETED,
+                management_ip='10.10.10.' + str(i))
             utils.create_subcloud_sync_static(
                 self.ctx,
                 name='subcloud' + str(i),
                 endpoint_type=dccommon_consts.ENDPOINT_TYPE_IDENTITY,
                 sync_request='requested')
             subcloud_sync_list.append((subcloud.region_name,
-                                       dccommon_consts.ENDPOINT_TYPE_IDENTITY))
+                                       dccommon_consts.ENDPOINT_TYPE_IDENTITY,
+                                       subcloud.management_ip))
             utils.create_subcloud_sync_static(
                 self.ctx,
                 name='subcloud' + str(i),
                 endpoint_type=dccommon_consts.ENDPOINT_TYPE_PLATFORM,
                 sync_request='requested')
             subcloud_sync_list.append((subcloud.region_name,
-                                       dccommon_consts.ENDPOINT_TYPE_PLATFORM))
+                                       dccommon_consts.ENDPOINT_TYPE_PLATFORM,
+                                       subcloud.management_ip))
 
         gsm = generic_sync_manager.GenericSyncManager()
         gsm._process_subclouds = mock.MagicMock()
@@ -193,7 +196,8 @@ class TestGenericSyncManager(base.OrchestratorTestCase):
                 name='subcloud' + str(i),
                 management_state=dccommon_consts.MANAGEMENT_MANAGED,
                 availability_status=dccommon_consts.AVAILABILITY_ONLINE,
-                initial_sync_state=consts.INITIAL_SYNC_STATE_COMPLETED)
+                initial_sync_state=consts.INITIAL_SYNC_STATE_COMPLETED,
+                management_ip='10.10.10.' + str(i))
             last_audit_time = timeutils.utcnow() - \
                 timedelta(seconds=generic_sync_manager.AUDIT_INTERVAL)
             utils.create_subcloud_sync_static(
@@ -203,7 +207,8 @@ class TestGenericSyncManager(base.OrchestratorTestCase):
                 audit_status=consts.AUDIT_STATUS_COMPLETED,
                 last_audit_time=last_audit_time)
             subcloud_sync_list.append((subcloud.region_name,
-                                       dccommon_consts.ENDPOINT_TYPE_IDENTITY))
+                                       dccommon_consts.ENDPOINT_TYPE_IDENTITY,
+                                       subcloud.management_ip))
             utils.create_subcloud_sync_static(
                 self.ctx,
                 name='subcloud' + str(i),
@@ -211,7 +216,8 @@ class TestGenericSyncManager(base.OrchestratorTestCase):
                 audit_status=consts.AUDIT_STATUS_COMPLETED,
                 last_audit_time=last_audit_time)
             subcloud_sync_list.append((subcloud.region_name,
-                                       dccommon_consts.ENDPOINT_TYPE_PLATFORM))
+                                       dccommon_consts.ENDPOINT_TYPE_PLATFORM,
+                                       subcloud.management_ip))
 
         gsm = generic_sync_manager.GenericSyncManager()
         gsm._process_subclouds = mock.MagicMock()

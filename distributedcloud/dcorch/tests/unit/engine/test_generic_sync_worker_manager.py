@@ -15,10 +15,10 @@ from dcorch.tests import base
 from dcorch.tests import utils
 
 SUBCLOUD_SYNC_LIST = [
-    ('subcloud1', dccommon_consts.ENDPOINT_TYPE_IDENTITY),
-    ('subcloud1', dccommon_consts.ENDPOINT_TYPE_PLATFORM),
-    ('subcloud2', dccommon_consts.ENDPOINT_TYPE_IDENTITY),
-    ('subcloud2', dccommon_consts.ENDPOINT_TYPE_PLATFORM)
+    ('subcloud1', dccommon_consts.ENDPOINT_TYPE_IDENTITY, '192.168.1.11'),
+    ('subcloud1', dccommon_consts.ENDPOINT_TYPE_PLATFORM, '192.168.1.11'),
+    ('subcloud2', dccommon_consts.ENDPOINT_TYPE_IDENTITY, '192.168.1.12'),
+    ('subcloud2', dccommon_consts.ENDPOINT_TYPE_PLATFORM, '192.168.1.12')
 ]
 
 
@@ -56,7 +56,8 @@ class TestGenericSyncWorkerManager(base.OrchestratorTestCase):
         self.assertIsNotNone(self.gswm)
 
     def test_create_sync_objects(self):
-        sync_objs = self.gswm.create_sync_objects('subcloud1', base.CAPABILITES)
+        sync_objs = self.gswm.create_sync_objects(
+            'subcloud1', base.CAPABILITES, '192.168.1.11')
 
         # Verify both endpoint types have corresponding sync object
         self.assertEqual(len(sync_objs), 2)
@@ -107,12 +108,13 @@ class TestGenericSyncWorkerManager(base.OrchestratorTestCase):
         self.gswm.sync_subclouds(self.ctx, SUBCLOUD_SYNC_LIST)
 
         # Verify 4 threads started, one for each endpoint_type of a subcloud
-        for subcloud_name, endpoint_type in SUBCLOUD_SYNC_LIST:
+        for subcloud_name, endpoint_type, ip in SUBCLOUD_SYNC_LIST:
             self.mock_thread_start.assert_any_call(
                 self.gswm._sync_subcloud,
                 mock.ANY,
                 subcloud_name,
-                endpoint_type)
+                endpoint_type,
+                ip)
 
     def test_run_sync_audit(self):
         self.gswm._audit_subcloud = mock.MagicMock()
@@ -120,7 +122,7 @@ class TestGenericSyncWorkerManager(base.OrchestratorTestCase):
         self.gswm.run_sync_audit(self.ctx, SUBCLOUD_SYNC_LIST)
 
         # Verify 4 threads started, one for each endpoint_type of a subcloud
-        for subcloud_name, endpoint_type in SUBCLOUD_SYNC_LIST:
+        for subcloud_name, endpoint_type, ip in SUBCLOUD_SYNC_LIST:
             self.mock_thread_start.assert_any_call(
                 self.gswm._audit_subcloud,
                 mock.ANY,

@@ -29,6 +29,11 @@ class BaseTestIdentitySyncThread(OrchestratorTestCase, mixins.BaseMixin):
         super().setUp()
 
         self._mock_openstack_driver()
+        self._mock_keystone_client()
+        self._mock_endpoint_cache_from_keystone()
+        self._mock_endpoint_cache()
+        self._mock_m_dbs_client()
+        self._mock_sc_dbs_client()
         self._mock_rpc_client_subcloud_state_client()
         self._mock_rpc_client_manager()
         self._mock_log(identity_service)
@@ -37,7 +42,7 @@ class BaseTestIdentitySyncThread(OrchestratorTestCase, mixins.BaseMixin):
         self._create_subcloud_and_subcloud_resource()
 
         self.identity_sync_thread = identity_service.IdentitySyncThread(
-            self.subcloud.region_name
+            self.subcloud.region_name, management_ip=self.subcloud.management_ip
         )
 
         self.method = lambda *args: None
@@ -146,7 +151,7 @@ class BaseTestIdentitySyncThreadUsers(BaseTestIdentitySyncThread):
             'local_user': {'name': 'fake value'}
         }
         self.resource_ref_name = self.resource_ref.get('local_user').get('name')
-        self.resource_detail = self.mock_openstack_driver().dbsync_client.\
+        self.resource_detail = self.identity_sync_thread.get_master_dbs_client().\
             identity_user_manager.user_detail
 
 
@@ -159,7 +164,7 @@ class TestIdentitySyncThreadUsersPost(
         super().setUp()
 
         self.method = self.identity_sync_thread.post_users
-        self.resource_add = self.mock_openstack_driver().dbsync_client.\
+        self.resource_add = self.identity_sync_thread.get_sc_dbs_client().\
             identity_user_manager.add_user
 
 
@@ -172,7 +177,7 @@ class TestIdentitySyncThreadUsersPut(
         super().setUp()
 
         self.method = self.identity_sync_thread.put_users
-        self.resource_update = self.mock_openstack_driver().dbsync_client.\
+        self.resource_update = self.identity_sync_thread.get_sc_dbs_client().\
             identity_user_manager.update_user
 
 
@@ -186,8 +191,8 @@ class TestIdentitySyncThreadUsersPatch(
 
         self.method = self.identity_sync_thread.patch_users
         self.request.orch_job.resource_info = f'{{"{self.resource_name}": {{}}}}'
-        self.resource_keystone_update = self.mock_openstack_driver().\
-            keystone_client.keystone_client.users.update
+        self.resource_keystone_update = self.identity_sync_thread.\
+            get_sc_ks_client().users.update
 
 
 class TestIdentitySyncThreadUsersDelete(
@@ -199,8 +204,8 @@ class TestIdentitySyncThreadUsersDelete(
         super().setUp()
 
         self.method = self.identity_sync_thread.delete_users
-        self.resource_keystone_delete = self.mock_openstack_driver().\
-            keystone_client.keystone_client.users.delete
+        self.resource_keystone_delete = self.identity_sync_thread.\
+            get_sc_ks_client().users.delete
 
 
 class BaseTestIdentitySyncThreadGroups(BaseTestIdentitySyncThread):
@@ -214,7 +219,7 @@ class BaseTestIdentitySyncThreadGroups(BaseTestIdentitySyncThread):
             {self.resource_name: {'id': RESOURCE_ID, 'name': 'fake value'}}
         self.resource_ref_name = \
             self.resource_ref.get(self.resource_name).get('name')
-        self.resource_detail = self.mock_openstack_driver().dbsync_client.\
+        self.resource_detail = self.identity_sync_thread.get_master_dbs_client().\
             identity_group_manager.group_detail
 
 
@@ -227,7 +232,7 @@ class TestIdentitySyncThreadGroupsPost(
         super().setUp()
 
         self.method = self.identity_sync_thread.post_groups
-        self.resource_add = self.mock_openstack_driver().dbsync_client.\
+        self.resource_add = self.identity_sync_thread.get_sc_dbs_client().\
             identity_group_manager.add_group
 
 
@@ -240,7 +245,7 @@ class TestIdentitySyncThreadGroupsPut(
         super().setUp()
 
         self.method = self.identity_sync_thread.put_groups
-        self.resource_update = self.mock_openstack_driver().dbsync_client.\
+        self.resource_update = self.identity_sync_thread.get_sc_dbs_client().\
             identity_group_manager.update_group
 
 
@@ -254,8 +259,8 @@ class TestIdentitySyncThreadGroupsPatch(
 
         self.method = self.identity_sync_thread.patch_groups
         self.request.orch_job.resource_info = f'{{"{self.resource_name}": {{}}}}'
-        self.resource_keystone_update = self.mock_openstack_driver().\
-            keystone_client.keystone_client.groups.update
+        self.resource_keystone_update = self.identity_sync_thread.\
+            get_sc_ks_client().groups.update
 
 
 class TestIdentitySyncThreadGroupsDelete(
@@ -267,8 +272,8 @@ class TestIdentitySyncThreadGroupsDelete(
         super().setUp()
 
         self.method = self.identity_sync_thread.delete_groups
-        self.resource_keystone_delete = self.mock_openstack_driver().\
-            keystone_client.keystone_client.groups.delete
+        self.resource_keystone_delete = self.identity_sync_thread.\
+            get_sc_ks_client().groups.delete
 
 
 class BaseTestIdentitySyncThreadProjects(BaseTestIdentitySyncThread):
@@ -283,7 +288,7 @@ class BaseTestIdentitySyncThreadProjects(BaseTestIdentitySyncThread):
         }
         self.resource_ref_name = \
             self.resource_ref.get(self.resource_name).get('name')
-        self.resource_detail = self.mock_openstack_driver().dbsync_client.\
+        self.resource_detail = self.identity_sync_thread.get_master_dbs_client().\
             project_manager.project_detail
 
 
@@ -296,7 +301,7 @@ class TestIdentitySyncThreadProjectsPost(
         super().setUp()
 
         self.method = self.identity_sync_thread.post_projects
-        self.resource_add = self.mock_openstack_driver().dbsync_client.\
+        self.resource_add = self.identity_sync_thread.get_sc_dbs_client().\
             project_manager.add_project
 
 
@@ -309,7 +314,7 @@ class TestIdentitySyncThreadProjectsPut(
         super().setUp()
 
         self.method = self.identity_sync_thread.put_projects
-        self.resource_update = self.mock_openstack_driver().dbsync_client.\
+        self.resource_update = self.identity_sync_thread.get_sc_dbs_client().\
             project_manager.update_project
 
 
@@ -323,8 +328,8 @@ class TestIdentitySyncThreadProjectsPatch(
 
         self.method = self.identity_sync_thread.patch_projects
         self.request.orch_job.resource_info = f'{{"{self.resource_name}": {{}}}}'
-        self.resource_keystone_update = self.mock_openstack_driver().\
-            keystone_client.keystone_client.projects.update
+        self.resource_keystone_update = self.identity_sync_thread.\
+            get_sc_ks_client().projects.update
 
 
 class TestIdentitySyncThreadProjectsDelete(
@@ -336,8 +341,8 @@ class TestIdentitySyncThreadProjectsDelete(
         super().setUp()
 
         self.method = self.identity_sync_thread.delete_projects
-        self.resource_keystone_delete = self.mock_openstack_driver().\
-            keystone_client.keystone_client.projects.delete
+        self.resource_keystone_delete = self.identity_sync_thread.\
+            get_sc_ks_client().projects.delete
 
 
 class BaseTestIdentitySyncThreadRoles(BaseTestIdentitySyncThread):
@@ -352,7 +357,7 @@ class BaseTestIdentitySyncThreadRoles(BaseTestIdentitySyncThread):
         }
         self.resource_ref_name = \
             self.resource_ref.get(self.resource_name).get('name')
-        self.resource_detail = self.mock_openstack_driver().dbsync_client.\
+        self.resource_detail = self.identity_sync_thread.get_master_dbs_client().\
             role_manager.role_detail
 
 
@@ -365,7 +370,7 @@ class TestIdentitySyncThreadRolesPost(
         super().setUp()
 
         self.method = self.identity_sync_thread.post_roles
-        self.resource_add = self.mock_openstack_driver().dbsync_client.\
+        self.resource_add = self.identity_sync_thread.get_sc_dbs_client().\
             role_manager.add_role
 
 
@@ -378,7 +383,7 @@ class TestIdentitySyncThreadRolesPut(
         super().setUp()
 
         self.method = self.identity_sync_thread.put_roles
-        self.resource_update = self.mock_openstack_driver().dbsync_client.\
+        self.resource_update = self.identity_sync_thread.get_sc_dbs_client().\
             role_manager.update_role
 
 
@@ -392,8 +397,8 @@ class TestIdentitySyncThreadRolesPatch(
 
         self.method = self.identity_sync_thread.patch_roles
         self.request.orch_job.resource_info = f'{{"{self.resource_name}": {{}}}}'
-        self.resource_keystone_update = self.mock_openstack_driver().\
-            keystone_client.keystone_client.roles.update
+        self.resource_keystone_update = self.identity_sync_thread.\
+            get_sc_ks_client().roles.update
 
 
 class TestIdentitySyncThreadRolesDelete(
@@ -405,8 +410,8 @@ class TestIdentitySyncThreadRolesDelete(
         super().setUp()
 
         self.method = self.identity_sync_thread.delete_roles
-        self.resource_keystone_delete = self.mock_openstack_driver().\
-            keystone_client.keystone_client.roles.delete
+        self.resource_keystone_delete = self.identity_sync_thread.\
+            get_sc_ks_client().roles.delete
 
 
 class BaseTestIdentitySyncThreadProjectRoleAssignments(BaseTestIdentitySyncThread):
@@ -435,13 +440,13 @@ class TestIdentitySyncThreadProjectRoleAssignmentsPost(
         self.rsrc.master_id = self.resource_tags
 
         self.mock_sc_role = self._create_mock_object(self.role_id)
-        self.mock_openstack_driver().keystone_client.keystone_client.\
+        self.identity_sync_thread.get_sc_ks_client().\
             roles.list.return_value = [self.mock_sc_role]
-        self.mock_openstack_driver().keystone_client.keystone_client.\
+        self.identity_sync_thread.get_sc_ks_client().\
             projects.list.return_value = [self._create_mock_object(self.project_id)]
-        self.mock_openstack_driver().keystone_client.keystone_client.\
+        self.identity_sync_thread.get_sc_ks_client().\
             domains.list.return_value = [self._create_mock_object(self.project_id)]
-        self.mock_openstack_driver().keystone_client.keystone_client.\
+        self.identity_sync_thread.get_sc_ks_client().\
             users.list.return_value = [self._create_mock_object(self.actor_id)]
 
     def _create_mock_object(self, id):
@@ -462,9 +467,9 @@ class TestIdentitySyncThreadProjectRoleAssignmentsPost(
     def test_post_succeeds_with_sc_group(self):
         """Test post succeeds with sc group"""
 
-        self.mock_openstack_driver().keystone_client.keystone_client.\
+        self.identity_sync_thread.get_sc_ks_client().\
             users.list.return_value = []
-        self.mock_openstack_driver().keystone_client.keystone_client.\
+        self.identity_sync_thread.get_sc_ks_client().\
             groups.list.return_value = [self._create_mock_object(self.actor_id)]
 
         self._execute()
@@ -487,7 +492,7 @@ class TestIdentitySyncThreadProjectRoleAssignmentsPost(
     def test_post_fails_without_sc_role(self):
         """Test post fails without sc role"""
 
-        self.mock_openstack_driver().keystone_client.keystone_client.\
+        self.identity_sync_thread.get_sc_ks_client().\
             roles.list.return_value = []
 
         self._execute_and_assert_exception(exceptions.SyncRequestFailed)
@@ -500,7 +505,7 @@ class TestIdentitySyncThreadProjectRoleAssignmentsPost(
     def test_post_fails_without_sc_proj(self):
         """Test post fails without sc proj"""
 
-        self.mock_openstack_driver().keystone_client.keystone_client.\
+        self.identity_sync_thread.get_sc_ks_client().\
             projects.list.return_value = []
 
         self._execute_and_assert_exception(exceptions.SyncRequestFailed)
@@ -513,7 +518,7 @@ class TestIdentitySyncThreadProjectRoleAssignmentsPost(
     def test_post_fails_wihtout_sc_user_and_sc_group(self):
         """Test post fails without sc user and sc group"""
 
-        self.mock_openstack_driver().keystone_client.keystone_client.\
+        self.identity_sync_thread.get_sc_ks_client().\
             users.list.return_value = []
 
         self._execute_and_assert_exception(exceptions.SyncRequestFailed)
@@ -526,7 +531,7 @@ class TestIdentitySyncThreadProjectRoleAssignmentsPost(
     def test_post_fails_without_role_ref(self):
         """Test post fails without role ref"""
 
-        self.mock_openstack_driver().keystone_client.keystone_client.\
+        self.identity_sync_thread.get_sc_ks_client().\
             role_assignments.list.return_value = []
 
         self._execute_and_assert_exception(exceptions.SyncRequestFailed)
@@ -576,7 +581,7 @@ class TestIdentitySyncThreadProjectRoleAssignmentsDelete(
     def test_delete_succeeds(self):
         """Test delete succeeds"""
 
-        self.mock_openstack_driver().keystone_client.keystone_client.\
+        self.identity_sync_thread.get_sc_ks_client().\
             role_assignments.list.return_value = []
 
         self._execute()
@@ -615,9 +620,9 @@ class TestIdentitySyncThreadProjectRoleAssignmentsDelete(
     def test_delete_for_user_succeeds_with_keystone_not_found_exception(self):
         """Test delete fails for user with keystone not found exception"""
 
-        self.mock_openstack_driver().keystone_client.keystone_client.\
+        self.identity_sync_thread.get_sc_ks_client().\
             roles.revoke.side_effect = [keystone_exceptions.NotFound, None]
-        self.mock_openstack_driver().keystone_client.keystone_client.\
+        self.identity_sync_thread.get_sc_ks_client().\
             role_assignments.list.return_value = []
 
         self._execute()
@@ -639,7 +644,7 @@ class TestIdentitySyncThreadProjectRoleAssignmentsDelete(
     def test_delete_for_group_succeeds_with_keystone_not_found_exception(self):
         """Test delete fails for group with keystone not found exception"""
 
-        self.mock_openstack_driver().keystone_client.keystone_client.\
+        self.identity_sync_thread.get_sc_ks_client().\
             roles.revoke.side_effect = keystone_exceptions.NotFound
 
         self._execute()
@@ -681,7 +686,7 @@ class BaseTestIdentitySyncThreadRevokeEvents(BaseTestIdentitySyncThread):
         }
         self.resource_ref_name = \
             self.resource_ref.get('revocation_event').get('name')
-        self.resource_detail = self.mock_openstack_driver().dbsync_client.\
+        self.resource_detail = self.identity_sync_thread.get_master_dbs_client().\
             revoke_event_manager.revoke_event_detail
 
 
@@ -696,7 +701,7 @@ class BaseTestIdentitySyncThreadRevokeEventsPost(
         self.resource_info = {"token_revoke_event": {"audit_id": RESOURCE_ID}}
         self.request.orch_job.resource_info = jsonutils.dumps(self.resource_info)
         self.method = self.identity_sync_thread.post_revoke_events
-        self.resource_add = self.mock_openstack_driver().dbsync_client.\
+        self.resource_add = self.identity_sync_thread.get_sc_dbs_client().\
             revoke_event_manager.add_revoke_event
 
     def test_post_succeeds(self):
@@ -762,8 +767,8 @@ class BaseTestIdentitySyncThreadRevokeEventsDelete(
         super().setUp()
 
         self.method = self.identity_sync_thread.delete_revoke_events
-        self.resource_keystone_delete = self.mock_openstack_driver().dbsync_client.\
-            revoke_event_manager.delete_revoke_event
+        self.resource_keystone_delete = self.identity_sync_thread.\
+            get_sc_dbs_client().revoke_event_manager.delete_revoke_event
 
     def test_delete_succeeds_with_keystone_not_found_exception(self):
         """Test delete succeeds with keystone's not found exception
@@ -810,7 +815,7 @@ class BaseTestIdentitySyncThreadRevokeEventsForUser(BaseTestIdentitySyncThread):
         }
         self.resource_ref_name = \
             self.resource_ref.get('revocation_event').get('name')
-        self.resource_detail = self.mock_openstack_driver().dbsync_client.\
+        self.resource_detail = self.identity_sync_thread.get_master_dbs_client().\
             revoke_event_manager.revoke_event_detail
 
 
@@ -823,7 +828,7 @@ class TestIdentitySyncThreadRevokeEventsForUserPost(
         super().setUp()
 
         self.method = self.identity_sync_thread.post_revoke_events_for_user
-        self.resource_add = self.mock_openstack_driver().dbsync_client.\
+        self.resource_add = self.identity_sync_thread.get_sc_dbs_client().\
             revoke_event_manager.add_revoke_event
 
     def test_post_succeeds(self):
@@ -888,8 +893,8 @@ class TestIdentitySyncThreadRevokeEventsForUserDelete(
         super().setUp()
 
         self.method = self.identity_sync_thread.delete_revoke_events_for_user
-        self.resource_keystone_delete = self.mock_openstack_driver().dbsync_client.\
-            revoke_event_manager.delete_revoke_event
+        self.resource_keystone_delete = self.identity_sync_thread.\
+            get_sc_dbs_client().revoke_event_manager.delete_revoke_event
 
     def test_delete_succeeds_with_keystone_not_found_exception(self):
         """Test delete succeeds with keystone's not found exception
