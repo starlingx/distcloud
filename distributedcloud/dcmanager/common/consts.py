@@ -258,8 +258,8 @@ CONFIG_ERROR_MSG = DEPLOY_STATE_CONFIG_FAILED
 
 ERR_MSG_DICT = {
 
-    BOOTSTRAP_ERROR_MSG: "For bootstrap failures, please delete and re-add "
-                         "the subcloud after the cause of failure has been "
+    BOOTSTRAP_ERROR_MSG: "For bootstrap failures, please use 'dcmanager subcloud "
+                         "deploy resume' after the cause of failure has been "
                          "resolved.",
 
     CONFIG_ERROR_MSG: "For configuration failures, please use dcmanager subcloud "
