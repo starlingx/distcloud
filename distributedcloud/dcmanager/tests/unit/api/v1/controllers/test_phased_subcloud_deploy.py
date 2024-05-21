@@ -1094,3 +1094,46 @@ class TestPhasedSubcloudDeployPatchResume(BaseTestPhasedSubcloudDeployPatch):
             "Unable to resume subcloud deployment"
         )
         self.mock_rpc_client().subcloud_deploy_resume.assert_called_once()
+
+
+class TestPhasedSubcloudDeployPatchEnroll(BaseTestPhasedSubcloudDeployPatch):
+    """Test class for patch requests with enroll verb"""
+    def setUp(self):
+        super().setUp()
+
+        self.url = f"{self.url}/enroll"
+
+        self._update_subcloud(
+            deploy_status=consts.DEPLOY_STATE_CREATED, software_version=SW_VERSION
+        )
+
+        modified_bootstrap_data = copy.copy(fake_subcloud.FAKE_BOOTSTRAP_FILE_DATA)
+        fake_content = json.dumps(modified_bootstrap_data).encode("utf-8")
+
+        self.upload_files = \
+            [("bootstrap_values", "bootstrap_fake_filename", fake_content)]
+
+    def test_patch_enroll_fails(self):
+        """Test patch enroll fails"""
+
+        response = self._send_request()
+
+        self._assert_pecan_and_response(
+            response, http.client.BAD_REQUEST, "subcloud deploy enrollment is not "
+                                               "available yet"
+        )
+
+    def test_patch_enroll_fails_invalid_deploy_status(self):
+        """Test patch enroll fails with invalid deploy status"""
+
+        self._update_subcloud(
+            deploy_status=consts.DEPLOY_STATE_BOOTSTRAPPED
+        )
+
+        response = self._send_request()
+
+        self._assert_pecan_and_response(
+            response, http.client.BAD_REQUEST,
+            "Subcloud deploy status must be either: "
+            f"{', '.join(psd_api.VALID_STATES_FOR_DEPLOY_ENROLL)}"
+        )

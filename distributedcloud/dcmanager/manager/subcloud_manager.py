@@ -845,6 +845,7 @@ class SubcloudManager(manager.Manager):
 
         rehoming = payload.get('migrate', '').lower() == "true"
         secondary = (payload.get('secondary', '').lower() == "true")
+        enroll = payload.get('enroll', '').lower() == "true"
         initial_deployment = True if not rehoming else False
 
         # Create the subcloud
@@ -874,8 +875,11 @@ class SubcloudManager(manager.Manager):
         phases_to_run = []
         if consts.INSTALL_VALUES in payload:
             phases_to_run.append(consts.DEPLOY_PHASE_INSTALL)
-        phases_to_run.append(consts.DEPLOY_PHASE_BOOTSTRAP)
-        if consts.DEPLOY_CONFIG in payload:
+        if enroll and consts.INSTALL_VALUES not in payload:
+            phases_to_run.append(consts.DEPLOY_PHASE_ENROLL)
+        else:
+            phases_to_run.append(consts.DEPLOY_PHASE_BOOTSTRAP)
+        if not enroll and consts.DEPLOY_CONFIG in payload:
             phases_to_run.append(consts.DEPLOY_PHASE_CONFIG)
         else:
             phases_to_run.append(consts.DEPLOY_PHASE_COMPLETE)
@@ -1571,6 +1575,11 @@ class SubcloudManager(manager.Manager):
                 deploy_status=consts.DEPLOY_STATE_PRE_INSTALL_FAILED)
             return False
 
+    def subcloud_deploy_enroll(self, context, subcloud_id, payload,
+                               initial_deployment=False):
+
+        raise NotImplementedError
+
     def subcloud_deploy_bootstrap(self, context, subcloud_id, payload,
                                   initial_deployment=False):
         """Bootstrap subcloud
@@ -2230,6 +2239,9 @@ class SubcloudManager(manager.Manager):
             succeeded = True
             if consts.DEPLOY_PHASE_INSTALL in deploy_phases_to_run:
                 succeeded = self.subcloud_deploy_install(
+                    context, subcloud_id, payload, initial_deployment)
+            if succeeded and consts.DEPLOY_PHASE_ENROLL in deploy_phases_to_run:
+                succeeded = self.subcloud_deploy_enroll(
                     context, subcloud_id, payload, initial_deployment)
             if succeeded and consts.DEPLOY_PHASE_BOOTSTRAP in deploy_phases_to_run:
                 succeeded = self.subcloud_deploy_bootstrap(

@@ -34,6 +34,7 @@ CONFIG = consts.DEPLOY_PHASE_CONFIG
 COMPLETE = consts.DEPLOY_PHASE_COMPLETE
 ABORT = consts.DEPLOY_PHASE_ABORT
 RESUME = consts.DEPLOY_PHASE_RESUME
+ENROLL = consts.DEPLOY_PHASE_ENROLL
 
 SUBCLOUD_CREATE_REQUIRED_PARAMETERS = (
     consts.BOOTSTRAP_VALUES,
@@ -52,6 +53,10 @@ SUBCLOUD_INSTALL_GET_FILE_CONTENTS = (
 )
 
 SUBCLOUD_BOOTSTRAP_GET_FILE_CONTENTS = (
+    consts.BOOTSTRAP_VALUES,
+)
+
+SUBCLOUD_ENROLL_GET_FILE_CONTENTS = (
     consts.BOOTSTRAP_VALUES,
 )
 
@@ -90,6 +95,14 @@ VALID_STATES_FOR_DEPLOY_ABORT = (
     consts.DEPLOY_STATE_INSTALLING,
     consts.DEPLOY_STATE_BOOTSTRAPPING,
     consts.DEPLOY_STATE_CONFIGURING
+)
+
+VALID_STATES_FOR_DEPLOY_ENROLL = (
+    consts.DEPLOY_STATE_CREATED,
+    consts.DEPLOY_STATE_ENROLL_FAILED,
+    consts.DEPLOY_STATE_ENROLLED,
+    consts.DEPLOY_STATE_PRE_ENROLL,
+    consts.DEPLOY_STATE_ENROLLING,
 )
 
 FILES_FOR_RESUME_INSTALL = \
@@ -506,6 +519,41 @@ class PhasedSubcloudDeployController(object):
             LOG.exception("Unable to resume subcloud %s deployment" % subcloud.name)
             pecan.abort(500, _('Unable to resume subcloud deployment'))
 
+    def _deploy_enroll(self, context: RequestContext,
+                       request: pecan.Request, subcloud: models.Subcloud):
+        if subcloud.deploy_status not in VALID_STATES_FOR_DEPLOY_ENROLL:
+            valid_states_str = ', '.join(VALID_STATES_FOR_DEPLOY_ENROLL)
+            msg = f'Subcloud deploy status must be either: {valid_states_str}'
+            pecan.abort(400, _(msg))
+
+        has_bootstrap_values = consts.BOOTSTRAP_VALUES in request.POST
+
+        payload = psd_common.get_request_data(
+            request, subcloud, SUBCLOUD_ENROLL_GET_FILE_CONTENTS)
+
+        psd_common.validate_enroll_parameter(payload, request)
+
+        # Try to load the existing override values
+        override_file = psd_common.get_config_file_path(subcloud.name)
+        if os.path.exists(override_file):
+            if not has_bootstrap_values:
+                psd_common.populate_payload_with_pre_existing_data(
+                    payload, subcloud, SUBCLOUD_BOOTSTRAP_GET_FILE_CONTENTS)
+        elif not has_bootstrap_values:
+            msg = ("Required bootstrap-values file was not provided and it was "
+                   f"not previously available at {override_file}")
+            pecan.abort(400, _(msg))
+
+        payload['software_version'] = subcloud.software_version
+
+        pecan.abort(400, "subcloud deploy enrollment is not "
+                         "available yet")
+
+        return ""
+        # TODO(glyraper): The return is necessary to avoid
+        #  the E1111 while the implementation is not complete
+        # TODO(glyraper): Enroll function in development
+
     @pecan.expose(generic=True, template='json')
     def index(self):
         # Route the request to specific methods with parameters
@@ -555,6 +603,8 @@ class PhasedSubcloudDeployController(object):
             subcloud = self._deploy_config(context, pecan.request, subcloud)
         elif verb == COMPLETE:
             subcloud = self._deploy_complete(context, subcloud)
+        elif verb == ENROLL:
+            subcloud = self._deploy_enroll(context, pecan.request, subcloud)
         else:
             pecan.abort(400, _('Invalid request'))
 
