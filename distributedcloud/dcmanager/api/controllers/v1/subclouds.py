@@ -1156,6 +1156,11 @@ class SubcloudsController(object):
             pecan.abort(400, _('Cannot delete a subcloud that is "managed" '
                                'status'))
 
+        if subcloud.deploy_status in consts.INVALID_DEPLOY_STATES_FOR_DELETE:
+            pecan.abort(400, _(
+                'Cannot delete a subcloud during an active operation.'
+            ))
+
         # Check if the subcloud is part of a peer group
         if peer_group_id is not None and \
                 not utils.is_req_from_another_dc(request):

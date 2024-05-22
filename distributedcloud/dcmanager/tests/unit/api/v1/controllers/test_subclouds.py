@@ -2653,6 +2653,20 @@ class TestSubcloudsDelete(BaseTestSubcloudsController):
             "Cannot delete a subcloud that is \"managed\" status"
         )
 
+    def test_delete_fails_with_invalid_deploy_states(self):
+        """Test delete fails with invalid deploy states"""
+
+        for index, state in \
+                enumerate(consts.INVALID_DEPLOY_STATES_FOR_DELETE, start=1):
+            self._update_subcloud(deploy_status=state)
+
+            response = self._send_request()
+
+            self._assert_pecan_and_response(
+                response, http.client.BAD_REQUEST, 'Cannot delete a subcloud during '
+                'an active operation.', call_count=index
+            )
+
     def test_delete_fails_with_subcloud_in_peer_group(self):
         """Test delete fails with subcloud in peer group"""
 
