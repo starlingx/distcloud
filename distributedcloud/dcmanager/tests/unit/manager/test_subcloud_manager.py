@@ -40,6 +40,7 @@ from dccommon import consts as dccommon_consts
 from dccommon.drivers.openstack import dcmanager_v1
 from dccommon.exceptions import PlaybookExecutionFailed
 from dccommon import kubeoperator
+from dccommon import subcloud_enrollment
 from dccommon import subcloud_install
 from dccommon.utils import AnsiblePlaybook
 from dcmanager.common import consts
@@ -4053,3 +4054,121 @@ class TestSubcloudRename(BaseTestSubcloudManager):
         )
         self.assertEqual(self.new_subcloud_name, ret.name)
         self.assertEqual(self.mock_os_listdir.call_count, 2)
+
+
+class TestSubcloudEnrollment(BaseTestSubcloudManager):
+    """Test class for testing Subcloud Enrollment"""
+
+    def setUp(self):
+        super().setUp()
+        self.rel_version = '24.09'
+        self.subcloud_name = 'test_subcloud'
+        self.iso_dir = (f'/opt/platform/iso/{self.rel_version}/'
+                        f'nodes/{self.subcloud_name}')
+        self.iso_file = f'{self.iso_dir}/seed.iso'
+        self.seed_data_dir = '/temp/seed_data'
+        self.enroll_init = subcloud_enrollment.\
+            SubcloudEnrollmentInit(self.subcloud_name)
+
+        self.iso_values = {
+            'software_version': self.rel_version,
+            'admin_password': 'St8rlingX*',
+            'bootstrap_interface': 'enp2s1',
+            'external_oam_floating_address': '10.10.10.2',
+            'network_mask': '255.255.255.0',
+            'external_oam_gateway_address': '10.10.10.1',
+        }
+
+        mock_run_patch_patch = mock.patch('eventlet.green.subprocess.run')
+        mock_mkdtemp_patch = mock.patch('tempfile.mkdtemp')
+        mock_makedirs_patch = mock.patch('os.makedirs')
+        mock_rmtree_patch = mock.patch('shutil.rmtree')
+
+        self.mock_run = mock_run_patch_patch.start()
+        self.mock_mkdtemp = mock_mkdtemp_patch.start()
+        self.mock_makedirs = mock_makedirs_patch.start()
+        self.mock_rmtree = mock_rmtree_patch.start()
+
+        self.addCleanup(mock_run_patch_patch.stop)
+        self.addCleanup(mock_mkdtemp_patch.stop)
+        self.addCleanup(mock_makedirs_patch.stop)
+        self.addCleanup(mock_rmtree_patch.stop)
+
+        self._mock_builtins_open()
+
+        self.mock_builtins_open.side_effect = mock.mock_open()
+        self.mock_os_path_exists.return_value = True
+        self.mock_mkdtemp.return_value = self.seed_data_dir
+        self.mock_os_path_isdir.return_value = True
+        self.mock_run.return_value = mock.MagicMock(returncode=0,
+                                                    stdout=b'Success')
+
+    def patched_isdir(self, path):
+        return path != self.iso_dir
+
+    def test_build_seed_network_config(self):
+        result = self.enroll_init.build_seed_network_config(self.seed_data_dir,
+                                                            self.iso_values)
+
+        self.assertTrue(result)
+        self.mock_builtins_open.assert_called_once_with(
+            f'{self.seed_data_dir}/network-config',
+            'w')
+
+        # Test with incomplete iso_values, expect KeyError
+        copied_dict = self.iso_values.copy()
+        copied_dict.pop('external_oam_floating_address')
+
+        test_func = lambda: self.enroll_init.build_seed_network_config(
+            self.seed_data_dir,
+            copied_dict)
+
+        self.assertRaises(KeyError, test_func)
+
+    def test_build_seed_user_config(self):
+        result = self.enroll_init.build_seed_user_config(self.seed_data_dir,
+                                                         self.iso_values)
+
+        self.assertTrue(result)
+        self.mock_builtins_open.assert_called_once_with(
+            f'{self.seed_data_dir}/user-data',
+            'w')
+
+        # Test with incomplete iso_values, expect KeyError
+        copied_dict = self.iso_values.copy()
+        copied_dict.pop('admin_password')
+
+        test_func = lambda: self.enroll_init.build_seed_user_config(
+            self.seed_data_dir,
+            copied_dict)
+
+        self.assertRaises(KeyError, test_func)
+
+    def test_generate_seed_iso(self):
+        with mock.patch('os.path.isdir', side_effect=self.patched_isdir):
+            self.assertTrue(self.enroll_init.generate_seed_iso(self.iso_values))
+            # Iso command must be invoked (subprocess.run)
+            self.mock_run.assert_called_once()
+            # Temp seed data dir must be cleaned up
+            self.mock_rmtree.assert_called_once_with(self.seed_data_dir)
+            # Iso dir must be created
+            self.mock_makedirs.assert_called_once()
+            self.assertTrue(self.mock_makedirs.call_args.args[0] == self.iso_dir)
+            # Seed files must be generted in temp seed dir
+            self.mock_builtins_open.assert_any_call(
+                f'{self.seed_data_dir}/network-config',
+                'w')
+            self.mock_builtins_open.assert_any_call(
+                f'{self.seed_data_dir}/user-data',
+                'w')
+
+    def test_generate_seed_iso_pre_exisiting_iso(self):
+        self.assertTrue(self.enroll_init.generate_seed_iso(self.iso_values))
+        # Previous iso file must be cleaned up
+        self.mock_os_remove.assert_called_once_with(self.iso_file)
+        # Makedirs shouldn't be invoked, given that prev iso exisited
+        self.mock_makedirs.assert_not_called()
+        # Iso command must be invoked (subprocess.run)
+        self.mock_run.assert_called_once()
+        # Temp seed data dir must be cleaned up
+        self.mock_rmtree.assert_called_once_with(self.seed_data_dir)
