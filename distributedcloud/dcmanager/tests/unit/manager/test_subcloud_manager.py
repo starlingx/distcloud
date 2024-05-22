@@ -40,6 +40,7 @@ from dccommon import consts as dccommon_consts
 from dccommon.drivers.openstack import dcmanager_v1
 from dccommon.exceptions import PlaybookExecutionFailed
 from dccommon import kubeoperator
+from dccommon import ostree_mount
 from dccommon import subcloud_enrollment
 from dccommon import subcloud_install
 from dccommon.utils import AnsiblePlaybook
@@ -370,6 +371,7 @@ class BaseTestSubcloudManager(base.DCManagerTestCase):
         self._mock_os_path_isdir()
         self._mock_os_path_exists()
         self._mock_os_remove()
+        self._mock_ostree_mount_validate_ostree_iso_mount()
         self._mock_get_local_system()
         self.sm = subcloud_manager.SubcloudManager()
 
@@ -471,6 +473,14 @@ class BaseTestSubcloudManager(base.DCManagerTestCase):
         mock_patch = mock.patch.object(subcloud_manager.SubcloudManager,
                                        '_run_subcloud_install')
         self.mock_run_subcloud_install = mock_patch.start()
+        self.addCleanup(mock_patch.stop)
+
+    def _mock_ostree_mount_validate_ostree_iso_mount(self):
+        """Mock ostree_mount validate_ostree_iso_mount"""
+
+        mock_patch = mock.patch.object(ostree_mount,
+                                       'validate_ostree_iso_mount')
+        self.mock_validate_ostree_iso_mount = mock_patch.start()
         self.addCleanup(mock_patch.stop)
 
     def _mock_subcloud_manager_create_intermediate_ca_cert(self):

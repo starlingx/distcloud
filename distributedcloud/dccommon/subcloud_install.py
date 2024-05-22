@@ -32,6 +32,7 @@ from dccommon import consts
 from dccommon.drivers.openstack.sdk_platform import OpenStackDriver
 from dccommon.drivers.openstack.sysinv_v1 import SysinvClient
 from dccommon import exceptions
+from dccommon import ostree_mount
 from dccommon import utils as dccommon_utils
 from dcmanager.common import consts as dcmanager_consts
 from dcmanager.common import utils
@@ -70,7 +71,7 @@ class SubcloudInstall(object):
                                           session, endpoint=endpoint)
         self.name = subcloud_name
         self.input_iso = None
-        self.www_root = None
+        self.www_iso_root = None
         self.https_enabled = None
         self.ipmi_logger = None
 
@@ -235,10 +236,10 @@ class SubcloudInstall(object):
             raise e
 
     def update_iso(self, override_path, values):
-        if not os.path.isdir(self.www_root):
-            os.mkdir(self.www_root, 0o755)
-        LOG.debug("update_iso: www_root: %s, values: %s, override_path: %s",
-                  self.www_root, str(values), override_path)
+        if not os.path.isdir(self.www_iso_root):
+            os.mkdir(self.www_iso_root, 0o755)
+        LOG.debug("update_iso: www_iso_root: %s, values: %s, override_path: %s",
+                  self.www_iso_root, str(values), override_path)
         path = None
         software_version = str(values['software_version'])
         try:
@@ -283,7 +284,7 @@ class SubcloudInstall(object):
             update_iso_cmd = [
                 GEN_ISO_COMMAND,
                 "--input", self.input_iso,
-                "--www-root", self.www_root,
+                "--www-root", self.www_iso_root,
                 "--id", self.name,
                 "--boot-hostname", self.name,
                 "--timeout", BOOT_MENU_TIMEOUT,
@@ -292,7 +293,7 @@ class SubcloudInstall(object):
             update_iso_cmd = [
                 GEN_ISO_COMMAND_CENTOS,
                 "--input", self.input_iso,
-                "--www-root", self.www_root,
+                "--www-root", self.www_iso_root,
                 "--id", self.name,
                 "--boot-hostname", self.name,
                 "--timeout", BOOT_MENU_TIMEOUT,
@@ -378,19 +379,19 @@ class SubcloudInstall(object):
                 os.path.exists(self.input_iso)):
             os.remove(self.input_iso)
 
-        if (self.www_root is not None and os.path.isdir(self.www_root)):
+        if (self.www_iso_root is not None and os.path.isdir(self.www_iso_root)):
             if dccommon_utils.is_debian(software_version):
                 cleanup_cmd = [
                     GEN_ISO_COMMAND,
                     "--id", self.name,
-                    "--www-root", self.www_root,
+                    "--www-root", self.www_iso_root,
                     "--delete"
                 ]
             else:
                 cleanup_cmd = [
                     GEN_ISO_COMMAND_CENTOS,
                     "--id", self.name,
-                    "--www-root", self.www_root,
+                    "--www-root", self.www_iso_root,
                     "--delete"
                 ]
             LOG.info("Running install cleanup: %s", self.name)
@@ -474,33 +475,6 @@ class SubcloudInstall(object):
             subprocess.check_call(['umount', '-l', temp_bootimage_mnt_dir])
             os.rmdir(temp_bootimage_mnt_dir)
 
-    def check_ostree_mount(self, source_path):
-        """Mount the ostree_repo at ostree_repo_mount_path if necessary.
-
-        Note that ostree_repo is mounted in a location not specific to a
-        subcloud. We never unmount this directory once the mount path is
-        established.
-        """
-        ostree_mount_dir = os.path.join(self.www_root, 'ostree_repo')
-        LOG.debug("Checking mount: %s", ostree_mount_dir)
-        check_path = os.path.join(ostree_mount_dir, 'config')
-        if not os.path.exists(check_path):
-            self._do_ostree_mount(ostree_mount_dir, check_path, source_path)
-
-    # TODO(kmacleod): utils.synchronized should be moved into dccommon
-    @utils.synchronized("ostree-mount-subclouds", external=True)
-    def _do_ostree_mount(self, ostree_repo_mount_path,
-                         check_path, source_path):
-        # check again while locked:
-        if not os.path.exists(check_path):
-            LOG.info("Mounting ostree_repo at %s", ostree_repo_mount_path)
-            if not os.path.exists(ostree_repo_mount_path):
-                os.makedirs(ostree_repo_mount_path, mode=0o755)
-            subprocess.check_call(  # pylint: disable=not-callable
-                ["mount", "--bind",
-                 "%s/ostree_repo" % source_path,
-                 ostree_repo_mount_path])
-
     @staticmethod
     def is_serial_console(install_type):
         return (install_type is not None
@@ -534,19 +508,21 @@ class SubcloudInstall(object):
         if not os.path.isdir(override_path):
             os.mkdir(override_path, 0o755)
 
-        self.www_root = os.path.join(SUBCLOUD_ISO_PATH, software_version)
+        self.www_iso_root = os.path.join(SUBCLOUD_ISO_PATH, software_version)
 
         feed_path_rel_version = os.path.join(SUBCLOUD_FEED_PATH,
                                              "rel-{version}".format(
                                                  version=software_version))
 
         if dccommon_utils.is_debian(software_version):
-            self.check_ostree_mount(feed_path_rel_version)
+            ostree_mount.validate_ostree_iso_mount(
+                self.www_iso_root, feed_path_rel_version
+            )
 
         # Clean up iso directory if it already exists
         # This may happen if a previous installation attempt was abruptly
         # terminated
-        iso_dir_path = os.path.join(self.www_root, 'nodes', self.name)
+        iso_dir_path = os.path.join(self.www_iso_root, 'nodes', self.name)
         if os.path.isdir(iso_dir_path):
             LOG.info("Found preexisting iso dir for subcloud %s, cleaning up",
                      self.name)
