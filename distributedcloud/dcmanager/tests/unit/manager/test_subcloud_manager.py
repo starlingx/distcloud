@@ -2400,8 +2400,8 @@ class TestSubcloudUpdate(BaseTestSubcloudManager):
             ['ansible-playbook', subcloud_manager.ANSIBLE_SUBCLOUD_UPDATE_PLAYBOOK,
              '-i', f'{ANS_PATH}/subcloud1_inventory.yml', '--limit', 'subcloud1',
              '--timeout', '180',
-             '-e',
-             'subcloud_update_overrides={}/subcloud1_update_values.yml'
+             '-e', 'TEST.SW.VERSION',
+             '-e', 'subcloud_update_overrides={}/subcloud1_update_values.yml'
              .format(ANS_PATH)]
         )
 

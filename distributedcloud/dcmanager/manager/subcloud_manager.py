@@ -404,12 +404,16 @@ class SubcloudManager(manager.Manager):
         ]
         return backup_command
 
-    def compose_update_command(self, subcloud_name, ansible_subcloud_inventory_file):
+    def compose_update_command(
+        self, subcloud_name, ansible_subcloud_inventory_file, software_version=None
+    ):
         subcloud_update_command = [
             "ansible-playbook", ANSIBLE_SUBCLOUD_UPDATE_PLAYBOOK,
             "-i", ansible_subcloud_inventory_file,
             "--limit", subcloud_name,
             "--timeout", UPDATE_PLAYBOOK_TIMEOUT,
+            "-e", "install_release_version=%s" %
+                  software_version if software_version else SW_VERSION,
             "-e", "subcloud_update_overrides=%s" % (
                 dccommon_consts.ANSIBLE_OVERRIDES_PATH + "/" + subcloud_name +
                 "_update_values.yml"
@@ -3054,7 +3058,7 @@ class SubcloudManager(manager.Manager):
             overrides_file = self._create_subcloud_update_overrides_file(
                 payload, subcloud_name, 'update_values')
             update_command = self.compose_update_command(
-                subcloud_name, subcloud_inventory_file)
+                subcloud_name, subcloud_inventory_file, subcloud.software_version)
         except Exception:
             LOG.exception(
                 "Failed to prepare subcloud %s for update." % subcloud_name)
