@@ -1,4 +1,4 @@
-# Copyright (c) 2019-2023 Wind River Systems, Inc.
+# Copyright (c) 2019-2024 Wind River Systems, Inc.
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -1605,23 +1605,32 @@ class VmcObject(object):
 
         self._redfish_powerctl_host(POWER_ON)
 
-    def execute(self):
+    def execute(self, excluded_operations=None):
         """The main controller function that executes the iso insertion
 
         algorithm for the specified target object (self)
         """
-        self._redfish_client_connect()
-        self._redfish_root_query()
-        self._redfish_create_session()
-        self._redfish_get_managers()
-        self._redfish_get_systems_members()
-        self._redfish_get_vm_url()
-        self._redfish_load_vm_actions()
-        self._redfish_eject_image()
-        self._redfish_poweroff_host()
-        self._redfish_insert_image()
-        self._redfish_set_boot_override()
-        self._redfish_poweron_host()
+        if excluded_operations is None:
+            excluded_operations = []
+
+        operations = [
+            ("client_connect", self._redfish_client_connect),
+            ("root_query", self._redfish_root_query),
+            ("create_session", self._redfish_create_session),
+            ("get_managers", self._redfish_get_managers),
+            ("get_systems_members", self._redfish_get_systems_members),
+            ("get_vm_url", self._redfish_get_vm_url),
+            ("load_vm_actions", self._redfish_load_vm_actions),
+            ("eject_image", self._redfish_eject_image),
+            ("poweroff_host", self._redfish_poweroff_host),
+            ("insert_image", self._redfish_insert_image),
+            ("set_boot_override", self._redfish_set_boot_override),
+            ("poweron_host", self._redfish_poweron_host),
+        ]
+
+        for name, operation in operations:
+            if name not in excluded_operations:
+                operation()
 
         self.logging_util.ilog("Done")
 

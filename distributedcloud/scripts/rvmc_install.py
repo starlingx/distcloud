@@ -1,7 +1,7 @@
 #!/usr/bin/python3
 ###############################################################################
 #
-# Copyright (c) 2019-2023 Wind River Systems, Inc.
+# Copyright (c) 2019-2024 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -122,6 +122,7 @@ import signal
 import sys
 import time
 
+from dccommon import consts
 from dccommon import rvmc
 
 
@@ -291,7 +292,15 @@ if __name__ == "__main__":
             logging_util.ilog("BMC Target  : %s" % target_object.target)
             logging_util.ilog("BMC IP Addr : %s" % target_object.ip)
             logging_util.ilog("Host Image  : %s" % target_object.img)
-            target_object.execute()
+
+            excluded_operations = []
+            if (os.path.basename(target_object.img) ==
+                    consts.ENROLL_INIT_SEED_ISO_NAME):
+                # If the host image is a seed ISO,
+                # the boot order should not be changed.
+                excluded_operations = ["set_boot_override"]
+
+            target_object.execute(excluded_operations)
         except eventlet.timeout.Timeout as e:
             if e is not script_timeout:
                 raise

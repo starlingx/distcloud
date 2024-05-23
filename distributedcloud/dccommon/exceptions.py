@@ -151,3 +151,7 @@ class RvmcException(Exception):
 
 class RvmcExit(DCCommonException):
     message = _("Rvmc failed with status code: %(rc)d")
+
+
+class EnrollInitExecutionFailed(DCCommonException):
+    message = _("Subcloud enroll init failed. %(reason)s")

@@ -208,3 +208,5 @@ GEN_ISO_OPTIONS = {
 SUPPORTED_INSTALL_TYPES = 6
 ANSIBLE_SUBCLOUD_INSTALL_PLAYBOOK = \
     '/usr/share/ansible/stx-ansible/playbooks/install.yml'
+
+ENROLL_INIT_SEED_ISO_NAME = 'seed.iso'
