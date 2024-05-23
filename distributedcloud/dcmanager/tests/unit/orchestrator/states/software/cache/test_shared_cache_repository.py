@@ -21,23 +21,26 @@ from dcmanager.orchestrator.states.software.cache.shared_cache_repository import
     SharedCacheRepository
 from dcmanager.tests import base
 
-SOFTWARE_CLIENT_QUERY_RETURN = {
-    "stx_23.09.0": {
+SOFTWARE_CLIENT_QUERY_RETURN = [
+    {
         "sw_version": "23.09.0",
         "state": "available",
         "reboot_required": "N",
+        "release_id": "stx_23.09.0",
     },
-    "stx_23.09.1": {
+    {
         "sw_version": "23.09.1",
         "state": "available",
         "reboot_required": "N",
+        "release_id": "stx_23.09.1",
     },
-    "stx_23.09.2": {
+    {
         "sw_version": "23.09.2",
         "state": "unavailable",
         "reboot_required": "N",
-    }
-}
+        "release_id": "stx_23.09.2",
+    },
+]
 
 
 class TestSharedCacheRepository(base.DCManagerTestCase):
@@ -55,7 +58,7 @@ class TestSharedCacheRepository(base.DCManagerTestCase):
         )
         self.shared_cache_repository.initialize_caches()
 
-        self.software_client().query.return_value = SOFTWARE_CLIENT_QUERY_RETURN
+        self.software_client().list.return_value = SOFTWARE_CLIENT_QUERY_RETURN
 
     def _mock_software_client(self):
         mock_patch = mock.patch.object(clients, 'SoftwareClient')
@@ -76,16 +79,16 @@ class TestSharedCacheRepository(base.DCManagerTestCase):
 
         self.mock_sysinv_client().get_system.return_value = 'fake system info'
 
-        response = \
-            self.shared_cache_repository.read(REGION_ONE_SYSTEM_INFO_CACHE_TYPE)
+        response = self.shared_cache_repository.read(
+            REGION_ONE_SYSTEM_INFO_CACHE_TYPE)
 
         self.assertEqual(response, 'fake system info')
 
     def test_read_succeeds_with_release_usm_cache_type(self):
         """Test read cache succeeds when using REGION_ONE_RELEASE_USM_CACHE_TYPE"""
 
-        response = \
-            self.shared_cache_repository.read(REGION_ONE_RELEASE_USM_CACHE_TYPE)
+        response = self.shared_cache_repository.read(
+            REGION_ONE_RELEASE_USM_CACHE_TYPE)
 
         self.assertEqual(response, SOFTWARE_CLIENT_QUERY_RETURN)
 
@@ -101,8 +104,7 @@ class TestSharedCacheRepository(base.DCManagerTestCase):
     def test_read_fails_when_openstack_driver_raises_exception(self):
         """Test read cache fails when the OpenStackDriver raises an Exception"""
 
-        self.mock_openstack_driver.side_effect = \
-            keystone_exceptions.ConnectFailure()
+        self.mock_openstack_driver.side_effect = keystone_exceptions.ConnectFailure()
 
         self.assertRaises(
             keystone_exceptions.ConnectFailure,
@@ -119,7 +121,7 @@ class TestSharedCacheRepository(base.DCManagerTestCase):
         )
 
         expected_response = copy.copy(SOFTWARE_CLIENT_QUERY_RETURN)
-        del expected_response["stx_23.09.2"]
+        del expected_response[2]
 
         self.assertEqual(response, expected_response)
 

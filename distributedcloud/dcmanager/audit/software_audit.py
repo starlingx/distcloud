@@ -93,36 +93,24 @@ class SoftwareAudit(object):
             return None
         # First query RegionOne to determine what releases should be deployed
         # to the system.
-        regionone_releases = software_client.query()
+        regionone_releases = software_client.list()
         LOG.debug(f"regionone_releases: {regionone_releases}")
         # Build lists of releases that should be deployed or committed in all
         # subclouds, based on their state in RegionOne.
         deployed_release_ids = list()
         committed_release_ids = list()
-        for release_id in regionone_releases.keys():
-            if regionone_releases[release_id]["state"] == software_v1.DEPLOYED:
-                deployed_release_ids.append(release_id)
-            elif regionone_releases[release_id]["state"] == software_v1.COMMITTED:
-                committed_release_ids.append(release_id)
+        for release in regionone_releases:
+            if release["state"] == software_v1.DEPLOYED:
+                deployed_release_ids.append(release["release_id"])
+            elif release["state"] == software_v1.COMMITTED:
+                committed_release_ids.append(release["release_id"])
         LOG.debug(f"RegionOne deployed_release_ids: {deployed_release_ids}")
         LOG.debug(f"RegionOne committed_release_ids: {committed_release_ids}")
         return SoftwareAuditData(
             regionone_releases, deployed_release_ids, committed_release_ids
         )
 
-    # TODO(nicodemos): This method will be removed once the USM feature is
-    # fully complete. The USM endpoints are not working properly, so we are
-    # always returning 'in-sync' to avoid regression failures.
-    def subcloud_software_audit(self, subcloud_name, subcloud_region, _audit_data):
-        self._update_subcloud_sync_status(
-            subcloud_name,
-            subcloud_region,
-            dccommon_consts.ENDPOINT_TYPE_SOFTWARE,
-            dccommon_consts.SYNC_STATUS_IN_SYNC,
-        )
-        LOG.info(f"Software audit completed for: {subcloud_name}.")
-
-    def _subcloud_software_audit(self, subcloud_name, subcloud_region, audit_data):
+    def subcloud_software_audit(self, subcloud_name, subcloud_region, audit_data):
         LOG.info(f"Triggered software audit for: {subcloud_name}.")
         try:
             sc_os_client = sdk_platform.OptimizedOpenStackDriver(
@@ -151,7 +139,7 @@ class SoftwareAudit(object):
 
         # Retrieve all the releases that are present in this subcloud.
         try:
-            subcloud_releases = software_client.query()
+            subcloud_releases = software_client.list()
             LOG.debug(f"Releases for subcloud {subcloud_name}: {subcloud_releases}")
         except Exception:
             LOG.warn(
@@ -168,13 +156,14 @@ class SoftwareAudit(object):
         # Check that all releases in this subcloud are in the correct
         # state, based on the state of the release in RegionOne. For the
         # subcloud.
-        for release_id in subcloud_releases.keys():
-            if subcloud_releases[release_id]["state"] == software_v1.DEPLOYED:
+        for release in subcloud_releases:
+            release_id = release.get("release_id")
+            if release["state"] == software_v1.DEPLOYED:
                 if release_id not in audit_data.deployed_release_ids:
                     if release_id not in audit_data.committed_release_ids:
                         LOG.debug(
-                            f"Release {release_id} should not be deployed "
-                            f"in {subcloud_name}."
+                            f"Release {release_id} should not be deployed"
+                            f" in {subcloud_name}."
                         )
                     else:
                         LOG.debug(
@@ -182,7 +171,7 @@ class SoftwareAudit(object):
                             f"in {subcloud_name}."
                         )
                     out_of_sync = True
-            elif subcloud_releases[release_id]["state"] == software_v1.COMMITTED:
+            elif release["state"] == software_v1.COMMITTED:
                 if (
                     release_id not in audit_data.committed_release_ids
                     and release_id not in audit_data.deployed_release_ids
@@ -201,11 +190,15 @@ class SoftwareAudit(object):
         # Check that all deployed or committed releases in RegionOne are
         # present in the subcloud.
         for release_id in audit_data.deployed_release_ids:
-            if release_id not in subcloud_releases:
+            if not any(
+                release["release_id"] == release_id for release in subcloud_releases
+            ):
                 LOG.debug(f"Release {release_id} missing from {subcloud_name}.")
                 out_of_sync = True
         for release_id in audit_data.committed_release_ids:
-            if release_id not in subcloud_releases:
+            if not any(
+                release["release_id"] == release_id for release in subcloud_releases
+            ):
                 LOG.debug(f"Release {release_id} missing from {subcloud_name}.")
                 out_of_sync = True
 

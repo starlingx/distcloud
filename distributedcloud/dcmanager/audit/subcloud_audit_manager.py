@@ -364,7 +364,7 @@ class SubcloudAuditManager(manager.Manager):
             patch_audit_data = self.patch_audit.get_regionone_audit_data()
         if audit_software:
             # Query RegionOne releases
-            software_audit_data = self.patch_audit.get_regionone_audit_data()
+            software_audit_data = self.software_audit.get_regionone_audit_data()
         if audit_firmware:
             # Query RegionOne firmware
             firmware_audit_data = self.firmware_audit.get_regionone_audit_data()
