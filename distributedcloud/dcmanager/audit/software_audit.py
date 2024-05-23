@@ -10,6 +10,7 @@ from oslo_log import log as logging
 from dccommon import consts as dccommon_consts
 from dccommon.drivers.openstack import sdk_platform
 from dccommon.drivers.openstack import software_v1
+from dccommon.endpoint_cache import build_subcloud_endpoint
 from dcmanager.common import utils
 
 LOG = logging.getLogger(__name__)
@@ -110,20 +111,17 @@ class SoftwareAudit(object):
             regionone_releases, deployed_release_ids, committed_release_ids
         )
 
-    def subcloud_software_audit(self, subcloud_name, subcloud_region, audit_data):
+    def subcloud_software_audit(
+        self, keystone_client, subcloud_management_ip, subcloud_name,
+        subcloud_region, audit_data
+    ):
         LOG.info(f"Triggered software audit for: {subcloud_name}.")
         try:
-            sc_os_client = sdk_platform.OptimizedOpenStackDriver(
-                region_name=subcloud_region,
-                region_clients=None,
-                fetch_subcloud_ips=utils.fetch_subcloud_mgmt_ips,
-            ).keystone_client
-            session = sc_os_client.session
-            software_endpoint = sc_os_client.endpoint_cache.get_endpoint(
-                dccommon_consts.ENDPOINT_TYPE_SOFTWARE
+            software_endpoint = build_subcloud_endpoint(
+                subcloud_management_ip, dccommon_consts.ENDPOINT_TYPE_SOFTWARE
             )
             software_client = software_v1.SoftwareClient(
-                subcloud_region, session, endpoint=software_endpoint
+                subcloud_region, keystone_client.session, endpoint=software_endpoint
             )
         except (
             keystone_exceptions.EndpointNotFound,

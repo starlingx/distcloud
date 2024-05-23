@@ -15,7 +15,6 @@
 # limitations under the License.
 #
 
-from keystoneauth1 import exceptions as keystone_exceptions
 from oslo_log import log as logging
 
 from dccommon import consts as dccommon_consts
@@ -236,30 +235,17 @@ class FirmwareAudit(object):
                     return False
         return True
 
-    def subcloud_firmware_audit(self, subcloud_name, subcloud_region, audit_data):
+    def subcloud_firmware_audit(
+        self, sysinv_client, subcloud_name, subcloud_region, audit_data
+    ):
         LOG.info('Triggered firmware audit for: %s.' % subcloud_name)
+
         if not audit_data:
             self._update_subcloud_sync_status(
                 subcloud_name,
                 subcloud_region, dccommon_consts.ENDPOINT_TYPE_FIRMWARE,
                 dccommon_consts.SYNC_STATUS_IN_SYNC)
             LOG.debug('No images to audit, exiting firmware audit')
-            return
-        try:
-            sc_os_client = OpenStackDriver(
-                region_name=subcloud_region,
-                region_clients=None,
-                fetch_subcloud_ips=utils.fetch_subcloud_mgmt_ips,
-            ).keystone_client
-            endpoint = sc_os_client.endpoint_cache.get_endpoint('sysinv')
-            sysinv_client = SysinvClient(subcloud_region, sc_os_client.session,
-                                         endpoint=endpoint)
-        except (keystone_exceptions.EndpointNotFound,
-                keystone_exceptions.ConnectFailure,
-                keystone_exceptions.ConnectTimeout,
-                IndexError):
-            LOG.exception("Endpoint for online subcloud %s not found, skip "
-                          "firmware audit." % subcloud_name)
             return
 
         # Retrieve all the devices that are present in this subcloud.
