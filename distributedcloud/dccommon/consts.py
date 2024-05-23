@@ -210,3 +210,9 @@ ANSIBLE_SUBCLOUD_INSTALL_PLAYBOOK = \
     '/usr/share/ansible/stx-ansible/playbooks/install.yml'
 
 ENROLL_INIT_SEED_ISO_NAME = 'seed.iso'
+
+ANSIBLE_SUBCLOUD_ENROLL_PLAYBOOK = \
+    "/usr/share/ansible/stx-ansible/playbooks/enroll_subcloud.yml"
+
+# Sysinv client default timeout
+SYSINV_CLIENT_REST_DEFAULT_TIMEOUT = 600

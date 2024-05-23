@@ -24,7 +24,6 @@ from oslo_log import log as logging
 from tsconfig.tsconfig import CONFIG_PATH
 
 from dccommon import consts as dccommon_consts
-from dccommon.drivers.openstack import sysinv_v1
 from dcmanager.audit import firmware_audit
 from dcmanager.audit import kube_rootca_update_audit
 from dcmanager.audit import kubernetes_audit
@@ -448,7 +447,7 @@ class SubcloudAuditManager(manager.Manager):
         # an extra audit interval.
         last_audit_fixup_threshold = current_time - datetime.timedelta(
             seconds=(
-                sysinv_v1.SYSINV_CLIENT_REST_DEFAULT_TIMEOUT
+                dccommon_consts.SYSINV_CLIENT_REST_DEFAULT_TIMEOUT
                 + CONF.scheduler.subcloud_audit_interval
             )
         )

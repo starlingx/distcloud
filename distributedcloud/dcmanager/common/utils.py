@@ -36,6 +36,7 @@ from oslo_config import cfg
 from oslo_log import log as logging
 from oslo_serialization import base64
 import pecan
+import requests
 import six.moves
 import tsconfig.tsconfig as tsc
 import yaml
@@ -677,6 +678,9 @@ def is_subcloud_name_format_valid(name):
     return False
 
 
+# TODO(glyraper): Replace get_region_from_subcloud_address()
+#  with get_region_name once all the subclouds support
+#  '/v1/isystems/region_id' API
 def get_region_from_subcloud_address(payload):
     """Retrieves the current region from the subcloud being migrated
 
@@ -761,6 +765,24 @@ def get_region_from_subcloud_address(payload):
     # For new systems the region is uuid format based:
     #   export OS_REGION_NAME=[uuid based region value]
     return (subcloud_region, err_cause)
+
+
+def get_region_name(endpoint,
+                    timeout=dccommon_consts.SYSINV_CLIENT_REST_DEFAULT_TIMEOUT):
+    url = endpoint + '/v1/isystems/region_id'
+    response = requests.get(url, timeout=timeout)
+
+    if response.status_code == 200:
+        data = response.json()
+        if 'region_name' not in data:
+            raise exceptions.NotFound
+
+        region_name = data['region_name']
+        return region_name
+    else:
+        msg = f'GET region_name from {url} FAILED WITH RC {response.status_code}'
+        LOG.error(msg)
+        raise exceptions.ServiceUnavailable
 
 
 def find_ansible_error_msg(subcloud_name, log_file, stage=None):

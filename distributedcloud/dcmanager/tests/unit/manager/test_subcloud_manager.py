@@ -384,8 +384,11 @@ class BaseTestSubcloudManager(base.DCManagerTestCase):
         self.peer_group = self.create_subcloud_peer_group_static(self.ctx)
 
         self.mock_keyring.get_password.return_value = "testpassword"
-        self.fake_install_values = \
-            copy.copy(fake_subcloud.FAKE_SUBCLOUD_INSTALL_VALUES)
+        self.fake_install_values = copy.copy(
+            fake_subcloud.FAKE_SUBCLOUD_INSTALL_VALUES)
+        self.fake_bootstrap_values = copy.copy(
+            fake_subcloud.FAKE_BOOTSTRAP_FILE_DATA)
+
         self.fake_payload = {"sysadmin_password": "testpass",
                              "deploy_playbook": "test_playbook.yaml",
                              "deploy_overrides": "test_overrides.yaml",
@@ -395,9 +398,28 @@ class BaseTestSubcloudManager(base.DCManagerTestCase):
                                      'install_values': self.fake_install_values,
                                      'software_version': SW_VERSION,
                                      'sysadmin_password': 'sys_pass'}
+        self.fake_payload_enroll = {'bmc_password': 'bmc_pass',
+                                    'install_values': self.fake_install_values,
+                                    'software_version': SW_VERSION,
+                                    'sysadmin_password': 'sys_pass',
+                                    'admin_password': 'sys_pass'
+                                    }
+        self.fake_payload_enroll = dict(self.fake_payload_enroll,
+                                        **self.fake_bootstrap_values,
+                                        **self.fake_install_values)
+
+        rel_version = self.fake_payload_enroll.get('software_version')
+
+        self.iso_dir = (f'/opt/platform/iso/{rel_version}/'
+                        f'nodes/{self.subcloud.name}')
+        self.iso_file = f'{self.iso_dir}/seed.iso'
+
         # Reset the regionone_data cache between tests
         subcloud_manager.SubcloudManager.regionone_data = \
             collections.defaultdict(dict)
+
+    def patched_isdir(self, path):
+        return path != self.iso_dir
 
     def _mock_dcorch_api(self):
         """Mock the DCOrch API"""
@@ -481,6 +503,13 @@ class BaseTestSubcloudManager(base.DCManagerTestCase):
         mock_patch = mock.patch.object(ostree_mount,
                                        'validate_ostree_iso_mount')
         self.mock_validate_ostree_iso_mount = mock_patch.start()
+
+    def _mock_subcloud_manager_run_subcloud_enroll(self):
+        """Mock subcloud manager's _run_subcloud_enroll"""
+
+        mock_patch = mock.patch.object(subcloud_manager.SubcloudManager,
+                                       '_run_subcloud_enroll')
+        self.mock_run_subcloud_enroll = mock_patch.start()
         self.addCleanup(mock_patch.stop)
 
     def _mock_subcloud_manager_create_intermediate_ca_cert(self):
@@ -497,6 +526,14 @@ class BaseTestSubcloudManager(base.DCManagerTestCase):
         mock_patch = mock.patch.object(subcloud_manager.SubcloudManager,
                                        'compose_install_command')
         self.mock_compose_install_command = mock_patch.start()
+        self.addCleanup(mock_patch.stop)
+
+    def _mock_subcloud_manager_compose_enroll_command(self):
+        """Mock subcloud manager compose_enroll_command"""
+
+        mock_patch = mock.patch.object(subcloud_manager.SubcloudManager,
+                                       'compose_enroll_command')
+        self.mock_compose_enroll_command = mock_patch.start()
         self.addCleanup(mock_patch.stop)
 
     def _mock_netaddr_ipaddress(self):
@@ -1246,6 +1283,139 @@ class TestSubcloudDeploy(BaseTestSubcloudManager):
             self.ctx, self.subcloud.region_name
         )
         self.assertEqual(consts.DEPLOY_STATE_DONE, ret.deploy_status)
+
+    @mock.patch.object(cutils, 'get_region_name')
+    @mock.patch.object(subcloud_enrollment.SubcloudEnrollmentInit, 'prep')
+    def test_deploy_subcloud_enroll(
+            self, mock_subcloud_enrollment_prep, mock_get_region_name):
+
+        mock_run_patch_patch = mock.patch('eventlet.green.subprocess.run')
+        mock_mkdtemp_patch = mock.patch('tempfile.mkdtemp')
+        mock_makedirs_patch = mock.patch('os.makedirs')
+        mock_rmtree_patch = mock.patch('shutil.rmtree')
+
+        self.seed_data_dir = '/temp/seed_data'
+        mock_get_region_name.return_value = '11111'
+
+        self.mock_run = mock_run_patch_patch.start()
+        self.mock_mkdtemp = mock_mkdtemp_patch.start()
+        self.mock_makedirs = mock_makedirs_patch.start()
+        self.mock_rmtree = mock_rmtree_patch.start()
+
+        self.addCleanup(mock_run_patch_patch.stop)
+        self.addCleanup(mock_mkdtemp_patch.stop)
+        self.addCleanup(mock_makedirs_patch.stop)
+        self.addCleanup(mock_rmtree_patch.stop)
+
+        self._mock_builtins_open()
+
+        self.mock_builtins_open.side_effect = mock.mock_open()
+        self.mock_os_path_exists.return_value = True
+        self.mock_mkdtemp.return_value = self.seed_data_dir
+        self.mock_os_path_isdir.return_value = True
+        self.mock_run.return_value = mock.MagicMock(returncode=0,
+                                                    stdout=b'Success')
+
+        self._mock_subcloud_manager_compose_enroll_command()
+        self.fake_payload_enroll['software_version'] = FAKE_PREVIOUS_SW_VERSION
+        self.subcloud['deploy_status'] = consts.DEPLOY_STATE_PRE_INIT_ENROLL
+        self.fake_payload_enroll['software_version'] = SW_VERSION
+
+        with mock.patch('os.path.isdir', side_effect=self.patched_isdir):
+            self.sm.subcloud_deploy_enroll(
+                self.ctx, self.subcloud.id, payload=self.fake_payload_enroll)
+
+            # Verify subcloud was updated with correct values
+            updated_subcloud = db_api.subcloud_get_by_name(self.ctx,
+                                                           self.subcloud.name)
+            self.assertEqual(consts.DEPLOY_STATE_ENROLLED,
+                             updated_subcloud.deploy_status)
+
+    @mock.patch.object(subcloud_enrollment.SubcloudEnrollmentInit,
+                       'prep')
+    @mock.patch.object(subcloud_manager.SubcloudManager,
+                       '_deploy_install_prep')
+    def test_subcloud_deploy_pre_init_enroll_failed(
+            self, mock_deploy_install_prep, mock_subcloud_enrollment_prep):
+
+        mock_deploy_install_prep.side_effect = base.FakeException('boom')
+
+        subcloud = fake_subcloud.create_fake_subcloud(
+            self.ctx,
+            name=fake_subcloud.FAKE_BOOTSTRAP_FILE_DATA["name"],
+            deploy_status=consts.DEPLOY_STATE_CREATED,
+            data_install=json.dumps(self.fake_payload_enroll['install_values'])
+        )
+
+        self.sm.subcloud_init_enroll(
+            self.ctx, subcloud.id, self.fake_payload_enroll)
+
+        # Verify subcloud was updated with correct values
+        updated_subcloud = db_api.subcloud_get_by_name(self.ctx,
+                                                       self.payload['name'])
+
+        self.assertEqual(consts.DEPLOY_STATE_PRE_INIT_ENROLL_FAILED,
+                         updated_subcloud.deploy_status)
+
+    @mock.patch.object(subcloud_enrollment.SubcloudEnrollmentInit,
+                       'prep')
+    @mock.patch.object(subcloud_manager.SubcloudManager,
+                       '_create_subcloud_endpoints')
+    def test_subcloud_deploy_enroll_failed(
+            self, mock_create_subcloud_endpoints, mock_subcloud_enrollment_prep):
+        mock_create_subcloud_endpoints.side_effect = base.FakeException('boom')
+
+        subcloud = fake_subcloud.create_fake_subcloud(
+            self.ctx,
+            name=fake_subcloud.FAKE_BOOTSTRAP_FILE_DATA["name"],
+            deploy_status=consts.DEPLOY_STATE_INIT_ENROLL_COMPLETE,
+            data_install=json.dumps(self.fake_payload_enroll['install_values'])
+        )
+
+        self.sm.subcloud_deploy_enroll(
+            self.ctx, subcloud.id, self.fake_payload_enroll)
+
+        # Verify subcloud was updated with correct values
+        updated_subcloud = db_api.subcloud_get_by_name(self.ctx,
+                                                       self.payload['name'])
+
+        self.assertEqual(consts.DEPLOY_STATE_PRE_ENROLL_FAILED,
+                         updated_subcloud.deploy_status)
+
+    @mock.patch.object(subcloud_enrollment.SubcloudEnrollmentInit,
+                       'prep')
+    @mock.patch.object(cutils, 'get_region_name')
+    def test_subcloud_deploy_enroll_run_playbook_failed(
+            self, mock_get_region_name, mock_subcloud_enrollment_prep):
+
+        self.mock_ansible_run_playbook.side_effect = PlaybookExecutionFailed()
+        mock_get_region_name.return_value = "11111"
+
+        subcloud = fake_subcloud.create_fake_subcloud(
+            self.ctx,
+            name=fake_subcloud.FAKE_BOOTSTRAP_FILE_DATA["name"],
+            deploy_status=consts.DEPLOY_STATE_PRE_ENROLL_COMPLETE,
+            data_install=json.dumps(self.fake_payload_enroll['install_values'])
+        )
+
+        self.sm.subcloud_deploy_enroll(
+            self.ctx, subcloud.id, self.fake_payload_enroll)
+
+        self.mock_ansible_run_playbook.assert_called_once()
+
+        # Verify subcloud was updated with correct values
+        updated_subcloud = db_api.subcloud_get_by_name(self.ctx,
+                                                       self.payload['name'])
+        self.assertEqual(consts.DEPLOY_STATE_ENROLL_FAILED,
+                         updated_subcloud.deploy_status)
+        # Verify the subcloud rehomed flag is False after bootstrapped
+        self.assertFalse(updated_subcloud.rehomed)
+        self.mock_log.error.assert_called_once_with(
+            'Enroll failed for subcloud fake subcloud1: '
+            'FAILED enrolling playbook of (fake subcloud1).'
+            '\ncheck individual log at '
+            '/var/log/dcmanager/ansible/fake '
+            'subcloud1_playbook_output.log for detailed output ')
 
 
 class TestSubcloudAdd(BaseTestSubcloudManager):
@@ -4082,6 +4252,8 @@ class TestSubcloudEnrollment(BaseTestSubcloudManager):
         self.seed_data_dir = '/temp/seed_data'
         self.enroll_init = subcloud_enrollment.\
             SubcloudEnrollmentInit(self.subcloud_name)
+        self.fake_install_values = \
+            copy.copy(fake_subcloud.FAKE_SUBCLOUD_INSTALL_VALUES)
 
         self.iso_values = {
             'software_version': self.rel_version,
@@ -4090,6 +4262,7 @@ class TestSubcloudEnrollment(BaseTestSubcloudManager):
             'external_oam_floating_address': '10.10.10.2',
             'network_mask': '255.255.255.0',
             'external_oam_gateway_address': '10.10.10.1',
+            'install_values': self.fake_install_values
         }
 
         mock_run_patch_patch = mock.patch('eventlet.green.subprocess.run')

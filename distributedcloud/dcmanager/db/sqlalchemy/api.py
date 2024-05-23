@@ -443,7 +443,8 @@ def subcloud_update(context, subcloud_id, management_state=None,
                     systemcontroller_gateway_ip=None,
                     peer_group_id=None,
                     rehome_data=None, rehomed=None,
-                    prestage_status=None, prestage_versions=None):
+                    prestage_status=None, prestage_versions=None,
+                    region_name=None):
     with write_session() as session:
         subcloud_ref = subcloud_get(context, subcloud_id)
         if management_state is not None:
@@ -502,6 +503,8 @@ def subcloud_update(context, subcloud_id, management_state=None,
             subcloud_ref.prestage_status = prestage_status
         if prestage_versions is not None:
             subcloud_ref.prestage_versions = prestage_versions
+        if region_name is not None:
+            subcloud_ref.region_name = region_name
         subcloud_ref.save(session)
         return subcloud_ref
 

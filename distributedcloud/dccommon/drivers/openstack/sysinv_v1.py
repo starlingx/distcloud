@@ -100,8 +100,6 @@ KUBE_ROOTCA_UPDATING_HOST_TRUSTNEWCA_FAILED = 'updating-host-trust-new-ca-failed
 # by dcmanager upgrade orchestration for the load import operations.
 HOST_FS_NAME_SCRATCH = 'scratch'
 
-SYSINV_CLIENT_REST_DEFAULT_TIMEOUT = 600
-
 
 def make_sysinv_patch(update_dict):
     patch = []
@@ -122,7 +120,7 @@ class SysinvClient(base.DriverBase):
     """Sysinv V1 driver."""
 
     def __init__(self, region, session,
-                 timeout=SYSINV_CLIENT_REST_DEFAULT_TIMEOUT,
+                 timeout=consts.SYSINV_CLIENT_REST_DEFAULT_TIMEOUT,
                  endpoint_type=consts.KS_ENDPOINT_ADMIN,
                  endpoint=None):
         try:

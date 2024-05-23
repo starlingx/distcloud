@@ -58,6 +58,7 @@ SUBCLOUD_BOOTSTRAP_GET_FILE_CONTENTS = (
 
 SUBCLOUD_ENROLL_GET_FILE_CONTENTS = (
     consts.BOOTSTRAP_VALUES,
+    consts.INSTALL_VALUES
 )
 
 SUBCLOUD_CONFIG_GET_FILE_CONTENTS = (
@@ -102,7 +103,7 @@ VALID_STATES_FOR_DEPLOY_ENROLL = (
     consts.DEPLOY_STATE_ENROLL_FAILED,
     consts.DEPLOY_STATE_ENROLLED,
     consts.DEPLOY_STATE_PRE_ENROLL,
-    consts.DEPLOY_STATE_ENROLLING,
+    consts.DEPLOY_STATE_INIT_ENROLL_FAILED
 )
 
 FILES_FOR_RESUME_INSTALL = \
@@ -531,20 +532,27 @@ class PhasedSubcloudDeployController(object):
         payload = psd_common.get_request_data(
             request, subcloud, SUBCLOUD_ENROLL_GET_FILE_CONTENTS)
 
-        psd_common.validate_enroll_parameter(payload, request)
-
         # Try to load the existing override values
         override_file = psd_common.get_config_file_path(subcloud.name)
         if os.path.exists(override_file):
             if not has_bootstrap_values:
                 psd_common.populate_payload_with_pre_existing_data(
-                    payload, subcloud, SUBCLOUD_BOOTSTRAP_GET_FILE_CONTENTS)
+                    payload, subcloud, SUBCLOUD_ENROLL_GET_FILE_CONTENTS)
         elif not has_bootstrap_values:
             msg = ("Required bootstrap-values file was not provided and it was "
                    f"not previously available at {override_file}")
             pecan.abort(400, _(msg))
 
+        psd_common.validate_enroll_parameter(payload)
+
         payload['software_version'] = subcloud.software_version
+
+        # Use bootstrap file verification
+        psd_common.pre_deploy_bootstrap(context, payload, subcloud,
+                                        has_bootstrap_values)
+
+        self.dcmanager_rpc_client.subcloud_deploy_enroll(
+            context, subcloud.id, payload)
 
         pecan.abort(400, "subcloud deploy enrollment is not "
                          "available yet")

@@ -221,6 +221,11 @@ class ManagerClient(RPCClient):
                                              payload=payload,
                                              initial_deployment=initial_deployment))
 
+    def subcloud_deploy_enroll(self, ctxt, subcloud_id, payload):
+        return self.cast(ctxt, self.make_msg('subcloud_deploy_enroll',
+                                             subcloud_id=subcloud_id,
+                                             payload=payload))
+
     def subcloud_deploy_bootstrap(self, ctxt, subcloud_id, payload,
                                   initial_deployment):
         return self.cast(ctxt, self.make_msg('subcloud_deploy_bootstrap',
