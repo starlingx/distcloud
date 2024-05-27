@@ -927,21 +927,26 @@ class TestPhasedSubcloudDeployPatchResume(BaseTestPhasedSubcloudDeployPatch):
             "deploy_playbook_fake.yaml"
         ]
 
-    def _setup_mock_get_request_data(self):
+    def _setup_mock_get_request_data(self, states_to_execute=psd_api.DEPLOY_PHASES):
         bootstrap_request = {
             "bootstrap_values": fake_subcloud.FAKE_BOOTSTRAP_FILE_DATA
         }
         config_request = {
             "deploy_config": "deploy config values",
-            "sysadmin_password": self._create_password("testpass")
         }
-        self.resume_request = {
-            **self.install_payload, **bootstrap_request, **config_request
-        }
-        self.resume_payload = {
-            **self.install_payload, **fake_subcloud.FAKE_BOOTSTRAP_FILE_DATA,
-            **config_request
-        }
+
+        self.resume_request = {"sysadmin_password": self._create_password()}
+
+        for state in states_to_execute:
+            if state == psd_api.INSTALL:
+                self.resume_request.update(self.install_payload)
+            if state == psd_api.BOOTSTRAP:
+                self.resume_request.update(bootstrap_request)
+            if state == psd_api.CONFIG:
+                self.resume_request.update(config_request)
+
+        self.resume_payload = self.resume_request
+        self.resume_payload.update(fake_subcloud.FAKE_BOOTSTRAP_FILE_DATA)
 
         self.params = self.resume_request
         self.mock_get_request_data.return_value = self.resume_payload
@@ -966,7 +971,7 @@ class TestPhasedSubcloudDeployPatchResume(BaseTestPhasedSubcloudDeployPatch):
         for index, state in enumerate(psd_api.RESUMABLE_STATES, start=1):
             self._update_subcloud(deploy_status=state)
 
-            self._setup_mock_get_request_data()
+            self._setup_mock_get_request_data(psd_api.RESUMABLE_STATES[state])
 
             response = self._send_request()
 
@@ -1048,6 +1053,44 @@ class TestPhasedSubcloudDeployPatchResume(BaseTestPhasedSubcloudDeployPatch):
             self._assert_response_payload(response)
             self.assertEqual(
                 self.mock_rpc_client().subcloud_deploy_resume.call_count, index
+            )
+
+    def test_patch_resume_fails_with_invalid_files_received(self):
+        """Test patch resume fails with invalid files received
+
+        When a subcloud is in a bootstrap-failed state, for example, it is expected
+        that only the bootstrap values and config values are provided. If the install
+        values is received, the execution should abort.
+        The same applies to other states and the respective files they should not
+        receive.
+        """
+
+        skipped_count = 0
+
+        for index, state in enumerate(psd_api.RESUMABLE_STATES, start=1):
+            self._update_subcloud(deploy_status=state)
+
+            states_executed = list(
+                set(psd_api.DEPLOY_PHASES) - set(psd_api.RESUMABLE_STATES[state])
+            )
+
+            # If there isn't any executed state, all files are accepted so there
+            # isn't a validation to perform
+            if not states_executed:
+                skipped_count += 1
+                continue
+
+            # Always set up the mock with only one executed state to ensure that
+            # pecan raises the correct error message
+            self._setup_mock_get_request_data([states_executed[0]])
+
+            response = self._send_request()
+
+            self._assert_pecan_and_response(
+                response, http.client.BAD_REQUEST, f"{states_executed[0].title()} "
+                "was already executed and "
+                f"{psd_api.FILES_MAPPING[states_executed[0]][0].replace('_', '-')} "
+                "is not required", call_count=index - skipped_count
             )
 
     def test_patch_resume_fails_with_deploy_state_to_run_as_config(self):

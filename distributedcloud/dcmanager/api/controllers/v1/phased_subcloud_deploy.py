@@ -133,6 +133,8 @@ RESUMABLE_STATES = {
     consts.DEPLOY_STATE_CONFIG_ABORTED: [CONFIG]
 }
 
+DEPLOY_PHASES = [INSTALL, BOOTSTRAP, CONFIG]
+
 FILES_MAPPING = {
     INSTALL: SUBCLOUD_INSTALL_GET_FILE_CONTENTS,
     BOOTSTRAP: SUBCLOUD_BOOTSTRAP_GET_FILE_CONTENTS,
@@ -450,6 +452,20 @@ class PhasedSubcloudDeployController(object):
                 files_for_resume.extend(FILES_MAPPING[state])
 
         payload = psd_common.get_request_data(request, subcloud, files_for_resume)
+
+        # Only when the deploy state is created, all files should be sent.
+        # If the subcloud is in any other state and it receives a file mapping that
+        # does not relate to the current state, the deploy resume should be aborted
+        states_executed = list(set(DEPLOY_PHASES) - set(base_deploy_states))
+
+        for state_executed in states_executed:
+            if FILES_MAPPING[state_executed][0] in payload.keys():
+                message = (
+                    f"{state_executed.title()} was already executed and "
+                    f"{FILES_MAPPING[state_executed][0].replace('_', '-')} is not "
+                    "required"
+                )
+                pecan.abort(httpclient.BAD_REQUEST, _(message))
 
         # Consider the incoming release parameter only if install is one
         # of the pending deploy states
