@@ -32,6 +32,7 @@ from dcmanager.audit import patch_audit
 from dcmanager.audit import rpcapi as dcmanager_audit_rpc_client
 from dcmanager.audit import software_audit
 from dcmanager.audit import utils as audit_utils
+from dcmanager.common import consts
 from dcmanager.common import context
 from dcmanager.common.i18n import _
 from dcmanager.common import manager
@@ -466,14 +467,65 @@ class SubcloudAuditManager(manager.Manager):
             LOG.info("Fixup took %s seconds" % (end - start))
 
         subcloud_ids = []
+        skipped_subcloud_ids = []
+        pruned_subcloud_audits = []
+
         subcloud_audits = db_api.subcloud_audits_get_all_need_audit(
             self.context, last_audit_threshold
+        )
+        LOG.debug(
+            f"Number of subclouds need audit based on audit ts: "
+            f"{len(subcloud_audits)}"
+        )
+
+        # Remove subclouds that don't qualify for this round of audit
+        for audit, subcloud_name, deploy_status, availability_status in (
+                list(subcloud_audits)):
+            # Include failure deploy status states in the auditable list
+            # so that the subcloud can be set as offline
+            if (deploy_status not in
+                    [consts.DEPLOY_STATE_DONE,
+                     consts.DEPLOY_STATE_CONFIGURING,
+                     consts.DEPLOY_STATE_CONFIG_FAILED,
+                     consts.DEPLOY_STATE_CONFIG_ABORTED,
+                     consts.DEPLOY_STATE_PRE_CONFIG_FAILED,
+                     consts.DEPLOY_STATE_INSTALL_FAILED,
+                     consts.DEPLOY_STATE_INSTALL_ABORTED,
+                     consts.DEPLOY_STATE_PRE_INSTALL_FAILED,
+                     consts.DEPLOY_STATE_INSTALLING,
+                     consts.DEPLOY_STATE_DATA_MIGRATION_FAILED,
+                     consts.DEPLOY_STATE_UPGRADE_ACTIVATED,
+                     consts.DEPLOY_STATE_RESTORING,
+                     consts.DEPLOY_STATE_RESTORE_PREP_FAILED,
+                     consts.DEPLOY_STATE_RESTORE_FAILED,
+                     consts.DEPLOY_STATE_REHOME_PENDING]) or (
+                    (deploy_status in [
+                        consts.DEPLOY_STATE_INSTALLING,
+                        consts.DEPLOY_STATE_REHOME_PENDING])
+                    and availability_status ==
+                    dccommon_consts.AVAILABILITY_OFFLINE):
+                LOG.debug("Skip subcloud %s audit, deploy_status: %s" %
+                          (subcloud_name, deploy_status))
+                skipped_subcloud_ids.append(audit.subcloud_id)
+            else:
+                pruned_subcloud_audits.append(audit)
+
+        # Set the audit_finished_at timestamp for non qualified subclouds in bulk
+        LOG.debug(
+            f"Set end audit timestamp for non-qualified subclouds "
+            f"({len(skipped_subcloud_ids)}) in bulk"
+        )
+        db_api.subcloud_audits_bulk_end_audit(self.context, skipped_subcloud_ids)
+
+        LOG.debug(
+            f"Number of subclouds qualified for audit: "
+            f"{len(pruned_subcloud_audits)}"
         )
 
         # Now check whether any of these subclouds need patch audit or firmware
         # audit data and grab it if needed.
         if not audit_patch:
-            for audit in subcloud_audits:
+            for audit in pruned_subcloud_audits:
                 # Currently the load audit is done as part of the patch audit.
                 # It might make sense to split it out.
                 if audit.patch_audit_requested or audit.load_audit_requested:
@@ -481,25 +533,25 @@ class SubcloudAuditManager(manager.Manager):
                     LOG.debug("DB says patch audit needed")
                     break
         if not audit_firmware:
-            for audit in subcloud_audits:
+            for audit in pruned_subcloud_audits:
                 if audit.firmware_audit_requested:
                     LOG.debug("DB says firmware audit needed")
                     audit_firmware = True
                     break
         if not audit_kubernetes:
-            for audit in subcloud_audits:
+            for audit in pruned_subcloud_audits:
                 if audit.kubernetes_audit_requested:
                     LOG.debug("DB says kubernetes audit needed")
                     audit_kubernetes = True
                     break
         if not audit_kube_rootca_update:
-            for audit in subcloud_audits:
+            for audit in pruned_subcloud_audits:
                 if audit.kube_rootca_update_audit_requested:
                     LOG.debug("DB says kube-rootca-update audit needed")
                     audit_kube_rootca_update = True
                     break
         if not audit_software:
-            for audit in subcloud_audits:
+            for audit in pruned_subcloud_audits:
                 if audit.spare_audit_requested:
                     LOG.debug("DB says software audit needed")
                     audit_software = True
@@ -544,10 +596,10 @@ class SubcloudAuditManager(manager.Manager):
         )
 
         # We want a chunksize of at least 1 so add the number of workers.
-        chunksize = (len(subcloud_audits) + CONF.audit_worker_workers) // (
+        chunksize = (len(pruned_subcloud_audits) + CONF.audit_worker_workers) // (
             CONF.audit_worker_workers
         )
-        for audit in subcloud_audits:
+        for audit in pruned_subcloud_audits:
             subcloud_ids.append(audit.subcloud_id)
             if len(subcloud_ids) == chunksize:
                 # We've gathered a batch of subclouds, send it for processing.

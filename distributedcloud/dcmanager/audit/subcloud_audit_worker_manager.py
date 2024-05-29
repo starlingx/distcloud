@@ -113,38 +113,6 @@ class SubcloudAuditWorkerManager(manager.Manager):
             LOG.debug("PID: %s, starting audit of subcloud: %s." %
                       (self.pid, subcloud.name))
 
-            # Include failure deploy status states in the auditable list
-            # so that the subcloud can be set as offline
-            if (subcloud.deploy_status not in
-                    [consts.DEPLOY_STATE_DONE,
-                     consts.DEPLOY_STATE_CONFIGURING,
-                     consts.DEPLOY_STATE_CONFIG_FAILED,
-                     consts.DEPLOY_STATE_CONFIG_ABORTED,
-                     consts.DEPLOY_STATE_PRE_CONFIG_FAILED,
-                     consts.DEPLOY_STATE_INSTALL_FAILED,
-                     consts.DEPLOY_STATE_INSTALL_ABORTED,
-                     consts.DEPLOY_STATE_PRE_INSTALL_FAILED,
-                     consts.DEPLOY_STATE_INSTALLING,
-                     consts.DEPLOY_STATE_DATA_MIGRATION_FAILED,
-                     consts.DEPLOY_STATE_UPGRADE_ACTIVATED,
-                     consts.DEPLOY_STATE_RESTORING,
-                     consts.DEPLOY_STATE_RESTORE_PREP_FAILED,
-                     consts.DEPLOY_STATE_RESTORE_FAILED,
-                     consts.DEPLOY_STATE_REHOME_PENDING]) or (
-                    (subcloud.deploy_status in [
-                        consts.DEPLOY_STATE_INSTALLING,
-                        consts.DEPLOY_STATE_REHOME_PENDING])
-                    and subcloud.availability_status ==
-                    dccommon_consts.AVAILABILITY_OFFLINE):
-                LOG.debug("Skip subcloud %s audit, deploy_status: %s" %
-                          (subcloud.name, subcloud.deploy_status))
-                # This DB API call will set the "audit_finished_at" timestamp
-                # so it won't get audited again for a while.
-                audits_done = []
-                db_api.subcloud_audits_end_audit(self.context,
-                                                 subcloud_id, audits_done)
-                continue
-
             # Check the per-subcloud audit flags
             do_load_audit = subcloud_audits.load_audit_requested
             # Currently we do the load audit as part of the patch audit,

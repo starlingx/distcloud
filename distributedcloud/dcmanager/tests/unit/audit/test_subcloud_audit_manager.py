@@ -20,6 +20,7 @@ import mock
 
 from dccommon import consts as dccommon_consts
 from dcmanager.audit import subcloud_audit_manager
+from dcmanager.common import consts
 from dcmanager.db.sqlalchemy import api as db_api
 from dcmanager.tests import base
 
@@ -294,6 +295,20 @@ class TestAuditManager(base.DCManagerTestCase):
     def test_periodic_subcloud_audit(self):
         am = subcloud_audit_manager.SubcloudAuditManager()
         am._periodic_subcloud_audit_loop()
+
+    @mock.patch.object(subcloud_audit_manager.db_api,
+                       'subcloud_audits_bulk_end_audit')
+    def test_skip_subcloud_audit(self, mock_subcloud_audits_bulk_end_audit):
+        subcloud = self.create_subcloud_static(self.ctx)
+        am = subcloud_audit_manager.SubcloudAuditManager()
+        subcloud = db_api.subcloud_update(
+            self.ctx, subcloud.id,
+            management_state='unmanaged',
+            availability_status=dccommon_consts.AVAILABILITY_OFFLINE,
+            deploy_status=consts.DEPLOY_STATE_CREATED)
+        am._periodic_subcloud_audit_loop()
+        # Verify that the audit is skipped
+        mock_subcloud_audits_bulk_end_audit.assert_called_once()
 
     def test_audit_one_subcloud(self):
         subcloud = self.create_subcloud_static(self.ctx)

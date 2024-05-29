@@ -89,6 +89,11 @@ def subcloud_audits_end_audit(context, subcloud_id, audits_done):
     return IMPL.subcloud_audits_end_audit(context, subcloud_id, audits_done)
 
 
+def subcloud_audits_bulk_end_audit(context, subcloud_ids):
+    """Set the 'audit finished' timestamp for the main audit in bulk."""
+    return IMPL.subcloud_audits_bulk_end_audit(context, subcloud_ids)
+
+
 def subcloud_audits_fix_expired_audits(context, last_audit_threshold,
                                        trigger_audits=False):
     return IMPL.subcloud_audits_fix_expired_audits(context,

@@ -193,7 +193,12 @@ def subcloud_audits_update(context, subcloud_id, values):
 @require_context
 def subcloud_audits_get_all_need_audit(context, last_audit_threshold):
     with read_session() as session:
-        result = session.query(models.SubcloudAudits).\
+        result = session.query(models.SubcloudAudits,
+                               models.Subcloud.name,
+                               models.Subcloud.deploy_status,
+                               models.Subcloud.availability_status).\
+            join(models.Subcloud,
+                 models.Subcloud.id == models.SubcloudAudits.subcloud_id).\
             filter_by(deleted=0).\
             filter(models.SubcloudAudits.audit_started_at <=
                    models.SubcloudAudits.audit_finished_at).\
@@ -243,6 +248,18 @@ def subcloud_audits_end_audit(context, subcloud_id, audits_done):
             subcloud_audits_ref.spare_audit_requested = False
         subcloud_audits_ref.save(session)
         return subcloud_audits_ref
+
+
+@require_context
+def subcloud_audits_bulk_end_audit(context, subcloud_ids):
+    values = {
+        "audit_finished_at": datetime.datetime.utcnow()
+    }
+    with write_session():
+        model_query(context, models.SubcloudAudits). \
+            filter_by(deleted=0). \
+            filter(models.SubcloudAudits.subcloud_id.in_(subcloud_ids)). \
+            update(values, synchronize_session='fetch')
 
 
 # Find and fix up subcloud audits where the audit has taken too long.

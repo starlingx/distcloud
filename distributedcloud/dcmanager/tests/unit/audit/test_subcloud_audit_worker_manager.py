@@ -1045,38 +1045,6 @@ class TestAuditWorkerManager(base.DCManagerTestCase):
                                     mock.ANY, dccommon_consts.AVAILABILITY_OFFLINE,
                                     False, audit_fail_count)
 
-    @mock.patch.object(scheduler.ThreadGroupManager, 'start')
-    @mock.patch.object(subcloud_audit_worker_manager.db_api,
-                       'subcloud_audits_end_audit')
-    def test_offline_subcloud_audit_skip_while_installing(
-            self, mock_subcloud_audits_end_audit, mock_thread_start):
-
-        subcloud = self.create_subcloud_static(self.ctx, name='subcloud1')
-        self.assertIsNotNone(subcloud)
-
-        wm = subcloud_audit_worker_manager.SubcloudAuditWorkerManager()
-
-        # Set the subcloud to unmanaged/offline/installing
-        subcloud = db_api.subcloud_update(
-            self.ctx, subcloud.id,
-            management_state='unmanaged',
-            first_identity_sync_complete=True,
-            availability_status=dccommon_consts.AVAILABILITY_OFFLINE,
-            deploy_status=consts.DEPLOY_STATE_INSTALLING)
-
-        wm.audit_subclouds(context=self.ctx,
-                           subcloud_ids=[subcloud.id],
-                           patch_audit_data=True,
-                           firmware_audit_data=True,
-                           kubernetes_audit_data=True,
-                           do_openstack_audit=False,
-                           kube_rootca_update_audit_data=True,
-                           software_audit_data=False)
-
-        # Verify if audit was skipped
-        mock_subcloud_audits_end_audit.assert_called_once()
-        mock_thread_start.assert_not_called()
-
     def test_audit_subcloud_offline_update_audit_fail_count_only(self):
         subcloud = self.create_subcloud_static(self.ctx, name='subcloud1')
         self.assertIsNotNone(subcloud)

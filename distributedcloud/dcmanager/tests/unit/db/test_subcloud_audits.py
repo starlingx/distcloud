@@ -144,7 +144,7 @@ class DBAPISubcloudAuditsTest(base.DCManagerTestCase):
         audits = db_api.subcloud_audits_get_all_need_audit(
             self.ctx, last_audit_threshold
         )
-        subcloud_ids = [audit.subcloud_id for audit in audits]
+        subcloud_ids = [audit[0].subcloud_id for audit in audits]
         self.assertEqual(len(subcloud_ids), 2)
         self.assertNotIn(1, subcloud_ids)
         # Set one of the special audits to make sure it overrides.
@@ -215,3 +215,13 @@ class DBAPISubcloudAuditsTest(base.DCManagerTestCase):
         self.assertEqual(result["load_audit_requested"], False)
         self.assertEqual(result["kubernetes_audit_requested"], False)
         self.assertEqual(result["kube_rootca_update_audit_requested"], False)
+
+    def test_subcloud_audits_bulk_end_audit(self):
+        db_api.subcloud_audits_bulk_end_audit(self.ctx, [1, 2])
+        subcloud_audits1 = db_api.subcloud_audits_get(self.ctx, 1)
+        subcloud_audits2 = db_api.subcloud_audits_get(self.ctx, 2)
+        subcloud_audits3 = db_api.subcloud_audits_get(self.ctx, 3)
+        self.assertEqual(subcloud_audits1["audit_finished_at"],
+                         subcloud_audits2["audit_finished_at"])
+        self.assertTrue(subcloud_audits1["audit_finished_at"] >
+                        subcloud_audits3["audit_finished_at"])
