@@ -14,6 +14,7 @@ from dcmanager.common import consts
 from dcmanager.common import utils
 from dcmanager.db.sqlalchemy import api as db_api
 from dcmanager.manager import peer_group_audit_manager
+from dcmanager.manager import subcloud_manager
 from dcmanager.manager.system_peer_manager import SystemPeerManager
 from dcmanager.tests.base import DCManagerTestCase
 from dcmanager.tests.unit.manager import test_peer_monitor_manager as tpm
@@ -36,6 +37,18 @@ FAKE_SITE1_PEER_GROUP_DATA = {
     "group_state": FAKE_SITE1_PEER_GROUP_STATE,
     "max_subcloud_rehoming": FAKE_SITE1_PEER_GROUP_MAX_SUBCLOUDS_REHOMING,
     "migration_status": FAKE_SITE1_PEER_GROUP_MIGRATION_STATUS
+}
+
+# FAKE SUBCLOUD PEER GROUP DATA (SITE2)
+FAKE_SITE2_PEER_GROUP_PRIORITY = 0
+FAKE_SITE2_PEER_GROUP_DATA = {
+    "peer_group_name": 'PeerGroup3',
+    "system_leader_id": FAKE_SITE1_PEER_GROUP_SYSTEM_LEADER_ID,
+    "system_leader_name": FAKE_SITE1_PEER_GROUP_SYSTEM_LEADER_NAME,
+    "group_priority": FAKE_SITE2_PEER_GROUP_PRIORITY,
+    "group_state": FAKE_SITE1_PEER_GROUP_STATE,
+    "max_subcloud_rehoming": FAKE_SITE1_PEER_GROUP_MAX_SUBCLOUDS_REHOMING,
+    "migration_status": consts.PEER_GROUP_MIGRATING
 }
 
 # FAKE SUBCLOUD
@@ -101,7 +114,22 @@ FAKE_SITE1_SUBCLOUD2_DATA = {
 
 class TestPeerGroupAudit(DCManagerTestCase):
     def setUp(self):
-        super(TestPeerGroupAudit, self).setUp()
+        super().setUp()
+
+        self._mock_log(peer_group_audit_manager)
+        self._mock_subcloud_manager(subcloud_manager)
+        self._mock_peer_monitor_manager_get_peer_dc_client()
+
+        self.pm = peer_group_audit_manager.PeerGroupAuditManager(
+            self.mock_subcloud_manager, FAKE_SITE1_PEER_GROUP_ID)
+
+    def _mock_peer_monitor_manager_get_peer_dc_client(self):
+        """Mock peer_monitor_manager's get_peer_dc_client"""
+
+        mock_patch = mock.patch.object(
+            peer_group_audit_manager.SystemPeerManager, 'get_peer_dc_client')
+        self.mock_get_peer_dc_client = mock_patch.start()
+        self.addCleanup(mock_patch.stop)
 
         self.peer = tpm.TestPeerMonitor.create_system_peer_static(
             self.ctx,
@@ -138,23 +166,21 @@ class TestPeerGroupAudit(DCManagerTestCase):
         self.peer_subcloud1 = copy.deepcopy(FAKE_SITE1_SUBCLOUD1_DATA)
         self.peer_subcloud2 = copy.deepcopy(FAKE_SITE1_SUBCLOUD2_DATA)
         # Remote peer group
-        self.remote_peer_group = FAKE_SITE1_PEER_GROUP_DATA
+        self.remote_peer_group = copy.deepcopy(FAKE_SITE1_PEER_GROUP_DATA)
+        self.remote_peer_group2 = copy.deepcopy(FAKE_SITE2_PEER_GROUP_DATA)
 
         # Initialize mock objects
         self.mock_update_sync_status = \
             mock.patch.object(SystemPeerManager, 'update_sync_status').start()
-        self.mock_get_peer_dc_client = \
-            mock.patch.object(SystemPeerManager, 'get_peer_dc_client').start()
         mock_get_local_system = mock.patch.object(utils, 'get_local_system').start()
 
         # Cleanup mock objects after test finishes
         self.addCleanup(self.mock_update_sync_status.stop())
-        self.addCleanup(self.mock_get_peer_dc_client.stop())
         self.addCleanup(mock_get_local_system.stop())
 
-    def run_audit(self):
+    def run_audit(self, remote_peer_group=None):
+        remote_peer_group = remote_peer_group or self.remote_peer_group
         self.mock_dc_client = mock.MagicMock()
-        self.mock_subcloud_manager = mock.MagicMock()
         self.mock_get_peer_dc_client.return_value = self.mock_dc_client()
         self.mock_dc_client().get_subcloud_list_by_peer_group.return_value = [
             self.peer_subcloud1, self.peer_subcloud2]
@@ -162,12 +188,10 @@ class TestPeerGroupAudit(DCManagerTestCase):
         self.mock_dc_client().get_peer_group_association_with_peer_id_and_pg_id. \
             return_value = {
                 "sync-status": consts.ASSOCIATION_SYNC_STATUS_OUT_OF_SYNC}
-        pm = peer_group_audit_manager.PeerGroupAuditManager(
-            self.mock_subcloud_manager, FAKE_SITE1_PEER_GROUP_ID)
-        pm._set_local_subcloud_to_secondary = mock.MagicMock(
-            wraps=pm._set_local_subcloud_to_secondary)
-        pm.audit(self.peer, self.remote_peer_group, self.peer_group)
-        return pm
+        self.pm._set_local_subcloud_to_secondary = mock.MagicMock(
+            wraps=self.pm._set_local_subcloud_to_secondary)
+        self.pm.audit(self.peer, remote_peer_group, self.peer_group)
+        return self.pm
 
     def set_subcloud_rehome_failed(self, subcloud):
         subcloud["deploy-status"] = consts.DEPLOY_STATE_REHOME_FAILED
@@ -267,3 +291,111 @@ class TestPeerGroupAudit(DCManagerTestCase):
             self.remote_peer_group.get('peer_group_name'), migration_status=None)
         # Verify that the PGA sync status remains out-of-sync due to rehome failure
         self.mock_update_sync_status.assert_not_called()
+
+    def test_audit_subcloud_management_state_managed(self):
+        db_api.subcloud_update(
+            self.ctx, self.subcloud3.id, management_state='managed'
+        )
+        self.run_audit(self.remote_peer_group2)
+        self.mock_subcloud_manager.update_subcloud.assert_called()
+        expected_calls = [
+            # Subcloud1 and 2 are already unmanaged,
+            # only the deploy_status should be updated
+            mock.call(
+                mock.ANY,
+                self.subcloud1.id,
+                deploy_status=consts.DEPLOY_STATE_REHOME_PENDING,
+            ),
+            mock.call(
+                mock.ANY,
+                self.subcloud2.id,
+                deploy_status=consts.DEPLOY_STATE_REHOME_PENDING,
+            ),
+            # Subcloud3 is managed, so it should also be umanaged
+            mock.call(
+                mock.ANY,
+                self.subcloud3.id,
+                management_state=dccommon_consts.MANAGEMENT_UNMANAGED,
+                deploy_status=consts.DEPLOY_STATE_REHOME_PENDING,
+            )
+        ]
+        self.mock_subcloud_manager.update_subcloud.assert_has_calls(expected_calls)
+
+    def test_send_audit_peer_group(self):
+        response = self.pm.send_audit_peer_group([self.peer], self.peer_group)
+        self.mock_get_peer_dc_client.assert_called()
+        self.mock_get_peer_dc_client().audit_subcloud_peer_group.assert_called()
+        self.assertEqual(
+            response, self.mock_get_peer_dc_client().audit_subcloud_peer_group())
+
+    def test_send_audit_peer_group_exception(self):
+        self.mock_get_peer_dc_client.side_effect = Exception('boom')
+        self.pm.send_audit_peer_group([self.peer], self.peer_group)
+        self.mock_log.exception.assert_called_once_with(
+            'Failed to send audit request for peer group '
+            f'{self.peer_group.peer_group_name} to DC: {self.peer.peer_name}'
+        )
+
+    def test_audit_fail_to_unmanage(self):
+        self.mock_subcloud_manager.update_subcloud.side_effect = Exception('boom')
+        self.assertRaisesRegex(
+            Exception, 'boom', self.run_audit,
+            self.remote_peer_group2)
+
+    @mock.patch.object(peer_group_audit_manager.PeerGroupAuditManager, "audit")
+    def test_audit_peer_group_from_system(self, mock_audit):
+        self.pm.audit_peer_group_from_system(
+            self.peer, self.peer_group, self.peer_group
+        )
+        mock_audit.assert_called_with(self.peer, self.peer_group, self.peer_group)
+
+    def test_audit_update_subcloud_exception(self):
+        db_api.subcloud_update(
+            self.ctx, self.subcloud1.id,
+            management_state=dccommon_consts.MANAGEMENT_MANAGED
+        )
+        self.mock_subcloud_manager.update_subcloud.side_effect = Exception('boom')
+        self.assertRaisesRegex(
+            Exception, 'boom', self.run_audit, self.remote_peer_group)
+
+    def test_audit_failed_to_get_system_peer(self):
+        self.mock_get_peer_dc_client().\
+            get_system_peer.side_effect = Exception('boom')
+        self.pm.audit(self.peer, self.remote_peer_group, self.peer_group)
+        self.mock_log.exception.assert_called_once_with(
+            'Failed to get subclouds of peer group None from DC: '
+            f'{self.peer.peer_name}'
+        )
+
+    def test_audit_clear_fault_exception(self):
+        self.pm.fm_api = mock.MagicMock()
+        self.pm.fm_api.clear_fault.side_effect = Exception('boom')
+        self.remote_peer_group["group_priority"] = 0
+        self.run_audit()
+        self.mock_log.exception.assert_called_once_with(
+            'Problem clearing fault '
+            f'[peer_group={self.peer_group.peer_group_name},'
+            f'peer={self.peer.peer_uuid}],'
+            ' alarm_id=280.005'
+        )
+
+    def test_audit_set_fault(self):
+        self.pm.fm_api = mock.MagicMock()
+        self.run_audit()
+        self.pm.fm_api.set_fault.assert_called()
+
+    def test_audit_quit(self):
+        self.peer_group = tsm.TestSystemPeerManager. \
+            create_subcloud_peer_group_static(
+                self.ctx,
+                peer_group_name='SubcloudPeerGroup2',
+                migration_status=consts.PEER_GROUP_MIGRATING)
+        self.run_audit()
+        self.mock_log.info.assert_called_with(
+            'Local peer group in migrating state, quit audit'
+        )
+
+    def test_audit_delete_subcloud_exception(self):
+        self.mock_subcloud_manager.delete_subcloud.side_effect = Exception('boom')
+        self.assertRaisesRegex(
+            Exception, 'boom', self.run_audit, self.remote_peer_group)
