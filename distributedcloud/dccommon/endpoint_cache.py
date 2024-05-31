@@ -16,12 +16,13 @@
 #
 
 import collections
-import threading
+
 from typing import Callable
 from typing import List
 from typing import Tuple
 from typing import Union
 
+from keystoneauth1.identity import v3
 from keystoneauth1 import loading
 from keystoneauth1 import session
 import netaddr
@@ -54,8 +55,6 @@ ENDPOINT_URLS = {
 
 class EndpointCache(object):
 
-    plugin_loader = None
-    plugin_lock = threading.Lock()
     master_keystone_client = None
     master_token = {}
     master_services_list = None
@@ -131,18 +130,15 @@ class EndpointCache(object):
     def get_admin_session(cls, auth_url, user_name, user_domain_name,
                           user_password, user_project, user_project_domain,
                           timeout=None):
-        with EndpointCache.plugin_lock:
-            if EndpointCache.plugin_loader is None:
-                EndpointCache.plugin_loader = loading.get_plugin_loader(
-                    CONF.endpoint_cache.auth_plugin)
 
-        user_auth = EndpointCache.plugin_loader.load_from_options(
+        user_auth = v3.Password(
             auth_url=auth_url,
             username=user_name,
             user_domain_name=user_domain_name,
             password=user_password,
             project_name=user_project,
             project_domain_name=user_project_domain,
+            include_catalog=True,
         )
         timeout = (CONF.endpoint_cache.http_connect_timeout if timeout is None
                    else timeout)
@@ -358,8 +354,6 @@ class OptimizedEndpointCache(object):
     :type fetch_subcloud_ips: Callable[[str], Union[str, dict]]
     """
 
-    plugin_loader = None
-    plugin_lock = threading.Lock()
     master_keystone_client = None
     master_token = {}
     master_services_list = None
@@ -405,6 +399,7 @@ class OptimizedEndpointCache(object):
             OptimizedEndpointCache.subcloud_endpoints = build_subcloud_endpoints(
                 OptimizedEndpointCache.fetch_subcloud_ips()
             )
+            LOG.info("Finished initializing and caching subcloud endpoints")
 
     def _initialize_keystone_client(
         self, region_name: str = None, auth_url: str = None
@@ -503,19 +498,15 @@ class OptimizedEndpointCache(object):
         :return: The admin session.
         :rtype: session.Session
         """
-        with OptimizedEndpointCache.plugin_lock:
-            if OptimizedEndpointCache.plugin_loader is None:
-                OptimizedEndpointCache.plugin_loader = loading.get_plugin_loader(
-                    CONF.endpoint_cache.auth_plugin
-                )
 
-        user_auth = OptimizedEndpointCache.plugin_loader.load_from_options(
+        user_auth = v3.Password(
             auth_url=auth_url,
             username=user_name,
             user_domain_name=user_domain_name,
             password=user_password,
             project_name=user_project,
             project_domain_name=user_project_domain,
+            include_catalog=True,
         )
         timeout = (
             CONF.endpoint_cache.http_connect_timeout if timeout is None else timeout
