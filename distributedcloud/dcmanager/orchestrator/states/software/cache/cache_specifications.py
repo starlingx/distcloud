@@ -59,13 +59,20 @@ REGION_ONE_SYSTEM_INFO_CACHE_SPECIFICATION = CacheSpecification(
 
 REGION_ONE_RELEASE_USM_CACHE_SPECIFICATION = CacheSpecification(
     lambda: clients.get_software_client().list(),
-    # Filter results by release state, if any is given
+    # Filter results by release_id and/or state, if any is given
     lambda patches, **filter_params: [
-        patch for patch in patches
-        if filter_params.get('state') is None
-        or patch.get('state') == filter_params.get('state')
+        patch
+        for patch in patches
+        if (
+            filter_params.get("release_id") is None
+            or patch.get("release_id") == filter_params.get("release_id")
+        )
+        and (
+            filter_params.get("state") is None
+            or patch.get("state") == filter_params.get("state")
+        )
     ],
-    {'state'}
+    {"release_id", "state"},
 )
 
 # Map each expected operation type to its required cache types

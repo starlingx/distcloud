@@ -473,6 +473,12 @@ class SwUpdateManager(manager.Manager):
                 consts.EXTRA_ARGS_UPLOAD_ONLY: upload_only_bool,
                 consts.EXTRA_ARGS_PATCH: payload.get(consts.EXTRA_ARGS_PATCH)
             }
+        elif strategy_type == consts.SW_UPDATE_TYPE_SOFTWARE:
+            extra_args = {
+                consts.EXTRA_ARGS_RELEASE_ID: payload.get(
+                    consts.EXTRA_ARGS_RELEASE_ID
+                )
+            }
 
         # Don't create a strategy if any of the subclouds is online and the
         # relevant sync status is unknown. Offline subcloud is skipped unless

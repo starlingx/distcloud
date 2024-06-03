@@ -29,6 +29,8 @@ STRATEGY_NAME_KUBE_ROOTCA_UPDATE = 'kube-rootca-update'
 STRATEGY_NAME_KUBE_UPGRADE = 'kube-upgrade'
 STRATEGY_NAME_SW_PATCH = 'sw-patch'
 STRATEGY_NAME_SW_UPGRADE = 'sw-upgrade'
+# TODO(nicodemos): Change this to 'sw-deploy' once the new strategy is created
+STRATEGY_NAME_SW_USM = "sw-upgrade"
 STRATEGY_NAME_SYS_CONFIG_UPDATE = "system-config-update"
 
 APPLY_TYPE_SERIAL = 'serial'
@@ -148,6 +150,17 @@ class VimClient(base.DriverBase):
         if not strategy:
             if raise_error_if_missing:
                 raise Exception("Get strategy failed")
+
+        LOG.debug("Strategy: %s" % strategy)
+        return strategy
+
+    def get_current_strategy(self):
+        """Get the current active strategy type and state"""
+
+        url = self.endpoint
+        strategy = sw_update.get_current_strategy(
+            self.token, url
+        )
 
         LOG.debug("Strategy: %s" % strategy)
         return strategy

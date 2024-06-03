@@ -391,6 +391,9 @@ EXTRA_ARGS_FORCE = 'force'
 EXTRA_ARGS_UPLOAD_ONLY = 'upload-only'
 EXTRA_ARGS_PATCH = 'patch'
 
+# extra_args for software
+EXTRA_ARGS_RELEASE_ID = 'release_id'
+
 # http request/response arguments for prestage
 PRESTAGE_SOFTWARE_VERSION = 'prestage-software-version'
 PRESTAGE_REQUEST_RELEASE = 'release'
