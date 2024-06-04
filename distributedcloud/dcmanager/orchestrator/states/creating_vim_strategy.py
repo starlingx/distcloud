@@ -7,8 +7,9 @@
 import time
 
 from dccommon.drivers.openstack import vim
+from dcmanager.common import consts
 from dcmanager.common.exceptions import StrategyStoppedException
-from dcmanager.common import utils as dcmanager_utils
+from dcmanager.common import utils
 from dcmanager.orchestrator.states.base import BaseState
 
 # Max time: 30 minutes = 180 queries x 10 seconds between
@@ -20,8 +21,9 @@ class CreatingVIMStrategyState(BaseState):
     """State for creating the VIM strategy."""
 
     def __init__(self, next_state, region_name, strategy_name):
-        super(CreatingVIMStrategyState, self).__init__(
-            next_state=next_state, region_name=region_name)
+        super().__init__(
+            next_state=next_state, region_name=region_name
+        )
         self.strategy_name = strategy_name
         # max time to wait for the strategy to be built (in seconds)
         # is: sleep_duration * max_queries
@@ -33,19 +35,26 @@ class CreatingVIMStrategyState(BaseState):
                       "Creating (%s) VIM strategy" % self.strategy_name)
 
         # Get the update options
-        opts_dict = dcmanager_utils.get_sw_update_opts(
-            self.context,
-            for_sw_update=True,
-            subcloud_id=strategy_step.subcloud_id)
+        opts_dict = utils.get_sw_update_opts(
+            self.context, for_sw_update=True, subcloud_id=strategy_step.subcloud_id
+        )
+
+        # Get release parameter data for sw-deploy strategy
+        if self.strategy_name == vim.STRATEGY_NAME_SW_USM:
+            extra_args = utils.get_sw_update_strategy_extra_args(self.context)
+            release_id = extra_args.get(consts.EXTRA_ARGS_RELEASE_ID)
+            opts_dict["release"] = release_id
 
         # Call the API to build the VIM strategy
+        # release will be sent as a **kwargs value for sw-deploy strategy
         subcloud_strategy = self.get_vim_client(region).create_strategy(
             self.strategy_name,
             opts_dict['storage-apply-type'],
             opts_dict['worker-apply-type'],
             opts_dict['max-parallel-workers'],
             opts_dict['default-instance-action'],
-            opts_dict['alarm-restriction-type'])
+            opts_dict['alarm-restriction-type'],
+            release=opts_dict.get('release'),)
 
         # a successful API call to create MUST set the state be 'building'
         if subcloud_strategy.state != vim.STATE_BUILDING:
