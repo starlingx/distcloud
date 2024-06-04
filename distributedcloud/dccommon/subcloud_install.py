@@ -62,13 +62,7 @@ class SubcloudInstall(object):
     """Class to encapsulate the subcloud install operations"""
 
     def __init__(self, subcloud_name):
-        ks_client = OpenStackDriver(
-            region_name=consts.DEFAULT_REGION_NAME,
-            region_clients=None).keystone_client
-        session = ks_client.session
-        endpoint = ks_client.endpoint_cache.get_endpoint('sysinv')
-        self.sysinv_client = SysinvClient(consts.CLOUD_0,
-                                          session, endpoint=endpoint)
+        self.sysinv_client = self.get_sysinv_client()
         self.name = subcloud_name
         self.input_iso = None
         self.www_iso_root = None
@@ -123,6 +117,16 @@ class SubcloudInstall(object):
         ks_cfg.write("EOF\n\n")
 
     @staticmethod
+    def get_sysinv_client():
+        ks_client = OpenStackDriver(
+            region_name=consts.DEFAULT_REGION_NAME,
+            region_clients=None).keystone_client
+        session = ks_client.session
+        endpoint = ks_client.endpoint_cache.get_endpoint('sysinv')
+        return SysinvClient(consts.CLOUD_0,
+                            session, endpoint=endpoint)
+
+    @staticmethod
     def format_address(ip_address):
         try:
             address = netaddr.IPAddress(ip_address)
@@ -134,10 +138,6 @@ class SubcloudInstall(object):
             LOG.error("Failed to format the address: %s", ip_address)
             raise e
 
-    def get_oam_address(self):
-        oam_addresses = self.sysinv_client.get_oam_addresses()
-        return self.format_address(oam_addresses.oam_floating_ip)
-
     def get_https_enabled(self):
         if self.https_enabled is None:
             system = self.sysinv_client.get_system()
@@ -145,17 +145,20 @@ class SubcloudInstall(object):
                                                          False)
         return self.https_enabled
 
-    def get_image_base_url(self):
-        # get the protocol
-        protocol = 'https' if self.get_https_enabled() else 'http'
+    @staticmethod
+    def get_image_base_url(https_enabled, sysinv_client):
+        # get the protocol and the configured http or https port
+        protocol, value = ('https', 'https_port') if https_enabled \
+            else ('http', 'http_port')
 
-        # get the configured http or https port
-        value = 'https_port' if self.get_https_enabled() else 'http_port'
-        http_parameters = self.sysinv_client.get_service_parameters('name',
-                                                                    value)
+        http_parameters = sysinv_client.get_service_parameters('name', value)
         port = getattr(http_parameters[0], 'value')
 
-        return "%s://%s:%s" % (protocol, self.get_oam_address(), port)
+        oam_addresses = sysinv_client.get_oam_addresses()
+        oam_floating_ip = SubcloudInstall.format_address(
+            oam_addresses.oam_floating_ip)
+
+        return f"{protocol}://{oam_floating_ip}:{port}"
 
     @staticmethod
     def create_rvmc_config_file(override_path, payload):
@@ -342,21 +345,16 @@ class SubcloudInstall(object):
                 else:
                     update_iso_cmd += [consts.GEN_ISO_OPTIONS[key], str(values[key])]
 
-        if is_subcloud_debian:
-            # Get the base URL. ostree_repo is located within this path
-            base_url = os.path.join(self.get_image_base_url(), 'iso',
-                                    software_version)
-        else:
+        if not is_subcloud_debian:
             # create ks-addon.cfg
             addon_cfg = os.path.join(override_path, 'ks-addon.cfg')
             self.create_ks_conf_file(addon_cfg, values)
 
             update_iso_cmd += ['--addon', addon_cfg]
 
-            # Get the base URL
-            base_url = os.path.join(self.get_image_base_url(), 'iso',
-                                    software_version)
-
+        image_base_url = self.get_image_base_url(self.get_https_enabled(),
+                                                 self.sysinv_client)
+        base_url = os.path.join(image_base_url, 'iso', software_version)
         update_iso_cmd += ['--base-url', base_url]
 
         str_cmd = ' '.join(x for x in update_iso_cmd)
@@ -538,7 +536,9 @@ class SubcloudInstall(object):
                 del payload[k]
 
         # get the boot image url for bmc
-        payload['image'] = os.path.join(self.get_image_base_url(), 'iso',
+        image_base_url = self.get_image_base_url(self.get_https_enabled(),
+                                                 self.sysinv_client)
+        payload['image'] = os.path.join(image_base_url, 'iso',
                                         software_version, 'nodes',
                                         self.name, 'bootimage.iso')
 

@@ -4069,6 +4069,9 @@ class TestSubcloudRename(BaseTestSubcloudManager):
 class TestSubcloudEnrollment(BaseTestSubcloudManager):
     """Test class for testing Subcloud Enrollment"""
 
+    # TODO(srana): Add unit tests for SubcloudEnrollmentInit
+    # prep and enroll_init methods
+
     def setUp(self):
         super().setUp()
         self.rel_version = '24.09'
@@ -4117,8 +4120,8 @@ class TestSubcloudEnrollment(BaseTestSubcloudManager):
         return path != self.iso_dir
 
     def test_build_seed_network_config(self):
-        result = self.enroll_init.build_seed_network_config(self.seed_data_dir,
-                                                            self.iso_values)
+        result = self.enroll_init._build_seed_network_config(self.seed_data_dir,
+                                                             self.iso_values)
 
         self.assertTrue(result)
         self.mock_builtins_open.assert_called_once_with(
@@ -4129,15 +4132,15 @@ class TestSubcloudEnrollment(BaseTestSubcloudManager):
         copied_dict = self.iso_values.copy()
         copied_dict.pop('external_oam_floating_address')
 
-        test_func = lambda: self.enroll_init.build_seed_network_config(
+        test_func = lambda: self.enroll_init._build_seed_network_config(
             self.seed_data_dir,
             copied_dict)
 
         self.assertRaises(KeyError, test_func)
 
     def test_build_seed_user_config(self):
-        result = self.enroll_init.build_seed_user_config(self.seed_data_dir,
-                                                         self.iso_values)
+        result = self.enroll_init._build_seed_user_config(self.seed_data_dir,
+                                                          self.iso_values)
 
         self.assertTrue(result)
         self.mock_builtins_open.assert_called_once_with(
@@ -4148,7 +4151,7 @@ class TestSubcloudEnrollment(BaseTestSubcloudManager):
         copied_dict = self.iso_values.copy()
         copied_dict.pop('admin_password')
 
-        test_func = lambda: self.enroll_init.build_seed_user_config(
+        test_func = lambda: self.enroll_init._build_seed_user_config(
             self.seed_data_dir,
             copied_dict)
 
@@ -4156,14 +4159,12 @@ class TestSubcloudEnrollment(BaseTestSubcloudManager):
 
     def test_generate_seed_iso(self):
         with mock.patch('os.path.isdir', side_effect=self.patched_isdir):
-            self.assertTrue(self.enroll_init.generate_seed_iso(self.iso_values))
+            self.assertTrue(self.enroll_init._generate_seed_iso(self.iso_values))
             # Iso command must be invoked (subprocess.run)
             self.mock_run.assert_called_once()
-            # Temp seed data dir must be cleaned up
+            # Temp seed data dir must be created and cleaned up
+            self.mock_mkdtemp.assert_called_once_with(prefix='seed_')
             self.mock_rmtree.assert_called_once_with(self.seed_data_dir)
-            # Iso dir must be created
-            self.mock_makedirs.assert_called_once()
-            self.assertTrue(self.mock_makedirs.call_args.args[0] == self.iso_dir)
             # Seed files must be generted in temp seed dir
             self.mock_builtins_open.assert_any_call(
                 f'{self.seed_data_dir}/network-config',
@@ -4171,14 +4172,3 @@ class TestSubcloudEnrollment(BaseTestSubcloudManager):
             self.mock_builtins_open.assert_any_call(
                 f'{self.seed_data_dir}/user-data',
                 'w')
-
-    def test_generate_seed_iso_pre_exisiting_iso(self):
-        self.assertTrue(self.enroll_init.generate_seed_iso(self.iso_values))
-        # Previous iso file must be cleaned up
-        self.mock_os_remove.assert_called_once_with(self.iso_file)
-        # Makedirs shouldn't be invoked, given that prev iso exisited
-        self.mock_makedirs.assert_not_called()
-        # Iso command must be invoked (subprocess.run)
-        self.mock_run.assert_called_once()
-        # Temp seed data dir must be cleaned up
-        self.mock_rmtree.assert_called_once_with(self.seed_data_dir)
