@@ -17,7 +17,7 @@ from dcmanager.common import utils
 LOG = logging.getLogger(__name__)
 
 
-def check_stale_bindmount(mount_path, source_path, log_error=True):
+def check_stale_bind_mount(mount_path, source_path):
     """Check if the mount has become stale.
 
     We do this by comparing the directory inodes. If the bind mount is
@@ -29,16 +29,22 @@ def check_stale_bindmount(mount_path, source_path, log_error=True):
     mount_path_inode = sh.stat("--format", "%i", mount_path)
     source_path_inode = sh.stat("--format", "%i", source_path)
     if mount_path_inode != source_path_inode:
-        logmsg = f"Found stale bind mount: {mount_path}, unmounting"
-        if log_error:
-            LOG.error(logmsg)
-        else:
-            LOG.warn(logmsg)
+        failure_prefix = f"Failed to repair bind mount at {mount_path}"
+        LOG.error(f"Found stale bind mount: {mount_path}: attempting repair")
         try:
             sh.umount(mount_path)
+        except sh.ErrorReturnCode_32:
+            # Exit code 32 is "mount failure"
+            # Log the exception, but proceed with the rmdir, allowing a
+            # remount attempt
+            LOG.exception(f"{failure_prefix}: unmount failed (continuing)")
+        except Exception:
+            LOG.error(f"{failure_prefix}: unexpected umount failure")
+            raise
+        try:
             os.rmdir(mount_path)
         except Exception:
-            LOG.error(f"Failed to fix bind mount at {mount_path}")
+            LOG.error(f"{failure_prefix}: rmdir failed")
             raise
         return True
 
@@ -55,17 +61,15 @@ def validate_ostree_iso_mount(www_iso_root, source_path):
     Note that ostree_repo is mounted in a location not specific to a subcloud.
     """
     ostree_repo_mount_path = os.path.join(www_iso_root, "ostree_repo")
-    LOG.debug("Checking ostree_repo mount: %s", ostree_repo_mount_path)
-    if os.path.exists(ostree_repo_mount_path) and check_stale_bindmount(
-        ostree_repo_mount_path, source_path
-    ):
-        LOG.warn(f"Found stale bind mount: {ostree_repo_mount_path}, unmounting")
-        try:
-            sh.umount(ostree_repo_mount_path)
-            os.rmdir(ostree_repo_mount_path)
-        except Exception:
-            LOG.error(f"Failed to fix bind mount at {ostree_repo_mount_path}")
-            raise
+    ostree_repo_source_path = os.path.join(source_path, "ostree_repo")
+    LOG.debug(
+        "Checking ostree_repo mount: %s against %s",
+        ostree_repo_mount_path,
+        ostree_repo_source_path,
+    )
+    if os.path.exists(ostree_repo_mount_path):
+        check_stale_bind_mount(ostree_repo_mount_path, ostree_repo_source_path)
+
     # Check for the config file inside the ostree_repo
     check_path = os.path.join(ostree_repo_mount_path, "config")
     if not os.path.exists(check_path):
