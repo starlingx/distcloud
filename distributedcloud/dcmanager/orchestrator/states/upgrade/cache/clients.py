@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2022 Wind River Systems, Inc.
+# Copyright (c) 2022, 2024 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -10,8 +10,11 @@ from oslo_log import log as logging
 
 from dccommon import consts as dccommon_consts
 from dccommon.drivers.openstack.patching_v1 import PatchingClient
-from dccommon.drivers.openstack.sdk_platform import OpenStackDriver
+from dccommon.drivers.openstack.sdk_platform import (
+    OptimizedOpenStackDriver as OpenStackDriver
+)
 from dccommon.drivers.openstack.sysinv_v1 import SysinvClient
+from dcmanager.common import utils
 
 LOG = logging.getLogger(__name__)
 
@@ -41,8 +44,11 @@ def get_keystone_client(region_name=dccommon_consts.DEFAULT_REGION_NAME):
     """Construct a (cached) keystone client (and token)"""
 
     try:
-        os_client = OpenStackDriver(region_name=region_name,
-                                    region_clients=['sysinv'])
+        os_client = OpenStackDriver(
+            region_name=region_name,
+            region_clients=["sysinv"],
+            fetch_subcloud_ips=utils.fetch_subcloud_mgmt_ips,
+        )
         return os_client.keystone_client
     except Exception:
         LOG.warning('Failure initializing KeystoneClient for region: %s'

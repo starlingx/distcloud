@@ -25,7 +25,9 @@ from oslo_log import log as logging
 
 from dccommon import consts as dccommon_consts
 from dccommon.drivers.openstack.patching_v1 import PatchingClient
-from dccommon.drivers.openstack.sdk_platform import OpenStackDriver
+from dccommon.drivers.openstack.sdk_platform import (
+    OptimizedOpenStackDriver as OpenStackDriver
+)
 from dccommon.drivers.openstack.software_v1 import SoftwareClient
 from dccommon.drivers.openstack.sysinv_v1 import SysinvClient
 from dccommon.drivers.openstack import vim
@@ -33,6 +35,7 @@ from dcmanager.common import consts
 from dcmanager.common import context
 from dcmanager.common import exceptions
 from dcmanager.common import scheduler
+from dcmanager.common import utils
 from dcmanager.db import api as db_api
 
 LOG = logging.getLogger(__name__)
@@ -133,8 +136,11 @@ class OrchThread(threading.Thread):
 
         throws an exception if keystone client cannot be initialized
         """
-        os_client = OpenStackDriver(region_name=region_name,
-                                    region_clients=None)
+        os_client = OpenStackDriver(
+            region_name=region_name,
+            region_clients=None,
+            fetch_subcloud_ips=utils.fetch_subcloud_mgmt_ips,
+        )
         return os_client.keystone_client
 
     @staticmethod

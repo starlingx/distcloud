@@ -452,7 +452,7 @@ class OptimizedOpenStackDriver(object):
             )
             if client_obj is not None:
                 LOG.debug(
-                    "Using cached OS {client} client objects "
+                    f"Using cached OS {client} client objects "
                     f"{region_name} {thread_name}"
                 )
                 setattr(self, f"{client}_client", client_obj)

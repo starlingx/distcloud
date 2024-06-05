@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2020-2023 Wind River Systems, Inc.
+# Copyright (c) 2020-2024 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -12,12 +12,15 @@ from dccommon import consts as dccommon_consts
 from dccommon.drivers.openstack.barbican import BarbicanClient
 from dccommon.drivers.openstack.fm import FmClient
 from dccommon.drivers.openstack.patching_v1 import PatchingClient
-from dccommon.drivers.openstack.sdk_platform import OpenStackDriver
+from dccommon.drivers.openstack.sdk_platform import (
+    OptimizedOpenStackDriver as OpenStackDriver
+)
 from dccommon.drivers.openstack.software_v1 import SoftwareClient
 from dccommon.drivers.openstack.sysinv_v1 import SysinvClient
 from dccommon.drivers.openstack.vim import VimClient
 from dcmanager.common import context
 from dcmanager.common.exceptions import InvalidParameterValue
+from dcmanager.common import utils
 
 LOG = logging.getLogger(__name__)
 
@@ -108,8 +111,11 @@ class BaseState(object):
         """Construct a (cached) keystone client (and token)"""
 
         try:
-            os_client = OpenStackDriver(region_name=region_name,
-                                        region_clients=['sysinv'])
+            os_client = OpenStackDriver(
+                region_name=region_name,
+                region_clients=["sysinv"],
+                fetch_subcloud_ips=utils.fetch_subcloud_mgmt_ips,
+            )
             return os_client.keystone_client
         except Exception:
             LOG.warning('Failure initializing KeystoneClient for region: %s'
