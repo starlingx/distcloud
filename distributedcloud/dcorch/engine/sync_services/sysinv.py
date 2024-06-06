@@ -1,4 +1,4 @@
-# Copyright (c) 2017-2022, 2024 Wind River Systems, Inc.
+# Copyright (c) 2017-2024, 2024 Wind River Systems, Inc.
 # All Rights Reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -44,10 +44,8 @@ LOG = logging.getLogger(__name__)
 class SysinvSyncThread(SyncThread):
     """Manages tasks related to distributed cloud orchestration for sysinv."""
 
-    SYSINV_MODIFY_RESOURCES = [consts.RESOURCE_TYPE_SYSINV_DNS,
-                               consts.RESOURCE_TYPE_SYSINV_USER,
-                               consts.RESOURCE_TYPE_SYSINV_FERNET_REPO
-                               ]
+    SYSINV_MODIFY_RESOURCES = [consts.RESOURCE_TYPE_SYSINV_USER,
+                               consts.RESOURCE_TYPE_SYSINV_FERNET_REPO]
 
     SYSINV_CREATE_RESOURCES = [consts.RESOURCE_TYPE_SYSINV_CERTIFICATE,
                                consts.RESOURCE_TYPE_SYSINV_FERNET_REPO]
@@ -66,8 +64,6 @@ class SysinvSyncThread(SyncThread):
         if not self.endpoint_type:
             self.endpoint_type = dccommon_consts.ENDPOINT_TYPE_PLATFORM
         self.sync_handler_map = {
-            consts.RESOURCE_TYPE_SYSINV_DNS:
-                self.sync_platform_resource,
             consts.RESOURCE_TYPE_SYSINV_CERTIFICATE:
                 self.sync_platform_resource,
             consts.RESOURCE_TYPE_SYSINV_USER:
@@ -81,7 +77,6 @@ class SysinvSyncThread(SyncThread):
 
         self.audit_resources = [
             consts.RESOURCE_TYPE_SYSINV_CERTIFICATE,
-            consts.RESOURCE_TYPE_SYSINV_DNS,
             consts.RESOURCE_TYPE_SYSINV_USER,
             consts.RESOURCE_TYPE_SYSINV_FERNET_REPO,
         ]
@@ -113,7 +108,7 @@ class SysinvSyncThread(SyncThread):
     def sync_platform_resource(self, request, rsrc):
         try:
             # invoke the sync method for the requested resource_type
-            # I.e. sync_idns
+            # I.e. sync_iuser
             s_func_name = "sync_" + rsrc.resource_type
             LOG.info("Obj:%s, func:%s" % (type(self), s_func_name))
             getattr(self, s_func_name)(self.get_sc_sysinv_client(), request, rsrc)
@@ -143,52 +138,6 @@ class SysinvSyncThread(SyncThread):
         except Exception as e:
             LOG.exception(e)
             raise exceptions.SyncRequestFailedRetry
-
-    def update_dns(self, sysinv_client, nameservers):
-        try:
-            idns = sysinv_client.update_dns(nameservers)
-            return idns
-        except (AttributeError, TypeError) as e:
-            LOG.info("update_dns error {}".format(e),
-                     extra=self.log_extra)
-            raise exceptions.SyncRequestFailedRetry
-
-    def sync_idns(self, sysinv_client, request, rsrc):
-        # The system is created with default dns; thus there
-        # is a prepopulated dns entry.
-        LOG.info("sync_idns resource_info={}".format(
-                 request.orch_job.resource_info),
-                 extra=self.log_extra)
-        dns_dict = jsonutils.loads(request.orch_job.resource_info)
-        payload = dns_dict.get('payload')
-
-        nameservers = None
-        if isinstance(payload, list):
-            for ipayload in payload:
-                if ipayload.get('path') == '/nameservers':
-                    nameservers = ipayload.get('value')
-                    LOG.debug("sync_idns nameservers = {}".format(nameservers),
-                              extra=self.log_extra)
-                    break
-        else:
-            nameservers = payload.get('nameservers')
-            LOG.debug("sync_idns nameservers from dict={}".format(nameservers),
-                      extra=self.log_extra)
-
-        if nameservers is None:
-            LOG.info("sync_idns No nameservers update found in resource_info"
-                     "{}".format(request.orch_job.resource_info),
-                     extra=self.log_extra)
-            nameservers = ""
-
-        idns = self.update_dns(sysinv_client, nameservers)
-
-        # Ensure subcloud resource is persisted to the DB for later
-        subcloud_rsrc_id = self.persist_db_subcloud_resource(
-            rsrc.id, idns.uuid)
-        LOG.info("DNS {}:{} [{}] updated"
-                 .format(rsrc.id, subcloud_rsrc_id, nameservers),
-                 extra=self.log_extra)
 
     def update_certificate(self, sysinv_client, signature,
                            certificate=None, data=None):
@@ -477,9 +426,7 @@ class SysinvSyncThread(SyncThread):
         LOG.debug("get_master_resources thread:{}".format(
             threading.currentThread().getName()), extra=self.log_extra)
         try:
-            if resource_type == consts.RESOURCE_TYPE_SYSINV_DNS:
-                return [self.get_dns_resource(self.get_master_sysinv_client())]
-            elif resource_type == consts.RESOURCE_TYPE_SYSINV_CERTIFICATE:
+            if resource_type == consts.RESOURCE_TYPE_SYSINV_CERTIFICATE:
                 return self.get_certificates_resources(
                     self.get_master_sysinv_client())
             elif resource_type == consts.RESOURCE_TYPE_SYSINV_USER:
@@ -498,9 +445,7 @@ class SysinvSyncThread(SyncThread):
         LOG.debug("get_subcloud_resources thread:{}".format(
             threading.currentThread().getName()), extra=self.log_extra)
         try:
-            if resource_type == consts.RESOURCE_TYPE_SYSINV_DNS:
-                return [self.get_dns_resource(self.get_sc_sysinv_client())]
-            elif resource_type == consts.RESOURCE_TYPE_SYSINV_CERTIFICATE:
+            if resource_type == consts.RESOURCE_TYPE_SYSINV_CERTIFICATE:
                 return self.get_certificates_resources(self.get_sc_sysinv_client())
             elif resource_type == consts.RESOURCE_TYPE_SYSINV_USER:
                 return [self.get_user_resource(self.get_sc_sysinv_client())]
@@ -541,9 +486,6 @@ class SysinvSyncThread(SyncThread):
             self.region_name, 'audit')
         sdk.OpenStackDriver.delete_region_clients_for_thread(
             dccommon_consts.CLOUD_0, 'audit')
-
-    def get_dns_resource(self, sysinv_client):
-        return sysinv_client.get_dns()
 
     def get_certificates_resources(self, sysinv_client):
         certificate_list = sysinv_client.get_certificates()
@@ -593,18 +535,6 @@ class SysinvSyncThread(SyncThread):
                     resource_type))
                 return self.RESOURCE_UUID_NULL  # master_id cannot be None
 
-    def same_dns(self, i1, i2):
-        LOG.debug("same_dns i1={}, i2={}".format(i1, i2),
-                  extra=self.log_extra)
-        same_nameservers = True
-        if i1.nameservers != i2.nameservers:
-            if not i1.nameservers and not i2.nameservers:
-                # To catch equivalent nameservers None vs ""
-                same_nameservers = True
-            else:
-                same_nameservers = False
-        return same_nameservers
-
     def same_certificate(self, i1, i2):
         LOG.debug("same_certificate i1={}, i2={}".format(i1, i2),
                   extra=self.log_extra)
@@ -642,9 +572,7 @@ class SysinvSyncThread(SyncThread):
         return same_fernet
 
     def same_resource(self, resource_type, m_resource, sc_resource):
-        if resource_type == consts.RESOURCE_TYPE_SYSINV_DNS:
-            return self.same_dns(m_resource, sc_resource)
-        elif resource_type == consts.RESOURCE_TYPE_SYSINV_CERTIFICATE:
+        if resource_type == consts.RESOURCE_TYPE_SYSINV_CERTIFICATE:
             return self.same_certificate(m_resource, sc_resource)
         elif resource_type == consts.RESOURCE_TYPE_SYSINV_USER:
             return self.same_user(m_resource, sc_resource)
@@ -730,10 +658,8 @@ class SysinvSyncThread(SyncThread):
 
     def get_resource_info(self, resource_type,
                           resource, operation_type=None):
-        payload_resources = [consts.RESOURCE_TYPE_SYSINV_DNS,
-                             consts.RESOURCE_TYPE_SYSINV_CERTIFICATE,
-                             consts.RESOURCE_TYPE_SYSINV_USER,
-                             ]
+        payload_resources = [consts.RESOURCE_TYPE_SYSINV_CERTIFICATE,
+                             consts.RESOURCE_TYPE_SYSINV_USER]
         if resource_type in payload_resources:
             if 'payload' not in resource._info:
                 dumps = jsonutils.dumps({"payload": resource._info})

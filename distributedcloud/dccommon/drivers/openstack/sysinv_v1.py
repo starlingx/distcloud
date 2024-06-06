@@ -1,5 +1,5 @@
 # Copyright 2016 Ericsson AB
-# Copyright (c) 2017-2023 Wind River Systems, Inc.
+# Copyright (c) 2017-2024 Wind River Systems, Inc.
 # Licensed under the Apache License, Version 2.0 (the "License"); you may
 # not use this file except in compliance with the License. You may obtain
 # a copy of the License at
@@ -450,52 +450,6 @@ class SysinvClient(base.DriverBase):
         """Get the image tags for an image from the local registry"""
         image_tags = self.sysinv_client.registry_image.tags(image_name)
         return image_tags
-
-    def get_dns(self):
-        """Get the dns nameservers for this region
-
-           :return: dns
-        """
-        idnss = self.sysinv_client.idns.list()
-        if not idnss:
-            LOG.info("dns is None for region: %s" % self.region_name)
-            return None
-        idns = idnss[0]
-
-        LOG.debug("get_dns uuid=%s nameservers=%s" %
-                  (idns.uuid, idns.nameservers))
-
-        return idns
-
-    def update_dns(self, nameservers):
-        """Update the dns nameservers for this region
-
-           :param: nameservers  csv string
-           :return: Nothing
-        """
-        try:
-            idns = self.get_dns()
-            if not idns:
-                LOG.warn("idns not found %s" % self.region_name)
-                return idns
-
-            if idns.nameservers != nameservers:
-                if nameservers == "":
-                    nameservers = "NC"
-                patch = make_sysinv_patch({'nameservers': nameservers,
-                                           'action': 'apply'})
-                LOG.info("region={} dns update uuid={} patch={}".format(
-                         self.region_name, idns.uuid, patch))
-                idns = self.sysinv_client.idns.update(idns.uuid, patch)
-            else:
-                LOG.info("update_dns no changes, skip dns region={} "
-                         "update uuid={} nameservers={}".format(
-                             self.region_name, idns.uuid, nameservers))
-        except Exception as e:
-            LOG.error("update_dns exception={}".format(e))
-            raise e
-
-        return idns
 
     def get_certificates(self):
         """Get the certificates for this region

@@ -113,7 +113,7 @@ class DBAPIOrchRequestTest(base.OrchestratorTestCase):
 
     def test_create_orch_job(self):
         resource = self.create_resource(self.ctx,
-                                        consts.RESOURCE_TYPE_SYSINV_DNS)
+                                        consts.RESOURCE_TYPE_SYSINV_USER)
         endpoint_type = dccommon_consts.ENDPOINT_TYPE_PLATFORM
         operation_type = consts.OPERATION_TYPE_PATCH
         orch_job = self.create_orch_job(self.ctx,
@@ -138,7 +138,7 @@ class DBAPIOrchRequestTest(base.OrchestratorTestCase):
 
     def no_test_unique_key_orch_job_uuid(self):
         resource = self.create_resource(self.ctx,
-                                        consts.RESOURCE_TYPE_SYSINV_DNS)
+                                        consts.RESOURCE_TYPE_SYSINV_USER)
         endpoint_type = dccommon_consts.ENDPOINT_TYPE_PLATFORM
         operation_type = consts.OPERATION_TYPE_PATCH
         orch_job = self.create_orch_job(self.ctx,
@@ -170,7 +170,7 @@ class DBAPIOrchRequestTest(base.OrchestratorTestCase):
 
     def test_orch_request_update(self):
         resource = self.create_default_resource(
-            consts.RESOURCE_TYPE_SYSINV_DNS)
+            consts.RESOURCE_TYPE_SYSINV_USER)
         target_region_name = "RegionOne"
 
         endpoint_type = dccommon_consts.ENDPOINT_TYPE_PLATFORM
@@ -209,7 +209,7 @@ class DBAPIOrchRequestTest(base.OrchestratorTestCase):
 
     def test_orch_request_get_all(self):
         resource = self.create_default_resource(
-            consts.RESOURCE_TYPE_SYSINV_DNS)
+            consts.RESOURCE_TYPE_SYSINV_USER)
 
         endpoint_type = dccommon_consts.ENDPOINT_TYPE_PLATFORM
         operation_type = consts.OPERATION_TYPE_PATCH
@@ -232,7 +232,7 @@ class DBAPIOrchRequestTest(base.OrchestratorTestCase):
 
     def test_orch_request_get_by_orch_job(self):
         resource_sysinv = self.create_default_resource(
-            consts.RESOURCE_TYPE_SYSINV_DNS)
+            consts.RESOURCE_TYPE_SYSINV_USER)
 
         endpoint_type = dccommon_consts.ENDPOINT_TYPE_PLATFORM
         operation_type = consts.OPERATION_TYPE_PATCH
@@ -325,7 +325,7 @@ class DBAPIOrchRequestTest(base.OrchestratorTestCase):
 
     def create_default_sysinv_orch_job(self):
         resource_sysinv = self.create_default_resource(
-            consts.RESOURCE_TYPE_SYSINV_DNS)
+            consts.RESOURCE_TYPE_SYSINV_USER)
 
         endpoint_type = dccommon_consts.ENDPOINT_TYPE_PLATFORM
         operation_type = consts.OPERATION_TYPE_PATCH
@@ -358,7 +358,7 @@ class DBAPIOrchRequestTest(base.OrchestratorTestCase):
         subcloud = self.create_subcloud(self.ctx, SUBCLOUD_NAME_REGION_ONE)
         self.assertIsNotNone(subcloud)
         resource = self.create_resource(self.ctx,
-                                        consts.RESOURCE_TYPE_SYSINV_DNS)
+                                        consts.RESOURCE_TYPE_SYSINV_USER)
         self.assertIsNotNone(resource)
 
         subcloud_resource_uuid = uuidutils.generate_uuid()
@@ -384,7 +384,7 @@ class DBAPIOrchRequestTest(base.OrchestratorTestCase):
 
     def skip_test_orch_request_get_by_attrs(self):
         resource_sysinv = self.create_default_resource(
-            consts.RESOURCE_TYPE_SYSINV_DNS)
+            consts.RESOURCE_TYPE_SYSINV_USER)
 
         endpoint_type = dccommon_consts.ENDPOINT_TYPE_PLATFORM
         operation_type = consts.OPERATION_TYPE_PATCH
@@ -430,7 +430,7 @@ class DBAPIOrchRequestTest(base.OrchestratorTestCase):
             target_region_name)
 
         attrs_endpoint_type = dccommon_consts.ENDPOINT_TYPE_PLATFORM
-        attrs_resource_type = consts.RESOURCE_TYPE_SYSINV_DNS
+        attrs_resource_type = consts.RESOURCE_TYPE_SYSINV_USER
         orch_requests_attrs_1 = db_api.orch_request_get_by_attrs(
             self.ctx,
             attrs_endpoint_type,

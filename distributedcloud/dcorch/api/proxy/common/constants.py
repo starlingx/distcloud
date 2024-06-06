@@ -76,10 +76,6 @@ COMPUTE_PATH_MAP = {
 }
 
 # Sysinv
-DNS_PATHS = [
-    '/v1/idns/{uuid}'
-]
-
 CERTIFICATE_PATHS = [
     '/v1/certificate/certificate_install',
     '/v1/certificate/{uuid}'
@@ -100,7 +96,6 @@ DEVICE_IMAGE_PATHS = [
 ]
 
 SYSINV_PATH_MAP = {
-    consts.RESOURCE_TYPE_SYSINV_DNS: DNS_PATHS,
     consts.RESOURCE_TYPE_SYSINV_CERTIFICATE: CERTIFICATE_PATHS,
     consts.RESOURCE_TYPE_SYSINV_USER: USER_PATHS,
     consts.RESOURCE_TYPE_SYSINV_LOAD: LOAD_PATHS,
@@ -354,7 +349,6 @@ ROUTE_METHOD_MAP = {
         QUOTA_CLASS_RESOURCE_TAG: ['PUT'],
     },
     dccommon_consts.ENDPOINT_TYPE_PLATFORM: {
-        consts.RESOURCE_TYPE_SYSINV_DNS: ['PATCH', 'PUT'],
         consts.RESOURCE_TYPE_SYSINV_CERTIFICATE: ['POST', 'DELETE'],
         consts.RESOURCE_TYPE_SYSINV_USER: ['PATCH', 'PUT'],
         consts.RESOURCE_TYPE_SYSINV_LOAD: ['POST', 'DELETE'],
