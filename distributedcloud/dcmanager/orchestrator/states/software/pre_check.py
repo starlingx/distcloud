@@ -85,7 +85,7 @@ class PreCheckState(BaseState):
 
         # Check for prestaged data
         extra_args = utils.get_sw_update_strategy_extra_args(self.context)
-        release_id = extra_args.get(consts.EXTRA_ARGS_RELEASE_ID)
+        release_id = extra_args.get(consts.EXTRA_ARGS_RELEASE)
         try:
             self.info_log(
                 strategy_step, f"Check prestaged data for release: {release_id}"

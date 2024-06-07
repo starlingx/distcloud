@@ -42,7 +42,7 @@ class CreatingVIMStrategyState(BaseState):
         # Get release parameter data for sw-deploy strategy
         if self.strategy_name == vim.STRATEGY_NAME_SW_USM:
             extra_args = utils.get_sw_update_strategy_extra_args(self.context)
-            release_id = extra_args.get(consts.EXTRA_ARGS_RELEASE_ID)
+            release_id = extra_args.get(consts.EXTRA_ARGS_RELEASE)
             opts_dict["release"] = release_id
 
         # Call the API to build the VIM strategy

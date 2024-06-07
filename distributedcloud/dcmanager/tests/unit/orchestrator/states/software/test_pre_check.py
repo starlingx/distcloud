@@ -49,7 +49,7 @@ class TestPreCheckState(TestSoftwareOrchestrator):
         self.subcloud = self.setup_subcloud()
 
         # Create default strategy with release parameter
-        extra_args = {"release_id": "starlingx-9.0.1"}
+        extra_args = {"release": "starlingx-9.0.1"}
         self.strategy = fake_strategy.create_fake_strategy(
             self.ctx, self.DEFAULT_STRATEGY_TYPE, extra_args=extra_args
         )
@@ -62,9 +62,7 @@ class TestPreCheckState(TestSoftwareOrchestrator):
         self._mock_read_from_cache(pre_check.PreCheckState)
         self._mock_openstack_driver(pre_check.sdk_platform)
         self._mock_vim_client(pre_check.vim)
-        self.software_client.list = mock.MagicMock(
-            return_value=FAKE_SUBCLOUD_RELEASES
-        )
+        self.software_client.list = mock.MagicMock(return_value=FAKE_SUBCLOUD_RELEASES)
         self.mock_read_from_cache.return_value = FAKE_REGION_ONE_RELEASE_PRESTAGED
         self.mock_vim_client().get_current_strategy = mock.MagicMock(return_value={})
 
@@ -78,9 +76,7 @@ class TestPreCheckState(TestSoftwareOrchestrator):
         self.software_client.list.assert_called()
 
         # On success, the state should transition to the next state
-        self.assert_step_updated(
-            self.strategy_step.subcloud_id, self.on_success_state
-        )
+        self.assert_step_updated(self.strategy_step.subcloud_id, self.on_success_state)
 
     def test_pre_check_success_valid_software_strategy(self):
         """Test pre-check when the API call succeeds with a valid VIM strategy."""
@@ -96,9 +92,7 @@ class TestPreCheckState(TestSoftwareOrchestrator):
         self.software_client.list.assert_called()
 
         # On success, the state should transition to the next state
-        self.assert_step_updated(
-            self.strategy_step.subcloud_id, self.on_success_state
-        )
+        self.assert_step_updated(self.strategy_step.subcloud_id, self.on_success_state)
 
     def test_pre_check_failed_invalid_software_strategy(self):
         """Test pre-check when the API call fails with an invalid VIM strategy."""
