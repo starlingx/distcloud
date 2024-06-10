@@ -41,7 +41,9 @@ from keystoneauth1 import exceptions as keystone_exceptions
 
 from dccommon import consts as dccommon_consts
 from dccommon.drivers.openstack.fm import FmClient
-from dccommon.drivers.openstack.sdk_platform import OpenStackDriver
+from dccommon.drivers.openstack.sdk_platform import (
+    OptimizedOpenStackDriver as OpenStackDriver
+)
 from dccommon.drivers.openstack.sysinv_v1 import SysinvClient
 from dccommon.drivers.openstack import vim
 from dccommon import exceptions as dccommon_exceptions
@@ -209,7 +211,9 @@ class SubcloudsController(object):
         try:
             keystone_client = OpenStackDriver(
                 region_name=subcloud.region_name,
-                region_clients=None).keystone_client
+                region_clients=None,
+                fetch_subcloud_ips=utils.fetch_subcloud_mgmt_ips,
+            ).keystone_client
             vim_client = vim.VimClient(subcloud.region_name,
                                        keystone_client.session)
             strategy = vim_client.get_strategy(

@@ -18,7 +18,9 @@ import tsconfig.tsconfig as tsc
 from dccommon import consts as dccommon_consts
 from dccommon.drivers.openstack import patching_v1
 from dccommon.drivers.openstack.patching_v1 import PatchingClient
-from dccommon.drivers.openstack.sdk_platform import OpenStackDriver
+from dccommon.drivers.openstack.sdk_platform import (
+    OptimizedOpenStackDriver as OpenStackDriver
+)
 from dccommon.drivers.openstack.sysinv_v1 import SysinvClient
 from dcmanager.common import consts
 from dcmanager.common.context import RequestContext
@@ -53,8 +55,11 @@ BOOTSTRAP_VALUES_ADDRESSES = [
 def get_ks_client(region_name=dccommon_consts.DEFAULT_REGION_NAME):
     """This will get a new keystone client (and new token)"""
     try:
-        os_client = OpenStackDriver(region_name=region_name,
-                                    region_clients=None)
+        os_client = OpenStackDriver(
+            region_name=region_name,
+            region_clients=None,
+            fetch_subcloud_ips=utils.fetch_subcloud_mgmt_ips,
+        )
         return os_client.keystone_client
     except Exception:
         LOG.warn('Failure initializing KeystoneClient '

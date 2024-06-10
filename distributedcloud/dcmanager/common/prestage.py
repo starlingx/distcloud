@@ -30,7 +30,9 @@ from oslo_log import log as logging
 from tsconfig.tsconfig import SW_VERSION
 
 from dccommon import consts as dccommon_consts
-from dccommon.drivers.openstack.sdk_platform import OpenStackDriver
+from dccommon.drivers.openstack.sdk_platform import (
+    OptimizedOpenStackDriver as OpenStackDriver
+)
 from dccommon.drivers.openstack.sysinv_v1 import SysinvClient
 from dccommon.exceptions import PlaybookExecutionFailed
 from dccommon.exceptions import PlaybookExecutionTimeout
@@ -303,8 +305,11 @@ def _get_prestage_subcloud_info(subcloud):
     interactions.
     """
     try:
-        os_client = OpenStackDriver(region_name=subcloud.region_name,
-                                    region_clients=None)
+        os_client = OpenStackDriver(
+            region_name=subcloud.region_name,
+            region_clients=None,
+            fetch_subcloud_ips=utils.fetch_subcloud_mgmt_ips,
+        )
         keystone_client = os_client.keystone_client
         endpoint = keystone_client.endpoint_cache.get_endpoint('sysinv')
         sysinv_client = SysinvClient(subcloud.region_name,

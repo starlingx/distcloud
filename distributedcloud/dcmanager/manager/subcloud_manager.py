@@ -43,7 +43,9 @@ from tsconfig.tsconfig import SW_VERSION
 import yaml
 
 from dccommon import consts as dccommon_consts
-from dccommon.drivers.openstack.sdk_platform import OpenStackDriver
+from dccommon.drivers.openstack.sdk_platform import (
+    OptimizedOpenStackDriver as OpenStackDriver
+)
 from dccommon.drivers.openstack.sysinv_v1 import SysinvClient
 from dccommon.exceptions import PlaybookExecutionFailed
 from dccommon.exceptions import SubcloudNotFound
@@ -1304,7 +1306,9 @@ class SubcloudManager(manager.Manager):
             # Write ansible based on rehome_data
             m_ks_client = OpenStackDriver(
                 region_name=dccommon_consts.DEFAULT_REGION_NAME,
-                region_clients=None).keystone_client
+                region_clients=None,
+                fetch_subcloud_ips=utils.fetch_subcloud_mgmt_ips,
+            ).keystone_client
             endpoint = m_ks_client.endpoint_cache.get_endpoint('sysinv')
             sysinv_client = SysinvClient(dccommon_consts.DEFAULT_REGION_NAME,
                                          m_ks_client.session,
@@ -1401,7 +1405,9 @@ class SubcloudManager(manager.Manager):
             # on both controllers.
             m_ks_client = OpenStackDriver(
                 region_name=dccommon_consts.DEFAULT_REGION_NAME,
-                region_clients=None).keystone_client
+                region_clients=None,
+                fetch_subcloud_ips=utils.fetch_subcloud_mgmt_ips,
+            ).keystone_client
             subcloud_subnet = netaddr.IPNetwork(
                 utils.get_management_subnet(payload))
             endpoint = m_ks_client.endpoint_cache.get_endpoint('sysinv')
@@ -2152,7 +2158,9 @@ class SubcloudManager(manager.Manager):
             # Use subcloud floating IP for host reachability
             keystone_client = OpenStackDriver(
                 region_name=subcloud.region_name,
-                region_clients=None).keystone_client
+                region_clients=None,
+                fetch_subcloud_ips=utils.fetch_subcloud_mgmt_ips,
+            ).keystone_client
             bootstrap_address = utils.get_oam_addresses(subcloud, keystone_client) \
                 .oam_floating_ip
 
@@ -2725,7 +2733,9 @@ class SubcloudManager(manager.Manager):
         # Central Region Keystone ONLY.
         keystone_client = OpenStackDriver(
             region_name=dccommon_consts.DEFAULT_REGION_NAME,
-            region_clients=None).keystone_client
+            region_clients=None,
+            fetch_subcloud_ips=utils.fetch_subcloud_mgmt_ips,
+        ).keystone_client
 
         # Delete keystone endpoints for subcloud
         keystone_client.delete_endpoints(subcloud.region_name)
@@ -3143,7 +3153,9 @@ class SubcloudManager(manager.Manager):
         ):
             m_ks_client = OpenStackDriver(
                 region_name=dccommon_consts.DEFAULT_REGION_NAME,
-                region_clients=None).keystone_client
+                region_clients=None,
+                fetch_subcloud_ips=utils.fetch_subcloud_mgmt_ips,
+            ).keystone_client
             self._create_subcloud_route(
                 {'management_subnet': subcloud.management_subnet},
                 m_ks_client, systemcontroller_gateway_ip
@@ -3334,7 +3346,9 @@ class SubcloudManager(manager.Manager):
         try:
             m_ks_client = OpenStackDriver(
                 region_name=dccommon_consts.DEFAULT_REGION_NAME,
-                region_clients=None).keystone_client
+                region_clients=None,
+                fetch_subcloud_ips=utils.fetch_subcloud_mgmt_ips,
+            ).keystone_client
             self._create_subcloud_route(payload, m_ks_client,
                                         sys_controller_gw_ip)
         except Exception:

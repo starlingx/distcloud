@@ -29,7 +29,9 @@ from six.moves.urllib import parse
 from six.moves.urllib import request
 
 from dccommon import consts
-from dccommon.drivers.openstack.sdk_platform import OpenStackDriver
+from dccommon.drivers.openstack.sdk_platform import (
+    OptimizedOpenStackDriver as OpenStackDriver
+)
 from dccommon.drivers.openstack.sysinv_v1 import SysinvClient
 from dccommon import exceptions
 from dccommon import ostree_mount
@@ -120,7 +122,9 @@ class SubcloudInstall(object):
     def get_sysinv_client():
         ks_client = OpenStackDriver(
             region_name=consts.DEFAULT_REGION_NAME,
-            region_clients=None).keystone_client
+            region_clients=None,
+            fetch_subcloud_ips=utils.fetch_subcloud_mgmt_ips,
+        ).keystone_client
         session = ks_client.session
         endpoint = ks_client.endpoint_cache.get_endpoint('sysinv')
         return SysinvClient(consts.CLOUD_0,

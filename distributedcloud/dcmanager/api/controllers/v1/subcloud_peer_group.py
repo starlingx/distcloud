@@ -18,7 +18,9 @@ from pecan import expose
 from pecan import request
 
 from dccommon import consts as dccommon_consts
-from dccommon.drivers.openstack.sdk_platform import OpenStackDriver
+from dccommon.drivers.openstack.sdk_platform import (
+    OptimizedOpenStackDriver as OpenStackDriver
+)
 from dccommon.drivers.openstack.sysinv_v1 import SysinvClient
 from dcmanager.api.controllers import restcomm
 from dcmanager.api.policies import subcloud_peer_group as subcloud_peer_group_policy
@@ -78,7 +80,8 @@ class SubcloudPeerGroupsController(restcomm.GenericPathController):
         try:
             ks_client = OpenStackDriver(
                 region_name=dccommon_consts.DEFAULT_REGION_NAME,
-                region_clients=None
+                region_clients=None,
+                fetch_subcloud_ips=utils.fetch_subcloud_mgmt_ips,
             )
             sysinv_client = SysinvClient(
                 dccommon_consts.DEFAULT_REGION_NAME,

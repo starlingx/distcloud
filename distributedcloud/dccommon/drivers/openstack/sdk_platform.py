@@ -385,12 +385,17 @@ class OptimizedOpenStackDriver(object):
             )
         except (
             keystone_exceptions.ConnectFailure,
-            keystone_exceptions.ConnectTimeout,
-            keystone_exceptions.NotFound,
             keystone_exceptions.ServiceUnavailable,
-            keystone_exceptions.ConnectFailure,
         ) as exception:
             LOG.error(
+                f"keystone_client region {self.region_name} error: {str(exception)}"
+            )
+            raise exception
+        except (
+            keystone_exceptions.NotFound,
+            keystone_exceptions.ConnectTimeout
+        ) as exception:
+            LOG.debug(
                 f"keystone_client region {self.region_name} error: {str(exception)}"
             )
             raise exception
