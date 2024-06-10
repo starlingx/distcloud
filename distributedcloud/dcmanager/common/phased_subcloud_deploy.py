@@ -162,11 +162,15 @@ def validate_migrate_parameter(payload, request):
                                'not allowed'))
 
 
-def validate_enroll_parameter(payload, request):
-    enroll_str = payload.get('enroll')
-    if enroll_str and enroll_str not in ["true", "false"]:
-        pecan.abort(400, _('The enroll option is invalid, '
-                           'valid options are true and false.'))
+def validate_enroll_parameter(payload):
+    install_values = payload.get('install_values')
+    if not 'install_values':
+        pecan.abort(400, _("Install values is necessary for "
+                           "subcloud enrollment"))
+
+    # Update the install values in payload
+    if not payload.get('bmc_password'):
+        payload.update({'bmc_password': install_values.get('bmc_password')})
 
 
 def validate_secondary_parameter(payload, request):

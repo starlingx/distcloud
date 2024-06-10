@@ -1107,11 +1107,17 @@ class TestPhasedSubcloudDeployPatchEnroll(BaseTestPhasedSubcloudDeployPatch):
             deploy_status=consts.DEPLOY_STATE_CREATED, software_version=SW_VERSION
         )
 
-        modified_bootstrap_data = copy.copy(fake_subcloud.FAKE_BOOTSTRAP_FILE_DATA)
+        modified_bootstrap_data = copy.copy(
+            fake_subcloud.FAKE_SUBCLOUD_BOOTSTRAP_PAYLOAD)
+        modified_bootstrap_data.update({"name": "fake subcloud1"})
+        modified_install_data = copy.copy(fake_subcloud.FAKE_SUBCLOUD_INSTALL_VALUES)
         fake_content = json.dumps(modified_bootstrap_data).encode("utf-8")
+        install_fake_content = json.dumps(modified_install_data).encode("utf-8")
 
-        self.upload_files = \
-            [("bootstrap_values", "bootstrap_fake_filename", fake_content)]
+        self.upload_files = [(
+            "bootstrap_values", "bootstrap_fake_filename", fake_content),
+            ("install_values", "install_values_fake_filename", install_fake_content)
+        ]
 
     def test_patch_enroll_fails(self):
         """Test patch enroll fails"""

@@ -284,6 +284,14 @@ class DCManagerService(service.Service):
         return self.subcloud_manager.subcloud_deploy_install(
             context, subcloud_id, payload, initial_deployment)
 
+    @run_in_thread
+    @request_context
+    def subcloud_deploy_enroll(self, context, subcloud_id, payload):
+        # Enroll a subcloud
+        LOG.info(f'Handling subcloud_deploy_enroll request for: {subcloud_id}')
+        return self.subcloud_manager.subcloud_deploy_enroll(
+            context, subcloud_id, payload)
+
     @request_context
     def subcloud_deploy_complete(self, context, subcloud_id):
         # Complete the subcloud deployment

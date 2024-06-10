@@ -69,12 +69,12 @@ class SubcloudEnrollmentInit(object):
         network_cloud_config = [
             {
                 'type': 'physical',
-                'name': iso_values['bootstrap_interface'],
+                'name': iso_values['install_values']['bootstrap_interface'],
                 'subnets': [
                     {
                         'type': 'static',
                         'address': iso_values['external_oam_floating_address'],
-                        'netmask': iso_values['network_mask'],
+                        'netmask': iso_values['install_values']['network_mask'],
                         'gateway': iso_values['external_oam_gateway_address'],
                     }
                 ]
