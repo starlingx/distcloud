@@ -125,13 +125,6 @@ class GenericSyncManager(object):
         else:
             LOG.debug("No eligible subclouds for audit.")
 
-    def sync_request(self, ctxt, endpoint_type):
-        # Someone has enqueued a sync job. set the endpoint sync_request to
-        # requested
-        db_api.subcloud_sync_update_all(
-            ctxt, dccommon_consts.MANAGEMENT_MANAGED, endpoint_type,
-            values={'sync_request': dco_consts.SYNC_STATUS_REQUESTED})
-
     def _send_chunk(self, rpc_method, subcloud_sync_chunk):
         try:
             rpc_method(self.context, subcloud_sync_chunk)

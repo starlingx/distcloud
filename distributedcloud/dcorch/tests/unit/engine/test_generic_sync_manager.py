@@ -240,39 +240,3 @@ class TestGenericSyncManager(base.OrchestratorTestCase):
                 dccommon_consts.ENDPOINT_TYPE_PLATFORM)
             self.assertEqual(consts.AUDIT_STATUS_IN_PROGRESS,
                              subcloud_sync_platform.audit_status)
-
-    def test_sync_request(self):
-        subcloud1 = utils.create_subcloud_static(
-            self.ctx,
-            name='subcloud1',
-            management_state=dccommon_consts.MANAGEMENT_MANAGED,
-            initial_sync_state=consts.INITIAL_SYNC_STATE_NONE)
-        utils.create_subcloud_sync_static(
-            self.ctx,
-            subcloud1.region_name,
-            dccommon_consts.ENDPOINT_TYPE_IDENTITY,
-            subcloud_id=subcloud1.id)
-
-        subcloud2 = utils.create_subcloud_static(
-            self.ctx,
-            name='subcloud2',
-            management_state=dccommon_consts.MANAGEMENT_MANAGED,
-            initial_sync_state=consts.INITIAL_SYNC_STATE_FAILED)
-        utils.create_subcloud_sync_static(
-            self.ctx,
-            subcloud2.region_name,
-            dccommon_consts.ENDPOINT_TYPE_IDENTITY,
-            vsubcloud_id=subcloud2.id)
-
-        gsm = generic_sync_manager.GenericSyncManager()
-        gsm.sync_request(self.ctx, dccommon_consts.ENDPOINT_TYPE_IDENTITY)
-
-        # Verify the sync_request of the subclouds were updated to requested
-        subcloud_sync = db_api.subcloud_sync_get(
-            self.ctx, 'subcloud1', dccommon_consts.ENDPOINT_TYPE_IDENTITY)
-        self.assertEqual(consts.SYNC_STATUS_REQUESTED,
-                         subcloud_sync.sync_request)
-        subcloud_sync = db_api.subcloud_sync_get(
-            self.ctx, 'subcloud2', dccommon_consts.ENDPOINT_TYPE_IDENTITY)
-        self.assertEqual(consts.SYNC_STATUS_REQUESTED,
-                         subcloud_sync.sync_request)
