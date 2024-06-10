@@ -14,6 +14,7 @@ from tsconfig.tsconfig import SW_VERSION
 
 from dccommon import consts as dccommon_consts
 from dcmanager.api.controllers.v1 import phased_subcloud_deploy as psd_api
+from dcmanager.api.controllers.v1.subclouds import SubcloudsController
 from dcmanager.common import consts
 from dcmanager.common import phased_subcloud_deploy as psd_common
 from dcmanager.common import utils as dutils
@@ -64,6 +65,13 @@ class BaseTestPhasedSubcloudDeployController(DCManagerApiTest):
     def _mock_is_initial_deployment(self):
         mock_patch_object = mock.patch.object(psd_common, "is_initial_deployment")
         self.mock_is_initial_deployment = mock_patch_object.start()
+        self.addCleanup(mock_patch_object.stop)
+
+    def _mock_is_valid_software_deploy_state(self):
+        mock_patch_object = mock.patch.object(
+            SubcloudsController, "is_valid_software_deploy_state"
+        )
+        self.mock_is_valid_software_deploy_state = mock_patch_object.start()
         self.addCleanup(mock_patch_object.stop)
 
 
@@ -197,6 +205,7 @@ class BaseTestPhasedSubcloudDeployPatch(BaseTestPhasedSubcloudDeployController):
 
         self._mock_get_vault_load_files()
         self._mock_is_initial_deployment()
+        self._mock_is_valid_software_deploy_state()
         self._mock_get_network_address_pool()
 
         self.mock_get_vault_load_files.return_value = \

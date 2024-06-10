@@ -1406,7 +1406,7 @@ def create_subcloud_rehome_data_template():
     return {'saved_payload': {}}
 
 
-def get_sw_version(release=None):
+def get_sw_version(release=None, for_install=True):
     """Get the sw_version to be used.
 
     Return the sw_version by first validating a set release version.
@@ -1416,7 +1416,10 @@ def get_sw_version(release=None):
 
     if release:
         try:
-            validate_release_version_supported(release)
+            if for_install:
+                validate_major_release_version_supported(release)
+            else:
+                validate_minor_release_version_exists(release)
             return release
         except exceptions.ValidateFail as e:
             pecan.abort(400,
@@ -1428,7 +1431,7 @@ def get_sw_version(release=None):
         return tsc.SW_VERSION
 
 
-def validate_release_version_supported(release_version_to_check):
+def validate_major_release_version_supported(release_version_to_check):
     """Check if a release version is supported by the current active version.
 
     :param release_version_to_check: version string to validate
@@ -1450,6 +1453,37 @@ def validate_release_version_supported(release_version_to_check):
         raise exceptions.ValidateFail(msg)
 
     return True
+
+
+def is_major_release(version):
+    return not is_minor_release(version)
+
+
+def is_minor_release(version):
+    split_version = version.split('.')
+    if len(split_version) == 2:
+        return False
+    if len(split_version) == 3:
+        if split_version[2] == '0':
+            return False
+        return True
+    LOG.error(f"Unexpected release version found: {version}, assuming major release")
+    return False
+
+
+def get_major_release(version):
+    """Returns the YY.MM portion of the given version string"""
+    split_version = version.split('.')
+    return '.'.join(split_version[0:2])
+
+
+def validate_minor_release_version_exists(release_version_to_check):
+    # TODO(kmacleod): For minor releases (for_sw_deploy) we need to
+    # validate the given minor release
+
+    # This should lookup all the minor releases and validate the input version
+    # exists
+    LOG.warn("TODO: validate_minor_release_version_exists")
 
 
 def get_current_supported_upgrade_versions():

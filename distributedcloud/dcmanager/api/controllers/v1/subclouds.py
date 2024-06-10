@@ -44,6 +44,7 @@ from dccommon.drivers.openstack.fm import FmClient
 from dccommon.drivers.openstack.sdk_platform import (
     OptimizedOpenStackDriver as OpenStackDriver
 )
+from dccommon.drivers.openstack import software_v1
 from dccommon.drivers.openstack.sysinv_v1 import SysinvClient
 from dccommon.drivers.openstack import vim
 from dccommon import exceptions as dccommon_exceptions
@@ -129,36 +130,54 @@ class SubcloudsController(object):
 
     @staticmethod
     def _get_prestage_payload(request):
-        fields = ['sysadmin_password', 'force', consts.PRESTAGE_REQUEST_RELEASE]
-        payload = {
-            'force': False
-        }
+        fields = [
+            "sysadmin_password",
+            "force",
+            consts.PRESTAGE_REQUEST_RELEASE,
+            consts.PRESTAGE_FOR_INSTALL,
+            consts.PRESTAGE_FOR_SW_DEPLOY,
+        ]
+        payload = {"force": False}
         try:
             body = json.loads(request.body)
         except Exception:
-            pecan.abort(400, _('Request body is malformed.'))
+            pecan.abort(400, _("Request body is malformed."))
 
         for field in fields:
             val = body.get(field)
             if val is None:
-                if field == 'sysadmin_password':
+                if field == "sysadmin_password":
                     pecan.abort(400, _("%s is required." % field))
             else:
-                if field == 'sysadmin_password':
+                if field == "sysadmin_password":
                     try:
-                        base64.b64decode(val).decode('utf-8')
-                        payload['sysadmin_password'] = val
+                        base64.b64decode(val).decode("utf-8")
+                        payload["sysadmin_password"] = val
                     except Exception:
                         pecan.abort(
                             400,
-                            _('Failed to decode subcloud sysadmin_password, '
-                              'verify the password is base64 encoded'))
-                elif field == 'force':
-                    if val.lower() in ('true', 'false', 't', 'f'):
-                        payload['force'] = val.lower() in ('true', 't')
+                            _(
+                                "Failed to decode subcloud sysadmin_password, "
+                                "verify the password is base64 encoded"
+                            ),
+                        )
+                elif field == "force":
+                    if val.lower() in ("true", "false", "t", "f"):
+                        payload["force"] = val.lower() in ("true", "t")
                     else:
                         pecan.abort(
-                            400, _('Invalid value for force option: %s' % val))
+                            400, _("Invalid value for force option: %s" % val)
+                        )
+                elif field in (
+                    consts.PRESTAGE_FOR_INSTALL,
+                    consts.PRESTAGE_FOR_SW_DEPLOY
+                ):
+                    if val.lower() in ("true", "false", "t", "f"):
+                        payload[field] = val.lower() in ("true", "t")
+                    else:
+                        errmsg = f"Invalid value for {field} option: {val}"
+                        pecan.abort(400, _(errmsg))
+
                 elif field == consts.PRESTAGE_REQUEST_RELEASE:
                     payload[consts.PRESTAGE_REQUEST_RELEASE] = val
         return payload
@@ -522,6 +541,53 @@ class SubcloudsController(object):
                 subcloud_dict.update(extra_details)
             return subcloud_dict
 
+    @staticmethod
+    def is_valid_software_deploy_state():
+        try:
+            m_os_ks_client = OpenStackDriver(
+                region_name=dccommon_consts.DEFAULT_REGION_NAME, region_clients=None
+            ).keystone_client
+            software_endpoint = m_os_ks_client.endpoint_cache.get_endpoint(
+                dccommon_consts.ENDPOINT_TYPE_SOFTWARE
+            )
+            software_client = software_v1.SoftwareClient(
+                dccommon_consts.DEFAULT_REGION_NAME,
+                m_os_ks_client.session,
+                endpoint=software_endpoint,
+            )
+            software_list = software_client.list()
+            for release in software_list:
+                if release["state"] not in (
+                    software_v1.AVAILABLE,
+                    software_v1.COMMITTED,
+                    software_v1.DEPLOYED,
+                    software_v1.UNAVAILABLE,
+                ):
+                    LOG.info(
+                        "is_valid_software_deploy_state, not valid for: %s",
+                        software_list
+                    )
+                    return False
+            LOG.debug("is_valid_software_deploy_state, valid: %s", software_list)
+
+        except Exception:
+            LOG.exception("Failure initializing OS Client, disallowing.")
+            return False
+
+        return True
+
+    @staticmethod
+    def validate_software_deploy_state():
+        if not SubcloudsController.is_valid_software_deploy_state():
+            pecan.abort(
+                400,
+                _(
+                    "A local software deployment operation is in progress. "
+                    "Please finish the software deployment operation before "
+                    "(re)installing/updating the subcloud."
+                ),
+            )
+
     @utils.synchronized(LOCK_NAME)
     @index.when(method='POST', template='json')
     def post(self):
@@ -530,6 +596,18 @@ class SubcloudsController(object):
         policy.authorize(subclouds_policy.POLICY_ROOT % "create", {},
                          restcomm.extract_credentials_for_policy())
         context = restcomm.extract_context_from_environ()
+
+        self.validate_software_deploy_state()
+
+        if not SubcloudsController.is_valid_software_deploy_state():
+            pecan.abort(
+                400,
+                _(
+                    "A local software deployment operation is in progress. "
+                    "Please finish the software deployment opearation before "
+                    "(re)installing/updating the subcloud."
+                ),
+            )
 
         bootstrap_sc_name = psd_common.get_bootstrap_subcloud_name(request)
 
@@ -1003,6 +1081,7 @@ class SubcloudsController(object):
             if utils.subcloud_is_secondary_state(subcloud.deploy_status):
                 pecan.abort(500, _("Cannot perform on %s "
                                    "state subcloud" % subcloud.deploy_status))
+            self.validate_software_deploy_state()
             config_file = psd_common.get_config_file_path(subcloud.name,
                                                           consts.DEPLOY_CONFIG)
             has_bootstrap_values = consts.BOOTSTRAP_VALUES in request.POST
@@ -1106,8 +1185,11 @@ class SubcloudsController(object):
                 LOG.exception("validate_prestage failed")
                 pecan.abort(400, _(str(exc)))
 
+            for_install = True
+            if consts.PRESTAGE_FOR_SW_DEPLOY in payload:
+                for_install = False
             prestage_software_version = utils.get_sw_version(
-                payload.get(consts.PRESTAGE_REQUEST_RELEASE))
+                payload.get(consts.PRESTAGE_REQUEST_RELEASE), for_install)
 
             try:
                 self.dcmanager_rpc_client.prestage_subcloud(context, payload)

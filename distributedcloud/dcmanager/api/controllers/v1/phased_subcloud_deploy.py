@@ -12,6 +12,7 @@ from oslo_messaging import RemoteError
 import pecan
 
 from dcmanager.api.controllers import restcomm
+from dcmanager.api.controllers.v1.subclouds import SubcloudsController
 from dcmanager.api.policies import phased_subcloud_deploy as \
     phased_subcloud_deploy_policy
 from dcmanager.api import policy
@@ -209,6 +210,8 @@ class PhasedSubcloudDeployController(object):
             request, subcloud, SUBCLOUD_INSTALL_GET_FILE_CONTENTS)
         if not payload:
             pecan.abort(400, _('Body required'))
+
+        SubcloudsController.validate_software_deploy_state()
 
         if subcloud.deploy_status not in VALID_STATES_FOR_DEPLOY_INSTALL:
             allowed_states_str = ', '.join(VALID_STATES_FOR_DEPLOY_INSTALL)
@@ -471,6 +474,7 @@ class PhasedSubcloudDeployController(object):
         # Consider the incoming release parameter only if install is one
         # of the pending deploy states
         if INSTALL in deploy_states_to_run:
+            SubcloudsController.validate_software_deploy_state()
             unvalidated_sw_version = \
                 payload.get('release', subcloud.software_version)
         else:

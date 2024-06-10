@@ -370,6 +370,7 @@ class TestSwUpdateManager(base.DCManagerTestCase):
         for index, strategy_step in enumerate(strategy_step_list):
             self.assertEqual(subcloud_ids[index], strategy_step.subcloud_id)
 
+    @mock.patch.object(cutils, "get_systemcontroller_installed_loads")
     @mock.patch.object(prestage, "initial_subcloud_validate")
     @mock.patch.object(prestage, "global_prestage_validate")
     @mock.patch.object(sw_update_manager, "PatchOrchThread")
@@ -378,6 +379,7 @@ class TestSwUpdateManager(base.DCManagerTestCase):
         mock_patch_orch_thread,
         mock_global_prestage_validate,
         mock_initial_subcloud_validate,
+        mock_installed_loads,
     ):
         # Create fake subclouds and respective status
         fake_subcloud1 = self.create_subcloud(
@@ -404,6 +406,7 @@ class TestSwUpdateManager(base.DCManagerTestCase):
 
         mock_global_prestage_validate.return_value = None
         mock_initial_subcloud_validate.return_value = None
+        mock_installed_loads.return_value = ['24.09']
 
         data = copy.copy(FAKE_SW_PRESTAGE_DATA)
         fake_password = (base64.b64encode("testpass".encode("utf-8"))).decode(
@@ -428,6 +431,7 @@ class TestSwUpdateManager(base.DCManagerTestCase):
         for index, strategy_step in enumerate(strategy_step_list):
             self.assertEqual(subcloud_ids[index], strategy_step.subcloud_id)
 
+    @mock.patch.object(cutils, "get_systemcontroller_installed_loads")
     @mock.patch.object(prestage, "initial_subcloud_validate")
     @mock.patch.object(prestage, "global_prestage_validate")
     @mock.patch.object(sw_update_manager, "PatchOrchThread")
@@ -436,6 +440,7 @@ class TestSwUpdateManager(base.DCManagerTestCase):
         mock_patch_orch_thread,
         mock_global_prestage_validate,
         mock_initial_subcloud_validate,
+        mock_installed_loads,
     ):
         # Create fake subclouds and respective status
         # Subcloud1 will be prestaged load in sync
@@ -481,6 +486,7 @@ class TestSwUpdateManager(base.DCManagerTestCase):
 
         mock_global_prestage_validate.return_value = None
         mock_initial_subcloud_validate.return_value = None
+        mock_installed_loads.return_value = ['24.09']
 
         data = copy.copy(FAKE_SW_PRESTAGE_DATA)
         fake_password = (base64.b64encode("testpass".encode("utf-8"))).decode(
@@ -504,6 +510,7 @@ class TestSwUpdateManager(base.DCManagerTestCase):
         for index, strategy_step in enumerate(strategy_step_list):
             self.assertEqual(subcloud_ids[index], strategy_step.subcloud_id)
 
+    @mock.patch.object(cutils, "get_systemcontroller_installed_loads")
     @mock.patch.object(prestage, "initial_subcloud_validate")
     @mock.patch.object(prestage, "_get_system_controller_upgrades")
     @mock.patch.object(sw_update_manager, "PatchOrchThread")
@@ -512,6 +519,7 @@ class TestSwUpdateManager(base.DCManagerTestCase):
         mock_patch_orch_thread,
         mock_controller_upgrade,
         mock_initial_subcloud_validate,
+        mock_installed_loads,
     ):
         # Create fake subclouds and respective status
         fake_subcloud1 = self.create_subcloud(
@@ -538,6 +546,7 @@ class TestSwUpdateManager(base.DCManagerTestCase):
 
         mock_initial_subcloud_validate.return_value = None
         mock_controller_upgrade.return_value = list()
+        mock_installed_loads.return_value = ['24.09']
 
         data = copy.copy(FAKE_SW_PRESTAGE_DATA)
         data["sysadmin_password"] = ""
@@ -551,12 +560,17 @@ class TestSwUpdateManager(base.DCManagerTestCase):
             payload=data,
         )
 
+    @mock.patch.object(cutils, "get_systemcontroller_installed_loads")
     @mock.patch.object(prestage, "_get_system_controller_upgrades")
     @mock.patch.object(sw_update_manager, "PatchOrchThread")
     def test_create_sw_prestage_strategy_backup_in_progress(
-        self, mock_patch_orch_thread, mock_controller_upgrade
+        self,
+        mock_patch_orch_thread,
+        mock_controller_upgrade,
+        mock_installed_loads,
     ):
         mock_controller_upgrade.return_value = list()
+        mock_installed_loads.return_value = ['24.09']
 
         # Create fake subcloud and respective status (managed & online)
         fake_subcloud1 = self.create_subcloud(

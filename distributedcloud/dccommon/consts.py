@@ -216,3 +216,6 @@ ANSIBLE_SUBCLOUD_ENROLL_PLAYBOOK = \
 
 # Sysinv client default timeout
 SYSINV_CLIENT_REST_DEFAULT_TIMEOUT = 600
+
+SUBCLOUD_ISO_PATH = '/opt/platform/iso'
+SUBCLOUD_FEED_PATH = '/var/www/pages/feed'

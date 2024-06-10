@@ -399,6 +399,8 @@ EXTRA_ARGS_RELEASE = 'release'
 # http request/response arguments for prestage
 PRESTAGE_SOFTWARE_VERSION = 'prestage-software-version'
 PRESTAGE_REQUEST_RELEASE = 'release'
+PRESTAGE_FOR_INSTALL = 'for_install'
+PRESTAGE_FOR_SW_DEPLOY = 'for_sw_deploy'
 
 # Device Image Bitstream Types
 BITSTREAM_TYPE_ROOT_KEY = 'root-key'
