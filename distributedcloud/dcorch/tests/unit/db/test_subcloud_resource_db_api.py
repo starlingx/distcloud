@@ -99,14 +99,14 @@ class DBAPISubcloudResourceTest(base.OrchestratorTestCase):
 
     def test_create_resource(self):
         resource = self.create_resource(self.ctx,
-                                        consts.RESOURCE_TYPE_SYSINV_DNS)
+                                        consts.RESOURCE_TYPE_SYSINV_USER)
         self.assertIsNotNone(resource)
-        self.assertEqual(consts.RESOURCE_TYPE_SYSINV_DNS,
+        self.assertEqual(consts.RESOURCE_TYPE_SYSINV_USER,
                          resource.resource_type)
         created_resource = db_api.resource_get_all(
             self.ctx,
-            consts.RESOURCE_TYPE_SYSINV_DNS)
-        self.assertEqual(consts.RESOURCE_TYPE_SYSINV_DNS,
+            consts.RESOURCE_TYPE_SYSINV_USER)
+        self.assertEqual(consts.RESOURCE_TYPE_SYSINV_USER,
                          created_resource[0].get('resource_type'))
 
     def test_primary_key_subcloud(self):
@@ -118,20 +118,20 @@ class DBAPISubcloudResourceTest(base.OrchestratorTestCase):
     def test_unique_key_resource_uuid(self):
         created_resource = self.create_resource(
             self.ctx,
-            consts.RESOURCE_TYPE_SYSINV_DNS)
+            consts.RESOURCE_TYPE_SYSINV_USER)
         self.assertRaises(oslo_db.exception.DBDuplicateEntry,
                           self.create_resource, self.ctx,
-                          consts.RESOURCE_TYPE_SYSINV_DNS,
+                          consts.RESOURCE_TYPE_SYSINV_USER,
                           uuid=created_resource.uuid)
 
     def skip_test_resource_update(self):
         resource = self.create_resource(self.ctx,
-                                        consts.RESOURCE_TYPE_SYSINV_DNS)
+                                        consts.RESOURCE_TYPE_SYSINV_USER)
         self.assertIsNotNone(resource)
         master_id = resource.master_id
         values = {'master_id': master_id}
         db_api.resource_update(self.ctx,
-                               consts.RESOURCE_TYPE_SYSINV_DNS,
+                               consts.RESOURCE_TYPE_SYSINV_USER,
                                values)
         gresource = db_api.resource_get_by_id(self.ctx, resource.id)
         self.assertEqual(master_id,
@@ -139,14 +139,14 @@ class DBAPISubcloudResourceTest(base.OrchestratorTestCase):
 
     def test_resource_get_all(self):
         resource = self.create_resource(self.ctx,
-                                        consts.RESOURCE_TYPE_SYSINV_DNS)
+                                        consts.RESOURCE_TYPE_SYSINV_USER)
         self.assertIsNotNone(resource)
         query = db_api.resource_get_all(self.ctx)
         self.assertEqual(query[0].get('resource_type'), resource.resource_type)
 
     def skip_test_update_invalid_resource(self):
         resource = self.create_resource(self.ctx,
-                                        consts.RESOURCE_TYPE_SYSINV_DNS)
+                                        consts.RESOURCE_TYPE_SYSINV_USER)
         self.assertIsNotNone(resource)
         # master_uuid = uuidutils.generate_uuid()
         master_id = resource.master_id
@@ -161,7 +161,7 @@ class DBAPISubcloudResourceTest(base.OrchestratorTestCase):
     def test_subcloud_resource_create(self):
         subcloud = self.create_subcloud(self.ctx, SUBCLOUD_NAME_REGION_ONE)
         resource = self.create_resource(self.ctx,
-                                        consts.RESOURCE_TYPE_SYSINV_DNS)
+                                        consts.RESOURCE_TYPE_SYSINV_USER)
         subcloud_resource_uuid = uuidutils.generate_uuid()
         shared_config_state = consts.SHARED_CONFIG_STATE_UNMANAGED
         subcloud_resource_create = self.create_subcloud_resource(
@@ -175,7 +175,7 @@ class DBAPISubcloudResourceTest(base.OrchestratorTestCase):
     def test_subcloud_resource_update(self):
         subcloud = self.create_subcloud(self.ctx, SUBCLOUD_NAME_REGION_ONE)
         resource = self.create_resource(self.ctx,
-                                        consts.RESOURCE_TYPE_SYSINV_DNS)
+                                        consts.RESOURCE_TYPE_SYSINV_USER)
         subcloud_resource_uuid = uuidutils.generate_uuid()
         shared_config_state = consts.SHARED_CONFIG_STATE_UNMANAGED
         subcloud_resource_create = self.create_subcloud_resource(
@@ -199,7 +199,7 @@ class DBAPISubcloudResourceTest(base.OrchestratorTestCase):
         subcloud = self.create_subcloud(self.ctx, SUBCLOUD_NAME_REGION_ONE)
         self.assertIsNotNone(subcloud)
         resource = self.create_resource(self.ctx,
-                                        consts.RESOURCE_TYPE_SYSINV_DNS)
+                                        consts.RESOURCE_TYPE_SYSINV_USER)
         self.assertIsNotNone(resource)
 
         subcloud_resource_uuid = uuidutils.generate_uuid()
@@ -217,7 +217,7 @@ class DBAPISubcloudResourceTest(base.OrchestratorTestCase):
         subcloud = self.create_subcloud(self.ctx, SUBCLOUD_NAME_REGION_ONE)
         self.assertIsNotNone(subcloud)
         resource = self.create_resource(self.ctx,
-                                        consts.RESOURCE_TYPE_SYSINV_DNS)
+                                        consts.RESOURCE_TYPE_SYSINV_USER)
         self.assertIsNotNone(resource)
 
         subcloud_resource_uuid = uuidutils.generate_uuid()
