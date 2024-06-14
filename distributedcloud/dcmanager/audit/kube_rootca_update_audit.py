@@ -4,7 +4,6 @@
 # SPDX-License-Identifier: Apache-2.0
 #
 
-from keystoneauth1 import exceptions as keystone_exceptions
 from oslo_config import cfg
 from oslo_log import log as logging
 
@@ -14,7 +13,6 @@ from fm_api.constants import FM_ALARM_ID_CERT_EXPIRING_SOON
 from dccommon import consts as dccommon_consts
 from dccommon import utils as dccommon_utils
 
-from dccommon.drivers.openstack.fm import FmClient
 from dccommon.drivers.openstack.sdk_platform import (
     OptimizedOpenStackDriver as OpenStackDriver
 )
@@ -82,7 +80,9 @@ class KubeRootcaUpdateAudit(Auditor):
                   f"{regionone_rootca_certid}.")
         return regionone_rootca_certid
 
-    def subcloud_kube_rootca_audit(self, subcloud, regionone_rootca_certid):
+    def subcloud_kube_rootca_audit(
+        self, sysinv_client, fm_client, subcloud, regionone_rootca_certid
+    ):
         """Perform an audit of kube root CA update info in a subcloud.
 
         The audit logic is as follow:
@@ -94,37 +94,25 @@ class KubeRootcaUpdateAudit(Auditor):
                 subcloud doesn't have the API to get cert ID -> alarm based
                 region one cert ID -> cert based
 
+        :param sysinv_client: the sysinv client object
+        :param fm_client: the fm client object
         :param subcloud: the subcloud obj
         :param region_one_audit_data: the audit data of the region one
         """
+
         subcloud_name = subcloud.name
         subcloud_region = subcloud.region_name
         LOG.info("Triggered %s audit for: %s" % (self.audit_type,
                                                  subcloud_name))
-
-        try:
-            sc_os_client = OpenStackDriver(
-                region_name=subcloud_region,
-                region_clients=None,
-                fetch_subcloud_ips=utils.fetch_subcloud_mgmt_ips,
-            ).keystone_client
-            session = sc_os_client.session
-            endpoint = sc_os_client.endpoint_cache.get_endpoint('sysinv')
-        except (keystone_exceptions.EndpointNotFound,
-                keystone_exceptions.ConnectFailure,
-                keystone_exceptions.ConnectTimeout,
-                IndexError):
-            LOG.exception("Endpoint for online subcloud:(%s) not found, skip "
-                          "%s audit." % (subcloud_name, self.audit_type))
-            return
 
         # Firstly, apply alarm based audit against the subclouds deployed in
         # the distributed cloud and the subcloud running on old software
         # version that cannot search for the k8s root CA cert id.
         if dccommon_utils.is_centos(subcloud.software_version) or \
                 not subcloud.rehomed:
-            self.subcloud_audit_alarm_based(subcloud_name, subcloud_region,
-                                            session)
+            self.subcloud_audit_alarm_based(
+                fm_client, subcloud_name, subcloud_region
+            )
             return
 
         # Skip the audit if cannot get the region one cert ID.
@@ -135,8 +123,6 @@ class KubeRootcaUpdateAudit(Auditor):
             return
 
         try:
-            sysinv_client = SysinvClient(subcloud_region, session,
-                                         endpoint=endpoint)
             success, subcloud_cert_data = \
                 sysinv_client.get_kube_rootca_cert_id()
         except Exception:
@@ -149,31 +135,24 @@ class KubeRootcaUpdateAudit(Auditor):
             # if not success, the subcloud is a Debian based subcloud without
             # the sysinv API to get the cert ID, audit the subcloud based on
             # its alarm.
-            self.subcloud_audit_alarm_based(subcloud_name, subcloud_region,
-                                            session)
+            self.subcloud_audit_alarm_based(
+                fm_client, subcloud_name, subcloud_region
+            )
         else:
             self.subcloud_audit_cert_based(subcloud_name, subcloud_region,
                                            subcloud_cert_data,
                                            regionone_rootca_certid)
 
-    def subcloud_audit_alarm_based(self, subcloud_name,
-                                   subcloud_region, session):
+    def subcloud_audit_alarm_based(
+        self, fm_client, subcloud_name, subcloud_region
+    ):
         """The subcloud doesn't have the method to get Kubernetes root CA
 
         cert ID, use alarm based audit.
+        :param fm_client: the fm client object
         :param subcloud_name: the name of the subcloud
         :param subcloud_region: the region of the subcloud
-        :param session: the keystone session of the subcloud
         """
-        try:
-            fm_client = FmClient(subcloud_region, session)
-        except (keystone_exceptions.EndpointNotFound,
-                keystone_exceptions.ConnectFailure,
-                keystone_exceptions.ConnectTimeout,
-                IndexError):
-            LOG.exception("Endpoint for online subcloud:(%s) not found, skip "
-                          "%s audit." % (subcloud_name, self.audit_type))
-            return
 
         out_of_sync = False
         detected_alarms = fm_client.get_alarms_by_ids(KUBE_ROOTCA_ALARM_LIST)

@@ -23,6 +23,7 @@ from dcmanager.audit import firmware_audit
 from dcmanager.audit import kubernetes_audit
 from dcmanager.audit import patch_audit
 from dcmanager.audit import subcloud_audit_manager
+from dcmanager.audit import subcloud_audit_worker_manager
 from dcmanager.tests import base
 from dcmanager.tests import utils
 
@@ -132,6 +133,8 @@ class TestKubernetesAudit(base.DCManagerTestCase):
         self.mock_kube_audit_sys.return_value = self.kube_sysinv_client
         self.addCleanup(p.stop)
 
+        self._mock_sysinv_client(subcloud_audit_worker_manager)
+
         # Set the kube upgrade objects as being empty for all regions
         self.kube_sysinv_client.get_kube_upgrades.return_value = []
 
@@ -175,7 +178,9 @@ class TestKubernetesAudit(base.DCManagerTestCase):
         subclouds = {base.SUBCLOUD_1['name']: base.SUBCLOUD_1['region_name'],
                      base.SUBCLOUD_2['name']: base.SUBCLOUD_2['region_name']}
         for name, region in subclouds.items():
-            audit.subcloud_kubernetes_audit(name, region, kubernetes_audit_data)
+            audit.subcloud_kubernetes_audit(
+                self.mock_sysinv_client(), name, region, kubernetes_audit_data
+            )
             expected_calls = [
                 mock.call(mock.ANY,
                           subcloud_name=name,
@@ -206,7 +211,9 @@ class TestKubernetesAudit(base.DCManagerTestCase):
             self.kube_sysinv_client.get_kube_versions.return_value = [
                 FakeKubeVersion(version=PREVIOUS_KUBE_VERSION),
             ]
-            audit.subcloud_kubernetes_audit(name, region, kubernetes_audit_data)
+            audit.subcloud_kubernetes_audit(
+                self.mock_sysinv_client(), name, region, kubernetes_audit_data
+            )
             expected_calls = [
                 mock.call(mock.ANY,
                           subcloud_name=name,
@@ -237,7 +244,9 @@ class TestKubernetesAudit(base.DCManagerTestCase):
             self.kube_sysinv_client.get_kube_versions.return_value = [
                 FakeKubeVersion(version=UPGRADED_KUBE_VERSION),
             ]
-            audit.subcloud_kubernetes_audit(name, region, kubernetes_audit_data)
+            audit.subcloud_kubernetes_audit(
+                self.mock_sysinv_client(), name, region, kubernetes_audit_data
+            )
             expected_calls = [
                 mock.call(mock.ANY,
                           subcloud_name=name,
@@ -260,6 +269,9 @@ class TestKubernetesAudit(base.DCManagerTestCase):
         self.kube_sysinv_client.get_kube_versions.return_value = [
             FakeKubeVersion(version=UPGRADED_KUBE_VERSION),
         ]
+        self.mock_sysinv_client().get_kube_versions.return_value = [
+            FakeKubeVersion(version=UPGRADED_KUBE_VERSION)
+        ]
         kubernetes_audit_data = self.get_kube_audit_data(am)
 
         subclouds = {base.SUBCLOUD_1['name']: base.SUBCLOUD_1['region_name'],
@@ -269,7 +281,9 @@ class TestKubernetesAudit(base.DCManagerTestCase):
             self.kube_sysinv_client.get_kube_versions.return_value = [
                 FakeKubeVersion(version=UPGRADED_KUBE_VERSION),
             ]
-            audit.subcloud_kubernetes_audit(name, region, kubernetes_audit_data)
+            audit.subcloud_kubernetes_audit(
+                self.mock_sysinv_client(), name, region, kubernetes_audit_data
+            )
             expected_calls = [
                 mock.call(mock.ANY,
                           subcloud_name=name,
@@ -307,7 +321,9 @@ class TestKubernetesAudit(base.DCManagerTestCase):
             self.kube_sysinv_client.get_kube_versions.return_value = [
                 FakeKubeVersion(version=UPGRADED_KUBE_VERSION),
             ]
-            audit.subcloud_kubernetes_audit(name, region, kubernetes_audit_data)
+            audit.subcloud_kubernetes_audit(
+                self.mock_sysinv_client(), name, region, kubernetes_audit_data
+            )
             expected_calls = [
                 mock.call(mock.ANY,
                           subcloud_name=name,

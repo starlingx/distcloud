@@ -24,6 +24,7 @@ from dccommon.drivers.openstack.sdk_platform import (
     OptimizedOpenStackDriver as OpenStackDriver
 )
 from dccommon.drivers.openstack.sysinv_v1 import SysinvClient
+from dccommon.endpoint_cache import build_subcloud_endpoint
 from dcmanager.common import utils
 
 LOG = logging.getLogger(__name__)
@@ -136,24 +137,19 @@ class PatchAudit(object):
         return PatchAuditData(regionone_patches, applied_patch_ids,
                               committed_patch_ids, regionone_software_version)
 
-    def subcloud_patch_audit(self, subcloud_name, subcloud_region, audit_data,
-                             do_load_audit):
+    def subcloud_patch_audit(
+        self, keystone_client, sysinv_client, subcloud_management_ip, subcloud_name,
+        subcloud_region, audit_data, do_load_audit
+    ):
         LOG.info('Triggered patch audit for: %s.' % subcloud_name)
+
         try:
-            sc_os_client = OpenStackDriver(
-                region_name=subcloud_region,
-                region_clients=None,
-                fetch_subcloud_ips=utils.fetch_subcloud_mgmt_ips,
-            ).keystone_client
-            session = sc_os_client.session
-            patching_endpoint = sc_os_client.endpoint_cache.get_endpoint('patching')
-            sysinv_endpoint = sc_os_client.endpoint_cache.get_endpoint('sysinv')
+            patching_endpoint = build_subcloud_endpoint(
+                subcloud_management_ip, "patching"
+            )
             patching_client = PatchingClient(
-                subcloud_region, session,
-                endpoint=patching_endpoint)
-            sysinv_client = SysinvClient(
-                subcloud_region, session,
-                endpoint=sysinv_endpoint)
+                subcloud_region, keystone_client.session, endpoint=patching_endpoint
+            )
         except (keystone_exceptions.EndpointNotFound,
                 keystone_exceptions.ConnectFailure,
                 keystone_exceptions.ConnectTimeout,

@@ -21,9 +21,12 @@ from oslo_config import cfg
 from oslo_log import log as logging
 
 from dccommon import consts as dccommon_consts
+from dccommon.drivers.openstack.fm import FmClient
 from dccommon.drivers.openstack.sdk_platform import (
     OptimizedOpenStackDriver as OpenStackDriver
 )
+from dccommon.drivers.openstack.sysinv_v1 import SysinvClient
+from dccommon.endpoint_cache import build_subcloud_endpoint
 from dcmanager.audit import alarm_aggregation
 from dcmanager.audit import firmware_audit
 from dcmanager.audit import kube_rootca_update_audit
@@ -349,24 +352,30 @@ class SubcloudAuditWorkerManager(manager.Manager):
         audit_fail_count = subcloud.audit_fail_count
         subcloud_name = subcloud.name
         subcloud_region = subcloud.region_name
+        subcloud_management_ip = subcloud.management_start_ip
         audits_done = list()
         failures = list()
 
         # Set defaults to None and disabled so we will still set disabled
         # status if we encounter an error.
 
+        keystone_client = None
         sysinv_client = None
         fm_client = None
         avail_to_set = dccommon_consts.AVAILABILITY_OFFLINE
         try:
-            os_client = OpenStackDriver(
+            keystone_client = OpenStackDriver(
                 region_name=subcloud_region,
-                thread_name="subcloud-audit",
-                region_clients=["fm", "sysinv"],
-                fetch_subcloud_ips=utils.fetch_subcloud_mgmt_ips,
+                region_clients=None,
+                fetch_subcloud_ips=utils.fetch_subcloud_mgmt_ips
+            ).keystone_client
+            admin_session = keystone_client.session
+            sysinv_client = SysinvClient(
+                subcloud_region, admin_session, endpoint=build_subcloud_endpoint(
+                    subcloud_management_ip, "sysinv"
+                )
             )
-            sysinv_client = os_client.sysinv_client
-            fm_client = os_client.fm_client
+            fm_client = FmClient(subcloud_region, admin_session)
         except keystone_exceptions.ConnectTimeout:
             if avail_status_current == dccommon_consts.AVAILABILITY_OFFLINE:
                 LOG.debug("Identity or Platform endpoint for %s not "
@@ -405,7 +414,7 @@ class SubcloudAuditWorkerManager(manager.Manager):
                           "subcloud: %s not found." % subcloud_name)
 
         except Exception:
-            LOG.exception("Failed to get OS Client for subcloud: %s"
+            LOG.exception("Failed to create clients for subcloud: %s"
                           % subcloud_name)
 
         # Check availability of the subcloud
@@ -479,10 +488,11 @@ class SubcloudAuditWorkerManager(manager.Manager):
             # If we have patch audit data, audit the subcloud
             if do_patch_audit and patch_audit_data:
                 try:
-                    self.patch_audit.subcloud_patch_audit(subcloud_name,
-                                                          subcloud_region,
-                                                          patch_audit_data,
-                                                          do_load_audit)
+                    self.patch_audit.subcloud_patch_audit(
+                        keystone_client, sysinv_client, subcloud_management_ip,
+                        subcloud_name, subcloud_region, patch_audit_data,
+                        do_load_audit
+                    )
                     audits_done.append('patch')
                     if do_load_audit:
                         audits_done.append('load')
@@ -496,9 +506,10 @@ class SubcloudAuditWorkerManager(manager.Manager):
             # Perform firmware audit
             if do_firmware_audit:
                 try:
-                    self.firmware_audit.subcloud_firmware_audit(subcloud_name,
-                                                                subcloud_region,
-                                                                firmware_audit_data)
+                    self.firmware_audit.subcloud_firmware_audit(
+                        sysinv_client, subcloud_name, subcloud_region,
+                        firmware_audit_data
+                    )
                     audits_done.append('firmware')
                 except Exception:
                     LOG.exception(failmsg % (subcloud.name, 'firmware'))
@@ -507,9 +518,9 @@ class SubcloudAuditWorkerManager(manager.Manager):
             if do_kubernetes_audit:
                 try:
                     self.kubernetes_audit.subcloud_kubernetes_audit(
-                        subcloud_name,
-                        subcloud_region,
-                        kubernetes_audit_data)
+                        sysinv_client, subcloud_name, subcloud_region,
+                        kubernetes_audit_data
+                    )
                     audits_done.append('kubernetes')
                 except Exception:
                     LOG.exception(failmsg % (subcloud.name, 'kubernetes'))
@@ -518,19 +529,22 @@ class SubcloudAuditWorkerManager(manager.Manager):
             if do_kube_rootca_update_audit:
                 try:
                     self.kube_rootca_update_audit.subcloud_kube_rootca_audit(
-                        subcloud, kube_rootca_update_audit_data)
+                        sysinv_client, fm_client, subcloud,
+                        kube_rootca_update_audit_data
+                    )
                     audits_done.append('kube-rootca-update')
                 except Exception:
                     LOG.exception(failmsg % (subcloud.name,
                                              'kube-rootca-update'))
                     failures.append('kube-rootca-update')
             # Audit openstack application in the subcloud
-            if do_audit_openstack and sysinv_client:
+            if do_audit_openstack:
                 # We don't want an exception here to cause our
                 # audits_done to be empty:
                 try:
                     self._audit_subcloud_openstack_app(
-                        subcloud_region, sysinv_client, subcloud.openstack_installed)
+                        subcloud_region, sysinv_client, subcloud.openstack_installed
+                    )
                 except Exception:
                     LOG.exception(failmsg % (subcloud.name, 'openstack'))
                     failures.append('openstack')
@@ -538,7 +552,9 @@ class SubcloudAuditWorkerManager(manager.Manager):
             if do_software_audit:
                 try:
                     self.software_audit.subcloud_software_audit(
-                        subcloud_name, subcloud_region, software_audit_data)
+                        keystone_client, subcloud_management_ip,
+                        subcloud_name, subcloud_region, software_audit_data
+                    )
                     audits_done.append('software')
                 except Exception:
                     LOG.exception(failmsg % (subcloud.name, 'software'))

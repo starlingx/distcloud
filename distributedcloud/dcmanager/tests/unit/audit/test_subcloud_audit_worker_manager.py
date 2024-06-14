@@ -86,6 +86,13 @@ class FakeKubeRootcaUpdateAudit(object):
         self.get_regionone_audit_data = mock.MagicMock()
 
 
+class FakeSoftwareAudit(object):
+
+    def __init__(self):
+        self.subcloud_software_audit = mock.MagicMock()
+        self.get_regionone_audit_data = mock.MagicMock()
+
+
 class FakeServiceGroup(object):
     def __init__(self, status, desired_state, service_group_name, uuid,
                  node_name, state, condition, name):
@@ -212,32 +219,6 @@ FAKE_APPLICATIONS = [
 ]
 
 
-class FakeSysinvClient(object):
-
-    def __init__(self, region, session):
-        self.get_service_groups_result = FAKE_SERVICE_GROUPS
-        self.get_applications_result = FAKE_APPLICATIONS
-
-    def get_service_groups(self):
-        return self.get_service_groups_result
-
-    def get_applications(self):
-        return self.get_applications_result
-
-
-class FakeFmClient(object):
-
-    def get_alarm_summary(self):
-        pass
-
-
-class FakeOpenStackDriver(object):
-
-    def __init__(self, region_name):
-        self.sysinv_client = FakeSysinvClient('fake_region', 'fake_session')
-        self.fm_client = FakeFmClient()
-
-
 class TestAuditWorkerManager(base.DCManagerTestCase):
     def setUp(self):
         super(TestAuditWorkerManager, self).setUp()
@@ -262,13 +243,6 @@ class TestAuditWorkerManager(base.DCManagerTestCase):
         p = mock.patch('dcmanager.audit.rpcapi.ManagerAuditWorkerClient')
         self.mock_audit_worker_api = p.start()
         self.mock_audit_worker_api.return_value = self.fake_audit_worker_api
-        self.addCleanup(p.stop)
-
-        # Mock the OpenStackDriver
-        self.fake_openstack_client = FakeOpenStackDriver('fake_region')
-        p = mock.patch.object(subcloud_audit_worker_manager, 'OpenStackDriver')
-        self.mock_openstack_driver = p.start()
-        self.mock_openstack_driver.return_value = self.fake_openstack_client
         self.addCleanup(p.stop)
 
         # Mock the context
@@ -360,6 +334,31 @@ class TestAuditWorkerManager(base.DCManagerTestCase):
         self.mock_kube_rootca_update_audit2.KubeRootcaUpdateAudit.return_value = \
             self.fake_kube_rootca_update_audit2
         self.addCleanup(p.stop)
+
+        # Mock software audit in Audit Worker and Audit Manager
+        self.fake_software_audit = FakeSoftwareAudit()
+        p = mock.patch.object(subcloud_audit_worker_manager, 'software_audit')
+        self.mock_software_audit = p.start()
+        self.mock_software_audit.SoftwareAudit.return_value = \
+            self.fake_software_audit
+        self.addCleanup(p.stop)
+
+        self.fake_software_audit2 = FakeSoftwareAudit()
+        p = mock.patch.object(subcloud_audit_manager, 'software_audit')
+        self.mock_software_audit2 = p.start()
+        self.mock_software_audit2.SoftwareAudit.return_value = \
+            self.fake_software_audit2
+        self.addCleanup(p.stop)
+
+        self._mock_openstack_driver(subcloud_audit_worker_manager)
+        self._mock_sysinv_client(subcloud_audit_worker_manager)
+        self._mock_fm_client(subcloud_audit_worker_manager)
+
+        self.mock_fm_client().get_alarm_summary.return_value = None
+        self.mock_sysinv_client().get_service_groups.return_value = \
+            FAKE_SERVICE_GROUPS
+        self.mock_sysinv_client().get_applications.return_value = \
+            FAKE_APPLICATIONS
 
     @staticmethod
     def create_subcloud_static(ctxt, **kwargs):
@@ -461,23 +460,25 @@ class TestAuditWorkerManager(base.DCManagerTestCase):
 
         # Verify alarm update is called
         self.fake_alarm_aggr.update_alarm_summary.assert_called_with(
-            subcloud.name, self.fake_openstack_client.fm_client)
+            subcloud.name, self.mock_fm_client())
 
         # Verify patch audit is called
         self.fake_patch_audit.subcloud_patch_audit.assert_called_with(
-            subcloud.name, subcloud.region_name, patch_audit_data, do_load_audit)
+            mock.ANY, mock.ANY, subcloud.management_start_ip, subcloud.name,
+            subcloud.region_name, patch_audit_data, do_load_audit)
 
         # Verify firmware audit is called
         self.fake_firmware_audit.subcloud_firmware_audit.assert_called_with(
-            subcloud.name, subcloud.region_name, firmware_audit_data)
+            mock.ANY, subcloud.name, subcloud.region_name, firmware_audit_data)
 
         # Verify kubernetes audit is called
         self.fake_kubernetes_audit.subcloud_kubernetes_audit.assert_called_with(
-            subcloud.name, subcloud.region_name, kubernetes_audit_data)
+            mock.ANY, subcloud.name, subcloud.region_name, kubernetes_audit_data)
 
         # Verify kube rootca update audit is called
         self.fake_kube_rootca_update_audit.subcloud_kube_rootca_audit.\
-            assert_called_with(subcloud, kube_rootca_update_audit_data)
+            assert_called_with(mock.ANY, self.mock_fm_client(), subcloud,
+                               kube_rootca_update_audit_data)
 
     def test_audit_subcloud_online_first_identity_sync_not_complete(self):
 
@@ -756,10 +757,9 @@ class TestAuditWorkerManager(base.DCManagerTestCase):
             availability_status=dccommon_consts.AVAILABILITY_ONLINE)
 
         # Mark a service group as inactive
-        self.fake_openstack_client.sysinv_client.get_service_groups_result = \
-            copy.deepcopy(FAKE_SERVICE_GROUPS)
-        self.fake_openstack_client.sysinv_client. \
-            get_service_groups_result[3].state = 'inactive'
+        service_groups = copy.deepcopy(FAKE_SERVICE_GROUPS)
+        service_groups[3].state = 'inactive'
+        self.mock_sysinv_client().get_service_groups.return_value = service_groups
 
         # Audit the subcloud
         do_patch_audit = True
@@ -798,23 +798,24 @@ class TestAuditWorkerManager(base.DCManagerTestCase):
 
         # Verify alarm update is called once
         self.fake_alarm_aggr.update_alarm_summary.assert_called_once_with(
-            subcloud.name, self.fake_openstack_client.fm_client)
+            subcloud.name, self.mock_fm_client())
 
         # Verify patch audit is called once
         self.fake_patch_audit.subcloud_patch_audit.assert_called_once_with(
+            mock.ANY, mock.ANY, subcloud.management_start_ip,
             subcloud.name, subcloud.region_name, mock.ANY, True)
 
         # Verify firmware audit is called once
         self.fake_firmware_audit.subcloud_firmware_audit.assert_called_once_with(
-            subcloud.name, subcloud.region_name, mock.ANY)
+            mock.ANY, subcloud.name, subcloud.region_name, mock.ANY)
 
         # Verify kubernetes audit is called once
         self.fake_kubernetes_audit.subcloud_kubernetes_audit.assert_called_once_with(
-            subcloud.name, subcloud.region_name, mock.ANY)
+            mock.ANY, subcloud.name, subcloud.region_name, mock.ANY)
 
         # Verify kube rootca update audit is called once
         self.fake_kube_rootca_update_audit.subcloud_kube_rootca_audit.\
-            assert_called_once_with(subcloud, mock.ANY)
+            assert_called_once_with(mock.ANY, mock.ANY, subcloud, mock.ANY)
 
         # Verify the audit fail count was updated in db
         audit_fail_count = 1
@@ -882,10 +883,9 @@ class TestAuditWorkerManager(base.DCManagerTestCase):
             self.ctx, subcloud.id, audit_fail_count=consts.AVAIL_FAIL_COUNT_MAX)
 
         # Mark a service group as inactive
-        self.fake_openstack_client.sysinv_client.get_service_groups_result = \
-            copy.deepcopy(FAKE_SERVICE_GROUPS)
-        self.fake_openstack_client.sysinv_client. \
-            get_service_groups_result[3].state = 'inactive'
+        service_groups = copy.deepcopy(FAKE_SERVICE_GROUPS)
+        service_groups[3].state = 'inactive'
+        self.mock_sysinv_client().get_service_groups.return_value = service_groups
 
         # Audit the subcloud
         do_patch_audit = True
@@ -1058,10 +1058,9 @@ class TestAuditWorkerManager(base.DCManagerTestCase):
             self.ctx, subcloud.id, audit_fail_count=audit_fail_count)
 
         # Mark a service group as inactive
-        self.fake_openstack_client.sysinv_client.get_service_groups_result = \
-            copy.deepcopy(FAKE_SERVICE_GROUPS)
-        self.fake_openstack_client.sysinv_client. \
-            get_service_groups_result[3].state = 'inactive'
+        service_groups = copy.deepcopy(FAKE_SERVICE_GROUPS)
+        service_groups[3].state = 'inactive'
+        self.mock_sysinv_client().get_service_groups.return_value = service_groups
 
         # Audit the subcloud
         do_patch_audit = True
@@ -1191,7 +1190,7 @@ class TestAuditWorkerManager(base.DCManagerTestCase):
 
         # Verify alarm update is called
         self.fake_alarm_aggr.update_alarm_summary.assert_called_once_with(
-            'subcloud1', self.fake_openstack_client.fm_client)
+            'subcloud1', self.mock_fm_client())
 
         # Verify patch audit is not called
         self.fake_patch_audit.subcloud_patch_audit.assert_not_called()
@@ -1256,7 +1255,7 @@ class TestAuditWorkerManager(base.DCManagerTestCase):
 
         # Verify alarm update is called
         self.fake_alarm_aggr.update_alarm_summary.assert_called_once_with(
-            subcloud.name, self.fake_openstack_client.fm_client)
+            subcloud.name, self.mock_fm_client())
 
         # Verify patch audit is not called
         self.fake_patch_audit.subcloud_patch_audit.assert_not_called()
@@ -1321,7 +1320,7 @@ class TestAuditWorkerManager(base.DCManagerTestCase):
 
         # Verify alarm update is called
         self.fake_alarm_aggr.update_alarm_summary.assert_called_once_with(
-            'subcloud1', self.fake_openstack_client.fm_client)
+            'subcloud1', self.mock_fm_client())
 
         # Verify patch audit is not called
         self.fake_patch_audit.subcloud_patch_audit.assert_not_called()
@@ -1400,7 +1399,8 @@ class TestAuditWorkerManager(base.DCManagerTestCase):
                               do_software_audit)
 
         # Verify patch audit is called
-        self.fake_patch_audit.subcloud_patch_audit.assert_called_with(
+        self.fake_patch_audit.subcloud_patch_audit.assert_called_once_with(
+            mock.ANY, mock.ANY, subcloud.management_start_ip,
             subcloud.name, subcloud.region_name, patch_audit_data, do_load_audit)
 
         # Verify the _update_subcloud_audit_fail_count is not called

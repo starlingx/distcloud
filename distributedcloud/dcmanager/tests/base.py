@@ -31,7 +31,8 @@ from sqlalchemy.engine import Engine
 from sqlalchemy import event
 
 from dccommon.utils import AnsiblePlaybook
-from dcmanager.audit import rpcapi as audit_rpc_client
+from dcmanager.audit import rpcapi
+from dcmanager.audit import subcloud_audit_manager
 from dcmanager.common import consts
 from dcmanager.common import phased_subcloud_deploy as psd_common
 from dcmanager.common import utils as dutils
@@ -176,7 +177,7 @@ class DCManagerTestCase(base.BaseTestCase):
     def _mock_audit_rpc_client(self):
         """Mock rpc's manager audit client"""
 
-        mock_patch_object = mock.patch.object(audit_rpc_client, 'ManagerAuditClient')
+        mock_patch_object = mock.patch.object(rpcapi, 'ManagerAuditClient')
         self.mock_audit_rpc_client = mock_patch_object.start()
         self.addCleanup(mock_patch_object.stop)
 
@@ -192,6 +193,20 @@ class DCManagerTestCase(base.BaseTestCase):
 
         mock_patch_object = mock.patch.object(rpc_client, 'SubcloudStateClient')
         self.mock_rpc_subcloud_state_client = mock_patch_object.start()
+        self.addCleanup(mock_patch_object.stop)
+
+    def _mock_rpc_api_manager_audit_worker_client(self):
+        """Mock rpc's api manager audit worker client"""
+
+        mock_patch_object = mock.patch.object(rpcapi, 'ManagerAuditWorkerClient')
+        self.mock_rpc_api_manager_audit_worker_client = mock_patch_object.start()
+        self.addCleanup(mock_patch_object.stop)
+
+    def _mock_subcloud_audit_manager_context(self):
+        """Mock subcloud audit manager's context"""
+
+        mock_patch_object = mock.patch.object(subcloud_audit_manager, 'context')
+        self.mock_subcloud_audit_manager_context = mock_patch_object.start()
         self.addCleanup(mock_patch_object.stop)
 
     def _mock_openstack_driver(self, target):
