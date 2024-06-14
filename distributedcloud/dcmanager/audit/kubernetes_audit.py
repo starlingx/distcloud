@@ -49,20 +49,10 @@ class KubernetesAuditData(object):
 class KubernetesAudit(object):
     """Manages tasks related to kubernetes audits."""
 
-    def __init__(self, context, dcmanager_state_rpc_client):
+    def __init__(self, context):
         LOG.debug('KubernetesAudit initialization...')
         self.context = context
-        self.state_rpc_client = dcmanager_state_rpc_client
         self.audit_count = 0
-
-    def _update_subcloud_sync_status(self, sc_name, sc_region, sc_endpoint_type,
-                                     sc_status):
-        self.state_rpc_client.update_subcloud_endpoint_status(
-            self.context,
-            subcloud_name=sc_name,
-            subcloud_region=sc_region,
-            endpoint_type=sc_endpoint_type,
-            sync_status=sc_status)
 
     def get_regionone_audit_data(self):
         """Query RegionOne to determine kubernetes information
@@ -94,17 +84,21 @@ class KubernetesAudit(object):
         return region_one_data
 
     def subcloud_kubernetes_audit(
-        self, sysinv_client, subcloud_name, subcloud_region, audit_data
+        self, sysinv_client, subcloud_name, audit_data
     ):
         LOG.info('Triggered kubernetes audit for: %s' % subcloud_name)
 
+        sync_status = dccommon_consts.SYNC_STATUS_OUT_OF_SYNC
+
         if not audit_data:
-            self._update_subcloud_sync_status(
-                subcloud_name,
-                subcloud_region, dccommon_consts.ENDPOINT_TYPE_KUBERNETES,
-                dccommon_consts.SYNC_STATUS_IN_SYNC)
-            LOG.debug('No region one audit data, exiting kubernetes audit')
-            return
+            sync_status = dccommon_consts.SYNC_STATUS_IN_SYNC
+
+            LOG.info(
+                f'Kubernetes audit skipped for: {subcloud_name}. There is no audit '
+                f'data, requesting sync_status update to {sync_status}'
+            )
+
+            return sync_status
 
         # Retrieve kubernetes info for this subcloud
         # state - active, partial, available
@@ -122,9 +116,7 @@ class KubernetesAudit(object):
                 break
         if region_one_version is None:
             LOG.info("No active target version found in region one audit data")
-            return
-
-        out_of_sync = True
+            return None
 
         # if there is a kubernetes upgrade operation in the subcloud,
         # the subcloud can immediately be flagged as out of sync
@@ -141,17 +133,11 @@ class KubernetesAudit(object):
                 if result.target and result.state == 'active':
                     subcloud_version = result.version
                     if subcloud_version == region_one_version:
-                        out_of_sync = False
+                        sync_status = dccommon_consts.SYNC_STATUS_IN_SYNC
                         break
 
-        if out_of_sync:
-            self._update_subcloud_sync_status(
-                subcloud_name,
-                subcloud_region, dccommon_consts.ENDPOINT_TYPE_KUBERNETES,
-                dccommon_consts.SYNC_STATUS_OUT_OF_SYNC)
-        else:
-            self._update_subcloud_sync_status(
-                subcloud_name,
-                subcloud_region, dccommon_consts.ENDPOINT_TYPE_KUBERNETES,
-                dccommon_consts.SYNC_STATUS_IN_SYNC)
-        LOG.info('Kubernetes audit completed for: %s' % subcloud_name)
+        LOG.info(
+            f'Kubernetes audit completed for: {subcloud_name}, requesting '
+            f'sync_status update to {sync_status}'
+        )
+        return sync_status

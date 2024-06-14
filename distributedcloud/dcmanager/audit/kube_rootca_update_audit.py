@@ -16,7 +16,6 @@ from dccommon import utils as dccommon_utils
 from dccommon.drivers.openstack.sdk_platform import OpenStackDriver
 from dccommon.drivers.openstack.sysinv_v1 import SysinvClient
 
-from dcmanager.audit.auditor import Auditor
 from dcmanager.common import utils
 
 CONF = cfg.CONF
@@ -27,15 +26,11 @@ KUBE_ROOTCA_ALARM_LIST = [FM_ALARM_ID_CERT_EXPIRED,
 MONITORED_ALARM_ENTITIES = ['system.certificate.kubernetes-root-ca', ]
 
 
-class KubeRootcaUpdateAudit(Auditor):
+class KubeRootcaUpdateAudit(object):
     """Manages tasks related to kube rootca update audits."""
 
-    def __init__(self, context, dcmanager_state_rpc_client):
-        super(KubeRootcaUpdateAudit, self).__init__(
-            context,
-            dcmanager_state_rpc_client,
-            dccommon_consts.ENDPOINT_TYPE_KUBE_ROOTCA
-        )
+    def __init__(self, context):
+        self.context = context
         self.audit_type = "kube rootca update"
         LOG.debug("%s audit initialized" % self.audit_type)
 
@@ -94,105 +89,92 @@ class KubeRootcaUpdateAudit(Auditor):
 
         :param sysinv_client: the sysinv client object
         :param fm_client: the fm client object
-        :param subcloud: the subcloud obj
+        :param subcloud: subcloud object
         :param region_one_audit_data: the audit data of the region one
         """
 
-        subcloud_name = subcloud.name
-        subcloud_region = subcloud.region_name
-        LOG.info("Triggered %s audit for: %s" % (self.audit_type,
-                                                 subcloud_name))
+        LOG.info("Triggered %s audit for: %s" % (self.audit_type, subcloud.name))
 
         # Firstly, apply alarm based audit against the subclouds deployed in
         # the distributed cloud and the subcloud running on old software
         # version that cannot search for the k8s root CA cert id.
-        if dccommon_utils.is_centos(subcloud.software_version) or \
-                not subcloud.rehomed:
-            self.subcloud_audit_alarm_based(
-                fm_client, subcloud_name, subcloud_region
-            )
-            return
+        if (
+            dccommon_utils.is_centos(subcloud.software_version)
+            or not subcloud.rehomed
+        ):
+            return self.subcloud_audit_alarm_based(fm_client, subcloud.name)
+
+        sync_status = dccommon_consts.SYNC_STATUS_IN_SYNC
 
         # Skip the audit if cannot get the region one cert ID.
         if not regionone_rootca_certid:
-            self.set_subcloud_endpoint_in_sync(subcloud_name, subcloud_region)
             LOG.debug(f"No region one audit data, skip {self.audit_type} "
-                      f"audit for subcloud: {subcloud_name}.")
-            return
+                      f"audit for subcloud: {subcloud.name}.")
+            return sync_status
 
         try:
-            success, subcloud_cert_data = \
-                sysinv_client.get_kube_rootca_cert_id()
+            success, subcloud_cert_data = sysinv_client.get_kube_rootca_cert_id()
         except Exception:
             LOG.exception("Failed to get Kubernetes root CA cert ID of "
-                          f"subcloud: {subcloud_name}, skip "
+                          f"subcloud: {subcloud.name}, skip "
                           f"{self.audit_type} audit.")
-            return
+            return None
 
         if not success:
             # if not success, the subcloud is a Debian based subcloud without
             # the sysinv API to get the cert ID, audit the subcloud based on
             # its alarm.
-            self.subcloud_audit_alarm_based(
-                fm_client, subcloud_name, subcloud_region
-            )
-        else:
-            self.subcloud_audit_cert_based(subcloud_name, subcloud_region,
-                                           subcloud_cert_data,
-                                           regionone_rootca_certid)
+            return self.subcloud_audit_alarm_based(fm_client, subcloud.name)
+        return self.subcloud_audit_cert_based(
+            subcloud.name, subcloud_cert_data, regionone_rootca_certid
+        )
 
-    def subcloud_audit_alarm_based(
-        self, fm_client, subcloud_name, subcloud_region
-    ):
+    def subcloud_audit_alarm_based(self, fm_client, subcloud_name):
         """The subcloud doesn't have the method to get Kubernetes root CA
 
         cert ID, use alarm based audit.
         :param fm_client: the fm client object
         :param subcloud_name: the name of the subcloud
-        :param subcloud_region: the region of the subcloud
         """
 
-        out_of_sync = False
+        sync_status = dccommon_consts.SYNC_STATUS_IN_SYNC
         detected_alarms = fm_client.get_alarms_by_ids(KUBE_ROOTCA_ALARM_LIST)
+
         if detected_alarms:
             for alarm in detected_alarms:
                 if alarm.entity_instance_id in MONITORED_ALARM_ENTITIES:
-                    out_of_sync = True
+                    sync_status = dccommon_consts.SYNC_STATUS_OUT_OF_SYNC
                     break
-        if out_of_sync:
-            self.set_subcloud_endpoint_out_of_sync(subcloud_name,
-                                                   subcloud_region)
-        else:
-            self.set_subcloud_endpoint_in_sync(subcloud_name, subcloud_region)
-        LOG.info("%s audit completed for: %s" % (self.audit_type,
-                                                 subcloud_name))
 
-    def subcloud_audit_cert_based(self, subcloud_name, subcloud_region,
+        LOG.info(
+            f'{self.audit_type} audit completed for: {subcloud_name}, requesting '
+            f'sync_status update to {sync_status}'
+        )
+        return sync_status
+
+    def subcloud_audit_cert_based(self, subcloud_name,
                                   subcloud_cert_data, regionone_rootca_certid):
         """Audit if a subcloud's k8s root CA cert is the same as the central
 
         :param subcloud_name: the name of the subcloud
-        :param subcloud_region: the region of the subcloud
         :param regionone_rootca_certid: the cert ID of the region one
         :param subcloud_cert: subcloud's cert info
 
         """
 
-        out_of_sync = False
+        sync_status = dccommon_consts.SYNC_STATUS_IN_SYNC
         if subcloud_cert_data.error:
             LOG.exception("Failed to get Kubernetes root CA cert id for "
                           f"subcloud:{subcloud_name}, error: "
                           f"{subcloud_cert_data.error}, skip {self.audit_type} "
                           "audit.")
-            return
+            return None
 
         elif subcloud_cert_data.cert_id != regionone_rootca_certid:
-            out_of_sync = True
+            sync_status = dccommon_consts.SYNC_STATUS_OUT_OF_SYNC
 
-        if out_of_sync:
-            self.set_subcloud_endpoint_out_of_sync(subcloud_name,
-                                                   subcloud_region)
-        else:
-            self.set_subcloud_endpoint_in_sync(subcloud_name, subcloud_region)
-        LOG.info("%s audit completed for: %s" % (self.audit_type,
-                                                 subcloud_name))
+        LOG.info(
+            f'{self.audit_type} audit completed for: {subcloud_name}, requesting '
+            f'sync_status update to {sync_status}'
+        )
+        return sync_status

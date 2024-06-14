@@ -26,18 +26,6 @@ from dcmanager.tests import base
 CONF = cfg.CONF
 
 
-class FakeDCManagerStateAPI(object):
-    def __init__(self):
-        self.update_subcloud_availability = mock.MagicMock()
-        self.update_subcloud_endpoint_status = mock.MagicMock()
-
-
-class FakeAuditWorkerAPI(object):
-
-    def __init__(self):
-        self.audit_subclouds = mock.MagicMock()
-
-
 class Load(object):
     def __init__(self, software_version, state):
         self.software_version = software_version
@@ -247,58 +235,36 @@ class TestPatchAudit(base.DCManagerTestCase):
     def setUp(self):
         super().setUp()
 
-        # Mock the DCManager subcloud state API
-        self.fake_dcmanager_state_api = FakeDCManagerStateAPI()
-        p = mock.patch('dcmanager.rpc.client.SubcloudStateClient')
-        self.mock_dcmanager_state_api = p.start()
-        self.mock_dcmanager_state_api.return_value = \
-            self.fake_dcmanager_state_api
-        self.addCleanup(p.stop)
-
-        # Mock the Audit Worker API
-        self.fake_audit_worker_api = FakeAuditWorkerAPI()
-        p = mock.patch('dcmanager.audit.rpcapi.ManagerAuditWorkerClient')
-        self.mock_audit_worker_api = p.start()
-        self.mock_audit_worker_api.return_value = self.fake_audit_worker_api
-        self.addCleanup(p.stop)
-
+        self._mock_rpc_api_manager_audit_worker_client()
         self._mock_openstack_driver(subcloud_audit_worker_manager)
         self._mock_sysinv_client(subcloud_audit_worker_manager)
+        self._mock_subcloud_audit_manager_context()
 
-    def get_patch_audit_data(self, am):
+        self.mock_subcloud_audit_manager_context.get_admin_context.\
+            return_value = self.ctx
+
+        self.pm = patch_audit.PatchAudit(self.ctx)
+        self.am = subcloud_audit_manager.SubcloudAuditManager()
+        self.am.patch_audit = self.pm
+
+    def get_patch_audit_data(self):
         (patch_audit_data, _, _, _, _) = \
-            am._get_audit_data(True, True, True, True, True)
+            self.am._get_audit_data(True, True, True, True, True)
         # Convert to dict like what would happen calling via RPC
         patch_audit_data = patch_audit_data.to_dict()
         return patch_audit_data
 
-    def test_init(self):
-        pm = patch_audit.PatchAudit(self.ctx,
-                                    self.fake_dcmanager_state_api)
-        self.assertIsNotNone(pm)
-        self.assertEqual(self.ctx, pm.context)
-        self.assertEqual(self.fake_dcmanager_state_api, pm.state_rpc_client)
-
     @mock.patch.object(patch_audit, 'SysinvClient')
     @mock.patch.object(patch_audit, 'PatchingClient')
     @mock.patch.object(patch_audit, 'OpenStackDriver')
-    @mock.patch.object(subcloud_audit_manager, 'context')
-    def test_periodic_patch_audit_in_sync(self, mock_context,
+    def test_periodic_patch_audit_in_sync(self,
                                           mock_openstack_driver,
                                           mock_patching_client,
                                           mock_sysinv_client):
-        mock_context.get_admin_context.return_value = self.ctx
         mock_patching_client.side_effect = FakePatchingClientInSync
         mock_sysinv_client.side_effect = FakeSysinvClientOneLoad
         self.mock_sysinv_client.side_effect = FakeSysinvClientOneLoad
-
-        pm = patch_audit.PatchAudit(self.ctx,
-                                    self.fake_dcmanager_state_api)
-        am = subcloud_audit_manager.SubcloudAuditManager()
-        am.patch_audit = pm
-
-        do_load_audit = True
-        patch_audit_data = self.get_patch_audit_data(am)
+        patch_audit_data = self.get_patch_audit_data()
 
         subclouds = {base.SUBCLOUD_1['name']: base.SUBCLOUD_1['region_name'],
                      base.SUBCLOUD_2['name']: base.SUBCLOUD_2['region_name']}
@@ -306,45 +272,29 @@ class TestPatchAudit(base.DCManagerTestCase):
         for index, subcloud in enumerate(subclouds.keys(), start=2):
             subcloud_region = subclouds[subcloud]
 
-            pm.subcloud_patch_audit(
-                self.mock_openstack_driver(),
-                self.mock_sysinv_client(subcloud_region), f"192.168.1.{index}",
-                subcloud, subcloud_region, patch_audit_data, do_load_audit
+            patch_response = self.pm.subcloud_patch_audit(
+                mock.MagicMock(), self.mock_sysinv_client(subcloud_region),
+                f"192.168.1.{index}", subcloud, subcloud_region, patch_audit_data
             )
-            expected_calls = [
-                mock.call(mock.ANY,
-                          subcloud_name=subcloud,
-                          subcloud_region=subcloud_region,
-                          endpoint_type=dccommon_consts.ENDPOINT_TYPE_PATCHING,
-                          sync_status=dccommon_consts.SYNC_STATUS_IN_SYNC),
-                mock.call(mock.ANY,
-                          subcloud_name=subcloud,
-                          subcloud_region=subcloud_region,
-                          endpoint_type=dccommon_consts.ENDPOINT_TYPE_LOAD,
-                          sync_status=dccommon_consts.SYNC_STATUS_IN_SYNC)]
-            self.fake_dcmanager_state_api.update_subcloud_endpoint_status. \
-                assert_has_calls(expected_calls)
+            load_response = self.pm.subcloud_load_audit(
+                self.mock_sysinv_client(subcloud_region), subcloud, patch_audit_data
+            )
+
+            self.assertEqual(patch_response, dccommon_consts.SYNC_STATUS_IN_SYNC)
+            self.assertEqual(load_response, dccommon_consts.SYNC_STATUS_IN_SYNC)
 
     @mock.patch.object(patch_audit, 'SysinvClient')
     @mock.patch.object(patch_audit, 'PatchingClient')
     @mock.patch.object(patch_audit, 'OpenStackDriver')
-    @mock.patch.object(subcloud_audit_manager, 'context')
-    def test_periodic_patch_audit_out_of_sync(self, mock_context,
+    def test_periodic_patch_audit_out_of_sync(self,
                                               mock_openstack_driver,
                                               mock_patching_client,
                                               mock_sysinv_client):
-        mock_context.get_admin_context.return_value = self.ctx
-        pm = patch_audit.PatchAudit(self.ctx,
-                                    self.fake_dcmanager_state_api)
-        am = subcloud_audit_manager.SubcloudAuditManager()
-        am.patch_audit = pm
-
         mock_patching_client.side_effect = FakePatchingClientOutOfSync
         mock_sysinv_client.side_effect = FakeSysinvClientOneLoad
         self.mock_sysinv_client.side_effect = FakeSysinvClientOneLoad
 
-        do_load_audit = True
-        patch_audit_data = self.get_patch_audit_data(am)
+        patch_audit_data = self.get_patch_audit_data()
 
         subclouds = {base.SUBCLOUD_1['name']: base.SUBCLOUD_1['region_name'],
                      base.SUBCLOUD_2['name']: base.SUBCLOUD_2['region_name'],
@@ -353,217 +303,119 @@ class TestPatchAudit(base.DCManagerTestCase):
         for index, subcloud in enumerate(subclouds.keys(), start=2):
             subcloud_region = subclouds[subcloud]
 
-            pm.subcloud_patch_audit(
-                self.mock_openstack_driver(),
-                self.mock_sysinv_client(subcloud_region), f"192.168.1.{index}",
-                subcloud, subcloud_region, patch_audit_data, do_load_audit
+            patch_response = self.pm.subcloud_patch_audit(
+                mock.MagicMock(), self.mock_sysinv_client(subcloud_region),
+                f"192.168.1.{index}", subcloud, subcloud_region, patch_audit_data
+            )
+            load_response = self.pm.subcloud_load_audit(
+                self.mock_sysinv_client(subcloud_region), subcloud, patch_audit_data
             )
 
-        expected_calls = [
-            mock.call(mock.ANY,
-                      subcloud_name=base.SUBCLOUD_1['name'],
-                      subcloud_region=base.SUBCLOUD_1['region_name'],
-                      endpoint_type=dccommon_consts.ENDPOINT_TYPE_PATCHING,
-                      sync_status=dccommon_consts.SYNC_STATUS_OUT_OF_SYNC),
-            mock.call(mock.ANY,
-                      subcloud_name=base.SUBCLOUD_1['name'],
-                      subcloud_region=base.SUBCLOUD_1['region_name'],
-                      endpoint_type=dccommon_consts.ENDPOINT_TYPE_LOAD,
-                      sync_status=dccommon_consts.SYNC_STATUS_IN_SYNC),
-            mock.call(mock.ANY,
-                      subcloud_name=base.SUBCLOUD_2['name'],
-                      subcloud_region=base.SUBCLOUD_2['region_name'],
-                      endpoint_type=dccommon_consts.ENDPOINT_TYPE_PATCHING,
-                      sync_status=dccommon_consts.SYNC_STATUS_OUT_OF_SYNC),
-            mock.call(mock.ANY,
-                      subcloud_name=base.SUBCLOUD_2['name'],
-                      subcloud_region=base.SUBCLOUD_2['region_name'],
-                      endpoint_type=dccommon_consts.ENDPOINT_TYPE_LOAD,
-                      sync_status=dccommon_consts.SYNC_STATUS_IN_SYNC),
-            mock.call(mock.ANY,
-                      subcloud_name=base.SUBCLOUD_3['name'],
-                      subcloud_region=base.SUBCLOUD_3['region_name'],
-                      endpoint_type=dccommon_consts.ENDPOINT_TYPE_PATCHING,
-                      sync_status=dccommon_consts.SYNC_STATUS_IN_SYNC),
-            mock.call(mock.ANY,
-                      subcloud_name=base.SUBCLOUD_3['name'],
-                      subcloud_region=base.SUBCLOUD_3['region_name'],
-                      endpoint_type=dccommon_consts.ENDPOINT_TYPE_LOAD,
-                      sync_status=dccommon_consts.SYNC_STATUS_IN_SYNC),
-            mock.call(mock.ANY,
-                      subcloud_name=base.SUBCLOUD_4['name'],
-                      subcloud_region=base.SUBCLOUD_4['region_name'],
-                      endpoint_type=dccommon_consts.ENDPOINT_TYPE_PATCHING,
-                      sync_status=dccommon_consts.SYNC_STATUS_OUT_OF_SYNC),
-            mock.call(mock.ANY,
-                      subcloud_name=base.SUBCLOUD_4['name'],
-                      subcloud_region=base.SUBCLOUD_4['region_name'],
-                      endpoint_type=dccommon_consts.ENDPOINT_TYPE_LOAD,
-                      sync_status=dccommon_consts.SYNC_STATUS_IN_SYNC),
-        ]
-
-        self.fake_dcmanager_state_api.update_subcloud_endpoint_status.\
-            assert_has_calls(expected_calls)
+            expected_patch_response = dccommon_consts.SYNC_STATUS_OUT_OF_SYNC
+            if subcloud == base.SUBCLOUD_3["name"]:
+                expected_patch_response = dccommon_consts.SYNC_STATUS_IN_SYNC
+            self.assertEqual(patch_response, expected_patch_response)
+            self.assertEqual(load_response, dccommon_consts.SYNC_STATUS_IN_SYNC)
 
     @mock.patch.object(patch_audit, 'SysinvClient')
     @mock.patch.object(patch_audit, 'PatchingClient')
     @mock.patch.object(patch_audit, 'OpenStackDriver')
-    @mock.patch.object(subcloud_audit_manager, 'context')
-    def test_periodic_patch_audit_extra_patches(self, mock_context,
+    def test_periodic_patch_audit_extra_patches(self,
                                                 mock_openstack_driver,
                                                 mock_patching_client,
                                                 mock_sysinv_client):
-        mock_context.get_admin_context.return_value = self.ctx
-        pm = patch_audit.PatchAudit(self.ctx,
-                                    self.fake_dcmanager_state_api)
-        am = subcloud_audit_manager.SubcloudAuditManager()
-        am.patch_audit = pm
-
         mock_patching_client.side_effect = FakePatchingClientExtraPatches
         mock_sysinv_client.side_effect = FakeSysinvClientOneLoad
         self.mock_sysinv_client.side_effect = FakeSysinvClientOneLoad
 
-        do_load_audit = True
-        patch_audit_data = self.get_patch_audit_data(am)
+        patch_audit_data = self.get_patch_audit_data()
 
         subclouds = {base.SUBCLOUD_1['name']: base.SUBCLOUD_1['region_name'],
                      base.SUBCLOUD_2['name']: base.SUBCLOUD_2['region_name']}
         for index, subcloud in enumerate(subclouds.keys(), start=2):
             subcloud_region = subclouds[subcloud]
 
-            pm.subcloud_patch_audit(
-                self.mock_openstack_driver(),
-                self.mock_sysinv_client(subcloud_region), f"192.168.1.{index}",
-                subcloud, subcloud_region, patch_audit_data, do_load_audit
+            patch_response = self.pm.subcloud_patch_audit(
+                mock.MagicMock(), self.mock_sysinv_client(subcloud_region),
+                f"192.168.1.{index}", subcloud, subcloud_region, patch_audit_data
+            )
+            load_response = self.pm.subcloud_load_audit(
+                self.mock_sysinv_client(subcloud_region), subcloud, patch_audit_data
             )
 
-            expected_calls = [
-                mock.call(mock.ANY,
-                          subcloud_name=subcloud,
-                          subcloud_region=subcloud_region,
-                          endpoint_type=dccommon_consts.ENDPOINT_TYPE_PATCHING,
-                          sync_status=dccommon_consts.SYNC_STATUS_OUT_OF_SYNC),
-                mock.call(mock.ANY,
-                          subcloud_name=subcloud,
-                          subcloud_region=subcloud_region,
-                          endpoint_type=dccommon_consts.ENDPOINT_TYPE_LOAD,
-                          sync_status=dccommon_consts.SYNC_STATUS_IN_SYNC)]
-            self.fake_dcmanager_state_api.update_subcloud_endpoint_status.\
-                assert_has_calls(expected_calls)
+            self.assertEqual(patch_response, dccommon_consts.SYNC_STATUS_OUT_OF_SYNC)
+            self.assertEqual(load_response, dccommon_consts.SYNC_STATUS_IN_SYNC)
 
     @mock.patch.object(patch_audit, 'SysinvClient')
     @mock.patch.object(patch_audit, 'PatchingClient')
     @mock.patch.object(patch_audit, 'OpenStackDriver')
-    @mock.patch.object(subcloud_audit_manager, 'context')
     def test_periodic_patch_audit_unmatched_software_version(
-            self, mock_context,
+            self,
             mock_openstack_driver,
             mock_patching_client,
             mock_sysinv_client):
-        mock_context.get_admin_context.return_value = self.ctx
-        pm = patch_audit.PatchAudit(self.ctx,
-                                    self.fake_dcmanager_state_api)
-        am = subcloud_audit_manager.SubcloudAuditManager()
-        am.patch_audit = pm
         mock_patching_client.side_effect = FakePatchingClientInSync
         mock_sysinv_client.side_effect = (
             FakeSysinvClientOneLoadUnmatchedSoftwareVersion)
         self.mock_sysinv_client.side_effect = \
             FakeSysinvClientOneLoadUnmatchedSoftwareVersion
 
-        do_load_audit = True
-        patch_audit_data = self.get_patch_audit_data(am)
+        patch_audit_data = self.get_patch_audit_data()
 
         subclouds = {base.SUBCLOUD_1['name']: base.SUBCLOUD_1['region_name'],
                      base.SUBCLOUD_2['name']: base.SUBCLOUD_2['region_name']}
         for index, subcloud in enumerate(subclouds.keys(), start=2):
             subcloud_region = subclouds[subcloud]
 
-            pm.subcloud_patch_audit(
-                self.mock_openstack_driver(),
-                self.mock_sysinv_client(subcloud_region), f"192.168.1.{index}",
-                subcloud, subcloud_region, patch_audit_data, do_load_audit
+            patch_response = self.pm.subcloud_patch_audit(
+                mock.MagicMock(), self.mock_sysinv_client(subcloud_region),
+                f"192.168.1.{index}", subcloud, subcloud_region, patch_audit_data
+            )
+            load_response = self.pm.subcloud_load_audit(
+                self.mock_sysinv_client(subcloud_region), subcloud, patch_audit_data
             )
 
-        expected_calls = [
-            mock.call(mock.ANY,
-                      subcloud_name=base.SUBCLOUD_1['name'],
-                      subcloud_region=base.SUBCLOUD_1['region_name'],
-                      endpoint_type=dccommon_consts.ENDPOINT_TYPE_PATCHING,
-                      sync_status=dccommon_consts.SYNC_STATUS_IN_SYNC),
-            mock.call(mock.ANY,
-                      subcloud_name=base.SUBCLOUD_1['name'],
-                      subcloud_region=base.SUBCLOUD_1['region_name'],
-                      endpoint_type=dccommon_consts.ENDPOINT_TYPE_LOAD,
-                      sync_status=dccommon_consts.SYNC_STATUS_IN_SYNC),
-            mock.call(mock.ANY,
-                      subcloud_name=base.SUBCLOUD_2['name'],
-                      subcloud_region=base.SUBCLOUD_2['region_name'],
-                      endpoint_type=dccommon_consts.ENDPOINT_TYPE_PATCHING,
-                      sync_status=dccommon_consts.SYNC_STATUS_IN_SYNC),
-            mock.call(mock.ANY,
-                      subcloud_name=base.SUBCLOUD_2['name'],
-                      subcloud_region=base.SUBCLOUD_2['region_name'],
-                      endpoint_type=dccommon_consts.ENDPOINT_TYPE_LOAD,
-                      sync_status=dccommon_consts.SYNC_STATUS_OUT_OF_SYNC),
-        ]
-        self.fake_dcmanager_state_api.update_subcloud_endpoint_status.\
-            assert_has_calls(expected_calls)
+            expected_load_response = dccommon_consts.SYNC_STATUS_IN_SYNC
+
+            if subcloud == base.SUBCLOUD_2["name"]:
+                expected_load_response = dccommon_consts.SYNC_STATUS_OUT_OF_SYNC
+
+            self.assertEqual(patch_response, dccommon_consts.SYNC_STATUS_IN_SYNC)
+            self.assertEqual(load_response, expected_load_response)
 
     @mock.patch.object(patch_audit, 'SysinvClient')
     @mock.patch.object(patch_audit, 'PatchingClient')
     @mock.patch.object(patch_audit, 'OpenStackDriver')
-    @mock.patch.object(subcloud_audit_manager, 'context')
     def test_periodic_patch_audit_upgrade_in_progress(
-            self, mock_context,
+            self,
             mock_openstack_driver,
             mock_patching_client,
             mock_sysinv_client):
-        mock_context.get_admin_context.return_value = self.ctx
-        pm = patch_audit.PatchAudit(self.ctx,
-                                    self.fake_dcmanager_state_api)
-        am = subcloud_audit_manager.SubcloudAuditManager()
-        am.patch_audit = pm
+
         mock_patching_client.side_effect = FakePatchingClientInSync
         mock_sysinv_client.side_effect = FakeSysinvClientOneLoadUpgradeInProgress
         self.mock_sysinv_client.side_effect = \
             FakeSysinvClientOneLoadUpgradeInProgress
 
-        do_load_audit = True
-        patch_audit_data = self.get_patch_audit_data(am)
+        patch_audit_data = self.get_patch_audit_data()
 
         subclouds = {base.SUBCLOUD_1['name']: base.SUBCLOUD_1['region_name'],
                      base.SUBCLOUD_2['name']: base.SUBCLOUD_2['region_name']}
         for index, subcloud in enumerate(subclouds.keys(), start=2):
             subcloud_region = subclouds[subcloud]
 
-            pm.subcloud_patch_audit(
-                self.mock_openstack_driver(),
-                self.mock_sysinv_client(subcloud_region), f"192.168.1.{index}",
-                subcloud, subcloud_region, patch_audit_data, do_load_audit
+            patch_response = self.pm.subcloud_patch_audit(
+                mock.MagicMock(), self.mock_sysinv_client(subcloud_region),
+                f"192.168.1.{index}", subcloud, subcloud_region, patch_audit_data
+            )
+            load_response = self.pm.subcloud_load_audit(
+                self.mock_sysinv_client(subcloud_region), subcloud, patch_audit_data
             )
 
-        expected_calls = [
-            mock.call(mock.ANY,
-                      subcloud_name=base.SUBCLOUD_1['name'],
-                      subcloud_region=base.SUBCLOUD_1['region_name'],
-                      endpoint_type=dccommon_consts.ENDPOINT_TYPE_PATCHING,
-                      sync_status=dccommon_consts.SYNC_STATUS_IN_SYNC),
-            mock.call(mock.ANY,
-                      subcloud_name=base.SUBCLOUD_1['name'],
-                      subcloud_region=base.SUBCLOUD_1['region_name'],
-                      endpoint_type=dccommon_consts.ENDPOINT_TYPE_LOAD,
-                      sync_status=dccommon_consts.SYNC_STATUS_IN_SYNC),
-            mock.call(mock.ANY,
-                      subcloud_name=base.SUBCLOUD_2['name'],
-                      subcloud_region=base.SUBCLOUD_2['region_name'],
-                      endpoint_type=dccommon_consts.ENDPOINT_TYPE_PATCHING,
-                      sync_status=dccommon_consts.SYNC_STATUS_IN_SYNC),
-            mock.call(mock.ANY,
-                      subcloud_name=base.SUBCLOUD_2['name'],
-                      subcloud_region=base.SUBCLOUD_2['region_name'],
-                      endpoint_type=dccommon_consts.ENDPOINT_TYPE_LOAD,
-                      sync_status=dccommon_consts.SYNC_STATUS_OUT_OF_SYNC),
-        ]
-        self.fake_dcmanager_state_api.update_subcloud_endpoint_status.\
-            assert_has_calls(expected_calls)
+            expected_load_response = dccommon_consts.SYNC_STATUS_IN_SYNC
+
+            if subcloud == base.SUBCLOUD_2["name"]:
+                expected_load_response = dccommon_consts.SYNC_STATUS_OUT_OF_SYNC
+
+            self.assertEqual(patch_response, dccommon_consts.SYNC_STATUS_IN_SYNC)
+            self.assertEqual(load_response, expected_load_response)

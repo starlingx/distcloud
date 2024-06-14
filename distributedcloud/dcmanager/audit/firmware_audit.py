@@ -69,20 +69,10 @@ class FirmwareAuditData(object):
 class FirmwareAudit(object):
     """Manages tasks related to firmware audits."""
 
-    def __init__(self, context, dcmanager_state_rpc_client):
+    def __init__(self, context):
         LOG.debug('FirmwareAudit initialization...')
         self.context = context
-        self.state_rpc_client = dcmanager_state_rpc_client
         self.audit_count = 0
-
-    def _update_subcloud_sync_status(self, sc_name, sc_region, sc_endpoint_type,
-                                     sc_status):
-        self.state_rpc_client.update_subcloud_endpoint_status(
-            self.context,
-            subcloud_name=sc_name,
-            subcloud_region=sc_region,
-            endpoint_type=sc_endpoint_type,
-            sync_status=sc_status)
 
     def get_regionone_audit_data(self):
         """Query RegionOne to determine what device images have to be applied
@@ -234,17 +224,18 @@ class FirmwareAudit(object):
         return True
 
     def subcloud_firmware_audit(
-        self, sysinv_client, subcloud_name, subcloud_region, audit_data
+        self, sysinv_client, subcloud_name, audit_data
     ):
         LOG.info('Triggered firmware audit for: %s.' % subcloud_name)
 
+        sync_status = dccommon_consts.SYNC_STATUS_IN_SYNC
+
         if not audit_data:
-            self._update_subcloud_sync_status(
-                subcloud_name,
-                subcloud_region, dccommon_consts.ENDPOINT_TYPE_FIRMWARE,
-                dccommon_consts.SYNC_STATUS_IN_SYNC)
-            LOG.debug('No images to audit, exiting firmware audit')
-            return
+            LOG.info(
+                f'Firmware audit skipped for: {subcloud_name}. There are no images '
+                f'to audit, requesting sync_status update to {sync_status}'
+            )
+            return sync_status
 
         # Retrieve all the devices that are present in this subcloud.
         try:
@@ -258,18 +249,14 @@ class FirmwareAudit(object):
         except Exception:
             LOG.exception('Cannot retrieve device image states for subcloud: %s, '
                           'skip firmware audit' % subcloud_name)
-            return
+            return None
 
         # If there are no enabled devices on the subcloud, then report the
         # sync status as in-sync
         if not enabled_host_device_list:
             LOG.info("No enabled devices on the subcloud %s,"
                      "exiting firmware audit" % subcloud_name)
-            self._update_subcloud_sync_status(
-                subcloud_name,
-                subcloud_region, dccommon_consts.ENDPOINT_TYPE_FIRMWARE,
-                dccommon_consts.SYNC_STATUS_IN_SYNC)
-            return
+            return sync_status
 
         # Retrieve the device image states on this subcloud.
         try:
@@ -279,7 +266,7 @@ class FirmwareAudit(object):
         except Exception:
             LOG.exception('Cannot retrieve device image states for subcloud: %s, '
                           'skip firmware audit' % subcloud_name)
-            return
+            return None
 
         # Retrieve device label list for all devices on this subcloud.
         try:
@@ -290,9 +277,7 @@ class FirmwareAudit(object):
         except Exception:
             LOG.exception('Cannot retrieve device image states for '
                           'subcloud: %s, skip firmware audit' % subcloud_name)
-            return
-
-        out_of_sync = False
+            return None
 
         # Check that all device images applied in RegionOne
         # are applied and installed on this subcloud
@@ -305,17 +290,11 @@ class FirmwareAudit(object):
                 subcloud_device_image_states, subcloud_device_label_list
             )
             if not proceed:
-                out_of_sync = True
+                sync_status = dccommon_consts.SYNC_STATUS_OUT_OF_SYNC
                 break
 
-        if out_of_sync:
-            self._update_subcloud_sync_status(
-                subcloud_name,
-                subcloud_region, dccommon_consts.ENDPOINT_TYPE_FIRMWARE,
-                dccommon_consts.SYNC_STATUS_OUT_OF_SYNC)
-        else:
-            self._update_subcloud_sync_status(
-                subcloud_name,
-                subcloud_region, dccommon_consts.ENDPOINT_TYPE_FIRMWARE,
-                dccommon_consts.SYNC_STATUS_IN_SYNC)
-        LOG.info('Firmware audit completed for: %s.' % subcloud_name)
+        LOG.info(
+            f'Firmware audit completed for: {subcloud_name}, requesting sync_status'
+            f'update to {sync_status}'
+        )
+        return sync_status

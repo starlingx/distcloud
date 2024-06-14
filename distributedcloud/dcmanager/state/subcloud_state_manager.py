@@ -347,6 +347,25 @@ class SubcloudStateManager(manager.Manager):
                      (subcloud.name, subcloud.availability_status,
                       subcloud.management_state, endpoint_type, sync_status))
 
+    def batch_update_subcloud_availability_and_endpoint_status(
+        self, context, subcloud_name, subcloud_region, availability_and_endpoint_data
+    ):
+        for key, value in availability_and_endpoint_data.items():
+            # If the value is None, that means nothing should be done for that key
+            if value is None:
+                continue
+
+            if key == "availability":
+                self.update_subcloud_availability(
+                    context, subcloud_region, value["availability_status"],
+                    value["update_state_only"], value["audit_fail_count"]
+                )
+                continue
+            self.update_subcloud_endpoint_status(
+                context, subcloud_region=subcloud_region, endpoint_type=key,
+                sync_status=value
+            )
+
     def update_subcloud_endpoint_status(
             self, context,
             subcloud_region=None,
