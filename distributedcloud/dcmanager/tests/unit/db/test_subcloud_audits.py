@@ -40,6 +40,7 @@ class DBAPISubcloudAuditsTest(base.DCManagerTestCase):
             "management_start_ip": "192.168.101.2",
             "management_end_ip": "192.168.101.50",
             "systemcontroller_gateway_ip": "192.168.204.101",
+            "external_oam_subnet_ip_family": "4",
             "deploy_status": "not-deployed",
             "error_description": "No errors present",
             "region_name": uuidutils.generate_uuid().replace("-", ""),

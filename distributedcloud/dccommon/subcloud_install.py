@@ -143,7 +143,9 @@ class SubcloudInstall(object):
         return self.https_enabled
 
     @staticmethod
-    def get_image_base_url(https_enabled, sysinv_client):
+    def get_image_base_url(
+        https_enabled, sysinv_client, subcloud_primary_oam_ip_family
+    ):
         # get the protocol and the configured http or https port
         protocol, value = (
             ("https", "https_port") if https_enabled else ("http", "http_port")
@@ -152,8 +154,24 @@ class SubcloudInstall(object):
         http_parameters = sysinv_client.get_service_parameters("name", value)
         port = getattr(http_parameters[0], "value")
 
-        oam_addresses = sysinv_client.get_oam_addresses()
-        oam_floating_ip = SubcloudInstall.format_address(oam_addresses.oam_floating_ip)
+        # system controller OAM pools can be either single-stack or dual-stack,
+        # subcloud need to choose right IP family based upon subcloud primary
+        # OAM IP family, as OAM communication between subcloud and
+        # system controller is single stack only.
+        oam_pools = sysinv_client.get_oam_address_pools()
+        try:
+            oam_pool = utils.get_pool_by_ip_family(
+                oam_pools, subcloud_primary_oam_ip_family
+            )
+        except Exception as e:
+            error_msg = (
+                f"subcloud primary OAM IP family does not exist on system"
+                f"controller OAM: {e}"
+            )
+            LOG.exception(error_msg)
+            raise Exception(error_msg)
+
+        oam_floating_ip = SubcloudInstall.format_address(oam_pool.floating_address)
 
         return f"{protocol}://{oam_floating_ip}:{port}"
 
@@ -235,7 +253,7 @@ class SubcloudInstall(object):
             LOG.exception(e)
             raise e
 
-    def update_iso(self, override_path, values):
+    def update_iso(self, override_path, values, subcloud_primary_oam_ip_family):
         if not os.path.isdir(self.www_iso_root):
             os.mkdir(self.www_iso_root, 0o755)
         LOG.debug(
@@ -376,7 +394,7 @@ class SubcloudInstall(object):
             update_iso_cmd += ["--addon", addon_cfg]
 
         image_base_url = self.get_image_base_url(
-            self.get_https_enabled(), self.sysinv_client
+            self.get_https_enabled(), self.sysinv_client, subcloud_primary_oam_ip_family
         )
         base_url = os.path.join(image_base_url, "iso", software_version)
         update_iso_cmd += ["--base-url", base_url]
@@ -517,7 +535,7 @@ class SubcloudInstall(object):
     def is_serial_console(install_type):
         return install_type is not None and install_type in SERIAL_CONSOLE_INSTALL_TYPES
 
-    def prep(self, override_path, payload):
+    def prep(self, override_path, payload, subcloud_primary_oam_ip_family):
         """Update the iso image and create the config files for the subcloud"""
         LOG.info("Prepare for %s remote install" % (self.name))
 
@@ -562,7 +580,7 @@ class SubcloudInstall(object):
 
         # Update the default iso image based on the install values
         # Runs gen-bootloader-iso.sh
-        self.update_iso(override_path, iso_values)
+        self.update_iso(override_path, iso_values, subcloud_primary_oam_ip_family)
 
         # remove the iso values from the payload
         for k in iso_values:
@@ -571,7 +589,7 @@ class SubcloudInstall(object):
 
         # get the boot image url for bmc
         image_base_url = self.get_image_base_url(
-            self.get_https_enabled(), self.sysinv_client
+            self.get_https_enabled(), self.sysinv_client, subcloud_primary_oam_ip_family
         )
         payload["image"] = os.path.join(
             image_base_url, "iso", software_version, "nodes", self.name, "bootimage.iso"

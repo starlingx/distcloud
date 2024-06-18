@@ -175,25 +175,30 @@ FAKE_MGMT_INTERFACES = [
 ]
 
 
-class FakeManagementPool(object):
-    def __init__(self):
-        self.floating_address = "fdff:719a:bf60:233::2"
-        self.network = "fdff:719a:bf60:233::"
-        self.prefix = 64
+class FakeAddressPool(object):
+    def __init__(self, floating_address, network, prefix):
+        self.floating_address = floating_address
+        self.network = network
+        self.prefix = prefix
+        self.family = netaddr.IPAddress(network).version
 
 
-class FakeOamAddresses(object):
-    def __init__(self):
-        self.oam_floating_ip = "2620:10a:a001:d41::260"
-        self.oam_subnet = "2620:10a:a001:d41::/64"
+FAKE_MGMT_POOLS = [
+    FakeAddressPool("fdff:719a:bf60:233::2", "fdff:719a:bf60:233::", 64),
+]
+
+
+FAKE_OAM_POOLS = [
+    FakeAddressPool("2620:10a:a001:d41::260", "2620:10a:a001:d41::", 64),
+]
 
 
 class FakeSysinvClient(object):
     def __init__(self):
         self.hosts = FAKE_CONTROLLERS
         self.interfaces = FAKE_MGMT_INTERFACES
-        self.mgmt_pool = FakeManagementPool()
-        self.oam_addresses = FakeOamAddresses()
+        self.mgmt_pools = FAKE_MGMT_POOLS
+        self.oam_pools = FAKE_OAM_POOLS
 
     def get_controller_hosts(self):
         return self.hosts
@@ -204,11 +209,11 @@ class FakeSysinvClient(object):
         else:
             return self.interfaces[1]
 
-    def get_management_address_pool(self):
-        return self.mgmt_pool
+    def get_management_address_pools(self):
+        return self.mgmt_pools
 
-    def get_oam_addresses(self):
-        return self.oam_addresses
+    def get_oam_address_pools(self):
+        return self.oam_pools
 
     def get_system(self):
         return FakeSystem(str(uuid.uuid4()))
@@ -246,8 +251,8 @@ FAKE_CACHED_REGIONONE_DATA = {
     "services_project_id": FAKE_PROJECTS[1].id,
     "mgmt_interface_uuids": FAKE_MGMT_IF_UUIDS,
     "expiry": datetime.datetime.utcnow() + datetime.timedelta(seconds=3600),
-    "mgmt_pool": FakeManagementPool(),
-    "oam_addresses": FakeOamAddresses(),
+    "mgmt_pools": FAKE_MGMT_POOLS,
+    "oam_pools": FAKE_OAM_POOLS,
 }
 
 FAKE_BACKUP_DELETE_LOAD = {
@@ -360,6 +365,7 @@ class BaseTestSubcloudManager(base.DCManagerTestCase):
         self._mock_os_remove()
         self._mock_ostree_mount_validate_ostree_iso_mount()
         self._mock_get_local_system()
+        self._mock_utils_get_pool_by_ip_family()
         self.sm = subcloud_manager.SubcloudManager()
 
         self.subcloud = self.create_subcloud_static(self.ctx)
@@ -539,6 +545,12 @@ class BaseTestSubcloudManager(base.DCManagerTestCase):
         self.mock_netaddr_ipaddress = mock_patch.start()
         self.addCleanup(mock_patch.stop)
 
+    def _mock_utils_get_pool_by_ip_family(self):
+        """Mock utils's get_pool_by_ip_family"""
+        mock_patch = mock.patch.object(cutils, "get_pool_by_ip_family")
+        self.mock_get_pool_by_ip_family = mock_patch.start()
+        self.addCleanup(mock_patch.stop)
+
     def _mock_subprocess_run(self):
         """Mock subprocess' run"""
 
@@ -566,6 +578,7 @@ class BaseTestSubcloudManager(base.DCManagerTestCase):
             "management_start_ip": "192.168.101.2",
             "management_end_ip": "192.168.101.50",
             "systemcontroller_gateway_ip": "192.168.204.101",
+            "external_oam_subnet_ip_family": "4",
             "deploy_status": "not-deployed",
             "error_description": "No errors present",
             "region_name": base.SUBCLOUD_1["region_name"],
@@ -1493,7 +1506,7 @@ class TestSubcloudAdd(BaseTestSubcloudManager):
         self._mock_subcloud_manager_get_cached_regionone_data()
         self.mock_get_cached_regionone_data.return_value = FAKE_CACHED_REGIONONE_DATA
 
-    @mock.patch.object(cutils, "get_oam_addresses")
+    @mock.patch.object(cutils, "get_oam_address_pools")
     @mock.patch.object(subcloud_install.SubcloudInstall, "prep")
     @mock.patch.object(subcloud_manager.SubcloudManager, "_write_deploy_files")
     @mock.patch.object(cutils, "update_values_on_yaml_file")
@@ -3146,7 +3159,7 @@ class TestSubcloudRedeploy(BaseTestSubcloudManager):
     def setUp(self):
         super().setUp()
 
-    @mock.patch.object(cutils, "get_oam_addresses")
+    @mock.patch.object(cutils, "get_oam_address_pools")
     @mock.patch.object(subcloud_manager.SubcloudManager, "_prepare_for_deployment")
     @mock.patch.object(cutils, "update_values_on_yaml_file")
     def test_subcloud_redeploy(
@@ -3180,7 +3193,7 @@ class TestSubcloudRedeploy(BaseTestSubcloudManager):
 
     @mock.patch.object(subcloud_manager.SubcloudManager, "subcloud_deploy_config")
     @mock.patch.object(subcloud_install.SubcloudInstall, "prep")
-    @mock.patch.object(cutils, "get_oam_addresses")
+    @mock.patch.object(cutils, "get_oam_address_pools")
     @mock.patch.object(cutils, "update_values_on_yaml_file")
     @mock.patch.object(subprocess, "check_call")
     def test_subcloud_redeploy_skip_deploy_config(
@@ -3384,10 +3397,10 @@ class TestSubcloudBackup(BaseTestSubcloudManager):
         ]
         self.mock_log.assert_has_calls(Calls)
 
-    @mock.patch.object(cutils, "get_oam_addresses")
+    @mock.patch.object(cutils, "get_oam_address_pools")
     @mock.patch.object(cutils, "is_subcloud_healthy", return_value=True)
     def backup_create_managed_online_local_only(
-        self, mock_is_healthy, mock_get_oam_addresses
+        self, mock_is_healthy, mock_get_oam_address_pools
     ):
         self.sm.create_subcloud_backups(self.ctx, payload=self.backup_values)
 
@@ -3512,7 +3525,7 @@ class TestSubcloudBackup(BaseTestSubcloudManager):
     @mock.patch.object(
         subcloud_manager.SubcloudManager, "_create_backup_overrides_file"
     )
-    @mock.patch.object(cutils, "get_oam_addresses")
+    @mock.patch.object(cutils, "get_oam_address_pools")
     @mock.patch.object(
         subcloud_manager.SubcloudManager,
         "_clear_subcloud_backup_failure_alarm_if_exists",
@@ -3574,7 +3587,7 @@ class TestSubcloudBackup(BaseTestSubcloudManager):
             consts.BACKUP_STATE_PREP_FAILED, updated_subcloud.backup_status
         )
 
-    @mock.patch.object(cutils, "get_oam_addresses")
+    @mock.patch.object(cutils, "get_oam_address_pools")
     @mock.patch.object(
         subcloud_manager.SubcloudManager, "compose_backup_delete_command"
     )
@@ -3615,7 +3628,7 @@ class TestSubcloudBackup(BaseTestSubcloudManager):
         updated_subcloud = db_api.subcloud_get_by_name(self.ctx, self.subcloud.name)
         self.assertEqual(consts.BACKUP_STATE_UNKNOWN, updated_subcloud.backup_status)
 
-    @mock.patch.object(cutils, "get_oam_addresses")
+    @mock.patch.object(cutils, "get_oam_address_pools")
     @mock.patch.object(
         subcloud_manager.SubcloudManager, "compose_backup_delete_command"
     )
@@ -3927,10 +3940,11 @@ class TestSubcloudPrestage(BaseTestSubcloudManager):
             cached_regionone_data["mgmt_interface_uuids"], FAKE_MGMT_IF_UUIDS
         )
         self.assertEqual(
-            cached_regionone_data["mgmt_pool"].floating_address, "fdff:719a:bf60:233::2"
+            cached_regionone_data["mgmt_pools"][0].floating_address,
+            "fdff:719a:bf60:233::2",
         )
         self.assertEqual(
-            cached_regionone_data["oam_addresses"].oam_floating_ip,
+            cached_regionone_data["oam_pools"][0].floating_address,
             "2620:10a:a001:d41::260",
         )
         # The expiry timestamp is likely a couple of seconds less than the time
@@ -4654,6 +4668,7 @@ class TestSubcloudInstall(BaseTestSubcloudManager):
 
     def setUp(self):
         super().setUp()
+        self._mock_netaddr_ipaddress()
         self._mock_builtins_open()
         self._mock_openstack_driver(subcloud_install)
         self._mock_sysinv_client(subcloud_install)
@@ -4666,7 +4681,7 @@ class TestSubcloudInstall(BaseTestSubcloudManager):
             )
             + "_playbook_output.log"
         )
-        self.mock_sysinv_client().get_oam_addresses.return_value = FakeOamAddresses()
+        self.mock_sysinv_client().get_oam_address_pools.return_value = FAKE_OAM_POOLS
         self.mock_subprocess_run.return_value.returncode = 0
         self.subcloud.update(
             {

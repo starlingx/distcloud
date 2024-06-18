@@ -125,6 +125,9 @@ class SubcloudPeerGroupAPIMixin(APIMixin):
             "systemcontroller_gateway_ip": FAKE_SUBCLOUD_DATA.get(
                 "systemcontroller_gateway_ip"
             ),
+            "external_oam_subnet_ip_family": FAKE_SUBCLOUD_DATA.get(
+                "external_oam_subnet_ip_family"
+            ),
             "deploy_status": FAKE_SUBCLOUD_DATA.get("deploy_status"),
             "error_description": FAKE_SUBCLOUD_DATA.get("error_description"),
             "openstack_installed": FAKE_SUBCLOUD_DATA.get("openstack_installed"),

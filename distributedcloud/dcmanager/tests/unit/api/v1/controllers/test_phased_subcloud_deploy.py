@@ -41,8 +41,8 @@ class BaseTestPhasedSubcloudDeployController(DCManagerApiTest):
         self._mock_rpc_client()
         self._mock_get_ks_client()
         self._mock_query()
-        self._mock_get_oam_addresses()
-        self.mock_get_oam_addresses.return_value = FAKE_IPV4_OAM_POOL
+        self._mock_get_oam_address_pools()
+        self.mock_get_oam_address_pools.return_value = [FAKE_IPV4_OAM_POOL]
 
     def _mock_populate_payload(self):
         mock_patch_object = mock.patch.object(
@@ -108,9 +108,9 @@ class TestPhasedSubcloudDeployPost(BaseTestPhasedSubcloudDeployController):
 
         self._mock_sysinv_client(psd_common)
 
-        self.mock_sysinv_client().get_management_address_pool.return_value = (
+        self.mock_sysinv_client().get_management_address_pools.return_value = [
             FakeAddressPool("192.168.204.0", 24, "192.168.204.2", "192.168.204.100")
-        )
+        ]
         self.mock_rpc_client().subcloud_deploy_create.side_effect = (
             self.subcloud_deploy_create
         )
@@ -214,13 +214,13 @@ class BaseTestPhasedSubcloudDeployPatch(BaseTestPhasedSubcloudDeployController):
         self._mock_get_vault_load_files()
         self._mock_is_initial_deployment()
         self._mock_is_valid_software_deploy_state()
-        self._mock_get_network_address_pool()
+        self._mock_get_network_address_pools()
 
         self.mock_get_vault_load_files.return_value = ("iso_file_path", "sig_file_path")
         self.mock_is_initial_deployment.return_value = True
-        self.mock_get_network_address_pool.return_value = FakeAddressPool(
-            "192.168.204.0", 24, "192.168.204.2", "192.168.204.100"
-        )
+        self.mock_get_network_address_pools.return_value = [
+            FakeAddressPool("192.168.204.0", 24, "192.168.204.2", "192.168.204.100")
+        ]
 
         self.data_install = copy.copy(fake_subcloud.FAKE_SUBCLOUD_INSTALL_VALUES)
         self.data_install.pop("software_version")

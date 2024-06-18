@@ -179,6 +179,7 @@ class Subcloud(BASE, DCManagerBase):
     management_end_ip = Column(String(255), unique=True)
     openstack_installed = Column(Boolean, nullable=False, default=False)
     systemcontroller_gateway_ip = Column(String(255))
+    external_oam_subnet_ip_family = Column(String(255))
     audit_fail_count = Column(Integer)
     first_identity_sync_complete = Column(Boolean, default=False)
     peer_group_id = Column(Integer, ForeignKey("subcloud_peer_group.id"))

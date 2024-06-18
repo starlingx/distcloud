@@ -1280,10 +1280,10 @@ class SubcloudManager(manager.Manager):
             context,
             subcloud.id,
             description=payload.get("description"),
-            management_subnet=utils.get_management_subnet(payload),
+            management_subnet=utils.get_primary_management_subnet(payload),
             management_gateway_ip=utils.get_management_gateway_address(payload),
-            management_start_ip=utils.get_management_start_address(payload),
-            management_end_ip=utils.get_management_end_address(payload),
+            management_start_ip=utils.get_primary_management_start_address(payload),
+            management_end_ip=utils.get_primary_management_end_address(payload),
             systemcontroller_gateway_ip=payload.get("systemcontroller_gateway_address"),
             location=payload.get("location"),
             deploy_status=consts.DEPLOY_STATE_PRE_BOOTSTRAP,
@@ -1621,7 +1621,11 @@ class SubcloudManager(manager.Manager):
                 region_clients=None,
                 fetch_subcloud_ips=utils.fetch_subcloud_mgmt_ips,
             ).keystone_client
-            subcloud_subnet = netaddr.IPNetwork(utils.get_management_subnet(payload))
+            # system-controller and subcloud communication is through
+            # single-stack/primary (of subcloud) only.
+            subcloud_subnet = netaddr.IPNetwork(
+                utils.get_primary_management_subnet(payload)
+            )
             endpoint = m_ks_client.endpoint_cache.get_endpoint("sysinv")
             sysinv_client = SysinvClient(
                 dccommon_consts.DEFAULT_REGION_NAME,
@@ -1821,8 +1825,11 @@ class SubcloudManager(manager.Manager):
 
         if self.subcloud_init_enroll(context, subcloud.id, payload):
             try:
+                # based upon primary IP of oam dual-stack
                 endpoint = (
-                    "https://" + payload.get("external_oam_floating_address") + ":6385"
+                    "https://"
+                    + payload.get("external_oam_floating_address").split(",")[0]
+                    + ":6385"
                 )
                 subcloud_region_name = utils.get_region_name(endpoint)
 
@@ -2088,7 +2095,14 @@ class SubcloudManager(manager.Manager):
 
         try:
             enrollment = SubcloudEnrollmentInit(subcloud.name)
-            enrollment.prep(dccommon_consts.ANSIBLE_OVERRIDES_PATH, payload)
+            subcloud_primary_oam_ip_family = utils.get_primary_oam_address_ip_family(
+                subcloud
+            )
+            enrollment.prep(
+                dccommon_consts.ANSIBLE_OVERRIDES_PATH,
+                payload,
+                subcloud_primary_oam_ip_family,
+            )
 
             # Retrieve the subcloud details from the database
             subcloud = db_api.subcloud_update(
@@ -2423,7 +2437,9 @@ class SubcloudManager(manager.Manager):
         # The non-identity endpoints are added to facilitate horizon access
         # from the System Controller to the subcloud.
         endpoint_config = []
-        endpoint_ip = utils.get_management_start_address(payload)
+        # system-controller and subcloud communication is through
+        # single-stack/primary
+        endpoint_ip = utils.get_primary_management_start_address(payload)
         if netaddr.IPAddress(endpoint_ip).version == 6:
             endpoint_ip = "[" + endpoint_ip + "]"
 
@@ -2481,9 +2497,10 @@ class SubcloudManager(manager.Manager):
                 region_clients=None,
                 fetch_subcloud_ips=utils.fetch_subcloud_mgmt_ips,
             ).keystone_client
-            bootstrap_address = utils.get_oam_addresses(
-                subcloud, keystone_client
-            ).oam_floating_ip
+            # interested in subcloud's primary OAM address only
+            bootstrap_address = utils.get_oam_address_pools(subcloud, keystone_client)[
+                0
+            ].floating_address
 
         # Add parameters used to generate inventory
         subcloud_params = {
@@ -2852,7 +2869,14 @@ class SubcloudManager(manager.Manager):
             )
         try:
             install = SubcloudInstall(subcloud.name)
-            install.prep(dccommon_consts.ANSIBLE_OVERRIDES_PATH, payload)
+            subcloud_primary_oam_ip_family = utils.get_primary_oam_address_ip_family(
+                subcloud
+            )
+            install.prep(
+                dccommon_consts.ANSIBLE_OVERRIDES_PATH,
+                payload,
+                subcloud_primary_oam_ip_family,
+            )
         except Exception as e:
             LOG.exception(e)
             db_api.subcloud_update(
@@ -3009,13 +3033,59 @@ class SubcloudManager(manager.Manager):
             dccommon_consts.ANSIBLE_OVERRIDES_PATH, payload["name"] + ".yml"
         )
 
-        mgmt_pool = cached_regionone_data["mgmt_pool"]
+        # cached_regionone_data supports dual-stack mgmt and oam
+        # for systemcontroller.
+        # Communication between subcloud and system controller is through primary
+        # mgmt and oam of subcloud.
+        #
+        # Subcloud accesses systemcontroller mgmt subnet (system_controller_subnet)
+        # through subcloud's primary mgmt network/gateway. So
+        # system_controller_subnet should be populated of same IP family
+        # as of primary subcloud mgmt network. This IP family is not
+        # necessarily primary management subnet of system-controller.
+        # eg: dual-stack (IPv4 primary, IPv6 secondary) mgmt systemcontroller
+        # and IPv6-only management subcloud.
+        #
+        # Similarly, subcloud accesses systemcontroller oam subnet
+        # (system_controller_oam_subnet) through subcloud's primary oam network.
+        #
+        system_controller_mgmt_pools = cached_regionone_data["mgmt_pools"]
+        try:
+            mgmt_pool = utils.get_pool_by_ip_family(
+                system_controller_mgmt_pools,
+                utils.get_management_gateway_address_ip_family(payload),
+            )
+        except Exception as e:
+            raise Exception(
+                f"subcloud management gateway address IP family does not "
+                f"exist on system controller managements: {e}"
+            )
+
         mgmt_floating_ip = mgmt_pool.floating_address
         mgmt_subnet = "%s/%d" % (mgmt_pool.network, mgmt_pool.prefix)
 
-        oam_addresses = cached_regionone_data["oam_addresses"]
-        oam_floating_ip = oam_addresses.oam_floating_ip
-        oam_subnet = oam_addresses.oam_subnet
+        # choose systemcontroller oam pool based upon IP family
+        # of subcloud's primary OAM.
+        # system controller OAM pools can be either single-stack or dual-stack,
+        # subcloud need to choose right IP family based upon subcloud primary
+        # OAM IP family, as OAM communication between subcloud and
+        # system controller is single stack only, based upon subcloud primary OAM.
+        system_controller_oam_pools = cached_regionone_data["oam_pools"]
+        subcloud_primary_oam_ip_family = utils.get_primary_oam_address_ip_family(
+            payload
+        )
+        try:
+            oam_pool = utils.get_pool_by_ip_family(
+                system_controller_oam_pools, subcloud_primary_oam_ip_family
+            )
+        except Exception as e:
+            raise Exception(
+                f"subcloud primary OAM IP family does not"
+                f"exist on system controller OAM: {e}"
+            )
+
+        oam_floating_ip = oam_pool.floating_address
+        oam_subnet = "%s/%d" % (oam_pool.network, oam_pool.prefix)
 
         with open(overrides_file, "w") as f_out_overrides_file:
             f_out_overrides_file.write(
@@ -3829,13 +3899,15 @@ class SubcloudManager(manager.Manager):
             return
 
         # Delete old routes
-        if utils.get_management_subnet(payload) != subcloud.management_subnet:
+        if utils.get_primary_management_subnet(payload) != subcloud.management_subnet:
             self._delete_subcloud_routes(m_ks_client, subcloud)
 
     def _create_subcloud_route(
         self, payload, keystone_client, systemcontroller_gateway_ip
     ):
-        subcloud_subnet = netaddr.IPNetwork(utils.get_management_subnet(payload))
+        subcloud_subnet = netaddr.IPNetwork(
+            utils.get_primary_management_subnet(payload)
+        )
         endpoint = keystone_client.endpoint_cache.get_endpoint("sysinv")
         sysinv_client = SysinvClient(
             dccommon_consts.DEFAULT_REGION_NAME,
@@ -3855,7 +3927,7 @@ class SubcloudManager(manager.Manager):
             )
 
     def _update_services_endpoint(self, context, payload, subcloud_region, m_ks_client):
-        ip = utils.get_management_start_address(payload)
+        ip = utils.get_primary_management_start_address(payload)
         formatted_ip = f"[{ip}]" if netaddr.IPAddress(ip).version == 6 else ip
 
         services_endpoints = {
@@ -4100,11 +4172,11 @@ class SubcloudManager(manager.Manager):
             SubcloudManager.regionone_data["mgmt_interface_uuids"] = (
                 mgmt_interface_uuids
             )
-            SubcloudManager.regionone_data["mgmt_pool"] = (
-                regionone_sysinv_client.get_management_address_pool()
+            SubcloudManager.regionone_data["mgmt_pools"] = (
+                regionone_sysinv_client.get_management_address_pools()
             )
-            SubcloudManager.regionone_data["oam_addresses"] = (
-                regionone_sysinv_client.get_oam_addresses()
+            SubcloudManager.regionone_data["oam_pools"] = (
+                regionone_sysinv_client.get_oam_address_pools()
             )
 
             SubcloudManager.regionone_data["expiry"] = (

@@ -382,7 +382,8 @@ def _get_prestage_subcloud_info(subcloud):
         )
         mode = sysinv_client.get_system().system_mode
         health = sysinv_client.get_system_health()
-        oam_floating_ip = sysinv_client.get_oam_addresses().oam_floating_ip
+        # Interested only in primary OAM address of subcloud
+        oam_floating_ip = sysinv_client.get_oam_address_pools()[0].floating_address
         return mode, health, oam_floating_ip
 
     except Exception as e:

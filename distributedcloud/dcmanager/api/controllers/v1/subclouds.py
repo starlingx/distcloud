@@ -345,8 +345,8 @@ class SubcloudsController(object):
         return user_list
 
     # TODO(gsilvatr): refactor to use implementation from common/utils and test
-    def _get_oam_addresses(self, context, subcloud_name, sc_ks_client):
-        """Get the subclouds oam addresses"""
+    def _get_oam_address_pools(self, context, subcloud_name, sc_ks_client):
+        """Get the subclouds oam address pools"""
 
         # First need to retrieve the Subcloud's Keystone session
         try:
@@ -354,7 +354,7 @@ class SubcloudsController(object):
             sysinv_client = SysinvClient(
                 subcloud_name, sc_ks_client.session, endpoint=endpoint
             )
-            return sysinv_client.get_oam_addresses()
+            return sysinv_client.get_oam_address_pools()
         except (keystone_exceptions.EndpointNotFound, IndexError) as e:
             message = "Identity endpoint for subcloud: %s not found. %s" % (
                 subcloud_name,
@@ -362,7 +362,7 @@ class SubcloudsController(object):
             )
             LOG.error(message)
         except dccommon_exceptions.OAMAddressesNotFound:
-            message = "OAM addresses for subcloud: %s not found." % (subcloud_name)
+            message = "OAM address pools for subcloud: %s not found." % (subcloud_name)
             LOG.error(message)
         return None
 
@@ -562,15 +562,16 @@ class SubcloudsController(object):
                 if subcloud.availability_status == dccommon_consts.AVAILABILITY_ONLINE:
 
                     # Get the keystone client that will be used
-                    # for _get_deploy_config_sync_status and _get_oam_addresses
+                    # for _get_deploy_config_sync_status and _get_oam_address_pools
                     sc_ks_client = psd_common.get_ks_client(
                         subcloud_region, subcloud.management_start_ip
                     )
-                    oam_addresses = self._get_oam_addresses(
+                    oam_pools = self._get_oam_address_pools(
                         context, subcloud_region, sc_ks_client
                     )
-                    if oam_addresses is not None:
-                        oam_floating_ip = oam_addresses.oam_floating_ip
+                    if oam_pools is not None:
+                        # Only interested in subcloud's primary OAM pool's address
+                        oam_floating_ip = oam_pools[0].floating_address
 
                     deploy_config_state = self._get_deploy_config_sync_status(
                         context, subcloud_region, sc_ks_client
@@ -1038,7 +1039,23 @@ class SubcloudsController(object):
                             % subcloud.deploy_status
                         ),
                     )
-                system_controller_mgmt_pool = psd_common.get_network_address_pool()
+                system_controller_mgmt_pools = psd_common.get_network_address_pools()
+                # Subcloud will use single-stack admin/management_gateway_address to
+                # access one of dual-stack systemcontroller admin/mgmt subnets, based
+                # upon IP family of gateway address.
+                try:
+                    system_controller_mgmt_pool = utils.get_pool_by_ip_family(
+                        system_controller_mgmt_pools,
+                        utils.get_management_gateway_address_ip_family(payload),
+                    )
+                except Exception as e:
+                    error_msg = (
+                        "subcloud management gateway address IP family does "
+                        "not exist on system controller managements"
+                    )
+                    LOG.exception(error_msg)
+                    pecan.abort(400, _("%s: %s") % (error_msg, e))
+
                 # Required parameters
                 payload["name"] = subcloud.name
                 payload["region_name"] = subcloud.region_name
@@ -1085,7 +1102,7 @@ class SubcloudsController(object):
                     != subcloud.systemcontroller_gateway_ip
                 ):
                     psd_common.validate_systemcontroller_gateway_address(
-                        systemcontroller_gateway_address
+                        systemcontroller_gateway_address, payload
                     )
 
             management_state = payload.get("management-state")

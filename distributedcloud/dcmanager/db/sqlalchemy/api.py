@@ -544,6 +544,7 @@ def subcloud_create(
     management_start_ip,
     management_end_ip,
     systemcontroller_gateway_ip,
+    external_oam_subnet_ip_family,
     deploy_status,
     error_description,
     region_name,
@@ -564,6 +565,7 @@ def subcloud_create(
         subcloud_ref.management_start_ip = management_start_ip
         subcloud_ref.management_end_ip = management_end_ip
         subcloud_ref.systemcontroller_gateway_ip = systemcontroller_gateway_ip
+        subcloud_ref.external_oam_subnet_ip_family = external_oam_subnet_ip_family
         subcloud_ref.deploy_status = deploy_status
         subcloud_ref.error_description = error_description
         subcloud_ref.region_name = region_name
@@ -604,6 +606,7 @@ def subcloud_update(
     data_upgrade=None,
     first_identity_sync_complete=None,
     systemcontroller_gateway_ip=None,
+    external_oam_subnet_ip_family=None,
     peer_group_id=None,
     rehome_data=None,
     rehomed=None,
@@ -655,6 +658,8 @@ def subcloud_update(
             subcloud_ref.first_identity_sync_complete = first_identity_sync_complete
         if systemcontroller_gateway_ip is not None:
             subcloud_ref.systemcontroller_gateway_ip = systemcontroller_gateway_ip
+        if external_oam_subnet_ip_family is not None:
+            subcloud_ref.external_oam_subnet_ip_family = external_oam_subnet_ip_family
         if peer_group_id is not None:
             if str(peer_group_id).lower() == "none":
                 subcloud_ref.peer_group_id = None

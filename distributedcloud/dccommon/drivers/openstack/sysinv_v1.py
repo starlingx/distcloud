@@ -40,6 +40,7 @@ CONTROLLER = "controller"
 
 NETWORK_TYPE_MGMT = "mgmt"
 NETWORK_TYPE_ADMIN = "admin"
+NETWORK_TYPE_OAM = "oam"
 
 SSL_CERT_DIR = "/etc/ssl/private/"
 SSL_CERT_FILE = "server-cert.pem"
@@ -230,18 +231,50 @@ class SysinvClient(base.DriverBase):
         LOG.warning("Management interface on host %s not found" % hostname)
         return None
 
-    def get_management_address_pool(self):
-        """Get the management address pool for a host."""
+    def get_secondary_pool_uuid(self, network_uuid, primary_pool_uuid):
+        network_addrpools = self.sysinv_client.network_addrpool.list()
+        for network_addrpool in network_addrpools:
+            if (
+                network_addrpool.network_uuid == network_uuid
+                and network_addrpool.address_pool_uuid != primary_pool_uuid
+            ):
+                return network_addrpool.address_pool_uuid
+        return None
+
+    def get_address_pools(self, network_type):
+        """Get the network-type address pools for a host."""
+        # both primary and secondary pools when present
+        # first value is always primary
         networks = self.sysinv_client.network.list()
         for network in networks:
-            if network.type == NETWORK_TYPE_MGMT:
-                address_pool_uuid = network.pool_uuid
+            if network.type == network_type:
+                primary_pool_uuid = network.pool_uuid
                 break
         else:
-            LOG.error("Management address pool not found")
+            if network_type == NETWORK_TYPE_MGMT:
+                LOG.error("Management address pool not found")
+            elif network_type == NETWORK_TYPE_ADMIN:
+                LOG.error("Admin address pool not found")
+            elif network_type == NETWORK_TYPE_OAM:
+                LOG.error("OAM address pool not found")
+                return exceptions.OAMAddressesNotFound()
+            else:
+                LOG.error(f"{network_type} address pool not found")
+
             raise exceptions.InternalError()
 
-        return self.sysinv_client.address_pool.get(address_pool_uuid)
+        pools = [self.sysinv_client.address_pool.get(primary_pool_uuid)]
+        secondary_pool_uuid = self.get_secondary_pool_uuid(
+            network.uuid, primary_pool_uuid
+        )
+        if secondary_pool_uuid:
+            pools.append(self.sysinv_client.address_pool.get(secondary_pool_uuid))
+        return pools
+
+    def get_management_address_pools(self):
+        """Get the management address pools for a host."""
+        # both primary and secondary pools when present
+        return self.get_address_pools(NETWORK_TYPE_MGMT)
 
     def get_admin_interface(self, hostname):
         """Get the admin interface for a host."""
@@ -259,27 +292,14 @@ class SysinvClient(base.DriverBase):
         LOG.warning("Admin interface on host %s not found" % hostname)
         return None
 
-    def get_admin_address_pool(self):
+    def get_admin_address_pools(self):
         """Get the admin address pool for a host."""
-        networks = self.sysinv_client.network.list()
-        for network in networks:
-            if network.type == NETWORK_TYPE_ADMIN:
-                address_pool_uuid = network.pool_uuid
-                break
-        else:
-            LOG.error("Admin address pool not found")
-            raise exceptions.InternalError()
+        # both primary and secondary pools when present
+        return self.get_address_pools(NETWORK_TYPE_ADMIN)
 
-        return self.sysinv_client.address_pool.get(address_pool_uuid)
-
-    def get_oam_addresses(self):
-        """Get the oam address pool for a host."""
-        iextoam_object = self.sysinv_client.iextoam.list()
-        if iextoam_object is not None and len(iextoam_object) != 0:
-            return iextoam_object[0]
-        else:
-            LOG.error("OAM address not found")
-            raise exceptions.OAMAddressesNotFound()
+    def get_oam_address_pools(self):
+        # both primary and secondary pools when present
+        return self.get_address_pools(NETWORK_TYPE_OAM)
 
     def create_route(self, interface_uuid, network, prefix, gateway, metric):
         """Create a static route on an interface."""

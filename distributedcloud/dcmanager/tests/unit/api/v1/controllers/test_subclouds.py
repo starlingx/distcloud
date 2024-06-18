@@ -21,8 +21,10 @@ import http.client
 import json
 import os
 
+
 from keystoneauth1.exceptions import EndpointNotFound
 import mock
+import netaddr
 from oslo_messaging import RemoteError
 from tsconfig.tsconfig import SW_VERSION
 import yaml
@@ -93,35 +95,34 @@ class FakeAddressPool(object):
     def __init__(self, pool_network, pool_prefix, pool_start, pool_end):
         self.network = pool_network
         self.prefix = pool_prefix
-        range = list()
-        range.append(pool_start)
-        range.append(pool_end)
-        self.ranges = list()
-        self.ranges.append(range)
+        self.family = netaddr.IPAddress(pool_network).version
+        self.ranges = [[pool_start, pool_end]]
 
 
 class FakeOAMAddressPool(object):
     def __init__(
         self,
-        oam_subnet,
-        oam_start_ip,
-        oam_end_ip,
-        oam_c1_ip,
-        oam_c0_ip,
-        oam_gateway_ip,
-        oam_floating_ip,
+        pool_network,
+        pool_prefix,
+        pool_start,
+        pool_end,
+        c1_ip,
+        c0_ip,
+        gateway_ip,
+        floating_ip,
     ):
-        self.oam_start_ip = oam_start_ip
-        self.oam_end_ip = oam_end_ip
-        self.oam_c1_ip = oam_c1_ip
-        self.oam_c0_ip = oam_c0_ip
-        self.oam_subnet = oam_subnet
-        self.oam_gateway_ip = oam_gateway_ip
-        self.oam_floating_ip = oam_floating_ip
+        self.network = pool_network
+        self.prefix = pool_prefix
+        self.ranges = [[pool_start, pool_end]]
+        self.controller1_address = c1_ip
+        self.controller0_address = c0_ip
+        self.gateway_address = gateway_ip
+        self.floating_address = floating_ip
 
 
 FAKE_IPV4_OAM_POOL = FakeOAMAddressPool(
     "10.10.10.0",
+    24,
     "10.10.10.1",
     "10.10.10.254",
     "10.10.10.4",
@@ -132,7 +133,7 @@ FAKE_IPV4_OAM_POOL = FakeOAMAddressPool(
 
 
 FAKE_IPV6_OAM_POOL = FakeOAMAddressPool(
-    "fe00::", "fe00::1", "fe00::ffff", "fe00::4", "fe00::3", "fe00::1", "fe00::2"
+    "fe00::", 64, "fe00::1", "fe00::ffff", "fe00::4", "fe00::3", "fe00::1", "fe00::2"
 )
 
 
@@ -273,8 +274,8 @@ class BaseTestSubcloudsController(DCManagerApiTest, SubcloudAPIMixin):
         self._mock_get_ks_client()
         self._mock_query()
         self._mock_valid_software_deploy_state()
-        self._mock_get_oam_addresses()
-        self.mock_get_oam_addresses.return_value = FAKE_IPV4_OAM_POOL
+        self._mock_get_oam_address_pools()
+        self.mock_get_oam_address_pools.return_value = [FAKE_IPV4_OAM_POOL]
 
     def _update_subcloud(self, **kwargs):
         self.subcloud = sql_api.subcloud_update(self.ctx, self.subcloud.id, **kwargs)
@@ -393,15 +394,18 @@ class TestSubcloudsGetDetail(BaseTestSubcloudsGet):
         self._mock_sysinv_client(subclouds)
         self._mock_fm_client(subclouds)
 
-        self.mock_sysinv_client().get_oam_addresses.return_value = FakeOAMAddressPool(
-            "10.10.10.254",
-            "10.10.10.1",
-            "10.10.10.254",
-            "10.10.10.4",
-            "10.10.10.3",
-            "10.10.10.1",
-            "10.10.10.2",
-        )
+        self.mock_sysinv_client().get_oam_address_pools.return_value = [
+            FakeOAMAddressPool(
+                "10.10.10.254",
+                24,
+                "10.10.10.1",
+                "10.10.10.254",
+                "10.10.10.4",
+                "10.10.10.3",
+                "10.10.10.1",
+                "10.10.10.2",
+            )
+        ]
 
     def _assert_response_payload(
         self,
@@ -443,7 +447,7 @@ class TestSubcloudsGetDetail(BaseTestSubcloudsGet):
     def test_get_detail_succeeds_with_sysinv_client_endpoint_not_found(self):
         """Test get detail succeeds with sysinv client endpoint not found"""
 
-        self.mock_sysinv_client().get_oam_addresses.side_effect = EndpointNotFound()
+        self.mock_sysinv_client().get_oam_address_pools.side_effect = EndpointNotFound()
 
         response = self._send_request()
 
@@ -453,7 +457,9 @@ class TestSubcloudsGetDetail(BaseTestSubcloudsGet):
     def test_get_detail_succeeds_with_sysinv_client_oam_addresses_not_found(self):
         """Test get detail succeeds with sysinv client oam addresses not found"""
 
-        self.mock_sysinv_client().get_oam_addresses.side_effect = OAMAddressesNotFound()
+        self.mock_sysinv_client().get_oam_address_pools.side_effect = (
+            OAMAddressesNotFound()
+        )
 
         response = self._send_request()
 
@@ -471,10 +477,10 @@ class BaseTestSubcloudsPost(BaseTestSubcloudsController):
         self.params = self.get_post_params()
         self.upload_files = self.get_post_upload_files()
 
-        self._mock_get_network_address_pool()
-        self.mock_get_network_address_pool.return_value = FakeAddressPool(
-            "192.168.204.0", 24, "192.168.204.2", "192.168.204.100"
-        )
+        self._mock_get_network_address_pools()
+        self.mock_get_network_address_pools.return_value = [
+            FakeAddressPool("192.168.204.0", 24, "192.168.204.2", "192.168.204.100")
+        ]
 
 
 class TestSubcloudsPost(BaseTestSubcloudsPost, PostMixin):
@@ -605,7 +611,7 @@ class TestSubcloudsPost(BaseTestSubcloudsPost, PostMixin):
         self._test_post_fails_bootstrap_address_with_wrong_ip_version("fd01::77")
 
     def test_post_fails_bootstrap_address_with_wrong_ip_version_ipv6(self):
-        self.mock_get_oam_addresses.return_value = FAKE_IPV6_OAM_POOL
+        self.mock_get_oam_address_pools.return_value = [FAKE_IPV6_OAM_POOL]
         self._test_post_fails_bootstrap_address_with_wrong_ip_version("10.10.10.100")
 
     def test_post_fails_with_invalid_systemcontroller_gateway_address(self):
@@ -636,7 +642,8 @@ class TestSubcloudsPost(BaseTestSubcloudsPost, PostMixin):
                 )
             elif index > 2:
                 error_message = (
-                    f"{error_message} Invalid address - not a valid IP address"
+                    f"{error_message} failed to detect a valid "
+                    f"IP address from '{invalid_value}'"
                 )
             else:
                 error_message = (
@@ -844,6 +851,278 @@ class TestSubcloudsPost(BaseTestSubcloudsPost, PostMixin):
         self._assert_pecan_and_response(
             response, http.client.INTERNAL_SERVER_ERROR, "Unable to add subcloud"
         )
+
+
+class TestSubcloudsPostDualStack(BaseTestSubcloudsPost, PostMixin):
+    """Test class for post requests dual-stack"""
+
+    def setUp(self):
+        super().setUp()
+
+    def test_dual_stack_post_fails_with_invalid_systemcontroller_gateway_address(self):
+        """Test post fails with invalid system controller gateway address
+
+        This tests for dual-stack admin/management.
+        The gateway address must be of same IP family as primary admin/management
+        subnet of subcloud and it must be present on systemcontroller pools too.
+        """
+
+        management_ipv4 = {
+            "management_subnet": "192.168.1.0/24",
+            "management_start_address": "192.168.1.2",
+            "management_end_address": "192.168.1.50",
+        }
+        management_ipv6 = {
+            "management_subnet": "fd10::/64",
+            "management_start_address": "fd10::2",
+            "management_end_address": "fd10::100",
+        }
+        management_dual_primary_ipv4 = {
+            "management_subnet": "192.168.1.0/24,fd10::/64",
+            "management_start_address": "192.168.1.2,fd10::2",
+            "management_end_address": "192.168.1.50,fd10::100",
+        }
+        management_dual_primary_ipv6 = {
+            "management_subnet": "fd10::/64,192.168.1.0/24",
+            "management_start_address": "fd10::2,192.168.1.2",
+            "management_end_address": "fd10::100,192.168.1.50",
+        }
+
+        admin_ipv4 = {
+            "admin_subnet": "192.168.2.0/24",
+            "admin_start_address": "192.168.2.2",
+            "admin_end_address": "192.168.2.50",
+        }
+        admin_ipv6 = {
+            "admin_subnet": "fd20::/64",
+            "admin_start_address": "fd20::2",
+            "admin_end_address": "fd20::50",
+        }
+        admin_dual_primary_ipv4 = {
+            "admin_subnet": "192.168.2.0/24,fd20::/64",
+            "admin_start_address": "192.168.2.2,fd20::2",
+            "admin_end_address": "192.168.2.50,fd20::50",
+        }
+        admin_dual_primary_ipv6 = {
+            "admin_subnet": "fd20::/64,192.168.2.0/24",
+            "admin_start_address": "fd20::2,192.168.2.2",
+            "admin_end_address": "fd20::50,192.168.2.50",
+        }
+
+        management_gateway_address_ipv4 = "192.168.1.1"
+        management_gateway_address_ipv6 = "fd10::1"
+
+        admin_gateway_address_ipv4 = "192.168.2.1"
+        admin_gateway_address_ipv6 = "fd20::1"
+
+        systemcontroller_gateway_address_ipv4 = "192.168.204.1"
+        systemcontroller_gateway_address_ipv6 = "fd30::1"
+        systemcontroller_gateway_address_dual_primary_ipv4 = "192.168.204.1,fd30::1"
+        systemcontroller_gateway_address_dual_primary_ipv6 = "fd30::1,192.168.204.1"
+
+        systemcontroller_pools_ipv4 = [
+            FakeAddressPool("192.168.204.0", 24, "192.168.204.2", "192.168.204.100")
+        ]
+        systemcontroller_pools_ipv6 = [
+            FakeAddressPool("fd30::", 64, "fd30::2", "fd30::100")
+        ]
+        systemcontroller_pools_dual_primary_ipv4 = [
+            FakeAddressPool("192.168.204.0", 24, "192.168.204.2", "192.168.204.100"),
+            FakeAddressPool("fd30::", 64, "fd30::2", "fd30::100"),
+        ]
+        systemcontroller_pools_dual_primary_ipv6 = [
+            FakeAddressPool("fd30::", 64, "fd30::2", "fd30::100"),
+            FakeAddressPool("192.168.204.0", 24, "192.168.204.2", "192.168.204.100"),
+        ]
+
+        error_message = "systemcontroller_gateway_address invalid:"
+        invalid_values = [
+            {
+                "systemcontroller_gateway_address": (
+                    systemcontroller_gateway_address_dual_primary_ipv4
+                ),
+                "admin": admin_dual_primary_ipv4,
+                "admin_gateway_address": admin_gateway_address_ipv4,
+                "management": management_dual_primary_ipv4,
+                "systemcontroller_pools": systemcontroller_pools_dual_primary_ipv4,
+                "error_message": (
+                    f"{error_message} failed to detect a valid IP address"
+                    f" from '{systemcontroller_gateway_address_dual_primary_ipv4}'"
+                ),
+            },
+            {
+                "systemcontroller_gateway_address": (
+                    systemcontroller_gateway_address_dual_primary_ipv6
+                ),
+                "admin": admin_dual_primary_ipv6,
+                "admin_gateway_address": admin_gateway_address_ipv6,
+                "management": management_dual_primary_ipv6,
+                "systemcontroller_pools": systemcontroller_pools_dual_primary_ipv6,
+                "error_message": (
+                    f"{error_message} failed to detect a valid IP address from "
+                    f"'{systemcontroller_gateway_address_dual_primary_ipv6}'"
+                ),
+            },
+            {
+                "systemcontroller_gateway_address": (
+                    systemcontroller_gateway_address_ipv4
+                ),
+                "admin": admin_dual_primary_ipv6,
+                "admin_gateway_address": admin_gateway_address_ipv6,
+                "management": management_dual_primary_ipv4,
+                "systemcontroller_pools": systemcontroller_pools_dual_primary_ipv4,
+                "error_message": f"{error_message} Expected IPv6",
+            },
+            {
+                "systemcontroller_gateway_address": (
+                    systemcontroller_gateway_address_ipv6
+                ),
+                "admin": admin_dual_primary_ipv4,
+                "admin_gateway_address": admin_gateway_address_ipv4,
+                "management": management_dual_primary_ipv6,
+                "systemcontroller_pools": systemcontroller_pools_dual_primary_ipv6,
+                "error_message": f"{error_message} Expected IPv4",
+            },
+            {
+                "systemcontroller_gateway_address": (
+                    systemcontroller_gateway_address_ipv4
+                ),
+                "admin": admin_ipv4,
+                "admin_gateway_address": admin_gateway_address_ipv4,
+                "management": management_dual_primary_ipv4,
+                "systemcontroller_pools": systemcontroller_pools_ipv6,
+                "error_message": (
+                    f"systemcontroller_gateway_address IP family is not aligned "
+                    f"with system controller management: IPv4 pool not found in "
+                    f"pools {systemcontroller_pools_ipv6}"
+                ),
+            },
+            {
+                "systemcontroller_gateway_address": (
+                    systemcontroller_gateway_address_ipv6
+                ),
+                "admin": admin_ipv6,
+                "admin_gateway_address": admin_gateway_address_ipv6,
+                "management": management_dual_primary_ipv6,
+                "systemcontroller_pools": systemcontroller_pools_ipv4,
+                "error_message": (
+                    f"systemcontroller_gateway_address IP family is not aligned "
+                    f"with system controller management: IPv6 pool not found in pools "
+                    f"{systemcontroller_pools_ipv4}"
+                ),
+            },
+            {
+                "systemcontroller_gateway_address": (
+                    systemcontroller_gateway_address_ipv4
+                ),
+                "management": management_dual_primary_ipv6,
+                "management_gateway_address": management_gateway_address_ipv6,
+                "systemcontroller_pools": systemcontroller_pools_dual_primary_ipv4,
+                "error_message": f"{error_message} Expected IPv6",
+            },
+            {
+                "systemcontroller_gateway_address": (
+                    systemcontroller_gateway_address_ipv6
+                ),
+                "management": management_dual_primary_ipv4,
+                "management_gateway_address": management_gateway_address_ipv4,
+                "systemcontroller_pools": systemcontroller_pools_dual_primary_ipv6,
+                "error_message": f"{error_message} Expected IPv4",
+            },
+            {
+                "systemcontroller_gateway_address": (
+                    systemcontroller_gateway_address_ipv4
+                ),
+                "management": management_ipv4,
+                "management_gateway_address": management_gateway_address_ipv4,
+                "systemcontroller_pools": systemcontroller_pools_ipv6,
+                "error_message": (
+                    f"systemcontroller_gateway_address IP family is not aligned "
+                    f"with system controller management: IPv4 pool not found in pools "
+                    f"{systemcontroller_pools_ipv6}"
+                ),
+            },
+            {
+                "systemcontroller_gateway_address": (
+                    systemcontroller_gateway_address_ipv6
+                ),
+                "management": management_ipv6,
+                "management_gateway_address": management_gateway_address_ipv6,
+                "systemcontroller_pools": systemcontroller_pools_ipv4,
+                "error_message": (
+                    f"systemcontroller_gateway_address IP family is not aligned "
+                    f"with system controller management: IPv6 pool not found in pools "
+                    f"{systemcontroller_pools_ipv4}"
+                ),
+            },
+        ]
+
+        for index, invalid_value in enumerate(invalid_values, start=1):
+            self.params["systemcontroller_gateway_address"] = invalid_value[
+                "systemcontroller_gateway_address"
+            ]
+            if "management" in invalid_value:
+                self.bootstrap_data["management_subnet"] = invalid_value["management"][
+                    "management_subnet"
+                ]
+                self.bootstrap_data["management_start_address"] = invalid_value[
+                    "management"
+                ]["management_start_address"]
+                self.bootstrap_data["management_end_address"] = invalid_value[
+                    "management"
+                ]["management_end_address"]
+            else:
+                if "management_subnet" in self.bootstrap_data:
+                    del self.bootstrap_data["management_subnet"]
+                if "management_start_address" in self.bootstrap_data:
+                    del self.bootstrap_data["management_start_address"]
+                if "management_end_address" in self.bootstrap_data:
+                    del self.bootstrap_data["management_end_address"]
+
+            if "management_gateway_address" in invalid_value:
+                self.bootstrap_data["management_gateway_address"] = invalid_value[
+                    "management_gateway_address"
+                ]
+            else:
+                if "management_gateway_address" in self.bootstrap_data:
+                    del self.bootstrap_data["management_gateway_address"]
+
+            if "admin" in invalid_value:
+                self.bootstrap_data["admin_subnet"] = invalid_value["admin"][
+                    "admin_subnet"
+                ]
+                self.bootstrap_data["admin_start_address"] = invalid_value["admin"][
+                    "admin_start_address"
+                ]
+                self.bootstrap_data["admin_end_address"] = invalid_value["admin"][
+                    "admin_end_address"
+                ]
+            else:
+                if "admin_subnet" in self.bootstrap_data:
+                    del self.bootstrap_data["admin_subnet"]
+                if "admin_start_address" in self.bootstrap_data:
+                    del self.bootstrap_data["admin_start_address"]
+                if "admin_end_address" in self.bootstrap_data:
+                    del self.bootstrap_data["admin_end_address"]
+
+            if "admin_gateway_address" in invalid_value:
+                self.bootstrap_data["admin_gateway_address"] = invalid_value[
+                    "admin_gateway_address"
+                ]
+            else:
+                if "admin_gateway_address" in self.bootstrap_data:
+                    del self.bootstrap_data["admin_gateway_address"]
+
+            self.mock_get_network_address_pools.return_value = invalid_value[
+                "systemcontroller_pools"
+            ]
+
+            self.upload_files = self.get_post_upload_files()
+            response = self._send_request()
+
+            self._assert_pecan_and_response(
+                response, http.client.BAD_REQUEST, invalid_value["error_message"], index
+            )
 
 
 class TestSubcloudsPostInstallData(BaseTestSubcloudsPost):
@@ -1073,7 +1352,7 @@ class TestSubcloudsPostInstallData(BaseTestSubcloudsPost):
         )
 
     def test_post_fails_invalid_bootstrap_address_version_in_install_values_ipv6(self):
-        self.mock_get_oam_addresses.return_value = FAKE_IPV6_OAM_POOL
+        self.mock_get_oam_address_pools.return_value = [FAKE_IPV6_OAM_POOL]
         self._test_post_fails_invalid_bootstrap_ip_version_in_install_values(
             "10.10.10.100"
         )
@@ -1113,7 +1392,7 @@ class TestSubcloudsPostInstallData(BaseTestSubcloudsPost):
         defaults to IPv4.
         """
 
-        self.mock_get_oam_addresses.return_value = FAKE_IPV6_OAM_POOL
+        self.mock_get_oam_address_pools.return_value = [FAKE_IPV6_OAM_POOL]
 
         kwargs = {"bootstrap_address": "fd01:6::7"}
 
@@ -1125,7 +1404,7 @@ class TestSubcloudsPostInstallData(BaseTestSubcloudsPost):
         )
         self.mock_pecan_abort.reset_mock()
 
-        self.mock_get_oam_addresses.return_value = FAKE_IPV4_OAM_POOL
+        self.mock_get_oam_address_pools.return_value = [FAKE_IPV4_OAM_POOL]
 
         self._validate_invalid_ip_address("bmc_address", ["fd01:6:-1", None])
 
@@ -1175,7 +1454,7 @@ class TestSubcloudsPostInstallData(BaseTestSubcloudsPost):
         All of the required IP addresses must be in the same IP version.
         """
 
-        self.mock_get_oam_addresses.return_value = FAKE_IPV6_OAM_POOL
+        self.mock_get_oam_address_pools.return_value = [FAKE_IPV6_OAM_POOL]
 
         kwargs = {"bootstrap_address": "fd01:6::6", "bmc_address": "fd01:6::7"}
 
@@ -1187,7 +1466,7 @@ class TestSubcloudsPostInstallData(BaseTestSubcloudsPost):
         )
         self.mock_pecan_abort.reset_mock()
 
-        self.mock_get_oam_addresses.return_value = FAKE_IPV4_OAM_POOL
+        self.mock_get_oam_address_pools.return_value = [FAKE_IPV4_OAM_POOL]
 
         self._validate_invalid_ip_address("nexthop_gateway", ["fd01:6:-1", None])
 
@@ -1247,12 +1526,12 @@ class BaseTestSubcloudsPatch(BaseTestSubcloudsController):
             FAKE_SUBCLOUD_INSTALL_VALUES["image"],
             "fake_sig",
         )
-        self.mock_sysinv_client().get_admin_address_pool.return_value = FakeAddressPool(
-            "192.168.205.0", 24, "192.168.205.2", "192.168.205.100"
-        )
-        self.mock_sysinv_client().get_management_address_pool.return_value = (
+        self.mock_sysinv_client().get_admin_address_pools.return_value = [
+            FakeAddressPool("192.168.205.0", 24, "192.168.205.2", "192.168.205.100")
+        ]
+        self.mock_sysinv_client().get_management_address_pools.return_value = [
             FakeAddressPool("192.168.204.0", 24, "192.168.204.2", "192.168.204.100")
-        )
+        ]
 
 
 class TestSubcloudsPatch(BaseTestSubcloudsPatch):
@@ -1506,6 +1785,8 @@ class TestSubcloudsPatch(BaseTestSubcloudsPatch):
             "management_start_ip": "192.168.102.5",
             "management_end_ip": "192.168.102.49",
             "management_gateway_ip": "192.168.102.1",
+            "management_gateway_address": "192.168.102.1",
+            "systemcontroller_gateway_address": "192.168.204.101",
         }
 
         self._update_subcloud(availability_status=dccommon_consts.AVAILABILITY_ONLINE)
@@ -1738,6 +2019,8 @@ class TestSubcloudsPatchWithNetworkReconfiguration(BaseTestSubcloudsPatch):
             "management_start_ip": "192.168.102.5",
             "management_end_ip": "192.168.102.49",
             "management_gateway_ip": "192.168.102.1",
+            "management_gateway_address": "192.168.102.1",
+            "systemcontroller_gateway_address": "192.168.204.101",
         }
         self.upload_files = [("fake", "fake_name", "fake content".encode("utf-8"))]
 
@@ -2593,11 +2876,11 @@ class TestSubcloudsPatchPrestage(BaseTestSubcloudsPatch):
             health_report_no_alarm
         )
 
-        mock_get_oam_addresses = mock.MagicMock()
-        mock_get_oam_addresses.oam_floating_ip = "10.10.10.12"
-        self.mock_sysinv_client_prestage().get_oam_addresses.return_value = (
-            mock_get_oam_addresses
-        )
+        mock_get_oam_address_pool = mock.MagicMock()
+        mock_get_oam_address_pool.floating_address = "10.10.10.12"
+        self.mock_sysinv_client_prestage().get_oam_address_pools.return_value = [
+            mock_get_oam_address_pool
+        ]
 
     def test_patch_prestage_succeeds(self):
         """Test patch prestage succeeds"""

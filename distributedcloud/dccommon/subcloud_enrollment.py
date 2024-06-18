@@ -136,7 +136,7 @@ class SubcloudEnrollmentInit(object):
             f_out_override_file.write(
                 "---"
                 "\nenroll_reconfigured_oam: "
-                + payload["external_oam_floating_address"]
+                + payload.get("external_oam_floating_address").split(",")[0]
                 + "\n"
             )
 
@@ -158,12 +158,13 @@ class SubcloudEnrollmentInit(object):
         enroll_utils = "/usr/local/bin/"
         reconfig_script = os.path.join(enroll_utils, "enroll-init-reconfigure")
         cleanup_script = os.path.join(enroll_utils, "enroll-init-cleanup")
+        extern_oam_gw_ip = iso_values["external_oam_gateway_address"].split(",")[0]
 
         reconfig_command = (
             f"{reconfig_script}"
-            f" --oam_subnet {iso_values['external_oam_subnet']}"
-            f" --oam_gateway_ip {iso_values['external_oam_gateway_address']}"
-            f" --oam_ip {iso_values['external_oam_floating_address']}"
+            f" --oam_subnet {iso_values['external_oam_subnet'].split(',')[0]}"
+            f" --oam_gateway_ip {extern_oam_gw_ip}"
+            f" --oam_ip {iso_values['external_oam_floating_address'].split(',')[0]}"
             f" --new_password '{hashed_password}'"
         )
 
@@ -266,7 +267,7 @@ class SubcloudEnrollmentInit(object):
 
         return True
 
-    def prep(self, override_path, payload):
+    def prep(self, override_path, payload, subcloud_primary_oam_ip_family):
         LOG.info(f"Prepare config for {self.name} enroll init")
 
         SubcloudEnrollmentInit.validate_enroll_init_values(payload)
@@ -299,7 +300,7 @@ class SubcloudEnrollmentInit(object):
 
         # get the boot image url for bmc
         image_base_url = SubcloudInstall.get_image_base_url(
-            self.get_https_enabled(), self.sysinv_client
+            self.get_https_enabled(), self.sysinv_client, subcloud_primary_oam_ip_family
         )
         bmc_values = {
             "bmc_username": payload["install_values"]["bmc_username"],

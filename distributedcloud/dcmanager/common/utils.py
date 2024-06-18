@@ -100,25 +100,45 @@ def get_batch_projects(batch_size, project_list, fillvalue=None):
     return itertools.zip_longest(fillvalue=fillvalue, *args)
 
 
-def validate_address_str(ip_address_str, network):
-    """Determine whether an address is valid."""
-    try:
-        ip_address = netaddr.IPAddress(ip_address_str)
-        if ip_address.version != network.version:
+def validate_address_str(ip_address_str, networks):
+    """Determine whether an dual-stack address is valid."""
+    address_values = ip_address_str.split(",")
+
+    if len(address_values) > 2:
+        raise exceptions.ValidateFail("Invalid address - more than two IP addresses")
+
+    ip_addresses = []
+    for address_value in address_values:
+        try:
+            ip_address = netaddr.IPAddress(address_value)
+            ip_addresses.append(ip_address)
+        except Exception:
+            raise exceptions.ValidateFail("Invalid address - not a valid IP address")
+
+    if len(address_values) == 2 and ip_addresses[0].version == ip_addresses[1].version:
+        raise exceptions.ValidateFail("Invalid address - dual-stack of same IP family")
+
+    if len(ip_addresses) != len(networks):
+        raise exceptions.ValidateFail(
+            "Invalid address - Not of same size (single or dual-stack) with subnet"
+        )
+
+    for i, ip_address in enumerate(ip_addresses):
+        if ip_address.version != networks[i].version:
             msg = (
                 "Invalid IP version - must match network version "
-                + ip_version_to_string(network.version)
+                + ip_version_to_string(networks[i].version)
             )
             raise exceptions.ValidateFail(msg)
-        elif ip_address == network:
+        elif ip_address == networks[i]:
             raise exceptions.ValidateFail("Cannot use network address")
-        elif ip_address == network.broadcast:
+        elif ip_address == networks[i].broadcast:
             raise exceptions.ValidateFail("Cannot use broadcast address")
-        elif ip_address not in network:
-            raise exceptions.ValidateFail("Address must be in subnet %s" % str(network))
-        return ip_address
-    except netaddr.AddrFormatError:
-        raise exceptions.ValidateFail("Invalid address - not a valid IP address")
+        elif ip_address not in networks[i]:
+            raise exceptions.ValidateFail(
+                "Address must be in subnet %s" % str(networks[i])
+            )
+    return ip_addresses
 
 
 def ip_version_to_string(ip_version):
@@ -134,9 +154,24 @@ def ip_version_to_string(ip_version):
 def validate_network_str(
     network_str, minimum_size, existing_networks=None, multicast=False, operation=None
 ):
-    """Determine whether a network is valid."""
-    try:
-        network = netaddr.IPNetwork(network_str)
+    """Determine whether dual-stack network is valid."""
+    network_values = network_str.split(",")
+
+    if len(network_values) > 2:
+        raise exceptions.ValidateFail("Invalid subnet - more than two IP subnets")
+
+    networks = []
+    for network_value in network_values:
+        try:
+            network = netaddr.IPNetwork(network_value)
+            networks.append(network)
+        except netaddr.AddrFormatError:
+            raise exceptions.ValidateFail("Invalid subnet - not a valid IP subnet")
+
+    if len(network_values) == 2 and networks[0].version == networks[1].version:
+        raise exceptions.ValidateFail("Invalid subnet - dual-stack of same IP family")
+
+    for network in networks:
         if network.size < minimum_size:
             raise exceptions.ValidateFail(
                 "Subnet too small - must have at least %d addresses" % minimum_size
@@ -150,9 +185,7 @@ def validate_network_str(
                 )
         elif multicast and not network.is_multicast():
             raise exceptions.ValidateFail("Invalid subnet - must be multicast")
-        return network
-    except netaddr.AddrFormatError:
-        raise exceptions.ValidateFail("Invalid subnet - not a valid IP subnet")
+    return networks
 
 
 def validate_certificate_subject(subject):
@@ -634,8 +667,8 @@ def subcloud_db_list_to_dict(subclouds):
     }
 
 
-def get_oam_addresses(subcloud, sc_ks_client):
-    """Get the subclouds oam addresses"""
+def get_oam_address_pools(subcloud, sc_ks_client):
+    """Get the subcloud's oam address pools"""
 
     # First need to retrieve the Subcloud's Keystone session
     try:
@@ -643,7 +676,7 @@ def get_oam_addresses(subcloud, sc_ks_client):
         sysinv_client = SysinvClient(
             subcloud.region_name, sc_ks_client.session, endpoint=endpoint
         )
-        return sysinv_client.get_oam_addresses()
+        return sysinv_client.get_oam_address_pools()
     except (keystone_exceptions.EndpointNotFound, IndexError) as e:
         message = "Identity endpoint for subcloud: %s not found. %s" % (
             subcloud.name,
@@ -651,9 +684,18 @@ def get_oam_addresses(subcloud, sc_ks_client):
         )
         LOG.error(message)
     except dccommon_exceptions.OAMAddressesNotFound:
-        message = "OAM addresses for subcloud: %s not found." % subcloud.name
+        message = "OAM address pools for subcloud: %s not found." % subcloud.name
         LOG.error(message)
     return None
+
+
+def get_pool_by_ip_family(pools, ip_family):
+    """Get the pool corresponding to ip family"""
+    for pool in pools:
+        if pool.family == ip_family:
+            return pool
+
+    raise exceptions.ValidateFail(f"IPv{ip_family} pool not found in pools {pools}")
 
 
 def get_ansible_filename(subcloud_name, postfix=".yml"):
@@ -1208,6 +1250,14 @@ def get_management_subnet(payload):
     return payload.get("management_subnet", "")
 
 
+def get_primary_management_subnet(payload):
+    """Get primary management subnet.
+
+    Returns the primary management subnet.
+    """
+    return get_management_subnet(payload).split(",")[0]
+
+
 def get_management_start_address(payload):
     """Get management start address.
 
@@ -1220,6 +1270,14 @@ def get_management_start_address(payload):
     if payload.get("admin_start_address", None):
         return payload.get("admin_start_address")
     return payload.get("management_start_address", "")
+
+
+def get_primary_management_start_address(payload):
+    """Get primary management start address.
+
+    Returns the primary management start address.
+    """
+    return get_management_start_address(payload).split(",")[0]
 
 
 def get_management_end_address(payload):
@@ -1236,6 +1294,14 @@ def get_management_end_address(payload):
     return payload.get("management_end_address", "")
 
 
+def get_primary_management_end_address(payload):
+    """Get primary management end address.
+
+    Returns the primary management end address.
+    """
+    return get_management_end_address(payload).split(",")[0]
+
+
 def get_management_gateway_address(payload):
     """Get management gateway address.
 
@@ -1250,15 +1316,53 @@ def get_management_gateway_address(payload):
     return payload.get("management_gateway_address", "")
 
 
+def get_management_gateway_address_ip_family(payload):
+    """Get management gateway address family"""
+    address_value = get_management_gateway_address(payload)
+    try:
+        ip_address = netaddr.IPAddress(address_value)
+    except Exception as e:
+        raise exceptions.ValidateFail(f"Invalid address - not a valid IP address: {e}")
+    return ip_address.version
+
+
+def get_primary_oam_address_ip_family(payload):
+    """Get primary oam address's IP family
+
+    :param payload: subcloud configuration
+    """
+    # First check external_oam_subnet_ip_family, if it is
+    # DB subcloud payload
+    if payload.get("external_oam_subnet_ip_family", None):
+        try:
+            family = int(payload.get("external_oam_subnet_ip_family"))
+            if family == 4 or family == 6:
+                return family
+            raise exceptions.ValidateFail(
+                f"Invalid external_oam_subnet_ip_family: {family}"
+            )
+        except Exception as e:
+            raise exceptions.ValidateFail(f"Invalid external_oam_subnet_ip_family: {e}")
+
+    network_value = payload.get("external_oam_subnet", "").split(",")[0]
+    try:
+        ip_network = netaddr.IPNetwork(network_value)
+    except Exception as e:
+        raise exceptions.ValidateFail(
+            f"Invalid OAM network - not a valid IP Network: {e}"
+        )
+    return ip_network.version
+
+
 def has_network_reconfig(payload, subcloud):
     """Check if network reconfiguration is needed
 
     :param payload: subcloud configuration
     :param subcloud: subcloud object
     """
-    management_subnet = get_management_subnet(payload)
-    start_address = get_management_start_address(payload)
-    end_address = get_management_end_address(payload)
+    management_subnet = get_primary_management_subnet(payload)
+    start_address = get_primary_management_start_address(payload)
+    end_address = get_primary_management_end_address(payload)
     gateway_address = get_management_gateway_address(payload)
     sys_controller_gw_ip = payload.get("systemcontroller_gateway_address")
 
@@ -1769,7 +1873,7 @@ def generate_sync_info_message(association_ids):
 
 
 def fetch_subcloud_mgmt_ips(region_name: str = None) -> Union[dict, str]:
-    """Fetch the subcloud(s) management IP(s).
+    """Fetch the subcloud(s) primary management IP(s).
 
     :param region_name: The subcloud region name, defaults to None
     :return: A dictionary of region names to IPs (if no region provided)

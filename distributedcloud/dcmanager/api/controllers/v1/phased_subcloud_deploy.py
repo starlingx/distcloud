@@ -291,15 +291,17 @@ class PhasedSubcloudDeployController(object):
                 "description", subcloud.description
             )
             subcloud_dict["location"] = payload.get("location", subcloud.location)
-            subcloud_dict["management-subnet"] = utils.get_management_subnet(payload)
+            subcloud_dict["management-subnet"] = utils.get_primary_management_subnet(
+                payload
+            )
             subcloud_dict["management-gateway-ip"] = (
                 utils.get_management_gateway_address(payload)
             )
-            subcloud_dict["management-start-ip"] = utils.get_management_start_address(
-                payload
+            subcloud_dict["management-start-ip"] = (
+                utils.get_primary_management_start_address(payload)
             )
-            subcloud_dict["management-end-ip"] = utils.get_management_end_address(
-                payload
+            subcloud_dict["management-end-ip"] = (
+                utils.get_primary_management_end_address(payload)
             )
             subcloud_dict["systemcontroller-gateway-ip"] = payload.get(
                 "systemcontroller_gateway_address", subcloud.systemcontroller_gateway_ip
@@ -554,15 +556,17 @@ class PhasedSubcloudDeployController(object):
                 "description", subcloud.description
             )
             subcloud_dict["location"] = payload.get("location", subcloud.location)
-            subcloud_dict["management-subnet"] = utils.get_management_subnet(payload)
+            subcloud_dict["management-subnet"] = utils.get_primary_management_subnet(
+                payload
+            )
             subcloud_dict["management-gateway-ip"] = (
                 utils.get_management_gateway_address(payload)
             )
-            subcloud_dict["management-start-ip"] = utils.get_management_start_address(
-                payload
+            subcloud_dict["management-start-ip"] = (
+                utils.get_primary_management_start_address(payload)
             )
-            subcloud_dict["management-end-ip"] = utils.get_management_end_address(
-                payload
+            subcloud_dict["management-end-ip"] = (
+                utils.get_primary_management_end_address(payload)
             )
             subcloud_dict["systemcontroller-gateway-ip"] = payload.get(
                 "systemcontroller_gateway_address", subcloud.systemcontroller_gateway_ip
