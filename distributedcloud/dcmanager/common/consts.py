@@ -81,7 +81,7 @@ SW_UPDATE_TYPE_KUBERNETES = "kubernetes"
 SW_UPDATE_TYPE_PATCH = "patch"
 SW_UPDATE_TYPE_PRESTAGE = "prestage"
 SW_UPDATE_TYPE_UPGRADE = "upgrade"
-SW_UPDATE_TYPE_SOFTWARE = "software"
+SW_UPDATE_TYPE_SOFTWARE = "sw-deploy"
 
 # Software update states
 SW_UPDATE_STATE_INITIAL = "initial"
@@ -394,7 +394,7 @@ EXTRA_ARGS_UPLOAD_ONLY = 'upload-only'
 EXTRA_ARGS_PATCH = 'patch'
 
 # extra_args for software
-EXTRA_ARGS_RELEASE_ID = 'release_id'
+EXTRA_ARGS_RELEASE = 'release'
 
 # http request/response arguments for prestage
 PRESTAGE_SOFTWARE_VERSION = 'prestage-software-version'

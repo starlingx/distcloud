@@ -28,14 +28,15 @@ class TestCreateVIMSoftwareStrategyState(TestSoftwareOrchestrator):
         self.subcloud = self.setup_subcloud()
 
         # Create default strategy with release parameter
-        extra_args = {"release_id": RELEASE_ID}
+        extra_args = {"release": RELEASE_ID}
         self.strategy = fake_strategy.create_fake_strategy(
             self.ctx, self.DEFAULT_STRATEGY_TYPE, extra_args=extra_args
         )
 
         # Add the strategy_step state being processed by this unit test
         self.strategy_step = self.setup_strategy_step(
-            self.subcloud.id, consts.STRATEGY_STATE_SW_CREATE_VIM_STRATEGY)
+            self.subcloud.id, consts.STRATEGY_STATE_SW_CREATE_VIM_STRATEGY
+        )
 
         # Mock the API calls made by the state
         self.vim_client.create_strategy = mock.MagicMock()
@@ -68,5 +69,4 @@ class TestCreateVIMSoftwareStrategyState(TestSoftwareOrchestrator):
         )
 
         # On success, the state should transition to the next state
-        self.assert_step_updated(
-            self.strategy_step.subcloud_id, self.on_success_state)
+        self.assert_step_updated(self.strategy_step.subcloud_id, self.on_success_state)

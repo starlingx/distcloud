@@ -166,6 +166,12 @@ class SwUpdateStrategyController(object):
                 message = f"Patch file {patch_file} is missing."
                 pecan.abort(400, _(message))
 
+            if strategy_type == consts.SW_UPDATE_TYPE_SOFTWARE and not payload.get(
+                    'release'):
+                message = ("Release parameter is required for strategy "
+                           f"type {strategy_type}.")
+                pecan.abort(400, _(message))
+
             max_parallel_subclouds_str = payload.get('max-parallel-subclouds')
             if max_parallel_subclouds_str is not None:
                 max_parallel_subclouds = None
