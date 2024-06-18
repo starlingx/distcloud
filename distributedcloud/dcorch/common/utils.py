@@ -15,6 +15,7 @@
 # limitations under the License.
 
 import itertools
+import uuid
 
 from oslo_db import exception as oslo_db_exception
 from oslo_log import log as logging
@@ -23,8 +24,8 @@ import six.moves
 from dccommon import consts as dccommon_consts
 from dcorch.common import consts
 from dcorch.common import exceptions
+from dcorch.db import api as db_api
 from dcorch.objects import orchjob
-from dcorch.objects import orchrequest
 from dcorch.objects import resource
 from dcorch.objects import subcloud as subcloud_obj
 
@@ -182,13 +183,25 @@ def enqueue_work(context, endpoint_type,
         subclouds = [subcloud]
     else:
         subclouds = subcloud_obj.SubcloudList.get_all(context)
+
+    orch_requests = []
     for sc in subclouds:
-        orch_req = orchrequest.OrchRequest(
-            context=context, state=consts.ORCH_REQUEST_QUEUED,
-            target_region_name=sc.region_name,
+        # Create a dictionary for each orchestration request with a unique UUID,
+        # state = 'queued', the target region name, and the orch_job ID
+        orch_request = {
+            'uuid': str(uuid.uuid4()),
+            'state': consts.ORCH_REQUEST_QUEUED,
+            'target_region_name': sc.region_name,
             # pylint: disable-next=no-member
-            orch_job_id=orch_job.id)
-        orch_req.create()
-    LOG.info("Work order created for {}:{}/{}/{}/{}".format(
+            'orch_job_id': orch_job.id,
+        }
+        orch_requests.append(orch_request)
+
+    # Use the bulk_insert_mappings method to insert all orchestration requests
+    # in a single session
+    db_api.orch_request_create_bulk(context, orch_requests)
+    LOG.info(
+        f"Work order created for {len(subclouds)} subclouds for resource "
         # pylint: disable-next=no-member
-        subcloud, rsrc.id, resource_type, source_resource_id, operation_type))
+        f"{rsrc.id}/{resource_type}/{source_resource_id}/{operation_type}"
+    )

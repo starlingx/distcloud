@@ -53,12 +53,6 @@ class EngineClient(object):
             client = self._client
         return client.cast(ctxt, method, **kwargs)
 
-    # The sync job info has been written to the DB, alert the sync engine
-    # that there is work to do.
-    def sync_request(self, ctxt, endpoint_type):
-        return self.cast(
-            ctxt, self.make_msg('sync_request', endpoint_type=endpoint_type))
-
     def get_usage_for_project_and_user(self, ctxt, endpoint_type,
                                        project_id, user_id=None):
         return self.call(ctxt, self.make_msg('get_usage_for_project_and_user',
@@ -191,3 +185,9 @@ class EngineWorkerClient(object):
                 management_ip=management_ip,
             ),
         )
+
+    # The sync job info has been written to the DB, alert the sync engine
+    # that there is work to do.
+    def sync_request(self, ctxt, endpoint_type):
+        return self.cast(
+            ctxt, self.make_msg('sync_request', endpoint_type=endpoint_type))

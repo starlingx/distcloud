@@ -362,3 +362,10 @@ class GenericSyncWorkerManager(object):
                 db_api.subcloud_sync_update(
                     self.context, sc_region_name, ept,
                     values={'audit_status': dco_consts.AUDIT_STATUS_FAILED})
+
+    def sync_request(self, ctxt, endpoint_type):
+        # Someone has enqueued a sync job. set the endpoint sync_request to
+        # requested
+        db_api.subcloud_sync_update_all(
+            ctxt, dccommon_consts.MANAGEMENT_MANAGED, endpoint_type,
+            values={'sync_request': dco_consts.SYNC_STATUS_REQUESTED})

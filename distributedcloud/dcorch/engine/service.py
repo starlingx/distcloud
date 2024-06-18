@@ -118,13 +118,6 @@ class EngineService(service.Service):
         self.ism.init_actions()
         self.TG.start(self.ism.initial_sync_thread)
 
-    @request_context
-    # The sync job info has been written to the DB, alert the sync engine
-    # that there is work to do.
-    # TODO(lzhu1): add authentication since ctxt not actually needed later
-    def sync_request(self, ctxt, endpoint_type):
-        self.gsm.sync_request(ctxt, endpoint_type)
-
     def periodic_balance_all(self):
         # Automated Quota Sync for all the keystone projects
         LOG.info("Periodic quota sync job started at: %s",
@@ -354,3 +347,10 @@ class EngineWorkerService(service.Service):
         # Terminate the engine process
         LOG.info("All threads were gone, terminating engine-worker")
         super(EngineWorkerService, self).stop()
+
+    @request_context
+    # The sync job info has been written to the DB, alert the sync engine
+    # that there is work to do.
+    # TODO(lzhu1): add authentication since ctxt not actually needed later
+    def sync_request(self, ctxt, endpoint_type):
+        self.gswm.sync_request(ctxt, endpoint_type)

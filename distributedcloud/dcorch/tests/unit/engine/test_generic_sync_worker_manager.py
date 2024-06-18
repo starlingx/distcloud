@@ -10,6 +10,7 @@ from oslo_utils import uuidutils
 
 from dccommon import consts as dccommon_consts
 from dcorch.common import consts
+from dcorch.db.sqlalchemy import api as db_api
 from dcorch.engine import generic_sync_worker_manager
 from dcorch.tests import base
 from dcorch.tests import utils
@@ -129,3 +130,38 @@ class TestGenericSyncWorkerManager(base.OrchestratorTestCase):
                 subcloud_name,
                 endpoint_type,
                 mock.ANY)
+
+    def test_sync_request(self):
+        subcloud1 = utils.create_subcloud_static(
+            self.ctx,
+            name='subcloud1',
+            management_state=dccommon_consts.MANAGEMENT_MANAGED,
+            initial_sync_state=consts.INITIAL_SYNC_STATE_NONE)
+        utils.create_subcloud_sync_static(
+            self.ctx,
+            subcloud1.region_name,
+            dccommon_consts.ENDPOINT_TYPE_IDENTITY,
+            subcloud_id=subcloud1.id)
+
+        subcloud2 = utils.create_subcloud_static(
+            self.ctx,
+            name='subcloud2',
+            management_state=dccommon_consts.MANAGEMENT_MANAGED,
+            initial_sync_state=consts.INITIAL_SYNC_STATE_FAILED)
+        utils.create_subcloud_sync_static(
+            self.ctx,
+            subcloud2.region_name,
+            dccommon_consts.ENDPOINT_TYPE_IDENTITY,
+            vsubcloud_id=subcloud2.id)
+
+        self.gswm.sync_request(self.ctx, dccommon_consts.ENDPOINT_TYPE_IDENTITY)
+
+        # Verify the sync_request of the subclouds were updated to requested
+        subcloud_sync = db_api.subcloud_sync_get(
+            self.ctx, 'subcloud1', dccommon_consts.ENDPOINT_TYPE_IDENTITY)
+        self.assertEqual(consts.SYNC_STATUS_REQUESTED,
+                         subcloud_sync.sync_request)
+        subcloud_sync = db_api.subcloud_sync_get(
+            self.ctx, 'subcloud2', dccommon_consts.ENDPOINT_TYPE_IDENTITY)
+        self.assertEqual(consts.SYNC_STATUS_REQUESTED,
+                         subcloud_sync.sync_request)

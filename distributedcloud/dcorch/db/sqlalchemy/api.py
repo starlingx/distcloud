@@ -981,6 +981,21 @@ def orch_request_create(context, orch_job_id, target_region_name, values):
         return result
 
 
+def orch_request_create_bulk(context, orch_requests):
+    for request in orch_requests:
+        if 'orch_job_id' not in request:
+            raise exception.ObjectActionError(
+                action="create_bulk",
+                reason="cannot create an OrchRequest object without a orch_job_id set")
+        if 'target_region_name' not in request:
+            raise exception.ObjectActionError(
+                action="create_bulk",
+                reason="cannot create an OrchRequest object without a "
+                       "target_region_name set")
+    with write_session() as session:
+        session.bulk_insert_mappings(models.OrchRequest, orch_requests)
+
+
 @require_admin_context
 def orch_request_update(context, orch_request_id, values):
     with write_session() as session:

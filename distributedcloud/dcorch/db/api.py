@@ -339,6 +339,10 @@ def orch_request_create(context, orch_job_id, target_region_name, values):
                                     target_region_name, values)
 
 
+def orch_request_create_bulk(context, orch_requests):
+    return IMPL.orch_request_create_bulk(context, orch_requests)
+
+
 def orch_request_update(context, orch_request_id, values):
     return IMPL.orch_request_update(context, orch_request_id, values)
 

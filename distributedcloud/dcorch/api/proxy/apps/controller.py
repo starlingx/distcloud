@@ -66,6 +66,7 @@ class APIController(Middleware):
         super(APIController, self).__init__(app)
         self.ctxt = k_context.get_admin_context()
         self._default_dispatcher = APIDispatcher(app)
+        self.rpc_worker_client = rpc_client.EngineWorkerClient()
         self.rpc_client = rpc_client.EngineClient()
         self.response_hander_map = {}
         self.sync_endpoint = proxy_utils.get_sync_endpoint(CONF)
@@ -91,7 +92,7 @@ class APIController(Middleware):
         return construct_url(environ)
 
     def notify(self, environ, endpoint_type):
-        self.rpc_client.sync_request(self.ctxt, endpoint_type)
+        self.rpc_worker_client.sync_request(self.ctxt, endpoint_type)
 
     def process_request(self, req):
         return self._default_dispatcher
