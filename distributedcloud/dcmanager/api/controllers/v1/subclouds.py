@@ -346,7 +346,10 @@ class SubcloudsController(object):
         """Get the deploy configuration insync status of the subcloud """
         detected_alarms = None
         try:
-            fm_client = FmClient(subcloud_name, keystone_client.session)
+            fm_client = FmClient(
+                subcloud_name, keystone_client.session,
+                endpoint=keystone_client.endpoint_cache.get_endpoint("fm")
+            )
             detected_alarms = fm_client.get_alarms_by_id(
                 FM_ALARM_ID_UNSYNCHRONIZED_RESOURCE)
         except Exception as ex:

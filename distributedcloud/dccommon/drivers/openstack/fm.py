@@ -1,4 +1,4 @@
-# Copyright (c) 2018-2021 Wind River Systems, Inc.
+# Copyright (c) 2018-2021, 2024 Wind River Systems, Inc.
 # Licensed under the Apache License, Version 2.0 (the "License"); you may
 # not use this file except in compliance with the License. You may obtain
 # a copy of the License at
@@ -29,14 +29,17 @@ API_VERSION = '1'
 class FmClient(base.DriverBase):
     """Fault Management driver."""
 
-    def __init__(self, region, session,
-                 endpoint_type=dccommon_consts.KS_ENDPOINT_DEFAULT):
+    def __init__(
+        self, region, session, endpoint_type=dccommon_consts.KS_ENDPOINT_DEFAULT,
+        endpoint=None
+    ):
         self.region_name = region
         try:
             self.fm = fmclient.Client(API_VERSION,
                                       session=session,
                                       region_name=region,
-                                      endpoint_type=endpoint_type)
+                                      endpoint_type=endpoint_type,
+                                      endpoint=endpoint)
         except exceptions.ServiceUnavailable:
             raise
 

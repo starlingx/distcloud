@@ -362,13 +362,13 @@ class SubcloudAuditWorkerManager(manager.Manager):
             ).keystone_client
             admin_session = keystone_client.session
             sysinv_client = SysinvClient(
-                subcloud_region,
-                admin_session,
-                endpoint=endpoint_cache.build_subcloud_endpoint(
-                    subcloud_management_ip, "sysinv"
-                ),
+                subcloud_region, admin_session,
+                endpoint=keystone_client.endpoint_cache.get_endpoint("sysinv")
             )
-            fm_client = FmClient(subcloud_region, admin_session)
+            fm_client = FmClient(
+                subcloud_region, admin_session,
+                endpoint=keystone_client.endpoint_cache.get_endpoint("fm")
+            )
         except keystone_exceptions.ConnectTimeout:
             if avail_status_current == dccommon_consts.AVAILABILITY_OFFLINE:
                 LOG.debug("Identity or Platform endpoint for %s not "
