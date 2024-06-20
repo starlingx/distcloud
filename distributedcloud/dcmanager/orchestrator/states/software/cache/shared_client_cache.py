@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2023 Wind River Systems, Inc.
+# Copyright (c) 2023-2024 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -30,7 +30,7 @@ class SharedClientCache(object):
         :type cache_type: str
         :param cache_specification: specifications on how the cache should
         operate
-        :type cache_specification: dcmanager.orchestrator.states.upgrade.cache
+        :type cache_specification: dcmanager.orchestrator.states.software.cache
         .cache_specifications.CacheSpecification
         """
         self._client_lock = lockutils.ReaderWriterLock()

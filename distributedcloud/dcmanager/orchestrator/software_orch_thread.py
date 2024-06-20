@@ -37,7 +37,7 @@ class SoftwareOrchThread(OrchThread):
       database as it goes, with state and progress information.
     """
 
-    # every state in sw upgrade orchestration should have an operator
+    # every state in sw deploy orchestration should have an operator
     STATE_OPERATORS = {
         consts.STRATEGY_STATE_SW_PRE_CHECK: PreCheckState,
         consts.STRATEGY_STATE_SW_INSTALL_LICENSE: InstallLicenseState,
@@ -51,7 +51,7 @@ class SoftwareOrchThread(OrchThread):
             strategy_lock,
             audit_rpc_client,
             consts.SW_UPDATE_TYPE_SOFTWARE,      # software update strategy type
-            vim.STRATEGY_NAME_SW_UPGRADE,        # strategy type used by vim
+            vim.STRATEGY_NAME_SW_USM,            # strategy type used by vim
             consts.STRATEGY_STATE_SW_PRE_CHECK)  # starting state
 
         # Initialize shared cache instances for the states that require them

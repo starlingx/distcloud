@@ -12,8 +12,6 @@ from dccommon.drivers.openstack import vim
 from dcmanager.common import consts
 from dcmanager.orchestrator.states import applying_vim_strategy
 from dcmanager.tests.unit.fakes import FakeVimStrategy
-from dcmanager.tests.unit.orchestrator.states.upgrade.test_base import \
-    TestSwUpgradeState
 
 STRATEGY_READY_TO_APPLY = FakeVimStrategy(state=vim.STATE_READY_TO_APPLY)
 STRATEGY_APPLYING = FakeVimStrategy(state=vim.STATE_APPLYING)
@@ -206,15 +204,4 @@ class ApplyingVIMStrategyMixin(object):
         # Failure case
         self.assert_step_updated(
             self.strategy_step.subcloud_id, consts.STRATEGY_STATE_FAILED
-        )
-
-
-class TestSwUpgradeApplyingVIMStrategyStage(
-    ApplyingVIMStrategyMixin, TestSwUpgradeState
-):
-    def setUp(self):
-        super(TestSwUpgradeApplyingVIMStrategyStage, self).setUp()
-        self.set_state(
-            consts.STRATEGY_STATE_APPLYING_VIM_UPGRADE_STRATEGY,
-            consts.STRATEGY_STATE_SWACTING_TO_CONTROLLER_0,
         )

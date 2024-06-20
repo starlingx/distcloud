@@ -572,7 +572,7 @@ class DBAPISubcloudTest(base.DCManagerTestCase):
     def test_create_sw_update_strategy(self):
         sw_update_strategy = self.create_sw_update_strategy(
             self.ctx,
-            type=consts.SW_UPDATE_TYPE_UPGRADE,
+            type=consts.SW_UPDATE_TYPE_SOFTWARE,
             subcloud_apply_type=consts.SUBCLOUD_APPLY_TYPE_SERIAL,
             max_parallel_subclouds=42,
             stop_on_failure=False,
@@ -582,7 +582,7 @@ class DBAPISubcloudTest(base.DCManagerTestCase):
 
         new_sw_update_strategy = db_api.sw_update_strategy_get(self.ctx)
         self.assertIsNotNone(new_sw_update_strategy)
-        self.assertEqual(consts.SW_UPDATE_TYPE_UPGRADE, new_sw_update_strategy.type)
+        self.assertEqual(consts.SW_UPDATE_TYPE_SOFTWARE, new_sw_update_strategy.type)
         self.assertEqual(
             consts.SUBCLOUD_APPLY_TYPE_SERIAL,
             new_sw_update_strategy.subcloud_apply_type,

@@ -39,7 +39,7 @@ CONF = cfg.CONF
 
 class TestSwUpdate(base.DCManagerTestCase):
 
-    DEFAULT_STRATEGY_TYPE = consts.SW_UPDATE_TYPE_UPGRADE
+    DEFAULT_STRATEGY_TYPE = consts.SW_UPDATE_TYPE_SOFTWARE
 
     def setUp(self):
         super(TestSwUpdate, self).setUp()
@@ -100,21 +100,8 @@ class TestSwUpdate(base.DCManagerTestCase):
         worker = None
         mock_strategy_lock = mock.Mock()
         mock_dcmanager_audit_api = mock.Mock()
-        # There are many orch threads. Only one needs to be setup based on type
-        if strategy_type == consts.SW_UPDATE_TYPE_UPGRADE:
-            sw_update_manager.SwUpgradeOrchThread.stopped = lambda x: False
-            worker = \
-                sw_update_manager.SwUpgradeOrchThread(mock_strategy_lock,
-                                                      mock_dcmanager_audit_api)
-        else:
-            # mock the upgrade orch thread
-            self.fake_sw_upgrade_orch_thread = FakeOrchThread()
-            p = mock.patch.object(sw_update_manager, 'SwUpgradeOrchThread')
-            self.mock_sw_upgrade_orch_thread = p.start()
-            self.mock_sw_upgrade_orch_thread.return_value = \
-                self.fake_sw_upgrade_orch_thread
-            self.addCleanup(p.stop)
 
+        # There are many orch threads. Only one needs to be setup based on type
         if strategy_type == consts.SW_UPDATE_TYPE_SOFTWARE:
             sw_update_manager.SoftwareOrchThread.stopped = lambda x: False
             worker = sw_update_manager.SoftwareOrchThread(
