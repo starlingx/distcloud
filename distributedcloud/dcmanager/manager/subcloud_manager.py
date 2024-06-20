@@ -344,8 +344,21 @@ class SubcloudManager(manager.Manager):
                                state):
 
         if state == "init":
-            LOG.info(f'Initiating enroll for subcloud: {subcloud_name}')
-            return True
+            enroll_command = [
+                "ansible-playbook",
+                dccommon_consts.ANSIBLE_SUBCLOUD_INSTALL_PLAYBOOK,
+                "-i", ansible_subcloud_inventory_file,
+                "--limit", subcloud_name,
+                "-e", "@%s" % dccommon_consts.ANSIBLE_OVERRIDES_PATH + "/" +
+                subcloud_name + '/' + "enroll_overrides.yml",
+                "-e", "install_release_version=%s" %
+                software_version if software_version else SW_VERSION,
+                "-e", "rvmc_config_file=%s" %
+                os.path.join(dccommon_consts.ANSIBLE_OVERRIDES_PATH,
+                             subcloud_name,
+                             dccommon_consts.RVMC_CONFIG_FILE_NAME)]
+
+            return enroll_command
         elif state == "enroll":
             extra_vars = "override_files_dir='%s' region_name=%s" % (
                 dccommon_consts.ANSIBLE_OVERRIDES_PATH, subcloud_region)
@@ -1590,8 +1603,6 @@ class SubcloudManager(manager.Manager):
         )
 
         subcloud = db_api.subcloud_get(context, subcloud_id)
-        enrollment = SubcloudEnrollmentInit(subcloud.name)
-        enrollment.prep(dccommon_consts.ANSIBLE_OVERRIDES_PATH, payload)
 
         if self.subcloud_init_enroll(context, subcloud.id, payload):
             try:
@@ -1807,16 +1818,21 @@ class SubcloudManager(manager.Manager):
         :return: success status
         """
 
-        # Retrieve the subcloud details from the database
-        subcloud = db_api.subcloud_update(
-            context,
-            subcloud_id,
-            deploy_status=consts.DEPLOY_STATE_INITIATING_ENROLL,
-            data_install=json.dumps(payload['install_values']))
+        subcloud = db_api.subcloud_get(context, subcloud_id)
 
         LOG.info("Initiating subcloud %s enrollment." % subcloud.name)
 
         try:
+            enrollment = SubcloudEnrollmentInit(subcloud.name)
+            enrollment.prep(dccommon_consts.ANSIBLE_OVERRIDES_PATH, payload)
+
+            # Retrieve the subcloud details from the database
+            subcloud = db_api.subcloud_update(
+                context,
+                subcloud_id,
+                deploy_status=consts.DEPLOY_STATE_INITIATING_ENROLL,
+                data_install=json.dumps(payload['install_values']))
+
             # TODO(glyraper): log_file to be used in the playbook execution
             # log_file = (
             #     os.path.join(consts.DC_ANSIBLE_LOG_DIR, subcloud.name)
@@ -1827,7 +1843,7 @@ class SubcloudManager(manager.Manager):
             init_enroll_command = self._deploy_install_prep(
                 subcloud, payload, ansible_subcloud_inventory_file,
                 init_enroll=True)
-            if init_enroll_command:
+            if enrollment.enroll_init(consts.DC_ANSIBLE_LOG_DIR, init_enroll_command):
                 LOG.info('Subcloud enrollment initial phase successful '
                          f'for subcloud {subcloud.name}')
 

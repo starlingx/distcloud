@@ -1384,9 +1384,13 @@ class TestSubcloudDeploy(BaseTestSubcloudManager):
 
     @mock.patch.object(subcloud_enrollment.SubcloudEnrollmentInit,
                        'prep')
+    @mock.patch.object(subcloud_enrollment.SubcloudEnrollmentInit,
+                       'enroll_init')
     @mock.patch.object(cutils, 'get_region_name')
     def test_subcloud_deploy_enroll_run_playbook_failed(
-            self, mock_get_region_name, mock_subcloud_enrollment_prep):
+            self, mock_get_region_name,
+            mock_subcloud_enrollment_prep,
+            mock_subcloud_enrollment_enroll_init):
 
         self.mock_ansible_run_playbook.side_effect = PlaybookExecutionFailed()
         mock_get_region_name.return_value = "11111"

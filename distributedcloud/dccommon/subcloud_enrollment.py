@@ -76,6 +76,23 @@ class SubcloudEnrollmentInit(object):
 
         return True
 
+    def create_enroll_override_file(self, override_path, payload):
+        enroll_override_file = os.path.join(override_path,
+                                            'enroll_overrides.yml')
+
+        with open(enroll_override_file, 'w') as f_out_override_file:
+            f_out_override_file.write(
+                '---'
+                '\nenroll_reconfigured_oam: ' +
+                payload['external_oam_floating_address'] + '\n'
+            )
+
+            enroll_overrides = payload['install_values'].get('enroll_overrides', {})
+
+            if enroll_overrides:
+                for k, v in enroll_overrides.items():
+                    f_out_override_file.write(f'{k}: {v}')
+
     def _build_seed_user_config(self, path, iso_values):
         if not os.path.isdir(path):
             msg = f'No directory exists: {path}'
@@ -196,11 +213,18 @@ class SubcloudEnrollmentInit(object):
         # get the boot image url for bmc
         image_base_url = SubcloudInstall.get_image_base_url(self.get_https_enabled(),
                                                             self.sysinv_client)
-        payload['image'] = os.path.join(image_base_url, 'iso',
-                                        software_version, 'nodes',
-                                        self.name, consts.ENROLL_INIT_SEED_ISO_NAME)
+        bmc_values = {
+            'bmc_username': payload['install_values']['bmc_username'],
+            'bmc_password': payload['bmc_password'],
+            'bmc_address': payload['install_values']['bmc_address']
+        }
+        bmc_values['image'] = os.path.join(image_base_url, 'iso',
+                                           software_version, 'nodes',
+                                           self.name, consts.ENROLL_INIT_SEED_ISO_NAME)
 
-        SubcloudInstall.create_rvmc_config_file(override_path, payload)
+        SubcloudInstall.create_rvmc_config_file(override_path, bmc_values)
+
+        self.create_enroll_override_file(override_path, payload)
 
         return True
 
