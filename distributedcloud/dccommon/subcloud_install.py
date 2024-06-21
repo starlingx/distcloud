@@ -36,6 +36,7 @@ from dccommon.drivers.openstack.sysinv_v1 import SysinvClient
 from dccommon import exceptions
 from dccommon import ostree_mount
 from dccommon import utils as dccommon_utils
+
 from dcmanager.common import consts as dcmanager_consts
 from dcmanager.common import utils
 
@@ -45,9 +46,7 @@ LOG = logging.getLogger(__name__)
 CONF = cfg.CONF
 BOOT_MENU_TIMEOUT = '5'
 
-SUBCLOUD_ISO_PATH = '/opt/platform/iso'
 SUBCLOUD_ISO_DOWNLOAD_PATH = '/var/www/pages/iso'
-SUBCLOUD_FEED_PATH = '/var/www/pages/feed'
 DCVAULT_BOOTIMAGE_PATH = '/opt/dc-vault/loads/'
 PACKAGE_LIST_PATH = '/usr/local/share/pkg-list'
 GEN_ISO_COMMAND = '/usr/local/bin/gen-bootloader-iso.sh'
@@ -510,16 +509,10 @@ class SubcloudInstall(object):
         if not os.path.isdir(override_path):
             os.mkdir(override_path, 0o755)
 
-        self.www_iso_root = os.path.join(SUBCLOUD_ISO_PATH, software_version)
-
-        feed_path_rel_version = os.path.join(SUBCLOUD_FEED_PATH,
-                                             "rel-{version}".format(
-                                                 version=software_version))
+        self.www_iso_root = os.path.join(consts.SUBCLOUD_ISO_PATH, software_version)
 
         if dccommon_utils.is_debian(software_version):
-            ostree_mount.validate_ostree_iso_mount(
-                self.www_iso_root, feed_path_rel_version
-            )
+            ostree_mount.validate_ostree_iso_mount(software_version)
 
         # Clean up iso directory if it already exists
         # This may happen if a previous installation attempt was abruptly
@@ -571,7 +564,7 @@ class SubcloudInstall(object):
                 self.name,
                 software_version + "_packages_list.txt")
 
-            pkg_file_src = os.path.join(SUBCLOUD_FEED_PATH,
+            pkg_file_src = os.path.join(consts.SUBCLOUD_FEED_PATH,
                                         "rel-{version}".format(
                                             version=software_version),
                                         'package_checksums')

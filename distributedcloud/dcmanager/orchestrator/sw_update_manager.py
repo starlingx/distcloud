@@ -340,9 +340,16 @@ class SwUpdateManager(manager.Manager):
         patch_file = payload.get('patch')
         installed_loads = []
         software_version = None
+        software_major_release = None
+        for_sw_deploy = False
         if payload.get(consts.PRESTAGE_REQUEST_RELEASE):
             software_version = payload.get(consts.PRESTAGE_REQUEST_RELEASE)
+            software_major_release = utils.get_major_release(software_version)
             installed_loads = utils.get_systemcontroller_installed_loads()
+            # TODO(kmacleod): Hugo: we need to say whether this is a
+            # for-install or for-fw-deploy prestaging operation Setting this to
+            # a for-install operation for now (since that is the default)
+            for_sw_deploy = False
 
         # Has the user specified a specific subcloud?
         # todo(abailey): refactor this code to use classes
@@ -426,8 +433,13 @@ class SwUpdateManager(manager.Manager):
                 try:
                     prestage.global_prestage_validate(payload)
                     prestage_global_validated = True
+                    installed_loads = utils.get_systemcontroller_installed_loads()
                     prestage.initial_subcloud_validate(
-                        subcloud, installed_loads, software_version)
+                        subcloud,
+                        installed_loads,
+                        software_major_release,
+                        for_sw_deploy
+                    )
                 except exceptions.PrestagePreCheckFailedException as ex:
                     raise exceptions.BadRequest(resource='strategy',
                                                 msg=str(ex))
@@ -597,7 +609,11 @@ class SwUpdateManager(manager.Manager):
                     # Do initial validation for subcloud
                     try:
                         prestage.initial_subcloud_validate(
-                            subcloud, installed_loads, software_version)
+                            subcloud,
+                            installed_loads,
+                            software_major_release,
+                            for_sw_deploy,
+                        )
                     except exceptions.PrestagePreCheckFailedException:
                         LOG.warn("Excluding subcloud from prestage strategy: %s",
                                  subcloud.name)

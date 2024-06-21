@@ -230,6 +230,7 @@ class BaseTestSubcloudsController(DCManagerApiTest, SubcloudAPIMixin):
         self._mock_rpc_subcloud_state_client()
         self._mock_get_ks_client()
         self._mock_query()
+        self._mock_valid_software_deploy_state()
 
     def _update_subcloud(self, **kwargs):
         self.subcloud = sql_api.subcloud_update(self.ctx, self.subcloud.id, **kwargs)

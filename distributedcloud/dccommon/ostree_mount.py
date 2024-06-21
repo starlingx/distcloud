@@ -8,6 +8,7 @@ import os
 from oslo_log import log as logging
 import sh
 
+from dccommon import consts
 from dcmanager.common import utils
 
 # The 'sh' library is magical - it looks up CLI functions dynamically.
@@ -53,15 +54,21 @@ def check_stale_bind_mount(mount_path, source_path):
 
 # TODO(kmacleod): utils.synchronized should be moved into dccommon
 @utils.synchronized("ostree-mount-subclouds", external=True)
-def validate_ostree_iso_mount(www_iso_root, source_path):
+def validate_ostree_iso_mount(software_version):
     """Ensure the ostree_repo is properly mounted under the iso path.
 
     Validity check includes if the mount is stale.
     If stale, the bind mount is recreated.
     Note that ostree_repo is mounted in a location not specific to a subcloud.
     """
-    ostree_repo_mount_path = os.path.join(www_iso_root, "ostree_repo")
-    ostree_repo_source_path = os.path.join(source_path, "ostree_repo")
+    ostree_repo_mount_path = os.path.join(
+        consts.SUBCLOUD_ISO_PATH, software_version, "ostree_repo"
+    )
+    ostree_repo_source_path = os.path.join(
+        consts.SUBCLOUD_FEED_PATH,
+        "rel-{version}".format(version=software_version),
+        "ostree_repo",
+    )
     LOG.debug(
         "Checking ostree_repo mount: %s against %s",
         ostree_repo_mount_path,
@@ -78,7 +85,7 @@ def validate_ostree_iso_mount(www_iso_root, source_path):
             os.makedirs(ostree_repo_mount_path, mode=0o755)
         mount_args = (
             "--bind",
-            "%s/ostree_repo" % source_path,
+            ostree_repo_source_path,
             ostree_repo_mount_path,
         )
         try:

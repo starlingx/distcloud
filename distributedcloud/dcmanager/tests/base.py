@@ -31,6 +31,7 @@ from sqlalchemy.engine import Engine
 from sqlalchemy import event
 
 from dccommon.utils import AnsiblePlaybook
+from dcmanager.api.controllers.v1.subclouds import SubcloudsController
 from dcmanager.audit import rpcapi
 from dcmanager.audit import subcloud_audit_manager
 from dcmanager.common import consts
@@ -382,3 +383,11 @@ class DCManagerTestCase(base.BaseTestCase):
         mock_patch_object = mock.patch.object(AnsiblePlaybook, 'run_playbook')
         self.mock_ansible_run_playbook = mock_patch_object.start()
         self.addCleanup(mock_patch_object.stop)
+
+    def _mock_valid_software_deploy_state(self, return_value=True):
+        mock_patch_object = mock.patch.object(
+            SubcloudsController, "is_valid_software_deploy_state"
+        )
+        self.mock_valid_software_deploy_state = mock_patch_object.start()
+        self.addCleanup(mock_patch_object.stop)
+        self.mock_valid_software_deploy_state.return_value = return_value
