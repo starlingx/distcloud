@@ -69,15 +69,17 @@ class SubcloudStateClient(RPCClient):
             consts.TOPIC_DC_MANAGER_STATE,
             self.BASE_RPC_API_VERSION)
 
-    def batch_update_subcloud_availability_and_endpoint_status(
-        self, ctxt, subcloud_name, subcloud_region, availability_and_endpoint_data
+    def bulk_update_subcloud_availability_and_endpoint_status(
+        self, ctxt, subcloud_name, subcloud_region, availability_data,
+        endpoint_data
     ):
         # Note: This is an asynchronous operation.
         return self.cast(ctxt, self.make_msg(
-            'batch_update_subcloud_availability_and_endpoint_status',
+            'bulk_update_subcloud_availability_and_endpoint_status',
             subcloud_name=subcloud_name,
             subcloud_region=subcloud_region,
-            availability_and_endpoint_data=availability_and_endpoint_data)
+            availability_data=availability_data,
+            endpoint_data=endpoint_data)
         )
 
     def update_subcloud_availability(self, ctxt,

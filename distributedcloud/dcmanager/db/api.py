@@ -296,6 +296,14 @@ def subcloud_status_update_endpoints(context, subcloud_id,
                                                  endpoint_type_list, sync_status)
 
 
+def subcloud_status_bulk_update_endpoints(context, subcloud_id, endpoint_list):
+    """Update the status of the specified endpoints for a subcloud"""
+
+    return IMPL.subcloud_status_bulk_update_endpoints(
+        context, subcloud_id, endpoint_list
+    )
+
+
 def subcloud_status_destroy_all(context, subcloud_id):
     """Destroy all the statuses for a subcloud
 

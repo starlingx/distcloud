@@ -321,16 +321,8 @@ class SubcloudAuditWorkerManager(manager.Manager):
         subcloud_management_ip = subcloud.management_start_ip
         audits_done = list()
         failures = list()
-
-        batch_request_data = {
-            "availability": None,
-            dccommon_consts.ENDPOINT_TYPE_PATCHING: None,
-            dccommon_consts.ENDPOINT_TYPE_LOAD: None,
-            dccommon_consts.ENDPOINT_TYPE_FIRMWARE: None,
-            dccommon_consts.ENDPOINT_TYPE_KUBERNETES: None,
-            dccommon_consts.ENDPOINT_TYPE_KUBE_ROOTCA: None,
-            dccommon_consts.ENDPOINT_TYPE_SOFTWARE: None
-        }
+        availability_data = dict()
+        endpoint_data = dict()
 
         # Set defaults to None and disabled so we will still set disabled
         # status if we encounter an error.
@@ -427,12 +419,10 @@ class SubcloudAuditWorkerManager(manager.Manager):
             LOG.debug('Setting new availability status: %s '
                       'on subcloud: %s' %
                       (avail_to_set, subcloud_name))
-            batch_request_data.update({
-                "availability": {
-                    "availability_status": avail_to_set,
-                    "update_state_only": False,
-                    "audit_fail_count": audit_fail_count
-                }
+            availability_data.update({
+                "availability_status": avail_to_set,
+                "update_state_only": False,
+                "audit_fail_count": audit_fail_count
             })
 
         elif audit_fail_count != subcloud.audit_fail_count:
@@ -448,12 +438,10 @@ class SubcloudAuditWorkerManager(manager.Manager):
             # subcloud as an audit.
             LOG.debug('Updating subcloud state unconditionally for subcloud %s'
                       % subcloud_name)
-            batch_request_data.update({
-                "availability": {
-                    "availability_status": avail_status_current,
-                    "update_state_only": True,
-                    "audit_fail_count": None
-                }
+            availability_data.update({
+                "availability_status": avail_status_current,
+                "update_state_only": True,
+                "audit_fail_count": None
             })
 
         # If subcloud is managed and online and the identity was synced once,
@@ -470,7 +458,7 @@ class SubcloudAuditWorkerManager(manager.Manager):
             # If we have patch audit data, audit the subcloud
             if do_patch_audit and patch_audit_data:
                 try:
-                    batch_request_data[dccommon_consts.ENDPOINT_TYPE_PATCHING] = (
+                    endpoint_data[dccommon_consts.ENDPOINT_TYPE_PATCHING] = (
                         self.patch_audit.subcloud_patch_audit(
                             keystone_client.session, sysinv_client,
                             subcloud_management_ip, subcloud_name, subcloud_region,
@@ -484,7 +472,7 @@ class SubcloudAuditWorkerManager(manager.Manager):
             # Perform load audit
             if do_load_audit and patch_audit_data:
                 try:
-                    batch_request_data[dccommon_consts.ENDPOINT_TYPE_LOAD] = (
+                    endpoint_data[dccommon_consts.ENDPOINT_TYPE_LOAD] = (
                         self.patch_audit.subcloud_load_audit(
                             sysinv_client, subcloud_name, patch_audit_data
                         )
@@ -496,7 +484,7 @@ class SubcloudAuditWorkerManager(manager.Manager):
             # Perform firmware audit
             if do_firmware_audit:
                 try:
-                    batch_request_data[dccommon_consts.ENDPOINT_TYPE_FIRMWARE] = (
+                    endpoint_data[dccommon_consts.ENDPOINT_TYPE_FIRMWARE] = (
                         self.firmware_audit.subcloud_firmware_audit(
                             sysinv_client, subcloud_name, firmware_audit_data
                         )
@@ -508,7 +496,7 @@ class SubcloudAuditWorkerManager(manager.Manager):
             # Perform kubernetes audit
             if do_kubernetes_audit:
                 try:
-                    batch_request_data[dccommon_consts.ENDPOINT_TYPE_KUBERNETES] = (
+                    endpoint_data[dccommon_consts.ENDPOINT_TYPE_KUBERNETES] = (
                         self.kubernetes_audit.subcloud_kubernetes_audit(
                             sysinv_client, subcloud_name, kubernetes_audit_data
                         )
@@ -520,7 +508,7 @@ class SubcloudAuditWorkerManager(manager.Manager):
             # Perform kube rootca update audit
             if do_kube_rootca_update_audit:
                 try:
-                    batch_request_data[dccommon_consts.ENDPOINT_TYPE_KUBE_ROOTCA] = (
+                    endpoint_data[dccommon_consts.ENDPOINT_TYPE_KUBE_ROOTCA] = (
                         self.kube_rootca_update_audit.subcloud_kube_rootca_audit(
                             sysinv_client, fm_client, subcloud,
                             kube_rootca_update_audit_data
@@ -545,7 +533,7 @@ class SubcloudAuditWorkerManager(manager.Manager):
             # Perform software audit
             if do_software_audit:
                 try:
-                    batch_request_data[dccommon_consts.ENDPOINT_TYPE_SOFTWARE] = (
+                    endpoint_data[dccommon_consts.ENDPOINT_TYPE_SOFTWARE] = (
                         self.software_audit.subcloud_software_audit(
                             keystone_client, subcloud_management_ip,
                             subcloud_name, subcloud_region, software_audit_data
@@ -556,19 +544,23 @@ class SubcloudAuditWorkerManager(manager.Manager):
                     LOG.exception(failmsg % (subcloud.name, 'software'))
                     failures.append('software')
 
-        if any(batch_request_data.values()):
-            # If a value is not None, an update should be sent to dcmanager-state
+        if availability_data or (endpoint_data and any(endpoint_data.values())):
+            # If a value is not None, an update should be sent to the rpc client
             try:
                 self.state_rpc_client.\
-                    batch_update_subcloud_availability_and_endpoint_status(
+                    bulk_update_subcloud_availability_and_endpoint_status(
                         self.context, subcloud_name, subcloud_region,
-                        batch_request_data
+                        availability_data, endpoint_data
                     )
-                LOG.info('Notifying dcmanager-state, subcloud:%s, batch '
-                         'availability and endpoint status update' % subcloud_name)
+                LOG.debug(
+                    f'Notifying dcmanager-state, subcloud: {subcloud_name}, bulk '
+                    'availability and endpoint status update'
+                )
             except Exception:
-                LOG.exception('Failed to notify dcmanager-state of subcloud '
-                              'batch availability and endpoint status update, '
-                              'subcloud: %s' % subcloud_name)
+                LOG.exception(
+                    'Failed to notify dcmanager-state of subcloud batch '
+                    'availability and endpoint status update, '
+                    f'subcloud: {subcloud_name}'
+                )
 
         return audits_done, failures
