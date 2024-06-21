@@ -20,15 +20,18 @@ DCMANAGER_CLIENT_REST_DEFAULT_TIMEOUT = 600
 class DcmanagerClient(base.DriverBase):
     """Dcmanager V1 driver."""
 
-    def __init__(self, region, session,
-                 timeout=DCMANAGER_CLIENT_REST_DEFAULT_TIMEOUT,
-                 endpoint_type=consts.KS_ENDPOINT_PUBLIC,
-                 endpoint=None):
+    def __init__(
+        self,
+        region,
+        session,
+        timeout=DCMANAGER_CLIENT_REST_DEFAULT_TIMEOUT,
+        endpoint_type=consts.KS_ENDPOINT_PUBLIC,
+        endpoint=None,
+    ):
         if endpoint is None:
             endpoint = session.get_endpoint(
-                service_type='dcmanager',
-                region_name=region,
-                interface=endpoint_type)
+                service_type="dcmanager", region_name=region, interface=endpoint_type
+            )
         self.endpoint = endpoint
         self.token = session.get_token()
         self.timeout = timeout
@@ -45,12 +48,12 @@ class DcmanagerClient(base.DriverBase):
         if response.status_code == 200:
             return response.json()
         else:
-            if response.status_code == 404 and \
-                    'System Peer not found' in response.text:
-                raise exceptions.SystemPeerNotFound(
-                    system_peer=system_peer_uuid)
-            message = "Get SystemPeer: system_peer_uuid %s failed with RC: %d" \
-                % (system_peer_uuid, response.status_code)
+            if response.status_code == 404 and "System Peer not found" in response.text:
+                raise exceptions.SystemPeerNotFound(system_peer=system_peer_uuid)
+            message = "Get SystemPeer: system_peer_uuid %s failed with RC: %d" % (
+                system_peer_uuid,
+                response.status_code,
+            )
             LOG.error(message)
             raise Exception(message)
 
@@ -68,11 +71,12 @@ class DcmanagerClient(base.DriverBase):
         if response.status_code == 200:
             return response.json()
         else:
-            if response.status_code == 404 and \
-                    'Subcloud not found' in response.text:
+            if response.status_code == 404 and "Subcloud not found" in response.text:
                 raise exceptions.SubcloudNotFound(subcloud_ref=subcloud_ref)
-            message = "Get Subcloud: subcloud_ref %s failed with RC: %d" % \
-                (subcloud_ref, response.status_code)
+            message = "Get Subcloud: subcloud_ref %s failed with RC: %d" % (
+                subcloud_ref,
+                response.status_code,
+            )
             LOG.error(message)
             raise Exception(message)
 
@@ -85,10 +89,9 @@ class DcmanagerClient(base.DriverBase):
 
         if response.status_code == 200:
             data = response.json()
-            return data.get('subclouds', [])
+            return data.get("subclouds", [])
         else:
-            message = "Get Subcloud list failed with RC: %d" % \
-                response.status_code
+            message = "Get Subcloud list failed with RC: %d" % response.status_code
             LOG.error(message)
             raise Exception(message)
 
@@ -101,10 +104,11 @@ class DcmanagerClient(base.DriverBase):
 
         if response.status_code == 200:
             data = response.json()
-            return data.get('subcloud_groups', [])
+            return data.get("subcloud_groups", [])
         else:
-            message = "Get Subcloud Group list: failed with RC: %d" % \
-                response.status_code
+            message = (
+                "Get Subcloud Group list: failed with RC: %d" % response.status_code
+            )
             LOG.error(message)
             raise Exception(message)
 
@@ -117,10 +121,12 @@ class DcmanagerClient(base.DriverBase):
 
         if response.status_code == 200:
             data = response.json()
-            return data.get('subcloud_peer_groups', [])
+            return data.get("subcloud_peer_groups", [])
         else:
-            message = "Get Subcloud Peer Group list: failed with RC: %d" % \
-                response.status_code
+            message = (
+                "Get Subcloud Peer Group list: failed with RC: %d"
+                % response.status_code
+            )
             LOG.error(message)
             raise Exception(message)
 
@@ -136,12 +142,17 @@ class DcmanagerClient(base.DriverBase):
         if response.status_code == 200:
             return response.json()
         else:
-            if response.status_code == 404 and \
-                    'Subcloud Peer Group not found' in response.text:
+            if (
+                response.status_code == 404
+                and "Subcloud Peer Group not found" in response.text
+            ):
                 raise exceptions.SubcloudPeerGroupNotFound(
-                    peer_group_ref=peer_group_ref)
-            message = "Get Subcloud Peer Group: peer_group_ref %s " \
+                    peer_group_ref=peer_group_ref
+                )
+            message = (
+                "Get Subcloud Peer Group: peer_group_ref %s "
                 "failed with RC: %d" % (peer_group_ref, response.status_code)
+            )
             LOG.error(message)
             raise Exception(message)
 
@@ -149,34 +160,37 @@ class DcmanagerClient(base.DriverBase):
         """Get subclouds in the specified subcloud peer group."""
         if peer_group_ref is None:
             raise ValueError("peer_group_ref is required.")
-        url = f"{self.endpoint}/subcloud-peer-groups/{peer_group_ref}/" \
-            "subclouds"
+        url = f"{self.endpoint}/subcloud-peer-groups/{peer_group_ref}/subclouds"
 
         headers = {"X-Auth-Token": self.token}
         response = requests.get(url, headers=headers, timeout=self.timeout)
 
         if response.status_code == 200:
             data = response.json()
-            return data.get('subclouds', [])
+            return data.get("subclouds", [])
         else:
-            if response.status_code == 404 and \
-                    'Subcloud Peer Group not found' in response.text:
+            if (
+                response.status_code == 404
+                and "Subcloud Peer Group not found" in response.text
+            ):
                 raise exceptions.SubcloudPeerGroupNotFound(
-                    peer_group_ref=peer_group_ref)
-            message = "Get Subcloud list by Peer Group: peer_group_ref %s " \
+                    peer_group_ref=peer_group_ref
+                )
+            message = (
+                "Get Subcloud list by Peer Group: peer_group_ref %s "
                 "failed with RC: %d" % (peer_group_ref, response.status_code)
+            )
             LOG.error(message)
             raise Exception(message)
 
-    def get_peer_group_association_with_peer_id_and_pg_id(self, peer_id,
-                                                          pg_id):
+    def get_peer_group_association_with_peer_id_and_pg_id(self, peer_id, pg_id):
         """Get peer group association with peer id and PG id."""
         for association in self.get_peer_group_association_list():
-            if peer_id == association.get('system-peer-id') and \
-                    pg_id == association.get('peer-group-id'):
+            if peer_id == association.get(
+                "system-peer-id"
+            ) and pg_id == association.get("peer-group-id"):
                 return association
-        raise exceptions.PeerGroupAssociationNotFound(
-            association_id=None)
+        raise exceptions.PeerGroupAssociationNotFound(association_id=None)
 
     def get_peer_group_association_list(self):
         """Get peer group association list."""
@@ -187,10 +201,12 @@ class DcmanagerClient(base.DriverBase):
 
         if response.status_code == 200:
             data = response.json()
-            return data.get('peer_group_associations', [])
+            return data.get("peer_group_associations", [])
         else:
-            message = "Get Peer Group Association list failed with RC: %d" % \
-                response.status_code
+            message = (
+                "Get Peer Group Association list failed with RC: %d"
+                % response.status_code
+            )
             LOG.error(message)
             raise Exception(message)
 
@@ -198,16 +214,18 @@ class DcmanagerClient(base.DriverBase):
         """Add a subcloud peer group."""
         url = f"{self.endpoint}/subcloud-peer-groups"
 
-        headers = {"X-Auth-Token": self.token,
-                   "Content-Type": "application/json"}
-        response = requests.post(url, json=kwargs, headers=headers,
-                                 timeout=self.timeout)
+        headers = {"X-Auth-Token": self.token, "Content-Type": "application/json"}
+        response = requests.post(
+            url, json=kwargs, headers=headers, timeout=self.timeout
+        )
 
         if response.status_code == 200:
             return response.json()
         else:
-            message = "Add Subcloud Peer Group: %s, failed with RC: %d" % \
-                (kwargs, response.status_code)
+            message = "Add Subcloud Peer Group: %s, failed with RC: %d" % (
+                kwargs,
+                response.status_code,
+            )
             LOG.error(message)
             raise Exception(message)
 
@@ -218,30 +236,39 @@ class DcmanagerClient(base.DriverBase):
         # If not explicitly specified, set 'secondary' to true by default.
         # This action adds a secondary subcloud with rehoming data in the
         # peer site without creating an actual subcloud.
-        if 'secondary' in data and data['secondary'] != "true":
+        if "secondary" in data and data["secondary"] != "true":
             raise ValueError("secondary in data must true.")
-        data['secondary'] = "true"
+        data["secondary"] = "true"
 
         fields = dict()
         if files is not None:
             # If files are specified, add them to the fields.
             for k, v in files.items():
-                fields.update({k: (v, open(v, 'rb'),)})
+                fields.update(
+                    {
+                        k: (
+                            v,
+                            open(v, "rb"),
+                        )
+                    }
+                )
 
         fields.update(data)
         enc = MultipartEncoder(fields=fields)
-        headers = {"X-Auth-Token": self.token,
-                   "Content-Type": enc.content_type,
-                   "User-Agent": consts.DCMANAGER_V1_HTTP_AGENT}
-        response = requests.post(url, headers=headers, data=enc,
-                                 timeout=self.timeout)
+        headers = {
+            "X-Auth-Token": self.token,
+            "Content-Type": enc.content_type,
+            "User-Agent": consts.DCMANAGER_V1_HTTP_AGENT,
+        }
+        response = requests.post(url, headers=headers, data=enc, timeout=self.timeout)
 
         if response.status_code == 200:
             return response.json()
         else:
-            message = "Add Subcloud with secondary status: files: %s, " \
-                "data: %s, failed with RC: %d" % (files, data,
-                                                  response.status_code)
+            message = (
+                "Add Subcloud with secondary status: files: %s, "
+                "data: %s, failed with RC: %d" % (files, data, response.status_code)
+            )
             LOG.error(message)
             raise Exception(message)
 
@@ -249,42 +276,48 @@ class DcmanagerClient(base.DriverBase):
         """Add a peer group association."""
         url = f"{self.endpoint}/peer-group-associations"
 
-        headers = {"X-Auth-Token": self.token,
-                   "Content-Type": "application/json"}
-        response = requests.post(url, json=kwargs, headers=headers,
-                                 timeout=self.timeout)
+        headers = {"X-Auth-Token": self.token, "Content-Type": "application/json"}
+        response = requests.post(
+            url, json=kwargs, headers=headers, timeout=self.timeout
+        )
 
         if response.status_code == 200:
             return response.json()
         else:
-            message = "Add Peer Group Association: %s, failed with RC: %d" % \
-                (kwargs, response.status_code)
+            message = "Add Peer Group Association: %s, failed with RC: %d" % (
+                kwargs,
+                response.status_code,
+            )
             LOG.error(message)
             raise Exception(message)
 
-    def update_peer_group_association_sync_status(self, association_id,
-                                                  sync_status):
+    def update_peer_group_association_sync_status(self, association_id, sync_status):
         """Update the peer group association sync_status."""
         if association_id is None:
             raise ValueError("association_id is required.")
         url = f"{self.endpoint}/peer-group-associations/{association_id}"
         update_kwargs = {"sync_status": sync_status}
 
-        headers = {"X-Auth-Token": self.token,
-                   "Content-Type": "application/json"}
-        response = requests.patch(url, json=update_kwargs, headers=headers,
-                                  timeout=self.timeout)
+        headers = {"X-Auth-Token": self.token, "Content-Type": "application/json"}
+        response = requests.patch(
+            url, json=update_kwargs, headers=headers, timeout=self.timeout
+        )
 
         if response.status_code == 200:
             return response.json()
         else:
-            if response.status_code == 404 and \
-                    'Peer Group Association not found' in response.text:
+            if (
+                response.status_code == 404
+                and "Peer Group Association not found" in response.text
+            ):
                 raise exceptions.PeerGroupAssociationNotFound(
-                    association_id=association_id)
-            message = "Update Peer Group Association: association_id %s, " \
-                "sync_status %s, failed with RC: %d" % (
-                    association_id, sync_status, response.status_code)
+                    association_id=association_id
+                )
+            message = (
+                "Update Peer Group Association: association_id %s, "
+                "sync_status %s, failed with RC: %d"
+                % (association_id, sync_status, response.status_code)
+            )
             LOG.error(message)
             raise Exception(message)
 
@@ -294,22 +327,29 @@ class DcmanagerClient(base.DriverBase):
             raise ValueError("peer_group_ref is required.")
         url = f"{self.endpoint}/subcloud-peer-groups/{peer_group_ref}"
 
-        headers = {"X-Auth-Token": self.token,
-                   "Content-Type": "application/json",
-                   "User-Agent": consts.DCMANAGER_V1_HTTP_AGENT}
-        response = requests.patch(url, json=kwargs, headers=headers,
-                                  timeout=self.timeout)
+        headers = {
+            "X-Auth-Token": self.token,
+            "Content-Type": "application/json",
+            "User-Agent": consts.DCMANAGER_V1_HTTP_AGENT,
+        }
+        response = requests.patch(
+            url, json=kwargs, headers=headers, timeout=self.timeout
+        )
 
         if response.status_code == 200:
             return response.json()
         else:
-            if response.status_code == 404 and \
-                    'Subcloud Peer Group not found' in response.text:
+            if (
+                response.status_code == 404
+                and "Subcloud Peer Group not found" in response.text
+            ):
                 raise exceptions.SubcloudPeerGroupNotFound(
-                    peer_group_ref=peer_group_ref)
-            message = "Update Subcloud Peer Group: peer_group_ref %s, %s, " \
-                "failed with RC: %d" % (peer_group_ref, kwargs,
-                                        response.status_code)
+                    peer_group_ref=peer_group_ref
+                )
+            message = (
+                "Update Subcloud Peer Group: peer_group_ref %s, %s, "
+                "failed with RC: %d" % (peer_group_ref, kwargs, response.status_code)
+            )
             LOG.error(message)
             raise Exception(message)
 
@@ -319,21 +359,25 @@ class DcmanagerClient(base.DriverBase):
             raise ValueError("peer_group_ref is required.")
         url = f"{self.endpoint}/subcloud-peer-groups/{peer_group_ref}/audit"
 
-        headers = {"X-Auth-Token": self.token,
-                   "Content-Type": "application/json"}
-        response = requests.patch(url, json=kwargs, headers=headers,
-                                  timeout=self.timeout)
+        headers = {"X-Auth-Token": self.token, "Content-Type": "application/json"}
+        response = requests.patch(
+            url, json=kwargs, headers=headers, timeout=self.timeout
+        )
 
         if response.status_code == 200:
             return response.json()
         else:
-            if response.status_code == 404 and \
-                    'Subcloud Peer Group not found' in response.text:
+            if (
+                response.status_code == 404
+                and "Subcloud Peer Group not found" in response.text
+            ):
                 raise exceptions.SubcloudPeerGroupNotFound(
-                    peer_group_ref=peer_group_ref)
-            message = "Audit Subcloud Peer Group: peer_group_ref %s, %s, " \
-                "failed with RC: %d" % (peer_group_ref, kwargs,
-                                        response.status_code)
+                    peer_group_ref=peer_group_ref
+                )
+            message = (
+                "Audit Subcloud Peer Group: peer_group_ref %s, %s, "
+                "failed with RC: %d" % (peer_group_ref, kwargs, response.status_code)
+            )
             LOG.error(message)
             raise Exception(message)
 
@@ -347,28 +391,34 @@ class DcmanagerClient(base.DriverBase):
         if files is not None:
             # If files are specified, add them to the fields.
             for k, v in files.items():
-                fields.update({k: (v, open(v, 'rb'),)})
+                fields.update(
+                    {
+                        k: (
+                            v,
+                            open(v, "rb"),
+                        )
+                    }
+                )
 
         fields.update(data)
         enc = MultipartEncoder(fields=fields)
-        headers = {"X-Auth-Token": self.token,
-                   "Content-Type": enc.content_type}
+        headers = {"X-Auth-Token": self.token, "Content-Type": enc.content_type}
         # Add header to flag the request is from another DC,
         # server will treat subcloud_ref as a region_name
         if is_region_name:
             headers["User-Agent"] = consts.DCMANAGER_V1_HTTP_AGENT
-        response = requests.patch(url, headers=headers, data=enc,
-                                  timeout=self.timeout)
+        response = requests.patch(url, headers=headers, data=enc, timeout=self.timeout)
 
         if response.status_code == 200:
             return response.json()
         else:
-            if response.status_code == 404 and \
-                    'Subcloud not found' in response.text:
+            if response.status_code == 404 and "Subcloud not found" in response.text:
                 raise exceptions.SubcloudNotFound(subcloud_ref=subcloud_ref)
-            message = "Update Subcloud: subcloud_ref: %s files: %s, " \
-                "data: %s, failed with RC: %d" % (subcloud_ref, files, data,
-                                                  response.status_code)
+            message = (
+                "Update Subcloud: subcloud_ref: %s files: %s, "
+                "data: %s, failed with RC: %d"
+                % (subcloud_ref, files, data, response.status_code)
+            )
             LOG.error(message)
             raise Exception(message)
 
@@ -379,18 +429,22 @@ class DcmanagerClient(base.DriverBase):
         url = f"{self.endpoint}/peer-group-associations/{association_id}"
 
         headers = {"X-Auth-Token": self.token}
-        response = requests.delete(url, headers=headers,
-                                   timeout=self.timeout)
+        response = requests.delete(url, headers=headers, timeout=self.timeout)
 
         if response.status_code == 200:
             return response.json()
         else:
-            if response.status_code == 404 and \
-                    'Peer Group Association not found' in response.text:
+            if (
+                response.status_code == 404
+                and "Peer Group Association not found" in response.text
+            ):
                 raise exceptions.PeerGroupAssociationNotFound(
-                    association_id=association_id)
-            message = "Delete Peer Group Association: association_id %s " \
+                    association_id=association_id
+                )
+            message = (
+                "Delete Peer Group Association: association_id %s "
                 "failed with RC: %d" % (association_id, response.status_code)
+            )
             LOG.error(message)
             raise Exception(message)
 
@@ -401,24 +455,30 @@ class DcmanagerClient(base.DriverBase):
         url = f"{self.endpoint}/subcloud-peer-groups/{peer_group_ref}"
 
         headers = {"X-Auth-Token": self.token}
-        response = requests.delete(url, headers=headers,
-                                   timeout=self.timeout)
+        response = requests.delete(url, headers=headers, timeout=self.timeout)
 
         if response.status_code == 200:
             return response.json()
         else:
-            if response.status_code == 404 and \
-                    'Subcloud Peer Group not found' in response.text:
+            if (
+                response.status_code == 404
+                and "Subcloud Peer Group not found" in response.text
+            ):
                 raise exceptions.SubcloudPeerGroupNotFound(
-                    peer_group_ref=peer_group_ref)
-            elif response.status_code == 400 and \
-                'a peer group which is associated with a system peer' in \
-                    response.text:
+                    peer_group_ref=peer_group_ref
+                )
+            elif (
+                response.status_code == 400
+                and "a peer group which is associated with a system peer"
+                in response.text
+            ):
                 raise exceptions.SubcloudPeerGroupDeleteFailedAssociated(
                     peer_group_ref=peer_group_ref
                 )
-            message = "Delete Subcloud Peer Group: peer_group_ref %s " \
+            message = (
+                "Delete Subcloud Peer Group: peer_group_ref %s "
                 "failed with RC: %d" % (peer_group_ref, response.status_code)
+            )
             LOG.error(message)
             raise Exception(message)
 
@@ -428,18 +488,20 @@ class DcmanagerClient(base.DriverBase):
             raise ValueError("subcloud_ref is required.")
         url = f"{self.endpoint}/subclouds/{subcloud_ref}"
 
-        headers = {"X-Auth-Token": self.token,
-                   "User-Agent": consts.DCMANAGER_V1_HTTP_AGENT}
-        response = requests.delete(url, headers=headers,
-                                   timeout=self.timeout)
+        headers = {
+            "X-Auth-Token": self.token,
+            "User-Agent": consts.DCMANAGER_V1_HTTP_AGENT,
+        }
+        response = requests.delete(url, headers=headers, timeout=self.timeout)
 
         if response.status_code == 200:
             return response.json()
         else:
-            if response.status_code == 404 and \
-                    'Subcloud not found' in response.text:
+            if response.status_code == 404 and "Subcloud not found" in response.text:
                 raise exceptions.SubcloudNotFound(subcloud_ref=subcloud_ref)
-            message = "Delete Subcloud: subcloud_ref %s failed with RC: %d" % \
-                (subcloud_ref, response.status_code)
+            message = "Delete Subcloud: subcloud_ref %s failed with RC: %d" % (
+                subcloud_ref,
+                response.status_code,
+            )
             LOG.error(message)
             raise Exception(message)

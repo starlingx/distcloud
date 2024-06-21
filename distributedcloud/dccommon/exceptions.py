@@ -82,8 +82,9 @@ class OAMAddressesNotFound(NotFound):
 
 
 class CertificateNotFound(NotFound):
-    message = _("Certificate in region=%(region_name)s with signature "
-                "%(signature)s not found")
+    message = _(
+        "Certificate in region=%(region_name)s with signature %(signature)s not found"
+    )
 
 
 class LoadNotFound(NotFound):
@@ -103,14 +104,17 @@ class PlaybookExecutionFailed(DCCommonException):
 
 
 class PlaybookExecutionTimeout(PlaybookExecutionFailed):
-    message = _("Playbook execution failed [TIMEOUT (%(timeout)s)], "
-                "command=%(playbook_cmd)s")
+    message = _(
+        "Playbook execution failed [TIMEOUT (%(timeout)s)], command=%(playbook_cmd)s"
+    )
 
 
 class ImageNotInLocalRegistry(NotFound):
-    message = _("Image %(image_name)s:%(image_tag)s not found in the local "
-                "registry. Please check with command: system registry-image-list or "
-                "system registry-image-tags %(image_name)s")
+    message = _(
+        "Image %(image_name)s:%(image_tag)s not found in the local registry. "
+        "Please check with command: system registry-image-list or "
+        "system registry-image-tags %(image_name)s"
+    )
 
 
 class ApiException(DCCommonException):
@@ -134,8 +138,10 @@ class PeerGroupAssociationNotFound(NotFound):
 
 
 class SubcloudPeerGroupDeleteFailedAssociated(DCCommonException):
-    message = _("Subcloud Peer Group %(peer_group_ref)s delete failed "
-                "cause it is associated with a system peer.")
+    message = _(
+        "Subcloud Peer Group %(peer_group_ref)s delete failed "
+        "cause it is associated with a system peer."
+    )
 
 
 class RvmcException(Exception):

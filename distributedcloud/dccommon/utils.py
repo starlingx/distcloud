@@ -36,8 +36,8 @@ from dccommon.subprocess_cleanup import SubprocessCleanup
 from dcorch.common.i18n import _
 
 LOG = logging.getLogger(__name__)
-ANSIBLE_PASSWD_PARMS = ['ansible_ssh_pass', 'ansible_become_pass']
-SCRIPT_PASSWD_PARMS = ['sysadmin_password', 'password']
+ANSIBLE_PASSWD_PARMS = ["ansible_ssh_pass", "ansible_become_pass"]
+SCRIPT_PASSWD_PARMS = ["sysadmin_password", "password"]
 
 # Gap, in seconds, to determine whether the given token is about to expire
 # These values are used to randomize the token early renewal duration and
@@ -82,11 +82,11 @@ class memoized(object):
             return value
 
     def __repr__(self):
-        '''Return the function's docstring.'''
+        """Return the function's docstring."""
         return self.func.__doc__
 
     def __get__(self, obj, objtype):
-        '''Support instance methods.'''
+        """Support instance methods."""
         return functools.partial(self.__call__, obj)
 
 
@@ -108,6 +108,7 @@ class AnsiblePlaybook(object):
     is waiting, the playbook_failed flag will indicate to the
     original process to raise PlaybookExecutionFailed.
     """
+
     abort_status = {}
     lock = threading.Lock()
 
@@ -126,12 +127,12 @@ class AnsiblePlaybook(object):
         param timeout: Timeout in seconds.
         """
         with AnsiblePlaybook.lock:
-            AnsiblePlaybook.abort_status[self.subcloud_name]['abort'] = True
+            AnsiblePlaybook.abort_status[self.subcloud_name]["abort"] = True
         unabortable_flag = os.path.join(
             consts.ANSIBLE_OVERRIDES_PATH,
-            '.%s_deploy_not_abortable' % self.subcloud_name
+            ".%s_deploy_not_abortable" % self.subcloud_name,
         )
-        subp = AnsiblePlaybook.abort_status[self.subcloud_name]['subp']
+        subp = AnsiblePlaybook.abort_status[self.subcloud_name]["subp"]
         while os.path.exists(unabortable_flag) and timeout > 0:
             # If subprocess ended (subp.poll is not None), no further abort
             # action is necessary
@@ -141,8 +142,9 @@ class AnsiblePlaybook(object):
             timeout -= 1
         return kill_subprocess_group(subp)
 
-    def run_playbook(self, log_file, playbook_command, timeout=None,
-                     register_cleanup=True):
+    def run_playbook(
+        self, log_file, playbook_command, timeout=None, register_cleanup=True
+    ):
         """Run ansible playbook via subprocess.
 
         :param log_file: Logs output to file
@@ -159,16 +161,16 @@ class AnsiblePlaybook(object):
         if timeout:
             timeout_log_str = " (timeout: %ss)" % timeout
         else:
-            timeout_log_str = ''
+            timeout_log_str = ""
 
         with open(log_file, "a+") as f_out_log:
             try:
-                logged_playbook_command = \
-                    _strip_password_from_command(playbook_command)
-                txt = "%s Executing playbook command%s: %s\n" \
-                    % (datetime.today().strftime('%Y-%m-%d-%H:%M:%S'),
-                       timeout_log_str,
-                       logged_playbook_command)
+                logged_playbook_command = _strip_password_from_command(playbook_command)
+                txt = "%s Executing playbook command%s: %s\n" % (
+                    datetime.today().strftime("%Y-%m-%d-%H:%M:%S"),
+                    timeout_log_str,
+                    logged_playbook_command,
+                )
                 f_out_log.write(txt)
                 f_out_log.flush()
 
@@ -176,23 +178,26 @@ class AnsiblePlaybook(object):
                 # if present from previous executions
                 unabortable_flag = os.path.join(
                     consts.ANSIBLE_OVERRIDES_PATH,
-                    '.%s_deploy_not_abortable' % self.subcloud_name
+                    ".%s_deploy_not_abortable" % self.subcloud_name,
                 )
                 if os.path.exists(unabortable_flag):
                     os.remove(unabortable_flag)
 
-                subp = subprocess.Popen(playbook_command,
-                                        stdout=f_out_log,
-                                        stderr=f_out_log,
-                                        env=exec_env,
-                                        start_new_session=register_cleanup)
+                subp = subprocess.Popen(
+                    playbook_command,
+                    stdout=f_out_log,
+                    stderr=f_out_log,
+                    env=exec_env,
+                    start_new_session=register_cleanup,
+                )
                 try:
                     if register_cleanup:
                         SubprocessCleanup.register_subprocess_group(subp)
                     with AnsiblePlaybook.lock:
                         AnsiblePlaybook.abort_status[self.subcloud_name] = {
-                            'abort': False,
-                            'subp': subp}
+                            "abort": False,
+                            "subp": subp,
+                        }
 
                     subp.wait(timeout)
                     subp_rc = subp.poll()
@@ -214,11 +219,13 @@ class AnsiblePlaybook(object):
                     #    - playbook_failure is True with subp_rc != 0,
                     #      aborted is True, unabortable_flag_exists is False
                     with AnsiblePlaybook.lock:
-                        aborted = \
-                            AnsiblePlaybook.abort_status[self.subcloud_name]['abort']
+                        aborted = AnsiblePlaybook.abort_status[self.subcloud_name][
+                            "abort"
+                        ]
                         unabortable_flag_exists = os.path.exists(unabortable_flag)
-                    playbook_failure = (subp_rc != 0 and
-                                        (not aborted or unabortable_flag_exists))
+                    playbook_failure = subp_rc != 0 and (
+                        not aborted or unabortable_flag_exists
+                    )
 
                     # Raise PlaybookExecutionFailed if the playbook fails when
                     # on normal conditions (no abort issued) or fails while
@@ -229,11 +236,12 @@ class AnsiblePlaybook(object):
                 except subprocess.TimeoutExpired:
                     kill_subprocess_group(subp)
                     f_out_log.write(
-                        "%s TIMEOUT (%ss) - playbook is terminated\n" %
-                        (datetime.today().strftime('%Y-%m-%d-%H:%M:%S'), timeout)
+                        "%s TIMEOUT (%ss) - playbook is terminated\n"
+                        % (datetime.today().strftime("%Y-%m-%d-%H:%M:%S"), timeout)
                     )
-                    raise PlaybookExecutionTimeout(playbook_cmd=playbook_command,
-                                                   timeout=timeout)
+                    raise PlaybookExecutionTimeout(
+                        playbook_cmd=playbook_command, timeout=timeout
+                    )
                 finally:
                     f_out_log.flush()
                     if register_cleanup:
@@ -256,26 +264,27 @@ def _strip_password_from_command(script_command):
             logged_command.append(item)
         else:
             tmpl = item.split()
-            tmpstr = ''
+            tmpstr = ""
             for tmp in tmpl:
                 if any(parm in tmp for parm in SCRIPT_PASSWD_PARMS):
-                    tmpstr = tmpstr + tmp[:tmp.index('=') + 1] + ' '
+                    tmpstr = tmpstr + tmp[: tmp.index("=") + 1] + " "
                 else:
-                    tmpstr = tmpstr + tmp + ' '
+                    tmpstr = tmpstr + tmp + " "
             tmpstr = tmpstr[:-1]
             logged_command.append(tmpstr)
     return logged_command
 
 
-def is_token_expiring_soon(token,
-                           stale_token_duration_min=STALE_TOKEN_DURATION_MIN,
-                           stale_token_duration_max=STALE_TOKEN_DURATION_MAX,
-                           stale_token_duration_step=STALE_TOKEN_DURATION_STEP):
-    expiry_time = timeutils.normalize_time(timeutils.parse_isotime(
-        token['expires_at']))
-    duration = random.randrange(stale_token_duration_min,
-                                stale_token_duration_max,
-                                stale_token_duration_step)
+def is_token_expiring_soon(
+    token,
+    stale_token_duration_min=STALE_TOKEN_DURATION_MIN,
+    stale_token_duration_max=STALE_TOKEN_DURATION_MAX,
+    stale_token_duration_step=STALE_TOKEN_DURATION_STEP,
+):
+    expiry_time = timeutils.normalize_time(timeutils.parse_isotime(token["expires_at"]))
+    duration = random.randrange(
+        stale_token_duration_min, stale_token_duration_max, stale_token_duration_step
+    )
     if timeutils.is_soon(expiry_time, duration):
         return True
     return False
@@ -289,12 +298,12 @@ def _get_key_from_file(file_contents, key):
     :param key: key to search
     :return: found value or ''
     """
-    r = re.compile('^{}\=[\'\"]*([^\'\"\n]*)'.format(key), re.MULTILINE)
+    r = re.compile("^{}\=['\"]*([^'\"\n]*)".format(key), re.MULTILINE)
     match = r.search(file_contents)
     if match:
         return match.group(1)
     else:
-        return ''
+        return ""
 
 
 @memoized
@@ -305,21 +314,24 @@ def get_os_release(release_file=consts.OS_RELEASE_FILE):
     :param release_file: file to read from
     :return: a tuple of (ID, VERSION)
     """
-    linux_distro = ('', '')
+    linux_distro = ("", "")
 
     try:
-        with open(release_file, 'r') as f:
+        with open(release_file, "r") as f:
             data = f.read()
             linux_distro = (
-                _get_key_from_file(data, 'ID'),
-                _get_key_from_file(data, 'VERSION'))
+                _get_key_from_file(data, "ID"),
+                _get_key_from_file(data, "VERSION"),
+            )
     except Exception as e:
         raise exceptions.DCCommonException(
-            msg=_("Failed to open %s : %s" % (release_file, str(e))))
+            msg=_("Failed to open %s : %s" % (release_file, str(e)))
+        )
 
-    if linux_distro[0] == '':
+    if linux_distro[0] == "":
         raise exceptions.DCCommonException(
-            msg=_("Could not determine os type from %s" % release_file))
+            msg=_("Could not determine os type from %s" % release_file)
+        )
 
     # Hint: This code is added here to aid future unit test.
     # Probably running unit tests on a non-supported OS (example at
@@ -329,7 +341,8 @@ def get_os_release(release_file=consts.OS_RELEASE_FILE):
     # (get_os_release) for each supported OS.
     if linux_distro[0] not in consts.SUPPORTED_OS_TYPES:
         raise exceptions.DCCommonException(
-            msg=_("Unsupported OS detected %s" % linux_distro[0]))
+            msg=_("Unsupported OS detected %s" % linux_distro[0])
+        )
 
     return linux_distro
 
@@ -365,7 +378,8 @@ def is_centos(software_version=None):
 def get_ssl_cert_ca_file():
     return os.path.join(
         consts.SSL_CERT_CA_DIR,
-        consts.CERT_CA_FILE_DEBIAN if is_debian() else consts.CERT_CA_FILE_CENTOS)
+        consts.CERT_CA_FILE_DEBIAN if is_debian() else consts.CERT_CA_FILE_CENTOS,
+    )
 
 
 def send_subcloud_shutdown_signal(subcloud_name):
@@ -376,9 +390,9 @@ def send_subcloud_shutdown_signal(subcloud_name):
     """
     # All logs are expected to originate from the rvmc module,
     # so the log churn from the 'redfish.rest.v1' module is disabled.
-    logging.getLogger('redfish.rest.v1').setLevel(logging.CRITICAL)
+    logging.getLogger("redfish.rest.v1").setLevel(logging.CRITICAL)
 
-    rvmc_config_file = os.path.join(consts.ANSIBLE_OVERRIDES_PATH,
-                                    subcloud_name,
-                                    consts.RVMC_CONFIG_FILE_NAME)
+    rvmc_config_file = os.path.join(
+        consts.ANSIBLE_OVERRIDES_PATH, subcloud_name, consts.RVMC_CONFIG_FILE_NAME
+    )
     rvmc.power_off(subcloud_name, rvmc_config_file, LOG)

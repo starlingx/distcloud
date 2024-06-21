@@ -128,13 +128,13 @@ from dccommon import rvmc
 
 # Constants
 # ---------
-FEATURE_NAME = 'Redfish Virtual Media Controller'
+FEATURE_NAME = "Redfish Virtual Media Controller"
 VERSION_MAJOR = 3
 VERSION_MINOR = 1
 
 # The path for RVMC PID file
-RVMC_PID_FILE_PATH = '/var/run/rvmc/'
-RVMC_PID_FILENAME_POSTFIX = '_rvmc.pid'
+RVMC_PID_FILE_PATH = "/var/run/rvmc/"
+RVMC_PID_FILENAME_POSTFIX = "_rvmc.pid"
 
 # The signals to be caught for abnormal termination
 EXIT_SIGNALS = [signal.SIGTERM, signal.SIGABRT, signal.SIGINT]
@@ -154,14 +154,21 @@ def parse_arguments():
     """
     parser = argparse.ArgumentParser(description=FEATURE_NAME)
 
-    parser.add_argument("--debug", type=int, required=False, default=0,
-                        help="Optional debug level ; 0..4")
+    parser.add_argument(
+        "--debug",
+        type=int,
+        required=False,
+        default=0,
+        help="Optional debug level ; 0..4",
+    )
 
-    parser.add_argument("--subcloud_name", type=str, required=False,
-                        help="Subcloud name")
+    parser.add_argument(
+        "--subcloud_name", type=str, required=False, help="Subcloud name"
+    )
 
-    parser.add_argument("--config_file", type=str, required=True,
-                        help="RVMC config file")
+    parser.add_argument(
+        "--config_file", type=str, required=True, help="RVMC config file"
+    )
 
     return parser.parse_args()
 
@@ -181,7 +188,7 @@ def prepare_execution(rvmc_pid_file):
     # Check if the PID file exists.
     # Usually, it exists only when the parent process was manually killed.
     if os.path.exists(rvmc_pid_file):
-        with open(rvmc_pid_file, 'r') as pid_file:
+        with open(rvmc_pid_file, "r") as pid_file:
             pid = pid_file.read()
         # Attempt to kill the previous RVMC process using SIGTERM (15)
         if pid:
@@ -189,14 +196,13 @@ def prepare_execution(rvmc_pid_file):
                 os.kill(int(pid), 15)
             except ProcessLookupError:
                 # Ignore the error if the process with this PID doesn't exit
-                logging_util.ilog(
-                    "Process %s not found or already terminated." % pid)
+                logging_util.ilog("Process %s not found or already terminated." % pid)
             except Exception:
-                logging_util.elog(
-                    "Failed to terminate the previous process %s," % pid)
+                logging_util.elog("Failed to terminate the previous process %s," % pid)
                 logging_util.alog(
                     "Please terminate the previous process %s "
-                    "before running the RVMC script again." % pid)
+                    "before running the RVMC script again." % pid
+                )
                 exit_handler.exit(2)
         # Give some time between reading and writing to the same PID file
         time.sleep(3)
@@ -205,9 +211,10 @@ def prepare_execution(rvmc_pid_file):
     current_pid = os.getpid()
 
     # Write the PID to the file
-    logging_util.dlog1("Save process ID %d to the file %s." %
-                       (current_pid, rvmc_pid_file))
-    with open(rvmc_pid_file, 'w') as pid_file:
+    logging_util.dlog1(
+        "Save process ID %d to the file %s." % (current_pid, rvmc_pid_file)
+    )
+    with open(rvmc_pid_file, "w") as pid_file:
         pid_file.write(str(current_pid))
 
 
@@ -222,6 +229,7 @@ class ExitHandler(rvmc.ExitHandler):
 
     Provides methods to manage the process exit in various situations.
     """
+
     def __init__(self, rvmc_pid_file):
         """Handler object constructor.
 
@@ -266,27 +274,31 @@ if __name__ == "__main__":
 
     # RVMC PID file
     rvmc_pid_file = os.path.join(
-        RVMC_PID_FILE_PATH, subcloud_name + RVMC_PID_FILENAME_POSTFIX)
+        RVMC_PID_FILE_PATH, subcloud_name + RVMC_PID_FILENAME_POSTFIX
+    )
 
     # Set logging utility and exit handler
     logging_util = rvmc.LoggingUtil(debug_level=debug)
     exit_handler = ExitHandler(rvmc_pid_file)
 
-    logging_util.ilog("%s version %d.%d\n" %
-                      (FEATURE_NAME, VERSION_MAJOR, VERSION_MINOR))
+    logging_util.ilog(
+        "%s version %d.%d\n" % (FEATURE_NAME, VERSION_MAJOR, VERSION_MINOR)
+    )
 
     # Register the signal handler
     for sig in EXIT_SIGNALS:
         signal.signal(sig, signal_handler)
 
     config, target_object = rvmc.parse_config_file(
-        subcloud_name, config_file, logging_util, exit_handler)
+        subcloud_name, config_file, logging_util, exit_handler
+    )
 
     if target_object:
         prepare_execution(rvmc_pid_file)
         # TODO(lzhu1): support --timeout <value> option
         script_timeout = eventlet.timeout.Timeout(
-            int(os.environ.get('RVMC_SCRIPT_TIMEOUT', 1800)))
+            int(os.environ.get("RVMC_SCRIPT_TIMEOUT", 1800))
+        )
         try:
             # Load the Iso for the target
             logging_util.ilog("BMC Target  : %s" % target_object.target)
@@ -294,8 +306,7 @@ if __name__ == "__main__":
             logging_util.ilog("Host Image  : %s" % target_object.img)
 
             excluded_operations = []
-            if (os.path.basename(target_object.img) ==
-                    consts.ENROLL_INIT_SEED_ISO_NAME):
+            if os.path.basename(target_object.img) == consts.ENROLL_INIT_SEED_ISO_NAME:
                 # If the host image is a seed ISO,
                 # the boot order should not be changed.
                 excluded_operations = ["set_boot_override"]

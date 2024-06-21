@@ -14,12 +14,12 @@ from oslo_log import log as logging
 
 LOG = logging.getLogger(__name__)
 
-K8S_MODULE_MAJOR_VERSION = int(K8S_MODULE_VERSION.split('.', maxsplit=1)[0])
-KUBE_CONFIG_PATH = '/etc/kubernetes/admin.conf'
+K8S_MODULE_MAJOR_VERSION = int(K8S_MODULE_VERSION.split(".", maxsplit=1)[0])
+KUBE_CONFIG_PATH = "/etc/kubernetes/admin.conf"
 
-CERT_MANAGER_GROUP = 'cert-manager.io'
-CERT_MANAGER_VERSION = 'v1'
-CERT_MANAGER_CERTIFICATE = 'certificates'
+CERT_MANAGER_GROUP = "cert-manager.io"
+CERT_MANAGER_VERSION = "v1"
+CERT_MANAGER_CERTIFICATE = "certificates"
 
 
 class KubeOperator(object):
@@ -65,8 +65,10 @@ class KubeOperator(object):
             if e.status == httplib.NOT_FOUND:
                 return None
             else:
-                LOG.error("Failed to get Secret %s under "
-                          "Namespace %s: %s" % (name, namespace, e.body))
+                LOG.error(
+                    "Failed to get Secret %s under Namespace %s: %s"
+                    % (name, namespace, e.body)
+                )
                 raise
         except Exception as e:
             LOG.error("Kubernetes exception in kube_get_secret: %s" % e)
@@ -83,11 +85,12 @@ class KubeOperator(object):
             c.delete_namespaced_secret(name, namespace, body=body)
         except ApiException as e:
             if e.status == httplib.NOT_FOUND:
-                LOG.warn("Secret %s under Namespace %s "
-                         "not found." % (name, namespace))
+                LOG.warn("Secret %s under Namespace %s not found." % (name, namespace))
             else:
-                LOG.error("Failed to clean up Secret %s under "
-                          "Namespace %s: %s" % (name, namespace, e.body))
+                LOG.error(
+                    "Failed to clean up Secret %s under Namespace %s: %s"
+                    % (name, namespace, e.body)
+                )
                 raise
         except Exception as e:
             LOG.error("Kubernetes exception in kube_delete_secret: %s" % e)
@@ -102,7 +105,8 @@ class KubeOperator(object):
                 CERT_MANAGER_VERSION,
                 namespace,
                 CERT_MANAGER_CERTIFICATE,
-                name)
+                name,
+            )
         except ApiException as e:
             if e.status == httplib.NOT_FOUND:
                 return None
@@ -123,7 +127,7 @@ class KubeOperator(object):
                 namespace,
                 CERT_MANAGER_CERTIFICATE,
                 name,
-                body
+                body,
             )
         else:
             custom_object_api.create_namespaced_custom_object(
@@ -131,7 +135,8 @@ class KubeOperator(object):
                 CERT_MANAGER_VERSION,
                 namespace,
                 CERT_MANAGER_CERTIFICATE,
-                body)
+                body,
+            )
 
     def delete_cert_manager_certificate(self, namespace, name):
         custom_object_api = self._get_kubernetesclient_custom_objects()
@@ -143,7 +148,7 @@ class KubeOperator(object):
                 namespace,
                 CERT_MANAGER_CERTIFICATE,
                 name,
-                body={}
+                body={},
             )
         except ApiException as e:
             if e.status != httplib.NOT_FOUND:
@@ -158,8 +163,7 @@ class KubeOperator(object):
         except ApiException as e:
             if e.status == httplib.NOT_FOUND:
                 return []
-            LOG.error("Failed to get pod name under "
-                      "Namespace %s." % (namespace))
+            LOG.error("Failed to get pod name under Namespace %s." % (namespace))
             raise
         except Exception as e:
             LOG.error("Kubernetes exception in get_pods_by_namespace: %s" % e)
@@ -181,8 +185,10 @@ class KubeOperator(object):
             b.delete_namespaced_job(name, namespace, body=body)
         except ApiException as e:
             if e.status != httplib.NOT_FOUND:
-                LOG.error("Failed to delete job %s under "
-                          "Namespace %s: %s" % (name, namespace, e.body))
+                LOG.error(
+                    "Failed to delete job %s under Namespace %s: %s"
+                    % (name, namespace, e.body)
+                )
                 raise
         except Exception as e:
             LOG.error("Kubernetes exception in kube_delete_job: %s" % e)
@@ -198,8 +204,10 @@ class KubeOperator(object):
             c.delete_namespaced_pod(name, namespace, body=body)
         except ApiException as e:
             if e.status != httplib.NOT_FOUND:
-                LOG.error("Failed to delete pod %s under "
-                          "Namespace %s: %s" % (name, namespace, e.body))
+                LOG.error(
+                    "Failed to delete pod %s under "
+                    "Namespace %s: %s" % (name, namespace, e.body)
+                )
                 raise
         except Exception as e:
             LOG.error("Kubernetes exception in kube_delete_pod: %s" % e)
@@ -217,12 +225,13 @@ class KubeOperator(object):
                 LOG.error("Failed to get Namespace %s: %s" % (namespace, e.body))
                 raise
         except Exception as e:
-            LOG.error("Kubernetes exception in "
-                      "kube_get_namespace %s: %s" % (namespace, e))
+            LOG.error(
+                "Kubernetes exception in kube_get_namespace %s: %s" % (namespace, e)
+            )
             raise
 
     def kube_create_namespace(self, namespace):
-        body = {'metadata': {'name': namespace}}
+        body = {"metadata": {"name": namespace}}
 
         c = self._get_kubernetesclient_core()
         try:
@@ -235,8 +244,9 @@ class KubeOperator(object):
                 LOG.error("Failed to create Namespace %s: %s" % (namespace, e.body))
                 raise
         except Exception as e:
-            LOG.error("Kubernetes exception in "
-                      "_kube_create_namespace %s: %s" % (namespace, e))
+            LOG.error(
+                "Kubernetes exception in _kube_create_namespace %s: %s" % (namespace, e)
+            )
             raise
 
     def kube_copy_secret(self, name, src_namespace, dst_namespace):
@@ -247,6 +257,8 @@ class KubeOperator(object):
             body.metadata.namespace = dst_namespace
             c.create_namespaced_secret(dst_namespace, body)
         except Exception as e:
-            LOG.error("Failed to copy Secret %s from Namespace %s to Namespace "
-                      "%s: %s" % (name, src_namespace, dst_namespace, e))
+            LOG.error(
+                "Failed to copy Secret %s from Namespace %s to Namespace %s: %s"
+                % (name, src_namespace, dst_namespace, e)
+            )
             raise

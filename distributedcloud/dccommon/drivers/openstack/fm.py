@@ -13,40 +13,41 @@
 #
 #
 
-from oslo_log import log
-
 import fmclient
+from oslo_log import log
 
 from dccommon import consts as dccommon_consts
 from dccommon.drivers import base
 from dccommon import exceptions
 
-
 LOG = log.getLogger(__name__)
-API_VERSION = '1'
+API_VERSION = "1"
 
 
 class FmClient(base.DriverBase):
     """Fault Management driver."""
 
     def __init__(
-        self, region, session, endpoint_type=dccommon_consts.KS_ENDPOINT_DEFAULT,
-        endpoint=None
+        self,
+        region,
+        session,
+        endpoint_type=dccommon_consts.KS_ENDPOINT_DEFAULT,
+        endpoint=None,
     ):
         self.region_name = region
         try:
-            self.fm = fmclient.Client(API_VERSION,
-                                      session=session,
-                                      region_name=region,
-                                      endpoint_type=endpoint_type,
-                                      endpoint=endpoint)
+            self.fm = fmclient.Client(
+                API_VERSION,
+                session=session,
+                region_name=region,
+                endpoint_type=endpoint_type,
+                endpoint=endpoint,
+            )
         except exceptions.ServiceUnavailable:
             raise
 
     def get_alarm_summary(self):
-        """Get this region alarm summary
-
-        """
+        """Get this region alarm summary"""
         try:
             LOG.debug("get_alarm_summary region %s" % self.region_name)
             alarms = self.fm.alarm.summary()
@@ -58,11 +59,11 @@ class FmClient(base.DriverBase):
     def get_alarms_by_id(self, alarm_id):
         """Get list of this region alarms for a particular alarm_id"""
         try:
-            LOG.debug("get_alarms_by_id %s, region %s" % (alarm_id,
-                                                          self.region_name))
+            LOG.debug("get_alarms_by_id %s, region %s" % (alarm_id, self.region_name))
             alarms = self.fm.alarm.list(
-                q=fmclient.common.options.cli_to_array('alarm_id=' + alarm_id),
-                include_suppress=True)
+                q=fmclient.common.options.cli_to_array("alarm_id=" + alarm_id),
+                include_suppress=True,
+            )
         except Exception as e:
             LOG.error("get_alarms_by_id exception={}".format(e))
             raise e
@@ -71,16 +72,18 @@ class FmClient(base.DriverBase):
     def get_alarms_by_ids(self, alarm_id_list):
         """Get list of this region alarms for a list of alarm_ids"""
         try:
-            LOG.debug("get_alarms_by_ids %s, region %s" % (alarm_id_list,
-                                                           self.region_name))
+            LOG.debug(
+                "get_alarms_by_ids %s, region %s" % (alarm_id_list, self.region_name)
+            )
             # fm api does not support querying two alarm IDs at once so make
             # multiple calls and join the list
             alarms = []
             for alarm_id in alarm_id_list:
-                alarms.extend(self.fm.alarm.list(
-                    q=fmclient.common.options.cli_to_array(
-                        'alarm_id=' + alarm_id),
-                    include_suppress=True)
+                alarms.extend(
+                    self.fm.alarm.list(
+                        q=fmclient.common.options.cli_to_array("alarm_id=" + alarm_id),
+                        include_suppress=True,
+                    )
                 )
         except Exception as e:
             LOG.error("get_alarms_by_ids exception={}".format(e))

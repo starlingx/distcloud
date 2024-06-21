@@ -18,10 +18,7 @@ from dccommon.drivers.openstack import keystone_v3
 from dccommon.tests import base
 from dccommon.tests import utils
 
-FAKE_SERVICE = [
-    'endpoint_volume',
-    'endpoint_network'
-]
+FAKE_SERVICE = ["endpoint_volume", "endpoint_network"]
 
 
 class Project(object):
@@ -49,72 +46,73 @@ class TestKeystoneClient(base.DCCommonTestCase):
         super(TestKeystoneClient, self).setUp()
         self.ctx = utils.dummy_context()
 
-    @mock.patch.object(keystone_v3, 'KeystoneClient')
-    @mock.patch.object(keystone_v3, 'EndpointCache')
+    @mock.patch.object(keystone_v3, "KeystoneClient")
+    @mock.patch.object(keystone_v3, "EndpointCache")
     def test_init(self, mock_endpoint_cache, mock_keystone):
         mock_keystone().services_list = FAKE_SERVICE
-        mock_endpoint_cache().admin_session = 'fake_session'
-        mock_endpoint_cache().keystone_client = 'fake_key_client'
+        mock_endpoint_cache().admin_session = "fake_session"
+        mock_endpoint_cache().keystone_client = "fake_key_client"
         key_client = keystone_v3.KeystoneClient()
         self.assertIsNotNone(key_client.keystone_client)
-        self.assertEqual(key_client.services_list,
-                         FAKE_SERVICE)
+        self.assertEqual(key_client.services_list, FAKE_SERVICE)
 
-    @mock.patch.object(keystone_v3, 'KeystoneClient')
+    @mock.patch.object(keystone_v3, "KeystoneClient")
     def test_is_service_enabled(self, mock_keystone):
         key_client = keystone_v3.KeystoneClient()
         mock_keystone().is_service_enabled.return_value = True
-        network_enabled = key_client.is_service_enabled('network')
+        network_enabled = key_client.is_service_enabled("network")
         self.assertEqual(network_enabled, True)
 
-    @mock.patch.object(keystone_v3, 'EndpointCache')
+    @mock.patch.object(keystone_v3, "EndpointCache")
     def test_get_enabled_projects(self, mock_endpoint_cache):
-        p1 = Project('proj1', '123')
-        p2 = Project('proj2', '456', False)
+        p1 = Project("proj1", "123")
+        p2 = Project("proj2", "456", False)
         key_client = keystone_v3.KeystoneClient()
-        mock_endpoint_cache().keystone_client.projects.list.return_value =\
-            [p1, p2]
+        mock_endpoint_cache().keystone_client.projects.list.return_value = [p1, p2]
         project_list = key_client.get_enabled_projects()
         self.assertIn(p1.id, project_list)
         self.assertNotIn(p2.id, project_list)
 
-    @mock.patch.object(keystone_v3, 'EndpointCache')
+    @mock.patch.object(keystone_v3, "EndpointCache")
     def test_get_enabled_users(self, mock_endpoint_cache):
-        u1 = User('user1', '123')
-        u2 = User('user2', '456', False)
+        u1 = User("user1", "123")
+        u2 = User("user2", "456", False)
         key_client = keystone_v3.KeystoneClient()
-        mock_endpoint_cache().keystone_client.users.list.return_value =\
-            [u1, u2]
+        mock_endpoint_cache().keystone_client.users.list.return_value = [u1, u2]
         users_list = key_client.get_enabled_users()
         self.assertIn(u1.id, users_list)
         self.assertNotIn(u2.id, users_list)
 
-    @mock.patch.object(keystone_v3.endpoint_filter, 'EndpointFilterManager')
-    @mock.patch.object(keystone_v3, 'EndpointCache')
-    def test_get_filtered_region(self, mock_endpoint_cache,
-                                 mock_endpoint_filter_manager):
-        endpoint_1 = FakeEndpoint('endpoint1', 'regionOne')
-        endpoint_2 = FakeEndpoint('endpoint2', 'regionTwo')
+    @mock.patch.object(keystone_v3.endpoint_filter, "EndpointFilterManager")
+    @mock.patch.object(keystone_v3, "EndpointCache")
+    def test_get_filtered_region(
+        self, mock_endpoint_cache, mock_endpoint_filter_manager
+    ):
+        endpoint_1 = FakeEndpoint("endpoint1", "regionOne")
+        endpoint_2 = FakeEndpoint("endpoint2", "regionTwo")
         key_client = keystone_v3.KeystoneClient()
-        mock_endpoint_filter_manager(). \
-            list_endpoints_for_project.return_value = [endpoint_1, endpoint_2]
-        region_list = key_client.get_filtered_region('fake_project')
-        self.assertIn('regionOne', region_list)
-        self.assertIn('regionTwo', region_list)
+        mock_endpoint_filter_manager().list_endpoints_for_project.return_value = [
+            endpoint_1,
+            endpoint_2,
+        ]
+        region_list = key_client.get_filtered_region("fake_project")
+        self.assertIn("regionOne", region_list)
+        self.assertIn("regionTwo", region_list)
 
-    @mock.patch.object(keystone_v3, 'EndpointCache')
+    @mock.patch.object(keystone_v3, "EndpointCache")
     def test_delete_endpoints(self, mock_endpoint_cache):
-        endpoint_1 = FakeEndpoint('endpoint1', 'regionOne')
-        mock_endpoint_cache().keystone_client.endpoints.list.return_value = \
-            [endpoint_1]
+        endpoint_1 = FakeEndpoint("endpoint1", "regionOne")
+        mock_endpoint_cache().keystone_client.endpoints.list.return_value = [endpoint_1]
         key_client = keystone_v3.KeystoneClient()
-        key_client.delete_endpoints('regionOne')
-        mock_endpoint_cache().keystone_client.endpoints.delete.\
-            assert_called_with(endpoint_1)
+        key_client.delete_endpoints("regionOne")
+        mock_endpoint_cache().keystone_client.endpoints.delete.assert_called_with(
+            endpoint_1
+        )
 
-    @mock.patch.object(keystone_v3, 'EndpointCache')
+    @mock.patch.object(keystone_v3, "EndpointCache")
     def test_delete_region(self, mock_endpoint_cache):
         key_client = keystone_v3.KeystoneClient()
-        key_client.delete_region('regionOne')
-        mock_endpoint_cache().keystone_client.regions.delete.\
-            assert_called_with('regionOne')
+        key_client.delete_region("regionOne")
+        mock_endpoint_cache().keystone_client.regions.delete.assert_called_with(
+            "regionOne"
+        )

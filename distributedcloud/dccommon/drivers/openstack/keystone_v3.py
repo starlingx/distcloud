@@ -24,7 +24,7 @@ from dccommon.endpoint_cache import OptimizedEndpointCache
 from dccommon import exceptions
 
 # Ensure keystonemiddleware options are imported
-importutils.import_module('keystonemiddleware.auth_token')
+importutils.import_module("keystonemiddleware.auth_token")
 
 
 class KeystoneClient(base.DriverBase):
@@ -47,11 +47,17 @@ class KeystoneClient(base.DriverBase):
         try:
             project_list = self.keystone_client.projects.list()
             if id_only:
-                return [current_project.id for current_project in
-                        project_list if current_project.enabled]
+                return [
+                    current_project.id
+                    for current_project in project_list
+                    if current_project.enabled
+                ]
             else:
-                return [current_project for current_project in
-                        project_list if current_project.enabled]
+                return [
+                    current_project
+                    for current_project in project_list
+                    if current_project.enabled
+                ]
         except exceptions.InternalError:
             raise
 
@@ -78,11 +84,15 @@ class KeystoneClient(base.DriverBase):
         try:
             user_list = self.keystone_client.users.list()
             if id_only:
-                return [current_user.id for current_user in
-                        user_list if current_user.enabled]
+                return [
+                    current_user.id
+                    for current_user in user_list
+                    if current_user.enabled
+                ]
             else:
-                return [current_user for current_user in
-                        user_list if current_user.enabled]
+                return [
+                    current_user for current_user in user_list if current_user.enabled
+                ]
         except exceptions.InternalError:
             raise
 
@@ -119,9 +129,9 @@ class KeystoneClient(base.DriverBase):
         try:
             region_list = []
             endpoint_manager = endpoint_filter.EndpointFilterManager(
-                self.keystone_client)
-            endpoint_lists = endpoint_manager.list_endpoints_for_project(
-                project_id)
+                self.keystone_client
+            )
+            endpoint_lists = endpoint_manager.list_endpoints_for_project(project_id)
             for endpoint in endpoint_lists:
                 region_list.append(endpoint.region)
             return region_list
@@ -199,9 +209,7 @@ class OptimizedKeystoneClient(base.DriverBase):
                 current_user.id for current_user in user_list if current_user.enabled
             ]
         else:
-            return [
-                current_user for current_user in user_list if current_user.enabled
-            ]
+            return [current_user for current_user in user_list if current_user.enabled]
 
     def get_user_by_id(self, userid):
         if not userid:

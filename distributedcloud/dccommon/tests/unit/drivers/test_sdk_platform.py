@@ -1,4 +1,4 @@
-# Copyright (c) 2020-2021 Wind River Systems, Inc.
+# Copyright (c) 2020-2021, 2024 Wind River Systems, Inc.
 # Licensed under the Apache License, Version 2.0 (the "License"); you may
 # not use this file except in compliance with the License. You may obtain
 # a copy of the License at
@@ -21,10 +21,10 @@ from dccommon.tests import base
 
 class TestOpenStackDriver(base.DCCommonTestCase):
 
-    @mock.patch.object(sdk, 'KeystoneClient')
-    @mock.patch.object(sdk.OpenStackDriver, '_is_token_valid')
+    @mock.patch.object(sdk, "KeystoneClient")
+    @mock.patch.object(sdk.OpenStackDriver, "_is_token_valid")
     def test_init(self, mock_keystone_client, mock_is_token_valid):
-        region_name = 'subcloud1'
+        region_name = "subcloud1"
 
         os_client = sdk.OpenStackDriver(region_name, region_clients=None)
         self.assertIsNotNone(os_client)
@@ -32,9 +32,13 @@ class TestOpenStackDriver(base.DCCommonTestCase):
         self.assertIsNotNone(new_keystone_client)
         mock_is_token_valid(region_name).return_value = True
         cached_keystone_client = sdk.OpenStackDriver(
-            region_name, region_clients=None).keystone_client
+            region_name, region_clients=None
+        ).keystone_client
         self.assertEqual(new_keystone_client, cached_keystone_client)
 
-        self.assertRaises(exceptions.InvalidInputError,
-                          sdk.OpenStackDriver,
-                          region_name, region_clients=['fake_client'])
+        self.assertRaises(
+            exceptions.InvalidInputError,
+            sdk.OpenStackDriver,
+            region_name,
+            region_clients=["fake_client"],
+        )

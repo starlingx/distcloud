@@ -20,21 +20,42 @@ from oslotest import base
 from dccommon.tests import utils
 
 KEYSTONE_ENDPOINT_0 = [
-    "9785cc7f99b6469ba6fe89bd8d5b9072", "NULL", "admin",
-    "7d48ddb964034eb588e557b976d11cdf", "http://[fd01:1::2]:9292", "{}", True,
-    "SystemController"
+    "9785cc7f99b6469ba6fe89bd8d5b9072",
+    "NULL",
+    "admin",
+    "7d48ddb964034eb588e557b976d11cdf",
+    "http://[fd01:1::2]:9292",
+    "{}",
+    True,
+    "SystemController",
 ]
 
 ROUTE_0 = [
-    "2018-04-11 17:01:49.654734", "NULL", "NULL", 1,
-    "3a07ca95-d6fe-48cb-9393-b949f800b552", 6,
-    "fd01:2::", 64, "fd01:1::1", 1, 9
+    "2018-04-11 17:01:49.654734",
+    "NULL",
+    "NULL",
+    1,
+    "3a07ca95-d6fe-48cb-9393-b949f800b552",
+    6,
+    "fd01:2::",
+    64,
+    "fd01:1::1",
+    1,
+    9,
 ]
 
 ROUTE_1 = [
-    "2018-04-11 17:01:49.654734", "NULL", "NULL", 1,
-    "3a07ca95-d6fe-48cb-9393-b949f800b552", 6,
-    "fd01:3::", 64, "fd01:1::1", 1, 9
+    "2018-04-11 17:01:49.654734",
+    "NULL",
+    "NULL",
+    1,
+    "3a07ca95-d6fe-48cb-9393-b949f800b552",
+    6,
+    "fd01:3::",
+    64,
+    "fd01:1::1",
+    1,
+    9,
 ]
 
 

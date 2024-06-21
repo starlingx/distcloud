@@ -1,4 +1,4 @@
-# Copyright (c) 2017-2023 Wind River Systems, Inc.
+# Copyright (c) 2017-2024 Wind River Systems, Inc.
 # Licensed under the Apache License, Version 2.0 (the "License"); you may
 # not use this file except in compliance with the License. You may obtain
 # a copy of the License at
@@ -45,11 +45,11 @@ class FakeAddressPool(object):
 
 class FakeRoute(object):
     def __init__(self, data):
-        self.uuid = data['uuid']
-        self.network = data['network']
-        self.prefix = data['prefix']
-        self.gateway = data['gateway']
-        self.metric = data['metric']
+        self.uuid = data["uuid"]
+        self.network = data["network"]
+        self.prefix = data["prefix"]
+        self.gateway = data["gateway"]
+        self.metric = data["metric"]
 
 
 class TestSysinvClient(base.DCCommonTestCase):
@@ -57,42 +57,46 @@ class TestSysinvClient(base.DCCommonTestCase):
         super(TestSysinvClient, self).setUp()
         self.ctx = utils.dummy_context()
 
-    @mock.patch.object(sysinv_v1.SysinvClient, '__init__')
+    @mock.patch.object(sysinv_v1.SysinvClient, "__init__")
     def test_get_controller_hosts(self, mock_sysinvclient_init):
-        controller_list = ['controller-0', 'controller-1']
+        controller_list = ["controller-0", "controller-1"]
         mock_sysinvclient_init.return_value = None
-        sysinv_client = sysinv_v1.SysinvClient(dccommon_consts.DEFAULT_REGION_NAME,
-                                               None)
+        sysinv_client = sysinv_v1.SysinvClient(
+            dccommon_consts.DEFAULT_REGION_NAME, None
+        )
         sysinv_client.sysinv_client = mock.MagicMock()
         sysinv_client.sysinv_client.ihost.list_personality = mock.MagicMock()
-        sysinv_client.sysinv_client.ihost.list_personality.return_value = \
+        sysinv_client.sysinv_client.ihost.list_personality.return_value = (
             controller_list
+        )
         controllers = sysinv_client.get_controller_hosts()
         self.assertEqual(controller_list, controllers)
 
-    @mock.patch.object(sysinv_v1.SysinvClient, '__init__')
+    @mock.patch.object(sysinv_v1.SysinvClient, "__init__")
     def test_get_management_interface(self, mock_sysinvclient_init):
-        interface = FakeInterface('interface', 'uuid')
-        interface_network = FakeInterfaceNetwork('mgmt', 'interface')
+        interface = FakeInterface("interface", "uuid")
+        interface_network = FakeInterfaceNetwork("mgmt", "interface")
         mock_sysinvclient_init.return_value = None
-        sysinv_client = sysinv_v1.SysinvClient(dccommon_consts.DEFAULT_REGION_NAME,
-                                               None)
+        sysinv_client = sysinv_v1.SysinvClient(
+            dccommon_consts.DEFAULT_REGION_NAME, None
+        )
         sysinv_client.sysinv_client = mock.MagicMock()
         sysinv_client.sysinv_client.iinterface.list = mock.MagicMock()
         sysinv_client.sysinv_client.iinterface.list.return_value = [interface]
-        sysinv_client.sysinv_client.interface_network.list_by_interface.\
-            return_value = [interface_network]
-        management_interface = sysinv_client.get_management_interface(
-            'hostname')
+        sysinv_client.sysinv_client.interface_network.list_by_interface.return_value = [
+            interface_network
+        ]
+        management_interface = sysinv_client.get_management_interface("hostname")
         self.assertEqual(interface, management_interface)
 
-    @mock.patch.object(sysinv_v1.SysinvClient, '__init__')
+    @mock.patch.object(sysinv_v1.SysinvClient, "__init__")
     def test_get_management_address_pool(self, mock_sysinvclient_init):
-        network = FakeNetwork('mgmt', 'uuid')
-        pool = FakeAddressPool('uuid')
+        network = FakeNetwork("mgmt", "uuid")
+        pool = FakeAddressPool("uuid")
         mock_sysinvclient_init.return_value = None
-        sysinv_client = sysinv_v1.SysinvClient(dccommon_consts.DEFAULT_REGION_NAME,
-                                               None)
+        sysinv_client = sysinv_v1.SysinvClient(
+            dccommon_consts.DEFAULT_REGION_NAME, None
+        )
         sysinv_client.sysinv_client = mock.MagicMock()
         sysinv_client.sysinv_client.network.list = mock.MagicMock()
         sysinv_client.sysinv_client.network.list.return_value = [network]
@@ -101,29 +105,31 @@ class TestSysinvClient(base.DCCommonTestCase):
         management_pool = sysinv_client.get_management_address_pool()
         self.assertEqual(pool, management_pool)
 
-    @mock.patch.object(sysinv_v1.SysinvClient, '__init__')
+    @mock.patch.object(sysinv_v1.SysinvClient, "__init__")
     def test_get_admin_interface(self, mock_sysinvclient_init):
-        interface = FakeInterface('interface', 'uuid')
-        interface_network = FakeInterfaceNetwork('admin', 'interface')
+        interface = FakeInterface("interface", "uuid")
+        interface_network = FakeInterfaceNetwork("admin", "interface")
         mock_sysinvclient_init.return_value = None
-        sysinv_client = sysinv_v1.SysinvClient(dccommon_consts.DEFAULT_REGION_NAME,
-                                               None)
+        sysinv_client = sysinv_v1.SysinvClient(
+            dccommon_consts.DEFAULT_REGION_NAME, None
+        )
         sysinv_client.sysinv_client = mock.MagicMock()
         sysinv_client.sysinv_client.iinterface.list = mock.MagicMock()
         sysinv_client.sysinv_client.iinterface.list.return_value = [interface]
-        sysinv_client.sysinv_client.interface_network.list_by_interface.\
-            return_value = [interface_network]
-        admin_interface = sysinv_client.get_admin_interface(
-            'hostname')
+        sysinv_client.sysinv_client.interface_network.list_by_interface.return_value = [
+            interface_network
+        ]
+        admin_interface = sysinv_client.get_admin_interface("hostname")
         self.assertEqual(interface, admin_interface)
 
-    @mock.patch.object(sysinv_v1.SysinvClient, '__init__')
+    @mock.patch.object(sysinv_v1.SysinvClient, "__init__")
     def test_get_admin_address_pool(self, mock_sysinvclient_init):
-        network = FakeNetwork('admin', 'uuid')
-        pool = FakeAddressPool('uuid')
+        network = FakeNetwork("admin", "uuid")
+        pool = FakeAddressPool("uuid")
         mock_sysinvclient_init.return_value = None
-        sysinv_client = sysinv_v1.SysinvClient(dccommon_consts.DEFAULT_REGION_NAME,
-                                               None)
+        sysinv_client = sysinv_v1.SysinvClient(
+            dccommon_consts.DEFAULT_REGION_NAME, None
+        )
         sysinv_client.sysinv_client = mock.MagicMock()
         sysinv_client.sysinv_client.network.list = mock.MagicMock()
         sysinv_client.sysinv_client.network.list.return_value = [network]
@@ -132,60 +138,76 @@ class TestSysinvClient(base.DCCommonTestCase):
         admin_pool = sysinv_client.get_admin_address_pool()
         self.assertEqual(pool, admin_pool)
 
-    @mock.patch.object(sysinv_v1.SysinvClient, '__init__')
+    @mock.patch.object(sysinv_v1.SysinvClient, "__init__")
     def test_create_route(self, mock_sysinvclient_init):
         fake_route = utils.create_route_dict(base.ROUTE_0)
         mock_sysinvclient_init.return_value = None
-        sysinv_client = sysinv_v1.SysinvClient(dccommon_consts.DEFAULT_REGION_NAME,
-                                               None)
+        sysinv_client = sysinv_v1.SysinvClient(
+            dccommon_consts.DEFAULT_REGION_NAME, None
+        )
         sysinv_client.sysinv_client = mock.MagicMock()
         sysinv_client.sysinv_client.route.create = mock.MagicMock()
-        sysinv_client.create_route(fake_route['uuid'],
-                                   fake_route['network'],
-                                   fake_route['prefix'],
-                                   fake_route['gateway'],
-                                   fake_route['metric'])
+        sysinv_client.create_route(
+            fake_route["uuid"],
+            fake_route["network"],
+            fake_route["prefix"],
+            fake_route["gateway"],
+            fake_route["metric"],
+        )
         sysinv_client.sysinv_client.route.create.assert_called_with(
-            interface_uuid=fake_route['uuid'],
-            network=fake_route['network'], prefix=fake_route['prefix'],
-            gateway=fake_route['gateway'], metric=fake_route['metric'])
+            interface_uuid=fake_route["uuid"],
+            network=fake_route["network"],
+            prefix=fake_route["prefix"],
+            gateway=fake_route["gateway"],
+            metric=fake_route["metric"],
+        )
 
-    @mock.patch.object(sysinv_v1.SysinvClient, '__init__')
+    @mock.patch.object(sysinv_v1.SysinvClient, "__init__")
     def test_delete_route(self, mock_sysinvclient_init):
         fake_route = utils.create_route_dict(base.ROUTE_0)
         mock_sysinvclient_init.return_value = None
-        sysinv_client = sysinv_v1.SysinvClient(dccommon_consts.DEFAULT_REGION_NAME,
-                                               None)
+        sysinv_client = sysinv_v1.SysinvClient(
+            dccommon_consts.DEFAULT_REGION_NAME, None
+        )
         sysinv_client.sysinv_client = mock.MagicMock()
         sysinv_client.sysinv_client.route.delete = mock.MagicMock()
         sysinv_client.sysinv_client.route.list_by_interface = mock.MagicMock()
         existing_route_0 = FakeRoute(utils.create_route_dict(base.ROUTE_0))
         existing_route_1 = FakeRoute(utils.create_route_dict(base.ROUTE_1))
         sysinv_client.sysinv_client.route.list_by_interface.return_value = [
-            existing_route_0, existing_route_1]
-        sysinv_client.delete_route(fake_route['uuid'],
-                                   fake_route['network'],
-                                   fake_route['prefix'],
-                                   fake_route['gateway'],
-                                   fake_route['metric'])
+            existing_route_0,
+            existing_route_1,
+        ]
+        sysinv_client.delete_route(
+            fake_route["uuid"],
+            fake_route["network"],
+            fake_route["prefix"],
+            fake_route["gateway"],
+            fake_route["metric"],
+        )
         sysinv_client.sysinv_client.route.delete.assert_called_with(
-            existing_route_0.uuid)
+            existing_route_0.uuid
+        )
 
-    @mock.patch.object(sysinv_v1.SysinvClient, '__init__')
+    @mock.patch.object(sysinv_v1.SysinvClient, "__init__")
     def test_delete_route_not_exist(self, mock_sysinvclient_init):
         fake_route = utils.create_route_dict(base.ROUTE_0)
         mock_sysinvclient_init.return_value = None
-        sysinv_client = sysinv_v1.SysinvClient(dccommon_consts.DEFAULT_REGION_NAME,
-                                               None)
+        sysinv_client = sysinv_v1.SysinvClient(
+            dccommon_consts.DEFAULT_REGION_NAME, None
+        )
         sysinv_client.sysinv_client = mock.MagicMock()
         sysinv_client.sysinv_client.route.delete = mock.MagicMock()
         sysinv_client.sysinv_client.route.list_by_interface = mock.MagicMock()
         existing_route_1 = FakeRoute(utils.create_route_dict(base.ROUTE_1))
         sysinv_client.sysinv_client.route.list_by_interface.return_value = [
-            existing_route_1]
-        sysinv_client.delete_route(fake_route['uuid'],
-                                   fake_route['network'],
-                                   fake_route['prefix'],
-                                   fake_route['gateway'],
-                                   fake_route['metric'])
+            existing_route_1
+        ]
+        sysinv_client.delete_route(
+            fake_route["uuid"],
+            fake_route["network"],
+            fake_route["prefix"],
+            fake_route["gateway"],
+            fake_route["metric"],
+        )
         sysinv_client.sysinv_client.route.delete.assert_not_called()

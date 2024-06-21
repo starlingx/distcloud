@@ -24,7 +24,7 @@ from dccommon import exceptions
 
 
 LOG = log.getLogger(__name__)
-API_VERSION = 'v1'
+API_VERSION = "v1"
 
 
 class BarbicanClient(base.DriverBase):
@@ -35,14 +35,15 @@ class BarbicanClient(base.DriverBase):
     """
 
     def __init__(
-            self, region, session,
-            endpoint_type=dccommon_consts.KS_ENDPOINT_DEFAULT):
+        self, region, session, endpoint_type=dccommon_consts.KS_ENDPOINT_DEFAULT
+    ):
         try:
             self.barbican_client = client.Client(
                 API_VERSION,
                 session=session,
                 region_name=region,
-                interface=endpoint_type)
+                interface=endpoint_type,
+            )
 
             self.region_name = region
         except exceptions.ServiceUnavailable:

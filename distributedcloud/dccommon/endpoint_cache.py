@@ -82,26 +82,31 @@ class EndpointCache(object):
             CONF.endpoint_cache.user_domain_name,
             CONF.endpoint_cache.password,
             CONF.endpoint_cache.project_name,
-            CONF.endpoint_cache.project_domain_name)
+            CONF.endpoint_cache.project_domain_name,
+        )
 
-        self.keystone_client, self.service_endpoint_map = \
-            self.get_cached_master_keystone_client_and_region_endpoint_map(
-                region_name)
+        self.keystone_client, self.service_endpoint_map = (
+            self.get_cached_master_keystone_client_and_region_endpoint_map(region_name)
+        )
 
         # if Endpoint cache is intended for a subcloud then
         # we need to retrieve the subcloud token and session.
         # Skip this if auth_url was provided as its assumed that the
         # auth_url would correspond to a subcloud so session was
         # set up above
-        if (not auth_url and region_name and
-                region_name not in
-                [consts.CLOUD_0, consts.VIRTUAL_MASTER_CLOUD]):
+        if (
+            not auth_url
+            and region_name
+            and region_name not in [consts.CLOUD_0, consts.VIRTUAL_MASTER_CLOUD]
+        ):
             try:
-                sc_auth_url = self.service_endpoint_map['keystone']
+                sc_auth_url = self.service_endpoint_map["keystone"]
             except KeyError:
                 # Should not be here...
-                LOG.exception("Endpoint not found for region_name = %s. "
-                              "Refreshing cached data..." % region_name)
+                LOG.exception(
+                    "Endpoint not found for region_name=%s. Refreshing cached data..."
+                    % region_name
+                )
                 self.re_initialize_master_keystone_client()
                 raise
 
@@ -113,23 +118,31 @@ class EndpointCache(object):
                 CONF.endpoint_cache.user_domain_name,
                 CONF.endpoint_cache.password,
                 CONF.endpoint_cache.project_name,
-                CONF.endpoint_cache.project_domain_name)
+                CONF.endpoint_cache.project_domain_name,
+            )
 
             try:
                 self.keystone_client = ks_client.Client(
-                    session=self.admin_session,
-                    region_name=region_name)
+                    session=self.admin_session, region_name=region_name
+                )
             except Exception:
                 LOG.error("Retrying keystone client creation for %s" % region_name)
                 self.keystone_client = ks_client.Client(
-                    session=self.admin_session,
-                    region_name=region_name)
+                    session=self.admin_session, region_name=region_name
+                )
             self.external_auth_url = sc_auth_url
 
     @classmethod
-    def get_admin_session(cls, auth_url, user_name, user_domain_name,
-                          user_password, user_project, user_project_domain,
-                          timeout=None):
+    def get_admin_session(
+        cls,
+        auth_url,
+        user_name,
+        user_domain_name,
+        user_password,
+        user_project,
+        user_project_domain,
+        timeout=None,
+    ):
 
         user_auth = v3.Password(
             auth_url=auth_url,
@@ -140,11 +153,12 @@ class EndpointCache(object):
             project_domain_name=user_project_domain,
             include_catalog=True,
         )
-        timeout = (CONF.endpoint_cache.http_connect_timeout if timeout is None
-                   else timeout)
+        timeout = (
+            CONF.endpoint_cache.http_connect_timeout if timeout is None else timeout
+        )
         return session.Session(
-            auth=user_auth, additional_headers=consts.USER_HEADER,
-            timeout=timeout)
+            auth=user_auth, additional_headers=consts.USER_HEADER, timeout=timeout
+        )
 
     @classmethod
     def get_master_services_list(cls):
@@ -163,22 +177,22 @@ class EndpointCache(object):
         # pylint: disable-next=not-an-iterable
         for service in EndpointCache.master_services_list:
             service_dict = service.to_dict()
-            service_id_name_map[service_dict['id']] = service_dict['name']
+            service_id_name_map[service_dict["id"]] = service_dict["name"]
 
         service_endpoint_map = {}
         for endpoint in master_endpoints_list:
             endpoint_dict = endpoint.to_dict()
-            region_id = endpoint_dict['region']
+            region_id = endpoint_dict["region"]
             # within central cloud, use internal endpoints
             if EndpointCache._is_central_cloud(region_id):
-                if endpoint_dict['interface'] != consts.KS_ENDPOINT_INTERNAL:
+                if endpoint_dict["interface"] != consts.KS_ENDPOINT_INTERNAL:
                     continue
             # Otherwise should always use admin endpoints
-            elif endpoint_dict['interface'] != consts.KS_ENDPOINT_ADMIN:
+            elif endpoint_dict["interface"] != consts.KS_ENDPOINT_ADMIN:
                 continue
 
-            service_id = endpoint_dict['service_id']
-            url = endpoint_dict['url']
+            service_id = endpoint_dict["service_id"]
+            url = endpoint_dict["url"]
             service_name = service_id_name_map[service_id]
             if region_id not in service_endpoint_map:
                 service_endpoint_map[region_id] = {}
@@ -215,9 +229,10 @@ class EndpointCache(object):
 
         :return: session object.
         """
-        loader = loading.get_plugin_loader('token')
-        auth = loader.load_from_options(auth_url=self.external_auth_url,
-                                        token=token, project_id=project_id)
+        loader = loading.get_plugin_loader("token")
+        auth = loader.load_from_options(
+            auth_url=self.external_auth_url, token=token, project_id=project_id
+        )
         sess = session.Session(auth=auth)
         return sess
 
@@ -229,39 +244,46 @@ class EndpointCache(object):
     def get_cached_master_keystone_client_and_region_endpoint_map(self, region_name):
         if EndpointCache.master_keystone_client is None:
             self._create_master_cached_data()
-            LOG.info("Generated Master keystone client and master token the "
-                     "very first time")
+            LOG.info(
+                "Generated Master keystone client and master token the very first time"
+            )
         else:
             token_expiring_soon = is_token_expiring_soon(
-                token=EndpointCache.master_token)
+                token=EndpointCache.master_token
+            )
 
             # If token is expiring soon, initialize a new master keystone
             # client
             if token_expiring_soon:
-                LOG.info("The cached keystone token for %s "
-                         "will expire soon %s" %
-                         (consts.CLOUD_0, EndpointCache.master_token['expires_at']))
+                LOG.info(
+                    "The cached keystone token for %s will expire soon %s"
+                    % (consts.CLOUD_0, EndpointCache.master_token["expires_at"])
+                )
                 self._create_master_cached_data()
-                LOG.info("Generated Master keystone client and master token as they "
-                         "are expiring soon")
+                LOG.info(
+                    "Generated Master keystone client and master token as they "
+                    "are expiring soon"
+                )
             else:
                 # Check if the cached master service endpoint map needs to be
                 # refreshed
                 if region_name not in self.master_service_endpoint_map:
                     previous_size = len(EndpointCache.master_service_endpoint_map)
                     EndpointCache.master_service_endpoint_map = (
-                        self._generate_master_service_endpoint_map(self))
+                        self._generate_master_service_endpoint_map(self)
+                    )
                     current_size = len(EndpointCache.master_service_endpoint_map)
                     LOG.info(
                         "Master endpoints list refreshed to include region %s: "
-                        "prev_size=%d, current_size=%d" % (
-                            region_name, previous_size, current_size)
+                        "prev_size=%d, current_size=%d"
+                        % (region_name, previous_size, current_size)
                     )
 
         # TODO(clientsession)
         if region_name is not None:
             region_service_endpoint_map = EndpointCache.master_service_endpoint_map[
-                region_name]
+                region_name
+            ]
         else:
             region_service_endpoint_map = collections.defaultdict(dict)
 
@@ -274,19 +296,21 @@ class EndpointCache(object):
 
     def _create_master_cached_data(self):
         EndpointCache.master_keystone_client = ks_client.Client(
-            session=self.admin_session,
-            region_name=consts.CLOUD_0)
+            session=self.admin_session, region_name=consts.CLOUD_0
+        )
         EndpointCache.master_token = (
             EndpointCache.master_keystone_client.tokens.validate(
                 EndpointCache.master_keystone_client.session.get_token(),
-                include_catalog=False
+                include_catalog=False,
             )
         )
         if EndpointCache.master_services_list is None:
             EndpointCache.master_services_list = (
-                EndpointCache.master_keystone_client.services.list())
+                EndpointCache.master_keystone_client.services.list()
+            )
         EndpointCache.master_service_endpoint_map = (
-            self._generate_master_service_endpoint_map(self))
+            self._generate_master_service_endpoint_map(self)
+        )
 
 
 def build_subcloud_endpoint_map(ip: str) -> dict:
@@ -421,9 +445,7 @@ class OptimizedEndpointCache(object):
         )
 
         self.keystone_client, self.service_endpoint_map = (
-            self.get_cached_master_keystone_client_and_region_endpoint_map(
-                region_name
-            )
+            self.get_cached_master_keystone_client_and_region_endpoint_map(region_name)
         )
 
         # If endpoint cache is intended for a subcloud then we need to
@@ -536,9 +558,7 @@ class OptimizedEndpointCache(object):
             service_id_name_map[service.id] = service.name
 
         service_endpoint_map = collections.defaultdict(dict)
-        for (
-            endpoint
-        ) in OptimizedEndpointCache.master_keystone_client.endpoints.list():
+        for endpoint in OptimizedEndpointCache.master_keystone_client.endpoints.list():
             # Within central cloud, use only internal endpoints
             if OptimizedEndpointCache._is_central_cloud(endpoint.region):
                 if endpoint.interface != consts.KS_ENDPOINT_INTERNAL:
@@ -702,8 +722,7 @@ class OptimizedEndpointCache(object):
             )
             current_size = len(OptimizedEndpointCache.master_service_endpoint_map)
             LOG.info(
-                "Master endpoints list refreshed to include "
-                f"region {region_name}: "
+                f"Master endpoints list refreshed to include region {region_name}: "
                 f"prev_size={previous_size}, current_size={current_size}"
             )
 

@@ -29,16 +29,16 @@ from dccommon import utils
 
 
 LOG = log.getLogger(__name__)
-API_VERSION = '1'
+API_VERSION = "1"
 
-CERT_MODE_DOCKER_REGISTRY = 'docker_registry'
-CERT_MODE_SSL = 'ssl'
-CERT_MODE_SSL_CA = 'ssl_ca'
+CERT_MODE_DOCKER_REGISTRY = "docker_registry"
+CERT_MODE_SSL = "ssl"
+CERT_MODE_SSL_CA = "ssl_ca"
 
-CONTROLLER = 'controller'
+CONTROLLER = "controller"
 
-NETWORK_TYPE_MGMT = 'mgmt'
-NETWORK_TYPE_ADMIN = 'admin'
+NETWORK_TYPE_MGMT = "mgmt"
+NETWORK_TYPE_ADMIN = "admin"
 
 SSL_CERT_DIR = "/etc/ssl/private/"
 SSL_CERT_FILE = "server-cert.pem"
@@ -49,66 +49,66 @@ DOCKER_REGISTRY_KEY_FILE = os.path.join(SSL_CERT_DIR, "registry-cert.key")
 
 # The following constants are declared in sysinv/common/kubernetes.py
 # Kubernetes upgrade states
-KUBE_UPGRADE_STARTED = 'upgrade-started'
-KUBE_UPGRADE_DOWNLOADING_IMAGES = 'downloading-images'
-KUBE_UPGRADE_DOWNLOADING_IMAGES_FAILED = 'downloading-images-failed'
-KUBE_UPGRADE_DOWNLOADED_IMAGES = 'downloaded-images'
-KUBE_UPGRADING_FIRST_MASTER = 'upgrading-first-master'
-KUBE_UPGRADING_FIRST_MASTER_FAILED = 'upgrading-first-master-failed'
-KUBE_UPGRADED_FIRST_MASTER = 'upgraded-first-master'
-KUBE_UPGRADING_NETWORKING = 'upgrading-networking'
-KUBE_UPGRADING_NETWORKING_FAILED = 'upgrading-networking-failed'
-KUBE_UPGRADED_NETWORKING = 'upgraded-networking'
-KUBE_UPGRADING_SECOND_MASTER = 'upgrading-second-master'
-KUBE_UPGRADING_SECOND_MASTER_FAILED = 'upgrading-second-master-failed'
-KUBE_UPGRADED_SECOND_MASTER = 'upgraded-second-master'
-KUBE_UPGRADING_KUBELETS = 'upgrading-kubelets'
-KUBE_UPGRADE_COMPLETE = 'upgrade-complete'
+KUBE_UPGRADE_STARTED = "upgrade-started"
+KUBE_UPGRADE_DOWNLOADING_IMAGES = "downloading-images"
+KUBE_UPGRADE_DOWNLOADING_IMAGES_FAILED = "downloading-images-failed"
+KUBE_UPGRADE_DOWNLOADED_IMAGES = "downloaded-images"
+KUBE_UPGRADING_FIRST_MASTER = "upgrading-first-master"
+KUBE_UPGRADING_FIRST_MASTER_FAILED = "upgrading-first-master-failed"
+KUBE_UPGRADED_FIRST_MASTER = "upgraded-first-master"
+KUBE_UPGRADING_NETWORKING = "upgrading-networking"
+KUBE_UPGRADING_NETWORKING_FAILED = "upgrading-networking-failed"
+KUBE_UPGRADED_NETWORKING = "upgraded-networking"
+KUBE_UPGRADING_SECOND_MASTER = "upgrading-second-master"
+KUBE_UPGRADING_SECOND_MASTER_FAILED = "upgrading-second-master-failed"
+KUBE_UPGRADED_SECOND_MASTER = "upgraded-second-master"
+KUBE_UPGRADING_KUBELETS = "upgrading-kubelets"
+KUBE_UPGRADE_COMPLETE = "upgrade-complete"
 
 # Kubernetes host upgrade statuses
-KUBE_HOST_UPGRADING_CONTROL_PLANE = 'upgrading-control-plane'
-KUBE_HOST_UPGRADING_CONTROL_PLANE_FAILED = 'upgrading-control-plane-failed'
-KUBE_HOST_UPGRADING_KUBELET = 'upgrading-kubelet'
-KUBE_HOST_UPGRADING_KUBELET_FAILED = 'upgrading-kubelet-failed'
+KUBE_HOST_UPGRADING_CONTROL_PLANE = "upgrading-control-plane"
+KUBE_HOST_UPGRADING_CONTROL_PLANE_FAILED = "upgrading-control-plane-failed"
+KUBE_HOST_UPGRADING_KUBELET = "upgrading-kubelet"
+KUBE_HOST_UPGRADING_KUBELET_FAILED = "upgrading-kubelet-failed"
 
 # Kubernetes rootca update states
 
-KUBE_ROOTCA_UPDATE_STARTED = 'update-started'
-KUBE_ROOTCA_UPDATE_CERT_UPLOADED = 'update-new-rootca-cert-uploaded'
-KUBE_ROOTCA_UPDATE_CERT_GENERATED = 'update-new-rootca-cert-generated'
-KUBE_ROOTCA_UPDATING_PODS_TRUSTBOTHCAS = 'updating-pods-trust-both-cas'
-KUBE_ROOTCA_UPDATED_PODS_TRUSTBOTHCAS = 'updated-pods-trust-both-cas'
-KUBE_ROOTCA_UPDATING_PODS_TRUSTBOTHCAS_FAILED = 'updating-pods-trust-both-cas-failed'
-KUBE_ROOTCA_UPDATING_PODS_TRUSTNEWCA = 'updating-pods-trust-new-ca'
-KUBE_ROOTCA_UPDATED_PODS_TRUSTNEWCA = 'updated-pods-trust-new-ca'
-KUBE_ROOTCA_UPDATING_PODS_TRUSTNEWCA_FAILED = 'updating-pods-trust-new-ca-failed'
-KUBE_ROOTCA_UPDATE_COMPLETED = 'update-completed'
-KUBE_ROOTCA_UPDATE_ABORTED = 'update-aborted'
+KUBE_ROOTCA_UPDATE_STARTED = "update-started"
+KUBE_ROOTCA_UPDATE_CERT_UPLOADED = "update-new-rootca-cert-uploaded"
+KUBE_ROOTCA_UPDATE_CERT_GENERATED = "update-new-rootca-cert-generated"
+KUBE_ROOTCA_UPDATING_PODS_TRUSTBOTHCAS = "updating-pods-trust-both-cas"
+KUBE_ROOTCA_UPDATED_PODS_TRUSTBOTHCAS = "updated-pods-trust-both-cas"
+KUBE_ROOTCA_UPDATING_PODS_TRUSTBOTHCAS_FAILED = "updating-pods-trust-both-cas-failed"
+KUBE_ROOTCA_UPDATING_PODS_TRUSTNEWCA = "updating-pods-trust-new-ca"
+KUBE_ROOTCA_UPDATED_PODS_TRUSTNEWCA = "updated-pods-trust-new-ca"
+KUBE_ROOTCA_UPDATING_PODS_TRUSTNEWCA_FAILED = "updating-pods-trust-new-ca-failed"
+KUBE_ROOTCA_UPDATE_COMPLETED = "update-completed"
+KUBE_ROOTCA_UPDATE_ABORTED = "update-aborted"
 
 # Kubernetes rootca host update states
-KUBE_ROOTCA_UPDATING_HOST_TRUSTBOTHCAS = 'updating-host-trust-both-cas'
-KUBE_ROOTCA_UPDATED_HOST_TRUSTBOTHCAS = 'updated-host-trust-both-cas'
-KUBE_ROOTCA_UPDATING_HOST_TRUSTBOTHCAS_FAILED = 'updating-host-trust-both-cas-failed'
-KUBE_ROOTCA_UPDATING_HOST_UPDATECERTS = 'updating-host-update-certs'
-KUBE_ROOTCA_UPDATED_HOST_UPDATECERTS = 'updated-host-update-certs'
-KUBE_ROOTCA_UPDATING_HOST_UPDATECERTS_FAILED = 'updating-host-update-certs-failed'
-KUBE_ROOTCA_UPDATING_HOST_TRUSTNEWCA = 'updating-host-trust-new-ca'
-KUBE_ROOTCA_UPDATED_HOST_TRUSTNEWCA = 'updated-host-trust-new-ca'
-KUBE_ROOTCA_UPDATING_HOST_TRUSTNEWCA_FAILED = 'updating-host-trust-new-ca-failed'
+KUBE_ROOTCA_UPDATING_HOST_TRUSTBOTHCAS = "updating-host-trust-both-cas"
+KUBE_ROOTCA_UPDATED_HOST_TRUSTBOTHCAS = "updated-host-trust-both-cas"
+KUBE_ROOTCA_UPDATING_HOST_TRUSTBOTHCAS_FAILED = "updating-host-trust-both-cas-failed"
+KUBE_ROOTCA_UPDATING_HOST_UPDATECERTS = "updating-host-update-certs"
+KUBE_ROOTCA_UPDATED_HOST_UPDATECERTS = "updated-host-update-certs"
+KUBE_ROOTCA_UPDATING_HOST_UPDATECERTS_FAILED = "updating-host-update-certs-failed"
+KUBE_ROOTCA_UPDATING_HOST_TRUSTNEWCA = "updating-host-trust-new-ca"
+KUBE_ROOTCA_UPDATED_HOST_TRUSTNEWCA = "updated-host-trust-new-ca"
+KUBE_ROOTCA_UPDATING_HOST_TRUSTNEWCA_FAILED = "updating-host-trust-new-ca-failed"
 
 # The following is the name of the host filesystem 'scratch' which is used
 # by dcmanager upgrade orchestration for the load import operations.
-HOST_FS_NAME_SCRATCH = 'scratch'
+HOST_FS_NAME_SCRATCH = "scratch"
 
 
 def make_sysinv_patch(update_dict):
     patch = []
     for k, v in update_dict.items():
         key = k
-        if not k.startswith('/'):
-            key = '/' + key
+        if not k.startswith("/"):
+            key = "/" + key
 
-        p = {'path': key, 'value': v, 'op': 'replace'}
+        p = {"path": key, "value": v, "op": "replace"}
         patch.append(dict(p))
 
     LOG.debug("make_sysinv_patch patch={}".format(patch))
@@ -119,10 +119,14 @@ def make_sysinv_patch(update_dict):
 class SysinvClient(base.DriverBase):
     """Sysinv V1 driver."""
 
-    def __init__(self, region, session,
-                 timeout=consts.SYSINV_CLIENT_REST_DEFAULT_TIMEOUT,
-                 endpoint_type=consts.KS_ENDPOINT_ADMIN,
-                 endpoint=None):
+    def __init__(
+        self,
+        region,
+        session,
+        timeout=consts.SYSINV_CLIENT_REST_DEFAULT_TIMEOUT,
+        endpoint_type=consts.KS_ENDPOINT_ADMIN,
+        endpoint=None,
+    ):
         try:
             # TOX cannot import cgts_client and all the dependencies therefore
             # the client is being lazy loaded since TOX doesn't actually
@@ -133,15 +137,13 @@ class SysinvClient(base.DriverBase):
             # get an endpoint and token.
             if endpoint is None:
                 endpoint = session.get_endpoint(
-                    service_type='platform',
-                    region_name=region,
-                    interface=endpoint_type)
+                    service_type="platform", region_name=region, interface=endpoint_type
+                )
 
             token = session.get_token()
-            self.sysinv_client = client.Client(API_VERSION,
-                                               endpoint=endpoint,
-                                               token=token,
-                                               timeout=timeout)
+            self.sysinv_client = client.Client(
+                API_VERSION, endpoint=endpoint, token=token, timeout=timeout
+            )
             self.region_name = region
         except exceptions.ServiceUnavailable:
             raise
@@ -152,60 +154,48 @@ class SysinvClient(base.DriverBase):
 
     def get_controller_hosts(self):
         """Get a list of controller hosts."""
-        return self.sysinv_client.ihost.list_personality(
-            CONTROLLER)
+        return self.sysinv_client.ihost.list_personality(CONTROLLER)
 
     def _do_host_action(self, host_id, action_value):
         """Protected method to invoke an action on a host."""
-        patch = [{'op': 'replace',
-                  'path': '/action',
-                  'value': action_value}, ]
+        patch = [
+            {"op": "replace", "path": "/action", "value": action_value},
+        ]
         return self.sysinv_client.ihost.update(host_id, patch)
 
     def lock_host(self, host_id, force=False):
         """Lock a host"""
         if force:
-            action_value = 'force-lock'
+            action_value = "force-lock"
         else:
-            action_value = 'lock'
+            action_value = "lock"
         return self._do_host_action(host_id, action_value)
 
     def unlock_host(self, host_id, force=False):
         """Unlock a host"""
         if force:
-            action_value = 'force-unlock'
+            action_value = "force-unlock"
         else:
-            action_value = 'unlock'
+            action_value = "unlock"
         return self._do_host_action(host_id, action_value)
 
     def swact_host(self, host_id, force=False):
         """Perform host swact"""
         if force:
-            action_value = 'force-swact'
+            action_value = "force-swact"
         else:
-            action_value = 'swact'
+            action_value = "swact"
         return self._do_host_action(host_id, action_value)
 
-    def configure_bmc_host(self,
-                           host_id,
-                           bm_username,
-                           bm_ip,
-                           bm_password,
-                           bm_type='ipmi'):
+    def configure_bmc_host(
+        self, host_id, bm_username, bm_ip, bm_password, bm_type="ipmi"
+    ):
         """Configure bmc of a host"""
         patch = [
-            {'op': 'replace',
-             'path': '/bm_username',
-             'value': bm_username},
-            {'op': 'replace',
-             'path': '/bm_ip',
-             'value': bm_ip},
-            {'op': 'replace',
-             'path': '/bm_password',
-             'value': bm_password},
-            {'op': 'replace',
-             'path': '/bm_type',
-             'value': bm_type},
+            {"op": "replace", "path": "/bm_username", "value": bm_username},
+            {"op": "replace", "path": "/bm_ip", "value": bm_ip},
+            {"op": "replace", "path": "/bm_password", "value": bm_password},
+            {"op": "replace", "path": "/bm_type", "value": bm_type},
         ]
         return self.sysinv_client.ihost.update(host_id, patch)
 
@@ -215,20 +205,21 @@ class SysinvClient(base.DriverBase):
 
     def power_on_host(self, host_id):
         """Power on a host"""
-        action_value = 'power-on'
+        action_value = "power-on"
         return self._do_host_action(host_id, action_value)
 
     def power_off_host(self, host_id):
         """Power off a host"""
-        action_value = 'power-off'
+        action_value = "power-off"
         return self._do_host_action(host_id, action_value)
 
     def get_management_interface(self, hostname):
         """Get the management interface for a host."""
         interfaces = self.sysinv_client.iinterface.list(hostname)
         for interface in interfaces:
-            interface_networks = self.sysinv_client.interface_network.\
-                list_by_interface(interface.uuid)
+            interface_networks = self.sysinv_client.interface_network.list_by_interface(
+                interface.uuid
+            )
             for if_net in interface_networks:
                 if if_net.network_type == NETWORK_TYPE_MGMT:
                     return interface
@@ -255,8 +246,9 @@ class SysinvClient(base.DriverBase):
         """Get the admin interface for a host."""
         interfaces = self.sysinv_client.iinterface.list(hostname)
         for interface in interfaces:
-            interface_networks = self.sysinv_client.interface_network.\
-                list_by_interface(interface.uuid)
+            interface_networks = self.sysinv_client.interface_network.list_by_interface(
+                interface.uuid
+            )
             for if_net in interface_networks:
                 if if_net.network_type == NETWORK_TYPE_ADMIN:
                     return interface
@@ -291,25 +283,31 @@ class SysinvClient(base.DriverBase):
     def create_route(self, interface_uuid, network, prefix, gateway, metric):
         """Create a static route on an interface."""
 
-        LOG.info("Creating route: interface: %s dest: %s/%s "
-                 "gateway: %s metric: %s" % (interface_uuid, network,
-                                             prefix, gateway, metric))
+        LOG.info(
+            "Creating route: interface: %s dest: %s/%s gateway: %s metric: %s"
+            % (interface_uuid, network, prefix, gateway, metric)
+        )
         try:
-            self.sysinv_client.route.create(interface_uuid=interface_uuid,
-                                            network=network,
-                                            prefix=prefix,
-                                            gateway=gateway,
-                                            metric=metric)
+            self.sysinv_client.route.create(
+                interface_uuid=interface_uuid,
+                network=network,
+                prefix=prefix,
+                gateway=gateway,
+                metric=metric,
+            )
         except HTTPConflict:
             # The route already exists
-            LOG.warning("Failed to create route, route: interface: %s dest: "
-                        "%s/%s gateway: %s metric: %s already exists" %
-                        (interface_uuid, network, prefix, gateway, metric))
+            LOG.warning(
+                "Failed to create route, route: interface: %s dest: %s/%s "
+                "gateway: %s metric: %s already exists"
+                % (interface_uuid, network, prefix, gateway, metric)
+            )
         except Exception as e:
-            LOG.error("Failed to create route: route: interface: %s dest: "
-                      "%s/%s gateway: %s metric: %s" % (interface_uuid,
-                                                        network, prefix,
-                                                        gateway, metric))
+            LOG.error(
+                "Failed to create route: route: interface: %s dest: %s/%s "
+                "gateway: %s metric: %s"
+                % (interface_uuid, network, prefix, gateway, metric)
+            )
             raise e
 
     def delete_route(self, interface_uuid, network, prefix, gateway, metric):
@@ -318,17 +316,23 @@ class SysinvClient(base.DriverBase):
         # Get the routes for this interface
         routes = self.sysinv_client.route.list_by_interface(interface_uuid)
         for route in routes:
-            if (route.network == network and route.prefix == prefix and
-                    route.gateway == gateway and route.metric == metric):
-                LOG.info("Deleting route: interface: %s dest: %s/%s "
-                         "gateway: %s metric: %s" % (interface_uuid, network,
-                                                     prefix, gateway, metric))
+            if (
+                route.network == network
+                and route.prefix == prefix
+                and route.gateway == gateway
+                and route.metric == metric
+            ):
+                LOG.info(
+                    "Deleting route: interface: %s dest: %s/%s gateway: %s metric: %s"
+                    % (interface_uuid, network, prefix, gateway, metric)
+                )
                 self.sysinv_client.route.delete(route.uuid)
                 return
 
-        LOG.warning("Route not found: interface: %s dest: %s/%s gateway: %s "
-                    "metric %s" % (interface_uuid, network, prefix, gateway,
-                                   metric))
+        LOG.warning(
+            "Route not found: interface: %s dest: %s/%s gateway: %s "
+            "metric %s" % (interface_uuid, network, prefix, gateway, metric)
+        )
 
     def get_service_groups(self):
         """Get a list of service groups."""
@@ -353,17 +357,20 @@ class SysinvClient(base.DriverBase):
     def delete_load(self, load_id):
         """Delete a load with the given id
 
-           :param: load id
+        :param: load id
         """
         try:
-            LOG.info("delete_load region {} load_id: {}".format(
-                     self.region_name, load_id))
+            LOG.info(
+                "delete_load region {} load_id: {}".format(self.region_name, load_id)
+            )
             self.sysinv_client.load.delete(load_id)
         except HTTPNotFound:
-            LOG.info("delete_load NotFound {} for region: {}".format(
-                     load_id, self.region_name))
-            raise exceptions.LoadNotFound(region_name=self.region_name,
-                                          load_id=load_id)
+            LOG.info(
+                "delete_load NotFound {} for region: {}".format(
+                    load_id, self.region_name
+                )
+            )
+            raise exceptions.LoadNotFound(region_name=self.region_name, load_id=load_id)
         except Exception as e:
             LOG.error("delete_load exception={}".format(e))
             raise e
@@ -371,8 +378,9 @@ class SysinvClient(base.DriverBase):
     def import_load(self, path_to_iso, path_to_sig):
         """Import the particular software load."""
         try:
-            return self.sysinv_client.load.import_load(path_to_iso=path_to_iso,
-                                                       path_to_sig=path_to_sig)
+            return self.sysinv_client.load.import_load(
+                path_to_iso=path_to_iso, path_to_sig=path_to_sig
+            )
         except HTTPBadRequest as e:
             if "Max number of loads" in str(e):
                 raise exceptions.LoadMaxReached(region_name=self.region_name)
@@ -407,10 +415,10 @@ class SysinvClient(base.DriverBase):
         return self.sysinv_client.upgrade.get_upgrade_msg()
 
     def upgrade_activate(self):
-        """Invoke the API for 'system upgrade-activate', which is an update """
-        patch = [{'op': 'replace',
-                  'path': '/state',
-                  'value': 'activation-requested'}, ]
+        """Invoke the API for 'system upgrade-activate', which is an update"""
+        patch = [
+            {"op": "replace", "path": "/state", "value": "activation-requested"},
+        ]
         return self.sysinv_client.upgrade.update(patch)
 
     def upgrade_complete(self):
@@ -436,10 +444,10 @@ class SysinvClient(base.DriverBase):
         """Get service parameters for a given name."""
         opts = []
         opt = dict()
-        opt['field'] = name
-        opt['value'] = value
-        opt['op'] = 'eq'
-        opt['type'] = ''
+        opt["field"] = name
+        opt["value"] = value
+        opt["op"] = "eq"
+        opt["type"] = ""
         opts.append(opt)
         parameters = self.sysinv_client.service_parameter.list(q=opts)
         return parameters
@@ -452,110 +460,121 @@ class SysinvClient(base.DriverBase):
     def get_certificates(self):
         """Get the certificates for this region
 
-           :return: certificates
+        :return: certificates
         """
 
         try:
             certificates = self.sysinv_client.certificate.list()
         except Exception as e:
-            LOG.error("get_certificates region={} "
-                      "exception={}".format(self.region_name, e))
+            LOG.error(
+                "get_certificates region={} exception={}".format(self.region_name, e)
+            )
             raise e
 
         if not certificates:
-            LOG.info("No certificates in region: {}".format(
-                self.region_name))
+            LOG.info("No certificates in region: {}".format(self.region_name))
 
         return certificates
 
     def _validate_certificate(self, signature, certificate):
         # JKUNG need to look at the crypto public serial id
         certificate_sig = hashlib.md5(
-            encodeutils.safe_encode(certificate), usedforsecurity=False).hexdigest()
+            encodeutils.safe_encode(certificate), usedforsecurity=False
+        ).hexdigest()
 
         if certificate_sig == signature:
             return True
 
-        LOG.info("_validate_certificate region={} sig={} mismatch "
-                 "reference signature={}".format(
-                     self.region_name, certificate_sig, signature))
+        LOG.info(
+            "_validate_certificate region={} sig={} mismatch reference "
+            "signature={}".format(self.region_name, certificate_sig, signature)
+        )
         return False
 
-    def update_certificate(self,
-                           signature,
-                           certificate=None,
-                           data=None):
+    def update_certificate(self, signature, certificate=None, data=None):
         """Update the certificate for this region
 
-           :param: signature of the public certificate
-           :param: certificate
-           :param: data
-           :return: icertificate
+        :param: signature of the public certificate
+        :param: certificate
+        :param: data
+        :return: icertificate
         """
 
-        LOG.info("update_certificate signature {} data {}".format(
-            signature, data))
+        LOG.info("update_certificate signature {} data {}".format(signature, data))
         if not certificate:
             ssl_cert_ca_file = utils.get_ssl_cert_ca_file()
             if data:
-                data['passphrase'] = None
-                mode = data.get('mode', CERT_MODE_SSL)
+                data["passphrase"] = None
+                mode = data.get("mode", CERT_MODE_SSL)
                 if mode == CERT_MODE_SSL_CA:
                     certificate_files = [ssl_cert_ca_file]
                 elif mode == CERT_MODE_SSL:
                     certificate_files = [SSL_PEM_FILE]
                 elif mode == CERT_MODE_DOCKER_REGISTRY:
-                    certificate_files = \
-                        [DOCKER_REGISTRY_KEY_FILE,
-                         DOCKER_REGISTRY_CERT_FILE]
+                    certificate_files = [
+                        DOCKER_REGISTRY_KEY_FILE,
+                        DOCKER_REGISTRY_CERT_FILE,
+                    ]
                 else:
-                    LOG.warn("update_certificate mode {} not supported".format(
-                        mode))
+                    LOG.warn("update_certificate mode {} not supported".format(mode))
                     return
             elif signature and signature.startswith(CERT_MODE_SSL_CA):
-                data['mode'] = CERT_MODE_SSL_CA
+                data["mode"] = CERT_MODE_SSL_CA
                 certificate_files = [ssl_cert_ca_file]
             elif signature and signature.startswith(CERT_MODE_SSL):
-                data['mode'] = CERT_MODE_SSL
+                data["mode"] = CERT_MODE_SSL
                 certificate_files = [SSL_PEM_FILE]
             elif signature and signature.startswith(CERT_MODE_DOCKER_REGISTRY):
-                data['mode'] = CERT_MODE_DOCKER_REGISTRY
-                certificate_files = \
-                    [DOCKER_REGISTRY_KEY_FILE,
-                     DOCKER_REGISTRY_CERT_FILE]
+                data["mode"] = CERT_MODE_DOCKER_REGISTRY
+                certificate_files = [
+                    DOCKER_REGISTRY_KEY_FILE,
+                    DOCKER_REGISTRY_CERT_FILE,
+                ]
             else:
-                LOG.warn("update_certificate signature {} "
-                         "not supported".format(signature))
+                LOG.warn(
+                    "update_certificate signature {} not supported".format(signature)
+                )
                 return
 
             certificate = ""
             for certificate_file in certificate_files:
-                with open(certificate_file, 'r') as content_file:
+                with open(certificate_file, "r") as content_file:
                     certificate += content_file.read()
 
-            LOG.info("update_certificate from shared file {} {}".format(
-                signature, certificate_files))
+            LOG.info(
+                "update_certificate from shared file {} {}".format(
+                    signature, certificate_files
+                )
+            )
 
-        if (signature and signature.startswith(CERT_MODE_SSL) and
-                not signature.startswith(CERT_MODE_SSL_CA)):
+        if (
+            signature
+            and signature.startswith(CERT_MODE_SSL)
+            and not signature.startswith(CERT_MODE_SSL_CA)
+        ):
             # ensure https is enabled
             isystem = self.sysinv_client.isystem.list()[0]
-            https_enabled = isystem.capabilities.get('https_enabled', False)
+            https_enabled = isystem.capabilities.get("https_enabled", False)
             if not https_enabled:
                 isystem = self.sysinv_client.isystem.update(
                     isystem.uuid,
-                    [{"path": "/https_enabled",
-                      "value": "true",
-                      "op": "replace"}])
-                LOG.info("region={} enabled https system={}".format(
-                         self.region_name, isystem.uuid))
+                    [{"path": "/https_enabled", "value": "true", "op": "replace"}],
+                )
+                LOG.info(
+                    "region={} enabled https system={}".format(
+                        self.region_name, isystem.uuid
+                    )
+                )
 
         try:
             icertificate = self.sysinv_client.certificate.certificate_install(
-                certificate, data)
-            LOG.info("update_certificate region={} signature={}".format(
-                self.region_name,
-                signature))
+                certificate, data
+            )
+            LOG.info(
+                "update_certificate region={} signature={}".format(
+                    self.region_name, signature
+                )
+            )
         except Exception as e:
             LOG.error("update_certificate exception={}".format(e))
             raise e
@@ -565,23 +584,29 @@ class SysinvClient(base.DriverBase):
     def delete_certificate(self, certificate):
         """Delete the certificate for this region
 
-           :param: a CA certificate to delete
+        :param: a CA certificate to delete
         """
         try:
-            LOG.info(" delete_certificate region {} certificate: {}".format(
-                     self.region_name, certificate.signature))
-            self.sysinv_client.certificate.certificate_uninstall(
-                certificate.uuid)
+            LOG.info(
+                " delete_certificate region {} certificate: {}".format(
+                    self.region_name, certificate.signature
+                )
+            )
+            self.sysinv_client.certificate.certificate_uninstall(certificate.uuid)
         except HTTPNotFound:
-            LOG.info("delete_certificate NotFound {} for region: {}".format(
-                     certificate.signature, self.region_name))
+            LOG.info(
+                "delete_certificate NotFound {} for region: {}".format(
+                    certificate.signature, self.region_name
+                )
+            )
             raise exceptions.CertificateNotFound(
-                region_name=self.region_name, signature=certificate.signature)
+                region_name=self.region_name, signature=certificate.signature
+            )
 
     def get_user(self):
         """Get the user password info for this region
 
-           :return: iuser
+        :return: iuser
         """
         iusers = self.sysinv_client.iuser.list()
         if not iusers:
@@ -589,16 +614,15 @@ class SysinvClient(base.DriverBase):
             return None
         iuser = iusers[0]
 
-        LOG.debug("get_user uuid=%s passwd_hash=%s" %
-                  (iuser.uuid, iuser.passwd_hash))
+        LOG.debug("get_user uuid=%s passwd_hash=%s" % (iuser.uuid, iuser.passwd_hash))
 
         return iuser
 
     def update_user(self, passwd_hash, root_sig, passwd_expiry_days):
         """Update the user passwd for this region
 
-           :param: passwd_hash
-           :return: iuser
+        :param: passwd_hash
+        :return: iuser
         """
         try:
             iuser = self.get_user()
@@ -606,21 +630,29 @@ class SysinvClient(base.DriverBase):
                 LOG.warn("iuser not found %s" % self.region_name)
                 return iuser
 
-            if (iuser.passwd_hash != passwd_hash or
-               iuser.passwd_expiry_days != passwd_expiry_days):
+            if (
+                iuser.passwd_hash != passwd_hash
+                or iuser.passwd_expiry_days != passwd_expiry_days
+            ):
                 patch = make_sysinv_patch(
-                    {'passwd_hash': passwd_hash,
-                     'passwd_expiry_days': passwd_expiry_days,
-                     'root_sig': root_sig,
-                     'action': 'apply',
-                     })
-                LOG.info("region={} user update uuid={} patch={}".format(
-                         self.region_name, iuser.uuid, patch))
+                    {
+                        "passwd_hash": passwd_hash,
+                        "passwd_expiry_days": passwd_expiry_days,
+                        "root_sig": root_sig,
+                        "action": "apply",
+                    }
+                )
+                LOG.info(
+                    "region={} user update uuid={} patch={}".format(
+                        self.region_name, iuser.uuid, patch
+                    )
+                )
                 iuser = self.sysinv_client.iuser.update(iuser.uuid, patch)
             else:
-                LOG.info("update_user no changes, skip user region={} "
-                         "update uuid={} passwd_hash={}".format(
-                             self.region_name, iuser.uuid, passwd_hash))
+                LOG.info(
+                    "update_user no changes, skip user region={} update uuid={} "
+                    "passwd_hash={}".format(self.region_name, iuser.uuid, passwd_hash)
+                )
         except Exception as e:
             LOG.error("update_user exception={}".format(e))
             raise e
@@ -630,16 +662,19 @@ class SysinvClient(base.DriverBase):
     def post_fernet_repo(self, key_list=None):
         """Add the fernet keys for this region
 
-           :param: key list payload
-           :return: Nothing
+        :param: key list payload
+        :return: Nothing
         """
 
         # Example key_list:
         # [{"id": 0, "key": "GgDAOfmyr19u0hXdm5r_zMgaMLjglVFpp5qn_N4GBJQ="},
         # {"id": 1, "key": "7WfL_z54p67gWAkOmQhLA9P0ZygsbbJcKgff0uh28O8="},
         # {"id": 2, "key": ""5gsUQeOZ2FzZP58DN32u8pRKRgAludrjmrZFJSOHOw0="}]
-        LOG.info("post_fernet_repo driver region={} "
-                 "fernet_repo_list={}".format(self.region_name, key_list))
+        LOG.info(
+            "post_fernet_repo driver region={} fernet_repo_list={}".format(
+                self.region_name, key_list
+            )
+        )
         try:
             self.sysinv_client.fernet.create(key_list)
         except Exception as e:
@@ -649,11 +684,14 @@ class SysinvClient(base.DriverBase):
     def put_fernet_repo(self, key_list):
         """Update the fernet keys for this region
 
-           :param: key list payload
-           :return: Nothing
+        :param: key list payload
+        :return: Nothing
         """
-        LOG.info("put_fernet_repo driver region={} "
-                 "fernet_repo_list={}".format(self.region_name, key_list))
+        LOG.info(
+            "put_fernet_repo driver region={} fernet_repo_list={}".format(
+                self.region_name, key_list
+            )
+        )
         try:
             self.sysinv_client.fernet.put(key_list)
         except Exception as e:
@@ -663,7 +701,7 @@ class SysinvClient(base.DriverBase):
     def get_fernet_keys(self):
         """Retrieve the fernet keys for this region
 
-           :return: a list of fernet keys
+        :return: a list of fernet keys
         """
 
         try:
@@ -682,7 +720,7 @@ class SysinvClient(base.DriverBase):
     def get_host_filesystem(self, host_uuid, name):
         """Get the named filesystem for a host
 
-           :return: host_fs or None
+        :return: host_fs or None
         """
 
         host_fs = None
@@ -785,28 +823,25 @@ class SysinvClient(base.DriverBase):
     def apply_device_image(self, device_image_id, labels=None):
         """Apply a device image.
 
-           :param: device_image_id the image to apply
-           :param: labels the labels to pass as part of the apply
+        :param: device_image_id the image to apply
+        :param: labels the labels to pass as part of the apply
         """
-        return self.sysinv_client.device_image.apply(device_image_id,
-                                                     labels=labels)
+        return self.sysinv_client.device_image.apply(device_image_id, labels=labels)
 
     def remove_device_image(self, device_image_id, labels=None):
         """Remove a device image.
 
-           :param: device_image_id the image to remove
-           :param: labels the labels to pass as part of the remove
+        :param: device_image_id the image to remove
+        :param: labels the labels to pass as part of the remove
         """
-        return self.sysinv_client.device_image.remove(device_image_id,
-                                                      labels=labels)
+        return self.sysinv_client.device_image.remove(device_image_id, labels=labels)
 
     def upload_device_image(self, device_image_file, fields):
         """Upload a device image.
 
-           :param: device_image_file the file to upload
-           :param: fields can be: 'bitstream_type', 'pci_vendor', 'pci_device',
-           'bitstream_id', 'key_signature', 'revoke_key_id', 'name',
-           'description', 'image_version', 'bmc', 'retimer_included', 'uuid'
+        :param: device_image_file the file to upload
+        :param: fields can be: 'bitstream_type', 'pci_vendor', 'pci_device',
+        'bitstream_id', 'key_signature', 'revoke_key_id', 'name',
+        'description', 'image_version', 'bmc', 'retimer_included', 'uuid'
         """
-        return self.sysinv_client.device_image.upload(device_image_file,
-                                                      **fields)
+        return self.sysinv_client.device_image.upload(device_image_file, **fields)

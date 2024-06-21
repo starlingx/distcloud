@@ -36,14 +36,20 @@ CENTRAL_REGION = "RegionOne"
 SUBCLOUD1_REGION = "subcloud1"
 
 FAKE_MASTER_SERVICE_ENDPOINT_MAP = {
-    CENTRAL_REGION: {"sysinv": FAKE_REGIONONE_SYSINV_ENDPOINT,
-                     "keystone": FAKE_REGIONONE_KEYSTONE_ENDPOINT},
-    SUBCLOUD1_REGION: {"sysinv": FAKE_SUBCLOUD1_SYSINV_ENDPOINT,
-                       "keystone": FAKE_SUBCLOUD1_KEYSTONE_ENDPOINT}
+    CENTRAL_REGION: {
+        "sysinv": FAKE_REGIONONE_SYSINV_ENDPOINT,
+        "keystone": FAKE_REGIONONE_KEYSTONE_ENDPOINT,
+    },
+    SUBCLOUD1_REGION: {
+        "sysinv": FAKE_SUBCLOUD1_SYSINV_ENDPOINT,
+        "keystone": FAKE_SUBCLOUD1_KEYSTONE_ENDPOINT,
+    },
 }
 
-FAKE_SERVICE_ENDPOINT_MAP = {"sysinv": FAKE_REGIONONE_SYSINV_ENDPOINT,
-                             "keystone": FAKE_REGIONONE_KEYSTONE_ENDPOINT}
+FAKE_SERVICE_ENDPOINT_MAP = {
+    "sysinv": FAKE_REGIONONE_SYSINV_ENDPOINT,
+    "keystone": FAKE_REGIONONE_KEYSTONE_ENDPOINT,
+}
 
 
 class FakeKeystoneClient(object):
@@ -60,32 +66,29 @@ class FakeService(object):
         self.enabled = enabled
 
 
-FAKE_SERVICES_LIST = [FakeService(1, "keystone", "identity", True),
-                      FakeService(2, "sysinv", "platform", True),
-                      FakeService(3, "patching", "patching", True),
-                      FakeService(4, "barbican", "key-manager", True),
-                      FakeService(5, "vim", "nfv", True),
-                      FakeService(6, "dcmanager", "dcmanager", True),
-                      FakeService(7, "dcorch", "dcorch", True)]
+FAKE_SERVICES_LIST = [
+    FakeService(1, "keystone", "identity", True),
+    FakeService(2, "sysinv", "platform", True),
+    FakeService(3, "patching", "patching", True),
+    FakeService(4, "barbican", "key-manager", True),
+    FakeService(5, "vim", "nfv", True),
+    FakeService(6, "dcmanager", "dcmanager", True),
+    FakeService(7, "dcorch", "dcorch", True),
+]
 
 
 class EndpointCacheTest(base.DCCommonTestCase):
     def setUp(self):
         super(EndpointCacheTest, self).setUp()
         auth_uri_opts = [
-            cfg.StrOpt('auth_uri',
-                       default="fake_auth_uri"),
-            cfg.StrOpt('username',
-                       default="fake_user"),
-            cfg.StrOpt('password',
-                       default="fake_password"),
-            cfg.StrOpt('project_name',
-                       default="fake_project_name"),
-            cfg.StrOpt('user_domain_name',
-                       default="fake_user_domain_name"),
-            cfg.StrOpt('project_domain_name',
-                       default="fake_project_domain_name")]
-        cfg.CONF.register_opts(auth_uri_opts, 'endpoint_cache')
+            cfg.StrOpt("auth_uri", default="fake_auth_uri"),
+            cfg.StrOpt("username", default="fake_user"),
+            cfg.StrOpt("password", default="fake_password"),
+            cfg.StrOpt("project_name", default="fake_project_name"),
+            cfg.StrOpt("user_domain_name", default="fake_user_domain_name"),
+            cfg.StrOpt("project_domain_name", default="fake_project_domain_name"),
+        ]
+        cfg.CONF.register_opts(auth_uri_opts, "endpoint_cache")
 
         # Mock the token validator (which is confusing so here is the info)
         # endpoint_cache.py has an import:
@@ -94,13 +97,13 @@ class EndpointCacheTest(base.DCCommonTestCase):
         #    patch.object(endpoint_cache, 'is_token_expiring_soon')
         # instead of:
         #    patch.object(dccommon.utils, 'is_token_expiring_soon')
-        p = mock.patch.object(endpoint_cache, 'is_token_expiring_soon')
+        p = mock.patch.object(endpoint_cache, "is_token_expiring_soon")
         self.mock_is_token_expiring_soon = p.start()
         self.mock_is_token_expiring_soon.return_value = True
         self.addCleanup(p.stop)
 
         # Mock the get_admin_session method
-        p = mock.patch.object(endpoint_cache.EndpointCache, 'get_admin_session')
+        p = mock.patch.object(endpoint_cache.EndpointCache, "get_admin_session")
         self.mock_get_admin_session = p.start()
         self.addCleanup(p.stop)
 
@@ -111,22 +114,27 @@ class EndpointCacheTest(base.DCCommonTestCase):
         endpoint_cache.EndpointCache.master_keystone_client = None
         endpoint_cache.EndpointCache.master_token = {}
         endpoint_cache.EndpointCache.master_services_list = None
-        endpoint_cache.EndpointCache.master_service_endpoint_map = \
+        endpoint_cache.EndpointCache.master_service_endpoint_map = (
             collections.defaultdict(dict)
+        )
 
     @mock.patch.object(
         endpoint_cache.EndpointCache,
-        'get_cached_master_keystone_client_and_region_endpoint_map')
+        "get_cached_master_keystone_client_and_region_endpoint_map",
+    )
     def test_get_endpoint(self, mock_get_cached_data):
         mock_get_cached_data.return_value = (
-            FakeKeystoneClient(), FAKE_SERVICE_ENDPOINT_MAP)
+            FakeKeystoneClient(),
+            FAKE_SERVICE_ENDPOINT_MAP,
+        )
         cache = endpoint_cache.EndpointCache("RegionOne", None)
         endpoint = cache.get_endpoint("sysinv")
         self.assertEqual(endpoint, FAKE_REGIONONE_SYSINV_ENDPOINT)
 
-    @mock.patch.object(tokens.TokenManager, 'validate')
-    @mock.patch.object(endpoint_cache.EndpointCache,
-                       '_generate_master_service_endpoint_map')
+    @mock.patch.object(tokens.TokenManager, "validate")
+    @mock.patch.object(
+        endpoint_cache.EndpointCache, "_generate_master_service_endpoint_map"
+    )
     def test_get_all_regions(self, mock_generate_cached_data, mock_tokens_validate):
         mock_generate_cached_data.return_value = FAKE_MASTER_SERVICE_ENDPOINT_MAP
         cache = endpoint_cache.EndpointCache("RegionOne", None)
@@ -134,39 +142,44 @@ class EndpointCacheTest(base.DCCommonTestCase):
         self.assertIn(CENTRAL_REGION, region_list)
         self.assertIn(SUBCLOUD1_REGION, region_list)
 
-    @mock.patch.object(tokens.TokenManager, 'validate')
-    @mock.patch.object(services.ServiceManager, 'list')
-    @mock.patch.object(endpoint_cache.EndpointCache,
-                       '_generate_master_service_endpoint_map')
-    def test_get_services_list(self, mock_generate_cached_data, mock_services_list,
-                               mock_tokens_validate):
+    @mock.patch.object(tokens.TokenManager, "validate")
+    @mock.patch.object(services.ServiceManager, "list")
+    @mock.patch.object(
+        endpoint_cache.EndpointCache, "_generate_master_service_endpoint_map"
+    )
+    def test_get_services_list(
+        self, mock_generate_cached_data, mock_services_list, mock_tokens_validate
+    ):
         mock_services_list.return_value = FAKE_SERVICES_LIST
         mock_generate_cached_data.return_value = FAKE_MASTER_SERVICE_ENDPOINT_MAP
         endpoint_cache.EndpointCache("RegionOne", None)
         services_list = endpoint_cache.EndpointCache.get_master_services_list()
         self.assertEqual(FAKE_SERVICES_LIST, services_list)
 
-    @mock.patch.object(tokens.TokenManager, 'validate')
-    @mock.patch.object(endpoint_cache.EndpointCache,
-                       '_generate_master_service_endpoint_map')
+    @mock.patch.object(tokens.TokenManager, "validate")
+    @mock.patch.object(
+        endpoint_cache.EndpointCache, "_generate_master_service_endpoint_map"
+    )
     def test_update_master_service_endpoint_region(
-            self, mock_generate_cached_data, mock_tokens_validate):
-        mock_generate_cached_data.return_value = (
-            copy.deepcopy(FAKE_MASTER_SERVICE_ENDPOINT_MAP))
+        self, mock_generate_cached_data, mock_tokens_validate
+    ):
+        mock_generate_cached_data.return_value = copy.deepcopy(
+            FAKE_MASTER_SERVICE_ENDPOINT_MAP
+        )
         region_name = SUBCLOUD1_REGION
         new_endpoints = {
-            'sysinv': 'https://[fake_ip]:6386/v1',
-            'keystone': 'https://[fake_ip]:5001/v3'
+            "sysinv": "https://[fake_ip]:6386/v1",
+            "keystone": "https://[fake_ip]:5001/v3",
         }
         cache = endpoint_cache.EndpointCache("RegionOne", None)
         self.assertEqual(
             endpoint_cache.EndpointCache.master_service_endpoint_map,
-            FAKE_MASTER_SERVICE_ENDPOINT_MAP
+            FAKE_MASTER_SERVICE_ENDPOINT_MAP,
         )
         cache.update_master_service_endpoint_region(region_name, new_endpoints)
         self.assertNotEqual(
             endpoint_cache.EndpointCache.master_service_endpoint_map,
-            FAKE_MASTER_SERVICE_ENDPOINT_MAP
+            FAKE_MASTER_SERVICE_ENDPOINT_MAP,
         )
 
     def _get_expected_endpoints(self, ip: str) -> dict:
@@ -211,8 +224,7 @@ class EndpointCacheTest(base.DCCommonTestCase):
 
         for subcloud_mgmt_ips in subcloud_mgmt_ips_dict:
             expected_result = {
-                k: self._get_expected_endpoints(v)
-                for k, v in subcloud_mgmt_ips.items()
+                k: self._get_expected_endpoints(v) for k, v in subcloud_mgmt_ips.items()
             }
             self.assertEqual(
                 expected_result,
