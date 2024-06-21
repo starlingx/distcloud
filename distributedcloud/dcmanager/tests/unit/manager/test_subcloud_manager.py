@@ -4262,21 +4262,22 @@ class TestSubcloudEnrollment(BaseTestSubcloudManager):
             'external_oam_floating_address': '10.10.10.2',
             'network_mask': '255.255.255.0',
             'external_oam_gateway_address': '10.10.10.1',
+            'external_oam_subnet': '10.10.10.0/24',
             'install_values': self.fake_install_values
         }
 
         mock_run_patch_patch = mock.patch('eventlet.green.subprocess.run')
-        mock_mkdtemp_patch = mock.patch('tempfile.mkdtemp')
+        mock_TemporaryDirectory_patch = mock.patch('tempfile.TemporaryDirectory')
         mock_makedirs_patch = mock.patch('os.makedirs')
         mock_rmtree_patch = mock.patch('shutil.rmtree')
 
         self.mock_run = mock_run_patch_patch.start()
-        self.mock_mkdtemp = mock_mkdtemp_patch.start()
+        self.mock_TemporaryDirectory = mock_TemporaryDirectory_patch.start()
         self.mock_makedirs = mock_makedirs_patch.start()
         self.mock_rmtree = mock_rmtree_patch.start()
 
         self.addCleanup(mock_run_patch_patch.stop)
-        self.addCleanup(mock_mkdtemp_patch.stop)
+        self.addCleanup(mock_TemporaryDirectory_patch.stop)
         self.addCleanup(mock_makedirs_patch.stop)
         self.addCleanup(mock_rmtree_patch.stop)
 
@@ -4284,7 +4285,8 @@ class TestSubcloudEnrollment(BaseTestSubcloudManager):
 
         self.mock_builtins_open.side_effect = mock.mock_open()
         self.mock_os_path_exists.return_value = True
-        self.mock_mkdtemp.return_value = self.seed_data_dir
+        self.mock_TemporaryDirectory.return_value.__enter__.return_value = \
+            self.seed_data_dir
         self.mock_os_path_isdir.return_value = True
         self.mock_run.return_value = mock.MagicMock(returncode=0,
                                                     stdout=b'Success')
@@ -4292,24 +4294,14 @@ class TestSubcloudEnrollment(BaseTestSubcloudManager):
     def patched_isdir(self, path):
         return path != self.iso_dir
 
-    def test_build_seed_network_config(self):
-        result = self.enroll_init._build_seed_network_config(self.seed_data_dir,
-                                                             self.iso_values)
+    def test_build_seed_meta_config(self):
+        result = self.enroll_init._build_seed_meta_data(self.seed_data_dir,
+                                                        self.iso_values)
 
         self.assertTrue(result)
         self.mock_builtins_open.assert_called_once_with(
-            f'{self.seed_data_dir}/network-config',
+            f'{self.seed_data_dir}/meta-data',
             'w')
-
-        # Test with incomplete iso_values, expect KeyError
-        copied_dict = self.iso_values.copy()
-        copied_dict.pop('external_oam_floating_address')
-
-        test_func = lambda: self.enroll_init._build_seed_network_config(
-            self.seed_data_dir,
-            copied_dict)
-
-        self.assertRaises(KeyError, test_func)
 
     def test_build_seed_user_config(self):
         result = self.enroll_init._build_seed_user_config(self.seed_data_dir,
@@ -4335,12 +4327,11 @@ class TestSubcloudEnrollment(BaseTestSubcloudManager):
             self.assertTrue(self.enroll_init._generate_seed_iso(self.iso_values))
             # Iso command must be invoked (subprocess.run)
             self.mock_run.assert_called_once()
-            # Temp seed data dir must be created and cleaned up
-            self.mock_mkdtemp.assert_called_once_with(prefix='seed_')
-            self.mock_rmtree.assert_called_once_with(self.seed_data_dir)
+            # Temp seed data dir must be created
+            self.mock_TemporaryDirectory.assert_called_once_with(prefix='seed_')
             # Seed files must be generted in temp seed dir
             self.mock_builtins_open.assert_any_call(
-                f'{self.seed_data_dir}/network-config',
+                f'{self.seed_data_dir}/meta-data',
                 'w')
             self.mock_builtins_open.assert_any_call(
                 f'{self.seed_data_dir}/user-data',

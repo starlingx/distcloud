@@ -3,9 +3,8 @@
 # SPDX-License-Identifier: Apache-2.0
 #
 
-import hashlib
+import crypt
 import os
-import shutil
 import tempfile
 import yaml
 
@@ -59,34 +58,21 @@ class SubcloudEnrollmentInit(object):
                                                          False)
         return self.https_enabled
 
-    def _build_seed_network_config(self, path, iso_values):
+    def _build_seed_meta_data(self, path, iso_values):
         if not os.path.isdir(path):
             msg = f'No directory exists: {path}'
             raise exceptions.EnrollInitExecutionFailed(reason=msg)
 
-        # TODO(srana): Investigate other bootstrap / install values
-        # that would need to be covered here.
-        network_cloud_config = [
-            {
-                'type': 'physical',
-                'name': iso_values['install_values']['bootstrap_interface'],
-                'subnets': [
-                    {
-                        'type': 'static',
-                        'address': iso_values['external_oam_floating_address'],
-                        'netmask': iso_values['install_values']['network_mask'],
-                        'gateway': iso_values['external_oam_gateway_address'],
-                    }
-                ]
-            }
-        ]
+        meta_data = {
+            'instance-id': self.name,
+            'local-hostname': 'controller-0'
+        }
 
-        network_config_file = os.path.join(path, 'network-config')
-        with open(network_config_file, 'w') as f_out_network_config_file:
-            contents = {'version': 1, 'config': network_cloud_config}
-            f_out_network_config_file.write(yaml.dump(contents,
-                                                      default_flow_style=False,
-                                                      sort_keys=False))
+        meta_data_file = os.path.join(path, 'meta-data')
+        with open(meta_data_file, 'w') as f_out_meta_data_file:
+            f_out_meta_data_file.write(yaml.dump(meta_data,
+                                                 default_flow_style=False,
+                                                 sort_keys=False))
 
         return True
 
@@ -95,60 +81,67 @@ class SubcloudEnrollmentInit(object):
             msg = f'No directory exists: {path}'
             raise exceptions.EnrollInitExecutionFailed(reason=msg)
 
-        hashed_password = hashlib.sha256(
-            iso_values['admin_password'].encode()).hexdigest()
+        hashed_password = crypt.crypt(iso_values['admin_password'],
+                                      crypt.mksalt(crypt.METHOD_SHA512))
 
-        account_config = {
-            'list': [f'sysadmin:{hashed_password}'],
-            'expire': 'False'
-        }
+        enroll_utils = '/usr/local/bin/'
+        reconfig_script = os.path.join(enroll_utils,
+                                       'enroll-init-reconfigure')
+        cleanup_script = os.path.join(enroll_utils,
+                                      'enroll-init-cleanup')
+
+        runcmd = [
+            f"{reconfig_script}"
+            f" --oam_subnet {iso_values['external_oam_subnet']}"
+            f" --oam_gateway_ip {iso_values['external_oam_gateway_address']}"
+            f" --oam_ip {iso_values['external_oam_floating_address']}"
+            f" --new_password \'{hashed_password}\'",
+            cleanup_script
+        ]
 
         user_data_file = os.path.join(path, 'user-data')
         with open(user_data_file, 'w') as f_out_user_data_file:
-            contents = {'chpasswd': account_config}
+            contents = {'runcmd': runcmd}
             f_out_user_data_file.writelines('#cloud-config\n')
             f_out_user_data_file.write(yaml.dump(contents,
                                                  default_flow_style=False,
-                                                 sort_keys=False))
+                                                 sort_keys=False,
+                                                 width=float("inf")))
 
         return True
 
     def _generate_seed_iso(self, payload):
-        temp_seed_data_dir = tempfile.mkdtemp(prefix='seed_')
-
         LOG.info(f'Preparing seed iso generation for {self.name}')
 
-        # TODO(srana): After integration, extract required bootstrap and install
-        # into iso_values. For now, pass in payload.
-        try:
-            # Generate seed cloud-config files
-            self._build_seed_network_config(temp_seed_data_dir, payload)
-            self._build_seed_user_config(temp_seed_data_dir, payload)
-        except Exception as e:
-            LOG.exception(f'Unable to generate seed config files '
-                          f'for {self.name}: {e}')
-            shutil.rmtree(temp_seed_data_dir)
-            return False
+        with tempfile.TemporaryDirectory(prefix='seed_') as temp_seed_data_dir:
+            # TODO(srana): After integration, extract required bootstrap and install
+            # into iso_values. For now, pass in payload.
+            try:
+                # Generate seed cloud-config files
+                self._build_seed_meta_data(temp_seed_data_dir, payload)
+                self._build_seed_user_config(temp_seed_data_dir, payload)
+            except Exception as e:
+                LOG.exception(f'Unable to generate seed config files '
+                              f'for {self.name}: {e}')
+                return False
 
-        gen_seed_iso_command = [
-            "genisoimage",
-            "-o", self.seed_iso_path,
-            "-volid", "CIDATA",
-            "-untranslated-filenames",
-            "-joliet",
-            "-rock",
-            "-iso-level", "2",
-            temp_seed_data_dir
-        ]
+            gen_seed_iso_command = [
+                "genisoimage",
+                "-o", self.seed_iso_path,
+                "-volid", "CIDATA",
+                "-untranslated-filenames",
+                "-joliet",
+                "-rock",
+                "-iso-level", "2",
+                temp_seed_data_dir
+            ]
 
-        LOG.info(f'Running gen_seed_iso_command '
-                 f'for {self.name}: {gen_seed_iso_command}')
-        result = subprocess.run(gen_seed_iso_command,
-                                # capture both streams in stdout:
-                                stdout=subprocess.PIPE,
-                                stderr=subprocess.STDOUT)
-
-        shutil.rmtree(temp_seed_data_dir)
+            LOG.info(f'Running gen_seed_iso_command '
+                     f'for {self.name}: {gen_seed_iso_command}')
+            result = subprocess.run(gen_seed_iso_command,
+                                    # capture both streams in stdout:
+                                    stdout=subprocess.PIPE,
+                                    stderr=subprocess.STDOUT)
 
         if result.returncode == 0:
             msg = (
