@@ -17,7 +17,6 @@ import json
 from xml import etree as et
 
 from oslo_log import log
-import six
 import webob
 
 from dcorch.api.proxy.common.service import Middleware
@@ -91,8 +90,7 @@ class ParseError(Middleware):
                             '</error_message>']
                 state['headers'].append(('Content-Type', 'application/xml'))
             else:
-                if six.PY3:
-                    app_iter = [i.decode('utf-8') for i in app_iter]
+                app_iter = [i.decode('utf-8') for i in app_iter]
                 # Parse explanation field from webob.exc and add it as
                 # 'faulstring' to be processed by cgts-client
                 fault = None
@@ -107,8 +105,7 @@ class ParseError(Middleware):
                 else:
                     body = [json.dumps({'error_message':
                                         json.dumps({'faultstring': fault})})]
-                if six.PY3:
-                    body = [item.encode('utf-8') for item in body]
+                body = [item.encode('utf-8') for item in body]
                 state['headers'].append(('Content-Type', 'application/json'))
             state['headers'].append(('Content-Length', str(len(body[0]))))
         else:

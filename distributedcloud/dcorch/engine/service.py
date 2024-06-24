@@ -22,7 +22,6 @@ from oslo_log import log as logging
 import oslo_messaging
 from oslo_service import service
 from oslo_utils import uuidutils
-import six
 
 from dccommon import consts as dccommon_consts
 from dcorch.common import consts
@@ -147,7 +146,7 @@ class EngineService(service.Service):
             self._rpc_server.wait()
             LOG.info("Engine service stopped successfully")
         except Exception as ex:
-            LOG.error(f"Failed to stop engine service: {six.text_type(ex)}")
+            LOG.error(f"Failed to stop engine service: {str(ex)}")
 
     def stop(self):
         self._stop_rpc_server()
@@ -290,7 +289,7 @@ class EngineWorkerService(service.Service):
                 endpoint_type_list=endpoint_type_list)
         except Exception as ex:
             LOG.warning('Add subcloud endpoint type failed for %s: %s',
-                        subcloud_name, six.text_type(ex))
+                        subcloud_name, str(ex))
             raise
 
     @request_context
@@ -302,7 +301,7 @@ class EngineWorkerService(service.Service):
                 endpoint_type_list=endpoint_type_list)
         except Exception as ex:
             LOG.warning('Remove subcloud endpoint type failed for %s: %s',
-                        subcloud_name, six.text_type(ex))
+                        subcloud_name, str(ex))
             raise
 
     @request_context
@@ -339,7 +338,7 @@ class EngineWorkerService(service.Service):
                 self._rpc_server.wait()
                 LOG.info('Engine-worker service stopped successfully')
         except Exception as ex:
-            LOG.error(f"Failed to stop engine-worker service: {six.text_type(ex)}")
+            LOG.error(f"Failed to stop engine-worker service: {str(ex)}")
 
     def stop(self):
         self._stop_rpc_server()

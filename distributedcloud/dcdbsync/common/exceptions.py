@@ -22,9 +22,7 @@
 """
 DBsync agent base exception handling.
 """
-import six
 
-from oslo_utils import encodeutils
 from oslo_utils import excutils
 
 from dcdbsync.common.i18n import _
@@ -50,10 +48,6 @@ class DBsyncException(Exception):
                     ctxt.reraise = False
                     # at least get the core message out if something happened
                     super(DBsyncException, self).__init__(self.message)
-
-    if six.PY2:
-        def __unicode__(self):
-            return encodeutils.exception_to_unicode(self.msg)
 
     def use_fatal_exceptions(self):
         return False

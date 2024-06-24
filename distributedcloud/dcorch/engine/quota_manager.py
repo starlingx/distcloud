@@ -16,12 +16,12 @@
 
 import collections
 import copy
+from queue import Queue
 import re
 import threading
 
 from oslo_config import cfg
 from oslo_log import log as logging
-from six.moves.queue import Queue
 
 from dccommon import consts as dccommon_consts
 from dccommon import endpoint_cache

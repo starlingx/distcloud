@@ -1,5 +1,5 @@
 # Copyright (c) 2015 Huawei Tech. Co., Ltd.
-# Copyright (c) 2017-2022 Wind River Systems, Inc.
+# Copyright (c) 2017-2022, 2024 Wind River Systems, Inc.
 # All Rights Reserved.
 #
 #    Licensed under the Apache License, Version 2.0 (the "License"); you may
@@ -19,7 +19,6 @@ import abc
 
 from pecan import expose
 from pecan import request
-import six
 
 import dcmanager.common.context as k_context
 
@@ -74,8 +73,7 @@ def _is_generic_handler(obj):
     return "generic_handler" in data.keys()
 
 
-@six.add_metaclass(abc.ABCMeta)
-class GenericPathController(object):
+class GenericPathController(object, metaclass=abc.ABCMeta):
     """A controller that allows path parameters to be equal to handler names.
 
     The _route method provides a custom route resolution that checks if the

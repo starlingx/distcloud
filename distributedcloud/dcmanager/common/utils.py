@@ -37,7 +37,6 @@ from oslo_log import log as logging
 from oslo_serialization import base64
 import pecan
 import requests
-import six.moves
 import tsconfig.tsconfig as tsc
 import yaml
 
@@ -100,7 +99,7 @@ def get_import_path(cls):
 # Returns a iterator of tuples containing batch_size number of objects in each
 def get_batch_projects(batch_size, project_list, fillvalue=None):
     args = [iter(project_list)] * batch_size
-    return six.moves.zip_longest(fillvalue=fillvalue, *args)
+    return itertools.zip_longest(fillvalue=fillvalue, *args)
 
 
 def validate_address_str(ip_address_str, network):
@@ -739,7 +738,7 @@ def get_region_from_subcloud_address(payload):
             stderr=subprocess.STDOUT).decode('utf-8')
         if len(task) < 1:
             err_cause = ("Malformed subcloud region")
-            return (subcloud_region, err_cause)
+            return subcloud_region, err_cause
         subcloud_region = str(task.split("=")[1]).strip()
     except Exception as e:
         # check_output() will raise CalledProcessError if the called

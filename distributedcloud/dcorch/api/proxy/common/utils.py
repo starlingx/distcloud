@@ -13,15 +13,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from urllib.parse import urlparse
+
 import base64
 from cryptography import fernet
-import msgpack
-import psutil
-import six
-from six.moves.urllib.parse import urlparse
-
 from keystoneauth1 import exceptions as keystone_exceptions
+import msgpack
 from oslo_log import log as logging
+import psutil
 
 from dccommon import consts as dccommon_consts
 from dccommon.drivers.openstack import sdk_platform as sdk
@@ -118,7 +117,7 @@ def get_operation_type(environ):
 
 
 def get_id_from_query_string(environ, id):
-    import six.moves.urllib.parse as six_urlparse
+    import urllib.parse as six_urlparse
     params = six_urlparse.parse_qs(environ.get('QUERY_STRING', ''))
     return params.get(id, [None])[0]
 
@@ -201,7 +200,7 @@ def _unpack_token(fernet_token, fernet_keys):
     crypt = fernet.MultiFernet(fernet_instances)
 
     # attempt to decode the token
-    token = _restore_padding(six.binary_type(fernet_token))
+    token = _restore_padding(bytes(fernet_token))
     serialized_payload = crypt.decrypt(token)
     payload = msgpack.unpackb(serialized_payload)
 

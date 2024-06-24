@@ -25,6 +25,7 @@ from os import path as os_path
 import sys
 import threading
 import time
+from urllib import request
 import uuid
 import yaml
 
@@ -33,7 +34,6 @@ import mock
 import netaddr
 from oslo_concurrency import lockutils
 from oslo_utils import timeutils
-from six.moves.urllib import request
 from tsconfig.tsconfig import SW_VERSION
 
 from dccommon import consts as dccommon_consts

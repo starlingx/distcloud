@@ -19,9 +19,7 @@
 """
 DC Manager base exception handling.
 """
-import six
 
-from oslo_utils import encodeutils
 from oslo_utils import excutils
 
 from dcmanager.common.i18n import _
@@ -47,10 +45,6 @@ class DCManagerException(Exception):
                     ctxt.reraise = False
                     # at least get the core message out if something happened
                     super(DCManagerException, self).__init__(self.message)
-
-    if six.PY2:
-        def __unicode__(self):
-            return encodeutils.exception_to_unicode(self.msg)
 
     def use_fatal_exceptions(self):
         return False

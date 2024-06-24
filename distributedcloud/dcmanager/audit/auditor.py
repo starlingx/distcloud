@@ -5,16 +5,12 @@
 #
 
 import abc
-import six
 
 from dccommon import consts as dccommon_consts
 
 
-class Auditor(object):
+class Auditor(object, metaclass=abc.ABCMeta):
     """Abstract class that manages tasks related to types of audits."""
-
-    # todo(abailey): determine if add_metaclass is still required
-    six.add_metaclass(abc.ABCMeta)
 
     def __init__(self, context, dcmanager_state_rpc_client, endpoint_type):
         self.context = context
@@ -44,12 +40,3 @@ class Auditor(object):
     @abc.abstractmethod
     def get_regionone_audit_data(self):
         """Query RegionOne for audit information to compare against."""
-
-    @abc.abstractmethod
-    def subcloud_audit(self, subcloud_name, region_one_audit_data):
-        """Query Subcloud audit information and compare with regionone data
-
-        This method is responsible for calling:
-          - set_sc_endpoint_in_sync
-          - set_sc_endpoint_out_of_sync
-        """

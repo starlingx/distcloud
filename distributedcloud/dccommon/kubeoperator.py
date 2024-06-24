@@ -3,13 +3,14 @@
 # SPDX-License-Identifier: Apache-2.0
 #
 
+import http.client as httplib
+
 from kubernetes import __version__ as K8S_MODULE_VERSION
 from kubernetes import client
 from kubernetes.client import Configuration
 from kubernetes.client.rest import ApiException
 from kubernetes import config
 from oslo_log import log as logging
-from six.moves import http_client as httplib
 
 LOG = logging.getLogger(__name__)
 
