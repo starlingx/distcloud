@@ -5,7 +5,6 @@
 #
 
 import eventlet
-from keystoneauth1 import exceptions as keystone_exceptions
 from oslo_log import log as logging
 
 from dccommon import consts as dccommon_consts
@@ -13,7 +12,6 @@ from dcorch.common import consts as dco_consts
 from dcorch.common import context
 from dcorch.common import exceptions
 from dcorch.db import api as db_api
-from dcorch.drivers.openstack import sdk
 from dcorch.engine import scheduler
 from dcorch.engine.sync_services.identity import IdentitySyncThread
 from dcorch.engine.sync_services.sysinv import SysinvSyncThread
@@ -127,7 +125,7 @@ class GenericSyncWorkerManager(object):
             db_api.subcloud_sync_create(context, name, endpoint_type,
                                         # pylint: disable-next=no-member
                                         values={'subcloud_id': sc.id})
-        #  Create the sync object for this engine
+        # Create the sync object for this engine
         self.create_sync_objects(name, capabilities, management_ip)
 
     def del_subcloud(self, context, subcloud_name):
@@ -289,20 +287,6 @@ class GenericSyncWorkerManager(object):
             sc.save()
         except KeyError:
             raise exceptions.SubcloudNotFound(region_name=subcloud_name)
-
-    def update_subcloud_endpoints(self, context, subcloud_name, endpoints):
-        try:
-            LOG.info(f"Updating service endpoints for subcloud {subcloud_name} "
-                     f"in endpoint cache")
-            endpoint_cache = sdk.OpenStackDriver(
-                region_name=dccommon_consts.CLOUD_0).keystone_client.endpoint_cache
-            endpoint_cache.update_master_service_endpoint_region(
-                subcloud_name, endpoints)
-        except (keystone_exceptions.EndpointNotFound,
-                keystone_exceptions.ConnectFailure,
-                IndexError):
-            LOG.error(f"Failed to update services endpoints for "
-                      f"subcloud: {subcloud_name} in dcorch.")
 
     def update_subcloud_management_ip(self, context, subcloud_name, management_ip):
         try:

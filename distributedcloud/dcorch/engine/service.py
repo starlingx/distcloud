@@ -323,10 +323,6 @@ class EngineWorkerService(service.Service):
         self.gswm.update_subcloud_version(ctxt, subcloud_name, sw_version)
 
     @request_context
-    def update_subcloud_endpoints(self, ctxt, subcloud_name, endpoints):
-        self.gswm.update_subcloud_endpoints(ctxt, subcloud_name, endpoints)
-
-    @request_context
     def update_subcloud_management_ip(self, ctxt, subcloud_name, management_ip):
         self.gswm.update_subcloud_management_ip(ctxt, subcloud_name, management_ip)
 
@@ -341,12 +337,12 @@ class EngineWorkerService(service.Service):
         except Exception as ex:
             LOG.error(f"Failed to stop engine-worker service: {six.text_type(ex)}")
 
-    def stop(self):
+    def stop(self, graceful=False):
         self._stop_rpc_server()
 
         # Terminate the engine process
         LOG.info("All threads were gone, terminating engine-worker")
-        super(EngineWorkerService, self).stop()
+        super(EngineWorkerService, self).stop(graceful)
 
     @request_context
     # The sync job info has been written to the DB, alert the sync engine

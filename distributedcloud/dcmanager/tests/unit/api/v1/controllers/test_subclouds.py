@@ -2353,12 +2353,6 @@ class TestSubcloudsPatchPrestage(BaseTestSubcloudsPatch):
     def test_patch_prestage_fails_with_invalid_release(self):
         """Test patch prestage fails with invalid release"""
 
-        # TODO(gherzmann): Remove the following mock when the OpenStackDriver
-        # is fully replaced by OptimizedOpenStackDriver
-        mock_patch_object = mock.patch.object(cutils, 'OptimizedOpenStackDriver')
-        self.mock_openstack_driver = mock_patch_object.start()
-        self.addCleanup(mock_patch_object.stop)
-
         self.params["release"] = "21.12"
 
         self.mock_sysinv_client().get_loads.return_values = FakeLoad(

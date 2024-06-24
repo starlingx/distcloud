@@ -171,11 +171,6 @@ class EngineWorkerClient(object):
             self.make_msg('update_subcloud_version',
                           subcloud_name=subcloud_name, sw_version=sw_version))
 
-    def update_subcloud_endpoints(self, ctxt, subcloud_name, endpoints):
-        return self.cast(ctxt, self.make_msg(
-            'update_subcloud_endpoints', subcloud_name=subcloud_name,
-            endpoints=endpoints), fanout=True, version=self.BASE_RPC_API_VERSION)
-
     def update_subcloud_management_ip(self, ctxt, subcloud_name, management_ip):
         return self.call(
             ctxt,
