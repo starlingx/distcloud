@@ -47,6 +47,7 @@ from dccommon.drivers.openstack.sdk_platform import (
     OptimizedOpenStackDriver as OpenStackDriver
 )
 from dccommon.drivers.openstack.sysinv_v1 import SysinvClient
+from dccommon.endpoint_cache import OptimizedEndpointCache as EndpointCache
 from dccommon.exceptions import PlaybookExecutionFailed
 from dccommon.exceptions import SubcloudNotFound
 from dccommon import kubeoperator
@@ -3451,17 +3452,18 @@ class SubcloudManager(manager.Manager):
         # Update service URLs in subcloud endpoint cache
         self.audit_rpc_client.trigger_subcloud_endpoints_update(
             context, subcloud_region, services_endpoints)
-        # TODO(gherzm): Remove the update_subcloud_endpoints call once
-        # the OpenStackDriver is moved to be used only in the master process
-        self.dcorch_rpc_client.update_subcloud_endpoints(
-            context, subcloud_region, services_endpoints)
-        # Update the management ip inside dcorch database
+        # Update the management ip inside dcorch database (triggers endpoint update)
         self.dcorch_rpc_client.update_subcloud_management_ip(
             context, subcloud_region, endpoint_ip)
         # Update sysinv URL in cert-mon cache
         dc_notification = dcmanager_rpc_client.DCManagerNotifications()
         dc_notification.subcloud_sysinv_endpoint_update(
             context, subcloud_region, services_endpoints.get("sysinv"))
+
+        # Update dcmanager endpoint cache
+        EndpointCache.update_master_service_endpoint_region(
+            subcloud_region, services_endpoints
+        )
 
     def _create_subcloud_update_overrides_file(
             self, payload, subcloud_name, filename_suffix):

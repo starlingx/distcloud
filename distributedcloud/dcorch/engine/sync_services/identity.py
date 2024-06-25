@@ -28,7 +28,7 @@ from dcdbsync.dbsyncclient.client import Client
 from dcdbsync.dbsyncclient import exceptions as dbsync_exceptions
 from dcorch.common import consts
 from dcorch.common import exceptions
-from dcorch.engine.sync_thread import get_os_client
+from dcorch.engine.sync_thread import get_master_os_client
 from dcorch.engine.sync_thread import SyncThread
 from dcorch.objects import resource
 
@@ -109,11 +109,10 @@ class IdentitySyncThread(SyncThread):
             session=self.sc_admin_session)
 
     def get_master_ks_client(self):
-        return get_os_client(self.master_region_name, ['dbsync']).\
-            keystone_client.keystone_client
+        return get_master_os_client().keystone_client.keystone_client
 
     def get_master_dbs_client(self):
-        return get_os_client(self.master_region_name, ['dbsync']).dbsync_client
+        return get_master_os_client(["dbsync"]).dbsync_client
 
     def get_sc_ks_client(self):
         if self.sc_ks_client is None:

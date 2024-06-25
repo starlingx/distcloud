@@ -64,17 +64,18 @@ AUDIT_RESOURCE_EXTRA = 'extra_resource'
 AUDIT_LOCK_NAME = 'dcorch-audit'
 
 
-def get_os_client(region, region_clients):
+def get_master_os_client(region_clients=None):
     # Used by the master clients only. The subcloud clients don't need to be
     # cached in the openstack driver, because we don't want to hold the admin
     # sessions for the subclouds.
     try:
         os_client = sdk.OptimizedOpenStackDriver(
-            region_name=region,
+            region_name=dccommon_consts.CLOUD_0,
             region_clients=region_clients)
     except Exception as e:
         LOG.error(
-            f"Failed to get os_client for {region}/{region_clients}: {e}.")
+            "Failed to get os_client for "
+            f"{dccommon_consts.CLOUD_0}/{region_clients}: {e}.")
         raise e
     return os_client
 

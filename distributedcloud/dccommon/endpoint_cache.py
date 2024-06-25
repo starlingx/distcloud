@@ -606,9 +606,10 @@ class OptimizedEndpointCache(object):
         )
         return session.Session(auth=auth)
 
+    @classmethod
     @lockutils.synchronized(LOCK_NAME)
     def update_master_service_endpoint_region(
-        self, region_name: str, endpoint_values: dict
+        cls, region_name: str, endpoint_values: dict
     ) -> None:
         """Update the master endpoint map for a specific region.
 
@@ -622,12 +623,13 @@ class OptimizedEndpointCache(object):
             f"{region_name} with endpoints: {endpoint_values}"
         )
         # Update the current endpoint map
-        OptimizedEndpointCache.master_service_endpoint_map[region_name] = (
-            endpoint_values
-        )
+        if OptimizedEndpointCache.master_service_endpoint_map:
+            OptimizedEndpointCache.master_service_endpoint_map[region_name] = (
+                endpoint_values
+            )
 
         # Update the cached subcloud endpoit map
-        if OptimizedEndpointCache.subcloud_endpoints and not self._is_central_cloud(
+        if OptimizedEndpointCache.subcloud_endpoints and not cls._is_central_cloud(
             region_name
         ):
             LOG.debug(

@@ -42,10 +42,8 @@ import tsconfig.tsconfig as tsc
 import yaml
 
 from dccommon import consts as dccommon_consts
-# TODO(gherzman): Replace OpenStackDriver with OptimizedOpenStackDriver
-# during dcmanager OptimizedOpenStackDriver integration
-from dccommon.drivers.openstack.sdk_platform import OpenStackDriver
-from dccommon.drivers.openstack.sdk_platform import OptimizedOpenStackDriver
+from dccommon.drivers.openstack.sdk_platform import OptimizedOpenStackDriver as \
+    OpenStackDriver
 from dccommon.drivers.openstack.sysinv_v1 import SysinvClient
 from dccommon.drivers.openstack import vim
 from dccommon import exceptions as dccommon_exceptions
@@ -1048,8 +1046,11 @@ def is_subcloud_healthy(subcloud_region):
 
     system_health = ""
     try:
-        os_client = OpenStackDriver(region_name=subcloud_region,
-                                    region_clients=None)
+        os_client = OpenStackDriver(
+            region_name=subcloud_region,
+            region_clients=None,
+            fetch_subcloud_ips=fetch_subcloud_mgmt_ips,
+        )
         keystone_client = os_client.keystone_client
         endpoint = keystone_client.endpoint_cache.get_endpoint('sysinv')
         sysinv_client = SysinvClient(subcloud_region,
@@ -1078,7 +1079,7 @@ def is_subcloud_healthy(subcloud_region):
 
 def get_systemcontroller_installed_loads():
     try:
-        os_client = OptimizedOpenStackDriver(
+        os_client = OpenStackDriver(
             region_name=dccommon_consts.SYSTEM_CONTROLLER_NAME,
             region_clients=None,
             fetch_subcloud_ips=fetch_subcloud_mgmt_ips,
@@ -1359,7 +1360,7 @@ def decode_and_normalize_passwd(input_passwd):
 
 def get_failure_msg(subcloud_region):
     try:
-        os_client = OptimizedOpenStackDriver(
+        os_client = OpenStackDriver(
             region_name=subcloud_region,
             region_clients=None,
             fetch_subcloud_ips=fetch_subcloud_mgmt_ips,
@@ -1618,7 +1619,9 @@ def validate_name(name, prohibited_name_list=[],
 def get_local_system():
     m_ks_client = OpenStackDriver(
         region_name=dccommon_consts.DEFAULT_REGION_NAME,
-        region_clients=None).keystone_client
+        region_clients=None,
+        fetch_subcloud_ips=fetch_subcloud_mgmt_ips,
+    ).keystone_client
     endpoint = m_ks_client.endpoint_cache.get_endpoint('sysinv')
     sysinv_client = SysinvClient(dccommon_consts.DEFAULT_REGION_NAME,
                                  m_ks_client.session,

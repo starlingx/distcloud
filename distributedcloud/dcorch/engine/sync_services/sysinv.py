@@ -24,7 +24,9 @@ from oslo_serialization import jsonutils
 from oslo_utils import timeutils
 
 from dccommon import consts as dccommon_consts
-from dccommon.drivers.openstack import sdk_platform as sdk
+from dccommon.drivers.openstack.sdk_platform import (
+    OptimizedOpenStackDriver as OpenStackDriver
+)
 from dccommon.drivers.openstack.sysinv_v1 import SysinvClient
 from dccommon.endpoint_cache import build_subcloud_endpoint
 from dccommon import exceptions as dccommon_exceptions
@@ -35,7 +37,7 @@ from dcorch.engine.fernet_key_manager import FERNET_REPO_MASTER_ID
 from dcorch.engine.fernet_key_manager import FernetKeyManager
 from dcorch.engine.sync_thread import AUDIT_RESOURCE_EXTRA
 from dcorch.engine.sync_thread import AUDIT_RESOURCE_MISSING
-from dcorch.engine.sync_thread import get_os_client
+from dcorch.engine.sync_thread import get_master_os_client
 from dcorch.engine.sync_thread import SyncThread
 
 LOG = logging.getLogger(__name__)
@@ -98,7 +100,7 @@ class SysinvSyncThread(SyncThread):
             endpoint=sc_sysinv_url)
 
     def get_master_sysinv_client(self):
-        return get_os_client(self.master_region_name, ['sysinv']).sysinv_client
+        return get_master_os_client(['sysinv']).sysinv_client
 
     def get_sc_sysinv_client(self):
         if self.sc_sysinv_client is None:
@@ -133,7 +135,7 @@ class SysinvSyncThread(SyncThread):
             LOG.info("{} {} region_name {} not authorized".format(
                 request.orch_job.operation_type, rsrc.resource_type,
                 self.region_name), extra=self.log_extra)
-            sdk.OpenStackDriver.delete_region_clients(self.region_name)
+            OpenStackDriver.delete_region_clients(self.region_name)
             raise exceptions.SyncRequestFailedRetry
         except Exception as e:
             LOG.exception(e)
@@ -469,7 +471,7 @@ class SysinvSyncThread(SyncThread):
                      "[{}]".format(resource_type,
                                    self.region_name,
                                    str(e)), extra=self.log_extra)
-            sdk.OpenStackDriver.delete_region_clients(self.region_name)
+            OpenStackDriver.delete_region_clients(self.region_name)
             return None
         except (AttributeError, TypeError) as e:
             LOG.info("get subcloud_resources {} error {}".format(
@@ -482,9 +484,9 @@ class SysinvSyncThread(SyncThread):
     def post_audit(self):
         # TODO(lzhu1): This should be revisited once the master cache service
         #  is implemented.
-        sdk.OpenStackDriver.delete_region_clients_for_thread(
+        OpenStackDriver.delete_region_clients_for_thread(
             self.region_name, 'audit')
-        sdk.OpenStackDriver.delete_region_clients_for_thread(
+        OpenStackDriver.delete_region_clients_for_thread(
             dccommon_consts.CLOUD_0, 'audit')
 
     def get_certificates_resources(self, sysinv_client):

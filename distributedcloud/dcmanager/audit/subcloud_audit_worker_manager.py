@@ -26,7 +26,7 @@ from dccommon.drivers.openstack.sdk_platform import (
     OptimizedOpenStackDriver as OpenStackDriver
 )
 from dccommon.drivers.openstack.sysinv_v1 import SysinvClient
-from dccommon.endpoint_cache import build_subcloud_endpoint
+from dccommon import endpoint_cache
 from dcmanager.audit import alarm_aggregation
 from dcmanager.audit import firmware_audit
 from dcmanager.audit import kube_rootca_update_audit
@@ -150,20 +150,11 @@ class SubcloudAuditWorkerManager(manager.Manager):
                                                 do_software_audit)
 
     def update_subcloud_endpoints(self, context, subcloud_name, endpoints):
-        try:
-            LOG.info("Updating service endpoints for subcloud %s "
-                     "in endpoint cache" % subcloud_name)
-            endpoint_cache = OpenStackDriver(
-                region_name=dccommon_consts.CLOUD_0,
-                fetch_subcloud_ips=utils.fetch_subcloud_mgmt_ips,
-            ).keystone_client.endpoint_cache
-            endpoint_cache.update_master_service_endpoint_region(
-                subcloud_name, endpoints)
-        except (keystone_exceptions.EndpointNotFound,
-                keystone_exceptions.ConnectFailure,
-                IndexError):
-            LOG.error("Failed to update the service endpoints "
-                      "for subcloud %s." % subcloud_name)
+        LOG.info(f"Updating service endpoints for subcloud {subcloud_name} "
+                 "in endpoint cache")
+        endpoint_cache.OptimizedEndpointCache.update_master_service_endpoint_region(
+            subcloud_name, endpoints
+        )
 
     def _update_subcloud_audit_fail_count(self, subcloud,
                                           audit_fail_count):
@@ -371,9 +362,11 @@ class SubcloudAuditWorkerManager(manager.Manager):
             ).keystone_client
             admin_session = keystone_client.session
             sysinv_client = SysinvClient(
-                subcloud_region, admin_session, endpoint=build_subcloud_endpoint(
+                subcloud_region,
+                admin_session,
+                endpoint=endpoint_cache.build_subcloud_endpoint(
                     subcloud_management_ip, "sysinv"
-                )
+                ),
             )
             fm_client = FmClient(subcloud_region, admin_session)
         except keystone_exceptions.ConnectTimeout:
