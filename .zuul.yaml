@@ -11,12 +11,14 @@
         - stx-distcloud-tox-pep8
         - stx-distcloud-tox-py39
         - stx-distcloud-tox-pylint
+        - stx-distcloud-tox-black
     gate:
       jobs:
         - openstack-tox-linters
         - stx-distcloud-tox-pep8
         - stx-distcloud-tox-py39
         - stx-distcloud-tox-pylint
+        - stx-distcloud-tox-black
     post:
       jobs:
         - stx-distcloud-upload-git-mirror
@@ -67,6 +69,16 @@
     vars:
       python_version: 3.9
       tox_envlist: pep8
+      tox_extra_args: -c distributedcloud/tox.ini
+
+- job:
+    name: stx-distcloud-tox-black
+    parent: tox
+    description: Run black for distcloud
+    nodeset: debian-bullseye
+    vars:
+      python_version: 3.9
+      tox_envlist: black
       tox_extra_args: -c distributedcloud/tox.ini
 
 - job:
