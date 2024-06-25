@@ -11,7 +11,6 @@ import os
 
 import mock
 from oslo_utils import timeutils
-import six
 
 from dccommon import consts as dccommon_consts
 from dcmanager.common import consts
@@ -170,12 +169,15 @@ def test_validate_admin_config_subnet_small(self):
     admin_end_address = "192.168.205.50"
     admin_gateway_address = "192.168.205.1"
 
-    six.assertRaisesRegex(
-        self, Exception, "Subnet too small*",
-        psd_common.validate_admin_network_config, admin_subnet, admin_start_address,
-        admin_end_address, admin_gateway_address, existing_networks=None,
-        operation=None
-    )
+    with self.assertRaisesRegex(Exception, "Subnet too small*"):
+        psd_common.validate_admin_network_config(
+            admin_subnet,
+            admin_start_address,
+            admin_end_address,
+            admin_gateway_address,
+            existing_networks=None,
+            operation=None,
+        )
 
 
 def test_validate_admin_config_start_address_outOfSubnet(self):
@@ -184,12 +186,15 @@ def test_validate_admin_config_start_address_outOfSubnet(self):
     admin_end_address = "192.168.205.50"
     admin_gateway_address = "192.168.205.1"
 
-    six.assertRaisesRegex(
-        self, Exception, "Address must be in subnet*",
-        psd_common.validate_admin_network_config,
-        admin_subnet, admin_start_address, admin_end_address, admin_gateway_address,
-        existing_networks=None, operation=None
-    )
+    with self.assertRaisesRegex(Exception, "Address must be in subnet*"):
+        psd_common.validate_admin_network_config(
+            admin_subnet,
+            admin_start_address,
+            admin_end_address,
+            admin_gateway_address,
+            existing_networks=None,
+            operation=None,
+        )
 
 
 def test_validate_admin_config_end_address_outOfSubnet(self):
@@ -198,19 +203,25 @@ def test_validate_admin_config_end_address_outOfSubnet(self):
     admin_end_address = "192.168.205.50"
     admin_gateway_address = "192.168.205.1"
 
-    six.assertRaisesRegex(
-        self, Exception, "Address must be in subnet*",
-        psd_common.validate_admin_network_config,
-        admin_subnet, admin_start_address, admin_end_address, admin_gateway_address,
-        existing_networks=None, operation=None
-    )
+    with self.assertRaisesRegex(Exception, "Address must be in subnet*"):
+        psd_common.validate_admin_network_config(
+            admin_subnet,
+            admin_start_address,
+            admin_end_address,
+            admin_gateway_address,
+            existing_networks=None,
+            operation=None,
+        )
 
     admin_end_address = "192.168.205.12"
     admin_gateway_address = "192.168.205.50"
 
-    six.assertRaisesRegex(
-        self, Exception, "Address must be in subnet*",
-        psd_common.validate_admin_network_config, admin_subnet, admin_start_address,
-        admin_end_address, admin_gateway_address, existing_networks=None,
-        operation=None
-    )
+    with self.assertRaisesRegex(Exception, "Address must be in subnet*"):
+        psd_common.validate_admin_network_config(
+            admin_subnet,
+            admin_start_address,
+            admin_end_address,
+            admin_gateway_address,
+            existing_networks=None,
+            operation=None,
+        )

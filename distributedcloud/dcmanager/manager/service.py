@@ -18,8 +18,6 @@ import functools
 import os
 import threading
 
-import six
-
 from oslo_config import cfg
 from oslo_log import log as logging
 import oslo_messaging
@@ -379,8 +377,7 @@ class DCManagerService(service.Service):
             self._rpc_server.wait()
             LOG.info('RPC service stopped successfully')
         except Exception as ex:
-            LOG.error('Failed to stop RPC service: %s',
-                      six.text_type(ex))
+            LOG.error('Failed to stop RPC service: %s', str(ex))
 
     def stop(self):
         SubprocessCleanup.shutdown_cleanup(origin="service")

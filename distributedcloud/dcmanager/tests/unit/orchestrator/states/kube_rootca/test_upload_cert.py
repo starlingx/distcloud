@@ -55,7 +55,7 @@ class TestUploadCertStage(TestKubeRootCaUpgradeState):
             ERROR_UPLOADING_CERT
 
         mock_open = mock.mock_open(read_data='test')
-        with mock.patch('six.moves.builtins.open', mock_open):
+        with mock.patch('builtins.open', mock_open):
             # invoke the strategy state operation on the orch thread
             self.worker.perform_state_action(self.strategy_step)
 
@@ -77,7 +77,7 @@ class TestUploadCertStage(TestKubeRootCaUpgradeState):
             SUCCESS_UPLOADING_CERT
 
         mock_open = mock.mock_open(read_data='test')
-        with mock.patch('six.moves.builtins.open', mock_open):
+        with mock.patch('builtins.open', mock_open):
             # invoke the strategy state operation on the orch thread
             self.worker.perform_state_action(self.strategy_step)
 

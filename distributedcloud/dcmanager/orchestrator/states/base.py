@@ -3,8 +3,8 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 #
+
 import abc
-import six
 
 from oslo_log import log as logging
 
@@ -25,8 +25,7 @@ from dcmanager.common import utils
 LOG = logging.getLogger(__name__)
 
 
-@six.add_metaclass(abc.ABCMeta)
-class BaseState(object):
+class BaseState(object, metaclass=abc.ABCMeta):
 
     def __init__(self, next_state, region_name):
         super(BaseState, self).__init__()

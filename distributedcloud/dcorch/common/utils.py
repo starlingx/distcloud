@@ -19,7 +19,6 @@ import uuid
 
 from oslo_db import exception as oslo_db_exception
 from oslo_log import log as logging
-import six.moves
 
 from dccommon import consts as dccommon_consts
 from dcorch.common import consts
@@ -39,7 +38,7 @@ def get_import_path(cls):
 # Returns a iterator of tuples containing batch_size number of objects in each
 def get_batch_projects(batch_size, project_list, fillvalue=None):
     args = [iter(project_list)] * batch_size
-    return six.moves.zip_longest(fillvalue=fillvalue, *args)
+    return itertools.zip_longest(fillvalue=fillvalue, *args)
 
 
 # to do validate the quota limits

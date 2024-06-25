@@ -19,14 +19,14 @@ import shutil
 import socket
 import tempfile
 import threading
+import urllib.error as urllib_error
+from urllib import parse
+from urllib import request
 
 from eventlet.green import subprocess
 import netaddr
 from oslo_config import cfg
 from oslo_log import log as logging
-from six.moves.urllib import error as urllib_error
-from six.moves.urllib import parse
-from six.moves.urllib import request
 
 from dccommon import consts
 from dccommon.drivers.openstack.sdk_platform import (

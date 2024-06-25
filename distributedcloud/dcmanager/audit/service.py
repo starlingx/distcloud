@@ -1,4 +1,4 @@
-# Copyright (c) 2020-2023 Wind River Systems, Inc.
+# Copyright (c) 2020-2024 Wind River Systems, Inc.
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -19,7 +19,6 @@ from oslo_config import cfg
 from oslo_log import log as logging
 import oslo_messaging
 from oslo_service import service
-import six
 
 from dcmanager.audit.subcloud_audit_manager import SubcloudAuditManager
 from dcmanager.audit.subcloud_audit_worker_manager import SubcloudAuditWorkerManager
@@ -95,7 +94,7 @@ class DCManagerAuditService(service.Service):
             self._rpc_server.wait()
             LOG.info("Engine service stopped successfully")
         except Exception as ex:
-            LOG.error("Failed to stop engine service: %s", six.text_type(ex))
+            LOG.error("Failed to stop engine service: %s", str(ex))
 
     def stop(self):
         self._stop_rpc_server()
@@ -219,9 +218,7 @@ class DCManagerAuditWorkerService(service.Service):
             self._rpc_server.wait()
             LOG.info("Audit-worker RPC service stopped successfully")
         except Exception as ex:
-            LOG.error(
-                "Failed to stop audit-worker RPC service: %s", six.text_type(ex)
-            )
+            LOG.error("Failed to stop audit-worker RPC service: %s", str(ex))
 
     def stop(self):
         self._stop_rpc_server()

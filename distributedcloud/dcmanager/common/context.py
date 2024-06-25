@@ -16,6 +16,7 @@
 
 import re
 import time
+from urllib.parse import urlparse
 
 from oslo_context import context as base_context
 from oslo_log import log
@@ -23,7 +24,6 @@ from oslo_utils import encodeutils
 from oslo_utils import uuidutils
 import pecan
 from pecan import hooks
-from six.moves.urllib.parse import urlparse
 
 from dcmanager.api.policies import base as base_policy
 from dcmanager.api import policy

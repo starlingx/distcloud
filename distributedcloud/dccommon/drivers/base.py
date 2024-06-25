@@ -1,4 +1,4 @@
-# Copyright (c) 2017-2021 Wind River Systems, Inc.
+# Copyright (c) 2017-2021, 2024 Wind River Systems, Inc.
 # Licensed under the Apache License, Version 2.0 (the "License"); you may
 # not use this file except in compliance with the License. You may obtain
 # a copy of the License at
@@ -16,16 +16,13 @@ Base class for all drivers.
 """
 
 import abc
-import six
 
 from oslo_log import log as logging
 
 LOG = logging.getLogger(__name__)
 
 
-class DriverBase(object):
-
-    six.add_metaclass(abc.ABCMeta)
+class DriverBase(object, metaclass=abc.ABCMeta):
     """Base class for all drivers."""
 
     def __init__(self, context):

@@ -14,13 +14,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import six
-
 from keystoneauth1 import exceptions as keystone_exceptions
 from novaclient import client as novaclient
 from novaclient import exceptions as novaclient_exceptions
 from novaclient import utils as novaclient_utils
-
 from oslo_log import log as logging
 from oslo_serialization import jsonutils
 
@@ -215,7 +212,7 @@ class ComputeSyncThread(SyncThread):
             newflavor = self.sc_nova_client.flavors.create(
                 name, ram, vcpus, disk, **kwargs)
         except novaclient_exceptions.Conflict as e:
-            if "already exists" in six.text_type(e):
+            if "already exists" in str(e):
                 # FlavorExists or FlavorIdExists.
                 LOG.info("Flavor {} already exists in subcloud"
                          .format(name), extra=self.log_extra)

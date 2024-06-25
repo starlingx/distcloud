@@ -22,7 +22,6 @@
 import keystoneauth1.identity.generic as auth_plugin
 from keystoneauth1 import session as ks_session
 from oslo_utils import importutils
-import six
 
 from dcdbsync.dbsyncclient import httpclient
 from dcdbsync.dbsyncclient.v1.identity import identity_group_manager as igm
@@ -49,8 +48,7 @@ class Client(object):
                  profile=None, auth_type='keystone', client_id=None,
                  client_secret=None, session=None, **kwargs):
         """Communicates with Keystone to fetch necessary values."""
-        if dbsync_agent_url and not isinstance(dbsync_agent_url,
-                                               six.string_types):
+        if dbsync_agent_url and not isinstance(dbsync_agent_url, str):
             raise RuntimeError('DC DBsync agent url should be a string.')
 
         if auth_url or session:

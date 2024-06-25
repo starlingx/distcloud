@@ -12,12 +12,10 @@
 #    See the License for the specific language governing permissions and
 #    limitations under the License.
 #
-# Copyright (c) 2019 Wind River Systems, Inc.
+# Copyright (c) 2019, 2024 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
-
-import six
 
 from dcdbsync.dbsyncclient.v1 import client as client_v1
 
@@ -28,7 +26,7 @@ def Client(dbsync_agent_url=None, username=None, api_key=None,
            auth_token=None, user_id=None, cacert=None, insecure=False,
            profile=None, auth_type='keystone', client_id=None,
            client_secret=None, session=None, **kwargs):
-    if dbsync_agent_url and not isinstance(dbsync_agent_url, six.string_types):
+    if dbsync_agent_url and not isinstance(dbsync_agent_url, str):
         raise RuntimeError('DC DBsync agent url should be a string.')
 
     return client_v1.Client(
