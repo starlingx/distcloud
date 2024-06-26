@@ -92,11 +92,13 @@ class EngineService(service.Service):
 
         if self.periodic_enable:
             LOG.info("Adding periodic tasks for the engine to perform")
-            self.TG.add_timer(CONF.fernet.key_rotation_interval *
-                              dccommon_consts.SECONDS_IN_HOUR,
-                              self.periodic_key_rotation,
-                              initial_delay=(CONF.fernet.key_rotation_interval
-                                             * dccommon_consts.SECONDS_IN_HOUR))
+            self.TG.add_timer(
+                CONF.fernet.key_rotation_interval * dccommon_consts.SECONDS_IN_HOUR,
+                self.periodic_key_rotation,
+                initial_delay=(
+                    CONF.fernet.key_rotation_interval * dccommon_consts.SECONDS_IN_HOUR
+                ),
+            )
 
     def init_tgm(self):
         self.TG = scheduler.ThreadGroupManager()
@@ -119,23 +121,23 @@ class EngineService(service.Service):
 
     def periodic_balance_all(self):
         # Automated Quota Sync for all the keystone projects
-        LOG.info("Periodic quota sync job started at: %s",
-                 time.strftime("%c"))
+        LOG.info("Periodic quota sync job started at: %s", time.strftime("%c"))
         self.qm.periodic_balance_all()
 
     @request_context
-    def get_usage_for_project_and_user(self, context, endpoint_type,
-                                       project_id, user_id=None):
+    def get_usage_for_project_and_user(
+        self, context, endpoint_type, project_id, user_id=None
+    ):
         # Returns cached usage as of last quota sync audit so will be
         # slightly stale.
-        return self.qm.get_usage_for_project_and_user(endpoint_type,
-                                                      project_id, user_id)
+        return self.qm.get_usage_for_project_and_user(
+            endpoint_type, project_id, user_id
+        )
 
     @request_context
     def quota_sync_for_project(self, context, project_id, user_id):
         # On Demand Quota Sync for a project, will be triggered by KB-API
-        LOG.info("On Demand Quota Sync Called for: %s %s",
-                 project_id, user_id)
+        LOG.info("On Demand Quota Sync Called for: %s %s", project_id, user_id)
         self.qm.quota_sync_for_project(project_id, user_id)
 
     def _stop_rpc_server(self):
@@ -197,9 +199,9 @@ class EngineWorkerService(service.Service):
     def start(self):
         LOG.info("Starting %s", self.__class__.__name__)
         self.engine_id = uuidutils.generate_uuid()
-        target = oslo_messaging.Target(version=self.rpc_api_version,
-                                       server=self.host,
-                                       topic=self.topic)
+        target = oslo_messaging.Target(
+            version=self.rpc_api_version, server=self.host, topic=self.topic
+        )
         self.target = target
         self._rpc_server = rpc_messaging.get_rpc_server(self.target, self)
         self._rpc_server.start()
@@ -213,11 +215,14 @@ class EngineWorkerService(service.Service):
 
     def set_resource_limit(self):
         try:
-            resource.setrlimit(resource.RLIMIT_NOFILE, (cfg.CONF.rlimit_nofile,
-                                                        cfg.CONF.rlimit_nofile))
+            resource.setrlimit(
+                resource.RLIMIT_NOFILE, (cfg.CONF.rlimit_nofile, cfg.CONF.rlimit_nofile)
+            )
         except Exception as ex:
-            LOG.error('Engine id %s: failed to set the NOFILE resource limit: '
-                      '%s' % (self.engine_id, ex))
+            LOG.error(
+                "Engine id %s: failed to set the NOFILE resource limit: "
+                "%s" % (self.engine_id, ex)
+            )
 
     @request_context
     def add_subcloud(self, ctxt, subcloud_name, sw_version, management_ip):
@@ -230,9 +235,9 @@ class EngineWorkerService(service.Service):
 
     @request_context
     # todo: add authentication since ctxt not actually needed later
-    def update_subcloud_states(self, ctxt, subcloud_name,
-                               management_state,
-                               availability_status):
+    def update_subcloud_states(
+        self, ctxt, subcloud_name, management_state, availability_status
+    ):
         """Handle subcloud state updates from dcmanager
 
         These state updates must be processed quickly. Any work triggered by
@@ -243,23 +248,26 @@ class EngineWorkerService(service.Service):
 
         # Check if state has changed before doing anything
         if self.gswm.subcloud_state_matches(
-                subcloud_name,
-                management_state=management_state,
-                availability_status=availability_status):
+            subcloud_name,
+            management_state=management_state,
+            availability_status=availability_status,
+        ):
             # No change in state - nothing to do.
-            LOG.debug('Ignoring unchanged state update for %s' % subcloud_name)
+            LOG.debug("Ignoring unchanged state update for %s" % subcloud_name)
             return
 
         # Check if the subcloud is ready to sync.
-        if (management_state == dccommon_consts.MANAGEMENT_MANAGED) and \
-                (availability_status == dccommon_consts.AVAILABILITY_ONLINE):
+        if (management_state == dccommon_consts.MANAGEMENT_MANAGED) and (
+            availability_status == dccommon_consts.AVAILABILITY_ONLINE
+        ):
             # Update the subcloud state and schedule an initial sync
             self.gswm.update_subcloud_state(
                 ctxt,
                 subcloud_name,
                 management_state=management_state,
                 availability_status=availability_status,
-                initial_sync_state=consts.INITIAL_SYNC_STATE_REQUESTED)
+                initial_sync_state=consts.INITIAL_SYNC_STATE_REQUESTED,
+            )
         else:
             # Update the subcloud state and cancel the initial sync
             self.gswm.update_subcloud_state(
@@ -267,41 +275,55 @@ class EngineWorkerService(service.Service):
                 subcloud_name,
                 management_state=management_state,
                 availability_status=availability_status,
-                initial_sync_state=consts.INITIAL_SYNC_STATE_NONE)
+                initial_sync_state=consts.INITIAL_SYNC_STATE_NONE,
+            )
 
     @request_context
-    def update_subcloud_state(self, ctxt, subcloud_name,
-                              management_state=None,
-                              availability_status=None,
-                              initial_sync_state=None):
+    def update_subcloud_state(
+        self,
+        ctxt,
+        subcloud_name,
+        management_state=None,
+        availability_status=None,
+        initial_sync_state=None,
+    ):
         LOG.info("Trigger update state for subcloud %s", subcloud_name)
-        self.gswm.update_subcloud_state(ctxt, subcloud_name,
-                                        management_state,
-                                        availability_status,
-                                        initial_sync_state)
+        self.gswm.update_subcloud_state(
+            ctxt,
+            subcloud_name,
+            management_state,
+            availability_status,
+            initial_sync_state,
+        )
 
     @request_context
-    def add_subcloud_sync_endpoint_type(self, ctxt, subcloud_name,
-                                        endpoint_type_list=None):
+    def add_subcloud_sync_endpoint_type(
+        self, ctxt, subcloud_name, endpoint_type_list=None
+    ):
         try:
             self.gswm.add_subcloud_sync_endpoint_type(
-                ctxt, subcloud_name,
-                endpoint_type_list=endpoint_type_list)
+                ctxt, subcloud_name, endpoint_type_list=endpoint_type_list
+            )
         except Exception as ex:
-            LOG.warning('Add subcloud endpoint type failed for %s: %s',
-                        subcloud_name, str(ex))
+            LOG.warning(
+                "Add subcloud endpoint type failed for %s: %s", subcloud_name, str(ex)
+            )
             raise
 
     @request_context
-    def remove_subcloud_sync_endpoint_type(self, ctxt, subcloud_name,
-                                           endpoint_type_list=None):
+    def remove_subcloud_sync_endpoint_type(
+        self, ctxt, subcloud_name, endpoint_type_list=None
+    ):
         try:
             self.gswm.remove_subcloud_sync_endpoint_type(
-                ctxt, subcloud_name,
-                endpoint_type_list=endpoint_type_list)
+                ctxt, subcloud_name, endpoint_type_list=endpoint_type_list
+            )
         except Exception as ex:
-            LOG.warning('Remove subcloud endpoint type failed for %s: %s',
-                        subcloud_name, str(ex))
+            LOG.warning(
+                "Remove subcloud endpoint type failed for %s: %s",
+                subcloud_name,
+                str(ex),
+            )
             raise
 
     @request_context
@@ -332,7 +354,7 @@ class EngineWorkerService(service.Service):
             if self._rpc_server:
                 self._rpc_server.stop()
                 self._rpc_server.wait()
-                LOG.info('Engine-worker service stopped successfully')
+                LOG.info("Engine-worker service stopped successfully")
         except Exception as ex:
             LOG.error(f"Failed to stop engine-worker service: {str(ex)}")
 

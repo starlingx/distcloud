@@ -46,7 +46,7 @@ class BaseTestIdentitySyncThread(OrchestratorTestCase, mixins.BaseMixin):
         )
 
         self.method = lambda *args: None
-        self.resource_name = ''
+        self.resource_name = ""
         self.resource_ref = None
         self.resource_ref_name = None
         self.resource_add = lambda: None
@@ -57,7 +57,7 @@ class BaseTestIdentitySyncThread(OrchestratorTestCase, mixins.BaseMixin):
 
     def _create_request_and_resource_mocks(self):
         self.request = mock.MagicMock()
-        self.request.orch_job.resource_info = f'{{\"id\": {RESOURCE_ID}}}'
+        self.request.orch_job.resource_info = f'{{"id": {RESOURCE_ID}}}'
         self.request.orch_job.source_resource_id = SOURCE_RESOURCE_ID
 
         self.rsrc = mock.MagicMock
@@ -66,17 +66,19 @@ class BaseTestIdentitySyncThread(OrchestratorTestCase, mixins.BaseMixin):
 
     def _create_subcloud_and_subcloud_resource(self):
         values = {
-            'software_version': '10.04',
-            'management_state': dccommon_consts.MANAGEMENT_MANAGED,
-            'availability_status': dccommon_consts.AVAILABILITY_ONLINE,
-            'initial_sync_state': '',
-            'capabilities': {},
-            'management_ip': '192.168.0.1'
+            "software_version": "10.04",
+            "management_state": dccommon_consts.MANAGEMENT_MANAGED,
+            "availability_status": dccommon_consts.AVAILABILITY_ONLINE,
+            "initial_sync_state": "",
+            "capabilities": {},
+            "management_ip": "192.168.0.1",
         }
-        self.subcloud = db_api.subcloud_create(self.ctx, 'subcloud', values)
+        self.subcloud = db_api.subcloud_create(self.ctx, "subcloud", values)
         self.subcloud_resource = subcloud_resource.SubcloudResource(
-            self.ctx, subcloud_resource_id=self.rsrc.master_id,
-            resource_id=self.rsrc.id, subcloud_id=self.subcloud.id
+            self.ctx,
+            subcloud_resource_id=self.rsrc.master_id,
+            resource_id=self.rsrc.id,
+            subcloud_id=self.subcloud.id,
         )
         self.subcloud_resource.create()
 
@@ -123,19 +125,14 @@ class BaseTestIdentitySyncThread(OrchestratorTestCase, mixins.BaseMixin):
         self.method(self.request, self.rsrc)
 
     def _execute_and_assert_exception(self, exception):
-        self.assertRaises(
-            exception,
-            self.method,
-            self.request,
-            self.rsrc
-        )
+        self.assertRaises(exception, self.method, self.request, self.rsrc)
 
     def _assert_log(self, level, message, extra=mock.ANY):
-        if level == 'info':
+        if level == "info":
             self.log.info.assert_called_with(message, extra=extra)
-        elif level == 'error':
+        elif level == "error":
             self.log.error.assert_called_with(message, extra=extra)
-        elif level == 'debug':
+        elif level == "debug":
             self.log.debug.assert_called_with(message, extra=extra)
 
 
@@ -145,14 +142,14 @@ class BaseTestIdentitySyncThreadUsers(BaseTestIdentitySyncThread):
     def setUp(self):
         super().setUp()
 
-        self.resource_name = 'user'
+        self.resource_name = "user"
         self.resource_ref = {
-            self.resource_name: {'id': RESOURCE_ID},
-            'local_user': {'name': 'fake value'}
+            self.resource_name: {"id": RESOURCE_ID},
+            "local_user": {"name": "fake value"},
         }
-        self.resource_ref_name = self.resource_ref.get('local_user').get('name')
-        self.resource_detail = self.identity_sync_thread.get_master_dbs_client().\
-            identity_user_manager.user_detail
+        self.resource_ref_name = self.resource_ref.get("local_user").get("name")
+        self.dbs_client = self.identity_sync_thread.get_master_dbs_client()
+        self.resource_detail = self.dbs_client.identity_user_manager.user_detail
 
 
 class TestIdentitySyncThreadUsersPost(
@@ -164,8 +161,8 @@ class TestIdentitySyncThreadUsersPost(
         super().setUp()
 
         self.method = self.identity_sync_thread.post_users
-        self.resource_add = self.identity_sync_thread.get_sc_dbs_client().\
-            identity_user_manager.add_user
+        self.sc_dbs_client = self.identity_sync_thread.get_sc_dbs_client()
+        self.resource_add = self.sc_dbs_client.identity_user_manager.add_user
 
 
 class TestIdentitySyncThreadUsersPut(
@@ -177,8 +174,8 @@ class TestIdentitySyncThreadUsersPut(
         super().setUp()
 
         self.method = self.identity_sync_thread.put_users
-        self.resource_update = self.identity_sync_thread.get_sc_dbs_client().\
-            identity_user_manager.update_user
+        self.sc_dbs_client = self.identity_sync_thread.get_sc_dbs_client()
+        self.resource_update = self.sc_dbs_client.identity_user_manager.update_user
 
 
 class TestIdentitySyncThreadUsersPatch(
@@ -191,8 +188,9 @@ class TestIdentitySyncThreadUsersPatch(
 
         self.method = self.identity_sync_thread.patch_users
         self.request.orch_job.resource_info = f'{{"{self.resource_name}": {{}}}}'
-        self.resource_keystone_update = self.identity_sync_thread.\
-            get_sc_ks_client().users.update
+        self.resource_keystone_update = (
+            self.identity_sync_thread.get_sc_ks_client().users.update
+        )
 
 
 class TestIdentitySyncThreadUsersDelete(
@@ -204,8 +202,9 @@ class TestIdentitySyncThreadUsersDelete(
         super().setUp()
 
         self.method = self.identity_sync_thread.delete_users
-        self.resource_keystone_delete = self.identity_sync_thread.\
-            get_sc_ks_client().users.delete
+        self.resource_keystone_delete = (
+            self.identity_sync_thread.get_sc_ks_client().users.delete
+        )
 
 
 class BaseTestIdentitySyncThreadGroups(BaseTestIdentitySyncThread):
@@ -214,13 +213,13 @@ class BaseTestIdentitySyncThreadGroups(BaseTestIdentitySyncThread):
     def setUp(self):
         super().setUp()
 
-        self.resource_name = 'group'
-        self.resource_ref = \
-            {self.resource_name: {'id': RESOURCE_ID, 'name': 'fake value'}}
-        self.resource_ref_name = \
-            self.resource_ref.get(self.resource_name).get('name')
-        self.resource_detail = self.identity_sync_thread.get_master_dbs_client().\
-            identity_group_manager.group_detail
+        self.resource_name = "group"
+        self.resource_ref = {
+            self.resource_name: {"id": RESOURCE_ID, "name": "fake value"}
+        }
+        self.resource_ref_name = self.resource_ref.get(self.resource_name).get("name")
+        self.dbs_client = self.identity_sync_thread.get_master_dbs_client()
+        self.resource_detail = self.dbs_client.identity_group_manager.group_detail
 
 
 class TestIdentitySyncThreadGroupsPost(
@@ -232,8 +231,8 @@ class TestIdentitySyncThreadGroupsPost(
         super().setUp()
 
         self.method = self.identity_sync_thread.post_groups
-        self.resource_add = self.identity_sync_thread.get_sc_dbs_client().\
-            identity_group_manager.add_group
+        self.sc_dbs_client = self.identity_sync_thread.get_sc_dbs_client()
+        self.resource_add = self.sc_dbs_client.identity_group_manager.add_group
 
 
 class TestIdentitySyncThreadGroupsPut(
@@ -245,8 +244,8 @@ class TestIdentitySyncThreadGroupsPut(
         super().setUp()
 
         self.method = self.identity_sync_thread.put_groups
-        self.resource_update = self.identity_sync_thread.get_sc_dbs_client().\
-            identity_group_manager.update_group
+        self.sc_dbs_client = self.identity_sync_thread.get_sc_dbs_client()
+        self.resource_update = self.sc_dbs_client.identity_group_manager.update_group
 
 
 class TestIdentitySyncThreadGroupsPatch(
@@ -259,8 +258,9 @@ class TestIdentitySyncThreadGroupsPatch(
 
         self.method = self.identity_sync_thread.patch_groups
         self.request.orch_job.resource_info = f'{{"{self.resource_name}": {{}}}}'
-        self.resource_keystone_update = self.identity_sync_thread.\
-            get_sc_ks_client().groups.update
+        self.resource_keystone_update = (
+            self.identity_sync_thread.get_sc_ks_client().groups.update
+        )
 
 
 class TestIdentitySyncThreadGroupsDelete(
@@ -272,8 +272,9 @@ class TestIdentitySyncThreadGroupsDelete(
         super().setUp()
 
         self.method = self.identity_sync_thread.delete_groups
-        self.resource_keystone_delete = self.identity_sync_thread.\
-            get_sc_ks_client().groups.delete
+        self.resource_keystone_delete = (
+            self.identity_sync_thread.get_sc_ks_client().groups.delete
+        )
 
 
 class BaseTestIdentitySyncThreadProjects(BaseTestIdentitySyncThread):
@@ -282,14 +283,13 @@ class BaseTestIdentitySyncThreadProjects(BaseTestIdentitySyncThread):
     def setUp(self):
         super().setUp()
 
-        self.resource_name = 'project'
+        self.resource_name = "project"
         self.resource_ref = {
-            self.resource_name: {'id': RESOURCE_ID, 'name': 'fake value'}
+            self.resource_name: {"id": RESOURCE_ID, "name": "fake value"}
         }
-        self.resource_ref_name = \
-            self.resource_ref.get(self.resource_name).get('name')
-        self.resource_detail = self.identity_sync_thread.get_master_dbs_client().\
-            project_manager.project_detail
+        self.resource_ref_name = self.resource_ref.get(self.resource_name).get("name")
+        self.dbs_client = self.identity_sync_thread.get_master_dbs_client()
+        self.resource_detail = self.dbs_client.project_manager.project_detail
 
 
 class TestIdentitySyncThreadProjectsPost(
@@ -301,8 +301,8 @@ class TestIdentitySyncThreadProjectsPost(
         super().setUp()
 
         self.method = self.identity_sync_thread.post_projects
-        self.resource_add = self.identity_sync_thread.get_sc_dbs_client().\
-            project_manager.add_project
+        self.sc_dbs_client = self.identity_sync_thread.get_sc_dbs_client()
+        self.resource_add = self.sc_dbs_client.project_manager.add_project
 
 
 class TestIdentitySyncThreadProjectsPut(
@@ -314,8 +314,8 @@ class TestIdentitySyncThreadProjectsPut(
         super().setUp()
 
         self.method = self.identity_sync_thread.put_projects
-        self.resource_update = self.identity_sync_thread.get_sc_dbs_client().\
-            project_manager.update_project
+        self.sc_dbs_client = self.identity_sync_thread.get_sc_dbs_client()
+        self.resource_update = self.sc_dbs_client.project_manager.update_project
 
 
 class TestIdentitySyncThreadProjectsPatch(
@@ -328,8 +328,9 @@ class TestIdentitySyncThreadProjectsPatch(
 
         self.method = self.identity_sync_thread.patch_projects
         self.request.orch_job.resource_info = f'{{"{self.resource_name}": {{}}}}'
-        self.resource_keystone_update = self.identity_sync_thread.\
-            get_sc_ks_client().projects.update
+        self.resource_keystone_update = (
+            self.identity_sync_thread.get_sc_ks_client().projects.update
+        )
 
 
 class TestIdentitySyncThreadProjectsDelete(
@@ -341,8 +342,9 @@ class TestIdentitySyncThreadProjectsDelete(
         super().setUp()
 
         self.method = self.identity_sync_thread.delete_projects
-        self.resource_keystone_delete = self.identity_sync_thread.\
-            get_sc_ks_client().projects.delete
+        self.resource_keystone_delete = (
+            self.identity_sync_thread.get_sc_ks_client().projects.delete
+        )
 
 
 class BaseTestIdentitySyncThreadRoles(BaseTestIdentitySyncThread):
@@ -351,14 +353,13 @@ class BaseTestIdentitySyncThreadRoles(BaseTestIdentitySyncThread):
     def setUp(self):
         super().setUp()
 
-        self.resource_name = 'role'
+        self.resource_name = "role"
         self.resource_ref = {
-            self.resource_name: {'id': RESOURCE_ID, 'name': 'fake value'}
+            self.resource_name: {"id": RESOURCE_ID, "name": "fake value"}
         }
-        self.resource_ref_name = \
-            self.resource_ref.get(self.resource_name).get('name')
-        self.resource_detail = self.identity_sync_thread.get_master_dbs_client().\
-            role_manager.role_detail
+        self.resource_ref_name = self.resource_ref.get(self.resource_name).get("name")
+        self.dbs_client = self.identity_sync_thread.get_master_dbs_client()
+        self.resource_detail = self.dbs_client.role_manager.role_detail
 
 
 class TestIdentitySyncThreadRolesPost(
@@ -370,8 +371,8 @@ class TestIdentitySyncThreadRolesPost(
         super().setUp()
 
         self.method = self.identity_sync_thread.post_roles
-        self.resource_add = self.identity_sync_thread.get_sc_dbs_client().\
-            role_manager.add_role
+        self.sc_dbs_client = self.identity_sync_thread.get_sc_dbs_client()
+        self.resource_add = self.sc_dbs_client.role_manager.add_role
 
 
 class TestIdentitySyncThreadRolesPut(
@@ -383,8 +384,8 @@ class TestIdentitySyncThreadRolesPut(
         super().setUp()
 
         self.method = self.identity_sync_thread.put_roles
-        self.resource_update = self.identity_sync_thread.get_sc_dbs_client().\
-            role_manager.update_role
+        self.sc_dbs_client = self.identity_sync_thread.get_sc_dbs_client()
+        self.resource_update = self.sc_dbs_client.role_manager.update_role
 
 
 class TestIdentitySyncThreadRolesPatch(
@@ -397,8 +398,9 @@ class TestIdentitySyncThreadRolesPatch(
 
         self.method = self.identity_sync_thread.patch_roles
         self.request.orch_job.resource_info = f'{{"{self.resource_name}": {{}}}}'
-        self.resource_keystone_update = self.identity_sync_thread.\
-            get_sc_ks_client().roles.update
+        self.resource_keystone_update = (
+            self.identity_sync_thread.get_sc_ks_client().roles.update
+        )
 
 
 class TestIdentitySyncThreadRolesDelete(
@@ -410,8 +412,9 @@ class TestIdentitySyncThreadRolesDelete(
         super().setUp()
 
         self.method = self.identity_sync_thread.delete_roles
-        self.resource_keystone_delete = self.identity_sync_thread.\
-            get_sc_ks_client().roles.delete
+        self.resource_keystone_delete = (
+            self.identity_sync_thread.get_sc_ks_client().roles.delete
+        )
 
 
 class BaseTestIdentitySyncThreadProjectRoleAssignments(BaseTestIdentitySyncThread):
@@ -425,7 +428,7 @@ class BaseTestIdentitySyncThreadProjectRoleAssignments(BaseTestIdentitySyncThrea
         self.role_id = 12
         self.domain = 13
 
-        self.resource_tags = f'{self.project_id}_{self.actor_id}_{self.role_id}'
+        self.resource_tags = f"{self.project_id}_{self.actor_id}_{self.role_id}"
 
 
 class TestIdentitySyncThreadProjectRoleAssignmentsPost(
@@ -440,14 +443,18 @@ class TestIdentitySyncThreadProjectRoleAssignmentsPost(
         self.rsrc.master_id = self.resource_tags
 
         self.mock_sc_role = self._create_mock_object(self.role_id)
-        self.identity_sync_thread.get_sc_ks_client().\
-            roles.list.return_value = [self.mock_sc_role]
-        self.identity_sync_thread.get_sc_ks_client().\
-            projects.list.return_value = [self._create_mock_object(self.project_id)]
-        self.identity_sync_thread.get_sc_ks_client().\
-            domains.list.return_value = [self._create_mock_object(self.project_id)]
-        self.identity_sync_thread.get_sc_ks_client().\
-            users.list.return_value = [self._create_mock_object(self.actor_id)]
+        self.identity_sync_thread.get_sc_ks_client().roles.list.return_value = [
+            self.mock_sc_role
+        ]
+        self.identity_sync_thread.get_sc_ks_client().projects.list.return_value = [
+            self._create_mock_object(self.project_id)
+        ]
+        self.identity_sync_thread.get_sc_ks_client().domains.list.return_value = [
+            self._create_mock_object(self.project_id)
+        ]
+        self.identity_sync_thread.get_sc_ks_client().users.list.return_value = [
+            self._create_mock_object(self.actor_id)
+        ]
 
     def _create_mock_object(self, id):
         mock_object = mock.MagicMock()
@@ -460,84 +467,88 @@ class TestIdentitySyncThreadProjectRoleAssignmentsPost(
 
         self._execute()
         self._assert_log(
-            'info', f"Created Keystone role assignment {self.rsrc.id}:"
-            f"{self.rsrc.master_id} [{self.rsrc.master_id}]"
+            "info",
+            f"Created Keystone role assignment {self.rsrc.id}:"
+            f"{self.rsrc.master_id} [{self.rsrc.master_id}]",
         )
 
     def test_post_succeeds_with_sc_group(self):
         """Test post succeeds with sc group"""
 
-        self.identity_sync_thread.get_sc_ks_client().\
-            users.list.return_value = []
-        self.identity_sync_thread.get_sc_ks_client().\
-            groups.list.return_value = [self._create_mock_object(self.actor_id)]
+        self.identity_sync_thread.get_sc_ks_client().users.list.return_value = []
+        self.identity_sync_thread.get_sc_ks_client().groups.list.return_value = [
+            self._create_mock_object(self.actor_id)
+        ]
 
         self._execute()
         self._assert_log(
-            'info', f"Created Keystone role assignment {self.rsrc.id}:"
-            f"{self.rsrc.master_id} [{self.rsrc.master_id}]"
+            "info",
+            f"Created Keystone role assignment {self.rsrc.id}:"
+            f"{self.rsrc.master_id} [{self.rsrc.master_id}]",
         )
 
     def test_post_fails_with_invalid_resource_tags(self):
         """Test post fails with invalid resource tags"""
 
-        self.rsrc.master_id = f'{self.project_id}_{self.actor_id}'
+        self.rsrc.master_id = f"{self.project_id}_{self.actor_id}"
 
         self._execute_and_assert_exception(exceptions.SyncRequestFailed)
         self._assert_log(
-            'error', f"Malformed resource tag {self.rsrc.id} expected to be in "
-            "format: ProjectID_UserID_RoleID."
+            "error",
+            f"Malformed resource tag {self.rsrc.id} expected to be in "
+            "format: ProjectID_UserID_RoleID.",
         )
 
     def test_post_fails_without_sc_role(self):
         """Test post fails without sc role"""
 
-        self.identity_sync_thread.get_sc_ks_client().\
-            roles.list.return_value = []
+        self.identity_sync_thread.get_sc_ks_client().roles.list.return_value = []
 
         self._execute_and_assert_exception(exceptions.SyncRequestFailed)
         self._assert_log(
-            'error', "Unable to assign role to user on project reference "
+            "error",
+            "Unable to assign role to user on project reference "
             f"{self.rsrc}:{self.role_id}, cannot "
-            "find equivalent Keystone Role in subcloud."
+            "find equivalent Keystone Role in subcloud.",
         )
 
     def test_post_fails_without_sc_proj(self):
         """Test post fails without sc proj"""
 
-        self.identity_sync_thread.get_sc_ks_client().\
-            projects.list.return_value = []
+        self.identity_sync_thread.get_sc_ks_client().projects.list.return_value = []
 
         self._execute_and_assert_exception(exceptions.SyncRequestFailed)
         self._assert_log(
-            'error', "Unable to assign role to user on project reference "
+            "error",
+            "Unable to assign role to user on project reference "
             f"{self.rsrc}:{self.project_id}, cannot "
-            "find equivalent Keystone Project in subcloud"
+            "find equivalent Keystone Project in subcloud",
         )
 
     def test_post_fails_wihtout_sc_user_and_sc_group(self):
         """Test post fails without sc user and sc group"""
 
-        self.identity_sync_thread.get_sc_ks_client().\
-            users.list.return_value = []
+        self.identity_sync_thread.get_sc_ks_client().users.list.return_value = []
 
         self._execute_and_assert_exception(exceptions.SyncRequestFailed)
         self._assert_log(
-            'error', "Unable to assign role to user/group on project "
+            "error",
+            "Unable to assign role to user/group on project "
             f"reference {self.rsrc}:{self.actor_id}, cannot find "
-            "equivalent Keystone User/Group in subcloud."
+            "equivalent Keystone User/Group in subcloud.",
         )
 
     def test_post_fails_without_role_ref(self):
         """Test post fails without role ref"""
 
-        self.identity_sync_thread.get_sc_ks_client().\
-            role_assignments.list.return_value = []
+        sc_ks_client = self.identity_sync_thread.get_sc_ks_client()
+        sc_ks_client.role_assignments.list.return_value = []
 
         self._execute_and_assert_exception(exceptions.SyncRequestFailed)
         self._assert_log(
-            'error', "Unable to update Keystone role assignment "
-            f"{self.rsrc.id}:{self.mock_sc_role} "
+            "error",
+            "Unable to update Keystone role assignment "
+            f"{self.rsrc.id}:{self.mock_sc_role}",
         )
 
 
@@ -561,7 +572,7 @@ class TestIdentitySyncThreadProjectRoleAssignmentsPut(
 
         self._execute()
 
-        self._assert_log('info', 'IdentitySyncThread initialized')
+        self._assert_log("info", "IdentitySyncThread initialized")
         self.log.error.assert_not_called()
 
 
@@ -581,14 +592,15 @@ class TestIdentitySyncThreadProjectRoleAssignmentsDelete(
     def test_delete_succeeds(self):
         """Test delete succeeds"""
 
-        self.identity_sync_thread.get_sc_ks_client().\
-            role_assignments.list.return_value = []
+        sc_ks_client = self.identity_sync_thread.get_sc_ks_client()
+        sc_ks_client.role_assignments.list.return_value = []
 
         self._execute()
 
         self._assert_log(
-            'info', "Deleted Keystone role assignment: "
-            f"{self.rsrc.id}:{self.subcloud_resource}"
+            "info",
+            "Deleted Keystone role assignment: "
+            f"{self.rsrc.id}:{self.subcloud_resource}",
         )
 
     def test_delete_succeeds_without_assignment_subcloud_rsrc(self):
@@ -599,8 +611,9 @@ class TestIdentitySyncThreadProjectRoleAssignmentsDelete(
         self._execute()
 
         self._assert_log(
-            'error', f"Unable to delete assignment {self.rsrc}, "
-            "cannot find Keystone Role Assignment in subcloud."
+            "error",
+            f"Unable to delete assignment {self.rsrc}, "
+            "cannot find Keystone Role Assignment in subcloud.",
         )
 
     def test_delete_succeeds_with_invalid_resource_tags(self):
@@ -612,55 +625,67 @@ class TestIdentitySyncThreadProjectRoleAssignmentsDelete(
         self._execute()
 
         self._assert_log(
-            'error', f"Malformed subcloud resource tag {self.subcloud_resource}, "
+            "error",
+            f"Malformed subcloud resource tag {self.subcloud_resource}, "
             "expected to be in format: ProjectID_UserID_RoleID or "
-            "ProjectID_GroupID_RoleID."
+            "ProjectID_GroupID_RoleID.",
         )
 
     def test_delete_for_user_succeeds_with_keystone_not_found_exception(self):
         """Test delete fails for user with keystone not found exception"""
 
-        self.identity_sync_thread.get_sc_ks_client().\
-            roles.revoke.side_effect = [keystone_exceptions.NotFound, None]
-        self.identity_sync_thread.get_sc_ks_client().\
-            role_assignments.list.return_value = []
+        sc_ks_client = self.identity_sync_thread.get_sc_ks_client()
+        sc_ks_client.roles.revoke.side_effect = [
+            keystone_exceptions.NotFound,
+            None,
+        ]
+        sc_ks_client.role_assignments.list.return_value = []
 
         self._execute()
 
-        self.log.assert_has_calls([
-            mock.call.info(
-                f"Revoke role assignment: (role {self.role_id}, "
-                f"user {self.actor_id}, project {self.project_id}) "
-                f"not found in {self.subcloud.region_name}, "
-                "considered as deleted.", extra=mock.ANY
-            ),
-            mock.call.info(
-                f"Deleted Keystone role assignment: {self.rsrc.id}:"
-                f"{self.subcloud_resource}", extra=mock.ANY
-            )],
-            any_order=False
+        self.log.assert_has_calls(
+            [
+                mock.call.info(
+                    f"Revoke role assignment: (role {self.role_id}, "
+                    f"user {self.actor_id}, project {self.project_id}) "
+                    f"not found in {self.subcloud.region_name}, "
+                    "considered as deleted.",
+                    extra=mock.ANY,
+                ),
+                mock.call.info(
+                    f"Deleted Keystone role assignment: {self.rsrc.id}:"
+                    f"{self.subcloud_resource}",
+                    extra=mock.ANY,
+                ),
+            ],
+            any_order=False,
         )
 
     def test_delete_for_group_succeeds_with_keystone_not_found_exception(self):
         """Test delete fails for group with keystone not found exception"""
 
-        self.identity_sync_thread.get_sc_ks_client().\
-            roles.revoke.side_effect = keystone_exceptions.NotFound
+        self.identity_sync_thread.get_sc_ks_client().roles.revoke.side_effect = (
+            keystone_exceptions.NotFound
+        )
 
         self._execute()
 
-        self.log.assert_has_calls([
-            mock.call.info(
-                f"Revoke role assignment: (role {self.role_id}, "
-                f"group {self.actor_id}, project {self.project_id}) "
-                f"not found in {self.subcloud.region_name}, "
-                "considered as deleted.", extra=mock.ANY
-            ),
-            mock.call.info(
-                f"Deleted Keystone role assignment: {self.rsrc.id}:"
-                f"{self.subcloud_resource}", extra=mock.ANY
-            )],
-            any_order=False
+        self.log.assert_has_calls(
+            [
+                mock.call.info(
+                    f"Revoke role assignment: (role {self.role_id}, "
+                    f"group {self.actor_id}, project {self.project_id}) "
+                    f"not found in {self.subcloud.region_name}, "
+                    "considered as deleted.",
+                    extra=mock.ANY,
+                ),
+                mock.call.info(
+                    f"Deleted Keystone role assignment: {self.rsrc.id}:"
+                    f"{self.subcloud_resource}",
+                    extra=mock.ANY,
+                ),
+            ],
+            any_order=False,
         )
 
     def test_delete_fails_without_role_ref(self):
@@ -669,8 +694,9 @@ class TestIdentitySyncThreadProjectRoleAssignmentsDelete(
         self._execute_and_assert_exception(exceptions.SyncRequestFailed)
 
         self._assert_log(
-            'error', "Unable to delete Keystone role assignment "
-            f"{self.rsrc.id}:{self.role_id} "
+            "error",
+            "Unable to delete Keystone role assignment "
+            f"{self.rsrc.id}:{self.role_id} ",
         )
 
 
@@ -680,14 +706,13 @@ class BaseTestIdentitySyncThreadRevokeEvents(BaseTestIdentitySyncThread):
     def setUp(self):
         super().setUp()
 
-        self.resource_name = 'token revocation event'
+        self.resource_name = "token revocation event"
         self.resource_ref = {
-            'revocation_event': {'audit_id': RESOURCE_ID, 'name': 'fake value'}
+            "revocation_event": {"audit_id": RESOURCE_ID, "name": "fake value"}
         }
-        self.resource_ref_name = \
-            self.resource_ref.get('revocation_event').get('name')
-        self.resource_detail = self.identity_sync_thread.get_master_dbs_client().\
-            revoke_event_manager.revoke_event_detail
+        self.resource_ref_name = self.resource_ref.get("revocation_event").get("name")
+        self.dbs_client = self.identity_sync_thread.get_master_dbs_client()
+        self.resource_detail = self.dbs_client.revoke_event_manager.revoke_event_detail
 
 
 class BaseTestIdentitySyncThreadRevokeEventsPost(
@@ -701,8 +726,8 @@ class BaseTestIdentitySyncThreadRevokeEventsPost(
         self.resource_info = {"token_revoke_event": {"audit_id": RESOURCE_ID}}
         self.request.orch_job.resource_info = jsonutils.dumps(self.resource_info)
         self.method = self.identity_sync_thread.post_revoke_events
-        self.resource_add = self.identity_sync_thread.get_sc_dbs_client().\
-            revoke_event_manager.add_revoke_event
+        self.sc_dbs_client = self.identity_sync_thread.get_sc_dbs_client()
+        self.resource_add = self.sc_dbs_client.revoke_event_manager.add_revoke_event
 
     def test_post_succeeds(self):
         """Test post succeeds"""
@@ -715,9 +740,10 @@ class BaseTestIdentitySyncThreadRevokeEventsPost(
         self._resource_add().assert_called_once()
 
         self._assert_log(
-            'info', f"Created Keystone {self._get_resource_name()} "
+            "info",
+            f"Created Keystone {self._get_resource_name()} "
             f"{self._get_rsrc().id}:"
-            f"{self.resource_info.get('token_revoke_event').get('audit_id')}"
+            f"{self.resource_info.get('token_revoke_event').get('audit_id')}",
         )
 
     def test_post_fails_without_source_resource_id(self):
@@ -727,8 +753,9 @@ class BaseTestIdentitySyncThreadRevokeEventsPost(
 
         self._execute_and_assert_exception(exceptions.SyncRequestFailed)
         self._assert_log(
-            'error', f"Received {self._get_resource_name()} create request "
-            "without required subcloud resource id"
+            "error",
+            f"Received {self._get_resource_name()} create request "
+            "without required subcloud resource id",
         )
 
     def test_post_fails_with_empty_resource_ref(self):
@@ -738,10 +765,11 @@ class BaseTestIdentitySyncThreadRevokeEventsPost(
 
         self._execute_and_assert_exception(exceptions.SyncRequestFailed)
         self._assert_log(
-            'error', f"No {self._get_resource_name()} data returned when creating "
+            "error",
+            f"No {self._get_resource_name()} data returned when creating "
             f"{self._get_resource_name()} with audit_id "
             f"{self.resource_info.get('token_revoke_event').get('audit_id')} "
-            "in subcloud."
+            "in subcloud.",
         )
 
     def test_post_fails_without_resource_records(self):
@@ -751,10 +779,11 @@ class BaseTestIdentitySyncThreadRevokeEventsPost(
 
         self._execute_and_assert_exception(exceptions.SyncRequestFailed)
         self._assert_log(
-            'error', "No data retrieved from master cloud for "
+            "error",
+            "No data retrieved from master cloud for "
             f"{self._get_resource_name()} with audit_id "
             f"{self.resource_info.get('token_revoke_event').get('audit_id')} "
-            "to create its equivalent in subcloud."
+            "to create its equivalent in subcloud.",
         )
 
 
@@ -767,8 +796,10 @@ class BaseTestIdentitySyncThreadRevokeEventsDelete(
         super().setUp()
 
         self.method = self.identity_sync_thread.delete_revoke_events
-        self.resource_keystone_delete = self.identity_sync_thread.\
-            get_sc_dbs_client().revoke_event_manager.delete_revoke_event
+        self.sc_dbs_client = self.identity_sync_thread.get_sc_dbs_client()
+        self.resource_keystone_delete = (
+            self.sc_dbs_client.revoke_event_manager.delete_revoke_event
+        )
 
     def test_delete_succeeds_with_keystone_not_found_exception(self):
         """Test delete succeeds with keystone's not found exception
@@ -786,20 +817,23 @@ class BaseTestIdentitySyncThreadRevokeEventsDelete(
         self._execute()
 
         self._resource_keystone_delete().assert_called_once()
-        self._get_log().assert_has_calls([
-            mock.call.info(
-                f"Delete {self._get_resource_name()}: event "
-                f"{self._get_subcloud_resource().subcloud_resource_id} "
-                f"not found in {self._get_subcloud().region_name}, "
-                "considered as deleted.", extra=mock.ANY
-            ),
-            mock.call.info(
-                f"Keystone {self._get_resource_name()} {self._get_rsrc().id}:"
-                f"{self._get_subcloud().id} "
-                f"[{self._get_subcloud_resource().subcloud_resource_id}] deleted",
-                extra=mock.ANY
-            )],
-            any_order=False
+        self._get_log().assert_has_calls(
+            [
+                mock.call.info(
+                    f"Delete {self._get_resource_name()}: event "
+                    f"{self._get_subcloud_resource().subcloud_resource_id} "
+                    f"not found in {self._get_subcloud().region_name}, "
+                    "considered as deleted.",
+                    extra=mock.ANY,
+                ),
+                mock.call.info(
+                    f"Keystone {self._get_resource_name()} {self._get_rsrc().id}:"
+                    f"{self._get_subcloud().id} "
+                    f"[{self._get_subcloud_resource().subcloud_resource_id}] deleted",
+                    extra=mock.ANY,
+                ),
+            ],
+            any_order=False,
         )
 
 
@@ -809,14 +843,13 @@ class BaseTestIdentitySyncThreadRevokeEventsForUser(BaseTestIdentitySyncThread):
     def setUp(self):
         super().setUp()
 
-        self.resource_name = 'token revocation event'
+        self.resource_name = "token revocation event"
         self.resource_ref = {
-            'revocation_event': {'audit_id': RESOURCE_ID, 'name': 'fake value'}
+            "revocation_event": {"audit_id": RESOURCE_ID, "name": "fake value"}
         }
-        self.resource_ref_name = \
-            self.resource_ref.get('revocation_event').get('name')
-        self.resource_detail = self.identity_sync_thread.get_master_dbs_client().\
-            revoke_event_manager.revoke_event_detail
+        self.resource_ref_name = self.resource_ref.get("revocation_event").get("name")
+        self.dbs_client = self.identity_sync_thread.get_master_dbs_client()
+        self.resource_detail = self.dbs_client.revoke_event_manager.revoke_event_detail
 
 
 class TestIdentitySyncThreadRevokeEventsForUserPost(
@@ -828,8 +861,8 @@ class TestIdentitySyncThreadRevokeEventsForUserPost(
         super().setUp()
 
         self.method = self.identity_sync_thread.post_revoke_events_for_user
-        self.resource_add = self.identity_sync_thread.get_sc_dbs_client().\
-            revoke_event_manager.add_revoke_event
+        self.sc_dbs_client = self.identity_sync_thread.get_sc_dbs_client()
+        self.resource_add = self.sc_dbs_client.revoke_event_manager.add_revoke_event
 
     def test_post_succeeds(self):
         """Test post succeeds"""
@@ -842,9 +875,10 @@ class TestIdentitySyncThreadRevokeEventsForUserPost(
         self._resource_add().assert_called_once()
 
         self._assert_log(
-            'info', f"Created Keystone {self._get_resource_name()} "
+            "info",
+            f"Created Keystone {self._get_resource_name()} "
             f"{self._get_rsrc().id}:"
-            f"{self._get_request().orch_job.source_resource_id}"
+            f"{self._get_request().orch_job.source_resource_id}",
         )
 
     def test_post_fails_without_source_resource_id(self):
@@ -854,8 +888,9 @@ class TestIdentitySyncThreadRevokeEventsForUserPost(
 
         self._execute_and_assert_exception(exceptions.SyncRequestFailed)
         self._assert_log(
-            'error', f"Received {self._get_resource_name()} create request "
-            "without required subcloud resource id"
+            "error",
+            f"Received {self._get_resource_name()} create request "
+            "without required subcloud resource id",
         )
 
     def test_post_fails_with_empty_resource_ref(self):
@@ -865,9 +900,10 @@ class TestIdentitySyncThreadRevokeEventsForUserPost(
 
         self._execute_and_assert_exception(exceptions.SyncRequestFailed)
         self._assert_log(
-            'error', f"No {self._get_resource_name()} data returned when creating "
+            "error",
+            f"No {self._get_resource_name()} data returned when creating "
             f"{self._get_resource_name()} with event_id "
-            f"{self._get_request().orch_job.source_resource_id} in subcloud."
+            f"{self._get_request().orch_job.source_resource_id} in subcloud.",
         )
 
     def test_post_fails_without_resource_records(self):
@@ -877,10 +913,11 @@ class TestIdentitySyncThreadRevokeEventsForUserPost(
 
         self._execute_and_assert_exception(exceptions.SyncRequestFailed)
         self._assert_log(
-            'error', "No data retrieved from master cloud for "
+            "error",
+            "No data retrieved from master cloud for "
             f"{self._get_resource_name()} with event_id "
             f"{self._get_request().orch_job.source_resource_id} to create its "
-            "equivalent in subcloud."
+            "equivalent in subcloud.",
         )
 
 
@@ -893,8 +930,10 @@ class TestIdentitySyncThreadRevokeEventsForUserDelete(
         super().setUp()
 
         self.method = self.identity_sync_thread.delete_revoke_events_for_user
-        self.resource_keystone_delete = self.identity_sync_thread.\
-            get_sc_dbs_client().revoke_event_manager.delete_revoke_event
+        self.sc_dbs_client = self.identity_sync_thread.get_sc_dbs_client()
+        self.resource_keystone_delete = (
+            self.sc_dbs_client.revoke_event_manager.delete_revoke_event
+        )
 
     def test_delete_succeeds_with_keystone_not_found_exception(self):
         """Test delete succeeds with keystone's not found exception
@@ -912,18 +951,21 @@ class TestIdentitySyncThreadRevokeEventsForUserDelete(
         self._execute()
 
         self._resource_keystone_delete().assert_called_once()
-        self._get_log().assert_has_calls([
-            mock.call.info(
-                f"Delete {self._get_resource_name()}: event "
-                f"{self._get_subcloud_resource().subcloud_resource_id} "
-                f"not found in {self._get_subcloud().region_name}, "
-                "considered as deleted.", extra=mock.ANY
-            ),
-            mock.call.info(
-                f"Keystone {self._get_resource_name()} {self._get_rsrc().id}:"
-                f"{self._get_subcloud().id} "
-                f"[{self._get_subcloud_resource().subcloud_resource_id}] deleted",
-                extra=mock.ANY
-            )],
-            any_order=False
+        self._get_log().assert_has_calls(
+            [
+                mock.call.info(
+                    f"Delete {self._get_resource_name()}: event "
+                    f"{self._get_subcloud_resource().subcloud_resource_id} "
+                    f"not found in {self._get_subcloud().region_name}, "
+                    "considered as deleted.",
+                    extra=mock.ANY,
+                ),
+                mock.call.info(
+                    f"Keystone {self._get_resource_name()} {self._get_rsrc().id}:"
+                    f"{self._get_subcloud().id} "
+                    f"[{self._get_subcloud_resource().subcloud_resource_id}] deleted",
+                    extra=mock.ANY,
+                ),
+            ],
+            any_order=False,
         )

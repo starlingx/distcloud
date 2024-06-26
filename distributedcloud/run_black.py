@@ -28,6 +28,7 @@ formatted_modules = [
     "dcorch/api",
     "dcorch/common",
     "dcorch/db",
+    "dcorch/engine",
 ]
 
 

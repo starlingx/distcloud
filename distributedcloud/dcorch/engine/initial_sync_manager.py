@@ -46,20 +46,23 @@ class InitialSyncManager(object):
         subclouds = db_api.subcloud_update_all_initial_state(
             self.context,
             pre_initial_sync_state=consts.INITIAL_SYNC_STATE_IN_PROGRESS,
-            initial_sync_state=consts.INITIAL_SYNC_STATE_REQUESTED)
+            initial_sync_state=consts.INITIAL_SYNC_STATE_REQUESTED,
+        )
         if subclouds > 0:
-            LOG.info("Initial sync for subclouds were in progress and "
-                     "will be re-attempted.")
+            LOG.info(
+                "Initial sync for subclouds were in progress and "
+                "will be re-attempted."
+            )
 
         # Since we are starting up, any failed syncs won't be re-attempted
         # because the timer will not be running. Reattempt them.
         subclouds = db_api.subcloud_update_all_initial_state(
             self.context,
             pre_initial_sync_state=consts.INITIAL_SYNC_STATE_FAILED,
-            initial_sync_state=consts.INITIAL_SYNC_STATE_REQUESTED)
+            initial_sync_state=consts.INITIAL_SYNC_STATE_REQUESTED,
+        )
         if subclouds > 0:
-            LOG.info(
-                "Initial sync for subclouds were failed and will be re-attempted.")
+            LOG.info("Initial sync for subclouds were failed and will be re-attempted.")
 
     def initial_sync_thread(self):
         """Perform initial sync for subclouds as required."""
@@ -78,8 +81,8 @@ class InitialSyncManager(object):
     def _initial_sync_subclouds(self):
         """Perform initial sync for subclouds that require it."""
         subclouds = db_api.subcloud_capabilities_get_all(
-            self.context,
-            initial_sync_state=consts.INITIAL_SYNC_STATE_REQUESTED)
+            self.context, initial_sync_state=consts.INITIAL_SYNC_STATE_REQUESTED
+        )
         if not subclouds:
             LOG.debug("No eligible subclouds for initial sync.")
             return
@@ -97,23 +100,31 @@ class InitialSyncManager(object):
                 # to process.
                 try:
                     self.engine_worker_rpc_client.initial_sync_subclouds(
-                        self.context,
-                        subcloud_capabilities)
-                    LOG.debug(f"Sent initial sync request message for "
-                              f"{len(subcloud_capabilities)} subclouds")
+                        self.context, subcloud_capabilities
+                    )
+                    LOG.debug(
+                        f"Sent initial sync request message for "
+                        f"{len(subcloud_capabilities)} subclouds"
+                    )
                 except Exception as e:
-                    LOG.error(f"Exception occurred in initial_sync for subclouds "
-                              f"{list(subcloud_capabilities.keys())}: {e}")
+                    LOG.error(
+                        f"Exception occurred in initial_sync for subclouds "
+                        f"{list(subcloud_capabilities.keys())}: {e}"
+                    )
                 subcloud_capabilities = {}
         if subcloud_capabilities:
             # We've got a partial batch...send it off for processing.
             try:
                 self.engine_worker_rpc_client.initial_sync_subclouds(
-                    self.context,
-                    subcloud_capabilities)
-                LOG.debug(f"Sent initial sync request message for "
-                          f"{len(subcloud_capabilities)} subclouds")
+                    self.context, subcloud_capabilities
+                )
+                LOG.debug(
+                    f"Sent initial sync request message for "
+                    f"{len(subcloud_capabilities)} subclouds"
+                )
             except Exception as e:
-                LOG.error(f"Exception occurred in initial_sync for subclouds "
-                          f"{list(subcloud_capabilities.keys())}: {e}")
+                LOG.error(
+                    f"Exception occurred in initial_sync for subclouds "
+                    f"{list(subcloud_capabilities.keys())}: {e}"
+                )
         LOG.debug("Done sending initial sync request messages.")

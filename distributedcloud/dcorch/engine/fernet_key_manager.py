@@ -43,10 +43,11 @@ class FernetKeyManager(manager.Manager):
     """Manages tasks related to fernet key management"""
 
     def __init__(self, gsm, *args, **kwargs):
-        LOG.debug(_('FernetKeyManager initialization...'))
+        LOG.debug(_("FernetKeyManager initialization..."))
 
-        super(FernetKeyManager, self).__init__(service_name="fernet_manager",
-                                               *args, **kwargs)
+        super(FernetKeyManager, self).__init__(
+            service_name="fernet_manager", *args, **kwargs
+        )
         self.gsm = gsm
         self.context = context.get_admin_context()
         self.endpoint_type = dccommon_consts.ENDPOINT_TYPE_PLATFORM
@@ -54,8 +55,7 @@ class FernetKeyManager(manager.Manager):
 
     @classmethod
     def to_resource_info(cls, key_list):
-        return dict((getattr(key, 'id'), getattr(key, 'key'))
-                    for key in key_list)
+        return dict((getattr(key, "id"), getattr(key, "key")) for key in key_list)
 
     @classmethod
     def from_resource_info(cls, keys):
@@ -69,18 +69,19 @@ class FernetKeyManager(manager.Manager):
     def _schedule_work(self, operation_type, subcloud=None):
         keys = self._get_master_keys()
         if not keys:
-            LOG.info(_("No fernet keys returned from %s") %
-                     dccommon_consts.CLOUD_0)
+            LOG.info(_("No fernet keys returned from %s") % dccommon_consts.CLOUD_0)
             return
         try:
             resource_info = FernetKeyManager.to_resource_info(keys)
-            utils.enqueue_work(self.context,
-                               self.endpoint_type,
-                               self.resource_type,
-                               FERNET_REPO_MASTER_ID,
-                               operation_type,
-                               resource_info=jsonutils.dumps(resource_info),
-                               subcloud=subcloud)
+            utils.enqueue_work(
+                self.context,
+                self.endpoint_type,
+                self.resource_type,
+                FERNET_REPO_MASTER_ID,
+                operation_type,
+                resource_info=jsonutils.dumps(resource_info),
+                subcloud=subcloud,
+            )
             # wake up sync thread
             if self.gsm:
                 self.gsm.sync_request(self.context, self.endpoint_type)
@@ -98,15 +99,20 @@ class FernetKeyManager(manager.Manager):
             sysinv_client = SysinvClient(
                 dccommon_consts.CLOUD_0,
                 ks_client.session,
-                endpoint=ks_client.endpoint_cache.get_endpoint('sysinv'))
+                endpoint=ks_client.endpoint_cache.get_endpoint("sysinv"),
+            )
             keys = sysinv_client.get_fernet_keys()
-        except (exceptions.ConnectionRefused, exceptions.NotAuthorized,
-                exceptions.TimeOut):
-            LOG.info(_("Retrieving the fernet keys from %s timeout") %
-                     dccommon_consts.CLOUD_0)
+        except (
+            exceptions.ConnectionRefused,
+            exceptions.NotAuthorized,
+            exceptions.TimeOut,
+        ):
+            LOG.info(
+                _("Retrieving the fernet keys from %s timeout")
+                % dccommon_consts.CLOUD_0
+            )
         except Exception as e:
-            LOG.info(_("Fail to retrieve the master fernet keys: %s") %
-                     str(e))
+            LOG.info(_("Fail to retrieve the master fernet keys: %s") % str(e))
         return keys
 
     def rotate_fernet_keys(self):
@@ -114,9 +120,8 @@ class FernetKeyManager(manager.Manager):
 
         with open(os.devnull, "w") as fnull:
             try:
-                subprocess.check_call(KEY_ROTATE_CMD,  # pylint: disable=E1102
-                                      stdout=fnull,
-                                      stderr=fnull)
+                # pylint: disable-next=E1102
+                subprocess.check_call(KEY_ROTATE_CMD, stdout=fnull, stderr=fnull)
             except subprocess.CalledProcessError:
                 msg = _("Failed to rotate the keys")
                 LOG.exception(msg)
@@ -128,8 +133,7 @@ class FernetKeyManager(manager.Manager):
     def distribute_keys(subcloud_name):
         keys = FernetKeyManager._get_master_keys()
         if not keys:
-            LOG.info(_("No fernet keys returned from %s") %
-                     dccommon_consts.CLOUD_0)
+            LOG.info(_("No fernet keys returned from %s") % dccommon_consts.CLOUD_0)
             return
         resource_info = FernetKeyManager.to_resource_info(keys)
         key_list = FernetKeyManager.from_resource_info(resource_info)
@@ -147,12 +151,15 @@ class FernetKeyManager(manager.Manager):
             sysinv_client = SysinvClient(
                 subcloud_name,
                 ks_client.session,
-                endpoint=ks_client.endpoint_cache.get_endpoint('sysinv'))
+                endpoint=ks_client.endpoint_cache.get_endpoint("sysinv"),
+            )
             sysinv_client.post_fernet_repo(key_list)
-        except (exceptions.ConnectionRefused, exceptions.NotAuthorized,
-                exceptions.TimeOut):
-            LOG.info(_("Update the fernet repo on %s timeout") %
-                     subcloud_name)
+        except (
+            exceptions.ConnectionRefused,
+            exceptions.NotAuthorized,
+            exceptions.TimeOut,
+        ):
+            LOG.info(_("Update the fernet repo on %s timeout") % subcloud_name)
         except Exception as e:
             error_msg = "subcloud: {}, {}".format(subcloud_name, str(e))
             LOG.info(_("Fail to update fernet repo %s") % error_msg)

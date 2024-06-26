@@ -10,7 +10,7 @@
 # License for the specific language governing permissions and limitations
 # under the License.
 #
-# Copyright (c) 2020 Wind River Systems, Inc.
+# Copyright (c) 2020, 2024 Wind River Systems, Inc.
 #
 
 import time
@@ -36,8 +36,7 @@ class ThreadGroupManager(object):
 
         # Create dummy service task, because when there is nothing queued
         # on self.tg the process exits
-        self.add_timer(cfg.CONF.scheduler.periodic_interval,
-                       self._service_task)
+        self.add_timer(cfg.CONF.scheduler.periodic_interval, self._service_task)
 
     def _service_task(self):
         """Dummy task which gets queued on the service.Service threadgroup.
@@ -96,8 +95,7 @@ def reschedule(action, sleep_time=1):
     """
 
     if sleep_time is not None:
-        LOG.debug('Action %s sleep for %s seconds' % (
-            action.id, sleep_time))
+        LOG.debug("Action %s sleep for %s seconds" % (action.id, sleep_time))
         eventlet.sleep(sleep_time)
 
 

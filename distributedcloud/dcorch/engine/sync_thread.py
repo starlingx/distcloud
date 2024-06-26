@@ -50,18 +50,18 @@ from keystoneclient import client as keystoneclient
 LOG = logging.getLogger(__name__)
 
 # sync request states, should be in SyncRequest class
-STATE_QUEUED = 'queued'
-STATE_IN_PROGRESS = 'in-progress'
-STATE_TIMEDOUT = 'timedout'
-STATE_ABORTED = 'aborted'
-STATE_FAILED = 'failed'
-STATE_COMPLETED = 'completed'
+STATE_QUEUED = "queued"
+STATE_IN_PROGRESS = "in-progress"
+STATE_TIMEDOUT = "timedout"
+STATE_ABORTED = "aborted"
+STATE_FAILED = "failed"
+STATE_COMPLETED = "completed"
 
 # Audit findings
-AUDIT_RESOURCE_MISSING = 'missing'
-AUDIT_RESOURCE_EXTRA = 'extra_resource'
+AUDIT_RESOURCE_MISSING = "missing"
+AUDIT_RESOURCE_EXTRA = "extra_resource"
 
-AUDIT_LOCK_NAME = 'dcorch-audit'
+AUDIT_LOCK_NAME = "dcorch-audit"
 
 
 def get_master_os_client(region_clients=None):
@@ -70,12 +70,13 @@ def get_master_os_client(region_clients=None):
     # sessions for the subclouds.
     try:
         os_client = sdk.OptimizedOpenStackDriver(
-            region_name=dccommon_consts.CLOUD_0,
-            region_clients=region_clients)
+            region_name=dccommon_consts.CLOUD_0, region_clients=region_clients
+        )
     except Exception as e:
         LOG.error(
             "Failed to get os_client for "
-            f"{dccommon_consts.CLOUD_0}/{region_clients}: {e}.")
+            f"{dccommon_consts.CLOUD_0}/{region_clients}: {e}."
+        )
         raise e
     return os_client
 
@@ -93,10 +94,11 @@ class SyncThread(object):
     # used by the audit to cache the master resources
     master_resources_dict = collections.defaultdict(dict)
 
-    def __init__(self, subcloud_name, endpoint_type=None, management_ip=None,
-                 engine_id=None):
-        self.endpoint_type = endpoint_type      # endpoint type
-        self.subcloud_name = subcloud_name      # subcloud name
+    def __init__(
+        self, subcloud_name, endpoint_type=None, management_ip=None, engine_id=None
+    ):
+        self.endpoint_type = endpoint_type  # endpoint type
+        self.subcloud_name = subcloud_name  # subcloud name
         self.management_ip = management_ip
         self.engine_id = engine_id
         self.ctxt = context.get_admin_context()
@@ -104,8 +106,7 @@ class SyncThread(object):
         self.master_region_name = dccommon_consts.CLOUD_0
         self.audit_resources = []
 
-        self.log_extra = {
-            "instance": self.subcloud_name + ": "}
+        self.log_extra = {"instance": self.subcloud_name + ": "}
         self.dcmanager_state_rpc_client = dcmanager_rpc_client.SubcloudStateClient()
         self.dcmanager_rpc_client = dcmanager_rpc_client.ManagerClient()
 
@@ -118,9 +119,7 @@ class SyncThread(object):
     def should_exit(self):
         # Return whether the sync/audit threads should exit.
         try:
-            db_api.subcloud_sync_get(
-                self.ctxt, self.subcloud_name,
-                self.endpoint_type)
+            db_api.subcloud_sync_get(self.ctxt, self.subcloud_name, self.endpoint_type)
         except exceptions.SubcloudSyncNotFound:
             return True
 
@@ -138,7 +137,8 @@ class SyncThread(object):
         # We only enable syncing if the subcloud is online and the initial
         # sync has completed.
         if subcloud.availability_status == dccommon_consts.AVAILABILITY_ONLINE and (
-                subcloud.initial_sync_state == consts.INITIAL_SYNC_STATE_COMPLETED):
+            subcloud.initial_sync_state == consts.INITIAL_SYNC_STATE_COMPLETED
+        ):
             return True
         else:
             return False
@@ -156,7 +156,8 @@ class SyncThread(object):
                 config.password,
                 config.project_name,
                 config.project_domain_name,
-                timeout=60)
+                timeout=60,
+            )
         elif self.endpoint_type in dccommon_consts.ENDPOINT_TYPES_LIST_OS:
             config = cfg.CONF.openstack_cache
             self.admin_session = OptimizedEndpointCache.get_admin_session(
@@ -166,32 +167,34 @@ class SyncThread(object):
                 config.admin_password,
                 config.admin_tenant,
                 config.admin_project_domain_name,
-                timeout=60)
+                timeout=60,
+            )
         else:
-            raise exceptions.EndpointNotSupported(
-                endpoint=self.endpoint_type)
+            raise exceptions.EndpointNotSupported(endpoint=self.endpoint_type)
 
         # keystone client
         self.ks_client = keystoneclient.Client(
-            session=self.admin_session,
-            region_name=dccommon_consts.CLOUD_0)
+            session=self.admin_session, region_name=dccommon_consts.CLOUD_0
+        )
         # dcdbsync client
         self.dbs_client = dbsyncclient.Client(
             endpoint_type=consts.DBS_ENDPOINT_INTERNAL,
             session=self.admin_session,
-            region_name=dccommon_consts.CLOUD_0)
+            region_name=dccommon_consts.CLOUD_0,
+        )
 
     def initialize_sc_clients(self):
         # base implementation of initializing the subcloud specific
         # clients, only used by the subclasses.
         # The specific SyncThread subclasses may extend this
-        if (not self.sc_admin_session):
+        if not self.sc_admin_session:
             # Subclouds will use token from the Subcloud specific Keystone,
             # so define a session against that subcloud's keystone endpoint
-            self.sc_auth_url = build_subcloud_endpoint(
-                self.management_ip, 'keystone')
-            LOG.debug(f"Built sc_auth_url {self.sc_auth_url} for subcloud "
-                      f"{self.subcloud_name}")
+            self.sc_auth_url = build_subcloud_endpoint(self.management_ip, "keystone")
+            LOG.debug(
+                f"Built sc_auth_url {self.sc_auth_url} for subcloud "
+                f"{self.subcloud_name}"
+            )
 
             if self.endpoint_type in dccommon_consts.ENDPOINT_TYPES_LIST:
                 config = cfg.CONF.endpoint_cache
@@ -202,7 +205,8 @@ class SyncThread(object):
                     config.password,
                     config.project_name,
                     config.project_domain_name,
-                    timeout=60)
+                    timeout=60,
+                )
             elif self.endpoint_type in dccommon_consts.ENDPOINT_TYPES_LIST_OS:
                 config = cfg.CONF.openstack_cache
                 self.sc_admin_session = OptimizedEndpointCache.get_admin_session(
@@ -212,7 +216,8 @@ class SyncThread(object):
                     config.admin_password,
                     config.admin_tenant,
                     config.admin_project_domain_name,
-                    timeout=60)
+                    timeout=60,
+                )
 
     def initial_sync(self):
         # Return True to indicate initial sync success
@@ -225,15 +230,19 @@ class SyncThread(object):
     def get_db_subcloud_resource(self, rsrc_id):
         try:
             subcloud = Subcloud.get_by_name(self.ctxt, self.subcloud_name)
-            subcloud_rsrc = \
-                subcloud_resource.SubcloudResource. \
-                get_by_resource_and_subcloud(
-                    self.ctxt, rsrc_id, subcloud.id)  # pylint: disable=E1101
+            subcloud_rsrc = (
+                subcloud_resource.SubcloudResource.get_by_resource_and_subcloud(
+                    self.ctxt, rsrc_id, subcloud.id
+                )
+            )  # pylint: disable=E1101
             return subcloud_rsrc
         except exceptions.SubcloudResourceNotFound:
-            LOG.info("{} not found in subcloud {} resource table".format(
-                     rsrc_id, subcloud.id),
-                     extra=self.log_extra)
+            LOG.info(
+                "{} not found in subcloud {} resource table".format(
+                    rsrc_id, subcloud.id
+                ),
+                extra=self.log_extra,
+            )
         return None
 
     def persist_db_subcloud_resource(self, db_rsrc_id, subcloud_rsrc_id):
@@ -248,9 +257,11 @@ class SyncThread(object):
         if not subcloud_rsrc:
             subcloud = Subcloud.get_by_name(self.ctxt, self.subcloud_name)
             subcloud_rsrc = subcloud_resource.SubcloudResource(
-                self.ctxt, subcloud_resource_id=subcloud_rsrc_id,
+                self.ctxt,
+                subcloud_resource_id=subcloud_rsrc_id,
                 resource_id=db_rsrc_id,
-                subcloud_id=subcloud.id)  # pylint: disable=E1101
+                subcloud_id=subcloud.id,
+            )  # pylint: disable=E1101
             # There is no race condition for creation of
             # subcloud_resource as it is always done from the same thread.
             subcloud_rsrc.create()
@@ -258,42 +269,55 @@ class SyncThread(object):
             # May be the resource was manually deleted from the subcloud.
             # So, update the dcorch DB with the new resource id from subcloud.
             subcloud_rsrc.subcloud_resource_id = subcloud_rsrc_id
-            LOG.info("Updating {}:{} [{}]".format(db_rsrc_id,
-                     subcloud_rsrc.subcloud_resource_id, subcloud_rsrc_id),
-                     extra=self.log_extra)
+            LOG.info(
+                "Updating {}:{} [{}]".format(
+                    db_rsrc_id, subcloud_rsrc.subcloud_resource_id, subcloud_rsrc_id
+                ),
+                extra=self.log_extra,
+            )
             subcloud_rsrc.save()
         else:
-            LOG.info("subcloud_rsrc {}:{} [{}] is up-to-date"
-                     .format(db_rsrc_id, subcloud_rsrc.subcloud_resource_id,
-                             subcloud_rsrc_id),
-                     extra=self.log_extra)
+            LOG.info(
+                "subcloud_rsrc {}:{} [{}] is up-to-date".format(
+                    db_rsrc_id, subcloud_rsrc.subcloud_resource_id, subcloud_rsrc_id
+                ),
+                extra=self.log_extra,
+            )
         return subcloud_rsrc.subcloud_resource_id
 
     def sync_resource(self, sync_request):
-        rsrc = resource.Resource.get_by_id(self.ctxt,
-                                           sync_request.orch_job.resource_id)
+        rsrc = resource.Resource.get_by_id(self.ctxt, sync_request.orch_job.resource_id)
         # pylint: disable=E1101
         handler = self.sync_handler_map[rsrc.resource_type]
-        LOG.info("{} Invoking {} for {} [{}]".format(
-            self.engine_id, handler.__name__, rsrc.resource_type,
-            sync_request.orch_job.operation_type), extra=self.log_extra)
+        LOG.info(
+            "{} Invoking {} for {} [{}]".format(
+                self.engine_id,
+                handler.__name__,
+                rsrc.resource_type,
+                sync_request.orch_job.operation_type,
+            ),
+            extra=self.log_extra,
+        )
         handler(sync_request, rsrc)
 
     def set_sync_status(self, sync_status, alarmable=True):
         # Only report sync_status when managed
         subcloud_managed = self.is_subcloud_managed()
         if not subcloud_managed:
-            LOG.debug("set_sync_status: skip update sync update for unmanaged "
-                      "subcloud {}".format(
-                          self.subcloud_name))
+            LOG.debug(
+                "set_sync_status: skip update sync update for unmanaged "
+                "subcloud {}".format(self.subcloud_name)
+            )
             return
 
-        subcloud_sync = db_api.subcloud_sync_get(self.ctxt, self.subcloud_name,
-                                                 self.endpoint_type)
+        subcloud_sync = db_api.subcloud_sync_get(
+            self.ctxt, self.subcloud_name, self.endpoint_type
+        )
 
         if subcloud_sync.sync_status_report_time:
             delta = timeutils.delta_seconds(
-                subcloud_sync.sync_status_report_time, timeutils.utcnow())
+                subcloud_sync.sync_status_report_time, timeutils.utcnow()
+            )
             if delta < 3600:
                 if subcloud_sync.sync_status_reported == sync_status:
                     LOG.debug(
@@ -305,9 +329,12 @@ class SyncThread(object):
                     )
                     return
 
-        LOG.info("{}: set_sync_status {}, alarmable: {}".format(
-                 self.subcloud_name, sync_status, alarmable),
-                 extra=self.log_extra)
+        LOG.info(
+            "{}: set_sync_status {}, alarmable: {}".format(
+                self.subcloud_name, sync_status, alarmable
+            ),
+            extra=self.log_extra,
+        )
 
         try:
             # This block is required to get the real subcloud name
@@ -321,40 +348,53 @@ class SyncThread(object):
 
             # Get the subcloud name from dcmanager database supplying
             # the dcorch region name
-            subcloud_name = self.dcmanager_rpc_client \
-                .get_subcloud_name_by_region_name(self.ctxt,
-                                                  dcorch_subcloud_region)
+            subcloud_name = self.dcmanager_rpc_client.get_subcloud_name_by_region_name(
+                self.ctxt, dcorch_subcloud_region
+            )
 
             # Updates the endpoint status supplying the subcloud name and
             # the region name
             self.dcmanager_state_rpc_client.update_subcloud_endpoint_status(
-                self.ctxt, subcloud_name, dcorch_subcloud_region,
-                self.endpoint_type, sync_status,
-                alarmable=alarmable)
+                self.ctxt,
+                subcloud_name,
+                dcorch_subcloud_region,
+                self.endpoint_type,
+                sync_status,
+                alarmable=alarmable,
+            )
 
             db_api.subcloud_sync_update(
-                self.ctxt, dcorch_subcloud_region, self.endpoint_type,
-                values={'sync_status_reported': sync_status,
-                        'sync_status_report_time': timeutils.utcnow()})
+                self.ctxt,
+                dcorch_subcloud_region,
+                self.endpoint_type,
+                values={
+                    "sync_status_reported": sync_status,
+                    "sync_status_report_time": timeutils.utcnow(),
+                },
+            )
         except Exception:
             raise
 
     def sync(self, engine_id):
-        LOG.debug("{}: starting sync routine".format(self.subcloud_name),
-                  extra=self.log_extra)
+        LOG.debug(
+            "{}: starting sync routine".format(self.subcloud_name), extra=self.log_extra
+        )
         region_name = self.subcloud_name
         sync_requests = []
 
         sync_requests = orchrequest.OrchRequestList.get_by_attrs(
-            self.ctxt, self.endpoint_type,
+            self.ctxt,
+            self.endpoint_type,
             target_region_name=region_name,
-            states=self.PENDING_SYNC_REQUEST_STATES)
+            states=self.PENDING_SYNC_REQUEST_STATES,
+        )
 
         # Early exit in case there are no pending sync requests
         if not sync_requests:
-            LOG.debug("Sync resources done for subcloud - "
-                      "no sync requests",
-                      extra=self.log_extra)
+            LOG.debug(
+                "Sync resources done for subcloud - " "no sync requests",
+                extra=self.log_extra,
+            )
             self.set_sync_status(dccommon_consts.SYNC_STATUS_IN_SYNC)
             return
 
@@ -391,14 +431,16 @@ class SyncThread(object):
         sync_status_start = dccommon_consts.SYNC_STATUS_OUT_OF_SYNC
 
         if not actual_sync_requests:
-            LOG.info("Sync resources done for subcloud - "
-                     "no valid sync requests",
-                     extra=self.log_extra)
+            LOG.info(
+                "Sync resources done for subcloud - " "no valid sync requests",
+                extra=self.log_extra,
+            )
             return
         elif not self.is_subcloud_enabled():
-            LOG.info("Sync resources done for subcloud - "
-                     "subcloud is disabled",
-                     extra=self.log_extra)
+            LOG.info(
+                "Sync resources done for subcloud - " "subcloud is disabled",
+                extra=self.log_extra,
+            )
             return
 
         # Subcloud is enabled and there are pending sync requests, so
@@ -431,8 +473,7 @@ class SyncThread(object):
                         # completed for tracking/debugging purpose
                         # and tag it for purge when its deleted
                         # time exceeds the data retention period.
-                        request.state = \
-                            consts.ORCH_REQUEST_STATE_COMPLETED
+                        request.state = consts.ORCH_REQUEST_STATE_COMPLETED
                         request.deleted = 1
                         request.deleted_at = timeutils.utcnow()
                         request.save()
@@ -456,19 +497,16 @@ class SyncThread(object):
                         # todo: raise "unable to sync this
                         # subcloud/endpoint" alarm with fmapi
                         request.try_count += 1
-                        request.state = \
-                            consts.ORCH_REQUEST_STATE_FAILED
+                        request.state = consts.ORCH_REQUEST_STATE_FAILED
                         request.save()
                         retry_count += 1
                         # we'll retry
                     except exceptions.SyncRequestFailed:
-                        request.state = \
-                            consts.ORCH_REQUEST_STATE_FAILED
+                        request.state = consts.ORCH_REQUEST_STATE_FAILED
                         request.save()
                         retry_count = self.MAX_RETRY
                     except exceptions.SyncRequestAbortedBySystem:
-                        request.state = \
-                            consts.ORCH_REQUEST_STATE_FAILED
+                        request.state = consts.ORCH_REQUEST_STATE_FAILED
                         request.save()
                         retry_count = self.MAX_RETRY
                         request_aborted = True
@@ -481,66 +519,90 @@ class SyncThread(object):
             # Endpoint not reachable, throw away all the sync requests.
             LOG.info(
                 "EndpointNotReachable, {} sync requests pending".format(
-                    len(actual_sync_requests)), extra=self.log_extra)
+                    len(actual_sync_requests)
+                ),
+                extra=self.log_extra,
+            )
             # del sync_requests[:] #This fails due to:
             # 'OrchRequestList' object does not support item deletion
 
         sync_requests = orchrequest.OrchRequestList.get_by_attrs(
-            self.ctxt, self.endpoint_type,
+            self.ctxt,
+            self.endpoint_type,
             target_region_name=region_name,
-            states=self.PENDING_SYNC_REQUEST_STATES)
+            states=self.PENDING_SYNC_REQUEST_STATES,
+        )
 
-        if (sync_requests and
-                sync_status_start != dccommon_consts.SYNC_STATUS_OUT_OF_SYNC):
+        if (
+            sync_requests
+            and sync_status_start != dccommon_consts.SYNC_STATUS_OUT_OF_SYNC
+        ):
             self.set_sync_status(dccommon_consts.SYNC_STATUS_OUT_OF_SYNC)
             LOG.info(
                 "End of resource sync out-of-sync. {} sync request(s)".format(
-                    len(sync_requests)), extra=self.log_extra)
+                    len(sync_requests)
+                ),
+                extra=self.log_extra,
+            )
         elif sync_requests and request_aborted:
             if sync_status_start != dccommon_consts.SYNC_STATUS_OUT_OF_SYNC:
                 self.set_sync_status(dccommon_consts.SYNC_STATUS_OUT_OF_SYNC)
             LOG.info(
                 "End of resource sync out-of-sync. {} sync request(s): "
                 "request_aborted".format(len(sync_requests)),
-                extra=self.log_extra)
+                extra=self.log_extra,
+            )
         elif sync_status_start != dccommon_consts.SYNC_STATUS_IN_SYNC:
             self.set_sync_status(dccommon_consts.SYNC_STATUS_IN_SYNC)
             LOG.info(
                 "End of resource sync in-sync. {} sync request(s)".format(
-                    len(sync_requests)), extra=self.log_extra)
+                    len(sync_requests)
+                ),
+                extra=self.log_extra,
+            )
 
-        LOG.info("Sync resources done for subcloud - "
-                 "synced {} request(s)".format(len(actual_sync_requests)),
-                 extra=self.log_extra)
+        LOG.info(
+            "Sync resources done for subcloud - "
+            "synced {} request(s)".format(len(actual_sync_requests)),
+            extra=self.log_extra,
+        )
 
     def run_sync_audit(self, engine_id=None):
         if self.endpoint_type in cfg.CONF.disable_audit_endpoints:
             LOG.warn("Audit disabled!", extra=self.log_extra)
             return
-        LOG.debug("Engine id={}: sync_audit started".format(engine_id),
-                  extra=self.log_extra)
+        LOG.debug(
+            "Engine id={}: sync_audit started".format(engine_id), extra=self.log_extra
+        )
         self.sync_audit(engine_id)
 
     def sync_audit(self, engine_id):
-        LOG.debug("Engine id={}: starting sync audit".format(engine_id),
-                  extra=self.log_extra)
+        LOG.debug(
+            "Engine id={}: starting sync audit".format(engine_id), extra=self.log_extra
+        )
 
-        most_recent_failed_request = \
+        most_recent_failed_request = (
             orchrequest.OrchRequest.get_most_recent_failed_request(self.ctxt)
+        )
 
         if most_recent_failed_request:
-            LOG.debug('Most recent failed request id=%s, timestamp=%s',
-                      most_recent_failed_request.id,
-                      most_recent_failed_request.updated_at)
+            LOG.debug(
+                "Most recent failed request id=%s, timestamp=%s",
+                most_recent_failed_request.id,
+                most_recent_failed_request.updated_at,
+            )
         else:
-            LOG.debug('There are no failed requests.')
+            LOG.debug("There are no failed requests.")
 
         total_num_of_audit_jobs = 0
         for resource_type in self.audit_resources:
             if not self.is_subcloud_enabled() or self.should_exit():
-                LOG.info("{}: aborting sync audit, as subcloud is disabled"
-                         .format(threading.currentThread().getName()),
-                         extra=self.log_extra)
+                LOG.info(
+                    "{}: aborting sync audit, as subcloud is disabled".format(
+                        threading.currentThread().getName()
+                    ),
+                    extra=self.log_extra,
+                )
                 return
 
             # Skip resources with outstanding sync requests
@@ -551,50 +613,69 @@ class SyncThread(object):
                 consts.ORCH_REQUEST_IN_PROGRESS,
             ]
             sync_requests = orchrequest.OrchRequestList.get_by_attrs(
-                self.ctxt, self.endpoint_type, resource_type=resource_type,
-                target_region_name=region_name, states=states)
-            abort_resources = [req.orch_job.source_resource_id
-                               for req in sync_requests]
+                self.ctxt,
+                self.endpoint_type,
+                resource_type=resource_type,
+                target_region_name=region_name,
+                states=states,
+            )
+            abort_resources = [req.orch_job.source_resource_id for req in sync_requests]
             if len(sync_requests) > 0:
-                LOG.info("Will not audit {}. {} sync request(s) pending"
-                         .format(abort_resources, len(sync_requests)),
-                         extra=self.log_extra)
+                LOG.info(
+                    "Will not audit {}. {} sync request(s) pending".format(
+                        abort_resources, len(sync_requests)
+                    ),
+                    extra=self.log_extra,
+                )
 
             num_of_audit_jobs = 0
             try:
-                m_resources, db_resources, sc_resources = \
-                    self.get_all_resources(resource_type)
+                m_resources, db_resources, sc_resources = self.get_all_resources(
+                    resource_type
+                )
 
                 # todo: delete entries in db_resources with no corresponding
                 # entry in m_resources?
 
                 if sc_resources is None or m_resources is None:
                     return
-                LOG.debug("Audit {}".format(
-                    resource_type),
-                    extra=self.log_extra)
-                LOG.debug("Auditing {}: master={} db={} sc={}".format(
-                    resource_type, m_resources, db_resources, sc_resources),
-                    extra=self.log_extra)
+                LOG.debug("Audit {}".format(resource_type), extra=self.log_extra)
+                LOG.debug(
+                    "Auditing {}: master={} db={} sc={}".format(
+                        resource_type, m_resources, db_resources, sc_resources
+                    ),
+                    extra=self.log_extra,
+                )
                 num_of_audit_jobs += self.audit_find_missing(
-                    resource_type, m_resources, db_resources, sc_resources,
-                    abort_resources)
+                    resource_type,
+                    m_resources,
+                    db_resources,
+                    sc_resources,
+                    abort_resources,
+                )
                 num_of_audit_jobs += self.audit_find_extra(
-                    resource_type, m_resources, db_resources, sc_resources,
-                    abort_resources)
+                    resource_type,
+                    m_resources,
+                    db_resources,
+                    sc_resources,
+                    abort_resources,
+                )
             except Exception:
-                LOG.exception("Unexpected error while auditing %s",
-                              resource_type)
+                LOG.exception("Unexpected error while auditing %s", resource_type)
 
             # Extra resources in subcloud are not impacted by the audit.
 
             if not num_of_audit_jobs:
-                LOG.debug("Clean audit run for {}".format(resource_type),
-                          extra=self.log_extra)
+                LOG.debug(
+                    "Clean audit run for {}".format(resource_type), extra=self.log_extra
+                )
             else:
-                LOG.info("{} num_of_audit_jobs for {}".
-                         format(num_of_audit_jobs, resource_type),
-                         extra=self.log_extra)
+                LOG.info(
+                    "{} num_of_audit_jobs for {}".format(
+                        num_of_audit_jobs, resource_type
+                    ),
+                    extra=self.log_extra,
+                )
 
             total_num_of_audit_jobs += num_of_audit_jobs
 
@@ -602,7 +683,8 @@ class SyncThread(object):
             # Soft delete all failed requests in the previous sync audit.
             try:
                 orchrequest.OrchRequest.delete_previous_failed_requests(
-                    self.ctxt, most_recent_failed_request.updated_at)
+                    self.ctxt, most_recent_failed_request.updated_at
+                )
             except Exception:
                 # shouldn't get here
                 LOG.exception("Unexpected error!")
@@ -614,13 +696,17 @@ class SyncThread(object):
         else:
             # set sync_request for this subcloud/endpoint
             db_api.subcloud_sync_update(
-                self.ctxt, self.subcloud_name, self.endpoint_type,
-                values={'sync_request': consts.SYNC_STATUS_REQUESTED})
+                self.ctxt,
+                self.subcloud_name,
+                self.endpoint_type,
+                values={"sync_request": consts.SYNC_STATUS_REQUESTED},
+            )
 
-        LOG.debug("{}: done sync audit".format(
-            threading.currentThread().getName()), extra=self.log_extra)
-        SyncThread.set_sync_request(
-            self.ctxt, self.subcloud_name, self.endpoint_type)
+        LOG.debug(
+            "{}: done sync audit".format(threading.currentThread().getName()),
+            extra=self.log_extra,
+        )
+        SyncThread.set_sync_request(self.ctxt, self.subcloud_name, self.endpoint_type)
         self.post_audit()
 
     def post_audit(self):
@@ -634,9 +720,9 @@ class SyncThread(object):
         LOG.debug("Reset the cached master resources.")
         SyncThread.master_resources_dict = collections.defaultdict(dict)
 
-    def audit_find_missing(self, resource_type, m_resources,
-                           db_resources, sc_resources,
-                           abort_resources):
+    def audit_find_missing(
+        self, resource_type, m_resources, db_resources, sc_resources, abort_resources
+    ):
         """Find missing resources in subcloud.
 
         - Input param db_resources is modified in this routine
@@ -649,8 +735,10 @@ class SyncThread(object):
         for m_r in m_resources:
             master_id = self.get_resource_id(resource_type, m_r)
             if master_id in abort_resources:
-                LOG.info("audit_find_missing: Aborting audit for {}"
-                         .format(master_id), extra=self.log_extra)
+                LOG.info(
+                    "audit_find_missing: Aborting audit for {}".format(master_id),
+                    extra=self.log_extra,
+                )
                 num_of_audit_jobs += 1
                 # There are pending jobs for this resource, abort audit
                 continue
@@ -684,77 +772,95 @@ class SyncThread(object):
                 db_sc_resource = self.get_db_subcloud_resource(m_rsrc_db.id)
                 if db_sc_resource:
                     if not db_sc_resource.is_managed():
-                        LOG.info("Resource {} is not managed"
-                                 .format(master_id), extra=self.log_extra)
+                        LOG.info(
+                            "Resource {} is not managed".format(master_id),
+                            extra=self.log_extra,
+                        )
                         continue
                     sc_rsrc_present = False
                     for sc_r in sc_resources:
                         sc_id = self.get_resource_id(resource_type, sc_r)
                         if sc_id == db_sc_resource.subcloud_resource_id:
-                            if self.same_resource(resource_type,
-                                                  m_r_updated, sc_r):
-                                LOG.debug("Resource type {} {} is in-sync"
-                                          .format(resource_type, master_id),
-                                          extra=self.log_extra)
+                            if self.same_resource(resource_type, m_r_updated, sc_r):
+                                LOG.debug(
+                                    "Resource type {} {} is in-sync".format(
+                                        resource_type, master_id
+                                    ),
+                                    extra=self.log_extra,
+                                )
                                 num_of_audit_jobs += self.audit_dependants(
-                                    resource_type, m_r, sc_r)
+                                    resource_type, m_r, sc_r
+                                )
                                 sc_rsrc_present = True
                                 break
                     if not sc_rsrc_present:
                         LOG.info(
                             "Subcloud resource {} found in master cloud & DB, "
-                            "but the exact same resource not found in subcloud"
-                            .format(db_sc_resource.subcloud_resource_id),
-                            extra=self.log_extra)
+                            "but the exact same resource not found in subcloud".format(
+                                db_sc_resource.subcloud_resource_id
+                            ),
+                            extra=self.log_extra,
+                        )
                         # Subcloud resource is present in DB, but the check
                         # for same_resource() was negative. Either the resource
                         # disappeared from subcloud or the resource details
                         # are different from that of master cloud. Let the
                         # resource implementation decide on the audit action.
                         missing_resource = self.audit_discrepancy(
-                            resource_type, m_r, sc_resources)
+                            resource_type, m_r, sc_resources
+                        )
                 else:
-                    LOG.info("Subcloud res {} not found in DB, will create"
-                             .format(master_id), extra=self.log_extra)
+                    LOG.info(
+                        "Subcloud res {} not found in DB, will create".format(
+                            master_id
+                        ),
+                        extra=self.log_extra,
+                    )
                     # Check and see if there are any subcloud resources that
                     # match the master resource, and if so set up mappings.
                     # This returns true if it finds a match.
-                    if self.map_subcloud_resource(resource_type, m_r_updated,
-                                                  m_rsrc_db, sc_resources):
+                    if self.map_subcloud_resource(
+                        resource_type, m_r_updated, m_rsrc_db, sc_resources
+                    ):
                         continue
                     missing_resource = True
 
             else:  # master_resource not in resource DB
-                LOG.info("{} not found in DB, will create it"
-                         .format(master_id),
-                         extra=self.log_extra)
+                LOG.info(
+                    "{} not found in DB, will create it".format(master_id),
+                    extra=self.log_extra,
+                )
                 # Check and see if there are any subcloud resources that
                 # match the master resource, and if so set up mappings.
                 # This returns true if it finds a match.
                 # This is for the case where the resource is not even in dcorch
                 # resource DB (ie, resource has not been tracked by dcorch yet)
-                if self.map_subcloud_resource(resource_type, m_r,
-                                              m_rsrc_db, sc_resources):
+                if self.map_subcloud_resource(
+                    resource_type, m_r, m_rsrc_db, sc_resources
+                ):
                     continue
                 missing_resource = True
 
             if missing_resource:
                 # Resource is missing from subcloud, take action
                 num_of_audit_jobs += self.audit_action(
-                    resource_type, AUDIT_RESOURCE_MISSING, m_r)
+                    resource_type, AUDIT_RESOURCE_MISSING, m_r
+                )
 
                 # As the subcloud resource is missing, invoke
                 # the hook for dependants with no subcloud resource.
                 # Resource implementation should handle this.
-                num_of_audit_jobs += self.audit_dependants(
-                    resource_type, m_r, None)
-        if (num_of_audit_jobs != 0):
-            LOG.info("audit_find_missing {} num_of_audit_jobs".
-                     format(num_of_audit_jobs), extra=self.log_extra)
+                num_of_audit_jobs += self.audit_dependants(resource_type, m_r, None)
+        if num_of_audit_jobs != 0:
+            LOG.info(
+                "audit_find_missing {} num_of_audit_jobs".format(num_of_audit_jobs),
+                extra=self.log_extra,
+            )
         return num_of_audit_jobs
 
-    def audit_find_extra(self, resource_type, m_resources,
-                         db_resources, sc_resources, abort_resources):
+    def audit_find_extra(
+        self, resource_type, m_resources, db_resources, sc_resources, abort_resources
+    ):
         """Find extra resources in subcloud.
 
         - Input param db_resources is expected to be a
@@ -768,21 +874,29 @@ class SyncThread(object):
         for db_resource in db_resources:
             if db_resource.master_id:
                 if db_resource.master_id in abort_resources:
-                    LOG.info("audit_find_extra: Aborting audit for {}"
-                             .format(db_resource.master_id),
-                             extra=self.log_extra)
+                    LOG.info(
+                        "audit_find_extra: Aborting audit for {}".format(
+                            db_resource.master_id
+                        ),
+                        extra=self.log_extra,
+                    )
                     num_of_audit_jobs += 1
                     # There are pending jobs for this resource, abort audit
                     continue
 
-                LOG.debug("Extra resource ({}) in DB".format(db_resource.id),
-                          extra=self.log_extra)
+                LOG.debug(
+                    "Extra resource ({}) in DB".format(db_resource.id),
+                    extra=self.log_extra,
+                )
                 subcloud_rsrc = self.get_db_subcloud_resource(db_resource.id)
                 if subcloud_rsrc:
                     if not subcloud_rsrc.is_managed():
-                        LOG.info("Resource {} is not managed"
-                                 .format(subcloud_rsrc.subcloud_resource_id),
-                                 extra=self.log_extra)
+                        LOG.info(
+                            "Resource {} is not managed".format(
+                                subcloud_rsrc.subcloud_resource_id
+                            ),
+                            extra=self.log_extra,
+                        )
                         continue
 
                     # check if the resource exists in subcloud, no need to
@@ -793,20 +907,24 @@ class SyncThread(object):
                     # after an audit (not through api-proxy), then user deletes
                     # that resource manually in the subcloud before the
                     # next audit.
-                    if not self.resource_exists_in_subcloud(subcloud_rsrc,
-                                                            sc_resources):
+                    if not self.resource_exists_in_subcloud(
+                        subcloud_rsrc, sc_resources
+                    ):
                         continue
 
-                    LOG.info("Resource ({}) and subcloud resource ({}) "
-                             "not in sync with master cloud"
-                             .format(db_resource.master_id,
-                                     subcloud_rsrc.subcloud_resource_id),
-                             extra=self.log_extra)
+                    LOG.info(
+                        "Resource ({}) and subcloud resource ({}) "
+                        "not in sync with master cloud".format(
+                            db_resource.master_id, subcloud_rsrc.subcloud_resource_id
+                        ),
+                        extra=self.log_extra,
+                    )
                     # There is extra resource in the subcloud, take action.
                     # Note that the resource is in dcorch DB, but not
                     # actually present in the master cloud.
                     num_of_audit_jobs += self.audit_action(
-                        resource_type, AUDIT_RESOURCE_EXTRA, db_resource)
+                        resource_type, AUDIT_RESOURCE_EXTRA, db_resource
+                    )
                 else:
                     # Resource is present in resource table, but not in
                     # subcloud_resource table. We have also established that
@@ -819,24 +937,38 @@ class SyncThread(object):
 
         return num_of_audit_jobs
 
-    def schedule_work(self, endpoint_type, resource_type,
-                      source_resource_id, operation_type,
-                      resource_info=None):
-        LOG.info("Scheduling {} work for {}/{}".format(
-                 operation_type, resource_type, source_resource_id),
-                 extra=self.log_extra)
+    def schedule_work(
+        self,
+        endpoint_type,
+        resource_type,
+        source_resource_id,
+        operation_type,
+        resource_info=None,
+    ):
+        LOG.info(
+            "Scheduling {} work for {}/{}".format(
+                operation_type, resource_type, source_resource_id
+            ),
+            extra=self.log_extra,
+        )
         try:
             subcloud = Subcloud.get_by_name(self.ctxt, self.subcloud_name)
             utils.enqueue_work(
-                self.ctxt, endpoint_type, resource_type,
-                source_resource_id, operation_type, resource_info,
-                subcloud=subcloud)
+                self.ctxt,
+                endpoint_type,
+                resource_type,
+                source_resource_id,
+                operation_type,
+                resource_info,
+                subcloud=subcloud,
+            )
         except Exception as e:
-            LOG.info("Exception in schedule_work: {}".format(str(e)),
-                     extra=self.log_extra)
+            LOG.info(
+                "Exception in schedule_work: {}".format(str(e)), extra=self.log_extra
+            )
 
     def get_resource_id(self, resource_type, resource):
-        if hasattr(resource, 'master_id'):
+        if hasattr(resource, "master_id"):
             # If resource from DB, return master resource id
             # from master cloud
             return resource.master_id
@@ -881,8 +1013,7 @@ class SyncThread(object):
     def has_same_ids(self, resource_type, m_resource, sc_resource):
         return False
 
-    def map_subcloud_resource(self, resource_type, m_r, m_rsrc_db,
-                              sc_resources):
+    def map_subcloud_resource(self, resource_type, m_r, m_rsrc_db, sc_resources):
         # Child classes can override this function to map an existing subcloud
         # resource to an existing master resource.  If a mapping is created
         # the function should return True.
@@ -909,9 +1040,9 @@ class SyncThread(object):
         return True
 
     def audit_action(self, resource_type, finding, resource):
-        LOG.info("audit_action: {}/{}"
-                 .format(finding, resource_type),
-                 extra=self.log_extra)
+        LOG.info(
+            "audit_action: {}/{}".format(finding, resource_type), extra=self.log_extra
+        )
         # Default actions are create & delete. Can be overridden
         # in resource implementation
         num_of_audit_jobs = 0
@@ -920,19 +1051,24 @@ class SyncThread(object):
         if finding == AUDIT_RESOURCE_MISSING:
             # default action is create for a 'missing' resource
             self.schedule_work(
-                self.endpoint_type, resource_type,
+                self.endpoint_type,
+                resource_type,
                 resource_id,
                 consts.OPERATION_TYPE_CREATE,
                 self.get_resource_info(
-                    resource_type, resource,
-                    consts.OPERATION_TYPE_CREATE))
+                    resource_type, resource, consts.OPERATION_TYPE_CREATE
+                ),
+            )
             num_of_audit_jobs += 1
         elif finding == AUDIT_RESOURCE_EXTRA:
             # default action is delete for an 'extra_resource'
             # resource passed in is db_resource (resource in dcorch DB)
-            self.schedule_work(self.endpoint_type, resource_type,
-                               resource_id,
-                               consts.OPERATION_TYPE_DELETE)
+            self.schedule_work(
+                self.endpoint_type,
+                resource_type,
+                resource_id,
+                consts.OPERATION_TYPE_DELETE,
+            )
             num_of_audit_jobs += 1
         return num_of_audit_jobs
 
@@ -947,5 +1083,8 @@ class SyncThread(object):
     @classmethod
     def set_sync_request(cls, ctxt, subcloud_name, endpoint_type):
         db_api.subcloud_sync_update(
-            ctxt, subcloud_name, endpoint_type,
-            values={'sync_request': consts.SYNC_STATUS_REQUESTED})
+            ctxt,
+            subcloud_name,
+            endpoint_type,
+            values={"sync_request": consts.SYNC_STATUS_REQUESTED},
+        )

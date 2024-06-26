@@ -68,8 +68,7 @@ class GenericSyncManager(object):
 
     def _process_subclouds(self, rpc_method, subcloud_sync_list):
         # We want a chunksize of at least 1 so add the number of workers.
-        chunksize = \
-            (len(subcloud_sync_list) + CONF.workers) // (CONF.workers)
+        chunksize = (len(subcloud_sync_list) + CONF.workers) // (CONF.workers)
 
         subcloud_sync_chunk = []
         for subcloud_sync in subcloud_sync_list:
@@ -94,12 +93,16 @@ class GenericSyncManager(object):
             management_state=dccommon_consts.MANAGEMENT_MANAGED,
             availability_status=dccommon_consts.AVAILABILITY_ONLINE,
             initial_sync_state=dco_consts.INITIAL_SYNC_STATE_COMPLETED,
-            sync_requests=[dco_consts.SYNC_STATUS_REQUESTED,
-                           dco_consts.SYNC_STATUS_FAILED])
+            sync_requests=[
+                dco_consts.SYNC_STATUS_REQUESTED,
+                dco_consts.SYNC_STATUS_FAILED,
+            ],
+        )
 
         if subcloud_sync_list:
             self._process_subclouds(
-                self.engine_worker_rpc_client.sync_subclouds, subcloud_sync_list)
+                self.engine_worker_rpc_client.sync_subclouds, subcloud_sync_list
+            )
         else:
             LOG.debug("No eligible subclouds for sync.")
 
@@ -117,20 +120,26 @@ class GenericSyncManager(object):
             management_state=dccommon_consts.MANAGEMENT_MANAGED,
             availability_status=dccommon_consts.AVAILABILITY_ONLINE,
             initial_sync_state=dco_consts.INITIAL_SYNC_STATE_COMPLETED,
-            audit_interval=AUDIT_INTERVAL)
+            audit_interval=AUDIT_INTERVAL,
+        )
 
         if subcloud_sync_list:
             self._process_subclouds(
-                self.engine_worker_rpc_client.run_sync_audit, subcloud_sync_list)
+                self.engine_worker_rpc_client.run_sync_audit, subcloud_sync_list
+            )
         else:
             LOG.debug("No eligible subclouds for audit.")
 
     def _send_chunk(self, rpc_method, subcloud_sync_chunk):
         try:
             rpc_method(self.context, subcloud_sync_chunk)
-            LOG.debug(f"Sent {rpc_method.__name__} request message for "
-                      f"{len(subcloud_sync_chunk)} (subcloud, endpoint_type) "
-                      f"pairs.")
+            LOG.debug(
+                f"Sent {rpc_method.__name__} request message for "
+                f"{len(subcloud_sync_chunk)} (subcloud, endpoint_type) "
+                f"pairs."
+            )
         except Exception as e:
-            LOG.error(f"Exception occurred in {rpc_method.__name__} for "
-                      f"subclouds {subcloud_sync_chunk}: {e}")
+            LOG.error(
+                f"Exception occurred in {rpc_method.__name__} for "
+                f"subclouds {subcloud_sync_chunk}: {e}"
+            )
