@@ -74,13 +74,16 @@ class Acceptor(Router):
 
         for key, value in proxy_consts.COMPUTE_PATH_MAP.items():
             for k, v in value.items():
-                self._add_resource(mapper, api_controller, v, k,
-                                   CONF.type, key)
+                self._add_resource(mapper, api_controller, v, k, CONF.type, key)
 
-        self._add_resource(mapper, orch_controller,
-                           proxy_consts.QUOTA_DETAIL_PATHS,
-                           consts.RESOURCE_TYPE_COMPUTE_QUOTA_SET,
-                           CONF.type, method=['GET'])
+        self._add_resource(
+            mapper,
+            orch_controller,
+            proxy_consts.QUOTA_DETAIL_PATHS,
+            consts.RESOURCE_TYPE_COMPUTE_QUOTA_SET,
+            CONF.type,
+            method=["GET"],
+        )
 
     def add_platform_routes(self, app, conf, mapper):
         api_controller = SysinvAPIController(app, conf)
@@ -93,8 +96,7 @@ class Acceptor(Router):
 
         for key, value in proxy_consts.CINDER_PATH_MAP.items():
             for k, v in value.items():
-                self._add_resource(mapper, api_controller, v, k,
-                                   CONF.type, key)
+                self._add_resource(mapper, api_controller, v, k, CONF.type, key)
 
     def add_network_routes(self, app, conf, mapper):
         api_controller = NeutronAPIController(app, conf)
@@ -103,10 +105,14 @@ class Acceptor(Router):
         for key, value in proxy_consts.NEUTRON_PATH_MAP.items():
             self._add_resource(mapper, api_controller, value, key, CONF.type)
 
-        self._add_resource(mapper, orch_controller,
-                           proxy_consts.NEUTRON_QUOTA_DETAIL_PATHS,
-                           consts.RESOURCE_TYPE_NETWORK_QUOTA_SET,
-                           CONF.type, method=['GET'])
+        self._add_resource(
+            mapper,
+            orch_controller,
+            proxy_consts.NEUTRON_QUOTA_DETAIL_PATHS,
+            consts.RESOURCE_TYPE_NETWORK_QUOTA_SET,
+            CONF.type,
+            method=["GET"],
+        )
 
     def add_patch_routes(self, app, conf, mapper):
         api_controller = PatchAPIController(app, conf)
@@ -127,6 +133,9 @@ class VersionAcceptor(Router):
         self._conf = conf
         mapper = routes.Mapper()
         api_controller = VersionController(app, conf)
-        mapper.connect(proxy_consts.VERSION_ROOT, controller=api_controller,
-                       conditions=dict(method=['GET']))
+        mapper.connect(
+            proxy_consts.VERSION_ROOT,
+            controller=api_controller,
+            conditions=dict(method=["GET"]),
+        )
         super(VersionAcceptor, self).__init__(app, conf, mapper, app)

@@ -28,9 +28,8 @@ class Controller(object):
         minor_version = remainder[-1]
         remainder = remainder[:-1]
         sub_controllers = dict()
-        if minor_version == '0':
-            sub_controllers["subclouds"] = subcloud_manager.\
-                SubcloudController
+        if minor_version == "0":
+            sub_controllers["subclouds"] = subcloud_manager.SubcloudController
         for name, ctrl in sub_controllers.items():
             setattr(self, name, ctrl)
 

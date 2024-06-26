@@ -32,7 +32,7 @@ LOG = logging.getLogger(__name__)
 
 class SubcloudController(object):
     VERSION_ALIASES = {
-        'Newton': '1.0',
+        "Newton": "1.0",
     }
 
     def __init__(self, *args, **kwargs):
@@ -44,26 +44,24 @@ class SubcloudController(object):
         version_cap = 1.0
         return version_cap
 
-    @expose(generic=True, template='json')
+    @expose(generic=True, template="json")
     def index(self):
         # Route the request to specific methods with parameters
         pass
 
-    @index.when(method='POST', template='json')
+    @index.when(method="POST", template="json")
     def post(self, project):
-        """Sync resources present in one region to another region.
-
-        """
+        """Sync resources present in one region to another region."""
         context = restcomm.extract_context_from_environ()
         payload = eval(request.body)
         if not payload:
-            pecan.abort(400, _('Body required'))
-        if not payload.get('subcloud'):
-            pecan.abort(400, _('subcloud required'))
+            pecan.abort(400, _("Body required"))
+        if not payload.get("subcloud"):
+            pecan.abort(400, _("subcloud required"))
         job_id = uuidutils.generate_uuid()
         return self._add_subcloud(job_id, payload, context)
 
-    @index.when(method='delete', template='json')
+    @index.when(method="delete", template="json")
     def delete(self, project, subcloud):
         """Delete the database entries of a given job_id.
 
@@ -74,10 +72,10 @@ class SubcloudController(object):
         context = restcomm.extract_context_from_environ()
         try:
             self.rpc_client.del_subcloud(context, subcloud)
-            return {'deleted': {'subcloud': subcloud}}
+            return {"deleted": {"subcloud": subcloud}}
         except oslo_messaging.RemoteError as ex:
-            if ex.exc_type == 'SubcloudNotFound':
-                pecan.abort(404, _('Subcloud not found'))
+            if ex.exc_type == "SubcloudNotFound":
+                pecan.abort(404, _("Subcloud not found"))
 
     def _add_subcloud(self, job_id, payload, context):
         """Make an rpc call to engine.
@@ -88,8 +86,8 @@ class SubcloudController(object):
         :param context: context of the request.
         :param result: Result object to return an output.
         """
-        name = payload['subcloud']
-        management_ip = payload['management_ip']
-        version = '17.06'
+        name = payload["subcloud"]
+        management_ip = payload["management_ip"]
+        version = "17.06"
         self.rpc_client.add_subcloud(context, name, version, management_ip)
-        return {'added': {'subcloud': name}}
+        return {"added": {"subcloud": name}}

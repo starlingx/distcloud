@@ -24,7 +24,7 @@ import psutil
 
 from dccommon import consts as dccommon_consts
 from dccommon.drivers.openstack.sdk_platform import (
-    OptimizedOpenStackDriver as OpenStackDriver
+    OptimizedOpenStackDriver as OpenStackDriver,
 )
 from dcorch.common import consts
 
@@ -96,11 +96,11 @@ def get_sync_endpoint(cfg):
 
 def get_url_path_components(url):
     result = urlparse(url)
-    return result.path.split('/')
+    return result.path.split("/")
 
 
 def get_routing_match_arguments(environ):
-    return environ['wsgiorg.routing_args'][1]
+    return environ["wsgiorg.routing_args"][1]
 
 
 def get_routing_match_value(environ, key):
@@ -115,37 +115,36 @@ def get_routing_match_value(environ, key):
 
 
 def get_operation_type(environ):
-    return environ['REQUEST_METHOD'].lower()
+    return environ["REQUEST_METHOD"].lower()
 
 
 def get_id_from_query_string(environ, id):
     import urllib.parse as six_urlparse
-    params = six_urlparse.parse_qs(environ.get('QUERY_STRING', ''))
+
+    params = six_urlparse.parse_qs(environ.get("QUERY_STRING", ""))
     return params.get(id, [None])[0]
 
 
 def get_user_id(environ):
-    return get_id_from_query_string(environ, 'user_id')
+    return get_id_from_query_string(environ, "user_id")
 
 
 def show_usage(environ):
-    return get_id_from_query_string(environ, 'usage') == 'True'
+    return get_id_from_query_string(environ, "usage") == "True"
 
 
 def get_tenant_id(environ):
-    return get_routing_match_value(environ, 'tenant_id')
+    return get_routing_match_value(environ, "tenant_id")
 
 
 def set_request_forward_environ(req, remote_host, remote_port):
-    req.environ['HTTP_X_FORWARDED_SERVER'] = req.environ.get(
-        'HTTP_HOST', '')
-    req.environ['HTTP_X_FORWARDED_SCHEME'] = req.environ['wsgi.url_scheme']
-    req.environ['HTTP_HOST'] = remote_host + ':' + str(remote_port)
-    req.environ['SERVER_NAME'] = remote_host
-    req.environ['SERVER_PORT'] = remote_port
-    if ('REMOTE_ADDR' in req.environ and 'HTTP_X_FORWARDED_FOR' not in
-            req.environ):
-        req.environ['HTTP_X_FORWARDED_FOR'] = req.environ['REMOTE_ADDR']
+    req.environ["HTTP_X_FORWARDED_SERVER"] = req.environ.get("HTTP_HOST", "")
+    req.environ["HTTP_X_FORWARDED_SCHEME"] = req.environ["wsgi.url_scheme"]
+    req.environ["HTTP_HOST"] = remote_host + ":" + str(remote_port)
+    req.environ["SERVER_NAME"] = remote_host
+    req.environ["SERVER_PORT"] = remote_port
+    if "REMOTE_ADDR" in req.environ and "HTTP_X_FORWARDED_FOR" not in req.environ:
+        req.environ["HTTP_X_FORWARDED_FOR"] = req.environ["REMOTE_ADDR"]
 
 
 def _get_fernet_keys():
@@ -157,18 +156,21 @@ def _get_fernet_keys():
     )
     try:
         key_list = os_client.sysinv_client.get_fernet_keys()
-        return [str(getattr(key, 'key')) for key in key_list]
-    except (keystone_exceptions.connection.ConnectTimeout,
-            keystone_exceptions.ConnectFailure) as e:
-        LOG.info("get_fernet_keys: cloud {} is not reachable [{}]"
-                 .format(dccommon_consts.CLOUD_0, str(e)))
+        return [str(getattr(key, "key")) for key in key_list]
+    except (
+        keystone_exceptions.connection.ConnectTimeout,
+        keystone_exceptions.ConnectFailure,
+    ) as e:
+        LOG.info(
+            "get_fernet_keys: cloud {} is not reachable [{}]".format(
+                dccommon_consts.CLOUD_0, str(e)
+            )
+        )
         OpenStackDriver.delete_region_clients(dccommon_consts.CLOUD_0)
         return None
     except (AttributeError, TypeError) as e:
         LOG.info("get_fernet_keys error {}".format(e))
-        OpenStackDriver.delete_region_clients(
-            dccommon_consts.CLOUD_0, clear_token=True
-        )
+        OpenStackDriver.delete_region_clients(dccommon_consts.CLOUD_0, clear_token=True)
         return None
     except Exception as e:
         LOG.exception(e)
@@ -186,7 +188,7 @@ def _restore_padding(token):
     mod_returned = len(token) % 4
     if mod_returned:
         missing_padding = 4 - mod_returned
-        token += b'=' * missing_padding
+        token += b"=" * missing_padding
     return token
 
 
@@ -230,8 +232,11 @@ def retrieve_token_audit_id(fernet_token):
         unpacked_token = _unpack_token(fernet_token, fernet_keys)
         if unpacked_token:
             audit_id = unpacked_token[-1][0]
-            audit_id = base64.urlsafe_b64encode(
-                audit_id.encode('utf-8')).rstrip(b'=').decode('utf-8')
+            audit_id = (
+                base64.urlsafe_b64encode(audit_id.encode("utf-8"))
+                .rstrip(b"=")
+                .decode("utf-8")
+            )
 
     return audit_id
 
@@ -243,12 +248,12 @@ def cleanup(environ):
     :return: None
     """
 
-    if 'webob._parsed_post_vars' in environ:
-        post_vars, body_file = environ['webob._parsed_post_vars']
+    if "webob._parsed_post_vars" in environ:
+        post_vars, body_file = environ["webob._parsed_post_vars"]
         # the content is copied into a BytesIO or temporary file
         if not isinstance(body_file, bytes):
             body_file.close()
         for f in post_vars.keys():
             item = post_vars[f]
-            if hasattr(item, 'file'):
+            if hasattr(item, "file"):
                 item.file.close()

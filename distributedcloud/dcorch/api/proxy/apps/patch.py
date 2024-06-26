@@ -41,9 +41,11 @@ LOG = logging.getLogger(__name__)
 
 CONF = cfg.CONF
 patch_opts = [
-    cfg.StrOpt('patch_vault',
-               default='/opt/dc-vault/patches/',
-               help='file system for patch storage on SystemController'),
+    cfg.StrOpt(
+        "patch_vault",
+        default="/opt/dc-vault/patches/",
+        help="file system for patch storage on SystemController",
+    ),
 ]
 
 CONF.register_opts(patch_opts, CONF.type)
@@ -58,8 +60,8 @@ class PatchAPIController(Middleware):
         webob.exc.HTTPOk.code,
     ]
 
-    PATCH_META_DATA = 'metadata.xml'
-    SOFTWARE_VERSION = 'sw_version'
+    PATCH_META_DATA = "metadata.xml"
+    SOFTWARE_VERSION = "sw_version"
 
     def __init__(self, app, conf):
         super(PatchAPIController, self).__init__(app)
@@ -89,7 +91,7 @@ class PatchAPIController(Middleware):
         # check if the request was successful
         if response.status_int in self.OK_STATUS_CODE:
             data = json.loads(response.text)
-            if 'error' in data and data["error"] != "":
+            if "error" in data and data["error"] != "":
                 rc = False
         else:
             rc = False
@@ -103,8 +105,7 @@ class PatchAPIController(Middleware):
             msg = "Unable to fetch release version from patch"
             LOG.error(msg)
             raise webob.exc.HTTPUnprocessableEntity(explanation=msg)
-        versioned_vault = CONF.patching.patch_vault + \
-            sw_version
+        versioned_vault = CONF.patching.patch_vault + sw_version
         if not os.path.isdir(versioned_vault):
             os.makedirs(versioned_vault)
         try:
@@ -125,8 +126,9 @@ class PatchAPIController(Middleware):
                     os.remove(fn)
                     return
                 except OSError:
-                    msg = (f"Unable to remove patch file {fn} from the central "
-                           "storage.")
+                    msg = (
+                        f"Unable to remove patch file {fn} from the central " "storage."
+                    )
                     raise webob.exc.HTTPUnprocessableEntity(explanation=msg)
         LOG.info(f"Patch {patch} was not found in {vault}")
 
@@ -136,8 +138,8 @@ class PatchAPIController(Middleware):
         # chunk, rather than reading the file into memory as a whole
 
         # write the patch to a temporary directory first
-        tempdir = tempfile.mkdtemp(prefix="patch_proxy_", dir='/scratch')
-        fn = tempdir + '/' + os.path.basename(filename)
+        tempdir = tempfile.mkdtemp(prefix="patch_proxy_", dir="/scratch")
+        fn = tempdir + "/" + os.path.basename(filename)
         dst = os.open(fn, os.O_WRONLY | os.O_CREAT | os.O_TRUNC)
         size = 64 * 1024
         n = size
@@ -154,19 +156,22 @@ class PatchAPIController(Middleware):
 
     def patch_upload_req(self, request, response):
         # stores patch in the patch storage
-        file_item = request.POST['file']
+        file_item = request.POST["file"]
         try:
             self.store_patch_file(file_item.filename, file_item.file.fileno())
         except Exception:
             LOG.exception("Failed to store the patch to vault")
             # return a warning and prompt the user to try again
-            if hasattr(response, 'text'):
+            if hasattr(response, "text"):
                 from builtins import str as text
+
                 data = json.loads(response.text)
-                if 'warning' in data:
-                    msg = _('The patch file could not be stored in the vault, '
-                            'please upload the patch again!')
-                    data['warning'] += msg
+                if "warning" in data:
+                    msg = _(
+                        "The patch file could not be stored in the vault, "
+                        "please upload the patch again!"
+                    )
+                    data["warning"] += msg
                     response.text = text(json.dumps(data))
         proxy_utils.cleanup(request.environ)
         return response
@@ -175,7 +180,7 @@ class PatchAPIController(Middleware):
         files = []
         for key, path in request.GET.items():
             LOG.info("upload-dir: Retrieving patches from %s" % path)
-            for f in glob.glob(path + '/*.patch'):
+            for f in glob.glob(path + "/*.patch"):
                 if os.path.isfile(f):
                     files.append(f)
 
@@ -190,7 +195,8 @@ class PatchAPIController(Middleware):
         self.dcmanager_state_rpc_client.update_subcloud_endpoint_status(
             self.ctxt,
             endpoint_type=self.ENDPOINT_TYPE,
-            sync_status=dccommon_consts.SYNC_STATUS_UNKNOWN)
+            sync_status=dccommon_consts.SYNC_STATUS_UNKNOWN,
+        )
         return response
 
     def notify_usm(self, request, response):
@@ -199,18 +205,19 @@ class PatchAPIController(Middleware):
         self.dcmanager_state_rpc_client.update_subcloud_endpoint_status(
             self.ctxt,
             endpoint_type=self.USM_ENDPOINT_TYPE,
-            sync_status=dccommon_consts.SYNC_STATUS_UNKNOWN)
+            sync_status=dccommon_consts.SYNC_STATUS_UNKNOWN,
+        )
         return response
 
     def patch_delete_req(self, request, response):
-        patch_ids = proxy_utils.get_routing_match_value(request.environ,
-                                                        'patch_id')
+        patch_ids = proxy_utils.get_routing_match_value(request.environ, "patch_id")
         LOG.info("Deleting patches: %s", patch_ids)
         patch_list = os.path.normpath(patch_ids).split(os.path.sep)
         for patch_file in patch_list:
             LOG.debug("Patch file:(%s)", patch_file)
-            self.delete_patch_from_version_vault(os.path.basename(patch_file)
-                                                 + '.patch')
+            self.delete_patch_from_version_vault(
+                os.path.basename(patch_file) + ".patch"
+            )
         return response
 
     def process_request(self, req):
@@ -222,7 +229,7 @@ class PatchAPIController(Middleware):
         if CONF.show_response:
             LOG.info("Response: (%s)", str(response))
             LOG.info("Response status: (%s)", response.status)
-        action = proxy_utils.get_routing_match_value(request.environ, 'action')
+        action = proxy_utils.get_routing_match_value(request.environ, "action")
         if self.ok_response(response) and action in self.response_hander_map:
             handler = self.response_hander_map[action]
             return handler(request, response)

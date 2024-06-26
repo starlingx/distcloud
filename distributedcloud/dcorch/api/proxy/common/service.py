@@ -25,17 +25,14 @@ class Application(object):
 
     @classmethod
     def factory(cls, global_config, **local_config):
-        """Used for paste app factories in paste.deploy config files.
-
-        """
+        """Used for paste app factories in paste.deploy config files."""
         return cls(**local_config)
 
     def __call__(self, environ, start_response):
-        raise NotImplementedError('You must implement __call__')
+        raise NotImplementedError("You must implement __call__")
 
 
 class Middleware(Application):
-
     """Base WSGI middleware wrapper.
 
     These classes require an application to be
@@ -46,7 +43,6 @@ class Middleware(Application):
 
     @classmethod
     def factory(cls, global_config, **local_config):
-
         """Used for paste app factories in paste.deploy config files.
 
         Any local configuration (that is, values under the [filter:APPNAME]
@@ -58,13 +54,13 @@ class Middleware(Application):
             # https://bugs.launchpad.net/starlingx/+bug/1865085
             # pylint: disable-next=too-many-function-args
             return cls(app, global_config, **local_config)
+
         return _factory
 
     def __init__(self, application):
         self.application = application
 
     def process_request(self, req):
-
         """Called on each request.
 
         If this returns None, the next application down the stack will be

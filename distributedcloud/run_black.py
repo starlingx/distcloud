@@ -22,7 +22,11 @@ modules = [
 ]
 
 # List of modules that are already formatted with black
-formatted_modules = ["dccommon", "dcdbsync"]
+formatted_modules = [
+    "dccommon",
+    "dcdbsync",
+    "dcorch/api",
+]
 
 
 # Function to run black check

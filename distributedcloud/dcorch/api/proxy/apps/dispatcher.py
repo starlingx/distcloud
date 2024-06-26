@@ -1,4 +1,4 @@
-# Copyright 2017 Wind River
+# Copyright 2017, 2024 Wind River
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -24,12 +24,12 @@ from dcorch.api.proxy.common import utils
 LOG = logging.getLogger(__name__)
 
 dispatch_opts = [
-    cfg.StrOpt('remote_host',
-               default="192.168.204.2",
-               help='remote host for api proxy to forward the request'),
-    cfg.IntOpt('remote_port',
-               default=18774,
-               help='listen port for remote host'),
+    cfg.StrOpt(
+        "remote_host",
+        default="192.168.204.2",
+        help="remote host for api proxy to forward the request",
+    ),
+    cfg.IntOpt("remote_port", default=18774, help="listen port for remote host"),
 ]
 
 CONF = cfg.CONF
@@ -43,15 +43,15 @@ class APIDispatcher(object):
     """
 
     def __init__(self, app):
-        self._remote_host, self._remote_port = \
-            utils.get_remote_host_port_options(CONF)
+        self._remote_host, self._remote_port = utils.get_remote_host_port_options(CONF)
         self.app = app
 
     @webob.dec.wsgify
     def __call__(self, req):
         """Route the incoming request to a remote host"""
-        LOG.debug("APIDispatcher dispatch the request to remote host: (%s), "
-                  "port: (%d)" % (self._remote_host, self._remote_port))
-        utils.set_request_forward_environ(req, self._remote_host,
-                                          self._remote_port)
+        LOG.debug(
+            "APIDispatcher dispatch the request to remote host: (%s), "
+            "port: (%d)" % (self._remote_host, self._remote_port)
+        )
+        utils.set_request_forward_environ(req, self._remote_host, self._remote_port)
         return self.app
