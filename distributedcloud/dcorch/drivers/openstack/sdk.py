@@ -86,7 +86,9 @@ class OpenStackDriver(object):
                 self.fm_client = FmClient(
                     region_name,
                     self.keystone_client.session,
-                    endpoint_type=dccommon_consts.KS_ENDPOINT_DEFAULT)
+                    endpoint_type=dccommon_consts.KS_ENDPOINT_DEFAULT,
+                    endpoint=self.keystone_client.endpoint_cache.get_endpoint("fm")
+                )
                 OpenStackDriver.os_clients_dict[region_name][
                     'fm'] = self.fm_client
             except Exception as exception:

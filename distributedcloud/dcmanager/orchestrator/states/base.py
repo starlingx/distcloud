@@ -132,7 +132,8 @@ class BaseState(object, metaclass=abc.ABCMeta):
 
     def get_fm_client(self, region_name):
         keystone_client = self.get_keystone_client(region_name)
-        return FmClient(region_name, keystone_client.session)
+        endpoint = keystone_client.endpoint_cache.get_endpoint("fm")
+        return FmClient(region_name, keystone_client.session, endpoint=endpoint)
 
     def get_patching_client(self, region_name=dccommon_consts.DEFAULT_REGION_NAME):
         keystone_client = self.get_keystone_client(region_name)
