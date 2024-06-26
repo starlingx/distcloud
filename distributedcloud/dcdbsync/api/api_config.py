@@ -13,7 +13,7 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 #
-# Copyright (c) 2019 Wind River Systems, Inc.
+# Copyright (c) 2019, 2024 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -38,29 +38,36 @@ from dcdbsync.common import version
 LOG = logging.getLogger(__name__)
 
 common_opts = [
-    cfg.StrOpt('bind_host', default='0.0.0.0',
-               help=_("The host IP to bind to")),
-    cfg.IntOpt('bind_port', default=8119,
-               help=_("The port to bind to")),
-    cfg.IntOpt('api_workers', default=2,
-               help=_("number of api workers")),
-    cfg.StrOpt('state_path',
-               default=os.path.join(os.path.dirname(__file__), '../'),
-               help='Top-level directory for maintaining dcdbsync state'),
-    cfg.StrOpt('api_extensions_path', default="",
-               help=_("The path for API extensions")),
-    cfg.StrOpt('auth_strategy', default='keystone',
-               help=_("The type of authentication to use")),
-    cfg.BoolOpt('allow_bulk', default=True,
-                help=_("Allow the usage of the bulk API")),
-    cfg.BoolOpt('allow_pagination', default=False,
-                help=_("Allow the usage of the pagination")),
-    cfg.BoolOpt('allow_sorting', default=False,
-                help=_("Allow the usage of the sorting")),
-    cfg.StrOpt('pagination_max_limit', default="-1",
-               help=_("The maximum number of items returned in a single "
-                      "response, value was 'infinite' or negative integer "
-                      "means no limit")),
+    cfg.StrOpt("bind_host", default="0.0.0.0", help=_("The host IP to bind to")),
+    cfg.IntOpt("bind_port", default=8119, help=_("The port to bind to")),
+    cfg.IntOpt("api_workers", default=2, help=_("number of api workers")),
+    cfg.StrOpt(
+        "state_path",
+        default=os.path.join(os.path.dirname(__file__), "../"),
+        help="Top-level directory for maintaining dcdbsync state",
+    ),
+    cfg.StrOpt(
+        "api_extensions_path", default="", help=_("The path for API extensions")
+    ),
+    cfg.StrOpt(
+        "auth_strategy", default="keystone", help=_("The type of authentication to use")
+    ),
+    cfg.BoolOpt("allow_bulk", default=True, help=_("Allow the usage of the bulk API")),
+    cfg.BoolOpt(
+        "allow_pagination", default=False, help=_("Allow the usage of the pagination")
+    ),
+    cfg.BoolOpt(
+        "allow_sorting", default=False, help=_("Allow the usage of the sorting")
+    ),
+    cfg.StrOpt(
+        "pagination_max_limit",
+        default="-1",
+        help=_(
+            "The maximum number of items returned in a single "
+            "response, value was 'infinite' or negative integer "
+            "means no limit"
+        ),
+    ),
 ]
 
 
@@ -72,9 +79,12 @@ def init(args, **kwargs):
     # auth.register_conf_options(cfg.CONF)
     logging.register_options(cfg.CONF)
 
-    cfg.CONF(args=args, project='dcdbsync',
-             version='%%(prog)s %s' % version.version_info.release_string(),
-             **kwargs)
+    cfg.CONF(
+        args=args,
+        project="dcdbsync",
+        version="%%(prog)s %s" % version.version_info.release_string(),
+        **kwargs
+    )
 
 
 def setup_logging():
@@ -82,9 +92,10 @@ def setup_logging():
     product_name = "dcdbsync"
     logging.setup(cfg.CONF, product_name)
     LOG.info("Logging enabled!")
-    LOG.info("%(prog)s version %(version)s",
-             {'prog': sys.argv[0],
-              'version': version.version_info.release_string()})
+    LOG.info(
+        "%(prog)s version %(version)s",
+        {"prog": sys.argv[0], "version": version.version_info.release_string()},
+    )
     LOG.debug("command line: %s", " ".join(sys.argv))
 
 

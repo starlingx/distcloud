@@ -38,7 +38,7 @@ LOG = logging.getLogger(__name__)
 
 class ProjectsController(object):
     VERSION_ALIASES = {
-        'Stein': '1.0',
+        "Stein": "1.0",
     }
 
     def __init__(self):
@@ -49,12 +49,12 @@ class ProjectsController(object):
         version_cap = 1.0
         return version_cap
 
-    @expose(generic=True, template='json')
+    @expose(generic=True, template="json")
     def index(self):
         # Route the request to specific methods with parameters
         pass
 
-    @index.when(method='GET', template='json')
+    @index.when(method="GET", template="json")
     def get(self, project_ref=None):
 
         context = restcomm.extract_context_from_environ()
@@ -72,9 +72,9 @@ class ProjectsController(object):
 
         except Exception as e:
             LOG.exception(e)
-            pecan.abort(500, _('Unable to get project'))
+            pecan.abort(500, _("Unable to get project"))
 
-    @index.when(method='POST', template='json')
+    @index.when(method="POST", template="json")
     def post(self):
         """Create a new project."""
 
@@ -83,14 +83,14 @@ class ProjectsController(object):
         try:
             payload = json.loads(request.body)
         except ValueError:
-            pecan.abort(400, _('Request body decoding error'))
+            pecan.abort(400, _("Request body decoding error"))
 
         if not payload:
-            pecan.abort(400, _('Body required'))
-        project_name = payload.get('project').get('name')
+            pecan.abort(400, _("Body required"))
+        project_name = payload.get("project").get("name")
 
         if not project_name:
-            pecan.abort(400, _('project name required'))
+            pecan.abort(400, _("project name required"))
 
         try:
             # Insert the project into DB tables
@@ -100,25 +100,25 @@ class ProjectsController(object):
 
         except Exception as e:
             LOG.exception(e)
-            pecan.abort(500, _('Unable to create project'))
+            pecan.abort(500, _("Unable to create project"))
 
-    @index.when(method='PUT', template='json')
+    @index.when(method="PUT", template="json")
     def put(self, project_ref=None):
         """Update a existing project."""
 
         context = restcomm.extract_context_from_environ()
 
         if project_ref is None:
-            pecan.abort(400, _('Project ID required'))
+            pecan.abort(400, _("Project ID required"))
 
         # Convert JSON string in request to Python dict
         try:
             payload = json.loads(request.body)
         except ValueError:
-            pecan.abort(400, _('Request body decoding error'))
+            pecan.abort(400, _("Request body decoding error"))
 
         if not payload:
-            pecan.abort(400, _('Body required'))
+            pecan.abort(400, _("Body required"))
 
         try:
             # Update the project in DB tables
@@ -130,4 +130,4 @@ class ProjectsController(object):
 
         except Exception as e:
             LOG.exception(e)
-            pecan.abort(500, _('Unable to update project'))
+            pecan.abort(500, _("Unable to update project"))

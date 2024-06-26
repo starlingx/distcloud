@@ -13,7 +13,7 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 #
-# Copyright (c) 2019, 2022 Wind River Systems, Inc.
+# Copyright (c) 2019, 2022, 2024 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -25,22 +25,24 @@ import dcdbsync.common.context as k_context
 
 
 def extract_context_from_environ():
-    context_paras = {'auth_token': 'HTTP_X_AUTH_TOKEN',
-                     'user': 'HTTP_X_USER_ID',
-                     'project': 'HTTP_X_TENANT_ID',
-                     'user_name': 'HTTP_X_USER_NAME',
-                     'tenant_name': 'HTTP_X_PROJECT_NAME',
-                     'domain': 'HTTP_X_DOMAIN_ID',
-                     'roles': 'HTTP_X_ROLE',
-                     'user_domain': 'HTTP_X_USER_DOMAIN_ID',
-                     'project_domain': 'HTTP_X_PROJECT_DOMAIN_ID',
-                     'request_id': 'openstack.request_id'}
+    context_paras = {
+        "auth_token": "HTTP_X_AUTH_TOKEN",
+        "user": "HTTP_X_USER_ID",
+        "project": "HTTP_X_TENANT_ID",
+        "user_name": "HTTP_X_USER_NAME",
+        "tenant_name": "HTTP_X_PROJECT_NAME",
+        "domain": "HTTP_X_DOMAIN_ID",
+        "roles": "HTTP_X_ROLE",
+        "user_domain": "HTTP_X_USER_DOMAIN_ID",
+        "project_domain": "HTTP_X_PROJECT_DOMAIN_ID",
+        "request_id": "openstack.request_id",
+    }
 
     environ = request.environ
 
     for key, val in context_paras.items():
         context_paras[key] = environ.get(val)
-    role = environ.get('HTTP_X_ROLE')
+    role = environ.get("HTTP_X_ROLE")
 
-    context_paras['is_admin'] = 'admin' in role.split(',')
+    context_paras["is_admin"] = "admin" in role.split(",")
     return k_context.RequestContext(**context_paras)

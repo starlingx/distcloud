@@ -33,20 +33,14 @@ def setup_app(*args, **kwargs):
 
     opts = cfg.CONF.pecan
     config = {
-        'server': {
-            'port': cfg.CONF.bind_port,
-            'host': cfg.CONF.bind_host
-        },
-        'app': {
-            'root': 'dcdbsync.api.controllers.root.RootController',
-            'modules': ['dcdbsync.api'],
+        "server": {"port": cfg.CONF.bind_port, "host": cfg.CONF.bind_host},
+        "app": {
+            "root": "dcdbsync.api.controllers.root.RootController",
+            "modules": ["dcdbsync.api"],
             "debug": opts.debug,
             "auth_enable": opts.auth_enable,
-            'errors': {
-                400: '/error',
-                '__force_dict__': True
-            }
-        }
+            "errors": {400: "/error", "__force_dict__": True},
+        },
     }
 
     pecan_config = pecan.configuration.conf_from_dict(config)
@@ -59,7 +53,7 @@ def setup_app(*args, **kwargs):
         wrap_app=_wrap_app,
         force_canonical=False,
         hooks=lambda: [ctx.AuthHook()],
-        guess_content_type_from_ext=True
+        guess_content_type_from_ext=True,
     )
 
     return app
@@ -67,10 +61,10 @@ def setup_app(*args, **kwargs):
 
 def _wrap_app(app):
     app = request_id.RequestId(app)
-    if cfg.CONF.pecan.auth_enable and cfg.CONF.auth_strategy == 'keystone':
+    if cfg.CONF.pecan.auth_enable and cfg.CONF.auth_strategy == "keystone":
         conf = dict(cfg.CONF.keystone_authtoken)
         # Change auth decisions of requests to the app itself.
-        conf.update({'delay_auth_decision': True})
+        conf.update({"delay_auth_decision": True})
 
         # NOTE: Policy enforcement works only if Keystone
         # authentication is enabled. No support for other authentication
@@ -86,7 +80,7 @@ _launcher = None
 def serve(api_service, conf, workers=1):
     global _launcher
     if _launcher:
-        raise RuntimeError(_('serve() can only be called once'))
+        raise RuntimeError(_("serve() can only be called once"))
 
     _launcher = service.launch(conf, api_service, workers=workers)
 

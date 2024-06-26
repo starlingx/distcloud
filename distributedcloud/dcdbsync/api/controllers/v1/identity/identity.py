@@ -38,7 +38,7 @@ LOG = logging.getLogger(__name__)
 
 class UsersController(object):
     VERSION_ALIASES = {
-        'Stein': '1.0',
+        "Stein": "1.0",
     }
 
     def __init__(self):
@@ -49,12 +49,12 @@ class UsersController(object):
         version_cap = 1.0
         return version_cap
 
-    @expose(generic=True, template='json')
+    @expose(generic=True, template="json")
     def index(self):
         # Route the request to specific methods with parameters
         pass
 
-    @index.when(method='GET', template='json')
+    @index.when(method="GET", template="json")
     def get(self, user_ref=None):
         """Get a list of users."""
         context = restcomm.extract_context_from_environ()
@@ -71,9 +71,9 @@ class UsersController(object):
 
         except Exception as e:
             LOG.exception(e)
-            pecan.abort(500, _('Unable to get user'))
+            pecan.abort(500, _("Unable to get user"))
 
-    @index.when(method='POST', template='json')
+    @index.when(method="POST", template="json")
     def post(self):
         """Create a new user."""
 
@@ -83,14 +83,14 @@ class UsersController(object):
         try:
             payload = json.loads(request.body)
         except ValueError:
-            pecan.abort(400, _('Request body decoding error'))
+            pecan.abort(400, _("Request body decoding error"))
 
         if not payload:
-            pecan.abort(400, _('Body required'))
-        user_name = payload.get('local_user').get('name')
+            pecan.abort(400, _("Body required"))
+        user_name = payload.get("local_user").get("name")
 
         if not user_name:
-            pecan.abort(400, _('User name required'))
+            pecan.abort(400, _("User name required"))
 
         try:
             # Insert the user into DB tables
@@ -100,25 +100,25 @@ class UsersController(object):
 
         except Exception as e:
             LOG.exception(e)
-            pecan.abort(500, _('Unable to create user'))
+            pecan.abort(500, _("Unable to create user"))
 
-    @index.when(method='PUT', template='json')
+    @index.when(method="PUT", template="json")
     def put(self, user_ref=None):
         """Update a existing user."""
 
         context = restcomm.extract_context_from_environ()
 
         if user_ref is None:
-            pecan.abort(400, _('User ID required'))
+            pecan.abort(400, _("User ID required"))
 
         # Convert JSON string in request to Python dict
         try:
             payload = json.loads(request.body)
         except ValueError:
-            pecan.abort(400, _('Request body decoding error'))
+            pecan.abort(400, _("Request body decoding error"))
 
         if not payload:
-            pecan.abort(400, _('Body required'))
+            pecan.abort(400, _("Body required"))
 
         try:
             # Update the user in DB tables
@@ -129,12 +129,12 @@ class UsersController(object):
 
         except Exception as e:
             LOG.exception(e)
-            pecan.abort(500, _('Unable to update user'))
+            pecan.abort(500, _("Unable to update user"))
 
 
 class GroupsController(object):
     VERSION_ALIASES = {
-        'Stein': '1.0',
+        "Stein": "1.0",
     }
 
     def __init__(self):
@@ -145,12 +145,12 @@ class GroupsController(object):
         version_cap = 1.0
         return version_cap
 
-    @expose(generic=True, template='json')
+    @expose(generic=True, template="json")
     def index(self):
         # Route the request to specific methods with parameters
         pass
 
-    @index.when(method='GET', template='json')
+    @index.when(method="GET", template="json")
     def get(self, group_ref=None):
         """Get a list of groups."""
         context = restcomm.extract_context_from_environ()
@@ -167,9 +167,9 @@ class GroupsController(object):
 
         except Exception as e:
             LOG.exception(e)
-            pecan.abort(500, _('Unable to get group'))
+            pecan.abort(500, _("Unable to get group"))
 
-    @index.when(method='POST', template='json')
+    @index.when(method="POST", template="json")
     def post(self):
         """Create a new group."""
 
@@ -179,14 +179,14 @@ class GroupsController(object):
         try:
             payload = json.loads(request.body)
         except ValueError:
-            pecan.abort(400, _('Request body decoding error'))
+            pecan.abort(400, _("Request body decoding error"))
 
         if not payload:
-            pecan.abort(400, _('Body required'))
-        group_name = payload.get('group').get('name')
+            pecan.abort(400, _("Body required"))
+        group_name = payload.get("group").get("name")
 
         if not group_name:
-            pecan.abort(400, _('Group name required'))
+            pecan.abort(400, _("Group name required"))
 
         try:
             # Insert the group into DB tables
@@ -196,25 +196,25 @@ class GroupsController(object):
 
         except Exception as e:
             LOG.exception(e)
-            pecan.abort(500, _('Unable to create group'))
+            pecan.abort(500, _("Unable to create group"))
 
-    @index.when(method='PUT', template='json')
+    @index.when(method="PUT", template="json")
     def put(self, group_ref=None):
         """Update a existing group."""
 
         context = restcomm.extract_context_from_environ()
 
         if group_ref is None:
-            pecan.abort(400, _('Group ID required'))
+            pecan.abort(400, _("Group ID required"))
 
         # Convert JSON string in request to Python dict
         try:
             payload = json.loads(request.body)
         except ValueError:
-            pecan.abort(400, _('Request body decoding error'))
+            pecan.abort(400, _("Request body decoding error"))
 
         if not payload:
-            pecan.abort(400, _('Body required'))
+            pecan.abort(400, _("Body required"))
 
         try:
             # Update the group in DB tables
@@ -225,4 +225,4 @@ class GroupsController(object):
 
         except Exception as e:
             LOG.exception(e)
-            pecan.abort(500, _('Unable to update group'))
+            pecan.abort(500, _("Unable to update group"))

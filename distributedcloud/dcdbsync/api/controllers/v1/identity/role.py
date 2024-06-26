@@ -38,7 +38,7 @@ LOG = logging.getLogger(__name__)
 
 class RolesController(object):
     VERSION_ALIASES = {
-        'Stein': '1.0',
+        "Stein": "1.0",
     }
 
     def __init__(self):
@@ -49,12 +49,12 @@ class RolesController(object):
         version_cap = 1.0
         return version_cap
 
-    @expose(generic=True, template='json')
+    @expose(generic=True, template="json")
     def index(self):
         # Route the request to specific methods with parameters
         pass
 
-    @index.when(method='GET', template='json')
+    @index.when(method="GET", template="json")
     def get(self, role_ref=None):
         """Get a list of roles."""
         context = restcomm.extract_context_from_environ()
@@ -72,9 +72,9 @@ class RolesController(object):
 
         except Exception as e:
             LOG.exception(e)
-            pecan.abort(500, _('Unable to get role'))
+            pecan.abort(500, _("Unable to get role"))
 
-    @index.when(method='POST', template='json')
+    @index.when(method="POST", template="json")
     def post(self):
         """Create a new role."""
 
@@ -84,14 +84,14 @@ class RolesController(object):
         try:
             payload = json.loads(request.body)
         except ValueError:
-            pecan.abort(400, _('Request body decoding error'))
+            pecan.abort(400, _("Request body decoding error"))
 
         if not payload:
-            pecan.abort(400, _('Body required'))
-        role_name = payload.get('role').get('name')
+            pecan.abort(400, _("Body required"))
+        role_name = payload.get("role").get("name")
 
         if not role_name:
-            pecan.abort(400, _('role name required'))
+            pecan.abort(400, _("role name required"))
 
         try:
             # Insert the role into DB tables
@@ -101,25 +101,25 @@ class RolesController(object):
 
         except Exception as e:
             LOG.exception(e)
-            pecan.abort(500, _('Unable to create role'))
+            pecan.abort(500, _("Unable to create role"))
 
-    @index.when(method='PUT', template='json')
+    @index.when(method="PUT", template="json")
     def put(self, role_ref=None):
         """Update a existing role."""
 
         context = restcomm.extract_context_from_environ()
 
         if role_ref is None:
-            pecan.abort(400, _('Role ID required'))
+            pecan.abort(400, _("Role ID required"))
 
         # Convert JSON string in request to Python dict
         try:
             payload = json.loads(request.body)
         except ValueError:
-            pecan.abort(400, _('Request body decoding error'))
+            pecan.abort(400, _("Request body decoding error"))
 
         if not payload:
-            pecan.abort(400, _('Body required'))
+            pecan.abort(400, _("Body required"))
 
         try:
             # Update the role in DB tables
@@ -131,4 +131,4 @@ class RolesController(object):
 
         except Exception as e:
             LOG.exception(e)
-            pecan.abort(500, _('Unable to update role'))
+            pecan.abort(500, _("Unable to update role"))

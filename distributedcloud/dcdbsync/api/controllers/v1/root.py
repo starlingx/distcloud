@@ -35,7 +35,7 @@ class Controller(object):
         remainder = remainder[:-1]
 
         sub_controllers = dict()
-        if minor_version == '0':
+        if minor_version == "0":
             sub_controllers["identity"] = root.IdentityController
 
         for name, ctrl in sub_controllers.items():

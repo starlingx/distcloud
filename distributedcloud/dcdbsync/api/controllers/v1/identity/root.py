@@ -13,7 +13,7 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 #
-# Copyright (c) 2019-2021 Wind River Systems, Inc.
+# Copyright (c) 2019-2021, 2024 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -45,8 +45,9 @@ class IdentityController(object):
         res_controllers["groups"] = identity.GroupsController
         res_controllers["projects"] = project.ProjectsController
         res_controllers["roles"] = role.RolesController
-        res_controllers["token-revocation-events"] = \
+        res_controllers["token-revocation-events"] = (
             token_revoke_event.RevokeEventsController
+        )
 
         for name, ctrl in res_controllers.items():
             setattr(self, name, ctrl)
