@@ -2267,9 +2267,7 @@ class IdentitySyncThread(SyncThread):
                     extra=self.log_extra,
                 )
                 # Clear the cache so that the old token will not be validated
-                sdk.OptimizedOpenStackDriver.delete_region_clients(
-                    self.master_region_name
-                )
+                sdk.OpenStackDriver.delete_region_clients(self.master_region_name)
                 # Retry will get a new token
                 return self._get_resource_audit_handler(
                     resource_type, self.get_master_dbs_client()
@@ -2290,9 +2288,7 @@ class IdentitySyncThread(SyncThread):
                     extra=self.log_extra,
                 )
                 # Clear the cache so that the old token will not be validated
-                sdk.OptimizedOpenStackDriver.delete_region_clients(
-                    self.master_region_name
-                )
+                sdk.OpenStackDriver.delete_region_clients(self.master_region_name)
                 # Retry with get a new token
                 return self._get_resource_audit_handler(
                     resource_type, self.get_master_ks_client()

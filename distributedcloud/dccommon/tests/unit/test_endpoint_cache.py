@@ -153,7 +153,7 @@ class EndpointCacheTest(base.DCCommonTestCase):
         mock_services_list.return_value = FAKE_SERVICES_LIST
         mock_generate_cached_data.return_value = FAKE_MASTER_SERVICE_ENDPOINT_MAP
         endpoint_cache.EndpointCache("RegionOne", None)
-        services_list = endpoint_cache.EndpointCache.get_master_services_list()
+        services_list = endpoint_cache.EndpointCache.master_services_list
         self.assertEqual(FAKE_SERVICES_LIST, services_list)
 
     @mock.patch.object(tokens.TokenManager, "validate")

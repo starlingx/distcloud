@@ -24,9 +24,7 @@ from oslo_serialization import jsonutils
 from oslo_utils import timeutils
 
 from dccommon import consts as dccommon_consts
-from dccommon.drivers.openstack.sdk_platform import (
-    OptimizedOpenStackDriver as OpenStackDriver,
-)
+from dccommon.drivers.openstack.sdk_platform import OpenStackDriver
 from dccommon.drivers.openstack.sysinv_v1 import SysinvClient
 from dccommon.endpoint_cache import build_subcloud_endpoint
 from dccommon import exceptions as dccommon_exceptions

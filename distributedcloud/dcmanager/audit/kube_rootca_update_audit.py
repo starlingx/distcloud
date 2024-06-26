@@ -13,9 +13,7 @@ from fm_api.constants import FM_ALARM_ID_CERT_EXPIRING_SOON
 from dccommon import consts as dccommon_consts
 from dccommon import utils as dccommon_utils
 
-from dccommon.drivers.openstack.sdk_platform import (
-    OptimizedOpenStackDriver as OpenStackDriver
-)
+from dccommon.drivers.openstack.sdk_platform import OpenStackDriver
 from dccommon.drivers.openstack.sysinv_v1 import SysinvClient
 
 from dcmanager.audit.auditor import Auditor

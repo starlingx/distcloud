@@ -110,7 +110,7 @@ class OrchestratorTestCase(base.BaseTestCase):
 
     def _mock_openstack_driver(self):
         mock_patch = mock.patch(
-            "dccommon.drivers.openstack.sdk_platform.OptimizedOpenStackDriver"
+            "dccommon.drivers.openstack.sdk_platform.OpenStackDriver"
         )
         self.mock_openstack_driver = mock_patch.start()
         self.addCleanup(mock_patch.stop)
@@ -121,14 +121,12 @@ class OrchestratorTestCase(base.BaseTestCase):
         self.addCleanup(mock_patch.stop)
 
     def _mock_endpoint_cache_from_keystone(self):
-        mock_patch = mock.patch(
-            "dccommon.drivers.openstack.keystone_v3.OptimizedEndpointCache"
-        )
+        mock_patch = mock.patch("dccommon.drivers.openstack.keystone_v3.EndpointCache")
         self.mock_endpoint_cache_from_keystone = mock_patch.start()
         self.addCleanup(mock_patch.stop)
 
     def _mock_endpoint_cache(self):
-        mock_patch = mock.patch("dccommon.endpoint_cache.OptimizedEndpointCache")
+        mock_patch = mock.patch("dccommon.endpoint_cache.EndpointCache")
         self.mock_endpoint_cache = mock_patch.start()
         self.addCleanup(mock_patch.stop)
 

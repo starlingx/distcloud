@@ -25,7 +25,7 @@ from oslo_utils import timeutils
 from dccommon import consts as dccommon_consts
 from dccommon.drivers.openstack import sdk_platform as sdk
 from dccommon.endpoint_cache import build_subcloud_endpoint
-from dccommon.endpoint_cache import OptimizedEndpointCache
+from dccommon.endpoint_cache import EndpointCache
 from dcdbsync.dbsyncclient import client as dbsyncclient
 from dcmanager.rpc import client as dcmanager_rpc_client
 from dcorch.common import consts
@@ -69,7 +69,7 @@ def get_master_os_client(region_clients=None):
     # cached in the openstack driver, because we don't want to hold the admin
     # sessions for the subclouds.
     try:
-        os_client = sdk.OptimizedOpenStackDriver(
+        os_client = sdk.OpenStackDriver(
             region_name=dccommon_consts.CLOUD_0, region_clients=region_clients
         )
     except Exception as e:
@@ -149,7 +149,7 @@ class SyncThread(object):
 
         if self.endpoint_type in dccommon_consts.ENDPOINT_TYPES_LIST:
             config = cfg.CONF.endpoint_cache
-            self.admin_session = OptimizedEndpointCache.get_admin_session(
+            self.admin_session = EndpointCache.get_admin_session(
                 config.auth_uri,
                 config.username,
                 config.user_domain_name,
@@ -160,7 +160,7 @@ class SyncThread(object):
             )
         elif self.endpoint_type in dccommon_consts.ENDPOINT_TYPES_LIST_OS:
             config = cfg.CONF.openstack_cache
-            self.admin_session = OptimizedEndpointCache.get_admin_session(
+            self.admin_session = EndpointCache.get_admin_session(
                 config.auth_uri,
                 config.admin_username,
                 config.admin_user_domain_name,
@@ -198,7 +198,7 @@ class SyncThread(object):
 
             if self.endpoint_type in dccommon_consts.ENDPOINT_TYPES_LIST:
                 config = cfg.CONF.endpoint_cache
-                self.sc_admin_session = OptimizedEndpointCache.get_admin_session(
+                self.sc_admin_session = EndpointCache.get_admin_session(
                     self.sc_auth_url,
                     config.username,
                     config.user_domain_name,
@@ -209,7 +209,7 @@ class SyncThread(object):
                 )
             elif self.endpoint_type in dccommon_consts.ENDPOINT_TYPES_LIST_OS:
                 config = cfg.CONF.openstack_cache
-                self.sc_admin_session = OptimizedEndpointCache.get_admin_session(
+                self.sc_admin_session = EndpointCache.get_admin_session(
                     self.sc_auth_url,
                     config.admin_username,
                     config.admin_user_domain_name,

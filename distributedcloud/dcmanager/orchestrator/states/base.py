@@ -12,9 +12,7 @@ from dccommon import consts as dccommon_consts
 from dccommon.drivers.openstack.barbican import BarbicanClient
 from dccommon.drivers.openstack.fm import FmClient
 from dccommon.drivers.openstack.patching_v1 import PatchingClient
-from dccommon.drivers.openstack.sdk_platform import (
-    OptimizedOpenStackDriver as OpenStackDriver
-)
+from dccommon.drivers.openstack.sdk_platform import OpenStackDriver
 from dccommon.drivers.openstack.software_v1 import SoftwareClient
 from dccommon.drivers.openstack.sysinv_v1 import SysinvClient
 from dccommon.drivers.openstack.vim import VimClient

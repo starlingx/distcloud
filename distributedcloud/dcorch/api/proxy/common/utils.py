@@ -23,9 +23,7 @@ from oslo_log import log as logging
 import psutil
 
 from dccommon import consts as dccommon_consts
-from dccommon.drivers.openstack.sdk_platform import (
-    OptimizedOpenStackDriver as OpenStackDriver,
-)
+from dccommon.drivers.openstack.sdk_platform import OpenStackDriver
 from dcorch.common import consts
 
 LOG = logging.getLogger(__name__)

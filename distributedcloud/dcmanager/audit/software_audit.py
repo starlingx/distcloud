@@ -76,7 +76,7 @@ class SoftwareAudit(object):
         :return: A new SoftwareAuditData object
         """
         try:
-            m_os_ks_client = sdk_platform.OptimizedOpenStackDriver(
+            m_os_ks_client = sdk_platform.OpenStackDriver(
                 region_name=dccommon_consts.DEFAULT_REGION_NAME,
                 region_clients=None,
                 fetch_subcloud_ips=utils.fetch_subcloud_mgmt_ips,

@@ -29,9 +29,7 @@ from oslo_config import cfg
 from oslo_log import log as logging
 
 from dccommon import consts
-from dccommon.drivers.openstack.sdk_platform import (
-    OptimizedOpenStackDriver as OpenStackDriver,
-)
+from dccommon.drivers.openstack.sdk_platform import OpenStackDriver
 from dccommon.drivers.openstack.sysinv_v1 import SysinvClient
 from dccommon import exceptions
 from dccommon import ostree_mount

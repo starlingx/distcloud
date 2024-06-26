@@ -22,9 +22,7 @@ from oslo_log import log as logging
 
 from dccommon import consts as dccommon_consts
 from dccommon.drivers.openstack.fm import FmClient
-from dccommon.drivers.openstack.sdk_platform import (
-    OptimizedOpenStackDriver as OpenStackDriver
-)
+from dccommon.drivers.openstack.sdk_platform import OpenStackDriver
 from dccommon.drivers.openstack.sysinv_v1 import SysinvClient
 from dccommon import endpoint_cache
 from dcmanager.audit import alarm_aggregation
@@ -152,7 +150,7 @@ class SubcloudAuditWorkerManager(manager.Manager):
     def update_subcloud_endpoints(self, context, subcloud_name, endpoints):
         LOG.info(f"Updating service endpoints for subcloud {subcloud_name} "
                  "in endpoint cache")
-        endpoint_cache.OptimizedEndpointCache.update_master_service_endpoint_region(
+        endpoint_cache.EndpointCache.update_master_service_endpoint_region(
             subcloud_name, endpoints
         )
 

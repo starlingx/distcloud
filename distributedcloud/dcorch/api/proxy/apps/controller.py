@@ -30,9 +30,7 @@ import webob.dec
 import webob.exc
 
 from dccommon import consts as dccommon_consts
-from dccommon.drivers.openstack.sdk_platform import (
-    OptimizedOpenStackDriver as OpenStackDriver,
-)
+from dccommon.drivers.openstack.sdk_platform import OpenStackDriver
 from dccommon.drivers.openstack.sysinv_v1 import SysinvClient
 from dcmanager.rpc import client as dcmanager_rpc_client
 from dcorch.api.proxy.apps.dispatcher import APIDispatcher
