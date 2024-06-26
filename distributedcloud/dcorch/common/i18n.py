@@ -1,4 +1,4 @@
-# All Rights Reserved.
+# Copyright (c) 2024 Wind River Systems, Inc.
 #
 #    Licensed under the Apache License, Version 2.0 (the "License"); you may
 #    not use this file except in compliance with the License. You may obtain
@@ -14,7 +14,7 @@
 
 import oslo_i18n
 
-_translators = oslo_i18n.TranslatorFactory(domain='dcorch-engine')
+_translators = oslo_i18n.TranslatorFactory(domain="dcorch-engine")
 
 # The primary translation function using the well-known name "_"
 _ = _translators.primary

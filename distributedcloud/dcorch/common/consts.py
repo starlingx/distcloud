@@ -51,9 +51,7 @@ RESOURCE_TYPE_VOLUME_QUOTA_CLASS_SET = "quota_class_set"
 # by dcorch.  It doesn't make sense to count the usage in the
 # various subclouds since they're all essentially duplicates
 # of what's in the master cloud.
-QUOTAS_FOR_MANAGED_RESOURCES = ['key_pairs',
-                                'security_group',
-                                'security_group_rule']
+QUOTAS_FOR_MANAGED_RESOURCES = ["key_pairs", "security_group", "security_group_rule"]
 
 # Neutron Resources
 RESOURCE_TYPE_NETWORK_QUOTA_SET = "network_quota_set"
@@ -81,8 +79,10 @@ ENDPOINT_TYPE_COMPUTE = "compute"
 ENDPOINT_TYPE_NETWORK = "network"
 
 # Dcorch sync endpoint types
-SYNC_ENDPOINT_TYPES_LIST = [dccommon_consts.ENDPOINT_TYPE_PLATFORM,
-                            dccommon_consts.ENDPOINT_TYPE_IDENTITY]
+SYNC_ENDPOINT_TYPES_LIST = [
+    dccommon_consts.ENDPOINT_TYPE_PLATFORM,
+    dccommon_consts.ENDPOINT_TYPE_IDENTITY,
+]
 
 ENDPOINT_QUOTA_MAPPING = {
     ENDPOINT_TYPE_COMPUTE: dccommon_consts.NOVA_QUOTA_FIELDS,
@@ -138,11 +138,5 @@ AUDIT_STATUS_NONE = "none"
 AUDIT_STATUS_IN_PROGRESS = "in-progress"
 AUDIT_STATUS_COMPLETED = "completed"
 AUDIT_STATUS_FAILED = "failed"
-AUDIT_QUALIFIED_STATUS = [
-    AUDIT_STATUS_NONE,
-    AUDIT_STATUS_FAILED
-]
-AUDIT_CONDITIONAL_STATUS = [
-    AUDIT_STATUS_COMPLETED,
-    AUDIT_STATUS_IN_PROGRESS
-]
+AUDIT_QUALIFIED_STATUS = [AUDIT_STATUS_NONE, AUDIT_STATUS_FAILED]
+AUDIT_CONDITIONAL_STATUS = [AUDIT_STATUS_COMPLETED, AUDIT_STATUS_IN_PROGRESS]

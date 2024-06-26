@@ -45,13 +45,16 @@ def get_batch_projects(batch_size, project_list, fillvalue=None):
 def validate_quota_limits(payload):
     for rsrc in payload:
         # Check valid resource name
-        if rsrc not in itertools.chain(dccommon_consts.CINDER_QUOTA_FIELDS,
-                                       dccommon_consts.NOVA_QUOTA_FIELDS,
-                                       dccommon_consts.NEUTRON_QUOTA_FIELDS):
+        if rsrc not in itertools.chain(
+            dccommon_consts.CINDER_QUOTA_FIELDS,
+            dccommon_consts.NOVA_QUOTA_FIELDS,
+            dccommon_consts.NEUTRON_QUOTA_FIELDS,
+        ):
             raise exceptions.InvalidInputError
         # Check valid quota limit value in case for put/post
-        if isinstance(payload, dict) and (not isinstance(
-                payload[rsrc], int) or payload[rsrc] <= 0):
+        if isinstance(payload, dict) and (
+            not isinstance(payload[rsrc], int) or payload[rsrc] <= 0
+        ):
             raise exceptions.InvalidInputError
 
 
@@ -75,10 +78,15 @@ def keypair_deconstruct_id(id):
         return [id, ""]
 
 
-def enqueue_work(context, endpoint_type,
-                 resource_type, source_resource_id,
-                 operation_type, resource_info=None,
-                 subcloud=None):
+def enqueue_work(
+    context,
+    endpoint_type,
+    resource_type,
+    source_resource_id,
+    operation_type,
+    resource_info=None,
+    subcloud=None,
+):
     """Enqueue work into the DB
 
     :param context:  authorization context
@@ -131,17 +139,23 @@ def enqueue_work(context, endpoint_type,
                              "removeTenantAccess": {"tenant": "new_tenant"}}')
 
     """
-    if operation_type in [consts.OPERATION_TYPE_CREATE,
-                          consts.OPERATION_TYPE_PATCH]:
+    if operation_type in [consts.OPERATION_TYPE_CREATE, consts.OPERATION_TYPE_PATCH]:
         try:
             rsrc = resource.Resource(
-                context=context, resource_type=resource_type,
-                master_id=source_resource_id)
+                context=context,
+                resource_type=resource_type,
+                master_id=source_resource_id,
+            )
             rsrc.create()
-            LOG.info("Resource created in DB {}/{}/{}/{}".format(
-                # pylint: disable-next=no-member
-                rsrc.id,
-                resource_type, source_resource_id, operation_type))
+            LOG.info(
+                "Resource created in DB {}/{}/{}/{}".format(
+                    # pylint: disable-next=no-member
+                    rsrc.id,
+                    resource_type,
+                    source_resource_id,
+                    operation_type,
+                )
+            )
         except oslo_db_exception.DBDuplicateEntry:
             # In case of discrepancies found during audit, resource might
             # be already present in DB, but not its dependent resources.
@@ -150,33 +164,51 @@ def enqueue_work(context, endpoint_type,
             # create the resource at the same time. One will fail due to unique
             # constraint uniq_resource0resource_type0master_id0deleted
             rsrc = resource.Resource.get_by_type_and_master_id(
-                context, resource_type, source_resource_id)
-            LOG.info("Resource already in DB {}/{}/{}/{}".format(
-                # pylint: disable-next=no-member
-                rsrc.id, resource_type, source_resource_id, operation_type))
+                context, resource_type, source_resource_id
+            )
+            LOG.info(
+                "Resource already in DB {}/{}/{}/{}".format(
+                    # pylint: disable-next=no-member
+                    rsrc.id,
+                    resource_type,
+                    source_resource_id,
+                    operation_type,
+                )
+            )
         except Exception as e:
             LOG.exception(e)
             return
     else:
         try:
             rsrc = resource.Resource.get_by_type_and_master_id(
-                context, resource_type, source_resource_id)
+                context, resource_type, source_resource_id
+            )
         except exceptions.ResourceNotFound:
             # Some resources do not go through a create
-            LOG.info("Resource not in DB {}/{}/{}".format(
-                resource_type, source_resource_id, operation_type))
+            LOG.info(
+                "Resource not in DB {}/{}/{}".format(
+                    resource_type, source_resource_id, operation_type
+                )
+            )
             rsrc = resource.Resource(
-                context=context, resource_type=resource_type,
-                master_id=source_resource_id)
+                context=context,
+                resource_type=resource_type,
+                master_id=source_resource_id,
+            )
             rsrc.create()
 
     # todo: user_id and project_id are not used, to be removed from model
     orch_job = orchjob.OrchJob(
-        context=context, user_id='', project_id='',
-        endpoint_type=endpoint_type, source_resource_id=source_resource_id,
+        context=context,
+        user_id="",
+        project_id="",
+        endpoint_type=endpoint_type,
+        source_resource_id=source_resource_id,
+        operation_type=operation_type,
         # pylint: disable-next=no-member
-        operation_type=operation_type, resource_id=rsrc.id,
-        resource_info=resource_info)
+        resource_id=rsrc.id,
+        resource_info=resource_info,
+    )
     orch_job.create()
     if subcloud:
         subclouds = [subcloud]
@@ -188,11 +220,11 @@ def enqueue_work(context, endpoint_type,
         # Create a dictionary for each orchestration request with a unique UUID,
         # state = 'queued', the target region name, and the orch_job ID
         orch_request = {
-            'uuid': str(uuid.uuid4()),
-            'state': consts.ORCH_REQUEST_QUEUED,
-            'target_region_name': sc.region_name,
+            "uuid": str(uuid.uuid4()),
+            "state": consts.ORCH_REQUEST_QUEUED,
+            "target_region_name": sc.region_name,
             # pylint: disable-next=no-member
-            'orch_job_id': orch_job.id,
+            "orch_job_id": orch_job.id,
         }
         orch_requests.append(orch_request)
 

@@ -53,7 +53,7 @@ class OrchestratorException(Exception):
 
 
 class BadRequest(OrchestratorException):
-    message = _('Bad %(resource)s request: %(msg)s')
+    message = _("Bad %(resource)s request: %(msg)s")
 
 
 class NotFound(OrchestratorException):
@@ -85,8 +85,7 @@ class InUse(OrchestratorException):
 
 
 class InvalidConfigurationOption(OrchestratorException):
-    message = _("An invalid value was provided for %(opt_name)s: "
-                "%(opt_value)s")
+    message = _("An invalid value was provided for %(opt_name)s: %(opt_value)s")
 
 
 class Invalid(OrchestratorException):
@@ -140,8 +139,10 @@ class InvalidParameterValue(Invalid):
 
 
 class SubcloudSyncAlreadyExists(Conflict):
-    message = _("SubcloudSync subcloud: %(subcloud_name)s "
-                "endpoint_type: %(endpoint_type)s already exists")
+    message = _(
+        "SubcloudSync subcloud: %(subcloud_name)s "
+        "endpoint_type: %(endpoint_type)s already exists"
+    )
 
 
 class SubcloudAlreadyExists(Conflict):
@@ -149,8 +150,10 @@ class SubcloudAlreadyExists(Conflict):
 
 
 class SubcloudResourceAlreadyExists(Conflict):
-    message = _("Subcloud resource with subcloud_id=%(subcloud_id)s "
-                "resource_id=%(resource_id)s already exists")
+    message = _(
+        "Subcloud resource with subcloud_id=%(subcloud_id)s "
+        "resource_id=%(resource_id)s already exists"
+    )
 
 
 class SubcloudResourceNotFound(NotFound):
@@ -162,8 +165,7 @@ class EndpointNotReachable(OrchestratorException):
 
 
 class EndpointNotSupported(OrchestratorException):
-    message = _("The specified resource endpoint %(endpoint)s is not"
-                " supported")
+    message = _("The specified resource endpoint %(endpoint)s is not supported")
 
 
 class SyncRequestFailed(OrchestratorException):
@@ -171,8 +173,10 @@ class SyncRequestFailed(OrchestratorException):
 
 
 class SyncRequestAbortedBySystem(OrchestratorException):
-    message = _("The sync operation was aborted by the system because"
-                " some condition was not met")
+    message = _(
+        "The sync operation was aborted by the system because"
+        " some condition was not met"
+    )
 
 
 class SyncRequestFailedRetry(OrchestratorException):
@@ -192,8 +196,10 @@ class SubcloudNotFound(NotFound):
 
 
 class SubcloudSyncNotFound(NotFound):
-    message = _("SubcloudSync subcloud: %(subcloud_name)s "
-                "endpoint_type: %(endpoint_type)s not found")
+    message = _(
+        "SubcloudSync subcloud: %(subcloud_name)s "
+        "endpoint_type: %(endpoint_type)s not found"
+    )
 
 
 class ThreadNotFound(NotFound):
@@ -205,9 +211,11 @@ class OrchJobNotFound(NotFound):
 
 
 class OrchJobAlreadyExists(Conflict):
-    message = _("OrchJob with resource_id=%(resource_id)s "
-                "endpoint_type=%(endpoint_type)s "
-                "operation_type=%(operation_type)s already exists")
+    message = _(
+        "OrchJob with resource_id=%(resource_id)s "
+        "endpoint_type=%(endpoint_type)s "
+        "operation_type=%(operation_type)s already exists"
+    )
 
 
 class OrchRequestNotFound(NotFound):
@@ -215,12 +223,14 @@ class OrchRequestNotFound(NotFound):
 
 
 class OrchRequestAlreadyExists(Conflict):
-    message = _("OrchRequest with orch_request=%(orch_request)s "
-                "target_region_name=%(target_region_name)s already exists")
+    message = _(
+        "OrchRequest with orch_request=%(orch_request)s "
+        "target_region_name=%(target_region_name)s already exists"
+    )
 
 
 class ObjectActionError(OrchestratorException):
-    msg_fmt = _('Object action %(action)s failed because: %(reason)s')
+    msg_fmt = _("Object action %(action)s failed because: %(reason)s")
 
 
 class CertificateExpiredException(OrchestratorException):

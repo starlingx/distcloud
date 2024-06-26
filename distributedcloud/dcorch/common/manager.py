@@ -1,6 +1,6 @@
 # Copyright 2010 United States Government as represented by the
 # Administrator of the National Aeronautics and Space Administration.
-# All Rights Reserved.
+# Copyright (c) 2024 Wind River Systems, Inc.
 #
 #    Licensed under the Apache License, Version 2.0 (the "License"); you may
 #    not use this file except in compliance with the License. You may obtain
@@ -56,7 +56,7 @@ class PeriodicTasks(periodic_task.PeriodicTasks):
 
 class Manager(PeriodicTasks):
 
-    def __init__(self, host=None, service_name='undefined'):
+    def __init__(self, host=None, service_name="undefined"):
         if not host:
             host = cfg.CONF.host
         self.host = host
@@ -70,7 +70,6 @@ class Manager(PeriodicTasks):
         return self.run_periodic_tasks(context, raise_on_error=raise_on_error)
 
     def init_host(self):
-
         """init_host
 
         Hook to do additional manager initialization when one requests
@@ -82,7 +81,6 @@ class Manager(PeriodicTasks):
         pass
 
     def cleanup_host(self):
-
         """cleanup_host
 
         Hook to do cleanup work when the service shuts down.
@@ -92,7 +90,6 @@ class Manager(PeriodicTasks):
         pass
 
     def pre_start_hook(self):
-
         """pre_start_hook
 
         Hook to provide the manager the ability to do additional
@@ -105,7 +102,6 @@ class Manager(PeriodicTasks):
         pass
 
     def post_start_hook(self):
-
         """post_start_hook
 
         Hook to provide the manager the ability to do additional

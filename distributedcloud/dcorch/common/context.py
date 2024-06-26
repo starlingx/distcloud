@@ -1,4 +1,4 @@
-# Copyright (c) 2020-2022 Wind River Systems, Inc.
+# Copyright (c) 2020-2022, 2024 Wind River Systems, Inc.
 # Licensed under the Apache License, Version 2.0 (the "License"); you may
 # not use this file except in compliance with the License. You may obtain
 # a copy of the License at
@@ -21,7 +21,7 @@ from dcorch.api.policies import base as base_policy
 from dcorch.api import policy
 from dcorch.db import api as db_api
 
-ALLOWED_WITHOUT_AUTH = '/'
+ALLOWED_WITHOUT_AUTH = "/"
 
 
 class RequestContext(base_context.RequestContext):
@@ -31,24 +31,46 @@ class RequestContext(base_context.RequestContext):
     the system, as well as additional request information.
     """
 
-    def __init__(self, auth_token=None, user=None, project=None,
-                 domain=None, user_domain=None, project_domain=None,
-                 is_admin=None, read_only=False, show_deleted=False,
-                 request_id=None, auth_url=None, trusts=None,
-                 user_name=None, project_name=None, domain_name=None,
-                 user_domain_name=None, project_domain_name=None,
-                 auth_token_info=None, region_name=None, roles=None,
-                 password=None, **kwargs):
-
+    def __init__(
+        self,
+        auth_token=None,
+        user=None,
+        project=None,
+        domain=None,
+        user_domain=None,
+        project_domain=None,
+        is_admin=None,
+        read_only=False,
+        show_deleted=False,
+        request_id=None,
+        auth_url=None,
+        trusts=None,
+        user_name=None,
+        project_name=None,
+        domain_name=None,
+        user_domain_name=None,
+        project_domain_name=None,
+        auth_token_info=None,
+        region_name=None,
+        roles=None,
+        password=None,
+        **kwargs
+    ):
         """Initializer of request context."""
         # We still have 'tenant' param because oslo_context still use it.
         # pylint: disable=E1123
         super(RequestContext, self).__init__(
-            auth_token=auth_token, user=user, tenant=project,
-            domain=domain, user_domain=user_domain,
-            project_domain=project_domain, roles=roles,
-            read_only=read_only, show_deleted=show_deleted,
-            request_id=request_id)
+            auth_token=auth_token,
+            user=user,
+            tenant=project,
+            domain=domain,
+            user_domain=user_domain,
+            project_domain=project_domain,
+            roles=roles,
+            read_only=read_only,
+            show_deleted=show_deleted,
+            request_id=request_id,
+        )
 
         # request_id might be a byte array
         self.request_id = encodeutils.safe_decode(self.request_id)
@@ -76,8 +98,8 @@ class RequestContext(base_context.RequestContext):
         # Check user is admin or not
         if is_admin is None:
             self.is_admin = policy.authorize(
-                base_policy.ADMIN_IN_SYSTEM_PROJECTS, {}, self.to_dict(),
-                do_raise=False)
+                base_policy.ADMIN_IN_SYSTEM_PROJECTS, {}, self.to_dict(), do_raise=False
+            )
         else:
             self.is_admin = is_admin
 
@@ -89,26 +111,26 @@ class RequestContext(base_context.RequestContext):
 
     def to_dict(self):
         return {
-            'auth_url': self.auth_url,
-            'auth_token': self.auth_token,
-            'auth_token_info': self.auth_token_info,
-            'user': self.user,
-            'user_name': self.user_name,
-            'user_domain': self.user_domain,
-            'user_domain_name': self.user_domain_name,
-            'project': self.project,
-            'project_name': self.project_name,
-            'project_domain': self.project_domain,
-            'project_domain_name': self.project_domain_name,
-            'domain': self.domain,
-            'domain_name': self.domain_name,
-            'trusts': self.trusts,
-            'region_name': self.region_name,
-            'roles': self.roles,
-            'show_deleted': self.show_deleted,
-            'is_admin': self.is_admin,
-            'request_id': self.request_id,
-            'password': self.password,
+            "auth_url": self.auth_url,
+            "auth_token": self.auth_token,
+            "auth_token_info": self.auth_token_info,
+            "user": self.user,
+            "user_name": self.user_name,
+            "user_domain": self.user_domain,
+            "user_domain_name": self.user_domain_name,
+            "project": self.project,
+            "project_name": self.project_name,
+            "project_domain": self.project_domain,
+            "project_domain_name": self.project_domain_name,
+            "domain": self.domain,
+            "domain_name": self.domain_name,
+            "trusts": self.trusts,
+            "region_name": self.region_name,
+            "roles": self.roles,
+            "show_deleted": self.show_deleted,
+            "is_admin": self.is_admin,
+            "request_id": self.request_id,
+            "password": self.password,
         }
 
     @classmethod
@@ -137,14 +159,13 @@ class AuthHook(hooks.PecanHook):
         if state.request.path == ALLOWED_WITHOUT_AUTH:
             return
         req = state.request
-        identity_status = req.headers.get('X-Identity-Status')
-        service_identity_status = req.headers.get('X-Service-Identity-Status')
-        if (identity_status == 'Confirmed' or
-                service_identity_status == 'Confirmed'):
+        identity_status = req.headers.get("X-Identity-Status")
+        service_identity_status = req.headers.get("X-Service-Identity-Status")
+        if identity_status == "Confirmed" or service_identity_status == "Confirmed":
             return
-        if req.headers.get('X-Auth-Token'):
-            msg = 'Auth token is invalid: %s' % req.headers['X-Auth-Token']
+        if req.headers.get("X-Auth-Token"):
+            msg = "Auth token is invalid: %s" % req.headers["X-Auth-Token"]
         else:
-            msg = 'Authentication required'
+            msg = "Authentication required"
         msg = "Failed to validate access token: %s" % str(msg)
         pecan.abort(status_code=401, detail=msg)
