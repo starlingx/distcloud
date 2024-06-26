@@ -28,7 +28,7 @@ from oslo_db import api
 
 CONF = cfg.CONF
 
-_BACKEND_MAPPING = {'sqlalchemy': 'dcorch.db.sqlalchemy.api'}
+_BACKEND_MAPPING = {"sqlalchemy": "dcorch.db.sqlalchemy.api"}
 
 IMPL = api.DBAPI.from_config(CONF, backend_mapping=_BACKEND_MAPPING)
 
@@ -116,10 +116,10 @@ def db_version(engine):
     return IMPL.db_version(engine)
 
 
-def service_create(context, service_id, host=None, binary=None,
-                   topic=None):
-    return IMPL.service_create(context, service_id=service_id, host=host,
-                               binary=binary, topic=topic)
+def service_create(context, service_id, host=None, binary=None, topic=None):
+    return IMPL.service_create(
+        context, service_id=service_id, host=host, binary=binary, topic=topic
+    )
 
 
 def service_update(context, service_id, values=None):
@@ -142,51 +142,60 @@ def subcloud_get(context, region_id):
     return IMPL.subcloud_get(context, region_id)
 
 
-def subcloud_get_all(context, region_name=None,
-                     management_state=None,
-                     availability_status=None,
-                     initial_sync_state=None):
-    return IMPL.subcloud_get_all(context, region_name=region_name,
-                                 management_state=management_state,
-                                 availability_status=availability_status,
-                                 initial_sync_state=initial_sync_state)
-
-
-def subcloud_capabilities_get_all(context, region_name=None,
-                                  management_state=None,
-                                  availability_status=None,
-                                  initial_sync_state=None):
-    return IMPL.subcloud_capabilities_get_all(
-        context, region_name=region_name,
+def subcloud_get_all(
+    context,
+    region_name=None,
+    management_state=None,
+    availability_status=None,
+    initial_sync_state=None,
+):
+    return IMPL.subcloud_get_all(
+        context,
+        region_name=region_name,
         management_state=management_state,
         availability_status=availability_status,
-        initial_sync_state=initial_sync_state)
+        initial_sync_state=initial_sync_state,
+    )
 
 
-def subcloud_sync_update_all_to_in_progress(context,
-                                            management_state,
-                                            availability_status,
-                                            initial_sync_state,
-                                            sync_requests):
+def subcloud_capabilities_get_all(
+    context,
+    region_name=None,
+    management_state=None,
+    availability_status=None,
+    initial_sync_state=None,
+):
+    return IMPL.subcloud_capabilities_get_all(
+        context,
+        region_name=region_name,
+        management_state=management_state,
+        availability_status=availability_status,
+        initial_sync_state=initial_sync_state,
+    )
+
+
+def subcloud_sync_update_all_to_in_progress(
+    context, management_state, availability_status, initial_sync_state, sync_requests
+):
     return IMPL.subcloud_sync_update_all_to_in_progress(
         context,
         management_state=management_state,
         availability_status=availability_status,
         initial_sync_state=initial_sync_state,
-        sync_requests=sync_requests)
+        sync_requests=sync_requests,
+    )
 
 
-def subcloud_audit_update_all_to_in_progress(context,
-                                             management_state,
-                                             availability_status,
-                                             initial_sync_state,
-                                             audit_interval):
+def subcloud_audit_update_all_to_in_progress(
+    context, management_state, availability_status, initial_sync_state, audit_interval
+):
     return IMPL.subcloud_audit_update_all_to_in_progress(
         context,
         management_state=management_state,
         availability_status=availability_status,
         initial_sync_state=initial_sync_state,
-        audit_interval=audit_interval)
+        audit_interval=audit_interval,
+    )
 
 
 def subcloud_create(context, region_name, values):
@@ -201,21 +210,24 @@ def subcloud_delete(context, region_name):
     return IMPL.subcloud_delete(context, region_name)
 
 
-def subcloud_update_initial_state(context, subcloud_name,
-                                  pre_initial_sync_state, initial_sync_state):
+def subcloud_update_initial_state(
+    context, subcloud_name, pre_initial_sync_state, initial_sync_state
+):
     return IMPL.subcloud_update_initial_state(
-        context, subcloud_name, pre_initial_sync_state, initial_sync_state)
+        context, subcloud_name, pre_initial_sync_state, initial_sync_state
+    )
 
 
-def subcloud_update_all_initial_state(context, pre_initial_sync_state,
-                                      initial_sync_state):
+def subcloud_update_all_initial_state(
+    context, pre_initial_sync_state, initial_sync_state
+):
     return IMPL.subcloud_update_all_initial_state(
-        context, pre_initial_sync_state, initial_sync_state)
+        context, pre_initial_sync_state, initial_sync_state
+    )
 
 
 def resource_get_by_type_and_master_id(context, resource_type, master_id):
-    return IMPL.resource_get_by_type_and_master_id(
-        context, resource_type, master_id)
+    return IMPL.resource_get_by_type_and_master_id(context, resource_type, master_id)
 
 
 def resource_get_by_id(context, id):
@@ -254,10 +266,10 @@ def subcloud_resources_get_by_resource(context, resource_id):
     return IMPL.subcloud_resources_get_by_resource(context, resource_id)
 
 
-def subcloud_resource_get_by_resource_and_subcloud(
-        context, resource_id, subcloud_id):
+def subcloud_resource_get_by_resource_and_subcloud(context, resource_id, subcloud_id):
     return IMPL.subcloud_resource_get_by_resource_and_subcloud(
-        context, resource_id, subcloud_id)
+        context, resource_id, subcloud_id
+    )
 
 
 def subcloud_resources_get_all(context):
@@ -265,13 +277,11 @@ def subcloud_resources_get_all(context):
 
 
 def subcloud_resource_create(context, subcloud_id, resource_id, values):
-    return IMPL.subcloud_resource_create(context,
-                                         subcloud_id, resource_id, values)
+    return IMPL.subcloud_resource_create(context, subcloud_id, resource_id, values)
 
 
 def subcloud_resource_update(context, subcloud_resource_id, values):
-    return IMPL.subcloud_resource_update(context,
-                                         subcloud_resource_id, values)
+    return IMPL.subcloud_resource_update(context, subcloud_resource_id, values)
 
 
 def subcloud_resource_delete(context, subcloud_resource_id):
@@ -286,10 +296,10 @@ def orch_job_get_all(context, resource_id=None):
     return IMPL.orch_job_get_all(context, resource_id=resource_id)
 
 
-def orch_job_create(context, resource_id, endpoint_type,
-                    operation_type, values):
-    return IMPL.orch_job_create(context, resource_id, endpoint_type,
-                                operation_type, values)
+def orch_job_create(context, resource_id, endpoint_type, operation_type, values):
+    return IMPL.orch_job_create(
+        context, resource_id, endpoint_type, operation_type, values
+    )
 
 
 def orch_job_update(context, orch_job_id, values):
@@ -312,11 +322,9 @@ def orch_request_get_all(context, orch_job_id=None):
     return IMPL.orch_request_get_all(context, orch_job_id=orch_job_id)
 
 
-def orch_request_get_by_attrs(context,
-                              endpoint_type,
-                              resource_type=None,
-                              target_region_name=None,
-                              states=None):
+def orch_request_get_by_attrs(
+    context, endpoint_type, resource_type=None, target_region_name=None, states=None
+):
     """Query OrchRequests by attributes.
 
     :param context:  authorization context
@@ -331,12 +339,12 @@ def orch_request_get_by_attrs(context,
         endpoint_type,
         resource_type=resource_type,
         target_region_name=target_region_name,
-        states=states)
+        states=states,
+    )
 
 
 def orch_request_create(context, orch_job_id, target_region_name, values):
-    return IMPL.orch_request_create(context, orch_job_id,
-                                    target_region_name, values)
+    return IMPL.orch_request_create(context, orch_job_id, target_region_name, values)
 
 
 def orch_request_create_bulk(context, orch_requests):
@@ -356,8 +364,7 @@ def orch_request_delete_by_subcloud(context, region_name):
 
 
 def orch_request_delete_previous_failed_requests(context, delete_timestamp):
-    return IMPL.orch_request_delete_previous_failed_requests(
-        context, delete_timestamp)
+    return IMPL.orch_request_delete_previous_failed_requests(context, delete_timestamp)
 
 
 # Periodic cleanup
@@ -370,18 +377,17 @@ def subcloud_sync_get(context, subcloud_name, endpoint_type):
 
 
 def subcloud_sync_update(context, subcloud_name, endpoint_type, values):
-    return IMPL.subcloud_sync_update(context, subcloud_name, endpoint_type,
-                                     values)
+    return IMPL.subcloud_sync_update(context, subcloud_name, endpoint_type, values)
 
 
 def subcloud_sync_update_all(context, management_state, endpoint_type, values):
-    return IMPL.subcloud_sync_update_all(context, management_state, endpoint_type,
-                                         values)
+    return IMPL.subcloud_sync_update_all(
+        context, management_state, endpoint_type, values
+    )
 
 
 def subcloud_sync_create(context, subcloud_name, endpoint_type, values):
-    return IMPL.subcloud_sync_create(context, subcloud_name, endpoint_type,
-                                     values)
+    return IMPL.subcloud_sync_create(context, subcloud_name, endpoint_type, values)
 
 
 def subcloud_sync_delete(context, subcloud_name, endpoint_type):

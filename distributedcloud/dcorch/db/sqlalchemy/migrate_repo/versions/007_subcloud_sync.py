@@ -1,4 +1,4 @@
-# Copyright (c) 2020 Wind River Inc.
+# Copyright (c) 2020, 2024 Wind River Inc.
 # All Rights Reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License"); you may
@@ -21,40 +21,41 @@ def upgrade(migrate_engine):
     meta = sqlalchemy.MetaData()
     meta.bind = migrate_engine
 
-    sqlalchemy.Table('subcloud', meta, autoload=True)
+    sqlalchemy.Table("subcloud", meta, autoload=True)
 
     subcloud_sync = sqlalchemy.Table(
-        'subcloud_sync', meta,
-        sqlalchemy.Column('id', sqlalchemy.Integer,
-                          primary_key=True, nullable=False),
-        sqlalchemy.Column('subcloud_id', sqlalchemy.Integer,
-                          sqlalchemy.ForeignKey('subcloud.id',
-                                                ondelete='CASCADE')),
-        sqlalchemy.Column('subcloud_name', sqlalchemy.String(255)),
-        sqlalchemy.Column('endpoint_type', sqlalchemy.String(255),
-                          default="none"),
-        sqlalchemy.Column('sync_request', sqlalchemy.String(64),
-                          default="none"),
-        sqlalchemy.Column('sync_status_reported', sqlalchemy.String(64),
-                          default="none"),
-        sqlalchemy.Column('sync_status_report_time', sqlalchemy.DateTime),
-        sqlalchemy.Column('audit_status', sqlalchemy.String(64),
-                          default="none"),
-        sqlalchemy.Column('last_audit_time', sqlalchemy.DateTime),
-
-        sqlalchemy.Column('created_at', sqlalchemy.DateTime),
-        sqlalchemy.Column('updated_at', sqlalchemy.DateTime),
-        sqlalchemy.Column('deleted_at', sqlalchemy.DateTime),
-        sqlalchemy.Column('deleted', sqlalchemy.Integer),
-
-        sqlalchemy.Index('subcloud_sync_subcloud_name_endpoint_type_idx',
-                         'subcloud_name',
-                         'endpoint_type'),
+        "subcloud_sync",
+        meta,
+        sqlalchemy.Column("id", sqlalchemy.Integer, primary_key=True, nullable=False),
+        sqlalchemy.Column(
+            "subcloud_id",
+            sqlalchemy.Integer,
+            sqlalchemy.ForeignKey("subcloud.id", ondelete="CASCADE"),
+        ),
+        sqlalchemy.Column("subcloud_name", sqlalchemy.String(255)),
+        sqlalchemy.Column("endpoint_type", sqlalchemy.String(255), default="none"),
+        sqlalchemy.Column("sync_request", sqlalchemy.String(64), default="none"),
+        sqlalchemy.Column(
+            "sync_status_reported", sqlalchemy.String(64), default="none"
+        ),
+        sqlalchemy.Column("sync_status_report_time", sqlalchemy.DateTime),
+        sqlalchemy.Column("audit_status", sqlalchemy.String(64), default="none"),
+        sqlalchemy.Column("last_audit_time", sqlalchemy.DateTime),
+        sqlalchemy.Column("created_at", sqlalchemy.DateTime),
+        sqlalchemy.Column("updated_at", sqlalchemy.DateTime),
+        sqlalchemy.Column("deleted_at", sqlalchemy.DateTime),
+        sqlalchemy.Column("deleted", sqlalchemy.Integer),
+        sqlalchemy.Index(
+            "subcloud_sync_subcloud_name_endpoint_type_idx",
+            "subcloud_name",
+            "endpoint_type",
+        ),
         sqlalchemy.UniqueConstraint(
-            'subcloud_name', 'endpoint_type',
-            name='uniq_subcloud_sync0subcloud_name0endpoint_type'),
-
-        mysql_engine='InnoDB',
-        mysql_charset='utf8'
+            "subcloud_name",
+            "endpoint_type",
+            name="uniq_subcloud_sync0subcloud_name0endpoint_type",
+        ),
+        mysql_engine="InnoDB",
+        mysql_charset="utf8",
     )
     subcloud_sync.create()

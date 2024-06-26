@@ -1,4 +1,4 @@
-# Copyright (c) 2017-2018, 2024  Wind River Inc.
+# Copyright (c) 2017-2018, 2024 Wind River Inc.
 # All Rights Reserved.
 # Licensed under the Apache License, Version 2.0 (the "License"); you may
 # not use this file except in compliance with the License. You may obtain
@@ -32,9 +32,9 @@ from oslo_config import cfg
 import sqlalchemy
 
 
-QUOTA_CLASS_NAME_DEFAULT = 'default'
+QUOTA_CLASS_NAME_DEFAULT = "default"
 CONF = cfg.CONF
-CONF.import_group('dc_orch_global_limit', 'dcorch.common.config')
+CONF.import_group("dc_orch_global_limit", "dcorch.common.config")
 
 
 def upgrade(migrate_engine):
@@ -42,55 +42,55 @@ def upgrade(migrate_engine):
     meta.bind = migrate_engine
 
     quotas = sqlalchemy.Table(
-        'quotas', meta,
-        sqlalchemy.Column('id', sqlalchemy.Integer,
-                          primary_key=True, nullable=False),
-        sqlalchemy.Column('project_id', sqlalchemy.String(36)),
-        sqlalchemy.Column('resource', sqlalchemy.String(255), nullable=False),
-        sqlalchemy.Column('hard_limit', sqlalchemy.Integer, nullable=False),
-        sqlalchemy.Column('capabilities', sqlalchemy.Text),
-        sqlalchemy.Column('created_at', sqlalchemy.DateTime),
-        sqlalchemy.Column('updated_at', sqlalchemy.DateTime),
-        sqlalchemy.Column('deleted_at', sqlalchemy.DateTime),
-        sqlalchemy.Column('deleted', sqlalchemy.Integer),
-        mysql_engine='InnoDB',
-        mysql_charset='utf8'
+        "quotas",
+        meta,
+        sqlalchemy.Column("id", sqlalchemy.Integer, primary_key=True, nullable=False),
+        sqlalchemy.Column("project_id", sqlalchemy.String(36)),
+        sqlalchemy.Column("resource", sqlalchemy.String(255), nullable=False),
+        sqlalchemy.Column("hard_limit", sqlalchemy.Integer, nullable=False),
+        sqlalchemy.Column("capabilities", sqlalchemy.Text),
+        sqlalchemy.Column("created_at", sqlalchemy.DateTime),
+        sqlalchemy.Column("updated_at", sqlalchemy.DateTime),
+        sqlalchemy.Column("deleted_at", sqlalchemy.DateTime),
+        sqlalchemy.Column("deleted", sqlalchemy.Integer),
+        mysql_engine="InnoDB",
+        mysql_charset="utf8",
     )
 
     quota_classes = sqlalchemy.Table(
-        'quota_classes', meta,
-        sqlalchemy.Column('id', sqlalchemy.Integer,
-                          primary_key=True, nullable=False),
-        sqlalchemy.Column('class_name', sqlalchemy.String(length=255),
-                          index=True),
-        sqlalchemy.Column('capabilities', sqlalchemy.Text),
-        sqlalchemy.Column('created_at', sqlalchemy.DateTime),
-        sqlalchemy.Column('updated_at', sqlalchemy.DateTime),
-        sqlalchemy.Column('deleted_at', sqlalchemy.DateTime),
-        sqlalchemy.Column('deleted', sqlalchemy.Integer),
-        sqlalchemy.Column('resource', sqlalchemy.String(length=255)),
-        sqlalchemy.Column('hard_limit', sqlalchemy.Integer,
-                          nullable=True),
-        mysql_engine='InnoDB',
-        mysql_charset='utf8'
+        "quota_classes",
+        meta,
+        sqlalchemy.Column("id", sqlalchemy.Integer, primary_key=True, nullable=False),
+        sqlalchemy.Column("class_name", sqlalchemy.String(length=255), index=True),
+        sqlalchemy.Column("capabilities", sqlalchemy.Text),
+        sqlalchemy.Column("created_at", sqlalchemy.DateTime),
+        sqlalchemy.Column("updated_at", sqlalchemy.DateTime),
+        sqlalchemy.Column("deleted_at", sqlalchemy.DateTime),
+        sqlalchemy.Column("deleted", sqlalchemy.Integer),
+        sqlalchemy.Column("resource", sqlalchemy.String(length=255)),
+        sqlalchemy.Column("hard_limit", sqlalchemy.Integer, nullable=True),
+        mysql_engine="InnoDB",
+        mysql_charset="utf8",
     )
 
     service = sqlalchemy.Table(
-        'service', meta,
-        sqlalchemy.Column('id', sqlalchemy.String(36),
-                          primary_key=True, nullable=False),
-        sqlalchemy.Column('host', sqlalchemy.String(length=255)),
-        sqlalchemy.Column('binary', sqlalchemy.String(length=255)),
-        sqlalchemy.Column('topic', sqlalchemy.String(length=255)),
-        sqlalchemy.Column('disabled', sqlalchemy.Boolean, default=False),
-        sqlalchemy.Column('disabled_reason', sqlalchemy.String(length=255)),
-        sqlalchemy.Column('capabilities', sqlalchemy.Text),
-        sqlalchemy.Column('created_at', sqlalchemy.DateTime),
-        sqlalchemy.Column('updated_at', sqlalchemy.DateTime),
-        sqlalchemy.Column('deleted_at', sqlalchemy.DateTime),
-        sqlalchemy.Column('deleted', sqlalchemy.Integer),
-        mysql_engine='InnoDB',
-        mysql_charset='utf8'
+        "service",
+        meta,
+        sqlalchemy.Column(
+            "id", sqlalchemy.String(36), primary_key=True, nullable=False
+        ),
+        sqlalchemy.Column("host", sqlalchemy.String(length=255)),
+        sqlalchemy.Column("binary", sqlalchemy.String(length=255)),
+        sqlalchemy.Column("topic", sqlalchemy.String(length=255)),
+        sqlalchemy.Column("disabled", sqlalchemy.Boolean, default=False),
+        sqlalchemy.Column("disabled_reason", sqlalchemy.String(length=255)),
+        sqlalchemy.Column("capabilities", sqlalchemy.Text),
+        sqlalchemy.Column("created_at", sqlalchemy.DateTime),
+        sqlalchemy.Column("updated_at", sqlalchemy.DateTime),
+        sqlalchemy.Column("deleted_at", sqlalchemy.DateTime),
+        sqlalchemy.Column("deleted", sqlalchemy.Integer),
+        mysql_engine="InnoDB",
+        mysql_charset="utf8",
     )
 
     tables = (
@@ -108,25 +108,33 @@ def upgrade(migrate_engine):
             meta.drop_all(tables=tables[:index])
             raise
 
-    # pylint: disable-next=no-value-for-parameter
-    rows = quota_classes.count().where(
-        quota_classes.c.class_name == 'default').execute().scalar()
+    rows = (
+        quota_classes.count()  # pylint: disable=no-value-for-parameter
+        .where(quota_classes.c.class_name == "default")
+        .execute()
+        .scalar()
+    )
 
-    # Do not add entries if there are already 'default' entries.  We don't
-    # want to write over something the user added.
+    # Do not add entries if there are already 'default' entries. We don't want to write
+    # over something the user added.
     if not rows:
         created_at = datetime.datetime.now()
 
         # Set default quota limits
-        qci = quota_classes.insert()  # pylint: disable=E1120
+        qci = quota_classes.insert()  # pylint: disable=no-value-for-parameter
         for resource, default in CONF.dc_orch_global_limit.items():
-            qci.execute({'created_at': created_at,
-                         'class_name': QUOTA_CLASS_NAME_DEFAULT,
-                         'resource': resource[6:],
-                         'hard_limit': default,
-                         'deleted': 0})
+            qci.execute(
+                {
+                    "created_at": created_at,
+                    "class_name": QUOTA_CLASS_NAME_DEFAULT,
+                    "resource": resource[6:],
+                    "hard_limit": default,
+                    "deleted": 0,
+                }
+            )
 
 
 def downgrade(migrate_engine):
-    raise NotImplementedError('Database downgrade not supported - '
-                              'would drop all tables')
+    raise NotImplementedError(
+        "Database downgrade not supported - would drop all tables"
+    )

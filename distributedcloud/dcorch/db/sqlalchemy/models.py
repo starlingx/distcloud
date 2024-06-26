@@ -21,8 +21,7 @@ import json
 from oslo_db.sqlalchemy import models
 
 from sqlalchemy.orm import session as orm_session
-from sqlalchemy import (Column, Integer, String, Boolean, Index, schema,
-                        DateTime)
+from sqlalchemy import Column, Integer, String, Boolean, Index, schema, DateTime
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy import ForeignKey, UniqueConstraint
 from sqlalchemy.types import TypeDecorator, VARCHAR
@@ -56,12 +55,10 @@ class JSONEncodedDict(TypeDecorator):
         return value
 
 
-class OrchestratorBase(models.ModelBase,
-                       models.SoftDeleteMixin,
-                       models.TimestampMixin):
+class OrchestratorBase(models.ModelBase, models.SoftDeleteMixin, models.TimestampMixin):
     """Base class for Orchestrator Models."""
 
-    __table_args__ = {'mysql_engine': 'InnoDB'}
+    __table_args__ = {"mysql_engine": "InnoDB"}
 
     def expire(self, session=None, attrs=None):
         if not session:
@@ -99,12 +96,16 @@ class Quota(BASE, OrchestratorBase):
     Null, then the resource is unlimited.
     """
 
-    __tablename__ = 'quotas'
+    __tablename__ = "quotas"
 
     __table_args__ = (
-        schema.UniqueConstraint("project_id", "resource", "deleted",
-                                name="uniq_quotas0project_id0resource0deleted"
-                                ),)
+        schema.UniqueConstraint(
+            "project_id",
+            "resource",
+            "deleted",
+            name="uniq_quotas0project_id0resource0deleted",
+        ),
+    )
 
     id = Column(Integer, primary_key=True)
 
@@ -139,11 +140,11 @@ class QuotaClass(BASE, OrchestratorBase):
 
 
 class Service(BASE, OrchestratorBase):
-    """"Orchestrator service engine registry"""
+    """Orchestrator service engine registry"""
 
-    __tablename__ = 'service'
+    __tablename__ = "service"
 
-    id = Column('id', String(36), primary_key=True, nullable=False)
+    id = Column("id", String(36), primary_key=True, nullable=False)
 
     host = Column(String(255))
 
@@ -162,54 +163,59 @@ class Service(BASE, OrchestratorBase):
 class Subcloud(BASE, OrchestratorBase):
     """Represents a Distributed Cloud subcloud"""
 
-    __tablename__ = 'subcloud'
-    __table_args__ = (
-        Index('subcloud_region_name_idx', 'region_name'),
-    )
+    __tablename__ = "subcloud"
+    __table_args__ = (Index("subcloud_region_name_idx", "region_name"),)
     id = Column(Integer, primary_key=True, nullable=False, autoincrement=True)
     uuid = Column(String(36), unique=True)
-    region_name = Column('region_name', String(255), unique=True)  # keystone
-    software_version = Column('software_version', String(255))
+    region_name = Column("region_name", String(255), unique=True)  # keystone
+    software_version = Column("software_version", String(255))
 
     # dc manager updates the management and availability
     # default management_state is None; could be set to 'deleting'
-    management_state = Column('management_state', String(64))
-    availability_status = Column('availability_status', String(64),
-                                 default=dccommon_consts.AVAILABILITY_OFFLINE)
+    management_state = Column("management_state", String(64))
+    availability_status = Column(
+        "availability_status", String(64), default=dccommon_consts.AVAILABILITY_OFFLINE
+    )
     capabilities = Column(JSONEncodedDict)
-    initial_sync_state = Column('initial_sync_state', String(64),
-                                default=consts.INITIAL_SYNC_STATE_NONE)
-    management_ip = Column('management_ip', String(64))
+    initial_sync_state = Column(
+        "initial_sync_state", String(64), default=consts.INITIAL_SYNC_STATE_NONE
+    )
+    management_ip = Column("management_ip", String(64))
 
 
 class Resource(BASE, OrchestratorBase):
     """Represents a Distributed Cloud Orchestrator Resource"""
 
-    __tablename__ = 'resource'
+    __tablename__ = "resource"
     __table_args__ = (
-        Index('resource_resource_type_idx', 'resource_type'),
-        Index('resource_master_id_idx', 'master_id'),
+        Index("resource_resource_type_idx", "resource_type"),
+        Index("resource_master_id_idx", "master_id"),
         UniqueConstraint(
-            'resource_type', 'master_id', 'deleted',
-            name='uniq_resource0resource_type0master_id0deleted'),
+            "resource_type",
+            "master_id",
+            "deleted",
+            name="uniq_resource0resource_type0master_id0deleted",
+        ),
     )
     id = Column(Integer, primary_key=True, nullable=False, autoincrement=True)
     uuid = Column(String(36), unique=True)
     capabilities = Column(JSONEncodedDict)
 
     resource_type = Column(String(128))  # e.g. quota_x,flavor_extra_spec,dns..
-    master_id = Column(String(255))     # id/uuid of resource in central region
+    master_id = Column(String(255))  # id/uuid of resource in central region
 
 
 class SubcloudResource(BASE, OrchestratorBase):
     """Represents a Distributed Cloud Orchestrator Subcloud Resource"""
 
-    __tablename__ = 'subcloud_resource'
+    __tablename__ = "subcloud_resource"
     __table_args__ = (
-        Index('subcloud_resource_resource_id_idx', 'resource_id'),
+        Index("subcloud_resource_resource_id_idx", "resource_id"),
         UniqueConstraint(
-            'resource_id', 'subcloud_id',
-            name='uniq_subcloud_resource0resource_id0subcloud_id'),
+            "resource_id",
+            "subcloud_id",
+            name="uniq_subcloud_resource0resource_id0subcloud_id",
+        ),
     )
 
     id = Column(Integer, primary_key=True, nullable=False, autoincrement=True)
@@ -218,18 +224,19 @@ class SubcloudResource(BASE, OrchestratorBase):
     # Could get subcloud_name (or target_region) from subcloud.region_name
     # subcloud_name = Column('subcloud_name', String(255))
     # Is this resource managed or unmanaged by orchestrator for some subcloud
-    shared_config_state = Column('shared_config_state', String(255),
-                                 default="managed")
+    shared_config_state = Column("shared_config_state", String(255), default="managed")
     capabilities = Column(JSONEncodedDict)
 
     subcloud_resource_id = Column(String(255))  # usually uuid, sometimes id
     # if either resource_id or subcloud_id is set as primary key, id does not
     # autoincrement
-    resource_id = Column('resource_id', Integer,
-                         ForeignKey('resource.id', ondelete='CASCADE'))
+    resource_id = Column(
+        "resource_id", Integer, ForeignKey("resource.id", ondelete="CASCADE")
+    )
 
-    subcloud_id = Column('subcloud_id', Integer,
-                         ForeignKey('subcloud.id', ondelete='CASCADE'))
+    subcloud_id = Column(
+        "subcloud_id", Integer, ForeignKey("subcloud.id", ondelete="CASCADE")
+    )
     # todo: we shouldn't allow more than one row to have the same
     # resource_id/subcloud_id tuple
 
@@ -237,16 +244,14 @@ class SubcloudResource(BASE, OrchestratorBase):
 class OrchJob(BASE, OrchestratorBase):
     """Orchestrator Job registry"""
 
-    __tablename__ = 'orch_job'
-    __table_args__ = (
-        Index('orch_job_endpoint_type_idx', 'endpoint_type'),
-    )
+    __tablename__ = "orch_job"
+    __table_args__ = (Index("orch_job_endpoint_type_idx", "endpoint_type"),)
 
     id = Column(Integer, primary_key=True, nullable=False, autoincrement=True)
     uuid = Column(String(36), unique=True)
 
-    user_id = Column('user_id', String(128))
-    project_id = Column('project_id', String(128))
+    user_id = Column("user_id", String(128))
+    project_id = Column("project_id", String(128))
 
     # Filled in by x_orch_api e.g. platform, volumev2, compute, network
     endpoint_type = Column(String(255), nullable=False)
@@ -256,8 +261,9 @@ class OrchJob(BASE, OrchestratorBase):
     operation_type = Column(String(255))  # http type: post/put/patch/delete
     capabilities = Column(JSONEncodedDict)
 
-    resource_id = Column('resource_id', Integer,
-                         ForeignKey('resource.id'))  # nullable=False?
+    resource_id = Column(
+        "resource_id", Integer, ForeignKey("resource.id")
+    )  # nullable=False?
 
     # resource_info cannot be derived from  resource.master_values
     # Represents resource info for a specific API call.  In case of update, it
@@ -267,17 +273,20 @@ class OrchJob(BASE, OrchestratorBase):
     # formatted dict.  The exact contents will vary depending on resource.
     resource_info = Column(String())
 
-    orchrequests = relationship('OrchRequest', backref='orch_job')
+    orchrequests = relationship("OrchRequest", backref="orch_job")
     # orch_status can be derived from the underlying OrchRequests state
 
 
 class OrchRequest(BASE, OrchestratorBase):
-    __tablename__ = 'orch_request'
+    __tablename__ = "orch_request"
     __table_args__ = (
-        Index('orch_request_state_idx', 'state'),
+        Index("orch_request_state_idx", "state"),
         UniqueConstraint(
-            'target_region_name', 'orch_job_id', 'deleted',
-            name='uniq_orchreq0target_region_name0orch_job_id0deleted'),
+            "target_region_name",
+            "orch_job_id",
+            "deleted",
+            name="uniq_orchreq0target_region_name0orch_job_id0deleted",
+        ),
     )
 
     id = Column(Integer, primary_key=True, nullable=False, autoincrement=True)
@@ -292,20 +301,20 @@ class OrchRequest(BASE, OrchestratorBase):
     target_region_name = Column(String(255))
     capabilities = Column(JSONEncodedDict)
 
-    orch_job_id = Column('orch_job_id', Integer,
-                         ForeignKey('orch_job.id'), primary_key=True)
+    orch_job_id = Column(
+        "orch_job_id", Integer, ForeignKey("orch_job.id"), primary_key=True
+    )
 
 
 class SubcloudSync(BASE, OrchestratorBase):
-    """Store subcloud sync information to allow coordination of dcorch workload
+    """Store subcloud sync information to allow coordination of dcorch workload"""
 
-    """
-
-    __tablename__ = 'subcloud_sync'
+    __tablename__ = "subcloud_sync"
 
     id = Column(Integer, primary_key=True)
-    subcloud_id = Column('subcloud_id', Integer,
-                         ForeignKey('subcloud.id', ondelete='CASCADE'))
+    subcloud_id = Column(
+        "subcloud_id", Integer, ForeignKey("subcloud.id", ondelete="CASCADE")
+    )
     subcloud_name = Column(String(255), nullable=False)
     endpoint_type = Column(String(255), default="none")
     sync_request = Column(String(64), default=consts.SYNC_STATUS_NONE)

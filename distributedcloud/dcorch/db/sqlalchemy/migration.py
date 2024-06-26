@@ -1,4 +1,5 @@
 # Copyright (c) 2015 Ericsson AB.
+# Copyright (c) 2024 Wind River Systems, Inc.
 # All Rights Reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License"); you may
@@ -22,19 +23,15 @@ INIT_VERSION = 0
 
 
 def db_sync(engine, version=None):
-    path = os.path.join(os.path.abspath(os.path.dirname(__file__)),
-                        'migrate_repo')
-    return oslo_migration.db_sync(engine, path, version,
-                                  init_version=INIT_VERSION)
+    path = os.path.join(os.path.abspath(os.path.dirname(__file__)), "migrate_repo")
+    return oslo_migration.db_sync(engine, path, version, init_version=INIT_VERSION)
 
 
 def db_version(engine):
-    path = os.path.join(os.path.abspath(os.path.dirname(__file__)),
-                        'migrate_repo')
+    path = os.path.join(os.path.abspath(os.path.dirname(__file__)), "migrate_repo")
     return oslo_migration.db_version(engine, path, INIT_VERSION)
 
 
 def db_version_control(engine, version=None):
-    path = os.path.join(os.path.abspath(os.path.dirname(__file__)),
-                        'migrate_repo')
+    path = os.path.join(os.path.abspath(os.path.dirname(__file__)), "migrate_repo")
     return oslo_migration.db_version_control(engine, path, version)

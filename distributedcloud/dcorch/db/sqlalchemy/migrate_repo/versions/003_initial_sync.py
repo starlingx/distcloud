@@ -1,4 +1,4 @@
-# Copyright (c) 2020 Wind River Inc.
+# Copyright (c) 2020, 2024 Wind River Inc.
 # All Rights Reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License"); you may
@@ -20,14 +20,15 @@ def upgrade(migrate_engine):
     meta = sqlalchemy.MetaData()
     meta.bind = migrate_engine
 
-    subcloud = sqlalchemy.Table('subcloud', meta, autoload=True)
+    subcloud = sqlalchemy.Table("subcloud", meta, autoload=True)
 
     # Add the initial_sync_state attribute
-    subcloud.create_column(sqlalchemy.Column('initial_sync_state',
-                                             sqlalchemy.String(64),
-                                             default="none"))
+    subcloud.create_column(
+        sqlalchemy.Column("initial_sync_state", sqlalchemy.String(64), default="none")
+    )
 
 
 def downgrade(migrate_engine):
-    raise NotImplementedError('Database downgrade not supported - '
-                              'would drop all tables')
+    raise NotImplementedError(
+        "Database downgrade not supported - would drop all tables"
+    )

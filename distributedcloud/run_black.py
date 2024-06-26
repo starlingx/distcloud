@@ -27,6 +27,7 @@ formatted_modules = [
     "dcdbsync",
     "dcorch/api",
     "dcorch/common",
+    "dcorch/db",
 ]
 
 

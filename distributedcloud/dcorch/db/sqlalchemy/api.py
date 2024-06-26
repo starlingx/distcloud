@@ -79,7 +79,7 @@ def write_session():
     return _get_main_context_manager().writer.using(_CONTEXT)
 
 
-_DEFAULT_QUOTA_NAME = 'default'
+_DEFAULT_QUOTA_NAME = "default"
 
 
 def get_backend():
@@ -88,12 +88,12 @@ def get_backend():
 
 
 def model_query(context, *args, **kwargs):
-    session = kwargs.get('session')
+    session = kwargs.get("session")
     if session:
-        return session.query(*args).options(joinedload_all('*'))
+        return session.query(*args).options(joinedload_all("*"))
     else:
         with read_session() as session:
-            return session.query(*args).options(joinedload_all('*'))
+            return session.query(*args).options(joinedload_all("*"))
 
 
 def _session(context):
@@ -103,9 +103,8 @@ def _session(context):
 def is_admin_context(context):
     """Indicate if the request context is an administrator."""
     if not context:
-        LOG.warning(_('Use of empty request context is deprecated'),
-                    DeprecationWarning)
-        raise Exception('die')
+        LOG.warning(_("Use of empty request context is deprecated"), DeprecationWarning)
+        raise Exception("die")
     return context.is_admin
 
 
@@ -125,6 +124,7 @@ def require_admin_context(f):
 
     The first argument to the wrapped function must be the context.
     """
+
     def wrapper(*args, **kwargs):
         if not is_admin_context(args[0]):
             raise exception.AdminRequired()
@@ -142,6 +142,7 @@ def require_context(f):
     The first argument to the wrapped function must be the context.
 
     """
+
     def wrapper(*args, **kwargs):
         if not is_admin_context(args[0]) and not is_user_context(args[0]):
             raise exception.NotAuthorized()
@@ -155,10 +156,12 @@ def require_context(f):
 
 @require_context
 def _quota_get(context, project_id, resource, session=None):
-    result = model_query(context, models.Quota). \
-        filter_by(project_id=project_id). \
-        filter_by(resource=resource). \
-        first()
+    result = (
+        model_query(context, models.Quota)
+        .filter_by(project_id=project_id)
+        .filter_by(resource=resource)
+        .first()
+    )
 
     if not result:
         raise exception.ProjectQuotaNotFound(project_id=project_id)
@@ -173,10 +176,8 @@ def quota_get(context, project_id, resource):
 
 @require_context
 def quota_get_all_by_project(context, project_id):
-    rows = model_query(context, models.Quota). \
-        filter_by(project_id=project_id). \
-        all()
-    result = {'project_id': project_id}
+    rows = model_query(context, models.Quota).filter_by(project_id=project_id).all()
+    result = {"project_id": project_id}
     for row in rows:
         result[row.resource] = row.hard_limit
     return result
@@ -217,9 +218,9 @@ def quota_destroy(context, project_id, resource):
 def quota_destroy_all(context, project_id):
     with write_session() as session:
 
-        quotas = model_query(context, models.Quota). \
-            filter_by(project_id=project_id). \
-            all()
+        quotas = (
+            model_query(context, models.Quota).filter_by(project_id=project_id).all()
+        )
 
         if not quotas:
             raise exception.ProjectQuotaNotFound(project_id=project_id)
@@ -230,13 +231,16 @@ def quota_destroy_all(context, project_id):
 
 ##########################
 
+
 @require_context
 def _quota_class_get(context, class_name, resource):
-    result = model_query(context, models.QuotaClass). \
-        filter_by(deleted=0). \
-        filter_by(class_name=class_name). \
-        filter_by(resource=resource). \
-        first()
+    result = (
+        model_query(context, models.QuotaClass)
+        .filter_by(deleted=0)
+        .filter_by(class_name=class_name)
+        .filter_by(resource=resource)
+        .first()
+    )
 
     if not result:
         raise exception.QuotaClassNotFound(class_name=class_name)
@@ -256,12 +260,14 @@ def quota_class_get_default(context):
 
 @require_context
 def quota_class_get_all_by_name(context, class_name):
-    rows = model_query(context, models.QuotaClass). \
-        filter_by(deleted=0). \
-        filter_by(class_name=class_name). \
-        all()
+    rows = (
+        model_query(context, models.QuotaClass)
+        .filter_by(deleted=0)
+        .filter_by(class_name=class_name)
+        .all()
+    )
 
-    result = {'class_name': class_name}
+    result = {"class_name": class_name}
     for row in rows:
         result[row.resource] = row.hard_limit
 
@@ -282,10 +288,13 @@ def quota_class_create(context, class_name, resource, limit):
 @require_admin_context
 def quota_class_update(context, class_name, resource, limit):
     with write_session() as session:
-        quota_class_ref = session.query(models.QuotaClass). \
-            filter_by(deleted=0). \
-            filter_by(class_name=class_name). \
-            filter_by(resource=resource).first()
+        quota_class_ref = (
+            session.query(models.QuotaClass)
+            .filter_by(deleted=0)
+            .filter_by(class_name=class_name)
+            .filter_by(resource=resource)
+            .first()
+        )
         if not quota_class_ref:
             raise exception.QuotaClassNotFound(class_name=class_name)
         quota_class_ref.hard_limit = limit
@@ -296,10 +305,12 @@ def quota_class_update(context, class_name, resource, limit):
 @require_admin_context
 def quota_class_destroy_all(context, class_name):
     with write_session() as session:
-        quota_classes = session.query(models.QuotaClass). \
-            filter_by(deleted=0). \
-            filter_by(class_name=class_name). \
-            all()
+        quota_classes = (
+            session.query(models.QuotaClass)
+            .filter_by(deleted=0)
+            .filter_by(class_name=class_name)
+            .all()
+        )
         if quota_classes:
             for quota_class_ref in quota_classes:
                 session.delete(quota_class_ref)
@@ -317,16 +328,17 @@ def db_version(engine):
     return migration.db_version(engine)
 
 
-def service_create(context, service_id, host=None, binary=None,
-                   topic=None):
+def service_create(context, service_id, host=None, binary=None, topic=None):
     with write_session() as session:
         time_now = timeutils.utcnow()
-        svc = models.Service(id=service_id,
-                             host=host,
-                             binary=binary,
-                             topic=topic,
-                             created_at=time_now,
-                             updated_at=time_now)
+        svc = models.Service(
+            id=service_id,
+            host=host,
+            binary=binary,
+            topic=topic,
+            created_at=time_now,
+            updated_at=time_now,
+        )
         session.add(svc)
         return svc
 
@@ -340,7 +352,7 @@ def service_update(context, service_id, values=None):
         if values is None:
             values = {}
 
-        values.update({'updated_at': timeutils.utcnow()})
+        values.update({"updated_at": timeutils.utcnow()})
         service.update(values)
         service.save(session)
         return service
@@ -348,8 +360,9 @@ def service_update(context, service_id, values=None):
 
 def service_delete(context, service_id):
     with write_session() as session:
-        session.query(models.Service).filter_by(
-            id=service_id).delete(synchronize_session='fetch')
+        session.query(models.Service).filter_by(id=service_id).delete(
+            synchronize_session="fetch"
+        )
 
 
 def service_get(context, service_id):
@@ -362,10 +375,9 @@ def service_get_all(context):
 
 ##########################
 
+
 # dbapi for orchestrator
-def add_identity_filter(query, value,
-                        use_region_name=None,
-                        use_resource_type=None):
+def add_identity_filter(query, value, use_region_name=None, use_resource_type=None):
     """Adds an identity filter to a query.
 
     Filters results by 'id', if supplied value is a valid integer.
@@ -406,18 +418,18 @@ def add_filter_by_many_identities(query, model, values):
         raise exception.Invalid()
     value = values[0]
     if strutils.is_int_like(value):
-        return query.filter(getattr(model, 'id').in_(values)), 'id'
+        return query.filter(getattr(model, "id").in_(values)), "id"
     elif uuidutils.is_uuid_like(value):
-        return query.filter(getattr(model, 'uuid').in_(values)), 'uuid'
+        return query.filter(getattr(model, "uuid").in_(values)), "uuid"
     else:
         raise exception.InvalidParameterValue(
-            err="Invalid identity filter value %s" % value)
+            err="Invalid identity filter value %s" % value
+        )
 
 
 @require_context
 def _subcloud_get(context, region_id, session=None):
-    query = model_query(context, models.Subcloud, session=session). \
-        filter_by(deleted=0)
+    query = model_query(context, models.Subcloud, session=session).filter_by(deleted=0)
     query = add_identity_filter(query, region_id, use_region_name=True)
 
     try:
@@ -426,7 +438,8 @@ def _subcloud_get(context, region_id, session=None):
         raise exception.SubcloudNotFound(region_name=region_id)
     except MultipleResultsFound:
         raise exception.InvalidParameterValue(
-            err="Multiple entries found for subcloud %s" % region_id)
+            err="Multiple entries found for subcloud %s" % region_id
+        )
 
 
 @require_context
@@ -435,12 +448,14 @@ def subcloud_get(context, region_id):
 
 
 @require_context
-def subcloud_get_all(context, region_name=None,
-                     management_state=None,
-                     availability_status=None,
-                     initial_sync_state=None):
-    query = model_query(context, models.Subcloud). \
-        filter_by(deleted=0)
+def subcloud_get_all(
+    context,
+    region_name=None,
+    management_state=None,
+    availability_status=None,
+    initial_sync_state=None,
+):
+    query = model_query(context, models.Subcloud).filter_by(deleted=0)
 
     if region_name:
         query = add_identity_filter(query, region_name, use_region_name=True)
@@ -454,79 +469,92 @@ def subcloud_get_all(context, region_name=None,
 
 
 @require_context
-def subcloud_capabilities_get_all(context, region_name=None,
-                                  management_state=None,
-                                  availability_status=None,
-                                  initial_sync_state=None):
-    results = subcloud_get_all(context, region_name, management_state,
-                               availability_status, initial_sync_state)
+def subcloud_capabilities_get_all(
+    context,
+    region_name=None,
+    management_state=None,
+    availability_status=None,
+    initial_sync_state=None,
+):
+    results = subcloud_get_all(
+        context, region_name, management_state, availability_status, initial_sync_state
+    )
     return {
-        result['region_name']: (result['capabilities'], result['management_ip'])
+        result["region_name"]: (result["capabilities"], result["management_ip"])
         for result in results
     }
 
 
 @require_context
-def subcloud_sync_update_all_to_in_progress(context,
-                                            management_state,
-                                            availability_status,
-                                            initial_sync_state,
-                                            sync_requests):
+def subcloud_sync_update_all_to_in_progress(
+    context, management_state, availability_status, initial_sync_state, sync_requests
+):
     with write_session() as session:
         # Fetch the records of subcloud_sync that meet the update criteria
-        subcloud_sync_rows = session.query(models.SubcloudSync,
-                                           models.Subcloud.management_ip).join(
-            models.Subcloud,
-            models.Subcloud.region_name == models.SubcloudSync.subcloud_name
-        ).filter(
-            models.Subcloud.management_state == management_state,
-            models.Subcloud.availability_status == availability_status,
-            models.Subcloud.initial_sync_state == initial_sync_state,
-            models.SubcloudSync.sync_request.in_(sync_requests)
-        ).all()
+        subcloud_sync_rows = (
+            session.query(models.SubcloudSync, models.Subcloud.management_ip)
+            .join(
+                models.Subcloud,
+                models.Subcloud.region_name == models.SubcloudSync.subcloud_name,
+            )
+            .filter(
+                models.Subcloud.management_state == management_state,
+                models.Subcloud.availability_status == availability_status,
+                models.Subcloud.initial_sync_state == initial_sync_state,
+                models.SubcloudSync.sync_request.in_(sync_requests),
+            )
+            .all()
+        )
 
         # Update the sync status to in-progress for the selected subcloud_sync
         # records
         updated_rows = []
         for subcloud_sync, management_ip in subcloud_sync_rows:
             subcloud_sync.sync_request = consts.SYNC_STATUS_IN_PROGRESS
-            updated_rows.append((subcloud_sync.subcloud_name,
-                                 subcloud_sync.endpoint_type,
-                                 management_ip))
+            updated_rows.append(
+                (
+                    subcloud_sync.subcloud_name,
+                    subcloud_sync.endpoint_type,
+                    management_ip,
+                )
+            )
 
         return updated_rows
 
 
 @require_context
-def subcloud_audit_update_all_to_in_progress(context,
-                                             management_state,
-                                             availability_status,
-                                             initial_sync_state,
-                                             audit_interval):
+def subcloud_audit_update_all_to_in_progress(
+    context, management_state, availability_status, initial_sync_state, audit_interval
+):
     threshold_time = timeutils.utcnow() - datetime.timedelta(seconds=audit_interval)
 
     with write_session() as session:
         # Fetch the records of subcloud_sync that meet the update criteria
-        subcloud_sync_rows = session.query(models.SubcloudSync,
-                                           models.Subcloud.management_ip).join(
-            models.Subcloud,
-            models.Subcloud.region_name == models.SubcloudSync.subcloud_name
-        ).filter(
-            models.Subcloud.management_state == management_state,
-            models.Subcloud.availability_status == availability_status,
-            models.Subcloud.initial_sync_state == initial_sync_state,
-            or_(
-                # Search those with conditional audit status
-                # (completed/in-progress) and the last audit time is equal
-                # or greater than the audit interval
-                and_(
-                    models.SubcloudSync.audit_status.in_(
-                        consts.AUDIT_CONDITIONAL_STATUS),
-                    models.SubcloudSync.last_audit_time <= threshold_time
-                ),
-                models.SubcloudSync.audit_status.in_(consts.AUDIT_QUALIFIED_STATUS)
+        subcloud_sync_rows = (
+            session.query(models.SubcloudSync, models.Subcloud.management_ip)
+            .join(
+                models.Subcloud,
+                models.Subcloud.region_name == models.SubcloudSync.subcloud_name,
             )
-        ).all()
+            .filter(
+                models.Subcloud.management_state == management_state,
+                models.Subcloud.availability_status == availability_status,
+                models.Subcloud.initial_sync_state == initial_sync_state,
+                or_(
+                    # Search those with conditional audit status
+                    # (completed/in-progress) and the last audit time is equal
+                    # or greater than the audit interval
+                    and_(
+                        models.SubcloudSync.audit_status.in_(
+                            consts.AUDIT_CONDITIONAL_STATUS
+                        ),
+                        models.SubcloudSync.last_audit_time <= threshold_time,
+                    ),
+                    models.SubcloudSync.audit_status.in_(consts.AUDIT_QUALIFIED_STATUS),
+                ),
+            )
+            .all()
+        )
 
         # Update the audit status to in-progress for the selected subcloud_sync
         # records
@@ -534,9 +562,13 @@ def subcloud_audit_update_all_to_in_progress(context,
         for subcloud_sync, management_ip in subcloud_sync_rows:
             subcloud_sync.audit_status = consts.AUDIT_STATUS_IN_PROGRESS
             subcloud_sync.last_audit_time = timeutils.utcnow()
-            updated_rows.append((subcloud_sync.subcloud_name,
-                                 subcloud_sync.endpoint_type,
-                                 management_ip))
+            updated_rows.append(
+                (
+                    subcloud_sync.subcloud_name,
+                    subcloud_sync.endpoint_type,
+                    management_ip,
+                )
+            )
 
         return updated_rows
 
@@ -546,8 +578,8 @@ def subcloud_create(context, region_name, values):
     with write_session() as session:
         result = models.Subcloud()
         result.region_name = region_name
-        if not values.get('uuid'):
-            values['uuid'] = uuidutils.generate_uuid()
+        if not values.get("uuid"):
+            values["uuid"] = uuidutils.generate_uuid()
         result.update(values)
         try:
             session.add(result)
@@ -568,10 +600,12 @@ def subcloud_update(context, region_name, values):
 @require_admin_context
 def subcloud_delete(context, region_name):
     with write_session() as session:
-        subclouds = session.query(models.Subcloud). \
-            filter_by(deleted=0). \
-            filter_by(region_name=region_name). \
-            all()
+        subclouds = (
+            session.query(models.Subcloud)
+            .filter_by(deleted=0)
+            .filter_by(region_name=region_name)
+            .all()
+        )
         if subclouds:
             for subcloud_ref in subclouds:
                 session.delete(subcloud_ref)
@@ -580,31 +614,36 @@ def subcloud_delete(context, region_name):
 
 
 @require_admin_context
-def subcloud_update_initial_state(context, region_name,
-                                  pre_initial_sync_state, initial_sync_state):
+def subcloud_update_initial_state(
+    context, region_name, pre_initial_sync_state, initial_sync_state
+):
     with write_session() as session:
-        result = session.query(models.Subcloud) \
-            .filter_by(region_name=region_name) \
-            .filter_by(initial_sync_state=pre_initial_sync_state) \
+        result = (
+            session.query(models.Subcloud)
+            .filter_by(region_name=region_name)
+            .filter_by(initial_sync_state=pre_initial_sync_state)
             .update({models.Subcloud.initial_sync_state: initial_sync_state})
+        )
         return result
 
 
 @require_admin_context
-def subcloud_update_all_initial_state(context, pre_initial_sync_state,
-                                      initial_sync_state):
+def subcloud_update_all_initial_state(
+    context, pre_initial_sync_state, initial_sync_state
+):
     with write_session() as session:
-        updated_count = session.query(models.Subcloud) \
-            .filter_by(deleted=0) \
-            .filter_by(initial_sync_state=pre_initial_sync_state) \
+        updated_count = (
+            session.query(models.Subcloud)
+            .filter_by(deleted=0)
+            .filter_by(initial_sync_state=pre_initial_sync_state)
             .update({models.Subcloud.initial_sync_state: initial_sync_state})
+        )
         return updated_count
 
 
 @require_context
 def _resource_get(context, resource_type, master_id, session):
-    query = model_query(context, models.Resource, session=session). \
-        filter_by(deleted=0)
+    query = model_query(context, models.Resource, session=session).filter_by(deleted=0)
     query = query.filter_by(resource_type=resource_type)
     query = query.filter_by(master_id=master_id)
     try:
@@ -613,8 +652,11 @@ def _resource_get(context, resource_type, master_id, session):
         raise exception.ResourceNotFound(resource_type=resource_type)
     except MultipleResultsFound:
         raise exception.InvalidParameterValue(
-            err=("Multiple entries found for resource %(id)s of type %(type)s",
-                 {'id': master_id, 'type': resource_type}))
+            err=(
+                "Multiple entries found for resource %(id)s of type %(type)s",
+                {"id": master_id, "type": resource_type},
+            )
+        )
 
 
 @require_context
@@ -625,8 +667,7 @@ def resource_get_by_type_and_master_id(context, resource_type, master_id):
 
 @require_context
 def resource_get_by_id(context, resource_id, session=None):
-    query = model_query(context, models.Resource, session=session). \
-        filter_by(deleted=0)
+    query = model_query(context, models.Resource, session=session).filter_by(deleted=0)
     query = query.filter_by(id=resource_id)
     try:
         return query.one()
@@ -636,12 +677,10 @@ def resource_get_by_id(context, resource_id, session=None):
 
 @require_context
 def resource_get_all(context, resource_type=None):
-    query = model_query(context, models.Resource). \
-        filter_by(deleted=0)
+    query = model_query(context, models.Resource).filter_by(deleted=0)
 
     if resource_type:
-        query = add_identity_filter(query, resource_type,
-                                    use_resource_type=True)
+        query = add_identity_filter(query, resource_type, use_resource_type=True)
 
     return query.all()
 
@@ -651,8 +690,8 @@ def resource_create(context, resource_type, values):
     with write_session() as session:
         result = models.Resource()
         result.resource_type = resource_type
-        if not values.get('uuid'):
-            values['uuid'] = uuidutils.generate_uuid()
+        if not values.get("uuid"):
+            values["uuid"] = uuidutils.generate_uuid()
         result.update(values)
         session.add(result)
         return result
@@ -670,11 +709,13 @@ def resource_update(context, resource_id, values):
 @require_admin_context
 def resource_delete(context, resource_type, master_id):
     with write_session() as session:
-        resources = session.query(models.Resource). \
-            filter_by(deleted=0). \
-            filter_by(resource_type=resource_type). \
-            filter_by(master_id=master_id). \
-            all()
+        resources = (
+            session.query(models.Resource)
+            .filter_by(deleted=0)
+            .filter_by(resource_type=resource_type)
+            .filter_by(master_id=master_id)
+            .all()
+        )
         if resources:
             for resource_ref in resources:
                 session.delete(resource_ref)
@@ -691,8 +732,9 @@ def add_subcloud_resource_filter_by_subcloud(query, value):
 
 @require_context
 def _subcloud_resource_get(context, subcloud_resource_id, session=None):
-    query = model_query(context, models.SubcloudResource, session=session). \
-        filter_by(deleted=0)
+    query = model_query(context, models.SubcloudResource, session=session).filter_by(
+        deleted=0
+    )
     query = add_identity_filter(query, subcloud_resource_id)
     try:
         return query.one()
@@ -707,53 +749,55 @@ def subcloud_resource_get(context, subcloud_resource_id):
 
 @require_context
 def subcloud_resources_get_by_subcloud(context, subcloud_id):
-    query = model_query(context, models.SubcloudResource). \
-        filter_by(deleted=0)
+    query = model_query(context, models.SubcloudResource).filter_by(deleted=0)
     if subcloud_id:
-        query = (query.join(models.Subcloud,
-                            models.Subcloud.id ==
-                            models.SubcloudResource.subcloud_id))
+        query = query.join(
+            models.Subcloud, models.Subcloud.id == models.SubcloudResource.subcloud_id
+        )
         query, field = add_filter_by_many_identities(
-            query, models.Subcloud, [subcloud_id])
+            query, models.Subcloud, [subcloud_id]
+        )
     return query.all()
 
 
 @require_context
 def subcloud_resources_get_by_resource(context, resource_id):
     # query by resource id or uuid, not resource master uuid.
-    query = model_query(context, models.SubcloudResource). \
-        filter_by(deleted=0)
+    query = model_query(context, models.SubcloudResource).filter_by(deleted=0)
     if resource_id:
-        query = (query.join(models.Resource,
-                            models.Resource.id ==
-                            models.SubcloudResource.resource_id))
+        query = query.join(
+            models.Resource, models.Resource.id == models.SubcloudResource.resource_id
+        )
         query, field = add_filter_by_many_identities(
-            query, models.Resource, [resource_id])
+            query, models.Resource, [resource_id]
+        )
     return query.all()
 
 
 def subcloud_resources_get_all(context):
-    query = model_query(context, models.SubcloudResource). \
-        filter_by(deleted=0)
+    query = model_query(context, models.SubcloudResource).filter_by(deleted=0)
     return query.all()
 
 
 @require_context
-def subcloud_resource_get_by_resource_and_subcloud(
-        context, resource_id, subcloud_id):
-    query = model_query(context, models.SubcloudResource). \
-        filter_by(deleted=0). \
-        filter_by(resource_id=resource_id). \
-        filter_by(subcloud_id=subcloud_id)
+def subcloud_resource_get_by_resource_and_subcloud(context, resource_id, subcloud_id):
+    query = (
+        model_query(context, models.SubcloudResource)
+        .filter_by(deleted=0)
+        .filter_by(resource_id=resource_id)
+        .filter_by(subcloud_id=subcloud_id)
+    )
     try:
         return query.one()
     except NoResultFound:
         raise exception.SubcloudResourceNotFound()
     except MultipleResultsFound:
         raise exception.InvalidParameterValue(
-            err=("Multiple entries found for resource %(rid)d "
-                 "subcloud %(sid)d",
-                 {'rid': resource_id, 'sid': subcloud_id}))
+            err=(
+                "Multiple entries found for resource %(rid)d subcloud %(sid)d",
+                {"rid": resource_id, "sid": subcloud_id},
+            )
+        )
 
 
 @require_admin_context
@@ -762,15 +806,15 @@ def subcloud_resource_create(context, subcloud_id, resource_id, values):
         result = models.SubcloudResource()
         result.subcloud_id = subcloud_id
         result.resource_id = resource_id
-        if not values.get('uuid'):
-            values['uuid'] = uuidutils.generate_uuid()
+        if not values.get("uuid"):
+            values["uuid"] = uuidutils.generate_uuid()
         result.update(values)
         try:
             session.add(result)
         except db_exc.DBDuplicateEntry:
             raise exception.SubcloudResourceAlreadyExists(
-                subcloud_id=subcloud_id,
-                resource_id=resource_id)
+                subcloud_id=subcloud_id, resource_id=resource_id
+            )
         return result
 
 
@@ -786,14 +830,12 @@ def subcloud_resource_update(context, subcloud_resource_id, values):
 @require_admin_context
 def subcloud_resource_delete(context, subcloud_resource_id):
     with write_session() as session:
-        query = session.query(models.SubcloudResource). \
-            filter_by(deleted=0)
+        query = session.query(models.SubcloudResource).filter_by(deleted=0)
         query = add_identity_filter(query, subcloud_resource_id)
         try:
             subcloud_resource_ref = query.one()
         except NoResultFound:
-            raise exception.SubcloudResourceNotFound(
-                resource=subcloud_resource_id)
+            raise exception.SubcloudResourceNotFound(resource=subcloud_resource_id)
         session.delete(subcloud_resource_ref)
 
 
@@ -806,8 +848,7 @@ def add_orch_job_filter_by_resource(query, value):
 
 @require_context
 def _orch_job_get(context, orch_job_id, session=None):
-    query = model_query(context, models.OrchJob, session=session). \
-        filter_by(deleted=0)
+    query = model_query(context, models.OrchJob, session=session).filter_by(deleted=0)
     query = add_identity_filter(query, orch_job_id)
     try:
         return query.one()
@@ -822,26 +863,26 @@ def orch_job_get(context, orch_job_id):
 
 @require_context
 def orch_job_get_all(context, resource_id=None):
-    query = model_query(context, models.OrchJob). \
-        filter_by(deleted=0)
+    query = model_query(context, models.OrchJob).filter_by(deleted=0)
     if resource_id:
-        query = (query.join(models.Resource,
-                            models.Resource.id == models.OrchJob.resource_id))
+        query = query.join(
+            models.Resource, models.Resource.id == models.OrchJob.resource_id
+        )
         query, field = add_filter_by_many_identities(
-            query, models.Resource, [resource_id])
+            query, models.Resource, [resource_id]
+        )
     return query.all()
 
 
 @require_admin_context
-def orch_job_create(context, resource_id, endpoint_type,
-                    operation_type, values):
+def orch_job_create(context, resource_id, endpoint_type, operation_type, values):
     with write_session() as session:
         result = models.OrchJob()
         result.resource_id = resource_id
         result.endpoint_type = endpoint_type
         result.operation_type = operation_type
-        if not values.get('uuid'):
-            values['uuid'] = uuidutils.generate_uuid()
+        if not values.get("uuid"):
+            values["uuid"] = uuidutils.generate_uuid()
         result.update(values)
         try:
             session.add(result)
@@ -849,7 +890,8 @@ def orch_job_create(context, resource_id, endpoint_type,
             raise exception.OrchJobAlreadyExists(
                 resource_id=resource_id,
                 endpoint_type=endpoint_type,
-                operation_type=operation_type)
+                operation_type=operation_type,
+            )
         return result
 
 
@@ -865,8 +907,7 @@ def orch_job_update(context, orch_job_id, values):
 @require_admin_context
 def orch_job_delete(context, orch_job_id):
     with write_session() as session:
-        query = session.query(models.OrchJob). \
-            filter_by(deleted=0)
+        query = session.query(models.OrchJob).filter_by(deleted=0)
         query = add_identity_filter(query, orch_job_id)
         try:
             orch_job_ref = query.one()
@@ -884,8 +925,9 @@ def add_orch_request_filter_by_resource(query, value):
 
 @require_context
 def _orch_request_get(context, orch_request_id, session=None):
-    query = model_query(context, models.OrchRequest, session=session). \
-        filter_by(deleted=0)
+    query = model_query(context, models.OrchRequest, session=session).filter_by(
+        deleted=0
+    )
     query = add_identity_filter(query, orch_request_id)
     try:
         return query.one()
@@ -900,9 +942,11 @@ def orch_request_get(context, orch_request_id):
 
 @require_context
 def orch_request_get_most_recent_failed_request(context):
-    query = model_query(context, models.OrchRequest). \
-        filter_by(deleted=0). \
-        filter_by(state=consts.ORCH_REQUEST_STATE_FAILED)
+    query = (
+        model_query(context, models.OrchRequest)
+        .filter_by(deleted=0)
+        .filter_by(state=consts.ORCH_REQUEST_STATE_FAILED)
+    )
 
     try:
         return query.order_by(desc(models.OrchRequest.updated_at)).first()
@@ -912,23 +956,21 @@ def orch_request_get_most_recent_failed_request(context):
 
 @require_context
 def orch_request_get_all(context, orch_job_id=None):
-    query = model_query(context, models.OrchRequest). \
-        filter_by(deleted=0)
+    query = model_query(context, models.OrchRequest).filter_by(deleted=0)
     if orch_job_id:
-        query = (query.join(models.OrchJob,
-                            models.OrchJob.id ==
-                            models.OrchRequest.orch_job_id))
+        query = query.join(
+            models.OrchJob, models.OrchJob.id == models.OrchRequest.orch_job_id
+        )
         query, field = add_filter_by_many_identities(
-            query, models.OrchJob, [orch_job_id])
+            query, models.OrchJob, [orch_job_id]
+        )
     return query.all()
 
 
 @require_context
-def orch_request_get_by_attrs(context,
-                              endpoint_type,
-                              resource_type=None,
-                              target_region_name=None,
-                              states=None):
+def orch_request_get_by_attrs(
+    context, endpoint_type, resource_type=None, target_region_name=None, states=None
+):
     """Query OrchRequests by attributes.
 
     :param context:  authorization context
@@ -938,8 +980,7 @@ def orch_request_get_by_attrs(context,
     :param states: [OrchRequest.state] note: must be a list
     :return: [OrchRequests] sorted by OrchRequest.id
     """
-    query = model_query(context, models.OrchRequest). \
-        filter_by(deleted=0)
+    query = model_query(context, models.OrchRequest).filter_by(deleted=0)
 
     if target_region_name:
         query = query.filter_by(target_region_name=target_region_name)
@@ -948,14 +989,14 @@ def orch_request_get_by_attrs(context,
         states = set(states)
         query = query.filter(models.OrchRequest.state.in_(states))
 
-    query = query.join(models.OrchJob,
-                       models.OrchJob.id == models.OrchRequest.orch_job_id). \
-        filter_by(endpoint_type=endpoint_type)
+    query = query.join(
+        models.OrchJob, models.OrchJob.id == models.OrchRequest.orch_job_id
+    ).filter_by(endpoint_type=endpoint_type)
 
     if resource_type is not None:
-        query = query.join(models.Resource,
-                           models.Resource.id == models.OrchJob.resource_id). \
-            filter_by(resource_type=resource_type)
+        query = query.join(
+            models.Resource, models.Resource.id == models.OrchJob.resource_id
+        ).filter_by(resource_type=resource_type)
 
     # sort by orch_request id
     query = query.order_by(asc(models.OrchRequest.id)).all()
@@ -969,29 +1010,31 @@ def orch_request_create(context, orch_job_id, target_region_name, values):
         result = models.OrchRequest()
         result.orch_job_id = orch_job_id
         result.target_region_name = target_region_name
-        if not values.get('uuid'):
-            values['uuid'] = uuidutils.generate_uuid()
+        if not values.get("uuid"):
+            values["uuid"] = uuidutils.generate_uuid()
         result.update(values)
         try:
             session.add(result)
         except db_exc.DBDuplicateEntry:
             raise exception.OrchRequestAlreadyExists(
-                orch_request=orch_job_id,
-                target_region_name=target_region_name)
+                orch_request=orch_job_id, target_region_name=target_region_name
+            )
         return result
 
 
 def orch_request_create_bulk(context, orch_requests):
     for request in orch_requests:
-        if 'orch_job_id' not in request:
+        if "orch_job_id" not in request:
             raise exception.ObjectActionError(
                 action="create_bulk",
-                reason="cannot create an OrchRequest object without a orch_job_id set")
-        if 'target_region_name' not in request:
+                reason="cannot create an OrchRequest object without a orch_job_id set",
+            )
+        if "target_region_name" not in request:
             raise exception.ObjectActionError(
                 action="create_bulk",
                 reason="cannot create an OrchRequest object without a "
-                       "target_region_name set")
+                "target_region_name set",
+            )
     with write_session() as session:
         session.bulk_insert_mappings(models.OrchRequest, orch_requests)
 
@@ -1008,8 +1051,7 @@ def orch_request_update(context, orch_request_id, values):
 @require_admin_context
 def orch_request_destroy(context, orch_request_id):
     with write_session() as session:
-        query = session.query(models.OrchRequest). \
-            filter_by(deleted=0)
+        query = session.query(models.OrchRequest).filter_by(deleted=0)
         query = add_identity_filter(query, orch_request_id)
         try:
             orch_request_ref = query.one()
@@ -1026,81 +1068,94 @@ def orch_request_delete_by_subcloud(context, region_name):
     In particular, it is not a bug if there are no entries to delete.
     """
     with write_session() as session:
-        session.query(models.OrchRequest). \
-            filter_by(target_region_name=region_name). \
-            delete()
+        session.query(models.OrchRequest).filter_by(
+            target_region_name=region_name
+        ).delete()
 
 
 @require_admin_context
 def orch_request_delete_previous_failed_requests(context, delete_timestamp):
     """Soft delete orch_request entries.
 
-       This is used to soft delete all previously failed requests at
-       the end of each audit cycle.
+    This is used to soft delete all previously failed requests at
+    the end of each audit cycle.
     """
-    LOG.info('Soft deleting failed orch requests at and before %s',
-             delete_timestamp)
+    LOG.info("Soft deleting failed orch requests at and before %s", delete_timestamp)
     with write_session() as session:
-        query = session.query(models.OrchRequest). \
-            filter_by(deleted=0). \
-            filter_by(state=consts.ORCH_REQUEST_STATE_FAILED). \
-            filter(models.OrchRequest.updated_at <= delete_timestamp)
+        query = (
+            session.query(models.OrchRequest)
+            .filter_by(deleted=0)
+            .filter_by(state=consts.ORCH_REQUEST_STATE_FAILED)
+            .filter(models.OrchRequest.updated_at <= delete_timestamp)
+        )
 
-        count = query.update({'deleted': 1,
-                              'deleted_at': timeutils.utcnow()})
-    LOG.info('%d previously failed sync requests soft deleted', count)
+        count = query.update({"deleted": 1, "deleted_at": timeutils.utcnow()})
+    LOG.info("%d previously failed sync requests soft deleted", count)
 
 
 @require_admin_context
 def purge_deleted_records(context, age_in_days):
-    deleted_age = \
-        timeutils.utcnow() - datetime.timedelta(days=age_in_days)
+    deleted_age = timeutils.utcnow() - datetime.timedelta(days=age_in_days)
 
-    LOG.info('Purging deleted records older than %s', deleted_age)
+    LOG.info("Purging deleted records older than %s", deleted_age)
 
     with write_session() as session:
         # Purging orch_request table
-        count = session.query(models.OrchRequest). \
-            filter_by(deleted=1). \
-            filter(models.OrchRequest.deleted_at < deleted_age).delete()
-        LOG.info('%d records were purged from orch_request table.', count)
+        count = (
+            session.query(models.OrchRequest)
+            .filter_by(deleted=1)
+            .filter(models.OrchRequest.deleted_at < deleted_age)
+            .delete()
+        )
+        LOG.info("%d records were purged from orch_request table.", count)
 
         # Purging orch_job table
-        subquery = model_query(context, models.OrchRequest.orch_job_id). \
-            group_by(models.OrchRequest.orch_job_id)
+        subquery = model_query(context, models.OrchRequest.orch_job_id).group_by(
+            models.OrchRequest.orch_job_id
+        )
 
-        count = session.query(models.OrchJob). \
-            filter(~models.OrchJob.id.in_(subquery)). \
-            delete(synchronize_session='fetch')
-        LOG.info('%d records were purged from orch_job table.', count)
+        count = (
+            session.query(models.OrchJob)
+            .filter(~models.OrchJob.id.in_(subquery))
+            .delete(synchronize_session="fetch")
+        )
+        LOG.info("%d records were purged from orch_job table.", count)
 
         # Purging resource table
-        orchjob_subquery = model_query(context, models.OrchJob.resource_id). \
-            group_by(models.OrchJob.resource_id)
+        orchjob_subquery = model_query(context, models.OrchJob.resource_id).group_by(
+            models.OrchJob.resource_id
+        )
 
         subcloud_resource_subquery = model_query(
-            context, models.SubcloudResource.resource_id). \
-            group_by(models.SubcloudResource.resource_id)
+            context, models.SubcloudResource.resource_id
+        ).group_by(models.SubcloudResource.resource_id)
 
-        count = session.query(models.Resource). \
-            filter(~models.Resource.id.in_(orchjob_subquery)). \
-            filter(~models.Resource.id.in_(subcloud_resource_subquery)). \
-            delete(synchronize_session='fetch')
-        LOG.info('%d records were purged from resource table.', count)
+        count = (
+            session.query(models.Resource)
+            .filter(~models.Resource.id.in_(orchjob_subquery))
+            .filter(~models.Resource.id.in_(subcloud_resource_subquery))
+            .delete(synchronize_session="fetch")
+        )
+        LOG.info("%d records were purged from resource table.", count)
 
 
 def _subcloud_sync_get(context, subcloud_name, endpoint_type, session=None):
-    query = model_query(context, models.SubcloudSync, session=session). \
-        filter_by(subcloud_name=subcloud_name). \
-        filter_by(endpoint_type=endpoint_type)
+    query = (
+        model_query(context, models.SubcloudSync, session=session)
+        .filter_by(subcloud_name=subcloud_name)
+        .filter_by(endpoint_type=endpoint_type)
+    )
     try:
         return query.one()
     except NoResultFound:
-        raise exception.SubcloudSyncNotFound(subcloud_name=subcloud_name,
-                                             endpoint_type=endpoint_type)
+        raise exception.SubcloudSyncNotFound(
+            subcloud_name=subcloud_name, endpoint_type=endpoint_type
+        )
     except MultipleResultsFound:
-        err = ("Multiple entries found for subcloud %s endpoint_type %s" %
-               (subcloud_name, endpoint_type))
+        err = "Multiple entries found for subcloud %s endpoint_type %s" % (
+            subcloud_name,
+            endpoint_type,
+        )
         raise exception.InvalidParameterValue(err=err)
 
 
@@ -1118,15 +1173,14 @@ def subcloud_sync_create(context, subcloud_name, endpoint_type, values):
             session.add(result)
         except db_exc.DBDuplicateEntry:
             raise exception.SubcloudSyncAlreadyExists(
-                subcloud_name=subcloud_name,
-                endpoint_type=endpoint_type)
+                subcloud_name=subcloud_name, endpoint_type=endpoint_type
+            )
         return result
 
 
 def subcloud_sync_update(context, subcloud_name, endpoint_type, values):
     with write_session() as session:
-        result = _subcloud_sync_get(context, subcloud_name, endpoint_type,
-                                    session)
+        result = _subcloud_sync_get(context, subcloud_name, endpoint_type, session)
         result.update(values)
         result.save(session)
         return result
@@ -1134,17 +1188,20 @@ def subcloud_sync_update(context, subcloud_name, endpoint_type, values):
 
 def subcloud_sync_update_all(context, management_state, endpoint_type, values):
     with write_session() as session:
-        subquery = select([models.SubcloudSync.id]). \
-            where(models.SubcloudSync.subcloud_name ==
-                  models.Subcloud.region_name). \
-            where(models.Subcloud.management_state == management_state). \
-            where(models.SubcloudSync.endpoint_type == endpoint_type). \
-            where(models.SubcloudSync.deleted == 0). \
-            correlate(models.SubcloudSync)
+        subquery = (
+            select([models.SubcloudSync.id])
+            .where(models.SubcloudSync.subcloud_name == models.Subcloud.region_name)
+            .where(models.Subcloud.management_state == management_state)
+            .where(models.SubcloudSync.endpoint_type == endpoint_type)
+            .where(models.SubcloudSync.deleted == 0)
+            .correlate(models.SubcloudSync)
+        )
 
-        stmt = update(models.SubcloudSync). \
-            where(models.SubcloudSync.id.in_(subquery)). \
-            values(values)
+        stmt = (
+            update(models.SubcloudSync)
+            .where(models.SubcloudSync.id.in_(subquery))
+            .values(values)
+        )
 
         result = session.execute(stmt)
 
@@ -1153,8 +1210,11 @@ def subcloud_sync_update_all(context, management_state, endpoint_type, values):
 
 def subcloud_sync_delete(context, subcloud_name, endpoint_type):
     with write_session() as session:
-        results = session.query(models.SubcloudSync). \
-            filter_by(subcloud_name=subcloud_name). \
-            filter_by(endpoint_type=endpoint_type).all()
+        results = (
+            session.query(models.SubcloudSync)
+            .filter_by(subcloud_name=subcloud_name)
+            .filter_by(endpoint_type=endpoint_type)
+            .all()
+        )
         for result in results:
             session.delete(result)

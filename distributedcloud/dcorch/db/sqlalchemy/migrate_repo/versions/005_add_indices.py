@@ -1,4 +1,4 @@
-# Copyright (c) 2020 Wind River Inc.
+# Copyright (c) 2020, 2024 Wind River Inc.
 # All Rights Reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License"); you may
@@ -15,19 +15,20 @@
 
 from sqlalchemy import MetaData, Table, Index
 
-ORCH_JOB_ID_INDEX_NAME = 'orch_request_orch_job_id_idx'
-UPDATED_AT_STATE_INDEX_NAME = 'orch_request_updated_at_state_idx'
-DELETED_AT_INDEX_NAME = 'orch_request_deleted_at_idx'
+ORCH_JOB_ID_INDEX_NAME = "orch_request_orch_job_id_idx"
+UPDATED_AT_STATE_INDEX_NAME = "orch_request_updated_at_state_idx"
+DELETED_AT_INDEX_NAME = "orch_request_deleted_at_idx"
 
 
 def upgrade(migrate_engine):
     meta = MetaData()
     meta.bind = migrate_engine
 
-    orch_request = Table('orch_request', meta, autoload=True)
+    orch_request = Table("orch_request", meta, autoload=True)
 
-    index = Index(UPDATED_AT_STATE_INDEX_NAME,
-                  orch_request.c.updated_at, orch_request.c.state)
+    index = Index(
+        UPDATED_AT_STATE_INDEX_NAME, orch_request.c.updated_at, orch_request.c.state
+    )
     index.create(migrate_engine)
 
     index = Index(DELETED_AT_INDEX_NAME, orch_request.c.deleted_at)
@@ -38,5 +39,6 @@ def upgrade(migrate_engine):
 
 
 def downgrade(migrate_engine):
-    raise NotImplementedError('Database downgrade not supported - '
-                              'would drop all tables')
+    raise NotImplementedError(
+        "Database downgrade not supported - would drop all tables"
+    )
