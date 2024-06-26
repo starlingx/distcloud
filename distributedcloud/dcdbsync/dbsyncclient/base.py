@@ -26,7 +26,7 @@ from dcdbsync.dbsyncclient import exceptions
 
 class Resource(object):
     # This will be overridden by the actual resource
-    resource_name = 'Something'
+    resource_name = "Something"
 
 
 class ResourceManager(object):
@@ -40,9 +40,11 @@ class ResourceManager(object):
         resource = []
         for json_object in json_objects:
             for resource_data in json_object:
-                resource.append(self.resource_class(  # pylint: disable=E1102
-                    self, resource_data,
-                    json_object[resource_data]))
+                resource.append(
+                    self.resource_class(  # pylint: disable=E1102
+                        self, resource_data, json_object[resource_data]
+                    )
+                )
         return resource
 
     def _list(self, url, response_key=None):
@@ -75,11 +77,15 @@ class ResourceManager(object):
         json_objects = [json_response_key[item] for item in json_response_key]
         resource = []
         for json_object in json_objects:
-            for values in json_object.get('usage').keys():
-                resource.append(self.resource_class(  # pylint: disable=E1102
-                    self, values,
-                    json_object['limits'][values],
-                    json_object['usage'][values]))
+            for values in json_object.get("usage").keys():
+                resource.append(
+                    self.resource_class(  # pylint: disable=E1102
+                        self,
+                        values,
+                        json_object["limits"][values],
+                        json_object["usage"][values],
+                    )
+                )
         return resource
 
     def _delete(self, url):
@@ -89,23 +95,24 @@ class ResourceManager(object):
 
     def _raise_api_exception(self, resp):
         error_html = resp.content
-        soup = BeautifulSoup(error_html, 'html.parser')
+        soup = BeautifulSoup(error_html, "html.parser")
         # Get the raw html with get_text, strip out the blank lines on
         # front and back, then get rid of the 2 lines of error code number
         # and error code explanation so that we are left with just the
         # meaningful error text.
         try:
-            error_msg = soup.body.get_text().lstrip().rstrip().split('\n')[2]
+            error_msg = soup.body.get_text().lstrip().rstrip().split("\n")[2]
         except Exception:
             error_msg = resp.content
 
-        raise exceptions.APIException(error_code=resp.status_code,
-                                      error_message=error_msg)
+        raise exceptions.APIException(
+            error_code=resp.status_code, error_message=error_msg
+        )
 
 
 def get_json(response):
     """Get JSON representation of response."""
-    json_field_or_function = getattr(response, 'json', None)
+    json_field_or_function = getattr(response, "json", None)
     if callable(json_field_or_function):
         return response.json()
     else:

@@ -12,7 +12,7 @@
 #    See the License for the specific language governing permissions and
 #    limitations under the License.
 #
-# Copyright (c) 2019-2020 Wind River Systems, Inc.
+# Copyright (c) 2019-2020, 2024 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -24,6 +24,7 @@ class DBsyncClientException(Exception):
     To correctly use this class, inherit from it and define
     a 'message' and 'code' properties.
     """
+
     message = "An unknown exception occurred"
     code = "UNKNOWN_EXCEPTION"
 
@@ -33,7 +34,8 @@ class DBsyncClientException(Exception):
     def __init__(self, message=message):
         self.message = message
         super(DBsyncClientException, self).__init__(
-            '%s: %s' % (self.code, self.message))
+            "%s: %s" % (self.code, self.message)
+        )
 
 
 class IllegalArgumentException(DBsyncClientException):

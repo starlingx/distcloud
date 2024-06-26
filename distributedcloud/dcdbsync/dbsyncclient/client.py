@@ -20,14 +20,28 @@
 from dcdbsync.dbsyncclient.v1 import client as client_v1
 
 
-def Client(dbsync_agent_url=None, username=None, api_key=None,
-           project_name=None, auth_url=None, project_id=None,
-           endpoint_type='publicURL', service_type='dcorch-dbsync',
-           auth_token=None, user_id=None, cacert=None, insecure=False,
-           profile=None, auth_type='keystone', client_id=None,
-           client_secret=None, session=None, **kwargs):
+def Client(
+    dbsync_agent_url=None,
+    username=None,
+    api_key=None,
+    project_name=None,
+    auth_url=None,
+    project_id=None,
+    endpoint_type="publicURL",
+    service_type="dcorch-dbsync",
+    auth_token=None,
+    user_id=None,
+    cacert=None,
+    insecure=False,
+    profile=None,
+    auth_type="keystone",
+    client_id=None,
+    client_secret=None,
+    session=None,
+    **kwargs
+):
     if dbsync_agent_url and not isinstance(dbsync_agent_url, str):
-        raise RuntimeError('DC DBsync agent url should be a string.')
+        raise RuntimeError("DC DBsync agent url should be a string.")
 
     return client_v1.Client(
         dbsync_agent_url=dbsync_agent_url,

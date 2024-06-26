@@ -12,7 +12,7 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 #
-# Copyright (c) 2019 Wind River Systems, Inc.
+# Copyright (c) 2019, 2024 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -23,7 +23,7 @@ DBSYNC_VENDOR = "Wind River Systems"
 DBSYNC_PRODUCT = "Distributed Cloud DBsync Agent"
 DBSYNC_PACKAGE = None  # OS distro package version suffix
 
-version_info = pbr.version.VersionInfo('distributedcloud')
+version_info = pbr.version.VersionInfo("distributedcloud")
 version_string = version_info.version_string
 
 

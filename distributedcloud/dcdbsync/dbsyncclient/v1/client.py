@@ -28,8 +28,7 @@ from dcdbsync.dbsyncclient.v1.identity import identity_group_manager as igm
 from dcdbsync.dbsyncclient.v1.identity import identity_user_manager as ium
 from dcdbsync.dbsyncclient.v1.identity import project_manager as pm
 from dcdbsync.dbsyncclient.v1.identity import role_manager as rm
-from dcdbsync.dbsyncclient.v1.identity \
-    import token_revoke_event_manager as trem
+from dcdbsync.dbsyncclient.v1.identity import token_revoke_event_manager as trem
 
 osprofiler_profiler = importutils.try_import("osprofiler.profiler")
 
@@ -41,40 +40,53 @@ _DEFAULT_REQUEST_TIMEOUT = 15
 class Client(object):
     """Class where the communication from KB to Keystone happens."""
 
-    def __init__(self, dbsync_agent_url=None, username=None, api_key=None,
-                 project_name=None, auth_url=None, project_id=None,
-                 endpoint_type='publicURL', service_type='dcorch-dbsync',
-                 auth_token=None, user_id=None, cacert=None, insecure=False,
-                 profile=None, auth_type='keystone', client_id=None,
-                 client_secret=None, session=None, **kwargs):
+    def __init__(
+        self,
+        dbsync_agent_url=None,
+        username=None,
+        api_key=None,
+        project_name=None,
+        auth_url=None,
+        project_id=None,
+        endpoint_type="publicURL",
+        service_type="dcorch-dbsync",
+        auth_token=None,
+        user_id=None,
+        cacert=None,
+        insecure=False,
+        profile=None,
+        auth_type="keystone",
+        client_id=None,
+        client_secret=None,
+        session=None,
+        **kwargs
+    ):
         """Communicates with Keystone to fetch necessary values."""
         if dbsync_agent_url and not isinstance(dbsync_agent_url, str):
-            raise RuntimeError('DC DBsync agent url should be a string.')
+            raise RuntimeError("DC DBsync agent url should be a string.")
 
         if auth_url or session:
-            if auth_type == 'keystone':
-                (dbsync_agent_url, auth_token, project_id, user_id) = (
-                    authenticate(
-                        dbsync_agent_url,
-                        username,
-                        api_key,
-                        project_name,
-                        auth_url,
-                        project_id,
-                        endpoint_type,
-                        service_type,
-                        auth_token,
-                        user_id,
-                        session,
-                        cacert,
-                        insecure,
-                        **kwargs
-                    )
+            if auth_type == "keystone":
+                (dbsync_agent_url, auth_token, project_id, user_id) = authenticate(
+                    dbsync_agent_url,
+                    username,
+                    api_key,
+                    project_name,
+                    auth_url,
+                    project_id,
+                    endpoint_type,
+                    service_type,
+                    auth_token,
+                    user_id,
+                    session,
+                    cacert,
+                    insecure,
+                    **kwargs
                 )
             else:
                 raise RuntimeError(
-                    'Invalid authentication type [value=%s, valid_values=%s]'
-                    % (auth_type, 'keystone')
+                    "Invalid authentication type [value=%s, valid_values=%s]"
+                    % (auth_type, "keystone")
                 )
 
         if not dbsync_agent_url:
@@ -103,39 +115,44 @@ class Client(object):
     # update to get a new token
     def update(self, session=None):
         if session:
-            (dbsync_agent_url, auth_token, project_id, user_id) = (
-                authenticate(
-                    auth_url=session.auth.auth_url,
-                    username=session.auth._username,
-                    api_key=session.auth._password,
-                    project_name=session.auth._project_name,
-                    user_domain_name=session.auth._user_domain_name,
-                    project_domain_name=session.auth._project_domain_name,
-                )
+            (dbsync_agent_url, auth_token, project_id, user_id) = authenticate(
+                auth_url=session.auth.auth_url,
+                username=session.auth._username,
+                api_key=session.auth._password,
+                project_name=session.auth._project_name,
+                user_domain_name=session.auth._user_domain_name,
+                project_domain_name=session.auth._project_domain_name,
             )
 
             self.http_client.token = auth_token
 
 
-def authenticate(dbsync_agent_url=None, username=None,
-                 api_key=None, project_name=None, auth_url=None,
-                 project_id=None, endpoint_type='internalURL',
-                 service_type='dcorch-dbsync', auth_token=None, user_id=None,
-                 session=None, cacert=None, insecure=False, **kwargs):
+def authenticate(
+    dbsync_agent_url=None,
+    username=None,
+    api_key=None,
+    project_name=None,
+    auth_url=None,
+    project_id=None,
+    endpoint_type="internalURL",
+    service_type="dcorch-dbsync",
+    auth_token=None,
+    user_id=None,
+    session=None,
+    cacert=None,
+    insecure=False,
+    **kwargs
+):
     """Get token, project_id, user_id and Endpoint."""
     if project_name and project_id:
-        raise RuntimeError(
-            'Only project name or project id should be set'
-        )
+        raise RuntimeError("Only project name or project id should be set")
 
     if username and user_id:
-        raise RuntimeError(
-            'Only user name or user id should be set'
-        )
-    user_domain_name = kwargs.get('user_domain_name')
-    user_domain_id = kwargs.get('user_domain_id')
-    project_domain_name = kwargs.get('project_domain_name')
-    project_domain_id = kwargs.get('project_domain_id')
+        raise RuntimeError("Only user name or user id should be set")
+    user_domain_name = kwargs.get("user_domain_name")
+    user_domain_id = kwargs.get("user_domain_id")
+    project_domain_name = kwargs.get("project_domain_name")
+    project_domain_id = kwargs.get("project_domain_id")
 
     if session is None:
         if auth_token:
@@ -159,11 +176,14 @@ def authenticate(dbsync_agent_url=None, username=None,
                 user_domain_name=user_domain_name,
                 user_domain_id=user_domain_id,
                 project_domain_name=project_domain_name,
-                project_domain_id=project_domain_id)
+                project_domain_id=project_domain_id,
+            )
 
         else:
-            raise RuntimeError('You must either provide a valid token or'
-                               'a password (api_key) and a user.')
+            raise RuntimeError(
+                "You must either provide a valid token or a password (api_key) "
+                "and a user."
+            )
         if auth:
             session = ks_session.Session(auth=auth)
 
@@ -173,7 +193,7 @@ def authenticate(dbsync_agent_url=None, username=None,
         user_id = session.get_user_id()
         if not dbsync_agent_url:
             dbsync_agent_url = session.get_endpoint(
-                service_type=service_type,
-                interface=endpoint_type)
+                service_type=service_type, interface=endpoint_type
+            )
 
     return dbsync_agent_url, token, project_id, user_id

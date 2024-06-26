@@ -12,7 +12,7 @@
 # License for the specific language governing permissions and limitations
 # under the License.
 #
-# Copyright (c) 2019 Wind River Systems, Inc.
+# Copyright (c) 2019, 2024 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -20,4 +20,4 @@
 import pbr.version
 
 
-__version__ = pbr.version.VersionInfo('distributedcloud').version_string()
+__version__ = pbr.version.VersionInfo("distributedcloud").version_string()

@@ -26,6 +26,7 @@ import logging as std_logging
 import sys
 
 import eventlet
+
 eventlet.monkey_patch(os=False)
 
 # pylint: disable=wrong-import-position
@@ -38,11 +39,12 @@ from dcdbsync.api import api_config  # noqa: E402
 from dcdbsync.api import app  # noqa: E402
 from dcdbsync.common import config  # noqa: E402
 from dcdbsync.common import messaging  # noqa: E402
+
 # pylint: enable=wrong-import-position
 
 CONF = cfg.CONF
 config.register_options()
-LOG = logging.getLogger('dcdbsync.api')
+LOG = logging.getLogger("dcdbsync.api")
 
 
 def main():
@@ -58,8 +60,10 @@ def main():
         LOG.warning("Wrong worker number, worker = %(workers)s", workers)
         workers = 1
 
-    LOG.info("Server on http://%(host)s:%(port)s with %(workers)s",
-             {'host': host, 'port': port, 'workers': workers})
+    LOG.info(
+        "Server on http://%(host)s:%(port)s with %(workers)s",
+        {"host": host, "port": port, "workers": workers},
+    )
     messaging.setup()
     systemd.notify_once()
     service = wsgi.Server(CONF, "DCDBsync", application, host, port)
@@ -73,5 +77,5 @@ def main():
     app.wait()
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

@@ -13,7 +13,7 @@
 #    See the License for the specific language governing permissions and
 #    limitations under the License.
 #
-# Copyright (c) 2019 Wind River Systems, Inc.
+# Copyright (c) 2019, 2024 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -25,11 +25,20 @@ from dcdbsync.dbsyncclient import exceptions
 
 
 class Project(base.Resource):
-    resource_name = 'project'
+    resource_name = "project"
 
-    def __init__(self, manager, id, domain_id, name,
-                 enabled, parent_id, is_domain, extra={},
-                 description=""):
+    def __init__(
+        self,
+        manager,
+        id,
+        domain_id,
+        name,
+        enabled,
+        parent_id,
+        is_domain,
+        extra={},
+        description="",
+    ):
         self.manager = manager
         self.id = id
         self.domain_id = domain_id
@@ -42,10 +51,15 @@ class Project(base.Resource):
 
     def info(self):
         resource_info = dict()
-        resource_info.update({self.resource_name:
-                             {'name': self.name,
-                              'id': self.id,
-                              'domain_id': self.domain_id}})
+        resource_info.update(
+            {
+                self.resource_name: {
+                    "name": self.name,
+                    "id": self.id,
+                    "domain_id": self.domain_id,
+                }
+            }
+        )
         return resource_info
 
 
@@ -57,7 +71,7 @@ class project_manager(base.ResourceManager):
 
         # Unauthorized
         if resp.status_code == 401:
-            raise exceptions.Unauthorized('Unauthorized request')
+            raise exceptions.Unauthorized("Unauthorized request")
         if resp.status_code != 201:
             self._raise_api_exception(resp)
 
@@ -70,7 +84,7 @@ class project_manager(base.ResourceManager):
 
         # Unauthorized
         if resp.status_code == 401:
-            raise exceptions.Unauthorized('Unauthorized request')
+            raise exceptions.Unauthorized("Unauthorized request")
         if resp.status_code != 200:
             self._raise_api_exception(resp)
 
@@ -79,17 +93,18 @@ class project_manager(base.ResourceManager):
 
         projects = []
         for json_object in json_objects:
-            json_object = json_object['project']
+            json_object = json_object["project"]
             project = Project(
                 self,
-                id=json_object['id'],
-                domain_id=json_object['domain_id'],
-                name=json_object['name'],
-                extra=json_object['extra'],
-                description=json_object['description'],
-                enabled=json_object['enabled'],
-                parent_id=json_object['parent_id'],
-                is_domain=json_object['is_domain'])
+                id=json_object["id"],
+                domain_id=json_object["domain_id"],
+                name=json_object["name"],
+                extra=json_object["extra"],
+                description=json_object["description"],
+                enabled=json_object["enabled"],
+                parent_id=json_object["parent_id"],
+                is_domain=json_object["is_domain"],
+            )
 
             projects.append(project)
 
@@ -100,7 +115,7 @@ class project_manager(base.ResourceManager):
 
         # Unauthorized
         if resp.status_code == 401:
-            raise exceptions.Unauthorized('Unauthorized request')
+            raise exceptions.Unauthorized("Unauthorized request")
         if resp.status_code != 200:
             self._raise_api_exception(resp)
 
@@ -113,7 +128,7 @@ class project_manager(base.ResourceManager):
 
         # Unauthorized
         if resp.status_code == 401:
-            raise exceptions.Unauthorized('Unauthorized request')
+            raise exceptions.Unauthorized("Unauthorized request")
         if resp.status_code != 200:
             self._raise_api_exception(resp)
 
@@ -122,17 +137,17 @@ class project_manager(base.ResourceManager):
         return json_object
 
     def add_project(self, data):
-        url = '/identity/projects/'
+        url = "/identity/projects/"
         return self.project_create(url, data)
 
     def list_projects(self):
-        url = '/identity/projects/'
+        url = "/identity/projects/"
         return self.projects_list(url)
 
     def project_detail(self, project_ref):
-        url = '/identity/projects/%s' % project_ref
+        url = "/identity/projects/%s" % project_ref
         return self._project_detail(url)
 
     def update_project(self, project_ref, data):
-        url = '/identity/projects/%s' % project_ref
+        url = "/identity/projects/%s" % project_ref
         return self._project_update(url, data)

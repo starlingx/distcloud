@@ -10,13 +10,12 @@
 # License for the specific language governing permissions and limitations
 # under the License.
 #
-# Copyright (c) 2019 Wind River Systems, Inc.
+# Copyright (c) 2019, 2024 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
 
 import eventlet
-
 from oslo_config import cfg
 import oslo_messaging
 from oslo_serialization import jsonutils
@@ -66,11 +65,12 @@ def setup(url=None, optional=False):
         eventlet.monkey_patch(time=True)
 
     if not TRANSPORT:
-        oslo_messaging.set_transport_defaults('dcdbsync')
-        exmods = ['dcdbsync.common.exception']
+        oslo_messaging.set_transport_defaults("dcdbsync")
+        exmods = ["dcdbsync.common.exception"]
         try:
             TRANSPORT = oslo_messaging.get_transport(
-                cfg.CONF, url, allowed_remote_exmods=exmods)
+                cfg.CONF, url, allowed_remote_exmods=exmods
+            )
         except oslo_messaging.InvalidTransportURL as e:
             TRANSPORT = None
             if not optional or e.url:
@@ -92,17 +92,16 @@ def cleanup():
 def get_rpc_server(target, endpoint):
     """Return a configured oslo_messaging rpc server."""
     serializer = RequestContextSerializer(JsonPayloadSerializer())
-    return oslo_messaging.get_rpc_server(TRANSPORT, target, [endpoint],
-                                         executor='eventlet',
-                                         serializer=serializer)
+    return oslo_messaging.get_rpc_server(
+        TRANSPORT, target, [endpoint], executor="eventlet", serializer=serializer
+    )
 
 
 def get_rpc_client(**kwargs):
     """Return a configured oslo_messaging RPCClient."""
     target = oslo_messaging.Target(**kwargs)
     serializer = RequestContextSerializer(JsonPayloadSerializer())
-    return oslo_messaging.RPCClient(TRANSPORT, target,
-                                    serializer=serializer)
+    return oslo_messaging.RPCClient(TRANSPORT, target, serializer=serializer)
 
 
 def get_notifier(publisher_id):

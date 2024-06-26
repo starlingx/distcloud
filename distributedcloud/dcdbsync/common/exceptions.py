@@ -86,10 +86,11 @@ class RoleNotFound(NotFound):
 
 
 class ProjectRoleAssignmentNotFound(NotFound):
-    message = _("Project role assignment with id"
-                " %(project_role_assignment_id)s doesn't exist.")
+    message = _(
+        "Project role assignment with id "
+        "%(project_role_assignment_id)s doesn't exist."
+    )
 
 
 class RevokeEventNotFound(NotFound):
-    message = _("Token revocation event with id %(revoke_event_id)s"
-                " doesn't exist.")
+    message = _("Token revocation event with id %(revoke_event_id)s doesn't exist.")

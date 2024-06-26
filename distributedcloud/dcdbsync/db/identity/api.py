@@ -13,7 +13,7 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 #
-# Copyright (c) 2019-2021 Wind River Systems, Inc.
+# Copyright (c) 2019-2021, 2024 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -30,7 +30,7 @@ from oslo_db import api
 
 CONF = cfg.CONF
 
-_BACKEND_MAPPING = {'sqlalchemy': 'dcdbsync.db.identity.sqlalchemy.api'}
+_BACKEND_MAPPING = {"sqlalchemy": "dcdbsync.db.identity.sqlalchemy.api"}
 
 IMPL = api.DBAPI.from_config(CONF, backend_mapping=_BACKEND_MAPPING)
 
@@ -48,6 +48,7 @@ def get_session():
 # user db methods
 
 ###################
+
 
 def user_get_all(context):
     """Retrieve all users."""
@@ -75,6 +76,7 @@ def user_update(context, user_ref, payload):
 
 ###################
 
+
 def group_get_all(context):
     """Retrieve all groups."""
     return IMPL.group_get_all(context)
@@ -100,6 +102,7 @@ def group_update(context, group_ref, payload):
 # project db methods
 
 ###################
+
 
 def project_get_all(context):
     """Retrieve all projects."""
@@ -127,6 +130,7 @@ def project_update(context, project_ref, payload):
 
 ###################
 
+
 def role_get_all(context):
     """Retrieve all roles."""
     return IMPL.role_get_all(context)
@@ -152,6 +156,7 @@ def role_update(context, role_ref, payload):
 # revoke_event db methods
 
 ###################
+
 
 def revoke_event_get_all(context):
     """Retrieve all token revocation events."""

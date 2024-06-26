@@ -6,7 +6,6 @@ import sys
 # List of module directories to check
 modules = [
     "dccommon",
-    "dcdbsync/api",
     "dcdbsync",
     "dcorch/api",
     "dcorch/common",
@@ -23,7 +22,7 @@ modules = [
 ]
 
 # List of modules that are already formatted with black
-formatted_modules = ["dccommon", "dcdbsync/api"]
+formatted_modules = ["dccommon", "dcdbsync"]
 
 
 # Function to run black check

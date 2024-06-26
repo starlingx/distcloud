@@ -13,7 +13,7 @@
 #    See the License for the specific language governing permissions and
 #    limitations under the License.
 #
-# Copyright (c) 2019 Wind River Systems, Inc.
+# Copyright (c) 2019, 2024 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -25,11 +25,25 @@ from dcdbsync.dbsyncclient import exceptions
 
 
 class RevokeEvent(base.Resource):
-    resource_name = 'token_revoke_event'
+    resource_name = "token_revoke_event"
 
-    def __init__(self, manager, id, domain_id, project_id, user_id, role_id,
-                 trust_id, consumer_id, access_token_id, issued_before,
-                 expires_at, revoked_at, audit_id, audit_chain_id):
+    def __init__(
+        self,
+        manager,
+        id,
+        domain_id,
+        project_id,
+        user_id,
+        role_id,
+        trust_id,
+        consumer_id,
+        access_token_id,
+        issued_before,
+        expires_at,
+        revoked_at,
+        audit_id,
+        audit_chain_id,
+    ):
         self.manager = manager
         self.id = id
         self.domain_id = domain_id
@@ -47,13 +61,18 @@ class RevokeEvent(base.Resource):
 
     def info(self):
         resource_info = dict()
-        resource_info.update({self.resource_name:
-                             {'id': self.id,
-                              'project_id': self.project_id,
-                              'user_id': self.user_id,
-                              'role_id': self.role_id,
-                              'audit_id': self.audit_id,
-                              'issued_before': self.issued_before}})
+        resource_info.update(
+            {
+                self.resource_name: {
+                    "id": self.id,
+                    "project_id": self.project_id,
+                    "user_id": self.user_id,
+                    "role_id": self.role_id,
+                    "audit_id": self.audit_id,
+                    "issued_before": self.issued_before,
+                }
+            }
+        )
         return resource_info
 
 
@@ -65,7 +84,7 @@ class revoke_event_manager(base.ResourceManager):
 
         # Unauthorized
         if resp.status_code == 401:
-            raise exceptions.Unauthorized('Unauthorized request')
+            raise exceptions.Unauthorized("Unauthorized request")
         if resp.status_code != 201:
             self._raise_api_exception(resp)
 
@@ -78,7 +97,7 @@ class revoke_event_manager(base.ResourceManager):
 
         # Unauthorized
         if resp.status_code == 401:
-            raise exceptions.Unauthorized('Unauthorized request')
+            raise exceptions.Unauthorized("Unauthorized request")
         if resp.status_code != 200:
             self._raise_api_exception(resp)
 
@@ -87,22 +106,23 @@ class revoke_event_manager(base.ResourceManager):
 
         revoke_events = []
         for json_object in json_objects:
-            json_object = json_object.get('revocation_event')
+            json_object = json_object.get("revocation_event")
             revoke_event = RevokeEvent(
                 self,
-                id=json_object['id'],
-                domain_id=json_object['domain_id'],
-                project_id=json_object['project_id'],
-                user_id=json_object['user_id'],
-                role_id=json_object['role_id'],
-                trust_id=json_object['trust_id'],
-                consumer_id=json_object['consumer_id'],
-                access_token_id=json_object['access_token_id'],
-                issued_before=json_object['issued_before'],
-                expires_at=json_object['expires_at'],
-                revoked_at=json_object['revoked_at'],
-                audit_id=json_object['audit_id'],
-                audit_chain_id=json_object['audit_chain_id'])
+                id=json_object["id"],
+                domain_id=json_object["domain_id"],
+                project_id=json_object["project_id"],
+                user_id=json_object["user_id"],
+                role_id=json_object["role_id"],
+                trust_id=json_object["trust_id"],
+                consumer_id=json_object["consumer_id"],
+                access_token_id=json_object["access_token_id"],
+                issued_before=json_object["issued_before"],
+                expires_at=json_object["expires_at"],
+                revoked_at=json_object["revoked_at"],
+                audit_id=json_object["audit_id"],
+                audit_chain_id=json_object["audit_chain_id"],
+            )
 
             revoke_events.append(revoke_event)
 
@@ -113,7 +133,7 @@ class revoke_event_manager(base.ResourceManager):
 
         # Unauthorized
         if resp.status_code == 401:
-            raise exceptions.Unauthorized('Unauthorized request')
+            raise exceptions.Unauthorized("Unauthorized request")
         if resp.status_code != 200:
             self._raise_api_exception(resp)
 
@@ -126,41 +146,41 @@ class revoke_event_manager(base.ResourceManager):
 
         # Unauthorized
         if resp.status_code == 401:
-            raise exceptions.Unauthorized('Unauthorized request')
+            raise exceptions.Unauthorized("Unauthorized request")
         # NotFound
         if resp.status_code == 404:
-            raise exceptions.NotFound('Requested item not found')
+            raise exceptions.NotFound("Requested item not found")
         if resp.status_code != 204:
             self._raise_api_exception(resp)
 
     def add_revoke_event(self, data):
-        url = '/identity/token-revocation-events/'
+        url = "/identity/token-revocation-events/"
         return self.revoke_event_create(url, data)
 
     def list_revoke_events(self):
-        url = '/identity/token-revocation-events/'
+        url = "/identity/token-revocation-events/"
         return self.revoke_events_list(url)
 
     def revoke_event_detail(self, user_id=None, audit_id=None):
         if user_id:
-            url = '/identity/token-revocation-events/users/%s' % user_id
+            url = "/identity/token-revocation-events/users/%s" % user_id
         elif audit_id:
-            url = '/identity/token-revocation-events/audits/%s' % audit_id
+            url = "/identity/token-revocation-events/audits/%s" % audit_id
         else:
-            raise exceptions.\
-                IllegalArgumentException('Token revocation event user ID'
-                                         ' or audit ID required.')
+            raise exceptions.IllegalArgumentException(
+                "Token revocation event user ID or audit ID required."
+            )
 
         return self._revoke_event_detail(url)
 
     def delete_revoke_event(self, user_id=None, audit_id=None):
         if user_id:
-            url = '/identity/token-revocation-events/users/%s' % user_id
+            url = "/identity/token-revocation-events/users/%s" % user_id
         elif audit_id:
-            url = '/identity/token-revocation-events/audits/%s' % audit_id
+            url = "/identity/token-revocation-events/audits/%s" % audit_id
         else:
-            raise exceptions.\
-                IllegalArgumentException('Token revocation event ID'
-                                         ' or audit ID required.')
+            raise exceptions.IllegalArgumentException(
+                "Token revocation event ID or audit ID required."
+            )
 
         return self._revoke_event_delete(url)

@@ -13,7 +13,7 @@
 #    See the License for the specific language governing permissions and
 #    limitations under the License.
 #
-# Copyright (c) 2019 Wind River Systems, Inc.
+# Copyright (c) 2019, 2024 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -24,7 +24,7 @@ from dcdbsync.dbsyncclient import exceptions
 
 
 class Role(base.Resource):
-    resource_name = 'role'
+    resource_name = "role"
 
     def __init__(self, manager, id, domain_id, name, description, extra={}):
         self.manager = manager
@@ -36,10 +36,15 @@ class Role(base.Resource):
 
     def info(self):
         resource_info = dict()
-        resource_info.update({self.resource_name:
-                             {'name': self.name,
-                              'id': self.id,
-                              'domain_id': self.domain_id}})
+        resource_info.update(
+            {
+                self.resource_name: {
+                    "name": self.name,
+                    "id": self.id,
+                    "domain_id": self.domain_id,
+                }
+            }
+        )
         return resource_info
 
 
@@ -51,7 +56,7 @@ class role_manager(base.ResourceManager):
 
         # Unauthorized
         if resp.status_code == 401:
-            raise exceptions.Unauthorized('Unauthorized request')
+            raise exceptions.Unauthorized("Unauthorized request")
         if resp.status_code != 201:
             self._raise_api_exception(resp)
 
@@ -64,7 +69,7 @@ class role_manager(base.ResourceManager):
 
         # Unauthorized
         if resp.status_code == 401:
-            raise exceptions.Unauthorized('Unauthorized request')
+            raise exceptions.Unauthorized("Unauthorized request")
         if resp.status_code != 200:
             self._raise_api_exception(resp)
 
@@ -73,14 +78,15 @@ class role_manager(base.ResourceManager):
 
         roles = []
         for json_object in json_objects:
-            json_object = json_object.get('role')
+            json_object = json_object.get("role")
             role = Role(
                 self,
-                id=json_object['id'],
-                domain_id=json_object['domain_id'],
-                name=json_object['name'],
-                description=json_object['description'],
-                extra=json_object['extra'])
+                id=json_object["id"],
+                domain_id=json_object["domain_id"],
+                name=json_object["name"],
+                description=json_object["description"],
+                extra=json_object["extra"],
+            )
 
             roles.append(role)
 
@@ -91,7 +97,7 @@ class role_manager(base.ResourceManager):
 
         # Unauthorized
         if resp.status_code == 401:
-            raise exceptions.Unauthorized('Unauthorized request')
+            raise exceptions.Unauthorized("Unauthorized request")
         if resp.status_code != 200:
             self._raise_api_exception(resp)
 
@@ -104,7 +110,7 @@ class role_manager(base.ResourceManager):
 
         # Unauthorized
         if resp.status_code == 401:
-            raise exceptions.Unauthorized('Unauthorized request')
+            raise exceptions.Unauthorized("Unauthorized request")
         if resp.status_code != 200:
             self._raise_api_exception(resp)
 
@@ -113,17 +119,17 @@ class role_manager(base.ResourceManager):
         return json_object
 
     def add_role(self, data):
-        url = '/identity/roles/'
+        url = "/identity/roles/"
         return self.role_create(url, data)
 
     def list_roles(self):
-        url = '/identity/roles/'
+        url = "/identity/roles/"
         return self.roles_list(url)
 
     def role_detail(self, role_ref):
-        url = '/identity/roles/%s' % role_ref
+        url = "/identity/roles/%s" % role_ref
         return self._role_detail(url)
 
     def update_role(self, role_ref, data):
-        url = '/identity/roles/%s' % role_ref
+        url = "/identity/roles/%s" % role_ref
         return self._role_update(url, data)

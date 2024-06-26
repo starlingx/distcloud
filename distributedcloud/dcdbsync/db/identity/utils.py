@@ -13,7 +13,7 @@
 # License for the specific language governing permissions and limitations
 # under the License.
 #
-# Copyright (c) 2019, 2022 Wind River Systems, Inc.
+# Copyright (c) 2019, 2022, 2024 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -50,8 +50,8 @@ class LazyPluggable(object):
         return getattr(backend, key)
 
 
-IMPL = LazyPluggable('backend', sqlalchemy='dcdbsync.db.sqlalchemy.api')
+IMPL = LazyPluggable("backend", sqlalchemy="dcdbsync.db.sqlalchemy.api")
 
 
-def purge_deleted(age, granularity='days'):
+def purge_deleted(age, granularity="days"):
     IMPL.purge_deleted(age, granularity)
