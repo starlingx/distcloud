@@ -1,3 +1,4 @@
+# Copyright (c) 2024 Wind River Systems, Inc.
 # Licensed under the Apache License, Version 2.0 (the "License"); you may
 # not use this file except in compliance with the License. You may obtain
 # a copy of the License at
@@ -19,7 +20,7 @@ from dcorch.common import exceptions
 from dcorch.drivers import base
 
 LOG = log.getLogger(__name__)
-API_VERSION = '2'
+API_VERSION = "2"
 
 
 class CinderClient(base.DriverBase):
@@ -27,11 +28,13 @@ class CinderClient(base.DriverBase):
 
     def __init__(self, region, disabled_quotas, session, endpoint_type):
         try:
-            self.cinder = client.Client(API_VERSION,
-                                        session=session,
-                                        region_name=region,
-                                        endpoint_type=endpoint_type)
-            self.no_volumes = True if 'volumes' in disabled_quotas else False
+            self.cinder = client.Client(
+                API_VERSION,
+                session=session,
+                region_name=region,
+                endpoint_type=endpoint_type,
+            )
+            self.no_volumes = True if "volumes" in disabled_quotas else False
         except exceptions.ServiceUnavailable:
             raise
 
@@ -45,17 +48,17 @@ class CinderClient(base.DriverBase):
         """
         if not self.no_volumes:
             try:
-                quota_usage = self.cinder.quotas.get(
-                    project_id, usage=True)
+                quota_usage = self.cinder.quotas.get(project_id, usage=True)
                 quota_usage_dict = quota_usage.to_dict()
-                del quota_usage_dict['id']
+                del quota_usage_dict["id"]
                 resource_usage = defaultdict(dict)
                 for resource in quota_usage_dict:
                     # NOTE: May be able to remove "reserved" if
                     # cinder will never set it. Need to check.
                     resource_usage[resource] = (
-                        quota_usage_dict[resource]['in_use'] +
-                        quota_usage_dict[resource]['reserved'])
+                        quota_usage_dict[resource]["in_use"]
+                        + quota_usage_dict[resource]["reserved"]
+                    )
                 return resource_usage
             except exceptions.InternalError:
                 raise
@@ -63,10 +66,9 @@ class CinderClient(base.DriverBase):
     def get_quota_limits(self, project_id):
         """Get the resource limits"""
         try:
-            quotas = self.cinder.quotas.get(
-                project_id, usage=False)
+            quotas = self.cinder.quotas.get(project_id, usage=False)
             quotas_dict = quotas.to_dict()
-            del quotas_dict['id']
+            del quotas_dict["id"]
             return quotas_dict
         except exceptions.InternalError:
             raise

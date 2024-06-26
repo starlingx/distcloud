@@ -19,6 +19,7 @@ DC Orchestrators Engine Server.
 """
 
 import eventlet
+
 eventlet.monkey_patch()
 
 # pylint: disable=wrong-import-position
@@ -30,17 +31,18 @@ from oslo_service import service  # noqa: E402
 from dcorch.common import config  # noqa: E402
 from dcorch.common import messaging  # noqa: E402
 from dcorch.engine import service as engine  # noqa: E402
+
 # pylint: enable=wrong-import-position
 
 _lazy.enable_lazy()
 config.register_options()
-LOG = logging.getLogger('dcorch.engine')
+LOG = logging.getLogger("dcorch.engine")
 
 
 def main():
     logging.register_options(cfg.CONF)
-    cfg.CONF(project='dcorch', prog='dcorch-engine')
-    logging.setup(cfg.CONF, 'dcorch-engine')
+    cfg.CONF(project="dcorch", prog="dcorch-engine")
+    logging.setup(cfg.CONF, "dcorch-engine")
     logging.set_defaults()
     messaging.setup()
 
@@ -53,5 +55,5 @@ def main():
     launcher.wait()
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

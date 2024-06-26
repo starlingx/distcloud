@@ -301,8 +301,9 @@ class TestIdentitySyncThreadProjectsPost(
         super().setUp()
 
         self.method = self.identity_sync_thread.post_projects
-        self.sc_dbs_client = self.identity_sync_thread.get_sc_dbs_client()
-        self.resource_add = self.sc_dbs_client.project_manager.add_project
+        self.resource_add = (
+            self.identity_sync_thread.get_sc_dbs_client().project_manager.add_project
+        )
 
 
 class TestIdentitySyncThreadProjectsPut(
@@ -314,8 +315,9 @@ class TestIdentitySyncThreadProjectsPut(
         super().setUp()
 
         self.method = self.identity_sync_thread.put_projects
-        self.sc_dbs_client = self.identity_sync_thread.get_sc_dbs_client()
-        self.resource_update = self.sc_dbs_client.project_manager.update_project
+        self.resource_update = (
+            self.identity_sync_thread.get_sc_dbs_client().project_manager.update_project
+        )
 
 
 class TestIdentitySyncThreadProjectsPatch(
@@ -358,8 +360,9 @@ class BaseTestIdentitySyncThreadRoles(BaseTestIdentitySyncThread):
             self.resource_name: {"id": RESOURCE_ID, "name": "fake value"}
         }
         self.resource_ref_name = self.resource_ref.get(self.resource_name).get("name")
-        self.dbs_client = self.identity_sync_thread.get_master_dbs_client()
-        self.resource_detail = self.dbs_client.role_manager.role_detail
+        self.resource_detail = (
+            self.identity_sync_thread.get_master_dbs_client().role_manager.role_detail
+        )
 
 
 class TestIdentitySyncThreadRolesPost(
@@ -371,8 +374,9 @@ class TestIdentitySyncThreadRolesPost(
         super().setUp()
 
         self.method = self.identity_sync_thread.post_roles
-        self.sc_dbs_client = self.identity_sync_thread.get_sc_dbs_client()
-        self.resource_add = self.sc_dbs_client.role_manager.add_role
+        self.resource_add = (
+            self.identity_sync_thread.get_sc_dbs_client().role_manager.add_role
+        )
 
 
 class TestIdentitySyncThreadRolesPut(
@@ -384,8 +388,9 @@ class TestIdentitySyncThreadRolesPut(
         super().setUp()
 
         self.method = self.identity_sync_thread.put_roles
-        self.sc_dbs_client = self.identity_sync_thread.get_sc_dbs_client()
-        self.resource_update = self.sc_dbs_client.role_manager.update_role
+        self.resource_update = (
+            self.identity_sync_thread.get_sc_dbs_client().role_manager.update_role
+        )
 
 
 class TestIdentitySyncThreadRolesPatch(
@@ -443,16 +448,15 @@ class TestIdentitySyncThreadProjectRoleAssignmentsPost(
         self.rsrc.master_id = self.resource_tags
 
         self.mock_sc_role = self._create_mock_object(self.role_id)
-        self.identity_sync_thread.get_sc_ks_client().roles.list.return_value = [
-            self.mock_sc_role
-        ]
-        self.identity_sync_thread.get_sc_ks_client().projects.list.return_value = [
+        self.sc_ks_client = self.identity_sync_thread.get_sc_ks_client()
+        self.sc_ks_client.roles.list.return_value = [self.mock_sc_role]
+        self.sc_ks_client.projects.list.return_value = [
             self._create_mock_object(self.project_id)
         ]
-        self.identity_sync_thread.get_sc_ks_client().domains.list.return_value = [
+        self.sc_ks_client.domains.list.return_value = [
             self._create_mock_object(self.project_id)
         ]
-        self.identity_sync_thread.get_sc_ks_client().users.list.return_value = [
+        self.sc_ks_client.users.list.return_value = [
             self._create_mock_object(self.actor_id)
         ]
 
@@ -475,8 +479,8 @@ class TestIdentitySyncThreadProjectRoleAssignmentsPost(
     def test_post_succeeds_with_sc_group(self):
         """Test post succeeds with sc group"""
 
-        self.identity_sync_thread.get_sc_ks_client().users.list.return_value = []
-        self.identity_sync_thread.get_sc_ks_client().groups.list.return_value = [
+        self.sc_ks_client.users.list.return_value = []
+        self.sc_ks_client.groups.list.return_value = [
             self._create_mock_object(self.actor_id)
         ]
 
@@ -502,7 +506,7 @@ class TestIdentitySyncThreadProjectRoleAssignmentsPost(
     def test_post_fails_without_sc_role(self):
         """Test post fails without sc role"""
 
-        self.identity_sync_thread.get_sc_ks_client().roles.list.return_value = []
+        self.sc_ks_client.roles.list.return_value = []
 
         self._execute_and_assert_exception(exceptions.SyncRequestFailed)
         self._assert_log(
@@ -515,7 +519,7 @@ class TestIdentitySyncThreadProjectRoleAssignmentsPost(
     def test_post_fails_without_sc_proj(self):
         """Test post fails without sc proj"""
 
-        self.identity_sync_thread.get_sc_ks_client().projects.list.return_value = []
+        self.sc_ks_client.projects.list.return_value = []
 
         self._execute_and_assert_exception(exceptions.SyncRequestFailed)
         self._assert_log(
@@ -528,7 +532,7 @@ class TestIdentitySyncThreadProjectRoleAssignmentsPost(
     def test_post_fails_wihtout_sc_user_and_sc_group(self):
         """Test post fails without sc user and sc group"""
 
-        self.identity_sync_thread.get_sc_ks_client().users.list.return_value = []
+        self.sc_ks_client.users.list.return_value = []
 
         self._execute_and_assert_exception(exceptions.SyncRequestFailed)
         self._assert_log(
@@ -541,8 +545,7 @@ class TestIdentitySyncThreadProjectRoleAssignmentsPost(
     def test_post_fails_without_role_ref(self):
         """Test post fails without role ref"""
 
-        sc_ks_client = self.identity_sync_thread.get_sc_ks_client()
-        sc_ks_client.role_assignments.list.return_value = []
+        self.sc_ks_client.role_assignments.list.return_value = []
 
         self._execute_and_assert_exception(exceptions.SyncRequestFailed)
         self._assert_log(
@@ -586,14 +589,14 @@ class TestIdentitySyncThreadProjectRoleAssignmentsDelete(
 
         self.method = self.identity_sync_thread.delete_project_role_assignments
 
+        self.sc_ks_client = self.identity_sync_thread.get_sc_ks_client()
         self.subcloud_resource.subcloud_resource_id = self.resource_tags
         self.subcloud_resource.save()
 
     def test_delete_succeeds(self):
         """Test delete succeeds"""
 
-        sc_ks_client = self.identity_sync_thread.get_sc_ks_client()
-        sc_ks_client.role_assignments.list.return_value = []
+        self.sc_ks_client.role_assignments.list.return_value = []
 
         self._execute()
 
@@ -634,12 +637,11 @@ class TestIdentitySyncThreadProjectRoleAssignmentsDelete(
     def test_delete_for_user_succeeds_with_keystone_not_found_exception(self):
         """Test delete fails for user with keystone not found exception"""
 
-        sc_ks_client = self.identity_sync_thread.get_sc_ks_client()
-        sc_ks_client.roles.revoke.side_effect = [
+        self.sc_ks_client.roles.revoke.side_effect = [
             keystone_exceptions.NotFound,
             None,
         ]
-        sc_ks_client.role_assignments.list.return_value = []
+        self.sc_ks_client.role_assignments.list.return_value = []
 
         self._execute()
 
@@ -664,9 +666,7 @@ class TestIdentitySyncThreadProjectRoleAssignmentsDelete(
     def test_delete_for_group_succeeds_with_keystone_not_found_exception(self):
         """Test delete fails for group with keystone not found exception"""
 
-        self.identity_sync_thread.get_sc_ks_client().roles.revoke.side_effect = (
-            keystone_exceptions.NotFound
-        )
+        self.sc_ks_client.roles.revoke.side_effect = keystone_exceptions.NotFound
 
         self._execute()
 

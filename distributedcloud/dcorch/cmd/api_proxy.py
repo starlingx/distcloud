@@ -22,6 +22,7 @@ import os
 import sys
 
 import eventlet
+
 eventlet.monkey_patch(os=False)
 
 # pylint: disable=wrong-import-position
@@ -38,24 +39,23 @@ from dcorch.api.proxy.common import constants  # noqa: E402
 from dcorch.api.proxy.common import utils  # noqa: E402
 from dcorch.common import config  # noqa: E402
 from dcorch.common import messaging  # noqa: E402
+
 # pylint: enable=wrong-import-position
 
 proxy_opts = [
-    cfg.StrOpt('bind_host',
-               default="0.0.0.0",
-               help='IP address for api proxy to listen'),
-    cfg.IntOpt('bind_port',
-               default=28774,
-               help='listen port for api proxy'),
-    cfg.StrOpt('sync_endpoint',
-               default=None,
-               help='The endpoint type for the enqueued sync work'),
+    cfg.StrOpt(
+        "bind_host", default="0.0.0.0", help="IP address for api proxy to listen"
+    ),
+    cfg.IntOpt("bind_port", default=28774, help="listen port for api proxy"),
+    cfg.StrOpt(
+        "sync_endpoint",
+        default=None,
+        help="The endpoint type for the enqueued sync work",
+    ),
 ]
 
 proxy_cli_opts = [
-    cfg.StrOpt('type',
-               default="compute",
-               help='Type of the proxy service'),
+    cfg.StrOpt("type", default="compute", help="Type of the proxy service"),
 ]
 
 CONF = cfg.CONF
@@ -63,13 +63,13 @@ CONF = cfg.CONF
 config.register_options()
 CONF.register_cli_opts(proxy_cli_opts)
 
-LOG = logging.getLogger('dcorch.api.proxy')
+LOG = logging.getLogger("dcorch.api.proxy")
 
 
 def make_tempdir(tempdir):
     if not os.path.isdir(tempdir):
         os.makedirs(tempdir)
-    os.environ['TMPDIR'] = tempdir
+    os.environ["TMPDIR"] = tempdir
 
 
 def main():
@@ -94,8 +94,10 @@ def main():
         LOG.warning("Wrong worker number, worker = %(workers)s", workers)
         workers = 1
 
-    LOG.info("Server on http://%(host)s:%(port)s with %(workers)s",
-             {'host': host, 'port': port, 'workers': workers})
+    LOG.info(
+        "Server on http://%(host)s:%(port)s with %(workers)s",
+        {"host": host, "port": port, "workers": workers},
+    )
     systemd.notify_once()
 
     # For patching and platorm, create a temp directory under /scratch
@@ -117,5 +119,5 @@ def main():
     app.wait()
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

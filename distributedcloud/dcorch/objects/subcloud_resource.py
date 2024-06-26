@@ -27,35 +27,37 @@ from dcorch.objects import base
 
 # pylint: disable=no-member
 @base.OrchestratorObjectRegistry.register
-class SubcloudResource(base.OrchestratorObject,
-                       base.VersionedObjectDictCompat):
+class SubcloudResource(base.OrchestratorObject, base.VersionedObjectDictCompat):
     """DC Orchestrator subcloud object."""
 
     fields = {
-        'id': ovo_fields.IntegerField(),
-        'uuid': ovo_fields.UUIDField(),
-        'shared_config_state': ovo_fields.StringField(),
-        'subcloud_resource_id': ovo_fields.StringField(),
-        'resource_id': ovo_fields.IntegerField(),
-        'subcloud_id': ovo_fields.IntegerField(),
+        "id": ovo_fields.IntegerField(),
+        "uuid": ovo_fields.UUIDField(),
+        "shared_config_state": ovo_fields.StringField(),
+        "subcloud_resource_id": ovo_fields.StringField(),
+        "resource_id": ovo_fields.IntegerField(),
+        "subcloud_id": ovo_fields.IntegerField(),
     }
 
     def create(self):
-        if self.obj_attr_is_set('id'):
-            raise exceptions.ObjectActionError(action='create',
-                                               reason='already created')
+        if self.obj_attr_is_set("id"):
+            raise exceptions.ObjectActionError(
+                action="create", reason="already created"
+            )
         updates = self.obj_get_changes()
-        if 'subcloud_resource_id' not in updates:
+        if "subcloud_resource_id" not in updates:
             raise exceptions.ObjectActionError(
                 action="create",
                 reason="cannot create a SubcloudResource object without a "
-                       "subcloud_resource_id")
+                "subcloud_resource_id",
+            )
 
-        resource_id = updates.pop('resource_id')
-        subcloud_id = updates.pop('subcloud_id')
+        resource_id = updates.pop("resource_id")
+        subcloud_id = updates.pop("subcloud_id")
 
         db_subcloud_resource = db_api.subcloud_resource_create(
-            self._context, subcloud_id, resource_id, updates)
+            self._context, subcloud_id, resource_id, updates
+        )
         return self._from_db_object(self._context, self, db_subcloud_resource)
 
     def is_managed(self):
@@ -68,41 +70,42 @@ class SubcloudResource(base.OrchestratorObject,
 
     @classmethod
     def get_by_resource_and_subcloud(cls, context, res_id, subcloud_id):
-        db_subcloud_resource = \
-            db_api.subcloud_resource_get_by_resource_and_subcloud(
-                context, res_id, subcloud_id)
+        db_subcloud_resource = db_api.subcloud_resource_get_by_resource_and_subcloud(
+            context, res_id, subcloud_id
+        )
         return cls._from_db_object(context, cls(), db_subcloud_resource)
 
     def save(self):
         updates = self.obj_get_changes()
-        updates.pop('id', None)
-        updates.pop('uuid', None)
-        updates.pop('resource', None)
-        updates.pop('subcloud', None)
+        updates.pop("id", None)
+        updates.pop("uuid", None)
+        updates.pop("resource", None)
+        updates.pop("subcloud", None)
         db_subcloud = db_api.subcloud_resource_update(
-            self._context,
-            self.id,  # pylint: disable=E1101
-            updates)
+            self._context, self.id, updates  # pylint: disable=E1101
+        )
         self._from_db_object(self._context, self, db_subcloud)
         self.obj_reset_changes()
 
     def delete(self):
-        db_api.subcloud_resource_delete(self._context,
-                                        self.id)  # pylint: disable=E1101
+        db_api.subcloud_resource_delete(self._context, self.id)  # pylint: disable=E1101
 
 
 @base.OrchestratorObjectRegistry.register
 class SubcloudResourceList(ovo_base.ObjectListBase, base.OrchestratorObject):
     """DC Orchestrator subcloud list object."""
-    VERSION = '1.1'
+
+    VERSION = "1.1"
 
     fields = {
-        'objects': ovo_fields.ListOfObjectsField('SubcloudResource'),
+        "objects": ovo_fields.ListOfObjectsField("SubcloudResource"),
     }
 
     @classmethod
     def get_by_resource_id(cls, context, resource_id):
         subcloud_resources = db_api.subcloud_resources_get_by_resource(
-            context, resource_id)
+            context, resource_id
+        )
         return ovo_base.obj_make_list(
-            context, cls(context), SubcloudResource, subcloud_resources)
+            context, cls(context), SubcloudResource, subcloud_resources
+        )

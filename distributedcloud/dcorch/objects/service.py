@@ -27,22 +27,23 @@ class Service(base.OrchestratorObject, base.VersionedObjectDictCompat):
     """DC Orchestrator service object."""
 
     fields = {
-        'id': ovo_fields.UUIDField(),
-        'host': ovo_fields.StringField(),
-        'binary': ovo_fields.StringField(),
-        'topic': ovo_fields.StringField(),
-        'disabled': ovo_fields.BooleanField(),
-        'disabled_reason': ovo_fields.StringField(nullable=True),
-        'created_at': ovo_fields.DateTimeField(),
-        'updated_at': ovo_fields.DateTimeField(),
-        'deleted_at': ovo_fields.DateTimeField(nullable=True),
-        'deleted': ovo_fields.IntegerField(nullable=True),
+        "id": ovo_fields.UUIDField(),
+        "host": ovo_fields.StringField(),
+        "binary": ovo_fields.StringField(),
+        "topic": ovo_fields.StringField(),
+        "disabled": ovo_fields.BooleanField(),
+        "disabled_reason": ovo_fields.StringField(nullable=True),
+        "created_at": ovo_fields.DateTimeField(),
+        "updated_at": ovo_fields.DateTimeField(),
+        "deleted_at": ovo_fields.DateTimeField(nullable=True),
+        "deleted": ovo_fields.IntegerField(nullable=True),
     }
 
     @classmethod
     def create(cls, context, service_id, host=None, binary=None, topic=None):
-        obj = db_api.service_create(context, service_id=service_id, host=host,
-                                    binary=binary, topic=topic)
+        obj = db_api.service_create(
+            context, service_id=service_id, host=host, binary=binary, topic=topic
+        )
         return cls._from_db_object(context, cls(context), obj)
 
     @classmethod

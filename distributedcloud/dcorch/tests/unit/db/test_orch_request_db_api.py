@@ -39,8 +39,7 @@ SUBCLOUD_NAME_REGION_ONE = "RegionOne"
 
 class DBAPIOrchRequestTest(base.OrchestratorTestCase):
     def setup_dummy_db(self):
-        options.cfg.set_defaults(options.database_opts,
-                                 sqlite_synchronous=False)
+        options.cfg.set_defaults(options.database_opts, sqlite_synchronous=False)
         options.set_defaults(cfg.CONF, connection="sqlite://")
         engine = get_engine()
         db_api.db_sync(engine)
@@ -53,27 +52,26 @@ class DBAPIOrchRequestTest(base.OrchestratorTestCase):
         meta.reflect(bind=engine)
 
         for table in reversed(meta.sorted_tables):
-            if table.name == 'migrate_version':
+            if table.name == "migrate_version":
                 continue
             engine.execute(table.delete())
 
     @staticmethod
     def create_subcloud(ctxt, region_name, **kwargs):
-        values = {
-            'management_state': None,
-            'management_ip': '192.168.0.1'
-        }
+        values = {"management_state": None, "management_ip": "192.168.0.1"}
         values.update(kwargs)
         return db_api.subcloud_create(ctxt, region_name, values)
 
     def create_default_subcloud(self, ctxt):
-        region_name = 'RegionOne'
-        software_version = '17.07'
-        availability_status = 'online'
+        region_name = "RegionOne"
+        software_version = "17.07"
+        availability_status = "online"
         subcloud = self.create_subcloud(
-            ctxt, region_name,
+            ctxt,
+            region_name,
             software_version=software_version,
-            availability_status=availability_status)
+            availability_status=availability_status,
+        )
         self.assertIsNotNone(subcloud)
         return subcloud
 
@@ -84,25 +82,19 @@ class DBAPIOrchRequestTest(base.OrchestratorTestCase):
         return db_api.resource_create(ctxt, resource_type, values)
 
     @staticmethod
-    def create_orch_job(ctxt, resource_id, endpoint_type,
-                        operation_type, values=None):
+    def create_orch_job(ctxt, resource_id, endpoint_type, operation_type, values=None):
         if values is None:
             values = {}
-        orch_job = db_api.orch_job_create(ctxt,
-                                          resource_id,
-                                          endpoint_type,
-                                          operation_type,
-                                          values)
+        orch_job = db_api.orch_job_create(
+            ctxt, resource_id, endpoint_type, operation_type, values
+        )
         return orch_job
 
     @staticmethod
     def create_subcloud_resource(ctxt, subcloud_id, resource_id, **kwargs):
         values = {}
         values.update(kwargs)
-        return db_api.subcloud_resource_create(ctxt,
-                                               subcloud_id,
-                                               resource_id,
-                                               values)
+        return db_api.subcloud_resource_create(ctxt, subcloud_id, resource_id, values)
 
     def setUp(self):
         super(DBAPIOrchRequestTest, self).setUp()
@@ -112,160 +104,135 @@ class DBAPIOrchRequestTest(base.OrchestratorTestCase):
         self.ctx = utils.dummy_context()
 
     def test_create_orch_job(self):
-        resource = self.create_resource(self.ctx,
-                                        consts.RESOURCE_TYPE_SYSINV_USER)
+        resource = self.create_resource(self.ctx, consts.RESOURCE_TYPE_SYSINV_USER)
         endpoint_type = dccommon_consts.ENDPOINT_TYPE_PLATFORM
         operation_type = consts.OPERATION_TYPE_PATCH
-        orch_job = self.create_orch_job(self.ctx,
-                                        resource.id,
-                                        endpoint_type,
-                                        operation_type)
+        orch_job = self.create_orch_job(
+            self.ctx, resource.id, endpoint_type, operation_type
+        )
         self.assertIsNotNone(orch_job)
-        self.assertEqual(dccommon_consts.ENDPOINT_TYPE_PLATFORM,
-                         orch_job.endpoint_type)
+        self.assertEqual(dccommon_consts.ENDPOINT_TYPE_PLATFORM, orch_job.endpoint_type)
 
-        created_orch_jobs = db_api.orch_job_get_all(
-            self.ctx,
-            resource_id=resource.id)
-        self.assertEqual(resource.id,
-                         created_orch_jobs[0].get('resource_id'))
+        created_orch_jobs = db_api.orch_job_get_all(self.ctx, resource_id=resource.id)
+        self.assertEqual(resource.id, created_orch_jobs[0].get("resource_id"))
 
     def test_primary_key_subcloud(self):
         self.create_subcloud(self.ctx, SUBCLOUD_NAME_REGION_ONE)
-        self.assertRaises(oslo_db.exception.DBDuplicateEntry,
-                          self.create_subcloud, self.ctx,
-                          SUBCLOUD_NAME_REGION_ONE)
+        self.assertRaises(
+            oslo_db.exception.DBDuplicateEntry,
+            self.create_subcloud,
+            self.ctx,
+            SUBCLOUD_NAME_REGION_ONE,
+        )
 
     def no_test_unique_key_orch_job_uuid(self):
-        resource = self.create_resource(self.ctx,
-                                        consts.RESOURCE_TYPE_SYSINV_USER)
+        resource = self.create_resource(self.ctx, consts.RESOURCE_TYPE_SYSINV_USER)
         endpoint_type = dccommon_consts.ENDPOINT_TYPE_PLATFORM
         operation_type = consts.OPERATION_TYPE_PATCH
-        orch_job = self.create_orch_job(self.ctx,
-                                        resource.id,
-                                        endpoint_type,
-                                        operation_type)
+        orch_job = self.create_orch_job(
+            self.ctx, resource.id, endpoint_type, operation_type
+        )
         self.assertIsNotNone(orch_job)
 
-        self.assertRaises(oslo_db.exception.DBDuplicateEntry,
-                          self.create_orch_job, self.ctx,
-                          resource.id,
-                          endpoint_type,
-                          operation_type)
+        self.assertRaises(
+            oslo_db.exception.DBDuplicateEntry,
+            self.create_orch_job,
+            self.ctx,
+            resource.id,
+            endpoint_type,
+            operation_type,
+        )
 
     def create_default_resource(self, resource_type):
-        resource = self.create_resource(self.ctx,
-                                        resource_type)
+        resource = self.create_resource(self.ctx, resource_type)
         return resource
 
     def create_default_orch_request(self, orch_job_id, target_region_name):
         api_version = 1.0
-        values = {'api_version': api_version,
-                  'target_region_name': target_region_name}
-        orch_request = db_api.orch_request_create(self.ctx,
-                                                  orch_job_id,
-                                                  target_region_name,
-                                                  values)
+        values = {"api_version": api_version, "target_region_name": target_region_name}
+        orch_request = db_api.orch_request_create(
+            self.ctx, orch_job_id, target_region_name, values
+        )
         return orch_request
 
     def test_orch_request_update(self):
-        resource = self.create_default_resource(
-            consts.RESOURCE_TYPE_SYSINV_USER)
+        resource = self.create_default_resource(consts.RESOURCE_TYPE_SYSINV_USER)
         target_region_name = "RegionOne"
 
         endpoint_type = dccommon_consts.ENDPOINT_TYPE_PLATFORM
         operation_type = consts.OPERATION_TYPE_PATCH
         values = {}
-        orch_job = self.create_orch_job(self.ctx,
-                                        resource.id,
-                                        endpoint_type,
-                                        operation_type,
-                                        values)
-        orch_request = self.create_default_orch_request(orch_job.id,
-                                                        target_region_name)
+        orch_job = self.create_orch_job(
+            self.ctx, resource.id, endpoint_type, operation_type, values
+        )
+        orch_request = self.create_default_orch_request(orch_job.id, target_region_name)
         self.assertIsNotNone(orch_request)
 
         orch_job_state = consts.ORCH_REQUEST_STATE_COMPLETED
         try_count = 6
         api_version = "1.0"
 
-        values = {'state': orch_job_state,
-                  'try_count': try_count,
-                  'api_version': api_version}
+        values = {
+            "state": orch_job_state,
+            "try_count": try_count,
+            "api_version": api_version,
+        }
 
-        db_api.orch_request_update(self.ctx,
-                                   orch_request.uuid,
-                                   values)
-        gorch_request = db_api.orch_request_get(self.ctx,
-                                                orch_request.uuid)
-        self.assertEqual(orch_job_state,
-                         gorch_request.state)
-        self.assertEqual(try_count,
-                         gorch_request.try_count)
-        self.assertEqual(api_version,
-                         gorch_request.api_version)
-        self.assertEqual(target_region_name,
-                         gorch_request.target_region_name)
+        db_api.orch_request_update(self.ctx, orch_request.uuid, values)
+        gorch_request = db_api.orch_request_get(self.ctx, orch_request.uuid)
+        self.assertEqual(orch_job_state, gorch_request.state)
+        self.assertEqual(try_count, gorch_request.try_count)
+        self.assertEqual(api_version, gorch_request.api_version)
+        self.assertEqual(target_region_name, gorch_request.target_region_name)
 
     def test_orch_request_get_all(self):
-        resource = self.create_default_resource(
-            consts.RESOURCE_TYPE_SYSINV_USER)
+        resource = self.create_default_resource(consts.RESOURCE_TYPE_SYSINV_USER)
 
         endpoint_type = dccommon_consts.ENDPOINT_TYPE_PLATFORM
         operation_type = consts.OPERATION_TYPE_PATCH
         values = {}
-        orch_job = self.create_orch_job(self.ctx,
-                                        resource.id,
-                                        endpoint_type,
-                                        operation_type,
-                                        values)
+        orch_job = self.create_orch_job(
+            self.ctx, resource.id, endpoint_type, operation_type, values
+        )
 
         target_region_name = "RegionOne"
-        self.create_default_orch_request(orch_job.id,
-                                         target_region_name)
+        self.create_default_orch_request(orch_job.id, target_region_name)
         target_region_name = "RegionTwo"
-        self.create_default_orch_request(orch_job.id,
-                                         target_region_name)
+        self.create_default_orch_request(orch_job.id, target_region_name)
 
         orch_requests = db_api.orch_request_get_all(self.ctx)
         self.assertEqual(2, len(orch_requests))
 
     def test_orch_request_get_by_orch_job(self):
-        resource_sysinv = self.create_default_resource(
-            consts.RESOURCE_TYPE_SYSINV_USER)
+        resource_sysinv = self.create_default_resource(consts.RESOURCE_TYPE_SYSINV_USER)
 
         endpoint_type = dccommon_consts.ENDPOINT_TYPE_PLATFORM
         operation_type = consts.OPERATION_TYPE_PATCH
         values = {}
-        orch_job_sysinv = self.create_orch_job(self.ctx,
-                                               resource_sysinv.id,
-                                               endpoint_type,
-                                               operation_type,
-                                               values)
+        orch_job_sysinv = self.create_orch_job(
+            self.ctx, resource_sysinv.id, endpoint_type, operation_type, values
+        )
         target_region_name = "RegionOne"
-        self.create_default_orch_request(orch_job_sysinv.id,
-                                         target_region_name)
+        self.create_default_orch_request(orch_job_sysinv.id, target_region_name)
 
         resource_flavor = self.create_default_resource(
-            consts.RESOURCE_TYPE_COMPUTE_FLAVOR)
+            consts.RESOURCE_TYPE_COMPUTE_FLAVOR
+        )
 
         endpoint_type = consts.ENDPOINT_TYPE_COMPUTE
         operation_type = consts.OPERATION_TYPE_POST
         values = {}
-        orch_job_flavor = self.create_orch_job(self.ctx,
-                                               resource_flavor.id,
-                                               endpoint_type,
-                                               operation_type,
-                                               values)
-        self.create_default_orch_request(orch_job_flavor.id,
-                                         target_region_name)
+        orch_job_flavor = self.create_orch_job(
+            self.ctx, resource_flavor.id, endpoint_type, operation_type, values
+        )
+        self.create_default_orch_request(orch_job_flavor.id, target_region_name)
 
         orch_requests_sysinv = db_api.orch_request_get_all(
-            self.ctx,
-            orch_job_id=orch_job_sysinv.id)
+            self.ctx, orch_job_id=orch_job_sysinv.id
+        )
         orch_requests_flavor = db_api.orch_request_get_all(
-            self.ctx,
-            orch_job_id=orch_job_flavor.id)
+            self.ctx, orch_job_id=orch_job_flavor.id
+        )
 
         self.assertEqual(1, len(orch_requests_sysinv))
         self.assertEqual(1, len(orch_requests_flavor))
@@ -278,11 +245,9 @@ class DBAPIOrchRequestTest(base.OrchestratorTestCase):
             if request.updated_at > orts:
                 orid = request.id
 
-        most_recent = \
-            db_api.orch_request_get_most_recent_failed_request(self.ctx)
+        most_recent = db_api.orch_request_get_most_recent_failed_request(self.ctx)
         self.assertIsNotNone(most_recent)
-        self.assertEqual(orid,
-                         most_recent.id)
+        self.assertEqual(orid, most_recent.id)
 
     def test_orch_request_delete_previous_failed_requests(self):
         orch_requests = self.create_some_orch_requests()
@@ -294,7 +259,8 @@ class DBAPIOrchRequestTest(base.OrchestratorTestCase):
 
         expected_count = total_count - failed_count
         db_api.orch_request_delete_previous_failed_requests(
-            self.ctx, timeutils.utcnow())
+            self.ctx, timeutils.utcnow()
+        )
         orch_requests = db_api.orch_request_get_all(self.ctx)
         self.assertEqual(expected_count, len(orch_requests))
 
@@ -304,16 +270,11 @@ class DBAPIOrchRequestTest(base.OrchestratorTestCase):
         orch_request1 = self.create_default_sysinv_orch_job()
         orch_request2 = self.create_default_sysinv_orch_job()
 
-        values = {'state': consts.ORCH_REQUEST_STATE_FAILED,
-                  'try_count': 2}
+        values = {"state": consts.ORCH_REQUEST_STATE_FAILED, "try_count": 2}
 
-        db_api.orch_request_update(self.ctx,
-                                   orch_request1.uuid,
-                                   values)
+        db_api.orch_request_update(self.ctx, orch_request1.uuid, values)
 
-        db_api.orch_request_update(self.ctx,
-                                   orch_request2.uuid,
-                                   values)
+        db_api.orch_request_update(self.ctx, orch_request2.uuid, values)
 
         orch_requests = db_api.orch_request_get_all(self.ctx)
         return orch_requests
@@ -324,21 +285,18 @@ class DBAPIOrchRequestTest(base.OrchestratorTestCase):
         return orch_requests
 
     def create_default_sysinv_orch_job(self):
-        resource_sysinv = self.create_default_resource(
-            consts.RESOURCE_TYPE_SYSINV_USER)
+        resource_sysinv = self.create_default_resource(consts.RESOURCE_TYPE_SYSINV_USER)
 
         endpoint_type = dccommon_consts.ENDPOINT_TYPE_PLATFORM
         operation_type = consts.OPERATION_TYPE_PATCH
         values = {}
-        orch_job_sysinv = self.create_orch_job(self.ctx,
-                                               resource_sysinv.id,
-                                               endpoint_type,
-                                               operation_type,
-                                               values)
+        orch_job_sysinv = self.create_orch_job(
+            self.ctx, resource_sysinv.id, endpoint_type, operation_type, values
+        )
         target_region_name = "RegionOne"
         orch_request = self.create_default_orch_request(
-            orch_job_sysinv.id,
-            target_region_name)
+            orch_job_sysinv.id, target_region_name
+        )
         return orch_request
 
     def test_orch_request_update_invalid(self):
@@ -348,25 +306,29 @@ class DBAPIOrchRequestTest(base.OrchestratorTestCase):
         values = {}
         test_uuid = uuidutils.generate_uuid()
         if orch_request.uuid != test_uuid:
-            self.assertRaises(exceptions.OrchRequestNotFound,
-                              db_api.orch_request_update,
-                              self.ctx,
-                              test_uuid,
-                              values)
+            self.assertRaises(
+                exceptions.OrchRequestNotFound,
+                db_api.orch_request_update,
+                self.ctx,
+                test_uuid,
+                values,
+            )
 
     def test_foreign_keys(self):
         subcloud = self.create_subcloud(self.ctx, SUBCLOUD_NAME_REGION_ONE)
         self.assertIsNotNone(subcloud)
-        resource = self.create_resource(self.ctx,
-                                        consts.RESOURCE_TYPE_SYSINV_USER)
+        resource = self.create_resource(self.ctx, consts.RESOURCE_TYPE_SYSINV_USER)
         self.assertIsNotNone(resource)
 
         subcloud_resource_uuid = uuidutils.generate_uuid()
         shared_config_state = consts.SHARED_CONFIG_STATE_UNMANAGED
         subcloud_resource_create = self.create_subcloud_resource(
-            self.ctx, subcloud.id, resource.id,
+            self.ctx,
+            subcloud.id,
+            resource.id,
             shared_config_state=shared_config_state,
-            subcloud_resource_uuid=subcloud_resource_uuid)
+            subcloud_resource_uuid=subcloud_resource_uuid,
+        )
 
         self.assertIsNotNone(subcloud_resource_create)
         self.assertEqual(subcloud.id, subcloud_resource_create.subcloud_id)
@@ -377,57 +339,57 @@ class DBAPIOrchRequestTest(base.OrchestratorTestCase):
         self.assertIsNotNone(orch_request)
 
         db_api.orch_request_destroy(self.ctx, orch_request.uuid)
-        self.assertRaises(exceptions.OrchRequestNotFound,
-                          db_api.orch_request_get,
-                          self.ctx,
-                          orch_request.uuid)
+        self.assertRaises(
+            exceptions.OrchRequestNotFound,
+            db_api.orch_request_get,
+            self.ctx,
+            orch_request.uuid,
+        )
 
     def skip_test_orch_request_get_by_attrs(self):
-        resource_sysinv = self.create_default_resource(
-            consts.RESOURCE_TYPE_SYSINV_USER)
+        resource_sysinv = self.create_default_resource(consts.RESOURCE_TYPE_SYSINV_USER)
 
         endpoint_type = dccommon_consts.ENDPOINT_TYPE_PLATFORM
         operation_type = consts.OPERATION_TYPE_PATCH
         values = {}
-        orch_job_sysinv = self.create_orch_job(self.ctx,
-                                               resource_sysinv.id,
-                                               endpoint_type,
-                                               operation_type,
-                                               values)
+        orch_job_sysinv = self.create_orch_job(
+            self.ctx, resource_sysinv.id, endpoint_type, operation_type, values
+        )
         target_region_name = "RegionOne"
         orch_request_sysinv_1 = self.create_default_orch_request(
-            orch_job_sysinv.id,
-            target_region_name)
+            orch_job_sysinv.id, target_region_name
+        )
 
-        db_api.orch_request_update(self.ctx,
-                                   orch_request_sysinv_1.uuid,
-                                   {'state':
-                                    consts.ORCH_REQUEST_STATE_COMPLETED})
+        db_api.orch_request_update(
+            self.ctx,
+            orch_request_sysinv_1.uuid,
+            {"state": consts.ORCH_REQUEST_STATE_COMPLETED},
+        )
 
         orch_request_sysinv_2 = self.create_default_orch_request(
-            orch_job_sysinv.id,
-            target_region_name)
+            orch_job_sysinv.id, target_region_name
+        )
 
-        db_api.orch_request_update(self.ctx,
-                                   orch_request_sysinv_2.uuid,
-                                   {'state':
-                                    consts.ORCH_REQUEST_STATE_IN_PROGRESS})
+        db_api.orch_request_update(
+            self.ctx,
+            orch_request_sysinv_2.uuid,
+            {"state": consts.ORCH_REQUEST_STATE_IN_PROGRESS},
+        )
 
         resource_flavor = self.create_default_resource(
-            consts.RESOURCE_TYPE_COMPUTE_FLAVOR)
+            consts.RESOURCE_TYPE_COMPUTE_FLAVOR
+        )
 
         endpoint_type = consts.ENDPOINT_TYPE_COMPUTE
         operation_type = consts.OPERATION_TYPE_POST
         values = {}
-        orch_job_flavor = self.create_orch_job(self.ctx,
-                                               resource_flavor.id,
-                                               endpoint_type,
-                                               operation_type,
-                                               values)
+        orch_job_flavor = self.create_orch_job(
+            self.ctx, resource_flavor.id, endpoint_type, operation_type, values
+        )
 
         orch_request_compute = self.create_default_orch_request(
-            orch_job_flavor.id,
-            target_region_name)
+            orch_job_flavor.id, target_region_name
+        )
 
         attrs_endpoint_type = dccommon_consts.ENDPOINT_TYPE_PLATFORM
         attrs_resource_type = consts.RESOURCE_TYPE_SYSINV_USER
@@ -436,7 +398,8 @@ class DBAPIOrchRequestTest(base.OrchestratorTestCase):
             attrs_endpoint_type,
             attrs_resource_type,
             target_region_name=target_region_name,
-            states=[consts.ORCH_REQUEST_STATE_IN_PROGRESS])
+            states=[consts.ORCH_REQUEST_STATE_IN_PROGRESS],
+        )
 
         self.assertEqual(1, len(orch_requests_attrs_1))
 
@@ -445,8 +408,11 @@ class DBAPIOrchRequestTest(base.OrchestratorTestCase):
             attrs_endpoint_type,
             attrs_resource_type,
             target_region_name=target_region_name,
-            states=[consts.ORCH_REQUEST_STATE_IN_PROGRESS,
-                    consts.ORCH_REQUEST_STATE_COMPLETED])
+            states=[
+                consts.ORCH_REQUEST_STATE_IN_PROGRESS,
+                consts.ORCH_REQUEST_STATE_COMPLETED,
+            ],
+        )
 
         self.assertEqual(2, len(orch_requests_attrs_2))
 
@@ -455,7 +421,8 @@ class DBAPIOrchRequestTest(base.OrchestratorTestCase):
             consts.ENDPOINT_TYPE_COMPUTE,
             consts.RESOURCE_TYPE_COMPUTE_FLAVOR,
             target_region_name=target_region_name,
-            states=consts.ORCH_REQUEST_STATE_NONE)
+            states=consts.ORCH_REQUEST_STATE_NONE,
+        )
 
         self.assertEqual(1, len(orch_requests_attrs))
         self.assertEqual(orch_request_compute.id, orch_requests_attrs[0].id)
@@ -466,8 +433,7 @@ class DBAPIOrchRequestTest(base.OrchestratorTestCase):
         soft_deleted_count = 0
 
         delete_time = timeutils.utcnow() - datetime.timedelta(days=2)
-        values = {'deleted': 1,
-                  'deleted_at': delete_time}
+        values = {"deleted": 1, "deleted_at": delete_time}
         for request in orch_requests:
             if request == consts.ORCH_REQUEST_STATE_FAILED:
                 db_api.orch_request_update(self.ctx, request.uuid, values)

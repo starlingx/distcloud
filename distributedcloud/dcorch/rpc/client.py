@@ -26,12 +26,12 @@ class EngineClient(object):
      1.0 - Initial version
     """
 
-    BASE_RPC_API_VERSION = '1.0'
+    BASE_RPC_API_VERSION = "1.0"
 
     def __init__(self):
         self._client = messaging.get_rpc_client(
-            topic=consts.TOPIC_ORCH_ENGINE,
-            version=self.BASE_RPC_API_VERSION)
+            topic=consts.TOPIC_ORCH_ENGINE, version=self.BASE_RPC_API_VERSION
+        )
 
     @staticmethod
     def make_msg(method, **kwargs):
@@ -53,17 +53,26 @@ class EngineClient(object):
             client = self._client
         return client.cast(ctxt, method, **kwargs)
 
-    def get_usage_for_project_and_user(self, ctxt, endpoint_type,
-                                       project_id, user_id=None):
-        return self.call(ctxt, self.make_msg('get_usage_for_project_and_user',
-                                             endpoint_type=endpoint_type,
-                                             project_id=project_id,
-                                             user_id=user_id))
+    def get_usage_for_project_and_user(
+        self, ctxt, endpoint_type, project_id, user_id=None
+    ):
+        return self.call(
+            ctxt,
+            self.make_msg(
+                "get_usage_for_project_and_user",
+                endpoint_type=endpoint_type,
+                project_id=project_id,
+                user_id=user_id,
+            ),
+        )
 
     def quota_sync_for_project(self, ctxt, project_id, user_id):
-        return self.cast(ctxt, self.make_msg('quota_sync_for_project',
-                                             project_id=project_id,
-                                             user_id=user_id))
+        return self.cast(
+            ctxt,
+            self.make_msg(
+                "quota_sync_for_project", project_id=project_id, user_id=user_id
+            ),
+        )
 
 
 class EngineWorkerClient(object):
@@ -73,12 +82,12 @@ class EngineWorkerClient(object):
      1.0 - Initial version
     """
 
-    BASE_RPC_API_VERSION = '1.0'
+    BASE_RPC_API_VERSION = "1.0"
 
     def __init__(self):
         self._client = messaging.get_rpc_client(
-            topic=consts.TOPIC_ORCH_ENGINE_WORKER,
-            version=self.BASE_RPC_API_VERSION)
+            topic=consts.TOPIC_ORCH_ENGINE_WORKER, version=self.BASE_RPC_API_VERSION
+        )
 
     @staticmethod
     def make_msg(method, **kwargs):
@@ -102,74 +111,92 @@ class EngineWorkerClient(object):
 
     def keypair_sync_for_user(self, ctxt, job_id, payload):
         return self.cast(
-            ctxt,
-            self.make_msg('keypair_sync_for_user', job_id=job_id,
-                          payload=payload))
+            ctxt, self.make_msg("keypair_sync_for_user", job_id=job_id, payload=payload)
+        )
 
     def image_sync(self, ctxt, job_id, payload):
         return self.cast(
-            ctxt,
-            self.make_msg('image_sync', job_id=job_id, payload=payload))
+            ctxt, self.make_msg("image_sync", job_id=job_id, payload=payload)
+        )
 
     def add_subcloud(self, ctxt, subcloud_name, sw_version, management_ip):
         return self.call(
             ctxt,
-            self.make_msg('add_subcloud', subcloud_name=subcloud_name,
-                          sw_version=sw_version, management_ip=management_ip))
+            self.make_msg(
+                "add_subcloud",
+                subcloud_name=subcloud_name,
+                sw_version=sw_version,
+                management_ip=management_ip,
+            ),
+        )
 
     def del_subcloud(self, ctxt, subcloud_name):
         return self.call(
-            ctxt,
-            self.make_msg('del_subcloud', subcloud_name=subcloud_name))
+            ctxt, self.make_msg("del_subcloud", subcloud_name=subcloud_name)
+        )
 
-    def update_subcloud_states(self, ctxt, subcloud_name, management_state,
-                               availability_status):
+    def update_subcloud_states(
+        self, ctxt, subcloud_name, management_state, availability_status
+    ):
         return self.call(
             ctxt,
-            self.make_msg('update_subcloud_states',
-                          subcloud_name=subcloud_name,
-                          management_state=management_state,
-                          availability_status=availability_status))
+            self.make_msg(
+                "update_subcloud_states",
+                subcloud_name=subcloud_name,
+                management_state=management_state,
+                availability_status=availability_status,
+            ),
+        )
 
-    def add_subcloud_sync_endpoint_type(self, ctxt, subcloud_name,
-                                        endpoint_type_list):
+    def add_subcloud_sync_endpoint_type(self, ctxt, subcloud_name, endpoint_type_list):
         return self.cast(
             ctxt,
-            self.make_msg('add_subcloud_sync_endpoint_type',
-                          subcloud_name=subcloud_name,
-                          endpoint_type_list=endpoint_type_list))
+            self.make_msg(
+                "add_subcloud_sync_endpoint_type",
+                subcloud_name=subcloud_name,
+                endpoint_type_list=endpoint_type_list,
+            ),
+        )
 
-    def remove_subcloud_sync_endpoint_type(self, ctxt, subcloud_name,
-                                           endpoint_type_list):
+    def remove_subcloud_sync_endpoint_type(
+        self, ctxt, subcloud_name, endpoint_type_list
+    ):
         return self.cast(
             ctxt,
-            self.make_msg('remove_subcloud_sync_endpoint_type',
-                          subcloud_name=subcloud_name,
-                          endpoint_type_list=endpoint_type_list))
+            self.make_msg(
+                "remove_subcloud_sync_endpoint_type",
+                subcloud_name=subcloud_name,
+                endpoint_type_list=endpoint_type_list,
+            ),
+        )
 
     def sync_subclouds(self, ctxt, subcloud_sync_list):
         return self.cast(
-            ctxt,
-            self.make_msg('sync_subclouds',
-                          subcloud_sync_list=subcloud_sync_list))
+            ctxt, self.make_msg("sync_subclouds", subcloud_sync_list=subcloud_sync_list)
+        )
 
     def run_sync_audit(self, ctxt, subcloud_sync_list):
         return self.cast(
-            ctxt,
-            self.make_msg('run_sync_audit',
-                          subcloud_sync_list=subcloud_sync_list))
+            ctxt, self.make_msg("run_sync_audit", subcloud_sync_list=subcloud_sync_list)
+        )
 
     def initial_sync_subclouds(self, ctxt, subcloud_capabilities):
         return self.cast(
             ctxt,
-            self.make_msg('initial_sync_subclouds',
-                          subcloud_capabilities=subcloud_capabilities))
+            self.make_msg(
+                "initial_sync_subclouds", subcloud_capabilities=subcloud_capabilities
+            ),
+        )
 
     def update_subcloud_version(self, ctxt, subcloud_name, sw_version):
         return self.call(
             ctxt,
-            self.make_msg('update_subcloud_version',
-                          subcloud_name=subcloud_name, sw_version=sw_version))
+            self.make_msg(
+                "update_subcloud_version",
+                subcloud_name=subcloud_name,
+                sw_version=sw_version,
+            ),
+        )
 
     def update_subcloud_management_ip(self, ctxt, subcloud_name, management_ip):
         return self.call(
@@ -185,4 +212,5 @@ class EngineWorkerClient(object):
     # that there is work to do.
     def sync_request(self, ctxt, endpoint_type):
         return self.cast(
-            ctxt, self.make_msg('sync_request', endpoint_type=endpoint_type))
+            ctxt, self.make_msg("sync_request", endpoint_type=endpoint_type)
+        )

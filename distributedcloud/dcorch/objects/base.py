@@ -1,5 +1,5 @@
 # Copyright (c) 2015 Ericsson AB.
-# Copyright (c) 2017, 2019, 2021 Wind River Systems, Inc.
+# Copyright (c) 2017, 2019, 2021, 2024 Wind River Systems, Inc.
 # All Rights Reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License"); you may
@@ -35,16 +35,16 @@ class OrchestratorObject(base.VersionedObject):
     "save" object method.
     """
 
-    OBJ_PROJECT_NAMESPACE = 'dcorch'
-    VERSION = '1.0'
+    OBJ_PROJECT_NAMESPACE = "dcorch"
+    VERSION = "1.0"
 
     @staticmethod
     def _from_db_object(context, obj, db_obj):
         if db_obj is None:
             return None
         for field in obj.fields:
-            if field == 'metadata':
-                obj['metadata'] = db_obj['meta_data']
+            if field == "metadata":
+                obj["metadata"] = db_obj["meta_data"]
             else:
                 obj[field] = db_obj[field]
 
@@ -67,6 +67,7 @@ class OrchestratorObjectRegistry(base.VersionedObjectRegistry):
             setattr(objects, cls.obj_name(), cls)
         else:
             curr_version = versionutils.convert_version_to_tuple(
-                getattr(objects, cls.obj_name()).VERSION)
+                getattr(objects, cls.obj_name()).VERSION
+            )
             if version >= curr_version:
                 setattr(objects, cls.obj_name(), cls)

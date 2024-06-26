@@ -22,7 +22,7 @@ from dcorch.common import exceptions
 from dcorch.drivers import base
 
 LOG = log.getLogger(__name__)
-API_VERSION = '2.37'
+API_VERSION = "2.37"
 
 
 class NovaClient(base.DriverBase):
@@ -30,15 +30,22 @@ class NovaClient(base.DriverBase):
 
     def __init__(self, region, session, endpoint_type, disabled_quotas=None):
         try:
-            self.nova_client = client.Client(API_VERSION,
-                                             session=session,
-                                             region_name=region,
-                                             endpoint_type=endpoint_type)
+            self.nova_client = client.Client(
+                API_VERSION,
+                session=session,
+                region_name=region,
+                endpoint_type=endpoint_type,
+            )
             if disabled_quotas:
-                self.enabled_quotas = list(set(consts.NOVA_QUOTA_FIELDS) -
-                                           set(disabled_quotas))
-                self.no_neutron = True if 'floatingips' in self.enabled_quotas \
-                    or 'fixedips' in self.enabled_quotas else False
+                self.enabled_quotas = list(
+                    set(consts.NOVA_QUOTA_FIELDS) - set(disabled_quotas)
+                )
+                self.no_neutron = (
+                    True
+                    if "floatingips" in self.enabled_quotas
+                    or "fixedips" in self.enabled_quotas
+                    else False
+                )
         except exceptions.ServiceUnavailable:
             raise
 
@@ -53,19 +60,21 @@ class NovaClient(base.DriverBase):
             # The API call does not give usage for keypair, fixed ips &
             # metadata items. Have raised a bug for that.
             quota_usage = self.nova_client.quotas.get(
-                project_id, user_id=user_id, detail=True)
+                project_id, user_id=user_id, detail=True
+            )
             quota_usage_dict = quota_usage.to_dict()
-            del quota_usage_dict['id']
+            del quota_usage_dict["id"]
             resource_usage = collections.defaultdict(dict)
             for resource in quota_usage_dict:
                 # Don't need to add in "reserved" here, it will always be zero.
-                resource_usage[resource] = quota_usage_dict[resource]['in_use']
+                resource_usage[resource] = quota_usage_dict[resource]["in_use"]
 
             # For time being, keypair is calculated in below manner.
             # This is actually not correct for projects, as keypair quotas
             # apply to users only, and across all projects.
-            resource_usage['key_pairs'] = \
-                len(self.nova_client.keypairs.list(user_id=user_id))
+            resource_usage["key_pairs"] = len(
+                self.nova_client.keypairs.list(user_id=user_id)
+            )
             return resource_usage
         except exceptions.InternalError:
             raise
@@ -80,9 +89,10 @@ class NovaClient(base.DriverBase):
         """
         try:
             quotas = self.nova_client.quotas.get(
-                project_id, user_id=user_id, detail=False)
+                project_id, user_id=user_id, detail=False
+            )
             quotas_dict = quotas.to_dict()
-            del quotas_dict['id']
+            del quotas_dict["id"]
             return quotas_dict
         except exceptions.InternalError:
             raise
@@ -96,14 +106,15 @@ class NovaClient(base.DriverBase):
         """
         try:
             if not self.no_neutron:
-                if 'floating_ips' in new_quota:
-                    del new_quota['floating_ips']
-                if 'fixed_ips' in new_quota:
-                    del new_quota['fixed_ips']
-                if 'security_groups' in new_quota:
-                    del new_quota['security_groups']
-            return self.nova_client.quotas.update(project_id, user_id=user_id,
-                                                  **new_quota)
+                if "floating_ips" in new_quota:
+                    del new_quota["floating_ips"]
+                if "fixed_ips" in new_quota:
+                    del new_quota["fixed_ips"]
+                if "security_groups" in new_quota:
+                    del new_quota["security_groups"]
+            return self.nova_client.quotas.update(
+                project_id, user_id=user_id, **new_quota
+            )
         except exceptions.InternalError:
             raise
 
@@ -130,7 +141,7 @@ class NovaClient(base.DriverBase):
             return keypair
 
         except Exception as exception:
-            LOG.error('Exception Occurred: %s', str(exception))
+            LOG.error("Exception Occurred: %s", str(exception))
             pass
 
     def create_keypairs(self, force, keypair):
@@ -144,9 +155,9 @@ class NovaClient(base.DriverBase):
                 self.nova_client.keypairs.delete(keypair)
                 LOG.info("Deleted Keypair: %s", keypair.name)
             except Exception as exception:
-                LOG.error('Exception Occurred: %s', str(exception))
+                LOG.error("Exception Occurred: %s", str(exception))
                 pass
             LOG.info("Created Keypair: %s", keypair.name)
-        return self.nova_client.keypairs. \
-            create(keypair.name,
-                   public_key=keypair.public_key)
+        return self.nova_client.keypairs.create(
+            keypair.name, public_key=keypair.public_key
+        )

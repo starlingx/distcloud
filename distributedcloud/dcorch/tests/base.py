@@ -36,9 +36,11 @@ get_engine = api.get_engine
 
 
 CAPABILITES = {
-    'endpoint_types':
-        [dccommon_consts.ENDPOINT_TYPE_PLATFORM,
-         dccommon_consts.ENDPOINT_TYPE_IDENTITY]}
+    "endpoint_types": [
+        dccommon_consts.ENDPOINT_TYPE_PLATFORM,
+        dccommon_consts.ENDPOINT_TYPE_IDENTITY,
+    ]
+}
 
 
 class FakeException(Exception):
@@ -53,8 +55,7 @@ class OrchestratorTestCase(base.BaseTestCase):
     """Test case base class for all unit tests."""
 
     def setup_dummy_db(self):
-        options.cfg.set_defaults(options.database_opts,
-                                 sqlite_synchronous=False)
+        options.cfg.set_defaults(options.database_opts, sqlite_synchronous=False)
         options.set_defaults(cfg.CONF, connection="sqlite://")
         engine = get_engine()
         db_api.db_sync(engine)
@@ -66,7 +67,7 @@ class OrchestratorTestCase(base.BaseTestCase):
         meta.reflect(bind=engine)
 
         for table in reversed(meta.sorted_tables):
-            if table.name == 'migrate_version':
+            if table.name == "migrate_version":
                 continue
             engine.execute(table.delete())
 
@@ -81,74 +82,75 @@ class OrchestratorTestCase(base.BaseTestCase):
     def _mock_pecan(self):
         """Mock pecan's abort"""
 
-        mock_patch = mock.patch.object(pecan, 'abort', wraps=pecan.abort)
+        mock_patch = mock.patch.object(pecan, "abort", wraps=pecan.abort)
         self.mock_pecan_abort = mock_patch.start()
         self.addCleanup(mock_patch.stop)
 
     def _mock_rpc_client(self):
         """Mock rpc's manager client"""
 
-        mock_patch = mock.patch.object(rpc_client, 'EngineWorkerClient')
+        mock_patch = mock.patch.object(rpc_client, "EngineWorkerClient")
         self.mock_rpc_client = mock_patch.start()
         self.addCleanup(mock_patch.stop)
 
     def _mock_rpc_client_subcloud_state_client(self):
-        mock_patch = mock.patch.object(dcmanager_rpc_client, 'SubcloudStateClient')
+        mock_patch = mock.patch.object(dcmanager_rpc_client, "SubcloudStateClient")
         self.rpc_client_subcloud_state_client = mock_patch.start()
         self.addCleanup(mock_patch.stop)
 
     def _mock_rpc_client_manager(self):
-        mock_patch = mock.patch.object(dcmanager_rpc_client, 'ManagerClient')
+        mock_patch = mock.patch.object(dcmanager_rpc_client, "ManagerClient")
         self.rpc_client_manager = mock_patch.start()
         self.addCleanup(mock_patch.stop)
 
     def _mock_log(self, target):
-        mock_patch = mock.patch.object(target, 'LOG')
+        mock_patch = mock.patch.object(target, "LOG")
         self.log = mock_patch.start()
         self.addCleanup(mock_patch.stop)
 
     def _mock_openstack_driver(self):
         mock_patch = mock.patch(
-            'dccommon.drivers.openstack.sdk_platform.OptimizedOpenStackDriver')
+            "dccommon.drivers.openstack.sdk_platform.OptimizedOpenStackDriver"
+        )
         self.mock_openstack_driver = mock_patch.start()
         self.addCleanup(mock_patch.stop)
 
     def _mock_keystone_client(self):
-        mock_patch = mock.patch('keystoneclient.client.Client')
+        mock_patch = mock.patch("keystoneclient.client.Client")
         self.mock_keystone_client = mock_patch.start()
         self.addCleanup(mock_patch.stop)
 
     def _mock_endpoint_cache_from_keystone(self):
         mock_patch = mock.patch(
-            'dccommon.drivers.openstack.keystone_v3.OptimizedEndpointCache')
+            "dccommon.drivers.openstack.keystone_v3.OptimizedEndpointCache"
+        )
         self.mock_endpoint_cache_from_keystone = mock_patch.start()
         self.addCleanup(mock_patch.stop)
 
     def _mock_endpoint_cache(self):
-        mock_patch = mock.patch(
-            'dccommon.endpoint_cache.OptimizedEndpointCache')
+        mock_patch = mock.patch("dccommon.endpoint_cache.OptimizedEndpointCache")
         self.mock_endpoint_cache = mock_patch.start()
         self.addCleanup(mock_patch.stop)
 
     def _mock_m_dbs_client(self):
-        mock_patch = mock.patch('dcorch.engine.sync_thread.dbsyncclient.Client')
+        mock_patch = mock.patch("dcorch.engine.sync_thread.dbsyncclient.Client")
         self.mock_m_dbs_client = mock_patch.start()
         self.addCleanup(mock_patch.stop)
 
     def _mock_sc_dbs_client(self):
-        mock_patch = mock.patch('dcorch.engine.sync_services.identity.Client')
+        mock_patch = mock.patch("dcorch.engine.sync_services.identity.Client")
         self.mock_sc_dbs_client = mock_patch.start()
         self.addCleanup(mock_patch.stop)
 
     def _mock_sysinv_client(self, target):
-        mock_patch = mock.patch.object(target, 'SysinvClient')
+        mock_patch = mock.patch.object(target, "SysinvClient")
         self.mock_sysinv_client = mock_patch.start()
         self.addCleanup(mock_patch.stop)
 
     def _mock_builtins_open(self):
         """Mock builtins' open"""
 
-        mock_patch = mock.patch.object(builtins, 'open')
+        mock_patch = mock.patch.object(builtins, "open")
         self.mock_builtins_open = mock_patch.start()
         self.addCleanup(mock_patch.stop)
 

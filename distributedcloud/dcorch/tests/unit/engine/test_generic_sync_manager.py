@@ -33,7 +33,7 @@ class TestGenericSyncManager(base.OrchestratorTestCase):
         super(TestGenericSyncManager, self).setUp()
 
         # Mock the DCorch engine-worker API client
-        p = mock.patch('dcorch.rpc.client.EngineWorkerClient')
+        p = mock.patch("dcorch.rpc.client.EngineWorkerClient")
         self.mock_dcorch_api = p.start()
         self.addCleanup(p.stop)
 
@@ -48,9 +48,11 @@ class TestGenericSyncManager(base.OrchestratorTestCase):
         chunks = list()
         chunk_num = -1
         for i in range(1, 23):
-            region_name = 'subcloud' + str(i)
-            subcloud_sync_identity = \
-                (region_name, dccommon_consts.ENDPOINT_TYPE_IDENTITY)
+            region_name = "subcloud" + str(i)
+            subcloud_sync_identity = (
+                region_name,
+                dccommon_consts.ENDPOINT_TYPE_IDENTITY,
+            )
             subcloud_sync_list.append(subcloud_sync_identity)
             if (i - 1) % CONF.workers == 0:
                 chunk_num += 1
@@ -60,12 +62,11 @@ class TestGenericSyncManager(base.OrchestratorTestCase):
         gsm = generic_sync_manager.GenericSyncManager()
 
         rpc_method = mock.MagicMock()
-        rpc_method.__name__ = 'mock_rpc_method'
+        rpc_method.__name__ = "mock_rpc_method"
         gsm._process_subclouds(rpc_method, subcloud_sync_list)
 
         # Verify the number of chunks
-        self.assertEqual(math.ceil(len(subcloud_sync_list) / CONF.workers),
-                         len(chunks))
+        self.assertEqual(math.ceil(len(subcloud_sync_list) / CONF.workers), len(chunks))
         # Verify rpc call for each chunk of subclouds
         for chunk in chunks:
             rpc_method.assert_any_call(mock.ANY, chunk)
@@ -74,169 +75,206 @@ class TestGenericSyncManager(base.OrchestratorTestCase):
         # Create subcloud1 not eligible for sync due to initial_sync_state
         utils.create_subcloud_static(
             self.ctx,
-            name='subcloud1',
+            name="subcloud1",
             management_state=dccommon_consts.MANAGEMENT_MANAGED,
             availability_status=dccommon_consts.AVAILABILITY_ONLINE,
-            initial_sync_state=consts.INITIAL_SYNC_STATE_FAILED)
+            initial_sync_state=consts.INITIAL_SYNC_STATE_FAILED,
+        )
         utils.create_subcloud_sync_static(
             self.ctx,
-            name='subcloud1',
+            name="subcloud1",
             endpoint_type=dccommon_consts.ENDPOINT_TYPE_IDENTITY,
-            sync_request=consts.SYNC_STATUS_REQUESTED)
+            sync_request=consts.SYNC_STATUS_REQUESTED,
+        )
         utils.create_subcloud_sync_static(
             self.ctx,
-            name='subcloud1',
+            name="subcloud1",
             endpoint_type=dccommon_consts.ENDPOINT_TYPE_PLATFORM,
-            sync_request=consts.SYNC_STATUS_REQUESTED)
+            sync_request=consts.SYNC_STATUS_REQUESTED,
+        )
         # Create subcloud2 not eligible for sync due to sync_request
         utils.create_subcloud_static(
             self.ctx,
-            name='subcloud2',
+            name="subcloud2",
             management_state=dccommon_consts.MANAGEMENT_MANAGED,
             availability_status=dccommon_consts.AVAILABILITY_ONLINE,
-            initial_sync_state=consts.INITIAL_SYNC_STATE_COMPLETED)
+            initial_sync_state=consts.INITIAL_SYNC_STATE_COMPLETED,
+        )
         utils.create_subcloud_sync_static(
             self.ctx,
-            name='subcloud2',
+            name="subcloud2",
             endpoint_type=dccommon_consts.ENDPOINT_TYPE_IDENTITY,
-            sync_request=consts.SYNC_STATUS_IN_PROGRESS)
+            sync_request=consts.SYNC_STATUS_IN_PROGRESS,
+        )
         utils.create_subcloud_sync_static(
             self.ctx,
-            name='subcloud2',
+            name="subcloud2",
             endpoint_type=dccommon_consts.ENDPOINT_TYPE_PLATFORM,
-            sync_request=consts.SYNC_STATUS_IN_PROGRESS)
+            sync_request=consts.SYNC_STATUS_IN_PROGRESS,
+        )
         # Create 22 eligible subclouds
         subcloud_sync_list = []
         for i in range(3, 25):
             subcloud = utils.create_subcloud_static(
                 self.ctx,
-                name='subcloud' + str(i),
+                name="subcloud" + str(i),
                 management_state=dccommon_consts.MANAGEMENT_MANAGED,
                 availability_status=dccommon_consts.AVAILABILITY_ONLINE,
                 initial_sync_state=consts.INITIAL_SYNC_STATE_COMPLETED,
-                management_ip='10.10.10.' + str(i))
+                management_ip="10.10.10." + str(i),
+            )
             utils.create_subcloud_sync_static(
                 self.ctx,
-                name='subcloud' + str(i),
+                name="subcloud" + str(i),
                 endpoint_type=dccommon_consts.ENDPOINT_TYPE_IDENTITY,
-                sync_request='requested')
-            subcloud_sync_list.append((subcloud.region_name,
-                                       dccommon_consts.ENDPOINT_TYPE_IDENTITY,
-                                       subcloud.management_ip))
+                sync_request="requested",
+            )
+            subcloud_sync_list.append(
+                (
+                    subcloud.region_name,
+                    dccommon_consts.ENDPOINT_TYPE_IDENTITY,
+                    subcloud.management_ip,
+                )
+            )
             utils.create_subcloud_sync_static(
                 self.ctx,
-                name='subcloud' + str(i),
+                name="subcloud" + str(i),
                 endpoint_type=dccommon_consts.ENDPOINT_TYPE_PLATFORM,
-                sync_request='requested')
-            subcloud_sync_list.append((subcloud.region_name,
-                                       dccommon_consts.ENDPOINT_TYPE_PLATFORM,
-                                       subcloud.management_ip))
+                sync_request="requested",
+            )
+            subcloud_sync_list.append(
+                (
+                    subcloud.region_name,
+                    dccommon_consts.ENDPOINT_TYPE_PLATFORM,
+                    subcloud.management_ip,
+                )
+            )
 
         gsm = generic_sync_manager.GenericSyncManager()
         gsm._process_subclouds = mock.MagicMock()
         gsm.sync_subclouds()
 
         gsm._process_subclouds.assert_called_once_with(
-            self.mock_dcorch_api().sync_subclouds, subcloud_sync_list)
+            self.mock_dcorch_api().sync_subclouds, subcloud_sync_list
+        )
 
         # Verify the sync_request of the subclouds were updated to in-progress
         for i in range(3, 25):
             subcloud_sync_identity = db_api.subcloud_sync_get(
-                self.ctx,
-                'subcloud' + str(i),
-                dccommon_consts.ENDPOINT_TYPE_IDENTITY)
-            self.assertEqual(consts.SYNC_STATUS_IN_PROGRESS,
-                             subcloud_sync_identity.sync_request)
+                self.ctx, "subcloud" + str(i), dccommon_consts.ENDPOINT_TYPE_IDENTITY
+            )
+            self.assertEqual(
+                consts.SYNC_STATUS_IN_PROGRESS, subcloud_sync_identity.sync_request
+            )
             subcloud_sync_platform = db_api.subcloud_sync_get(
-                self.ctx,
-                'subcloud' + str(i),
-                dccommon_consts.ENDPOINT_TYPE_PLATFORM)
-            self.assertEqual(consts.SYNC_STATUS_IN_PROGRESS,
-                             subcloud_sync_platform.sync_request)
+                self.ctx, "subcloud" + str(i), dccommon_consts.ENDPOINT_TYPE_PLATFORM
+            )
+            self.assertEqual(
+                consts.SYNC_STATUS_IN_PROGRESS, subcloud_sync_platform.sync_request
+            )
 
     def test_run_sync_audit(self):
         # Create subcloud1 not eligible for audit due to initial_sync_state
         utils.create_subcloud_static(
             self.ctx,
-            name='subcloud1',
+            name="subcloud1",
             management_state=dccommon_consts.MANAGEMENT_MANAGED,
             availability_status=dccommon_consts.AVAILABILITY_ONLINE,
-            initial_sync_state=consts.INITIAL_SYNC_STATE_FAILED)
+            initial_sync_state=consts.INITIAL_SYNC_STATE_FAILED,
+        )
         utils.create_subcloud_sync_static(
             self.ctx,
-            name='subcloud1',
+            name="subcloud1",
             endpoint_type=dccommon_consts.ENDPOINT_TYPE_IDENTITY,
-            audit_status=consts.AUDIT_STATUS_NONE)
+            audit_status=consts.AUDIT_STATUS_NONE,
+        )
         utils.create_subcloud_sync_static(
             self.ctx,
-            name='subcloud1',
+            name="subcloud1",
             endpoint_type=dccommon_consts.ENDPOINT_TYPE_PLATFORM,
-            audit_status=consts.AUDIT_STATUS_NONE)
+            audit_status=consts.AUDIT_STATUS_NONE,
+        )
         # Create subcloud2 not eligible for audit due to management_state
         utils.create_subcloud_static(
             self.ctx,
-            name='subcloud2',
+            name="subcloud2",
             management_state=dccommon_consts.MANAGEMENT_UNMANAGED,
-            availability_status=dccommon_consts.AVAILABILITY_ONLINE)
+            availability_status=dccommon_consts.AVAILABILITY_ONLINE,
+        )
         utils.create_subcloud_sync_static(
             self.ctx,
-            name='subcloud2',
+            name="subcloud2",
             endpoint_type=dccommon_consts.ENDPOINT_TYPE_IDENTITY,
-            audit_status=consts.AUDIT_STATUS_FAILED)
+            audit_status=consts.AUDIT_STATUS_FAILED,
+        )
         utils.create_subcloud_sync_static(
             self.ctx,
-            name='subcloud2',
+            name="subcloud2",
             endpoint_type=dccommon_consts.ENDPOINT_TYPE_PLATFORM,
-            audit_status=consts.AUDIT_STATUS_FAILED)
+            audit_status=consts.AUDIT_STATUS_FAILED,
+        )
         # Create 22 eligible subclouds
         subcloud_sync_list = []
         for i in range(3, 25):
             subcloud = utils.create_subcloud_static(
                 self.ctx,
-                name='subcloud' + str(i),
+                name="subcloud" + str(i),
                 management_state=dccommon_consts.MANAGEMENT_MANAGED,
                 availability_status=dccommon_consts.AVAILABILITY_ONLINE,
                 initial_sync_state=consts.INITIAL_SYNC_STATE_COMPLETED,
-                management_ip='10.10.10.' + str(i))
-            last_audit_time = timeutils.utcnow() - \
-                timedelta(seconds=generic_sync_manager.AUDIT_INTERVAL)
+                management_ip="10.10.10." + str(i),
+            )
+            last_audit_time = timeutils.utcnow() - timedelta(
+                seconds=generic_sync_manager.AUDIT_INTERVAL
+            )
             utils.create_subcloud_sync_static(
                 self.ctx,
-                name='subcloud' + str(i),
+                name="subcloud" + str(i),
                 endpoint_type=dccommon_consts.ENDPOINT_TYPE_IDENTITY,
                 audit_status=consts.AUDIT_STATUS_COMPLETED,
-                last_audit_time=last_audit_time)
-            subcloud_sync_list.append((subcloud.region_name,
-                                       dccommon_consts.ENDPOINT_TYPE_IDENTITY,
-                                       subcloud.management_ip))
+                last_audit_time=last_audit_time,
+            )
+            subcloud_sync_list.append(
+                (
+                    subcloud.region_name,
+                    dccommon_consts.ENDPOINT_TYPE_IDENTITY,
+                    subcloud.management_ip,
+                )
+            )
             utils.create_subcloud_sync_static(
                 self.ctx,
-                name='subcloud' + str(i),
+                name="subcloud" + str(i),
                 endpoint_type=dccommon_consts.ENDPOINT_TYPE_PLATFORM,
                 audit_status=consts.AUDIT_STATUS_COMPLETED,
-                last_audit_time=last_audit_time)
-            subcloud_sync_list.append((subcloud.region_name,
-                                       dccommon_consts.ENDPOINT_TYPE_PLATFORM,
-                                       subcloud.management_ip))
+                last_audit_time=last_audit_time,
+            )
+            subcloud_sync_list.append(
+                (
+                    subcloud.region_name,
+                    dccommon_consts.ENDPOINT_TYPE_PLATFORM,
+                    subcloud.management_ip,
+                )
+            )
 
         gsm = generic_sync_manager.GenericSyncManager()
         gsm._process_subclouds = mock.MagicMock()
         gsm.run_sync_audit()
 
         gsm._process_subclouds.assert_called_once_with(
-            self.mock_dcorch_api().run_sync_audit, subcloud_sync_list)
+            self.mock_dcorch_api().run_sync_audit, subcloud_sync_list
+        )
 
         # Verify the audit_status of the subclouds were updated to in-progress
         for i in range(3, 25):
             subcloud_sync_identity = db_api.subcloud_sync_get(
-                self.ctx,
-                'subcloud' + str(i),
-                dccommon_consts.ENDPOINT_TYPE_IDENTITY)
-            self.assertEqual(consts.AUDIT_STATUS_IN_PROGRESS,
-                             subcloud_sync_identity.audit_status)
+                self.ctx, "subcloud" + str(i), dccommon_consts.ENDPOINT_TYPE_IDENTITY
+            )
+            self.assertEqual(
+                consts.AUDIT_STATUS_IN_PROGRESS, subcloud_sync_identity.audit_status
+            )
             subcloud_sync_platform = db_api.subcloud_sync_get(
-                self.ctx,
-                'subcloud' + str(i),
-                dccommon_consts.ENDPOINT_TYPE_PLATFORM)
-            self.assertEqual(consts.AUDIT_STATUS_IN_PROGRESS,
-                             subcloud_sync_platform.audit_status)
+                self.ctx, "subcloud" + str(i), dccommon_consts.ENDPOINT_TYPE_PLATFORM
+            )
+            self.assertEqual(
+                consts.AUDIT_STATUS_IN_PROGRESS, subcloud_sync_platform.audit_status
+            )

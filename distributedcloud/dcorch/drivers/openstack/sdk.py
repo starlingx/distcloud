@@ -38,68 +38,73 @@ class OpenStackDriver(object):
     os_clients_dict = collections.defaultdict(dict)
     _identity_tokens = {}
 
-    @lockutils.synchronized('dcorch-openstackdriver')
-    def __init__(self, region_name=dccommon_consts.VIRTUAL_MASTER_CLOUD,
-                 auth_url=None):
+    @lockutils.synchronized("dcorch-openstackdriver")
+    def __init__(self, region_name=dccommon_consts.VIRTUAL_MASTER_CLOUD, auth_url=None):
         # Check if objects are cached and try to use those
         self.region_name = region_name
 
-        if (region_name in OpenStackDriver._identity_tokens and
-                (region_name in OpenStackDriver.os_clients_dict) and
-                ('keystone' in OpenStackDriver.os_clients_dict[region_name])
-                and self._is_token_valid(self.region_name)):
-            self.keystone_client = \
-                OpenStackDriver.os_clients_dict[region_name]['keystone']
+        if (
+            region_name in OpenStackDriver._identity_tokens
+            and (region_name in OpenStackDriver.os_clients_dict)
+            and ("keystone" in OpenStackDriver.os_clients_dict[region_name])
+            and self._is_token_valid(self.region_name)
+        ):
+            self.keystone_client = OpenStackDriver.os_clients_dict[region_name][
+                "keystone"
+            ]
         else:
             LOG.info("get new keystone client for %s" % region_name)
             self.keystone_client = KeystoneClient(region_name, auth_url)
-            OpenStackDriver.os_clients_dict[region_name]['keystone'] = \
-                self.keystone_client
+            OpenStackDriver.os_clients_dict[region_name][
+                "keystone"
+            ] = self.keystone_client
 
         # self.disabled_quotas = self._get_disabled_quotas(region_name)
-        if region_name in OpenStackDriver.os_clients_dict and \
-                self._is_token_valid(region_name):
-            LOG.info('Using cached OS client objects %s' % region_name)
-            self.sysinv_client = OpenStackDriver.os_clients_dict[
-                region_name]['sysinv']
-            self.fm_client = OpenStackDriver.os_clients_dict[
-                region_name]['fm']
+        if region_name in OpenStackDriver.os_clients_dict and self._is_token_valid(
+            region_name
+        ):
+            LOG.info("Using cached OS client objects %s" % region_name)
+            self.sysinv_client = OpenStackDriver.os_clients_dict[region_name]["sysinv"]
+            self.fm_client = OpenStackDriver.os_clients_dict[region_name]["fm"]
         else:
             # Create new objects and cache them
             LOG.info("Creating fresh OS Clients objects %s" % region_name)
-            OpenStackDriver.os_clients_dict[
-                region_name] = collections.defaultdict(dict)
+            OpenStackDriver.os_clients_dict[region_name] = collections.defaultdict(dict)
 
             try:
                 sysinv_endpoint = self.keystone_client.endpoint_cache.get_endpoint(
-                    'sysinv')
-                self.sysinv_client = SysinvClient(region_name,
-                                                  self.keystone_client.session,
-                                                  endpoint=sysinv_endpoint)
+                    "sysinv"
+                )
+                self.sysinv_client = SysinvClient(
+                    region_name, self.keystone_client.session, endpoint=sysinv_endpoint
+                )
                 OpenStackDriver.os_clients_dict[region_name][
-                    'sysinv'] = self.sysinv_client
+                    "sysinv"
+                ] = self.sysinv_client
             except Exception as exception:
-                LOG.error('sysinv_client region %s error: %s' %
-                          (region_name, str(exception)))
+                LOG.error(
+                    "sysinv_client region %s error: %s" % (region_name, str(exception))
+                )
 
             try:
                 self.fm_client = FmClient(
                     region_name,
                     self.keystone_client.session,
                     endpoint_type=dccommon_consts.KS_ENDPOINT_DEFAULT,
-                    endpoint=self.keystone_client.endpoint_cache.get_endpoint("fm")
+                    endpoint=self.keystone_client.endpoint_cache.get_endpoint("fm"),
                 )
-                OpenStackDriver.os_clients_dict[region_name][
-                    'fm'] = self.fm_client
+                OpenStackDriver.os_clients_dict[region_name]["fm"] = self.fm_client
             except Exception as exception:
-                LOG.error('fm_client region %s error: %s' %
-                          (region_name, str(exception)))
+                LOG.error(
+                    "fm_client region %s error: %s" % (region_name, str(exception))
+                )
 
     @classmethod
-    @lockutils.synchronized('dcorch-openstackdriver')
+    @lockutils.synchronized("dcorch-openstackdriver")
     def delete_region_clients(cls, region_name, clear_token=False):
-        LOG.warn("delete_region_clients=%s, clear_token=%s" %
-                 (region_name, clear_token))
+        LOG.warn(
+            "delete_region_clients=%s, clear_token=%s" % (region_name, clear_token)
+        )
         if region_name in cls.os_clients_dict:
             del cls.os_clients_dict[region_name]
         if clear_token:
@@ -109,37 +114,37 @@ class OpenStackDriver(object):
         try:
             return self.keystone_client.get_enabled_projects(id_only)
         except Exception as exception:
-            LOG.error('Error Occurred: %s', str(exception))
+            LOG.error("Error Occurred: %s", str(exception))
 
     def get_project_by_name(self, projectname):
         try:
             return self.keystone_client.get_project_by_name(projectname)
         except Exception as exception:
-            LOG.error('Error Occurred : %s', str(exception))
+            LOG.error("Error Occurred : %s", str(exception))
 
     def get_project_by_id(self, projectid):
         try:
             return self.keystone_client.get_project_by_id(projectid)
         except Exception as exception:
-            LOG.error('Error Occurred : %s', str(exception))
+            LOG.error("Error Occurred : %s", str(exception))
 
     def get_enabled_users(self, id_only=True):
         try:
             return self.keystone_client.get_enabled_users(id_only)
         except Exception as exception:
-            LOG.error('Error Occurred : %s', str(exception))
+            LOG.error("Error Occurred : %s", str(exception))
 
     def get_user_by_name(self, username):
         try:
             return self.keystone_client.get_user_by_name(username)
         except Exception as exception:
-            LOG.error('Error Occurred : %s', str(exception))
+            LOG.error("Error Occurred : %s", str(exception))
 
     def get_user_by_id(self, userid):
         try:
             return self.keystone_client.get_user_by_id(userid)
         except Exception as exception:
-            LOG.error('Error Occurred : %s', str(exception))
+            LOG.error("Error Occurred : %s", str(exception))
 
     def get_resource_usages(self, project_id, user_id):
         raise NotImplementedError
@@ -256,7 +261,7 @@ class OpenStackDriver(object):
                 region_lists.remove(dccommon_consts.CLOUD_0)
             return region_lists
         except Exception as exception:
-            LOG.error('Error Occurred: %s', str(exception))
+            LOG.error("Error Occurred: %s", str(exception))
             raise
 
     def _get_filtered_regions(self, project_id):
@@ -264,40 +269,42 @@ class OpenStackDriver(object):
 
     def _is_token_valid(self, region_name):
         try:
-            keystone = \
-                self.os_clients_dict[region_name]['keystone'].keystone_client
-            if (not OpenStackDriver._identity_tokens
-                    or region_name not in OpenStackDriver._identity_tokens
-                    or not OpenStackDriver._identity_tokens[region_name]):
-                identity_token = \
-                    keystone.tokens.validate(keystone.session.get_token())
+            keystone = self.os_clients_dict[region_name]["keystone"].keystone_client
+            if (
+                not OpenStackDriver._identity_tokens
+                or region_name not in OpenStackDriver._identity_tokens
+                or not OpenStackDriver._identity_tokens[region_name]
+            ):
+                identity_token = keystone.tokens.validate(keystone.session.get_token())
                 OpenStackDriver._identity_tokens[region_name] = identity_token
-                LOG.info("Got new token for subcloud %s, expires_at=%s" %
-                         (region_name, identity_token['expires_at']))
+                LOG.info(
+                    "Got new token for subcloud %s, expires_at=%s"
+                    % (region_name, identity_token["expires_at"])
+                )
                 # Reset the cached dictionary
-                OpenStackDriver.os_clients_dict[region_name] = \
-                    collections.defaultdict(dict)
+                OpenStackDriver.os_clients_dict[region_name] = collections.defaultdict(
+                    dict
+                )
                 return False
-            keystone.tokens.validate(
-                OpenStackDriver._identity_tokens[region_name])
+            keystone.tokens.validate(OpenStackDriver._identity_tokens[region_name])
         except Exception as exception:
-            LOG.info('_is_token_valid handle: %s', str(exception))
+            LOG.info("_is_token_valid handle: %s", str(exception))
             # Reset the cached dictionary
-            OpenStackDriver.os_clients_dict[region_name] = \
-                collections.defaultdict(dict)
+            OpenStackDriver.os_clients_dict[region_name] = collections.defaultdict(dict)
             OpenStackDriver._identity_tokens[region_name] = None
             return False
 
         identity_token = OpenStackDriver._identity_tokens[region_name]
-        expiry_time = timeutils.normalize_time(timeutils.parse_isotime(
-            identity_token['expires_at']))
+        expiry_time = timeutils.normalize_time(
+            timeutils.parse_isotime(identity_token["expires_at"])
+        )
         if timeutils.is_soon(expiry_time, STALE_TOKEN_DURATION):
-            LOG.info("The cached keystone token for subcloud %s will "
-                     "expire soon %s" %
-                     (region_name, identity_token['expires_at']))
+            LOG.info(
+                "The cached keystone token for subcloud %s will "
+                "expire soon %s" % (region_name, identity_token["expires_at"])
+            )
             # Reset the cached dictionary
-            OpenStackDriver.os_clients_dict[region_name] = \
-                collections.defaultdict(dict)
+            OpenStackDriver.os_clients_dict[region_name] = collections.defaultdict(dict)
             OpenStackDriver._identity_tokens[region_name] = None
             return False
         else:

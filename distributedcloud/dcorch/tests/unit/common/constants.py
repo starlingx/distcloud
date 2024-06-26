@@ -4,6 +4,6 @@
 #
 
 # Content-type
-TEXT_HTML = 'text/html'
-TEXT_PLAIN = 'text/plain'
-APPLICATION_JSON = 'application/json'
+TEXT_HTML = "text/html"
+TEXT_PLAIN = "text/plain"
+APPLICATION_JSON = "application/json"

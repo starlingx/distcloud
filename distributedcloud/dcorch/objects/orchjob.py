@@ -28,51 +28,53 @@ class OrchJob(base.OrchestratorObject, base.VersionedObjectDictCompat):
     """DC Orchestrator orchestration job object."""
 
     fields = {
-        'id': ovo_fields.IntegerField(),
-        'uuid': ovo_fields.UUIDField(),
-        'user_id': ovo_fields.StringField(),
-        'project_id': ovo_fields.StringField(),
-        'endpoint_type': ovo_fields.StringField(),
-        'source_resource_id': ovo_fields.StringField(),  # resource master_id
-        'operation_type': ovo_fields.StringField(),
-        'resource_id': ovo_fields.IntegerField(),
-        'resource_info': ovo_fields.StringField(nullable=True),
+        "id": ovo_fields.IntegerField(),
+        "uuid": ovo_fields.UUIDField(),
+        "user_id": ovo_fields.StringField(),
+        "project_id": ovo_fields.StringField(),
+        "endpoint_type": ovo_fields.StringField(),
+        "source_resource_id": ovo_fields.StringField(),  # resource master_id
+        "operation_type": ovo_fields.StringField(),
+        "resource_id": ovo_fields.IntegerField(),
+        "resource_info": ovo_fields.StringField(nullable=True),
     }
 
     def create(self):
-        if self.obj_attr_is_set('id'):
-            raise exceptions.ObjectActionError(action='create',
-                                               reason='already created')
+        if self.obj_attr_is_set("id"):
+            raise exceptions.ObjectActionError(
+                action="create", reason="already created"
+            )
         updates = self.obj_get_changes()
         try:
-            resource_id = updates.pop('resource_id')
+            resource_id = updates.pop("resource_id")
         except KeyError:
             raise exceptions.ObjectActionError(
                 action="create",
-                reason="cannot create a Subcloud object without a "
-                       "resource_id set")
+                reason="cannot create a Subcloud object without a " "resource_id set",
+            )
 
         updates = self.obj_get_changes()
         try:
-            endpoint_type = updates.pop('endpoint_type')
+            endpoint_type = updates.pop("endpoint_type")
         except KeyError:
             raise exceptions.ObjectActionError(
                 action="create",
-                reason="cannot create a Subcloud object without a "
-                       "endpoint_type set")
+                reason="cannot create a Subcloud object without a " "endpoint_type set",
+            )
 
         updates = self.obj_get_changes()
         try:
-            operation_type = updates.pop('operation_type')
+            operation_type = updates.pop("operation_type")
         except KeyError:
             raise exceptions.ObjectActionError(
                 action="create",
                 reason="cannot create a Subcloud object without a "
-                       "operation_type set")
+                "operation_type set",
+            )
 
         db_orch_job = db_api.orch_job_create(
-            self._context, resource_id, endpoint_type,
-            operation_type, updates)
+            self._context, resource_id, endpoint_type, operation_type, updates
+        )
         return self._from_db_object(self._context, self, db_orch_job)
 
     @classmethod
@@ -82,14 +84,13 @@ class OrchJob(base.OrchestratorObject, base.VersionedObjectDictCompat):
 
     def save(self):
         updates = self.obj_get_changes()
-        updates.pop('id', None)
-        updates.pop('uuid', None)
-        db_orch_job = db_api.orch_job_update(self._context,
-                                             self.id,  # pylint: disable=E1101
-                                             updates)
+        updates.pop("id", None)
+        updates.pop("uuid", None)
+        db_orch_job = db_api.orch_job_update(
+            self._context, self.id, updates  # pylint: disable=E1101
+        )
         self._from_db_object(self._context, self, db_orch_job)
         self.obj_reset_changes()
 
     def delete(self):
-        db_api.orch_job_delete(self._context,
-                               self.id)  # pylint: disable=E1101
+        db_api.orch_job_delete(self._context, self.id)  # pylint: disable=E1101

@@ -44,13 +44,13 @@ class UUIDStub(object):
         uuid.uuid4 = self.uuid4
 
 
-UUIDs = (UUID1, UUID2, UUID3, UUID4, UUID5) = sorted([str(uuid.uuid4())
-                                                     for x in range(5)])
+UUIDs = (UUID1, UUID2, UUID3, UUID4, UUID5) = sorted(
+    [str(uuid.uuid4()) for x in range(5)]
+)
 
 
 def random_name():
-    return ''.join(random.choice(string.ascii_uppercase)
-                   for x in range(10))
+    return "".join(random.choice(string.ascii_uppercase) for x in range(10))
 
 
 def setup_dummy_db():
@@ -67,30 +67,31 @@ def reset_dummy_db():
     meta.reflect(bind=engine)
 
     for table in reversed(meta.sorted_tables):
-        if table.name == 'migrate_version':
+        if table.name == "migrate_version":
             continue
         engine.execute(table.delete())
 
 
 def create_quota_limit(ctxt, **kwargs):
     values = {
-        'project_id': UUID1,
-        'resource': "ram",
-        'limit': 10,
+        "project_id": UUID1,
+        "resource": "ram",
+        "limit": 10,
     }
     values.update(kwargs)
     return db_api.quota_create(ctxt, **values)
 
 
-def dummy_context(user='test_username', tenant='test_project_id',
-                  region_name=None):
-    return context.RequestContext.from_dict({
-        'auth_token': 'abcd1234',
-        'user': user,
-        'project': tenant,
-        'is_admin': True,
-        'region_name': region_name
-    })
+def dummy_context(user="test_username", tenant="test_project_id", region_name=None):
+    return context.RequestContext.from_dict(
+        {
+            "auth_token": "abcd1234",
+            "user": user,
+            "project": tenant,
+            "is_admin": True,
+            "region_name": region_name,
+        }
+    )
 
 
 def wait_until_true(predicate, timeout=60, sleep=1, exception=None):
@@ -101,12 +102,12 @@ def wait_until_true(predicate, timeout=60, sleep=1, exception=None):
 
 def create_subcloud_static(ctxt, name, **kwargs):
     values = {
-        'software_version': '10.04',
-        'management_state': dccommon_consts.MANAGEMENT_MANAGED,
-        'availability_status': dccommon_consts.AVAILABILITY_ONLINE,
-        'initial_sync_state': '',
-        'capabilities': base.CAPABILITES,
-        'management_ip': '192.168.0.1'
+        "software_version": "10.04",
+        "management_state": dccommon_consts.MANAGEMENT_MANAGED,
+        "availability_status": dccommon_consts.AVAILABILITY_ONLINE,
+        "initial_sync_state": "",
+        "capabilities": base.CAPABILITES,
+        "management_ip": "192.168.0.1",
     }
     values.update(kwargs)
     return db_api.subcloud_create(ctxt, name, values=values)
@@ -114,10 +115,10 @@ def create_subcloud_static(ctxt, name, **kwargs):
 
 def create_subcloud_sync_static(ctxt, name, endpoint_type, **kwargs):
     values = {
-        'subcloud_name': name,
-        'endpoint_type': endpoint_type,
-        'subcloud_id': '',
-        'sync_request': ''
+        "subcloud_name": name,
+        "endpoint_type": endpoint_type,
+        "subcloud_id": "",
+        "sync_request": "",
     }
     values.update(kwargs)
     return db_api.subcloud_sync_create(ctxt, name, endpoint_type, values=values)

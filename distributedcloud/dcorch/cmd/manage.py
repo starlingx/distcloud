@@ -56,37 +56,41 @@ def do_db_clean():
 
 
 def add_command_parsers(subparsers):
-    parser = subparsers.add_parser('db_version')
+    parser = subparsers.add_parser("db_version")
     parser.set_defaults(func=do_db_version)
 
-    parser = subparsers.add_parser('db_sync')
+    parser = subparsers.add_parser("db_sync")
     parser.set_defaults(func=do_db_sync)
-    parser.add_argument('version', nargs='?')
-    parser.add_argument('current_version', nargs='?')
+    parser.add_argument("version", nargs="?")
+    parser.add_argument("current_version", nargs="?")
 
-    parser = subparsers.add_parser('db_clean')
+    parser = subparsers.add_parser("db_clean")
     parser.set_defaults(func=do_db_clean)
-    parser.add_argument('age_in_days', type=int,
-                        default=1)
+    parser.add_argument("age_in_days", type=int, default=1)
 
 
-command_opt = cfg.SubCommandOpt('command',
-                                title='Commands',
-                                help='Show available commands.',
-                                handler=add_command_parsers)
+command_opt = cfg.SubCommandOpt(
+    "command",
+    title="Commands",
+    help="Show available commands.",
+    handler=add_command_parsers,
+)
 
 
 def main():
     logging.register_options(CONF)
-    logging.setup(CONF, 'dcorch-manage')
+    logging.setup(CONF, "dcorch-manage")
     CONF.register_cli_opt(command_opt)
 
     try:
-        default_config_files = cfg.find_config_files('dcorch',
-                                                     'dcorch-engine')
-        CONF(sys.argv[1:], project='dcorch', prog='dcorch-manage',
-             version=version.version_info.version_string(),
-             default_config_files=default_config_files)
+        default_config_files = cfg.find_config_files("dcorch", "dcorch-engine")
+        CONF(
+            sys.argv[1:],
+            project="dcorch",
+            prog="dcorch-manage",
+            version=version.version_info.version_string(),
+            default_config_files=default_config_files,
+        )
     except RuntimeError as e:
         sys.exit("ERROR: %s" % e)
 
@@ -96,5 +100,5 @@ def main():
         sys.exit("ERROR: %s" % e)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()
