@@ -38,6 +38,24 @@ from dcmanager.orchestrator.kube_upgrade_orch_thread \
 from dcmanager.orchestrator.patch_orch_thread import PatchOrchThread
 from dcmanager.orchestrator.prestage_orch_thread import PrestageOrchThread
 from dcmanager.orchestrator.software_orch_thread import SoftwareOrchThread
+from dcmanager.orchestrator.validators.firmware_validator import (
+    FirmwareStrategyValidator
+)
+from dcmanager.orchestrator.validators.kube_root_ca_validator import (
+    KubeRootCaStrategyValidator
+)
+from dcmanager.orchestrator.validators.kubernetes_validator import (
+    KubernetesStrategyValidator
+)
+from dcmanager.orchestrator.validators.patch_validator import (
+    PatchStrategyValidator
+)
+from dcmanager.orchestrator.validators.prestage_validator import (
+    PrestageStrategyValidator
+)
+from dcmanager.orchestrator.validators.sw_deploy_validator import (
+    SoftwareDeployStrategyValidator
+)
 
 LOG = logging.getLogger(__name__)
 
@@ -88,6 +106,15 @@ class SwUpdateManager(manager.Manager):
         self.prestage_orch_thread = PrestageOrchThread(
             self.strategy_lock, self.audit_rpc_client)
         self.prestage_orch_thread.start()
+
+        self.strategy_validators = {
+            consts.SW_UPDATE_TYPE_SOFTWARE: SoftwareDeployStrategyValidator(),
+            consts.SW_UPDATE_TYPE_FIRMWARE: FirmwareStrategyValidator(),
+            consts.SW_UPDATE_TYPE_KUBERNETES: KubernetesStrategyValidator(),
+            consts.SW_UPDATE_TYPE_KUBE_ROOTCA_UPDATE: KubeRootCaStrategyValidator(),
+            consts.SW_UPDATE_TYPE_PATCH: PatchStrategyValidator(),
+            consts.SW_UPDATE_TYPE_PRESTAGE: PrestageStrategyValidator()
+        }
 
     def stop(self):
         # Stop (and join) the worker threads
@@ -313,7 +340,6 @@ class SwUpdateManager(manager.Manager):
             for_sw_deploy = False
 
         # Has the user specified a specific subcloud?
-        # todo(abailey): refactor this code to use classes
         cloud_name = payload.get('cloud_name')
         strategy_type = payload.get('type')
         prestage_global_validated = False
@@ -326,62 +352,8 @@ class SwUpdateManager(manager.Manager):
                     resource='strategy',
                     msg=f'Subcloud {cloud_name} does not exist')
 
-            if strategy_type == consts.SW_UPDATE_TYPE_SOFTWARE:
-                subcloud_status = db_api.subcloud_status_get(
-                    context, subcloud.id, dccommon_consts.ENDPOINT_TYPE_SOFTWARE)
-                if subcloud_status.sync_status == \
-                        dccommon_consts.SYNC_STATUS_IN_SYNC:
-                    raise exceptions.BadRequest(
-                        resource='strategy',
-                        msg=f'Subcloud {cloud_name} does not require deploy')
-            elif strategy_type == consts.SW_UPDATE_TYPE_FIRMWARE:
-                subcloud_status = db_api.subcloud_status_get(
-                    context, subcloud.id, dccommon_consts.ENDPOINT_TYPE_FIRMWARE)
-                if subcloud_status.sync_status == \
-                        dccommon_consts.SYNC_STATUS_IN_SYNC:
-                    raise exceptions.BadRequest(
-                        resource='strategy',
-                        msg='Subcloud %s does not require firmware update'
-                            % cloud_name)
-            elif strategy_type == consts.SW_UPDATE_TYPE_KUBERNETES:
-                if force:
-                    # force means we do not care about the status
-                    pass
-                else:
-                    subcloud_status = db_api.subcloud_status_get(
-                        context, subcloud.id,
-                        dccommon_consts.ENDPOINT_TYPE_KUBERNETES)
-                    if subcloud_status.sync_status == \
-                            dccommon_consts.SYNC_STATUS_IN_SYNC:
-                        raise exceptions.BadRequest(
-                            resource='strategy',
-                            msg='Subcloud %s does not require kubernetes update'
-                                % cloud_name)
-            elif strategy_type == consts.SW_UPDATE_TYPE_KUBE_ROOTCA_UPDATE:
-                if force:
-                    # force means we do not care about the status
-                    pass
-                else:
-                    subcloud_status = db_api.subcloud_status_get(
-                        context, subcloud.id,
-                        dccommon_consts.ENDPOINT_TYPE_KUBE_ROOTCA)
-                    if subcloud_status.sync_status == \
-                            dccommon_consts.SYNC_STATUS_IN_SYNC:
-                        raise exceptions.BadRequest(
-                            resource='strategy',
-                            msg='Subcloud %s does not require kube rootca update'
-                                % cloud_name)
-            elif strategy_type == consts.SW_UPDATE_TYPE_PATCH:
-                # Make sure subcloud requires patching
-                subcloud_status = db_api.subcloud_status_get(
-                    context, subcloud.id, dccommon_consts.ENDPOINT_TYPE_PATCHING)
-                if subcloud_status.sync_status == \
-                        dccommon_consts.SYNC_STATUS_IN_SYNC:
-                    raise exceptions.BadRequest(
-                        resource='strategy',
-                        msg='Subcloud %s does not require patching' % cloud_name)
-
-            elif strategy_type == consts.SW_UPDATE_TYPE_PRESTAGE:
+            # TODO(rlima): move prestage to its validator
+            if strategy_type == consts.SW_UPDATE_TYPE_PRESTAGE:
                 # Do initial validation for subcloud
                 try:
                     prestage.global_prestage_validate(payload)
@@ -396,6 +368,12 @@ class SwUpdateManager(manager.Manager):
                 except exceptions.PrestagePreCheckFailedException as ex:
                     raise exceptions.BadRequest(resource='strategy',
                                                 msg=str(ex))
+
+            else:
+                self.strategy_validators[strategy_type].\
+                    validate_strategy_requirements(
+                        context, subcloud.id, subcloud.name, force
+                )
 
         extra_args = None
         # kube rootca update orchestration supports extra creation args
