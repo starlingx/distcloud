@@ -37,10 +37,10 @@ class AlarmAggregation(object):
         try:
             alarms = fm_client.get_alarm_summary()
             alarm_updates = {
-                'critical_alarms': alarms[0].critical,
-                'major_alarms': alarms[0].major,
-                'minor_alarms': alarms[0].minor,
-                'warnings': alarms[0].warnings
+                "critical_alarms": alarms[0].critical,
+                "major_alarms": alarms[0].major,
+                "minor_alarms": alarms[0].minor,
+                "warnings": alarms[0].warnings,
             }
             alarm_updates = cls._set_cloud_status(alarm_updates)
             return alarm_updates
@@ -57,12 +57,13 @@ class AlarmAggregation(object):
 
     @staticmethod
     def _set_cloud_status(alarm_dict):
-        if alarm_dict.get('critical_alarms') > 0:
+        if alarm_dict.get("critical_alarms") > 0:
             status = consts.ALARM_CRITICAL_STATUS
-        elif (alarm_dict.get('major_alarms') > 0) or \
-                (alarm_dict.get('minor_alarms') > 0):
+        elif (alarm_dict.get("major_alarms") > 0) or (
+            alarm_dict.get("minor_alarms") > 0
+        ):
             status = consts.ALARM_DEGRADED_STATUS
         else:
             status = consts.ALARM_OK_STATUS
-        alarm_dict['cloud_status'] = status
+        alarm_dict["cloud_status"] = status
         return alarm_dict

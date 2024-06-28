@@ -1232,7 +1232,7 @@ class TestAuditWorkerManager(base.DCManagerTestCase):
         db_api.subcloud_destroy(self.ctx, subcloud.id)
         wm._update_subcloud_audit_fail_count(subcloud, audit_fail_count)
         mock_logging.info.assert_called_with(
-            'Ignoring SubcloudNotFound when attempting update'
+            'Ignoring SubcloudNotFound when attempting update '
             'audit_fail_count for subcloud: %s' % subcloud.name)
 
     def test_audit_subcloud_online_with_openstack_installed(self):

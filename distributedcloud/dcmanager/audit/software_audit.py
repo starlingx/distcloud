@@ -8,9 +8,7 @@ from keystoneauth1 import exceptions as keystone_exceptions
 from oslo_log import log as logging
 
 from dccommon import consts as dccommon_consts
-from dccommon.drivers.openstack.keystone_v3 import (
-    KeystoneClient as ks_client
-)
+from dccommon.drivers.openstack.keystone_v3 import KeystoneClient as ks_client
 from dccommon.drivers.openstack import sdk_platform
 from dccommon.drivers.openstack import software_v1
 from dccommon.endpoint_cache import build_subcloud_endpoint
@@ -104,9 +102,7 @@ class SoftwareAudit(object):
 
     @classmethod
     def get_subcloud_audit_data(
-        cls,
-        software_client: software_v1.SoftwareClient,
-        subcloud_name: str = None
+        cls, software_client: software_v1.SoftwareClient, subcloud_name: str = None
     ):
         # Retrieve all the releases that are present in this subcloud.
         try:
@@ -122,7 +118,7 @@ class SoftwareAudit(object):
         cls,
         software_client: software_v1.SoftwareClient,
         audit_data: SoftwareAuditData,
-        subcloud_name: str = None
+        subcloud_name: str = None,
     ):
         # Retrieve all the releases that are present in this subcloud.
         subcloud_releases = cls.get_subcloud_audit_data(software_client)
@@ -190,7 +186,7 @@ class SoftwareAudit(object):
         subcloud_management_ip: str,
         subcloud_name: str,
         subcloud_region: str,
-        audit_data: SoftwareAuditData
+        audit_data: SoftwareAuditData,
     ):
         LOG.info(f"Triggered software audit for: {subcloud_name}.")
         try:
@@ -218,7 +214,7 @@ class SoftwareAudit(object):
 
         if sync_status:
             LOG.info(
-                f'Software audit completed for: {subcloud_name}, requesting '
-                f'sync_status update to {sync_status}'
+                f"Software audit completed for: {subcloud_name}, requesting "
+                f"sync_status update to {sync_status}"
             )
             return sync_status

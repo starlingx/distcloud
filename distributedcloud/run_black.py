@@ -25,6 +25,7 @@ formatted_modules = [
     "dcorch",
     "dcagent",
     "dcmanager/api",
+    "dcmanager/audit",
 ]
 
 

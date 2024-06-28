@@ -20,27 +20,29 @@
 from dcmanager.db import api as db_api
 
 
-def request_subcloud_audits(context,
-                            update_subcloud_state=False,
-                            audit_patch=False,
-                            audit_load=False,
-                            audit_firmware=False,
-                            audit_kubernetes=False,
-                            audit_kube_rootca=False,
-                            audit_software=False,):
+def request_subcloud_audits(
+    context,
+    update_subcloud_state=False,
+    audit_patch=False,
+    audit_load=False,
+    audit_firmware=False,
+    audit_kubernetes=False,
+    audit_kube_rootca=False,
+    audit_software=False,
+):
     values = {}
     if update_subcloud_state:
-        values['state_update_requested'] = True
+        values["state_update_requested"] = True
     if audit_patch:
-        values['patch_audit_requested'] = True
+        values["patch_audit_requested"] = True
     if audit_load:
-        values['load_audit_requested'] = True
+        values["load_audit_requested"] = True
     if audit_firmware:
-        values['firmware_audit_requested'] = True
+        values["firmware_audit_requested"] = True
     if audit_kubernetes:
-        values['kubernetes_audit_requested'] = True
+        values["kubernetes_audit_requested"] = True
     if audit_kube_rootca:
-        values['kube_rootca_update_audit_requested'] = True
+        values["kube_rootca_update_audit_requested"] = True
     if audit_software:
-        values['spare_audit_requested'] = True
+        values["spare_audit_requested"] = True
     db_api.subcloud_audits_update_all(context, values)

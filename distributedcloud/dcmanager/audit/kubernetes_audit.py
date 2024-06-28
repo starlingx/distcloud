@@ -175,7 +175,7 @@ class KubernetesAudit(object):
 
         if sync_status:
             LOG.info(
-                f'Kubernetes audit completed for: {subcloud_name}, requesting '
-                f'sync_status update to {sync_status}'
+                f"Kubernetes audit completed for: {subcloud_name}, requesting "
+                f"sync_status update to {sync_status}"
             )
             return sync_status

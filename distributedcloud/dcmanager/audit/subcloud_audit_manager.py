@@ -97,9 +97,7 @@ class SubcloudAuditManager(manager.Manager):
         self.patch_audit_time = 0
         self.firmware_audit = firmware_audit.FirmwareAudit()
         self.kubernetes_audit = kubernetes_audit.KubernetesAudit()
-        self.kube_rootca_update_audit = (
-            kube_rootca_update_audit.KubeRootcaUpdateAudit()
-        )
+        self.kube_rootca_update_audit = kube_rootca_update_audit.KubeRootcaUpdateAudit()
         self.software_audit = software_audit.SoftwareAudit()
 
     def _add_missing_endpoints(self):
@@ -124,9 +122,7 @@ class SubcloudAuditManager(manager.Manager):
                 missing_endpoints = list(endpoint_type_set - subcloud_set)
 
                 for endpoint in missing_endpoints:
-                    db_api.subcloud_status_create(
-                        self.context, subcloud.id, endpoint
-                    )
+                    db_api.subcloud_status_create(self.context, subcloud.id, endpoint)
             # Add a flag on a replicated filesystem to avoid re-running
             # the DB checks for missing subcloud endpoints
             open(file_path, "w").close()
@@ -267,8 +263,7 @@ class SubcloudAuditManager(manager.Manager):
 
         # Determine whether to trigger a patch audit of each subcloud
         if SubcloudAuditManager.force_patch_audit or (
-            current_time - self.patch_audit_time
-            >= CONF.scheduler.patch_audit_interval
+            current_time - self.patch_audit_time >= CONF.scheduler.patch_audit_interval
         ):
             LOG.info("Trigger patch audit")
             audit_patch = True
@@ -460,9 +455,7 @@ class SubcloudAuditManager(manager.Manager):
         )
         end = datetime.datetime.utcnow()
         if num_fixed > 0:
-            LOG.info(
-                "Fixed up subcloud audit timestamp for %s subclouds." % num_fixed
-            )
+            LOG.info("Fixed up subcloud audit timestamp for %s subclouds." % num_fixed)
             LOG.info("Fixup took %s seconds" % (end - start))
 
         subcloud_ids = []
@@ -478,33 +471,44 @@ class SubcloudAuditManager(manager.Manager):
         )
 
         # Remove subclouds that don't qualify for this round of audit
-        for audit, subcloud_name, deploy_status, availability_status in (
-                list(subcloud_audits)):
+        for audit, subcloud_name, deploy_status, availability_status in list(
+            subcloud_audits
+        ):
             # Include failure deploy status states in the auditable list
             # so that the subcloud can be set as offline
-            if (deploy_status not in
-                    [consts.DEPLOY_STATE_DONE,
-                     consts.DEPLOY_STATE_CONFIGURING,
-                     consts.DEPLOY_STATE_CONFIG_FAILED,
-                     consts.DEPLOY_STATE_CONFIG_ABORTED,
-                     consts.DEPLOY_STATE_PRE_CONFIG_FAILED,
-                     consts.DEPLOY_STATE_INSTALL_FAILED,
-                     consts.DEPLOY_STATE_INSTALL_ABORTED,
-                     consts.DEPLOY_STATE_PRE_INSTALL_FAILED,
-                     consts.DEPLOY_STATE_INSTALLING,
-                     consts.DEPLOY_STATE_DATA_MIGRATION_FAILED,
-                     consts.DEPLOY_STATE_UPGRADE_ACTIVATED,
-                     consts.DEPLOY_STATE_RESTORING,
-                     consts.DEPLOY_STATE_RESTORE_PREP_FAILED,
-                     consts.DEPLOY_STATE_RESTORE_FAILED,
-                     consts.DEPLOY_STATE_REHOME_PENDING]) or (
-                    (deploy_status in [
+            if (
+                deploy_status
+                not in [
+                    consts.DEPLOY_STATE_DONE,
+                    consts.DEPLOY_STATE_CONFIGURING,
+                    consts.DEPLOY_STATE_CONFIG_FAILED,
+                    consts.DEPLOY_STATE_CONFIG_ABORTED,
+                    consts.DEPLOY_STATE_PRE_CONFIG_FAILED,
+                    consts.DEPLOY_STATE_INSTALL_FAILED,
+                    consts.DEPLOY_STATE_INSTALL_ABORTED,
+                    consts.DEPLOY_STATE_PRE_INSTALL_FAILED,
+                    consts.DEPLOY_STATE_INSTALLING,
+                    consts.DEPLOY_STATE_DATA_MIGRATION_FAILED,
+                    consts.DEPLOY_STATE_UPGRADE_ACTIVATED,
+                    consts.DEPLOY_STATE_RESTORING,
+                    consts.DEPLOY_STATE_RESTORE_PREP_FAILED,
+                    consts.DEPLOY_STATE_RESTORE_FAILED,
+                    consts.DEPLOY_STATE_REHOME_PENDING,
+                ]
+            ) or (
+                (
+                    deploy_status
+                    in [
                         consts.DEPLOY_STATE_INSTALLING,
-                        consts.DEPLOY_STATE_REHOME_PENDING])
-                    and availability_status ==
-                    dccommon_consts.AVAILABILITY_OFFLINE):
-                LOG.debug("Skip subcloud %s audit, deploy_status: %s" %
-                          (subcloud_name, deploy_status))
+                        consts.DEPLOY_STATE_REHOME_PENDING,
+                    ]
+                )
+                and availability_status == dccommon_consts.AVAILABILITY_OFFLINE
+            ):
+                LOG.debug(
+                    "Skip subcloud %s audit, deploy_status: %s"
+                    % (subcloud_name, deploy_status)
+                )
                 skipped_subcloud_ids.append(audit.subcloud_id)
             else:
                 pruned_subcloud_audits.append(audit)

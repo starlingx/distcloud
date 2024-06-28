@@ -299,8 +299,7 @@ class FirmwareAudit(object):
             subcloud_device_images = sysinv_client.get_device_images()
             if subcloud_device_images:
                 subcloud_device_images = {
-                    image.uuid: image
-                    for image in subcloud_device_images
+                    image.uuid: image for image in subcloud_device_images
                 }
             msg = f"Device_images: {subcloud_device_images}"
             log_subcloud_msg(LOG.debug, msg, subcloud_name)
@@ -380,7 +379,7 @@ class FirmwareAudit(object):
 
         if sync_status:
             LOG.info(
-                f'Firmware audit completed for: {subcloud_name}, requesting sync_status'
-                f'update to {sync_status}'
+                f"Firmware audit completed for: {subcloud_name}, requesting sync_status"
+                f"update to {sync_status}"
             )
             return sync_status
