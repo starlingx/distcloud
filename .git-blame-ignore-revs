@@ -18,5 +18,18 @@
 # - Because you must use a hash, you need to append to this list in a follow-up
 #   commit to the actual reformatting commit that you are trying to ignore.
 
+# Enable pylint/pep8 violations for all Python files
+3685223b28194754fef89229724d795c6862014f
+a2b9bb7ab28a0da08dd4ba20dc97671eb10b6b50
+766f0522956d9e3a5272cff4dec06008d791c129
+4438b8fd5579f20ece09e670b712e3afd691bd79
+
 # Format all Python files with Black formatter
 69970aac60f91f1bc7cbc1323364a5a782756cfe
+83dbf64acabff56f9dfc9d496a5eed66fcd41481
+686abd1cbc75b5a27798f522c1e686f3c8bd7376
+56e359bf8adfa871838194145b04c25bd43f8321
+fb82532bbf0c91fbd6ba385b0cbab880ec1159d6
+51bee5a605ebb016b7905b243ac9d3da86551df6
+51b6e19a2cf572399dc394ff3336c3c384de010a
+70fd84b263fef57d9589683ce22496b4cb55d65c

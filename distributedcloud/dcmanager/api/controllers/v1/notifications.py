@@ -34,31 +34,30 @@ class NotificationsController(object):
         super(NotificationsController, self).__init__()
         self.audit_rpc_client = audit_rpc_client.ManagerAuditClient()
 
-    @expose(generic=True, template='json')
+    @expose(generic=True, template="json")
     def index(self):
         # Route the request to specific methods with parameters
         pass
 
-    @index.when(method='POST', template='json')
+    @index.when(method="POST", template="json")
     def post(self):
-        if 'events' not in request.json_body:
-            pecan.abort(httpclient.BAD_REQUEST,
-                        "Missing required notification events")
+        if "events" not in request.json_body:
+            pecan.abort(httpclient.BAD_REQUEST, "Missing required notification events")
 
-        events = request.json_body['events']
-        if 'platform-upgrade-completed' in events:
+        events = request.json_body["events"]
+        if "platform-upgrade-completed" in events:
             # We're being notified that a platform upgrade has completed,
             # so we want to trigger a load audit of all subclouds on the
             # next audit cycle.
             context = restcomm.extract_context_from_environ()
             self.audit_rpc_client.trigger_load_audit(context)
-        if 'k8s-upgrade-completed' in events:
+        if "k8s-upgrade-completed" in events:
             # We're being notified that a kubernetes upgrade has completed,
             # so we want to trigger a kubernetes audit of all subclouds on
             # the next audit cycle.
             context = restcomm.extract_context_from_environ()
             self.audit_rpc_client.trigger_kubernetes_audit(context)
-        if 'kube-rootca-update-completed' in events:
+        if "kube-rootca-update-completed" in events:
             # We're being notified that a kube rootca update has completed, so
             # we want to trigger a kube rootca update audit of all subclouds on
             # the next audit cycle.

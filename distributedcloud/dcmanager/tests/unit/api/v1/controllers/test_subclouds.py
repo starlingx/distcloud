@@ -2651,7 +2651,7 @@ class TestSubcloudsDelete(BaseTestSubcloudsController):
 
         self._assert_pecan_and_response(
             response, http.client.BAD_REQUEST,
-            "Cannot delete a subcloud that is \"managed\" status"
+            "Cannot delete a subcloud that is 'managed' status"
         )
 
     def test_delete_fails_with_invalid_deploy_states(self):

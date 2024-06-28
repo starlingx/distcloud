@@ -51,8 +51,7 @@ MAX_SYSTEM_PEER_HEARTBEAT_FAILURE_THRESHOLD = 30
 # the heartbeat failure threshold is reached
 #
 # We will only support alarm in the first release
-SYSTEM_PEER_HEARTBEAT_FAILURE_POLICY_LIST = \
-    ["alarm", "rehome", "delegate"]
+SYSTEM_PEER_HEARTBEAT_FAILURE_POLICY_LIST = ["alarm", "rehome", "delegate"]
 MIN_SYSTEM_PEER_HEARTBEAT_MAINTENACE_TIMEOUT = 300
 MAX_SYSTEM_PEER_HEARTBEAT_MAINTENACE_TIMEOUT = 36000
 
@@ -64,7 +63,7 @@ class SystemPeersController(restcomm.GenericPathController):
 
         self.dcmanager_rpc_client = rpc_client.ManagerClient()
 
-    @expose(generic=True, template='json')
+    @expose(generic=True, template="json")
     def index(self):
         # Route the request to specific methods with parameters
         pass
@@ -74,12 +73,12 @@ class SystemPeersController(restcomm.GenericPathController):
         try:
             payload = json.loads(request.body)
         except Exception:
-            error_msg = 'Request body is malformed.'
+            error_msg = "Request body is malformed."
             LOG.exception(error_msg)
             pecan.abort(400, _(error_msg))
 
         if not isinstance(payload, dict):
-            pecan.abort(400, _('Invalid request body format'))
+            pecan.abort(400, _("Invalid request body format"))
         return payload
 
     def _get_peer_group_list_for_system_peer(self, context, peer_id):
@@ -95,10 +94,10 @@ class SystemPeersController(restcomm.GenericPathController):
             system_peer_list.append(peer_dict)
 
         result = dict()
-        result['system_peers'] = system_peer_list
+        result["system_peers"] = system_peer_list
         return result
 
-    @index.when(method='GET', template='json')
+    @index.when(method="GET", template="json")
     def get(self, peer_ref=None, subcloud_peer_groups=False):
         """Retrieve information about a system peer.
 
@@ -110,8 +109,11 @@ class SystemPeersController(restcomm.GenericPathController):
         :param subcloud_peer_groups: If this request should return subcloud
                                      peer groups
         """
-        policy.authorize(system_peer_policy.POLICY_ROOT % "get", {},
-                         restcomm.extract_credentials_for_policy())
+        policy.authorize(
+            system_peer_policy.POLICY_ROOT % "get",
+            {},
+            restcomm.extract_credentials_for_policy(),
+        )
         context = restcomm.extract_context_from_environ()
 
         if peer_ref is None:
@@ -120,7 +122,7 @@ class SystemPeersController(restcomm.GenericPathController):
 
         peer = utils.system_peer_get_by_ref(context, peer_ref)
         if peer is None:
-            pecan.abort(httpclient.NOT_FOUND, _('System Peer not found'))
+            pecan.abort(httpclient.NOT_FOUND, _("System Peer not found"))
         if subcloud_peer_groups:
             return self._get_peer_group_list_for_system_peer(context, peer.id)
         system_peer_dict = db_api.system_peer_db_model_to_dict(peer)
@@ -135,8 +137,11 @@ class SystemPeersController(restcomm.GenericPathController):
             return False
 
     def _validate_manager_endpoint(self, endpoint):
-        if not endpoint or len(endpoint) >= MAX_SYSTEM_PEER_MANAGER_ENDPOINT_LEN or \
-                not endpoint.startswith(("http", "https")):
+        if (
+            not endpoint
+            or len(endpoint) >= MAX_SYSTEM_PEER_MANAGER_ENDPOINT_LEN
+            or not endpoint.startswith(("http", "https"))
+        ):
             LOG.debug("Invalid manager_endpoint: %s" % endpoint)
             return False
         return True
@@ -179,286 +184,334 @@ class SystemPeersController(restcomm.GenericPathController):
             return False
 
         # We do not support less than min or greater than max
-        if val < MIN_SYSTEM_PEER_HEARTBEAT_INTERVAL or \
-                val > MAX_SYSTEM_PEER_HEARTBEAT_INTERVAL:
+        if (
+            val < MIN_SYSTEM_PEER_HEARTBEAT_INTERVAL
+            or val > MAX_SYSTEM_PEER_HEARTBEAT_INTERVAL
+        ):
             LOG.debug("Invalid heartbeat_interval: %s" % heartbeat_interval)
             return False
         return True
 
-    def _validate_heartbeat_failure_threshold(self,
-                                              heartbeat_failure_threshold):
+    def _validate_heartbeat_failure_threshold(self, heartbeat_failure_threshold):
         try:
             # Check the value is an integer
             val = int(heartbeat_failure_threshold)
         except ValueError:
-            LOG.warning("Invalid heartbeat_failure_threshold: %s" %
-                        heartbeat_failure_threshold)
+            LOG.warning(
+                "Invalid heartbeat_failure_threshold: %s" % heartbeat_failure_threshold
+            )
             return False
 
         # We do not support less than min or greater than max
-        if val < MIN_SYSTEM_PEER_HEARTBEAT_FAILURE_THRESHOLD or \
-                val > MAX_SYSTEM_PEER_HEARTBEAT_FAILURE_THRESHOLD:
-            LOG.debug("Invalid heartbeat_failure_threshold: %s" %
-                      heartbeat_failure_threshold)
+        if (
+            val < MIN_SYSTEM_PEER_HEARTBEAT_FAILURE_THRESHOLD
+            or val > MAX_SYSTEM_PEER_HEARTBEAT_FAILURE_THRESHOLD
+        ):
+            LOG.debug(
+                "Invalid heartbeat_failure_threshold: %s" % heartbeat_failure_threshold
+            )
             return False
         return True
 
     def _validate_heartbeat_failure_policy(self, heartbeat_failure_policy):
         if heartbeat_failure_policy not in SYSTEM_PEER_HEARTBEAT_FAILURE_POLICY_LIST:
-            LOG.debug("Invalid heartbeat_failure_policy: %s" %
-                      heartbeat_failure_policy)
+            LOG.debug("Invalid heartbeat_failure_policy: %s" % heartbeat_failure_policy)
             return False
         return True
 
-    def _validate_heartbeat_maintenance_timeout(self,
-                                                heartbeat_maintenance_timeout):
+    def _validate_heartbeat_maintenance_timeout(self, heartbeat_maintenance_timeout):
         try:
             # Check the value is an integer
             val = int(heartbeat_maintenance_timeout)
         except ValueError:
-            LOG.warning("Invalid heartbeat_maintenance_timeout: %s" %
-                        heartbeat_maintenance_timeout)
+            LOG.warning(
+                "Invalid heartbeat_maintenance_timeout: %s"
+                % heartbeat_maintenance_timeout
+            )
             return False
 
         # We do not support less than min or greater than max
-        if val < MIN_SYSTEM_PEER_HEARTBEAT_MAINTENACE_TIMEOUT or \
-                val > MAX_SYSTEM_PEER_HEARTBEAT_MAINTENACE_TIMEOUT:
-            LOG.debug("Invalid heartbeat_maintenance_timeout: %s" %
-                      heartbeat_maintenance_timeout)
+        if (
+            val < MIN_SYSTEM_PEER_HEARTBEAT_MAINTENACE_TIMEOUT
+            or val > MAX_SYSTEM_PEER_HEARTBEAT_MAINTENACE_TIMEOUT
+        ):
+            LOG.debug(
+                "Invalid heartbeat_maintenance_timeout: %s"
+                % heartbeat_maintenance_timeout
+            )
             return False
         return True
 
-    @index.when(method='POST', template='json')
+    @index.when(method="POST", template="json")
     def post(self):
         """Create a new system peer."""
 
-        policy.authorize(system_peer_policy.POLICY_ROOT % "create", {},
-                         restcomm.extract_credentials_for_policy())
+        policy.authorize(
+            system_peer_policy.POLICY_ROOT % "create",
+            {},
+            restcomm.extract_credentials_for_policy(),
+        )
         context = restcomm.extract_context_from_environ()
         LOG.info("Creating a new system peer: %s" % context)
 
         payload = self._get_payload(request)
         if not payload:
-            pecan.abort(httpclient.BAD_REQUEST, _('Body required'))
+            pecan.abort(httpclient.BAD_REQUEST, _("Body required"))
 
         # Validate payload
-        peer_uuid = payload.get('peer_uuid')
+        peer_uuid = payload.get("peer_uuid")
         if not self._validate_uuid(peer_uuid):
-            pecan.abort(httpclient.BAD_REQUEST, _('Invalid peer uuid'))
+            pecan.abort(httpclient.BAD_REQUEST, _("Invalid peer uuid"))
 
-        peer_name = payload.get('peer_name')
+        peer_name = payload.get("peer_name")
         if not utils.validate_name(peer_name):
-            pecan.abort(httpclient.BAD_REQUEST, _('Invalid peer name'))
+            pecan.abort(httpclient.BAD_REQUEST, _("Invalid peer name"))
 
-        endpoint = payload.get('manager_endpoint')
+        endpoint = payload.get("manager_endpoint")
         if not self._validate_manager_endpoint(endpoint):
-            pecan.abort(httpclient.BAD_REQUEST,
-                        _('Invalid peer manager_endpoint'))
+            pecan.abort(httpclient.BAD_REQUEST, _("Invalid peer manager_endpoint"))
 
-        username = payload.get('manager_username')
+        username = payload.get("manager_username")
         if not self._validate_manager_username(username):
-            pecan.abort(httpclient.BAD_REQUEST,
-                        _('Invalid peer manager_username'))
+            pecan.abort(httpclient.BAD_REQUEST, _("Invalid peer manager_username"))
 
-        password = payload.get('manager_password')
+        password = payload.get("manager_password")
         if not self._validate_manager_password(password):
-            pecan.abort(httpclient.BAD_REQUEST,
-                        _('Invalid peer manager_password'))
+            pecan.abort(httpclient.BAD_REQUEST, _("Invalid peer manager_password"))
 
-        gateway_ip = payload.get('peer_controller_gateway_address')
+        gateway_ip = payload.get("peer_controller_gateway_address")
         if not self._validate_peer_controller_gateway_ip(gateway_ip):
-            pecan.abort(httpclient.BAD_REQUEST,
-                        _('Invalid peer peer_controller_gateway_address'))
+            pecan.abort(
+                httpclient.BAD_REQUEST,
+                _("Invalid peer peer_controller_gateway_address"),
+            )
 
         # Optional request parameters
         kwargs = {}
-        administrative_state = payload.get('administrative_state')
+        administrative_state = payload.get("administrative_state")
         if administrative_state:
             if not self._validate_administrative_state(administrative_state):
-                pecan.abort(httpclient.BAD_REQUEST,
-                            _('Invalid peer administrative_state'))
-            kwargs['administrative_state'] = administrative_state
+                pecan.abort(
+                    httpclient.BAD_REQUEST, _("Invalid peer administrative_state")
+                )
+            kwargs["administrative_state"] = administrative_state
 
-        heartbeat_interval = payload.get('heartbeat_interval')
+        heartbeat_interval = payload.get("heartbeat_interval")
         if heartbeat_interval is not None:
             if not self._validate_heartbeat_interval(heartbeat_interval):
-                pecan.abort(httpclient.BAD_REQUEST,
-                            _('Invalid peer heartbeat_interval'))
-            kwargs['heartbeat_interval'] = heartbeat_interval
+                pecan.abort(
+                    httpclient.BAD_REQUEST, _("Invalid peer heartbeat_interval")
+                )
+            kwargs["heartbeat_interval"] = heartbeat_interval
 
-        heartbeat_failure_threshold = \
-            payload.get('heartbeat_failure_threshold')
+        heartbeat_failure_threshold = payload.get("heartbeat_failure_threshold")
         if heartbeat_failure_threshold is not None:
             if not self._validate_heartbeat_failure_threshold(
-                    heartbeat_failure_threshold):
-                pecan.abort(httpclient.BAD_REQUEST,
-                            _('Invalid peer heartbeat_failure_threshold'))
-            kwargs['heartbeat_failure_threshold'] = heartbeat_failure_threshold
+                heartbeat_failure_threshold
+            ):
+                pecan.abort(
+                    httpclient.BAD_REQUEST,
+                    _("Invalid peer heartbeat_failure_threshold"),
+                )
+            kwargs["heartbeat_failure_threshold"] = heartbeat_failure_threshold
 
-        heartbeat_failure_policy = payload.get('heartbeat_failure_policy')
+        heartbeat_failure_policy = payload.get("heartbeat_failure_policy")
         if heartbeat_failure_policy:
-            if not self._validate_heartbeat_failure_policy(
-                    heartbeat_failure_policy):
-                pecan.abort(httpclient.BAD_REQUEST,
-                            _('Invalid peer heartbeat_failure_policy'))
-            kwargs['heartbeat_failure_policy'] = heartbeat_failure_policy
+            if not self._validate_heartbeat_failure_policy(heartbeat_failure_policy):
+                pecan.abort(
+                    httpclient.BAD_REQUEST, _("Invalid peer heartbeat_failure_policy")
+                )
+            kwargs["heartbeat_failure_policy"] = heartbeat_failure_policy
 
-        heartbeat_maintenance_timeout = \
-            payload.get('heartbeat_maintenance_timeout')
+        heartbeat_maintenance_timeout = payload.get("heartbeat_maintenance_timeout")
         if heartbeat_maintenance_timeout is not None:
             if not self._validate_heartbeat_maintenance_timeout(
-                    heartbeat_maintenance_timeout):
-                pecan.abort(httpclient.BAD_REQUEST,
-                            _('Invalid peer heartbeat_maintenance_timeout'))
-            kwargs['heartbeat_maintenance_timeout'] = \
                 heartbeat_maintenance_timeout
+            ):
+                pecan.abort(
+                    httpclient.BAD_REQUEST,
+                    _("Invalid peer heartbeat_maintenance_timeout"),
+                )
+            kwargs["heartbeat_maintenance_timeout"] = heartbeat_maintenance_timeout
 
         try:
-            peer_ref = db_api.system_peer_create(context,
-                                                 peer_uuid,
-                                                 peer_name,
-                                                 endpoint,
-                                                 username,
-                                                 password,
-                                                 gateway_ip, **kwargs)
+            peer_ref = db_api.system_peer_create(
+                context,
+                peer_uuid,
+                peer_name,
+                endpoint,
+                username,
+                password,
+                gateway_ip,
+                **kwargs
+            )
             return db_api.system_peer_db_model_to_dict(peer_ref)
         except db_exc.DBDuplicateEntry:
-            LOG.info("Peer create failed. Peer UUID %s already exists"
-                     % peer_uuid)
-            pecan.abort(httpclient.CONFLICT,
-                        _('A system peer with this UUID already exists'))
+            LOG.info("Peer create failed. Peer UUID %s already exists" % peer_uuid)
+            pecan.abort(
+                httpclient.CONFLICT, _("A system peer with this UUID already exists")
+            )
         except RemoteError as e:
             pecan.abort(httpclient.UNPROCESSABLE_ENTITY, e.value)
         except Exception as e:
             LOG.exception(e)
-            pecan.abort(httpclient.INTERNAL_SERVER_ERROR,
-                        _('Unable to create system peer'))
+            pecan.abort(
+                httpclient.INTERNAL_SERVER_ERROR, _("Unable to create system peer")
+            )
 
-    @index.when(method='PATCH', template='json')
+    @index.when(method="PATCH", template="json")
     def patch(self, peer_ref):
         """Update a system peer.
 
         :param peer_ref: ID or UUID of system peer to update
         """
 
-        policy.authorize(system_peer_policy.POLICY_ROOT % "modify", {},
-                         restcomm.extract_credentials_for_policy())
+        policy.authorize(
+            system_peer_policy.POLICY_ROOT % "modify",
+            {},
+            restcomm.extract_credentials_for_policy(),
+        )
         context = restcomm.extract_context_from_environ()
         LOG.info("Updating system peer: %s" % context)
 
         if peer_ref is None:
-            pecan.abort(httpclient.BAD_REQUEST,
-                        _('System Peer UUID or ID required'))
+            pecan.abort(httpclient.BAD_REQUEST, _("System Peer UUID or ID required"))
 
         payload = self._get_payload(request)
         if not payload:
-            pecan.abort(httpclient.BAD_REQUEST, _('Body required'))
+            pecan.abort(httpclient.BAD_REQUEST, _("Body required"))
 
         peer = utils.system_peer_get_by_ref(context, peer_ref)
         if peer is None:
-            pecan.abort(httpclient.NOT_FOUND, _('System Peer not found'))
+            pecan.abort(httpclient.NOT_FOUND, _("System Peer not found"))
 
-        peer_uuid, peer_name, endpoint, username, password, gateway_ip, \
-            administrative_state, heartbeat_interval, \
-            heartbeat_failure_threshold, heartbeat_failure_policy, \
-            heartbeat_maintenance_timeout = (
-                payload.get('peer_uuid'),
-                payload.get('peer_name'),
-                payload.get('manager_endpoint'),
-                payload.get('manager_username'),
-                payload.get('manager_password'),
-                payload.get('peer_controller_gateway_address'),
-                payload.get('administrative_state'),
-                payload.get('heartbeat_interval'),
-                payload.get('heartbeat_failure_threshold'),
-                payload.get('heartbeat_failure_policy'),
-                payload.get('heartbeat_maintenance_timeout')
-            )
+        (
+            peer_uuid,
+            peer_name,
+            endpoint,
+            username,
+            password,
+            gateway_ip,
+            administrative_state,
+            heartbeat_interval,
+            heartbeat_failure_threshold,
+            heartbeat_failure_policy,
+            heartbeat_maintenance_timeout,
+        ) = (
+            payload.get("peer_uuid"),
+            payload.get("peer_name"),
+            payload.get("manager_endpoint"),
+            payload.get("manager_username"),
+            payload.get("manager_password"),
+            payload.get("peer_controller_gateway_address"),
+            payload.get("administrative_state"),
+            payload.get("heartbeat_interval"),
+            payload.get("heartbeat_failure_threshold"),
+            payload.get("heartbeat_failure_policy"),
+            payload.get("heartbeat_maintenance_timeout"),
+        )
 
-        if not (peer_uuid or peer_name or endpoint or username or password
-                or administrative_state or heartbeat_interval
-                or heartbeat_failure_threshold or heartbeat_failure_policy
-                or heartbeat_maintenance_timeout or gateway_ip):
-            pecan.abort(httpclient.BAD_REQUEST, _('nothing to update'))
+        if not (
+            peer_uuid
+            or peer_name
+            or endpoint
+            or username
+            or password
+            or administrative_state
+            or heartbeat_interval
+            or heartbeat_failure_threshold
+            or heartbeat_failure_policy
+            or heartbeat_maintenance_timeout
+            or gateway_ip
+        ):
+            pecan.abort(httpclient.BAD_REQUEST, _("nothing to update"))
 
         # Check value is not None or empty before calling validate
         if peer_uuid:
             if not self._validate_uuid(peer_uuid):
-                pecan.abort(httpclient.BAD_REQUEST, _('Invalid peer uuid'))
+                pecan.abort(httpclient.BAD_REQUEST, _("Invalid peer uuid"))
 
         if peer_name:
             if not utils.validate_name(peer_name):
-                pecan.abort(httpclient.BAD_REQUEST, _('Invalid peer name'))
+                pecan.abort(httpclient.BAD_REQUEST, _("Invalid peer name"))
 
         if endpoint:
             if not self._validate_manager_endpoint(endpoint):
-                pecan.abort(httpclient.BAD_REQUEST,
-                            _('Invalid peer manager_endpoint'))
+                pecan.abort(httpclient.BAD_REQUEST, _("Invalid peer manager_endpoint"))
 
         if username:
             if not self._validate_manager_username(username):
-                pecan.abort(httpclient.BAD_REQUEST,
-                            _('Invalid peer manager_username'))
+                pecan.abort(httpclient.BAD_REQUEST, _("Invalid peer manager_username"))
 
         if password:
             if not self._validate_manager_password(password):
-                pecan.abort(httpclient.BAD_REQUEST,
-                            _('Invalid peer manager_password'))
+                pecan.abort(httpclient.BAD_REQUEST, _("Invalid peer manager_password"))
 
         if gateway_ip:
             if not self._validate_peer_controller_gateway_ip(gateway_ip):
-                pecan.abort(httpclient.BAD_REQUEST,
-                            _('Invalid peer peer_controller_gateway_address'))
+                pecan.abort(
+                    httpclient.BAD_REQUEST,
+                    _("Invalid peer peer_controller_gateway_address"),
+                )
 
         if administrative_state:
             if not self._validate_administrative_state(administrative_state):
-                pecan.abort(httpclient.BAD_REQUEST,
-                            _('Invalid peer administrative_state'))
+                pecan.abort(
+                    httpclient.BAD_REQUEST, _("Invalid peer administrative_state")
+                )
 
         if heartbeat_interval:
             if not self._validate_heartbeat_interval(heartbeat_interval):
-                pecan.abort(httpclient.BAD_REQUEST,
-                            _('Invalid peer heartbeat_interval'))
+                pecan.abort(
+                    httpclient.BAD_REQUEST, _("Invalid peer heartbeat_interval")
+                )
 
         if heartbeat_failure_threshold:
             if not self._validate_heartbeat_failure_threshold(
-                    heartbeat_failure_threshold):
-                pecan.abort(httpclient.BAD_REQUEST,
-                            _('Invalid peer heartbeat_failure_threshold'))
+                heartbeat_failure_threshold
+            ):
+                pecan.abort(
+                    httpclient.BAD_REQUEST,
+                    _("Invalid peer heartbeat_failure_threshold"),
+                )
 
         if heartbeat_failure_policy:
-            if not self._validate_heartbeat_failure_policy(
-                    heartbeat_failure_policy):
-                pecan.abort(httpclient.BAD_REQUEST,
-                            _('Invalid peer heartbeat_failure_policy'))
+            if not self._validate_heartbeat_failure_policy(heartbeat_failure_policy):
+                pecan.abort(
+                    httpclient.BAD_REQUEST, _("Invalid peer heartbeat_failure_policy")
+                )
 
         if heartbeat_maintenance_timeout:
             if not self._validate_heartbeat_maintenance_timeout(
-                    heartbeat_maintenance_timeout):
-                pecan.abort(httpclient.BAD_REQUEST,
-                            _('Invalid peer heartbeat_maintenance_timeout'))
+                heartbeat_maintenance_timeout
+            ):
+                pecan.abort(
+                    httpclient.BAD_REQUEST,
+                    _("Invalid peer heartbeat_maintenance_timeout"),
+                )
 
         try:
             updated_peer = db_api.system_peer_update(
                 context,
                 peer.id,
-                peer_uuid, peer_name,
-                endpoint, username, password,
+                peer_uuid,
+                peer_name,
+                endpoint,
+                username,
+                password,
                 gateway_ip,
                 administrative_state,
                 heartbeat_interval,
                 heartbeat_failure_threshold,
                 heartbeat_failure_policy,
-                heartbeat_maintenance_timeout)
+                heartbeat_maintenance_timeout,
+            )
 
             updated_peer_dict = db_api.system_peer_db_model_to_dict(updated_peer)
 
             # Set the sync status to out-of-sync if the peer_controller_gateway_ip
             # was updated
-            if (
-                gateway_ip is not None and
-                gateway_ip != peer.peer_controller_gateway_ip
-            ):
+            if gateway_ip is not None and gateway_ip != peer.peer_controller_gateway_ip:
                 associations = db_api.peer_group_association_get_by_system_peer_id(
                     context, peer.id
                 )
@@ -467,8 +520,9 @@ class SystemPeersController(restcomm.GenericPathController):
                     # Update the sync status on both sites
                     association_ids.update(
                         self.dcmanager_rpc_client.update_association_sync_status(
-                            context, association.peer_group_id,
-                            consts.ASSOCIATION_SYNC_STATUS_OUT_OF_SYNC
+                            context,
+                            association.peer_group_id,
+                            consts.ASSOCIATION_SYNC_STATUS_OUT_OF_SYNC,
                         )
                     )
                 # Generate an informative message to remind the operator
@@ -483,33 +537,37 @@ class SystemPeersController(restcomm.GenericPathController):
         except Exception as e:
             # additional exceptions.
             LOG.exception(e)
-            pecan.abort(httpclient.INTERNAL_SERVER_ERROR,
-                        _('Unable to update system peer'))
+            pecan.abort(
+                httpclient.INTERNAL_SERVER_ERROR, _("Unable to update system peer")
+            )
 
-    @index.when(method='delete', template='json')
+    @index.when(method="delete", template="json")
     def delete(self, peer_ref):
         """Delete the system peer."""
 
-        policy.authorize(system_peer_policy.POLICY_ROOT % "delete", {},
-                         restcomm.extract_credentials_for_policy())
+        policy.authorize(
+            system_peer_policy.POLICY_ROOT % "delete",
+            {},
+            restcomm.extract_credentials_for_policy(),
+        )
         context = restcomm.extract_context_from_environ()
         LOG.info("Deleting system peer: %s" % context)
 
         if peer_ref is None:
-            pecan.abort(httpclient.BAD_REQUEST,
-                        _('System Peer UUID or ID required'))
+            pecan.abort(httpclient.BAD_REQUEST, _("System Peer UUID or ID required"))
         peer = utils.system_peer_get_by_ref(context, peer_ref)
         if peer is None:
-            pecan.abort(httpclient.NOT_FOUND, _('System Peer not found'))
+            pecan.abort(httpclient.NOT_FOUND, _("System Peer not found"))
 
         # A system peer cannot be deleted if it is used by any associations
-        association = db_api.\
-            peer_group_association_get_by_system_peer_id(context,
-                                                         str(peer.id))
+        association = db_api.peer_group_association_get_by_system_peer_id(
+            context, str(peer.id)
+        )
         if len(association) > 0:
-            pecan.abort(httpclient.BAD_REQUEST,
-                        _('Cannot delete a system peer which is '
-                          'associated with peer group.'))
+            pecan.abort(
+                httpclient.BAD_REQUEST,
+                _("Cannot delete a system peer which is associated with peer group."),
+            )
 
         try:
             db_api.system_peer_destroy(context, peer.id)
@@ -517,5 +575,6 @@ class SystemPeersController(restcomm.GenericPathController):
             pecan.abort(httpclient.UNPROCESSABLE_ENTITY, e.value)
         except Exception as e:
             LOG.exception(e)
-            pecan.abort(httpclient.INTERNAL_SERVER_ERROR,
-                        _('Unable to delete system peer'))
+            pecan.abort(
+                httpclient.INTERNAL_SERVER_ERROR, _("Unable to delete system peer")
+            )

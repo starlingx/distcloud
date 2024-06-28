@@ -1,5 +1,5 @@
 # Copyright (c) 2017 Ericsson AB.
-# Copyright (c) 2017-2023 Wind River Systems, Inc.
+# Copyright (c) 2017-2024 Wind River Systems, Inc.
 # All Rights Reserved.
 #
 #    Licensed under the Apache License, Version 2.0 (the "License"); you may
@@ -40,29 +40,33 @@ class Controller(object):
         minor_version = remainder[-1]
         remainder = remainder[:-1]
         sub_controllers = dict()
-        if minor_version == '0':
+        if minor_version == "0":
             sub_controllers["subclouds"] = subclouds.SubcloudsController
-            sub_controllers["subcloud-deploy"] = subcloud_deploy.\
-                SubcloudDeployController
+            sub_controllers["subcloud-deploy"] = (
+                subcloud_deploy.SubcloudDeployController
+            )
             sub_controllers["alarms"] = alarm_manager.SubcloudAlarmController
-            sub_controllers["sw-update-strategy"] = \
+            sub_controllers["sw-update-strategy"] = (
                 sw_update_strategy.SwUpdateStrategyController
-            sub_controllers["sw-update-options"] = \
+            )
+            sub_controllers["sw-update-options"] = (
                 sw_update_options.SwUpdateOptionsController
-            sub_controllers["subcloud-groups"] = \
-                subcloud_group.SubcloudGroupsController
-            sub_controllers["notifications"] = \
-                notifications.NotificationsController
-            sub_controllers["subcloud-backup"] = subcloud_backup.\
-                SubcloudBackupController
-            sub_controllers["phased-subcloud-deploy"] = phased_subcloud_deploy.\
-                PhasedSubcloudDeployController
-            sub_controllers["subcloud-peer-groups"] = \
+            )
+            sub_controllers["subcloud-groups"] = subcloud_group.SubcloudGroupsController
+            sub_controllers["notifications"] = notifications.NotificationsController
+            sub_controllers["subcloud-backup"] = (
+                subcloud_backup.SubcloudBackupController
+            )
+            sub_controllers["phased-subcloud-deploy"] = (
+                phased_subcloud_deploy.PhasedSubcloudDeployController
+            )
+            sub_controllers["subcloud-peer-groups"] = (
                 subcloud_peer_group.SubcloudPeerGroupsController
-            sub_controllers["peer-group-associations"] = \
+            )
+            sub_controllers["peer-group-associations"] = (
                 peer_group_association.PeerGroupAssociationsController
-            sub_controllers["system-peers"] = system_peers.\
-                SystemPeersController
+            )
+            sub_controllers["system-peers"] = system_peers.SystemPeersController
 
         for name, ctrl in sub_controllers.items():
             setattr(self, name, ctrl)

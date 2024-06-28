@@ -30,19 +30,20 @@ from dcmanager.rpc import client as rpc_client
 CONF = cfg.CONF
 LOG = logging.getLogger(__name__)
 
-LOCK_NAME = 'SubcloudBackupController'
+LOCK_NAME = "SubcloudBackupController"
 
 # Subcloud/group information to be retrieved from request params
-RequestEntity = namedtuple('RequestEntity', ['type', 'id', 'name', 'subclouds'])
+RequestEntity = namedtuple("RequestEntity", ["type", "id", "name", "subclouds"])
 
 
 class SubcloudBackupController(object):
     def __init__(self):
         super(SubcloudBackupController, self).__init__()
         self.dcmanager_rpc_client = rpc_client.ManagerClient(
-            timeout=consts.RPC_SUBCLOUD_BACKUP_TIMEOUT)
+            timeout=consts.RPC_SUBCLOUD_BACKUP_TIMEOUT
+        )
 
-    @expose(generic=True, template='json')
+    @expose(generic=True, template="json")
     def index(self):
         # Route the request to specific methods with parameters
         pass
@@ -50,24 +51,24 @@ class SubcloudBackupController(object):
     @staticmethod
     def _get_payload(request, verb):
         expected_params = dict()
-        if verb == 'create':
+        if verb == "create":
             expected_params = {
                 "subcloud": "text",
                 "group": "text",
                 "local_only": "text",
                 "registry_images": "text",
                 "backup_values": "yaml",
-                "sysadmin_password": "text"
+                "sysadmin_password": "text",
             }
-        elif verb == 'delete':
+        elif verb == "delete":
             expected_params = {
                 "release": "text",
                 "subcloud": "text",
                 "group": "text",
                 "local_only": "text",
-                "sysadmin_password": "text"
+                "sysadmin_password": "text",
             }
-        elif verb == 'restore':
+        elif verb == "restore":
             expected_params = {
                 "with_install": "text",
                 "release": "text",
@@ -76,30 +77,29 @@ class SubcloudBackupController(object):
                 "sysadmin_password": "text",
                 "restore_values": "text",
                 "subcloud": "text",
-                "group": "text"
+                "group": "text",
             }
         else:
             pecan.abort(400, _("Unexpected verb received"))
 
-        content_type = request.headers.get('content-type')
-        LOG.info('Request content-type: %s' % content_type)
-        if 'multipart/form-data' in content_type.lower():
-            return SubcloudBackupController._get_multipart_payload(request,
-                                                                   expected_params)
+        content_type = request.headers.get("content-type")
+        LOG.info("Request content-type: %s" % content_type)
+        if "multipart/form-data" in content_type.lower():
+            return SubcloudBackupController._get_multipart_payload(
+                request, expected_params
+            )
         else:
-            return SubcloudBackupController._get_json_payload(request,
-                                                              expected_params)
+            return SubcloudBackupController._get_json_payload(request, expected_params)
 
     @staticmethod
     def _get_multipart_payload(request, expected_params):
         payload = dict()
-        file_params = ['backup_values', 'restore_values']
+        file_params = ["backup_values", "restore_values"]
         for param in file_params:
             if param in request.POST:
                 file_item = request.POST[param]
                 file_item.file.seek(0, os.SEEK_SET)
-                data = \
-                    utils.yaml_safe_load(file_item.file.read().decode('utf8'), param)
+                data = utils.yaml_safe_load(file_item.file.read().decode("utf8"), param)
                 payload.update({param: data})
                 del request.POST[param]
 
@@ -116,12 +116,12 @@ class SubcloudBackupController(object):
         try:
             payload = json.loads(request.body)
         except Exception:
-            error_msg = 'Request body is malformed.'
+            error_msg = "Request body is malformed."
             LOG.exception(error_msg)
             pecan.abort(400, _(error_msg))
             return
         if not isinstance(payload, dict):
-            pecan.abort(400, _('Invalid request body format'))
+            pecan.abort(400, _("Invalid request body format"))
         if not set(payload.keys()).issubset(expected_params.keys()):
             LOG.info("Got an unexpected parameter in: %s" % payload)
             pecan.abort(400, _("Unexpected parameter received"))
@@ -133,13 +133,16 @@ class SubcloudBackupController(object):
         sysadmin_password = payload.get(param_name)
 
         if not sysadmin_password:
-            pecan.abort(400, _('subcloud sysadmin_password required'))
+            pecan.abort(400, _("subcloud sysadmin_password required"))
         try:
-            payload['sysadmin_password'] = \
-                utils.decode_and_normalize_passwd(sysadmin_password)
+            payload["sysadmin_password"] = utils.decode_and_normalize_passwd(
+                sysadmin_password
+            )
         except Exception:
-            msg = _('Failed to decode subcloud sysadmin_password, '
-                    'verify the password is base64 encoded')
+            msg = _(
+                "Failed to decode subcloud sysadmin_password, "
+                "verify the password is base64 encoded"
+            )
             LOG.exception(msg)
             pecan.abort(400, msg)
 
@@ -148,13 +151,14 @@ class SubcloudBackupController(object):
         for param_name in param_names:
             param = payload.get(param_name)
             if param:
-                if param.lower() == 'true':
+                if param.lower() == "true":
                     payload[param_name] = True
-                elif param.lower() == 'false':
+                elif param.lower() == "false":
                     payload[param_name] = False
                 else:
-                    pecan.abort(400, _('Invalid %s value, should be boolean'
-                                       % param_name))
+                    pecan.abort(
+                        400, _("Invalid %s value, should be boolean" % param_name)
+                    )
             else:
                 payload[param_name] = default
 
@@ -177,23 +181,25 @@ class SubcloudBackupController(object):
             operation (string): Subcloud backup operation
         """
         subclouds = request_entity.subclouds
-        error_msg = _(
-            'Subcloud(s) must be in a valid state for backup %s.' % operation)
+        error_msg = _("Subcloud(s) must be in a valid state for backup %s." % operation)
         has_valid_subclouds = False
         valid_subclouds = list()
         for subcloud in subclouds:
             try:
                 is_valid = utils.is_valid_for_backup_operation(
-                    operation, subcloud, bootstrap_address_dict)
+                    operation, subcloud, bootstrap_address_dict
+                )
 
-                if operation == 'create':
-                    backup_in_progress = subcloud.backup_status in \
-                        consts.STATES_FOR_ONGOING_BACKUP
+                if operation == "create":
+                    backup_in_progress = (
+                        subcloud.backup_status in consts.STATES_FOR_ONGOING_BACKUP
+                    )
                     if is_valid and not backup_in_progress:
                         has_valid_subclouds = True
                     else:
-                        error_msg = _('Subcloud(s) already have a backup '
-                                      'operation in progress.')
+                        error_msg = _(
+                            "Subcloud(s) already have a backup operation in progress."
+                        )
                 else:
                     if is_valid:
                         valid_subclouds.append(subcloud)
@@ -202,21 +208,27 @@ class SubcloudBackupController(object):
             except exceptions.ValidateFail as e:
                 error_msg = e.message
 
-            if (operation == 'create' and has_valid_subclouds
-                    and request_entity.type == 'subcloud'):
+            if (
+                operation == "create"
+                and has_valid_subclouds
+                and request_entity.type == "subcloud"
+            ):
                 # Check the system health only if the command was issued
                 # to a single subcloud to avoid huge delays.
                 if not utils.is_subcloud_healthy(subcloud.region_name):
-                    msg = _('Subcloud %s must be in good health for '
-                            'subcloud-backup create.' % subcloud.name)
+                    msg = _(
+                        "Subcloud %s must be in good health for subcloud-backup create."
+                        % subcloud.name
+                    )
                     pecan.abort(400, msg)
 
         if not has_valid_subclouds:
-            if request_entity.type == 'group':
-                msg = _('None of the subclouds in group %s are in a valid '
-                        'state for subcloud-backup %s') % (request_entity.name,
-                                                           operation)
-            elif request_entity.type == 'subcloud':
+            if request_entity.type == "group":
+                msg = _(
+                    "None of the subclouds in group %s are in a valid "
+                    "state for subcloud-backup %s"
+                ) % (request_entity.name, operation)
+            elif request_entity.type == "subcloud":
                 msg = error_msg
 
             pecan.abort(400, msg)
@@ -225,52 +237,62 @@ class SubcloudBackupController(object):
     @staticmethod
     def _get_subclouds_from_group(group, context):
         if not group:
-            pecan.abort(404, _('Group not found'))
+            pecan.abort(404, _("Group not found"))
 
         return db_api.subcloud_get_for_group(context, group.id)
 
     def _read_entity_from_request_params(self, context, payload):
-        subcloud_ref = payload.get('subcloud')
-        group_ref = payload.get('group')
+        subcloud_ref = payload.get("subcloud")
+        group_ref = payload.get("group")
 
         if subcloud_ref:
             if group_ref:
-                pecan.abort(400, _("'subcloud' and 'group' parameters "
-                                   "should not be given at the same time"))
+                pecan.abort(
+                    400,
+                    _(
+                        "'subcloud' and 'group' parameters should not be given at "
+                        "the same time"
+                    ),
+                )
             subcloud = utils.subcloud_get_by_ref(context, subcloud_ref)
             if not subcloud:
-                pecan.abort(400, _('Subcloud not found'))
-            return RequestEntity('subcloud', subcloud.id, subcloud_ref, [subcloud])
+                pecan.abort(400, _("Subcloud not found"))
+            return RequestEntity("subcloud", subcloud.id, subcloud_ref, [subcloud])
         elif group_ref:
             group = utils.subcloud_group_get_by_ref(context, group_ref)
             group_subclouds = self._get_subclouds_from_group(group, context)
             if not group_subclouds:
-                pecan.abort(400, _('No subclouds present in group'))
-            return RequestEntity('group', group.id, group_ref, group_subclouds)
+                pecan.abort(400, _("No subclouds present in group"))
+            return RequestEntity("group", group.id, group_ref, group_subclouds)
         else:
             pecan.abort(400, _("'subcloud' or 'group' parameter is required"))
 
     @utils.synchronized(LOCK_NAME)
-    @index.when(method='POST', template='json')
+    @index.when(method="POST", template="json")
     def post(self):
         """Create a new subcloud backup."""
         context = restcomm.extract_context_from_environ()
-        payload = self._get_payload(pecan_request, 'create')
+        payload = self._get_payload(pecan_request, "create")
 
-        policy.authorize(subcloud_backup_policy.POLICY_ROOT % "create", {},
-                         restcomm.extract_credentials_for_policy())
-        self._validate_and_decode_sysadmin_password(payload, 'sysadmin_password')
+        policy.authorize(
+            subcloud_backup_policy.POLICY_ROOT % "create",
+            {},
+            restcomm.extract_credentials_for_policy(),
+        )
+        self._validate_and_decode_sysadmin_password(payload, "sysadmin_password")
 
-        if not payload.get('local_only') and payload.get('registry_images'):
-            pecan.abort(400, _('Option registry_images can not be used without '
-                               'local_only option.'))
+        if not payload.get("local_only") and payload.get("registry_images"):
+            pecan.abort(
+                400,
+                _("Option registry_images can not be used without local_only option."),
+            )
 
         request_entity = self._read_entity_from_request_params(context, payload)
-        self._validate_subclouds(request_entity, 'create')
+        self._validate_subclouds(request_entity, "create")
 
         # Set subcloud/group ID as reference instead of name to ease processing
         payload[request_entity.type] = request_entity.id
-        self._convert_param_to_bool(payload, ['local_only', 'registry_images'])
+        self._convert_param_to_bool(payload, ["local_only", "registry_images"])
 
         try:
             self.dcmanager_rpc_client.backup_subclouds(context, payload)
@@ -279,10 +301,10 @@ class SubcloudBackupController(object):
             pecan.abort(422, e.value)
         except Exception:
             LOG.exception("Unable to backup subclouds")
-            pecan.abort(500, _('Unable to backup subcloud'))
+            pecan.abort(500, _("Unable to backup subcloud"))
 
     @utils.synchronized(LOCK_NAME)
-    @index.when(method='PATCH', template='json')
+    @index.when(method="PATCH", template="json")
     def patch(self, verb, release_version=None):
         """Delete or restore a subcloud backup.
 
@@ -294,25 +316,29 @@ class SubcloudBackupController(object):
         context = restcomm.extract_context_from_environ()
         payload = self._get_payload(pecan_request, verb)
 
-        if verb == 'delete':
-            policy.authorize(subcloud_backup_policy.POLICY_ROOT % "delete", {},
-                             restcomm.extract_credentials_for_policy())
+        if verb == "delete":
+            policy.authorize(
+                subcloud_backup_policy.POLICY_ROOT % "delete",
+                {},
+                restcomm.extract_credentials_for_policy(),
+            )
 
             if not release_version:
-                pecan.abort(400, _('Release version required'))
+                pecan.abort(400, _("Release version required"))
 
-            self._convert_param_to_bool(payload, ['local_only'])
+            self._convert_param_to_bool(payload, ["local_only"])
 
             # Backup delete in systemcontroller doesn't need sysadmin_password
-            if payload.get('local_only'):
+            if payload.get("local_only"):
                 self._validate_and_decode_sysadmin_password(
-                    payload, 'sysadmin_password')
+                    payload, "sysadmin_password"
+                )
 
             request_entity = self._read_entity_from_request_params(context, payload)
 
             # Validate subcloud state when deleting locally
             # Not needed for centralized storage, since connection is not required
-            local_only = payload.get('local_only')
+            local_only = payload.get("local_only")
             if local_only:
                 self._validate_subclouds(request_entity, verb)
 
@@ -321,7 +347,8 @@ class SubcloudBackupController(object):
 
             try:
                 message = self.dcmanager_rpc_client.delete_subcloud_backups(
-                    context, release_version, payload)
+                    context, release_version, payload
+                )
 
                 if message:
                     response.status_int = 207
@@ -332,83 +359,109 @@ class SubcloudBackupController(object):
                 pecan.abort(422, e.value)
             except Exception:
                 LOG.exception("Unable to delete subcloud backups")
-                pecan.abort(500, _('Unable to delete subcloud backups'))
-        elif verb == 'restore':
-            policy.authorize(subcloud_backup_policy.POLICY_ROOT % "restore", {},
-                             restcomm.extract_credentials_for_policy())
+                pecan.abort(500, _("Unable to delete subcloud backups"))
+        elif verb == "restore":
+            policy.authorize(
+                subcloud_backup_policy.POLICY_ROOT % "restore",
+                {},
+                restcomm.extract_credentials_for_policy(),
+            )
 
             if not payload:
-                pecan.abort(400, _('Body required'))
+                pecan.abort(400, _("Body required"))
 
-            self._validate_and_decode_sysadmin_password(payload, 'sysadmin_password')
+            self._validate_and_decode_sysadmin_password(payload, "sysadmin_password")
 
-            self._convert_param_to_bool(payload, ['local_only', 'with_install',
-                                                  'registry_images'])
+            self._convert_param_to_bool(
+                payload, ["local_only", "with_install", "registry_images"]
+            )
 
-            if not payload['local_only'] and payload['registry_images']:
-                pecan.abort(400, _('Option registry_images cannot be used '
-                                   'without local_only option.'))
+            if not payload["local_only"] and payload["registry_images"]:
+                pecan.abort(
+                    400,
+                    _(
+                        "Option registry_images cannot be used "
+                        "without local_only option."
+                    ),
+                )
 
-            if not payload['with_install'] and payload.get('release'):
-                pecan.abort(400, _('Option release cannot be used '
-                                   'without with_install option.'))
+            if not payload["with_install"] and payload.get("release"):
+                pecan.abort(
+                    400,
+                    _("Option release cannot be used without with_install option."),
+                )
 
             request_entity = self._read_entity_from_request_params(context, payload)
             if len(request_entity.subclouds) == 0:
-                msg = "No subclouds exist under %s %s" % (request_entity.type,
-                                                          request_entity.id)
+                msg = "No subclouds exist under %s %s" % (
+                    request_entity.type,
+                    request_entity.id,
+                )
                 pecan.abort(400, _(msg))
 
-            bootstrap_address_dict = \
-                payload.get('restore_values', {}).get('bootstrap_address', {})
+            bootstrap_address_dict = payload.get("restore_values", {}).get(
+                "bootstrap_address", {}
+            )
 
             if not isinstance(bootstrap_address_dict, dict):
                 pecan.abort(
-                    400, _('The bootstrap_address provided in restore_values '
-                           'is in invalid format.')
+                    400,
+                    _(
+                        "The bootstrap_address provided in restore_values "
+                        "is in invalid format."
+                    ),
                 )
 
             restore_subclouds = self._validate_subclouds(
-                request_entity, verb, bootstrap_address_dict)
+                request_entity, verb, bootstrap_address_dict
+            )
 
             payload[request_entity.type] = request_entity.id
 
-            if payload.get('with_install'):
+            if payload.get("with_install"):
                 subclouds_without_install_values = [
-                    subcloud.name for subcloud in request_entity.subclouds if
-                    not subcloud.data_install
+                    subcloud.name
+                    for subcloud in request_entity.subclouds
+                    if not subcloud.data_install
                 ]
                 if subclouds_without_install_values:
-                    subclouds_str = ', '.join(subclouds_without_install_values)
+                    subclouds_str = ", ".join(subclouds_without_install_values)
                     pecan.abort(
-                        400, _('The restore operation was requested with_install, '
-                               'but the following subcloud(s) does not contain '
-                               'install values: %s' % subclouds_str)
+                        400,
+                        _(
+                            "The restore operation was requested with_install, "
+                            "but the following subcloud(s) does not contain "
+                            "install values: %s" % subclouds_str
+                        ),
                     )
                 # Confirm the requested or active load is still in dc-vault
-                payload['software_version'] = utils.get_sw_version(
-                    payload.get('release'))
-                matching_iso, err_msg = \
-                    utils.get_matching_iso(payload['software_version'])
+                payload["software_version"] = utils.get_sw_version(
+                    payload.get("release")
+                )
+                matching_iso, err_msg = utils.get_matching_iso(
+                    payload["software_version"]
+                )
                 if err_msg:
                     LOG.exception(err_msg)
                     pecan.abort(400, _(err_msg))
-                LOG.info("Restore operation will use image %s in subcloud "
-                         "installation" % matching_iso)
+                LOG.info(
+                    "Restore operation will use image %s in subcloud installation"
+                    % matching_iso
+                )
 
             try:
                 # local update to deploy_status - this is just for CLI response
                 # pylint: disable-next=consider-using-enumerate
                 for i in range(len(restore_subclouds)):
-                    restore_subclouds[i].deploy_status = (
-                        consts.DEPLOY_STATE_PRE_RESTORE)
+                    restore_subclouds[i].deploy_status = consts.DEPLOY_STATE_PRE_RESTORE
                 message = self.dcmanager_rpc_client.restore_subcloud_backups(
-                    context, payload)
+                    context, payload
+                )
                 return utils.subcloud_db_list_to_dict(restore_subclouds)
             except RemoteError as e:
                 pecan.abort(422, e.value)
             except Exception:
                 LOG.exception("Unable to restore subcloud")
-                pecan.abort(500, _('Unable to restore subcloud'))
+                pecan.abort(500, _("Unable to restore subcloud"))
         else:
-            pecan.abort(400, _('Invalid request'))
+            pecan.abort(400, _("Invalid request"))

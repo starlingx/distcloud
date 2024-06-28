@@ -28,13 +28,13 @@ LOG = logging.getLogger(__name__)
 
 class SubcloudAlarmController(object):
     VERSION_ALIASES = {
-        'Newton': '1.0',
+        "Newton": "1.0",
     }
 
     def __init__(self, *args, **kwargs):
         super(SubcloudAlarmController, self).__init__(*args, **kwargs)
 
-    @expose(generic=True, template='json')
+    @expose(generic=True, template="json")
     def index(self):
         # Route the request to specific methods with parameters
         pass
@@ -44,21 +44,24 @@ class SubcloudAlarmController(object):
         context = restcomm.extract_context_from_environ()
         alarms = db_api.subcloud_alarms_get_all(context)
         for alarm in alarms:
-            alarm_dict = {'region_name': alarm['name'],
-                          'uuid': alarm['uuid'],
-                          'critical_alarms': alarm['critical_alarms'],
-                          'major_alarms': alarm['major_alarms'],
-                          'minor_alarms': alarm['minor_alarms'],
-                          'warnings': alarm['warnings'],
-                          'cloud_status': alarm['cloud_status']}
+            alarm_dict = {
+                "region_name": alarm["name"],
+                "uuid": alarm["uuid"],
+                "critical_alarms": alarm["critical_alarms"],
+                "major_alarms": alarm["major_alarms"],
+                "minor_alarms": alarm["minor_alarms"],
+                "warnings": alarm["warnings"],
+                "cloud_status": alarm["cloud_status"],
+            }
             summary.append(alarm_dict)
-        return {'alarm_summary': summary}
+        return {"alarm_summary": summary}
 
-    @index.when(method='GET', template='json')
+    @index.when(method="GET", template="json")
     def get(self):
-        """Get List of alarm summarys
-
-        """
-        policy.authorize(alarm_manager_policy.POLICY_ROOT % "get", {},
-                         restcomm.extract_credentials_for_policy())
+        """Get List of alarm summarys"""
+        policy.authorize(
+            alarm_manager_policy.POLICY_ROOT % "get",
+            {},
+            restcomm.extract_credentials_for_policy(),
+        )
         return self._get_alarm_aggregates()

@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2023 Wind River Systems, Inc.
+# Copyright (c) 2023, 2024 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -33,5 +33,5 @@ def list_rules():
         phased_subcloud_deploy.list_rules(),
         subcloud_peer_group.list_rules(),
         peer_group_association.list_rules(),
-        system_peers.list_rules()
+        system_peers.list_rules(),
     )

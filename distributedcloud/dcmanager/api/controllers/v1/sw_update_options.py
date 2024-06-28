@@ -1,5 +1,5 @@
 # Copyright (c) 2017 Ericsson AB.
-# Copyright (c) 2017-2022 Wind River Systems, Inc.
+# Copyright (c) 2017-2022, 2024 Wind River Systems, Inc.
 # All Rights Reserved.
 #
 #    Licensed under the Apache License, Version 2.0 (the "License"); you may
@@ -42,19 +42,22 @@ class SwUpdateOptionsController(object):
         super(SwUpdateOptionsController, self).__init__()
         self.rpc_client = rpc_client.ManagerClient()
 
-    @expose(generic=True, template='json')
+    @expose(generic=True, template="json")
     def index(self):
         # Route the request to specific methods with parameters
         pass
 
-    @index.when(method='GET', template='json')
+    @index.when(method="GET", template="json")
     def get(self, subcloud_ref=None):
         """Get details about software update options.
 
         :param subcloud: name or id of subcloud (optional)
         """
-        policy.authorize(sw_update_options_policy.POLICY_ROOT % "get", {},
-                         restcomm.extract_credentials_for_policy())
+        policy.authorize(
+            sw_update_options_policy.POLICY_ROOT % "get",
+            {},
+            restcomm.extract_credentials_for_policy(),
+        )
         context = restcomm.extract_context_from_environ()
 
         if subcloud_ref is None:
@@ -62,21 +65,21 @@ class SwUpdateOptionsController(object):
             # Prepend the all clouds default options to the result.
 
             result = dict()
-            result['sw-update-options'] = list()
+            result["sw-update-options"] = list()
 
-            default_sw_update_opts_dict = utils.get_sw_update_opts(
-                context)
+            default_sw_update_opts_dict = utils.get_sw_update_opts(context)
 
-            result['sw-update-options'].append(default_sw_update_opts_dict)
+            result["sw-update-options"].append(default_sw_update_opts_dict)
 
-            subclouds = db_api.sw_update_opts_get_all_plus_subcloud_info(
-                context)
+            subclouds = db_api.sw_update_opts_get_all_plus_subcloud_info(context)
 
             for subcloud, sw_update_opts in subclouds:
                 if sw_update_opts:
-                    result['sw-update-options'].append(
+                    result["sw-update-options"].append(
                         db_api.sw_update_opts_w_name_db_model_to_dict(
-                            sw_update_opts, subcloud.name))
+                            sw_update_opts, subcloud.name
+                        )
+                    )
 
             return result
 
@@ -93,22 +96,20 @@ class SwUpdateOptionsController(object):
                 try:
                     subcloud = db_api.subcloud_get(context, subcloud_ref)
                 except exceptions.SubcloudNotFound:
-                    pecan.abort(404, _('Subcloud not found'))
+                    pecan.abort(404, _("Subcloud not found"))
             else:
                 # Look up subcloud by name
                 try:
-                    subcloud = db_api.subcloud_get_by_name(context,
-                                                           subcloud_ref)
+                    subcloud = db_api.subcloud_get_by_name(context, subcloud_ref)
                 except exceptions.SubcloudNameNotFound:
-                    pecan.abort(404, _('Subcloud not found'))
+                    pecan.abort(404, _("Subcloud not found"))
 
             try:
-                return utils.get_sw_update_opts(
-                    context, subcloud_id=subcloud.id)
+                return utils.get_sw_update_opts(context, subcloud_id=subcloud.id)
             except Exception as e:
-                pecan.abort(404, _('%s') % e)
+                pecan.abort(404, _("%s") % e)
 
-    @index.when(method='POST', template='json')
+    @index.when(method="POST", template="json")
     def post(self, subcloud_ref=None):
         """Update or create sw update options.
 
@@ -118,13 +119,16 @@ class SwUpdateOptionsController(object):
         # Note creating or updating subcloud specific options require
         # setting all options.
 
-        policy.authorize(sw_update_options_policy.POLICY_ROOT % "update", {},
-                         restcomm.extract_credentials_for_policy())
+        policy.authorize(
+            sw_update_options_policy.POLICY_ROOT % "update",
+            {},
+            restcomm.extract_credentials_for_policy(),
+        )
         context = restcomm.extract_context_from_environ()
 
         payload = eval(request.body)
         if not payload:
-            pecan.abort(400, _('Body required'))
+            pecan.abort(400, _("Body required"))
 
         if subcloud_ref == dccommon_consts.DEFAULT_REGION_NAME:
 
@@ -136,11 +140,12 @@ class SwUpdateOptionsController(object):
                 try:
                     sw_update_opts_ref = db_api.sw_update_opts_default_update(
                         context,
-                        payload['storage-apply-type'],
-                        payload['worker-apply-type'],
-                        payload['max-parallel-workers'],
-                        payload['alarm-restriction-type'],
-                        payload['default-instance-action'])
+                        payload["storage-apply-type"],
+                        payload["worker-apply-type"],
+                        payload["max-parallel-workers"],
+                        payload["alarm-restriction-type"],
+                        payload["default-instance-action"],
+                    )
                 except Exception as e:
                     LOG.exception(e)
                     raise e
@@ -149,11 +154,12 @@ class SwUpdateOptionsController(object):
                 try:
                     sw_update_opts_ref = db_api.sw_update_opts_default_create(
                         context,
-                        payload['storage-apply-type'],
-                        payload['worker-apply-type'],
-                        payload['max-parallel-workers'],
-                        payload['alarm-restriction-type'],
-                        payload['default-instance-action'])
+                        payload["storage-apply-type"],
+                        payload["worker-apply-type"],
+                        payload["max-parallel-workers"],
+                        payload["alarm-restriction-type"],
+                        payload["default-instance-action"],
+                    )
                 except Exception as e:
                     LOG.exception(e)
                     raise e
@@ -165,53 +171,57 @@ class SwUpdateOptionsController(object):
                 try:
                     subcloud = db_api.subcloud_get(context, subcloud_ref)
                 except exceptions.SubcloudNotFound:
-                    pecan.abort(404, _('Subcloud not found'))
+                    pecan.abort(404, _("Subcloud not found"))
 
                 subcloud_name = subcloud.name
 
             else:
                 # Look up subcloud by name
                 try:
-                    subcloud = db_api.subcloud_get_by_name(context,
-                                                           subcloud_ref)
+                    subcloud = db_api.subcloud_get_by_name(context, subcloud_ref)
                 except exceptions.SubcloudNameNotFound:
-                    pecan.abort(404, _('Subcloud not found'))
+                    pecan.abort(404, _("Subcloud not found"))
 
                 subcloud_name = subcloud_ref
 
-            sw_update_opts = db_api.sw_update_opts_get(context,
-                                                       subcloud.id)
+            sw_update_opts = db_api.sw_update_opts_get(context, subcloud.id)
 
             if sw_update_opts is None:
                 sw_update_opts_ref = db_api.sw_update_opts_create(
                     context,
                     subcloud.id,
-                    payload['storage-apply-type'],
-                    payload['worker-apply-type'],
-                    payload['max-parallel-workers'],
-                    payload['alarm-restriction-type'],
-                    payload['default-instance-action'])
+                    payload["storage-apply-type"],
+                    payload["worker-apply-type"],
+                    payload["max-parallel-workers"],
+                    payload["alarm-restriction-type"],
+                    payload["default-instance-action"],
+                )
 
             else:
                 # a row is present in table, update
                 sw_update_opts_ref = db_api.sw_update_opts_update(
                     context,
                     subcloud.id,
-                    payload['storage-apply-type'],
-                    payload['worker-apply-type'],
-                    payload['max-parallel-workers'],
-                    payload['alarm-restriction-type'],
-                    payload['default-instance-action'])
+                    payload["storage-apply-type"],
+                    payload["worker-apply-type"],
+                    payload["max-parallel-workers"],
+                    payload["alarm-restriction-type"],
+                    payload["default-instance-action"],
+                )
 
         return db_api.sw_update_opts_w_name_db_model_to_dict(
-            sw_update_opts_ref, subcloud_name)
+            sw_update_opts_ref, subcloud_name
+        )
 
-    @index.when(method='delete', template='json')
+    @index.when(method="delete", template="json")
     def delete(self, subcloud_ref):
         """Delete the software update options."""
 
-        policy.authorize(sw_update_options_policy.POLICY_ROOT % "delete", {},
-                         restcomm.extract_credentials_for_policy())
+        policy.authorize(
+            sw_update_options_policy.POLICY_ROOT % "delete",
+            {},
+            restcomm.extract_credentials_for_policy(),
+        )
         context = restcomm.extract_context_from_environ()
 
         if subcloud_ref == dccommon_consts.DEFAULT_REGION_NAME:
@@ -230,18 +240,17 @@ class SwUpdateOptionsController(object):
                 try:
                     subcloud = db_api.subcloud_get(context, subcloud_ref)
                 except exceptions.SubcloudNotFound:
-                    pecan.abort(404, _('Subcloud not found'))
+                    pecan.abort(404, _("Subcloud not found"))
 
             else:
                 # Look up subcloud by name
                 try:
-                    subcloud = db_api.subcloud_get_by_name(context,
-                                                           subcloud_ref)
+                    subcloud = db_api.subcloud_get_by_name(context, subcloud_ref)
                 except exceptions.SubcloudNameNotFound:
-                    pecan.abort(404, _('Subcloud not found'))
+                    pecan.abort(404, _("Subcloud not found"))
 
             # Delete the subcloud specific options
             if db_api.sw_update_opts_get(context, subcloud.id):
                 db_api.sw_update_opts_destroy(context, subcloud.id)
             else:
-                pecan.abort(404, _('Subcloud patch options not found'))
+                pecan.abort(404, _("Subcloud patch options not found"))

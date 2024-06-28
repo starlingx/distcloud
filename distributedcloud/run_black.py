@@ -22,13 +22,16 @@ formatted_modules = [
     "dccommon",
     "dcdbsync",
     "dcorch",
+    "dcmanager/api",
 ]
 
 
 # Function to run black check
 def run_black_check(module):
     try:
-        subprocess.run(["black", "--check", "--quiet", f"./{module}"], check=True)
+        subprocess.run(
+            ["black", "--check", "--diff", "--quiet", f"./{module}"], check=True
+        )
         print(f"Black check passed for {module}")
     except subprocess.CalledProcessError as e:
         print(f"Black check failed for {module}")

@@ -38,7 +38,7 @@ LOG = logging.getLogger(__name__)
 
 SUPPORTED_GROUP_APPLY_TYPES = [
     consts.SUBCLOUD_APPLY_TYPE_PARALLEL,
-    consts.SUBCLOUD_APPLY_TYPE_SERIAL
+    consts.SUBCLOUD_APPLY_TYPE_SERIAL,
 ]
 
 # validation constants for Subcloud Group
@@ -54,7 +54,7 @@ class SubcloudGroupsController(restcomm.GenericPathController):
         super(SubcloudGroupsController, self).__init__()
         self.rpc_client = rpc_client.ManagerClient()
 
-    @expose(generic=True, template='json')
+    @expose(generic=True, template="json")
     def index(self):
         # Route the request to specific methods with parameters
         pass
@@ -72,17 +72,20 @@ class SubcloudGroupsController(restcomm.GenericPathController):
             subcloud_group_list.append(group_dict)
 
         result = dict()
-        result['subcloud_groups'] = subcloud_group_list
+        result["subcloud_groups"] = subcloud_group_list
         return result
 
-    @index.when(method='GET', template='json')
+    @index.when(method="GET", template="json")
     def get(self, group_ref=None, subclouds=False):
         """Get details about subcloud group.
 
         :param group_ref: ID or name of subcloud group
         """
-        policy.authorize(subcloud_group_policy.POLICY_ROOT % "get", {},
-                         restcomm.extract_credentials_for_policy())
+        policy.authorize(
+            subcloud_group_policy.POLICY_ROOT % "get",
+            {},
+            restcomm.extract_credentials_for_policy(),
+        )
         context = restcomm.extract_context_from_environ()
 
         if group_ref is None:
@@ -91,7 +94,7 @@ class SubcloudGroupsController(restcomm.GenericPathController):
 
         group = utils.subcloud_group_get_by_ref(context, group_ref)
         if group is None:
-            pecan.abort(httpclient.NOT_FOUND, _('Subcloud Group not found'))
+            pecan.abort(httpclient.NOT_FOUND, _("Subcloud Group not found"))
         if subclouds:
             # Return only the subclouds for this subcloud group
             return self._get_subcloud_list_for_group(context, group.id)
@@ -128,107 +131,114 @@ class SubcloudGroupsController(restcomm.GenericPathController):
             return False
         return True
 
-    @index.when(method='POST', template='json')
+    @index.when(method="POST", template="json")
     def post(self):
         """Create a new subcloud group."""
-        policy.authorize(subcloud_group_policy.POLICY_ROOT % "create", {},
-                         restcomm.extract_credentials_for_policy())
+        policy.authorize(
+            subcloud_group_policy.POLICY_ROOT % "create",
+            {},
+            restcomm.extract_credentials_for_policy(),
+        )
         context = restcomm.extract_context_from_environ()
 
         payload = eval(request.body)
         if not payload:
-            pecan.abort(httpclient.BAD_REQUEST, _('Body required'))
+            pecan.abort(httpclient.BAD_REQUEST, _("Body required"))
 
-        name = payload.get('name')
-        description = payload.get('description')
-        update_apply_type = payload.get('update_apply_type')
-        max_parallel_subclouds = payload.get('max_parallel_subclouds')
+        name = payload.get("name")
+        description = payload.get("description")
+        update_apply_type = payload.get("update_apply_type")
+        max_parallel_subclouds = payload.get("max_parallel_subclouds")
 
         # Validate payload
-        if not utils.validate_name(name,
-                                   prohibited_name_list=[
-                                       consts.DEFAULT_SUBCLOUD_GROUP_NAME]):
-            pecan.abort(httpclient.BAD_REQUEST, _('Invalid group name'))
+        if not utils.validate_name(
+            name, prohibited_name_list=[consts.DEFAULT_SUBCLOUD_GROUP_NAME]
+        ):
+            pecan.abort(httpclient.BAD_REQUEST, _("Invalid group name"))
         if not self._validate_description(description):
-            pecan.abort(httpclient.BAD_REQUEST, _('Invalid group description'))
+            pecan.abort(httpclient.BAD_REQUEST, _("Invalid group description"))
         if not self._validate_update_apply_type(update_apply_type):
-            pecan.abort(httpclient.BAD_REQUEST,
-                        _('Invalid group update_apply_type'))
+            pecan.abort(httpclient.BAD_REQUEST, _("Invalid group update_apply_type"))
         if not self._validate_max_parallel_subclouds(max_parallel_subclouds):
-            pecan.abort(httpclient.BAD_REQUEST,
-                        _('Invalid group max_parallel_subclouds'))
+            pecan.abort(
+                httpclient.BAD_REQUEST, _("Invalid group max_parallel_subclouds")
+            )
         try:
-            group_ref = db_api.subcloud_group_create(context,
-                                                     name,
-                                                     description,
-                                                     update_apply_type,
-                                                     max_parallel_subclouds)
+            group_ref = db_api.subcloud_group_create(
+                context, name, description, update_apply_type, max_parallel_subclouds
+            )
             return db_api.subcloud_group_db_model_to_dict(group_ref)
         except db_exc.DBDuplicateEntry:
             LOG.info("Group create failed. Group %s already exists" % name)
-            pecan.abort(httpclient.BAD_REQUEST,
-                        _('A subcloud group with this name already exists'))
+            pecan.abort(
+                httpclient.BAD_REQUEST,
+                _("A subcloud group with this name already exists"),
+            )
         except RemoteError as e:
             pecan.abort(httpclient.UNPROCESSABLE_ENTITY, e.value)
         except Exception as e:
             LOG.exception(e)
-            pecan.abort(httpclient.INTERNAL_SERVER_ERROR,
-                        _('Unable to create subcloud group'))
+            pecan.abort(
+                httpclient.INTERNAL_SERVER_ERROR, _("Unable to create subcloud group")
+            )
 
-    @index.when(method='PATCH', template='json')
+    @index.when(method="PATCH", template="json")
     def patch(self, group_ref):
         """Update a subcloud group.
 
         :param group_ref: ID or name of subcloud group to update
         """
 
-        policy.authorize(subcloud_group_policy.POLICY_ROOT % "modify", {},
-                         restcomm.extract_credentials_for_policy())
+        policy.authorize(
+            subcloud_group_policy.POLICY_ROOT % "modify",
+            {},
+            restcomm.extract_credentials_for_policy(),
+        )
         context = restcomm.extract_context_from_environ()
         if group_ref is None:
-            pecan.abort(httpclient.BAD_REQUEST,
-                        _('Subcloud Group Name or ID required'))
+            pecan.abort(httpclient.BAD_REQUEST, _("Subcloud Group Name or ID required"))
 
         payload = eval(request.body)
         if not payload:
-            pecan.abort(httpclient.BAD_REQUEST, _('Body required'))
+            pecan.abort(httpclient.BAD_REQUEST, _("Body required"))
 
         group = utils.subcloud_group_get_by_ref(context, group_ref)
         if group is None:
-            pecan.abort(httpclient.NOT_FOUND, _('Subcloud Group not found'))
+            pecan.abort(httpclient.NOT_FOUND, _("Subcloud Group not found"))
 
-        name = payload.get('name')
-        description = payload.get('description')
-        update_apply_type = payload.get('update_apply_type')
-        max_parallel_str = payload.get('max_parallel_subclouds')
+        name = payload.get("name")
+        description = payload.get("description")
+        update_apply_type = payload.get("update_apply_type")
+        max_parallel_str = payload.get("max_parallel_subclouds")
 
         if not (name or description or update_apply_type or max_parallel_str):
-            pecan.abort(httpclient.BAD_REQUEST, _('nothing to update'))
+            pecan.abort(httpclient.BAD_REQUEST, _("nothing to update"))
 
         # Check value is not None or empty before calling validate
         if name:
-            if not utils.validate_name(name,
-                                       prohibited_name_list=[
-                                           consts.DEFAULT_SUBCLOUD_GROUP_NAME]):
-                pecan.abort(httpclient.BAD_REQUEST,
-                            _('Invalid group name'))
+            if not utils.validate_name(
+                name, prohibited_name_list=[consts.DEFAULT_SUBCLOUD_GROUP_NAME]
+            ):
+                pecan.abort(httpclient.BAD_REQUEST, _("Invalid group name"))
             # Special case. Default group name cannot be changed
             if group.id == consts.DEFAULT_SUBCLOUD_GROUP_ID:
-                pecan.abort(httpclient.BAD_REQUEST,
-                            _('Default group name cannot be changed'))
+                pecan.abort(
+                    httpclient.BAD_REQUEST, _("Default group name cannot be changed")
+                )
 
         if description:
             if not self._validate_description(description):
-                pecan.abort(httpclient.BAD_REQUEST,
-                            _('Invalid group description'))
+                pecan.abort(httpclient.BAD_REQUEST, _("Invalid group description"))
         if update_apply_type:
             if not self._validate_update_apply_type(update_apply_type):
-                pecan.abort(httpclient.BAD_REQUEST,
-                            _('Invalid group update_apply_type'))
+                pecan.abort(
+                    httpclient.BAD_REQUEST, _("Invalid group update_apply_type")
+                )
         if max_parallel_str:
             if not self._validate_max_parallel_subclouds(max_parallel_str):
-                pecan.abort(httpclient.BAD_REQUEST,
-                            _('Invalid group max_parallel_subclouds'))
+                pecan.abort(
+                    httpclient.BAD_REQUEST, _("Invalid group max_parallel_subclouds")
+                )
 
         try:
             updated_group = db_api.subcloud_group_update(
@@ -237,44 +247,49 @@ class SubcloudGroupsController(restcomm.GenericPathController):
                 name=name,
                 description=description,
                 update_apply_type=update_apply_type,
-                max_parallel_subclouds=max_parallel_str)
+                max_parallel_subclouds=max_parallel_str,
+            )
             return db_api.subcloud_group_db_model_to_dict(updated_group)
         except RemoteError as e:
             pecan.abort(httpclient.UNPROCESSABLE_ENTITY, e.value)
         except Exception as e:
             # additional exceptions.
             LOG.exception(e)
-            pecan.abort(httpclient.INTERNAL_SERVER_ERROR,
-                        _('Unable to update subcloud group'))
+            pecan.abort(
+                httpclient.INTERNAL_SERVER_ERROR, _("Unable to update subcloud group")
+            )
 
-    @index.when(method='delete', template='json')
+    @index.when(method="delete", template="json")
     def delete(self, group_ref):
         """Delete the subcloud group."""
-        policy.authorize(subcloud_group_policy.POLICY_ROOT % "delete", {},
-                         restcomm.extract_credentials_for_policy())
+        policy.authorize(
+            subcloud_group_policy.POLICY_ROOT % "delete",
+            {},
+            restcomm.extract_credentials_for_policy(),
+        )
         context = restcomm.extract_context_from_environ()
 
         if group_ref is None:
-            pecan.abort(httpclient.BAD_REQUEST,
-                        _('Subcloud Group Name or ID required'))
+            pecan.abort(httpclient.BAD_REQUEST, _("Subcloud Group Name or ID required"))
         group = utils.subcloud_group_get_by_ref(context, group_ref)
         if group is None:
-            pecan.abort(httpclient.NOT_FOUND, _('Subcloud Group not found'))
+            pecan.abort(httpclient.NOT_FOUND, _("Subcloud Group not found"))
         if group.name == consts.DEFAULT_SUBCLOUD_GROUP_NAME:
-            pecan.abort(httpclient.BAD_REQUEST,
-                        _('Default Subcloud Group may not be deleted'))
+            pecan.abort(
+                httpclient.BAD_REQUEST, _("Default Subcloud Group may not be deleted")
+            )
         try:
             # a subcloud group may not be deleted if it is use by any subclouds
             subclouds = db_api.subcloud_get_for_group(context, group.id)
             if len(subclouds) > 0:
-                pecan.abort(httpclient.BAD_REQUEST,
-                            _('Subcloud Group not empty'))
+                pecan.abort(httpclient.BAD_REQUEST, _("Subcloud Group not empty"))
             db_api.subcloud_group_destroy(context, group.id)
         except RemoteError as e:
             pecan.abort(httpclient.UNPROCESSABLE_ENTITY, e.value)
         except Exception as e:
             LOG.exception(e)
-            pecan.abort(httpclient.INTERNAL_SERVER_ERROR,
-                        _('Unable to delete subcloud group'))
+            pecan.abort(
+                httpclient.INTERNAL_SERVER_ERROR, _("Unable to delete subcloud group")
+            )
         # This should return nothing
         return None

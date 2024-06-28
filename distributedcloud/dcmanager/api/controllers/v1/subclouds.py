@@ -22,22 +22,17 @@ import json
 import os
 import re
 
+from fm_api.constants import FM_ALARM_ID_UNSYNCHRONIZED_RESOURCE
 import keyring
-
+from keystoneauth1 import exceptions as keystone_exceptions
 from oslo_config import cfg
 from oslo_log import log as logging
 from oslo_messaging import RemoteError
-
-from requests_toolbelt.multipart import decoder
-
 import pecan
 from pecan import expose
 from pecan import request
+from requests_toolbelt.multipart import decoder
 import yaml
-
-from fm_api.constants import FM_ALARM_ID_UNSYNCHRONIZED_RESOURCE
-
-from keystoneauth1 import exceptions as keystone_exceptions
 
 from dccommon import consts as dccommon_consts
 from dccommon.drivers.openstack.fm import FmClient
@@ -46,7 +41,6 @@ from dccommon.drivers.openstack import software_v1
 from dccommon.drivers.openstack.sysinv_v1 import SysinvClient
 from dccommon.drivers.openstack import vim
 from dccommon import exceptions as dccommon_exceptions
-
 from dcmanager.api.controllers import restcomm
 from dcmanager.api.policies import subclouds as subclouds_policy
 from dcmanager.api import policy
@@ -57,13 +51,12 @@ from dcmanager.common import phased_subcloud_deploy as psd_common
 from dcmanager.common import prestage
 from dcmanager.common import utils
 from dcmanager.db import api as db_api
-
 from dcmanager.rpc import client as rpc_client
 
 CONF = cfg.CONF
 LOG = logging.getLogger(__name__)
 
-LOCK_NAME = 'SubcloudsController'
+LOCK_NAME = "SubcloudsController"
 
 SUBCLOUD_ADD_GET_FILE_CONTENTS = [
     consts.BOOTSTRAP_VALUES,
@@ -73,12 +66,14 @@ SUBCLOUD_ADD_GET_FILE_CONTENTS = [
 SUBCLOUD_REDEPLOY_GET_FILE_CONTENTS = [
     consts.INSTALL_VALUES,
     consts.BOOTSTRAP_VALUES,
-    consts.DEPLOY_CONFIG
+    consts.DEPLOY_CONFIG,
 ]
 
 SUBCLOUD_MANDATORY_NETWORK_PARAMS = [
-    'management_subnet', 'management_gateway_ip',
-    'management_start_ip', 'management_end_ip'
+    "management_subnet",
+    "management_gateway_ip",
+    "management_start_ip",
+    "management_end_ip",
 ]
 
 
@@ -90,7 +85,7 @@ def _get_multipart_field_name(part):
 
 class SubcloudsController(object):
     VERSION_ALIASES = {
-        'Newton': '1.0',
+        "Newton": "1.0",
     }
 
     def __init__(self):
@@ -103,7 +98,7 @@ class SubcloudsController(object):
         version_cap = 1.0
         return version_cap
 
-    @expose(generic=True, template='json')
+    @expose(generic=True, template="json")
     def index(self):
         # Route the request to specific methods with parameters
         pass
@@ -119,7 +114,7 @@ class SubcloudsController(object):
             field_content = part.text
 
             # only the install_values field is yaml, force should be bool
-            if field_name in [consts.INSTALL_VALUES, 'force']:
+            if field_name in [consts.INSTALL_VALUES, "force"]:
                 field_content = utils.yaml_safe_load(field_content, field_name)
 
             payload[field_name] = field_content
@@ -163,12 +158,10 @@ class SubcloudsController(object):
                     if val.lower() in ("true", "false", "t", "f"):
                         payload["force"] = val.lower() in ("true", "t")
                     else:
-                        pecan.abort(
-                            400, _("Invalid value for force option: %s" % val)
-                        )
+                        pecan.abort(400, _("Invalid value for force option: %s" % val))
                 elif field in (
                     consts.PRESTAGE_FOR_INSTALL,
-                    consts.PRESTAGE_FOR_SW_DEPLOY
+                    consts.PRESTAGE_FOR_SW_DEPLOY,
                 ):
                     if val.lower() in ("true", "false", "t", "f"):
                         payload[field] = val.lower() in ("true", "t")
@@ -213,14 +206,13 @@ class SubcloudsController(object):
         except exceptions.StrategyStepNotFound:
             LOG.debug(f"No existing vim strategy steps on subcloud: {subcloud.name}")
         except Exception:
-            LOG.exception("Failed to get strategy steps on subcloud: "
-                          f"{subcloud.name}.")
+            LOG.exception(f"Failed to get strategy steps on subcloud: {subcloud.name}.")
             return True
 
         if strategy_steps and strategy_steps.state not in (
             consts.STRATEGY_STATE_COMPLETE,
             consts.STRATEGY_STATE_ABORTED,
-            consts.STRATEGY_STATE_FAILED
+            consts.STRATEGY_STATE_FAILED,
         ):
             return True
 
@@ -231,15 +223,17 @@ class SubcloudsController(object):
                 region_clients=None,
                 fetch_subcloud_ips=utils.fetch_subcloud_mgmt_ips,
             ).keystone_client
-            vim_client = vim.VimClient(subcloud.region_name,
-                                       keystone_client.session)
+            vim_client = vim.VimClient(subcloud.region_name, keystone_client.session)
             strategy = vim_client.get_strategy(
                 strategy_name=vim.STRATEGY_NAME_SYS_CONFIG_UPDATE,
-                raise_error_if_missing=False)
+                raise_error_if_missing=False,
+            )
         except Exception:
             # Don't block the operation when the vim service is inaccessible
-            LOG.warning(f"Openstack admin endpoints on subcloud: {subcloud.name} "
-                        "are unaccessible")
+            LOG.warning(
+                f"Openstack admin endpoints on subcloud: {subcloud.name} "
+                "are unaccessible"
+            )
             return False
 
         return strategy and strategy.state in vim.TRANSITORY_STATES
@@ -247,20 +241,36 @@ class SubcloudsController(object):
     # TODO(nicodemos): Check if subcloud is online and network already exist in the
     # subcloud when the lock/unlock is not required for network reconfiguration
     def _validate_network_reconfiguration(self, payload, subcloud):
-        if payload.get('management-state'):
-            pecan.abort(422, _("Management state and network reconfiguration must "
-                               "be updated separately"))
+        if payload.get("management-state"):
+            pecan.abort(
+                422,
+                _(
+                    "Management state and network reconfiguration must "
+                    "be updated separately"
+                ),
+            )
         if subcloud.management_state != dccommon_consts.MANAGEMENT_UNMANAGED:
-            pecan.abort(422, _("A subcloud must be unmanaged to perform network "
-                               "reconfiguration"))
-        if not payload.get('bootstrap_address'):
-            pecan.abort(422, _("The bootstrap_address parameter is required for "
-                               "network reconfiguration"))
+            pecan.abort(
+                422,
+                _("A subcloud must be unmanaged to perform network reconfiguration"),
+            )
+        if not payload.get("bootstrap_address"):
+            pecan.abort(
+                422,
+                _(
+                    "The bootstrap_address parameter is required for "
+                    "network reconfiguration"
+                ),
+            )
         # Check if all parameters exist
-        if not all(payload.get(value) is not None for value in (
-                SUBCLOUD_MANDATORY_NETWORK_PARAMS)):
-            mandatory_params = ', '.join('--{}'.format(param.replace(
-                '_', '-')) for param in SUBCLOUD_MANDATORY_NETWORK_PARAMS)
+        if not all(
+            payload.get(value) is not None
+            for value in (SUBCLOUD_MANDATORY_NETWORK_PARAMS)
+        ):
+            mandatory_params = ", ".join(
+                "--{}".format(param.replace("_", "-"))
+                for param in SUBCLOUD_MANDATORY_NETWORK_PARAMS
+            )
             abort_msg = (
                 "The following parameters are necessary for "
                 "subcloud network reconfiguration: {}".format(mandatory_params)
@@ -273,47 +283,48 @@ class SubcloudsController(object):
                 pecan.abort(422, _("%s already in use by the subcloud.") % param)
 
         # Check password and decode it
-        sysadmin_password = payload.get('sysadmin_password')
+        sysadmin_password = payload.get("sysadmin_password")
         if not sysadmin_password:
-            pecan.abort(400, _('subcloud sysadmin_password required'))
+            pecan.abort(400, _("subcloud sysadmin_password required"))
         try:
-            payload['sysadmin_password'] = utils.decode_and_normalize_passwd(
-                sysadmin_password)
+            payload["sysadmin_password"] = utils.decode_and_normalize_passwd(
+                sysadmin_password
+            )
         except Exception:
-            msg = _('Failed to decode subcloud sysadmin_password, '
-                    'verify the password is base64 encoded')
+            msg = _(
+                "Failed to decode subcloud sysadmin_password, "
+                "verify the password is base64 encoded"
+            )
             LOG.exception(msg)
             pecan.abort(400, msg)
 
     def _get_subcloud_users(self):
         """Get the subcloud users and passwords from keyring"""
-        DEFAULT_SERVICE_PROJECT_NAME = 'services'
+        DEFAULT_SERVICE_PROJECT_NAME = "services"
         # First entry is openstack user name, second entry is the user stored
         # in keyring. Not sure why heat_admin uses a different keystone name.
         SUBCLOUD_USERS = [
-            ('sysinv', 'sysinv'),
-            ('patching', 'patching'),
-            ('vim', 'vim'),
-            ('mtce', 'mtce'),
-            ('fm', 'fm'),
-            ('barbican', 'barbican'),
-            ('smapi', 'smapi'),
-            ('dcdbsync', 'dcdbsync')
+            ("sysinv", "sysinv"),
+            ("patching", "patching"),
+            ("vim", "vim"),
+            ("mtce", "mtce"),
+            ("fm", "fm"),
+            ("barbican", "barbican"),
+            ("smapi", "smapi"),
+            ("dcdbsync", "dcdbsync"),
         ]
 
         user_list = list()
         for user in SUBCLOUD_USERS:
-            password = keyring.get_password(user[1],
-                                            DEFAULT_SERVICE_PROJECT_NAME)
+            password = keyring.get_password(user[1], DEFAULT_SERVICE_PROJECT_NAME)
             if password:
                 user_dict = dict()
-                user_dict['name'] = user[0]
-                user_dict['password'] = password
+                user_dict["name"] = user[0]
+                user_dict["password"] = password
                 user_list.append(user_dict)
             else:
-                LOG.error("User %s not found in keyring as %s" % (user[0],
-                                                                  user[1]))
-                pecan.abort(500, _('System configuration error'))
+                LOG.error("User %s not found in keyring as %s" % (user[0], user[1]))
+                pecan.abort(500, _("System configuration error"))
 
         return user_list
 
@@ -323,33 +334,34 @@ class SubcloudsController(object):
 
         # First need to retrieve the Subcloud's Keystone session
         try:
-            endpoint = sc_ks_client.endpoint_cache.get_endpoint('sysinv')
-            sysinv_client = SysinvClient(subcloud_name,
-                                         sc_ks_client.session,
-                                         endpoint=endpoint)
+            endpoint = sc_ks_client.endpoint_cache.get_endpoint("sysinv")
+            sysinv_client = SysinvClient(
+                subcloud_name, sc_ks_client.session, endpoint=endpoint
+            )
             return sysinv_client.get_oam_addresses()
         except (keystone_exceptions.EndpointNotFound, IndexError) as e:
-            message = ("Identity endpoint for subcloud: %s not found. %s" %
-                       (subcloud_name, e))
+            message = "Identity endpoint for subcloud: %s not found. %s" % (
+                subcloud_name,
+                e,
+            )
             LOG.error(message)
         except dccommon_exceptions.OAMAddressesNotFound:
-            message = ("OAM addresses for subcloud: %s not found." %
-                       (subcloud_name))
+            message = "OAM addresses for subcloud: %s not found." % (subcloud_name)
             LOG.error(message)
         return None
 
-    def _get_deploy_config_sync_status(
-        self, context, subcloud_name, keystone_client
-    ):
-        """Get the deploy configuration insync status of the subcloud """
+    def _get_deploy_config_sync_status(self, context, subcloud_name, keystone_client):
+        """Get the deploy configuration insync status of the subcloud"""
         detected_alarms = None
         try:
             fm_client = FmClient(
-                subcloud_name, keystone_client.session,
-                endpoint=keystone_client.endpoint_cache.get_endpoint("fm")
+                subcloud_name,
+                keystone_client.session,
+                endpoint=keystone_client.endpoint_cache.get_endpoint("fm"),
             )
             detected_alarms = fm_client.get_alarms_by_id(
-                FM_ALARM_ID_UNSYNCHRONIZED_RESOURCE)
+                FM_ALARM_ID_UNSYNCHRONIZED_RESOURCE
+            )
         except Exception as ex:
             LOG.error(str(ex))
             return None
@@ -360,12 +372,17 @@ class SubcloudsController(object):
             # in MONITORED_ALARM_ENTITIES.
             # We want to scope 260.002 alarms to the host entity only.
             out_of_date = any(
-                any(entity_id in alarm.entity_instance_id
-                    for entity_id in dccommon_consts.MONITORED_ALARM_ENTITIES)
+                any(
+                    entity_id in alarm.entity_instance_id
+                    for entity_id in dccommon_consts.MONITORED_ALARM_ENTITIES
+                )
                 for alarm in detected_alarms
             )
-        sync_status = dccommon_consts.DEPLOY_CONFIG_OUT_OF_DATE if out_of_date \
+        sync_status = (
+            dccommon_consts.DEPLOY_CONFIG_OUT_OF_DATE
+            if out_of_date
             else dccommon_consts.DEPLOY_CONFIG_UP_TO_DATE
+        )
         return sync_status
 
     def _validate_rehome_pending(self, subcloud, management_state, request):
@@ -379,12 +396,15 @@ class SubcloudsController(object):
         # the site will attempt to set the remote subcloud's deploy status
         # to "rehome-pending." However, the remote subcloud might be in a
         # "rehome-failed" state from a previous failed rehoming attempt.
-        if (subcloud.deploy_status != consts.DEPLOY_STATE_DONE and
-                not utils.is_req_from_another_dc(request)):
+        if (
+            subcloud.deploy_status != consts.DEPLOY_STATE_DONE
+            and not utils.is_req_from_another_dc(request)
+        ):
             error_msg = (
                 "The deploy status can only be updated to "
                 f"'{consts.DEPLOY_STATE_REHOME_PENDING}' if the current "
-                f"deploy status is '{consts.DEPLOY_STATE_DONE}'")
+                f"deploy status is '{consts.DEPLOY_STATE_DONE}'"
+            )
 
         # Can only set the subcloud to rehome-pending if the subcloud is
         # being unmanaged or is already unmanaged
@@ -393,7 +413,8 @@ class SubcloudsController(object):
         ):
             error_msg = (
                 f"Subcloud must be {unmanaged} for its deploy status to "
-                f"be updated to '{consts.DEPLOY_STATE_REHOME_PENDING}'")
+                f"be updated to '{consts.DEPLOY_STATE_REHOME_PENDING}'"
+            )
 
         if error_msg:
             pecan.abort(400, error_msg)
@@ -401,66 +422,67 @@ class SubcloudsController(object):
     @staticmethod
     def _append_static_err_content(subcloud):
         err_dict = consts.ERR_MSG_DICT
-        status = subcloud.get('deploy-status')
-        err_msg = [subcloud.get('error-description')]
-        err_code = \
-            re.search(r"err_code\s*=\s*(\S*)", err_msg[0], re.IGNORECASE)
+        status = subcloud.get("deploy-status")
+        err_msg = [subcloud.get("error-description")]
+        err_code = re.search(r"err_code\s*=\s*(\S*)", err_msg[0], re.IGNORECASE)
         if err_code and err_code.group(1) in err_dict:
             err_msg.append(err_dict.get(err_code.group(1)))
         if status == consts.DEPLOY_STATE_CONFIG_FAILED:
             err_msg.append(err_dict.get(consts.CONFIG_ERROR_MSG))
         elif status == consts.DEPLOY_STATE_BOOTSTRAP_FAILED:
             err_msg.append(err_dict.get(consts.BOOTSTRAP_ERROR_MSG))
-        subcloud['error-description'] = '\n'.join(err_msg)
+        subcloud["error-description"] = "\n".join(err_msg)
         return None
 
-    @index.when(method='GET', template='json')
+    @index.when(method="GET", template="json")
     def get(self, subcloud_ref=None, detail=None):
         """Get details about subcloud.
 
         :param subcloud_ref: ID or name of subcloud
         """
-        policy.authorize(subclouds_policy.POLICY_ROOT % "get", {},
-                         restcomm.extract_credentials_for_policy())
+        policy.authorize(
+            subclouds_policy.POLICY_ROOT % "get",
+            {},
+            restcomm.extract_credentials_for_policy(),
+        )
         context = restcomm.extract_context_from_environ()
 
         if subcloud_ref is None:
             # List of subclouds requested
             subclouds = db_api.subcloud_get_all_with_status(context)
-            result = {'subclouds': []}
+            result = {"subclouds": []}
             subcloud_dict = {}
 
             for subcloud, endpoint_type, sync_status in subclouds:
                 subcloud_id = subcloud.id
                 if subcloud_id not in subcloud_dict:
                     subcloud_dict[subcloud_id] = db_api.subcloud_db_model_to_dict(
-                        subcloud)
-                    self._append_static_err_content(subcloud_dict[subcloud_id])
-                    subcloud_dict[subcloud_id].update(
-                        {consts.SYNC_STATUS: sync_status}
+                        subcloud
                     )
+                    self._append_static_err_content(subcloud_dict[subcloud_id])
+                    subcloud_dict[subcloud_id].update({consts.SYNC_STATUS: sync_status})
                     subcloud_dict[subcloud_id][consts.ENDPOINT_SYNC_STATUS] = []
 
                 subcloud_dict[subcloud_id][consts.ENDPOINT_SYNC_STATUS].append(
                     {
                         consts.ENDPOINT_TYPE: endpoint_type,
-                        consts.SYNC_STATUS: sync_status
+                        consts.SYNC_STATUS: sync_status,
                     }
                 )
 
                 # If any of the endpoint sync status is out of sync, then
                 # the subcloud sync status is out of sync
                 if sync_status != subcloud_dict[subcloud_id][consts.SYNC_STATUS]:
-                    subcloud_dict[subcloud_id][consts.SYNC_STATUS] = (
-                        dccommon_consts.SYNC_STATUS_OUT_OF_SYNC
-                    )
+                    subcloud_dict[subcloud_id][
+                        consts.SYNC_STATUS
+                    ] = dccommon_consts.SYNC_STATUS_OUT_OF_SYNC
 
             for subcloud in subcloud_dict.values():
                 # This is to reduce changes on cert-mon
                 # Overwrites the name value with region
                 if utils.is_req_from_cert_mon_agent(request):
-                    subcloud['name'] = subcloud['region-name']
-                result['subclouds'].append(subcloud)
+                    subcloud["name"] = subcloud["region-name"]
+                result["subclouds"].append(subcloud)
             return result
         else:
             # Single subcloud requested
@@ -474,7 +496,7 @@ class SubcloudsController(object):
                 try:
                     subcloud = db_api.subcloud_get(context, subcloud_ref)
                 except exceptions.SubcloudNotFound:
-                    pecan.abort(404, _('Subcloud not found'))
+                    pecan.abort(404, _("Subcloud not found"))
             else:
                 try:
                     # When the request comes from the cert-monitor or another
@@ -482,33 +504,37 @@ class SubcloudsController(object):
                     # Whereas, if the request comes from a client other
                     # than cert-monitor, it will do the lookup based on
                     # the subcloud name.
-                    if (utils.is_req_from_cert_mon_agent(request) or
-                            utils.is_req_from_another_dc(request)):
-                        subcloud = db_api.\
-                            subcloud_get_by_region_name(context, subcloud_ref)
+                    if utils.is_req_from_cert_mon_agent(
+                        request
+                    ) or utils.is_req_from_another_dc(request):
+                        subcloud = db_api.subcloud_get_by_region_name(
+                            context, subcloud_ref
+                        )
                     else:
-                        subcloud = db_api.subcloud_get_by_name(context,
-                                                               subcloud_ref)
-                except (exceptions.SubcloudRegionNameNotFound,
-                        exceptions.SubcloudNameNotFound):
-                    pecan.abort(404, _('Subcloud not found'))
+                        subcloud = db_api.subcloud_get_by_name(context, subcloud_ref)
+                except (
+                    exceptions.SubcloudRegionNameNotFound,
+                    exceptions.SubcloudNameNotFound,
+                ):
+                    pecan.abort(404, _("Subcloud not found"))
 
             subcloud_id = subcloud.id
 
             # Data for this subcloud requested
             # Build up and append a dictionary of the endpoints
             # sync status to the result.
-            for subcloud, subcloud_status in db_api. \
-                    subcloud_get_with_status(context, subcloud_id):
-                subcloud_dict = db_api.subcloud_db_model_to_dict(
-                    subcloud)
+            for subcloud, subcloud_status in db_api.subcloud_get_with_status(
+                context, subcloud_id
+            ):
+                subcloud_dict = db_api.subcloud_db_model_to_dict(subcloud)
                 # may be empty subcloud_status entry, account for this
                 if subcloud_status:
                     subcloud_status_list.append(
                         db_api.subcloud_endpoint_status_db_model_to_dict(
-                            subcloud_status))
-            endpoint_sync_dict = {consts.ENDPOINT_SYNC_STATUS:
-                                  subcloud_status_list}
+                            subcloud_status
+                        )
+                    )
+            endpoint_sync_dict = {consts.ENDPOINT_SYNC_STATUS: subcloud_status_list}
             subcloud_dict.update(endpoint_sync_dict)
 
             self._append_static_err_content(subcloud_dict)
@@ -517,8 +543,7 @@ class SubcloudsController(object):
             if detail is not None:
                 oam_floating_ip = "unavailable"
                 deploy_config_sync_status = "unknown"
-                if (subcloud.availability_status ==
-                        dccommon_consts.AVAILABILITY_ONLINE):
+                if subcloud.availability_status == dccommon_consts.AVAILABILITY_ONLINE:
 
                     # Get the keystone client that will be used
                     # for _get_deploy_config_sync_status and _get_oam_addresses
@@ -530,7 +555,8 @@ class SubcloudsController(object):
                         oam_floating_ip = oam_addresses.oam_floating_ip
 
                     deploy_config_state = self._get_deploy_config_sync_status(
-                        context, subcloud_region, sc_ks_client)
+                        context, subcloud_region, sc_ks_client
+                    )
                     if deploy_config_state is not None:
                         deploy_config_sync_status = deploy_config_state
 
@@ -566,7 +592,7 @@ class SubcloudsController(object):
                 ):
                     LOG.info(
                         "is_valid_software_deploy_state, not valid for: %s",
-                        software_list
+                        software_list,
                     )
                     return False
             LOG.debug("is_valid_software_deploy_state, valid: %s", software_list)
@@ -590,12 +616,15 @@ class SubcloudsController(object):
             )
 
     @utils.synchronized(LOCK_NAME)
-    @index.when(method='POST', template='json')
+    @index.when(method="POST", template="json")
     def post(self):
         """Create and deploy a new subcloud."""
 
-        policy.authorize(subclouds_policy.POLICY_ROOT % "create", {},
-                         restcomm.extract_credentials_for_policy())
+        policy.authorize(
+            subclouds_policy.POLICY_ROOT % "create",
+            {},
+            restcomm.extract_credentials_for_policy(),
+        )
         context = restcomm.extract_context_from_environ()
 
         self.validate_software_deploy_state()
@@ -612,32 +641,38 @@ class SubcloudsController(object):
 
         bootstrap_sc_name = psd_common.get_bootstrap_subcloud_name(request)
 
-        payload = psd_common.get_request_data(request, None,
-                                              SUBCLOUD_ADD_GET_FILE_CONTENTS)
+        payload = psd_common.get_request_data(
+            request, None, SUBCLOUD_ADD_GET_FILE_CONTENTS
+        )
 
         psd_common.validate_migrate_parameter(payload, request)
 
         psd_common.validate_secondary_parameter(payload, request)
 
-        if payload.get('enroll'):
+        if payload.get("enroll"):
             psd_common.validate_enroll_parameter(payload)
 
         # Compares to match both supplied and bootstrap name param
         # of the subcloud if migrate is on
-        if payload.get('migrate') == 'true' and bootstrap_sc_name is not None:
-            if bootstrap_sc_name != payload.get('name'):
-                pecan.abort(400, _('subcloud name does not match the '
-                                   'name defined in bootstrap file'))
+        if payload.get("migrate") == "true" and bootstrap_sc_name is not None:
+            if bootstrap_sc_name != payload.get("name"):
+                pecan.abort(
+                    400,
+                    _(
+                        "subcloud name does not match the "
+                        "name defined in bootstrap file"
+                    ),
+                )
 
         # No need sysadmin_password when add a secondary subcloud
-        if 'secondary' not in payload:
+        if "secondary" not in payload:
             psd_common.validate_sysadmin_password(payload)
 
         # Use the region_name if it has been provided in the payload.
         # The typical scenario is adding a secondary subcloud from
         # peer site where subcloud region_name is known and can be
         # put into the payload of the subcloud add request.
-        if 'region_name' not in payload:
+        if "region_name" not in payload:
             psd_common.subcloud_region_create(payload, context)
 
         psd_common.pre_deploy_create(payload, context, request)
@@ -650,23 +685,22 @@ class SubcloudsController(object):
             # It will do all the real work...
             # If the subcloud is secondary, it will be synchronous operation.
             # A normal subcloud add will be asynchronous operation.
-            if 'secondary' in payload:
+            if "secondary" in payload:
                 self.dcmanager_rpc_client.add_secondary_subcloud(
-                    context, subcloud.id, payload)
+                    context, subcloud.id, payload
+                )
             else:
-                self.dcmanager_rpc_client.add_subcloud(
-                    context, subcloud.id, payload)
+                self.dcmanager_rpc_client.add_subcloud(context, subcloud.id, payload)
 
             return db_api.subcloud_db_model_to_dict(subcloud)
         except RemoteError as e:
             pecan.abort(422, e.value)
         except Exception:
-            LOG.exception(
-                "Unable to add subcloud %s" % payload.get('name'))
-            pecan.abort(500, _('Unable to add subcloud'))
+            LOG.exception("Unable to add subcloud %s" % payload.get("name"))
+            pecan.abort(500, _("Unable to add subcloud"))
 
     @utils.synchronized(LOCK_NAME)
-    @index.when(method='PATCH', template='json')
+    @index.when(method="PATCH", template="json")
     def patch(self, subcloud_ref=None, verb=None):
         """Update a subcloud.
 
@@ -676,20 +710,23 @@ class SubcloudsController(object):
         or subcloud update operation
         """
 
-        policy.authorize(subclouds_policy.POLICY_ROOT % "modify", {},
-                         restcomm.extract_credentials_for_policy())
+        policy.authorize(
+            subclouds_policy.POLICY_ROOT % "modify",
+            {},
+            restcomm.extract_credentials_for_policy(),
+        )
         context = restcomm.extract_context_from_environ()
         subcloud = None
 
         if subcloud_ref is None:
-            pecan.abort(400, _('Subcloud ID required'))
+            pecan.abort(400, _("Subcloud ID required"))
 
         if subcloud_ref.isdigit():
             # Look up subcloud as an ID
             try:
                 subcloud = db_api.subcloud_get(context, subcloud_ref)
             except exceptions.SubcloudNotFound:
-                pecan.abort(404, _('Subcloud not found'))
+                pecan.abort(404, _("Subcloud not found"))
         else:
             try:
                 # When the request comes from the cert-monitor or another DC,
@@ -697,16 +734,17 @@ class SubcloudsController(object):
                 # Whereas, if the request comes from a client other
                 # than cert-monitor, it will do the lookup based on
                 # the subcloud name.
-                if (utils.is_req_from_cert_mon_agent(request) or
-                        utils.is_req_from_another_dc(request)):
-                    subcloud = db_api.\
-                        subcloud_get_by_region_name(context, subcloud_ref)
+                if utils.is_req_from_cert_mon_agent(
+                    request
+                ) or utils.is_req_from_another_dc(request):
+                    subcloud = db_api.subcloud_get_by_region_name(context, subcloud_ref)
                 else:
-                    subcloud = db_api.subcloud_get_by_name(context,
-                                                           subcloud_ref)
-            except (exceptions.SubcloudRegionNameNotFound,
-                    exceptions.SubcloudNameNotFound):
-                pecan.abort(404, _('Subcloud not found'))
+                    subcloud = db_api.subcloud_get_by_name(context, subcloud_ref)
+            except (
+                exceptions.SubcloudRegionNameNotFound,
+                exceptions.SubcloudNameNotFound,
+            ):
+                pecan.abort(404, _("Subcloud not found"))
 
         subcloud_id = subcloud.id
 
@@ -714,7 +752,7 @@ class SubcloudsController(object):
             # subcloud update
             payload = self._get_patch_data(request)
             if not payload:
-                pecan.abort(400, _('Body required'))
+                pecan.abort(400, _("Body required"))
 
             # Create a set to store the affected SPG(s) that need to be
             # synced due to the subcloud update. This set will be utilized to
@@ -730,30 +768,36 @@ class SubcloudsController(object):
             if subcloud.peer_group_id is not None:
                 # Get the original peer group of the subcloud
                 original_pgrp = db_api.subcloud_peer_group_get(
-                    context, subcloud.peer_group_id)
+                    context, subcloud.peer_group_id
+                )
                 leader_on_local_site = utils.is_leader_on_local_site(original_pgrp)
                 # A sync command is required after updating a subcloud
                 # in an SPG that is already associated with a PGA in the primary
                 # and leader site. The existence of the PGA will be checked
                 # by the update_association_sync_status method later.
-                if (original_pgrp.group_priority == 0 and
-                        leader_on_local_site and
-                        not req_from_another_dc):
+                if (
+                    original_pgrp.group_priority == 0
+                    and leader_on_local_site
+                    and not req_from_another_dc
+                ):
                     sync_peer_groups.add(subcloud.peer_group_id)
 
                 # Get the peer site availability and PGA sync status
                 # TODO(lzhu1): support multiple sites
                 associations = db_api.peer_group_association_get_by_peer_group_id(
-                    context, original_pgrp.id)
+                    context, original_pgrp.id
+                )
                 for association in associations:
                     pga = association
                     system_peer = db_api.system_peer_get(
-                        context, association.system_peer_id)
-                    peer_site_available = \
-                        system_peer.availability_state == \
-                        consts.SYSTEM_PEER_AVAILABILITY_STATE_AVAILABLE
+                        context, association.system_peer_id
+                    )
+                    peer_site_available = (
+                        system_peer.availability_state
+                        == consts.SYSTEM_PEER_AVAILABILITY_STATE_AVAILABLE
+                    )
 
-            peer_group = payload.get('peer_group')
+            peer_group = payload.get("peer_group")
             # Verify the peer_group is valid
             peer_group_id = None
             if peer_group is not None:
@@ -766,60 +810,95 @@ class SubcloudsController(object):
                 # the peer_group_id,
                 # update_subcloud() will handle it and
                 # Set the peer_group_id DB into None.
-                if peer_group.lower() == 'none':
+                if peer_group.lower() == "none":
                     if original_pgrp:
                         # Check the system leader is not on this site
                         if not leader_on_local_site:
-                            pecan.abort(400, _("Removing subcloud from a "
-                                               "peer group not led by the "
-                                               "current site is prohibited."))
+                            pecan.abort(
+                                400,
+                                _(
+                                    "Removing subcloud from a peer group not led by "
+                                    "the current site is prohibited."
+                                ),
+                            )
                         # If system peer is available, then does not allow
                         # to remove the subcloud from secondary peer group
                         if peer_site_available and original_pgrp.group_priority > 0:
-                            pecan.abort(400, _(
-                                "Removing subcloud from a peer group "
-                                "associated with an available system peer "
-                                "is prohibited."))
-                        peer_group_id = 'none'
+                            pecan.abort(
+                                400,
+                                _(
+                                    "Removing subcloud from a peer group associated "
+                                    "with an available system peer is prohibited."
+                                ),
+                            )
+                        peer_group_id = "none"
                 else:
-                    if not (subcloud.rehome_data or (
-                            payload.get('bootstrap_values') and
-                            payload.get('bootstrap_address'))):
-                        pecan.abort(400, _("Cannot update the subcloud "
-                                           "peer group: must provide both the "
-                                           "bootstrap-values and "
-                                           "bootstrap-address."))
-                    if original_pgrp and original_pgrp.group_priority > 0 and \
-                            str(subcloud.peer_group_id) != peer_group:
-                        pecan.abort(400, _(
-                            "Cannot move subcloud to a new peer group if the "
-                            "original peer group is not primary (non-zero "
-                            "priority)."))
+                    if not (
+                        subcloud.rehome_data
+                        or (
+                            payload.get("bootstrap_values")
+                            and payload.get("bootstrap_address")
+                        )
+                    ):
+                        pecan.abort(
+                            400,
+                            _(
+                                "Cannot update the subcloud peer group: must provide "
+                                "both the bootstrap-values and bootstrap-address."
+                            ),
+                        )
+                    if (
+                        original_pgrp
+                        and original_pgrp.group_priority > 0
+                        and str(subcloud.peer_group_id) != peer_group
+                    ):
+                        pecan.abort(
+                            400,
+                            _(
+                                "Cannot move subcloud to a new peer group if the "
+                                "original peer group is not primary (non-zero "
+                                "priority)."
+                            ),
+                        )
                     pgrp = utils.subcloud_peer_group_get_by_ref(context, peer_group)
                     if not pgrp:
-                        pecan.abort(400, _('Invalid peer group'))
+                        pecan.abort(400, _("Invalid peer group"))
                     if not req_from_another_dc:
                         if pgrp.group_priority > 0:
-                            pecan.abort(400, _("Cannot set the subcloud to a peer"
-                                               " group with non-zero priority."))
+                            pecan.abort(
+                                400,
+                                _(
+                                    "Cannot set the subcloud to a peer "
+                                    "group with non-zero priority."
+                                ),
+                            )
                         elif not utils.is_leader_on_local_site(pgrp):
-                            pecan.abort(400, _("Update subcloud to a peer "
-                                               "group that is not led by the "
-                                               "current site is prohibited."))
+                            pecan.abort(
+                                400,
+                                _(
+                                    "Update subcloud to a peer group that is not led "
+                                    "by the current site is prohibited."
+                                ),
+                            )
                         elif not (
                             subcloud.deploy_status == consts.DEPLOY_STATE_DONE
-                            and subcloud.management_state ==
-                            dccommon_consts.MANAGEMENT_MANAGED
-                            and subcloud.availability_status ==
-                                dccommon_consts.AVAILABILITY_ONLINE):
-                            pecan.abort(400, _("Only subclouds that are "
-                                               "managed and online can be "
-                                               "added to a peer group."))
+                            and subcloud.management_state
+                            == dccommon_consts.MANAGEMENT_MANAGED
+                            and subcloud.availability_status
+                            == dccommon_consts.AVAILABILITY_ONLINE
+                        ):
+                            pecan.abort(
+                                400,
+                                _(
+                                    "Only subclouds that are managed and online can be "
+                                    "added to a peer group."
+                                ),
+                            )
                         sync_peer_groups.add(pgrp.id)
                     peer_group_id = pgrp.id
 
-            bootstrap_values = payload.get('bootstrap_values')
-            bootstrap_address = payload.get('bootstrap_address')
+            bootstrap_values = payload.get("bootstrap_values")
+            bootstrap_address = payload.get("bootstrap_address")
 
             # Subcloud can only be updated while it is managed in
             # the primary site because the sync command can only be issued
@@ -828,113 +907,141 @@ class SubcloudsController(object):
             if original_pgrp and peer_group_id is None and not req_from_another_dc:
                 if original_pgrp.group_priority > 0:
                     if bootstrap_values or bootstrap_address:
-                        if any(field not in
-                               ('bootstrap_values', 'bootstrap_address')
-                               for field in payload):
-                            pecan.abort(400,
-                                        _("Only bootstrap values and address "
-                                          "can be updated in the non-primary site"))
-                        if (subcloud.deploy_status ==
-                                consts.DEPLOY_STATE_REHOME_FAILED and
-                                not peer_site_available):
+                        if any(
+                            field not in ("bootstrap_values", "bootstrap_address")
+                            for field in payload
+                        ):
+                            pecan.abort(
+                                400,
+                                _(
+                                    "Only bootstrap values and address "
+                                    "can be updated in the non-primary site"
+                                ),
+                            )
+                        if (
+                            subcloud.deploy_status == consts.DEPLOY_STATE_REHOME_FAILED
+                            and not peer_site_available
+                        ):
                             update_in_non_primary_site = True
                         else:
-                            pecan.abort(400,
-                                        _("Subcloud bootstrap values or address "
-                                          "update in the non-primary site is only "
-                                          "allowed when rehome failed and the "
-                                          "primary site is unavailable."))
+                            pecan.abort(
+                                400,
+                                _(
+                                    "Subcloud bootstrap values or address update in "
+                                    "the non-primary site is only allowed when rehome "
+                                    "failed and the primary site is unavailable."
+                                ),
+                            )
                     if not update_in_non_primary_site:
-                        pecan.abort(400, _("Subcloud update is only allowed when "
-                                           "its peer group priority value is 0."))
+                        pecan.abort(
+                            400,
+                            _(
+                                "Subcloud update is only allowed when "
+                                "its peer group priority value is 0."
+                            ),
+                        )
 
                 # Updating a subcloud under the peer group on primary site
                 # that the peer group should be led by the primary site.
                 if not leader_on_local_site and not update_in_non_primary_site:
-                    pecan.abort(400, _("Updating subcloud from a "
-                                       "peer group not led by the "
-                                       "current site is prohibited."))
+                    pecan.abort(
+                        400,
+                        _(
+                            "Updating subcloud from a peer group not led by the "
+                            "current site is prohibited."
+                        ),
+                    )
 
             # Rename the subcloud
-            new_subcloud_name = payload.get('name')
+            new_subcloud_name = payload.get("name")
             if new_subcloud_name is not None:
                 # To be renamed the subcloud must be in unmanaged, valid deploy
                 # state, and no going prestage
-                if (subcloud.management_state !=
-                    dccommon_consts.MANAGEMENT_UNMANAGED or
-                    subcloud.deploy_status != consts.DEPLOY_STATE_DONE or
-                        subcloud.prestage_status in
-                        consts.STATES_FOR_ONGOING_PRESTAGE):
-                    msg = ('Subcloud %s must be deployed, unmanaged and '
-                           'no ongoing prestage for the subcloud rename '
-                           'operation.' % subcloud.name)
+                if (
+                    subcloud.management_state != dccommon_consts.MANAGEMENT_UNMANAGED
+                    or subcloud.deploy_status != consts.DEPLOY_STATE_DONE
+                    or subcloud.prestage_status in consts.STATES_FOR_ONGOING_PRESTAGE
+                ):
+                    msg = (
+                        "Subcloud %s must be deployed, unmanaged and no "
+                        "ongoing prestage for the subcloud rename operation."
+                        % subcloud.name
+                    )
                     pecan.abort(400, msg)
 
                 # Validates new name
                 if not utils.is_subcloud_name_format_valid(new_subcloud_name):
-                    pecan.abort(
-                        400, _("new name must contain alphabetic characters")
-                    )
+                    pecan.abort(400, _("new name must contain alphabetic characters"))
 
                 # Checks if new subcloud name is the same as the current subcloud
                 if new_subcloud_name == subcloud.name:
                     pecan.abort(
-                        400, _('Provided subcloud name %s is the same as the '
-                               'current subcloud %s. A different name is '
-                               'required to rename the subcloud' %
-                               (new_subcloud_name, subcloud.name))
+                        400,
+                        _(
+                            "Provided subcloud name %s is the same as the current "
+                            "subcloud %s. A different name is required to "
+                            "rename the subcloud" % (new_subcloud_name, subcloud.name)
+                        ),
                     )
 
                 error_msg = (
-                    'Unable to rename subcloud %s with their region %s to %s' %
-                    (subcloud.name, subcloud.region_name, new_subcloud_name)
+                    "Unable to rename subcloud %s with their region %s to %s"
+                    % (subcloud.name, subcloud.region_name, new_subcloud_name)
                 )
 
                 try:
-                    LOG.info("Renaming subcloud %s to: %s\n" % (subcloud.name,
-                                                                new_subcloud_name))
-                    sc = self.dcmanager_rpc_client.rename_subcloud(context,
-                                                                   subcloud_id,
-                                                                   subcloud.name,
-                                                                   new_subcloud_name)
-                    subcloud.name = sc['name']
+                    LOG.info(
+                        "Renaming subcloud %s to: %s\n"
+                        % (subcloud.name, new_subcloud_name)
+                    )
+                    sc = self.dcmanager_rpc_client.rename_subcloud(
+                        context, subcloud_id, subcloud.name, new_subcloud_name
+                    )
+                    subcloud.name = sc["name"]
                 except RemoteError as e:
                     LOG.error(error_msg)
                     pecan.abort(422, e.value)
                 except Exception:
                     LOG.error(error_msg)
-                    pecan.abort(500, _('Unable to rename subcloud'))
+                    pecan.abort(500, _("Unable to rename subcloud"))
 
             # Check if exist any network reconfiguration parameters
-            reconfigure_network = any(payload.get(value) is not None for value in (
-                SUBCLOUD_MANDATORY_NETWORK_PARAMS))
+            reconfigure_network = any(
+                payload.get(value) is not None
+                for value in (SUBCLOUD_MANDATORY_NETWORK_PARAMS)
+            )
 
             if reconfigure_network:
                 if utils.subcloud_is_secondary_state(subcloud.deploy_status):
-                    pecan.abort(500, _("Cannot perform on %s "
-                                       "state subcloud" % subcloud.deploy_status))
+                    pecan.abort(
+                        500,
+                        _(
+                            "Cannot perform on %s state subcloud"
+                            % subcloud.deploy_status
+                        ),
+                    )
                 system_controller_mgmt_pool = psd_common.get_network_address_pool()
                 # Required parameters
-                payload['name'] = subcloud.name
-                payload['region_name'] = subcloud.region_name
-                payload['system_controller_network'] = (
-                    system_controller_mgmt_pool.network)
-                payload['system_controller_network_prefix'] = (
+                payload["name"] = subcloud.name
+                payload["region_name"] = subcloud.region_name
+                payload["system_controller_network"] = (
+                    system_controller_mgmt_pool.network
+                )
+                payload["system_controller_network_prefix"] = (
                     system_controller_mgmt_pool.prefix
                 )
                 # Needed for service endpoint reconfiguration
-                payload['management_start_address'] = (
-                    payload.get('management_start_ip', None)
+                payload["management_start_address"] = payload.get(
+                    "management_start_ip", None
                 )
                 # Validation
                 self._validate_network_reconfiguration(payload, subcloud)
                 # Validate there's no on-going vim strategy
                 if self._check_existing_vim_strategy(context, subcloud):
                     error_msg = (
-                        "Reconfiguring subcloud network is not allowed while "
-                        "there is an on-going orchestrated operation in this "
-                        "subcloud. Please try again after the strategy has "
-                        "completed."
+                        "Reconfiguring subcloud network is not allowed while there "
+                        "is an on-going orchestrated operation in this subcloud. "
+                        "Please try again after the strategy has completed."
                     )
                     pecan.abort(400, error_msg)
 
@@ -947,7 +1054,7 @@ class SubcloudsController(object):
                         bootstrap_values, Loader=yaml.SafeLoader
                     )
                 except Exception:
-                    error_msg = 'bootstrap_values is malformed.'
+                    error_msg = "bootstrap_values is malformed."
                     LOG.exception(error_msg)
                     pecan.abort(400, _(error_msg))
 
@@ -955,45 +1062,54 @@ class SubcloudsController(object):
                     "systemcontroller_gateway_address"
                 )
 
-                if (
-                    systemcontroller_gateway_address is not None and
-                    systemcontroller_gateway_address !=
-                        subcloud.systemcontroller_gateway_ip
+                if systemcontroller_gateway_address is not None and (
+                    systemcontroller_gateway_address
+                    != subcloud.systemcontroller_gateway_ip
                 ):
                     psd_common.validate_systemcontroller_gateway_address(
                         systemcontroller_gateway_address
                     )
 
-            management_state = payload.get('management-state')
-            group_id = payload.get('group_id')
-            description = payload.get('description')
-            location = payload.get('location')
+            management_state = payload.get("management-state")
+            group_id = payload.get("group_id")
+            description = payload.get("description")
+            location = payload.get("location")
 
             # If the migrate flag is present we need to update the deploy status
             # to consts.DEPLOY_STATE_REHOME_PENDING
             deploy_status = None
-            if (payload.get('migrate') == 'true' and subcloud.deploy_status !=
-                    consts.DEPLOY_STATE_REHOME_PENDING):
+            if (
+                payload.get("migrate") == "true"
+                and subcloud.deploy_status != consts.DEPLOY_STATE_REHOME_PENDING
+            ):
                 self._validate_rehome_pending(subcloud, management_state, request)
                 deploy_status = consts.DEPLOY_STATE_REHOME_PENDING
 
             # Syntax checking
-            if management_state and \
-                    management_state not in [dccommon_consts.MANAGEMENT_UNMANAGED,
-                                             dccommon_consts.MANAGEMENT_MANAGED]:
-                pecan.abort(400, _('Invalid management-state'))
-            if management_state and subcloud.peer_group_id is not None \
-                    and not utils.is_req_from_another_dc(request):
-                pecan.abort(400, _('Cannot update the management state of a '
-                                   'subcloud that is associated with '
-                                   'a peer group.'))
+            if management_state and management_state not in [
+                dccommon_consts.MANAGEMENT_UNMANAGED,
+                dccommon_consts.MANAGEMENT_MANAGED,
+            ]:
+                pecan.abort(400, _("Invalid management-state"))
+            if (
+                management_state
+                and subcloud.peer_group_id is not None
+                and not utils.is_req_from_another_dc(request)
+            ):
+                pecan.abort(
+                    400,
+                    _(
+                        "Cannot update the management state of a subcloud that is "
+                        "associated with a peer group."
+                    ),
+                )
 
-            force_flag = payload.get('force')
+            force_flag = payload.get("force")
             if force_flag is not None:
                 if force_flag not in [True, False]:
-                    pecan.abort(400, _('Invalid force value'))
+                    pecan.abort(400, _("Invalid force value"))
                 elif management_state != dccommon_consts.MANAGEMENT_MANAGED:
-                    pecan.abort(400, _('Invalid option: force'))
+                    pecan.abort(400, _("Invalid option: force"))
 
             # Verify the group_id is valid
             if group_id is not None:
@@ -1004,54 +1120,67 @@ class SubcloudsController(object):
                         grp = db_api.subcloud_group_get(context, group_id)
                     else:
                         # replace the group_id (name) with the id
-                        grp = db_api.subcloud_group_get_by_name(context,
-                                                                group_id)
+                        grp = db_api.subcloud_group_get_by_name(context, group_id)
                     group_id = grp.id
-                except (exceptions.SubcloudGroupNameNotFound,
-                        exceptions.SubcloudGroupNotFound):
-                    pecan.abort(400, _('Invalid group'))
+                except (
+                    exceptions.SubcloudGroupNameNotFound,
+                    exceptions.SubcloudGroupNotFound,
+                ):
+                    pecan.abort(400, _("Invalid group"))
 
             if consts.INSTALL_VALUES in payload:
                 # install_values of secondary subclouds are validated on
                 # peer site
-                if utils.subcloud_is_secondary_state(subcloud.deploy_status) \
-                        and utils.is_req_from_another_dc(request):
-                    LOG.debug("Skipping install_values validation for subcloud "
-                              f"{subcloud.name}. Subcloud is secondary and "
-                              "request is from a peer site.")
+                if utils.subcloud_is_secondary_state(
+                    subcloud.deploy_status
+                ) and utils.is_req_from_another_dc(request):
+                    LOG.debug(
+                        "Skipping install_values validation for subcloud "
+                        f"{subcloud.name}. Subcloud is secondary and "
+                        "request is from a peer site."
+                    )
                 else:
                     psd_common.validate_install_values(payload, subcloud)
-                payload['data_install'] = json.dumps(payload[consts.INSTALL_VALUES])
+                payload["data_install"] = json.dumps(payload[consts.INSTALL_VALUES])
 
             try:
                 if reconfigure_network:
                     self.dcmanager_rpc_client.update_subcloud_with_network_reconfig(
-                        context, subcloud_id, payload)
+                        context, subcloud_id, payload
+                    )
                     return db_api.subcloud_db_model_to_dict(subcloud)
                 subcloud = self.dcmanager_rpc_client.update_subcloud(
-                    context, subcloud_id, management_state=management_state,
-                    description=description, location=location,
-                    group_id=group_id, data_install=payload.get('data_install'),
+                    context,
+                    subcloud_id,
+                    management_state=management_state,
+                    description=description,
+                    location=location,
+                    group_id=group_id,
+                    data_install=payload.get("data_install"),
                     force=force_flag,
                     peer_group_id=peer_group_id,
                     bootstrap_values=bootstrap_values,
                     bootstrap_address=bootstrap_address,
-                    deploy_status=deploy_status)
+                    deploy_status=deploy_status,
+                )
 
                 # Update the PGA sync_status to out-of-sync locally
                 # in the non-primary site. This only occurs when the primary site
                 # is unavailable and rehome fails due to the issue with bootstrap
                 # values or address.
-                if (update_in_non_primary_site and
-                        pga.sync_status !=
-                        consts.ASSOCIATION_SYNC_STATUS_OUT_OF_SYNC):
+                if (
+                    update_in_non_primary_site
+                    and pga.sync_status != consts.ASSOCIATION_SYNC_STATUS_OUT_OF_SYNC
+                ):
                     db_api.peer_group_association_update(
                         context,
                         pga.id,
-                        sync_status=consts.ASSOCIATION_SYNC_STATUS_OUT_OF_SYNC)
+                        sync_status=consts.ASSOCIATION_SYNC_STATUS_OUT_OF_SYNC,
+                    )
                     LOG.debug(
                         f"Updated Local Peer Group Association {pga.id} "
-                        f"sync_status to out-of-sync.")
+                        "sync_status to out-of-sync."
+                    )
                 # Sync the PGA out-of-sync status across all sites launched by
                 # the primary site.
                 elif sync_peer_groups:
@@ -1059,14 +1188,15 @@ class SubcloudsController(object):
                     association_ids = set()
                     for pg_id in sync_peer_groups:
                         association_ids.update(
-                            self.dcmanager_rpc_client.
-                            update_association_sync_status(
-                                context, pg_id,
-                                consts.ASSOCIATION_SYNC_STATUS_OUT_OF_SYNC))
+                            self.dcmanager_rpc_client.update_association_sync_status(
+                                context,
+                                pg_id,
+                                consts.ASSOCIATION_SYNC_STATUS_OUT_OF_SYNC,
+                            )
+                        )
                     # Generate an informative message for reminding the operator
                     # that the sync command(s) should be executed.
-                    info_message = utils.generate_sync_info_message(
-                        association_ids)
+                    info_message = utils.generate_sync_info_message(association_ids)
                     if info_message:
                         subcloud["info_message"] = info_message
 
@@ -1076,31 +1206,34 @@ class SubcloudsController(object):
             except Exception as e:
                 # additional exceptions.
                 LOG.exception(e)
-                pecan.abort(500, _('Unable to update subcloud'))
-
+                pecan.abort(500, _("Unable to update subcloud"))
         elif verb == "redeploy":
             if utils.subcloud_is_secondary_state(subcloud.deploy_status):
-                pecan.abort(500, _("Cannot perform on %s "
-                                   "state subcloud" % subcloud.deploy_status))
+                pecan.abort(
+                    500,
+                    _("Cannot perform on %s state subcloud" % subcloud.deploy_status),
+                )
             self.validate_software_deploy_state()
-            config_file = psd_common.get_config_file_path(subcloud.name,
-                                                          consts.DEPLOY_CONFIG)
+            config_file = psd_common.get_config_file_path(
+                subcloud.name, consts.DEPLOY_CONFIG
+            )
             has_bootstrap_values = consts.BOOTSTRAP_VALUES in request.POST
             has_original_config_values = os.path.exists(config_file)
             has_new_config_values = consts.DEPLOY_CONFIG in request.POST
             has_config_values = has_original_config_values or has_new_config_values
             payload = psd_common.get_request_data(
-                request, subcloud, SUBCLOUD_REDEPLOY_GET_FILE_CONTENTS)
+                request, subcloud, SUBCLOUD_REDEPLOY_GET_FILE_CONTENTS
+            )
 
-            if (subcloud.availability_status == dccommon_consts.AVAILABILITY_ONLINE
-                or subcloud.management_state ==
-                    dccommon_consts.MANAGEMENT_MANAGED):
-                msg = _('Cannot re-deploy an online and/or managed subcloud')
+            if (
+                subcloud.availability_status == dccommon_consts.AVAILABILITY_ONLINE
+                or subcloud.management_state == dccommon_consts.MANAGEMENT_MANAGED
+            ):
+                msg = _("Cannot re-deploy an online and/or managed subcloud")
                 LOG.warning(msg)
                 pecan.abort(400, msg)
 
-            payload['software_version'] = \
-                utils.get_sw_version(payload.get('release'))
+            payload["software_version"] = utils.get_sw_version(payload.get("release"))
 
             # Don't load previously stored bootstrap_values if they are present in
             # the request, as this would override the already loaded values from it.
@@ -1113,18 +1246,23 @@ class SubcloudsController(object):
                 files_for_redeploy.remove(consts.DEPLOY_CONFIG)
 
             psd_common.populate_payload_with_pre_existing_data(
-                payload, subcloud, files_for_redeploy)
+                payload, subcloud, files_for_redeploy
+            )
 
-            payload['bootstrap-address'] = \
-                payload['install_values']['bootstrap_address']
+            payload["bootstrap-address"] = payload["install_values"][
+                "bootstrap_address"
+            ]
             psd_common.validate_sysadmin_password(payload)
             psd_common.pre_deploy_install(payload, validate_password=False)
-            psd_common.pre_deploy_bootstrap(context, payload, subcloud,
-                                            has_bootstrap_values,
-                                            validate_password=False)
+            psd_common.pre_deploy_bootstrap(
+                context,
+                payload,
+                subcloud,
+                has_bootstrap_values,
+                validate_password=False,
+            )
             if has_config_values:
-                psd_common.pre_deploy_config(payload, subcloud,
-                                             validate_password=False)
+                psd_common.pre_deploy_config(payload, subcloud, validate_password=False)
 
             try:
                 # Align the software version of the subcloud with redeploy
@@ -1133,46 +1271,56 @@ class SubcloudsController(object):
                 subcloud = db_api.subcloud_update(
                     context,
                     subcloud_id,
-                    description=payload.get('description'),
-                    location=payload.get('location'),
-                    software_version=payload['software_version'],
+                    description=payload.get("description"),
+                    location=payload.get("location"),
+                    software_version=payload["software_version"],
                     deploy_status=consts.DEPLOY_STATE_PRE_INSTALL,
                     first_identity_sync_complete=False,
-                    data_install=json.dumps(payload['install_values']))
+                    data_install=json.dumps(payload["install_values"]),
+                )
 
                 self.dcmanager_rpc_client.redeploy_subcloud(
-                    context, subcloud_id, payload)
+                    context, subcloud_id, payload
+                )
 
                 return db_api.subcloud_db_model_to_dict(subcloud)
             except RemoteError as e:
                 pecan.abort(422, e.value)
             except Exception:
                 LOG.exception("Unable to redeploy subcloud %s" % subcloud.name)
-                pecan.abort(500, _('Unable to redeploy subcloud'))
-
+                pecan.abort(500, _("Unable to redeploy subcloud"))
         elif verb == "restore":
-            pecan.abort(410, _('This API is deprecated. '
-                               'Please use /v1.0/subcloud-backup/restore'))
-
+            pecan.abort(
+                410,
+                _("This API is deprecated. Please use /v1.0/subcloud-backup/restore"),
+            )
         elif verb == "reconfigure":
             pecan.abort(
-                410, _('This API is deprecated. Please use '
-                       '/v1.0/phased-subcloud-deploy/{subcloud}/configure')
+                410,
+                _(
+                    "This API is deprecated. "
+                    "Please use /v1.0/phased-subcloud-deploy/{subcloud}/configure"
+                ),
             )
-
         elif verb == "reinstall":
-            pecan.abort(410, _('This API is deprecated. '
-                               'Please use /v1.0/subclouds/{subcloud}/redeploy'))
-
-        elif verb == 'update_status':
+            pecan.abort(
+                410,
+                _(
+                    "This API is deprecated. "
+                    "Please use /v1.0/subclouds/{subcloud}/redeploy"
+                ),
+            )
+        elif verb == "update_status":
             res = self.updatestatus(subcloud.name, subcloud.region_name)
             return res
-        elif verb == 'prestage':
+        elif verb == "prestage":
             if utils.subcloud_is_secondary_state(subcloud.deploy_status):
-                pecan.abort(500, _("Cannot perform on %s "
-                                   "state subcloud" % subcloud.deploy_status))
+                pecan.abort(
+                    500,
+                    _("Cannot perform on %s state subcloud" % subcloud.deploy_status),
+                )
             payload = self._get_prestage_payload(request)
-            payload['subcloud_name'] = subcloud.name
+            payload["subcloud_name"] = subcloud.name
             try:
                 prestage.global_prestage_validate(payload)
             except exceptions.PrestagePreCheckFailedException as exc:
@@ -1180,8 +1328,9 @@ class SubcloudsController(object):
                 pecan.abort(400, _(str(exc)))
 
             try:
-                payload['oam_floating_ip'] = \
-                    prestage.validate_prestage(subcloud, payload)
+                payload["oam_floating_ip"] = prestage.validate_prestage(
+                    subcloud, payload
+                )
             except exceptions.PrestagePreCheckFailedException as exc:
                 LOG.exception("validate_prestage failed")
                 pecan.abort(400, _(str(exc)))
@@ -1189,34 +1338,39 @@ class SubcloudsController(object):
             for_install = True
             if consts.PRESTAGE_FOR_SW_DEPLOY in payload:
                 for_install = False
+
             prestage_software_version = utils.get_sw_version(
-                payload.get(consts.PRESTAGE_REQUEST_RELEASE), for_install)
+                payload.get(consts.PRESTAGE_REQUEST_RELEASE), for_install
+            )
 
             try:
                 self.dcmanager_rpc_client.prestage_subcloud(context, payload)
-                # local update to prestage_status - this is just for
-                # CLI response:
+                # local update to prestage_status - this is just for CLI response:
                 subcloud.prestage_status = consts.PRESTAGE_STATE_PACKAGES
 
                 subcloud_dict = db_api.subcloud_db_model_to_dict(subcloud)
                 subcloud_dict.update(
-                    {consts.PRESTAGE_SOFTWARE_VERSION: prestage_software_version})
+                    {consts.PRESTAGE_SOFTWARE_VERSION: prestage_software_version}
+                )
                 return subcloud_dict
             except RemoteError as e:
                 pecan.abort(422, e.value)
             except Exception:
                 LOG.exception("Unable to prestage subcloud %s" % subcloud.name)
-                pecan.abort(500, _('Unable to prestage subcloud'))
+                pecan.abort(500, _("Unable to prestage subcloud"))
 
     @utils.synchronized(LOCK_NAME)
-    @index.when(method='delete', template='json')
+    @index.when(method="delete", template="json")
     def delete(self, subcloud_ref):
         """Delete a subcloud.
 
         :param subcloud_ref: ID or name of subcloud to delete.
         """
-        policy.authorize(subclouds_policy.POLICY_ROOT % "delete", {},
-                         restcomm.extract_credentials_for_policy())
+        policy.authorize(
+            subclouds_policy.POLICY_ROOT % "delete",
+            {},
+            restcomm.extract_credentials_for_policy(),
+        )
         context = restcomm.extract_context_from_environ()
         subcloud = None
 
@@ -1225,46 +1379,44 @@ class SubcloudsController(object):
             try:
                 subcloud = db_api.subcloud_get(context, subcloud_ref)
             except exceptions.SubcloudNotFound:
-                pecan.abort(404, _('Subcloud not found'))
+                pecan.abort(404, _("Subcloud not found"))
         else:
             # Look up subcloud by name
             try:
-                subcloud = db_api.subcloud_get_by_name(context,
-                                                       subcloud_ref)
+                subcloud = db_api.subcloud_get_by_name(context, subcloud_ref)
             except exceptions.SubcloudNameNotFound:
-                pecan.abort(404, _('Subcloud not found'))
+                pecan.abort(404, _("Subcloud not found"))
 
         subcloud_id = subcloud.id
         peer_group_id = subcloud.peer_group_id
         subcloud_management_state = subcloud.management_state
 
         # Check if the subcloud is "managed" status
-        if subcloud_management_state == dccommon_consts.MANAGEMENT_MANAGED \
-                and not utils.is_req_from_another_dc(request):
-            pecan.abort(400, _('Cannot delete a subcloud that is "managed" '
-                               'status'))
+        if (
+            subcloud_management_state == dccommon_consts.MANAGEMENT_MANAGED
+            and not utils.is_req_from_another_dc(request)
+        ):
+            pecan.abort(400, _("Cannot delete a subcloud that is 'managed' status"))
 
         if subcloud.deploy_status in consts.INVALID_DEPLOY_STATES_FOR_DELETE:
-            pecan.abort(400, _(
-                'Cannot delete a subcloud during an active operation.'
-            ))
+            pecan.abort(400, _("Cannot delete a subcloud during an active operation."))
 
         # Check if the subcloud is part of a peer group
-        if peer_group_id is not None and \
-                not utils.is_req_from_another_dc(request):
-            pecan.abort(400, _('Cannot delete a subcloud that is part of '
-                               'a peer group on this site'))
+        if peer_group_id is not None and not utils.is_req_from_another_dc(request):
+            pecan.abort(
+                400,
+                _("Cannot delete a subcloud that is part of a peer group on this site"),
+            )
 
         try:
             # Ask dcmanager-manager to delete the subcloud.
             # It will do all the real work...
-            return self.dcmanager_rpc_client.delete_subcloud(context,
-                                                             subcloud_id)
+            return self.dcmanager_rpc_client.delete_subcloud(context, subcloud_id)
         except RemoteError as e:
             pecan.abort(422, e.value)
         except Exception as e:
             LOG.exception(e)
-            pecan.abort(500, _('Unable to delete subcloud'))
+            pecan.abort(500, _("Unable to delete subcloud"))
 
     def updatestatus(self, subcloud_name, subcloud_region):
         """Update subcloud sync status
@@ -1276,30 +1428,32 @@ class SubcloudsController(object):
 
         payload = self._get_updatestatus_payload(request)
         if not payload:
-            pecan.abort(400, _('Body required'))
+            pecan.abort(400, _("Body required"))
 
-        endpoint = payload.get('endpoint')
+        endpoint = payload.get("endpoint")
         if not endpoint:
-            pecan.abort(400, _('endpoint required'))
+            pecan.abort(400, _("endpoint required"))
         allowed_endpoints = [dccommon_consts.ENDPOINT_TYPE_DC_CERT]
         if endpoint not in allowed_endpoints:
-            pecan.abort(400, _('updating endpoint %s status is not allowed'
-                               % endpoint))
+            pecan.abort(400, _("updating endpoint %s status is not allowed" % endpoint))
 
-        status = payload.get('status')
+        status = payload.get("status")
         if not status:
-            pecan.abort(400, _('status required'))
+            pecan.abort(400, _("status required"))
 
-        allowed_status = [dccommon_consts.SYNC_STATUS_IN_SYNC,
-                          dccommon_consts.SYNC_STATUS_OUT_OF_SYNC,
-                          dccommon_consts.SYNC_STATUS_UNKNOWN]
+        allowed_status = [
+            dccommon_consts.SYNC_STATUS_IN_SYNC,
+            dccommon_consts.SYNC_STATUS_OUT_OF_SYNC,
+            dccommon_consts.SYNC_STATUS_UNKNOWN,
+        ]
         if status not in allowed_status:
-            pecan.abort(400, _('status %s in invalid.' % status))
+            pecan.abort(400, _("status %s in invalid." % status))
 
-        LOG.info('update %s set %s=%s' % (subcloud_name, endpoint, status))
+        LOG.info("update %s set %s=%s" % (subcloud_name, endpoint, status))
         context = restcomm.extract_context_from_environ()
         self.dcmanager_state_rpc_client.update_subcloud_endpoint_status(
-            context, subcloud_name, subcloud_region, endpoint, status)
+            context, subcloud_name, subcloud_region, endpoint, status
+        )
 
-        result = {'result': 'OK'}
+        result = {"result": "OK"}
         return result

@@ -341,7 +341,7 @@ class SubcloudInstall(object):
                     )
                     update_iso_cmd += [
                         consts.GEN_ISO_OPTIONS[key],
-                        ("vlan" + "=" + vlan_inteface),
+                        ("vlan=" + vlan_inteface),
                     ]
                 elif key == "bootstrap_interface" and "bootstrap_vlan" in values:
                     boot_interface = "%s.%s" % (
