@@ -193,14 +193,6 @@ class TestSwUpdateManager(base.DCManagerTestCase):
         self.addCleanup(p.stop)
 
         # Note: mock where an item is used, not where it comes from
-        self.fake_sw_upgrade_orch_thread = FakeOrchThread()
-        p = mock.patch.object(sw_update_manager, "SwUpgradeOrchThread")
-        self.mock_sw_upgrade_orch_thread = p.start()
-        self.mock_sw_upgrade_orch_thread.return_value = (
-            self.fake_sw_upgrade_orch_thread
-        )
-        self.addCleanup(p.stop)
-
         self.fake_software_orch_thread = FakeOrchThread()
         p = mock.patch.object(sw_update_manager, "SoftwareOrchThread")
         self.fake_software_orch_thread = p.start()
@@ -337,7 +329,9 @@ class TestSwUpdateManager(base.DCManagerTestCase):
             is_online=True,
         )
         self.update_subcloud_status(
-            self.ctxt, fake_subcloud1.id, endpoint=dccommon_consts.ENDPOINT_TYPE_LOAD
+            self.ctxt,
+            fake_subcloud1.id,
+            endpoint=dccommon_consts.ENDPOINT_TYPE_SOFTWARE
         )
 
         fake_subcloud2 = self.create_subcloud(
@@ -348,11 +342,13 @@ class TestSwUpdateManager(base.DCManagerTestCase):
             is_online=True,
         )
         self.update_subcloud_status(
-            self.ctxt, fake_subcloud2.id, endpoint=dccommon_consts.ENDPOINT_TYPE_LOAD
+            self.ctxt,
+            fake_subcloud2.id,
+            endpoint=dccommon_consts.ENDPOINT_TYPE_SOFTWARE,
         )
 
         data = copy.copy(FAKE_SW_UPDATE_DATA)
-        data["type"] = consts.SW_UPDATE_TYPE_UPGRADE
+        data["type"] = consts.SW_UPDATE_TYPE_SOFTWARE
         data["subcloud_group"] = str(self.fake_group3.id)
         um = sw_update_manager.SwUpdateManager()
         response = um.create_sw_update_strategy(self.ctxt, payload=data)
@@ -362,7 +358,7 @@ class TestSwUpdateManager(base.DCManagerTestCase):
         self.assertEqual(
             response["subcloud-apply-type"], consts.SUBCLOUD_APPLY_TYPE_PARALLEL
         )
-        self.assertEqual(response["type"], consts.SW_UPDATE_TYPE_UPGRADE)
+        self.assertEqual(response["type"], consts.SW_UPDATE_TYPE_SOFTWARE)
 
         # Verify the strategy step list
         subcloud_ids = [1, 2]
@@ -390,7 +386,9 @@ class TestSwUpdateManager(base.DCManagerTestCase):
             is_online=True,
         )
         self.update_subcloud_status(
-            self.ctxt, fake_subcloud1.id, endpoint=dccommon_consts.ENDPOINT_TYPE_LOAD
+            self.ctxt,
+            fake_subcloud1.id,
+            endpoint=dccommon_consts.ENDPOINT_TYPE_SOFTWARE
         )
 
         fake_subcloud2 = self.create_subcloud(
@@ -401,7 +399,9 @@ class TestSwUpdateManager(base.DCManagerTestCase):
             is_online=True,
         )
         self.update_subcloud_status(
-            self.ctxt, fake_subcloud2.id, endpoint=dccommon_consts.ENDPOINT_TYPE_LOAD
+            self.ctxt,
+            fake_subcloud2.id,
+            endpoint=dccommon_consts.ENDPOINT_TYPE_SOFTWARE
         )
 
         mock_global_prestage_validate.return_value = None
@@ -450,7 +450,7 @@ class TestSwUpdateManager(base.DCManagerTestCase):
         self.update_subcloud_status(
             self.ctxt,
             fake_subcloud1.id,
-            dccommon_consts.ENDPOINT_TYPE_LOAD,
+            dccommon_consts.ENDPOINT_TYPE_SOFTWARE,
             dccommon_consts.SYNC_STATUS_IN_SYNC,
         )
 
@@ -459,7 +459,7 @@ class TestSwUpdateManager(base.DCManagerTestCase):
             self.ctxt, "subcloud2", 1, is_managed=True, is_online=True
         )
         self.update_subcloud_status(
-            self.ctxt, fake_subcloud2.id, dccommon_consts.ENDPOINT_TYPE_LOAD, None
+            self.ctxt, fake_subcloud2.id, dccommon_consts.ENDPOINT_TYPE_SOFTWARE, None
         )
 
         # Subcloud3 will be prestaged load out of sync
@@ -469,7 +469,7 @@ class TestSwUpdateManager(base.DCManagerTestCase):
         self.update_subcloud_status(
             self.ctxt,
             fake_subcloud3.id,
-            dccommon_consts.ENDPOINT_TYPE_LOAD,
+            dccommon_consts.ENDPOINT_TYPE_SOFTWARE,
             dccommon_consts.SYNC_STATUS_OUT_OF_SYNC,
         )
 
@@ -480,7 +480,7 @@ class TestSwUpdateManager(base.DCManagerTestCase):
         self.update_subcloud_status(
             self.ctxt,
             fake_subcloud4.id,
-            dccommon_consts.ENDPOINT_TYPE_LOAD,
+            dccommon_consts.ENDPOINT_TYPE_SOFTWARE,
             dccommon_consts.SYNC_STATUS_UNKNOWN,
         )
 
@@ -530,7 +530,9 @@ class TestSwUpdateManager(base.DCManagerTestCase):
             is_online=True,
         )
         self.update_subcloud_status(
-            self.ctxt, fake_subcloud1.id, endpoint=dccommon_consts.ENDPOINT_TYPE_LOAD
+            self.ctxt,
+            fake_subcloud1.id,
+            endpoint=dccommon_consts.ENDPOINT_TYPE_SOFTWARE,
         )
 
         fake_subcloud2 = self.create_subcloud(
@@ -541,7 +543,9 @@ class TestSwUpdateManager(base.DCManagerTestCase):
             is_online=True,
         )
         self.update_subcloud_status(
-            self.ctxt, fake_subcloud2.id, endpoint=dccommon_consts.ENDPOINT_TYPE_LOAD
+            self.ctxt,
+            fake_subcloud2.id,
+            endpoint=dccommon_consts.ENDPOINT_TYPE_SOFTWARE,
         )
 
         mock_initial_subcloud_validate.return_value = None
@@ -1383,7 +1387,7 @@ class TestSwUpdateManager(base.DCManagerTestCase):
         self.update_subcloud_status(
             self.ctxt,
             fake_subcloud1.id,
-            dccommon_consts.ENDPOINT_TYPE_LOAD,
+            dccommon_consts.ENDPOINT_TYPE_SOFTWARE,
             dccommon_consts.SYNC_STATUS_OUT_OF_SYNC,
         )
 
@@ -1398,7 +1402,7 @@ class TestSwUpdateManager(base.DCManagerTestCase):
         self.update_subcloud_status(
             self.ctxt,
             fake_subcloud2.id,
-            dccommon_consts.ENDPOINT_TYPE_LOAD,
+            dccommon_consts.ENDPOINT_TYPE_SOFTWARE,
             dccommon_consts.SYNC_STATUS_OUT_OF_SYNC,
         )
 
@@ -1413,12 +1417,12 @@ class TestSwUpdateManager(base.DCManagerTestCase):
         self.update_subcloud_status(
             self.ctxt,
             fake_subcloud3.id,
-            dccommon_consts.ENDPOINT_TYPE_LOAD,
+            dccommon_consts.ENDPOINT_TYPE_SOFTWARE,
             dccommon_consts.SYNC_STATUS_IN_SYNC,
         )
 
         data = copy.copy(FAKE_SW_UPDATE_DATA)
-        data["type"] = consts.SW_UPDATE_TYPE_UPGRADE
+        data["type"] = consts.SW_UPDATE_TYPE_SOFTWARE
         data["force"] = "true"
         data["subcloud_group"] = str(self.fake_group3.id)
 
@@ -1429,7 +1433,7 @@ class TestSwUpdateManager(base.DCManagerTestCase):
         self.assertEqual(
             strategy_dict["subcloud-apply-type"], consts.SUBCLOUD_APPLY_TYPE_PARALLEL
         )
-        self.assertEqual(strategy_dict["type"], consts.SW_UPDATE_TYPE_UPGRADE)
+        self.assertEqual(strategy_dict["type"], consts.SW_UPDATE_TYPE_SOFTWARE)
 
         subcloud_ids = [1, 2]
         strategy_step_list = db_api.strategy_step_get_all(self.ctxt)
@@ -1451,7 +1455,7 @@ class TestSwUpdateManager(base.DCManagerTestCase):
         self.update_subcloud_status(
             self.ctxt,
             fake_subcloud1.id,
-            dccommon_consts.ENDPOINT_TYPE_LOAD,
+            dccommon_consts.ENDPOINT_TYPE_SOFTWARE,
             dccommon_consts.SYNC_STATUS_OUT_OF_SYNC,
         )
 
@@ -1466,7 +1470,7 @@ class TestSwUpdateManager(base.DCManagerTestCase):
         self.update_subcloud_status(
             self.ctxt,
             fake_subcloud2.id,
-            dccommon_consts.ENDPOINT_TYPE_LOAD,
+            dccommon_consts.ENDPOINT_TYPE_SOFTWARE,
             dccommon_consts.SYNC_STATUS_OUT_OF_SYNC,
         )
 
@@ -1481,12 +1485,12 @@ class TestSwUpdateManager(base.DCManagerTestCase):
         self.update_subcloud_status(
             self.ctxt,
             fake_subcloud3.id,
-            dccommon_consts.ENDPOINT_TYPE_LOAD,
+            dccommon_consts.ENDPOINT_TYPE_SOFTWARE,
             dccommon_consts.SYNC_STATUS_IN_SYNC,
         )
 
         data = copy.copy(FAKE_SW_UPDATE_DATA)
-        data["type"] = consts.SW_UPDATE_TYPE_UPGRADE
+        data["type"] = consts.SW_UPDATE_TYPE_SOFTWARE
         data["force"] = "false"
         data["subcloud_group"] = str(self.fake_group3.id)
 
@@ -1497,7 +1501,7 @@ class TestSwUpdateManager(base.DCManagerTestCase):
         self.assertEqual(
             strategy_dict["subcloud-apply-type"], consts.SUBCLOUD_APPLY_TYPE_PARALLEL
         )
-        self.assertEqual(strategy_dict["type"], consts.SW_UPDATE_TYPE_UPGRADE)
+        self.assertEqual(strategy_dict["type"], consts.SW_UPDATE_TYPE_SOFTWARE)
 
         subcloud_ids = [2]
         strategy_step_list = db_api.strategy_step_get_all(self.ctxt)
@@ -1505,43 +1509,7 @@ class TestSwUpdateManager(base.DCManagerTestCase):
             self.assertEqual(subcloud_ids[index], strategy_step.subcloud_id)
 
     @mock.patch.object(sw_update_manager, "PatchOrchThread")
-    def test_create_sw_update_strategy_not_insync_offline_sc_with_force_upgrade(
-        self, mock_patch_orch_thread
-    ):
-        # This test verifies the offline subcloud is added to the strategy
-        # because force option is specified in the upgrade request.
-        fake_subcloud1 = self.create_subcloud(
-            self.ctxt, "subcloud1", 1, is_managed=True, is_online=False
-        )
-        self.update_subcloud_status(
-            self.ctxt,
-            fake_subcloud1.id,
-            dccommon_consts.ENDPOINT_TYPE_LOAD,
-            dccommon_consts.SYNC_STATUS_UNKNOWN,
-        )
-
-        um = sw_update_manager.SwUpdateManager()
-        data = copy.copy(FAKE_SW_UPDATE_DATA)
-        data["type"] = consts.SW_UPDATE_TYPE_UPGRADE
-        data["force"] = "true"
-        data["cloud_name"] = "subcloud1"
-
-        strategy_dict = um.create_sw_update_strategy(self.ctxt, payload=data)
-
-        # Assert that values passed through CLI are used instead of group values
-        self.assertEqual(
-            strategy_dict["subcloud-apply-type"], consts.SUBCLOUD_APPLY_TYPE_PARALLEL
-        )
-        self.assertEqual(strategy_dict["type"], consts.SW_UPDATE_TYPE_UPGRADE)
-
-        # Verify the strategy step list
-        subcloud_ids = [1]
-        strategy_step_list = db_api.strategy_step_get_all(self.ctxt)
-        for index, strategy_step in enumerate(strategy_step_list):
-            self.assertEqual(subcloud_ids[index], strategy_step.subcloud_id)
-
-    @mock.patch.object(sw_update_manager, "PatchOrchThread")
-    def test_create_sw_update_strategy_in_sync_offline_subcloud_with_force_upgrade(
+    def test_create_sw_update_strategy_in_sync_offline_subcloud_with_force_deploy(
         self, mock_patch_orch_thread
     ):
         # This test verifies that a bad request exception is raised even
@@ -1553,13 +1521,13 @@ class TestSwUpdateManager(base.DCManagerTestCase):
         self.update_subcloud_status(
             self.ctxt,
             fake_subcloud1.id,
-            dccommon_consts.ENDPOINT_TYPE_LOAD,
+            dccommon_consts.ENDPOINT_TYPE_SOFTWARE,
             dccommon_consts.SYNC_STATUS_IN_SYNC,
         )
 
         um = sw_update_manager.SwUpdateManager()
         data = copy.copy(FAKE_SW_UPDATE_DATA)
-        data["type"] = consts.SW_UPDATE_TYPE_UPGRADE
+        data["type"] = consts.SW_UPDATE_TYPE_SOFTWARE
         data["force"] = True
         data["cloud_name"] = "subcloud1"
 
@@ -1571,7 +1539,7 @@ class TestSwUpdateManager(base.DCManagerTestCase):
         )
 
     @mock.patch.object(sw_update_manager, "PatchOrchThread")
-    def test_create_sw_update_strategy_online_subcloud_with_force_upgrade(
+    def test_create_sw_update_strategy_online_subcloud_with_force_deploy(
         self, mock_patch_orch_thread
     ):
         # This test verifies that the force option has no effect in
@@ -1584,13 +1552,13 @@ class TestSwUpdateManager(base.DCManagerTestCase):
         self.update_subcloud_status(
             self.ctxt,
             fake_subcloud1.id,
-            dccommon_consts.ENDPOINT_TYPE_LOAD,
+            dccommon_consts.ENDPOINT_TYPE_SOFTWARE,
             dccommon_consts.SYNC_STATUS_UNKNOWN,
         )
 
         um = sw_update_manager.SwUpdateManager()
         data = copy.copy(FAKE_SW_UPDATE_DATA)
-        data["type"] = consts.SW_UPDATE_TYPE_UPGRADE
+        data["type"] = consts.SW_UPDATE_TYPE_SOFTWARE
         data["force"] = True
         data["cloud_name"] = "subcloud1"
 
@@ -1657,7 +1625,7 @@ class TestSwUpdateManager(base.DCManagerTestCase):
             exceptions.NotFound,
             um.delete_sw_update_strategy,
             self.ctx,
-            update_type=consts.SW_UPDATE_TYPE_UPGRADE,
+            update_type=consts.SW_UPDATE_TYPE_SOFTWARE,
         )
 
     @mock.patch.object(sw_update_manager, "PatchOrchThread")

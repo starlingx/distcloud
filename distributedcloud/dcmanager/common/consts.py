@@ -80,7 +80,6 @@ SW_UPDATE_TYPE_KUBE_ROOTCA_UPDATE = "kube-rootca-update"
 SW_UPDATE_TYPE_KUBERNETES = "kubernetes"
 SW_UPDATE_TYPE_PATCH = "patch"
 SW_UPDATE_TYPE_PRESTAGE = "prestage"
-SW_UPDATE_TYPE_UPGRADE = "upgrade"
 SW_UPDATE_TYPE_SOFTWARE = "sw-deploy"
 
 # Software update states
@@ -124,32 +123,12 @@ STRATEGY_STATE_ABORTED = "aborted"
 STRATEGY_STATE_FAILED = "failed"
 
 # Patch orchestrations states
+STRATEGY_STATE_PRE_CHECK = "pre check"
+STRATEGY_STATE_UPDATING_PATCHES = "updating patches"
 STRATEGY_STATE_CREATING_VIM_PATCH_STRATEGY = "creating VIM patch strategy"
 STRATEGY_STATE_DELETING_VIM_PATCH_STRATEGY = "deleting VIM patch strategy"
 STRATEGY_STATE_APPLYING_VIM_PATCH_STRATEGY = "applying VIM patch strategy"
-
-# Upgrade orchestration states
-STRATEGY_STATE_PRE_CHECK = "pre check"
-STRATEGY_STATE_INSTALLING_LICENSE = "installing license"
-STRATEGY_STATE_IMPORTING_LOAD = "importing load"
-STRATEGY_STATE_UPDATING_PATCHES = "updating patches"
 STRATEGY_STATE_FINISHING_PATCH_STRATEGY = "finishing patch strategy"
-STRATEGY_STATE_STARTING_UPGRADE = "starting upgrade"
-STRATEGY_STATE_TRANSFERRING_CA_CERTIFICATE = "transferring CA certificate"
-STRATEGY_STATE_LOCKING_CONTROLLER_0 = "locking controller-0"
-STRATEGY_STATE_LOCKING_CONTROLLER_1 = "locking controller-1"
-STRATEGY_STATE_UPGRADING_SIMPLEX = "upgrading simplex"
-STRATEGY_STATE_UPGRADING_DUPLEX = "upgrading duplex"
-STRATEGY_STATE_MIGRATING_DATA = "migrating data"
-STRATEGY_STATE_UNLOCKING_CONTROLLER_0 = "unlocking controller-0"
-STRATEGY_STATE_UNLOCKING_CONTROLLER_1 = "unlocking controller-1"
-STRATEGY_STATE_SWACTING_TO_CONTROLLER_0 = "swacting to controller-0"
-STRATEGY_STATE_SWACTING_TO_CONTROLLER_1 = "swacting to controller-1"
-STRATEGY_STATE_ACTIVATING_UPGRADE = "activating upgrade"
-STRATEGY_STATE_COMPLETING_UPGRADE = "completing upgrade"
-STRATEGY_STATE_CREATING_VIM_UPGRADE_STRATEGY = "creating VIM upgrade strategy"
-STRATEGY_STATE_APPLYING_VIM_UPGRADE_STRATEGY = "applying VIM upgrade strategy"
-STRATEGY_STATE_DELETING_LOAD = "deleting load"
 
 # Software orchestration states
 STRATEGY_STATE_SW_PRE_CHECK = "software pre check"
@@ -313,15 +292,6 @@ BACKUP_STATE_FAILED = 'failed'
 BACKUP_STATE_UNKNOWN = 'unknown'
 BACKUP_STATE_COMPLETE_LOCAL = 'complete-local'
 BACKUP_STATE_COMPLETE_CENTRAL = 'complete-central'
-
-# Upgrades States
-UPGRADE_STATE_DATA_MIGRATION = 'data-migration'
-UPGRADE_STATE_DATA_MIGRATION_COMPLETE = 'data-migration-complete'
-UPGRADE_STATE_DATA_MIGRATION_FAILED = 'data-migration-failed'
-UPGRADE_STATE_UPGRADING_CONTROLLERS = 'upgrading-controllers'
-UPGRADE_STATE_UPGRADING_HOSTS = 'upgrading-hosts'
-UPGRADE_STATE_ACTIVATION_FAILED = 'activation-failed'
-UPGRADE_STATE_ACTIVATION_COMPLETE = 'activation-complete'
 
 # Prestage States
 PRESTAGE_STATE_PACKAGES = STRATEGY_STATE_PRESTAGE_PACKAGES

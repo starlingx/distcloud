@@ -47,7 +47,7 @@ sw_update_strategy_type:
   description: |
     Filter to query a particular type of update strategy if it exists.
     One of: `firmware`, `kube-rootca-update`, `kubernetes`, `patch`,
-    `prestage`, or `upgrade`.
+    `prestage`, or `sw-deploy`.
   in: path
   required: false
   type: string

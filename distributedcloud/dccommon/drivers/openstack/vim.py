@@ -28,7 +28,6 @@ STRATEGY_NAME_FW_UPDATE = "fw-update"
 STRATEGY_NAME_KUBE_ROOTCA_UPDATE = "kube-rootca-update"
 STRATEGY_NAME_KUBE_UPGRADE = "kube-upgrade"
 STRATEGY_NAME_SW_PATCH = "sw-patch"
-STRATEGY_NAME_SW_UPGRADE = "sw-upgrade"
 # TODO(nicodemos): Change this to 'sw-deploy' once the new strategy is created
 STRATEGY_NAME_SW_USM = "sw-upgrade"
 STRATEGY_NAME_SYS_CONFIG_UPDATE = "system-config-update"
