@@ -12,12 +12,10 @@ from dcmanager.orchestrator.validators.prestage_validator import (
     PrestageStrategyValidator
 )
 from dcmanager.tests.base import DCManagerTestCase
-from dcmanager.tests.unit.orchestrator.validators.validators_mixin import (
-    StrategyRequirementsMixin
-)
 
 
-class TestPrestageValidator(DCManagerTestCase, StrategyRequirementsMixin):
+# TODO(rlima): add the mixins once prestage logic is moved to the validator
+class TestPrestageValidator(DCManagerTestCase):
     """Test class for prestage validator"""
 
     def setUp(self):

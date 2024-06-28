@@ -7,17 +7,20 @@
 Kubernetes strategy validation tests
 """
 
+from dcmanager.common import consts
 from dcmanager.db import api as db_api
 from dcmanager.orchestrator.validators.kubernetes_validator import (
     KubernetesStrategyValidator
 )
 from dcmanager.tests.base import DCManagerTestCase
 from dcmanager.tests.unit.orchestrator.validators.validators_mixin import (
-    StrategyRequirementsMixin
+    StrategyRequirementsMixin, BuildExtraArgsMixin
 )
 
 
-class TestKubernetesValidator(DCManagerTestCase, StrategyRequirementsMixin):
+class TestKubernetesValidator(
+    DCManagerTestCase, StrategyRequirementsMixin, BuildExtraArgsMixin
+):
     """Test class for kubernetes validator"""
 
     def setUp(self):
@@ -32,3 +35,8 @@ class TestKubernetesValidator(DCManagerTestCase, StrategyRequirementsMixin):
 
     def _get_validator(self):
         return self.validator
+
+    def _get_build_extra_args_payload(self):
+        return {
+            consts.EXTRA_ARGS_TO_VERSION: "22.09",
+        }
