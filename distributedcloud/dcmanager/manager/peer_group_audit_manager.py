@@ -63,9 +63,9 @@ class PeerGroupAuditManager(manager.Manager):
             # Get peer site system peer
             dc_peer_system_peer = dc_client.get_system_peer(
                 utils.get_local_system().uuid)
-            association = dc_client. \
-                get_peer_group_association_with_peer_id_and_pg_id(
-                    dc_peer_system_peer.get('id'), peer_group_id)
+            association = dc_client.get_peer_group_association_with_peer_id_and_pg_id(
+                dc_peer_system_peer.get("id"), peer_group_id
+            )
             return association.get("sync-status")
         except Exception:
             LOG.exception(f"Failed to get subclouds of peer group "

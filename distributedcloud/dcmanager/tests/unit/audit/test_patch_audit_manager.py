@@ -49,40 +49,62 @@ class FakePatchingClientInSync(object):
         self.endpoint = endpoint
 
     def query(self):
-        if self.region == 'RegionOne':
-            return {'DC.1': {'sw_version': '17.07',
-                             'repostate': 'Applied',
-                             'patchstate': 'Applied'},
-                    'DC.2': {'sw_version': '17.07',
-                             'repostate': 'Applied',
-                             'patchstate': 'Applied'},
-                    'DC.3': {'sw_version': '17.07',
-                             'repostate': 'Committed',
-                             'patchstate': 'Committed'},
-                    'DC.4': {'sw_version': '17.07',
-                             'repostate': 'Applied',
-                             'patchstate': 'Applied'},
-                    # This patch won't make us out of sync because it is for
-                    # a different release.
-                    'OTHER_REL_DC.1': {'sw_version': '17.08',
-                                       'repostate': 'Applied',
-                                       'patchstate': 'Applied'},
-                    }
-        elif self.region in [base.SUBCLOUD_1['region_name'],
-                             base.SUBCLOUD_2['region_name']]:
-            return {'DC.1': {'sw_version': '17.07',
-                             'repostate': 'Applied',
-                             'patchstate': 'Applied'},
-                    'DC.2': {'sw_version': '17.07',
-                             'repostate': 'Applied',
-                             'patchstate': 'Applied'},
-                    'DC.3': {'sw_version': '17.07',
-                             'repostate': 'Committed',
-                             'patchstate': 'Committed'},
-                    'DC.4': {'sw_version': '17.07',
-                             'repostate': 'Committed',
-                             'patchstate': 'Committed'},
-                    }
+        if self.region == "RegionOne":
+            return {
+                "DC.1": {
+                    "sw_version": "17.07",
+                    "repostate": "Applied",
+                    "patchstate": "Applied",
+                },
+                "DC.2": {
+                    "sw_version": "17.07",
+                    "repostate": "Applied",
+                    "patchstate": "Applied",
+                },
+                "DC.3": {
+                    "sw_version": "17.07",
+                    "repostate": "Committed",
+                    "patchstate": "Committed",
+                },
+                "DC.4": {
+                    "sw_version": "17.07",
+                    "repostate": "Applied",
+                    "patchstate": "Applied",
+                },
+                # This patch won't make us out of sync because it is for
+                # a different release.
+                "OTHER_REL_DC.1": {
+                    "sw_version": "17.08",
+                    "repostate": "Applied",
+                    "patchstate": "Applied",
+                },
+            }
+        elif self.region in [
+            base.SUBCLOUD_1["region_name"],
+            base.SUBCLOUD_2["region_name"],
+        ]:
+            return {
+                "DC.1": {
+                    "sw_version": "17.07",
+                    "repostate": "Applied",
+                    "patchstate": "Applied",
+                },
+                "DC.2": {
+                    "sw_version": "17.07",
+                    "repostate": "Applied",
+                    "patchstate": "Applied",
+                },
+                "DC.3": {
+                    "sw_version": "17.07",
+                    "repostate": "Committed",
+                    "patchstate": "Committed",
+                },
+                "DC.4": {
+                    "sw_version": "17.07",
+                    "repostate": "Committed",
+                    "patchstate": "Committed",
+                },
+            }
         else:
             return {}
 
@@ -94,38 +116,66 @@ class FakePatchingClientOutOfSync(object):
         self.endpoint = endpoint
 
     def query(self):
-        if self.region == 'RegionOne':
-            return {'DC.1': {'sw_version': '17.07',
-                             'repostate': 'Applied',
-                             'patchstate': 'Partial-Apply'},
-                    'DC.2': {'sw_version': '17.07',
-                             'repostate': 'Applied',
-                             'patchstate': 'Applied'}}
-        elif self.region == base.SUBCLOUD_1['region_name']:
-            return {'DC.1': {'sw_version': '17.07',
-                             'repostate': 'Applied',
-                             'patchstate': 'Applied'},
-                    'DC.2': {'sw_version': '17.07',
-                             'repostate': 'Available',
-                             'patchstate': 'Available'}}
-        elif self.region == base.SUBCLOUD_2['region_name']:
-            return {'DC.1': {'sw_version': '17.07',
-                             'repostate': 'Applied',
-                             'patchstate': 'Applied'}}
-        elif self.region == base.SUBCLOUD_3['region_name']:
-            return {'DC.1': {'sw_version': '17.07',
-                             'repostate': 'Applied',
-                             'patchstate': 'Applied'},
-                    'DC.2': {'sw_version': '17.07',
-                             'repostate': 'Applied',
-                             'patchstate': 'Applied'}}
-        elif self.region == base.SUBCLOUD_4['region_name']:
-            return {'DC.1': {'sw_version': '17.07',
-                             'repostate': 'Applied',
-                             'patchstate': 'Applied'},
-                    'DC.2': {'sw_version': '17.07',
-                             'repostate': 'Applied',
-                             'patchstate': 'Partial-Apply'}}
+        if self.region == "RegionOne":
+            return {
+                "DC.1": {
+                    "sw_version": "17.07",
+                    "repostate": "Applied",
+                    "patchstate": "Partial-Apply",
+                },
+                "DC.2": {
+                    "sw_version": "17.07",
+                    "repostate": "Applied",
+                    "patchstate": "Applied",
+                },
+            }
+        elif self.region == base.SUBCLOUD_1["region_name"]:
+            return {
+                "DC.1": {
+                    "sw_version": "17.07",
+                    "repostate": "Applied",
+                    "patchstate": "Applied",
+                },
+                "DC.2": {
+                    "sw_version": "17.07",
+                    "repostate": "Available",
+                    "patchstate": "Available",
+                },
+            }
+        elif self.region == base.SUBCLOUD_2["region_name"]:
+            return {
+                "DC.1": {
+                    "sw_version": "17.07",
+                    "repostate": "Applied",
+                    "patchstate": "Applied",
+                }
+            }
+        elif self.region == base.SUBCLOUD_3["region_name"]:
+            return {
+                "DC.1": {
+                    "sw_version": "17.07",
+                    "repostate": "Applied",
+                    "patchstate": "Applied",
+                },
+                "DC.2": {
+                    "sw_version": "17.07",
+                    "repostate": "Applied",
+                    "patchstate": "Applied",
+                },
+            }
+        elif self.region == base.SUBCLOUD_4["region_name"]:
+            return {
+                "DC.1": {
+                    "sw_version": "17.07",
+                    "repostate": "Applied",
+                    "patchstate": "Applied",
+                },
+                "DC.2": {
+                    "sw_version": "17.07",
+                    "repostate": "Applied",
+                    "patchstate": "Partial-Apply",
+                },
+            }
         else:
             return {}
 
@@ -137,33 +187,55 @@ class FakePatchingClientExtraPatches(object):
         self.endpoint = endpoint
 
     def query(self):
-        if self.region == 'RegionOne':
-            return {'DC.1': {'sw_version': '17.07',
-                             'repostate': 'Applied',
-                             'patchstate': 'Applied'},
-                    'DC.2': {'sw_version': '17.07',
-                             'repostate': 'Applied',
-                             'patchstate': 'Applied'}}
-        elif self.region == 'subcloud1':
-            return {'DC.1': {'sw_version': '17.07',
-                             'repostate': 'Applied',
-                             'patchstate': 'Applied'},
-                    'DC.2': {'sw_version': '17.07',
-                             'repostate': 'Applied',
-                             'patchstate': 'Applied'},
-                    'DC.3': {'sw_version': '17.07',
-                             'repostate': 'Applied',
-                             'patchstate': 'Applied'}}
-        elif self.region == 'subcloud2':
-            return {'DC.1': {'sw_version': '17.07',
-                             'repostate': 'Applied',
-                             'patchstate': 'Applied'},
-                    'DC.2': {'sw_version': '17.07',
-                             'repostate': 'Applied',
-                             'patchstate': 'Applied'},
-                    'OTHER_REL_DC.1': {'sw_version': '17.08',
-                                       'repostate': 'Applied',
-                                       'patchstate': 'Applied'}}
+        if self.region == "RegionOne":
+            return {
+                "DC.1": {
+                    "sw_version": "17.07",
+                    "repostate": "Applied",
+                    "patchstate": "Applied",
+                },
+                "DC.2": {
+                    "sw_version": "17.07",
+                    "repostate": "Applied",
+                    "patchstate": "Applied",
+                },
+            }
+        elif self.region == "subcloud1":
+            return {
+                "DC.1": {
+                    "sw_version": "17.07",
+                    "repostate": "Applied",
+                    "patchstate": "Applied",
+                },
+                "DC.2": {
+                    "sw_version": "17.07",
+                    "repostate": "Applied",
+                    "patchstate": "Applied",
+                },
+                "DC.3": {
+                    "sw_version": "17.07",
+                    "repostate": "Applied",
+                    "patchstate": "Applied",
+                },
+            }
+        elif self.region == "subcloud2":
+            return {
+                "DC.1": {
+                    "sw_version": "17.07",
+                    "repostate": "Applied",
+                    "patchstate": "Applied",
+                },
+                "DC.2": {
+                    "sw_version": "17.07",
+                    "repostate": "Applied",
+                    "patchstate": "Applied",
+                },
+                "OTHER_REL_DC.1": {
+                    "sw_version": "17.08",
+                    "repostate": "Applied",
+                    "patchstate": "Applied",
+                },
+            }
         else:
             return {}
 
@@ -173,9 +245,9 @@ class FakeSysinvClientOneLoad(object):
         self.region = region
         self.session = session
         self.endpoint = endpoint
-        self.loads = [Load('17.07', 'active')]
+        self.loads = [Load("17.07", "active")]
         self.upgrades = []
-        self.system = System('17.07')
+        self.system = System("17.07")
 
     def get_loads(self):
         return self.loads
@@ -192,9 +264,9 @@ class FakeSysinvClientOneLoadUnmatchedSoftwareVersion(object):
         self.region = region
         self.session = session
         self.endpoint = endpoint
-        self.loads = [Load('17.07', 'active')]
+        self.loads = [Load("17.07", "active")]
         self.upgrades = []
-        self.system = System('17.07')
+        self.system = System("17.07")
 
     def get_loads(self):
         return self.loads
@@ -203,8 +275,8 @@ class FakeSysinvClientOneLoadUnmatchedSoftwareVersion(object):
         return self.upgrades
 
     def get_system(self):
-        if self.region == base.SUBCLOUD_2['region_name']:
-            return System('17.06')
+        if self.region == base.SUBCLOUD_2["region_name"]:
+            return System("17.06")
         else:
             return self.system
 
@@ -214,16 +286,16 @@ class FakeSysinvClientOneLoadUpgradeInProgress(object):
         self.region = region
         self.session = session
         self.endpoint = endpoint
-        self.loads = [Load('17.07', 'active')]
+        self.loads = [Load("17.07", "active")]
         self.upgrades = []
-        self.system = System('17.07')
+        self.system = System("17.07")
 
     def get_loads(self):
         return self.loads
 
     def get_upgrades(self):
-        if self.region == base.SUBCLOUD_2['region_name']:
-            return [Upgrade('started')]
+        if self.region == base.SUBCLOUD_2["region_name"]:
+            return [Upgrade("started")]
         else:
             return self.upgrades
 
@@ -240,41 +312,48 @@ class TestPatchAudit(base.DCManagerTestCase):
         self._mock_sysinv_client(subcloud_audit_worker_manager)
         self._mock_subcloud_audit_manager_context()
 
-        self.mock_subcloud_audit_manager_context.get_admin_context.\
-            return_value = self.ctx
+        self.mock_subcloud_audit_manager_context.get_admin_context.return_value = (
+            self.ctx
+        )
 
         self.pm = patch_audit.PatchAudit(self.ctx)
         self.am = subcloud_audit_manager.SubcloudAuditManager()
         self.am.patch_audit = self.pm
 
     def get_patch_audit_data(self):
-        (patch_audit_data, _, _, _, _) = \
-            self.am._get_audit_data(True, True, True, True, True)
+        (patch_audit_data, _, _, _, _) = self.am._get_audit_data(
+            True, True, True, True, True
+        )
         # Convert to dict like what would happen calling via RPC
         patch_audit_data = patch_audit_data.to_dict()
         return patch_audit_data
 
-    @mock.patch.object(patch_audit, 'SysinvClient')
-    @mock.patch.object(patch_audit, 'PatchingClient')
-    @mock.patch.object(patch_audit, 'OpenStackDriver')
-    def test_periodic_patch_audit_in_sync(self,
-                                          mock_openstack_driver,
-                                          mock_patching_client,
-                                          mock_sysinv_client):
+    @mock.patch.object(patch_audit, "SysinvClient")
+    @mock.patch.object(patch_audit, "PatchingClient")
+    @mock.patch.object(patch_audit, "OpenStackDriver")
+    def test_periodic_patch_audit_in_sync(
+        self, mock_openstack_driver, mock_patching_client, mock_sysinv_client
+    ):
         mock_patching_client.side_effect = FakePatchingClientInSync
         mock_sysinv_client.side_effect = FakeSysinvClientOneLoad
         self.mock_sysinv_client.side_effect = FakeSysinvClientOneLoad
         patch_audit_data = self.get_patch_audit_data()
 
-        subclouds = {base.SUBCLOUD_1['name']: base.SUBCLOUD_1['region_name'],
-                     base.SUBCLOUD_2['name']: base.SUBCLOUD_2['region_name']}
+        subclouds = {
+            base.SUBCLOUD_1["name"]: base.SUBCLOUD_1["region_name"],
+            base.SUBCLOUD_2["name"]: base.SUBCLOUD_2["region_name"],
+        }
 
         for index, subcloud in enumerate(subclouds.keys(), start=2):
             subcloud_region = subclouds[subcloud]
 
             patch_response = self.pm.subcloud_patch_audit(
-                mock.MagicMock(), self.mock_sysinv_client(subcloud_region),
-                f"192.168.1.{index}", subcloud, subcloud_region, patch_audit_data
+                mock.MagicMock(),
+                self.mock_sysinv_client(subcloud_region),
+                f"192.168.1.{index}",
+                subcloud,
+                subcloud_region,
+                patch_audit_data,
             )
             load_response = self.pm.subcloud_load_audit(
                 self.mock_sysinv_client(subcloud_region), subcloud, patch_audit_data
@@ -283,29 +362,34 @@ class TestPatchAudit(base.DCManagerTestCase):
             self.assertEqual(patch_response, dccommon_consts.SYNC_STATUS_IN_SYNC)
             self.assertEqual(load_response, dccommon_consts.SYNC_STATUS_IN_SYNC)
 
-    @mock.patch.object(patch_audit, 'SysinvClient')
-    @mock.patch.object(patch_audit, 'PatchingClient')
-    @mock.patch.object(patch_audit, 'OpenStackDriver')
-    def test_periodic_patch_audit_out_of_sync(self,
-                                              mock_openstack_driver,
-                                              mock_patching_client,
-                                              mock_sysinv_client):
+    @mock.patch.object(patch_audit, "SysinvClient")
+    @mock.patch.object(patch_audit, "PatchingClient")
+    @mock.patch.object(patch_audit, "OpenStackDriver")
+    def test_periodic_patch_audit_out_of_sync(
+        self, mock_openstack_driver, mock_patching_client, mock_sysinv_client
+    ):
         mock_patching_client.side_effect = FakePatchingClientOutOfSync
         mock_sysinv_client.side_effect = FakeSysinvClientOneLoad
         self.mock_sysinv_client.side_effect = FakeSysinvClientOneLoad
 
         patch_audit_data = self.get_patch_audit_data()
 
-        subclouds = {base.SUBCLOUD_1['name']: base.SUBCLOUD_1['region_name'],
-                     base.SUBCLOUD_2['name']: base.SUBCLOUD_2['region_name'],
-                     base.SUBCLOUD_3['name']: base.SUBCLOUD_3['region_name'],
-                     base.SUBCLOUD_4['name']: base.SUBCLOUD_4['region_name']}
+        subclouds = {
+            base.SUBCLOUD_1["name"]: base.SUBCLOUD_1["region_name"],
+            base.SUBCLOUD_2["name"]: base.SUBCLOUD_2["region_name"],
+            base.SUBCLOUD_3["name"]: base.SUBCLOUD_3["region_name"],
+            base.SUBCLOUD_4["name"]: base.SUBCLOUD_4["region_name"],
+        }
         for index, subcloud in enumerate(subclouds.keys(), start=2):
             subcloud_region = subclouds[subcloud]
 
             patch_response = self.pm.subcloud_patch_audit(
-                mock.MagicMock(), self.mock_sysinv_client(subcloud_region),
-                f"192.168.1.{index}", subcloud, subcloud_region, patch_audit_data
+                mock.MagicMock(),
+                self.mock_sysinv_client(subcloud_region),
+                f"192.168.1.{index}",
+                subcloud,
+                subcloud_region,
+                patch_audit_data,
             )
             load_response = self.pm.subcloud_load_audit(
                 self.mock_sysinv_client(subcloud_region), subcloud, patch_audit_data
@@ -317,27 +401,32 @@ class TestPatchAudit(base.DCManagerTestCase):
             self.assertEqual(patch_response, expected_patch_response)
             self.assertEqual(load_response, dccommon_consts.SYNC_STATUS_IN_SYNC)
 
-    @mock.patch.object(patch_audit, 'SysinvClient')
-    @mock.patch.object(patch_audit, 'PatchingClient')
-    @mock.patch.object(patch_audit, 'OpenStackDriver')
-    def test_periodic_patch_audit_extra_patches(self,
-                                                mock_openstack_driver,
-                                                mock_patching_client,
-                                                mock_sysinv_client):
+    @mock.patch.object(patch_audit, "SysinvClient")
+    @mock.patch.object(patch_audit, "PatchingClient")
+    @mock.patch.object(patch_audit, "OpenStackDriver")
+    def test_periodic_patch_audit_extra_patches(
+        self, mock_openstack_driver, mock_patching_client, mock_sysinv_client
+    ):
         mock_patching_client.side_effect = FakePatchingClientExtraPatches
         mock_sysinv_client.side_effect = FakeSysinvClientOneLoad
         self.mock_sysinv_client.side_effect = FakeSysinvClientOneLoad
 
         patch_audit_data = self.get_patch_audit_data()
 
-        subclouds = {base.SUBCLOUD_1['name']: base.SUBCLOUD_1['region_name'],
-                     base.SUBCLOUD_2['name']: base.SUBCLOUD_2['region_name']}
+        subclouds = {
+            base.SUBCLOUD_1["name"]: base.SUBCLOUD_1["region_name"],
+            base.SUBCLOUD_2["name"]: base.SUBCLOUD_2["region_name"],
+        }
         for index, subcloud in enumerate(subclouds.keys(), start=2):
             subcloud_region = subclouds[subcloud]
 
             patch_response = self.pm.subcloud_patch_audit(
-                mock.MagicMock(), self.mock_sysinv_client(subcloud_region),
-                f"192.168.1.{index}", subcloud, subcloud_region, patch_audit_data
+                mock.MagicMock(),
+                self.mock_sysinv_client(subcloud_region),
+                f"192.168.1.{index}",
+                subcloud,
+                subcloud_region,
+                patch_audit_data,
             )
             load_response = self.pm.subcloud_load_audit(
                 self.mock_sysinv_client(subcloud_region), subcloud, patch_audit_data
@@ -346,30 +435,34 @@ class TestPatchAudit(base.DCManagerTestCase):
             self.assertEqual(patch_response, dccommon_consts.SYNC_STATUS_OUT_OF_SYNC)
             self.assertEqual(load_response, dccommon_consts.SYNC_STATUS_IN_SYNC)
 
-    @mock.patch.object(patch_audit, 'SysinvClient')
-    @mock.patch.object(patch_audit, 'PatchingClient')
-    @mock.patch.object(patch_audit, 'OpenStackDriver')
+    @mock.patch.object(patch_audit, "SysinvClient")
+    @mock.patch.object(patch_audit, "PatchingClient")
+    @mock.patch.object(patch_audit, "OpenStackDriver")
     def test_periodic_patch_audit_unmatched_software_version(
-            self,
-            mock_openstack_driver,
-            mock_patching_client,
-            mock_sysinv_client):
+        self, mock_openstack_driver, mock_patching_client, mock_sysinv_client
+    ):
         mock_patching_client.side_effect = FakePatchingClientInSync
-        mock_sysinv_client.side_effect = (
-            FakeSysinvClientOneLoadUnmatchedSoftwareVersion)
-        self.mock_sysinv_client.side_effect = \
+        mock_sysinv_client.side_effect = FakeSysinvClientOneLoadUnmatchedSoftwareVersion
+        self.mock_sysinv_client.side_effect = (
             FakeSysinvClientOneLoadUnmatchedSoftwareVersion
+        )
 
         patch_audit_data = self.get_patch_audit_data()
 
-        subclouds = {base.SUBCLOUD_1['name']: base.SUBCLOUD_1['region_name'],
-                     base.SUBCLOUD_2['name']: base.SUBCLOUD_2['region_name']}
+        subclouds = {
+            base.SUBCLOUD_1["name"]: base.SUBCLOUD_1["region_name"],
+            base.SUBCLOUD_2["name"]: base.SUBCLOUD_2["region_name"],
+        }
         for index, subcloud in enumerate(subclouds.keys(), start=2):
             subcloud_region = subclouds[subcloud]
 
             patch_response = self.pm.subcloud_patch_audit(
-                mock.MagicMock(), self.mock_sysinv_client(subcloud_region),
-                f"192.168.1.{index}", subcloud, subcloud_region, patch_audit_data
+                mock.MagicMock(),
+                self.mock_sysinv_client(subcloud_region),
+                f"192.168.1.{index}",
+                subcloud,
+                subcloud_region,
+                patch_audit_data,
             )
             load_response = self.pm.subcloud_load_audit(
                 self.mock_sysinv_client(subcloud_region), subcloud, patch_audit_data
@@ -383,30 +476,33 @@ class TestPatchAudit(base.DCManagerTestCase):
             self.assertEqual(patch_response, dccommon_consts.SYNC_STATUS_IN_SYNC)
             self.assertEqual(load_response, expected_load_response)
 
-    @mock.patch.object(patch_audit, 'SysinvClient')
-    @mock.patch.object(patch_audit, 'PatchingClient')
-    @mock.patch.object(patch_audit, 'OpenStackDriver')
+    @mock.patch.object(patch_audit, "SysinvClient")
+    @mock.patch.object(patch_audit, "PatchingClient")
+    @mock.patch.object(patch_audit, "OpenStackDriver")
     def test_periodic_patch_audit_upgrade_in_progress(
-            self,
-            mock_openstack_driver,
-            mock_patching_client,
-            mock_sysinv_client):
+        self, mock_openstack_driver, mock_patching_client, mock_sysinv_client
+    ):
 
         mock_patching_client.side_effect = FakePatchingClientInSync
         mock_sysinv_client.side_effect = FakeSysinvClientOneLoadUpgradeInProgress
-        self.mock_sysinv_client.side_effect = \
-            FakeSysinvClientOneLoadUpgradeInProgress
+        self.mock_sysinv_client.side_effect = FakeSysinvClientOneLoadUpgradeInProgress
 
         patch_audit_data = self.get_patch_audit_data()
 
-        subclouds = {base.SUBCLOUD_1['name']: base.SUBCLOUD_1['region_name'],
-                     base.SUBCLOUD_2['name']: base.SUBCLOUD_2['region_name']}
+        subclouds = {
+            base.SUBCLOUD_1["name"]: base.SUBCLOUD_1["region_name"],
+            base.SUBCLOUD_2["name"]: base.SUBCLOUD_2["region_name"],
+        }
         for index, subcloud in enumerate(subclouds.keys(), start=2):
             subcloud_region = subclouds[subcloud]
 
             patch_response = self.pm.subcloud_patch_audit(
-                mock.MagicMock(), self.mock_sysinv_client(subcloud_region),
-                f"192.168.1.{index}", subcloud, subcloud_region, patch_audit_data
+                mock.MagicMock(),
+                self.mock_sysinv_client(subcloud_region),
+                f"192.168.1.{index}",
+                subcloud,
+                subcloud_region,
+                patch_audit_data,
             )
             load_response = self.pm.subcloud_load_audit(
                 self.mock_sysinv_client(subcloud_region), subcloud, patch_audit_data

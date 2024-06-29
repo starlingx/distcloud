@@ -90,12 +90,15 @@ class BaseTestSwUpdateOptionsController(DCManagerApiTest):
         return {
             "storage_apply_type": SW_UPDATE_OPTS_CONST_DEFAULT["storage-apply-type"],
             "worker_apply_type": SW_UPDATE_OPTS_CONST_DEFAULT["worker-apply-type"],
-            "max_parallel_workers":
-            SW_UPDATE_OPTS_CONST_DEFAULT["max-parallel-workers"],
-            "alarm_restriction_type":
-            SW_UPDATE_OPTS_CONST_DEFAULT["alarm-restriction-type"],
-            "default_instance_action":
-            SW_UPDATE_OPTS_CONST_DEFAULT["default-instance-action"]
+            "max_parallel_workers": SW_UPDATE_OPTS_CONST_DEFAULT[
+                "max-parallel-workers"
+            ],
+            "alarm_restriction_type": SW_UPDATE_OPTS_CONST_DEFAULT[
+                "alarm-restriction-type"
+            ],
+            "default_instance_action": SW_UPDATE_OPTS_CONST_DEFAULT[
+                "default-instance-action"
+            ],
         }
 
     def _create_sw_update_opts(self):
@@ -128,9 +131,7 @@ class TestSwUpdateOptionsController(BaseTestSwUpdateOptionsController):
         self.assertEqual(response.text, "null")
 
 
-class TestSwUpdateOptionsGet(
-    BaseTestSwUpdateOptionsController, SwUpdateOptionsMixin
-):
+class TestSwUpdateOptionsGet(BaseTestSwUpdateOptionsController, SwUpdateOptionsMixin):
     """Test class for get requests"""
 
     def setUp(self):
@@ -141,12 +142,16 @@ class TestSwUpdateOptionsGet(
         self._create_sw_update_opts()
 
         self._mock_object(
-            db_api, 'sw_update_opts_get', 'mock_sw_update_opts',
-            db_api.sw_update_opts_get
+            db_api,
+            "sw_update_opts_get",
+            "mock_sw_update_opts",
+            db_api.sw_update_opts_get,
         )
         self._mock_object(
-            db_api, 'sw_update_opts_default_get', 'mock_sw_update_opts_default',
-            db_api.sw_update_opts_default_get
+            db_api,
+            "sw_update_opts_default_get",
+            "mock_sw_update_opts_default",
+            db_api.sw_update_opts_default_get,
         )
 
     def test_get_succeeds_without_subcloud_ref(self):
@@ -180,8 +185,10 @@ class TestSwUpdateOptionsGet(
         response = self._send_request()
 
         self._assert_pecan_and_response(
-            response, http.client.NOT_FOUND, "No options found for Subcloud with id "
-            f"{self.subcloud.id}, defaults will be used."
+            response,
+            http.client.NOT_FOUND,
+            f"No options found for Subcloud with id {self.subcloud.id}, "
+            "defaults will be used.",
         )
 
 
@@ -215,9 +222,7 @@ class TestSwUpdateOptionsPost(BaseTestSwUpdateOptionsPost):
         )
 
 
-class TestSwUpdateOptionsPostUpdate(
-    BaseTestSwUpdateOptionsPost, SwUpdateOptionsMixin
-):
+class TestSwUpdateOptionsPostUpdate(BaseTestSwUpdateOptionsPost, SwUpdateOptionsMixin):
     """Test class for post requests to update sw_update_opts
 
     When a post request is performed for an existing sw_update_opts, it's updated.
@@ -231,12 +236,16 @@ class TestSwUpdateOptionsPostUpdate(
         self._create_sw_update_opts_default()
 
         self._mock_object(
-            db_api, 'sw_update_opts_update', 'mock_sw_update_opts',
-            db_api.sw_update_opts_update
+            db_api,
+            "sw_update_opts_update",
+            "mock_sw_update_opts",
+            db_api.sw_update_opts_update,
         )
         self._mock_object(
-            db_api, 'sw_update_opts_default_update', 'mock_sw_update_opts_default',
-            db_api.sw_update_opts_default_update
+            db_api,
+            "sw_update_opts_default_update",
+            "mock_sw_update_opts_default",
+            db_api.sw_update_opts_default_update,
         )
 
     @mock.patch.object(db_api, "sw_update_opts_default_update")
@@ -250,14 +259,15 @@ class TestSwUpdateOptionsPostUpdate(
         mock_db_api.side_effect = FakeException()
 
         self.assertRaises(
-            FakeException, self.method, self.url, headers=self.headers,
-            params=self.params
+            FakeException,
+            self.method,
+            self.url,
+            headers=self.headers,
+            params=self.params,
         )
 
 
-class TestSwUpdateOptionsPostCreate(
-    BaseTestSwUpdateOptionsPost, SwUpdateOptionsMixin
-):
+class TestSwUpdateOptionsPostCreate(BaseTestSwUpdateOptionsPost, SwUpdateOptionsMixin):
     """Test class for post requests to create sw_update_opts
 
     When a post request is performed for an existing sw_update_opts, it's updated.
@@ -268,12 +278,16 @@ class TestSwUpdateOptionsPostCreate(
         super().setUp()
 
         self._mock_object(
-            db_api, 'sw_update_opts_create', 'mock_sw_update_opts',
-            db_api.sw_update_opts_create
+            db_api,
+            "sw_update_opts_create",
+            "mock_sw_update_opts",
+            db_api.sw_update_opts_create,
         )
         self._mock_object(
-            db_api, 'sw_update_opts_default_create', 'mock_sw_update_opts_default',
-            db_api.sw_update_opts_default_create
+            db_api,
+            "sw_update_opts_default_create",
+            "mock_sw_update_opts_default",
+            db_api.sw_update_opts_default_create,
         )
 
     @mock.patch.object(db_api, "sw_update_opts_default_create")
@@ -290,8 +304,11 @@ class TestSwUpdateOptionsPostCreate(
         mock_db_api.side_effect = FakeException()
 
         self.assertRaises(
-            FakeException, self.method, self.url, headers=self.headers,
-            params=self.params
+            FakeException,
+            self.method,
+            self.url,
+            headers=self.headers,
+            params=self.params,
         )
 
 
@@ -309,12 +326,16 @@ class TestSwUpdateOptionsDelete(
         self._create_sw_update_opts_default()
 
         self._mock_object(
-            db_api, 'sw_update_opts_destroy', 'mock_sw_update_opts',
-            db_api.sw_update_opts_destroy
+            db_api,
+            "sw_update_opts_destroy",
+            "mock_sw_update_opts",
+            db_api.sw_update_opts_destroy,
         )
         self._mock_object(
-            db_api, 'sw_update_opts_default_destroy', 'mock_sw_update_opts_default',
-            db_api.sw_update_opts_default_destroy
+            db_api,
+            "sw_update_opts_default_destroy",
+            "mock_sw_update_opts_default",
+            db_api.sw_update_opts_default_destroy,
         )
 
     def test_delete_succeeds_with_generic_exception_for_default_region_name(self):

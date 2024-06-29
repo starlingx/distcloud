@@ -25,7 +25,7 @@ class BaseTestNotificationsController(DCManagerApiTest):
     def setUp(self):
         super().setUp()
 
-        self.url = '/v1.0/notifications'
+        self.url = "/v1.0/notifications"
 
         self._mock_audit_rpc_client()
 
@@ -44,7 +44,7 @@ class TestNotificationsController(BaseTestNotificationsController):
         response = self._send_request()
 
         self._assert_response(response)
-        self.assertEqual(response.text, 'null')
+        self.assertEqual(response.text, "null")
 
 
 class TestNotificationsControllerPost(BaseTestNotificationsController):
@@ -58,7 +58,7 @@ class TestNotificationsControllerPost(BaseTestNotificationsController):
     def test_post_succeeds_with_platform_upgrade_completed(self):
         """Test post succeeds with platform upgrade completed event"""
 
-        self.params = json.dumps({'events': ['platform-upgrade-completed']})
+        self.params = json.dumps({"events": ["platform-upgrade-completed"]})
 
         response = self._send_request()
 
@@ -69,7 +69,7 @@ class TestNotificationsControllerPost(BaseTestNotificationsController):
     def test_post_succeeds_with_k8s_upgrade_completed(self):
         """Test post succeeds with k8s upgrade completed event"""
 
-        self.params = json.dumps({'events': ['k8s-upgrade-completed']})
+        self.params = json.dumps({"events": ["k8s-upgrade-completed"]})
 
         response = self._send_request()
 
@@ -80,12 +80,14 @@ class TestNotificationsControllerPost(BaseTestNotificationsController):
     def test_post_succeeds_with_kube_rootca_update_completed_in_events(self):
         """Tests post succeeds when kube-rootca-update-completed in events"""
 
-        self.params = json.dumps({'events': ['kube-rootca-update-completed']})
+        self.params = json.dumps({"events": ["kube-rootca-update-completed"]})
 
         response = self._send_request()
 
-        self.mock_audit_rpc_client().\
-            trigger_kube_rootca_update_audit.assert_called_once()
+        trigger_kube_rootca_update_audit = (
+            self.mock_audit_rpc_client().trigger_kube_rootca_update_audit
+        )
+        trigger_kube_rootca_update_audit.assert_called_once()
 
         self._assert_response(response)
 

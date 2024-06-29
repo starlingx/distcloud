@@ -8,10 +8,10 @@ import mock
 
 from dcmanager.common import consts
 from dcmanager.orchestrator.states.base import BaseState
-from dcmanager.orchestrator.states.software.finish_strategy import \
-    FinishStrategyState
-from dcmanager.tests.unit.orchestrator.states.software.test_base import \
-    TestSoftwareOrchestrator
+from dcmanager.orchestrator.states.software.finish_strategy import FinishStrategyState
+from dcmanager.tests.unit.orchestrator.states.software.test_base import (
+    TestSoftwareOrchestrator,
+)
 
 
 REGION_ONE_RELEASES = [
@@ -79,7 +79,8 @@ class TestFinishStrategyState(TestSoftwareOrchestrator):
 
         # Add the strategy_step state being processed by this unit test
         self.strategy_step = self.setup_strategy_step(
-            self.subcloud.id, consts.STRATEGY_STATE_SW_FINISH_STRATEGY)
+            self.subcloud.id, consts.STRATEGY_STATE_SW_FINISH_STRATEGY
+        )
 
         # Add mock API endpoints for software client calls
         # invoked by this state
@@ -106,8 +107,7 @@ class TestFinishStrategyState(TestSoftwareOrchestrator):
         self.software_client.deploy_delete.assert_called_once()
 
         # On success, the state should transition to the next state
-        self.assert_step_updated(self.strategy_step.subcloud_id,
-                                 self.on_success_state)
+        self.assert_step_updated(self.strategy_step.subcloud_id, self.on_success_state)
 
     def test_finish_strategy_no_operation_required(self):
         """Test software finish strategy when no operation is required."""
@@ -124,8 +124,7 @@ class TestFinishStrategyState(TestSoftwareOrchestrator):
         self.software_client.commit_patch.assert_not_called()
 
         # On success, the state should transition to the next state
-        self.assert_step_updated(self.strategy_step.subcloud_id,
-                                 self.on_success_state)
+        self.assert_step_updated(self.strategy_step.subcloud_id, self.on_success_state)
 
     def test_finish_strategy_fails_when_query_exception(self):
         """Test finish strategy fails when software client query raises exception"""
@@ -154,7 +153,7 @@ class TestFinishStrategyState(TestSoftwareOrchestrator):
             self.strategy_step.subcloud_id, consts.STRATEGY_STATE_FAILED
         )
 
-    @mock.patch.object(BaseState, 'stopped')
+    @mock.patch.object(BaseState, "stopped")
     def test_finish_strategy_fails_when_stopped(self, mock_base_stopped):
         """Test finish strategy fails when stopped"""
         self.mock_read_from_cache.return_value = REGION_ONE_RELEASES

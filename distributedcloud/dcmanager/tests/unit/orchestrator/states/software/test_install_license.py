@@ -9,8 +9,9 @@ import mock
 from dccommon import consts as dccommon_consts
 from dcmanager.common import consts
 from dcmanager.db import api as db_api
-from dcmanager.tests.unit.orchestrator.states.software.test_base import \
-    TestSoftwareOrchestrator
+from dcmanager.tests.unit.orchestrator.states.software.test_base import (
+    TestSoftwareOrchestrator,
+)
 
 MISSING_LICENSE_RESPONSE = {
     "content": "",
@@ -99,9 +100,7 @@ class TestInstallLicenseState(TestSoftwareOrchestrator):
         self.sysinv_client.install_license.assert_called()
 
         # On success, the next state after installing license is importing load
-        self.assert_step_updated(
-            self.strategy_step.subcloud_id, self.on_success_state
-        )
+        self.assert_step_updated(self.strategy_step.subcloud_id, self.on_success_state)
 
     def test_install_license_skip_existing(self):
         """Test the install license step skipped due to license up to date"""
@@ -122,9 +121,7 @@ class TestInstallLicenseState(TestSoftwareOrchestrator):
         self.sysinv_client.install_license.assert_not_called()
 
         # On success, the next state after installing license is importing load
-        self.assert_step_updated(
-            self.strategy_step.subcloud_id, self.on_success_state
-        )
+        self.assert_step_updated(self.strategy_step.subcloud_id, self.on_success_state)
 
     def test_install_license_overrides_mismatched_license(self):
         """Test the install license overrides a mismatched license"""
@@ -147,9 +144,7 @@ class TestInstallLicenseState(TestSoftwareOrchestrator):
         self.sysinv_client.install_license.assert_called()
 
         # Verify it successfully moves to the next step
-        self.assert_step_updated(
-            self.strategy_step.subcloud_id, self.on_success_state
-        )
+        self.assert_step_updated(self.strategy_step.subcloud_id, self.on_success_state)
 
     def test_install_license_skips_with_sys_controller_without_license(self):
         """Test license install skips when sys controller doesn't have a license"""
@@ -164,9 +159,7 @@ class TestInstallLicenseState(TestSoftwareOrchestrator):
         self.sysinv_client.install_license.assert_not_called()
 
         # Verify it successfully moves to the next step
-        self.assert_step_updated(
-            self.strategy_step.subcloud_id, self.on_success_state
-        )
+        self.assert_step_updated(self.strategy_step.subcloud_id, self.on_success_state)
 
     def test_install_license_fails_with_generic_error_response(self):
         """Test license install fails with generic error response"""
@@ -180,9 +173,10 @@ class TestInstallLicenseState(TestSoftwareOrchestrator):
         subcloud = db_api.subcloud_get(self.ctx, self.subcloud.id)
 
         self.assertEqual(
-            subcloud.error_description, "An unexpected error occurred querying the "
-            f"license {dccommon_consts.SYSTEM_CONTROLLER_NAME}. "
-            f"Detail: {GENERIC_ERROR_RESPONSE['error']}"
+            subcloud.error_description,
+            "An unexpected error occurred querying the license "
+            f"{dccommon_consts.SYSTEM_CONTROLLER_NAME}. "
+            f"Detail: {GENERIC_ERROR_RESPONSE['error']}",
         )
 
         # Should skip install_license API call

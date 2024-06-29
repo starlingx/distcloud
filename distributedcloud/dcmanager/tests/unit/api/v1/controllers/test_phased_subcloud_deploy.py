@@ -108,10 +108,12 @@ class TestPhasedSubcloudDeployPost(BaseTestPhasedSubcloudDeployController):
 
         self._mock_sysinv_client(psd_common)
 
-        self.mock_sysinv_client().get_management_address_pool.return_value = \
+        self.mock_sysinv_client().get_management_address_pool.return_value = (
             FakeAddressPool("192.168.204.0", 24, "192.168.204.2", "192.168.204.100")
-        self.mock_rpc_client().subcloud_deploy_create.side_effect = \
+        )
+        self.mock_rpc_client().subcloud_deploy_create.side_effect = (
             self.subcloud_deploy_create
+        )
 
     def subcloud_deploy_create(self, context, subcloud_id, _):
         subcloud = db_api.subcloud_get(context, subcloud_id)
@@ -134,8 +136,9 @@ class TestPhasedSubcloudDeployPost(BaseTestPhasedSubcloudDeployController):
         response = self._send_request()
 
         self._assert_pecan_and_response(
-            response, http.client.BAD_REQUEST,
-            "Missing required parameter(s): bootstrap_values, bootstrap-address"
+            response,
+            http.client.BAD_REQUEST,
+            "Missing required parameter(s): bootstrap_values, bootstrap-address",
         )
 
     def test_post_fails_without_bootstrap_address(self):
@@ -146,8 +149,9 @@ class TestPhasedSubcloudDeployPost(BaseTestPhasedSubcloudDeployController):
         response = self._send_request()
 
         self._assert_pecan_and_response(
-            response, http.client.BAD_REQUEST,
-            "Missing required parameter(s): bootstrap-address"
+            response,
+            http.client.BAD_REQUEST,
+            "Missing required parameter(s): bootstrap-address",
         )
         self.mock_rpc_client().subcloud_deploy_create.assert_not_called()
 
@@ -159,16 +163,18 @@ class TestPhasedSubcloudDeployPost(BaseTestPhasedSubcloudDeployController):
         response = self._send_request()
 
         self._assert_pecan_and_response(
-            response, http.client.BAD_REQUEST,
-            "Missing required parameter(s): bootstrap_values"
+            response,
+            http.client.BAD_REQUEST,
+            "Missing required parameter(s): bootstrap_values",
         )
         self.mock_rpc_client().subcloud_deploy_create.assert_not_called()
 
     def test_post_fails_with_rpc_client_remote_error(self):
         """Test post fails with rpc client remote error"""
 
-        self.mock_rpc_client().subcloud_deploy_create.side_effect = \
-            RemoteError("msg", "value")
+        self.mock_rpc_client().subcloud_deploy_create.side_effect = RemoteError(
+            "msg", "value"
+        )
 
         response = self._send_request()
 
@@ -197,8 +203,9 @@ class BaseTestPhasedSubcloudDeployPatch(BaseTestPhasedSubcloudDeployController):
         super().setUp()
 
         self.subcloud = fake_subcloud.create_fake_subcloud(
-            self.ctx, name=fake_subcloud.FAKE_BOOTSTRAP_FILE_DATA["name"],
-            deploy_status=consts.DEPLOY_STATE_INSTALLED
+            self.ctx,
+            name=fake_subcloud.FAKE_BOOTSTRAP_FILE_DATA["name"],
+            deploy_status=consts.DEPLOY_STATE_INSTALLED,
         )
 
         self.method = self.app.patch
@@ -209,8 +216,7 @@ class BaseTestPhasedSubcloudDeployPatch(BaseTestPhasedSubcloudDeployController):
         self._mock_is_valid_software_deploy_state()
         self._mock_get_network_address_pool()
 
-        self.mock_get_vault_load_files.return_value = \
-            ("iso_file_path", "sig_file_path")
+        self.mock_get_vault_load_files.return_value = ("iso_file_path", "sig_file_path")
         self.mock_is_initial_deployment.return_value = True
         self.mock_get_network_address_pool.return_value = FakeAddressPool(
             "192.168.204.0", 24, "192.168.204.2", "192.168.204.100"
@@ -226,18 +232,17 @@ class BaseTestPhasedSubcloudDeployPatch(BaseTestPhasedSubcloudDeployController):
         self.install_payload = {
             "install_values": self.data_install,
             "sysadmin_password": self._create_password("testpass"),
-            "bmc_password": bmc_password
+            "bmc_password": bmc_password,
         }
 
         self.mock_load_yaml_file_return_value = {
-            consts.BOOTSTRAP_ADDRESS:
-                fake_subcloud.FAKE_BOOTSTRAP_VALUE[consts.BOOTSTRAP_ADDRESS],
+            consts.BOOTSTRAP_ADDRESS: fake_subcloud.FAKE_BOOTSTRAP_VALUE[
+                consts.BOOTSTRAP_ADDRESS
+            ],
         }
 
     def _update_subcloud(self, **kwargs):
-        self.subcloud = db_api.subcloud_update(
-            self.ctx, self.subcloud.id, **kwargs
-        )
+        self.subcloud = db_api.subcloud_update(self.ctx, self.subcloud.id, **kwargs)
 
 
 class TestPhasedSubcloudDeployPatch(BaseTestPhasedSubcloudDeployPatch):
@@ -289,10 +294,12 @@ class TestPhasedSubcloudDeployPatchBootstrap(BaseTestPhasedSubcloudDeployPatch):
         self.url = f"{self.url}/bootstrap"
 
         self.params = fake_subcloud.FAKE_BOOTSTRAP_VALUE
-        fake_content = \
-            json.dumps(fake_subcloud.FAKE_BOOTSTRAP_FILE_DATA).encode("utf-8")
-        self.upload_files = \
-            [("bootstrap_values", "bootstrap_fake_filename", fake_content)]
+        fake_content = json.dumps(fake_subcloud.FAKE_BOOTSTRAP_FILE_DATA).encode(
+            "utf-8"
+        )
+        self.upload_files = [
+            ("bootstrap_values", "bootstrap_fake_filename", fake_content)
+        ]
 
         self._mock_load_yaml_file()
         self._setup_mock_load_yaml_file()
@@ -301,24 +308,27 @@ class TestPhasedSubcloudDeployPatchBootstrap(BaseTestPhasedSubcloudDeployPatch):
 
     def _setup_mock_os_path_exists(self):
         config_file = psd_common.get_config_file_path(self.subcloud.name)
-        self.mock_os_path_exists.side_effect = \
-            lambda file: True if file == config_file else False
+        self.mock_os_path_exists.side_effect = lambda file: (
+            True if file == config_file else False
+        )
 
     def _setup_mock_load_yaml_file(self):
-        self.mock_load_yaml_file_return_value["software_version"] = \
+        self.mock_load_yaml_file_return_value["software_version"] = (
             fake_subcloud.FAKE_SOFTWARE_VERSION
+        )
         self.mock_load_yaml_file.return_value = self.mock_load_yaml_file_return_value
 
     def _assert_payload(self):
         expected_payload = {
             **fake_subcloud.FAKE_BOOTSTRAP_VALUE,
-            **fake_subcloud.FAKE_BOOTSTRAP_FILE_DATA
+            **fake_subcloud.FAKE_BOOTSTRAP_FILE_DATA,
         }
         expected_payload["sysadmin_password"] = "testpass"
         expected_payload["software_version"] = fake_subcloud.FAKE_SOFTWARE_VERSION
 
-        (_, res_subcloud_id, res_payload), _ = \
+        (_, res_subcloud_id, res_payload), _ = (
             self.mock_rpc_client.return_value.subcloud_deploy_bootstrap.call_args
+        )
 
         self.assertDictEqual(res_payload, expected_payload)
         self.assertEqual(res_subcloud_id, self.subcloud.id)
@@ -338,8 +348,7 @@ class TestPhasedSubcloudDeployPatchBootstrap(BaseTestPhasedSubcloudDeployPatch):
         self.upload_files = None
 
         fake_bootstrap_values = copy.copy(fake_subcloud.FAKE_BOOTSTRAP_FILE_DATA)
-        fake_bootstrap_values["software_version"] = \
-            fake_subcloud.FAKE_SOFTWARE_VERSION
+        fake_bootstrap_values["software_version"] = fake_subcloud.FAKE_SOFTWARE_VERSION
         self.mock_load_yaml_file.return_value = fake_bootstrap_values
 
         response = self._send_request()
@@ -355,26 +364,30 @@ class TestPhasedSubcloudDeployPatchBootstrap(BaseTestPhasedSubcloudDeployPatch):
             "management_subnet": "192.168.102.0/24",
             "management_start_ip": "192.168.102.2",
             "management_end_ip": "192.168.102.50",
-            "management_gateway_ip": "192.168.102.1"
+            "management_gateway_ip": "192.168.102.1",
         }
 
         fake_subcloud.create_fake_subcloud(
-            self.ctx, name="existing_subcloud",
-            deploy_status=consts.DEPLOY_STATE_DONE, **conflicting_subnet
+            self.ctx,
+            name="existing_subcloud",
+            deploy_status=consts.DEPLOY_STATE_DONE,
+            **conflicting_subnet,
         )
 
         modified_bootstrap_data = copy.copy(fake_subcloud.FAKE_BOOTSTRAP_FILE_DATA)
         modified_bootstrap_data.update(conflicting_subnet)
         fake_content = json.dumps(modified_bootstrap_data).encode("utf-8")
 
-        self.upload_files = \
-            [("bootstrap_values", "bootstrap_fake_filename", fake_content)]
+        self.upload_files = [
+            ("bootstrap_values", "bootstrap_fake_filename", fake_content)
+        ]
 
         response = self._send_request()
 
         self._assert_pecan_and_response(
-            response, http.client.BAD_REQUEST, "management_subnet invalid: Subnet "
-            "overlaps with another configured subnet"
+            response,
+            http.client.BAD_REQUEST,
+            "management_subnet invalid: Subnet overlaps with another configured subnet",
         )
         self.mock_rpc_client().subcloud_deploy_bootstrap.assert_not_called()
 
@@ -386,8 +399,10 @@ class TestPhasedSubcloudDeployPatchBootstrap(BaseTestPhasedSubcloudDeployPatch):
         response = self._send_request()
 
         self._assert_pecan_and_response(
-            response, http.client.BAD_REQUEST, f"Subcloud deploy status must be "
-            f"either: {', '.join(psd_api.VALID_STATES_FOR_DEPLOY_BOOTSTRAP)}"
+            response,
+            http.client.BAD_REQUEST,
+            "Subcloud deploy status must be either: "
+            f"{', '.join(psd_api.VALID_STATES_FOR_DEPLOY_BOOTSTRAP)}",
         )
         self.mock_rpc_client().subcloud_deploy_bootstrap.assert_not_called()
 
@@ -401,17 +416,20 @@ class TestPhasedSubcloudDeployPatchBootstrap(BaseTestPhasedSubcloudDeployPatch):
         response = self._send_request()
 
         self._assert_pecan_and_response(
-            response, http.client.BAD_REQUEST, "Required bootstrap-values file was "
-            "not provided and it was not previously available at /opt/dc-vault/"
-            f"ansible/{fake_subcloud.FAKE_BOOTSTRAP_FILE_DATA['name']}.yml"
+            response,
+            http.client.BAD_REQUEST,
+            "Required bootstrap-values file was not provided and it was not "
+            "previously available at /opt/dc-vault/ansible/"
+            f"{fake_subcloud.FAKE_BOOTSTRAP_FILE_DATA['name']}.yml",
         )
         self.mock_rpc_client().subcloud_deploy_bootstrap.assert_not_called()
 
     def test_patch_bootstrap_fails_with_rpc_client_remote_error(self):
         """Test patch bootstrap fails with rpc client remote error"""
 
-        self.mock_rpc_client().subcloud_deploy_bootstrap.side_effect = \
-            RemoteError("msg", "value")
+        self.mock_rpc_client().subcloud_deploy_bootstrap.side_effect = RemoteError(
+            "msg", "value"
+        )
 
         response = self._send_request()
 
@@ -428,8 +446,7 @@ class TestPhasedSubcloudDeployPatchBootstrap(BaseTestPhasedSubcloudDeployPatch):
         response = self._send_request()
 
         self._assert_pecan_and_response(
-            response, http.client.INTERNAL_SERVER_ERROR,
-            "Unable to bootstrap subcloud"
+            response, http.client.INTERNAL_SERVER_ERROR, "Unable to bootstrap subcloud"
         )
         self.mock_rpc_client().subcloud_deploy_bootstrap.assert_called_once()
 
@@ -445,7 +462,7 @@ class TestPhasedSubcloudDeployPatchConfigure(BaseTestPhasedSubcloudDeployPatch):
 
         self._update_subcloud(
             deploy_status=consts.DEPLOY_STATE_DONE,
-            data_install=json.dumps(self.data_install)
+            data_install=json.dumps(self.data_install),
         )
 
         self._mock_populate_payload()
@@ -458,8 +475,9 @@ class TestPhasedSubcloudDeployPatchConfigure(BaseTestPhasedSubcloudDeployPatch):
         """Test patch configure succeeds"""
 
         mock_load_yaml_file.return_value = {
-            consts.BOOTSTRAP_ADDRESS:
-                fake_subcloud.FAKE_BOOTSTRAP_VALUE[consts.BOOTSTRAP_ADDRESS]
+            consts.BOOTSTRAP_ADDRESS: fake_subcloud.FAKE_BOOTSTRAP_VALUE[
+                consts.BOOTSTRAP_ADDRESS
+            ]
         }
 
         response = self._send_request()
@@ -501,8 +519,10 @@ class TestPhasedSubcloudDeployPatchConfigure(BaseTestPhasedSubcloudDeployPatch):
         response = self._send_request()
 
         self._assert_pecan_and_response(
-            response, http.client.BAD_REQUEST, "Failed to decode subcloud "
-            "sysadmin_password, verify the password is base64 encoded"
+            response,
+            http.client.BAD_REQUEST,
+            "Failed to decode subcloud sysadmin_password, "
+            "verify the password is base64 encoded",
         )
         self.mock_rpc_client().subcloud_deploy_config.assert_not_called()
 
@@ -514,8 +534,10 @@ class TestPhasedSubcloudDeployPatchConfigure(BaseTestPhasedSubcloudDeployPatch):
         response = self._send_request()
 
         self._assert_pecan_and_response(
-            response, http.client.BAD_REQUEST, "Subcloud deploy status must be "
-            f"{', '.join(psd_api.VALID_STATES_FOR_DEPLOY_CONFIG)}"
+            response,
+            http.client.BAD_REQUEST,
+            "Subcloud deploy status must be "
+            f"{', '.join(psd_api.VALID_STATES_FOR_DEPLOY_CONFIG)}",
         )
         self.mock_rpc_client().subcloud_deploy_config.assert_not_called()
 
@@ -527,8 +549,9 @@ class TestPhasedSubcloudDeployPatchConfigure(BaseTestPhasedSubcloudDeployPatch):
         response = self._send_request()
 
         self._assert_pecan_and_response(
-            response, http.client.BAD_REQUEST,
-            "Subcloud prestage is ongoing prestaging-images"
+            response,
+            http.client.BAD_REQUEST,
+            "Subcloud prestage is ongoing prestaging-images",
         )
         self.mock_rpc_client().subcloud_deploy_config.assert_not_called()
 
@@ -537,8 +560,9 @@ class TestPhasedSubcloudDeployPatchConfigure(BaseTestPhasedSubcloudDeployPatch):
 
         # Add subcloud to SPG with primary priority
         peer_group = TestSystemPeerManager.create_subcloud_peer_group_static(
-            self.ctx, group_priority=consts.PEER_GROUP_PRIMARY_PRIORITY,
-            peer_group_name="SubcloudPeerGroup1"
+            self.ctx,
+            group_priority=consts.PEER_GROUP_PRIMARY_PRIORITY,
+            peer_group_name="SubcloudPeerGroup1",
         )
 
         self._update_subcloud(peer_group_id=peer_group.id)
@@ -563,16 +587,18 @@ class TestPhasedSubcloudDeployPatchConfigure(BaseTestPhasedSubcloudDeployPatch):
         response = self._send_request()
 
         self._assert_pecan_and_response(
-            response, http.client.BAD_REQUEST,
-            "Subcloud can only be configured in its primary site."
+            response,
+            http.client.BAD_REQUEST,
+            "Subcloud can only be configured in its primary site.",
         )
         self.mock_rpc_client().subcloud_deploy_config.assert_not_called()
 
     def test_patch_configure_fails_with_rpc_client_remote_error(self):
         """Test patch configure fails with rpc client remote error"""
 
-        self.mock_rpc_client().subcloud_deploy_config.side_effect = \
-            RemoteError("msg", "value")
+        self.mock_rpc_client().subcloud_deploy_config.side_effect = RemoteError(
+            "msg", "value"
+        )
 
         response = self._send_request()
 
@@ -591,8 +617,7 @@ class TestPhasedSubcloudDeployPatchConfigure(BaseTestPhasedSubcloudDeployPatch):
         response = self._send_request()
 
         self._assert_pecan_and_response(
-            response, http.client.INTERNAL_SERVER_ERROR,
-            "Unable to configure subcloud"
+            response, http.client.INTERNAL_SERVER_ERROR, "Unable to configure subcloud"
         )
         self.mock_rpc_client().subcloud_deploy_config.assert_called_once_with(
             mock.ANY, self.subcloud.id, self.params, initial_deployment=True
@@ -647,7 +672,7 @@ class TestPhasedSubcloudDeployPatchInstall(BaseTestPhasedSubcloudDeployPatch):
 
         with mock.patch(
             "builtins.open",
-            mock.mock_open(read_data=fake_subcloud.FAKE_UPGRADES_METADATA)
+            mock.mock_open(read_data=fake_subcloud.FAKE_UPGRADES_METADATA),
         ):
             response = self._send_request()
 
@@ -665,8 +690,9 @@ class TestPhasedSubcloudDeployPatchInstall(BaseTestPhasedSubcloudDeployPatch):
         response = self._send_request()
 
         self._assert_pecan_and_response(
-            response, http.client.BAD_REQUEST, "The deploy install command can only "
-            "be used during initial deployment."
+            response,
+            http.client.BAD_REQUEST,
+            "The deploy install command can only be used during initial deployment.",
         )
         self.mock_rpc_client().subcloud_deploy_install.assert_not_called()
 
@@ -709,9 +735,11 @@ class TestPhasedSubcloudDeployPatchInstall(BaseTestPhasedSubcloudDeployPatch):
         response = self._send_request()
 
         self._assert_pecan_and_response(
-            response, http.client.BAD_REQUEST, f"Failed to get {SW_VERSION} load "
-            "image. Provide active/inactive load image via 'system --os-region-name "
-            "SystemController load-import --active/--inactive'"
+            response,
+            http.client.BAD_REQUEST,
+            f"Failed to get {SW_VERSION} load image. "
+            "Provide active/inactive load image via 'system --os-region-name "
+            "SystemController load-import --active/--inactive'",
         )
         self.mock_rpc_client().subcloud_deploy_install.assert_not_called()
 
@@ -723,16 +751,19 @@ class TestPhasedSubcloudDeployPatchInstall(BaseTestPhasedSubcloudDeployPatch):
         response = self._send_request()
 
         self._assert_pecan_and_response(
-            response, http.client.BAD_REQUEST, "Subcloud deploy status must be "
-            f"either: {', '.join(psd_api.VALID_STATES_FOR_DEPLOY_INSTALL)}"
+            response,
+            http.client.BAD_REQUEST,
+            "Subcloud deploy status must be either: "
+            f"{', '.join(psd_api.VALID_STATES_FOR_DEPLOY_INSTALL)}",
         )
         self.mock_rpc_client().subcloud_deploy_install.assert_not_called()
 
     def test_patch_install_fails_with_rpc_client_remote_error(self):
         """Test patch install fails with rpc client remote error"""
 
-        self.mock_rpc_client().subcloud_deploy_install.side_effect = \
-            RemoteError("msg", "value")
+        self.mock_rpc_client().subcloud_deploy_install.side_effect = RemoteError(
+            "msg", "value"
+        )
 
         response = self._send_request()
 
@@ -768,11 +799,13 @@ class TestPhasedSubcloudDeployPatchComplete(BaseTestPhasedSubcloudDeployPatch):
 
         self._update_subcloud(
             deploy_status=consts.DEPLOY_STATE_BOOTSTRAPPED,
-            availability_status=dccommon_consts.AVAILABILITY_ONLINE
+            availability_status=dccommon_consts.AVAILABILITY_ONLINE,
         )
 
-        self.mock_rpc_client().subcloud_deploy_complete.return_value = \
-            ("subcloud_deploy_complete", {"subcloud_id": self.subcloud.id})
+        self.mock_rpc_client().subcloud_deploy_complete.return_value = (
+            "subcloud_deploy_complete",
+            {"subcloud_id": self.subcloud.id},
+        )
 
     def test_patch_complete_succeeds(self):
         """Test patch complete succeeds"""
@@ -792,17 +825,19 @@ class TestPhasedSubcloudDeployPatchComplete(BaseTestPhasedSubcloudDeployPatch):
         response = self._send_request()
 
         self._assert_pecan_and_response(
-            response, http.client.BAD_REQUEST, "Subcloud deploy can only be "
-            "completed when its deploy status is: "
-            f"{consts.DEPLOY_STATE_BOOTSTRAPPED}"
+            response,
+            http.client.BAD_REQUEST,
+            "Subcloud deploy can only be completed when its deploy status is: "
+            f"{consts.DEPLOY_STATE_BOOTSTRAPPED}",
         )
         self.mock_rpc_client().subcloud_deploy_complete.assert_not_called()
 
     def test_patch_complete_fails_with_rpc_client_remote_error(self):
         """Test patch complete fails with rpc client remote error"""
 
-        self.mock_rpc_client().subcloud_deploy_complete.side_effect = \
-            RemoteError("msg", "value")
+        self.mock_rpc_client().subcloud_deploy_complete.side_effect = RemoteError(
+            "msg", "value"
+        )
 
         response = self._send_request()
 
@@ -821,8 +856,9 @@ class TestPhasedSubcloudDeployPatchComplete(BaseTestPhasedSubcloudDeployPatch):
         response = self._send_request()
 
         self._assert_pecan_and_response(
-            response, http.client.INTERNAL_SERVER_ERROR,
-            "Unable to complete subcloud deployment"
+            response,
+            http.client.INTERNAL_SERVER_ERROR,
+            "Unable to complete subcloud deployment",
         )
         self.mock_rpc_client().subcloud_deploy_complete.assert_called_once_with(
             mock.ANY, self.subcloud.id
@@ -857,8 +893,9 @@ class TestPhasedSubcloudDeployPatchAbort(BaseTestPhasedSubcloudDeployPatch):
         response = self._send_request()
 
         self._assert_pecan_and_response(
-            response, http.client.BAD_REQUEST,
-            "The subcloud can only be aborted during initial deployment."
+            response,
+            http.client.BAD_REQUEST,
+            "The subcloud can only be aborted during initial deployment.",
         )
         self.mock_rpc_client().subcloud_deploy_abort.assert_not_called()
 
@@ -870,17 +907,19 @@ class TestPhasedSubcloudDeployPatchAbort(BaseTestPhasedSubcloudDeployPatch):
         response = self._send_request()
 
         self._assert_pecan_and_response(
-            response, http.client.BAD_REQUEST, "Subcloud deploy status must be in "
-            "one of the following states: "
-            f"{', '.join(psd_api.VALID_STATES_FOR_DEPLOY_ABORT)}"
+            response,
+            http.client.BAD_REQUEST,
+            "Subcloud deploy status must be in one of the following states: "
+            f"{', '.join(psd_api.VALID_STATES_FOR_DEPLOY_ABORT)}",
         )
         self.mock_rpc_client().subcloud_deploy_abort.assert_not_called()
 
     def test_patch_abort_fails_with_rpc_client_remote_error(self):
         """Test patch abort fails with rpc client remote error"""
 
-        self.mock_rpc_client().subcloud_deploy_abort.side_effect = \
-            RemoteError("msg", "value")
+        self.mock_rpc_client().subcloud_deploy_abort.side_effect = RemoteError(
+            "msg", "value"
+        )
 
         response = self._send_request()
 
@@ -899,8 +938,9 @@ class TestPhasedSubcloudDeployPatchAbort(BaseTestPhasedSubcloudDeployPatch):
         response = self._send_request()
 
         self._assert_pecan_and_response(
-            response, http.client.INTERNAL_SERVER_ERROR,
-            "Unable to abort subcloud deployment"
+            response,
+            http.client.INTERNAL_SERVER_ERROR,
+            "Unable to abort subcloud deployment",
         )
         self.mock_rpc_client().subcloud_deploy_abort.assert_called_once_with(
             mock.ANY, self.subcloud.id, self.subcloud.deploy_status
@@ -916,8 +956,9 @@ class TestPhasedSubcloudDeployPatchResume(BaseTestPhasedSubcloudDeployPatch):
         self.url = f"{self.url}/resume"
 
         self._update_subcloud(
-            deploy_status=consts.DEPLOY_STATE_CREATED, software_version=SW_VERSION,
-            data_install=json.dumps(self.data_install)
+            deploy_status=consts.DEPLOY_STATE_CREATED,
+            software_version=SW_VERSION,
+            data_install=json.dumps(self.data_install),
         )
 
         self._mock_get_subcloud_db_install_values()
@@ -933,14 +974,13 @@ class TestPhasedSubcloudDeployPatchResume(BaseTestPhasedSubcloudDeployPatch):
         self.mock_os_path_isdir.return_value = True
         self.mock_load_yaml_file.return_value = self.mock_load_yaml_file_return_value
         self.mock_os_listdir.return_value = [
-            "deploy_chart_fake.tgz", "deploy_overrides_fake.yaml",
-            "deploy_playbook_fake.yaml"
+            "deploy_chart_fake.tgz",
+            "deploy_overrides_fake.yaml",
+            "deploy_playbook_fake.yaml",
         ]
 
     def _setup_mock_get_request_data(self, states_to_execute=psd_api.DEPLOY_PHASES):
-        bootstrap_request = {
-            "bootstrap_values": fake_subcloud.FAKE_BOOTSTRAP_FILE_DATA
-        }
+        bootstrap_request = {"bootstrap_values": fake_subcloud.FAKE_BOOTSTRAP_FILE_DATA}
         config_request = {
             "deploy_config": "deploy config values",
         }
@@ -965,8 +1005,9 @@ class TestPhasedSubcloudDeployPatchResume(BaseTestPhasedSubcloudDeployPatch):
         config_file = psd_common.get_config_file_path(
             self.subcloud.name, consts.DEPLOY_CONFIG
         )
-        self.mock_os_path_exists.side_effect = \
-            lambda file: True if file == config_file else False
+        self.mock_os_path_exists.side_effect = lambda file: (
+            True if file == config_file else False
+        )
 
     def _assert_response_payload(self, response):
         next_deploy_phase = psd_api.RESUMABLE_STATES[self.subcloud.deploy_status][0]
@@ -1017,9 +1058,10 @@ class TestPhasedSubcloudDeployPatchResume(BaseTestPhasedSubcloudDeployPatch):
             response = self._send_request()
 
             self._assert_pecan_and_response(
-                response, http.client.BAD_REQUEST,
+                response,
+                http.client.BAD_REQUEST,
                 "The subcloud can only be resumed during initial deployment.",
-                call_count=index
+                call_count=index,
             )
             self.mock_rpc_client().subcloud_deploy_resume.assert_not_called()
 
@@ -1027,8 +1069,9 @@ class TestPhasedSubcloudDeployPatchResume(BaseTestPhasedSubcloudDeployPatch):
         """Test patch resume fails with subcloud in invalid state"""
 
         invalid_resume_states = [
-            consts.DEPLOY_STATE_INSTALLING, consts.DEPLOY_STATE_BOOTSTRAPPING,
-            consts.DEPLOY_STATE_CONFIGURING
+            consts.DEPLOY_STATE_INSTALLING,
+            consts.DEPLOY_STATE_BOOTSTRAPPING,
+            consts.DEPLOY_STATE_CONFIGURING,
         ]
 
         for index, state in enumerate(invalid_resume_states, start=1):
@@ -1037,16 +1080,20 @@ class TestPhasedSubcloudDeployPatchResume(BaseTestPhasedSubcloudDeployPatch):
             response = self._send_request()
 
             self._assert_pecan_and_response(
-                response, http.client.BAD_REQUEST, "Subcloud deploy status must be "
-                f"either: {', '.join(psd_api.RESUMABLE_STATES)}", call_count=index
+                response,
+                http.client.BAD_REQUEST,
+                "Subcloud deploy status must be either: "
+                f"{', '.join(psd_api.RESUMABLE_STATES)}",
+                call_count=index,
             )
             self.mock_rpc_client().subcloud_deploy_resume.assert_not_called()
 
     def test_patch_resume_succeeds_with_sysadmin_password_only_in_params(self):
         """Test patch succeeds with sysadmin password only in params"""
 
-        self.mock_load_yaml_file_return_value["software_version"] = \
+        self.mock_load_yaml_file_return_value["software_version"] = (
             fake_subcloud.FAKE_SOFTWARE_VERSION
+        )
         self.mock_load_yaml_file.return_value = self.mock_load_yaml_file_return_value
 
         for index, state in enumerate(psd_api.RESUMABLE_STATES, start=1):
@@ -1097,10 +1144,12 @@ class TestPhasedSubcloudDeployPatchResume(BaseTestPhasedSubcloudDeployPatch):
             response = self._send_request()
 
             self._assert_pecan_and_response(
-                response, http.client.BAD_REQUEST, f"{states_executed[0].title()} "
-                "was already executed and "
+                response,
+                http.client.BAD_REQUEST,
+                f"{states_executed[0].title()} was already executed and "
                 f"{psd_api.FILES_MAPPING[states_executed[0]][0].replace('_', '-')} "
-                "is not required", call_count=index - skipped_count
+                "is not required",
+                call_count=index - skipped_count,
             )
 
     def test_patch_resume_fails_with_deploy_state_to_run_as_config(self):
@@ -1115,18 +1164,20 @@ class TestPhasedSubcloudDeployPatchResume(BaseTestPhasedSubcloudDeployPatch):
         response = self._send_request()
 
         self._assert_pecan_and_response(
-            response, http.client.BAD_REQUEST, "Only deploy phase left is deploy "
-            f"config. Required {consts.DEPLOY_CONFIG} file was not provided and it "
-            "was not previously available. If manually configuring the subcloud, "
-            "please run 'dcmanager subcloud deploy complete'"
+            response,
+            http.client.BAD_REQUEST,
+            f"Only deploy phase left is deploy config. Required {consts.DEPLOY_CONFIG} "
+            "file was not provided and it was not previously available. If manually "
+            "configuring the subcloud, please run 'dcmanager subcloud deploy complete'",
         )
         self.mock_rpc_client().subcloud_deploy_resume.assert_not_called()
 
     def test_patch_resume_fails_with_rpc_client_remote_error(self):
         """Test patch resume fails with rpc client remote error"""
 
-        self.mock_rpc_client().subcloud_deploy_resume.side_effect = \
-            RemoteError("msg", "value")
+        self.mock_rpc_client().subcloud_deploy_resume.side_effect = RemoteError(
+            "msg", "value"
+        )
 
         response = self._send_request()
 
@@ -1143,14 +1194,16 @@ class TestPhasedSubcloudDeployPatchResume(BaseTestPhasedSubcloudDeployPatch):
         response = self._send_request()
 
         self._assert_pecan_and_response(
-            response, http.client.INTERNAL_SERVER_ERROR,
-            "Unable to resume subcloud deployment"
+            response,
+            http.client.INTERNAL_SERVER_ERROR,
+            "Unable to resume subcloud deployment",
         )
         self.mock_rpc_client().subcloud_deploy_resume.assert_called_once()
 
 
 class TestPhasedSubcloudDeployPatchEnroll(BaseTestPhasedSubcloudDeployPatch):
     """Test class for patch requests with enroll verb"""
+
     def setUp(self):
         super().setUp()
 
@@ -1161,15 +1214,16 @@ class TestPhasedSubcloudDeployPatchEnroll(BaseTestPhasedSubcloudDeployPatch):
         )
 
         modified_bootstrap_data = copy.copy(
-            fake_subcloud.FAKE_SUBCLOUD_BOOTSTRAP_PAYLOAD)
-        modified_bootstrap_data.update({"name": "fake subcloud1"})
+            fake_subcloud.FAKE_SUBCLOUD_BOOTSTRAP_PAYLOAD
+        )
+        modified_bootstrap_data.update({"name": "fake_subcloud1"})
         modified_install_data = copy.copy(fake_subcloud.FAKE_SUBCLOUD_INSTALL_VALUES)
         fake_content = json.dumps(modified_bootstrap_data).encode("utf-8")
         install_fake_content = json.dumps(modified_install_data).encode("utf-8")
 
-        self.upload_files = [(
-            "bootstrap_values", "bootstrap_fake_filename", fake_content),
-            ("install_values", "install_values_fake_filename", install_fake_content)
+        self.upload_files = [
+            ("bootstrap_values", "bootstrap_fake_filename", fake_content),
+            ("install_values", "install_values_fake_filename", install_fake_content),
         ]
 
     def test_patch_enroll_fails(self):
@@ -1178,21 +1232,21 @@ class TestPhasedSubcloudDeployPatchEnroll(BaseTestPhasedSubcloudDeployPatch):
         response = self._send_request()
 
         self._assert_pecan_and_response(
-            response, http.client.BAD_REQUEST, "subcloud deploy enrollment is not "
-                                               "available yet"
+            response,
+            http.client.BAD_REQUEST,
+            "subcloud deploy enrollment is not available yet",
         )
 
     def test_patch_enroll_fails_invalid_deploy_status(self):
         """Test patch enroll fails with invalid deploy status"""
 
-        self._update_subcloud(
-            deploy_status=consts.DEPLOY_STATE_BOOTSTRAPPED
-        )
+        self._update_subcloud(deploy_status=consts.DEPLOY_STATE_BOOTSTRAPPED)
 
         response = self._send_request()
 
         self._assert_pecan_and_response(
-            response, http.client.BAD_REQUEST,
+            response,
+            http.client.BAD_REQUEST,
             "Subcloud deploy status must be either: "
-            f"{', '.join(psd_api.VALID_STATES_FOR_DEPLOY_ENROLL)}"
+            f"{', '.join(psd_api.VALID_STATES_FOR_DEPLOY_ENROLL)}",
         )

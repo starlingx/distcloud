@@ -9,11 +9,13 @@ Firmware strategy validation tests
 
 from dcmanager.db.sqlalchemy import api as db_api
 from dcmanager.orchestrator.validators.firmware_validator import (
-    FirmwareStrategyValidator
+    FirmwareStrategyValidator,
 )
 from dcmanager.tests.base import DCManagerTestCase
 from dcmanager.tests.unit.orchestrator.validators.validators_mixin import (
-    StrategyRequirementsMixin, BaseMixin, BuildExtraArgsMixin
+    StrategyRequirementsMixin,
+    BaseMixin,
+    BuildExtraArgsMixin,
 )
 from dcmanager.tests.unit.common.fake_subcloud import create_fake_subcloud
 

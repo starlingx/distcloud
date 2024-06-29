@@ -22,12 +22,9 @@ from dcmanager.db.sqlalchemy import api as db_api
 from dcmanager.tests.unit.common import fake_strategy
 from dcmanager.tests.unit.orchestrator.test_base import TestSwUpdate
 
-FAKE_PASSWORD = (base64.b64encode('testpass'.encode('utf-8'))).decode('ascii')
-OAM_FLOATING_IP = '10.10.10.12'
-REQUIRED_EXTRA_ARGS = {
-    'sysadmin_password': FAKE_PASSWORD,
-    'force': False
-}
+FAKE_PASSWORD = (base64.b64encode("testpass".encode("utf-8"))).decode("ascii")
+OAM_FLOATING_IP = "10.10.10.12"
+REQUIRED_EXTRA_ARGS = {"sysadmin_password": FAKE_PASSWORD, "force": False}
 
 
 class TestPrestage(TestSwUpdate):
@@ -50,9 +47,7 @@ class TestPrestage(TestSwUpdate):
         }
 
     def _setup_strategy_step(self, strategy_step):
-        self.strategy_step = self.setup_strategy_step(
-            self.subcloud.id, strategy_step
-        )
+        self.strategy_step = self.setup_strategy_step(self.subcloud.id, strategy_step)
 
     def _setup_and_assert(self, next_state, extra_args=None):
         self.strategy = fake_strategy.create_fake_strategy(
@@ -83,7 +78,7 @@ class TestPrestagePreCheckState(TestPrestage):
         individual tests.
         """
 
-        mock_class = mock.patch('dcmanager.common.prestage.validate_prestage')
+        mock_class = mock.patch("dcmanager.common.prestage.validate_prestage")
         self.mock_prestage_subcloud = mock_class.start()
         self.mock_prestage_subcloud.return_value = OAM_FLOATING_IP
         self.addCleanup(mock_class.stop)
@@ -91,7 +86,7 @@ class TestPrestagePreCheckState(TestPrestage):
     def _mock_threading_start(self):
         """Mock threading's Thread.start"""
 
-        mock_thread = mock.patch.object(threading.Thread, 'start')
+        mock_thread = mock.patch.object(threading.Thread, "start")
         self.mock_thread_start = mock_thread.start()
         self.addCleanup(mock_thread.stop)
 
@@ -103,35 +98,31 @@ class TestPrestagePreCheckState(TestPrestage):
     def test_prestage_pre_check_validate_failed_with_orch_skip_false(self):
         """Test prestage pre check validate failed with orch skip as false"""
 
-        self.mock_prestage_subcloud.side_effect = \
+        self.mock_prestage_subcloud.side_effect = (
             exceptions.PrestagePreCheckFailedException(
-                subcloud=None, orch_skip=False, details='test'
+                subcloud=None, orch_skip=False, details="test"
             )
+        )
 
         self._setup_and_assert(STRATEGY_STATE_FAILED, extra_args=REQUIRED_EXTRA_ARGS)
 
-        new_strategy_step = db_api.strategy_step_get(
-            self.ctx, self.subcloud.id
-        )
+        new_strategy_step = db_api.strategy_step_get(self.ctx, self.subcloud.id)
 
         # The strategy step details field should be updated with the Exception string
-        self.assertTrue('test' in str(new_strategy_step.details))
+        self.assertTrue("test" in str(new_strategy_step.details))
 
     def test_prestage_pre_check_validate_failed_with_orch_skip_true(self):
         """Test prestage pre check validate failed with orch skip as true"""
 
-        self.mock_prestage_subcloud.side_effect = \
+        self.mock_prestage_subcloud.side_effect = (
             exceptions.PrestagePreCheckFailedException(
-                subcloud=None, orch_skip=True, details='test'
+                subcloud=None, orch_skip=True, details="test"
             )
-
-        self._setup_and_assert(
-            STRATEGY_STATE_COMPLETE, extra_args=REQUIRED_EXTRA_ARGS
         )
 
-        new_strategy_step = db_api.strategy_step_get(
-            self.ctx, self.subcloud.id
-        )
+        self._setup_and_assert(STRATEGY_STATE_COMPLETE, extra_args=REQUIRED_EXTRA_ARGS)
+
+        new_strategy_step = db_api.strategy_step_get(self.ctx, self.subcloud.id)
 
         # The strategy step details field should be updated with the Exception string
         self.assertTrue("test" in str(new_strategy_step.details))
@@ -155,18 +146,16 @@ class TestPrestagePreCheckState(TestPrestage):
 
         self._setup_and_assert(
             STRATEGY_STATE_PRESTAGE_PACKAGES,
-            extra_args=self.required_extra_args_with_oam
+            extra_args=self.required_extra_args_with_oam,
         )
 
     def test_prestage_pre_check_succeds_with_prestage_software_version(self):
         """Test prestage pre check succeeds with prestage software version"""
 
         extra_args = copy.copy(REQUIRED_EXTRA_ARGS)
-        extra_args['prestage-software-version'] = '22.3'
+        extra_args["prestage-software-version"] = "22.3"
 
-        self._setup_and_assert(
-            STRATEGY_STATE_PRESTAGE_PACKAGES, extra_args=extra_args
-        )
+        self._setup_and_assert(STRATEGY_STATE_PRESTAGE_PACKAGES, extra_args=extra_args)
 
 
 class TestPrestagePackagesState(TestPrestage):
@@ -179,7 +168,7 @@ class TestPrestagePackagesState(TestPrestage):
         self._mock_ansible_playbook()
 
     def _mock_ansible_playbook(self):
-        mock_patch_object = mock.patch.object(AnsiblePlaybook, 'run_playbook')
+        mock_patch_object = mock.patch.object(AnsiblePlaybook, "run_playbook")
         self.mock_ansible_playbook = mock_patch_object.start()
         self.addCleanup(mock_patch_object.stop)
 
@@ -187,19 +176,16 @@ class TestPrestagePackagesState(TestPrestage):
         """Test prestage package succeeds"""
 
         self._setup_and_assert(
-            STRATEGY_STATE_PRESTAGE_IMAGES,
-            extra_args=self.required_extra_args_with_oam
+            STRATEGY_STATE_PRESTAGE_IMAGES, extra_args=self.required_extra_args_with_oam
         )
 
     def test_prestage_package_succeeds_with_prestage_software_version(self):
         """Test prestage package succeeds with prestage software version"""
 
         extra_args = copy.copy(self.required_extra_args_with_oam)
-        extra_args['prestage-software-version'] = '22.3'
+        extra_args["prestage-software-version"] = "22.3"
 
-        self._setup_and_assert(
-            STRATEGY_STATE_PRESTAGE_IMAGES, extra_args=extra_args
-        )
+        self._setup_and_assert(STRATEGY_STATE_PRESTAGE_IMAGES, extra_args=extra_args)
 
 
 class TestPrestageImagesState(TestPrestage):
@@ -222,6 +208,6 @@ class TestPrestageImagesState(TestPrestage):
         """Test prestage images succeeds with prestage software version"""
 
         extra_args = copy.copy(self.required_extra_args_with_oam)
-        extra_args['prestage-software-version'] = '22.3'
+        extra_args["prestage-software-version"] = "22.3"
 
         self._setup_and_assert(STRATEGY_STATE_COMPLETE, extra_args=extra_args)

@@ -23,7 +23,7 @@ class BaseTestSubcloudAlarmController(DCManagerApiTest):
     def setUp(self):
         super().setUp()
 
-        self.url = '/v1.0/alarms'
+        self.url = "/v1.0/alarms"
 
 
 class TestSubcloudAlarmController(BaseTestSubcloudAlarmController):
@@ -40,7 +40,7 @@ class TestSubcloudAlarmController(BaseTestSubcloudAlarmController):
         response = self._send_request()
 
         self._assert_response(response)
-        self.assertEqual(response.text, 'null')
+        self.assertEqual(response.text, "null")
 
 
 class TestSubcloudAlarmControllerGet(BaseTestSubcloudAlarmController):
@@ -55,24 +55,32 @@ class TestSubcloudAlarmControllerGet(BaseTestSubcloudAlarmController):
         """Test get succeeds"""
 
         subcloud1_values = {
-            'uuid': utils.UUID2, 'critical_alarms': 1, 'major_alarms': 2,
-            'minor_alarms': 3, 'warnings': 0, 'cloud_status': 'critical'
+            "uuid": utils.UUID2,
+            "critical_alarms": 1,
+            "major_alarms": 2,
+            "minor_alarms": 3,
+            "warnings": 0,
+            "cloud_status": "critical",
         }
 
         subcloud2_values = {
-            'uuid': utils.UUID3, 'critical_alarms': 0, 'major_alarms': 2,
-            'minor_alarms': 3, 'warnings': 4, 'cloud_status': 'degraded'
+            "uuid": utils.UUID3,
+            "critical_alarms": 0,
+            "major_alarms": 2,
+            "minor_alarms": 3,
+            "warnings": 4,
+            "cloud_status": "degraded",
         }
 
         subcloud_summary = [
-            {'region_name': 'subcloud1', **subcloud1_values},
-            {'region_name': 'subcloud2', **subcloud2_values}
+            {"region_name": "subcloud1", **subcloud1_values},
+            {"region_name": "subcloud2", **subcloud2_values},
         ]
 
-        db_api.subcloud_alarms_create(self.ctx, 'subcloud2', values=subcloud2_values)
-        db_api.subcloud_alarms_create(self.ctx, 'subcloud1', values=subcloud1_values)
+        db_api.subcloud_alarms_create(self.ctx, "subcloud2", values=subcloud2_values)
+        db_api.subcloud_alarms_create(self.ctx, "subcloud1", values=subcloud1_values)
 
         response = self._send_request()
 
         self._assert_response(response)
-        self.assertEqual(subcloud_summary, response.json.get('alarm_summary'))
+        self.assertEqual(subcloud_summary, response.json.get("alarm_summary"))

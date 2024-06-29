@@ -22,76 +22,90 @@ from dcmanager.tests.unit.api.v1.controllers.mixins import UpdateMixin
 from dcmanager.tests.unit.common import fake_subcloud
 
 SAMPLE_SYSTEM_PEER_UUID = str(uuid.uuid4())
-SAMPLE_SYSTEM_PEER_NAME = 'SystemPeer1'
-SAMPLE_MANAGER_ENDPOINT = 'http://127.0.0.1:5000'
-SAMPLE_MANAGER_USERNAME = 'admin'
-SAMPLE_MANAGER_PASSWORD = 'password'
-SAMPLE_ADMINISTRATIVE_STATE = 'enabled'
+SAMPLE_SYSTEM_PEER_NAME = "SystemPeer1"
+SAMPLE_MANAGER_ENDPOINT = "http://127.0.0.1:5000"
+SAMPLE_MANAGER_USERNAME = "admin"
+SAMPLE_MANAGER_PASSWORD = "password"
+SAMPLE_ADMINISTRATIVE_STATE = "enabled"
 SAMPLE_HEARTBEAT_INTERVAL = 10
 SAMPLE_HEARTBEAT_FAILURE_THRESHOLD = 3
-SAMPLE_HEARTBEAT_FAILURES_POLICY = 'alarm'
+SAMPLE_HEARTBEAT_FAILURES_POLICY = "alarm"
 SAMPLE_HEARTBEAT_MAINTENANCE_TIMEOUT = 600
-SAMPLE_PEER_CONTROLLER_GATEWAY_IP = '128.128.128.1'
+SAMPLE_PEER_CONTROLLER_GATEWAY_IP = "128.128.128.1"
 
 
 class SystemPeersAPIMixin(APIMixin):
-    API_PREFIX = '/v1.0/system-peers'
-    RESULT_KEY = 'system_peers'
+    API_PREFIX = "/v1.0/system-peers"
+    RESULT_KEY = "system_peers"
     EXPECTED_FIELDS = [
-        'id', 'peer-uuid', 'peer-name', 'manager-endpoint', 'manager-username',
-        'peer-controller-gateway-address', 'administrative-state',
-        'heartbeat-interval', 'heartbeat-failure-threshold',
-        'heartbeat-failure-policy', 'heartbeat-maintenance-timeout', 'created-at',
-        'updated-at'
+        "id",
+        "peer-uuid",
+        "peer-name",
+        "manager-endpoint",
+        "manager-username",
+        "peer-controller-gateway-address",
+        "administrative-state",
+        "heartbeat-interval",
+        "heartbeat-failure-threshold",
+        "heartbeat-failure-policy",
+        "heartbeat-maintenance-timeout",
+        "created-at",
+        "updated-at",
     ]
 
     def _get_test_system_peer_dict(self, data_type, **kw):
         # id should not be part of the structure
         system_peer = {
-            'peer_uuid': kw.get('peer_uuid', SAMPLE_SYSTEM_PEER_UUID),
-            'peer_name': kw.get('peer_name', SAMPLE_SYSTEM_PEER_NAME),
-            'administrative_state': kw.get(
-                'administrative_state', SAMPLE_ADMINISTRATIVE_STATE
+            "peer_uuid": kw.get("peer_uuid", SAMPLE_SYSTEM_PEER_UUID),
+            "peer_name": kw.get("peer_name", SAMPLE_SYSTEM_PEER_NAME),
+            "administrative_state": kw.get(
+                "administrative_state", SAMPLE_ADMINISTRATIVE_STATE
             ),
-            'heartbeat_interval': kw.get(
-                'heartbeat_interval', SAMPLE_HEARTBEAT_INTERVAL
+            "heartbeat_interval": kw.get(
+                "heartbeat_interval", SAMPLE_HEARTBEAT_INTERVAL
             ),
-            'heartbeat_failure_threshold': kw.get(
-                'heartbeat_failure_threshold', SAMPLE_HEARTBEAT_FAILURE_THRESHOLD
+            "heartbeat_failure_threshold": kw.get(
+                "heartbeat_failure_threshold", SAMPLE_HEARTBEAT_FAILURE_THRESHOLD
             ),
-            'heartbeat_failure_policy': kw.get(
-                'heartbeat_failure_policy', SAMPLE_HEARTBEAT_FAILURES_POLICY
+            "heartbeat_failure_policy": kw.get(
+                "heartbeat_failure_policy", SAMPLE_HEARTBEAT_FAILURES_POLICY
             ),
-            'heartbeat_maintenance_timeout': kw.get(
-                'heartbeat_maintenance_timeout', SAMPLE_HEARTBEAT_MAINTENANCE_TIMEOUT
-            )
+            "heartbeat_maintenance_timeout": kw.get(
+                "heartbeat_maintenance_timeout", SAMPLE_HEARTBEAT_MAINTENANCE_TIMEOUT
+            ),
         }
 
-        if data_type == 'db':
-            system_peer['endpoint'] = \
-                kw.get('manager_endpoint', SAMPLE_MANAGER_ENDPOINT)
-            system_peer['username'] = \
-                kw.get('manager_username', SAMPLE_MANAGER_USERNAME)
-            system_peer['password'] = \
-                kw.get('manager_password', SAMPLE_MANAGER_PASSWORD)
-            system_peer['gateway_ip'] = kw.get(
-                'peer_controller_gateway_ip', SAMPLE_PEER_CONTROLLER_GATEWAY_IP
+        if data_type == "db":
+            system_peer["endpoint"] = kw.get(
+                "manager_endpoint", SAMPLE_MANAGER_ENDPOINT
+            )
+            system_peer["username"] = kw.get(
+                "manager_username", SAMPLE_MANAGER_USERNAME
+            )
+            system_peer["password"] = kw.get(
+                "manager_password", SAMPLE_MANAGER_PASSWORD
+            )
+            system_peer["gateway_ip"] = kw.get(
+                "peer_controller_gateway_ip", SAMPLE_PEER_CONTROLLER_GATEWAY_IP
             )
         else:
-            system_peer['manager_endpoint'] = \
-                kw.get('manager_endpoint', SAMPLE_MANAGER_ENDPOINT)
-            system_peer['manager_username'] = \
-                kw.get('manager_username', SAMPLE_MANAGER_USERNAME)
-            system_peer['manager_password'] = \
-                kw.get('manager_password', SAMPLE_MANAGER_PASSWORD)
-            system_peer['peer_controller_gateway_address'] = kw.get(
-                'peer_controller_gateway_ip', SAMPLE_PEER_CONTROLLER_GATEWAY_IP
+            system_peer["manager_endpoint"] = kw.get(
+                "manager_endpoint", SAMPLE_MANAGER_ENDPOINT
+            )
+            system_peer["manager_username"] = kw.get(
+                "manager_username", SAMPLE_MANAGER_USERNAME
+            )
+            system_peer["manager_password"] = kw.get(
+                "manager_password", SAMPLE_MANAGER_PASSWORD
+            )
+            system_peer["peer_controller_gateway_address"] = kw.get(
+                "peer_controller_gateway_ip", SAMPLE_PEER_CONTROLLER_GATEWAY_IP
             )
 
         return system_peer
 
     def _post_get_test_system_peer(self, **kw):
-        return self._get_test_system_peer_dict('dict', **kw)
+        return self._get_test_system_peer_dict("dict", **kw)
 
     # The following methods are required for subclasses of APIMixin
     def get_api_prefix(self):
@@ -107,14 +121,14 @@ class SystemPeersAPIMixin(APIMixin):
         return []
 
     def _create_db_object(self, context, **kw):
-        creation_fields = self._get_test_system_peer_dict('db', **kw)
+        creation_fields = self._get_test_system_peer_dict("db", **kw)
         return db_api.system_peer_create(context, **creation_fields)
 
     def get_post_object(self):
         return self._post_get_test_system_peer()
 
     def get_update_object(self):
-        return {'peer_controller_gateway_address': '192.168.205.1'}
+        return {"peer_controller_gateway_address": "192.168.205.1"}
 
 
 class SystemPeersPropertiesValidationMixin(object):
@@ -142,7 +156,7 @@ class SystemPeersPropertiesValidationMixin(object):
             response, http.client.BAD_REQUEST, "Body required"
         )
 
-    @mock.patch.object(json, 'loads')
+    @mock.patch.object(json, "loads")
     def test_request_fails_with_json_loads_exception(self, mock_json_loads):
         """Test request fails with json loads exception"""
 
@@ -205,8 +219,9 @@ class SystemPeersPropertiesValidationMixin(object):
         """Test request fails with invalid manager endpoint"""
 
         invalid_values = [
-            "", "ftp://somepath",
-            "a" * system_peers.MAX_SYSTEM_PEER_MANAGER_ENDPOINT_LEN
+            "",
+            "ftp://somepath",
+            "a" * system_peers.MAX_SYSTEM_PEER_MANAGER_ENDPOINT_LEN,
         ]
         self._remove_empty_string_in_patch_request(invalid_values)
 
@@ -216,16 +231,16 @@ class SystemPeersPropertiesValidationMixin(object):
             response = self._send_request()
 
             self._assert_pecan_and_response(
-                response, http.client.BAD_REQUEST, "Invalid peer manager_endpoint",
-                call_count=index
+                response,
+                http.client.BAD_REQUEST,
+                "Invalid peer manager_endpoint",
+                call_count=index,
             )
 
     def test_request_fails_with_invalid_manager_username(self):
         """Test request fails with invalid manager username"""
 
-        invalid_values = [
-            "", "a" * system_peers.MAX_SYSTEM_PEER_MANAGER_USERNAME_LEN
-        ]
+        invalid_values = ["", "a" * system_peers.MAX_SYSTEM_PEER_MANAGER_USERNAME_LEN]
         self._remove_empty_string_in_patch_request(invalid_values)
 
         for index, invalid_value in enumerate(invalid_values, start=1):
@@ -234,16 +249,16 @@ class SystemPeersPropertiesValidationMixin(object):
             response = self._send_request()
 
             self._assert_pecan_and_response(
-                response, http.client.BAD_REQUEST, "Invalid peer manager_username",
-                call_count=index
+                response,
+                http.client.BAD_REQUEST,
+                "Invalid peer manager_username",
+                call_count=index,
             )
 
     def test_request_fails_with_invalid_manager_password(self):
         """Test request fails with invalid manager password"""
 
-        invalid_values = [
-            "", "a" * system_peers.MAX_SYSTEM_PEER_MANAGER_PASSWORD_LEN
-        ]
+        invalid_values = ["", "a" * system_peers.MAX_SYSTEM_PEER_MANAGER_PASSWORD_LEN]
         self._remove_empty_string_in_patch_request(invalid_values)
 
         for index, invalid_value in enumerate(invalid_values, start=1):
@@ -252,16 +267,19 @@ class SystemPeersPropertiesValidationMixin(object):
             response = self._send_request()
 
             self._assert_pecan_and_response(
-                response, http.client.BAD_REQUEST, "Invalid peer manager_password",
-                call_count=index
+                response,
+                http.client.BAD_REQUEST,
+                "Invalid peer manager_password",
+                call_count=index,
             )
 
     def test_request_fails_with_invalid_peer_controller_gateway_address(self):
         """Test request fails with invalid peer controller gateway address"""
 
         invalid_values = [
-            "", "a" * system_peers.MAX_SYSTEM_PEER_STRING_DEFAULT_LEN,
-            "192.168.0.0.1"
+            "",
+            "a" * system_peers.MAX_SYSTEM_PEER_STRING_DEFAULT_LEN,
+            "192.168.0.0.1",
         ]
         self._remove_empty_string_in_patch_request(invalid_values)
 
@@ -271,8 +289,10 @@ class SystemPeersPropertiesValidationMixin(object):
             response = self._send_request()
 
             self._assert_pecan_and_response(
-                response, http.client.BAD_REQUEST,
-                "Invalid peer peer_controller_gateway_address", call_count=index
+                response,
+                http.client.BAD_REQUEST,
+                "Invalid peer peer_controller_gateway_address",
+                call_count=index,
             )
 
     def test_request_fails_with_invalid_administrative_state(self):
@@ -298,7 +318,8 @@ class SystemPeersPropertiesValidationMixin(object):
         invalid_values = [
             system_peers.MIN_SYSTEM_PEER_HEARTBEAT_INTERVAL - 1,
             system_peers.MAX_SYSTEM_PEER_HEARTBEAT_INTERVAL + 1,
-            -1, "fake"
+            -1,
+            "fake",
         ]
 
         for index, invalid_value in enumerate(invalid_values, start=1):
@@ -307,8 +328,10 @@ class SystemPeersPropertiesValidationMixin(object):
             response = self._send_request()
 
             self._assert_pecan_and_response(
-                response, http.client.BAD_REQUEST, "Invalid peer heartbeat_interval",
-                call_count=index
+                response,
+                http.client.BAD_REQUEST,
+                "Invalid peer heartbeat_interval",
+                call_count=index,
             )
 
     def test_request_fails_with_invalid_heartbeat_failure_threshold(self):
@@ -317,7 +340,8 @@ class SystemPeersPropertiesValidationMixin(object):
         invalid_values = [
             system_peers.MIN_SYSTEM_PEER_HEARTBEAT_FAILURE_THRESHOLD - 1,
             system_peers.MAX_SYSTEM_PEER_HEARTBEAT_FAILURE_THRESHOLD + 1,
-            -1, "fake"
+            -1,
+            "fake",
         ]
 
         # When the request method is patch, the invalid_value 0 results in the if
@@ -334,8 +358,10 @@ class SystemPeersPropertiesValidationMixin(object):
             response = self._send_request()
 
             self._assert_pecan_and_response(
-                response, http.client.BAD_REQUEST,
-                "Invalid peer heartbeat_failure_threshold", call_count=index
+                response,
+                http.client.BAD_REQUEST,
+                "Invalid peer heartbeat_failure_threshold",
+                call_count=index,
             )
 
     def test_request_fails_with_invalid_heartbeat_failure_policy(self):
@@ -349,8 +375,7 @@ class SystemPeersPropertiesValidationMixin(object):
         response = self._send_request()
 
         self._assert_pecan_and_response(
-            response, http.client.BAD_REQUEST,
-            "Invalid peer heartbeat_failure_policy"
+            response, http.client.BAD_REQUEST, "Invalid peer heartbeat_failure_policy"
         )
 
     def test_request_fails_with_invalid_heartbeat_maintenance_timeout(self):
@@ -359,7 +384,8 @@ class SystemPeersPropertiesValidationMixin(object):
         invalid_values = [
             system_peers.MIN_SYSTEM_PEER_HEARTBEAT_MAINTENACE_TIMEOUT - 1,
             system_peers.MAX_SYSTEM_PEER_HEARTBEAT_MAINTENACE_TIMEOUT + 1,
-            -1, "fake"
+            -1,
+            "fake",
         ]
 
         for index, invalid_value in enumerate(invalid_values, start=1):
@@ -368,8 +394,10 @@ class SystemPeersPropertiesValidationMixin(object):
             response = self._send_request()
 
             self._assert_pecan_and_response(
-                response, http.client.BAD_REQUEST,
-                "Invalid peer heartbeat_maintenance_timeout", call_count=index
+                response,
+                http.client.BAD_REQUEST,
+                "Invalid peer heartbeat_maintenance_timeout",
+                call_count=index,
             )
 
 
@@ -467,8 +495,7 @@ class TestSystemPeersGet(BaseTestSystemPeersController, GetMixin):
 
 
 class TestSystemPeersPost(
-    BaseTestSystemPeersController, SystemPeersPropertiesValidationMixin,
-    PostJSONMixin
+    BaseTestSystemPeersController, SystemPeersPropertiesValidationMixin, PostJSONMixin
 ):
     """Test class for post requests"""
 
@@ -488,8 +515,9 @@ class TestSystemPeersPost(
         response = self._send_request()
 
         self._assert_pecan_and_response(
-            response, http.client.CONFLICT,
-            "A system peer with this UUID already exists"
+            response,
+            http.client.CONFLICT,
+            "A system peer with this UUID already exists",
         )
 
     @mock.patch.object(db_api, "system_peer_create")
@@ -513,8 +541,7 @@ class TestSystemPeersPost(
         response = self._send_request()
 
         self._assert_pecan_and_response(
-            response, http.client.INTERNAL_SERVER_ERROR,
-            "Unable to create system peer"
+            response, http.client.INTERNAL_SERVER_ERROR, "Unable to create system peer"
         )
 
 
@@ -549,7 +576,7 @@ class TestSystemPeersPatch(BaseTestSystemPeersPatch, UpdateMixin):
     # Overrides validate_updated_fields from UpdateMixin
     def validate_updated_fields(self, sub_dict, full_obj):
         for key, value in sub_dict.items():
-            key = key.replace('_', '-')
+            key = key.replace("_", "-")
             self.assertEqual(value, full_obj.get(key))
 
     def test_patch_fails_with_inexistent_system_peer(self):
@@ -606,8 +633,7 @@ class TestSystemPeersPatch(BaseTestSystemPeersPatch, UpdateMixin):
         response = self._send_request()
 
         self._assert_pecan_and_response(
-            response, http.client.INTERNAL_SERVER_ERROR,
-            "Unable to update system peer"
+            response, http.client.INTERNAL_SERVER_ERROR, "Unable to update system peer"
         )
 
 
@@ -650,9 +676,13 @@ class TestSystemPeersDelete(BaseTestSystemPeersController, DeleteMixin):
         subcloud = fake_subcloud.create_fake_subcloud(self.ctx)
 
         db_api.peer_group_association_create(
-            self.ctx, subcloud.peer_group_id, system_peer.id,
-            consts.PEER_GROUP_PRIMARY_PRIORITY, consts.ASSOCIATION_TYPE_PRIMARY,
-            consts.ASSOCIATION_SYNC_STATUS_IN_SYNC, "None"
+            self.ctx,
+            subcloud.peer_group_id,
+            system_peer.id,
+            consts.PEER_GROUP_PRIMARY_PRIORITY,
+            consts.ASSOCIATION_TYPE_PRIMARY,
+            consts.ASSOCIATION_SYNC_STATUS_IN_SYNC,
+            "None",
         )
 
         self.url = f"{self.url}/{system_peer.peer_uuid}"
@@ -660,8 +690,9 @@ class TestSystemPeersDelete(BaseTestSystemPeersController, DeleteMixin):
         response = self._send_request()
 
         self._assert_pecan_and_response(
-            response, http.client.BAD_REQUEST,
-            "Cannot delete a system peer which is associated with peer group."
+            response,
+            http.client.BAD_REQUEST,
+            "Cannot delete a system peer which is associated with peer group.",
         )
 
     @mock.patch.object(db_api, "system_peer_destroy")
@@ -693,6 +724,5 @@ class TestSystemPeersDelete(BaseTestSystemPeersController, DeleteMixin):
         response = self._send_request()
 
         self._assert_pecan_and_response(
-            response, http.client.INTERNAL_SERVER_ERROR,
-            "Unable to delete system peer"
+            response, http.client.INTERNAL_SERVER_ERROR, "Unable to delete system peer"
         )

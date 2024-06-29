@@ -1,4 +1,4 @@
-# Copyright (c) 2023 Wind River Systems, Inc.
+# Copyright (c) 2023-2024 Wind River Systems, Inc.
 # Licensed under the Apache License, Version 2.0 (the "License"); you may
 # not use this file except in compliance with the License. You may obtain
 # a copy of the License at
@@ -39,43 +39,56 @@ class ManagerRpcAuditAPITestCase(base.DCManagerTestCase):
         transport = messaging.get_transport()
         transport._send = mock.Mock()
 
-        fake_endpoints = {'service': 'fake_ip', 'service2': 'other_fake_ip'}
+        fake_endpoints = {"service": "fake_ip", "service2": "other_fake_ip"}
 
-        rpcapi.update_subcloud_endpoints(
-            self.context, 'subcloud', fake_endpoints)
+        rpcapi.update_subcloud_endpoints(self.context, "subcloud", fake_endpoints)
 
-        exp_msg = {'method': 'update_subcloud_endpoints',
-                   'args': {'subcloud_name': 'subcloud',
-                            'endpoints': fake_endpoints},
-                   'version': '1.0'}
+        exp_msg = {
+            "method": "update_subcloud_endpoints",
+            "args": {"subcloud_name": "subcloud", "endpoints": fake_endpoints},
+            "version": "1.0",
+        }
 
         # With fanout a new target is created
         new_target = oslo_messaging.Target(
-            fanout=True, version=rpcapi.BASE_RPC_API_VERSION,
-            topic=consts.TOPIC_DC_MANAGER_AUDIT_WORKER)
-        transport._send.assert_called_with(new_target,
-                                           mock.ANY,
-                                           exp_msg,
-                                           retry=None,
-                                           transport_options=None)
+            fanout=True,
+            version=rpcapi.BASE_RPC_API_VERSION,
+            topic=consts.TOPIC_DC_MANAGER_AUDIT_WORKER,
+        )
+        transport._send.assert_called_with(
+            new_target, mock.ANY, exp_msg, retry=None, transport_options=None
+        )
 
         # Without fanout the target is the same
         rpcapi.audit_subclouds(
-            self.context, ['subcloud1', 'subcloud2'],
-            True, False, True, True, False, False)
+            self.context,
+            ["subcloud1", "subcloud2"],
+            True,
+            False,
+            True,
+            True,
+            False,
+            False,
+        )
 
-        exp_msg2 = {'method': 'audit_subclouds',
-                    'args': {'subcloud_ids': ['subcloud1', 'subcloud2'],
-                             'patch_audit_data': True,
-                             'firmware_audit_data': False,
-                             'kubernetes_audit_data': True,
-                             'do_openstack_audit': True,
-                             'kube_rootca_update_audit_data': False,
-                             'software_audit_data': False},
-                    'version': '1.0'}
+        exp_msg2 = {
+            "method": "audit_subclouds",
+            "args": {
+                "subcloud_ids": ["subcloud1", "subcloud2"],
+                "patch_audit_data": True,
+                "firmware_audit_data": False,
+                "kubernetes_audit_data": True,
+                "do_openstack_audit": True,
+                "kube_rootca_update_audit_data": False,
+                "software_audit_data": False,
+            },
+            "version": "1.0",
+        }
 
-        transport._send.assert_called_with(rpcapi._client.target,
-                                           mock.ANY,
-                                           exp_msg2,
-                                           retry=None,
-                                           transport_options=None)
+        transport._send.assert_called_with(
+            rpcapi._client.target,
+            mock.ANY,
+            exp_msg2,
+            retry=None,
+            transport_options=None,
+        )

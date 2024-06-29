@@ -10,15 +10,19 @@ from keystoneauth1 import exceptions as keystone_exceptions
 
 from dcmanager.common import consts
 from dcmanager.common.exceptions import InvalidParameterValue
-from dcmanager.orchestrator.states.software.cache.cache_specifications import \
-    REGION_ONE_LICENSE_CACHE_TYPE
-from dcmanager.orchestrator.states.software.cache.cache_specifications import \
-    REGION_ONE_RELEASE_USM_CACHE_TYPE
-from dcmanager.orchestrator.states.software.cache.cache_specifications import \
-    REGION_ONE_SYSTEM_INFO_CACHE_TYPE
+from dcmanager.orchestrator.states.software.cache.cache_specifications import (
+    REGION_ONE_LICENSE_CACHE_TYPE,
+)
+from dcmanager.orchestrator.states.software.cache.cache_specifications import (
+    REGION_ONE_RELEASE_USM_CACHE_TYPE,
+)
+from dcmanager.orchestrator.states.software.cache.cache_specifications import (
+    REGION_ONE_SYSTEM_INFO_CACHE_TYPE,
+)
 from dcmanager.orchestrator.states.software.cache import clients
-from dcmanager.orchestrator.states.software.cache.shared_cache_repository import \
-    SharedCacheRepository
+from dcmanager.orchestrator.states.software.cache.shared_cache_repository import (
+    SharedCacheRepository,
+)
 from dcmanager.tests import base
 
 SOFTWARE_CLIENT_QUERY_RETURN = [
@@ -61,34 +65,32 @@ class TestSharedCacheRepository(base.DCManagerTestCase):
         self.software_client().list.return_value = SOFTWARE_CLIENT_QUERY_RETURN
 
     def _mock_software_client(self):
-        mock_patch = mock.patch.object(clients, 'SoftwareClient')
+        mock_patch = mock.patch.object(clients, "SoftwareClient")
         self.software_client = mock_patch.start()
         self.addCleanup(mock_patch.stop)
 
     def test_read_succeeds_with_license_cache_type(self):
         """Test read cache succeeds when using the REGION_ONE_LICENSE_CACHE_TYPE"""
 
-        self.mock_sysinv_client().get_license.return_value = 'fake license'
+        self.mock_sysinv_client().get_license.return_value = "fake license"
 
         response = self.shared_cache_repository.read(REGION_ONE_LICENSE_CACHE_TYPE)
 
-        self.assertEqual(response, 'fake license')
+        self.assertEqual(response, "fake license")
 
     def test_read_succeeds_with_system_info_cache_type(self):
         """Test read cache succeeds when using REGION_ONE_SYSTEM_INFO_CACHE_TYPE"""
 
-        self.mock_sysinv_client().get_system.return_value = 'fake system info'
+        self.mock_sysinv_client().get_system.return_value = "fake system info"
 
-        response = self.shared_cache_repository.read(
-            REGION_ONE_SYSTEM_INFO_CACHE_TYPE)
+        response = self.shared_cache_repository.read(REGION_ONE_SYSTEM_INFO_CACHE_TYPE)
 
-        self.assertEqual(response, 'fake system info')
+        self.assertEqual(response, "fake system info")
 
     def test_read_succeeds_with_release_usm_cache_type(self):
         """Test read cache succeeds when using REGION_ONE_RELEASE_USM_CACHE_TYPE"""
 
-        response = self.shared_cache_repository.read(
-            REGION_ONE_RELEASE_USM_CACHE_TYPE)
+        response = self.shared_cache_repository.read(REGION_ONE_RELEASE_USM_CACHE_TYPE)
 
         self.assertEqual(response, SOFTWARE_CLIENT_QUERY_RETURN)
 
@@ -96,9 +98,7 @@ class TestSharedCacheRepository(base.DCManagerTestCase):
         """Test read cache fails when using an invalid cache type"""
 
         self.assertRaises(
-            InvalidParameterValue,
-            self.shared_cache_repository.read,
-            'fake parameter'
+            InvalidParameterValue, self.shared_cache_repository.read, "fake parameter"
         )
 
     def test_read_fails_when_openstack_driver_raises_exception(self):
@@ -109,15 +109,14 @@ class TestSharedCacheRepository(base.DCManagerTestCase):
         self.assertRaises(
             keystone_exceptions.ConnectFailure,
             self.shared_cache_repository.read,
-            REGION_ONE_RELEASE_USM_CACHE_TYPE
+            REGION_ONE_RELEASE_USM_CACHE_TYPE,
         )
 
     def test_read_succeeds_with_filter_params(self):
         """Test read cache succeeds when filter_params is sent"""
 
         response = self.shared_cache_repository.read(
-            REGION_ONE_RELEASE_USM_CACHE_TYPE,
-            state='available'
+            REGION_ONE_RELEASE_USM_CACHE_TYPE, state="available"
         )
 
         expected_response = copy.copy(SOFTWARE_CLIENT_QUERY_RETURN)
@@ -132,5 +131,5 @@ class TestSharedCacheRepository(base.DCManagerTestCase):
             InvalidParameterValue,
             self.shared_cache_repository.read,
             REGION_ONE_RELEASE_USM_CACHE_TYPE,
-            invalid='available'
+            invalid="available",
         )

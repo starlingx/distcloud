@@ -40,24 +40,25 @@ class UUIDStub(object):
         uuid.uuid4 = self.uuid4
 
 
-UUIDs = (UUID1, UUID2, UUID3, UUID4, UUID5) = sorted([str(uuid.uuid4())
-                                                      for x in range(5)])
+UUIDs = (UUID1, UUID2, UUID3, UUID4, UUID5) = sorted(
+    [str(uuid.uuid4()) for x in range(5)]
+)
 
 
 def random_name():
-    return ''.join(random.choice(string.ascii_uppercase)
-                   for x in range(10))
+    return "".join(random.choice(string.ascii_uppercase) for x in range(10))
 
 
-def dummy_context(user='test_username', tenant='test_project_id',
-                  region_name=None):
-    return context.RequestContext.from_dict({
-        'auth_token': 'abcd1234',
-        'user': user,
-        'project': tenant,
-        'is_admin': True,
-        'region_name': region_name
-    })
+def dummy_context(user="test_username", tenant="test_project_id", region_name=None):
+    return context.RequestContext.from_dict(
+        {
+            "auth_token": "abcd1234",
+            "user": user,
+            "project": tenant,
+            "is_admin": True,
+            "region_name": region_name,
+        }
+    )
 
 
 def wait_until_true(predicate, timeout=60, sleep=1, exception=None):
@@ -67,31 +68,33 @@ def wait_until_true(predicate, timeout=60, sleep=1, exception=None):
 
 
 def create_subcloud_dict(data_list):
-    return {'id': data_list[0],
-            'name': data_list[1],
-            'description': data_list[2],
-            'location': data_list[3],
-            'software-version': data_list[4],
-            'management-state': data_list[5],
-            'availability-status': data_list[6],
-            'management_subnet': data_list[7],
-            'management_gateway_address': data_list[8],
-            'management_start_address': data_list[9],
-            'management_end_address': data_list[10],
-            'systemcontroller_gateway_address': data_list[11],
-            'audit-fail-count': data_list[12],
-            'reserved-1': data_list[13],
-            'reserved-2': data_list[14],
-            'created-at': data_list[15],
-            'updated-at': data_list[16],
-            'deleted-at': data_list[17],
-            'deleted': data_list[18],
-            'external_oam_subnet': data_list[19],
-            'external_oam_gateway_address': data_list[20],
-            'external_oam_floating_address': data_list[21],
-            'sysadmin_password': data_list[22],
-            'group_id': data_list[23],
-            'deploy_status': data_list[24],
-            'error_description': data_list[25],
-            'region_name': data_list[26],
-            'data_install': data_list[27]}
+    return {
+        "id": data_list[0],
+        "name": data_list[1],
+        "description": data_list[2],
+        "location": data_list[3],
+        "software-version": data_list[4],
+        "management-state": data_list[5],
+        "availability-status": data_list[6],
+        "management_subnet": data_list[7],
+        "management_gateway_address": data_list[8],
+        "management_start_address": data_list[9],
+        "management_end_address": data_list[10],
+        "systemcontroller_gateway_address": data_list[11],
+        "audit-fail-count": data_list[12],
+        "reserved-1": data_list[13],
+        "reserved-2": data_list[14],
+        "created-at": data_list[15],
+        "updated-at": data_list[16],
+        "deleted-at": data_list[17],
+        "deleted": data_list[18],
+        "external_oam_subnet": data_list[19],
+        "external_oam_gateway_address": data_list[20],
+        "external_oam_floating_address": data_list[21],
+        "sysadmin_password": data_list[22],
+        "group_id": data_list[23],
+        "deploy_status": data_list[24],
+        "error_description": data_list[25],
+        "region_name": data_list[26],
+        "data_install": data_list[27],
+    }

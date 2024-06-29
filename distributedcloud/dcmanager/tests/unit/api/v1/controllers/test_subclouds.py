@@ -102,8 +102,14 @@ class FakeAddressPool(object):
 
 class FakeOAMAddressPool(object):
     def __init__(
-        self, oam_subnet, oam_start_ip, oam_end_ip, oam_c1_ip, oam_c0_ip,
-        oam_gateway_ip, oam_floating_ip
+        self,
+        oam_subnet,
+        oam_start_ip,
+        oam_end_ip,
+        oam_c1_ip,
+        oam_c0_ip,
+        oam_gateway_ip,
+        oam_floating_ip,
     ):
         self.oam_start_ip = oam_start_ip
         self.oam_end_ip = oam_end_ip
@@ -115,13 +121,19 @@ class FakeOAMAddressPool(object):
 
 
 FAKE_IPV4_OAM_POOL = FakeOAMAddressPool(
-    "10.10.10.0", "10.10.10.1", "10.10.10.254", "10.10.10.4",
-    "10.10.10.3", "10.10.10.1", "10.10.10.2")
+    "10.10.10.0",
+    "10.10.10.1",
+    "10.10.10.254",
+    "10.10.10.4",
+    "10.10.10.3",
+    "10.10.10.1",
+    "10.10.10.2",
+)
 
 
 FAKE_IPV6_OAM_POOL = FakeOAMAddressPool(
-    "fe00::", "fe00::1", "fe00::ffff", "fe00::4",
-    "fe00::3", "fe00::1", "fe00::2")
+    "fe00::", "fe00::1", "fe00::ffff", "fe00::4", "fe00::3", "fe00::1", "fe00::2"
+)
 
 
 class SubcloudAPIMixin(APIMixin):
@@ -129,18 +141,38 @@ class SubcloudAPIMixin(APIMixin):
     RESULT_KEY = "subclouds"
 
     EXPECTED_FIELDS = [
-        "id", "name", "description", "location", "software-version",
-        "management-state", "availability-status", "deploy-status", "backup-status",
-        "backup-datetime", "error-description", "region-name", "management-subnet",
-        "management-start-ip", "management-end-ip", "management-gateway-ip",
-        "openstack-installed", "prestage-status", "prestage-versions",
-        "systemcontroller-gateway-ip", "data_install", "data_upgrade", "created-at",
-        "updated-at", "group_id", "peer_group_id", "rehome_data"
+        "id",
+        "name",
+        "description",
+        "location",
+        "software-version",
+        "management-state",
+        "availability-status",
+        "deploy-status",
+        "backup-status",
+        "backup-datetime",
+        "error-description",
+        "region-name",
+        "management-subnet",
+        "management-start-ip",
+        "management-end-ip",
+        "management-gateway-ip",
+        "openstack-installed",
+        "prestage-status",
+        "prestage-versions",
+        "systemcontroller-gateway-ip",
+        "data_install",
+        "data_upgrade",
+        "created-at",
+        "updated-at",
+        "group_id",
+        "peer_group_id",
+        "rehome_data",
     ]
 
     FAKE_BOOTSTRAP_DATA = {
         "system_mode": "simplex",
-        "name": "fake subcloud1",
+        "name": "fake_subcloud1",
         "management_subnet": "192.168.101.0/24",
         "management_start_address": "192.168.101.2",
         "management_end_address": "192.168.101.50",
@@ -354,24 +386,28 @@ class TestSubcloudsGetDetail(BaseTestSubcloudsGet):
     def setUp(self):
         super().setUp()
 
-        self._update_subcloud(
-            availability_status=dccommon_consts.AVAILABILITY_ONLINE
-        )
+        self._update_subcloud(availability_status=dccommon_consts.AVAILABILITY_ONLINE)
 
         self.url = f"{self.url}/detail"
 
         self._mock_sysinv_client(subclouds)
         self._mock_fm_client(subclouds)
 
-        self.mock_sysinv_client().get_oam_addresses.return_value = \
-            FakeOAMAddressPool(
-                "10.10.10.254", "10.10.10.1", "10.10.10.254", "10.10.10.4",
-                "10.10.10.3", "10.10.10.1", "10.10.10.2"
+        self.mock_sysinv_client().get_oam_addresses.return_value = FakeOAMAddressPool(
+            "10.10.10.254",
+            "10.10.10.1",
+            "10.10.10.254",
+            "10.10.10.4",
+            "10.10.10.3",
+            "10.10.10.1",
+            "10.10.10.2",
         )
 
     def _assert_response_payload(
-        self, response, oam_ip_address="10.10.10.2",
-        sync_status="Deployment: configurations up-to-date"
+        self,
+        response,
+        oam_ip_address="10.10.10.2",
+        sync_status="Deployment: configurations up-to-date",
     ):
         self.assertEqual(oam_ip_address, response.json["oam_floating_ip"])
         self.assertEqual(sync_status, response.json["deploy_config_sync_status"])
@@ -387,9 +423,7 @@ class TestSubcloudsGetDetail(BaseTestSubcloudsGet):
     def test_get_detail_succeeds_with_offline_subcloud(self):
         """Test get detail succeeds with offline subcloud"""
 
-        self._update_subcloud(
-            availability_status=dccommon_consts.AVAILABILITY_OFFLINE
-        )
+        self._update_subcloud(availability_status=dccommon_consts.AVAILABILITY_OFFLINE)
 
         response = self._send_request()
 
@@ -419,8 +453,7 @@ class TestSubcloudsGetDetail(BaseTestSubcloudsGet):
     def test_get_detail_succeeds_with_sysinv_client_oam_addresses_not_found(self):
         """Test get detail succeeds with sysinv client oam addresses not found"""
 
-        self.mock_sysinv_client().get_oam_addresses.side_effect = \
-            OAMAddressesNotFound()
+        self.mock_sysinv_client().get_oam_addresses.side_effect = OAMAddressesNotFound()
 
         response = self._send_request()
 
@@ -494,8 +527,10 @@ class TestSubcloudsPost(BaseTestSubcloudsPost, PostMixin):
         response = self._send_request()
 
         self._assert_pecan_and_response(
-            response, http.client.BAD_REQUEST, "Error: Unable to "
-            "load bootstrap_values file contents (problem on line: 10)."
+            response,
+            http.client.BAD_REQUEST,
+            "Error: Unable to load bootstrap_values file "
+            "contents (problem on line: 10).",
         )
 
     def test_post_fails_with_missing_data_in_bootstrap_values(self):
@@ -511,8 +546,10 @@ class TestSubcloudsPost(BaseTestSubcloudsPost, PostMixin):
 
             if key == "name":
                 self._assert_pecan_and_response(
-                    response, http.client.BAD_REQUEST, "Unable to generate subcloud "
-                    "region for subcloud None", index
+                    response,
+                    http.client.BAD_REQUEST,
+                    "Unable to generate subcloud region for subcloud None",
+                    index,
                 )
             else:
                 self._assert_pecan_and_response(
@@ -530,8 +567,11 @@ class TestSubcloudsPost(BaseTestSubcloudsPost, PostMixin):
         """
 
         invalid_values = [
-            "10.10.10.wut", "10.10.10.276", "2620::10a::a103::1135",
-            "2620:10a:a001:a103::wut", "2620:10a:a001:a103:1135"
+            "10.10.10.wut",
+            "10.10.10.276",
+            "2620::10a::a103::1135",
+            "2620:10a:a001:a103::wut",
+            "2620:10a:a001:a103:1135",
         ]
 
         for index, invalid_value in enumerate(invalid_values, start=1):
@@ -540,8 +580,11 @@ class TestSubcloudsPost(BaseTestSubcloudsPost, PostMixin):
             response = self._send_request()
 
             self._assert_pecan_and_response(
-                response, http.client.BAD_REQUEST, "bootstrap-address invalid: "
-                f"failed to detect a valid IP address from '{invalid_value}'", index
+                response,
+                http.client.BAD_REQUEST,
+                "bootstrap-address invalid: "
+                f"failed to detect a valid IP address from '{invalid_value}'",
+                index,
             )
 
     def _test_post_fails_bootstrap_address_with_wrong_ip_version(self, address):
@@ -552,15 +595,18 @@ class TestSubcloudsPost(BaseTestSubcloudsPost, PostMixin):
         response = self._send_request()
 
         self._assert_pecan_and_response(
-            response, http.client.BAD_REQUEST, "bootstrap-address must be the same IP "
-                                               "version as the system controller OAM")
+            response,
+            http.client.BAD_REQUEST,
+            "bootstrap-address must be the same IP "
+            "version as the system controller OAM",
+        )
 
     def test_post_fails_bootstrap_address_with_wrong_ip_version_ipv4(self):
-        self._test_post_fails_bootstrap_address_with_wrong_ip_version('fd01::77')
+        self._test_post_fails_bootstrap_address_with_wrong_ip_version("fd01::77")
 
     def test_post_fails_bootstrap_address_with_wrong_ip_version_ipv6(self):
         self.mock_get_oam_addresses.return_value = FAKE_IPV6_OAM_POOL
-        self._test_post_fails_bootstrap_address_with_wrong_ip_version('10.10.10.100')
+        self._test_post_fails_bootstrap_address_with_wrong_ip_version("10.10.10.100")
 
     def test_post_fails_with_invalid_systemcontroller_gateway_address(self):
         """Test post fails with invalid system controller gateway address
@@ -570,8 +616,10 @@ class TestSubcloudsPost(BaseTestSubcloudsPost, PostMixin):
         """
 
         invalid_values = [
-            "192.168.205.101", "192.168.204.99", "192.168.276.276", "192.168.206.wut"
-            "192.168.204"
+            "192.168.205.101",
+            "192.168.204.99",
+            "192.168.276.276",
+            "192.168.206.wut192.168.204",
         ]
 
         for index, invalid_value in enumerate(invalid_values, start=1):
@@ -583,11 +631,13 @@ class TestSubcloudsPost(BaseTestSubcloudsPost, PostMixin):
 
             # When the address is inside the reserved pool, the error message differs
             if index == 1:
-                error_message = \
+                error_message = (
                     f"{error_message} Address must be in subnet 192.168.204.0/24"
+                )
             elif index > 2:
-                error_message = \
+                error_message = (
                     f"{error_message} Invalid address - not a valid IP address"
+                )
             else:
                 error_message = (
                     "systemcontroller_gateway_address invalid, is "
@@ -612,8 +662,11 @@ class TestSubcloudsPost(BaseTestSubcloudsPost, PostMixin):
         """
 
         invalid_values = [
-            "192.168.101.0/32", "192.168.101.0/33", "192.168.276.0/24",
-            "192.168.206.wut/24", "192.168.204/24"
+            "192.168.101.0/32",
+            "192.168.101.0/33",
+            "192.168.276.0/24",
+            "192.168.206.wut/24",
+            "192.168.204/24",
         ]
 
         for index, invalid_value in enumerate(invalid_values, start=1):
@@ -624,8 +677,9 @@ class TestSubcloudsPost(BaseTestSubcloudsPost, PostMixin):
             error_msg = "management_subnet invalid:"
 
             if index == 1:
-                error_msg = \
+                error_msg = (
                     f"{error_msg} Subnet too small - must have at least 7 addresses"
+                )
             elif index == 5:
                 error_msg = (
                     "management_start_address invalid: Address must be in subnet "
@@ -654,8 +708,12 @@ class TestSubcloudsPost(BaseTestSubcloudsPost, PostMixin):
         """
 
         invalid_values = [
-            "192.168.100.2", "192.168.101.51", "192.168.101.48", "192.168.276.0",
-            "192.168.206.wut", "192.168.204"
+            "192.168.100.2",
+            "192.168.101.51",
+            "192.168.101.48",
+            "192.168.276.0",
+            "192.168.206.wut",
+            "192.168.204",
         ]
 
         for index, invalid_value in enumerate(invalid_values, start=1):
@@ -668,11 +726,11 @@ class TestSubcloudsPost(BaseTestSubcloudsPost, PostMixin):
             if index == 1 or index == 6:
                 error_msg = f"{error_msg} Address must be in subnet 192.168.101.0/24"
             elif index == 2:
-                error_msg = \
+                error_msg = (
                     "management_start_address greater than management_end_address"
+                )
             elif index == 3:
-                error_msg = \
-                    "management address range must contain at least 4 addresses"
+                error_msg = "management address range must contain at least 4 addresses"
             else:
                 error_msg = f"{error_msg} Invalid address - not a valid IP address"
 
@@ -696,8 +754,12 @@ class TestSubcloudsPost(BaseTestSubcloudsPost, PostMixin):
         """
 
         invalid_values = [
-            "192.168.100.50", "192.168.101.1", "192.168.101.4", "192.168.276.50",
-            "192.168.206.wut", "192.168.204"
+            "192.168.100.50",
+            "192.168.101.1",
+            "192.168.101.4",
+            "192.168.276.50",
+            "192.168.206.wut",
+            "192.168.204",
         ]
 
         for index, invalid_value in enumerate(invalid_values, start=1):
@@ -710,11 +772,11 @@ class TestSubcloudsPost(BaseTestSubcloudsPost, PostMixin):
             if index == 1 or index == 6:
                 error_msg = f"{error_msg} Address must be in subnet 192.168.101.0/24"
             elif index == 2:
-                error_msg = \
+                error_msg = (
                     "management_start_address greater than management_end_address"
+                )
             elif index == 3:
-                error_msg = \
-                    "management address range must contain at least 4 addresses"
+                error_msg = "management address range must contain at least 4 addresses"
             else:
                 error_msg = f"{error_msg} Invalid address - not a valid IP address"
 
@@ -730,8 +792,10 @@ class TestSubcloudsPost(BaseTestSubcloudsPost, PostMixin):
         response = self._send_request()
 
         self._assert_pecan_and_response(
-            response, http.client.UNPROCESSABLE_ENTITY, "Subcloud create is not "
-            "allowed while system controller patching is still in progress."
+            response,
+            http.client.UNPROCESSABLE_ENTITY,
+            "Subcloud create is not allowed while system controller "
+            "patching is still in progress.",
         )
 
     def test_post_fails_with_migrate_and_not_matching_subcloud_name(self):
@@ -743,8 +807,9 @@ class TestSubcloudsPost(BaseTestSubcloudsPost, PostMixin):
         response = self._send_request()
 
         self._assert_pecan_and_response(
-            response, http.client.BAD_REQUEST, "subcloud name does not match the "
-            "name defined in bootstrap file"
+            response,
+            http.client.BAD_REQUEST,
+            "subcloud name does not match the name defined in bootstrap file",
         )
 
     def test_post_succeeds_with_secondary_in_payload(self):
@@ -800,8 +865,7 @@ class TestSubcloudsPostInstallData(BaseTestSubcloudsPost):
         )
 
     def _validate_invalid_ip_address(
-        self, key, invalid_values=["128.224.64.256", "128.224.64.wut", None],
-        **kwargs
+        self, key, invalid_values=["128.224.64.256", "128.224.64.wut", None], **kwargs
     ):
         """Validates an invalid IP address"""
 
@@ -816,8 +880,7 @@ class TestSubcloudsPostInstallData(BaseTestSubcloudsPost):
 
             response = self._send_request()
 
-            error_msg = \
-                f"{key} invalid: failed to detect a valid IP address from"
+            error_msg = f"{key} invalid: failed to detect a valid IP address from"
 
             if invalid_value is None:
                 error_msg = f"{error_msg} {invalid_value}"
@@ -828,9 +891,7 @@ class TestSubcloudsPostInstallData(BaseTestSubcloudsPost):
                 response, http.client.BAD_REQUEST, error_msg, index
             )
 
-    def _validate_invalid_property(
-        self, field, invalid_values, error_msg, **kwargs
-    ):
+    def _validate_invalid_property(self, field, invalid_values, error_msg, **kwargs):
         """Validates an invalid property in install values"""
 
         self.install_data = copy.copy(self.FAKE_INSTALL_DATA)
@@ -860,8 +921,10 @@ class TestSubcloudsPostInstallData(BaseTestSubcloudsPost):
             response = self._send_request()
 
             self._assert_pecan_and_response(
-                response, http.client.BAD_REQUEST, f"Mandatory install value {key} "
-                "not present", index
+                response,
+                http.client.BAD_REQUEST,
+                f"Mandatory install value {key} not present",
+                index,
             )
 
     def test_post_succeeds_with_install_values_and_without_release_parameter(self):
@@ -888,11 +951,12 @@ class TestSubcloudsPostInstallData(BaseTestSubcloudsPost):
         response = self._send_request()
 
         self._assert_pecan_and_response(
-            response, http.client.BAD_REQUEST, "The software_version value "
-            f"{self.install_data['software_version']} in the install values yaml "
-            "file does not match with the specified/current software version of "
-            f"{self.params['release']}. Please correct or remove this parameter "
-            "from the yaml file and try again."
+            response,
+            http.client.BAD_REQUEST,
+            f"The software_version value {self.install_data['software_version']} in "
+            "the install values yaml file does not match with the specified/current "
+            f"software version of {self.params['release']}. Please correct or remove "
+            "this parameter from the yaml file and try again.",
         )
 
     def test_post_succeeds_with_release_parameter(self):
@@ -930,9 +994,11 @@ class TestSubcloudsPostInstallData(BaseTestSubcloudsPost):
         response = self._send_request()
 
         self._assert_pecan_and_response(
-            response, http.client.BAD_REQUEST, "Failed to get TEST.SW.VERSION load "
-            "image. Provide active/inactive load image via 'system --os-region-name "
-            "SystemController load-import --active/--inactive'"
+            response,
+            http.client.BAD_REQUEST,
+            "Failed to get TEST.SW.VERSION load image. "
+            "Provide active/inactive load image via 'system --os-region-name "
+            "SystemController load-import --active/--inactive'",
         )
 
     @mock.patch.object(os.path, "isfile", return_value=True)
@@ -952,8 +1018,9 @@ class TestSubcloudsPostInstallData(BaseTestSubcloudsPost):
         response = self._send_request()
 
         self._assert_pecan_and_response(
-            response, http.client.INTERNAL_SERVER_ERROR,
-            "Error: unable to validate the release version."
+            response,
+            http.client.INTERNAL_SERVER_ERROR,
+            "Error: unable to validate the release version.",
         )
 
         # Remove kubernetes_version and software_version from bootstrap data
@@ -977,8 +1044,10 @@ class TestSubcloudsPostInstallData(BaseTestSubcloudsPost):
             response = self._send_request()
 
             self._assert_pecan_and_response(
-                response, http.client.BAD_REQUEST,
-                f"install_type invalid: {invalid_value}", index
+                response,
+                http.client.BAD_REQUEST,
+                f"install_type invalid: {invalid_value}",
+                index,
             )
 
     def test_post_fails_with_invalid_bootstrap_address_in_install_values(self):
@@ -992,18 +1061,22 @@ class TestSubcloudsPostInstallData(BaseTestSubcloudsPost):
         """Test post fails when bootstrap IP version differs from OAM's"""
 
         self._validate_invalid_property(
-            "bootstrap_address", [address], "bootstrap_address in install_values "
-            "must be the same IP version as the system controller OAM"
+            "bootstrap_address",
+            [address],
+            "bootstrap_address in install_values "
+            "must be the same IP version as the system controller OAM",
         )
 
     def test_post_fails_invalid_bootstrap_address_version_in_install_values_ipv4(self):
         self._test_post_fails_invalid_bootstrap_ip_version_in_install_values(
-            "fd01:6::7")
+            "fd01:6::7"
+        )
 
     def test_post_fails_invalid_bootstrap_address_version_in_install_values_ipv6(self):
         self.mock_get_oam_addresses.return_value = FAKE_IPV6_OAM_POOL
         self._test_post_fails_invalid_bootstrap_ip_version_in_install_values(
-            "10.10.10.100")
+            "10.10.10.100"
+        )
 
     def test_post_fails_with_invalid_bmc_address_in_install_values(self):
         """Test post fails with invalid bmc address in install values
@@ -1024,8 +1097,10 @@ class TestSubcloudsPostInstallData(BaseTestSubcloudsPost):
         kwargs = {"bootstrap_address": "192.168.1.2"}
 
         self._validate_invalid_property(
-            "bmc_address", ["fd01:6::7"], "bmc_address and bootstrap_address must "
-            "be the same IP version", **kwargs
+            "bmc_address",
+            ["fd01:6::7"],
+            "bmc_address and bootstrap_address must be the same IP version",
+            **kwargs,
         )
         self.mock_pecan_abort.reset_mock()
 
@@ -1043,8 +1118,10 @@ class TestSubcloudsPostInstallData(BaseTestSubcloudsPost):
         kwargs = {"bootstrap_address": "fd01:6::7"}
 
         self._validate_invalid_property(
-            "bmc_address", ["192.168.1.7"], "bmc_address and bootstrap_address must "
-            "be the same IP version", **kwargs
+            "bmc_address",
+            ["192.168.1.7"],
+            "bmc_address and bootstrap_address must be the same IP version",
+            **kwargs,
         )
         self.mock_pecan_abort.reset_mock()
 
@@ -1065,9 +1142,11 @@ class TestSubcloudsPostInstallData(BaseTestSubcloudsPost):
             response = self._send_request()
 
             self._assert_pecan_and_response(
-                response, http.client.BAD_REQUEST, "The install value "
-                "persistent_size (in MB) must be a whole number greater than or "
-                "equal to 30000", index
+                response,
+                http.client.BAD_REQUEST,
+                "The install value persistent_size (in MB) must be a whole number "
+                "greater than or equal to 30000",
+                index,
             )
 
     def test_post_fails_with_invalid_nexthop_gateway_in_install_values(self):
@@ -1081,8 +1160,10 @@ class TestSubcloudsPostInstallData(BaseTestSubcloudsPost):
         kwargs = {"bootstrap_address": "192.168.1.5"}
 
         self._validate_invalid_property(
-            "nexthop_gateway", ["fd01:6::7"], "nexthop_gateway and "
-            "bootstrap_address must be the same IP version", **kwargs
+            "nexthop_gateway",
+            ["fd01:6::7"],
+            "nexthop_gateway and bootstrap_address must be the same IP version",
+            **kwargs,
         )
         self.mock_pecan_abort.reset_mock()
 
@@ -1099,8 +1180,10 @@ class TestSubcloudsPostInstallData(BaseTestSubcloudsPost):
         kwargs = {"bootstrap_address": "fd01:6::6", "bmc_address": "fd01:6::7"}
 
         self._validate_invalid_property(
-            "nexthop_gateway", ["192.168.1.7"], "nexthop_gateway and "
-            "bootstrap_address must be the same IP version", **kwargs
+            "nexthop_gateway",
+            ["192.168.1.7"],
+            "nexthop_gateway and bootstrap_address must be the same IP version",
+            **kwargs,
         )
         self.mock_pecan_abort.reset_mock()
 
@@ -1114,7 +1197,7 @@ class TestSubcloudsPostInstallData(BaseTestSubcloudsPost):
         The nexthop gateway and network mask are required when the network address
         is present.
         """
-#       TODO(abailey): None will cause the API to fail
+        # TODO(abailey): None will cause the API to fail
 
         self.install_data = copy.copy(self.FAKE_INSTALL_DATA)
         self.install_data["nexthop_gateway"] = "192.168.1.2"
@@ -1126,20 +1209,21 @@ class TestSubcloudsPostInstallData(BaseTestSubcloudsPost):
         response = self._send_request()
 
         self._assert_pecan_and_response(
-            response, http.client.BAD_REQUEST,
-            "network address invalid: IPv6 minimum prefix length is 64"
+            response,
+            http.client.BAD_REQUEST,
+            "network address invalid: IPv6 minimum prefix length is 64",
         )
 
     def test_post_fails_with_invalid_network_mask_in_install_values(self):
         """Test post fails with invalid network mask in install values"""
 
-        kwargs = {
-            "nexthop_gateway": "192.168.1.2", "network_address": "192.168.101.10"
-        }
+        kwargs = {"nexthop_gateway": "192.168.1.2", "network_address": "192.168.101.10"}
 
         self._validate_invalid_property(
-            "network_mask", [64, -1, "junk", None], "network address invalid: "
-            "Invalid subnet - not a valid IP subnet", **kwargs
+            "network_mask",
+            [64, -1, "junk", None],
+            "network address invalid: Invalid subnet - not a valid IP subnet",
+            **kwargs,
         )
 
 
@@ -1160,12 +1244,15 @@ class BaseTestSubcloudsPatch(BaseTestSubcloudsController):
         self._mock_vim_client(subclouds.vim)
 
         self.mock_get_vault_load_files.return_value = (
-            FAKE_SUBCLOUD_INSTALL_VALUES["image"], "fake_sig"
+            FAKE_SUBCLOUD_INSTALL_VALUES["image"],
+            "fake_sig",
         )
-        self.mock_sysinv_client().get_admin_address_pool.return_value = \
-            FakeAddressPool("192.168.205.0", 24, "192.168.205.2", "192.168.205.100")
-        self.mock_sysinv_client().get_management_address_pool.return_value = \
+        self.mock_sysinv_client().get_admin_address_pool.return_value = FakeAddressPool(
+            "192.168.205.0", 24, "192.168.205.2", "192.168.205.100"
+        )
+        self.mock_sysinv_client().get_management_address_pool.return_value = (
             FakeAddressPool("192.168.204.0", 24, "192.168.204.2", "192.168.204.100")
+        )
 
 
 class TestSubcloudsPatch(BaseTestSubcloudsPatch):
@@ -1174,12 +1261,11 @@ class TestSubcloudsPatch(BaseTestSubcloudsPatch):
     def setUp(self):
         super().setUp()
 
-        self.upload_files = [
-            ("fake", "fake_name", "fake content".encode("utf-8"))
-        ]
+        self.upload_files = [("fake", "fake_name", "fake content".encode("utf-8"))]
 
-        self.mock_rpc_client().update_subcloud.return_value = \
+        self.mock_rpc_client().update_subcloud.return_value = (
             db_api.subcloud_db_model_to_dict(self.subcloud)
+        )
 
     def _assert_response_payload(self, response, key, value):
         """Asserts the response's payload"""
@@ -1272,7 +1358,8 @@ class TestSubcloudsPatch(BaseTestSubcloudsPatch):
         """Test patch fails with invalid force"""
 
         self.params = {
-            "management-state": dccommon_consts.MANAGEMENT_UNMANAGED, "force": "fake"
+            "management-state": dccommon_consts.MANAGEMENT_UNMANAGED,
+            "force": "fake",
         }
 
         response = self._send_request()
@@ -1285,7 +1372,8 @@ class TestSubcloudsPatch(BaseTestSubcloudsPatch):
         """Test patch fails with force for unmanaged subcloud"""
 
         self.params = {
-            "management-state": dccommon_consts.MANAGEMENT_UNMANAGED, "force": True
+            "management-state": dccommon_consts.MANAGEMENT_UNMANAGED,
+            "force": True,
         }
 
         response = self._send_request()
@@ -1298,18 +1386,26 @@ class TestSubcloudsPatch(BaseTestSubcloudsPatch):
         """Test patch succeeds with force for managed subcloud"""
 
         self.params = {
-            "management-state": dccommon_consts.MANAGEMENT_MANAGED, "force": True
+            "management-state": dccommon_consts.MANAGEMENT_MANAGED,
+            "force": True,
         }
 
         response = self._send_request()
 
         self._assert_response(response)
         self.mock_rpc_client().update_subcloud.assert_called_once_with(
-            mock.ANY, self.subcloud.id,
-            management_state=dccommon_consts.MANAGEMENT_MANAGED, description=None,
-            location=None, group_id=None, data_install=None, force=True,
-            peer_group_id=None, bootstrap_values=None, bootstrap_address=None,
-            deploy_status=None
+            mock.ANY,
+            self.subcloud.id,
+            management_state=dccommon_consts.MANAGEMENT_MANAGED,
+            description=None,
+            location=None,
+            group_id=None,
+            data_install=None,
+            force=True,
+            peer_group_id=None,
+            bootstrap_values=None,
+            bootstrap_address=None,
+            deploy_status=None,
         )
 
     def test_patch_succeeds_with_group_id(self):
@@ -1349,7 +1445,7 @@ class TestSubcloudsPatch(BaseTestSubcloudsPatch):
 
         self.params = {
             "install_values": json.dumps(copy.copy(install_data)),
-            "bmc_password": self._create_password("bmc_password")
+            "bmc_password": self._create_password("bmc_password"),
         }
 
         response = self._send_request()
@@ -1360,10 +1456,18 @@ class TestSubcloudsPatch(BaseTestSubcloudsPatch):
         data_install = json.loads(self.params["install_values"])
         data_install.update({"bmc_password": self.params["bmc_password"]})
         self.mock_rpc_client().update_subcloud.assert_called_once_with(
-            mock.ANY, self.subcloud.id, management_state=None, description=None,
-            location=None, group_id=None, data_install=json.dumps(data_install),
-            force=None, peer_group_id=None, bootstrap_values=None,
-            bootstrap_address=None, deploy_status=None
+            mock.ANY,
+            self.subcloud.id,
+            management_state=None,
+            description=None,
+            location=None,
+            group_id=None,
+            data_install=json.dumps(data_install),
+            force=None,
+            peer_group_id=None,
+            bootstrap_values=None,
+            bootstrap_address=None,
+            deploy_status=None,
         )
 
     def test_patch_succeeds_with_persistent_size_in_install_values(self):
@@ -1404,9 +1508,7 @@ class TestSubcloudsPatch(BaseTestSubcloudsPatch):
             "management_gateway_ip": "192.168.102.1",
         }
 
-        self._update_subcloud(
-            availability_status=dccommon_consts.AVAILABILITY_ONLINE
-        )
+        self._update_subcloud(availability_status=dccommon_consts.AVAILABILITY_ONLINE)
 
         return self._send_request()
 
@@ -1416,20 +1518,18 @@ class TestSubcloudsPatch(BaseTestSubcloudsPatch):
         response = self._test_patch_with_vim_strategy()
 
         self._assert_pecan_and_response(
-            response, http.client.BAD_REQUEST,
+            response,
+            http.client.BAD_REQUEST,
             "Reconfiguring subcloud network is not allowed while there is an "
             "on-going orchestrated operation in this subcloud. Please try again "
-            "after the strategy has completed."
+            "after the strategy has completed.",
         )
-        self.mock_rpc_client().update_subcloud_with_network_reconfig.\
-            assert_not_called()
+        self.mock_rpc_client().update_subcloud_with_network_reconfig.assert_not_called()
 
     def test_patch_fails_with_network_addresses_and_ongoing_vim_strategy(self):
         """Test patch fails with network addresses and ongoing vim strategy"""
 
-        fake_strategy.create_fake_strategy_step(
-            self.ctx, subcloud_id=self.subcloud.id
-        )
+        fake_strategy.create_fake_strategy_step(self.ctx, subcloud_id=self.subcloud.id)
 
         self._test_patch_fails_with_vim_strategy()
 
@@ -1441,8 +1541,10 @@ class TestSubcloudsPatch(BaseTestSubcloudsPatch):
         response = self._test_patch_with_vim_strategy()
 
         self._assert_response(response)
-        self.mock_rpc_client().update_subcloud_with_network_reconfig.\
-            assert_called_once()
+        update_subcloud_with_network_reconfig = (
+            self.mock_rpc_client().update_subcloud_with_network_reconfig
+        )
+        update_subcloud_with_network_reconfig.assert_called_once()
         self.mock_vim_client().get_strategy.assert_called_once()
 
     def test_patch_fails_with_initial_vim_sys_config_update_strategy(self):
@@ -1461,8 +1563,10 @@ class TestSubcloudsPatch(BaseTestSubcloudsPatch):
         response = self._test_patch_with_vim_strategy()
 
         self._assert_response(response)
-        self.mock_rpc_client().update_subcloud_with_network_reconfig.\
-            assert_called_once()
+        update_subcloud_with_network_reconfig = (
+            self.mock_rpc_client().update_subcloud_with_network_reconfig
+        )
+        update_subcloud_with_network_reconfig.assert_called_once()
         self.mock_vim_client().get_strategy.assert_called_once()
 
     @mock.patch.object(sql_api, "strategy_step_get")
@@ -1501,8 +1605,9 @@ class TestSubcloudsPatch(BaseTestSubcloudsPatch):
         response = self._send_request()
 
         self._assert_pecan_and_response(
-            response, http.client.GONE, "This API is deprecated. Please use "
-            "/v1.0/subcloud-backup/restore"
+            response,
+            http.client.GONE,
+            "This API is deprecated. Please use /v1.0/subcloud-backup/restore",
         )
 
     def test_patch_reconfigure_fails_with_deprecation(self):
@@ -1513,8 +1618,10 @@ class TestSubcloudsPatch(BaseTestSubcloudsPatch):
         response = self._send_request()
 
         self._assert_pecan_and_response(
-            response, http.client.GONE, "This API is deprecated. Please use "
-            "/v1.0/phased-subcloud-deploy/{subcloud}/configure"
+            response,
+            http.client.GONE,
+            "This API is deprecated. Please use "
+            "/v1.0/phased-subcloud-deploy/{subcloud}/configure",
         )
 
     def test_patch_reinstall_fails_with_deprecation(self):
@@ -1525,8 +1632,9 @@ class TestSubcloudsPatch(BaseTestSubcloudsPatch):
         response = self._send_request()
 
         self._assert_pecan_and_response(
-            response, http.client.GONE, "This API is deprecated. Please use "
-            "/v1.0/subclouds/{subcloud}/redeploy"
+            response,
+            http.client.GONE,
+            "This API is deprecated. Please use /v1.0/subclouds/{subcloud}/redeploy",
         )
 
 
@@ -1538,12 +1646,11 @@ class TestSubcloudsPatchWithRename(BaseTestSubcloudsPatch):
 
         self.params["name"] = "subcloud2"
 
-        self.upload_files = [
-            ("fake", "fake_name", "fake content".encode("utf-8"))
-        ]
+        self.upload_files = [("fake", "fake_name", "fake content".encode("utf-8"))]
 
-        self.mock_rpc_client().update_subcloud.return_value = \
+        self.mock_rpc_client().update_subcloud.return_value = (
             db_api.subcloud_db_model_to_dict(self.subcloud)
+        )
 
     def test_patch_with_rename_succeeds(self):
         """Test patch with rename succeeds"""
@@ -1561,9 +1668,10 @@ class TestSubcloudsPatchWithRename(BaseTestSubcloudsPatch):
         response = self._send_request()
 
         self._assert_pecan_and_response(
-            response, http.client.BAD_REQUEST, f"Subcloud {self.subcloud.name} must "
-            "be deployed, unmanaged and no ongoing prestage for the subcloud rename "
-            "operation."
+            response,
+            http.client.BAD_REQUEST,
+            f"Subcloud {self.subcloud.name} must be deployed, unmanaged and "
+            "no ongoing prestage for the subcloud rename operation.",
         )
 
     def test_patch_with_rename_fails_with_invalid_name(self):
@@ -1574,8 +1682,9 @@ class TestSubcloudsPatchWithRename(BaseTestSubcloudsPatch):
         response = self._send_request()
 
         self._assert_pecan_and_response(
-            response, http.client.BAD_REQUEST,
-            "new name must contain alphabetic characters"
+            response,
+            http.client.BAD_REQUEST,
+            "new name must contain alphabetic characters",
         )
 
     def test_patch_with_rename_fails_with_new_name_as_current_name(self):
@@ -1586,17 +1695,17 @@ class TestSubcloudsPatchWithRename(BaseTestSubcloudsPatch):
         response = self._send_request()
 
         self._assert_pecan_and_response(
-            response, http.client.BAD_REQUEST, "Provided subcloud name "
-            f"{self.params['name']} is the same as the current subcloud "
-            f"{self.subcloud.name}. A different name is required to rename "
-            "the subcloud"
+            response,
+            http.client.BAD_REQUEST,
+            f"Provided subcloud name {self.params['name']} is the same as the current "
+            f"subcloud {self.subcloud.name}. A different name is required to rename "
+            "the subcloud",
         )
 
     def test_patch_with_rename_fails_with_rpc_client_remote_error(self):
         """Test patch with rename fails with rpc client remote error"""
 
-        self.mock_rpc_client().rename_subcloud.side_effect = \
-            RemoteError("msg", "value")
+        self.mock_rpc_client().rename_subcloud.side_effect = RemoteError("msg", "value")
 
         response = self._send_request()
 
@@ -1630,21 +1739,18 @@ class TestSubcloudsPatchWithNetworkReconfiguration(BaseTestSubcloudsPatch):
             "management_end_ip": "192.168.102.49",
             "management_gateway_ip": "192.168.102.1",
         }
-        self.upload_files = [
-            ("fake", "fake_name", "fake content".encode("utf-8"))
-        ]
+        self.upload_files = [("fake", "fake_name", "fake content".encode("utf-8"))]
 
         self._update_subcloud(data_install="")
 
-        self.mock_rpc_client().update_subcloud.return_value = \
+        self.mock_rpc_client().update_subcloud.return_value = (
             db_api.subcloud_db_model_to_dict(self.subcloud)
+        )
 
     def test_patch_with_network_reconfig_succeeds(self):
         """Test patch with network reconfig succeeds"""
 
-        self._update_subcloud(
-            availability_status=dccommon_consts.AVAILABILITY_ONLINE
-        )
+        self._update_subcloud(availability_status=dccommon_consts.AVAILABILITY_ONLINE)
 
         response = self._send_request()
 
@@ -1653,23 +1759,29 @@ class TestSubcloudsPatchWithNetworkReconfiguration(BaseTestSubcloudsPatch):
         # Validate that the parameters were used in the rpc client call
         # Note: there are more parameter that are added during the request's
         # execution. Because of that, it's necessary to validate only the sent ones.
-        call_arg = self.mock_rpc_client().update_subcloud_with_network_reconfig.\
-            call_args[0][2]
+        call_arg = (
+            self.mock_rpc_client().update_subcloud_with_network_reconfig.call_args[0][2]
+        )
 
         for key in self.params:
             # The sysadmin_password is sent encoded, but returns decoded
             if key == "sysadmin_password":
-                self.params[key] = base64.b64decode(self.params[key]).decode('utf-8')
+                self.params[key] = base64.b64decode(self.params[key]).decode("utf-8")
             self.assertEqual(self.params[key], call_arg[key])
 
-        self.mock_rpc_client().update_subcloud_with_network_reconfig.\
-            assert_called_once_with(mock.ANY, self.subcloud.id, mock.ANY)
+        update_subcloud_with_network_reconfig = (
+            self.mock_rpc_client().update_subcloud_with_network_reconfig
+        )
+        update_subcloud_with_network_reconfig.assert_called_once_with(
+            mock.ANY, self.subcloud.id, mock.ANY
+        )
 
     def test_patch_with_network_reconfig_fails_with_subcloud_secondary_state(self):
         """Test patch with network reconfig fails with subcloud secondary state"""
 
         invalid_states = [
-            consts.DEPLOY_STATE_SECONDARY, consts.DEPLOY_STATE_SECONDARY_FAILED
+            consts.DEPLOY_STATE_SECONDARY,
+            consts.DEPLOY_STATE_SECONDARY_FAILED,
         ]
 
         for index, state in enumerate(invalid_states, start=1):
@@ -1678,8 +1790,10 @@ class TestSubcloudsPatchWithNetworkReconfiguration(BaseTestSubcloudsPatch):
             response = self._send_request()
 
             self._assert_pecan_and_response(
-                response, http.client.INTERNAL_SERVER_ERROR, "Cannot perform on "
-                f"{self.subcloud.deploy_status} state subcloud", index
+                response,
+                http.client.INTERNAL_SERVER_ERROR,
+                f"Cannot perform on {self.subcloud.deploy_status} state subcloud",
+                index,
             )
 
     def test_patch_with_network_reconfig_fails_with_management_state(self):
@@ -1690,8 +1804,9 @@ class TestSubcloudsPatchWithNetworkReconfiguration(BaseTestSubcloudsPatch):
         response = self._send_request()
 
         self._assert_pecan_and_response(
-            response, http.client.UNPROCESSABLE_ENTITY, "Management state and "
-            "network reconfiguration must be updated separately"
+            response,
+            http.client.UNPROCESSABLE_ENTITY,
+            "Management state and network reconfiguration must be updated separately",
         )
 
     def test_patch_with_network_reconfig_fails_with_managed_subcloud(self):
@@ -1702,8 +1817,9 @@ class TestSubcloudsPatchWithNetworkReconfiguration(BaseTestSubcloudsPatch):
         response = self._send_request()
 
         self._assert_pecan_and_response(
-            response, http.client.UNPROCESSABLE_ENTITY, "A subcloud must be "
-            "unmanaged to perform network reconfiguration"
+            response,
+            http.client.UNPROCESSABLE_ENTITY,
+            "A subcloud must be unmanaged to perform network reconfiguration",
         )
 
     def test_patch_with_network_reconfig_fails_without_bootstrap_address(self):
@@ -1714,21 +1830,23 @@ class TestSubcloudsPatchWithNetworkReconfiguration(BaseTestSubcloudsPatch):
         response = self._send_request()
 
         self._assert_pecan_and_response(
-            response, http.client.UNPROCESSABLE_ENTITY, "The bootstrap_address "
-            "parameter is required for network reconfiguration"
+            response,
+            http.client.UNPROCESSABLE_ENTITY,
+            "The bootstrap_address parameter is required for network reconfiguration",
         )
 
     def test_patch_with_network_reconfig_fails_without_required_parameters(self):
         """Test patch with network reconfig fails without required parameters"""
 
-        required_parameters = ', '.join(
-            '--{}'.format(param.replace('_', '-'))
+        required_parameters = ", ".join(
+            "--{}".format(param.replace("_", "-"))
             for param in subclouds.SUBCLOUD_MANDATORY_NETWORK_PARAMS
         )
         original_params = copy.copy(self.params)
 
-        for index, parameter in \
-                enumerate(subclouds.SUBCLOUD_MANDATORY_NETWORK_PARAMS, start=1):
+        for index, parameter in enumerate(
+            subclouds.SUBCLOUD_MANDATORY_NETWORK_PARAMS, start=1
+        ):
 
             self.params = copy.copy(original_params)
             del self.params[parameter]
@@ -1736,9 +1854,11 @@ class TestSubcloudsPatchWithNetworkReconfiguration(BaseTestSubcloudsPatch):
             response = self._send_request()
 
             self._assert_pecan_and_response(
-                response, http.client.UNPROCESSABLE_ENTITY, "The following "
-                "parameters are necessary for subcloud network reconfiguration: "
-                f"{required_parameters}", index
+                response,
+                http.client.UNPROCESSABLE_ENTITY,
+                "The following parameters are necessary for subcloud network "
+                f"reconfiguration: {required_parameters}",
+                index,
             )
 
     def test_patch_with_network_reconfig_fails_with_value_in_use(self):
@@ -1749,8 +1869,9 @@ class TestSubcloudsPatchWithNetworkReconfiguration(BaseTestSubcloudsPatch):
         response = self._send_request()
 
         self._assert_pecan_and_response(
-            response, http.client.UNPROCESSABLE_ENTITY,
-            "management_end_ip already in use by the subcloud."
+            response,
+            http.client.UNPROCESSABLE_ENTITY,
+            "management_end_ip already in use by the subcloud.",
         )
 
     def test_patch_with_network_reconfig_fails_without_sysadmin_password(self):
@@ -1772,8 +1893,10 @@ class TestSubcloudsPatchWithNetworkReconfiguration(BaseTestSubcloudsPatch):
         response = self._send_request()
 
         self._assert_pecan_and_response(
-            response, http.client.BAD_REQUEST, "Failed to decode subcloud "
-            "sysadmin_password, verify the password is base64 encoded"
+            response,
+            http.client.BAD_REQUEST,
+            "Failed to decode subcloud sysadmin_password, "
+            "verify the password is base64 encoded",
         )
 
 
@@ -1783,8 +1906,11 @@ class TestSubcloudsPatchWithPeerGroup(BaseTestSubcloudsPatch):
     def setUp(self):
         super().setUp()
 
-        self.peer_group = test_system_peer_manager.TestSystemPeerManager.\
-            create_subcloud_peer_group_static(self.ctx)
+        system_peer_manager = test_system_peer_manager.TestSystemPeerManager
+
+        self.peer_group = system_peer_manager.create_subcloud_peer_group_static(
+            self.ctx
+        )
         self._update_subcloud(
             availability_status=dccommon_consts.AVAILABILITY_ONLINE,
             deploy_status=consts.DEPLOY_STATE_DONE,
@@ -1793,13 +1919,11 @@ class TestSubcloudsPatchWithPeerGroup(BaseTestSubcloudsPatch):
             rehome_data=(
                 '{"saved_payload": {"system_mode": "simplex","'
                 '"bootstrap-address": "192.168.100.100"}}'
-            )
+            ),
         )
 
         self.params = {"peer_group": self.peer_group.id}
-        self.upload_files = [
-            ("fake", "fake_name", "fake content".encode("utf-8"))
-        ]
+        self.upload_files = [("fake", "fake_name", "fake content".encode("utf-8"))]
 
         self._mock_openstack_driver(cutils)
         self.mock_openstack_driver_cutils = self.mock_openstack_driver
@@ -1810,25 +1934,30 @@ class TestSubcloudsPatchWithPeerGroup(BaseTestSubcloudsPatch):
         mock_get_system.uuid = self.peer_group.system_leader_id
 
         self.mock_sysinv_client_cutils().get_system.return_value = mock_get_system
-        self.mock_rpc_client().update_subcloud.return_value =\
+        self.mock_rpc_client().update_subcloud.return_value = (
             db_api.subcloud_db_model_to_dict(self.subcloud)
+        )
 
     def _setup_system_peer_for_subcloud(self, availability_state):
-        system_peer = test_system_peer_manager.TestSystemPeerManager.\
-            create_system_peer_static(
+        system_peer = (
+            test_system_peer_manager.TestSystemPeerManager.create_system_peer_static(
                 self.ctx, availability_state=availability_state
             )
+        )
         self.peer_group = sql_api.subcloud_peer_group_update(
             self.ctx, self.peer_group.id, group_priority=1
         )
-        self.peer_group_association = test_system_peer_manager.\
-            TestSystemPeerManager.create_peer_group_association_static(
-                self.ctx, system_peer_id=system_peer.id,
-                peer_group_id=self.peer_group.id
+        system_peer_manager = test_system_peer_manager.TestSystemPeerManager
+        self.peer_group_association = (
+            system_peer_manager.create_peer_group_association_static(
+                self.ctx,
+                system_peer_id=system_peer.id,
+                peer_group_id=self.peer_group.id,
             )
+        )
         self._update_subcloud(
             deploy_status=consts.DEPLOY_STATE_REHOME_FAILED,
-            peer_group_id=self.peer_group_association.id
+            peer_group_id=self.peer_group_association.id,
         )
 
     def test_patch_with_peer_group_succeeds(self):
@@ -1838,11 +1967,18 @@ class TestSubcloudsPatchWithPeerGroup(BaseTestSubcloudsPatch):
 
         self._assert_response(response)
         self.mock_rpc_client().update_subcloud.assert_called_once_with(
-            mock.ANY, self.subcloud.id, management_state=mock.ANY,
-            description=mock.ANY, location=mock.ANY, group_id=mock.ANY,
-            data_install=mock.ANY, force=mock.ANY, peer_group_id=self.peer_group.id,
-            bootstrap_values=mock.ANY, bootstrap_address=mock.ANY,
-            deploy_status=mock.ANY
+            mock.ANY,
+            self.subcloud.id,
+            management_state=mock.ANY,
+            description=mock.ANY,
+            location=mock.ANY,
+            group_id=mock.ANY,
+            data_install=mock.ANY,
+            force=mock.ANY,
+            peer_group_id=self.peer_group.id,
+            bootstrap_values=mock.ANY,
+            bootstrap_address=mock.ANY,
+            deploy_status=mock.ANY,
         )
         self.mock_rpc_client().update_association_sync_status.assert_called_once()
 
@@ -1854,9 +1990,10 @@ class TestSubcloudsPatchWithPeerGroup(BaseTestSubcloudsPatch):
         response = self._send_request()
 
         self._assert_pecan_and_response(
-            response, http.client.BAD_REQUEST, "Cannot update the subcloud "
-            "peer group: must provide both the bootstrap-values and "
-            "bootstrap-address."
+            response,
+            http.client.BAD_REQUEST,
+            "Cannot update the subcloud peer group: must provide both the "
+            "bootstrap-values and bootstrap-address.",
         )
         self.mock_rpc_client().update_subcloud.assert_not_called()
         self.mock_rpc_client().update_association_sync_status.assert_not_called()
@@ -1871,8 +2008,10 @@ class TestSubcloudsPatchWithPeerGroup(BaseTestSubcloudsPatch):
         response = self._send_request()
 
         self._assert_pecan_and_response(
-            response, http.client.BAD_REQUEST, "Cannot update the management state "
-            "of a subcloud that is associated with a peer group."
+            response,
+            http.client.BAD_REQUEST,
+            "Cannot update the management state of a subcloud that is "
+            "associated with a peer group.",
         )
 
     def test_patch_with_peer_group_succeeds_in_removing_peer_group(self):
@@ -1886,12 +2025,18 @@ class TestSubcloudsPatchWithPeerGroup(BaseTestSubcloudsPatch):
 
         self._assert_response(response)
         self.mock_rpc_client().update_subcloud.assert_called_once_with(
-            mock.ANY, self.subcloud.id, management_state=mock.ANY,
-            description=mock.ANY, location=mock.ANY, group_id=mock.ANY,
-            data_install=mock.ANY, force=mock.ANY,
+            mock.ANY,
+            self.subcloud.id,
+            management_state=mock.ANY,
+            description=mock.ANY,
+            location=mock.ANY,
+            group_id=mock.ANY,
+            data_install=mock.ANY,
+            force=mock.ANY,
             peer_group_id=str(self.params["peer_group"]).lower(),
-            bootstrap_values=mock.ANY, bootstrap_address=mock.ANY,
-            deploy_status=mock.ANY
+            bootstrap_values=mock.ANY,
+            bootstrap_address=mock.ANY,
+            deploy_status=mock.ANY,
         )
         self.mock_rpc_client().update_association_sync_status.assert_called_once()
 
@@ -1908,8 +2053,9 @@ class TestSubcloudsPatchWithPeerGroup(BaseTestSubcloudsPatch):
         response = self._send_request()
 
         self._assert_pecan_and_response(
-            response, http.client.BAD_REQUEST, "Subcloud update is only allowed "
-            "when its peer group priority value is 0."
+            response,
+            http.client.BAD_REQUEST,
+            "Subcloud update is only allowed when its peer group priority value is 0.",
         )
         self.mock_rpc_client().update_subcloud.assert_not_called()
         self.mock_rpc_client().update_association_sync_status.assert_not_called()
@@ -1925,10 +2071,18 @@ class TestSubcloudsPatchWithPeerGroup(BaseTestSubcloudsPatch):
 
         self._assert_response(response)
         self.mock_rpc_client().update_subcloud.assert_called_once_with(
-            mock.ANY, self.subcloud.id, management_state=None, description=None,
-            location=None, group_id=None, data_install=None, force=None,
-            peer_group_id=None, bootstrap_values=None,
-            bootstrap_address=self.params["bootstrap_address"], deploy_status=None
+            mock.ANY,
+            self.subcloud.id,
+            management_state=None,
+            description=None,
+            location=None,
+            group_id=None,
+            data_install=None,
+            force=None,
+            peer_group_id=None,
+            bootstrap_values=None,
+            bootstrap_address=self.params["bootstrap_address"],
+            deploy_status=None,
         )
         self.mock_rpc_client().update_association_sync_status.assert_called_once()
 
@@ -1945,16 +2099,20 @@ class TestSubcloudsPatchWithPeerGroup(BaseTestSubcloudsPatch):
 
         self.params = {"bootstrap_address": "192.168.10.22"}
         self.upload_files = [
-            ("bootstrap_address", "bootstrap_address_name",
-             "192.168.10.22".encode("utf-8"))
+            (
+                "bootstrap_address",
+                "bootstrap_address_name",
+                "192.168.10.22".encode("utf-8"),
+            )
         ]
 
         response = self._send_request()
 
         self._assert_pecan_and_response(
-            response, http.client.BAD_REQUEST, "Subcloud bootstrap values or "
-            "address update in the non-primary site is only allowed when rehome "
-            "failed and the primary site is unavailable."
+            response,
+            http.client.BAD_REQUEST,
+            "Subcloud bootstrap values or address update in the non-primary site is "
+            "only allowed when rehome failed and the primary site is unavailable.",
         )
         self.mock_rpc_client().update_subcloud.assert_not_called()
         self.mock_rpc_client().update_association_sync_status.assert_not_called()
@@ -1962,11 +2120,11 @@ class TestSubcloudsPatchWithPeerGroup(BaseTestSubcloudsPatch):
             consts.ASSOCIATION_SYNC_STATUS_IN_SYNC,
             sql_api.peer_group_association_get(
                 self.ctx, self.peer_group_association.id
-            ).sync_status
+            ).sync_status,
         )
 
     def test_patch_with_peer_group_succeeds_to_update_with_unavailable_system_peer(
-        self
+        self,
     ):
         """Test patch with peer group succeeds to update with unavailable system peer
 
@@ -1980,31 +2138,43 @@ class TestSubcloudsPatchWithPeerGroup(BaseTestSubcloudsPatch):
 
         self.params = {"bootstrap_address": "192.168.10.22"}
         self.upload_files = [
-            ("bootstrap_address", "bootstrap_address_name",
-             "192.168.10.22".encode("utf-8"))
+            (
+                "bootstrap_address",
+                "bootstrap_address_name",
+                "192.168.10.22".encode("utf-8"),
+            )
         ]
 
         response = self._send_request()
 
         self._assert_response(response)
         self.mock_rpc_client().update_subcloud.assert_called_once_with(
-            mock.ANY, self.subcloud.id, management_state=None, description=None,
-            location=None, group_id=None, data_install=None, force=None,
-            peer_group_id=None, bootstrap_values=None,
-            bootstrap_address=self.params["bootstrap_address"], deploy_status=None
+            mock.ANY,
+            self.subcloud.id,
+            management_state=None,
+            description=None,
+            location=None,
+            group_id=None,
+            data_install=None,
+            force=None,
+            peer_group_id=None,
+            bootstrap_values=None,
+            bootstrap_address=self.params["bootstrap_address"],
+            deploy_status=None,
         )
         self.assertEqual(
             consts.ASSOCIATION_SYNC_STATUS_OUT_OF_SYNC,
             sql_api.peer_group_association_get(
                 self.ctx, self.peer_group_association.id
-            ).sync_status
+            ).sync_status,
         )
 
     def test_patch_with_peer_group_fails_with_rpc_client_remote_error(self):
         """Test patch with peer group fails with rpc client remote error"""
 
-        self.mock_rpc_client().update_association_sync_status.side_effect = \
-            RemoteError("msg", "value")
+        self.mock_rpc_client().update_association_sync_status.side_effect = RemoteError(
+            "msg", "value"
+        )
 
         response = self._send_request()
 
@@ -2015,8 +2185,7 @@ class TestSubcloudsPatchWithPeerGroup(BaseTestSubcloudsPatch):
     def test_patch_with_peer_group_fails_with_rpc_client_generic_exception(self):
         """Test patch with peer group fails with rpc client generic exception"""
 
-        self.mock_rpc_client().update_association_sync_status.side_effect = \
-            Exception()
+        self.mock_rpc_client().update_association_sync_status.side_effect = Exception()
 
         response = self._send_request()
 
@@ -2042,10 +2211,15 @@ class TestSubcloudsPatchUpdateStatus(BaseTestSubcloudsPatch):
 
         self._assert_response(response)
         self._assert_response(response)
-        self.mock_rpc_subcloud_state_client().update_subcloud_endpoint_status.\
-            assert_called_once_with(
-                mock.ANY, self.subcloud.name, self.subcloud.region_name,
-                self.params["endpoint"], self.params["status"]
+        update_subcloud_endpoint_status = (
+            self.mock_rpc_subcloud_state_client().update_subcloud_endpoint_status
+        )
+        update_subcloud_endpoint_status.assert_called_once_with(
+            mock.ANY,
+            self.subcloud.name,
+            self.subcloud.region_name,
+            self.params["endpoint"],
+            self.params["status"],
         )
 
     def test_patch_update_status_fails_without_payload(self):
@@ -2058,8 +2232,10 @@ class TestSubcloudsPatchUpdateStatus(BaseTestSubcloudsPatch):
         self._assert_pecan_and_response(
             response, http.client.BAD_REQUEST, "Body required"
         )
-        self.mock_rpc_subcloud_state_client().update_subcloud_endpoint_status.\
-            assert_not_called()
+        update_subcloud_endpoint_status = (
+            self.mock_rpc_subcloud_state_client().update_subcloud_endpoint_status
+        )
+        update_subcloud_endpoint_status.assert_not_called()
 
     def test_patch_update_status_fails_with_invalid_endpoint(self):
         """Test patch update status fails with invalid endpoint"""
@@ -2069,11 +2245,14 @@ class TestSubcloudsPatchUpdateStatus(BaseTestSubcloudsPatch):
         response = self._send_request()
 
         self._assert_pecan_and_response(
-            response, http.client.BAD_REQUEST,
-            f"updating endpoint {self.params['endpoint']} status is not allowed"
+            response,
+            http.client.BAD_REQUEST,
+            f"updating endpoint {self.params['endpoint']} status is not allowed",
         )
-        self.mock_rpc_subcloud_state_client().update_subcloud_endpoint_status.\
-            assert_not_called()
+        update_subcloud_endpoint_status = (
+            self.mock_rpc_subcloud_state_client().update_subcloud_endpoint_status
+        )
+        update_subcloud_endpoint_status.assert_not_called()
 
     def test_patch_update_status_fails_without_endpoint(self):
         """Test patch update status fails without endpoint"""
@@ -2085,8 +2264,10 @@ class TestSubcloudsPatchUpdateStatus(BaseTestSubcloudsPatch):
         self._assert_pecan_and_response(
             response, http.client.BAD_REQUEST, "endpoint required"
         )
-        self.mock_rpc_subcloud_state_client().update_subcloud_endpoint_status.\
-            assert_not_called()
+        update_subcloud_endpoint_status = (
+            self.mock_rpc_subcloud_state_client().update_subcloud_endpoint_status
+        )
+        update_subcloud_endpoint_status.assert_not_called()
 
     def test_patch_update_status_fails_with_invalid_status(self):
         """Test patch update status fails with invalid status"""
@@ -2096,11 +2277,14 @@ class TestSubcloudsPatchUpdateStatus(BaseTestSubcloudsPatch):
         response = self._send_request()
 
         self._assert_pecan_and_response(
-            response, http.client.BAD_REQUEST,
-            f"status {self.params['status']} in invalid."
+            response,
+            http.client.BAD_REQUEST,
+            f"status {self.params['status']} in invalid.",
         )
-        self.mock_rpc_subcloud_state_client().update_subcloud_endpoint_status.\
-            assert_not_called()
+        update_subcloud_endpoint_status = (
+            self.mock_rpc_subcloud_state_client().update_subcloud_endpoint_status
+        )
+        update_subcloud_endpoint_status.assert_not_called()
 
     def test_patch_update_status_fails_without_status(self):
         """Test patch update status fails without status"""
@@ -2112,8 +2296,10 @@ class TestSubcloudsPatchUpdateStatus(BaseTestSubcloudsPatch):
         self._assert_pecan_and_response(
             response, http.client.BAD_REQUEST, "status required"
         )
-        self.mock_rpc_subcloud_state_client().update_subcloud_endpoint_status.\
-            assert_not_called()
+        update_subcloud_endpoint_status = (
+            self.mock_rpc_subcloud_state_client().update_subcloud_endpoint_status
+        )
+        update_subcloud_endpoint_status.assert_not_called()
 
 
 class TestSubcloudsPatchRedeploy(BaseTestSubcloudsPatch):
@@ -2137,14 +2323,17 @@ class TestSubcloudsPatchRedeploy(BaseTestSubcloudsPatch):
             read_data=fake_subcloud.FAKE_UPGRADES_METADATA
         )
         self.mock_os_listdir.return_value = [
-            "deploy_chart_fake.tgz", "deploy_overrides_fake.yaml",
-            "deploy_playbook_fake.yaml"
+            "deploy_chart_fake.tgz",
+            "deploy_overrides_fake.yaml",
+            "deploy_playbook_fake.yaml",
         ]
         self.mock_os_path_isdir.return_value = True
-        config_file = \
-            psd_common.get_config_file_path(self.subcloud.name, consts.DEPLOY_CONFIG)
-        self.mock_os_path_exists.side_effect = \
-            lambda file: True if file == config_file else False
+        config_file = psd_common.get_config_file_path(
+            self.subcloud.name, consts.DEPLOY_CONFIG
+        )
+        self.mock_os_path_exists.side_effect = lambda file: (
+            True if file == config_file else False
+        )
 
     def _create_variables_and_update_subcloud(self):
         self.install_data = copy.copy(FAKE_SUBCLOUD_INSTALL_VALUES)
@@ -2159,23 +2348,28 @@ class TestSubcloudsPatchRedeploy(BaseTestSubcloudsPatch):
         self.bootstrap_data["name"] = self.subcloud.name
         self.config_data = {"deploy_config": "deploy config values"}
         self.params = {
-            **self.install_data, **self.bootstrap_data, **self.config_data,
+            **self.install_data,
+            **self.bootstrap_data,
+            **self.config_data,
             "sysadmin_password": self._create_password("sysadmin_password"),
-            "bmc_password": self._create_password("bmc_password")
+            "bmc_password": self._create_password("bmc_password"),
         }
         self.upload_files = [
             (
-                "install_values", "install_fake_filename",
-                json.dumps(self.install_data).encode()
+                "install_values",
+                "install_fake_filename",
+                json.dumps(self.install_data).encode(),
             ),
             (
-                "bootstrap_values", "bootstrap_fake_filename",
-                json.dumps(self.bootstrap_data).encode()
+                "bootstrap_values",
+                "bootstrap_fake_filename",
+                json.dumps(self.bootstrap_data).encode(),
             ),
             (
-                "deploy_config", "config_fake_filename",
-                json.dumps(self.config_data).encode()
-            )
+                "deploy_config",
+                "config_fake_filename",
+                json.dumps(self.config_data).encode(),
+            ),
         ]
 
     def test_patch_redeploy_succeeds_without_release_version(self):
@@ -2211,8 +2405,9 @@ class TestSubcloudsPatchRedeploy(BaseTestSubcloudsPatch):
         response = self._send_request()
 
         self._assert_pecan_and_response(
-            response, http.client.BAD_REQUEST,
-            "Failed to get bmc_password from data_install"
+            response,
+            http.client.BAD_REQUEST,
+            "Failed to get bmc_password from data_install",
         )
 
     def test_patch_redeploy_succeeds_with_subcloud_data_install(self):
@@ -2222,8 +2417,7 @@ class TestSubcloudsPatchRedeploy(BaseTestSubcloudsPatch):
         subcloud's data install field only.
         """
 
-        self.params = \
-            {"sysadmin_password": self._create_password("sysadmin_password")}
+        self.params = {"sysadmin_password": self._create_password("sysadmin_password")}
         self.upload_files = None
 
         response = self._send_request()
@@ -2256,15 +2450,14 @@ class TestSubcloudsPatchRedeploy(BaseTestSubcloudsPatch):
     def test_patch_redeploy_fails_with_online_subcloud(self):
         """Test patch redeploy fails with online subcloud"""
 
-        self._update_subcloud(
-            availability_status=dccommon_consts.AVAILABILITY_ONLINE
-        )
+        self._update_subcloud(availability_status=dccommon_consts.AVAILABILITY_ONLINE)
 
         response = self._send_request()
 
         self._assert_pecan_and_response(
-            response, http.client.BAD_REQUEST,
-            "Cannot re-deploy an online and/or managed subcloud"
+            response,
+            http.client.BAD_REQUEST,
+            "Cannot re-deploy an online and/or managed subcloud",
         )
 
     def test_patch_redeploy_fails_with_managed_subcloud(self):
@@ -2275,8 +2468,9 @@ class TestSubcloudsPatchRedeploy(BaseTestSubcloudsPatch):
         response = self._send_request()
 
         self._assert_pecan_and_response(
-            response, http.client.BAD_REQUEST,
-            "Cannot re-deploy an online and/or managed subcloud"
+            response,
+            http.client.BAD_REQUEST,
+            "Cannot re-deploy an online and/or managed subcloud",
         )
 
     def test_patch_redeploy_fails_with_missing_property(self):
@@ -2285,15 +2479,18 @@ class TestSubcloudsPatchRedeploy(BaseTestSubcloudsPatch):
         self.params = {
             **self.bootstrap_data,
             "sysadmin_password": self._create_password("sysadmin_password"),
-            "bmc_password": self._create_password("bmc_password")
+            "bmc_password": self._create_password("bmc_password"),
         }
 
         for index, key in enumerate(self.bootstrap_data.keys(), start=1):
             del self.params[key]
-            self.upload_files = [(
-                "bootstrap_values", "bootstrap_fake_filename",
-                json.dumps(self.params).encode(),
-            )]
+            self.upload_files = [
+                (
+                    "bootstrap_values",
+                    "bootstrap_fake_filename",
+                    json.dumps(self.params).encode(),
+                )
+            ]
 
             response = self._send_request()
 
@@ -2317,7 +2514,8 @@ class TestSubcloudsPatchRedeploy(BaseTestSubcloudsPatch):
         """Test patch redeploy fails with subcloud in secondary state"""
 
         invalid_states = [
-            consts.DEPLOY_STATE_SECONDARY, consts.DEPLOY_STATE_SECONDARY_FAILED
+            consts.DEPLOY_STATE_SECONDARY,
+            consts.DEPLOY_STATE_SECONDARY_FAILED,
         ]
 
         for index, state in enumerate(invalid_states, start=1):
@@ -2326,15 +2524,18 @@ class TestSubcloudsPatchRedeploy(BaseTestSubcloudsPatch):
             response = self._send_request()
 
             self._assert_pecan_and_response(
-                response, http.client.INTERNAL_SERVER_ERROR, "Cannot perform on "
-                f"{self.subcloud.deploy_status} state subcloud", index
+                response,
+                http.client.INTERNAL_SERVER_ERROR,
+                f"Cannot perform on {self.subcloud.deploy_status} state subcloud",
+                index,
             )
 
     def test_patch_redeploy_fails_with_rpc_client_remote_error(self):
         """Test patch redeploy fails with rpc client remote error"""
 
-        self.mock_rpc_client().redeploy_subcloud.side_effect = \
-            RemoteError("msg", "value")
+        self.mock_rpc_client().redeploy_subcloud.side_effect = RemoteError(
+            "msg", "value"
+        )
 
         response = self._send_request()
 
@@ -2345,14 +2546,12 @@ class TestSubcloudsPatchRedeploy(BaseTestSubcloudsPatch):
     def test_patch_redeploy_fails_with_rpc_client_generic_exception(self):
         """Test patch redeploy fails with rpc client generic exception"""
 
-        self.mock_rpc_client().redeploy_subcloud.side_effect = \
-            Exception()
+        self.mock_rpc_client().redeploy_subcloud.side_effect = Exception()
 
         response = self._send_request()
 
         self._assert_pecan_and_response(
-            response, http.client.INTERNAL_SERVER_ERROR,
-            "Unable to redeploy subcloud"
+            response, http.client.INTERNAL_SERVER_ERROR, "Unable to redeploy subcloud"
         )
 
 
@@ -2364,9 +2563,7 @@ class TestSubcloudsPatchPrestage(BaseTestSubcloudsPatch):
 
         self.url = f"{self.url}/prestage"
         self.method = self.app.patch_json
-        self.params = {
-            "sysadmin_password": self._create_password("sysadmin_password")
-        }
+        self.params = {"sysadmin_password": self._create_password("sysadmin_password")}
 
         self._update_subcloud(
             availability_status=dccommon_consts.AVAILABILITY_ONLINE,
@@ -2392,13 +2589,15 @@ class TestSubcloudsPatchPrestage(BaseTestSubcloudsPatch):
         mock_get_system = mock.MagicMock()
         mock_get_system.system_mode = consts.SYSTEM_MODE_SIMPLEX
         self.mock_sysinv_client_prestage().get_system.return_value = mock_get_system
-        self.mock_sysinv_client_prestage().get_system_health.return_value = \
+        self.mock_sysinv_client_prestage().get_system_health.return_value = (
             health_report_no_alarm
+        )
 
         mock_get_oam_addresses = mock.MagicMock()
         mock_get_oam_addresses.oam_floating_ip = "10.10.10.12"
-        self.mock_sysinv_client_prestage().get_oam_addresses.return_value = \
+        self.mock_sysinv_client_prestage().get_oam_addresses.return_value = (
             mock_get_oam_addresses
+        )
 
     def test_patch_prestage_succeeds(self):
         """Test patch prestage succeeds"""
@@ -2420,9 +2619,10 @@ class TestSubcloudsPatchPrestage(BaseTestSubcloudsPatch):
         response = self._send_request()
 
         self._assert_pecan_and_response(
-            response, http.client.BAD_REQUEST, "Prestage skipped "
-            f"'{self.subcloud.name}': Specified release is not supported. "
-            f"{self.params['release']} version must first be imported"
+            response,
+            http.client.BAD_REQUEST,
+            f"Prestage skipped '{self.subcloud.name}': Specified release is not "
+            f"supported. {self.params['release']} version must first be imported",
         )
 
     def test_patch_prestage_fails_with_unmanaged_subcloud(self):
@@ -2433,22 +2633,22 @@ class TestSubcloudsPatchPrestage(BaseTestSubcloudsPatch):
         response = self._send_request()
 
         self._assert_pecan_and_response(
-            response, http.client.BAD_REQUEST, "Prestage skipped "
-            f"'{self.subcloud.name}': Subcloud is not managed."
+            response,
+            http.client.BAD_REQUEST,
+            f"Prestage skipped '{self.subcloud.name}': Subcloud is not managed.",
         )
 
     def test_patch_prestage_fails_with_offline_subcloud(self):
         """Test patch prestage fails with offline subcloud"""
 
-        self._update_subcloud(
-            availability_status=dccommon_consts.AVAILABILITY_OFFLINE
-        )
+        self._update_subcloud(availability_status=dccommon_consts.AVAILABILITY_OFFLINE)
 
         response = self._send_request()
 
         self._assert_pecan_and_response(
-            response, http.client.BAD_REQUEST, "Prestage skipped "
-            f"'{self.subcloud.name}': Subcloud is offline."
+            response,
+            http.client.BAD_REQUEST,
+            f"Prestage skipped '{self.subcloud.name}': Subcloud is offline.",
         )
 
     def test_patch_prestage_fails_with_ongoing_backup(self):
@@ -2459,9 +2659,10 @@ class TestSubcloudsPatchPrestage(BaseTestSubcloudsPatch):
         response = self._send_request()
 
         self._assert_pecan_and_response(
-            response, http.client.BAD_REQUEST, "Prestage skipped "
-            f"'{self.subcloud.name}': Prestage operation is not allowed while "
-            "backup is in progress."
+            response,
+            http.client.BAD_REQUEST,
+            f"Prestage skipped '{self.subcloud.name}': Prestage operation is not "
+            "allowed while backup is in progress.",
         )
 
     def test_patch_prestage_fails_with_deploy_state_in_progress(self):
@@ -2472,9 +2673,10 @@ class TestSubcloudsPatchPrestage(BaseTestSubcloudsPatch):
         response = self._send_request()
 
         self._assert_pecan_and_response(
-            response, http.client.BAD_REQUEST, "Prestage skipped "
-            f"'{self.subcloud.name}': Prestage operation is not allowed when "
-            "subcloud deploy is in progress."
+            response,
+            http.client.BAD_REQUEST,
+            f"Prestage skipped '{self.subcloud.name}': Prestage operation is "
+            "not allowed when subcloud deploy is in progress.",
         )
 
     def test_patch_prestage_fails_with_duplex_subcloud(self):
@@ -2487,16 +2689,18 @@ class TestSubcloudsPatchPrestage(BaseTestSubcloudsPatch):
         response = self._send_request()
 
         self._assert_pecan_and_response(
-            response, http.client.BAD_REQUEST, "Prestage skipped "
-            f"'{self.subcloud.name}': Prestage operation is only accepted for a "
-            "simplex subcloud."
+            response,
+            http.client.BAD_REQUEST,
+            f"Prestage skipped '{self.subcloud.name}': Prestage operation is "
+            "only accepted for a simplex subcloud.",
         )
 
     def test_patch_prestage_succeds_without_mgmt_alarm(self):
         """Test patch prestage succeeds without management alarm"""
 
-        self.mock_sysinv_client_prestage().get_system_health.return_value = \
+        self.mock_sysinv_client_prestage().get_system_health.return_value = (
             health_report_no_mgmt_alarm
+        )
 
         response = self._send_request()
 
@@ -2506,16 +2710,18 @@ class TestSubcloudsPatchPrestage(BaseTestSubcloudsPatch):
     def test_patch_prestage_fails_with_mgmt_alarm(self):
         """Test patch prestage fails with management alarm"""
 
-        self.mock_sysinv_client_prestage().get_system_health.return_value = \
+        self.mock_sysinv_client_prestage().get_system_health.return_value = (
             health_report_mgmt_alarm
+        )
 
         response = self._send_request()
 
         self._assert_pecan_and_response(
-            response, http.client.BAD_REQUEST, "Prestage failed "
-            f"'{self.subcloud.name}': Subcloud has management affecting alarm(s). "
-            "Please resolve the alarm condition(s) or use --force option and "
-            "try again."
+            response,
+            http.client.BAD_REQUEST,
+            f"Prestage failed '{self.subcloud.name}': Subcloud has management "
+            "affecting alarm(s). Please resolve the alarm condition(s) or use "
+            "--force option and try again.",
         )
 
     def test_patch_prestage_succeeds_with_mgmt_alarm_when_forced(self):
@@ -2523,8 +2729,9 @@ class TestSubcloudsPatchPrestage(BaseTestSubcloudsPatch):
 
         self.params["force"] = "True"
 
-        self.mock_sysinv_client_prestage().get_system_health.return_value = \
+        self.mock_sysinv_client_prestage().get_system_health.return_value = (
             health_report_mgmt_alarm
+        )
 
         response = self._send_request()
 
@@ -2539,8 +2746,9 @@ class TestSubcloudsPatchPrestage(BaseTestSubcloudsPatch):
         response = self._send_request()
 
         self._assert_pecan_and_response(
-            response, http.client.BAD_REQUEST,
-            f"Invalid value for force option: {self.params['force']}"
+            response,
+            http.client.BAD_REQUEST,
+            f"Invalid value for force option: {self.params['force']}",
         )
 
     def test_patch_prestage_fails_with_system_controller_upgrade(self):
@@ -2551,9 +2759,10 @@ class TestSubcloudsPatchPrestage(BaseTestSubcloudsPatch):
         response = self._send_request()
 
         self._assert_pecan_and_response(
-            response, http.client.BAD_REQUEST, "Prestage failed 'SystemController': "
-            "Prestage operations are not allowed while system controller upgrade is "
-            "in progress."
+            response,
+            http.client.BAD_REQUEST,
+            "Prestage failed 'SystemController': Prestage operations are not "
+            "allowed while system controller upgrade is in progress.",
         )
 
     def test_patch_prestage_fails_without_payload(self):
@@ -2575,8 +2784,10 @@ class TestSubcloudsPatchPrestage(BaseTestSubcloudsPatch):
         response = self._send_request()
 
         self._assert_pecan_and_response(
-            response, http.client.BAD_REQUEST, "Failed to decode subcloud "
-            "sysadmin_password, verify the password is base64 encoded"
+            response,
+            http.client.BAD_REQUEST,
+            "Failed to decode subcloud sysadmin_password, "
+            "verify the password is base64 encoded",
         )
 
     @mock.patch.object(json, "loads")
@@ -2605,7 +2816,8 @@ class TestSubcloudsPatchPrestage(BaseTestSubcloudsPatch):
         """Test patch prestage fails with subcloud in secondary state"""
 
         invalid_states = [
-            consts.DEPLOY_STATE_SECONDARY, consts.DEPLOY_STATE_SECONDARY_FAILED
+            consts.DEPLOY_STATE_SECONDARY,
+            consts.DEPLOY_STATE_SECONDARY_FAILED,
         ]
 
         for index, state in enumerate(invalid_states, start=1):
@@ -2614,15 +2826,18 @@ class TestSubcloudsPatchPrestage(BaseTestSubcloudsPatch):
             response = self._send_request()
 
             self._assert_pecan_and_response(
-                response, http.client.INTERNAL_SERVER_ERROR, "Cannot perform on "
-                f"{self.subcloud.deploy_status} state subcloud", index
+                response,
+                http.client.INTERNAL_SERVER_ERROR,
+                f"Cannot perform on {self.subcloud.deploy_status} state subcloud",
+                index,
             )
 
     def test_patch_prestage_fails_with_rpc_client_remote_error(self):
         """Test patch prestage fails with rpc client remote error"""
 
-        self.mock_rpc_client().prestage_subcloud.side_effect = \
-            RemoteError("msg", "value")
+        self.mock_rpc_client().prestage_subcloud.side_effect = RemoteError(
+            "msg", "value"
+        )
 
         response = self._send_request()
 
@@ -2633,14 +2848,12 @@ class TestSubcloudsPatchPrestage(BaseTestSubcloudsPatch):
     def test_patch_prestage_fails_with_rpc_client_generic_exception(self):
         """Test patch prestage fails with rpc client generic exception"""
 
-        self.mock_rpc_client().prestage_subcloud.side_effect = \
-            Exception()
+        self.mock_rpc_client().prestage_subcloud.side_effect = Exception()
 
         response = self._send_request()
 
         self._assert_pecan_and_response(
-            response, http.client.INTERNAL_SERVER_ERROR,
-            "Unable to prestage subcloud"
+            response, http.client.INTERNAL_SERVER_ERROR, "Unable to prestage subcloud"
         )
 
 
@@ -2656,7 +2869,8 @@ class TestSubcloudsDelete(BaseTestSubcloudsController):
         self.method = self.app.delete
 
         self.mock_rpc_client().delete_subcloud.return_value = (
-            "delete_subcloud", {"subcloud_id": self.subcloud.id}
+            "delete_subcloud",
+            {"subcloud_id": self.subcloud.id},
         )
 
     def test_delete_succeeds(self):
@@ -2707,43 +2921,45 @@ class TestSubcloudsDelete(BaseTestSubcloudsController):
         response = self._send_request()
 
         self._assert_pecan_and_response(
-            response, http.client.BAD_REQUEST,
-            "Cannot delete a subcloud that is 'managed' status"
+            response,
+            http.client.BAD_REQUEST,
+            "Cannot delete a subcloud that is 'managed' status",
         )
 
     def test_delete_fails_with_invalid_deploy_states(self):
         """Test delete fails with invalid deploy states"""
 
-        for index, state in \
-                enumerate(consts.INVALID_DEPLOY_STATES_FOR_DELETE, start=1):
+        for index, state in enumerate(consts.INVALID_DEPLOY_STATES_FOR_DELETE, start=1):
             self._update_subcloud(deploy_status=state)
 
             response = self._send_request()
 
             self._assert_pecan_and_response(
-                response, http.client.BAD_REQUEST, 'Cannot delete a subcloud during '
-                'an active operation.', call_count=index
+                response,
+                http.client.BAD_REQUEST,
+                "Cannot delete a subcloud during an active operation.",
+                call_count=index,
             )
 
     def test_delete_fails_with_subcloud_in_peer_group(self):
         """Test delete fails with subcloud in peer group"""
 
-        peer_group = test_system_peer_manager.TestSystemPeerManager.\
-            create_subcloud_peer_group_static(self.ctx)
+        system_peer_manager = test_system_peer_manager.TestSystemPeerManager
+        peer_group = system_peer_manager.create_subcloud_peer_group_static(self.ctx)
         self._update_subcloud(peer_group_id=peer_group.id)
 
         response = self._send_request()
 
         self._assert_pecan_and_response(
-            response, http.client.BAD_REQUEST,
-            "Cannot delete a subcloud that is part of a peer group on this site"
+            response,
+            http.client.BAD_REQUEST,
+            "Cannot delete a subcloud that is part of a peer group on this site",
         )
 
     def test_delete_fails_with_rpc_client_remote_error(self):
         """Test delete fails with rpc client remote error"""
 
-        self.mock_rpc_client().delete_subcloud.side_effect = \
-            RemoteError("msg", "value")
+        self.mock_rpc_client().delete_subcloud.side_effect = RemoteError("msg", "value")
 
         response = self._send_request()
 
@@ -2754,8 +2970,7 @@ class TestSubcloudsDelete(BaseTestSubcloudsController):
     def test_delete_fails_with_rpc_client_generic_exception(self):
         """Test delete fails with rpc client generic exception"""
 
-        self.mock_rpc_client().delete_subcloud.side_effect = \
-            Exception()
+        self.mock_rpc_client().delete_subcloud.side_effect = Exception()
 
         response = self._send_request()
 

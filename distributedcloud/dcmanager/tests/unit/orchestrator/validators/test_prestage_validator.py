@@ -9,13 +9,11 @@ Prestage strategy validation tests
 
 from dcmanager.db.sqlalchemy import api as db_api
 from dcmanager.orchestrator.validators.prestage_validator import (
-    PrestageStrategyValidator
+    PrestageStrategyValidator,
 )
 from dcmanager.tests.base import DCManagerTestCase
 from dcmanager.tests.unit.common.fake_subcloud import create_fake_subcloud
-from dcmanager.tests.unit.orchestrator.validators.validators_mixin import (
-    BaseMixin
-)
+from dcmanager.tests.unit.orchestrator.validators.validators_mixin import BaseMixin
 
 
 # TODO(rlima): add the mixins once prestage logic is moved to the validator

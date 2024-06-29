@@ -75,16 +75,8 @@ FAKE_SYSTEM_HEALTH_K8S_FAIL = (
     "All kubernetes nodes are ready: [OK]\n"
     "All kubernetes control plane pods are ready: [OK]\n"
 )
-FAKE_RESTORE_VALUES_INVALID_IP = {
-    "bootstrap_address": {
-        "subcloud1": "10.10.20.12.22"
-    }
-}
-FAKE_RESTORE_VALUES_VALID_IP = {
-    "bootstrap_address": {
-        "subcloud1": "10.10.20.12"
-    }
-}
+FAKE_RESTORE_VALUES_INVALID_IP = {"bootstrap_address": {"subcloud1": "10.10.20.12.22"}}
+FAKE_RESTORE_VALUES_VALID_IP = {"bootstrap_address": {"subcloud1": "10.10.20.12"}}
 
 
 class BaseTestSubcloudBackupController(DCManagerApiTest):
@@ -93,7 +85,7 @@ class BaseTestSubcloudBackupController(DCManagerApiTest):
     def setUp(self):
         super().setUp()
 
-        self.url = '/v1.0/subcloud-backup'
+        self.url = "/v1.0/subcloud-backup"
 
         self.subcloud = fake_subcloud.create_fake_subcloud(self.ctx)
 
@@ -103,17 +95,25 @@ class BaseTestSubcloudBackupController(DCManagerApiTest):
         self._mock_sysinv_client(dcmanager.common.utils)
 
     def _update_subcloud(
-        self, availability_status=dccommon_consts.AVAILABILITY_ONLINE,
+        self,
+        availability_status=dccommon_consts.AVAILABILITY_ONLINE,
         management_state=dccommon_consts.MANAGEMENT_MANAGED,
         deploy_status=consts.DEPLOY_STATE_DONE,
-        backup_datetime=None, backup_status=consts.BACKUP_STATE_UNKNOWN,
-        data_install=None, group_id=None
+        backup_datetime=None,
+        backup_status=consts.BACKUP_STATE_UNKNOWN,
+        data_install=None,
+        group_id=None,
     ):
         db_api.subcloud_update(
-            self.ctx, self.subcloud.id, availability_status=availability_status,
-            management_state=management_state, backup_datetime=backup_datetime,
-            backup_status=backup_status, deploy_status=deploy_status,
-            data_install=data_install, group_id=group_id
+            self.ctx,
+            self.subcloud.id,
+            availability_status=availability_status,
+            management_state=management_state,
+            backup_datetime=backup_datetime,
+            backup_status=backup_status,
+            deploy_status=deploy_status,
+            data_install=data_install,
+            group_id=group_id,
         )
 
 
@@ -131,7 +131,7 @@ class TestSubcloudBackupController(BaseTestSubcloudBackupController):
         response = self._send_request()
 
         self._assert_response(response)
-        self.assertEqual(response.text, 'null')
+        self.assertEqual(response.text, "null")
 
 
 class BaseTestSubcloudBackupPost(BaseTestSubcloudBackupController):
@@ -202,21 +202,26 @@ class TestSubcloudBackupPost(BaseTestSubcloudBackupPost):
         response = self._send_request()
 
         self._assert_pecan_and_response(
-            response, http.client.BAD_REQUEST, "Failed to decode subcloud "
-            "sysadmin_password, verify the password is base64 encoded"
+            response,
+            http.client.BAD_REQUEST,
+            "Failed to decode subcloud sysadmin_password, "
+            "verify the password is base64 encoded",
         )
 
     def test_post_fails_with_subcloud_and_group(self):
         """Test post fails with subcloud and group"""
 
-        self.params = f'{{"sysadmin_password": "{self._create_password()}",' \
+        self.params = (
+            f'{{"sysadmin_password": "{self._create_password()}",'
             f'"subcloud": "{self.subcloud.id}", "group": {self.subcloud.id}}}'
+        )
 
         response = self._send_request()
 
         self._assert_pecan_and_response(
-            response, http.client.BAD_REQUEST, "'subcloud' and 'group' parameters "
-            "should not be given at the same time"
+            response,
+            http.client.BAD_REQUEST,
+            "'subcloud' and 'group' parameters should not be given at the same time",
         )
 
     def test_post_fails_without_subcloud_and_group(self):
@@ -227,8 +232,9 @@ class TestSubcloudBackupPost(BaseTestSubcloudBackupPost):
         response = self._send_request()
 
         self._assert_pecan_and_response(
-            response, http.client.BAD_REQUEST,
-            "'subcloud' or 'group' parameter is required"
+            response,
+            http.client.BAD_REQUEST,
+            "'subcloud' or 'group' parameter is required",
         )
 
 
@@ -238,14 +244,17 @@ class TestSubcloudBackupPostSubcloud(BaseTestSubcloudBackupPost):
     def setUp(self):
         super().setUp()
 
-        self.params = f'{{"sysadmin_password": "{self._create_password()}",' \
+        self.params = (
+            f'{{"sysadmin_password": "{self._create_password()}",'
             f'"subcloud": "{self.subcloud.id}"}}'
+        )
 
     def test_post_subcloud_succeeds(self):
         """Test post subcloud succeeds"""
 
         good_health_states = [
-            FAKE_GOOD_SYSTEM_HEALTH, FAKE_GOOD_SYSTEM_HEALTH_NO_ALARMS
+            FAKE_GOOD_SYSTEM_HEALTH,
+            FAKE_GOOD_SYSTEM_HEALTH_NO_ALARMS,
         ]
 
         for system_health in good_health_states:
@@ -260,8 +269,9 @@ class TestSubcloudBackupPostSubcloud(BaseTestSubcloudBackupPost):
         """Test post subcloud fails with bad system health"""
 
         bad_health_states = [
-            FAKE_SYSTEM_HEALTH_MGMT_ALARM, FAKE_SYSTEM_HEALTH_CEPH_FAIL,
-            FAKE_SYSTEM_HEALTH_K8S_FAIL
+            FAKE_SYSTEM_HEALTH_MGMT_ALARM,
+            FAKE_SYSTEM_HEALTH_CEPH_FAIL,
+            FAKE_SYSTEM_HEALTH_K8S_FAIL,
         ]
 
         for index, system_health in enumerate(bad_health_states, start=1):
@@ -271,15 +281,19 @@ class TestSubcloudBackupPostSubcloud(BaseTestSubcloudBackupPost):
             response = self._send_request()
 
             self._assert_pecan_and_response(
-                response, http.client.BAD_REQUEST, f"Subcloud {self.subcloud.name} "
-                "must be in good health for subcloud-backup create.", index
+                response,
+                http.client.BAD_REQUEST,
+                f"Subcloud {self.subcloud.name} must be in good health for "
+                "subcloud-backup create.",
+                index,
             )
 
     def test_post_subcloud_fails_with_unknown_subcloud(self):
         """Test post subcloud fails with unknown subcloud"""
 
-        self.params = f'{{"sysadmin_password": "{self._create_password()}",' \
-            f'"subcloud": "123"}}'
+        self.params = (
+            f'{{"sysadmin_password": "{self._create_password()}","subcloud": "123"}}'
+        )
 
         response = self._send_request()
 
@@ -290,16 +304,15 @@ class TestSubcloudBackupPostSubcloud(BaseTestSubcloudBackupPost):
     def test_post_subcloud_fails_with_subcloud_offline(self):
         """Test post subcloud fails with subcloud offline"""
 
-        self._update_subcloud(
-            availability_status=dccommon_consts.AVAILABILITY_OFFLINE
-        )
+        self._update_subcloud(availability_status=dccommon_consts.AVAILABILITY_OFFLINE)
 
         response = self._send_request()
 
         self._assert_pecan_and_response(
-            response, http.client.BAD_REQUEST, f"Subcloud {self.subcloud.name} must "
-            "be deployed, online, managed, and no ongoing prestage for the "
-            "subcloud-backup create operation."
+            response,
+            http.client.BAD_REQUEST,
+            f"Subcloud {self.subcloud.name} must be deployed, online, managed, "
+            "and no ongoing prestage for the subcloud-backup create operation.",
         )
 
     def test_post_subcloud_fails_with_unmanaged_subcloud(self):
@@ -310,9 +323,10 @@ class TestSubcloudBackupPostSubcloud(BaseTestSubcloudBackupPost):
         response = self._send_request()
 
         self._assert_pecan_and_response(
-            response, http.client.BAD_REQUEST, f"Subcloud {self.subcloud.name} must "
-            "be deployed, online, managed, and no ongoing prestage for the "
-            "subcloud-backup create operation."
+            response,
+            http.client.BAD_REQUEST,
+            f"Subcloud {self.subcloud.name} must be deployed, online, managed, "
+            "and no ongoing prestage for the subcloud-backup create operation.",
         )
 
     def test_post_subcloud_fails_with_subcloud_in_invalid_deploy_state(self):
@@ -323,22 +337,25 @@ class TestSubcloudBackupPostSubcloud(BaseTestSubcloudBackupPost):
         response = self._send_request()
 
         self._assert_pecan_and_response(
-            response, http.client.BAD_REQUEST, f"Subcloud {self.subcloud.name} must "
-            "be deployed, online, managed, and no ongoing prestage for the "
-            "subcloud-backup create operation."
+            response,
+            http.client.BAD_REQUEST,
+            f"Subcloud {self.subcloud.name} must be deployed, online, managed, and "
+            "no ongoing prestage for the subcloud-backup create operation.",
         )
 
     def test_post_subcloud_succeeds_with_backup_values(self):
         """Test post subcloud succeeds with backup values"""
 
-        self.params = f'{{"sysadmin_password": "{self._create_password()}",' \
-            f'"subcloud": "{self.subcloud.id}",' \
-            f'"backup_values": "TestFileDirectory"}}'
+        self.params = (
+            f'{{"sysadmin_password": "{self._create_password()}",'
+            f'"subcloud": "{self.subcloud.id}","backup_values": "TestFileDirectory"}}'
+        )
 
         self._update_subcloud()
 
-        self.mock_sysinv_client().get_system_health.return_value = \
+        self.mock_sysinv_client().get_system_health.return_value = (
             FAKE_GOOD_SYSTEM_HEALTH
+        )
 
         response = self._send_request()
 
@@ -358,13 +375,16 @@ class TestSubcloudBackupPostSubcloud(BaseTestSubcloudBackupPost):
     def test_post_subcloud_succeeds_with_local_only(self):
         """Test post subcloud succeeds with local only"""
 
-        self.params = f'{{"sysadmin_password": "{self._create_password()}",' \
+        self.params = (
+            f'{{"sysadmin_password": "{self._create_password()}",'
             f'"subcloud": "{self.subcloud.id}", "local_only": "True"}}'
+        )
 
         self._update_subcloud()
 
-        self.mock_sysinv_client().get_system_health.return_value = \
+        self.mock_sysinv_client().get_system_health.return_value = (
             FAKE_GOOD_SYSTEM_HEALTH
+        )
 
         response = self._send_request()
 
@@ -373,32 +393,39 @@ class TestSubcloudBackupPostSubcloud(BaseTestSubcloudBackupPost):
     def test_post_subcloud_fails_with_invalid_local_only(self):
         """Test post subcloud fails with invalid local only"""
 
-        self.params = f'{{"sysadmin_password": "{self._create_password()}",' \
+        self.params = (
+            f'{{"sysadmin_password": "{self._create_password()}",'
             f'"subcloud": "{self.subcloud.id}", "local_only": "fake"}}'
+        )
 
         self._update_subcloud()
 
-        self.mock_sysinv_client().get_system_health.return_value = \
+        self.mock_sysinv_client().get_system_health.return_value = (
             FAKE_GOOD_SYSTEM_HEALTH
+        )
 
         response = self._send_request()
 
         self._assert_pecan_and_response(
-            response, http.client.BAD_REQUEST,
-            "Invalid local_only value, should be boolean"
+            response,
+            http.client.BAD_REQUEST,
+            "Invalid local_only value, should be boolean",
         )
 
     def test_post_subcloud_succeeds_with_local_only_and_registry_images(self):
         """Test post subcloud succeeds with local only and registry images"""
 
-        self.params = f'{{"sysadmin_password": "{self._create_password()}",' \
-            f'"subcloud": "{self.subcloud.id}", "local_only": "True", ' \
+        self.params = (
+            f'{{"sysadmin_password": "{self._create_password()}",'
+            f'"subcloud": "{self.subcloud.id}", "local_only": "True", '
             f'"registry_images": "True"}}'
+        )
 
         self._update_subcloud()
 
-        self.mock_sysinv_client().get_system_health.return_value = \
+        self.mock_sysinv_client().get_system_health.return_value = (
             FAKE_GOOD_SYSTEM_HEALTH
+        )
 
         response = self._send_request()
 
@@ -407,21 +434,26 @@ class TestSubcloudBackupPostSubcloud(BaseTestSubcloudBackupPost):
     def test_post_subcloud_fails_with_registry_images(self):
         """Test post subcloud fails with registry images"""
 
-        self.params = f'{{"sysadmin_password": "{self._create_password()}",' \
+        self.params = (
+            f'{{"sysadmin_password": "{self._create_password()}",'
             f'"subcloud": "{self.subcloud.id}", "registry_images": "True"}}'
+        )
 
         response = self._send_request()
 
         self._assert_pecan_and_response(
-            response, http.client.BAD_REQUEST, "Option registry_images can not be "
-            "used without local_only option."
+            response,
+            http.client.BAD_REQUEST,
+            "Option registry_images can not be used without local_only option.",
         )
 
     def test_post_subcloud_fails_with_unknown_parameter(self):
         """Test post subcloud fails with unknown parameter"""
 
-        self.params = f'{{"sysadmin_password": "{self._create_password()}",' \
+        self.params = (
+            f'{{"sysadmin_password": "{self._create_password()}",'
             f'"subcloud": "{self.subcloud.id}", "unknown_parameter": "fake"}}'
+        )
 
         response = self._send_request()
 
@@ -443,13 +475,17 @@ class TestSubcloudBackupPostSubcloud(BaseTestSubcloudBackupPost):
     def test_post_subcloud_succeeds_with_final_backup_states(self):
         """Test post subcloud succeeds with final backup states"""
 
-        self.mock_sysinv_client().get_system_health.return_value = \
+        self.mock_sysinv_client().get_system_health.return_value = (
             FAKE_GOOD_SYSTEM_HEALTH
+        )
 
         final_backup_states = [
-            consts.BACKUP_STATE_VALIDATE_FAILED, consts.BACKUP_STATE_PREP_FAILED,
-            consts.BACKUP_STATE_FAILED, consts.BACKUP_STATE_UNKNOWN,
-            consts.BACKUP_STATE_COMPLETE_CENTRAL, consts.BACKUP_STATE_COMPLETE_LOCAL
+            consts.BACKUP_STATE_VALIDATE_FAILED,
+            consts.BACKUP_STATE_PREP_FAILED,
+            consts.BACKUP_STATE_FAILED,
+            consts.BACKUP_STATE_UNKNOWN,
+            consts.BACKUP_STATE_COMPLETE_CENTRAL,
+            consts.BACKUP_STATE_COMPLETE_LOCAL,
         ]
 
         for backup_state in final_backup_states:
@@ -462,8 +498,9 @@ class TestSubcloudBackupPostSubcloud(BaseTestSubcloudBackupPost):
     def test_post_subcloud_fails_with_ongoing_backup_states(self):
         """Test post subcloud fails with ongoing backup states"""
 
-        self.mock_sysinv_client().get_system_health.return_value = \
+        self.mock_sysinv_client().get_system_health.return_value = (
             FAKE_GOOD_SYSTEM_HEALTH
+        )
 
         for index, state in enumerate(consts.STATES_FOR_ONGOING_BACKUP, start=1):
             self._update_subcloud(backup_status=state)
@@ -471,8 +508,10 @@ class TestSubcloudBackupPostSubcloud(BaseTestSubcloudBackupPost):
             response = self._send_request()
 
             self._assert_pecan_and_response(
-                response, http.client.BAD_REQUEST, "Subcloud(s) already have a "
-                "backup operation in progress.", call_count=index
+                response,
+                http.client.BAD_REQUEST,
+                "Subcloud(s) already have a backup operation in progress.",
+                call_count=index,
             )
 
 
@@ -482,8 +521,10 @@ class TestSubcloudBackupPostGroup(BaseTestSubcloudBackupPost):
     def setUp(self):
         super().setUp()
 
-        self.params = f'{{"sysadmin_password": "{self._create_password()}",' \
+        self.params = (
+            f'{{"sysadmin_password": "{self._create_password()}",'
             f'"group": "{self.subcloud.id}"}}'
+        )
 
     def test_post_group_succeeds(self):
         """Test post group succeeds"""
@@ -497,8 +538,9 @@ class TestSubcloudBackupPostGroup(BaseTestSubcloudBackupPost):
     def test_post_group_fails_with_unknown_group(self):
         """Test post group fails with unknown group"""
 
-        self.params = f'{{"sysadmin_password": "{self._create_password()}",' \
-            f'"group": "123"}}'
+        self.params = (
+            f'{{"sysadmin_password": "{self._create_password()}","group": "123"}}'
+        )
 
         response = self._send_request()
 
@@ -509,15 +551,15 @@ class TestSubcloudBackupPostGroup(BaseTestSubcloudBackupPost):
     def test_post_group_fails_with_subcloud_offline(self):
         """Test post group fails with subcloud offline"""
 
-        self._update_subcloud(
-            availability_status=dccommon_consts.AVAILABILITY_OFFLINE
-        )
+        self._update_subcloud(availability_status=dccommon_consts.AVAILABILITY_OFFLINE)
 
         response = self._send_request()
 
         self._assert_pecan_and_response(
-            response, http.client.BAD_REQUEST, "None of the subclouds in group "
-            f"{self.subcloud.id} are in a valid state for subcloud-backup create"
+            response,
+            http.client.BAD_REQUEST,
+            f"None of the subclouds in group {self.subcloud.id} are in "
+            "a valid state for subcloud-backup create",
         )
 
     def test_post_group_fails_with_unmanaged_subcloud(self):
@@ -528,8 +570,10 @@ class TestSubcloudBackupPostGroup(BaseTestSubcloudBackupPost):
         response = self._send_request()
 
         self._assert_pecan_and_response(
-            response, http.client.BAD_REQUEST, "None of the subclouds in group "
-            f"{self.subcloud.id} are in a valid state for subcloud-backup create"
+            response,
+            http.client.BAD_REQUEST,
+            f"None of the subclouds in group {self.subcloud.id} are in "
+            "a valid state for subcloud-backup create",
         )
 
     def test_post_group_fails_with_subcloud_in_invalid_deploy_state(self):
@@ -540,8 +584,10 @@ class TestSubcloudBackupPostGroup(BaseTestSubcloudBackupPost):
         response = self._send_request()
 
         self._assert_pecan_and_response(
-            response, http.client.BAD_REQUEST, "None of the subclouds in group "
-            f"{self.subcloud.id} are in a valid state for subcloud-backup create"
+            response,
+            http.client.BAD_REQUEST,
+            f"None of the subclouds in group {self.subcloud.id} are in "
+            "a valid state for subcloud-backup create",
         )
 
     def test_post_group_fails_with_rpc_client_remote_error(self):
@@ -549,8 +595,9 @@ class TestSubcloudBackupPostGroup(BaseTestSubcloudBackupPost):
 
         self._update_subcloud()
 
-        self.mock_rpc_client().backup_subclouds.side_effect = \
-            RemoteError("msg", "value")
+        self.mock_rpc_client().backup_subclouds.side_effect = RemoteError(
+            "msg", "value"
+        )
 
         response = self._send_request()
 
@@ -623,7 +670,8 @@ class BaseTestSubcloudBackupPatchDelete(BaseTestSubcloudBackupPatch):
         self.url = f"{self.url}/delete/22.12"
 
         self.mock_rpc_client().delete_subcloud_backups.return_value = (
-            "delete_subcloud_backups", {"release_version": "22.12"}
+            "delete_subcloud_backups",
+            {"release_version": "22.12"},
         )
 
 
@@ -639,14 +687,15 @@ class TestSubcloudBackupPatchDelete(BaseTestSubcloudBackupPatchDelete):
         self.params = {
             "sysadmin_password": self._create_password(),
             "subcloud": str(self.subcloud.id),
-            "group": str(self.subcloud.id)
+            "group": str(self.subcloud.id),
         }
 
         response = self._send_request()
 
         self._assert_pecan_and_response(
-            response, http.client.BAD_REQUEST, "'subcloud' and 'group' parameters "
-            "should not be given at the same time"
+            response,
+            http.client.BAD_REQUEST,
+            "'subcloud' and 'group' parameters should not be given at the same time",
         )
 
     def test_patch_delete_fails_without_subcloud_and_group(self):
@@ -657,8 +706,9 @@ class TestSubcloudBackupPatchDelete(BaseTestSubcloudBackupPatchDelete):
         response = self._send_request()
 
         self._assert_pecan_and_response(
-            response, http.client.BAD_REQUEST,
-            "'subcloud' or 'group' parameter is required"
+            response,
+            http.client.BAD_REQUEST,
+            "'subcloud' or 'group' parameter is required",
         )
 
     def test_patch_delete_fails_without_release_version(self):
@@ -669,8 +719,7 @@ class TestSubcloudBackupPatchDelete(BaseTestSubcloudBackupPatchDelete):
         response = self._send_request()
 
         self._assert_pecan_and_response(
-            response, http.client.BAD_REQUEST,
-            "Release version required"
+            response, http.client.BAD_REQUEST, "Release version required"
         )
 
 
@@ -682,7 +731,7 @@ class TestSubcloudBackupPatchDeleteSubcloud(BaseTestSubcloudBackupPatchDelete):
 
         self.params = {
             "sysadmin_password": self._create_password(),
-            "subcloud": str(self.subcloud.id)
+            "subcloud": str(self.subcloud.id),
         }
 
     def test_patch_delete_subcloud_succeeds(self):
@@ -729,8 +778,9 @@ class TestSubcloudBackupPatchDeleteSubcloud(BaseTestSubcloudBackupPatchDelete):
         response = self._send_request()
 
         self._assert_pecan_and_response(
-            response, http.client.BAD_REQUEST,
-            "Invalid local_only value, should be boolean"
+            response,
+            http.client.BAD_REQUEST,
+            "Invalid local_only value, should be boolean",
         )
 
     def test_patch_delete_subcloud_fails_with_unknown_subcloud(self):
@@ -747,8 +797,9 @@ class TestSubcloudBackupPatchDeleteSubcloud(BaseTestSubcloudBackupPatchDelete):
     def test_patch_delete_subcloud_fails_with_rpc_client_remote_error(self):
         """Test patch delete subcloud fails with rpc client remote error"""
 
-        self.mock_rpc_client().delete_subcloud_backups.side_effect = \
-            RemoteError("msg", "value")
+        self.mock_rpc_client().delete_subcloud_backups.side_effect = RemoteError(
+            "msg", "value"
+        )
 
         response = self._send_request()
 
@@ -764,8 +815,9 @@ class TestSubcloudBackupPatchDeleteSubcloud(BaseTestSubcloudBackupPatchDelete):
         response = self._send_request()
 
         self._assert_pecan_and_response(
-            response, http.client.INTERNAL_SERVER_ERROR,
-            "Unable to delete subcloud backups"
+            response,
+            http.client.INTERNAL_SERVER_ERROR,
+            "Unable to delete subcloud backups",
         )
 
 
@@ -777,7 +829,7 @@ class TestSubcloudBackupPatchGroup(BaseTestSubcloudBackupPatchDelete):
 
         self.params = {
             "sysadmin_password": self._create_password(),
-            "group": str(self.subcloud.id)
+            "group": str(self.subcloud.id),
         }
 
     def test_patch_delete_group_succeeds(self):
@@ -790,9 +842,7 @@ class TestSubcloudBackupPatchGroup(BaseTestSubcloudBackupPatchDelete):
     def test_patch_delete_group_fails_with_unknown_group(self):
         """Test patch delete group fails with unknown group"""
 
-        self._update_subcloud(
-            availability_status=dccommon_consts.AVAILABILITY_OFFLINE
-        )
+        self._update_subcloud(availability_status=dccommon_consts.AVAILABILITY_OFFLINE)
 
         self.params["group"] = "999"
 
@@ -816,8 +866,10 @@ class TestSubcloudBackupPatchGroup(BaseTestSubcloudBackupPatchDelete):
         response = self._send_request()
 
         self._assert_pecan_and_response(
-            response, http.client.BAD_REQUEST, "None of the subclouds in group "
-            f"{self.subcloud.id} are in a valid state for subcloud-backup delete"
+            response,
+            http.client.BAD_REQUEST,
+            f"None of the subclouds in group {self.subcloud.id} are in "
+            "a valid state for subcloud-backup delete",
         )
 
 
@@ -851,14 +903,15 @@ class TestSubcloudBackupPatchRestore(BaseTestSubcloudBackupPatchRestore):
         self.params = {
             "sysadmin_password": self._create_password(),
             "subcloud": str(self.subcloud.id),
-            "group": str(self.subcloud.id)
+            "group": str(self.subcloud.id),
         }
 
         response = self._send_request()
 
         self._assert_pecan_and_response(
-            response, http.client.BAD_REQUEST, "'subcloud' and 'group' parameters "
-            "should not be given at the same time"
+            response,
+            http.client.BAD_REQUEST,
+            "'subcloud' and 'group' parameters should not be given at the same time",
         )
 
     def test_patch_restore_fails_without_subcloud_and_group(self):
@@ -869,8 +922,9 @@ class TestSubcloudBackupPatchRestore(BaseTestSubcloudBackupPatchRestore):
         response = self._send_request()
 
         self._assert_pecan_and_response(
-            response, http.client.BAD_REQUEST,
-            "'subcloud' or 'group' parameter is required"
+            response,
+            http.client.BAD_REQUEST,
+            "'subcloud' or 'group' parameter is required",
         )
 
 
@@ -882,7 +936,7 @@ class TestSubcloudBackupPatchRestoreSubcloud(BaseTestSubcloudBackupPatchRestore)
 
         self.params = {
             "sysadmin_password": self._create_password(),
-            "subcloud": str(self.subcloud.id)
+            "subcloud": str(self.subcloud.id),
         }
 
         self._mock_os_listdir()
@@ -915,8 +969,10 @@ class TestSubcloudBackupPatchRestoreSubcloud(BaseTestSubcloudBackupPatchRestore)
         response = self._send_request()
 
         self._assert_pecan_and_response(
-            response, http.client.BAD_REQUEST, f"Subcloud {self.subcloud.name} must "
-            "have a valid bootstrap address: 10.10.20.12.22"
+            response,
+            http.client.BAD_REQUEST,
+            f"Subcloud {self.subcloud.name} must "
+            "have a valid bootstrap address: 10.10.20.12.22",
         )
 
     def test_patch_restore_subcloud_fails_with_invalid_restore_values(self):
@@ -927,8 +983,9 @@ class TestSubcloudBackupPatchRestoreSubcloud(BaseTestSubcloudBackupPatchRestore)
         response = self._send_request()
 
         self._assert_pecan_and_response(
-            response, http.client.BAD_REQUEST, "The bootstrap_address provided in "
-            "restore_values is in invalid format."
+            response,
+            http.client.BAD_REQUEST,
+            "The bootstrap_address provided in restore_values is in invalid format.",
         )
 
     def test_patch_restore_subcloud_fails_with_unknown_subcloud(self):
@@ -950,8 +1007,9 @@ class TestSubcloudBackupPatchRestoreSubcloud(BaseTestSubcloudBackupPatchRestore)
         response = self._send_request()
 
         self._assert_pecan_and_response(
-            response, http.client.BAD_REQUEST, "Option registry_images cannot be "
-            "used without local_only option."
+            response,
+            http.client.BAD_REQUEST,
+            "Option registry_images cannot be used without local_only option.",
         )
 
     def test_patch_restore_subcloud_fails_with_managed_subcloud(self):
@@ -962,24 +1020,28 @@ class TestSubcloudBackupPatchRestoreSubcloud(BaseTestSubcloudBackupPatchRestore)
         response = self._send_request()
 
         self._assert_pecan_and_response(
-            response, http.client.BAD_REQUEST, f"Subcloud {self.subcloud.name} "
-            "must be unmanaged and in a valid deploy state for the "
-            "subcloud-backup restore operation."
+            response,
+            http.client.BAD_REQUEST,
+            f"Subcloud {self.subcloud.name} must be unmanaged and in a valid "
+            "deploy state for the subcloud-backup restore operation.",
         )
 
     def test_patch_restore_subcloud_fails_with_subcloud_in_invalid_state(self):
         """Test patch restore subcloud fails with subcloud in invalid state"""
 
-        for index, status in \
-                enumerate(consts.INVALID_DEPLOY_STATES_FOR_RESTORE, start=1):
+        for index, status in enumerate(
+            consts.INVALID_DEPLOY_STATES_FOR_RESTORE, start=1
+        ):
             self._update_subcloud(deploy_status=status)
 
             response = self._send_request()
 
             self._assert_pecan_and_response(
-                response, http.client.BAD_REQUEST, f"Subcloud {self.subcloud.name} "
-                "must be unmanaged and in a valid deploy state for the "
-                "subcloud-backup restore operation.", call_count=index
+                response,
+                http.client.BAD_REQUEST,
+                f"Subcloud {self.subcloud.name} must be unmanaged and in a valid "
+                "deploy state for the subcloud-backup restore operation.",
+                call_count=index,
             )
 
     def test_patch_restore_subcloud_succeeds_with_install_without_release(self):
@@ -987,11 +1049,10 @@ class TestSubcloudBackupPatchRestoreSubcloud(BaseTestSubcloudBackupPatchRestore)
 
         self.params["with_install"] = "True"
 
-        data_install = \
-            str(fake_subcloud.FAKE_SUBCLOUD_INSTALL_VALUES).replace('/', '"')
+        data_install = str(fake_subcloud.FAKE_SUBCLOUD_INSTALL_VALUES).replace("/", '"')
         self._update_subcloud(
             management_state=dccommon_consts.MANAGEMENT_UNMANAGED,
-            data_install=data_install
+            data_install=data_install,
         )
 
         response = self._send_request()
@@ -1004,17 +1065,15 @@ class TestSubcloudBackupPatchRestoreSubcloud(BaseTestSubcloudBackupPatchRestore)
         self.params["with_install"] = "True"
         self.params["release"] = "22.12"
 
-        data_install = \
-            str(fake_subcloud.FAKE_SUBCLOUD_INSTALL_VALUES).replace('/', '"')
+        data_install = str(fake_subcloud.FAKE_SUBCLOUD_INSTALL_VALUES).replace("/", '"')
         self._update_subcloud(
             management_state=dccommon_consts.MANAGEMENT_UNMANAGED,
-            data_install=data_install
+            data_install=data_install,
         )
 
         with mock.patch(
-            'builtins.open', mock.mock_open(
-                read_data=fake_subcloud.FAKE_UPGRADES_METADATA
-            )
+            "builtins.open",
+            mock.mock_open(read_data=fake_subcloud.FAKE_UPGRADES_METADATA),
         ):
             response = self._send_request()
 
@@ -1025,23 +1084,22 @@ class TestSubcloudBackupPatchRestoreSubcloud(BaseTestSubcloudBackupPatchRestore)
 
         self.params["release"] = "22.12"
 
-        data_install = \
-            str(fake_subcloud.FAKE_SUBCLOUD_INSTALL_VALUES).replace('/', '"')
+        data_install = str(fake_subcloud.FAKE_SUBCLOUD_INSTALL_VALUES).replace("/", '"')
         self._update_subcloud(
             management_state=dccommon_consts.MANAGEMENT_UNMANAGED,
-            data_install=data_install
+            data_install=data_install,
         )
 
         with mock.patch(
-            'builtins.open', mock.mock_open(
-                read_data=fake_subcloud.FAKE_UPGRADES_METADATA
-            )
+            "builtins.open",
+            mock.mock_open(read_data=fake_subcloud.FAKE_UPGRADES_METADATA),
         ):
             response = self._send_request()
 
         self._assert_pecan_and_response(
-            response, http.client.BAD_REQUEST, "Option release cannot be used "
-            "without with_install option."
+            response,
+            http.client.BAD_REQUEST,
+            "Option release cannot be used without with_install option.",
         )
 
     def test_patch_restore_subcloud_fails_with_install_without_install_values(self):
@@ -1056,9 +1114,10 @@ class TestSubcloudBackupPatchRestoreSubcloud(BaseTestSubcloudBackupPatchRestore)
         response = self._send_request()
 
         self._assert_pecan_and_response(
-            response, http.client.BAD_REQUEST, "The restore operation was requested "
-            "with_install, but the following subcloud(s) does not contain install "
-            f"values: {self.subcloud.name}"
+            response,
+            http.client.BAD_REQUEST,
+            "The restore operation was requested with_install, but the following "
+            f"subcloud(s) does not contain install values: {self.subcloud.name}",
         )
 
     def test_patch_restore_subcloud_fails_with_install_without_matching_iso(self):
@@ -1073,8 +1132,9 @@ class TestSubcloudBackupPatchRestoreSubcloud(BaseTestSubcloudBackupPatchRestore)
         response = self._send_request()
 
         self._assert_pecan_and_response(
-            response, http.client.BAD_REQUEST, "No matching: .iso found in vault: "
-            "/opt/dc-vault/loads/TEST.SW.VERSION/"
+            response,
+            http.client.BAD_REQUEST,
+            "No matching: .iso found in vault: /opt/dc-vault/loads/TEST.SW.VERSION/",
         )
 
     def test_patch_restore_subcloud_fails_with_install_without_matching_sig(self):
@@ -1089,11 +1149,12 @@ class TestSubcloudBackupPatchRestoreSubcloud(BaseTestSubcloudBackupPatchRestore)
         response = self._send_request()
 
         self._assert_pecan_and_response(
-            response, http.client.BAD_REQUEST, "No matching: .sig found in vault: "
-            "/opt/dc-vault/loads/TEST.SW.VERSION/"
+            response,
+            http.client.BAD_REQUEST,
+            "No matching: .sig found in vault: /opt/dc-vault/loads/TEST.SW.VERSION/",
         )
 
-    @mock.patch('dcmanager.common.utils.get_matching_iso')
+    @mock.patch("dcmanager.common.utils.get_matching_iso")
     def test_patch_restore_subcloud_fails_with_invalid_release(self, matching_iso):
         """Test patch restore subcloud fails with invalid release"""
 
@@ -1105,8 +1166,9 @@ class TestSubcloudBackupPatchRestoreSubcloud(BaseTestSubcloudBackupPatchRestore)
         response = self._send_request()
 
         self._assert_pecan_and_response(
-            response, http.client.INTERNAL_SERVER_ERROR,
-            "Error: unable to validate the release version."
+            response,
+            http.client.INTERNAL_SERVER_ERROR,
+            "Error: unable to validate the release version.",
         )
 
 
@@ -1118,7 +1180,7 @@ class TestSubcloudBackupPatchRestoreGroup(BaseTestSubcloudBackupPatchRestore):
 
         self.params = {
             "sysadmin_password": self._create_password(),
-            "group": str(self.subcloud.id)
+            "group": str(self.subcloud.id),
         }
 
     def test_patch_restore_group_succeeds(self):
@@ -1136,8 +1198,10 @@ class TestSubcloudBackupPatchRestoreGroup(BaseTestSubcloudBackupPatchRestore):
         """
 
         fake_subcloud.create_fake_subcloud(
-            self.ctx, group_id=self.subcloud.id, name=base.SUBCLOUD_2["name"],
-            region_name=base.SUBCLOUD_2["region_name"]
+            self.ctx,
+            group_id=self.subcloud.id,
+            name=base.SUBCLOUD_2["name"],
+            region_name=base.SUBCLOUD_2["region_name"],
         )
 
         self._update_subcloud()
@@ -1171,8 +1235,9 @@ class TestSubcloudBackupPatchRestoreGroup(BaseTestSubcloudBackupPatchRestore):
     def test_patch_restore_fails_with_rpc_client_remote_error(self):
         """Test patch restore fails when rpc client raises a remote error"""
 
-        self.mock_rpc_client().restore_subcloud_backups.side_effect = \
-            RemoteError("msg", "value")
+        self.mock_rpc_client().restore_subcloud_backups.side_effect = RemoteError(
+            "msg", "value"
+        )
 
         response = self._send_request()
 

@@ -9,12 +9,12 @@ Patch strategy validation tests
 
 from dcmanager.common import consts
 from dcmanager.db.sqlalchemy import api as db_api
-from dcmanager.orchestrator.validators.patch_validator import (
-    PatchStrategyValidator
-)
+from dcmanager.orchestrator.validators.patch_validator import PatchStrategyValidator
 from dcmanager.tests.base import DCManagerTestCase
 from dcmanager.tests.unit.orchestrator.validators.validators_mixin import (
-    StrategyRequirementsMixin, BaseMixin, BuildExtraArgsMixin
+    StrategyRequirementsMixin,
+    BaseMixin,
+    BuildExtraArgsMixin,
 )
 from dcmanager.tests.unit.common.fake_subcloud import create_fake_subcloud
 
@@ -39,10 +39,7 @@ class TestPatchValidator(
         return self.validator
 
     def _get_build_extra_args_payload(self):
-        return {
-            consts.EXTRA_ARGS_UPLOAD_ONLY: True,
-            consts.EXTRA_ARGS_PATCH: None
-        }
+        return {consts.EXTRA_ARGS_UPLOAD_ONLY: True, consts.EXTRA_ARGS_PATCH: None}
 
     def _get_expected_extra_args(self):
 

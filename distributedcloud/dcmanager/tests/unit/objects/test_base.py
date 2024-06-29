@@ -25,15 +25,16 @@ from dcmanager.tests import base
 class TestBaseObject(base.DCManagerTestCase):
     def test_base_class(self):
         obj = obj_base.DCManagerObject()
-        self.assertEqual(obj_base.DCManagerObject.OBJ_PROJECT_NAMESPACE,
-                         obj.OBJ_PROJECT_NAMESPACE)
-        self.assertEqual(obj_base.DCManagerObject.VERSION,
-                         obj.VERSION)
+        self.assertEqual(
+            obj_base.DCManagerObject.OBJ_PROJECT_NAMESPACE, obj.OBJ_PROJECT_NAMESPACE
+        )
+        self.assertEqual(obj_base.DCManagerObject.VERSION, obj.VERSION)
 
     @mock.patch.object(obj_base.DCManagerObject, "obj_reset_changes")
     def test_from_db_object(self, mock_obj_reset_ch):
-        class TestDCManagerObject(obj_base.DCManagerObject,
-                                  obj_base.VersionedObjectDictCompat):
+        class TestDCManagerObject(
+            obj_base.DCManagerObject, obj_base.VersionedObjectDictCompat
+        ):
             fields = {
                 "key1": obj_fields.StringField(),
                 "key2": obj_fields.StringField(),

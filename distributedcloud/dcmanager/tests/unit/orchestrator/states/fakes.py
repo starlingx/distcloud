@@ -11,29 +11,31 @@ import mock
 from dccommon import consts as dccommon_consts
 from dcmanager.common import consts
 
-PREVIOUS_PREVIOUS_VERSION = '01.23'
-PREVIOUS_VERSION = '12.34'
-UPGRADED_VERSION = '56.78'
+PREVIOUS_PREVIOUS_VERSION = "01.23"
+PREVIOUS_VERSION = "12.34"
+UPGRADED_VERSION = "56.78"
 
-PREVIOUS_KUBE_VERSION = 'v1.2.3'
-UPGRADED_KUBE_VERSION = 'v1.2.4'
+PREVIOUS_KUBE_VERSION = "v1.2.3"
+UPGRADED_KUBE_VERSION = "v1.2.4"
 
-FAKE_VENDOR = '8086'
-FAKE_DEVICE = '0b30'
+FAKE_VENDOR = "8086"
+FAKE_DEVICE = "0b30"
 
 
 class FakeController(object):
-    def __init__(self,
-                 host_id=1,
-                 hostname='controller-0',
-                 administrative=consts.ADMIN_UNLOCKED,
-                 operational=consts.OPERATIONAL_ENABLED,
-                 availability=dccommon_consts.AVAILABILITY_ONLINE,
-                 ihost_action=None,
-                 target_load=UPGRADED_VERSION,
-                 software_load=PREVIOUS_VERSION,
-                 task=None,
-                 capabilities={"Personality": "Controller-Active"}):
+    def __init__(
+        self,
+        host_id=1,
+        hostname="controller-0",
+        administrative=consts.ADMIN_UNLOCKED,
+        operational=consts.OPERATIONAL_ENABLED,
+        availability=dccommon_consts.AVAILABILITY_ONLINE,
+        ihost_action=None,
+        target_load=UPGRADED_VERSION,
+        software_load=PREVIOUS_VERSION,
+        task=None,
+        capabilities={"Personality": "Controller-Active"},
+    ):
         self.uuid = str(uuid.uuid4())
         self.id = host_id
         self.hostname = hostname
@@ -48,11 +50,9 @@ class FakeController(object):
 
 
 class FakeDevice(object):
-    def __init__(self,
-                 obj_id,
-                 pvendor_id=FAKE_VENDOR,
-                 pdevice_id=FAKE_DEVICE,
-                 enabled=True):
+    def __init__(
+        self, obj_id, pvendor_id=FAKE_VENDOR, pdevice_id=FAKE_DEVICE, enabled=True
+    ):
         self.uuid = obj_id
         self.pvendor_id = pvendor_id
         self.pdevice_id = pdevice_id
@@ -60,13 +60,15 @@ class FakeDevice(object):
 
 
 class FakeDeviceImage(object):
-    def __init__(self,
-                 obj_id,
-                 pci_vendor=FAKE_VENDOR,
-                 pci_device=FAKE_DEVICE,
-                 bitstream_type='functional',
-                 applied=False,
-                 applied_labels=None):
+    def __init__(
+        self,
+        obj_id,
+        pci_vendor=FAKE_VENDOR,
+        pci_device=FAKE_DEVICE,
+        bitstream_type="functional",
+        applied=False,
+        applied_labels=None,
+    ):
         self.uuid = obj_id
         self.pci_vendor = pci_vendor
         self.pci_device = pci_device
@@ -76,10 +78,7 @@ class FakeDeviceImage(object):
 
 
 class FakeDeviceLabel(object):
-    def __init__(self,
-                 label_key=None,
-                 label_value=None,
-                 pcidevice_uuid=None):
+    def __init__(self, label_key=None, label_value=None, pcidevice_uuid=None):
         self.uuid = str(uuid.uuid4())
         self.label_key = label_key
         self.label_value = label_value
@@ -87,10 +86,7 @@ class FakeDeviceLabel(object):
 
 
 class FakeHostFilesystem(object):
-    def __init__(self,
-                 name='scratch',
-                 logical_volume='scratch-lv',
-                 size=16):
+    def __init__(self, name="scratch", logical_volume="scratch-lv", size=16):
         self.name = name
         self.logical_volume = logical_volume
         self.size = size
@@ -103,20 +99,20 @@ class FakeKeystoneClient(object):
 
 
 class FakeKubeRootCaUpdate(object):
-    def __init__(self,
-                 obj_id=1,
-                 state='update-started'):
+    def __init__(self, obj_id=1, state="update-started"):
         self.id = obj_id
         self.uuid = str(uuid.uuid4())
         self.state = state
 
 
 class FakeKubeUpgrade(object):
-    def __init__(self,
-                 obj_id=1,
-                 from_version=PREVIOUS_KUBE_VERSION,
-                 to_version=UPGRADED_KUBE_VERSION,
-                 state='upgrade-complete'):
+    def __init__(
+        self,
+        obj_id=1,
+        from_version=PREVIOUS_KUBE_VERSION,
+        to_version=UPGRADED_KUBE_VERSION,
+        state="upgrade-complete",
+    ):
         self.id = obj_id
         self.uuid = str(uuid.uuid4())
         self.from_version = state
@@ -125,11 +121,9 @@ class FakeKubeUpgrade(object):
 
 
 class FakeKubeVersion(object):
-    def __init__(self,
-                 obj_id=1,
-                 version=UPGRADED_KUBE_VERSION,
-                 target=True,
-                 state='active'):
+    def __init__(
+        self, obj_id=1, version=UPGRADED_KUBE_VERSION, target=True, state="active"
+    ):
         self.id = obj_id
         self.uuid = str(uuid.uuid4())
         self.version = version
@@ -144,14 +138,16 @@ class FakeKubeVersion(object):
 
 
 class FakeLoad(object):
-    def __init__(self,
-                 obj_id,
-                 compatible_version='N/A',
-                 required_patches='N/A',
-                 software_version=PREVIOUS_VERSION,
-                 state='active',
-                 created_at=None,
-                 updated_at=None):
+    def __init__(
+        self,
+        obj_id,
+        compatible_version="N/A",
+        required_patches="N/A",
+        software_version=PREVIOUS_VERSION,
+        state="active",
+        created_at=None,
+        updated_at=None,
+    ):
         self.id = obj_id
         self.uuid = str(uuid.uuid4())
         self.compatible_version = compatible_version
@@ -190,20 +186,20 @@ class FakeFmClient(object):
 
 
 class FakeSystem(object):
-    def __init__(self,
-                 obj_id=1,
-                 software_version=UPGRADED_VERSION):
+    def __init__(self, obj_id=1, software_version=UPGRADED_VERSION):
         self.id = obj_id
         self.uuid = str(uuid.uuid4())
         self.software_version = software_version
 
 
 class FakeUpgrade(object):
-    def __init__(self,
-                 obj_id=1,
-                 state='completed',
-                 from_release=PREVIOUS_VERSION,
-                 to_release=UPGRADED_VERSION):
+    def __init__(
+        self,
+        obj_id=1,
+        state="completed",
+        from_release=PREVIOUS_VERSION,
+        to_release=UPGRADED_VERSION,
+    ):
         self.id = obj_id
         self.uuid = str(uuid.uuid4())
         self.state = state
@@ -213,8 +209,6 @@ class FakeUpgrade(object):
 
 
 class FakeAlarm(object):
-    def __init__(self,
-                 alarm_id='12.34',
-                 mgmt_affecting='False'):
+    def __init__(self, alarm_id="12.34", mgmt_affecting="False"):
         self.alarm_id = alarm_id
         self.mgmt_affecting = mgmt_affecting

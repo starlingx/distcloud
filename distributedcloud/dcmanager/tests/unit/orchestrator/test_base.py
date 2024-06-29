@@ -49,49 +49,49 @@ class TestSwUpdate(base.DCManagerTestCase):
 
         # Mock the context
         self.ctxt = utils.dummy_context()
-        p = mock.patch.object(context, 'get_admin_context')
+        p = mock.patch.object(context, "get_admin_context")
         self.mock_get_admin_context = p.start()
         self.mock_get_admin_context.return_value = self.ctx
         self.addCleanup(p.stop)
 
         # Mock the keystone client defined in the base state class
         self.keystone_client = FakeKeystoneClient()
-        p = mock.patch.object(BaseState, 'get_keystone_client')
+        p = mock.patch.object(BaseState, "get_keystone_client")
         self.mock_keystone_client = p.start()
         self.mock_keystone_client.return_value = self.keystone_client
         self.addCleanup(p.stop)
 
         # Mock the sysinv client defined in the base state class
         self.sysinv_client = FakeSysinvClient()
-        p = mock.patch.object(BaseState, 'get_sysinv_client')
+        p = mock.patch.object(BaseState, "get_sysinv_client")
         self.mock_sysinv_client = p.start()
         self.mock_sysinv_client.return_value = self.sysinv_client
         self.addCleanup(p.stop)
 
         # Mock the software client defined in the base state class
         self.software_client = FakeSoftwareClient()
-        p = mock.patch.object(BaseState, 'get_software_client')
+        p = mock.patch.object(BaseState, "get_software_client")
         self.mock_software_client = p.start()
         self.mock_software_client.return_value = self.software_client
         self.addCleanup(p.stop)
 
         # Mock the patching client defined in the base state class
         self.patching_client = FakePatchingClient()
-        p = mock.patch.object(BaseState, 'get_patching_client')
+        p = mock.patch.object(BaseState, "get_patching_client")
         self.mock_patching_client = p.start()
         self.mock_patching_client.return_value = self.patching_client
         self.addCleanup(p.stop)
 
         # Mock the vim client defined in the base state class
         self.vim_client = FakeVimClient()
-        p = mock.patch.object(BaseState, 'get_vim_client')
+        p = mock.patch.object(BaseState, "get_vim_client")
         self.mock_vim_client = p.start()
         self.mock_vim_client.return_value = self.vim_client
         self.addCleanup(p.stop)
 
         # Mock the fm client defined in the base state class
         self.fm_client = FakeFmClient()
-        p = mock.patch.object(BaseState, 'get_fm_client')
+        p = mock.patch.object(BaseState, "get_fm_client")
         self.mock_fm_client = p.start()
         self.mock_fm_client.return_value = self.fm_client
         self.addCleanup(p.stop)
@@ -105,108 +105,108 @@ class TestSwUpdate(base.DCManagerTestCase):
         if strategy_type == consts.SW_UPDATE_TYPE_SOFTWARE:
             sw_update_manager.SoftwareOrchThread.stopped = lambda x: False
             worker = sw_update_manager.SoftwareOrchThread(
-                mock_strategy_lock, mock_dcmanager_audit_api)
+                mock_strategy_lock, mock_dcmanager_audit_api
+            )
         else:
             # mock the software orch thread
             self.fake_software_orch_thread = FakeOrchThread()
-            p = mock.patch.object(sw_update_manager, 'SoftwareOrchThread')
+            p = mock.patch.object(sw_update_manager, "SoftwareOrchThread")
             self.mock_software_orch_thread = p.start()
-            self.mock_software_orch_thread.return_value = \
-                self.fake_software_orch_thread
+            self.mock_software_orch_thread.return_value = self.fake_software_orch_thread
             self.addCleanup(p.stop)
 
         if strategy_type == consts.SW_UPDATE_TYPE_PATCH:
             sw_update_manager.PatchOrchThread.stopped = lambda x: False
-            worker = \
-                sw_update_manager.PatchOrchThread(mock_strategy_lock,
-                                                  mock_dcmanager_audit_api)
+            worker = sw_update_manager.PatchOrchThread(
+                mock_strategy_lock, mock_dcmanager_audit_api
+            )
         else:
             # mock the patch orch thread
             self.fake_sw_patch_orch_thread = FakeOrchThread()
-            p = mock.patch.object(sw_update_manager, 'PatchOrchThread')
+            p = mock.patch.object(sw_update_manager, "PatchOrchThread")
             self.mock_sw_patch_orch_thread = p.start()
-            self.mock_sw_patch_orch_thread.return_value = \
-                self.fake_sw_patch_orch_thread
+            self.mock_sw_patch_orch_thread.return_value = self.fake_sw_patch_orch_thread
             self.addCleanup(p.stop)
 
         if strategy_type == consts.SW_UPDATE_TYPE_FIRMWARE:
             sw_update_manager.FwUpdateOrchThread.stopped = lambda x: False
-            worker = \
-                sw_update_manager.FwUpdateOrchThread(mock_strategy_lock,
-                                                     mock_dcmanager_audit_api)
+            worker = sw_update_manager.FwUpdateOrchThread(
+                mock_strategy_lock, mock_dcmanager_audit_api
+            )
         else:
             # mock the firmware orch thread
             self.fake_fw_update_orch_thread = FakeOrchThread()
-            p = mock.patch.object(sw_update_manager, 'FwUpdateOrchThread')
+            p = mock.patch.object(sw_update_manager, "FwUpdateOrchThread")
             self.mock_fw_update_orch_thread = p.start()
-            self.mock_fw_update_orch_thread.return_value = \
+            self.mock_fw_update_orch_thread.return_value = (
                 self.fake_fw_update_orch_thread
+            )
             self.addCleanup(p.stop)
 
         if strategy_type == consts.SW_UPDATE_TYPE_KUBERNETES:
             sw_update_manager.KubeUpgradeOrchThread.stopped = lambda x: False
             worker = sw_update_manager.KubeUpgradeOrchThread(
-                mock_strategy_lock,
-                mock_dcmanager_audit_api)
+                mock_strategy_lock, mock_dcmanager_audit_api
+            )
         else:
             # mock the kube upgrade orch thread
             self.fake_kube_upgrade_orch_thread = FakeOrchThread()
-            p = mock.patch.object(sw_update_manager, 'KubeUpgradeOrchThread')
+            p = mock.patch.object(sw_update_manager, "KubeUpgradeOrchThread")
             self.mock_kube_upgrade_orch_thread = p.start()
-            self.mock_kube_upgrade_orch_thread.return_value = \
+            self.mock_kube_upgrade_orch_thread.return_value = (
                 self.fake_kube_upgrade_orch_thread
+            )
             self.addCleanup(p.stop)
 
         if strategy_type == consts.SW_UPDATE_TYPE_KUBE_ROOTCA_UPDATE:
-            sw_update_manager.KubeRootcaUpdateOrchThread.stopped = \
-                lambda x: False
+            sw_update_manager.KubeRootcaUpdateOrchThread.stopped = lambda x: False
             worker = sw_update_manager.KubeRootcaUpdateOrchThread(
-                mock_strategy_lock,
-                mock_dcmanager_audit_api)
+                mock_strategy_lock, mock_dcmanager_audit_api
+            )
         else:
             # mock the kube rootca update orch thread
             self.fake_kube_rootca_update_orch_thread = FakeOrchThread()
-            p = mock.patch.object(sw_update_manager,
-                                  'KubeRootcaUpdateOrchThread')
+            p = mock.patch.object(sw_update_manager, "KubeRootcaUpdateOrchThread")
             self.mock_kube_rootca_update_orch_thread = p.start()
-            self.mock_kube_rootca_update_orch_thread.return_value = \
+            self.mock_kube_rootca_update_orch_thread.return_value = (
                 self.fake_kube_rootca_update_orch_thread
+            )
             self.addCleanup(p.stop)
 
         if strategy_type == consts.SW_UPDATE_TYPE_PRESTAGE:
             sw_update_manager.PrestageOrchThread.stopped = lambda x: False
-            worker = \
-                sw_update_manager.PrestageOrchThread(mock_strategy_lock,
-                                                     mock_dcmanager_audit_api)
+            worker = sw_update_manager.PrestageOrchThread(
+                mock_strategy_lock, mock_dcmanager_audit_api
+            )
         else:
             # mock the prestage orch thread
             self.fake_prestage_orch_thread = FakeOrchThread()
-            p = mock.patch.object(sw_update_manager, 'PrestageOrchThread')
+            p = mock.patch.object(sw_update_manager, "PrestageOrchThread")
             self.mock_prestage_orch_thread = p.start()
-            self.mock_prestage_orch_thread.return_value = \
-                self.fake_prestage_orch_thread
+            self.mock_prestage_orch_thread.return_value = self.fake_prestage_orch_thread
             self.addCleanup(p.stop)
 
         return worker
 
     def setup_subcloud(self, deploy_status=consts.DEPLOY_STATE_INSTALLED):
         subcloud_id = fake_subcloud.create_fake_subcloud(
-            self.ctx, deploy_status=deploy_status,
+            self.ctx,
+            deploy_status=deploy_status,
         ).id
         return db_api.subcloud_update(
             self.ctx,
             subcloud_id,
             management_state=dccommon_consts.MANAGEMENT_MANAGED,
-            availability_status=dccommon_consts.AVAILABILITY_ONLINE)
+            availability_status=dccommon_consts.AVAILABILITY_ONLINE,
+        )
 
     def delete_subcloud(self, subcloud_id):
         return db_api.subcloud_destroy(self.ctx, subcloud_id)
 
     def setup_strategy_step(self, subcloud_id, strategy_state):
         fake_strategy.create_fake_strategy_step(
-            self.ctx,
-            subcloud_id=subcloud_id,
-            state=strategy_state)
+            self.ctx, subcloud_id=subcloud_id, state=strategy_state
+        )
         return db_api.strategy_step_get(self.ctx, subcloud_id)
 
     def clean_strategy_steps(self):
@@ -226,11 +226,7 @@ class TestSwUpdate(base.DCManagerTestCase):
         self.assertEqual(expected_val, subcloud[attr_name])
 
     def assert_subcloud_software_version(self, subcloud_id, expected_val):
-        self.assert_subcloud_attribute(subcloud_id,
-                                       'software_version',
-                                       expected_val)
+        self.assert_subcloud_attribute(subcloud_id, "software_version", expected_val)
 
     def assert_subcloud_deploy_status(self, subcloud_id, expected_val):
-        self.assert_subcloud_attribute(subcloud_id,
-                                       'deploy_status',
-                                       expected_val)
+        self.assert_subcloud_attribute(subcloud_id, "deploy_status", expected_val)

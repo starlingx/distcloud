@@ -26,7 +26,7 @@ from dcmanager.common import consts
 from dcmanager.manager import service
 from dcmanager.tests.base import DCManagerTestCase
 
-sys.modules['fm_core'] = mock.Mock()
+sys.modules["fm_core"] = mock.Mock()
 CONF = cfg.CONF
 
 
@@ -35,8 +35,7 @@ class BaseTestDCManagerService(DCManagerTestCase):
 
     def setUp(self):
         super().setUp()
-        self.service_obj = service.DCManagerService('dcmanager',
-                                                    'dcmanager')
+        self.service_obj = service.DCManagerService("dcmanager", "dcmanager")
         self.payload = {}
         self._mock_audit_rpc_client()
         self._mock_subcloud_manager(service)
@@ -44,14 +43,14 @@ class BaseTestDCManagerService(DCManagerTestCase):
 
 
 class TestDCManagerServiceInit(BaseTestDCManagerService):
-    """Test class for testing init managers in DCManagerService """
+    """Test class for testing init managers in DCManagerService"""
 
     def setUp(self):
         super().setUp()
 
     def test_init(self):
-        self.assertEqual(self.service_obj.host, 'localhost')
-        self.assertEqual(self.service_obj.topic, 'dcmanager')
+        self.assertEqual(self.service_obj.host, "localhost")
+        self.assertEqual(self.service_obj.topic, "dcmanager")
 
     def test_init_managers(self):
         self.service_obj.init_managers()
@@ -60,7 +59,7 @@ class TestDCManagerServiceInit(BaseTestDCManagerService):
         self.assertIsNotNone(self.service_obj.peer_monitor_manager)
 
 
-@mock.patch.object(service, 'rpc_messaging')
+@mock.patch.object(service, "rpc_messaging")
 class TestDCManagerService(BaseTestDCManagerService):
     """Test class for testing DCManagerService"""
 
@@ -71,7 +70,8 @@ class TestDCManagerService(BaseTestDCManagerService):
         os.path.isdir = mock.Mock(return_value=True)
         self.service_obj.start()
         mock_rpc.get_rpc_server.assert_called_once_with(
-            self.service_obj.target, self.service_obj)
+            self.service_obj.target, self.service_obj
+        )
         mock_rpc.get_rpc_server().start.assert_called_once()
 
 
@@ -82,188 +82,237 @@ class TestSubcloudManager(BaseTestDCManagerService):
         super().setUp()
 
     def test_add_subcloud(self):
-        payload = {'name': 'testname',
-                   'region_name': uuidutils.generate_uuid().replace("-", "")}
+        payload = {
+            "name": "testname",
+            "region_name": uuidutils.generate_uuid().replace("-", ""),
+        }
         self.service_obj.init_managers()
-        self.service_obj.add_subcloud(
-            self.ctx, subcloud_id=1, payload=payload)
-        self.mock_subcloud_manager().add_subcloud.\
-            assert_called_once_with(self.ctx, 1, payload)
+        self.service_obj.add_subcloud(self.ctx, subcloud_id=1, payload=payload)
+        self.mock_subcloud_manager().add_subcloud.assert_called_once_with(
+            self.ctx, 1, payload
+        )
 
     def test_add_secondary_subcloud(self):
-        payload = {'name': 'testname',
-                   'region_name': uuidutils.generate_uuid().replace("-", "")}
+        payload = {
+            "name": "testname",
+            "region_name": uuidutils.generate_uuid().replace("-", ""),
+        }
         self.service_obj.init_managers()
         self.service_obj.add_secondary_subcloud(
-            self.ctx, subcloud_id=2, payload=payload)
-        self.mock_subcloud_manager().add_subcloud.\
-            assert_called_once_with(self.ctx, 2, payload)
+            self.ctx, subcloud_id=2, payload=payload
+        )
+        self.mock_subcloud_manager().add_subcloud.assert_called_once_with(
+            self.ctx, 2, payload
+        )
 
     def test_delete_subcloud(self):
         self.service_obj.init_managers()
-        self.service_obj.delete_subcloud(
-            self.ctx, subcloud_id=1)
-        self.mock_subcloud_manager().delete_subcloud.\
-            assert_called_once_with(self.ctx, 1)
+        self.service_obj.delete_subcloud(self.ctx, subcloud_id=1)
+        self.mock_subcloud_manager().delete_subcloud.assert_called_once_with(
+            self.ctx, 1
+        )
 
     def test_rename_subcloud(self):
         self.service_obj.init_managers()
         self.service_obj.rename_subcloud(
-            self.ctx, subcloud_id=1, curr_subcloud_name='fake_subcloud',
-            new_subcloud_name='subcloud1')
-        self.mock_subcloud_manager().rename_subcloud.\
-            assert_called_once_with(self.ctx, 1, 'fake_subcloud', 'subcloud1')
+            self.ctx,
+            subcloud_id=1,
+            curr_subcloud_name="fake_subcloud",
+            new_subcloud_name="subcloud1",
+        )
+        self.mock_subcloud_manager().rename_subcloud.assert_called_once_with(
+            self.ctx, 1, "fake_subcloud", "subcloud1"
+        )
 
     def test_get_subcloud_name_by_region_name(self):
         self.service_obj.init_managers()
         self.service_obj.get_subcloud_name_by_region_name(
-            self.ctx, subcloud_region='test_region')
-        self.mock_subcloud_manager().get_subcloud_name_by_region_name.\
-            assert_called_once_with(self.ctx, 'test_region')
+            self.ctx, subcloud_region="test_region"
+        )
+        get_subcloud_name = (
+            self.mock_subcloud_manager().get_subcloud_name_by_region_name
+        )
+        get_subcloud_name.assert_called_once_with(self.ctx, "test_region")
 
     def test_update_subcloud(self):
         self.service_obj.init_managers()
         self.service_obj.update_subcloud(
-            self.ctx, subcloud_id=1,
-            management_state='testmgmtstatus')
+            self.ctx, subcloud_id=1, management_state="testmgmtstatus"
+        )
         self.mock_subcloud_manager().update_subcloud.assert_called_once_with(
-            self.ctx, 1, 'testmgmtstatus', None, None, None, None, None, None,
-            None, None, None
+            self.ctx,
+            1,
+            "testmgmtstatus",
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
         )
 
     def test_update_subcloud_with_network_reconfig(self):
-        payload = {'name': 'testname',
-                   'bootstrap-address': "10.10.10.12"}
+        payload = {"name": "testname", "bootstrap-address": "10.10.10.12"}
         self.service_obj.init_managers()
         self.service_obj.update_subcloud_with_network_reconfig(
-            self.ctx, subcloud_id=1, payload=payload)
-        self.mock_subcloud_manager().update_subcloud_with_network_reconfig.\
-            assert_called_once_with(self.ctx, 1, payload)
+            self.ctx, subcloud_id=1, payload=payload
+        )
+        update_subcloud_with_network_reconfig = (
+            self.mock_subcloud_manager().update_subcloud_with_network_reconfig
+        )
+        update_subcloud_with_network_reconfig.assert_called_once_with(
+            self.ctx, 1, payload
+        )
 
     def test_redeploy_subcloud(self):
-        payload = {'DEPLOY_PHASE_CONFIG': 'configure'}
+        payload = {"DEPLOY_PHASE_CONFIG": "configure"}
         self.service_obj.init_managers()
-        self.service_obj.redeploy_subcloud(
-            self.ctx, subcloud_id=1, payload=payload)
+        self.service_obj.redeploy_subcloud(self.ctx, subcloud_id=1, payload=payload)
         self.mock_subcloud_manager().redeploy_subcloud.assert_called_once_with(
-            self.ctx, 1, payload)
+            self.ctx, 1, payload
+        )
 
     def test_backup_subclouds(self):
-        payload = {'subcloud': 'subcloud1'}
+        payload = {"subcloud": "subcloud1"}
         self.service_obj.init_managers()
-        self.service_obj.backup_subclouds(
-            self.ctx, payload=payload)
+        self.service_obj.backup_subclouds(self.ctx, payload=payload)
         self.mock_subcloud_manager().create_subcloud_backups.assert_called_once_with(
-            self.ctx, payload)
+            self.ctx, payload
+        )
 
     def test_delete_subcloud_backups(self):
-        payload = {'subcloud': 'subcloud2'}
+        payload = {"subcloud": "subcloud2"}
         self.service_obj.init_managers()
         self.service_obj.delete_subcloud_backups(
-            self.ctx, release_version=23.09, payload=payload)
+            self.ctx, release_version=23.09, payload=payload
+        )
         self.mock_subcloud_manager().delete_subcloud_backups.assert_called_once_with(
-            self.ctx, 23.09, payload)
+            self.ctx, 23.09, payload
+        )
 
     def test_restore_subcloud_backups(self):
-        payload = {'subcloud': 'subcloud2'}
+        payload = {"subcloud": "subcloud2"}
         self.service_obj.init_managers()
-        self.service_obj.restore_subcloud_backups(
-            self.ctx, payload=payload)
-        self.mock_subcloud_manager().restore_subcloud_backups.\
-            assert_called_once_with(self.ctx, payload)
+        self.service_obj.restore_subcloud_backups(self.ctx, payload=payload)
+        self.mock_subcloud_manager().restore_subcloud_backups.assert_called_once_with(
+            self.ctx, payload
+        )
 
     def test_update_subcloud_sync_endpoint_type(self):
         self.service_obj.init_managers()
         self.service_obj.update_subcloud_sync_endpoint_type(
-            self.ctx, subcloud_name='testname',
+            self.ctx,
+            subcloud_name="testname",
             endpoint_type_list=dccommon_consts.ENDPOINT_TYPES_LIST_OS,
-            openstack_installed=True)
-        self.mock_subcloud_manager().update_subcloud_sync_endpoint_type.\
-            assert_called_once_with(self.ctx,
-                                    'testname',
-                                    dccommon_consts.ENDPOINT_TYPES_LIST_OS,
-                                    True)
+            openstack_installed=True,
+        )
+        update_subcloud_sync_endpoint_type = (
+            self.mock_subcloud_manager().update_subcloud_sync_endpoint_type
+        )
+        update_subcloud_sync_endpoint_type.assert_called_once_with(
+            self.ctx, "testname", dccommon_consts.ENDPOINT_TYPES_LIST_OS, True
+        )
 
     def test_prestage_subcloud(self):
-        payload = {'subcloud_name': 'subcloud1'}
+        payload = {"subcloud_name": "subcloud1"}
         self.service_obj.init_managers()
-        self.service_obj.prestage_subcloud(
-            self.ctx, payload=payload)
+        self.service_obj.prestage_subcloud(self.ctx, payload=payload)
         self.mock_subcloud_manager().prestage_subcloud.assert_called_once_with(
-            self.ctx, payload)
+            self.ctx, payload
+        )
 
     def test_subcloud_deploy_create(self):
-        payload = {'name': 'subcloud1'}
+        payload = {"name": "subcloud1"}
         self.service_obj.init_managers()
         self.service_obj.subcloud_deploy_create(
-            self.ctx, subcloud_id=1, payload=payload)
+            self.ctx, subcloud_id=1, payload=payload
+        )
         self.mock_subcloud_manager().subcloud_deploy_create.assert_called_once_with(
-            self.ctx, 1, payload)
+            self.ctx, 1, payload
+        )
 
     def test_subcloud_deploy_bootstrap(self):
-        payload = {'name': 'subcloud1'}
+        payload = {"name": "subcloud1"}
         self.service_obj.init_managers()
         self.service_obj.subcloud_deploy_bootstrap(
-            self.ctx, subcloud_id=1, payload=payload, initial_deployment=True)
-        self.mock_subcloud_manager().subcloud_deploy_bootstrap.\
-            assert_called_once_with(self.ctx, 1, payload, True)
+            self.ctx, subcloud_id=1, payload=payload, initial_deployment=True
+        )
+        self.mock_subcloud_manager().subcloud_deploy_bootstrap.assert_called_once_with(
+            self.ctx, 1, payload, True
+        )
 
     def test_subcloud_deploy_config(self):
-        payload = {'name': 'testname'}
+        payload = {"name": "testname"}
         self.service_obj.init_managers()
         self.service_obj.subcloud_deploy_config(
-            self.ctx, subcloud_id=1, payload=payload, initial_deployment=True)
+            self.ctx, subcloud_id=1, payload=payload, initial_deployment=True
+        )
         self.mock_subcloud_manager().subcloud_deploy_config.assert_called_once_with(
-            self.ctx, 1, payload, True)
+            self.ctx, 1, payload, True
+        )
 
     def test_subcloud_deploy_install(self):
-        payload = {'name': 'testname'}
+        payload = {"name": "testname"}
         self.service_obj.init_managers()
         self.service_obj.subcloud_deploy_install(
-            self.ctx, subcloud_id=1, payload=payload, initial_deployment=True)
+            self.ctx, subcloud_id=1, payload=payload, initial_deployment=True
+        )
         self.mock_subcloud_manager().subcloud_deploy_install.assert_called_once_with(
-            self.ctx, 1, payload, True)
+            self.ctx, 1, payload, True
+        )
 
     def test_subcloud_deploy_complete(self):
         self.service_obj.init_managers()
-        self.service_obj.subcloud_deploy_complete(
-            self.ctx, subcloud_id=1)
-        self.mock_subcloud_manager().subcloud_deploy_complete.\
-            assert_called_once_with(self.ctx, 1)
+        self.service_obj.subcloud_deploy_complete(self.ctx, subcloud_id=1)
+        self.mock_subcloud_manager().subcloud_deploy_complete.assert_called_once_with(
+            self.ctx, 1
+        )
 
     def test_subcloud_deploy_abort(self):
         self.service_obj.init_managers()
         self.service_obj.subcloud_deploy_abort(
-            self.ctx, subcloud_id=1,
-            deploy_status=consts.DEPLOY_STATE_ABORTING_CONFIG)
+            self.ctx, subcloud_id=1, deploy_status=consts.DEPLOY_STATE_ABORTING_CONFIG
+        )
         self.mock_subcloud_manager().subcloud_deploy_abort.assert_called_once_with(
-            self.ctx, 1, consts.DEPLOY_STATE_ABORTING_CONFIG)
+            self.ctx, 1, consts.DEPLOY_STATE_ABORTING_CONFIG
+        )
 
     def test_subcloud_deploy_resume(self):
 
-        deploy_states_to_run = [consts.DEPLOY_PHASE_INSTALL,
-                                consts.DEPLOY_PHASE_BOOTSTRAP,
-                                consts.DEPLOY_PHASE_CONFIG]
+        deploy_states_to_run = [
+            consts.DEPLOY_PHASE_INSTALL,
+            consts.DEPLOY_PHASE_BOOTSTRAP,
+            consts.DEPLOY_PHASE_CONFIG,
+        ]
 
-        fake_payload = {'fake_payload_install': 'fake_install_values',
-                        'fake_payload_bootstrap': 'fake_bootstrap_values',
-                        'fake_payload_config': 'fake_config'}
+        fake_payload = {
+            "fake_payload_install": "fake_install_values",
+            "fake_payload_bootstrap": "fake_bootstrap_values",
+            "fake_payload_config": "fake_config",
+        }
 
         self.service_obj.init_managers()
         self.service_obj.subcloud_deploy_resume(
-            self.ctx, subcloud_id=1, subcloud_name='testname',
+            self.ctx,
+            subcloud_id=1,
+            subcloud_name="testname",
             payload=fake_payload,
-            deploy_states_to_run=deploy_states_to_run)
+            deploy_states_to_run=deploy_states_to_run,
+        )
         self.mock_subcloud_manager().subcloud_deploy_resume.assert_called_once_with(
-            self.ctx, 1, 'testname', fake_payload, deploy_states_to_run)
+            self.ctx, 1, "testname", fake_payload, deploy_states_to_run
+        )
 
     def test_batch_migrate_subcloud(self):
-        payload = {'peer_group': 'fake_peer_group'}
+        payload = {"peer_group": "fake_peer_group"}
         self.service_obj.init_managers()
-        self.service_obj.batch_migrate_subcloud(
-            self.ctx, payload=payload)
+        self.service_obj.batch_migrate_subcloud(self.ctx, payload=payload)
         self.mock_subcloud_manager().batch_migrate_subcloud.assert_called_once_with(
-            self.ctx, payload)
+            self.ctx, payload
+        )
 
 
 class TestPeerMonitorManager(BaseTestDCManagerService):
@@ -276,19 +325,24 @@ class TestPeerMonitorManager(BaseTestDCManagerService):
         self.service_obj.init_managers()
         self.service_obj.peer_monitor_notify(self.ctx)
         self.mock_peer_monitor_manager().peer_monitor_notify.assert_called_once_with(
-            self.ctx)
+            self.ctx
+        )
 
     def test_peer_group_audit_notify(self):
-        payload = {'peer_uuid': 2}
+        payload = {"peer_uuid": 2}
         self.service_obj.init_managers()
         self.service_obj.peer_group_audit_notify(
-            self.ctx, peer_group_name='fake_peer_group', payload=payload)
-        self.mock_peer_monitor_manager().peer_group_audit_notify.\
-            assert_called_once_with(self.ctx,
-                                    'fake_peer_group', payload)
+            self.ctx, peer_group_name="fake_peer_group", payload=payload
+        )
+        peer_group_audit_notify = (
+            self.mock_peer_monitor_manager().peer_group_audit_notify
+        )
+        peer_group_audit_notify.assert_called_once_with(
+            self.ctx, "fake_peer_group", payload
+        )
 
 
-@mock.patch.object(service, 'SystemPeerManager')
+@mock.patch.object(service, "SystemPeerManager")
 class TestSystemPeerManager(BaseTestDCManagerService):
     """Test class for testing SystemPeerManager"""
 
@@ -298,13 +352,16 @@ class TestSystemPeerManager(BaseTestDCManagerService):
     def test_sync_subcloud_peer_group(self, mock_system_peer_manager):
         self.service_obj.init_managers()
         self.service_obj.sync_subcloud_peer_group(
-            self.ctx, association_id=2, sync_subclouds=True)
-        mock_system_peer_manager().sync_subcloud_peer_group.\
-            assert_called_once_with(self.ctx, 2, True)
+            self.ctx, association_id=2, sync_subclouds=True
+        )
+        mock_system_peer_manager().sync_subcloud_peer_group.assert_called_once_with(
+            self.ctx, 2, True
+        )
 
     def test_delete_peer_group_association(self, mock_system_peer_manager):
         self.service_obj.init_managers()
-        self.service_obj.delete_peer_group_association(
-            self.ctx, association_id=2)
-        mock_system_peer_manager().delete_peer_group_association.\
-            assert_called_once_with(self.ctx, 2)
+        self.service_obj.delete_peer_group_association(self.ctx, association_id=2)
+        delete_peer_group_association = (
+            mock_system_peer_manager().delete_peer_group_association
+        )
+        delete_peer_group_association.assert_called_once_with(self.ctx, 2)

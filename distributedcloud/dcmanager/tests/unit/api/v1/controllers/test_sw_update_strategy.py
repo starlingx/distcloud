@@ -42,7 +42,7 @@ class BaseTestSwUpdateStrategyController(DCManagerApiTest):
     def _mock_rpc_orchestrator_client(self):
         """Mock rpc's manager orchestrator client"""
 
-        mock_patch = mock.patch.object(rpc_client, 'ManagerOrchestratorClient')
+        mock_patch = mock.patch.object(rpc_client, "ManagerOrchestratorClient")
         self.mock_rpc_orchestrator_client = mock_patch.start()
         self.addCleanup(mock_patch.stop)
 
@@ -84,8 +84,8 @@ class TestSwUpdateStrategyGet(BaseTestSwUpdateStrategyGet):
         )
 
     def _assert_response_payload(self, response):
-        self.assertEqual(response.json['type'], consts.SW_UPDATE_TYPE_PATCH)
-        self.assertEqual(response.json['state'], consts.SW_UPDATE_STATE_INITIAL)
+        self.assertEqual(response.json["type"], consts.SW_UPDATE_TYPE_PATCH)
+        self.assertEqual(response.json["state"], consts.SW_UPDATE_STATE_INITIAL)
 
     def test_get_succeeds(self):
         """Test get succeeds"""
@@ -140,8 +140,9 @@ class TestSwUpdateStrategyGet(BaseTestSwUpdateStrategyGet):
         response = self._send_request()
 
         self._assert_pecan_and_response(
-            response, http.client.NOT_FOUND,
-            f"Strategy of type '{consts.SW_UPDATE_TYPE_PATCH}' not found"
+            response,
+            http.client.NOT_FOUND,
+            f"Strategy of type '{consts.SW_UPDATE_TYPE_PATCH}' not found",
         )
 
 
@@ -165,8 +166,7 @@ class TestSwUpdateStrategyGetSteps(BaseTestSwUpdateStrategyGet):
 
         self._assert_response(response)
         self.assertEqual(
-            response.json['strategy-steps'][0]['state'],
-            consts.STRATEGY_STATE_INITIAL
+            response.json["strategy-steps"][0]["state"], consts.STRATEGY_STATE_INITIAL
         )
 
     def test_get_steps_succeeds_with_subcloud_name(self):
@@ -177,7 +177,7 @@ class TestSwUpdateStrategyGetSteps(BaseTestSwUpdateStrategyGet):
         response = self._send_request()
 
         self._assert_response(response)
-        self.assertEqual(response.json['cloud'], self.subcloud.name)
+        self.assertEqual(response.json["cloud"], self.subcloud.name)
 
     def test_get_steps_fails_with_inexistent_subcloud(self):
         """Test get steps fails with inexistent subcloud"""
@@ -222,12 +222,15 @@ class TestSwUpdateStrategyPost(BaseTestSwUpdateStrategyPost):
             "subcloud-apply-type": consts.SUBCLOUD_APPLY_TYPE_PARALLEL,
             "max-parallel-subclouds": "10",
             "stop-on-failure": "true",
-            "release_id": "stx-10.0.0"
+            "release_id": "stx-10.0.0",
         }
 
-        self.mock_rpc_orchestrator_client().\
-            create_sw_update_strategy.return_value = (
-                "create_sw_update_strategy", {"payload": self.params}
+        self.mock_rpc_orchestrator_client().create_sw_update_strategy.return_value = (
+            "create_sw_update_strategy",
+            {"payload": self.params},
+        )
+        self.create_update_strategy = (
+            self.mock_rpc_orchestrator_client().create_sw_update_strategy
         )
 
     def test_post_succeeds(self):
@@ -236,8 +239,7 @@ class TestSwUpdateStrategyPost(BaseTestSwUpdateStrategyPost):
         response = self._send_request()
 
         self._assert_response(response)
-        self.mock_rpc_orchestrator_client().create_sw_update_strategy.\
-            assert_called_once()
+        self.create_update_strategy.assert_called_once()
 
     def test_post_succeeds_with_force_option(self):
         """Test post succeeds with force option"""
@@ -248,8 +250,7 @@ class TestSwUpdateStrategyPost(BaseTestSwUpdateStrategyPost):
         response = self._send_request()
 
         self._assert_response(response)
-        self.mock_rpc_orchestrator_client().create_sw_update_strategy.\
-            assert_called_once()
+        self.create_update_strategy.assert_called_once()
 
     def test_post_fails_with_invalid_type(self):
         """Test post fails with invalid type"""
@@ -261,8 +262,7 @@ class TestSwUpdateStrategyPost(BaseTestSwUpdateStrategyPost):
         self._assert_pecan_and_response(
             response, http.client.BAD_REQUEST, "type invalid"
         )
-        self.mock_rpc_orchestrator_client().create_sw_update_strategy.\
-            assert_not_called()
+        self.create_update_strategy.assert_not_called()
 
     def test_post_fails_with_invalid_subcloud_apply_type(self):
         """Test post fails with invalid subcloud apply type"""
@@ -274,8 +274,7 @@ class TestSwUpdateStrategyPost(BaseTestSwUpdateStrategyPost):
         self._assert_pecan_and_response(
             response, http.client.BAD_REQUEST, "subcloud-apply-type invalid"
         )
-        self.mock_rpc_orchestrator_client().create_sw_update_strategy.\
-            assert_not_called()
+        self.create_update_strategy.assert_not_called()
 
     def test_post_fails_with_invalid_max_parallel_subclouds(self):
         """Test post fails with invalid max parallel subclouds"""
@@ -288,17 +287,20 @@ class TestSwUpdateStrategyPost(BaseTestSwUpdateStrategyPost):
             response = self._send_request()
 
             self._assert_pecan_and_response(
-                response, http.client.BAD_REQUEST,
-                "max-parallel-subclouds invalid", call_count=index
+                response,
+                http.client.BAD_REQUEST,
+                "max-parallel-subclouds invalid",
+                call_count=index,
             )
 
-        self.mock_rpc_orchestrator_client().create_sw_update_strategy.\
-            assert_not_called()
+        self.create_update_strategy.assert_not_called()
 
     def test_post_fails_with_invalid_stop_on_failure(self):
         """Test post fails with invalid stop on failure"""
 
-        invalid_values = ["fake", ]
+        invalid_values = [
+            "fake",
+        ]
 
         for index, invalid_value in enumerate(invalid_values, start=1):
             self.params["stop-on-failure"] = invalid_value
@@ -306,12 +308,13 @@ class TestSwUpdateStrategyPost(BaseTestSwUpdateStrategyPost):
             response = self._send_request()
 
             self._assert_pecan_and_response(
-                response, http.client.BAD_REQUEST,
-                "stop-on-failure invalid", call_count=index
+                response,
+                http.client.BAD_REQUEST,
+                "stop-on-failure invalid",
+                call_count=index,
             )
 
-        self.mock_rpc_orchestrator_client().create_sw_update_strategy.\
-            assert_not_called()
+        self.create_update_strategy.assert_not_called()
 
     def test_post_fails_with_invalid_force(self):
         """Test post fails with invalid force"""
@@ -323,8 +326,7 @@ class TestSwUpdateStrategyPost(BaseTestSwUpdateStrategyPost):
         self._assert_pecan_and_response(
             response, http.client.BAD_REQUEST, "force invalid"
         )
-        self.mock_rpc_orchestrator_client().create_sw_update_strategy.\
-            assert_not_called()
+        self.create_update_strategy.assert_not_called()
 
     def test_post_fails_with_force_without_cloud_name(self):
         """Test post fails with force without cloud name"""
@@ -334,11 +336,12 @@ class TestSwUpdateStrategyPost(BaseTestSwUpdateStrategyPost):
         response = self._send_request()
 
         self._assert_pecan_and_response(
-            response, http.client.BAD_REQUEST, "The --force option can only be "
-            "applied for a single subcloud. Please specify the subcloud name."
+            response,
+            http.client.BAD_REQUEST,
+            "The --force option can only be "
+            "applied for a single subcloud. Please specify the subcloud name.",
         )
-        self.mock_rpc_orchestrator_client().create_sw_update_strategy.\
-            assert_not_called()
+        self.create_update_strategy.assert_not_called()
 
     def test_post_succeeds_with_force_all_types(self):
         """Test post succeeds with force all types
@@ -352,8 +355,7 @@ class TestSwUpdateStrategyPost(BaseTestSwUpdateStrategyPost):
         response = self._send_request()
 
         self._assert_response(response)
-        self.mock_rpc_orchestrator_client().create_sw_update_strategy.\
-            assert_called_once()
+        self.create_update_strategy.assert_called_once()
 
     def test_post_fails_with_inexistent_subcloud_group_name(self):
         """Test post fails with inexistent subcloud group name"""
@@ -369,11 +371,9 @@ class TestSwUpdateStrategyPost(BaseTestSwUpdateStrategyPost):
             response = self._send_request()
 
             self._assert_pecan_and_response(
-                response, http.client.BAD_REQUEST, "Invalid group_id",
-                call_count=index
+                response, http.client.BAD_REQUEST, "Invalid group_id", call_count=index
             )
-            self.mock_rpc_orchestrator_client().create_sw_update_strategy.\
-                assert_not_called()
+            self.create_update_strategy.assert_not_called()
 
     def test_post_fails_with_cloud_name_and_subcloud_group(self):
         """Test post fails with cloud name and subcloud group"""
@@ -390,11 +390,12 @@ class TestSwUpdateStrategyPost(BaseTestSwUpdateStrategyPost):
             response = self._send_request()
 
             self._assert_pecan_and_response(
-                response, http.client.BAD_REQUEST, "cloud_name and subcloud_group "
-                "are mutually exclusive", call_count=index
+                response,
+                http.client.BAD_REQUEST,
+                "cloud_name and subcloud_group are mutually exclusive",
+                call_count=index,
             )
-            self.mock_rpc_orchestrator_client().create_sw_update_strategy.\
-                assert_not_called()
+            self.create_update_strategy.assert_not_called()
 
     def test_post_fails_with_subcloud_group_and_other_values(self):
         """Test post fails with subcloud group and other values
@@ -411,12 +412,13 @@ class TestSwUpdateStrategyPost(BaseTestSwUpdateStrategyPost):
             response = self._send_request()
 
             self._assert_pecan_and_response(
-                response, http.client.BAD_REQUEST, "subcloud-apply-type and "
-                "max-parallel-subclouds are not supported when subcloud_group is "
-                "applied", call_count=index
+                response,
+                http.client.BAD_REQUEST,
+                "subcloud-apply-type and max-parallel-subclouds "
+                "are not supported when subcloud_group is applied",
+                call_count=index,
             )
-            self.mock_rpc_orchestrator_client().create_sw_update_strategy.\
-                assert_not_called()
+            self.create_update_strategy.assert_not_called()
 
     def test_post_fails_without_params(self):
         """Test post fails without params"""
@@ -428,8 +430,7 @@ class TestSwUpdateStrategyPost(BaseTestSwUpdateStrategyPost):
         self._assert_pecan_and_response(
             response, http.client.BAD_REQUEST, "Body required"
         )
-        self.mock_rpc_orchestrator_client().create_sw_update_strategy.\
-            assert_not_called()
+        self.create_update_strategy.assert_not_called()
 
     def test_post_fails_without_type(self):
         """Test post fails without type"""
@@ -441,37 +442,34 @@ class TestSwUpdateStrategyPost(BaseTestSwUpdateStrategyPost):
         self._assert_pecan_and_response(
             response, http.client.BAD_REQUEST, "type required"
         )
-        self.mock_rpc_orchestrator_client().create_sw_update_strategy.\
-            assert_not_called()
+        self.create_update_strategy.assert_not_called()
 
     def test_post_fails_with_rpc_remote_error(self):
         """Test post fails with rpc remote error"""
 
-        self.mock_rpc_orchestrator_client().create_sw_update_strategy.side_effect = \
-            RemoteError("msg", "value")
+        self.create_update_strategy.side_effect = RemoteError("msg", "value")
 
         response = self._send_request()
 
         self._assert_pecan_and_response(
-            response, http.client.UNPROCESSABLE_ENTITY, "Unable to create strategy "
-            f"of type '{consts.SW_UPDATE_TYPE_SOFTWARE}': value"
+            response,
+            http.client.UNPROCESSABLE_ENTITY,
+            "Unable to create strategy "
+            f"of type '{consts.SW_UPDATE_TYPE_SOFTWARE}': value",
         )
-        self.mock_rpc_orchestrator_client().create_sw_update_strategy.\
-            assert_called_once()
+        self.create_update_strategy.assert_called_once()
 
     def test_post_fails_with_rpc_generic_exception(self):
         """Test post fails with rpc generic exception"""
 
-        self.mock_rpc_orchestrator_client().create_sw_update_strategy.side_effect = \
-            Exception()
+        self.create_update_strategy.side_effect = Exception()
 
         response = self._send_request()
 
         self._assert_pecan_and_response(
             response, http.client.INTERNAL_SERVER_ERROR, "Unable to create strategy"
         )
-        self.mock_rpc_orchestrator_client().create_sw_update_strategy.\
-            assert_called_once()
+        self.create_update_strategy.assert_called_once()
 
 
 class TestSwUpdateStrategyPostActions(BaseTestSwUpdateStrategyPost):
@@ -483,10 +481,18 @@ class TestSwUpdateStrategyPostActions(BaseTestSwUpdateStrategyPost):
         self.url = f"{self.url}/actions"
 
         self.mock_rpc_orchestrator_client().apply_sw_update_strategy.return_value = (
-            "apply_sw_update_strategy", {"update_type": None}
+            "apply_sw_update_strategy",
+            {"update_type": None},
         )
         self.mock_rpc_orchestrator_client().abort_sw_update_strategy.return_value = (
-            "abort_sw_update_strategy", {"update_type": None}
+            "abort_sw_update_strategy",
+            {"update_type": None},
+        )
+        self.apply_update_strate = (
+            self.mock_rpc_orchestrator_client().apply_sw_update_strategy
+        )
+        self.abort_update_strategy = (
+            self.mock_rpc_orchestrator_client().abort_sw_update_strategy
         )
 
     def test_post_actions_succeeds(self):
@@ -501,10 +507,8 @@ class TestSwUpdateStrategyPostActions(BaseTestSwUpdateStrategyPost):
 
             self._assert_response(response)
 
-        self.mock_rpc_orchestrator_client().apply_sw_update_strategy.\
-            assert_called_once()
-        self.mock_rpc_orchestrator_client().abort_sw_update_strategy.\
-            assert_called_once()
+        self.apply_update_strate.assert_called_once()
+        self.abort_update_strategy.assert_called_once()
 
     def test_post_actions_succeeds_with_type(self):
         """Test post actions succeeds with type"""
@@ -520,10 +524,8 @@ class TestSwUpdateStrategyPostActions(BaseTestSwUpdateStrategyPost):
 
             self._assert_response(response)
 
-        self.mock_rpc_orchestrator_client().apply_sw_update_strategy.\
-            assert_called_once()
-        self.mock_rpc_orchestrator_client().abort_sw_update_strategy.\
-            assert_called_once()
+        self.apply_update_strate.assert_called_once()
+        self.abort_update_strategy.assert_called_once()
 
     def test_post_actions_succeeds_with_inexistent_action(self):
         """Test post actions succeeds with inexistent action
@@ -536,10 +538,8 @@ class TestSwUpdateStrategyPostActions(BaseTestSwUpdateStrategyPost):
         response = self._send_request()
 
         self._assert_response(response)
-        self.mock_rpc_orchestrator_client().apply_sw_update_strategy.\
-            assert_not_called()
-        self.mock_rpc_orchestrator_client().abort_sw_update_strategy.\
-            assert_not_called()
+        self.apply_update_strate.assert_not_called()
+        self.abort_update_strategy.assert_not_called()
 
     def test_post_actions_fails_without_action(self):
         """Test post actions fails without action"""
@@ -551,18 +551,14 @@ class TestSwUpdateStrategyPostActions(BaseTestSwUpdateStrategyPost):
         self._assert_pecan_and_response(
             response, http.client.BAD_REQUEST, "action required"
         )
-        self.mock_rpc_orchestrator_client().apply_sw_update_strategy.\
-            assert_not_called()
-        self.mock_rpc_orchestrator_client().abort_sw_update_strategy.\
-            assert_not_called()
+        self.apply_update_strate.assert_not_called()
+        self.abort_update_strategy.assert_not_called()
 
     def test_post_actions_fails_with_rpc_remote_error(self):
         """Test post actions fails with rpc remote error"""
 
-        self.mock_rpc_orchestrator_client().apply_sw_update_strategy.side_effect = \
-            RemoteError("msg", "value")
-        self.mock_rpc_orchestrator_client().abort_sw_update_strategy.side_effect = \
-            RemoteError("msg", "value")
+        self.apply_update_strate.side_effect = RemoteError("msg", "value")
+        self.abort_update_strategy.side_effect = RemoteError("msg", "value")
 
         actions = [consts.SW_UPDATE_ACTION_APPLY, consts.SW_UPDATE_ACTION_ABORT]
 
@@ -572,22 +568,20 @@ class TestSwUpdateStrategyPostActions(BaseTestSwUpdateStrategyPost):
             response = self._send_request()
 
             self._assert_pecan_and_response(
-                response, http.client.UNPROCESSABLE_ENTITY, f"Unable to {action} "
-                f"strategy of type 'None': value", call_count=index
+                response,
+                http.client.UNPROCESSABLE_ENTITY,
+                f"Unable to {action} strategy of type 'None': value",
+                call_count=index,
             )
 
-        self.mock_rpc_orchestrator_client().apply_sw_update_strategy.\
-            assert_called_once()
-        self.mock_rpc_orchestrator_client().abort_sw_update_strategy.\
-            assert_called_once()
+        self.apply_update_strate.assert_called_once()
+        self.abort_update_strategy.assert_called_once()
 
     def test_post_actions_fails_with_rpc_generic_exception(self):
         """Test post actions fails with rpc generic exception"""
 
-        self.mock_rpc_orchestrator_client().apply_sw_update_strategy.side_effect = \
-            Exception()
-        self.mock_rpc_orchestrator_client().abort_sw_update_strategy.side_effect = \
-            Exception()
+        self.apply_update_strate.side_effect = Exception()
+        self.abort_update_strategy.side_effect = Exception()
 
         actions = [consts.SW_UPDATE_ACTION_APPLY, consts.SW_UPDATE_ACTION_ABORT]
 
@@ -597,14 +591,14 @@ class TestSwUpdateStrategyPostActions(BaseTestSwUpdateStrategyPost):
             response = self._send_request()
 
             self._assert_pecan_and_response(
-                response, http.client.INTERNAL_SERVER_ERROR,
-                f"Unable to {action} strategy", call_count=index
+                response,
+                http.client.INTERNAL_SERVER_ERROR,
+                f"Unable to {action} strategy",
+                call_count=index,
             )
 
-        self.mock_rpc_orchestrator_client().apply_sw_update_strategy.\
-            assert_called_once()
-        self.mock_rpc_orchestrator_client().abort_sw_update_strategy.\
-            assert_called_once()
+        self.apply_update_strate.assert_called_once()
+        self.abort_update_strategy.assert_called_once()
 
 
 class TestSwUpdateStrategyDelete(BaseTestSwUpdateStrategyController):
@@ -615,8 +609,13 @@ class TestSwUpdateStrategyDelete(BaseTestSwUpdateStrategyController):
 
         self.method = self.app.delete
 
-        self.mock_rpc_orchestrator_client().delete_sw_update_strategy.\
-            return_value = ("delete_sw_update_strategy", {"update_type": None})
+        self.mock_rpc_orchestrator_client().delete_sw_update_strategy.return_value = (
+            "delete_sw_update_strategy",
+            {"update_type": None},
+        )
+        self.delete_update_strategy = (
+            self.mock_rpc_orchestrator_client().delete_sw_update_strategy
+        )
 
     def test_delete_succeeds(self):
         """Test delete succeeds"""
@@ -624,8 +623,7 @@ class TestSwUpdateStrategyDelete(BaseTestSwUpdateStrategyController):
         response = self._send_request()
 
         self._assert_response(response)
-        self.mock_rpc_orchestrator_client().delete_sw_update_strategy.\
-            assert_called_once()
+        self.delete_update_strategy.assert_called_once()
 
     def test_delete_succeeds_with_type(self):
         """Test delete succeeds with type"""
@@ -635,34 +633,30 @@ class TestSwUpdateStrategyDelete(BaseTestSwUpdateStrategyController):
         response = self._send_request()
 
         self._assert_response(response)
-        self.mock_rpc_orchestrator_client().delete_sw_update_strategy.\
-            assert_called_once()
+        self.delete_update_strategy.assert_called_once()
 
     def test_delete_fails_with_rpc_remote_error(self):
         """Test delete fails with rpc remote error"""
 
-        self.mock_rpc_orchestrator_client().delete_sw_update_strategy.side_effect = \
-            RemoteError("msg", "value")
+        self.delete_update_strategy.side_effect = RemoteError("msg", "value")
 
         response = self._send_request()
 
         self._assert_pecan_and_response(
-            response, http.client.UNPROCESSABLE_ENTITY,
-            "Unable to delete strategy of type 'None': value"
+            response,
+            http.client.UNPROCESSABLE_ENTITY,
+            "Unable to delete strategy of type 'None': value",
         )
-        self.mock_rpc_orchestrator_client().delete_sw_update_strategy.\
-            assert_called_once()
+        self.delete_update_strategy.assert_called_once()
 
     def test_delete_fails_with_rpc_generic_exception(self):
         """Test delete fails with rpc generic exception"""
 
-        self.mock_rpc_orchestrator_client().delete_sw_update_strategy.side_effect = \
-            Exception()
+        self.delete_update_strategy.side_effect = Exception()
 
         response = self._send_request()
 
         self._assert_pecan_and_response(
             response, http.client.INTERNAL_SERVER_ERROR, "Unable to delete strategy"
         )
-        self.mock_rpc_orchestrator_client().delete_sw_update_strategy.\
-            assert_called_once()
+        self.delete_update_strategy.assert_called_once()

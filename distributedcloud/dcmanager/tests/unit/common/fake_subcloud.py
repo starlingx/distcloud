@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2020-2023 Wind River Systems, Inc.
+# Copyright (c) 2020-2024 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -13,40 +13,46 @@ from dcmanager.tests import base
 from dcmanager.tests import utils
 
 FAKE_TENANT = utils.UUID1
-FAKE_ID = '1'
-FAKE_URL = '/v1.0/subclouds'
-WRONG_URL = '/v1.0/wrong'
+FAKE_ID = "1"
+FAKE_URL = "/v1.0/subclouds"
+WRONG_URL = "/v1.0/wrong"
 
-FAKE_SOFTWARE_VERSION = '18.03'
+FAKE_SOFTWARE_VERSION = "18.03"
 
-FAKE_HEADERS = {'X-Tenant-Id': FAKE_TENANT, 'X_ROLE': 'admin,member,reader',
-                'X-Identity-Status': 'Confirmed', 'X-Project-Name': 'admin'}
+FAKE_HEADERS = {
+    "X-Tenant-Id": FAKE_TENANT,
+    "X_ROLE": "admin,member,reader",
+    "X-Identity-Status": "Confirmed",
+    "X-Project-Name": "admin",
+}
 
-FAKE_SUBCLOUD_DATA = {"id": FAKE_ID,
-                      "name": "subcloud1",
-                      "description": "subcloud1 description",
-                      "location": "subcloud1 location",
-                      "system_mode": "duplex",
-                      "management_subnet": "192.168.101.0/24",
-                      "management_start_address": "192.168.101.2",
-                      "management_end_address": "192.168.101.50",
-                      "management_gateway_address": "192.168.101.1",
-                      "systemcontroller_gateway_address": "192.168.204.101",
-                      "deploy_status": consts.DEPLOY_STATE_DONE,
-                      'error_description': consts.ERROR_DESC_EMPTY,
-                      'region_name': base.SUBCLOUD_1['region_name'],
-                      "external_oam_subnet": "10.10.10.0/24",
-                      "external_oam_gateway_address": "10.10.10.1",
-                      "external_oam_floating_address": "10.10.10.12",
-                      "availability-status": "disabled"}
+FAKE_SUBCLOUD_DATA = {
+    "id": FAKE_ID,
+    "name": "subcloud1",
+    "description": "subcloud1 description",
+    "location": "subcloud1 location",
+    "system_mode": "duplex",
+    "management_subnet": "192.168.101.0/24",
+    "management_start_address": "192.168.101.2",
+    "management_end_address": "192.168.101.50",
+    "management_gateway_address": "192.168.101.1",
+    "systemcontroller_gateway_address": "192.168.204.101",
+    "deploy_status": consts.DEPLOY_STATE_DONE,
+    "error_description": consts.ERROR_DESC_EMPTY,
+    "region_name": base.SUBCLOUD_1["region_name"],
+    "external_oam_subnet": "10.10.10.0/24",
+    "external_oam_gateway_address": "10.10.10.1",
+    "external_oam_floating_address": "10.10.10.12",
+    "availability-status": "disabled",
+}
 
 FAKE_BOOTSTRAP_VALUE = {
-    'bootstrap-address': '10.10.10.12',
-    'sysadmin_password': base64.b64encode('testpass'.encode("utf-8"))
+    "bootstrap-address": "10.10.10.12",
+    "sysadmin_password": base64.b64encode("testpass".encode("utf-8")),
 }
 
 FAKE_SUBCLOUD_BOOTSTRAP_PAYLOAD = {
-    'bootstrap-address': '10.10.10.12',
+    "bootstrap-address": "10.10.10.12",
     "system_mode": "simplex",
     "name": "subcloud1",
     "description": "subcloud1 description",
@@ -59,13 +65,12 @@ FAKE_SUBCLOUD_BOOTSTRAP_PAYLOAD = {
     "external_oam_subnet": "10.10.10.0/24",
     "external_oam_gateway_address": "10.10.10.1",
     "external_oam_floating_address": "10.10.10.12",
-    'sysadmin_password':
-        (base64.b64encode('testpass'.encode("utf-8"))).decode('ascii'),
+    "sysadmin_password": (base64.b64encode("testpass".encode("utf-8"))).decode("ascii"),
 }
 
 FAKE_BOOTSTRAP_FILE_DATA = {
     "system_mode": "simplex",
-    "name": "fake subcloud1",
+    "name": "fake_subcloud1",
     "management_subnet": "192.168.101.0/24",
     "management_start_address": "192.168.101.2",
     "management_end_address": "192.168.101.50",
@@ -116,13 +121,16 @@ FAKE_SUBCLOUD_INSTALL_VALUES_WITH_PERSISTENT_SIZE = {
     "persistent_size": 40000,
 }
 
-FAKE_UPGRADES_METADATA = '''
+FAKE_UPGRADES_METADATA = (
+    """
     <build>\n<version>0.1</version>\n<supported_upgrades>
     \n<upgrade>\n<version>%s</version>\n</upgrade>
     \n<upgrade>\n<version>21.12</version>\n</upgrade>
     \n<upgrade>\n<version>22.12</version>\n</upgrade>
     \n</supported_upgrades>\n</build>
-''' % FAKE_SOFTWARE_VERSION
+"""
+    % FAKE_SOFTWARE_VERSION
+)
 
 
 def create_fake_subcloud(ctxt, **kwargs):
@@ -130,18 +138,18 @@ def create_fake_subcloud(ctxt, **kwargs):
         "name": "subcloud1",
         "description": "subcloud1 description",
         "location": "subcloud1 location",
-        'software_version': FAKE_SOFTWARE_VERSION,
+        "software_version": FAKE_SOFTWARE_VERSION,
         "management_subnet": "192.168.101.0/24",
         "management_gateway_ip": "192.168.101.1",
         "management_start_ip": "192.168.101.2",
         "management_end_ip": "192.168.101.50",
         "systemcontroller_gateway_ip": "192.168.204.101",
-        'deploy_status': consts.DEPLOY_STATE_DONE,
-        'error_description': consts.ERROR_DESC_EMPTY,
-        'region_name': base.SUBCLOUD_1['region_name'],
-        'openstack_installed': False,
-        'group_id': 1,
-        'data_install': 'data from install',
+        "deploy_status": consts.DEPLOY_STATE_DONE,
+        "error_description": consts.ERROR_DESC_EMPTY,
+        "region_name": base.SUBCLOUD_1["region_name"],
+        "openstack_installed": False,
+        "group_id": 1,
+        "data_install": "data from install",
     }
     values.update(kwargs)
     return db_api.subcloud_create(ctxt, **values)
