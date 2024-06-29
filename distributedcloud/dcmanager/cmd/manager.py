@@ -33,28 +33,27 @@ from dcmanager.common import config  # noqa: E402
 from dcmanager.common import consts  # noqa: E402
 from dcmanager.common import messaging  # noqa: E402
 from dcorch.common import messaging as dcorch_messaging  # noqa: E402
+
 # pylint: enable=wrong-import-position
 
 _lazy.enable_lazy()
 config.register_options()
 config.register_keystone_options()
-LOG = logging.getLogger('dcmanager.engine')
+LOG = logging.getLogger("dcmanager.engine")
 
 
 def main():
     logging.register_options(cfg.CONF)
-    cfg.CONF(project='dcmanager', prog='dcmanager-engine')
-    logging.setup(cfg.CONF, 'dcmanager-engine')
+    cfg.CONF(project="dcmanager", prog="dcmanager-engine")
+    logging.setup(cfg.CONF, "dcmanager-engine")
     logging.set_defaults()
     messaging.setup()
     dcorch_messaging.setup()
 
     from dcmanager.manager import service as manager
 
-    srv = manager.DCManagerService(cfg.CONF.host,
-                                   consts.TOPIC_DC_MANAGER)
-    launcher = service.launch(cfg.CONF,
-                              srv, workers=cfg.CONF.workers)
+    srv = manager.DCManagerService(cfg.CONF.host, consts.TOPIC_DC_MANAGER)
+    launcher = service.launch(cfg.CONF, srv, workers=cfg.CONF.workers)
 
     LOG.info("Starting...")
     LOG.debug("Configuration:")
@@ -65,5 +64,5 @@ def main():
     launcher.wait()
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

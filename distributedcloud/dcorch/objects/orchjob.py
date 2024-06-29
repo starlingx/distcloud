@@ -50,7 +50,7 @@ class OrchJob(base.OrchestratorObject, base.VersionedObjectDictCompat):
         except KeyError:
             raise exceptions.ObjectActionError(
                 action="create",
-                reason="cannot create a Subcloud object without a " "resource_id set",
+                reason="cannot create a Subcloud object without a resource_id set",
             )
 
         updates = self.obj_get_changes()
@@ -59,7 +59,7 @@ class OrchJob(base.OrchestratorObject, base.VersionedObjectDictCompat):
         except KeyError:
             raise exceptions.ObjectActionError(
                 action="create",
-                reason="cannot create a Subcloud object without a " "endpoint_type set",
+                reason="cannot create a Subcloud object without a endpoint_type set",
             )
 
         updates = self.obj_get_changes()
@@ -68,8 +68,7 @@ class OrchJob(base.OrchestratorObject, base.VersionedObjectDictCompat):
         except KeyError:
             raise exceptions.ObjectActionError(
                 action="create",
-                reason="cannot create a Subcloud object without a "
-                "operation_type set",
+                reason="cannot create a Subcloud object without a operation_type set",
             )
 
         db_orch_job = db_api.orch_job_create(

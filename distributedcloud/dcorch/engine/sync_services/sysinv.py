@@ -1,4 +1,4 @@
-# Copyright (c) 2017-2024, 2024 Wind River Systems, Inc.
+# Copyright (c) 2017-2022, 2024 Wind River Systems, Inc.
 # All Rights Reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -95,7 +95,7 @@ class SysinvSyncThread(SyncThread):
 
         sc_sysinv_url = build_subcloud_endpoint(self.management_ip, "sysinv")
         LOG.debug(
-            f"Built sc_sysinv_url {sc_sysinv_url} for subcloud " f"{self.subcloud_name}"
+            f"Built sc_sysinv_url {sc_sysinv_url} for subcloud {self.subcloud_name}"
         )
 
         self.sc_sysinv_client = SysinvClient(
@@ -266,8 +266,9 @@ class SysinvSyncThread(SyncThread):
         ]
 
         LOG.info(
-            "certificate {} {} [{}] updated with subcloud certificates:"
-            " {}".format(rsrc.id, subcloud_rsrc_id, signature, sub_certs_updated),
+            "certificate {} {} [{}] updated with subcloud certificates: {}".format(
+                rsrc.id, subcloud_rsrc_id, signature, sub_certs_updated
+            ),
             extra=self.log_extra,
         )
 
@@ -381,8 +382,9 @@ class SysinvSyncThread(SyncThread):
 
         if not passwd_hash:
             LOG.info(
-                "sync_user no user update found in resource_info"
-                "{}".format(request.orch_job.resource_info),
+                "sync_user no user update found in resource_info {}".format(
+                    request.orch_job.resource_info
+                ),
                 extra=self.log_extra,
             )
             return
@@ -531,16 +533,18 @@ class SysinvSyncThread(SyncThread):
             keystone_exceptions.ConnectFailure,
         ) as e:
             LOG.info(
-                "get subcloud_resources {}: subcloud {} is not reachable"
-                "[{}]".format(resource_type, self.region_name, str(e)),
+                "get subcloud_resources {}: subcloud {} is not reachable [{}]".format(
+                    resource_type, self.region_name, str(e)
+                ),
                 extra=self.log_extra,
             )
             # None will force skip of audit
             return None
         except exceptions.NotAuthorized as e:
             LOG.info(
-                "get subcloud_resources {}: subcloud {} not authorized"
-                "[{}]".format(resource_type, self.region_name, str(e)),
+                "get subcloud_resources {}: subcloud {} not authorized [{}]".format(
+                    resource_type, self.region_name, str(e)
+                ),
                 extra=self.log_extra,
             )
             OpenStackDriver.delete_region_clients(self.region_name)

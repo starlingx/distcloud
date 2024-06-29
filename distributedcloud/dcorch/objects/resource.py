@@ -46,7 +46,7 @@ class Resource(base.OrchestratorObject, base.VersionedObjectDictCompat):
         except KeyError:
             raise exceptions.ObjectActionError(
                 action="create",
-                reason="cannot create a Resource object without a " "resource_type set",
+                reason="cannot create a Resource object without a resource_type set",
             )
 
         db_resource = db_api.resource_create(self._context, resource_type, updates)

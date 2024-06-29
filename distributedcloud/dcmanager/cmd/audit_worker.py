@@ -19,6 +19,7 @@ DC Manager Audit Worker Service.
 """
 
 import eventlet
+
 eventlet.monkey_patch()
 
 # pylint: disable=wrong-import-position
@@ -29,28 +30,28 @@ from oslo_service import service  # noqa: E402
 
 from dcmanager.common import config  # noqa: E402
 from dcmanager.common import messaging  # noqa: E402
+
 # pylint: enable=wrong-import-position
 
 _lazy.enable_lazy()
 config.register_options()
 config.register_keystone_options()
-LOG = logging.getLogger('dcmanager.audit-worker')
+LOG = logging.getLogger("dcmanager.audit-worker")
 
 CONF = cfg.CONF
 
 
 def main():
     logging.register_options(CONF)
-    CONF(project='dcmanager', prog='dcmanager-audit-worker')
-    logging.setup(cfg.CONF, 'dcmanager-audit-worker')
+    CONF(project="dcmanager", prog="dcmanager-audit-worker")
+    logging.setup(cfg.CONF, "dcmanager-audit-worker")
     logging.set_defaults()
     messaging.setup()
 
     from dcmanager.audit import service as audit
 
     srv = audit.DCManagerAuditWorkerService()
-    launcher = service.launch(cfg.CONF,
-                              srv, workers=CONF.audit_worker_workers)
+    launcher = service.launch(cfg.CONF, srv, workers=CONF.audit_worker_workers)
 
     LOG.info("Starting...")
     LOG.debug("Configuration:")
@@ -59,5 +60,5 @@ def main():
     launcher.wait()
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

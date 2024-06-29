@@ -392,7 +392,7 @@ class SyncThread(object):
         # Early exit in case there are no pending sync requests
         if not sync_requests:
             LOG.debug(
-                "Sync resources done for subcloud - " "no sync requests",
+                "Sync resources done for subcloud - no sync requests",
                 extra=self.log_extra,
             )
             self.set_sync_status(dccommon_consts.SYNC_STATUS_IN_SYNC)
@@ -432,13 +432,13 @@ class SyncThread(object):
 
         if not actual_sync_requests:
             LOG.info(
-                "Sync resources done for subcloud - " "no valid sync requests",
+                "Sync resources done for subcloud - no valid sync requests",
                 extra=self.log_extra,
             )
             return
         elif not self.is_subcloud_enabled():
             LOG.info(
-                "Sync resources done for subcloud - " "subcloud is disabled",
+                "Sync resources done for subcloud - subcloud is disabled",
                 extra=self.log_extra,
             )
             return

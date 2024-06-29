@@ -1792,8 +1792,10 @@ class TestSubcloudUpdate(BaseTestSubcloudManager):
         fake_bootstrap_address = "10.10.20.12"
         self.assertRaisesRegex(
             exceptions.BadRequest,
-            "Cannot update bootstrap_address"
-            " into rehome data, need to import bootstrap_values first",
+            (
+                "Cannot update bootstrap_address into rehome data, need to "
+                "import bootstrap_values first"
+            ),
             self.sm.update_subcloud,
             self.ctx,
             self.subcloud.id,
@@ -1933,10 +1935,12 @@ class TestSubcloudUpdate(BaseTestSubcloudManager):
             '"admin_password": "dGVzdHBhc3M=", '
             '"bootstrap-address": "123.123.123.123"}}'
         )
-        fake_bootstrap_values = '{"name": "TestSubcloud", \
-        "system_mode": "simplex", "sysadmin_password": "testpass", \
-        "ansible_ssh_pass": "fakepass", "ansible_become_pass": "fakepass",\
-        "admin_password": "testpass"}'
+        fake_bootstrap_values = (
+            '{"name": "TestSubcloud",'
+            '"system_mode": "simplex", "sysadmin_password": "testpass",'
+            '"ansible_ssh_pass": "fakepass", "ansible_become_pass": "fakepass",'
+            '"admin_password": "testpass"}'
+        )
         fake_bootstrap_address = "123.123.123.123"
 
         self.sm.update_subcloud(
@@ -2030,10 +2034,11 @@ class TestSubcloudUpdate(BaseTestSubcloudManager):
         self.subcloud["deploy_status"] = consts.DEPLOY_STATE_DEPLOY_FAILED
         self.assertRaisesRegex(
             exceptions.BadRequest,
-            f"Unable to manage {self.subcloud.name}: "
-            "its deploy_status must be either"
-            f" '{consts.DEPLOY_STATE_DONE}' or "
-            f"'{consts.DEPLOY_STATE_REHOME_PENDING}'",
+            (
+                f"Unable to manage {self.subcloud.name}: its deploy_status "
+                f"must be either '{consts.DEPLOY_STATE_DONE}' or "
+                f"'{consts.DEPLOY_STATE_REHOME_PENDING}'"
+            ),
             self.sm.update_subcloud,
             self.ctx,
             self.subcloud.id,
@@ -4042,8 +4047,8 @@ class TestSubcloudBackupRestore(BaseTestSubcloudManager):
 
         self.assertIn(expected_log, return_log)
         self.mock_log.info.assert_called_with(
-            "Subcloud restore backup operation finished.\nRestored subclouds: 0."
-            " Invalid subclouds: 1. Failed subclouds: 0."
+            "Subcloud restore backup operation finished.\nRestored subclouds: 0. "
+            "Invalid subclouds: 1. Failed subclouds: 0."
         )
 
     @mock.patch.object(

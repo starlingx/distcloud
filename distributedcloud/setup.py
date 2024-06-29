@@ -1,4 +1,5 @@
 # Copyright (c) 2013 Hewlett-Packard Development Company, L.P.
+# Copyright (c) 2024 Wind River Systems, Inc.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -25,6 +26,4 @@ except ImportError:
     pass
 
 # Danger - pbr requirement >= 2.0.0 not satisfied...
-setuptools.setup(
-    setup_requires=['pbr>=1.8.0'],
-    pbr=True)
+setuptools.setup(setup_requires=["pbr>=1.8.0"], pbr=True)

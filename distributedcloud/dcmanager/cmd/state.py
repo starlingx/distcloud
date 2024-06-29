@@ -24,6 +24,7 @@ DC Manager State Engine Server.
 """
 
 import eventlet
+
 eventlet.monkey_patch()
 
 # pylint: disable=wrong-import-position
@@ -35,18 +36,19 @@ from oslo_service import service  # noqa: E402
 from dcmanager.common import config  # noqa: E402
 from dcmanager.common import messaging  # noqa: E402
 from dcorch.common import messaging as dcorch_messaging  # noqa: E402
+
 # pylint: enable=wrong-import-position
 
 _lazy.enable_lazy()
 config.register_options()
 config.register_keystone_options()
-LOG = logging.getLogger('dcmanager.state')
+LOG = logging.getLogger("dcmanager.state")
 
 
 def main():
     logging.register_options(cfg.CONF)
-    cfg.CONF(project='dcmanager', prog='dcmanager-state')
-    logging.setup(cfg.CONF, 'dcmanager-state')
+    cfg.CONF(project="dcmanager", prog="dcmanager-state")
+    logging.setup(cfg.CONF, "dcmanager-state")
     logging.set_defaults()
     messaging.setup()
     dcorch_messaging.setup()
@@ -55,18 +57,21 @@ def main():
 
     # Override values from /etc/dcmanager/dcmanager.conf specific
     # to dcmanager-state:
-    cfg.CONF.set_override('max_pool_size', 10, group='database')
-    cfg.CONF.set_override('max_overflow', 100, group='database')
+    cfg.CONF.set_override("max_pool_size", 10, group="database")
+    cfg.CONF.set_override("max_overflow", 100, group="database")
     LOG.info("Starting...")
     LOG.debug("Configuration:")
     cfg.CONF.log_opt_values(LOG, logging.DEBUG)
 
-    LOG.info("Launching service, host=%s, state_workers=%s ...",
-             cfg.CONF.host, cfg.CONF.state_workers)
+    LOG.info(
+        "Launching service, host=%s, state_workers=%s ...",
+        cfg.CONF.host,
+        cfg.CONF.state_workers,
+    )
     srv = state.DCManagerStateService(cfg.CONF.host)
     launcher = service.launch(cfg.CONF, srv, workers=cfg.CONF.state_workers)
     launcher.wait()
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

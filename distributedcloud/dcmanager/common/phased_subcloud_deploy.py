@@ -623,10 +623,7 @@ def validate_install_values(payload, ip_version=None, subcloud=None):
             # the expected value is less than the default. so throw an error.
             pecan.abort(
                 400,
-                _(
-                    "persistent_size of %s MB is less than "
-                    "the permitted minimum %s MB "
-                )
+                _("persistent_size of %s MB is less than the permitted minimum %s MB")
                 % (str(persistent_size), consts.DEFAULT_PERSISTENT_SIZE),
             )
 

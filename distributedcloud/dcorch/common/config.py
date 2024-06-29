@@ -294,7 +294,7 @@ endpoint_cache_opt_group = cfg.OptGroup(
 )
 
 openstack_cache_opt_group = cfg.OptGroup(
-    name="openstack_cache", title="Containerized OpenStack" " Credentials"
+    name="openstack_cache", title="Containerized OpenStack Credentials"
 )
 
 fernet_opt_group = cfg.OptGroup(name="fernet", title="Fernet Options")

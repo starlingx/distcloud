@@ -56,7 +56,7 @@ class Subcloud(base.OrchestratorObject, base.VersionedObjectDictCompat):
         except KeyError:
             raise exceptions.ObjectActionError(
                 action="create",
-                reason="cannot create a Subcloud object without a " "region_name set",
+                reason="cannot create a Subcloud object without a region_name set",
             )
         try:
             db_subcloud = db_api.subcloud_create(self._context, region_name, updates)
