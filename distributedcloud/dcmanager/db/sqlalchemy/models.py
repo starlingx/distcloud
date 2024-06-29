@@ -62,9 +62,7 @@ class JSONEncodedDict(TypeDecorator):
         return value
 
 
-class DCManagerBase(models.ModelBase,
-                    models.SoftDeleteMixin,
-                    models.TimestampMixin):
+class DCManagerBase(models.ModelBase, models.SoftDeleteMixin, models.TimestampMixin):
     """Base class for DC Manager Models."""
 
     # __table_args__ = {'mysql_engine': 'InnoDB'}
@@ -98,7 +96,7 @@ class DCManagerBase(models.ModelBase,
 class SystemPeer(BASE, DCManagerBase):
     """Represents a system peer"""
 
-    __tablename__ = 'system_peer'
+    __tablename__ = "system_peer"
 
     id = Column(Integer, primary_key=True, autoincrement=True, nullable=False)
     peer_uuid = Column(String(36), unique=True)
@@ -118,7 +116,7 @@ class SystemPeer(BASE, DCManagerBase):
 class SubcloudGroup(BASE, DCManagerBase):
     """Represents a subcloud group"""
 
-    __tablename__ = 'subcloud_group'
+    __tablename__ = "subcloud_group"
 
     id = Column(Integer, primary_key=True, autoincrement=True, nullable=False)
     name = Column(String(255), unique=True)
@@ -130,7 +128,7 @@ class SubcloudGroup(BASE, DCManagerBase):
 class SubcloudPeerGroup(BASE, DCManagerBase):
     """Represents a subcloud group"""
 
-    __tablename__ = 'subcloud_peer_group'
+    __tablename__ = "subcloud_peer_group"
 
     id = Column(Integer, primary_key=True, autoincrement=True, nullable=False)
     peer_group_name = Column(String(255), unique=True)
@@ -145,7 +143,7 @@ class SubcloudPeerGroup(BASE, DCManagerBase):
 class PeerGroupAssociation(BASE, DCManagerBase):
     """Represents a Peer Group Association"""
 
-    __tablename__ = 'peer_group_association'
+    __tablename__ = "peer_group_association"
 
     id = Column(Integer, primary_key=True, autoincrement=True, nullable=False)
     peer_group_id = Column(Integer)
@@ -159,7 +157,7 @@ class PeerGroupAssociation(BASE, DCManagerBase):
 class Subcloud(BASE, DCManagerBase):
     """Represents a subcloud"""
 
-    __tablename__ = 'subclouds'
+    __tablename__ = "subclouds"
 
     id = Column(Integer, primary_key=True, nullable=False)
     name = Column(String(255), unique=True)
@@ -183,43 +181,34 @@ class Subcloud(BASE, DCManagerBase):
     systemcontroller_gateway_ip = Column(String(255))
     audit_fail_count = Column(Integer)
     first_identity_sync_complete = Column(Boolean, default=False)
-    peer_group_id = Column(Integer,
-                           ForeignKey('subcloud_peer_group.id'))
+    peer_group_id = Column(Integer, ForeignKey("subcloud_peer_group.id"))
     rehome_data = Column(Text())
     prestage_status = Column(String(255))
     prestage_versions = Column(String(255))
 
     # multiple subclouds can be in a particular group
-    group_id = Column(Integer,
-                      ForeignKey('subcloud_group.id'))
-    group = relationship(SubcloudGroup,
-                         backref=backref('subcloud'))
+    group_id = Column(Integer, ForeignKey("subcloud_group.id"))
+    group = relationship(SubcloudGroup, backref=backref("subcloud"))
     rehomed = Column(Boolean, default=False)
 
 
 class SubcloudAudits(BASE, DCManagerBase):
     """Represents the various audits for a subcloud"""
 
-    __tablename__ = 'subcloud_audits'
+    __tablename__ = "subcloud_audits"
 
     id = Column(Integer, primary_key=True, nullable=False)
     subcloud_id = Column(
-        Integer, ForeignKey('subclouds.id', ondelete='CASCADE'), unique=True
+        Integer, ForeignKey("subclouds.id", ondelete="CASCADE"), unique=True
     )
-    audit_started_at = Column(
-        DateTime(timezone=False), default=datetime.datetime.min
-    )
-    audit_finished_at = Column(
-        DateTime(timezone=False), default=datetime.datetime.min
-    )
+    audit_started_at = Column(DateTime(timezone=False), default=datetime.datetime.min)
+    audit_finished_at = Column(DateTime(timezone=False), default=datetime.datetime.min)
     state_update_requested = Column(Boolean, nullable=False, default=False)
     patch_audit_requested = Column(Boolean, nullable=False, default=False)
     load_audit_requested = Column(Boolean, nullable=False, default=False)
     firmware_audit_requested = Column(Boolean, nullable=False, default=False)
     kubernetes_audit_requested = Column(Boolean, nullable=False, default=False)
-    kube_rootca_update_audit_requested = Column(
-        Boolean, nullable=False, default=False
-    )
+    kube_rootca_update_audit_requested = Column(Boolean, nullable=False, default=False)
     spare_audit_requested = Column(Boolean, nullable=False, default=False)
     spare2_audit_requested = Column(Boolean, nullable=False, default=False)
     reserved = Column(Text)
@@ -231,8 +220,7 @@ class SubcloudStatus(BASE, DCManagerBase):
     __tablename__ = "subcloud_status"
 
     id = Column(Integer, primary_key=True, nullable=False)
-    subcloud_id = Column(Integer,
-                         ForeignKey('subclouds.id', ondelete='CASCADE'))
+    subcloud_id = Column(Integer, ForeignKey("subclouds.id", ondelete="CASCADE"))
     endpoint_type = Column(String(255))
     sync_status = Column(String(255))
 
@@ -257,8 +245,7 @@ class SwUpdateOpts(BASE, DCManagerBase):
     __tablename__ = "sw_update_opts"
 
     id = Column(Integer, primary_key=True, nullable=False)
-    subcloud_id = Column(Integer,
-                         ForeignKey('subclouds.id', ondelete='CASCADE'))
+    subcloud_id = Column(Integer, ForeignKey("subclouds.id", ondelete="CASCADE"))
 
     storage_apply_type = Column(String(255))
     worker_apply_type = Column(String(255))
@@ -288,26 +275,28 @@ class StrategyStep(BASE, DCManagerBase):
     __tablename__ = "strategy_steps"
 
     id = Column(Integer, primary_key=True, nullable=False)
-    subcloud_id = Column(Integer,
-                         ForeignKey('subclouds.id', ondelete='CASCADE'),
-                         unique=True)
+    subcloud_id = Column(
+        Integer, ForeignKey("subclouds.id", ondelete="CASCADE"), unique=True
+    )
     stage = Column(Integer)
     state = Column(String(255))
     details = Column(String(255))
     started_at = Column(DateTime)
     finished_at = Column(DateTime)
-    subcloud = relationship('Subcloud', backref=backref("strategy_steps",
-                                                        cascade="all,delete"))
+    subcloud = relationship(
+        "Subcloud", backref=backref("strategy_steps", cascade="all,delete")
+    )
 
 
 class SubcloudAlarmSummary(BASE, DCManagerBase):
     """Represents a Distributed Cloud subcloud alarm aggregate"""
-    __tablename__ = 'subcloud_alarms'
+
+    __tablename__ = "subcloud_alarms"
     id = Column(Integer, primary_key=True, nullable=False, autoincrement=True)
     uuid = Column(String(36), unique=True)
-    name = Column('name', String(255), unique=True)
-    critical_alarms = Column('critical_alarms', Integer)
-    major_alarms = Column('major_alarms', Integer)
-    minor_alarms = Column('minor_alarms', Integer)
-    warnings = Column('warnings', Integer)
-    cloud_status = Column('cloud_status', String(64))
+    name = Column("name", String(255), unique=True)
+    critical_alarms = Column("critical_alarms", Integer)
+    major_alarms = Column("major_alarms", Integer)
+    minor_alarms = Column("minor_alarms", Integer)
+    warnings = Column("warnings", Integer)
+    cloud_status = Column("cloud_status", String(64))

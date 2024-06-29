@@ -1,5 +1,5 @@
 # Copyright (c) 2015 Ericsson AB.
-# Copyright (c) 2017, 2019, 2021, 2022 Wind River Systems, Inc.
+# Copyright (c) 2017, 2019, 2021, 2022, 2024 Wind River Systems, Inc.
 # All Rights Reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License"); you may
@@ -47,8 +47,8 @@ class LazyPluggable(object):
         return getattr(backend, key)
 
 
-IMPL = LazyPluggable('backend', sqlalchemy='dcmanager.db.sqlalchemy.api')
+IMPL = LazyPluggable("backend", sqlalchemy="dcmanager.db.sqlalchemy.api")
 
 
-def purge_deleted(age, granularity='days'):
+def purge_deleted(age, granularity="days"):
     IMPL.purge_deleted(age, granularity)

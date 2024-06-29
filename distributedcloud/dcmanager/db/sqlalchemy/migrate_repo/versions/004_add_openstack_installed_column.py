@@ -1,4 +1,4 @@
-# Copyright (c) 2019-2021 Wind River Systems, Inc.
+# Copyright (c) 2019-2021, 2024 Wind River Systems, Inc.
 # Licensed under the Apache License, Version 2.0 (the "License"); you may
 # not use this file except in compliance with the License. You may obtain
 # a copy of the License at
@@ -19,15 +19,21 @@ def upgrade(migrate_engine):
     meta = MetaData()
     meta.bind = migrate_engine
 
-    subclouds = Table('subclouds', meta, autoload=True)
+    subclouds = Table("subclouds", meta, autoload=True)
 
     # Add the 'openstack_installed' column to the subclouds table.
-    subclouds.create_column(Column('openstack_installed', Boolean,
-                                   nullable=False, default=False,
-                                   server_default='0'))
+    subclouds.create_column(
+        Column(
+            "openstack_installed",
+            Boolean,
+            nullable=False,
+            default=False,
+            server_default="0",
+        )
+    )
 
     return True
 
 
 def downgrade(migrate_engine):
-    raise NotImplementedError('Database downgrade is unsupported.')
+    raise NotImplementedError("Database downgrade is unsupported.")

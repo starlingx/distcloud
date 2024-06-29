@@ -1,4 +1,4 @@
-# Copyright (c) 2020-2021 Wind River Systems, Inc.
+# Copyright (c) 2020-2021, 2024 Wind River Systems, Inc.
 # Licensed under the Apache License, Version 2.0 (the "License"); you may
 # not use this file except in compliance with the License. You may obtain
 # a copy of the License at
@@ -20,30 +20,28 @@ def upgrade(migrate_engine):
     meta.bind = migrate_engine
 
     subcloud_alarms = sqlalchemy.Table(
-        'subcloud_alarms', meta,
-        sqlalchemy.Column('id', sqlalchemy.Integer,
-                          primary_key=True, nullable=False),
-        sqlalchemy.Column('uuid', sqlalchemy.String(36), unique=True),
-
-        sqlalchemy.Column('name', sqlalchemy.String(255), unique=True),
-        sqlalchemy.Column('critical_alarms', sqlalchemy.Integer),
-        sqlalchemy.Column('major_alarms', sqlalchemy.Integer),
-        sqlalchemy.Column('minor_alarms', sqlalchemy.Integer),
-        sqlalchemy.Column('warnings', sqlalchemy.Integer),
-        sqlalchemy.Column('cloud_status', sqlalchemy.String(64)),
-
-        sqlalchemy.Column('created_at', sqlalchemy.DateTime),
-        sqlalchemy.Column('updated_at', sqlalchemy.DateTime),
-        sqlalchemy.Column('deleted_at', sqlalchemy.DateTime),
-        sqlalchemy.Column('deleted', sqlalchemy.Integer),
-
-        mysql_engine='InnoDB',
-        mysql_charset='utf8'
+        "subcloud_alarms",
+        meta,
+        sqlalchemy.Column("id", sqlalchemy.Integer, primary_key=True, nullable=False),
+        sqlalchemy.Column("uuid", sqlalchemy.String(36), unique=True),
+        sqlalchemy.Column("name", sqlalchemy.String(255), unique=True),
+        sqlalchemy.Column("critical_alarms", sqlalchemy.Integer),
+        sqlalchemy.Column("major_alarms", sqlalchemy.Integer),
+        sqlalchemy.Column("minor_alarms", sqlalchemy.Integer),
+        sqlalchemy.Column("warnings", sqlalchemy.Integer),
+        sqlalchemy.Column("cloud_status", sqlalchemy.String(64)),
+        sqlalchemy.Column("created_at", sqlalchemy.DateTime),
+        sqlalchemy.Column("updated_at", sqlalchemy.DateTime),
+        sqlalchemy.Column("deleted_at", sqlalchemy.DateTime),
+        sqlalchemy.Column("deleted", sqlalchemy.Integer),
+        mysql_engine="InnoDB",
+        mysql_charset="utf8",
     )
 
     subcloud_alarms.create()
 
 
 def downgrade(migrate_engine):
-    raise NotImplementedError('Database downgrade not supported - '
-                              'would drop all tables')
+    raise NotImplementedError(
+        "Database downgrade not supported - would drop all tables"
+    )

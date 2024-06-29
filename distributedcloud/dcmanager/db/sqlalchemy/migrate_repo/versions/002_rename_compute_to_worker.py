@@ -1,4 +1,4 @@
-# Copyright (c) 2019-2021 Wind River Systems, Inc.
+# Copyright (c) 2019-2021, 2024 Wind River Systems, Inc.
 # Licensed under the Apache License, Version 2.0 (the "License"); you may
 # not use this file except in compliance with the License. You may obtain
 # a copy of the License at
@@ -20,12 +20,13 @@ def upgrade(migrate_engine):
     meta = MetaData()
     meta.bind = migrate_engine
 
-    sw_update_opts_default = Table('sw_update_opts_default', meta,
-                                   autoload=True)
-    sw_update_opts = Table('sw_update_opts', meta, autoload=True)
+    sw_update_opts_default = Table("sw_update_opts_default", meta, autoload=True)
+    sw_update_opts = Table("sw_update_opts", meta, autoload=True)
 
-    columns_to_rename = {'compute_apply_type': 'worker_apply_type',
-                         'max_parallel_computes': 'max_parallel_workers'}
+    columns_to_rename = {
+        "compute_apply_type": "worker_apply_type",
+        "max_parallel_computes": "max_parallel_workers",
+    }
     for k, v in columns_to_rename.items():
         getattr(sw_update_opts_default.c, k).alter(name=v)
         getattr(sw_update_opts.c, k).alter(name=v)
@@ -34,4 +35,4 @@ def upgrade(migrate_engine):
 
 
 def downgrade(migrate_engine):
-    raise NotImplementedError('Database downgrade is unsupported.')
+    raise NotImplementedError("Database downgrade is unsupported.")

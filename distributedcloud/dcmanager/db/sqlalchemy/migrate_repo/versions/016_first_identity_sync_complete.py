@@ -1,4 +1,4 @@
-# Copyright (c) 2023 Wind River Systems, Inc.
+# Copyright (c) 2023-2024 Wind River Systems, Inc.
 # Licensed under the Apache License, Version 2.0 (the "License"); you may
 # not use this file except in compliance with the License. You may obtain
 # a copy of the License at
@@ -18,13 +18,16 @@ import sqlalchemy
 def upgrade(migrate_engine):
     meta = sqlalchemy.MetaData()
     meta.bind = migrate_engine
-    subcloud = sqlalchemy.Table('subclouds', meta, autoload=True)
+    subcloud = sqlalchemy.Table("subclouds", meta, autoload=True)
     # Add the first_identity_sync_complete column
-    subcloud.create_column(sqlalchemy.Column('first_identity_sync_complete',
-                                             sqlalchemy.Boolean,
-                                             default=False))
+    subcloud.create_column(
+        sqlalchemy.Column(
+            "first_identity_sync_complete", sqlalchemy.Boolean, default=False
+        )
+    )
 
 
 def downgrade(migrate_engine):
-    raise NotImplementedError('Database downgrade not supported - '
-                              'would drop all tables')
+    raise NotImplementedError(
+        "Database downgrade not supported - would drop all tables"
+    )
