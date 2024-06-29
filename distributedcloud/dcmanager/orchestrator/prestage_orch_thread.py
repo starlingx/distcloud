@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2023 Wind River Systems, Inc.
+# Copyright (c) 2022-2024 Wind River Systems, Inc.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -28,12 +28,9 @@ class PrestageOrchThread(OrchThread):
     # Every state in prestage orchestration must have an operator
     # The states are listed here in their typical execution order
     STATE_OPERATORS = {
-        consts.STRATEGY_STATE_PRESTAGE_PRE_CHECK:
-            states.PrestagePreCheckState,
-        consts.STRATEGY_STATE_PRESTAGE_PACKAGES:
-            states.PrestagePackagesState,
-        consts.STRATEGY_STATE_PRESTAGE_IMAGES:
-            states.PrestageImagesState,
+        consts.STRATEGY_STATE_PRESTAGE_PRE_CHECK: states.PrestagePreCheckState,
+        consts.STRATEGY_STATE_PRESTAGE_PACKAGES: states.PrestagePackagesState,
+        consts.STRATEGY_STATE_PRESTAGE_IMAGES: states.PrestageImagesState,
     }
 
     def __init__(self, strategy_lock, audit_rpc_client):
@@ -42,7 +39,8 @@ class PrestageOrchThread(OrchThread):
             audit_rpc_client,
             consts.SW_UPDATE_TYPE_PRESTAGE,
             None,
-            consts.STRATEGY_STATE_PRESTAGE_PRE_CHECK)
+            consts.STRATEGY_STATE_PRESTAGE_PRE_CHECK,
+        )
 
     def trigger_audit(self):
         """Trigger an audit"""

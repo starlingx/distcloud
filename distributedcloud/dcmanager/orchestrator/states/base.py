@@ -48,39 +48,59 @@ class BaseState(object, metaclass=abc.ABCMeta):
             return False
 
     def debug_log(self, strategy_step, details):
-        LOG.debug("Stage: %s, State: %s, Subcloud: %s, Details: %s"
-                  % (strategy_step.stage,
-                     strategy_step.state,
-                     self.get_subcloud_name(strategy_step),
-                     details))
+        LOG.debug(
+            "Stage: %s, State: %s, Subcloud: %s, Details: %s"
+            % (
+                strategy_step.stage,
+                strategy_step.state,
+                self.get_subcloud_name(strategy_step),
+                details,
+            )
+        )
 
     def info_log(self, strategy_step, details):
-        LOG.info("Stage: %s, State: %s, Subcloud: %s, Details: %s"
-                 % (strategy_step.stage,
-                    strategy_step.state,
-                    self.get_subcloud_name(strategy_step),
-                    details))
+        LOG.info(
+            "Stage: %s, State: %s, Subcloud: %s, Details: %s"
+            % (
+                strategy_step.stage,
+                strategy_step.state,
+                self.get_subcloud_name(strategy_step),
+                details,
+            )
+        )
 
     def warn_log(self, strategy_step, details):
-        LOG.warn("Stage: %s, State: %s, Subcloud: %s, Details: %s"
-                 % (strategy_step.stage,
-                    strategy_step.state,
-                    self.get_subcloud_name(strategy_step),
-                    details))
+        LOG.warn(
+            "Stage: %s, State: %s, Subcloud: %s, Details: %s"
+            % (
+                strategy_step.stage,
+                strategy_step.state,
+                self.get_subcloud_name(strategy_step),
+                details,
+            )
+        )
 
     def error_log(self, strategy_step, details):
-        LOG.error("Stage: %s, State: %s, Subcloud: %s, Details: %s"
-                  % (strategy_step.stage,
-                     strategy_step.state,
-                     self.get_subcloud_name(strategy_step),
-                     details))
+        LOG.error(
+            "Stage: %s, State: %s, Subcloud: %s, Details: %s"
+            % (
+                strategy_step.stage,
+                strategy_step.state,
+                self.get_subcloud_name(strategy_step),
+                details,
+            )
+        )
 
     def exception_log(self, strategy_step, details):
-        LOG.exception("Stage: %s, State: %s, Subcloud: %s, Details: %s"
-                      % (strategy_step.stage,
-                         strategy_step.state,
-                         self.get_subcloud_name(strategy_step),
-                         details))
+        LOG.exception(
+            "Stage: %s, State: %s, Subcloud: %s, Details: %s"
+            % (
+                strategy_step.stage,
+                strategy_step.state,
+                self.get_subcloud_name(strategy_step),
+                details,
+            )
+        )
 
     @staticmethod
     def get_region_name(strategy_step):
@@ -110,18 +130,16 @@ class BaseState(object, metaclass=abc.ABCMeta):
             )
             return os_client.keystone_client
         except Exception:
-            LOG.warning('Failure initializing KeystoneClient for region: %s'
-                        % region_name)
+            LOG.warning(
+                "Failure initializing KeystoneClient for region: %s" % region_name
+            )
             raise
 
     def get_sysinv_client(self, region_name):
-        """construct a sysinv client
-
-        """
+        """construct a sysinv client"""
         keystone_client = self.get_keystone_client(region_name)
-        endpoint = keystone_client.endpoint_cache.get_endpoint('sysinv')
-        return SysinvClient(region_name, keystone_client.session,
-                            endpoint=endpoint)
+        endpoint = keystone_client.endpoint_cache.get_endpoint("sysinv")
+        return SysinvClient(region_name, keystone_client.session, endpoint=endpoint)
 
     def get_fm_client(self, region_name):
         keystone_client = self.get_keystone_client(region_name)
@@ -145,9 +163,7 @@ class BaseState(object, metaclass=abc.ABCMeta):
         return self.get_sysinv_client(self.region_name)
 
     def get_barbican_client(self, region_name):
-        """construct a barbican client
-
-        """
+        """construct a barbican client"""
         keystone_client = self.get_keystone_client(region_name)
 
         return BarbicanClient(region_name, keystone_client.session)
@@ -155,8 +171,7 @@ class BaseState(object, metaclass=abc.ABCMeta):
     def get_vim_client(self, region_name):
         """construct a vim client for a region."""
         keystone_client = self.get_keystone_client(region_name)
-        return VimClient(region_name,
-                         keystone_client.session)
+        return VimClient(region_name, keystone_client.session)
 
     def add_shared_caches(self, shared_caches):
         # Shared caches not required by all states, so instantiate only if necessary
@@ -166,8 +181,9 @@ class BaseState(object, metaclass=abc.ABCMeta):
         if self._shared_caches is not None:
             return self._shared_caches.read(cache_type, **filter_params)
         else:
-            InvalidParameterValue(err="Specified cache type '%s' not "
-                                      "present" % cache_type)
+            InvalidParameterValue(
+                err="Specified cache type '%s' not present" % cache_type
+            )
 
     @abc.abstractmethod
     def perform_state_action(self, strategy_step):

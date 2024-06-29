@@ -67,9 +67,9 @@ class DCManagerOrchestratorService(service.Service):
         utils.set_open_file_limit(cfg.CONF.worker_rlimit_nofile)
         self.init_tgm()
         self.init_manager()
-        target = oslo_messaging.Target(version=self.rpc_api_version,
-                                       server=self.host,
-                                       topic=self.topic)
+        target = oslo_messaging.Target(
+            version=self.rpc_api_version, server=self.host, topic=self.topic
+        )
         self.target = target
         self._rpc_server = rpc_messaging.get_rpc_server(self.target, self)
         self._rpc_server.start()
@@ -89,9 +89,9 @@ class DCManagerOrchestratorService(service.Service):
                 self._rpc_server.stop()
                 self._rpc_server.wait()
                 self._rpc_server = None
-                LOG.info('RPC service stopped successfully')
+                LOG.info("RPC service stopped successfully")
             except Exception as ex:
-                LOG.error('Failed to stop engine service: %s', str(ex))
+                LOG.error("Failed to stop engine service: %s", str(ex))
 
     def stop(self):
         """Stop anything initiated by start"""
@@ -110,31 +110,32 @@ class DCManagerOrchestratorService(service.Service):
     @request_context
     def create_sw_update_strategy(self, context, payload):
         # Creates a software update strategy
-        LOG.info("Handling create_sw_update_strategy request of type %s" %
-                 payload.get('type'))
-        return self.sw_update_manager.create_sw_update_strategy(
-            context, payload)
+        LOG.info(
+            "Handling create_sw_update_strategy request of type %s"
+            % payload.get("type")
+        )
+        return self.sw_update_manager.create_sw_update_strategy(context, payload)
 
     @request_context
     def delete_sw_update_strategy(self, context, update_type=None):
         # Deletes the software update strategy
         LOG.info("Handling delete_sw_update_strategy request")
         return self.sw_update_manager.delete_sw_update_strategy(
-            context,
-            update_type=update_type)
+            context, update_type=update_type
+        )
 
     @request_context
     def apply_sw_update_strategy(self, context, update_type=None):
         # Applies the software update strategy
         LOG.info("Handling apply_sw_update_strategy request")
         return self.sw_update_manager.apply_sw_update_strategy(
-            context,
-            update_type=update_type)
+            context, update_type=update_type
+        )
 
     @request_context
     def abort_sw_update_strategy(self, context, update_type=None):
         # Aborts the software update strategy
         LOG.info("Handling abort_sw_update_strategy request")
         return self.sw_update_manager.abort_sw_update_strategy(
-            context,
-            update_type=update_type)
+            context, update_type=update_type
+        )

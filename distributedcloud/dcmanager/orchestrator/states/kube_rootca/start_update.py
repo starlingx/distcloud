@@ -1,15 +1,15 @@
 #
-# Copyright (c) 2021 Wind River Systems, Inc.
+# Copyright (c) 2021, 2024 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
 from dccommon.drivers.openstack.sysinv_v1 import KUBE_ROOTCA_UPDATE_ABORTED
 from dccommon.drivers.openstack.sysinv_v1 import KUBE_ROOTCA_UPDATE_STARTED
 
-from dcmanager.common.consts \
-    import STRATEGY_STATE_CREATING_VIM_KUBE_ROOTCA_UPDATE_STRATEGY
-from dcmanager.common.consts \
-    import STRATEGY_STATE_KUBE_ROOTCA_UPDATE_UPLOAD_CERT
+from dcmanager.common.consts import (
+    STRATEGY_STATE_CREATING_VIM_KUBE_ROOTCA_UPDATE_STRATEGY,
+)
+from dcmanager.common.consts import STRATEGY_STATE_KUBE_ROOTCA_UPDATE_UPLOAD_CERT
 
 from dcmanager.orchestrator.states.base import BaseState
 
@@ -20,7 +20,8 @@ class KubeRootcaUpdateStartState(BaseState):
     def __init__(self, region_name):
         super(KubeRootcaUpdateStartState, self).__init__(
             next_state=STRATEGY_STATE_KUBE_ROOTCA_UPDATE_UPLOAD_CERT,
-            region_name=region_name)
+            region_name=region_name,
+        )
 
     def _start_kube_rootca_update(self, strategy_step):
         """Start a kube rootca update
@@ -28,9 +29,9 @@ class KubeRootcaUpdateStartState(BaseState):
         This is a blocking API call.
         returns the kube rootca update object.
         """
-        return self.get_sysinv_client(
-            self.region_name).kube_rootca_update_start(force=True,
-                                                       alarm_ignore_list=[])
+        return self.get_sysinv_client(self.region_name).kube_rootca_update_start(
+            force=True, alarm_ignore_list=[]
+        )
 
     def perform_state_action(self, strategy_step):
         """Start the update.
@@ -41,8 +42,7 @@ class KubeRootcaUpdateStartState(BaseState):
         Returns the next state for the state machine if successful.
         """
         update = None
-        updates = \
-            self.get_sysinv_client(self.region_name).get_kube_rootca_updates()
+        updates = self.get_sysinv_client(self.region_name).get_kube_rootca_updates()
         if len(updates) > 0:
             # There is already an existing kube rootca update in the subcloud
             update = updates[0]
@@ -59,10 +59,10 @@ class KubeRootcaUpdateStartState(BaseState):
             self.info_log(strategy_step, "Update started")
         else:
             # An unexpected update state. override the next state to use VIM
-            self.info_log(strategy_step,
-                          "Update in [%s] state." % update.state)
+            self.info_log(strategy_step, "Update in [%s] state." % update.state)
             self.override_next_state(
-                STRATEGY_STATE_CREATING_VIM_KUBE_ROOTCA_UPDATE_STRATEGY)
+                STRATEGY_STATE_CREATING_VIM_KUBE_ROOTCA_UPDATE_STRATEGY
+            )
 
         # Success. Move to the next stage
         return self.next_state

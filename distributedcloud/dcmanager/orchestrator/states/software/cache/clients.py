@@ -27,15 +27,21 @@ CLIENT_READ_MAX_ATTEMPTS = 2
 
 def get_sysinv_client():
     ks_client = get_keystone_client()
-    return SysinvClient(dccommon_consts.DEFAULT_REGION_NAME, ks_client.session,
-                        endpoint=ks_client.endpoint_cache.get_endpoint('sysinv'),
-                        timeout=CLIENT_READ_TIMEOUT_SECONDS)
+    return SysinvClient(
+        dccommon_consts.DEFAULT_REGION_NAME,
+        ks_client.session,
+        endpoint=ks_client.endpoint_cache.get_endpoint("sysinv"),
+        timeout=CLIENT_READ_TIMEOUT_SECONDS,
+    )
 
 
 def get_software_client():
     ks_client = get_keystone_client()
-    return SoftwareClient(dccommon_consts.DEFAULT_REGION_NAME, ks_client.session,
-                          endpoint=ks_client.endpoint_cache.get_endpoint('usm'))
+    return SoftwareClient(
+        dccommon_consts.DEFAULT_REGION_NAME,
+        ks_client.session,
+        endpoint=ks_client.endpoint_cache.get_endpoint("usm"),
+    )
 
 
 def get_keystone_client(region_name=dccommon_consts.DEFAULT_REGION_NAME):
@@ -49,6 +55,5 @@ def get_keystone_client(region_name=dccommon_consts.DEFAULT_REGION_NAME):
         )
         return os_client.keystone_client
     except Exception:
-        LOG.warning('Failure initializing KeystoneClient for region: %s'
-                    % region_name)
+        LOG.warning("Failure initializing KeystoneClient for region: %s" % region_name)
         raise

@@ -24,15 +24,20 @@ class FinishingFwUpdateState(BaseState):
 
     def __init__(self, region_name):
         super(FinishingFwUpdateState, self).__init__(
-            next_state=consts.STRATEGY_STATE_COMPLETE, region_name=region_name)
+            next_state=consts.STRATEGY_STATE_COMPLETE, region_name=region_name
+        )
         self.max_failed_queries = DEFAULT_MAX_FAILED_QUERIES
         self.failed_sleep_duration = DEFAULT_FAILED_SLEEP
 
     def align_subcloud_status(self, strategy_step):
-        self.info_log(strategy_step,
-                      "Setting endpoint status of %s to %s"
-                      % (dccommon_consts.ENDPOINT_TYPE_FIRMWARE,
-                         dccommon_consts.SYNC_STATUS_IN_SYNC))
+        self.info_log(
+            strategy_step,
+            "Setting endpoint status of %s to %s"
+            % (
+                dccommon_consts.ENDPOINT_TYPE_FIRMWARE,
+                dccommon_consts.SYNC_STATUS_IN_SYNC,
+            ),
+        )
         dcmanager_state_rpc_client = dcmanager_rpc_client.SubcloudStateClient()
         # The subcloud name may differ from the region name in the strategy_step
         dcmanager_state_rpc_client.update_subcloud_endpoint_status(
@@ -40,7 +45,8 @@ class FinishingFwUpdateState(BaseState):
             subcloud_name=self.get_subcloud_name(strategy_step),
             subcloud_region=self.get_region_name(strategy_step),
             endpoint_type=dccommon_consts.ENDPOINT_TYPE_FIRMWARE,
-            sync_status=dccommon_consts.SYNC_STATUS_IN_SYNC)
+            sync_status=dccommon_consts.SYNC_STATUS_IN_SYNC,
+        )
 
     def perform_state_action(self, strategy_step):
         """Finish the firmware update.
@@ -71,8 +77,9 @@ class FinishingFwUpdateState(BaseState):
             try:
                 subcloud_hosts = self.get_sysinv_client(region).get_hosts()
                 for host in subcloud_hosts:
-                    host_devices = self.get_sysinv_client(
-                        region).get_host_device_list(host.uuid)
+                    host_devices = self.get_sysinv_client(region).get_host_device_list(
+                        host.uuid
+                    )
                     for device in host_devices:
                         if device.enabled:
                             enabled_host_device_list.append(device)
@@ -99,12 +106,13 @@ class FinishingFwUpdateState(BaseState):
             try:
                 # determine list of applied subcloud images
                 subcloud_images = self.get_sysinv_client(region).get_device_images()
-                applied_subcloud_images = \
-                    utils.filter_applied_images(subcloud_images,
-                                                expected_value=True)
+                applied_subcloud_images = utils.filter_applied_images(
+                    subcloud_images, expected_value=True
+                )
                 # Retrieve the device image states on this subcloud.
                 subcloud_device_image_states = self.get_sysinv_client(
-                    region).get_device_image_states()
+                    region
+                ).get_device_image_states()
                 break
             except Exception:
                 # TODO(rlima): Invert the fail counter with the validation to fix
@@ -112,7 +120,8 @@ class FinishingFwUpdateState(BaseState):
                 # DEFAULT_MAX_FAILED_QUERIES
                 if fail_counter >= self.max_failed_queries:
                     raise Exception(
-                        "Timeout waiting to query subcloud device image info")
+                        "Timeout waiting to query subcloud device image info"
+                    )
                 fail_counter += 1
                 time.sleep(self.failed_sleep_duration)
 
@@ -127,9 +136,9 @@ class FinishingFwUpdateState(BaseState):
                 if device is not None:
                     image = image_map.get(device_image_state_obj.image_uuid)
                     if image is not None:
-                        self.info_log(strategy_step,
-                                      "Failed apply: %s"
-                                      % device_image_state_obj)
+                        self.info_log(
+                            strategy_step, "Failed apply: %s" % device_image_state_obj
+                        )
                         failed_states.append(device_image_state_obj)
         if failed_states:
             # todo(abailey): create a custom Exception

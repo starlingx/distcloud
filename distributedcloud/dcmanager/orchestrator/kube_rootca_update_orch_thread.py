@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2020-2021 Wind River Systems, Inc.
+# Copyright (c) 2020-2021, 2024 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -7,31 +7,39 @@ from dccommon.drivers.openstack import vim
 from dcmanager.common import consts
 from dcmanager.orchestrator.orch_thread import OrchThread
 
-from dcmanager.orchestrator.states.kube_rootca.applying_vim_strategy \
-    import ApplyingVIMKubeRootcaUpdateStrategyState
-from dcmanager.orchestrator.states.kube_rootca.creating_vim_strategy \
-    import CreatingVIMKubeRootcaUpdateStrategyState
-from dcmanager.orchestrator.states.kube_rootca.pre_check \
-    import KubeRootcaUpdatePreCheckState
-from dcmanager.orchestrator.states.kube_rootca.start_update \
-    import KubeRootcaUpdateStartState
-from dcmanager.orchestrator.states.kube_rootca.upload_cert \
-    import KubeRootcaUpdateUploadCertState
+from dcmanager.orchestrator.states.kube_rootca.applying_vim_strategy import (
+    ApplyingVIMKubeRootcaUpdateStrategyState,
+)
+from dcmanager.orchestrator.states.kube_rootca.creating_vim_strategy import (
+    CreatingVIMKubeRootcaUpdateStrategyState,
+)
+from dcmanager.orchestrator.states.kube_rootca.pre_check import (
+    KubeRootcaUpdatePreCheckState,
+)
+from dcmanager.orchestrator.states.kube_rootca.start_update import (
+    KubeRootcaUpdateStartState,
+)
+from dcmanager.orchestrator.states.kube_rootca.upload_cert import (
+    KubeRootcaUpdateUploadCertState,
+)
 
 
 class KubeRootcaUpdateOrchThread(OrchThread):
     """Kube RootCA Update Orchestration Thread"""
+
+    # Reassign constants to avoid line length issues
+    PRE_CHECK = consts.STRATEGY_STATE_KUBE_ROOTCA_UPDATE_PRE_CHECK
+    START = consts.STRATEGY_STATE_KUBE_ROOTCA_UPDATE_START
+    UPLOAD_CERT = consts.STRATEGY_STATE_KUBE_ROOTCA_UPDATE_UPLOAD_CERT
+    CREATE_VIM_STRATEGY = consts.STRATEGY_STATE_CREATING_VIM_KUBE_ROOTCA_UPDATE_STRATEGY
+    APPLY_VIM_STRATEGY = consts.STRATEGY_STATE_APPLYING_VIM_KUBE_ROOTCA_UPDATE_STRATEGY
+
     STATE_OPERATORS = {
-        consts.STRATEGY_STATE_KUBE_ROOTCA_UPDATE_PRE_CHECK:
-            KubeRootcaUpdatePreCheckState,
-        consts.STRATEGY_STATE_KUBE_ROOTCA_UPDATE_START:
-            KubeRootcaUpdateStartState,
-        consts.STRATEGY_STATE_KUBE_ROOTCA_UPDATE_UPLOAD_CERT:
-            KubeRootcaUpdateUploadCertState,
-        consts.STRATEGY_STATE_CREATING_VIM_KUBE_ROOTCA_UPDATE_STRATEGY:
-            CreatingVIMKubeRootcaUpdateStrategyState,
-        consts.STRATEGY_STATE_APPLYING_VIM_KUBE_ROOTCA_UPDATE_STRATEGY:
-            ApplyingVIMKubeRootcaUpdateStrategyState,
+        PRE_CHECK: KubeRootcaUpdatePreCheckState,
+        START: KubeRootcaUpdateStartState,
+        UPLOAD_CERT: KubeRootcaUpdateUploadCertState,
+        CREATE_VIM_STRATEGY: CreatingVIMKubeRootcaUpdateStrategyState,
+        APPLY_VIM_STRATEGY: ApplyingVIMKubeRootcaUpdateStrategyState,
     }
 
     def __init__(self, strategy_lock, audit_rpc_client):
@@ -40,7 +48,8 @@ class KubeRootcaUpdateOrchThread(OrchThread):
             audit_rpc_client,
             consts.SW_UPDATE_TYPE_KUBE_ROOTCA_UPDATE,
             vim.STRATEGY_NAME_KUBE_ROOTCA_UPDATE,
-            consts.STRATEGY_STATE_KUBE_ROOTCA_UPDATE_PRE_CHECK)
+            consts.STRATEGY_STATE_KUBE_ROOTCA_UPDATE_PRE_CHECK,
+        )
 
     def trigger_audit(self):
         """Trigger an audit for kube rootca update"""

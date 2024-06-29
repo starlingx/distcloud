@@ -22,7 +22,8 @@ class PrestageState(BaseState):
 
     def __init__(self, next_state, region_name):
         super(PrestageState, self).__init__(
-            next_state=next_state, region_name=region_name)
+            next_state=next_state, region_name=region_name
+        )
 
     @abc.abstractmethod
     def _do_state_action(self, strategy_step):
@@ -35,8 +36,8 @@ class PrestageState(BaseState):
         except exceptions.StrategySkippedException:
             # Move prestage_status back to None (nothing has changed)
             db_api.subcloud_update(
-                self.context, strategy_step.subcloud.id,
-                prestage_status=None)
+                self.context, strategy_step.subcloud.id, prestage_status=None
+            )
             raise
         except Exception:
             prestage.prestage_fail(self.context, strategy_step.subcloud.id)
@@ -51,28 +52,34 @@ class PrestagePreCheckState(PrestageState):
 
     def __init__(self, region_name):
         super(PrestagePreCheckState, self).__init__(
-            next_state=consts.STRATEGY_STATE_PRESTAGE_PACKAGES,
-            region_name=region_name)
+            next_state=consts.STRATEGY_STATE_PRESTAGE_PACKAGES, region_name=region_name
+        )
 
-    @utils.synchronized('prestage-update-extra-args', external=True)
+    @utils.synchronized("prestage-update-extra-args", external=True)
     def _update_oam_floating_ip(self, strategy_step, oam_floating_ip):
         # refresh the extra_args
         extra_args = utils.get_sw_update_strategy_extra_args(self.context)
-        if 'oam_floating_ip_dict' in extra_args:
-            LOG.debug("Updating oam_floating_ip_dict: %s: %s",
-                      strategy_step.subcloud.name, oam_floating_ip)
-            oam_floating_ip_dict = extra_args['oam_floating_ip_dict']
-            oam_floating_ip_dict[strategy_step.subcloud.name] \
-                = oam_floating_ip
+        if "oam_floating_ip_dict" in extra_args:
+            LOG.debug(
+                "Updating oam_floating_ip_dict: %s: %s",
+                strategy_step.subcloud.name,
+                oam_floating_ip,
+            )
+            oam_floating_ip_dict = extra_args["oam_floating_ip_dict"]
+            oam_floating_ip_dict[strategy_step.subcloud.name] = oam_floating_ip
         else:
-            LOG.debug("Creating oam_floating_ip_dict: %s: %s",
-                      strategy_step.subcloud.name, oam_floating_ip)
-            oam_floating_ip_dict = {
-                strategy_step.subcloud.name: oam_floating_ip
-            }
+            LOG.debug(
+                "Creating oam_floating_ip_dict: %s: %s",
+                strategy_step.subcloud.name,
+                oam_floating_ip,
+            )
+            oam_floating_ip_dict = {strategy_step.subcloud.name: oam_floating_ip}
         db_api.sw_update_strategy_update(
-            self.context, state=None, update_type=None,
-            additional_args={'oam_floating_ip_dict': oam_floating_ip_dict})
+            self.context,
+            state=None,
+            update_type=None,
+            additional_args={"oam_floating_ip_dict": oam_floating_ip_dict},
+        )
 
     def _do_state_action(self, strategy_step):
         extra_args = utils.get_sw_update_strategy_extra_args(self.context)
@@ -82,15 +89,21 @@ class PrestagePreCheckState(PrestageState):
             raise Exception(message)
 
         payload = {
-            'sysadmin_password': extra_args['sysadmin_password'],
-            'force': extra_args['force']
+            "sysadmin_password": extra_args["sysadmin_password"],
+            "force": extra_args["force"],
         }
         if extra_args.get(consts.PRESTAGE_SOFTWARE_VERSION):
-            payload.update({consts.PRESTAGE_REQUEST_RELEASE:
-                            extra_args.get(consts.PRESTAGE_SOFTWARE_VERSION)})
+            payload.update(
+                {
+                    consts.PRESTAGE_REQUEST_RELEASE: extra_args.get(
+                        consts.PRESTAGE_SOFTWARE_VERSION
+                    )
+                }
+            )
         try:
             oam_floating_ip = prestage.validate_prestage(
-                strategy_step.subcloud, payload)
+                strategy_step.subcloud, payload
+            )
             self._update_oam_floating_ip(strategy_step, oam_floating_ip)
 
             prestage.prestage_start(self.context, strategy_step.subcloud.id)
@@ -113,22 +126,27 @@ class PrestagePackagesState(PrestageState):
 
     def __init__(self, region_name):
         super(PrestagePackagesState, self).__init__(
-            next_state=consts.STRATEGY_STATE_PRESTAGE_IMAGES,
-            region_name=region_name)
+            next_state=consts.STRATEGY_STATE_PRESTAGE_IMAGES, region_name=region_name
+        )
 
     def _do_state_action(self, strategy_step):
         extra_args = utils.get_sw_update_strategy_extra_args(self.context)
         payload = {
-            'sysadmin_password': extra_args['sysadmin_password'],
-            'oam_floating_ip':
-                extra_args['oam_floating_ip_dict'][strategy_step.subcloud.name],
-            'force': extra_args['force']
+            "sysadmin_password": extra_args["sysadmin_password"],
+            "oam_floating_ip": extra_args["oam_floating_ip_dict"][
+                strategy_step.subcloud.name
+            ],
+            "force": extra_args["force"],
         }
         if extra_args.get(consts.PRESTAGE_SOFTWARE_VERSION):
-            payload.update({consts.PRESTAGE_REQUEST_RELEASE:
-                            extra_args.get(consts.PRESTAGE_SOFTWARE_VERSION)})
-        prestage.prestage_packages(self.context,
-                                   strategy_step.subcloud, payload)
+            payload.update(
+                {
+                    consts.PRESTAGE_REQUEST_RELEASE: extra_args.get(
+                        consts.PRESTAGE_SOFTWARE_VERSION
+                    )
+                }
+            )
+        prestage.prestage_packages(self.context, strategy_step.subcloud, payload)
         self.info_log(strategy_step, "Packages finished")
 
 
@@ -137,30 +155,37 @@ class PrestageImagesState(PrestageState):
 
     def __init__(self, region_name):
         super(PrestageImagesState, self).__init__(
-            next_state=consts.STRATEGY_STATE_COMPLETE,
-            region_name=region_name)
+            next_state=consts.STRATEGY_STATE_COMPLETE, region_name=region_name
+        )
 
     def _do_state_action(self, strategy_step):
-        log_file = utils.get_subcloud_ansible_log_file(
-            strategy_step.subcloud.name)
+        log_file = utils.get_subcloud_ansible_log_file(strategy_step.subcloud.name)
         # Get the prestage versions from the ansible playbook logs
         # generated by the previous step - prestage packages.
         prestage_versions = utils.get_msg_output_info(
             log_file,
             prestage.PRINT_PRESTAGE_VERSIONS_TASK,
-            prestage.PRESTAGE_VERSIONS_KEY_STR)
+            prestage.PRESTAGE_VERSIONS_KEY_STR,
+        )
 
         extra_args = utils.get_sw_update_strategy_extra_args(self.context)
         payload = {
-            'sysadmin_password': extra_args['sysadmin_password'],
-            'oam_floating_ip':
-                extra_args['oam_floating_ip_dict'][strategy_step.subcloud.name],
-            'force': extra_args['force']
+            "sysadmin_password": extra_args["sysadmin_password"],
+            "oam_floating_ip": extra_args["oam_floating_ip_dict"][
+                strategy_step.subcloud.name
+            ],
+            "force": extra_args["force"],
         }
         if extra_args.get(consts.PRESTAGE_SOFTWARE_VERSION):
-            payload.update({consts.PRESTAGE_REQUEST_RELEASE:
-                            extra_args.get(consts.PRESTAGE_SOFTWARE_VERSION)})
+            payload.update(
+                {
+                    consts.PRESTAGE_REQUEST_RELEASE: extra_args.get(
+                        consts.PRESTAGE_SOFTWARE_VERSION
+                    )
+                }
+            )
         prestage.prestage_images(self.context, strategy_step.subcloud, payload)
         self.info_log(strategy_step, "Images finished")
         prestage.prestage_complete(
-            self.context, strategy_step.subcloud.id, prestage_versions)
+            self.context, strategy_step.subcloud.id, prestage_versions
+        )

@@ -1,4 +1,4 @@
-# Copyright (c) 2020-2021 Wind River Systems, Inc.
+# Copyright (c) 2020-2021, 2024 Wind River Systems, Inc.
 # Licensed under the Apache License, Version 2.0 (the "License"); you may
 # not use this file except in compliance with the License. You may obtain
 # a copy of the License at
@@ -27,13 +27,14 @@ class ManagerOrchestratorClient(object):
      1.0 - Initial version
     """
 
-    BASE_RPC_API_VERSION = '1.0'
+    BASE_RPC_API_VERSION = "1.0"
 
     def __init__(self, timeout=None):
         self._client = messaging.get_rpc_client(
             timeout=timeout,
             topic=consts.TOPIC_DC_MANAGER_ORCHESTRATOR,
-            version=self.BASE_RPC_API_VERSION)
+            version=self.BASE_RPC_API_VERSION,
+        )
 
     @staticmethod
     def make_msg(method, **kwargs):
@@ -56,17 +57,21 @@ class ManagerOrchestratorClient(object):
         return client.cast(ctxt, method, **kwargs)
 
     def create_sw_update_strategy(self, ctxt, payload):
-        return self.call(ctxt, self.make_msg('create_sw_update_strategy',
-                                             payload=payload))
+        return self.call(
+            ctxt, self.make_msg("create_sw_update_strategy", payload=payload)
+        )
 
     def delete_sw_update_strategy(self, ctxt, update_type=None):
-        return self.call(ctxt, self.make_msg('delete_sw_update_strategy',
-                                             update_type=update_type))
+        return self.call(
+            ctxt, self.make_msg("delete_sw_update_strategy", update_type=update_type)
+        )
 
     def apply_sw_update_strategy(self, ctxt, update_type=None):
-        return self.call(ctxt, self.make_msg('apply_sw_update_strategy',
-                                             update_type=update_type))
+        return self.call(
+            ctxt, self.make_msg("apply_sw_update_strategy", update_type=update_type)
+        )
 
     def abort_sw_update_strategy(self, ctxt, update_type=None):
-        return self.call(ctxt, self.make_msg('abort_sw_update_strategy',
-                                             update_type=update_type))
+        return self.call(
+            ctxt, self.make_msg("abort_sw_update_strategy", update_type=update_type)
+        )

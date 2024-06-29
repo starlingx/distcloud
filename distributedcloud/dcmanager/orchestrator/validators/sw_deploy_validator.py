@@ -35,9 +35,7 @@ class SoftwareDeployStrategyValidator(StrategyValidationBase):
         :param payload: strategy request payload
         """
 
-        return {
-            consts.EXTRA_ARGS_RELEASE_ID: payload.get(consts.EXTRA_ARGS_RELEASE_ID)
-        }
+        return {consts.EXTRA_ARGS_RELEASE_ID: payload.get(consts.EXTRA_ARGS_RELEASE_ID)}
 
     def build_availability_status_filter(self, force):
         """Builds the availability status filter for valid subclouds
@@ -68,6 +66,6 @@ class SoftwareDeployStrategyValidator(StrategyValidationBase):
         if force:
             return [
                 dccommon_consts.SYNC_STATUS_OUT_OF_SYNC,
-                dccommon_consts.SYNC_STATUS_UNKNOWN
+                dccommon_consts.SYNC_STATUS_UNKNOWN,
             ]
         return [dccommon_consts.SYNC_STATUS_OUT_OF_SYNC]

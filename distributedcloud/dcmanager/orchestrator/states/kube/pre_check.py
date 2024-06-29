@@ -8,19 +8,20 @@ import re
 
 from dcmanager.common.consts import ERROR_DESC_CMD
 from dcmanager.common.consts import STRATEGY_STATE_COMPLETE
-from dcmanager.common.consts \
-    import STRATEGY_STATE_KUBE_CREATING_VIM_KUBE_UPGRADE_STRATEGY
+from dcmanager.common.consts import (
+    STRATEGY_STATE_KUBE_CREATING_VIM_KUBE_UPGRADE_STRATEGY,
+)
 from dcmanager.common import utils
 from dcmanager.db import api as db_api
-from dcmanager.orchestrator.cache.cache_specifications import \
-    REGION_ONE_KUBERNETES_CACHE_TYPE
+from dcmanager.orchestrator.cache.cache_specifications import (
+    REGION_ONE_KUBERNETES_CACHE_TYPE,
+)
 from dcmanager.orchestrator.states.base import BaseState
 
 # These following alarms can occur during a vim orchestrated k8s upgrade on the
 # subcloud. By ignoring the alarms, subcloud k8s upgrade can be
 # retried after a failure using DC orchestrator.
-ALARM_IGNORE_LIST = ['100.003', '200.001', '700.004', '750.006',
-                     '900.007', '900.401']
+ALARM_IGNORE_LIST = ["100.003", "200.001", "700.004", "750.006", "900.007", "900.401"]
 
 
 class KubeUpgradePreCheckState(BaseState):
@@ -29,7 +30,8 @@ class KubeUpgradePreCheckState(BaseState):
     def __init__(self, region_name):
         super(KubeUpgradePreCheckState, self).__init__(
             next_state=STRATEGY_STATE_KUBE_CREATING_VIM_KUBE_UPGRADE_STRATEGY,
-            region_name=region_name)
+            region_name=region_name,
+        )
 
     def perform_state_action(self, strategy_step):
         """This state will determine the starting state for kube upgrade
@@ -48,42 +50,57 @@ class KubeUpgradePreCheckState(BaseState):
         a partially upgraded subcloud to be skipped.
         """
         system_health = self.get_sysinv_client(
-            self.region_name).get_kube_upgrade_health()
-        fails = re.findall("\[Fail\]", system_health)
-        failed_alarm_check = re.findall("No alarms: \[Fail\]", system_health)
-        no_mgmt_alarms = re.findall("\[0\] of which are management affecting",
-                                    system_health)
+            self.region_name
+        ).get_kube_upgrade_health()
+        fails = re.findall(r"\[Fail\]", system_health)
+        failed_alarm_check = re.findall(r"No alarms: \[Fail\]", system_health)
+        no_mgmt_alarms = re.findall(
+            r"\[0\] of which are management affecting", system_health
+        )
         if not fails or (len(fails) == 1 and failed_alarm_check and no_mgmt_alarms):
             self.info_log(strategy_step, "Kubernetes upgrade health check passed.")
-        elif (len(fails) == 1 and failed_alarm_check):
+        elif len(fails) == 1 and failed_alarm_check:
             alarms = self.get_fm_client(self.region_name).get_alarms()
             for alarm in alarms:
                 if alarm.alarm_id not in ALARM_IGNORE_LIST:
                     if alarm.mgmt_affecting == "True":
                         error_desc_msg = (
-                            "Kubernetes upgrade health check failed due to alarm "
-                            "%s. Kubernetes upgrade health: \n %s" % (
-                                alarm.alarm_id, system_health))
+                            "Kubernetes upgrade health check failed due to alarm %s. "
+                            "Kubernetes upgrade health: \n %s"
+                            % (alarm.alarm_id, system_health)
+                        )
                         db_api.subcloud_update(
-                            self.context, strategy_step.subcloud_id,
-                            error_description=error_desc_msg)
+                            self.context,
+                            strategy_step.subcloud_id,
+                            error_description=error_desc_msg,
+                        )
                         self.error_log(strategy_step, "\n" + system_health)
-                        raise Exception((
-                            "Kubernetes upgrade health check failed due to alarm "
-                            "%s. Please run 'system health-query-kube-upgrade' "
-                            "command on the subcloud or %s on central for details." %
-                            (alarm.alarm_id, ERROR_DESC_CMD)))
+                        raise Exception(
+                            (
+                                "Kubernetes upgrade health check failed due to alarm "
+                                "%s. Please run 'system health-query-kube-upgrade' "
+                                "command on the subcloud or %s on central for details."
+                                % (alarm.alarm_id, ERROR_DESC_CMD)
+                            )
+                        )
         else:
-            error_desc_msg = ("Kubernetes upgrade health check failed. \n %s" %
-                              system_health)
+            error_desc_msg = (
+                "Kubernetes upgrade health check failed. \n %s" % system_health
+            )
             self.error_log(strategy_step, "\n" + system_health)
             db_api.subcloud_update(
-                self.context, strategy_step.subcloud_id,
-                error_description=error_desc_msg)
-            raise Exception(("Kubernetes upgrade health check failed. "
-                             "Please run 'system health-query-kube-upgrade' "
-                             "command on the subcloud or %s on central for details"
-                             % (ERROR_DESC_CMD)))
+                self.context,
+                strategy_step.subcloud_id,
+                error_description=error_desc_msg,
+            )
+            raise Exception(
+                (
+                    "Kubernetes upgrade health check failed. "
+                    "Please run 'system health-query-kube-upgrade' "
+                    "command on the subcloud or %s on central for details"
+                    % (ERROR_DESC_CMD)
+                )
+            )
 
         # check extra_args for the strategy
         # if there is a to-version, use that when checking against the subcloud
@@ -92,7 +109,7 @@ class KubeUpgradePreCheckState(BaseState):
         extra_args = utils.get_sw_update_strategy_extra_args(self.context)
         if extra_args is None:
             extra_args = {}
-        to_version = extra_args.get('to-version', None)
+        to_version = extra_args.get("to-version", None)
         if to_version is None:
             sys_kube_versions = self._read_from_cache(REGION_ONE_KUBERNETES_CACHE_TYPE)
             to_version = utils.get_active_kube_version(sys_kube_versions)
@@ -106,24 +123,27 @@ class KubeUpgradePreCheckState(BaseState):
         # Get any  existing kubernetes upgrade operation in the subcloud,
         # and use its to-version rather than the 'available' version for
         # determining whether or not to skip.
-        subcloud_kube_upgrades =  \
-            self.get_sysinv_client(self.region_name).get_kube_upgrades()
+        subcloud_kube_upgrades = self.get_sysinv_client(
+            self.region_name
+        ).get_kube_upgrades()
         if len(subcloud_kube_upgrades) > 0:
             target_version = subcloud_kube_upgrades[0].to_version
-            self.debug_log(strategy_step,
-                           "Pre-Check. Existing Kubernetes upgrade:(%s) exists"
-                           % target_version)
+            self.debug_log(
+                strategy_step,
+                "Pre-Check. Existing Kubernetes upgrade:(%s) exists" % target_version,
+            )
         else:
             # The subcloud can only be upgraded to an 'available' version
-            subcloud_kube_versions = \
-                self.get_sysinv_client(self.region_name).get_kube_versions()
-            target_version = \
-                utils.select_available_kube_version(
-                    subcloud_kube_versions, to_version
-                )
-            self.debug_log(strategy_step,
-                           "Pre-Check. Available Kubernetes upgrade:(%s)"
-                           % target_version)
+            subcloud_kube_versions = self.get_sysinv_client(
+                self.region_name
+            ).get_kube_versions()
+            target_version = utils.select_available_kube_version(
+                subcloud_kube_versions, to_version
+            )
+            self.debug_log(
+                strategy_step,
+                "Pre-Check. Available Kubernetes upgrade:(%s)" % target_version,
+            )
 
         # For the to-version, the code currently allows a partial version
         # ie: v1.20  or a version that is much higher than is installed.
@@ -158,14 +178,16 @@ class KubeUpgradePreCheckState(BaseState):
         if should_skip:
             # Add a log indicating we are skipping (and why)
             self.override_next_state(STRATEGY_STATE_COMPLETE)
-            self.info_log(strategy_step,
-                          "Pre-Check Skip. Orchestration To-Version:(%s). "
-                          "Subcloud To-Version:(%s)"
-                          % (to_version, target_version))
+            self.info_log(
+                strategy_step,
+                "Pre-Check Skip. Orchestration To-Version:(%s). "
+                "Subcloud To-Version:(%s)" % (to_version, target_version),
+            )
         else:
             # Add a log indicating what we expect the next state to 'target'
-            self.info_log(strategy_step,
-                          "Pre-Check Pass. Orchestration To-Version:(%s). "
-                          " Subcloud To-Version:(%s)"
-                          % (to_version, target_version))
+            self.info_log(
+                strategy_step,
+                "Pre-Check Pass. Orchestration To-Version:(%s). "
+                "Subcloud To-Version:(%s)" % (to_version, target_version),
+            )
         return self.next_state

@@ -51,6 +51,6 @@ class KubernetesStrategyValidator(StrategyValidationBase):
         if self.accepts_force and force:
             return [
                 dccommon_consts.SYNC_STATUS_IN_SYNC,
-                dccommon_consts.SYNC_STATUS_OUT_OF_SYNC
+                dccommon_consts.SYNC_STATUS_OUT_OF_SYNC,
             ]
         return [dccommon_consts.SYNC_STATUS_OUT_OF_SYNC]

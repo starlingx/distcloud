@@ -31,30 +31,28 @@ from dcmanager.common import prestage
 from dcmanager.common import utils
 from dcmanager.db import api as db_api
 from dcmanager.orchestrator.fw_update_orch_thread import FwUpdateOrchThread
-from dcmanager.orchestrator.kube_rootca_update_orch_thread \
-    import KubeRootcaUpdateOrchThread
-from dcmanager.orchestrator.kube_upgrade_orch_thread \
-    import KubeUpgradeOrchThread
+from dcmanager.orchestrator.kube_rootca_update_orch_thread import (
+    KubeRootcaUpdateOrchThread,
+)
+from dcmanager.orchestrator.kube_upgrade_orch_thread import KubeUpgradeOrchThread
 from dcmanager.orchestrator.patch_orch_thread import PatchOrchThread
 from dcmanager.orchestrator.prestage_orch_thread import PrestageOrchThread
 from dcmanager.orchestrator.software_orch_thread import SoftwareOrchThread
 from dcmanager.orchestrator.validators.firmware_validator import (
-    FirmwareStrategyValidator
+    FirmwareStrategyValidator,
 )
 from dcmanager.orchestrator.validators.kube_root_ca_validator import (
-    KubeRootCaStrategyValidator
+    KubeRootCaStrategyValidator,
 )
 from dcmanager.orchestrator.validators.kubernetes_validator import (
-    KubernetesStrategyValidator
+    KubernetesStrategyValidator,
 )
-from dcmanager.orchestrator.validators.patch_validator import (
-    PatchStrategyValidator
-)
+from dcmanager.orchestrator.validators.patch_validator import PatchStrategyValidator
 from dcmanager.orchestrator.validators.prestage_validator import (
-    PrestageStrategyValidator
+    PrestageStrategyValidator,
 )
 from dcmanager.orchestrator.validators.sw_deploy_validator import (
-    SoftwareDeployStrategyValidator
+    SoftwareDeployStrategyValidator,
 )
 
 LOG = logging.getLogger(__name__)
@@ -64,10 +62,11 @@ class SwUpdateManager(manager.Manager):
     """Manages tasks related to software updates."""
 
     def __init__(self, *args, **kwargs):
-        LOG.debug('SwUpdateManager initialization...')
+        LOG.debug("SwUpdateManager initialization...")
 
-        super(SwUpdateManager, self).__init__(service_name="sw_update_manager",
-                                              *args, **kwargs)
+        super(SwUpdateManager, self).__init__(
+            service_name="sw_update_manager", *args, **kwargs
+        )
         # Used to protect strategies when an atomic read/update is required.
         self.strategy_lock = threading.Lock()
 
@@ -79,32 +78,38 @@ class SwUpdateManager(manager.Manager):
 
         # - software orchestration thread
         self.software_orch_thread = SoftwareOrchThread(
-            self.strategy_lock, self.audit_rpc_client)
+            self.strategy_lock, self.audit_rpc_client
+        )
         self.software_orch_thread.start()
 
         # - patch orchestration thread
         self.patch_orch_thread = PatchOrchThread(
-            self.strategy_lock, self.audit_rpc_client)
+            self.strategy_lock, self.audit_rpc_client
+        )
         self.patch_orch_thread.start()
 
         # - fw update orchestration thread
         self.fw_update_orch_thread = FwUpdateOrchThread(
-            self.strategy_lock, self.audit_rpc_client)
+            self.strategy_lock, self.audit_rpc_client
+        )
         self.fw_update_orch_thread.start()
 
         # - kube upgrade orchestration thread
         self.kube_upgrade_orch_thread = KubeUpgradeOrchThread(
-            self.strategy_lock, self.audit_rpc_client)
+            self.strategy_lock, self.audit_rpc_client
+        )
         self.kube_upgrade_orch_thread.start()
 
         # - kube rootca update orchestration thread
         self.kube_rootca_update_orch_thread = KubeRootcaUpdateOrchThread(
-            self.strategy_lock, self.audit_rpc_client)
+            self.strategy_lock, self.audit_rpc_client
+        )
         self.kube_rootca_update_orch_thread.start()
 
         # - prestage orchestration thread
         self.prestage_orch_thread = PrestageOrchThread(
-            self.strategy_lock, self.audit_rpc_client)
+            self.strategy_lock, self.audit_rpc_client
+        )
         self.prestage_orch_thread.start()
 
         self.strategy_validators = {
@@ -113,7 +118,7 @@ class SwUpdateManager(manager.Manager):
             consts.SW_UPDATE_TYPE_KUBERNETES: KubernetesStrategyValidator(),
             consts.SW_UPDATE_TYPE_KUBE_ROOTCA_UPDATE: KubeRootCaStrategyValidator(),
             consts.SW_UPDATE_TYPE_PATCH: PatchStrategyValidator(),
-            consts.SW_UPDATE_TYPE_PRESTAGE: PrestageStrategyValidator()
+            consts.SW_UPDATE_TYPE_PRESTAGE: PrestageStrategyValidator(),
         }
 
     def stop(self):
@@ -174,24 +179,22 @@ class SwUpdateManager(manager.Manager):
                 if expiry_date:
                     is_valid, reason = utils.validate_expiry_date(expiry_date)
                     if not is_valid:
-                        raise exceptions.BadRequest(resource='strategy',
-                                                    msg=reason)
+                        raise exceptions.BadRequest(resource="strategy", msg=reason)
                 if subject:
-                    is_valid, reason = \
-                        utils.validate_certificate_subject(subject)
+                    is_valid, reason = utils.validate_certificate_subject(subject)
                     if not is_valid:
-                        raise exceptions.BadRequest(resource='strategy',
-                                                    msg=reason)
+                        raise exceptions.BadRequest(resource="strategy", msg=reason)
                 if cert_file:
                     if expiry_date or subject:
                         raise exceptions.BadRequest(
-                            resource='strategy',
-                            msg='Invalid extra args.'
-                                ' <cert-file> cannot be specified'
-                                ' along with <subject> or <expiry-date>.')
+                            resource="strategy",
+                            msg=(
+                                "Invalid extra args. <cert-file> cannot be specified "
+                                "along with <subject> or <expiry-date>."
+                            ),
+                        )
                     # copy the cert-file to the vault
-                    vault_file = self._vault_upload(consts.CERTS_VAULT_DIR,
-                                                    cert_file)
+                    vault_file = self._vault_upload(consts.CERTS_VAULT_DIR, cert_file)
                     # update extra_args with the new path (in the vault)
                     extra_args[consts.EXTRA_ARGS_CERT_FILE] = vault_file
 
@@ -199,8 +202,7 @@ class SwUpdateManager(manager.Manager):
         if extra_args:
             # cert-file extra_arg needs vault handling for kube rootca update
             if strategy_type == consts.SW_UPDATE_TYPE_KUBE_ROOTCA_UPDATE:
-                cert_file = extra_args.get(
-                    consts.EXTRA_ARGS_CERT_FILE)
+                cert_file = extra_args.get(consts.EXTRA_ARGS_CERT_FILE)
                 if cert_file:
                     # remove this cert file from the vault
                     self._vault_remove(consts.CERTS_VAULT_DIR, cert_file)
@@ -226,26 +228,26 @@ class SwUpdateManager(manager.Manager):
                 "Failed creating software update strategy of type "
                 f"{payload['type']}. {msg}"
             )
-            raise exceptions.BadRequest(resource='strategy', msg=msg)
+            raise exceptions.BadRequest(resource="strategy", msg=msg)
 
         single_group = None
-        subcloud_group = payload.get('subcloud_group')
+        subcloud_group = payload.get("subcloud_group")
 
         if subcloud_group:
             single_group = utils.subcloud_group_get_by_ref(context, subcloud_group)
             subcloud_apply_type = single_group.update_apply_type
             max_parallel_subclouds = single_group.max_parallel_subclouds
         else:
-            subcloud_apply_type = payload.get('subcloud-apply-type')
-            max_parallel_subclouds_str = payload.get('max-parallel-subclouds')
+            subcloud_apply_type = payload.get("subcloud-apply-type")
+            max_parallel_subclouds_str = payload.get("max-parallel-subclouds")
 
             if not max_parallel_subclouds_str:
                 max_parallel_subclouds = None
             else:
                 max_parallel_subclouds = int(max_parallel_subclouds_str)
 
-        stop_on_failure = payload.get('stop-on-failure') in ['true']
-        force = payload.get('force') in ['true']
+        stop_on_failure = payload.get("stop-on-failure") in ["true"]
+        force = payload.get("force") in ["true"]
 
         installed_releases = []
         software_version = None
@@ -261,20 +263,20 @@ class SwUpdateManager(manager.Manager):
             for_sw_deploy = False
 
         # Has the user specified a specific subcloud?
-        cloud_name = payload.get('cloud_name')
-        strategy_type = payload.get('type')
+        cloud_name = payload.get("cloud_name")
+        strategy_type = payload.get("type")
         prestage_global_validated = False
         if cloud_name:
             # Make sure subcloud exists
             try:
                 subcloud = db_api.subcloud_get_by_name(context, cloud_name)
             except exceptions.SubcloudNameNotFound:
-                msg = f'Subcloud {cloud_name} does not exist'
+                msg = f"Subcloud {cloud_name} does not exist"
                 LOG.error(
                     "Failed creating software update strategy of type "
                     f"{payload['type']}. {msg}"
                 )
-                raise exceptions.BadRequest(resource='strategy', msg=msg)
+                raise exceptions.BadRequest(resource="strategy", msg=msg)
 
             # TODO(rlima): move prestage to its validator
             if strategy_type == consts.SW_UPDATE_TYPE_PRESTAGE:
@@ -282,23 +284,19 @@ class SwUpdateManager(manager.Manager):
                 try:
                     prestage.global_prestage_validate(payload)
                     prestage_global_validated = True
-                    installed_releases = (
-                        utils.get_systemcontroller_installed_releases()
-                    )
+                    installed_releases = utils.get_systemcontroller_installed_releases()
                     prestage.initial_subcloud_validate(
                         subcloud,
                         installed_releases,
                         software_major_release,
-                        for_sw_deploy
+                        for_sw_deploy,
                     )
                 except exceptions.PrestagePreCheckFailedException as ex:
-                    raise exceptions.BadRequest(resource='strategy',
-                                                msg=str(ex))
+                    raise exceptions.BadRequest(resource="strategy", msg=str(ex))
 
             else:
-                self.strategy_validators[strategy_type].\
-                    validate_strategy_requirements(
-                        context, subcloud.id, subcloud.name, force
+                self.strategy_validators[strategy_type].validate_strategy_requirements(
+                    context, subcloud.id, subcloud.name, force
                 )
 
         extra_args = None
@@ -308,20 +306,21 @@ class SwUpdateManager(manager.Manager):
                 try:
                     prestage.global_prestage_validate(payload)
                 except exceptions.PrestagePreCheckFailedException as ex:
-                    raise exceptions.BadRequest(
-                        resource='strategy',
-                        msg=str(ex))
+                    raise exceptions.BadRequest(resource="strategy", msg=str(ex))
 
             extra_args = {
-                consts.EXTRA_ARGS_SYSADMIN_PASSWORD:
-                    payload.get(consts.EXTRA_ARGS_SYSADMIN_PASSWORD),
+                consts.EXTRA_ARGS_SYSADMIN_PASSWORD: payload.get(
+                    consts.EXTRA_ARGS_SYSADMIN_PASSWORD
+                ),
                 consts.EXTRA_ARGS_FORCE: force,
-                consts.PRESTAGE_SOFTWARE_VERSION:
+                consts.PRESTAGE_SOFTWARE_VERSION: (
                     software_version if software_version else SW_VERSION
+                ),
             }
         else:
-            extra_args = self.strategy_validators[strategy_type].\
-                build_extra_args(payload)
+            extra_args = self.strategy_validators[strategy_type].build_extra_args(
+                payload
+            )
 
         # Don't create a strategy if any of the subclouds is online and the
         # relevant sync status is unknown. Offline subcloud is skipped unless
@@ -359,14 +358,12 @@ class SwUpdateManager(manager.Manager):
                         f"Excluding subcloud from prestage strategy: {subcloud.name}"
                     )
         else:
-            count_invalid_subclouds = (
-                db_api.subcloud_count_invalid_for_strategy_type(
-                    context,
-                    self.strategy_validators[strategy_type].endpoint_type,
-                    single_group.id if subcloud_group else None,
-                    cloud_name,
-                    force and strategy_type == consts.SW_UPDATE_TYPE_SOFTWARE
-                )
+            count_invalid_subclouds = db_api.subcloud_count_invalid_for_strategy_type(
+                context,
+                self.strategy_validators[strategy_type].endpoint_type,
+                single_group.id if subcloud_group else None,
+                cloud_name,
+                force and strategy_type == consts.SW_UPDATE_TYPE_SOFTWARE,
             )
             if count_invalid_subclouds > 0:
                 msg = (
@@ -424,13 +421,13 @@ class SwUpdateManager(manager.Manager):
 
             for subcloud, sync_status in valid_subclouds:
                 if (
-                    force and
-                    subcloud.availability_status ==
-                    dccommon_consts.AVAILABILITY_OFFLINE
+                    force
+                    and subcloud.availability_status
+                    == dccommon_consts.AVAILABILITY_OFFLINE
                 ):
                     if (
-                        sync_status == dccommon_consts.SYNC_STATUS_OUT_OF_SYNC or
-                        sync_status == dccommon_consts.SYNC_STATUS_UNKNOWN
+                        sync_status == dccommon_consts.SYNC_STATUS_OUT_OF_SYNC
+                        or sync_status == dccommon_consts.SYNC_STATUS_UNKNOWN
                     ):
                         filtered_valid_subclouds.append((subcloud, sync_status))
                 elif sync_status == dccommon_consts.SYNC_STATUS_OUT_OF_SYNC:
@@ -441,12 +438,12 @@ class SwUpdateManager(manager.Manager):
         if not valid_subclouds:
             # handle extra_args processing such as removing from the vault
             self._process_extra_args_deletion(strategy_type, extra_args)
-            msg = 'Strategy has no steps to apply'
+            msg = "Strategy has no steps to apply"
             LOG.error(
                 "Failed creating software update strategy of type "
                 f"{payload['type']}. {msg}"
             )
-            raise exceptions.BadRequest(resource='strategy', msg=msg)
+            raise exceptions.BadRequest(resource="strategy", msg=msg)
 
         # Create the strategy
         strategy = db_api.sw_update_strategy_create(
@@ -463,7 +460,7 @@ class SwUpdateManager(manager.Manager):
             [subcloud.id for subcloud, sync_status in valid_subclouds],
             stage=consts.STAGE_SUBCLOUD_ORCHESTRATION_CREATED,
             state=consts.STRATEGY_STATE_INITIAL,
-            details=''
+            details="",
         )
 
         LOG.info(
@@ -484,33 +481,34 @@ class SwUpdateManager(manager.Manager):
         # The strategy object is common to all workers (patch, upgrades, etc)
         with self.strategy_lock:
             # Retrieve the existing strategy from the database
-            sw_update_strategy = \
-                db_api.sw_update_strategy_get(context, update_type=update_type)
+            sw_update_strategy = db_api.sw_update_strategy_get(
+                context, update_type=update_type
+            )
 
             # Semantic checking
             if sw_update_strategy.state not in [
-                    consts.SW_UPDATE_STATE_INITIAL,
-                    consts.SW_UPDATE_STATE_COMPLETE,
-                    consts.SW_UPDATE_STATE_FAILED,
-                    consts.SW_UPDATE_STATE_ABORTED]:
+                consts.SW_UPDATE_STATE_INITIAL,
+                consts.SW_UPDATE_STATE_COMPLETE,
+                consts.SW_UPDATE_STATE_FAILED,
+                consts.SW_UPDATE_STATE_ABORTED,
+            ]:
                 raise exceptions.BadRequest(
-                    resource='strategy',
-                    msg='Strategy in state %s cannot be deleted' %
-                        sw_update_strategy.state)
+                    resource="strategy",
+                    msg="Strategy in state %s cannot be deleted"
+                    % sw_update_strategy.state,
+                )
 
             # Set the state to deleting, which will trigger the orchestration
             # to delete it...
             sw_update_strategy = db_api.sw_update_strategy_update(
-                context,
-                state=consts.SW_UPDATE_STATE_DELETING,
-                update_type=update_type)
+                context, state=consts.SW_UPDATE_STATE_DELETING, update_type=update_type
+            )
             # handle extra_args processing such as removing from the vault
         self._process_extra_args_deletion(
             sw_update_strategy.type, sw_update_strategy.extra_args
         )
 
-        strategy_dict = db_api.sw_update_strategy_db_model_to_dict(
-            sw_update_strategy)
+        strategy_dict = db_api.sw_update_strategy_db_model_to_dict(sw_update_strategy)
         return strategy_dict
 
     def apply_sw_update_strategy(self, context, update_type=None):
@@ -524,24 +522,24 @@ class SwUpdateManager(manager.Manager):
         # Ensure our read/update of the strategy is done without interference
         with self.strategy_lock:
             # Retrieve the existing strategy from the database
-            sw_update_strategy = \
-                db_api.sw_update_strategy_get(context, update_type=update_type)
+            sw_update_strategy = db_api.sw_update_strategy_get(
+                context, update_type=update_type
+            )
 
             # Semantic checking
             if sw_update_strategy.state != consts.SW_UPDATE_STATE_INITIAL:
                 raise exceptions.BadRequest(
-                    resource='strategy',
-                    msg='Strategy in state %s cannot be applied' %
-                        sw_update_strategy.state)
+                    resource="strategy",
+                    msg="Strategy in state %s cannot be applied"
+                    % sw_update_strategy.state,
+                )
 
             # Set the state to applying, which will trigger the orchestration
             # to begin...
             sw_update_strategy = db_api.sw_update_strategy_update(
-                context,
-                state=consts.SW_UPDATE_STATE_APPLYING,
-                update_type=update_type)
-        strategy_dict = db_api.sw_update_strategy_db_model_to_dict(
-            sw_update_strategy)
+                context, state=consts.SW_UPDATE_STATE_APPLYING, update_type=update_type
+            )
+        strategy_dict = db_api.sw_update_strategy_db_model_to_dict(sw_update_strategy)
         return strategy_dict
 
     def abort_sw_update_strategy(self, context, update_type=None):
@@ -555,20 +553,22 @@ class SwUpdateManager(manager.Manager):
         # Ensure our read/update of the strategy is done without interference
         with self.strategy_lock:
             # Retrieve the existing strategy from the database
-            sw_update_strategy = \
-                db_api.sw_update_strategy_get(context, update_type=update_type)
+            sw_update_strategy = db_api.sw_update_strategy_get(
+                context, update_type=update_type
+            )
 
             # Semantic checking
             if sw_update_strategy.state != consts.SW_UPDATE_STATE_APPLYING:
                 raise exceptions.BadRequest(
-                    resource='strategy',
-                    msg='Strategy in state %s cannot be aborted' %
-                        sw_update_strategy.state)
+                    resource="strategy",
+                    msg="Strategy in state %s cannot be aborted"
+                    % sw_update_strategy.state,
+                )
 
             # Set the state to abort requested, which will trigger
             # the orchestration to abort...
             sw_update_strategy = db_api.sw_update_strategy_update(
-                context, state=consts.SW_UPDATE_STATE_ABORT_REQUESTED)
-        strategy_dict = db_api.sw_update_strategy_db_model_to_dict(
-            sw_update_strategy)
+                context, state=consts.SW_UPDATE_STATE_ABORT_REQUESTED
+            )
+        strategy_dict = db_api.sw_update_strategy_db_model_to_dict(sw_update_strategy)
         return strategy_dict

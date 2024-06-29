@@ -16,28 +16,31 @@
 #
 from dccommon.drivers.openstack import vim
 from dcmanager.common import consts
-from dcmanager.orchestrator.cache.shared_cache_repository import \
-    SharedCacheRepository
+from dcmanager.orchestrator.cache.shared_cache_repository import SharedCacheRepository
 from dcmanager.orchestrator.orch_thread import OrchThread
-from dcmanager.orchestrator.states.kube.applying_vim_kube_upgrade_strategy \
-    import ApplyingVIMKubeUpgradeStrategyState
-from dcmanager.orchestrator.states.kube.creating_vim_kube_upgrade_strategy \
-    import CreatingVIMKubeUpgradeStrategyState
-from dcmanager.orchestrator.states.kube.pre_check \
-    import KubeUpgradePreCheckState
+from dcmanager.orchestrator.states.kube.applying_vim_kube_upgrade_strategy import (
+    ApplyingVIMKubeUpgradeStrategyState,
+)
+from dcmanager.orchestrator.states.kube.creating_vim_kube_upgrade_strategy import (
+    CreatingVIMKubeUpgradeStrategyState,
+)
+from dcmanager.orchestrator.states.kube.pre_check import KubeUpgradePreCheckState
 
 
 class KubeUpgradeOrchThread(OrchThread):
     """Kube Upgrade Orchestration Thread"""
+
+    # Reassign constants to avoid line length issues
+    PRE_CHECK = consts.STRATEGY_STATE_KUBE_UPGRADE_PRE_CHECK
+    CREATE_VIM_STRATEGY = consts.STRATEGY_STATE_KUBE_CREATING_VIM_KUBE_UPGRADE_STRATEGY
+    APPLY_VIM_STRATEGY = consts.STRATEGY_STATE_KUBE_APPLYING_VIM_KUBE_UPGRADE_STRATEGY
+
     # every state in kube orchestration must have an operator
     # The states are listed here in their typical execution order
     STATE_OPERATORS = {
-        consts.STRATEGY_STATE_KUBE_UPGRADE_PRE_CHECK:
-            KubeUpgradePreCheckState,
-        consts.STRATEGY_STATE_KUBE_CREATING_VIM_KUBE_UPGRADE_STRATEGY:
-            CreatingVIMKubeUpgradeStrategyState,
-        consts.STRATEGY_STATE_KUBE_APPLYING_VIM_KUBE_UPGRADE_STRATEGY:
-            ApplyingVIMKubeUpgradeStrategyState,
+        PRE_CHECK: KubeUpgradePreCheckState,
+        CREATE_VIM_STRATEGY: CreatingVIMKubeUpgradeStrategyState,
+        APPLY_VIM_STRATEGY: ApplyingVIMKubeUpgradeStrategyState,
     }
 
     def __init__(self, strategy_lock, audit_rpc_client):
@@ -46,7 +49,8 @@ class KubeUpgradeOrchThread(OrchThread):
             audit_rpc_client,
             consts.SW_UPDATE_TYPE_KUBERNETES,
             vim.STRATEGY_NAME_KUBE_UPGRADE,
-            consts.STRATEGY_STATE_KUBE_UPGRADE_PRE_CHECK)
+            consts.STRATEGY_STATE_KUBE_UPGRADE_PRE_CHECK,
+        )
 
         # Initialize shared cache instances for the states that require them
         self._shared_caches = SharedCacheRepository(self.update_type)

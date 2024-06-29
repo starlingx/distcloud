@@ -48,17 +48,20 @@ class SharedClientCache(object):
         self._load_data_from_client = cache_specification.fetch_implementation
         retry_on_exception = cache_specification.retry_on_exception
         if retry_on_exception:
-            retry = retrying.retry(retry_on_exception=lambda
-                                   ex: isinstance(ex, retry_on_exception),
-                                   stop_max_attempt_number=self._max_attempts,
-                                   wait_fixed=self._retry_sleep_msecs,
-                                   wait_func=self._retry_client_read)
-            self._load_data_from_client = \
-                retry(cache_specification.fetch_implementation)
+            retry = retrying.retry(
+                retry_on_exception=lambda ex: isinstance(ex, retry_on_exception),
+                stop_max_attempt_number=self._max_attempts,
+                wait_fixed=self._retry_sleep_msecs,
+                wait_func=self._retry_client_read,
+            )
+            self._load_data_from_client = retry(
+                cache_specification.fetch_implementation
+            )
 
         # Use default implementation with no filtering if none is provided
-        self._post_filter_impl = cache_specification.post_filter_implementation\
-            or (lambda data, **filter_params: data)
+        self._post_filter_impl = cache_specification.post_filter_implementation or (
+            lambda data, **filter_params: data
+        )
 
     def read(self, **filter_params):
         """Retrieve data from cache, if available.
@@ -92,22 +95,24 @@ class SharedClientCache(object):
         if self._client_lock.owner != lockutils.ReaderWriterLock.WRITER:
             with self._client_lock.write_lock():
                 # Atomically fetch data from client and update the cache
-                LOG.info("Reading data from %s client for caching" %
-                         self._cache_type)
+                LOG.info("Reading data from %s client for caching" % self._cache_type)
                 self._cache = self._load_data_from_client()
         else:
             # If a concurrent write is in progress, wait for it and recheck cache
             with self._client_lock.read_lock():
                 if self._cache is None:
-                    raise RuntimeError("Failed to retrieve data from %s cache. "
-                                       "Possible failure on concurrent client "
-                                       "read." % self._cache_type)
+                    raise RuntimeError(
+                        "Failed to retrieve data from %s cache. "
+                        "Possible failure on concurrent client read." % self._cache_type
+                    )
 
     def _retry_client_read(self, attempt, _):
         # To be called when a client read operation fails with a retryable error
         # After this, read operation should be retried
-        LOG.warn("Retryable error occurred while reading from %s client "
-                 "(Attempt %s/%s)" % (self._cache_type, attempt, self._max_attempts))
+        LOG.warn(
+            "Retryable error occurred while reading from %s client (Attempt %s/%s)"
+            % (self._cache_type, attempt, self._max_attempts)
+        )
         return self._retry_sleep_msecs
 
     def _post_filter(self, data, **filter_params):
@@ -121,5 +126,6 @@ class SharedClientCache(object):
         if filter_params:
             invalid_params = set(filter_params.keys()) - self._valid_filters
             if invalid_params:
-                raise InvalidParameterValue(err="Invalid filter parameters: %s" %
-                                                invalid_params)
+                raise InvalidParameterValue(
+                    err="Invalid filter parameters: %s" % invalid_params
+                )

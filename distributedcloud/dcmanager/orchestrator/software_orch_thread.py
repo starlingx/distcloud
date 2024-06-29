@@ -7,16 +7,17 @@
 from dccommon.drivers.openstack import vim
 from dcmanager.common import consts
 from dcmanager.orchestrator.orch_thread import OrchThread
-from dcmanager.orchestrator.states.software.apply_vim_software_strategy import \
-    ApplyVIMSoftwareStrategyState
-from dcmanager.orchestrator.states.software.cache.shared_cache_repository import \
-    SharedCacheRepository
-from dcmanager.orchestrator.states.software.create_vim_software_strategy import \
-    CreateVIMSoftwareStrategyState
-from dcmanager.orchestrator.states.software.finish_strategy import \
-    FinishStrategyState
-from dcmanager.orchestrator.states.software.install_license import \
-    InstallLicenseState
+from dcmanager.orchestrator.states.software.apply_vim_software_strategy import (
+    ApplyVIMSoftwareStrategyState,
+)
+from dcmanager.orchestrator.states.software.cache.shared_cache_repository import (
+    SharedCacheRepository,
+)
+from dcmanager.orchestrator.states.software.create_vim_software_strategy import (
+    CreateVIMSoftwareStrategyState,
+)
+from dcmanager.orchestrator.states.software.finish_strategy import FinishStrategyState
+from dcmanager.orchestrator.states.software.install_license import InstallLicenseState
 from dcmanager.orchestrator.states.software.pre_check import PreCheckState
 
 
@@ -50,9 +51,10 @@ class SoftwareOrchThread(OrchThread):
         super().__init__(
             strategy_lock,
             audit_rpc_client,
-            consts.SW_UPDATE_TYPE_SOFTWARE,      # software update strategy type
-            vim.STRATEGY_NAME_SW_USM,            # strategy type used by vim
-            consts.STRATEGY_STATE_SW_PRE_CHECK)  # starting state
+            consts.SW_UPDATE_TYPE_SOFTWARE,  # software update strategy type
+            vim.STRATEGY_NAME_SW_USM,  # strategy type used by vim
+            consts.STRATEGY_STATE_SW_PRE_CHECK,  # starting state
+        )
 
         # Initialize shared cache instances for the states that require them
         self._shared_caches = SharedCacheRepository(consts.SW_UPDATE_TYPE_SOFTWARE)

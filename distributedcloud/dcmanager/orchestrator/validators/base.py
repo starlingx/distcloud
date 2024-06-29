@@ -44,14 +44,13 @@ class StrategyValidationBase(object):
 
         if subcloud_status.sync_status == dccommon_consts.SYNC_STATUS_IN_SYNC:
             msg = (
-                f'Subcloud {subcloud_name} does not require '
-                f'{self.endpoint_type} update'
+                f"Subcloud {subcloud_name} does not require {self.endpoint_type} update"
             )
             LOG.error(
                 "Failed creating software update strategy of type "
                 f"{self.endpoint_type}. {msg}"
             )
-            raise exceptions.BadRequest(resource='strategy', msg=msg)
+            raise exceptions.BadRequest(resource="strategy", msg=msg)
 
     def build_extra_args(self, payload):
         """Builds the extra args for a strategy

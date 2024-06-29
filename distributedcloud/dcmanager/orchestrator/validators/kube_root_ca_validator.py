@@ -37,8 +37,7 @@ class KubeRootCaStrategyValidator(StrategyValidationBase):
         """
 
         return {
-            consts.EXTRA_ARGS_EXPIRY_DATE:
-                payload.get(consts.EXTRA_ARGS_EXPIRY_DATE),
+            consts.EXTRA_ARGS_EXPIRY_DATE: payload.get(consts.EXTRA_ARGS_EXPIRY_DATE),
             consts.EXTRA_ARGS_SUBJECT: payload.get(consts.EXTRA_ARGS_SUBJECT),
             consts.EXTRA_ARGS_CERT_FILE: payload.get(consts.EXTRA_ARGS_CERT_FILE),
         }
@@ -54,6 +53,6 @@ class KubeRootCaStrategyValidator(StrategyValidationBase):
         if self.accepts_force and force:
             return [
                 dccommon_consts.SYNC_STATUS_IN_SYNC,
-                dccommon_consts.SYNC_STATUS_OUT_OF_SYNC
+                dccommon_consts.SYNC_STATUS_OUT_OF_SYNC,
             ]
         return [dccommon_consts.SYNC_STATUS_OUT_OF_SYNC]

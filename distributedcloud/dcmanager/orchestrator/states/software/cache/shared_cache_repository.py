@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2023 Wind River Systems, Inc.
+# Copyright (c) 2023-2024 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -8,8 +8,9 @@ from oslo_log import log
 
 from dcmanager.common.exceptions import InvalidParameterValue
 from dcmanager.orchestrator.states.software.cache import cache_specifications
-from dcmanager.orchestrator.states.software.cache.shared_client_cache import \
-    SharedClientCache
+from dcmanager.orchestrator.states.software.cache.shared_client_cache import (
+    SharedClientCache,
+)
 
 LOG = log.getLogger(__name__)
 
@@ -23,11 +24,12 @@ class SharedCacheRepository(object):
     def initialize_caches(self):
         # Retrieve specifications for each cache type required by the operation
         # Return mapping between each required type to a single cache instance of it
+        specifications_for_operation = (
+            cache_specifications.get_specifications_for_operation(self._operation_type)
+        )
         self._shared_caches = {
             cache_type: SharedClientCache(cache_type, cache_specification)
-            for cache_type, cache_specification in
-            cache_specifications.get_specifications_for_operation(
-                self._operation_type).items()
+            for cache_type, cache_specification in specifications_for_operation.items()
         }
 
     def read(self, cache_type, **filter_params):
@@ -35,5 +37,6 @@ class SharedCacheRepository(object):
         if cache:
             return cache.read(**filter_params)
         else:
-            raise InvalidParameterValue(err="Specified cache type '%s' not "
-                                            "present" % cache_type)
+            raise InvalidParameterValue(
+                err="Specified cache type '%s' not present" % cache_type
+            )

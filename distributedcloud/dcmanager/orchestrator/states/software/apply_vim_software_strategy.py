@@ -6,8 +6,7 @@
 
 from dccommon.drivers.openstack import vim
 from dcmanager.common import consts
-from dcmanager.orchestrator.states.applying_vim_strategy import \
-    ApplyingVIMStrategyState
+from dcmanager.orchestrator.states.applying_vim_strategy import ApplyingVIMStrategyState
 
 
 class ApplyVIMSoftwareStrategyState(ApplyingVIMStrategyState):
@@ -17,5 +16,5 @@ class ApplyVIMSoftwareStrategyState(ApplyingVIMStrategyState):
         super().__init__(
             next_state=consts.STRATEGY_STATE_SW_FINISH_STRATEGY,
             region_name=region_name,
-            strategy_name=vim.STRATEGY_NAME_SW_USM
+            strategy_name=vim.STRATEGY_NAME_SW_USM,
         )

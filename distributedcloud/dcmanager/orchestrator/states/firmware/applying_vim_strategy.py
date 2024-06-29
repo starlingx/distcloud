@@ -32,7 +32,8 @@ class ApplyingVIMStrategyState(BaseState):
     def __init__(self, region_name):
         super(ApplyingVIMStrategyState, self).__init__(
             next_state=consts.STRATEGY_STATE_FINISHING_FW_UPDATE,
-            region_name=region_name)
+            region_name=region_name,
+        )
         self.max_failed_queries = DEFAULT_MAX_FAILED_QUERIES
         self.wait_attempts = DEFAULT_MAX_WAIT_ATTEMPTS
         self.wait_interval = WAIT_INTERVAL
@@ -54,8 +55,8 @@ class ApplyingVIMStrategyState(BaseState):
         # Do not raise the default exception if there is no strategy
         # because the default exception is unclear: ie: "Get strategy failed"
         subcloud_strategy = self.get_vim_client(region).get_strategy(
-            strategy_name=vim.STRATEGY_NAME_FW_UPDATE,
-            raise_error_if_missing=False)
+            strategy_name=vim.STRATEGY_NAME_FW_UPDATE, raise_error_if_missing=False
+        )
 
         if subcloud_strategy is None:
             self.info_log(strategy_step, "Skip. There is no strategy to apply")
@@ -65,13 +66,15 @@ class ApplyingVIMStrategyState(BaseState):
         if subcloud_strategy.state == vim.STATE_READY_TO_APPLY:
             # An exception here will fail this state
             subcloud_strategy = self.get_vim_client(region).apply_strategy(
-                strategy_name=vim.STRATEGY_NAME_FW_UPDATE)
+                strategy_name=vim.STRATEGY_NAME_FW_UPDATE
+            )
             if subcloud_strategy.state == vim.STATE_APPLYING:
                 self.info_log(strategy_step, "VIM Strategy apply in progress")
             else:
-                raise Exception("VIM strategy apply failed - "
-                                "unexpected strategy state %s"
-                                % subcloud_strategy.state)
+                raise Exception(
+                    "VIM strategy apply failed - unexpected strategy state %s"
+                    % subcloud_strategy.state
+                )
 
         # wait for the new strategy to apply or an existing strategy.
         # Loop until the strategy applies. Repeatedly query the API
@@ -101,7 +104,8 @@ class ApplyingVIMStrategyState(BaseState):
             try:
                 subcloud_strategy = self.get_vim_client(region).get_strategy(
                     strategy_name=vim.STRATEGY_NAME_FW_UPDATE,
-                    raise_error_if_missing=False)
+                    raise_error_if_missing=False,
+                )
                 get_fail_count = 0
             except Exception:
                 # When applying the strategy to a subcloud, the VIM can
@@ -111,11 +115,13 @@ class ApplyingVIMStrategyState(BaseState):
                 get_fail_count += 1
                 if get_fail_count >= self.max_failed_queries:
                     # We have waited too long.
-                    raise Exception("Timeout during recovery of apply "
-                                    "firmware strategy.")
-                self.debug_log(strategy_step,
-                               "Unable to get firmware strategy - "
-                               "attempt %d" % get_fail_count)
+                    raise Exception(
+                        "Timeout during recovery of apply firmware strategy."
+                    )
+                self.debug_log(
+                    strategy_step,
+                    "Unable to get firmware strategy - attempt %d" % get_fail_count,
+                )
                 continue
             # The loop gets here if the API is able to respond
             # Check if the strategy no longer exists. This should not happen.
@@ -123,34 +129,38 @@ class ApplyingVIMStrategyState(BaseState):
                 raise Exception("Firmware strategy disappeared while applying")
             elif subcloud_strategy.state == vim.STATE_APPLYING:
                 # Still applying. Update details if it has changed
-                new_details = ("%s phase is %s%% complete" % (
+                new_details = "%s phase is %s%% complete" % (
                     subcloud_strategy.current_phase,
-                    subcloud_strategy.current_phase_completion_percentage))
+                    subcloud_strategy.current_phase_completion_percentage,
+                )
                 if new_details != last_details:
                     # Progress is being made.
                     # Reset the counter and log the progress
                     last_details = new_details
                     wait_count = 0
                     self.info_log(strategy_step, new_details)
-                    db_api.strategy_step_update(self.context,
-                                                strategy_step.subcloud_id,
-                                                details=new_details)
+                    db_api.strategy_step_update(
+                        self.context, strategy_step.subcloud_id, details=new_details
+                    )
             elif subcloud_strategy.state == vim.STATE_APPLIED:
                 # Success. Break out of loop
-                self.info_log(strategy_step,
-                              "Firmware strategy has been applied")
+                self.info_log(strategy_step, "Firmware strategy has been applied")
                 break
-            elif subcloud_strategy.state in [vim.STATE_APPLY_FAILED,
-                                             vim.STATE_APPLY_TIMEOUT]:
+            elif subcloud_strategy.state in [
+                vim.STATE_APPLY_FAILED,
+                vim.STATE_APPLY_TIMEOUT,
+            ]:
                 # Explicit known failure states
-                raise Exception("Firmware strategy apply failed. %s. %s"
-                                % (subcloud_strategy.state,
-                                   subcloud_strategy.apply_phase.reason))
+                raise Exception(
+                    "Firmware strategy apply failed. %s. %s"
+                    % (subcloud_strategy.state, subcloud_strategy.apply_phase.reason)
+                )
             else:
                 # Other states are bad
-                raise Exception("Firmware strategy apply failed. "
-                                "Unexpected State: %s."
-                                % subcloud_strategy.state)
+                raise Exception(
+                    "Firmware strategy apply failed. Unexpected State: %s."
+                    % subcloud_strategy.state
+                )
             # end of loop
 
         # Success, state machine can proceed to the next state

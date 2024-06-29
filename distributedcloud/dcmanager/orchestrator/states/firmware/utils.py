@@ -7,12 +7,12 @@
 import os
 
 # Device Image Status - duplicated from sysinv/common/device.py
-DEVICE_IMAGE_UPDATE_PENDING = 'pending'
-DEVICE_IMAGE_UPDATE_IN_PROGRESS = 'in-progress'
-DEVICE_IMAGE_UPDATE_IN_PROGRESS_ABORTED = 'in-progress-aborted'
-DEVICE_IMAGE_UPDATE_COMPLETED = 'completed'
-DEVICE_IMAGE_UPDATE_FAILED = 'failed'
-DEVICE_IMAGE_UPDATE_NULL = ''
+DEVICE_IMAGE_UPDATE_PENDING = "pending"
+DEVICE_IMAGE_UPDATE_IN_PROGRESS = "in-progress"
+DEVICE_IMAGE_UPDATE_IN_PROGRESS_ABORTED = "in-progress-aborted"
+DEVICE_IMAGE_UPDATE_COMPLETED = "completed"
+DEVICE_IMAGE_UPDATE_FAILED = "failed"
+DEVICE_IMAGE_UPDATE_NULL = ""
 
 
 # convert a list of objects that have a uuid field, into a map keyed on uuid
@@ -26,9 +26,9 @@ def to_uuid_map(list_with_uuids):
 # todo(abailey) refactor based on firmware_audit code for
 # _check_subcloud_device_has_image
 # THIS METHOD should be renamed !!
-def check_subcloud_device_has_image(image,
-                                    enabled_host_device_list,
-                                    subcloud_device_label_list):
+def check_subcloud_device_has_image(
+    image, enabled_host_device_list, subcloud_device_label_list
+):
     """Return device on subcloud that matches the image, or None"""
 
     apply_to_all_devices = False
@@ -52,10 +52,8 @@ def check_subcloud_device_has_image(image,
                 label_key = list(image_label.keys())[0]
                 label_value = image_label.get(label_key)
                 is_device_eligible = check_for_label_match(
-                    subcloud_device_label_list,
-                    device.uuid,
-                    label_key,
-                    label_value)
+                    subcloud_device_label_list, device.uuid, label_key, label_value
+                )
                 # If device label matches any image label stop checking
                 # for any other label matches and do pci comparison below
                 if is_device_eligible:
@@ -66,8 +64,10 @@ def check_subcloud_device_has_image(image,
                 continue
 
         # We found an eligible device
-        if image.pci_vendor == device.pvendor_id and \
-           image.pci_device == device.pdevice_id:
+        if (
+            image.pci_vendor == device.pvendor_id
+            and image.pci_device == device.pdevice_id
+        ):
             return device
 
     # no matching devices
@@ -76,50 +76,54 @@ def check_subcloud_device_has_image(image,
 
 # todo(abailey): refactor with https://review.opendev.org/#/c/741515
 def get_device_image_filename(resource):
-    filename = "{}-{}-{}-{}.bit".format(resource.bitstream_type,
-                                        resource.pci_vendor,
-                                        resource.pci_device,
-                                        resource.uuid)
+    filename = "{}-{}-{}-{}.bit".format(
+        resource.bitstream_type, resource.pci_vendor, resource.pci_device, resource.uuid
+    )
     return filename
 
 
 # todo(abailey): use constant from https://review.opendev.org/#/c/741515
 def determine_image_file(image):
     """Find the bitstream file for an image in the vault"""
-    DEVICE_IMAGE_VAULT_DIR = '/opt/dc-vault/device_images'
-    return os.path.join(DEVICE_IMAGE_VAULT_DIR,
-                        get_device_image_filename(image))
+    DEVICE_IMAGE_VAULT_DIR = "/opt/dc-vault/device_images"
+    return os.path.join(DEVICE_IMAGE_VAULT_DIR, get_device_image_filename(image))
 
 
 def determine_image_fields(image):
     """Return the appropriate upload fields for an image"""
-    field_list = ['uuid',
-                  'bitstream_type',
-                  'pci_vendor',
-                  'pci_device',
-                  'bitstream_id',
-                  'key_signature',
-                  'revoke_key_id',
-                  'name',
-                  'description',
-                  'image_version',
-                  'bmc',
-                  'retimer_included']
-    fields = dict((k, str(v)) for (k, v) in vars(image).items()
-                  if k in field_list and v is not None)
+    field_list = [
+        "uuid",
+        "bitstream_type",
+        "pci_vendor",
+        "pci_device",
+        "bitstream_id",
+        "key_signature",
+        "revoke_key_id",
+        "name",
+        "description",
+        "image_version",
+        "bmc",
+        "retimer_included",
+    ]
+    fields = dict(
+        (k, str(v))
+        for (k, v) in vars(image).items()
+        if k in field_list and v is not None
+    )
     return fields
 
 
-def check_for_label_match(subcloud_host_device_label_list,
-                          device_uuid,
-                          label_key,
-                          label_value):
+def check_for_label_match(
+    subcloud_host_device_label_list, device_uuid, label_key, label_value
+):
     # todo(abailey): should this compare pci_device_uuid or vendor/device
     for device_label in subcloud_host_device_label_list:
-        if device_label.pcidevice_uuid and \
-                device_uuid == device_label.pcidevice_uuid and \
-                label_key == device_label.label_key and \
-                label_value == device_label.label_value:
+        if (
+            device_label.pcidevice_uuid
+            and device_uuid == device_label.pcidevice_uuid
+            and label_key == device_label.label_key
+            and label_value == device_label.label_value
+        ):
             return True
     return False
 
@@ -127,7 +131,7 @@ def check_for_label_match(subcloud_host_device_label_list,
 def filter_applied_images(device_images, expected_value=True):
     """Filter a list of DeviceImage objects by the 'applied' field
 
-       Returns list of images that have 'applied' field matching expected_value
+    Returns list of images that have 'applied' field matching expected_value
     """
     filtered_images = []
     for device_image in device_images:
