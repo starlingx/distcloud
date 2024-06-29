@@ -930,9 +930,9 @@ class TestSubcloudsPostInstallData(BaseTestSubcloudsPost):
         response = self._send_request()
 
         self._assert_pecan_and_response(
-            response, http.client.BAD_REQUEST, 'Failed to get TEST.SW.VERSION load '
-            'image. Provide active/inactive load image via "system --os-region-name '
-            'SystemController load-import --active/--inactive"'
+            response, http.client.BAD_REQUEST, "Failed to get TEST.SW.VERSION load "
+            "image. Provide active/inactive load image via 'system --os-region-name "
+            "SystemController load-import --active/--inactive'"
         )
 
     @mock.patch.object(os.path, "isfile", return_value=True)
@@ -2299,8 +2299,8 @@ class TestSubcloudsPatchRedeploy(BaseTestSubcloudsPatch):
 
             if key == "name":
                 error_msg = (
-                    f'The bootstrap-values "{key}" value (None) must match the '
-                    f'current subcloud name ({self.subcloud[key]})'
+                    f"The bootstrap-values '{key}' value (None) must match the "
+                    f"current subcloud name ({self.subcloud[key]})"
                 )
             elif key == "sysadmin_password":
                 error_msg = f"subcloud {key} required"
@@ -2474,7 +2474,7 @@ class TestSubcloudsPatchPrestage(BaseTestSubcloudsPatch):
         self._assert_pecan_and_response(
             response, http.client.BAD_REQUEST, "Prestage skipped "
             f"'{self.subcloud.name}': Prestage operation is not allowed when "
-            "subcloud deploy is not completed."
+            "subcloud deploy is in progress."
         )
 
     def test_patch_prestage_fails_with_duplex_subcloud(self):

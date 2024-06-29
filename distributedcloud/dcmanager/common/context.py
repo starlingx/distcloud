@@ -29,14 +29,14 @@ from dcmanager.api.policies import base as base_policy
 from dcmanager.api import policy
 from dcmanager.db import api as db_api
 
-ALLOWED_WITHOUT_AUTH = '/'
+ALLOWED_WITHOUT_AUTH = "/"
 
 audit_log_name = "{}.{}".format(__name__, "auditor")
 auditLOG = log.getLogger(audit_log_name)
 
 
 def generate_request_id():
-    return 'req-%s' % uuidutils.generate_uuid()
+    return "req-%s" % uuidutils.generate_uuid()
 
 
 class RequestContext(base_context.RequestContext):
@@ -46,23 +46,46 @@ class RequestContext(base_context.RequestContext):
     the system, as well as additional request information.
     """
 
-    def __init__(self, auth_token=None, user=None, project=None,
-                 domain=None, user_domain=None, project_domain=None,
-                 is_admin=None, read_only=False, show_deleted=False,
-                 request_id=None, auth_url=None, trusts=None,
-                 user_name=None, project_name=None, domain_name=None,
-                 user_domain_name=None, project_domain_name=None,
-                 auth_token_info=None, region_name=None, roles=None,
-                 password=None, **kwargs):
+    def __init__(
+        self,
+        auth_token=None,
+        user=None,
+        project=None,
+        domain=None,
+        user_domain=None,
+        project_domain=None,
+        is_admin=None,
+        read_only=False,
+        show_deleted=False,
+        request_id=None,
+        auth_url=None,
+        trusts=None,
+        user_name=None,
+        project_name=None,
+        domain_name=None,
+        user_domain_name=None,
+        project_domain_name=None,
+        auth_token_info=None,
+        region_name=None,
+        roles=None,
+        password=None,
+        **kwargs,
+    ):
         """Initializer of request context."""
         # We still have 'tenant' param because oslo_context still use it.
         # pylint: disable=E1123
         super(RequestContext, self).__init__(
-            auth_token=auth_token, user=user, tenant=project,
-            domain=domain, user_domain=user_domain,
-            project_domain=project_domain, roles=roles,
-            read_only=read_only, show_deleted=show_deleted,
-            request_id=request_id)
+            auth_token=auth_token,
+            user=user,
+            tenant=project,
+            domain=domain,
+            user_domain=user_domain,
+            project_domain=project_domain,
+            roles=roles,
+            read_only=read_only,
+            show_deleted=show_deleted,
+            request_id=request_id,
+        )
 
         # request_id might be a byte array
         self.request_id = encodeutils.safe_decode(self.request_id)
@@ -90,8 +113,8 @@ class RequestContext(base_context.RequestContext):
         # Check user is admin or not
         if is_admin is None:
             self.is_admin = policy.authorize(
-                base_policy.ADMIN_IN_SYSTEM_PROJECTS, {}, self.to_dict(),
-                do_raise=False)
+                base_policy.ADMIN_IN_SYSTEM_PROJECTS, {}, self.to_dict(), do_raise=False
+            )
         else:
             self.is_admin = is_admin
 
@@ -103,26 +126,26 @@ class RequestContext(base_context.RequestContext):
 
     def to_dict(self):
         return {
-            'auth_url': self.auth_url,
-            'auth_token': self.auth_token,
-            'auth_token_info': self.auth_token_info,
-            'user': self.user,
-            'user_name': self.user_name,
-            'user_domain': self.user_domain,
-            'user_domain_name': self.user_domain_name,
-            'project': self.project,
-            'project_name': self.project_name,
-            'project_domain': self.project_domain,
-            'project_domain_name': self.project_domain_name,
-            'domain': self.domain,
-            'domain_name': self.domain_name,
-            'trusts': self.trusts,
-            'region_name': self.region_name,
-            'roles': self.roles,
-            'show_deleted': self.show_deleted,
-            'is_admin': self.is_admin,
-            'request_id': self.request_id,
-            'password': self.password,
+            "auth_url": self.auth_url,
+            "auth_token": self.auth_token,
+            "auth_token_info": self.auth_token_info,
+            "user": self.user,
+            "user_name": self.user_name,
+            "user_domain": self.user_domain,
+            "user_domain_name": self.user_domain_name,
+            "project": self.project,
+            "project_name": self.project_name,
+            "project_domain": self.project_domain,
+            "project_domain_name": self.project_domain_name,
+            "domain": self.domain,
+            "domain_name": self.domain_name,
+            "trusts": self.trusts,
+            "region_name": self.region_name,
+            "roles": self.roles,
+            "show_deleted": self.show_deleted,
+            "is_admin": self.is_admin,
+            "request_id": self.request_id,
+            "password": self.password,
         }
 
     @classmethod
@@ -151,15 +174,14 @@ class AuthHook(hooks.PecanHook):
         if state.request.path == ALLOWED_WITHOUT_AUTH:
             return
         req = state.request
-        identity_status = req.headers.get('X-Identity-Status')
-        service_identity_status = req.headers.get('X-Service-Identity-Status')
-        if (identity_status == 'Confirmed' or
-                service_identity_status == 'Confirmed'):
+        identity_status = req.headers.get("X-Identity-Status")
+        service_identity_status = req.headers.get("X-Service-Identity-Status")
+        if identity_status == "Confirmed" or service_identity_status == "Confirmed":
             return
-        if req.headers.get('X-Auth-Token'):
-            msg = 'Auth token is invalid: %s' % req.headers['X-Auth-Token']
+        if req.headers.get("X-Auth-Token"):
+            msg = "Auth token is invalid: %s" % req.headers["X-Auth-Token"]
         else:
-            msg = 'Authentication required'
+            msg = "Authentication required"
         msg = "Failed to validate access token: %s" % str(msg)
         pecan.abort(status_code=401, detail=msg)
 
@@ -195,37 +217,41 @@ class AuditLoggingHook(hooks.PecanHook):
 
         response_content_length = state.response.content_length
 
-        user_id = state.request.headers.get('X-User-Id')
-        user_name = state.request.headers.get('X-User', user_id)
-        tenant_id = state.request.headers.get('X-Tenant-Id')
-        tenant = state.request.headers.get('X-Tenant', tenant_id)
-        domain_name = state.request.headers.get('X-User-Domain-Name')
+        user_id = state.request.headers.get("X-User-Id")
+        user_name = state.request.headers.get("X-User", user_id)
+        tenant_id = state.request.headers.get("X-Tenant-Id")
+        tenant = state.request.headers.get("X-Tenant", tenant_id)
+        domain_name = state.request.headers.get("X-User-Domain-Name")
         try:
             request_id = state.request.context.request_id
         except AttributeError:
-            auditLOG.info("Request id is not in request, setting it to an "
-                          "auto generated id.")
+            auditLOG.info(
+                "Request id is not in request, setting it to an auto generated id."
+            )
             request_id = generate_request_id()
 
         url_path = urlparse(state.request.path_qs).path
 
         def json_post_data(rest_state):
-            if 'form-data' in rest_state.request.headers.get('Content-Type'):
+            if "form-data" in rest_state.request.headers.get("Content-Type"):
                 return " POST: {}".format(rest_state.request.params)
             try:
-                if not hasattr(rest_state.request, 'json'):
+                if not hasattr(rest_state.request, "json"):
                     return ""
                 return " POST: {}".format(rest_state.request.json)
             except Exception:
                 return ""
-        # Filter password from log
-        filtered_json = re.sub(r'{[^{}]*(passwd_hash|community|password)[^{}]*},*',
-                               '',
-                               json_post_data(state))
 
-        log_data = \
-            "{} \"{} {} {}\" status: {} len: {} time: {}{} host:{}" \
-            " agent:{} user: {} tenant: {} domain: {}".format(
+        # Filter password from log
+        filtered_json = re.sub(
+            r"{[^{}]*(passwd_hash|community|password)[^{}]*},*",
+            "",
+            json_post_data(state),
+        )
+
+        log_data = (
+            "{} '{} {} {}' status: {} len: {} time: {}{} host:{} "
+            "agent:{} user: {} tenant: {} domain: {}".format(
                 state.request.remote_addr,
                 state.request.method,
                 url_path,
@@ -238,7 +264,9 @@ class AuditLoggingHook(hooks.PecanHook):
                 state.request.user_agent,
                 user_name,
                 tenant,
-                domain_name)
+                domain_name,
+            )
+        )
 
         # The following ctx object will be output in the logger as
         # something like this:
@@ -247,9 +275,7 @@ class AuditLoggingHook(hooks.PecanHook):
         #  ca53e70c76d847fd860693f8eb301546]
         # When the ctx is defined, the formatter (defined in common/log.py) requires
         # that keys request_id, user, tenant be defined within the ctx
-        ctx = {'request_id': request_id,
-               'user': user_id,
-               'tenant': tenant_id}
+        ctx = {"request_id": request_id, "user": user_id, "tenant": tenant_id}
 
         auditLOG.info("{}".format(log_data), context=ctx)
 
@@ -262,5 +288,6 @@ class AuditLoggingHook(hooks.PecanHook):
             auditLOG.exception("Exception in AuditLoggingHook on event 'after'")
 
     def on_error(self, state, e):
-        auditLOG.exception("Exception in AuditLoggingHook passed to event "
-                           "'on_error': " + str(e))
+        auditLOG.exception(
+            f"Exception in AuditLoggingHook passed to event 'on_error': {str(e)}"
+        )

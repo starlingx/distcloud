@@ -28,9 +28,11 @@ class Mapping(object):
             self.reverse_mapping[value] = key
 
 
-_SINGLETON_MAPPING = Mapping({
-    ATTR_NOT_SPECIFIED: "@@**ATTR_NOT_SPECIFIED**@@",
-})
+_SINGLETON_MAPPING = Mapping(
+    {
+        ATTR_NOT_SPECIFIED: "@@**ATTR_NOT_SPECIFIED**@@",
+    }
+)
 
 
 class DCManagerSerializer(oslo_messaging.Serializer):

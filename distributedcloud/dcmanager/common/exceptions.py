@@ -51,7 +51,7 @@ class DCManagerException(Exception):
 
 
 class BadRequest(DCManagerException):
-    message = _('Bad %(resource)s request: %(msg)s')
+    message = _("Bad %(resource)s request: %(msg)s")
 
 
 class ValidateFail(DCManagerException):
@@ -65,7 +65,7 @@ class NotFound(DCManagerException):
 
 
 class Conflict(DCManagerException):
-    message = _('Conflict: %(msg)s')
+    message = _("Conflict: %(msg)s")
 
 
 class NotAuthorized(DCManagerException):
@@ -89,8 +89,7 @@ class InUse(DCManagerException):
 
 
 class InvalidConfigurationOption(DCManagerException):
-    message = _("An invalid value was provided for %(opt_name)s: "
-                "%(opt_value)s")
+    message = _("An invalid value was provided for %(opt_name)s: %(opt_value)s")
 
 
 class InvalidParameterValue(DCManagerException):
@@ -126,8 +125,10 @@ class SubcloudNotOnline(DCManagerException):
 
 
 class SubcloudStatusNotFound(NotFound):
-    message = _("SubcloudStatus with subcloud_id %(subcloud_id)s and "
-                "endpoint_type %(endpoint_type)s doesn't exist.")
+    message = _(
+        "SubcloudStatus with subcloud_id %(subcloud_id)s and "
+        "endpoint_type %(endpoint_type)s doesn't exist."
+    )
 
 
 class SubcloudNotUnmanaged(DCManagerException):
@@ -139,8 +140,10 @@ class SubcloudNotOffline(DCManagerException):
 
 
 class SubcloudPatchOptsNotFound(NotFound):
-    message = _("No options found for Subcloud with id %(subcloud_id)s, "
-                "defaults will be used.")
+    message = _(
+        "No options found for Subcloud with id %(subcloud_id)s, "
+        "defaults will be used."
+    )
 
 
 class SystemPeerNotFound(NotFound):
@@ -172,23 +175,25 @@ class SubcloudPeerGroupNotFound(NotFound):
 
 
 class PeerGroupAssociationCombinationNotFound(NotFound):
-    message = _("Peer Group Association between peer group: %(peer_group_id)s "
-                "and system peer: %(system_peer_id)s doesn't exist.")
+    message = _(
+        "Peer Group Association between peer group: %(peer_group_id)s "
+        "and system peer: %(system_peer_id)s doesn't exist."
+    )
 
 
 class PeerGroupAssociationTargetNotMatch(NotFound):
-    message = _("Peer Group Association with peer site controller "
-                "UUID %(uuid)s doesn't match.")
+    message = _(
+        "Peer Group Association with peer site controller "
+        "UUID %(uuid)s doesn't match."
+    )
 
 
 class SubcloudPeerGroupHasWrongPriority(DCManagerException):
-    message = _("Subcloud Peer group of peer site has wrong "
-                "priority %(priority)s.")
+    message = _("Subcloud Peer group of peer site has wrong priority %(priority)s.")
 
 
 class PeerGroupAssociationNotFound(NotFound):
-    message = _("Peer Group Association with id %(association_id)s "
-                "doesn't exist.")
+    message = _("Peer Group Association with id %(association_id)s doesn't exist.")
 
 
 class SubcloudGroupNameViolation(DCManagerException):
@@ -200,8 +205,10 @@ class SubcloudGroupDefaultNotDeletable(DCManagerException):
 
 
 class SubcloudBackupOperationFailed(DCManagerException):
-    message = _("Failed to run subcloud-backup %(operation)s. Please run "
-                "'dcmanager subcloud error' command for details")
+    message = _(
+        "Failed to run subcloud-backup %(operation)s. Please run "
+        "'dcmanager subcloud error' command for details"
+    )
 
 
 class SubcloudSyncFailedException(DCManagerException):
@@ -229,8 +236,10 @@ class CertificateUploadError(DCManagerException):
 
 
 class LicenseInstallError(DCManagerException):
-    message = _("Error while installing license on subcloud: "
-                "%(subcloud_id)s. %(error_message)s")
+    message = _(
+        "Error while installing license on subcloud: "
+        "%(subcloud_id)s. %(error_message)s"
+    )
 
 
 class LicenseMissingError(DCManagerException):
@@ -242,8 +251,7 @@ class KubeUpgradeFailedException(DCManagerException):
 
 
 class ManualRecoveryRequiredException(DCManagerException):
-    message = _("Subcloud: %(subcloud)s needs manual recovery from "
-                "%(error_message)s")
+    message = _("Subcloud: %(subcloud)s needs manual recovery from %(error_message)s")
 
 
 class PreCheckFailedException(DCManagerException):
@@ -273,9 +281,8 @@ class SoftwareDeployDeleteFailedException(DCManagerException):
 class PrestagePreCheckFailedException(DCManagerException):
     """PrestagePreCheckFailedException
 
-    Extended to include 'orch_skip' property, indicating that
-    the subcloud can be skipped during orchestrated prestage
-    operations.
+    Extended to include 'orch_skip' property, indicating that the subcloud
+    can be skipped during orchestrated prestage operations.
     """
 
     def __init__(self, subcloud, details, orch_skip=False):
@@ -285,11 +292,9 @@ class PrestagePreCheckFailedException(DCManagerException):
         if subcloud is None:
             self.message = _("Prestage failed: %s" % details)
         elif orch_skip:
-            self.message = _("Prestage skipped '%s': %s"
-                             % (subcloud, details))
+            self.message = _("Prestage skipped '%s': %s" % (subcloud, details))
         else:
-            self.message = _("Prestage failed '%s': %s"
-                             % (subcloud, details))
+            self.message = _("Prestage failed '%s': %s" % (subcloud, details))
         super(PrestagePreCheckFailedException, self).__init__()
 
 
@@ -298,8 +303,7 @@ class VaultLoadMissingError(DCManagerException):
 
 
 class StrategyStepNotFound(NotFound):
-    message = _("StrategyStep with subcloud_id %(subcloud_id)s "
-                "doesn't exist.")
+    message = _("StrategyStep with subcloud_id %(subcloud_id)s doesn't exist.")
 
 
 class StrategyStepNameNotFound(NotFound):

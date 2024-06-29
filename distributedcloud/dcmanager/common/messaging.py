@@ -1,4 +1,4 @@
-# Copyright (c) 2017, 2019, 2021 Wind River Systems, Inc.
+# Copyright (c) 2017, 2019, 2021, 2024 Wind River Systems, Inc.
 # Licensed under the Apache License, Version 2.0 (the "License"); you may
 # not use this file except in compliance with the License. You may obtain
 # a copy of the License at
@@ -63,11 +63,12 @@ def setup(url=None, optional=False):
         eventlet.monkey_patch(time=True)
 
     if not TRANSPORT:
-        oslo_messaging.set_transport_defaults('dcmanager')
-        exmods = ['dcmanager.common.exception']
+        oslo_messaging.set_transport_defaults("dcmanager")
+        exmods = ["dcmanager.common.exception"]
         try:
             TRANSPORT = oslo_messaging.get_transport(
-                cfg.CONF, url, allowed_remote_exmods=exmods)
+                cfg.CONF, url, allowed_remote_exmods=exmods
+            )
         except oslo_messaging.InvalidTransportURL as e:
             TRANSPORT = None
             if not optional or e.url:
@@ -89,9 +90,9 @@ def cleanup():
 def get_rpc_server(target, endpoint):
     """Return a configured oslo_messaging rpc server."""
     serializer = RequestContextSerializer(JsonPayloadSerializer())
-    return oslo_messaging.get_rpc_server(TRANSPORT, target, [endpoint],
-                                         executor='eventlet',
-                                         serializer=serializer)
+    return oslo_messaging.get_rpc_server(
+        TRANSPORT, target, [endpoint], executor="eventlet", serializer=serializer
+    )
 
 
 def get_rpc_client(timeout, **msg_target_kwargs):
@@ -99,8 +100,9 @@ def get_rpc_client(timeout, **msg_target_kwargs):
     target = oslo_messaging.Target(**msg_target_kwargs)
     serializer = RequestContextSerializer(JsonPayloadSerializer())
     # With timeout == None the default value will be 60 seconds
-    return oslo_messaging.RPCClient(TRANSPORT, target, timeout=timeout,
-                                    serializer=serializer)
+    return oslo_messaging.RPCClient(
+        TRANSPORT, target, timeout=timeout, serializer=serializer
+    )
 
 
 def get_transport():

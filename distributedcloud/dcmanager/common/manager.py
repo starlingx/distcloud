@@ -58,7 +58,7 @@ class PeriodicTasks(periodic_task.PeriodicTasks):
 
 class Manager(PeriodicTasks):
 
-    def __init__(self, host=None, service_name='undefined'):
+    def __init__(self, host=None, service_name="undefined"):
         if not host:
             host = cfg.CONF.host
         self.host = host

@@ -1,4 +1,4 @@
-# Copyright (c) 2017, 2019, 2021 Wind River Systems, Inc.
+# Copyright (c) 2017, 2019, 2021, 2024 Wind River Systems, Inc.
 # All Rights Reserved.
 #
 #    Licensed under the Apache License, Version 2.0 (the "License"); you may
@@ -16,7 +16,7 @@
 
 import oslo_i18n
 
-_translators = oslo_i18n.TranslatorFactory(domain='dcmanager')
+_translators = oslo_i18n.TranslatorFactory(domain="dcmanager")
 
 # The primary translation function using the well-known name "_"
 _ = _translators.primary

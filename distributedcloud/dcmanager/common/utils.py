@@ -68,25 +68,25 @@ ABORT_UPDATE_STATUS = {
     consts.DEPLOY_STATE_CONFIGURING: consts.DEPLOY_STATE_ABORTING_CONFIG,
     consts.DEPLOY_STATE_ABORTING_INSTALL: consts.DEPLOY_STATE_INSTALL_ABORTED,
     consts.DEPLOY_STATE_ABORTING_BOOTSTRAP: consts.DEPLOY_STATE_BOOTSTRAP_ABORTED,
-    consts.DEPLOY_STATE_ABORTING_CONFIG: consts.DEPLOY_STATE_CONFIG_ABORTED
+    consts.DEPLOY_STATE_ABORTING_CONFIG: consts.DEPLOY_STATE_CONFIG_ABORTED,
 }
 
 ABORT_UPDATE_FAIL_STATUS = {
     consts.DEPLOY_STATE_ABORTING_INSTALL: consts.DEPLOY_STATE_INSTALL_FAILED,
     consts.DEPLOY_STATE_ABORTING_BOOTSTRAP: consts.DEPLOY_STATE_BOOTSTRAP_FAILED,
-    consts.DEPLOY_STATE_ABORTING_CONFIG: consts.DEPLOY_STATE_CONFIG_FAILED
+    consts.DEPLOY_STATE_ABORTING_CONFIG: consts.DEPLOY_STATE_CONFIG_FAILED,
 }
 
 RESUME_PREP_UPDATE_STATUS = {
     consts.DEPLOY_PHASE_INSTALL: consts.DEPLOY_STATE_PRE_INSTALL,
     consts.DEPLOY_PHASE_BOOTSTRAP: consts.DEPLOY_STATE_PRE_BOOTSTRAP,
-    consts.DEPLOY_PHASE_CONFIG: consts.DEPLOY_STATE_PRE_CONFIG
+    consts.DEPLOY_PHASE_CONFIG: consts.DEPLOY_STATE_PRE_CONFIG,
 }
 
 RESUME_PREP_UPDATE_FAIL_STATUS = {
     consts.DEPLOY_PHASE_INSTALL: consts.DEPLOY_STATE_PRE_INSTALL_FAILED,
     consts.DEPLOY_PHASE_BOOTSTRAP: consts.DEPLOY_STATE_PRE_BOOTSTRAP_FAILED,
-    consts.DEPLOY_PHASE_CONFIG: consts.DEPLOY_STATE_PRE_CONFIG_FAILED
+    consts.DEPLOY_PHASE_CONFIG: consts.DEPLOY_STATE_PRE_CONFIG_FAILED,
 }
 
 
@@ -105,20 +105,20 @@ def validate_address_str(ip_address_str, network):
     try:
         ip_address = netaddr.IPAddress(ip_address_str)
         if ip_address.version != network.version:
-            msg = ("Invalid IP version - must match network version " +
-                   ip_version_to_string(network.version))
+            msg = (
+                "Invalid IP version - must match network version "
+                + ip_version_to_string(network.version)
+            )
             raise exceptions.ValidateFail(msg)
         elif ip_address == network:
             raise exceptions.ValidateFail("Cannot use network address")
         elif ip_address == network.broadcast:
             raise exceptions.ValidateFail("Cannot use broadcast address")
         elif ip_address not in network:
-            raise exceptions.ValidateFail(
-                "Address must be in subnet %s" % str(network))
+            raise exceptions.ValidateFail("Address must be in subnet %s" % str(network))
         return ip_address
     except netaddr.AddrFormatError:
-        raise exceptions.ValidateFail(
-            "Invalid address - not a valid IP address")
+        raise exceptions.ValidateFail("Invalid address - not a valid IP address")
 
 
 def ip_version_to_string(ip_version):
@@ -131,26 +131,28 @@ def ip_version_to_string(ip_version):
         return "IP"
 
 
-def validate_network_str(network_str, minimum_size, existing_networks=None,
-                         multicast=False, operation=None):
+def validate_network_str(
+    network_str, minimum_size, existing_networks=None, multicast=False, operation=None
+):
     """Determine whether a network is valid."""
     try:
         network = netaddr.IPNetwork(network_str)
         if network.size < minimum_size:
-            raise exceptions.ValidateFail("Subnet too small - must have at "
-                                          "least %d addresses" % minimum_size)
+            raise exceptions.ValidateFail(
+                "Subnet too small - must have at least %d addresses" % minimum_size
+            )
         elif network.version == 6 and network.prefixlen < 64:
             raise exceptions.ValidateFail("IPv6 minimum prefix length is 64")
-        elif existing_networks and operation != 'redeploy':
+        elif existing_networks and operation != "redeploy":
             if any(network.ip in subnet for subnet in existing_networks):
-                raise exceptions.ValidateFail("Subnet overlaps with another "
-                                              "configured subnet")
+                raise exceptions.ValidateFail(
+                    "Subnet overlaps with another configured subnet"
+                )
         elif multicast and not network.is_multicast():
             raise exceptions.ValidateFail("Invalid subnet - must be multicast")
         return network
     except netaddr.AddrFormatError:
-        raise exceptions.ValidateFail(
-            "Invalid subnet - not a valid IP subnet")
+        raise exceptions.ValidateFail("Invalid subnet - not a valid IP subnet")
 
 
 def validate_certificate_subject(subject):
@@ -165,7 +167,7 @@ def validate_certificate_subject(subject):
     if subject is None:
         return True, ""
 
-    params_supported = ['C', 'OU', 'O', 'ST', 'CN', 'L']
+    params_supported = ["C", "OU", "O", "ST", "CN", "L"]
     subject_pairs = re.findall(r"([^=]+=[^=]+)(?:\s|$)", subject)
     subject_dict = {}
     for pair_value in subject_pairs:
@@ -173,15 +175,17 @@ def validate_certificate_subject(subject):
         subject_dict[key] = value
 
     if not all([param in params_supported for param in subject_dict.keys()]):
-        return False, ("There are parameters not supported "
-                       "for the certificate subject specification. "
-                       "The subject parameter has to be in the "
-                       "format of 'C=<Country> ST=<State/Province> "
-                       "L=<Locality> O=<Organization> OU=<OrganizationUnit> "
-                       "CN=<commonName>")
-    if 'CN' not in list(subject_dict.keys()):
-        return False, ("The CN=<commonName> parameter is required to be "
-                       "specified in subject argument")
+        return False, (
+            "There are parameters not supported for the certificate subject "
+            "specification. The subject parameter has to be in the format of "
+            "'C=<Country> ST=<State/Province> L=<Locality> O=<Organization> "
+            "OU=<OrganizationUnit> CN=<commonName>"
+        )
+    if "CN" not in list(subject_dict.keys()):
+        return False, (
+            "The CN=<commonName> parameter is required to be "
+            "specified in subject argument"
+        )
     return True, ""
 
 
@@ -200,13 +204,12 @@ def validate_expiry_date(expiry_date):
     try:
         date = datetime.datetime.strptime(expiry_date, "%Y-%m-%d")
     except ValueError:
-        return False, ("expiry_date %s doesn't match format "
-                       "YYYY-MM-DD" % expiry_date)
+        return False, ("expiry_date %s doesn't match format YYYY-MM-DD" % expiry_date)
 
     delta = date - datetime.datetime.now()
     # we sum one day (24 hours) to accomplish the certificate expiry
     # during the day specified by the user
-    duration = (delta.days * 24 + 24)
+    duration = delta.days * 24 + 24
 
     # Cert-manager manages certificates and renew them some time
     # before it expires. Along this procedure we set renewBefore
@@ -214,8 +217,9 @@ def validate_expiry_date(expiry_date):
     # has at least this amount of time. This is needed to avoid
     # cert-manager to block the creation of the resources.
     if duration <= 24:
-        return False, ("New k8s rootCA should have at least 24 hours of "
-                       "validation before expiry.")
+        return False, (
+            "New k8s rootCA should have at least 24 hours of validation before expiry."
+        )
     return True, ""
 
 
@@ -223,13 +227,16 @@ def validate_expiry_date(expiry_date):
 def validate_quota_limits(payload):
     for resource in payload:
         # Check valid resource name
-        if resource not in itertools.chain(dccommon_consts.CINDER_QUOTA_FIELDS,
-                                           dccommon_consts.NOVA_QUOTA_FIELDS,
-                                           dccommon_consts.NEUTRON_QUOTA_FIELDS):
+        if resource not in itertools.chain(
+            dccommon_consts.CINDER_QUOTA_FIELDS,
+            dccommon_consts.NOVA_QUOTA_FIELDS,
+            dccommon_consts.NEUTRON_QUOTA_FIELDS,
+        ):
             raise exceptions.InvalidInputError
         # Check valid quota limit value in case for put/post
-        if isinstance(payload, dict) and (not isinstance(
-                payload[resource], int) or payload[resource] <= 0):
+        if isinstance(payload, dict) and (
+            not isinstance(payload[resource], int) or payload[resource] <= 0
+        ):
             raise exceptions.InvalidInputError
 
 
@@ -241,9 +248,9 @@ def get_sw_update_strategy_extra_args(context, update_type=None):
     :returns dict (returns an empty dictionary if no strategy exists)
     """
     try:
-        sw_update_strategy = \
-            db_api.sw_update_strategy_get(context,
-                                          update_type=update_type)
+        sw_update_strategy = db_api.sw_update_strategy_get(
+            context, update_type=update_type
+        )
         return sw_update_strategy.extra_args
     except exceptions.NotFound:
         # return an empty dictionary if there is no strategy
@@ -273,18 +280,19 @@ def get_sw_update_opts(context, for_sw_update=False, subcloud_id=None):
         if sw_update_opts_ref:
             subcloud_name = db_api.subcloud_get(context, subcloud_id).name
             return db_api.sw_update_opts_w_name_db_model_to_dict(
-                sw_update_opts_ref, subcloud_name)
+                sw_update_opts_ref, subcloud_name
+            )
         elif for_sw_update:
             sw_update_opts_ref = db_api.sw_update_opts_default_get(context)
             if not sw_update_opts_ref:
                 sw_update_opts_dict = vim.SW_UPDATE_OPTS_CONST_DEFAULT
                 return sw_update_opts_dict
         else:
-            raise exceptions.SubcloudPatchOptsNotFound(
-                subcloud_id=subcloud_id)
+            raise exceptions.SubcloudPatchOptsNotFound(subcloud_id=subcloud_id)
 
     return db_api.sw_update_opts_w_name_db_model_to_dict(
-        sw_update_opts_ref, dccommon_consts.SW_UPDATE_DEFAULT_TITLE)
+        sw_update_opts_ref, dccommon_consts.SW_UPDATE_DEFAULT_TITLE
+    )
 
 
 def ensure_lock_path():
@@ -309,8 +317,7 @@ def ensure_lock_path():
             LOG.info("Created directory=%s" % lock_path)
 
         except OSError as e:
-            LOG.exception("makedir %s OSError=%s encountered" %
-                          (lock_path, e))
+            LOG.exception("makedir %s OSError=%s encountered" % (lock_path, e))
             return None
 
     return lock_path
@@ -318,15 +325,21 @@ def ensure_lock_path():
 
 def synchronized(name, external=True, fair=False):
     if external:
-        prefix = 'DCManager-'
+        prefix = "DCManager-"
         lock_path = ensure_lock_path()
     else:
         prefix = None
         lock_path = None
 
-    return lockutils.synchronized(name, lock_file_prefix=prefix,
-                                  external=external, lock_path=lock_path,
-                                  semaphores=None, delay=0.01, fair=fair)
+    return lockutils.synchronized(
+        name,
+        lock_file_prefix=prefix,
+        external=external,
+        lock_path=lock_path,
+        semaphores=None,
+        delay=0.01,
+        fair=fair,
+    )
 
 
 def get_filename_by_prefix(dir_path, prefix):
@@ -347,39 +360,39 @@ def get_ansible_host_ip_from_inventory(subcloud_name: str):
     filename = get_ansible_filename(subcloud_name, postfix)
 
     content = load_yaml_file(filename)
-    bootstrap_address = \
-        content['all']['hosts'].get(subcloud_name, {}).get('ansible_host')
+    bootstrap_address = (
+        content["all"]["hosts"].get(subcloud_name, {}).get("ansible_host")
+    )
     return bootstrap_address
 
 
-def create_subcloud_inventory(subcloud,
-                              inventory_file,
-                              initial_deployment=False):
+def create_subcloud_inventory(subcloud, inventory_file, initial_deployment=False):
     """Create the ansible inventory file for the specified subcloud"""
 
     # Delete the file if it already exists
     delete_subcloud_inventory(inventory_file)
 
-    with open(inventory_file, 'w') as f_out_inventory:
+    with open(inventory_file, "w") as f_out_inventory:
         f_out_inventory.write(
-            '---\n'
-            'all:\n'
-            '  vars:\n'
-            '    ansible_ssh_user: sysadmin\n'
+            "---\n"
+            "all:\n"
+            "  vars:\n"
+            "    ansible_ssh_user: sysadmin\n"
             '    ansible_ssh_extra_args: "-o UserKnownHostsFile=/dev/null"\n'
-            '    initial_deployment: ' + str(initial_deployment) + '\n'
-            '  hosts:\n'
-            '    ' + subcloud['name'] + ':\n'
-            '      ansible_host: ' +
-            subcloud['bootstrap-address'] + '\n'
+            "    initial_deployment: " + str(initial_deployment) + "\n"
+            "  hosts:\n"
+            "    " + subcloud["name"] + ":\n"
+            "      ansible_host: " + subcloud["bootstrap-address"] + "\n"
         )
 
 
-def create_subcloud_inventory_with_admin_creds(subcloud_name,
-                                               inventory_file,
-                                               subcloud_bootstrap_address,
-                                               ansible_pass,
-                                               initial_deployment=False):
+def create_subcloud_inventory_with_admin_creds(
+    subcloud_name,
+    inventory_file,
+    subcloud_bootstrap_address,
+    ansible_pass,
+    initial_deployment=False,
+):
     """Create the ansible inventory file for the specified subcloud.
 
     Includes ansible_become_pass attribute.
@@ -388,21 +401,21 @@ def create_subcloud_inventory_with_admin_creds(subcloud_name,
     # Delete the file if it already exists
     delete_subcloud_inventory(inventory_file)
 
-    with open(inventory_file, 'w') as f_out_inventory:
+    with open(inventory_file, "w") as f_out_inventory:
         f_out_inventory.write(
-            ('---\n'
-             'all:\n'
-             '  vars:\n'
-             '    ansible_ssh_user: sysadmin\n'
-             '    ansible_ssh_pass: {0}\n'
-             '    ansible_become_pass: {0}\n'
-             '    ansible_ssh_extra_args: "-o UserKnownHostsFile=/dev/null"\n'
-             '    initial_deployment: ' + str(initial_deployment) + '\n'
-             '  hosts:\n'
-             '    {1}:\n'
-             '      ansible_host: {2}\n').format(ansible_pass,
-                                                 subcloud_name,
-                                                 subcloud_bootstrap_address)
+            (
+                "---\n"
+                "all:\n"
+                "  vars:\n"
+                "    ansible_ssh_user: sysadmin\n"
+                "    ansible_ssh_pass: {0}\n"
+                "    ansible_become_pass: {0}\n"
+                '    ansible_ssh_extra_args: "-o UserKnownHostsFile=/dev/null"\n'
+                "    initial_deployment: " + str(initial_deployment) + "\n"
+                "  hosts:\n"
+                "    {1}:\n"
+                "      ansible_host: {2}\n"
+            ).format(ansible_pass, subcloud_name, subcloud_bootstrap_address)
         )
 
 
@@ -437,10 +450,12 @@ def get_vault_load_files(target_version):
         # If no .iso or .sig is found, raise an exception
         if matching_iso is None:
             raise exceptions.VaultLoadMissingError(
-                file_type='.iso', vault_dir=vault_dir)
+                file_type=".iso", vault_dir=vault_dir
+            )
         if matching_sig is None:
             raise exceptions.VaultLoadMissingError(
-                file_type='.sig', vault_dir=vault_dir)
+                file_type=".sig", vault_dir=vault_dir
+            )
 
     # return the iso and sig for this load
     return (matching_iso, matching_sig)
@@ -452,8 +467,8 @@ def get_active_kube_version(kube_versions):
     matching_kube_version = None
     for kube in kube_versions:
         kube_dict = kube.to_dict()
-        if kube_dict.get('target') and kube_dict.get('state') == 'active':
-            matching_kube_version = kube_dict.get('version')
+        if kube_dict.get("target") and kube_dict.get("state") == "active":
+            matching_kube_version = kube_dict.get("version")
             break
     return matching_kube_version
 
@@ -469,8 +484,8 @@ def select_available_kube_version(kube_versions, to_version):
     # Check if the desired version is higher than the highest "available" version.
     for kube in reversed(kube_versions):
         kube_dict = kube.to_dict()
-        if kube_dict.get('state') == 'available':
-            version = kube_dict.get('version')
+        if kube_dict.get("state") == "available":
+            version = kube_dict.get("version")
             if kube_version_compare(version, to_version) == -1:
                 return version
             else:
@@ -479,9 +494,9 @@ def select_available_kube_version(kube_versions, to_version):
     # Check if the desired version is "available"
     for kube in reversed(kube_versions):
         kube_dict = kube.to_dict()
-        version = kube_dict.get('version')
+        version = kube_dict.get("version")
         if kube_version_compare(version, to_version) == 0:
-            if kube_dict.get('state') == 'available':
+            if kube_dict.get("state") == "available":
                 return version
             else:
                 break
@@ -489,8 +504,8 @@ def select_available_kube_version(kube_versions, to_version):
     # Return the highest "available" version
     for kube in reversed(kube_versions):
         kube_dict = kube.to_dict()
-        if kube_dict.get('state') == 'available':
-            return kube_dict.get('version')
+        if kube_dict.get("state") == "available":
+            return kube_dict.get("version")
 
     # There are no "available" versions
     return None
@@ -508,9 +523,10 @@ def kube_version_compare(left, right):
     When comparing different length tuples, additional fields are ignored.
     For example: v1.19 and v1.19.1 would be the same.
     """
-    if left is None or right is None or left[0] != 'v' or right[0] != 'v':
-        raise Exception("Invalid kube version(s), left: (%s), right: (%s)" %
-                        (left, right))
+    if left is None or right is None or left[0] != "v" or right[0] != "v":
+        raise Exception(
+            "Invalid kube version(s), left: (%s), right: (%s)" % (left, right)
+        )
     # start the split at index 1 ('after' the 'v' character)
     l_val = tuple(map(int, (left[1:].split("."))))
     r_val = tuple(map(int, (right[1:].split("."))))
@@ -525,10 +541,7 @@ def kube_version_compare(left, right):
 
 def get_loads_for_patching(loads):
     """Filter the loads that can be patched. Return their software versions"""
-    valid_states = [
-        consts.ACTIVE_LOAD_STATE,
-        consts.IMPORTED_LOAD_STATE
-    ]
+    valid_states = [consts.ACTIVE_LOAD_STATE, consts.IMPORTED_LOAD_STATE]
     return [load.software_version for load in loads if load.state in valid_states]
 
 
@@ -536,8 +549,7 @@ def system_peer_get_by_ref(context, peer_ref):
     """Handle getting a system peer by either UUID, or ID, or Name
 
     :param context: The request context
-    :param peer_ref: Reference to the system peer, either an UUID or an ID or
-                     a Name
+    :param peer_ref: Reference to the system peer, either an UUID or an ID or a Name
     """
     try:
         if peer_ref.isdigit():
@@ -547,14 +559,21 @@ def system_peer_get_by_ref(context, peer_ref):
             return db_api.system_peer_get_by_uuid(context, peer_ref)
         except ValueError:
             return db_api.system_peer_get_by_name(context, peer_ref)
-    except (exceptions.SystemPeerNotFound, exceptions.SystemPeerUUIDNotFound,
-            exceptions.SystemPeerNameNotFound):
+    except (
+        exceptions.SystemPeerNotFound,
+        exceptions.SystemPeerUUIDNotFound,
+        exceptions.SystemPeerNameNotFound,
+    ):
         return None
 
 
 def subcloud_peer_group_db_list_to_dict(peer_groups):
-    return {'subcloud_peer_groups': [db_api.subcloud_peer_group_db_model_to_dict(
-        peer_group) for peer_group in peer_groups]}
+    return {
+        "subcloud_peer_groups": [
+            db_api.subcloud_peer_group_db_model_to_dict(peer_group)
+            for peer_group in peer_groups
+        ]
+    }
 
 
 def subcloud_get_by_ref(context, subcloud_ref):
@@ -564,9 +583,11 @@ def subcloud_get_by_ref(context, subcloud_ref):
     :param subcloud_ref: Reference to the subcloud, either a name or an ID
     """
     try:
-        return db_api.subcloud_get(context, subcloud_ref) \
-            if subcloud_ref.isdigit() \
+        return (
+            db_api.subcloud_get(context, subcloud_ref)
+            if subcloud_ref.isdigit()
             else db_api.subcloud_get_by_name(context, subcloud_ref)
+        )
     except (exceptions.SubcloudNotFound, exceptions.SubcloudNameNotFound):
         return None
 
@@ -597,15 +618,20 @@ def subcloud_peer_group_get_by_ref(context, group_ref):
         else:
             # Lookup subcloud group as a name
             group = db_api.subcloud_peer_group_get_by_name(context, group_ref)
-    except (exceptions.SubcloudPeerGroupNotFound,
-            exceptions.SubcloudPeerGroupNameNotFound):
+    except (
+        exceptions.SubcloudPeerGroupNotFound,
+        exceptions.SubcloudPeerGroupNameNotFound,
+    ):
         return None
     return group
 
 
 def subcloud_db_list_to_dict(subclouds):
-    return {'subclouds':
-            [db_api.subcloud_db_model_to_dict(subcloud) for subcloud in subclouds]}
+    return {
+        "subclouds": [
+            db_api.subcloud_db_model_to_dict(subcloud) for subcloud in subclouds
+        ]
+    }
 
 
 def get_oam_addresses(subcloud, sc_ks_client):
@@ -613,26 +639,28 @@ def get_oam_addresses(subcloud, sc_ks_client):
 
     # First need to retrieve the Subcloud's Keystone session
     try:
-        endpoint = sc_ks_client.endpoint_cache.get_endpoint('sysinv')
-        sysinv_client = SysinvClient(subcloud.region_name,
-                                     sc_ks_client.session,
-                                     endpoint=endpoint)
+        endpoint = sc_ks_client.endpoint_cache.get_endpoint("sysinv")
+        sysinv_client = SysinvClient(
+            subcloud.region_name, sc_ks_client.session, endpoint=endpoint
+        )
         return sysinv_client.get_oam_addresses()
     except (keystone_exceptions.EndpointNotFound, IndexError) as e:
-        message = ("Identity endpoint for subcloud: %s not found. %s" %
-                   (subcloud.name, e))
+        message = "Identity endpoint for subcloud: %s not found. %s" % (
+            subcloud.name,
+            e,
+        )
         LOG.error(message)
     except dccommon_exceptions.OAMAddressesNotFound:
-        message = ("OAM addresses for subcloud: %s not found." %
-                   subcloud.name)
+        message = "OAM addresses for subcloud: %s not found." % subcloud.name
         LOG.error(message)
     return None
 
 
-def get_ansible_filename(subcloud_name, postfix='.yml'):
+def get_ansible_filename(subcloud_name, postfix=".yml"):
     """Build ansible filename using subcloud and given postfix"""
-    ansible_filename = os.path.join(dccommon_consts.ANSIBLE_OVERRIDES_PATH,
-                                    subcloud_name + postfix)
+    ansible_filename = os.path.join(
+        dccommon_consts.ANSIBLE_OVERRIDES_PATH, subcloud_name + postfix
+    )
     return ansible_filename
 
 
@@ -644,9 +672,10 @@ def pre_check_management_affected_alarm(system_health):
     c) subcloud fails alarm check and it only has non-management
        affecting alarm(s)
     """
-    failed_alarm_check = re.findall("No alarms: \[Fail\]", system_health)
-    no_mgmt_alarms = re.findall("\[0\] of which are management affecting",
-                                system_health)
+    failed_alarm_check = re.findall(r"No alarms: \[Fail\]", system_health)
+    no_mgmt_alarms = re.findall(
+        r"\[0\] of which are management affecting", system_health
+    )
     if failed_alarm_check and not no_mgmt_alarms:
         return False
     return True
@@ -684,27 +713,29 @@ def get_region_from_subcloud_address(payload):
     err_cause = None
 
     if not payload:
-        err_cause = ("Unable to get subcloud connection data: payload is empty")
+        err_cause = "Unable to get subcloud connection data: payload is empty"
         return (subcloud_region, err_cause)
 
     try:
-        bootstrap_addr = payload.get('bootstrap-address')
-        bootstrap_pwd = payload.get('sysadmin_password')
+        bootstrap_addr = payload.get("bootstrap-address")
+        bootstrap_pwd = payload.get("sysadmin_password")
 
         if not bootstrap_addr:
-            err_cause = ("Unable to get subcloud connection data: missing "
-                         "bootstrap-address")
+            err_cause = (
+                "Unable to get subcloud connection data: missing bootstrap-address"
+            )
             return (subcloud_region, err_cause)
 
         if not bootstrap_pwd:
-            err_cause = ("Unable to get subcloud connection data: missing "
-                         "sysadmin_password")
+            err_cause = (
+                "Unable to get subcloud connection data: missing sysadmin_password"
+            )
             return (subcloud_region, err_cause)
 
         ip_address = netaddr.IPAddress(bootstrap_addr)
 
         if ip_address.version not in [4, 6]:
-            err_cause = ("Invalid subcloud bootstrap address")
+            err_cause = "Invalid subcloud bootstrap address"
             return (subcloud_region, err_cause)
 
         cmd = [
@@ -721,11 +752,9 @@ def get_region_from_subcloud_address(payload):
             REGION_VALUE_CMD,
         ]
 
-        task = subprocess.check_output(
-            cmd,
-            stderr=subprocess.STDOUT).decode('utf-8')
+        task = subprocess.check_output(cmd, stderr=subprocess.STDOUT).decode("utf-8")
         if len(task) < 1:
-            err_cause = ("Malformed subcloud region")
+            err_cause = "Malformed subcloud region"
             return subcloud_region, err_cause
         subcloud_region = str(task.split("=")[1]).strip()
     except Exception as e:
@@ -733,15 +762,16 @@ def get_region_from_subcloud_address(payload):
         # process returns a non-zero return code.
         # We are printing the exception name to avoid any sensitive
         # connection data
-        err_cause = ("exception %s occurred" % type(e).__name__)
+        err_cause = "exception %s occurred" % type(e).__name__
         subcloud_region = None
 
-    system_regions = [dccommon_consts.DEFAULT_REGION_NAME,
-                      dccommon_consts.SYSTEM_CONTROLLER_NAME]
+    system_regions = [
+        dccommon_consts.DEFAULT_REGION_NAME,
+        dccommon_consts.SYSTEM_CONTROLLER_NAME,
+    ]
 
     if subcloud_region in system_regions:
-        err_cause = ("region %s is not valid for a subcloud" %
-                     subcloud_region)
+        err_cause = "region %s is not valid for a subcloud" % subcloud_region
         subcloud_region = None
 
     if err_cause:
@@ -757,20 +787,21 @@ def get_region_from_subcloud_address(payload):
     return (subcloud_region, err_cause)
 
 
-def get_region_name(endpoint,
-                    timeout=dccommon_consts.SYSINV_CLIENT_REST_DEFAULT_TIMEOUT):
-    url = endpoint + '/v1/isystems/region_id'
+def get_region_name(
+    endpoint, timeout=dccommon_consts.SYSINV_CLIENT_REST_DEFAULT_TIMEOUT
+):
+    url = endpoint + "/v1/isystems/region_id"
     response = requests.get(url, timeout=timeout)
 
     if response.status_code == 200:
         data = response.json()
-        if 'region_name' not in data:
+        if "region_name" not in data:
             raise exceptions.NotFound
 
-        region_name = data['region_name']
+        region_name = data["region_name"]
         return region_name
     else:
-        msg = f'GET region_name from {url} FAILED WITH RC {response.status_code}'
+        msg = f"GET region_name from {url} FAILED WITH RC {response.status_code}"
         LOG.error(msg)
         raise exceptions.ServiceUnavailable
 
@@ -793,32 +824,32 @@ def find_ansible_error_msg(subcloud_name, log_file, stage=None):
 
     error_found = False
     error_msg = []
-    failed_task = ''
+    failed_task = ""
 
-    cmd_1 = 'awk'
+    cmd_1 = "awk"
     # awk command to get the information iside the last match found
     # starting with 'fatal: [' and ending with 'PLAY RECAP'.
-    cmd_2 = ('''BEGIN {f=""}                # initialize f
+    cmd_2 = r"""BEGIN {f=""}                # initialize f
         /fatal: \[/ {f=""}                  # reset f on first match
         /fatal: \[/,/PLAY RECAP/ {          # capture text between two delimiters
             if ($0 ~ /PLAY RECAP/) next     # exclude last delimiter
             if ($0 == "") next              # exclude blank line
-            f = f ? (f "\\n" $0) : $0}      # assign or append to f
+            f = f ? (f "\n" $0) : $0}       # assign or append to f
             END {print f}
-            ''')
+            """
     try:
         # necessary check since is possible to have
         # the error in rotated ansible log
         files_for_search = add_latest_rotated_file(log_file)
 
         if len(files_for_search) < 2:
-            cmd_list = ([cmd_1, cmd_2, files_for_search[0]])
+            cmd_list = [cmd_1, cmd_2, files_for_search[0]]
         else:
-            cmd_list = ([cmd_1, cmd_2, files_for_search[0], files_for_search[1]])
+            cmd_list = [cmd_1, cmd_2, files_for_search[0], files_for_search[1]]
 
         error_msg_raw = subprocess.check_output(
-            cmd_list,
-            stderr=subprocess.STDOUT).decode('utf-8')
+            cmd_list, stderr=subprocess.STDOUT
+        ).decode("utf-8")
         if len(error_msg_raw) > 1:
             error_found = True
             error_msg = [elem for elem in error_msg_raw.split("\n") if elem]
@@ -828,24 +859,22 @@ def find_ansible_error_msg(subcloud_name, log_file, stage=None):
 
     if error_found and (len(error_msg) > MAX_LINES_MSG):
         error_msg = summarize_message(error_msg)
-    error_msg = '\n'.join(str(element) for element in error_msg)
-    error_msg = error_msg.replace("\'", "\"")
+    error_msg = "\n".join(str(element) for element in error_msg)
+    error_msg = error_msg.replace("'", '"')
 
     if error_found:
-        msg = "FAILED %s playbook of (%s).\n" \
-            " detail: %s \n" \
-            "FAILED TASK: %s " % (
-                stage,
-                subcloud_name,
-                error_msg,
-                failed_task)
+        msg = "FAILED %s playbook of (%s).\ndetail: %s \nFAILED TASK: %s" % (
+            stage,
+            subcloud_name,
+            error_msg,
+            failed_task,
+        )
     else:
-        msg = "FAILED %s playbook of (%s).\n" \
-            "check individual log at " \
-            "%s for detailed output " % (
-                stage,
-                subcloud_name,
-                log_file)
+        msg = (
+            "FAILED %s playbook of (%s).\ncheck individual log at "
+            "%s for detailed output"
+        ) % (stage, subcloud_name, log_file)
+
     return msg
 
 
@@ -867,7 +896,7 @@ def add_latest_rotated_file(log_file):
     log_files = []
 
     # the latest rotated log file
-    log_file_temp = log_file + '.1'
+    log_file_temp = log_file + ".1"
     if os.path.exists(log_file_temp):
         log_files.append(log_file_temp)
 
@@ -875,8 +904,9 @@ def add_latest_rotated_file(log_file):
         log_files.append(log_file)
 
     if len(log_files) == 0:
-        raise Exception("Log file %s and its latest rotated file don't exist."
-                        % log_file)
+        raise Exception(
+            "Log file %s and its latest rotated file don't exist." % log_file
+        )
 
     return log_files
 
@@ -889,36 +919,36 @@ def get_failed_task(files):
 
     Returns a string with the task and date
     """
-    cmd_1 = 'awk'
+    cmd_1 = "awk"
     # awk command to get the information about last failed task.
     # Match expression starting with 'TASK [' and ending with
     # 'fatal: ['
-    cmd_2 = ('''BEGIN {f=""}            # initialize f
+    cmd_2 = r"""BEGIN {f=""}            # initialize f
         /TASK \[/ {f=""}                # reset f on first match
         /TASK \[/,/fatal: \[/ {         # capture text between two delimiters
             if ($0 ~ /fatal: \[/) next  # exclude last delimiter
             if ($0 == "") next          # exclude blank line
-            f = f ? (f "\\n" $0) : $0}  # assign or append to f
+            f = f ? (f "\n" $0) : $0}  # assign or append to f
             END {print f}
-            ''')
+            """
     # necessary check since is possible to have
     # the error in rotated ansible log
     if len(files) < 2:
-        awk_cmd = ([cmd_1, cmd_2, files[0]])
+        awk_cmd = [cmd_1, cmd_2, files[0]]
     else:
-        awk_cmd = ([cmd_1, cmd_2, files[0], files[1]])
+        awk_cmd = [cmd_1, cmd_2, files[0], files[1]]
 
     try:
-        failed_task = subprocess.check_output(
-            awk_cmd,
-            stderr=subprocess.STDOUT).decode('utf-8')
+        failed_task = subprocess.check_output(awk_cmd, stderr=subprocess.STDOUT).decode(
+            "utf-8"
+        )
         if len(failed_task) < 1:
             return None
     except Exception as exc:
         LOG.error("Failed getting failed task :%s" % exc)
         return None
     failed_task = failed_task.replace("*", "")
-    failed_task = failed_task.replace("\'", "\"")
+    failed_task = failed_task.replace("'", '"')
     failed_task = [elem for elem in failed_task.split("\n") if elem]
     failed_task = "%s %s" % (failed_task[0], failed_task[1])
     return failed_task
@@ -933,7 +963,7 @@ def summarize_message(error_msg):
 
     Returns a brief message.
     """
-    list_of_strings_to_search_for = ['msg:', 'fail', 'error', 'cmd', 'stderr']
+    list_of_strings_to_search_for = ["msg:", "fail", "error", "cmd", "stderr"]
     brief_message = []
     for line in error_msg:
         for s in list_of_strings_to_search_for:
@@ -948,11 +978,11 @@ def summarize_message(error_msg):
 
 def is_valid_for_backup_operation(operation, subcloud, bootstrap_address_dict=None):
 
-    if operation == 'create':
+    if operation == "create":
         return _is_valid_for_backup_create(subcloud)
-    elif operation == 'delete':
+    elif operation == "delete":
         return _is_valid_for_backup_delete(subcloud)
-    elif operation == 'restore':
+    elif operation == "restore":
         return _is_valid_for_backup_restore(subcloud, bootstrap_address_dict)
     else:
         msg = "Invalid operation %s" % operation
@@ -961,23 +991,30 @@ def is_valid_for_backup_operation(operation, subcloud, bootstrap_address_dict=No
 
 
 def _is_valid_for_backup_create(subcloud):
-    if subcloud.availability_status != dccommon_consts.AVAILABILITY_ONLINE \
-            or subcloud.management_state != dccommon_consts.MANAGEMENT_MANAGED \
-            or subcloud.deploy_status != consts.DEPLOY_STATE_DONE \
-            or subcloud.prestage_status in consts.STATES_FOR_ONGOING_PRESTAGE:
-        msg = ('Subcloud %s must be deployed, online, managed, '
-               'and no ongoing prestage for the subcloud-backup '
-               'create operation.' % subcloud.name)
+    if (
+        subcloud.availability_status != dccommon_consts.AVAILABILITY_ONLINE
+        or subcloud.management_state != dccommon_consts.MANAGEMENT_MANAGED
+        or subcloud.deploy_status != consts.DEPLOY_STATE_DONE
+        or subcloud.prestage_status in consts.STATES_FOR_ONGOING_PRESTAGE
+    ):
+        msg = (
+            "Subcloud %s must be deployed, online, managed, and no ongoing prestage "
+            "for the subcloud-backup create operation." % subcloud.name
+        )
         raise exceptions.ValidateFail(msg)
 
     return True
 
 
 def _is_valid_for_backup_delete(subcloud):
-    if subcloud.availability_status != dccommon_consts.AVAILABILITY_ONLINE \
-            or subcloud.management_state != dccommon_consts.MANAGEMENT_MANAGED:
-        msg = ('Subcloud %s must be online and managed for the subcloud-backup'
-               ' delete operation with --local-only option.' % subcloud.name)
+    if (
+        subcloud.availability_status != dccommon_consts.AVAILABILITY_ONLINE
+        or subcloud.management_state != dccommon_consts.MANAGEMENT_MANAGED
+    ):
+        msg = (
+            "Subcloud %s must be online and managed for the subcloud-backup "
+            "delete operation with --local-only option." % subcloud.name
+        )
         raise exceptions.ValidateFail(msg)
 
     return True
@@ -987,26 +1024,36 @@ def _is_valid_for_backup_restore(subcloud, bootstrap_address_dict=None):
 
     msg = None
     ansible_subcloud_inventory_file = get_ansible_filename(
-        subcloud.name, consts.INVENTORY_FILE_POSTFIX)
-    has_bootstrap_address = (bootstrap_address_dict and
-                             subcloud.name in bootstrap_address_dict)
+        subcloud.name, consts.INVENTORY_FILE_POSTFIX
+    )
+    has_bootstrap_address = (
+        bootstrap_address_dict and subcloud.name in bootstrap_address_dict
+    )
     has_install_values = subcloud.data_install is not None
     has_inventory_file = os.path.exists(ansible_subcloud_inventory_file)
 
-    if subcloud.management_state != dccommon_consts.MANAGEMENT_UNMANAGED \
-            or subcloud.deploy_status in consts.INVALID_DEPLOY_STATES_FOR_RESTORE:
-        msg = ('Subcloud %s must be unmanaged and in a valid deploy state '
-               'for the subcloud-backup restore operation.' % subcloud.name)
+    if (
+        subcloud.management_state != dccommon_consts.MANAGEMENT_UNMANAGED
+        or subcloud.deploy_status in consts.INVALID_DEPLOY_STATES_FOR_RESTORE
+    ):
+        msg = (
+            "Subcloud %s must be unmanaged and in a valid deploy state "
+            "for the subcloud-backup restore operation." % subcloud.name
+        )
     elif not (has_bootstrap_address or has_install_values or has_inventory_file):
-        msg = ('Unable to obtain the subcloud %s bootstrap_address from either '
-               'restore or install values. Please ensure bootstrap_address is '
-               'specified in the restore-values.yml and try again.' % subcloud.name)
+        msg = (
+            "Unable to obtain the subcloud %s bootstrap_address from either "
+            "restore or install values. Please ensure bootstrap_address is "
+            "specified in the restore-values.yml and try again." % subcloud.name
+        )
     elif has_bootstrap_address:
         try:
             netaddr.IPAddress(bootstrap_address_dict[subcloud.name])
         except netaddr.AddrFormatError:
-            msg = (f'Subcloud {subcloud.name} must have a valid bootstrap address: '
-                   f'{bootstrap_address_dict[subcloud.name]}')
+            msg = (
+                f"Subcloud {subcloud.name} must have a valid bootstrap address: "
+                f"{bootstrap_address_dict[subcloud.name]}"
+            )
     if msg:
         raise exceptions.ValidateFail(msg)
 
@@ -1019,10 +1066,11 @@ def get_matching_iso(software_version=None):
             software_version = tsc.SW_VERSION
         matching_iso, _ = get_vault_load_files(software_version)
         if not matching_iso:
-            error_msg = ('Failed to get %s load image. Provide '
-                         'active/inactive load image via '
-                         '"system --os-region-name SystemController '
-                         'load-import --active/--inactive"' % software_version)
+            error_msg = (
+                "Failed to get %s load image. Provide active/inactive load image via "
+                "'system --os-region-name SystemController load-import "
+                "--active/--inactive'" % software_version
+            )
             LOG.exception(error_msg)
             return None, error_msg
         return matching_iso, None
@@ -1041,28 +1089,30 @@ def is_subcloud_healthy(subcloud_region):
             fetch_subcloud_ips=fetch_subcloud_mgmt_ips,
         )
         keystone_client = os_client.keystone_client
-        endpoint = keystone_client.endpoint_cache.get_endpoint('sysinv')
-        sysinv_client = SysinvClient(subcloud_region,
-                                     keystone_client.session,
-                                     endpoint=endpoint)
+        endpoint = keystone_client.endpoint_cache.get_endpoint("sysinv")
+        sysinv_client = SysinvClient(
+            subcloud_region, keystone_client.session, endpoint=endpoint
+        )
         system_health = sysinv_client.get_system_health()
     except Exception as e:
         LOG.exception(e)
         raise
 
-    fails = re.findall("\[Fail\]", system_health)
-    failed_alarm_check = re.findall("No alarms: \[Fail\]", system_health)
-    no_mgmt_alarms = re.findall("\[0\] of which are management affecting",
-                                system_health)
+    fails = re.findall(r"\[Fail\]", system_health)
+    failed_alarm_check = re.findall(r"No alarms: \[Fail\]", system_health)
+    no_mgmt_alarms = re.findall(
+        r"\[0\] of which are management affecting", system_health
+    )
 
     # Subcloud is considered healthy if there are no failures or
     # a single failure with only low severity alarms (not management affecting)
-    if ((len(fails) == 0) or
-            (len(fails) == 1 and failed_alarm_check and no_mgmt_alarms)):
+    if (len(fails) == 0) or (len(fails) == 1 and failed_alarm_check and no_mgmt_alarms):
         return True
 
-    LOG.error(f"Subcloud {subcloud_region} failed health check. Health output: "
-              f"\n{system_health}\n")
+    LOG.error(
+        f"Subcloud {subcloud_region} failed health check. Health output: "
+        f"\n{system_health}\n"
+    )
     return False
 
 
@@ -1076,20 +1126,27 @@ def get_systemcontroller_installed_releases():
         )
         ks_client = os_client.keystone_client
         software_client = software_v1.SoftwareClient(
-            dccommon_consts.DEFAULT_REGION_NAME, ks_client.session,
-            endpoint=ks_client.endpoint_cache.get_endpoint('usm'))
+            dccommon_consts.DEFAULT_REGION_NAME,
+            ks_client.session,
+            endpoint=ks_client.endpoint_cache.get_endpoint("usm"),
+        )
         releases = software_client.list()
 
-        return [release['sw_version'] for release in releases
-                if release['state'] == software_v1.DEPLOYED]
+        return [
+            release["sw_version"]
+            for release in releases
+            if release["state"] == software_v1.DEPLOYED
+        ]
 
     except requests.exceptions.ConnectionError:
-        LOG.exception("Failed to get software list for %s",
-                      dccommon_consts.DEFAULT_REGION_NAME)
+        LOG.exception(
+            "Failed to get software list for %s", dccommon_consts.DEFAULT_REGION_NAME
+        )
         raise
     except Exception:
-        LOG.exception("Failed to get keystone client for %s",
-                      dccommon_consts.DEFAULT_REGION_NAME)
+        LOG.exception(
+            "Failed to get keystone client for %s", dccommon_consts.DEFAULT_REGION_NAME
+        )
         raise
 
 
@@ -1108,26 +1165,30 @@ def get_certificate_from_secret(secret_name, secret_ns):
     kube = kubeoperator.KubeOperator()
     secret = kube.kube_get_secret(secret_name, secret_ns)
 
-    if not hasattr(secret, 'data'):
-        raise Exception('Invalid secret %s\\%s' % (secret_ns, secret_name))
+    if not hasattr(secret, "data"):
+        raise Exception("Invalid secret %s\\%s" % (secret_ns, secret_name))
 
     data = secret.data
-    if 'tls.crt' not in data or 'tls.key' not in data:
-        raise Exception('Invalid certificate data from secret %s\\%s' %
-                        (secret_ns, secret_name))
+    if "tls.crt" not in data or "tls.key" not in data:
+        raise Exception(
+            "Invalid certificate data from secret %s\\%s" % (secret_ns, secret_name)
+        )
 
     try:
-        tls_crt = base64.decode_as_text(data['tls.crt'])
-        tls_key = base64.decode_as_text(data['tls.key'])
-        if 'ca.crt' in data:
-            ca_crt = base64.decode_as_text(data['ca.crt'])
+        tls_crt = base64.decode_as_text(data["tls.crt"])
+        tls_key = base64.decode_as_text(data["tls.key"])
+        if "ca.crt" in data:
+            ca_crt = base64.decode_as_text(data["ca.crt"])
         else:
-            LOG.warning("Secret doesn't have required CA data stored:  %s\\%s" %
-                        (secret_ns, secret_name))
-            ca_crt = ''
+            LOG.warning(
+                "Secret doesn't have required CA data stored:  %s\\%s"
+                % (secret_ns, secret_name)
+            )
+            ca_crt = ""
     except TypeError:
-        raise Exception('Certificate secret data is invalid %s\\%s' %
-                        (secret_ns, secret_name))
+        raise Exception(
+            "Certificate secret data is invalid %s\\%s" % (secret_ns, secret_name)
+        )
 
     return tls_crt, tls_key, ca_crt
 
@@ -1141,9 +1202,9 @@ def get_management_subnet(payload):
 
     Returns the management subnet.
     """
-    if payload.get('admin_subnet', None):
-        return payload.get('admin_subnet')
-    return payload.get('management_subnet', '')
+    if payload.get("admin_subnet", None):
+        return payload.get("admin_subnet")
+    return payload.get("management_subnet", "")
 
 
 def get_management_start_address(payload):
@@ -1155,9 +1216,9 @@ def get_management_start_address(payload):
 
     Returns the management start address.
     """
-    if payload.get('admin_start_address', None):
-        return payload.get('admin_start_address')
-    return payload.get('management_start_address', '')
+    if payload.get("admin_start_address", None):
+        return payload.get("admin_start_address")
+    return payload.get("management_start_address", "")
 
 
 def get_management_end_address(payload):
@@ -1169,9 +1230,9 @@ def get_management_end_address(payload):
 
     Returns the management end address.
     """
-    if payload.get('admin_end_address', None):
-        return payload.get('admin_end_address')
-    return payload.get('management_end_address', '')
+    if payload.get("admin_end_address", None):
+        return payload.get("admin_end_address")
+    return payload.get("management_end_address", "")
 
 
 def get_management_gateway_address(payload):
@@ -1183,9 +1244,9 @@ def get_management_gateway_address(payload):
 
     Returns the management gateway address.
     """
-    if payload.get('admin_gateway_address', None):
-        return payload.get('admin_gateway_address')
-    return payload.get('management_gateway_address', '')
+    if payload.get("admin_gateway_address", None):
+        return payload.get("admin_gateway_address")
+    return payload.get("management_gateway_address", "")
 
 
 def has_network_reconfig(payload, subcloud):
@@ -1200,13 +1261,15 @@ def has_network_reconfig(payload, subcloud):
     gateway_address = get_management_gateway_address(payload)
     sys_controller_gw_ip = payload.get("systemcontroller_gateway_address")
 
-    has_network_reconfig = any([
-        management_subnet != subcloud.management_subnet,
-        start_address != subcloud.management_start_ip,
-        end_address != subcloud.management_end_ip,
-        gateway_address != subcloud.management_gateway_ip,
-        sys_controller_gw_ip != subcloud.systemcontroller_gateway_ip
-    ])
+    has_network_reconfig = any(
+        [
+            management_subnet != subcloud.management_subnet,
+            start_address != subcloud.management_start_ip,
+            end_address != subcloud.management_end_ip,
+            gateway_address != subcloud.management_gateway_ip,
+            sys_controller_gw_ip != subcloud.systemcontroller_gateway_ip,
+        ]
+    )
 
     return has_network_reconfig
 
@@ -1214,20 +1277,23 @@ def has_network_reconfig(payload, subcloud):
 def set_open_file_limit(new_soft_limit: int):
     """Adjust the maximum number of open files for this process (soft limit)"""
     try:
-        current_soft, current_hard = sys_resource.getrlimit(
-            sys_resource.RLIMIT_NOFILE)
+        current_soft, current_hard = sys_resource.getrlimit(sys_resource.RLIMIT_NOFILE)
         if new_soft_limit > current_hard:
-            LOG.error(f'New process open file soft limit [{new_soft_limit}] '
-                      f'exceeds the hard limit [{current_hard}]. Setting to '
-                      'hard limit instead.')
+            LOG.error(
+                f"New process open file soft limit [{new_soft_limit}] exceeds the "
+                f"hard limit [{current_hard}]. Setting to hard limit instead."
+            )
             new_soft_limit = current_hard
         if new_soft_limit != current_soft:
-            LOG.info(f'Setting process open file limit to {new_soft_limit} '
-                     f'(from {current_soft})')
-            sys_resource.setrlimit(sys_resource.RLIMIT_NOFILE,
-                                   (new_soft_limit, current_hard))
+            LOG.info(
+                f"Setting process open file limit to {new_soft_limit} "
+                f"(from {current_soft})"
+            )
+            sys_resource.setrlimit(
+                sys_resource.RLIMIT_NOFILE, (new_soft_limit, current_hard)
+            )
     except Exception as ex:
-        LOG.exception(f'Failed to set NOFILE resource limit: {ex}')
+        LOG.exception(f"Failed to set NOFILE resource limit: {ex}")
 
 
 def get_playbook_for_software_version(playbook_filename, software_version=None):
@@ -1243,10 +1309,11 @@ def get_playbook_for_software_version(playbook_filename, software_version=None):
     """
     if software_version and software_version != tsc.SW_VERSION:
         software_version_path = os.path.join(
-            consts.ANSIBLE_PREVIOUS_VERSION_BASE_PATH, software_version)
+            consts.ANSIBLE_PREVIOUS_VERSION_BASE_PATH, software_version
+        )
         playbook_filename = playbook_filename.replace(
-            consts.ANSIBLE_CURRENT_VERSION_BASE_PATH,
-            software_version_path)
+            consts.ANSIBLE_CURRENT_VERSION_BASE_PATH, software_version_path
+        )
     if not os.path.isfile(playbook_filename):
         raise exceptions.PlaybookNotFound(playbook_name=playbook_filename)
     return playbook_filename
@@ -1262,15 +1329,14 @@ def get_value_from_yaml_file(filename, key):
     """
     value = None
     if os.path.isfile(filename):
-        with open(os.path.abspath(filename), 'r') as f:
+        with open(os.path.abspath(filename), "r") as f:
             data = f.read()
         data = yaml.load(data, Loader=yaml.SafeLoader)
         value = data.get(key)
     return value
 
 
-def update_values_on_yaml_file(filename, values, values_to_keep=None,
-                               yaml_dump=True):
+def update_values_on_yaml_file(filename, values, values_to_keep=None, yaml_dump=True):
     """Update all specified key values from the given yaml file.
 
     If values_to_keep is provided, all values other than specified
@@ -1288,7 +1354,7 @@ def update_values_on_yaml_file(filename, values, values_to_keep=None,
     update_file = False
     if not os.path.isfile(filename):
         return False
-    with open(os.path.abspath(filename), 'r') as f:
+    with open(os.path.abspath(filename), "r") as f:
         data = f.read()
     data = yaml.load(data, Loader=yaml.SafeLoader)
     if values_to_keep:
@@ -1301,18 +1367,18 @@ def update_values_on_yaml_file(filename, values, values_to_keep=None,
             data.update({key: value})
             update_file = True
     if update_file:
-        with open(os.path.abspath(filename), 'w') as f:
+        with open(os.path.abspath(filename), "w") as f:
             if yaml_dump:
                 yaml.dump(data, f, sort_keys=False)
             else:
-                f.write('---\n')
+                f.write("---\n")
                 for k, v in data.items():
                     f.write("%s: %s\n" % (k, json.dumps(v)))
     return True
 
 
 def load_yaml_file(filename: str):
-    with open(os.path.abspath(filename), 'r') as f:
+    with open(os.path.abspath(filename), "r") as f:
         data = yaml.load(f, Loader=yaml.loader.SafeLoader)
     return data
 
@@ -1332,16 +1398,17 @@ def update_install_values_with_new_bootstrap_address(context, payload, subcloud)
         return
     bootstrap_address = payload.get(consts.BOOTSTRAP_ADDRESS)
     install_values = json.loads(subcloud.data_install)
-    if (bootstrap_address and
-            bootstrap_address != install_values.get('bootstrap_address')):
-        install_values['bootstrap_address'] = bootstrap_address
+    if bootstrap_address and bootstrap_address != install_values.get(
+        "bootstrap_address"
+    ):
+        install_values["bootstrap_address"] = bootstrap_address
         db_api.subcloud_update(
-            context, subcloud.id,
-            data_install=json.dumps(install_values))
+            context, subcloud.id, data_install=json.dumps(install_values)
+        )
 
 
 def decode_and_normalize_passwd(input_passwd):
-    pattern = r'^[' + string.punctuation + ']'
+    pattern = r"^[" + string.punctuation + "]"
     passwd = base64.decode_as_text(input_passwd)
     # Ensure that sysadmin password which starts with a special
     # character will be enclosed in quotes so that the generated
@@ -1362,10 +1429,10 @@ def get_failure_msg(subcloud_region):
             fetch_subcloud_ips=fetch_subcloud_mgmt_ips,
         )
         keystone_client = os_client.keystone_client
-        endpoint = keystone_client.endpoint_cache.get_endpoint('sysinv')
-        sysinv_client = SysinvClient(subcloud_region,
-                                     keystone_client.session,
-                                     endpoint=endpoint)
+        endpoint = keystone_client.endpoint_cache.get_endpoint("sysinv")
+        sysinv_client = SysinvClient(
+            subcloud_region, keystone_client.session, endpoint=endpoint
+        )
         msg = sysinv_client.get_error_msg()
         return msg
     except Exception as e:
@@ -1386,21 +1453,24 @@ def update_abort_status(context, subcloud_id, deploy_status, abort_failed=False)
     else:
         abort_status_dict = ABORT_UPDATE_STATUS
     new_deploy_status = abort_status_dict[deploy_status]
-    updated_subcloud = db_api.subcloud_update(context, subcloud_id,
-                                              deploy_status=new_deploy_status)
+    updated_subcloud = db_api.subcloud_update(
+        context, subcloud_id, deploy_status=new_deploy_status
+    )
     return updated_subcloud
 
 
 def subcloud_is_secondary_state(deploy_state):
-    if deploy_state in [consts.DEPLOY_STATE_SECONDARY,
-                        consts.DEPLOY_STATE_SECONDARY_FAILED]:
+    if deploy_state in [
+        consts.DEPLOY_STATE_SECONDARY,
+        consts.DEPLOY_STATE_SECONDARY_FAILED,
+    ]:
         return True
     return False
 
 
 def create_subcloud_rehome_data_template():
     """Create a subcloud rehome data template"""
-    return {'saved_payload': {}}
+    return {"saved_payload": {}}
 
 
 def get_sw_version(release=None, for_install=True):
@@ -1419,11 +1489,9 @@ def get_sw_version(release=None, for_install=True):
                 validate_minor_release_version_exists(release)
             return release
         except exceptions.ValidateFail as e:
-            pecan.abort(400,
-                        _("Error: invalid release version parameter. %s" % e))
+            pecan.abort(400, _("Error: invalid release version parameter. %s" % e))
         except Exception:
-            pecan.abort(500,
-                        _('Error: unable to validate the release version.'))
+            pecan.abort(500, _("Error: unable to validate the release version."))
     else:
         return tsc.SW_VERSION
 
@@ -1445,8 +1513,10 @@ def validate_major_release_version_supported(release_version_to_check):
     supported_versions = get_current_supported_upgrade_versions()
 
     if release_version_to_check not in supported_versions:
-        msg = "%s is not a supported release version (%s)" % \
-            (release_version_to_check, ",".join(supported_versions))
+        msg = "%s is not a supported release version (%s)" % (
+            release_version_to_check,
+            ",".join(supported_versions),
+        )
         raise exceptions.ValidateFail(msg)
 
     return True
@@ -1457,11 +1527,11 @@ def is_major_release(version):
 
 
 def is_minor_release(version):
-    split_version = version.split('.')
+    split_version = version.split(".")
     if len(split_version) == 2:
         return False
     if len(split_version) == 3:
-        if split_version[2] == '0':
+        if split_version[2] == "0":
             return False
         return True
     LOG.error(f"Unexpected release version found: {version}, assuming major release")
@@ -1470,8 +1540,8 @@ def is_minor_release(version):
 
 def get_major_release(version):
     """Returns the YY.MM portion of the given version string"""
-    split_version = version.split('.')
-    return '.'.join(split_version[0:2])
+    split_version = version.split(".")
+    return ".".join(split_version[0:2])
 
 
 def validate_minor_release_version_exists(release_version_to_check):
@@ -1499,7 +1569,7 @@ def get_current_supported_upgrade_versions():
         LOG.exception("Error reading the supported upgrades metadata file")
         raise exceptions.InternalError()
 
-    supported_upgrades = root.find('supported_upgrades')
+    supported_upgrades = root.find("supported_upgrades")
 
     if not supported_upgrades:
         LOG.error("Missing supported upgrades information")
@@ -1547,7 +1617,7 @@ def yaml_safe_load(contents, content_type):
             msg = msg.format("empty file provided")
     except yaml.YAMLError as e:
         error = True
-        if hasattr(e, 'problem_mark'):
+        if hasattr(e, "problem_mark"):
             mark = e.problem_mark
             msg = msg.format("problem on line: " + str(mark.line))
         else:
@@ -1573,9 +1643,13 @@ def is_req_from_another_dc(request):
         return False
 
 
-def validate_name(name, prohibited_name_list=[],
-                  invalid_chars=".*+?|()[]{}^$", max_length=255,
-                  case_sensitive=False):
+def validate_name(
+    name,
+    prohibited_name_list=[],
+    invalid_chars=".*+?|()[]{}^$",
+    max_length=255,
+    case_sensitive=False,
+):
     """validate name string.
 
     :param name: name string
@@ -1596,8 +1670,10 @@ def validate_name(name, prohibited_name_list=[],
         return False
     for char in name:
         if char in special_chars:
-            LOG.warning("Invalid name, Prohibited to use regular "
-                        "expression characters: %s" % name)
+            LOG.warning(
+                "Invalid name, Prohibited to use regular expression characters: %s"
+                % name
+            )
             return False
 
     normalized_name = name if case_sensitive else name.lower()
@@ -1618,10 +1694,10 @@ def get_local_system():
         region_clients=None,
         fetch_subcloud_ips=fetch_subcloud_mgmt_ips,
     ).keystone_client
-    endpoint = m_ks_client.endpoint_cache.get_endpoint('sysinv')
-    sysinv_client = SysinvClient(dccommon_consts.DEFAULT_REGION_NAME,
-                                 m_ks_client.session,
-                                 endpoint=endpoint)
+    endpoint = m_ks_client.endpoint_cache.get_endpoint("sysinv")
+    sysinv_client = SysinvClient(
+        dccommon_consts.DEFAULT_REGION_NAME, m_ks_client.session, endpoint=endpoint
+    )
     system = sysinv_client.get_system()
     return system
 
@@ -1637,37 +1713,39 @@ def get_msg_output_info(log_file, target_task, target_str):
 
     # awk command to get the last occurrence string after 'msg: {target_str}'
     # between 'TASK \[{target_task}' and 'PLAY RECAP' delimiters.
-    awk_script = f'''
+    awk_script = rf"""
     /TASK \[{target_task}/,/PLAY RECAP/ {{
-        if ($0 ~ /msg: \'{target_str}(.+)\'/) {{
+        if ($0 ~ /msg: '{target_str}(.+)'/) {{
             result = $0
         }}
     }}
     END {{
         if (result) {{
-            match(result, /msg: \'{target_str}(.+)\'/, arr)
+            match(result, /msg: '{target_str}(.+)'/, arr)
             print arr[1]
         }}
     }}
-    '''
+    """
     try:
         # necessary check since is possible to have
         # the message in rotated ansible log
         files_for_search = add_latest_rotated_file(log_file)
-        awk_cmd = ['awk', awk_script] + files_for_search
+        awk_cmd = ["awk", awk_script] + files_for_search
         # Run the AWK script using subprocess
-        result = subprocess.run(
-            awk_cmd, capture_output=True, text=True, check=True)
+        result = subprocess.run(awk_cmd, capture_output=True, text=True, check=True)
         return result.stdout.strip()
     except Exception as e:
-        LOG.error("Failed getting msg output by searching '%s' "
-                  "from task '%s': %s" % (target_str, target_task, e))
+        LOG.error(
+            "Failed getting msg output by searching '%s' from task '%s': %s"
+            % (target_str, target_task, e)
+        )
         return None
 
 
 def get_subcloud_ansible_log_file(subcloud_name):
-    return os.path.join(consts.DC_ANSIBLE_LOG_DIR,
-                        subcloud_name + '_playbook_output.log')
+    return os.path.join(
+        consts.DC_ANSIBLE_LOG_DIR, subcloud_name + "_playbook_output.log"
+    )
 
 
 def is_leader_on_local_site(peer_group):
@@ -1677,12 +1755,15 @@ def is_leader_on_local_site(peer_group):
 def generate_sync_info_message(association_ids):
     info_message = None
     if association_ids:
-        info_message = ("The operation has caused the SPG to be out-of-sync. "
-                        "Please run peer-group-association sync command to push "
-                        "the subcloud peer group changes to the peer site:\n")
+        info_message = (
+            "The operation has caused the SPG to be out-of-sync. "
+            "Please run peer-group-association sync command to push "
+            "the subcloud peer group changes to the peer site:\n"
+        )
         for association_id in association_ids:
-            info_message += (f"$ dcmanager peer-group-association"
-                             f" sync {association_id}\n")
+            info_message += (
+                f"$ dcmanager peer-group-association sync {association_id}\n"
+            )
     return info_message
 
 

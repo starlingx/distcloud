@@ -845,7 +845,7 @@ class TestSubcloudManager(BaseTestSubcloudManager):
         self.mock_log.error.assert_called_once_with(
             'FAILED reconfiguring-network playbook of (subcloud1).'
             '\ncheck individual log at /var/log/dcmanager/ansible'
-            '/subcloud1_playbook_output.log for detailed output ')
+            '/subcloud1_playbook_output.log for detailed output')
         updated_subcloud = db_api.subcloud_get_by_name(self.ctx, self.subcloud.name)
         self.assertEqual(consts.DEPLOY_STATE_RECONFIGURING_NETWORK_FAILED,
                          updated_subcloud.deploy_status)
@@ -1141,9 +1141,9 @@ class TestSubcloudDeploy(BaseTestSubcloudManager):
         # Verify the subcloud rehomed flag is False after bootstrapped
         self.assertFalse(updated_subcloud.rehomed)
         self.mock_log.error.assert_called_once_with(
-            'FAILED bootstrapping playbook of (fake subcloud1).\ncheck'
-            ' individual log at /var/log/dcmanager/ansible/fake'
-            ' subcloud1_playbook_output.log for detailed output ')
+            'FAILED bootstrapping playbook of (fake subcloud1).\n'
+            'check individual log at /var/log/dcmanager/ansible/fake '
+            'subcloud1_playbook_output.log for detailed output')
 
     @mock.patch.object(subcloud_manager.SubcloudManager,
                        '_deploy_bootstrap_prep')
@@ -1417,9 +1417,8 @@ class TestSubcloudDeploy(BaseTestSubcloudManager):
         self.mock_log.error.assert_called_once_with(
             'Enroll failed for subcloud fake subcloud1: '
             'FAILED enrolling playbook of (fake subcloud1).'
-            '\ncheck individual log at '
-            '/var/log/dcmanager/ansible/fake '
-            'subcloud1_playbook_output.log for detailed output ')
+            '\ncheck individual log at /var/log/dcmanager/ansible/fake '
+            'subcloud1_playbook_output.log for detailed output')
 
 
 class TestSubcloudAdd(BaseTestSubcloudManager):
@@ -3059,8 +3058,8 @@ class TestSubcloudBackup(BaseTestSubcloudManager):
                          updated_subcloud.backup_status)
         self.mock_log.error.assert_called_once_with(
             f'FAILED backing-up playbook of ({self.subcloud.name}).'
-            '\ncheck individual log at subcloud1_fake_file.yml_playbook_output.log'
-            ' for detailed output ')
+            '\ncheck individual log at subcloud1_fake_file.yml_playbook_output.log '
+            'for detailed output')
 
     def test_backup_create_managed_online_backup_state_in_progess(self):
         self.backup_values['local_only'] = False
@@ -3362,13 +3361,13 @@ class TestSubcloudBackup(BaseTestSubcloudManager):
         )
         Calls = [
             mock.call(
-                'Failed to delete backup for subcloud subcloud1, check individual'
-                ' log at /var/log/dcmanager/ansible/subcloud1_playbook_output.log'
-                ' for detailed output.'),
+                'Failed to delete backup for subcloud subcloud1, check individual '
+                'log at /var/log/dcmanager/ansible/subcloud1_playbook_output.log '
+                'for detailed output.'),
             mock.call(
-                'FAILED failed playbook of (subcloud1).\ncheck individual'
-                ' log at /var/log/dcmanager/ansible/subcloud1_playbook_output.log'
-                ' for detailed output ')]
+                'FAILED failed playbook of (subcloud1).\ncheck individual '
+                'log at /var/log/dcmanager/ansible/subcloud1_playbook_output.log '
+                'for detailed output')]
         self.mock_log.error.assert_has_calls(Calls)
         mock_create_backup_overrides_file.assert_called_once()
         mock_compose_backup_delete_command.assert_called_once()

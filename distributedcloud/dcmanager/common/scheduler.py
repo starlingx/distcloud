@@ -1,4 +1,4 @@
-# Copyright (c) 2017-2021 Wind River Systems, Inc.
+# Copyright (c) 2017-2021, 2024 Wind River Systems, Inc.
 # Licensed under the Apache License, Version 2.0 (the "License"); you may
 # not use this file except in compliance with the License. You may obtain
 # a copy of the License at
@@ -75,8 +75,7 @@ def reschedule(action, sleep_time=1):
     """
 
     if sleep_time is not None:
-        LOG.debug('Action %s sleep for %s seconds' % (
-            action.id, sleep_time))
+        LOG.debug("Action %s sleep for %s seconds" % (action.id, sleep_time))
         eventlet.sleep(sleep_time)
 
 
