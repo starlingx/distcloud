@@ -339,7 +339,7 @@ class SwUpdateManager(manager.Manager):
         cloud_name = payload.get('cloud_name')
         strategy_type = payload.get('type')
         prestage_global_validated = False
-        if cloud_name and cloud_name != dccommon_consts.SYSTEM_CONTROLLER_NAME:
+        if cloud_name:
             # Make sure subcloud exists
             try:
                 subcloud = db_api.subcloud_get_by_name(context, cloud_name)
@@ -354,7 +354,9 @@ class SwUpdateManager(manager.Manager):
                 try:
                     prestage.global_prestage_validate(payload)
                     prestage_global_validated = True
-                    installed_releases = utils.get_systemcontroller_installed_releases()
+                    installed_releases = (
+                        utils.get_systemcontroller_installed_releases()
+                    )
                     prestage.initial_subcloud_validate(
                         subcloud,
                         installed_releases,
@@ -396,114 +398,56 @@ class SwUpdateManager(manager.Manager):
         # Don't create a strategy if any of the subclouds is online and the
         # relevant sync status is unknown. Offline subcloud is skipped unless
         # --force option is specified and strategy type is sw-deploy.
-        if single_group:
-            subclouds = []
-            for sb in db_api.subcloud_get_for_group(context, single_group.id):
-                statuses = db_api.subcloud_status_get_all(context, sb.id)
-                for status in statuses:
-                    subclouds.append((sb, status.endpoint_type, status.sync_status))
+
+        # When the count is greater than 0, that means there are invalid subclouds
+        # and the execution should abort.
+        # Force is only sent when it's true and the strategy is sw-deploy.
+        if strategy_type == consts.SW_UPDATE_TYPE_PRESTAGE:
+            subclouds = list()
+
+            # If a subcloud is specified with cloud_name and its name is not the
+            # same as the system controller's, the subcloud variable is filled with
+            # its object.
+            if cloud_name:
+                subclouds.append(subcloud)
+            elif subcloud_group:
+                subclouds = db_api.subcloud_get_all_by_group_id(
+                    context, single_group.id
+                )
+            else:
+                subclouds = db_api.subcloud_get_all(context)
+
+            for subcloud in subclouds:
+                # Do initial validation for subcloud
+                try:
+                    prestage.initial_subcloud_validate(
+                        subcloud,
+                        installed_releases,
+                        software_major_release,
+                        for_sw_deploy,
+                    )
+                except exceptions.PrestagePreCheckFailedException:
+                    LOG.warn(
+                        f"Excluding subcloud from prestage strategy: {subcloud.name}"
+                    )
         else:
-            subclouds = db_api.subcloud_get_all_with_status(context)
-
-        subclouds_processed = list()
-        for subcloud, endpoint_type, sync_status in subclouds:
-            if (
-                cloud_name
-                and subcloud.name != cloud_name
-                or subcloud.management_state != dccommon_consts.MANAGEMENT_MANAGED
-            ):
-                # We are not updating this subcloud
-                continue
-
-            if strategy_type == consts.SW_UPDATE_TYPE_SOFTWARE:
-                if (
-                    subcloud.availability_status !=
-                    dccommon_consts.AVAILABILITY_ONLINE
-                ):
-                    if not force:
-                        continue
-                if (
-                    endpoint_type == dccommon_consts.ENDPOINT_TYPE_SOFTWARE
-                    and sync_status == dccommon_consts.SYNC_STATUS_UNKNOWN
-                ):
-                    raise exceptions.BadRequest(
-                        resource="strategy",
-                        msg="Software sync status is unknown for one or more subclouds",
+            count_invalid_subclouds = (
+                db_api.subcloud_count_invalid_for_strategy_type(
+                    context,
+                    self.strategy_validators[strategy_type].endpoint_type,
+                    single_group.id if subcloud_group else None,
+                    cloud_name,
+                    force and strategy_type == consts.SW_UPDATE_TYPE_SOFTWARE
+                )
+            )
+            if count_invalid_subclouds > 0:
+                raise exceptions.BadRequest(
+                    resource="strategy",
+                    msg=(
+                        f"{self.strategy_validators[strategy_type].endpoint_type} "
+                        "sync status is unknown for one or more subclouds"
                     )
-            elif strategy_type == consts.SW_UPDATE_TYPE_PATCH:
-                if (
-                    subcloud.availability_status !=
-                    dccommon_consts.AVAILABILITY_ONLINE
-                ):
-                    continue
-                elif (
-                    endpoint_type == dccommon_consts.ENDPOINT_TYPE_PATCHING
-                    and sync_status == dccommon_consts.SYNC_STATUS_UNKNOWN
-                ):
-                    raise exceptions.BadRequest(
-                        resource="strategy",
-                        msg="Patching sync status is unknown for one or more subclouds",
-                    )
-            elif strategy_type == consts.SW_UPDATE_TYPE_FIRMWARE:
-                if (
-                    subcloud.availability_status !=
-                    dccommon_consts.AVAILABILITY_ONLINE
-                ):
-                    continue
-                elif (
-                    endpoint_type == dccommon_consts.ENDPOINT_TYPE_FIRMWARE
-                    and sync_status == dccommon_consts.SYNC_STATUS_UNKNOWN
-                ):
-                    raise exceptions.BadRequest(
-                        resource="strategy",
-                        msg="Firmware sync status is unknown for one or more "
-                        "subclouds",
-                    )
-            elif strategy_type == consts.SW_UPDATE_TYPE_KUBERNETES:
-                if (
-                    subcloud.availability_status !=
-                    dccommon_consts.AVAILABILITY_ONLINE
-                ):
-                    continue
-                elif (
-                    endpoint_type == dccommon_consts.ENDPOINT_TYPE_KUBERNETES
-                    and sync_status == dccommon_consts.SYNC_STATUS_UNKNOWN
-                ):
-                    raise exceptions.BadRequest(
-                        resource="strategy",
-                        msg="Kubernetes sync status is unknown for one or more "
-                        "subclouds",
-                    )
-            elif strategy_type == consts.SW_UPDATE_TYPE_KUBE_ROOTCA_UPDATE:
-                if (
-                    subcloud.availability_status !=
-                    dccommon_consts.AVAILABILITY_ONLINE
-                ):
-                    continue
-                elif (
-                    endpoint_type == dccommon_consts.ENDPOINT_TYPE_KUBE_ROOTCA
-                    and sync_status == dccommon_consts.SYNC_STATUS_UNKNOWN
-                ):
-                    raise exceptions.BadRequest(
-                        resource="strategy",
-                        msg="Kube rootca update sync status is unknown for "
-                        "one or more subclouds",
-                    )
-            elif strategy_type == consts.SW_UPDATE_TYPE_PRESTAGE:
-                if subcloud.name not in subclouds_processed:
-                    # Do initial validation for subcloud
-                    try:
-                        prestage.initial_subcloud_validate(
-                            subcloud,
-                            installed_releases,
-                            software_major_release,
-                            for_sw_deploy,
-                        )
-                    except exceptions.PrestagePreCheckFailedException:
-                        LOG.warn("Excluding subcloud from prestage strategy: %s",
-                                 subcloud.name)
-                        continue
-            subclouds_processed.append(subcloud.name)
+                )
 
         # handle extra_args processing such as staging to the vault
         self._process_extra_args_creation(strategy_type, extra_args)
@@ -513,7 +457,8 @@ class SwUpdateManager(manager.Manager):
 
         if max_parallel_subclouds is None:
             max_parallel_subclouds = (
-                consts.DEFAULT_SUBCLOUD_GROUP_MAX_PARALLEL_SUBCLOUDS)
+                consts.DEFAULT_SUBCLOUD_GROUP_MAX_PARALLEL_SUBCLOUDS
+            )
 
         strategy_step_created = False
         # Create the strategy
@@ -524,7 +469,8 @@ class SwUpdateManager(manager.Manager):
             max_parallel_subclouds,
             stop_on_failure,
             consts.SW_UPDATE_STATE_INITIAL,
-            extra_args=extra_args)
+            extra_args=extra_args,
+        )
 
         # Create a strategy step for each subcloud that is managed, online and
         # out of sync

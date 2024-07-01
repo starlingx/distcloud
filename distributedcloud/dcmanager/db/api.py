@@ -182,6 +182,11 @@ def subcloud_get_all(context):
     return IMPL.subcloud_get_all(context)
 
 
+def subcloud_get_all_by_group_id(context, group_id):
+    """Retrieve all subclouds that belong to the specified group id"""
+    return IMPL.subcloud_get_all_by_group_id(context, group_id)
+
+
 def subcloud_get_all_ordered_by_id(context):
     """Retrieve all subclouds ordered by id."""
     return IMPL.subcloud_get_all_ordered_by_id(context)
@@ -190,6 +195,15 @@ def subcloud_get_all_ordered_by_id(context):
 def subcloud_get_all_with_status(context):
     """Retrieve all subclouds and sync statuses."""
     return IMPL.subcloud_get_all_with_status(context)
+
+
+def subcloud_count_invalid_for_strategy_type(
+    context, endpoint_type, group_id=None, subcloud_name=None, force=False
+):
+    """Queries the count of invalid subclouds for a strategy's creation"""
+    return IMPL.subcloud_count_invalid_for_strategy_type(
+        context, endpoint_type, group_id, subcloud_name, force
+    )
 
 
 def subcloud_update(
