@@ -21,10 +21,13 @@ from oslo_config import cfg
 from oslo_log import log as logging
 
 from dccommon import consts as dccommon_consts
+from dccommon.drivers.openstack.dcagent_v1 import DcagentClient
 from dccommon.drivers.openstack.fm import FmClient
 from dccommon.drivers.openstack.sdk_platform import OpenStackDriver
 from dccommon.drivers.openstack.sysinv_v1 import SysinvClient
 from dccommon import endpoint_cache
+from dccommon.utils import log_subcloud_msg
+from dccommon.utils import subcloud_has_dcagent
 from dcmanager.audit import alarm_aggregation
 from dcmanager.audit import base_audit
 from dcmanager.audit import firmware_audit
@@ -269,6 +272,38 @@ class SubcloudAuditWorkerManager(manager.Manager):
             and first_identity_sync_complete
         )
 
+    def _build_dcagent_payload(
+        self,
+        subcloud_management_state,
+        subcloud_avail_status,
+        first_identity_sync_complete,
+        firmware_audit_data,
+        kubernetes_audit_data,
+        kube_rootca_update_audit_data,
+        software_audit_data,
+        do_firmware_audit,
+        do_kubernetes_audit,
+        do_kube_rootca_update_audit,
+        do_software_audit,
+    ):
+        audit_payload = {dccommon_consts.BASE_AUDIT: ""}
+        if self._should_perform_additional_audit(
+            subcloud_management_state,
+            subcloud_avail_status,
+            first_identity_sync_complete,
+        ):
+            if do_firmware_audit and firmware_audit_data:
+                audit_payload[dccommon_consts.FIRMWARE_AUDIT] = firmware_audit_data
+            if do_kubernetes_audit and kubernetes_audit_data:
+                audit_payload[dccommon_consts.KUBERNETES_AUDIT] = kubernetes_audit_data
+            if do_kube_rootca_update_audit and kube_rootca_update_audit_data:
+                audit_payload[dccommon_consts.KUBE_ROOTCA_AUDIT] = (
+                    kube_rootca_update_audit_data
+                )
+            if do_software_audit and software_audit_data:
+                audit_payload[dccommon_consts.SOFTWARE_AUDIT] = software_audit_data
+        return audit_payload
+
     def _audit_subcloud(
         self,
         subcloud: models.Subcloud,
@@ -297,14 +332,17 @@ class SubcloudAuditWorkerManager(manager.Manager):
         failures = list()
         availability_data = dict()
         endpoint_data = dict()
+        has_dcagent = subcloud_has_dcagent(subcloud.software_version)
 
         # Set defaults to None and disabled so we will still set disabled
         # status if we encounter an error.
 
         keystone_client = None
+        dcagent_client = None
         sysinv_client = None
         fm_client = None
         avail_to_set = dccommon_consts.AVAILABILITY_OFFLINE
+        failmsg = "Audit failure subcloud: %s, endpoint: %s"
         try:
             keystone_client = OpenStackDriver(
                 region_name=subcloud_region,
@@ -312,6 +350,14 @@ class SubcloudAuditWorkerManager(manager.Manager):
                 fetch_subcloud_ips=utils.fetch_subcloud_mgmt_ips
             ).keystone_client
             admin_session = keystone_client.session
+            if has_dcagent:
+                dcagent_client = DcagentClient(
+                    subcloud_region,
+                    admin_session,
+                    endpoint=endpoint_cache.build_subcloud_endpoint(
+                        subcloud_management_ip, "dcagent"
+                    ),
+                )
             sysinv_client = SysinvClient(
                 subcloud_region, admin_session,
                 endpoint=keystone_client.endpoint_cache.get_endpoint("sysinv")
@@ -363,8 +409,114 @@ class SubcloudAuditWorkerManager(manager.Manager):
             LOG.exception("Failed to create clients for subcloud: %s"
                           % subcloud_name)
 
-        # Check availability of the subcloud
-        if sysinv_client:
+        if has_dcagent and dcagent_client:
+            LOG.debug(f"Starting dcagent audit for subcloud: {subcloud_name}")
+            # If we don't have the audit data, we won't send the request to the
+            # dcagent service, so we set the status to "in sync"
+            if do_firmware_audit and not firmware_audit_data:
+                endpoint_data[dccommon_consts.ENDPOINT_TYPE_FIRMWARE] = (
+                    dccommon_consts.SYNC_STATUS_IN_SYNC
+                )
+                audits_done.append(dccommon_consts.ENDPOINT_TYPE_FIRMWARE)
+            if do_kubernetes_audit and not kubernetes_audit_data:
+                endpoint_data[dccommon_consts.ENDPOINT_TYPE_KUBERNETES] = (
+                    dccommon_consts.SYNC_STATUS_IN_SYNC
+                )
+                audits_done.append(dccommon_consts.ENDPOINT_TYPE_KUBERNETES)
+            if do_kube_rootca_update_audit and not kube_rootca_update_audit_data:
+                endpoint_data[dccommon_consts.ENDPOINT_TYPE_KUBE_ROOTCA] = (
+                    dccommon_consts.SYNC_STATUS_IN_SYNC
+                )
+                audits_done.append(dccommon_consts.ENDPOINT_TYPE_KUBE_ROOTCA)
+            if do_software_audit and not software_audit_data:
+                endpoint_data[dccommon_consts.ENDPOINT_TYPE_SOFTWARE] = (
+                    dccommon_consts.SYNC_STATUS_IN_SYNC
+                )
+                audits_done.append(dccommon_consts.ENDPOINT_TYPE_SOFTWARE)
+            LOG.debug(f"Skipping following audits for subcloud {subcloud_name} because "
+                      f"RegionOne audit data is not available: {audits_done}")
+            audit_payload = self._build_dcagent_payload(
+                subcloud.management_state,
+                avail_status_current,
+                subcloud.first_identity_sync_complete,
+                firmware_audit_data,
+                kubernetes_audit_data,
+                kube_rootca_update_audit_data,
+                software_audit_data,
+                do_firmware_audit,
+                do_kubernetes_audit,
+                do_kube_rootca_update_audit,
+                do_software_audit,
+            )
+            audit_results = {}
+            try:
+                audit_results = dcagent_client.audit(audit_payload)
+            except Exception:
+                LOG.exception(failmsg % (subcloud.name, "dcagent"))
+                failures.append("dcagent")
+            LOG.debug(
+                f"Audits results for subcloud {subcloud_name}: "
+                f"{subcloud_name}: {audit_results}"
+            )
+            for audit_type, audit_value in audit_results.items():
+                if audit_type == dccommon_consts.BASE_AUDIT:
+                    avail_to_set = audit_value.get("availability")
+                    if avail_to_set == dccommon_consts.AVAILABILITY_OFFLINE:
+                        inactive_sg = audit_value.get("inactive_sg")
+                        msg = f"Inactive service groups: {inactive_sg}"
+                        log_subcloud_msg(LOG.debug, msg, subcloud_name, avail_to_set)
+                    alarms = audit_value.get("alarms")
+                    if alarms:
+                        self.alarm_aggr.update_alarm_summary(subcloud_name, alarms)
+                elif audit_value:
+                    endpoint_type = dccommon_consts.DCAGENT_ENDPOINT_TYPE_MAP[
+                        audit_type
+                    ]
+                    endpoint_data[endpoint_type] = audit_value
+                    audits_done.append(endpoint_type)
+            # Patch and load audits are not done in dcagent,
+            # so we need to do it separately
+            if self._should_perform_additional_audit(
+                subcloud.management_state,
+                avail_to_set,
+                subcloud.first_identity_sync_complete,
+            ):
+                if do_patch_audit and patch_audit_data:
+                    try:
+                        endpoint_data[dccommon_consts.ENDPOINT_TYPE_PATCHING] = (
+                            self.patch_audit.subcloud_patch_audit(
+                                keystone_client.session,
+                                sysinv_client,
+                                subcloud_management_ip,
+                                subcloud_name,
+                                subcloud_region,
+                                patch_audit_data,
+                            )
+                        )
+                        audits_done.append(dccommon_consts.ENDPOINT_TYPE_PATCHING)
+                    except Exception:
+                        LOG.exception(
+                            failmsg
+                            % (subcloud.name, dccommon_consts.ENDPOINT_TYPE_PATCHING)
+                        )
+                        failures.append(dccommon_consts.ENDPOINT_TYPE_PATCHING)
+                if do_load_audit and patch_audit_data:
+                    try:
+                        endpoint_data[dccommon_consts.ENDPOINT_TYPE_LOAD] = (
+                            self.patch_audit.subcloud_load_audit(
+                                sysinv_client, subcloud_name, patch_audit_data
+                            )
+                        )
+                        audits_done.append(dccommon_consts.ENDPOINT_TYPE_LOAD)
+                    except Exception:
+                        LOG.exception(
+                            failmsg
+                            % (subcloud.name, dccommon_consts.ENDPOINT_TYPE_LOAD)
+                        )
+                        failures.append(dccommon_consts.ENDPOINT_TYPE_LOAD)
+
+        # Check availability for subcloud that doesn't have dcagent
+        if not has_dcagent and sysinv_client:
             # Avoid a network call to sysinv here if possible:
             # If prestaging is active we can assume that the subcloud
             # is online (otherwise prestaging will fail):
@@ -422,9 +574,9 @@ class SubcloudAuditWorkerManager(manager.Manager):
                 "audit_fail_count": None
             })
 
-        # If subcloud is managed and online and the identity was synced once,
-        # audit additional resources
-        if self._should_perform_additional_audit(
+        # If subcloud is managed, online, the identity was synced once
+        # and it doesn't have dcagent, audit additional resources
+        if not has_dcagent and self._should_perform_additional_audit(
             subcloud.management_state,
             avail_to_set,
             subcloud.first_identity_sync_complete,

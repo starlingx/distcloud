@@ -399,6 +399,13 @@ def send_subcloud_shutdown_signal(subcloud_name):
     rvmc.power_off(subcloud_name, rvmc_config_file, LOG)
 
 
+def subcloud_has_dcagent(software_version: str):
+    # TODO(vgluzrom): remove "False" condition and uncomment code
+    # when dcagent service is enabled by default
+    return False
+    # return software_version >= consts.MIN_VERSION_FOR_DCAGENT
+
+
 def log_subcloud_msg(
     log_func: Callable, msg: str, subcloud_name: str = None, avail_status: str = None
 ):
