@@ -126,6 +126,8 @@ ENDPOINT_AUDIT_REQUESTS = {
     ENDPOINT_TYPE_SOFTWARE: "spare_audit_requested",
 }
 
+SKIP_AUDIT = "skip"
+
 # Well known region names
 SYSTEM_CONTROLLER_NAME = "SystemController"
 DEFAULT_REGION_NAME = "RegionOne"

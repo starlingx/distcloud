@@ -19,6 +19,7 @@ import os
 from cgtsclient.exc import HTTPBadRequest
 from cgtsclient.exc import HTTPConflict
 from cgtsclient.exc import HTTPNotFound
+from keystoneauth1.session import Session as keystone_session
 from oslo_log import log
 from oslo_utils import encodeutils
 
@@ -121,11 +122,11 @@ class SysinvClient(base.DriverBase):
 
     def __init__(
         self,
-        region,
-        session,
-        timeout=consts.SYSINV_CLIENT_REST_DEFAULT_TIMEOUT,
-        endpoint_type=consts.KS_ENDPOINT_ADMIN,
-        endpoint=None,
+        region: str,
+        session: keystone_session,
+        timeout: int = consts.SYSINV_CLIENT_REST_DEFAULT_TIMEOUT,
+        endpoint_type: str = consts.KS_ENDPOINT_ADMIN,
+        endpoint: str = None,
     ):
         try:
             # TOX cannot import cgts_client and all the dependencies therefore
@@ -735,6 +736,10 @@ class SysinvClient(base.DriverBase):
     def get_host_device_list(self, host_name):
         """Get a list of devices for a given host"""
         return self.sysinv_client.pci_device.list(host_name)
+
+    def get_all_hosts_device_list(self):
+        """Get a list of devices for all hosts"""
+        return self.sysinv_client.pci_device.list_all()
 
     def get_device_label_list(self):
         """Get a list of device labels"""

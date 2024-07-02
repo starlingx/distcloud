@@ -21,6 +21,7 @@ import random
 import re
 import threading
 import time
+from typing import Callable
 
 from eventlet.green import subprocess
 from oslo_log import log as logging
@@ -396,3 +397,14 @@ def send_subcloud_shutdown_signal(subcloud_name):
         consts.ANSIBLE_OVERRIDES_PATH, subcloud_name, consts.RVMC_CONFIG_FILE_NAME
     )
     rvmc.power_off(subcloud_name, rvmc_config_file, LOG)
+
+
+def log_subcloud_msg(
+    log_func: Callable, msg: str, subcloud_name: str = None, avail_status: str = None
+):
+    prefix = ""
+    if subcloud_name:
+        prefix += f"Subcloud: {subcloud_name}. "
+    if avail_status:
+        prefix += f"Availability: {avail_status}. "
+    log_func(f"{prefix}{msg}")

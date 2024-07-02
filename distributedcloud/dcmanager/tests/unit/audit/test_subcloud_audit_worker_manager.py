@@ -47,6 +47,7 @@ class FakeAuditWorkerAPI(object):
 class FakeAlarmAggregation(object):
 
     def __init__(self):
+        self.get_alarm_summary = mock.MagicMock()
         self.update_alarm_summary = mock.MagicMock()
 
 
@@ -494,8 +495,12 @@ class TestAuditWorkerManager(base.DCManagerTestCase):
             assert_not_called()
 
         # Verify alarm update is called
+        self.fake_alarm_aggr.get_alarm_summary.assert_called_with(
+            self.mock_fm_client(), subcloud.name
+        )
         self.fake_alarm_aggr.update_alarm_summary.assert_called_with(
-            subcloud.name, self.mock_fm_client())
+            subcloud.name, self.fake_alarm_aggr.get_alarm_summary.return_value
+        )
 
         # Verify patch audit is called
         self.fake_patch_audit.subcloud_patch_audit.assert_called_with(
@@ -517,7 +522,9 @@ class TestAuditWorkerManager(base.DCManagerTestCase):
         # Verify kube rootca update audit is called
         self.fake_kube_rootca_update_audit.subcloud_kube_rootca_audit.\
             assert_called_with(
-                mock.ANY, self.mock_fm_client(), subcloud,
+                self.mock_sysinv_client(),
+                self.mock_fm_client(),
+                subcloud,
                 kube_rootca_update_audit_data
             )
 
@@ -593,6 +600,7 @@ class TestAuditWorkerManager(base.DCManagerTestCase):
             assert_not_called()
 
         # Verify alarm update is not called
+        self.fake_alarm_aggr.get_alarm_summary.assert_not_called()
         self.fake_alarm_aggr.update_alarm_summary.assert_not_called()
 
         # Verify patch audit is not called
@@ -669,6 +677,7 @@ class TestAuditWorkerManager(base.DCManagerTestCase):
             assert_not_called()
 
         # Verify alarm update is not called
+        self.fake_alarm_aggr.get_alarm_summary.assert_not_called()
         self.fake_alarm_aggr.update_alarm_summary.assert_not_called()
 
         # Verify patch audit is not called
@@ -726,6 +735,7 @@ class TestAuditWorkerManager(base.DCManagerTestCase):
             assert_not_called()
 
         # Verify alarm update is not called
+        self.fake_alarm_aggr.get_alarm_summary.assert_not_called()
         self.fake_alarm_aggr.update_alarm_summary.assert_not_called()
 
         # Verify patch audit is not called
@@ -779,6 +789,7 @@ class TestAuditWorkerManager(base.DCManagerTestCase):
             assert_not_called()
 
         # Verify alarm update is not called
+        self.fake_alarm_aggr.get_alarm_summary.assert_not_called()
         self.fake_alarm_aggr.update_alarm_summary.assert_not_called()
 
         # Verify patch audit is not called
@@ -851,8 +862,12 @@ class TestAuditWorkerManager(base.DCManagerTestCase):
             do_software_audit=do_software_audit)
 
         # Verify alarm update is called once
-        self.fake_alarm_aggr.update_alarm_summary.assert_called_once_with(
-            subcloud.name, self.mock_fm_client())
+        self.fake_alarm_aggr.get_alarm_summary.assert_called_with(
+            self.mock_fm_client(), subcloud.name
+        )
+        self.fake_alarm_aggr.update_alarm_summary.assert_called_with(
+            subcloud.name, self.fake_alarm_aggr.get_alarm_summary.return_value
+        )
 
         # Verify patch audit is called once
         self.fake_patch_audit.subcloud_patch_audit.assert_called_once_with(
@@ -871,7 +886,9 @@ class TestAuditWorkerManager(base.DCManagerTestCase):
 
         # Verify kube rootca update audit is called once
         self.fake_kube_rootca_update_audit.subcloud_kube_rootca_audit.\
-            assert_called_once_with(mock.ANY, mock.ANY, subcloud, mock.ANY)
+            assert_called_once_with(
+                self.mock_sysinv_client(), self.mock_fm_client(), subcloud, mock.ANY
+            )
 
         # Verify the audit fail count was updated in db
         audit_fail_count = 1
@@ -922,6 +939,7 @@ class TestAuditWorkerManager(base.DCManagerTestCase):
         )
 
         # Verify alarm update is called only once
+        self.fake_alarm_aggr.get_alarm_summary.assert_called_once()
         self.fake_alarm_aggr.update_alarm_summary.assert_called_once()
 
         # Verify patch audit is called only once
@@ -1003,6 +1021,7 @@ class TestAuditWorkerManager(base.DCManagerTestCase):
             assert_not_called()
 
         # Verify alarm update is not called
+        self.fake_alarm_aggr.get_alarm_summary.assert_not_called()
         self.fake_alarm_aggr.update_alarm_summary.assert_not_called()
 
         # Verify patch audit is not called
@@ -1182,6 +1201,7 @@ class TestAuditWorkerManager(base.DCManagerTestCase):
             assert_not_called()
 
         # Verify alarm update is not called
+        self.fake_alarm_aggr.get_alarm_summary.assert_not_called()
         self.fake_alarm_aggr.update_alarm_summary.assert_not_called()
 
         # Verify patch audit is not called
@@ -1262,8 +1282,12 @@ class TestAuditWorkerManager(base.DCManagerTestCase):
         #                       True)
 
         # Verify alarm update is called
-        self.fake_alarm_aggr.update_alarm_summary.assert_called_once_with(
-            'subcloud1', self.mock_fm_client())
+        self.fake_alarm_aggr.get_alarm_summary.assert_called_with(
+            self.mock_fm_client(), 'subcloud1'
+        )
+        self.fake_alarm_aggr.update_alarm_summary.assert_called_with(
+            'subcloud1', self.fake_alarm_aggr.get_alarm_summary.return_value
+        )
 
         # Verify patch audit is not called
         self.fake_patch_audit.subcloud_patch_audit.assert_not_called()
@@ -1329,8 +1353,12 @@ class TestAuditWorkerManager(base.DCManagerTestCase):
                                dccommon_consts.ENDPOINT_TYPES_LIST_OS, False)
 
         # Verify alarm update is called
-        self.fake_alarm_aggr.update_alarm_summary.assert_called_once_with(
-            subcloud.name, self.mock_fm_client())
+        self.fake_alarm_aggr.get_alarm_summary.assert_called_with(
+            self.mock_fm_client(), subcloud.name
+        )
+        self.fake_alarm_aggr.update_alarm_summary.assert_called_with(
+            subcloud.name, self.fake_alarm_aggr.get_alarm_summary.return_value
+        )
 
         # Verify patch audit is not called
         self.fake_patch_audit.subcloud_patch_audit.assert_not_called()
@@ -1396,8 +1424,12 @@ class TestAuditWorkerManager(base.DCManagerTestCase):
                                dccommon_consts.ENDPOINT_TYPES_LIST_OS, False)
 
         # Verify alarm update is called
-        self.fake_alarm_aggr.update_alarm_summary.assert_called_once_with(
-            'subcloud1', self.mock_fm_client())
+        self.fake_alarm_aggr.get_alarm_summary.assert_called_with(
+            self.mock_fm_client(), 'subcloud1'
+        )
+        self.fake_alarm_aggr.update_alarm_summary.assert_called_with(
+            'subcloud1', self.fake_alarm_aggr.get_alarm_summary.return_value
+        )
 
         # Verify patch audit is not called
         self.fake_patch_audit.subcloud_patch_audit.assert_not_called()

@@ -236,17 +236,17 @@ def subcloud_audits_end_audit(context, subcloud_id, audits_done):
         subcloud_audits_ref.state_update_requested = False
         # todo(abailey): define new constants for these audit strings
         # and update subcloud_audit_worker_manager to use them as well
-        if 'patch' in audits_done:
+        if dccommon_consts.ENDPOINT_TYPE_PATCHING in audits_done:
             subcloud_audits_ref.patch_audit_requested = False
-        if 'firmware' in audits_done:
+        if dccommon_consts.ENDPOINT_TYPE_FIRMWARE in audits_done:
             subcloud_audits_ref.firmware_audit_requested = False
-        if 'load' in audits_done:
+        if dccommon_consts.ENDPOINT_TYPE_LOAD in audits_done:
             subcloud_audits_ref.load_audit_requested = False
-        if 'kube-rootca-update' in audits_done:
+        if dccommon_consts.ENDPOINT_TYPE_KUBE_ROOTCA in audits_done:
             subcloud_audits_ref.kube_rootca_update_audit_requested = False
-        if 'kubernetes' in audits_done:
+        if dccommon_consts.ENDPOINT_TYPE_KUBERNETES in audits_done:
             subcloud_audits_ref.kubernetes_audit_requested = False
-        if 'software' in audits_done:
+        if dccommon_consts.ENDPOINT_TYPE_SOFTWARE in audits_done:
             subcloud_audits_ref.spare_audit_requested = False
         subcloud_audits_ref.save(session)
         return subcloud_audits_ref

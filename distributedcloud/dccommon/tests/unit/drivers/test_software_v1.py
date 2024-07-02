@@ -104,7 +104,6 @@ def mocked_requests_failure(*args, **kwargs):
 
 
 class TestSoftwareClient(base.DCCommonTestCase):
-
     def setUp(self):
         super(TestSoftwareClient, self).setUp()
         self.ctx = utils.dummy_context()

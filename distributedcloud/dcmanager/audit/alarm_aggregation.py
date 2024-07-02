@@ -16,6 +16,8 @@
 
 from oslo_log import log as logging
 
+from dccommon.drivers.openstack.fm import FmClient
+from dccommon.utils import log_subcloud_msg
 from dcmanager.common import consts
 from dcmanager.db import api as db_api
 
@@ -28,20 +30,33 @@ class AlarmAggregation(object):
     def __init__(self, context):
         self.context = context
 
-    def update_alarm_summary(self, name, fm_client):
-        LOG.debug("Updating alarm summary for %s" % name)
+    @classmethod
+    def get_alarm_summary(cls, fm_client: FmClient, name: str = None):
+        msg = "Getting alarm summary"
+        log_subcloud_msg(LOG.debug, msg, name)
         try:
             alarms = fm_client.get_alarm_summary()
-            alarm_updates = {'critical_alarms': alarms[0].critical,
-                             'major_alarms': alarms[0].major,
-                             'minor_alarms': alarms[0].minor,
-                             'warnings': alarms[0].warnings}
-            alarm_updates = self._set_cloud_status(alarm_updates)
+            alarm_updates = {
+                'critical_alarms': alarms[0].critical,
+                'major_alarms': alarms[0].major,
+                'minor_alarms': alarms[0].minor,
+                'warnings': alarms[0].warnings
+            }
+            alarm_updates = cls._set_cloud_status(alarm_updates)
+            return alarm_updates
+        except Exception as e:
+            msg = f"Failed to get alarms. Error: {e}"
+            log_subcloud_msg(LOG.error, msg, name)
+
+    def update_alarm_summary(self, name: str, alarm_updates: dict):
+        LOG.debug(f"Updating alarm summary for {name}")
+        try:
             db_api.subcloud_alarms_update(self.context, name, alarm_updates)
         except Exception as e:
-            LOG.error('Failed to update alarms for %s error: %s' % (name, e))
+            LOG.error(f"Failed to update alarms for {name}. Error: {e}")
 
-    def _set_cloud_status(self, alarm_dict):
+    @staticmethod
+    def _set_cloud_status(alarm_dict):
         if alarm_dict.get('critical_alarms') > 0:
             status = consts.ALARM_CRITICAL_STATUS
         elif (alarm_dict.get('major_alarms') > 0) or \

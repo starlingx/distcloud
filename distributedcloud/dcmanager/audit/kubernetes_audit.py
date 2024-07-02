@@ -20,6 +20,7 @@ from oslo_log import log as logging
 from dccommon import consts as dccommon_consts
 from dccommon.drivers.openstack.sdk_platform import OpenStackDriver
 from dccommon.drivers.openstack.sysinv_v1 import SysinvClient
+from dccommon.utils import log_subcloud_msg
 from dcmanager.common import utils
 
 
@@ -34,9 +35,9 @@ class KubernetesAuditData(object):
 
     def to_dict(self):
         return {
-            'target': self.target,
-            'version': self.version,
-            'state': self.state,
+            "target": self.target,
+            "version": self.version,
+            "state": self.state,
         }
 
     @classmethod
@@ -49,9 +50,8 @@ class KubernetesAuditData(object):
 class KubernetesAudit(object):
     """Manages tasks related to kubernetes audits."""
 
-    def __init__(self, context):
-        LOG.debug('KubernetesAudit initialization...')
-        self.context = context
+    def __init__(self):
+        LOG.debug("KubernetesAudit initialization...")
         self.audit_count = 0
 
     def get_regionone_audit_data(self):
@@ -66,78 +66,116 @@ class KubernetesAudit(object):
                 region_clients=None,
                 fetch_subcloud_ips=utils.fetch_subcloud_mgmt_ips,
             ).keystone_client
-            endpoint = m_os_ks_client.endpoint_cache.get_endpoint('sysinv')
+            endpoint = m_os_ks_client.endpoint_cache.get_endpoint("sysinv")
             sysinv_client = SysinvClient(
-                dccommon_consts.DEFAULT_REGION_NAME, m_os_ks_client.session,
-                endpoint=endpoint)
+                dccommon_consts.DEFAULT_REGION_NAME,
+                m_os_ks_client.session,
+                endpoint=endpoint,
+            )
         except Exception:
-            LOG.exception('Failed init OS Client, skip kubernetes audit.')
+            LOG.exception("Failed init OS Client, skip kubernetes audit.")
             return None
 
-        region_one_data = []
+        regionone_data = []
+        regionone_kube_version = None
         results_list = sysinv_client.get_kube_versions()
         for result in results_list:
-            region_one_data.append(KubernetesAuditData(result.target,
-                                                       result.version,
-                                                       result.state))
-        LOG.debug("RegionOne kubernetes versions: %s" % region_one_data)
-        return region_one_data
-
-    def subcloud_kubernetes_audit(
-        self, sysinv_client, subcloud_name, audit_data
-    ):
-        LOG.info('Triggered kubernetes audit for: %s' % subcloud_name)
-
-        sync_status = dccommon_consts.SYNC_STATUS_OUT_OF_SYNC
-
-        if not audit_data:
-            sync_status = dccommon_consts.SYNC_STATUS_IN_SYNC
-
-            LOG.info(
-                f'Kubernetes audit skipped for: {subcloud_name}. There is no audit '
-                f'data, requesting sync_status update to {sync_status}'
+            regionone_data.append(
+                KubernetesAuditData(result.target, result.version, result.state)
             )
+            if result.target and result.state == "active":
+                regionone_kube_version = result.version
+        LOG.debug(f"RegionOne kubernetes versions: {regionone_data}")
+        return regionone_kube_version
 
-            return sync_status
+    @classmethod
+    def get_subcloud_audit_data(
+        cls, sysinv_client: SysinvClient, subcloud_name: str = None
+    ):
+        subcloud_kube_upgrades = None
+        subcloud_kubernetes_versions = None
+        skip_audit = 2 * [dccommon_consts.SKIP_AUDIT]
+
+        try:
+            subcloud_kube_upgrades = sysinv_client.get_kube_upgrades()
+        except Exception:
+            msg = "Failed to get kubernetes upgrades, skip kubernetes audit."
+            log_subcloud_msg(LOG.exception, msg, subcloud_name)
+            return skip_audit
+
+        # If there is a kubernetes upgrade operation in the subcloud,
+        # the subcloud can immediately be flagged as out of sync
+        if subcloud_kube_upgrades and len(subcloud_kube_upgrades) > 0:
+            return subcloud_kube_upgrades, None
+
+        try:
+            subcloud_kubernetes_versions = sysinv_client.get_kube_versions()
+        except Exception:
+            msg = "Failed to get kubernetes versions, skip kubernetes audit."
+            log_subcloud_msg(LOG.exception, msg, subcloud_name)
+            return skip_audit
+        return None, subcloud_kubernetes_versions
+
+    @classmethod
+    def get_subcloud_sync_status(
+        cls,
+        sysinv_client: SysinvClient,
+        region_one_version: str,
+        subcloud_name: str = None,
+    ):
 
         # Retrieve kubernetes info for this subcloud
         # state - active, partial, available
         # active - true / false
         # version - any value ex: v1.18.1
-
-        # Find the target=true state=active version on system controller
-        # The audit_data for region one is a dictionary
-        region_one_version = None
-        for result in audit_data:
-            # audit_data will be a dict from passing through RPC, so objectify
-            result = KubernetesAuditData.from_dict(result)
-            if result.target and result.state == 'active':
-                region_one_version = result.version
-                break
-        if region_one_version is None:
-            LOG.info("No active target version found in region one audit data")
-            return None
-
-        # if there is a kubernetes upgrade operation in the subcloud,
-        # the subcloud can immediately be flagged as out of sync
-        subcloud_kube_upgrades = sysinv_client.get_kube_upgrades()
-        if len(subcloud_kube_upgrades) > 0:
-            # We are out of sync
-            LOG.debug('Existing Kubernetes upgrade exists for:(%s)'
-                      % subcloud_name)
-        else:
-            # We will consider it out of sync even for 'partial' state
-            # The audit data for subcloud_results is an object not a dictionary
-            subcloud_results = sysinv_client.get_kube_versions()
-            for result in subcloud_results:
-                if result.target and result.state == 'active':
-                    subcloud_version = result.version
-                    if subcloud_version == region_one_version:
-                        sync_status = dccommon_consts.SYNC_STATUS_IN_SYNC
-                        break
-
-        LOG.info(
-            f'Kubernetes audit completed for: {subcloud_name}, requesting '
-            f'sync_status update to {sync_status}'
+        subcloud_kube_upgrades, subcloud_kubernetes_versions = (
+            cls.get_subcloud_audit_data(sysinv_client, subcloud_name)
         )
-        return sync_status
+        if dccommon_consts.SKIP_AUDIT in [
+            subcloud_kube_upgrades,
+            subcloud_kubernetes_versions,
+        ]:
+            return None
+        elif subcloud_kube_upgrades and len(subcloud_kube_upgrades) > 0:
+            # If there is a kubernetes upgrade operation in the subcloud,
+            # the subcloud can immediately be flagged as out of sync
+            msg = "Kubernetes upgrade exists"
+            log_subcloud_msg(LOG.debug, msg, subcloud_name)
+            return dccommon_consts.SYNC_STATUS_OUT_OF_SYNC
+
+        # We will consider it out of sync even for 'partial' state
+        for result in subcloud_kubernetes_versions:
+            if (
+                result.target
+                and result.state == "active"
+                and result.version == region_one_version
+            ):
+                return dccommon_consts.SYNC_STATUS_IN_SYNC
+
+        return dccommon_consts.SYNC_STATUS_OUT_OF_SYNC
+
+    def subcloud_kubernetes_audit(
+        self,
+        sysinv_client: SysinvClient,
+        subcloud_name: str,
+        regionone_audit_data: dict,
+    ):
+        LOG.info(f"Triggered kubernetes audit for: {subcloud_name}")
+
+        if not regionone_audit_data:
+            LOG.debug(
+                "No active target version found in region one audit data, "
+                "exiting kubernetes audit"
+            )
+            return dccommon_consts.SYNC_STATUS_IN_SYNC
+
+        sync_status = self.get_subcloud_sync_status(
+            sysinv_client, regionone_audit_data, subcloud_name
+        )
+
+        if sync_status:
+            LOG.info(
+                f'Kubernetes audit completed for: {subcloud_name}, requesting '
+                f'sync_status update to {sync_status}'
+            )
+            return sync_status

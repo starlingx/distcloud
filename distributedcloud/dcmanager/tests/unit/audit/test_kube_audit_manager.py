@@ -16,8 +16,6 @@
 
 import uuid
 
-import mock
-
 from dccommon import consts as dccommon_consts
 from dcmanager.audit import kubernetes_audit
 from dcmanager.audit import subcloud_audit_manager
@@ -42,9 +40,6 @@ class FakeKubeVersion(object):
         self.upgrade_from = []
         self.applied_patches = []
         self.available_patches = []
-
-    def to_dict(self):
-        return dict(self.__dict__)
 
 
 class FakeKubeUpgrade(object):
@@ -72,27 +67,16 @@ class TestKubernetesAudit(base.DCManagerTestCase):
         # Set the kube upgrade objects as being empty for all regions
         self.kube_sysinv_client().get_kube_upgrades.return_value = []
 
-        self.audit = kubernetes_audit.KubernetesAudit(self.ctx)
+        self.audit = kubernetes_audit.KubernetesAudit()
         self.am = subcloud_audit_manager.SubcloudAuditManager()
         self.am.kubernetes_audit = self.audit
-
-    def _rpc_convert(self, object_list):
-        # Convert to dict like what would happen calling via RPC
-        dict_results = []
-        for result in object_list:
-            dict_results.append(result.to_dict())
-        return dict_results
 
     def get_kube_audit_data(self):
         (_, _, kubernetes_audit_data, _, _) = \
             self.am._get_audit_data(True, True, True, True, True)
-        # Convert to dict like what would happen calling via RPC
-        kubernetes_audit_data = self._rpc_convert(kubernetes_audit_data)
         return kubernetes_audit_data
 
-    @mock.patch.object(subcloud_audit_manager, 'context')
-    def test_no_kubernetes_audit_data_to_sync(self, mock_context):
-        mock_context.get_admin_context.return_value = self.ctx
+    def test_no_kubernetes_audit_data_to_sync(self):
         kubernetes_audit_data = self.get_kube_audit_data()
 
         subclouds = {base.SUBCLOUD_1['name']: base.SUBCLOUD_1['region_name'],
@@ -104,9 +88,7 @@ class TestKubernetesAudit(base.DCManagerTestCase):
 
             self.assertEqual(response, dccommon_consts.SYNC_STATUS_IN_SYNC)
 
-    @mock.patch.object(subcloud_audit_manager, 'context')
-    def test_kubernetes_audit_data_out_of_sync_older(self, mock_context):
-        mock_context.get_admin_context.return_value = self.ctx
+    def test_kubernetes_audit_data_out_of_sync_older(self):
 
         # Set the region one data as being the upgraded version
         self.kube_sysinv_client().get_kube_versions.return_value = [
@@ -127,9 +109,7 @@ class TestKubernetesAudit(base.DCManagerTestCase):
 
             self.assertEqual(response, dccommon_consts.SYNC_STATUS_OUT_OF_SYNC)
 
-    @mock.patch.object(subcloud_audit_manager, 'context')
-    def test_kubernetes_audit_data_out_of_sync_newer(self, mock_context):
-        mock_context.get_admin_context.return_value = self.ctx
+    def test_kubernetes_audit_data_out_of_sync_newer(self):
 
         # Set the region one data as being the previous version
         self.kube_sysinv_client().get_kube_versions.return_value = [
@@ -150,10 +130,7 @@ class TestKubernetesAudit(base.DCManagerTestCase):
 
             self.assertEqual(response, dccommon_consts.SYNC_STATUS_OUT_OF_SYNC)
 
-    @mock.patch.object(subcloud_audit_manager, 'context')
-    def test_kubernetes_audit_data_in_sync(self,
-                                           mock_context):
-        mock_context.get_admin_context.return_value = self.ctx
+    def test_kubernetes_audit_data_in_sync(self):
 
         # Set the region one data as being the upgraded version
         self.kube_sysinv_client().get_kube_versions.return_value = [
@@ -177,12 +154,9 @@ class TestKubernetesAudit(base.DCManagerTestCase):
 
             self.assertEqual(response, dccommon_consts.SYNC_STATUS_IN_SYNC)
 
-    @mock.patch.object(subcloud_audit_manager, 'context')
-    def test_kubernetes_audit_data_in_sync_but_existing_upgrade(self,
-                                                                mock_context):
+    def test_kubernetes_audit_data_in_sync_but_existing_upgrade(self):
         # If a subcloud has an existing upgrade, it is out of sync
         # even if the kube versions match
-        mock_context.get_admin_context.return_value = self.ctx
 
         # mock that there is a kube upgrade (only queried in subclouds)
         self.kube_sysinv_client().get_kube_upgrades.return_value = [

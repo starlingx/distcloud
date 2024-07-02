@@ -26,6 +26,7 @@ from dccommon.drivers.openstack.sdk_platform import OpenStackDriver
 from dccommon.drivers.openstack.sysinv_v1 import SysinvClient
 from dccommon import endpoint_cache
 from dcmanager.audit import alarm_aggregation
+from dcmanager.audit import base_audit
 from dcmanager.audit import firmware_audit
 from dcmanager.audit import kube_rootca_update_audit
 from dcmanager.audit import kubernetes_audit
@@ -40,6 +41,7 @@ from dcmanager.common import manager
 from dcmanager.common import scheduler
 from dcmanager.common import utils
 from dcmanager.db import api as db_api
+from dcmanager.db.sqlalchemy import models
 from dcmanager.rpc import client as dcmanager_rpc_client
 
 CONF = cfg.CONF
@@ -70,12 +72,12 @@ class SubcloudAuditWorkerManager(manager.Manager):
         self.alarm_aggr = alarm_aggregation.AlarmAggregation(self.context)
         # todo(abailey): refactor the design pattern for adding new audits
         self.patch_audit = patch_audit.PatchAudit(self.context)
-        self.firmware_audit = firmware_audit.FirmwareAudit(self.context)
-        self.kubernetes_audit = kubernetes_audit.KubernetesAudit(self.context)
+        self.firmware_audit = firmware_audit.FirmwareAudit()
+        self.kubernetes_audit = kubernetes_audit.KubernetesAudit()
         self.kube_rootca_update_audit = (
-            kube_rootca_update_audit.KubeRootcaUpdateAudit(self.context)
+            kube_rootca_update_audit.KubeRootcaUpdateAudit()
         )
-        self.software_audit = software_audit.SoftwareAudit(self.context)
+        self.software_audit = software_audit.SoftwareAudit()
         self.pid = os.getpid()
 
     def audit_subclouds(self,
@@ -169,50 +171,6 @@ class SubcloudAuditWorkerManager(manager.Manager):
             LOG.info('Ignoring SubcloudNotFound when attempting update'
                      'audit_fail_count for subcloud: %s' % subcloud.name)
 
-    @staticmethod
-    def _get_subcloud_availability_status(subcloud_name, sysinv_client):
-        """For each subcloud, if at least one service is active in each
-
-        service of servicegroup-list then declare the subcloud online.
-        """
-        avail_to_set = dccommon_consts.AVAILABILITY_OFFLINE
-        svc_groups = None
-
-        # get a list of service groups in the subcloud
-        try:
-            svc_groups = sysinv_client.get_service_groups()
-        except Exception as e:
-            LOG.warn('Cannot retrieve service groups for '
-                     'subcloud: %s, %s' % (subcloud_name, e))
-
-        if svc_groups:
-            active_sgs = []
-            inactive_sgs = []
-
-            # Build 2 lists, 1 of active service groups,
-            # one with non-active.
-            for sg in svc_groups:
-                if sg.state != consts.SERVICE_GROUP_STATUS_ACTIVE:
-                    inactive_sgs.append(sg.service_group_name)
-                else:
-                    active_sgs.append(sg.service_group_name)
-
-            # Create a list of service groups that are only present
-            # in non-active list
-            inactive_only = [sg for sg in inactive_sgs if
-                             sg not in active_sgs]
-
-            # An empty inactive only list and a non-empty active list
-            # means we're good to go.
-            if not inactive_only and active_sgs:
-                avail_to_set = \
-                    dccommon_consts.AVAILABILITY_ONLINE
-            else:
-                LOG.info("Subcloud:%s has non-active "
-                         "service groups: %s" %
-                         (subcloud_name, inactive_only))
-        return avail_to_set
-
     def _audit_subcloud_openstack_app(self, subcloud_name, sysinv_client,
                                       openstack_installed):
         openstack_installed_current = False
@@ -245,21 +203,23 @@ class SubcloudAuditWorkerManager(manager.Manager):
                 endpoint_type_list,
                 openstack_installed_current)
 
-    def _do_audit_subcloud(self,
-                           subcloud,
-                           update_subcloud_state,
-                           do_audit_openstack,
-                           patch_audit_data,
-                           firmware_audit_data,
-                           kubernetes_audit_data,
-                           kube_rootca_update_audit_data,
-                           software_audit_data,
-                           do_patch_audit,
-                           do_load_audit,
-                           do_firmware_audit,
-                           do_kubernetes_audit,
-                           do_kube_rootca_update_audit,
-                           do_software_audit):
+    def _do_audit_subcloud(
+        self,
+        subcloud: models.Subcloud,
+        update_subcloud_state: bool,
+        do_audit_openstack: bool,
+        patch_audit_data,
+        firmware_audit_data,
+        kubernetes_audit_data,
+        kube_rootca_update_audit_data,
+        software_audit_data,
+        do_patch_audit: bool,
+        do_load_audit: bool,
+        do_firmware_audit: bool,
+        do_kubernetes_audit: bool,
+        do_kube_rootca_update_audit: bool,
+        do_software_audit: bool,
+    ):
         audits_done = list()
         failures = list()
         # Do the actual subcloud audit.
@@ -297,21 +257,35 @@ class SubcloudAuditWorkerManager(manager.Manager):
         LOG.debug("PID: %s, done auditing subcloud: %s." %
                   (self.pid, subcloud.name))
 
-    def _audit_subcloud(self,
-                        subcloud,
-                        update_subcloud_state,
-                        do_audit_openstack,
-                        patch_audit_data,
-                        firmware_audit_data,
-                        kubernetes_audit_data,
-                        kube_rootca_update_audit_data,
-                        software_audit_data,
-                        do_patch_audit,
-                        do_load_audit,
-                        do_firmware_audit,
-                        do_kubernetes_audit,
-                        do_kube_rootca_update_audit,
-                        do_software_audit):
+    @staticmethod
+    def _should_perform_additional_audit(
+        subcloud_management_state,
+        subcloud_avail_status,
+        first_identity_sync_complete
+    ):
+        return (
+            subcloud_management_state == dccommon_consts.MANAGEMENT_MANAGED
+            and subcloud_avail_status == dccommon_consts.AVAILABILITY_ONLINE
+            and first_identity_sync_complete
+        )
+
+    def _audit_subcloud(
+        self,
+        subcloud: models.Subcloud,
+        update_subcloud_state: bool,
+        do_audit_openstack: bool,
+        patch_audit_data,
+        firmware_audit_data,
+        kubernetes_audit_data,
+        kube_rootca_update_audit_data,
+        software_audit_data,
+        do_patch_audit: bool,
+        do_load_audit: bool,
+        do_firmware_audit: bool,
+        do_kubernetes_audit: bool,
+        do_kube_rootca_update_audit: bool,
+        do_software_audit: bool,
+    ):
         """Audit a single subcloud."""
 
         avail_status_current = subcloud.availability_status
@@ -346,6 +320,8 @@ class SubcloudAuditWorkerManager(manager.Manager):
                 subcloud_region, admin_session,
                 endpoint=keystone_client.endpoint_cache.get_endpoint("fm")
             )
+        # TODO(vgluzrom): Revise and improve the debug and error messages
+        # as well as the exception causes
         except keystone_exceptions.ConnectTimeout:
             if avail_status_current == dccommon_consts.AVAILABILITY_OFFLINE:
                 LOG.debug("Identity or Platform endpoint for %s not "
@@ -395,14 +371,16 @@ class SubcloudAuditWorkerManager(manager.Manager):
             if subcloud.prestage_status in consts.STATES_FOR_ONGOING_PRESTAGE:
                 avail_to_set = dccommon_consts.AVAILABILITY_ONLINE
             else:
-                avail_to_set = self._get_subcloud_availability_status(
-                    subcloud_name, sysinv_client)
+                avail_to_set, _ = base_audit.get_subcloud_availability_status(
+                    sysinv_client, subcloud_name
+                )
 
         if avail_to_set == dccommon_consts.AVAILABILITY_OFFLINE:
             if audit_fail_count < consts.AVAIL_FAIL_COUNT_MAX:
                 audit_fail_count = audit_fail_count + 1
-            if (avail_status_current == dccommon_consts.AVAILABILITY_ONLINE) and \
-                    (audit_fail_count < consts.AVAIL_FAIL_COUNT_TO_ALARM):
+            if (avail_status_current == dccommon_consts.AVAILABILITY_ONLINE) and (
+                audit_fail_count < consts.AVAIL_FAIL_COUNT_TO_ALARM
+            ):
                 # Do not set offline until we have failed audit
                 # the requisite number of times
                 avail_to_set = dccommon_consts.AVAILABILITY_ONLINE
@@ -446,12 +424,17 @@ class SubcloudAuditWorkerManager(manager.Manager):
 
         # If subcloud is managed and online and the identity was synced once,
         # audit additional resources
-        if (subcloud.management_state == dccommon_consts.MANAGEMENT_MANAGED and
-                avail_to_set == dccommon_consts.AVAILABILITY_ONLINE and
-                subcloud.first_identity_sync_complete):
+        if self._should_perform_additional_audit(
+            subcloud.management_state,
+            avail_to_set,
+            subcloud.first_identity_sync_complete,
+        ):
             # Get alarm summary and store in db,
             if fm_client:
-                self.alarm_aggr.update_alarm_summary(subcloud_name, fm_client)
+                alarm_updates = self.alarm_aggr.get_alarm_summary(
+                    fm_client, subcloud_name
+                )
+                self.alarm_aggr.update_alarm_summary(subcloud_name, alarm_updates)
 
             failmsg = "Audit failure subcloud: %s, endpoint: %s"
 
@@ -465,10 +448,13 @@ class SubcloudAuditWorkerManager(manager.Manager):
                             patch_audit_data
                         )
                     )
-                    audits_done.append('patch')
+                    audits_done.append(dccommon_consts.ENDPOINT_TYPE_PATCHING)
                 except Exception:
-                    LOG.exception(failmsg % (subcloud.name, 'patch'))
-                    failures.append('patch')
+                    LOG.exception(
+                        failmsg
+                        % (subcloud.name, dccommon_consts.ENDPOINT_TYPE_PATCHING)
+                    )
+                    failures.append(dccommon_consts.ENDPOINT_TYPE_PATCHING)
             # Perform load audit
             if do_load_audit and patch_audit_data:
                 try:
@@ -477,10 +463,13 @@ class SubcloudAuditWorkerManager(manager.Manager):
                             sysinv_client, subcloud_name, patch_audit_data
                         )
                     )
-                    audits_done.append('load')
+                    audits_done.append(dccommon_consts.ENDPOINT_TYPE_LOAD)
                 except Exception:
-                    LOG.exception(failmsg % (subcloud.name, 'load'))
-                    failures.append('load')
+                    LOG.exception(
+                        failmsg
+                        % (subcloud.name, dccommon_consts.ENDPOINT_TYPE_LOAD)
+                    )
+                    failures.append(dccommon_consts.ENDPOINT_TYPE_LOAD)
             # Perform firmware audit
             if do_firmware_audit:
                 try:
@@ -489,10 +478,13 @@ class SubcloudAuditWorkerManager(manager.Manager):
                             sysinv_client, subcloud_name, firmware_audit_data
                         )
                     )
-                    audits_done.append('firmware')
+                    audits_done.append(dccommon_consts.ENDPOINT_TYPE_FIRMWARE)
                 except Exception:
-                    LOG.exception(failmsg % (subcloud.name, 'firmware'))
-                    failures.append('firmware')
+                    LOG.exception(
+                        failmsg
+                        % (subcloud.name, dccommon_consts.ENDPOINT_TYPE_FIRMWARE)
+                    )
+                    failures.append(dccommon_consts.ENDPOINT_TYPE_FIRMWARE)
             # Perform kubernetes audit
             if do_kubernetes_audit:
                 try:
@@ -501,24 +493,31 @@ class SubcloudAuditWorkerManager(manager.Manager):
                             sysinv_client, subcloud_name, kubernetes_audit_data
                         )
                     )
-                    audits_done.append('kubernetes')
+                    audits_done.append(dccommon_consts.ENDPOINT_TYPE_KUBERNETES)
                 except Exception:
-                    LOG.exception(failmsg % (subcloud.name, 'kubernetes'))
-                    failures.append('kubernetes')
+                    LOG.exception(
+                        failmsg
+                        % (subcloud.name, dccommon_consts.ENDPOINT_TYPE_KUBERNETES)
+                    )
+                    failures.append(dccommon_consts.ENDPOINT_TYPE_KUBERNETES)
             # Perform kube rootca update audit
             if do_kube_rootca_update_audit:
                 try:
                     endpoint_data[dccommon_consts.ENDPOINT_TYPE_KUBE_ROOTCA] = (
                         self.kube_rootca_update_audit.subcloud_kube_rootca_audit(
-                            sysinv_client, fm_client, subcloud,
-                            kube_rootca_update_audit_data
+                            sysinv_client,
+                            fm_client,
+                            subcloud,
+                            kube_rootca_update_audit_data,
                         )
                     )
-                    audits_done.append('kube-rootca-update')
+                    audits_done.append(dccommon_consts.ENDPOINT_TYPE_KUBE_ROOTCA)
                 except Exception:
-                    LOG.exception(failmsg % (subcloud.name,
-                                             'kube-rootca-update'))
-                    failures.append('kube-rootca-update')
+                    LOG.exception(
+                        failmsg
+                        % (subcloud.name, dccommon_consts.ENDPOINT_TYPE_KUBE_ROOTCA)
+                    )
+                    failures.append(dccommon_consts.ENDPOINT_TYPE_KUBE_ROOTCA)
             # Audit openstack application in the subcloud
             if do_audit_openstack:
                 # We don't want an exception here to cause our
@@ -539,10 +538,13 @@ class SubcloudAuditWorkerManager(manager.Manager):
                             subcloud_name, subcloud_region, software_audit_data
                         )
                     )
-                    audits_done.append('software')
+                    audits_done.append(dccommon_consts.ENDPOINT_TYPE_SOFTWARE)
                 except Exception:
-                    LOG.exception(failmsg % (subcloud.name, 'software'))
-                    failures.append('software')
+                    LOG.exception(
+                        failmsg
+                        % (subcloud.name, dccommon_consts.ENDPOINT_TYPE_SOFTWARE)
+                    )
+                    failures.append(dccommon_consts.ENDPOINT_TYPE_SOFTWARE)
 
         if availability_data or (endpoint_data and any(endpoint_data.values())):
             # If a value is not None, an update should be sent to the rpc client

@@ -95,12 +95,12 @@ class SubcloudAuditManager(manager.Manager):
         self.patch_audit_count = 0
         # trigger a patch audit on startup
         self.patch_audit_time = 0
-        self.firmware_audit = firmware_audit.FirmwareAudit(self.context)
-        self.kubernetes_audit = kubernetes_audit.KubernetesAudit(self.context)
+        self.firmware_audit = firmware_audit.FirmwareAudit()
+        self.kubernetes_audit = kubernetes_audit.KubernetesAudit()
         self.kube_rootca_update_audit = (
-            kube_rootca_update_audit.KubeRootcaUpdateAudit(self.context)
+            kube_rootca_update_audit.KubeRootcaUpdateAudit()
         )
-        self.software_audit = software_audit.SoftwareAudit(self.context)
+        self.software_audit = software_audit.SoftwareAudit()
 
     def _add_missing_endpoints(self):
         # Update this flag file based on the most recent new endpoint
