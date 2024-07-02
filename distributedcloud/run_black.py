@@ -7,6 +7,7 @@ import sys
 modules = [
     "dccommon",
     "dcdbsync",
+    "dcagent",
     "dcorch",
     "dcmanager/api",
     "dcmanager/audit",
@@ -22,6 +23,7 @@ formatted_modules = [
     "dccommon",
     "dcdbsync",
     "dcorch",
+    "dcagent",
     "dcmanager/api",
 ]
 
