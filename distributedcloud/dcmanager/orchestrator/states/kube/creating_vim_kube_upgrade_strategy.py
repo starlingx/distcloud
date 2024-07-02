@@ -4,10 +4,11 @@
 # SPDX-License-Identifier: Apache-2.0
 #
 
-from dccommon.consts import DEFAULT_REGION_NAME
 from dccommon.drivers.openstack import vim
 from dcmanager.common import consts
 from dcmanager.common import utils as dcmanager_utils
+from dcmanager.orchestrator.cache.cache_specifications import \
+    REGION_ONE_KUBERNETES_CACHE_TYPE
 from dcmanager.orchestrator.states.creating_vim_strategy \
     import CreatingVIMStrategyState
 
@@ -47,11 +48,10 @@ class CreatingVIMKubeUpgradeStrategyState(CreatingVIMStrategyState):
                 extra_args = {}
             to_version = extra_args.get('to-version', None)
             if to_version is None:
-                sys_kube_versions = \
-                    self.get_sysinv_client(DEFAULT_REGION_NAME).get_kube_versions()
-                to_version = dcmanager_utils.get_active_kube_version(
-                    sys_kube_versions
+                sys_kube_versions = self._read_from_cache(
+                    REGION_ONE_KUBERNETES_CACHE_TYPE
                 )
+                to_version = dcmanager_utils.get_active_kube_version(sys_kube_versions)
                 if to_version is None:
                     # No active target kube version on the system controller means
                     # the system controller is part-way through a kube upgrade

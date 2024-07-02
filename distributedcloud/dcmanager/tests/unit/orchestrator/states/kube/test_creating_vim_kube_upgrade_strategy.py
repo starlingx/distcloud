@@ -8,6 +8,7 @@ import mock
 
 from dccommon.drivers.openstack import vim
 from dcmanager.common import consts
+from dcmanager.orchestrator.states.base import BaseState
 from dcmanager.tests.unit.common import fake_strategy
 from dcmanager.tests.unit.fakes import FakeVimStrategy
 from dcmanager.tests.unit.orchestrator.states.fakes import FakeKubeUpgrade
@@ -102,6 +103,18 @@ class TestCreatingVIMKubeUpgradeStrategyStage(
                             state='available'),
         ]
 
+        self._mock_read_from_cache(BaseState)
+        self.mock_read_from_cache.return_value = [
+            FakeKubeVersion(obj_id=1,
+                            version=PREVIOUS_KUBE_VERSION,
+                            target=True,
+                            state='active'),
+            FakeKubeVersion(obj_id=2,
+                            version=UPGRADED_KUBE_VERSION,
+                            target=False,
+                            state='available'),
+        ]
+
     def mock_and_assert_step_update(
         self, is_upgrade=False, kube_version=None, kube_version_list=None
     ):
@@ -115,6 +128,7 @@ class TestCreatingVIMKubeUpgradeStrategyStage(
             STRATEGY_DONE_BUILDING,
         ]
         self.sysinv_client.get_kube_versions.return_value = KUBE_VERSION_LIST
+        self.mock_read_from_cache.return_value = KUBE_VERSION_LIST
 
         if is_upgrade:
             self.sysinv_client.get_kube_upgrades.return_value = kube_version_list
@@ -128,8 +142,10 @@ class TestCreatingVIMKubeUpgradeStrategyStage(
                 extra_args=extra_args)
         else:
             kube_version = kube_version_list[0].version
-            self.sysinv_client.get_kube_versions.side_effect = \
-                [kube_version_list, KUBE_VERSION_LIST]
+            # Subcloud query
+            self.sysinv_client.get_kube_versions.return_value = KUBE_VERSION_LIST
+            # System controller query
+            self.mock_read_from_cache.return_value = kube_version_list
 
         # API calls acts as expected
         self.vim_client.create_strategy.return_value = STRATEGY_BUILDING
@@ -182,6 +198,8 @@ class TestCreatingVIMKubeUpgradeStrategyStage(
         )
 
         self.sysinv_client.get_kube_versions.return_value = \
+            KUBE_VERSION_LIST_WITHOUT_ACTIVE
+        self.mock_read_from_cache.return_value = \
             KUBE_VERSION_LIST_WITHOUT_ACTIVE
 
         self.worker.perform_state_action(self.strategy_step)

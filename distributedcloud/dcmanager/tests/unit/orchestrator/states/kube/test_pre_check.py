@@ -13,6 +13,7 @@ from dcmanager.common.consts \
     import STRATEGY_STATE_KUBE_CREATING_VIM_KUBE_UPGRADE_STRATEGY
 from dcmanager.common.consts import STRATEGY_STATE_KUBE_UPGRADE_PRE_CHECK
 from dcmanager.db.sqlalchemy import api as db_api
+from dcmanager.orchestrator.states.base import BaseState
 from dcmanager.tests.unit.common import fake_strategy
 from dcmanager.tests.unit.orchestrator.states.fakes import FakeAlarm
 from dcmanager.tests.unit.orchestrator.states.fakes import FakeKubeUpgrade
@@ -112,6 +113,18 @@ class TestKubeUpgradePreCheckStage(TestKubeUpgradeState):
         # mock the get_kube_versions calls
         self.sysinv_client.get_kube_versions = mock.MagicMock()
         self.sysinv_client.get_kube_versions.return_value = []
+        # mock the cached get_kube_versions calls
+        self._mock_read_from_cache(BaseState)
+        self.mock_read_from_cache.return_value = [
+            FakeKubeVersion(obj_id=1,
+                            version=PREVIOUS_KUBE_VERSION,
+                            target=True,
+                            state='active'),
+            FakeKubeVersion(obj_id=2,
+                            version=UPGRADED_KUBE_VERSION,
+                            target=False,
+                            state='available'),
+        ]
 
     def test_pre_check_subcloud_existing_upgrade(self):
         """Test pre check step where the subcloud has a kube upgrade
@@ -127,7 +140,7 @@ class TestKubeUpgradePreCheckStage(TestKubeUpgradeState):
                                deploy_status=DEPLOY_STATE_DONE)
         self.sysinv_client.get_kube_upgrades.return_value = [FakeKubeUpgrade()]
         # get kube versions invoked only for the system controller
-        self.sysinv_client.get_kube_versions.return_value = [
+        self.mock_read_from_cache.return_value = [
             FakeKubeVersion(obj_id=1,
                             version=UPGRADED_KUBE_VERSION,
                             target=True,
@@ -138,7 +151,7 @@ class TestKubeUpgradePreCheckStage(TestKubeUpgradeState):
         self.worker.perform_state_action(self.strategy_step)
 
         # Verify the single query (for the system controller)
-        self.sysinv_client.get_kube_versions.assert_called_once()
+        self.mock_read_from_cache.assert_called_once()
 
         # Verify the transition to the  expected next state
         self.assert_step_updated(self.strategy_step.subcloud_id, next_state)
@@ -156,7 +169,7 @@ class TestKubeUpgradePreCheckStage(TestKubeUpgradeState):
         )
         self.sysinv_client.get_kube_upgrades.return_value = [FakeKubeUpgrade()]
 
-        self.sysinv_client.get_kube_versions.return_value = [
+        self.mock_read_from_cache.return_value = [
             FakeKubeVersion(
                 obj_id=1, version=UPGRADED_KUBE_VERSION, target=True, state='active'
             )
@@ -164,7 +177,7 @@ class TestKubeUpgradePreCheckStage(TestKubeUpgradeState):
 
         self.worker.perform_state_action(self.strategy_step)
 
-        self.sysinv_client.get_kube_versions.assert_called_once()
+        self.mock_read_from_cache.assert_called_once()
 
         self.assert_step_updated(self.strategy_step.subcloud_id, next_state)
 
@@ -180,7 +193,7 @@ class TestKubeUpgradePreCheckStage(TestKubeUpgradeState):
         self.sysinv_client.get_kube_upgrade_health.return_value = (
             KUBERNETES_UPGRADE_HEALTH_RESPONSE_MGMT_AFFECTING_ALARM)
         self.sysinv_client.get_kube_upgrades.return_value = [FakeKubeUpgrade()]
-        self.sysinv_client.get_kube_versions.return_value = [
+        self.mock_read_from_cache.return_value = [
             FakeKubeVersion(obj_id=1,
                             version=UPGRADED_KUBE_VERSION,
                             target=True,
@@ -227,7 +240,7 @@ class TestKubeUpgradePreCheckStage(TestKubeUpgradeState):
         self.sysinv_client.get_kube_upgrade_health.return_value = (
             KUBERNETES_UPGRADE_HEALTH_RESPONSE_MGMT_AFFECTING_ALARM)
         self.sysinv_client.get_kube_upgrades.return_value = [FakeKubeUpgrade()]
-        self.sysinv_client.get_kube_versions.return_value = [
+        self.mock_read_from_cache.return_value = [
             FakeKubeVersion(obj_id=1,
                             version=UPGRADED_KUBE_VERSION,
                             target=True,
@@ -249,7 +262,7 @@ class TestKubeUpgradePreCheckStage(TestKubeUpgradeState):
         self.sysinv_client.get_kube_upgrade_health.return_value = (
             KUBERNETES_UPGRADE_HEALTH_RESPONSE_NON_MGMT_AFFECTING_ALARM)
         self.sysinv_client.get_kube_upgrades.return_value = [FakeKubeUpgrade()]
-        self.sysinv_client.get_kube_versions.return_value = [
+        self.mock_read_from_cache.return_value = [
             FakeKubeVersion(obj_id=1,
                             version=UPGRADED_KUBE_VERSION,
                             target=True,
@@ -281,7 +294,7 @@ class TestKubeUpgradePreCheckStage(TestKubeUpgradeState):
         # Query system controller kube versions
         # override the first get, so that there is no active release
         # 'partial' indicates the system controller is still upgrading
-        self.sysinv_client.get_kube_versions.return_value = [
+        self.mock_read_from_cache.return_value = [
             FakeKubeVersion(obj_id=1,
                             version=PREVIOUS_KUBE_VERSION,
                             target=True,
@@ -319,7 +332,7 @@ class TestKubeUpgradePreCheckStage(TestKubeUpgradeState):
 
         # No extra args / to-version in the database
         # Query system controller kube versions
-        self.sysinv_client.get_kube_versions.side_effect = [
+        self.mock_read_from_cache.side_effect = [
             [   # first list: (system controller) has an active release
                 FakeKubeVersion(obj_id=1,
                                 version=PREVIOUS_KUBE_VERSION,
@@ -347,8 +360,8 @@ class TestKubeUpgradePreCheckStage(TestKubeUpgradeState):
         # invoke the strategy state operation on the orch thread
         self.worker.perform_state_action(self.strategy_step)
 
-        # get_kube_versions gets called (more than once)
-        self.sysinv_client.get_kube_versions.assert_called()
+        # cached get_kube_versions gets called (more than once)
+        self.mock_read_from_cache.assert_called()
 
         # Verify the expected next state happened
         self.assert_step_updated(self.strategy_step.subcloud_id, next_state)
@@ -388,7 +401,7 @@ class TestKubeUpgradePreCheckStage(TestKubeUpgradeState):
         # Do not need to mock query kube versions since extra args will be
         # queried to get the info for the system controller
         # and pre-existing upgrade is used for subcloud
-        self.sysinv_client.get_kube_versions.assert_not_called()
+        self.mock_read_from_cache.assert_not_called()
 
         # Verify the transition to the  expected next state
         self.assert_step_updated(self.strategy_step.subcloud_id, next_state)
@@ -426,7 +439,7 @@ class TestKubeUpgradePreCheckStage(TestKubeUpgradeState):
         # Do not need to mock query kube versions since extra args will be
         # queried to get the info for the system controller
         # and pre-existing upgrade is used for subcloud
-        self.sysinv_client.get_kube_versions.assert_not_called()
+        self.mock_read_from_cache.assert_not_called()
 
         # Verify the transition to the  expected next state
         self.assert_step_updated(self.strategy_step.subcloud_id, next_state)
@@ -483,7 +496,7 @@ class TestKubeUpgradePreCheckStage(TestKubeUpgradeState):
         # Do not need to mock query kube versions since extra args will be
         # queried to get the info for the system controller
         # and pre-existing upgrade is used for subcloud
-        self.sysinv_client.get_kube_versions.assert_not_called()
+        self.mock_read_from_cache.assert_not_called()
 
         # Verify the transition to the  expected next state
         self.assert_step_updated(self.strategy_step.subcloud_id, next_state)
@@ -518,7 +531,7 @@ class TestKubeUpgradePreCheckStage(TestKubeUpgradeState):
                                deploy_status=DEPLOY_STATE_DONE)
 
         # Setup a fake kube upgrade in progress
-        self.sysinv_client.get_kube_versions.return_value = KUBE_VERSION_LIST
+        self.mock_read_from_cache.return_value = KUBE_VERSION_LIST
 
         # Setup a fake kube upgrade strategy with the to-version specified
         extra_args = {"to-version": "v1.2.4"}
@@ -543,7 +556,7 @@ class TestKubeUpgradePreCheckStage(TestKubeUpgradeState):
                                deploy_status=DEPLOY_STATE_DONE)
 
         # Setup a fake kube upgrade in progress
-        self.sysinv_client.get_kube_versions.return_value = []
+        self.mock_read_from_cache.return_value = []
 
         # Setup a fake kube upgrade strategy with the to-version specified
         extra_args = {"to-version": "v1.2.4"}
@@ -569,6 +582,7 @@ class TestKubeUpgradePreCheckStage(TestKubeUpgradeState):
 
         # Setup a fake kube upgrade in progress
         self.sysinv_client.get_kube_versions.return_value = KUBE_VERSION_LIST_2
+        self.mock_read_from_cache.return_value = KUBE_VERSION_LIST_2
 
         # Setup a fake kube upgrade strategy with the to-version specified
         extra_args = {"to-version": "v1.2.6"}
