@@ -266,8 +266,8 @@ class SwUpdateManager(manager.Manager):
         :param context: request context object
         :param payload: strategy configuration
         """
-        LOG.info("Creating software update strategy of type %s." %
-                 payload['type'])
+
+        LOG.info(f"Creating software update strategy of type {payload['type']}.")
 
         # Don't create a strategy if one exists. No need to filter by type
         try:
@@ -277,15 +277,14 @@ class SwUpdateManager(manager.Manager):
         else:
             raise exceptions.BadRequest(
                 resource='strategy',
-                msg="Strategy of type: '%s' already exists" % strategy.type)
-
-        strategy_type = payload.get('type')
+                msg=f"Strategy of type: '{strategy.type}' already exists"
+            )
 
         single_group = None
         subcloud_group = payload.get('subcloud_group')
+
         if subcloud_group:
-            single_group = utils.subcloud_group_get_by_ref(context,
-                                                           subcloud_group)
+            single_group = utils.subcloud_group_get_by_ref(context, subcloud_group)
             subcloud_apply_type = single_group.update_apply_type
             max_parallel_subclouds = single_group.max_parallel_subclouds
         else:
@@ -297,27 +296,9 @@ class SwUpdateManager(manager.Manager):
             else:
                 max_parallel_subclouds = int(max_parallel_subclouds_str)
 
-        # todo(abailey): refactor common code in stop-on-failure and force
-        stop_on_failure_str = payload.get('stop-on-failure')
+        stop_on_failure = payload.get('stop-on-failure') in ['true']
+        force = payload.get('force') in ['true']
 
-        if not stop_on_failure_str:
-            stop_on_failure = False
-        else:
-            if stop_on_failure_str in ['true']:
-                stop_on_failure = True
-            else:
-                stop_on_failure = False
-
-        force_str = payload.get('force')
-        if not force_str:
-            force = False
-        else:
-            if force_str in ['true']:
-                force = True
-            else:
-                force = False
-
-        patch_file = payload.get('patch')
         installed_loads = []
         software_version = None
         software_major_release = None
@@ -334,6 +315,7 @@ class SwUpdateManager(manager.Manager):
         # Has the user specified a specific subcloud?
         # todo(abailey): refactor this code to use classes
         cloud_name = payload.get('cloud_name')
+        strategy_type = payload.get('type')
         prestage_global_validated = False
         if cloud_name and cloud_name != dccommon_consts.SYSTEM_CONTROLLER_NAME:
             # Make sure subcloud exists
@@ -342,7 +324,7 @@ class SwUpdateManager(manager.Manager):
             except exceptions.SubcloudNameNotFound:
                 raise exceptions.BadRequest(
                     resource='strategy',
-                    msg='Subcloud %s does not exist' % cloud_name)
+                    msg=f'Subcloud {cloud_name} does not exist')
 
             if strategy_type == consts.SW_UPDATE_TYPE_SOFTWARE:
                 subcloud_status = db_api.subcloud_status_get(
@@ -606,6 +588,7 @@ class SwUpdateManager(manager.Manager):
             # Fetch all subclouds
             subclouds_list = db_api.subcloud_get_all_ordered_by_id(context)
 
+        patch_file = payload.get('patch')
         for subcloud in subclouds_list:
             if (cloud_name and subcloud.name != cloud_name or
                     subcloud.management_state != dccommon_consts.MANAGEMENT_MANAGED):
