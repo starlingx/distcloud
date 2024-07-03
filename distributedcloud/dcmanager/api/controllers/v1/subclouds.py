@@ -25,6 +25,7 @@ import re
 from fm_api.constants import FM_ALARM_ID_UNSYNCHRONIZED_RESOURCE
 import keyring
 from keystoneauth1 import exceptions as keystone_exceptions
+from netaddr import IPNetwork
 from oslo_config import cfg
 from oslo_log import log as logging
 from oslo_messaging import RemoteError
@@ -240,7 +241,7 @@ class SubcloudsController(object):
 
     # TODO(nicodemos): Check if subcloud is online and network already exist in the
     # subcloud when the lock/unlock is not required for network reconfiguration
-    def _validate_network_reconfiguration(self, payload, subcloud):
+    def _validate_network_reconfiguration(self, context, payload, subcloud):
         if payload.get("management-state"):
             pecan.abort(
                 422,
@@ -297,6 +298,20 @@ class SubcloudsController(object):
             )
             LOG.exception(msg)
             pecan.abort(400, msg)
+
+        subcloud_subnets = []
+        subclouds = db_api.subcloud_get_all(context)
+        for subcloud in subclouds:
+            subcloud_subnets.append(IPNetwork(subcloud.management_subnet))
+
+        psd_common.validate_admin_network_config(
+            payload.get("management_subnet"),
+            payload.get("management_start_ip"),
+            payload.get("management_end_ip"),
+            payload.get("management_gateway_ip"),
+            subcloud_subnets,
+            None,
+        )
 
     def _get_subcloud_users(self):
         """Get the subcloud users and passwords from keyring"""
@@ -1035,7 +1050,7 @@ class SubcloudsController(object):
                     "management_start_ip", None
                 )
                 # Validation
-                self._validate_network_reconfiguration(payload, subcloud)
+                self._validate_network_reconfiguration(context, payload, subcloud)
                 # Validate there's no on-going vim strategy
                 if self._check_existing_vim_strategy(context, subcloud):
                     error_msg = (
