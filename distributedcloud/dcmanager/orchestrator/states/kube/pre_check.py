@@ -6,13 +6,14 @@
 
 import re
 
-from dccommon.consts import DEFAULT_REGION_NAME
 from dcmanager.common.consts import ERROR_DESC_CMD
 from dcmanager.common.consts import STRATEGY_STATE_COMPLETE
 from dcmanager.common.consts \
     import STRATEGY_STATE_KUBE_CREATING_VIM_KUBE_UPGRADE_STRATEGY
 from dcmanager.common import utils
 from dcmanager.db import api as db_api
+from dcmanager.orchestrator.cache.cache_specifications import \
+    REGION_ONE_KUBERNETES_CACHE_TYPE
 from dcmanager.orchestrator.states.base import BaseState
 
 # These following alarms can occur during a vim orchestrated k8s upgrade on the
@@ -86,15 +87,14 @@ class KubeUpgradePreCheckState(BaseState):
 
         # check extra_args for the strategy
         # if there is a to-version, use that when checking against the subcloud
-        # target version, otherwise compare to the sytem controller version
+        # target version, otherwise compare to the system controller version
         # to determine if this subcloud is permitted to upgrade.
         extra_args = utils.get_sw_update_strategy_extra_args(self.context)
         if extra_args is None:
             extra_args = {}
         to_version = extra_args.get('to-version', None)
         if to_version is None:
-            sys_kube_versions = \
-                self.get_sysinv_client(DEFAULT_REGION_NAME).get_kube_versions()
+            sys_kube_versions = self._read_from_cache(REGION_ONE_KUBERNETES_CACHE_TYPE)
             to_version = utils.get_active_kube_version(sys_kube_versions)
             if to_version is None:
                 # No active target kube version on the system controller means
@@ -127,7 +127,7 @@ class KubeUpgradePreCheckState(BaseState):
 
         # For the to-version, the code currently allows a partial version
         # ie: v1.20  or a version that is much higher than is installed.
-        # This allows flexability when passing in a to-version.
+        # This allows flexibility when passing in a to-version.
 
         # The 'to-version' is the desired version to upgrade the subcloud.
         # The 'target_version' is what the subcloud is allowed to upgrade to.

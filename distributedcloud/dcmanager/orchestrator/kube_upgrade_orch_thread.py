@@ -1,5 +1,5 @@
 # Copyright 2017 Ericsson AB.
-# Copyright (c) 2017-2021 Wind River Systems, Inc.
+# Copyright (c) 2017-2021, 2024 Wind River Systems, Inc.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -16,6 +16,8 @@
 #
 from dccommon.drivers.openstack import vim
 from dcmanager.common import consts
+from dcmanager.orchestrator.cache.shared_cache_repository import \
+    SharedCacheRepository
 from dcmanager.orchestrator.orch_thread import OrchThread
 from dcmanager.orchestrator.states.kube.applying_vim_kube_upgrade_strategy \
     import ApplyingVIMKubeUpgradeStrategyState
@@ -46,6 +48,22 @@ class KubeUpgradeOrchThread(OrchThread):
             vim.STRATEGY_NAME_KUBE_UPGRADE,
             consts.STRATEGY_STATE_KUBE_UPGRADE_PRE_CHECK)
 
+        # Initialize shared cache instances for the states that require them
+        self._shared_caches = SharedCacheRepository(self.update_type)
+        self._shared_caches.initialize_caches()
+
     def trigger_audit(self):
         """Trigger an audit for kubernetes"""
         self.audit_rpc_client.trigger_kubernetes_audit(self.context)
+
+    def pre_apply_setup(self):
+        # Restart caches for next strategy so that we always have the
+        # latest RegionOne data at the moment the strategy is applied
+        self._shared_caches.initialize_caches()
+        super().pre_apply_setup()
+
+    def determine_state_operator(self, strategy_step):
+        state = super().determine_state_operator(strategy_step)
+        # Share the cache with the state object
+        state.add_shared_caches(self._shared_caches)
+        return state
