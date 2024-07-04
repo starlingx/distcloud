@@ -2114,7 +2114,7 @@ class SubcloudManager(manager.Manager):
         # Create endpoints to this subcloud on the
         # management-start-ip of the subcloud which will be allocated
         # as the floating Management IP of the Subcloud if the
-        # Address Pool is not shared. Incase the endpoint entries
+        # Address Pool is not shared. In case the endpoint entries
         # are incorrect, or the management IP of the subcloud is changed
         # in the future, it will not go managed or will show up as
         # out of sync. To fix this use Openstack endpoint commands
@@ -2573,7 +2573,7 @@ class SubcloudManager(manager.Manager):
             deploy_status=consts.DEPLOY_STATE_BOOTSTRAPPING,
             error_description=consts.ERROR_DESC_EMPTY)
 
-        # Run the ansible subcloud boostrap playbook
+        # Run the ansible subcloud bootstrap playbook
         LOG.info("Starting bootstrap of %s" % subcloud.name)
         try:
             ansible = AnsiblePlaybook(subcloud.name)
@@ -3411,17 +3411,16 @@ class SubcloudManager(manager.Manager):
 
     def _update_services_endpoint(
             self, context, payload, subcloud_region, m_ks_client):
-        endpoint_ip = utils.get_management_start_address(payload)
-        if netaddr.IPAddress(endpoint_ip).version == 6:
-            endpoint_ip = f"[{endpoint_ip}]"
+        ip = utils.get_management_start_address(payload)
+        formatted_ip = f"[{ip}]" if netaddr.IPAddress(ip).version == 6 else ip
 
         services_endpoints = {
-            "keystone": "https://{}:5001/v3".format(endpoint_ip),
-            "sysinv": "https://{}:6386/v1".format(endpoint_ip),
-            "fm": "https://{}:18003".format(endpoint_ip),
-            "patching": "https://{}:5492".format(endpoint_ip),
-            "vim": "https://{}:4546".format(endpoint_ip),
-            "usm": "https://{}:5498".format(endpoint_ip),
+            "keystone": "https://{}:5001/v3".format(formatted_ip),
+            "sysinv": "https://{}:6386/v1".format(formatted_ip),
+            "fm": "https://{}:18003".format(formatted_ip),
+            "patching": "https://{}:5492".format(formatted_ip),
+            "vim": "https://{}:4546".format(formatted_ip),
+            "usm": "https://{}:5498".format(formatted_ip),
         }
 
         for endpoint in m_ks_client.keystone_client.endpoints.list(
@@ -3446,13 +3445,13 @@ class SubcloudManager(manager.Manager):
                 endpoint, url=admin_endpoint_url)
 
         LOG.info("Update services endpoint to %s in subcloud region %s" % (
-            endpoint_ip, subcloud_region))
+            formatted_ip, subcloud_region))
         # Update service URLs in subcloud endpoint cache
         self.audit_rpc_client.trigger_subcloud_endpoints_update(
             context, subcloud_region, services_endpoints)
         # Update the management ip inside dcorch database (triggers endpoint update)
         self.dcorch_rpc_client.update_subcloud_management_ip(
-            context, subcloud_region, endpoint_ip)
+            context, subcloud_region, ip)
         # Update sysinv URL in cert-mon cache
         dc_notification = dcmanager_rpc_client.DCManagerNotifications()
         dc_notification.subcloud_sysinv_endpoint_update(
