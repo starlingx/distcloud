@@ -75,6 +75,14 @@ Depends:
 Description: Distributed Cloud DCorch DBsync Agent
  Distributed Cloud DCorch DBsync Agent
 
+Package: distributedcloud-dcagent
+Architecture: any
+Depends:
+ ${misc:Depends},
+ ${python3:Depends}
+Description: Distributed Cloud DCAgent
+ Distributed Cloud DCAgent
+
 Package: distributedcloud-wheels
 Architecture: any
 Depends:

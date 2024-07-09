@@ -38,9 +38,11 @@ override_dh_install:
 	install -p -D -m 644 files/dcorch-identity-api-proxy.service $(SYSTEMD_DIR)/dcorch-identity-api-proxy.service
 
 	install -p -D -m 644 files/dcdbsync-api.service $(SYSTEMD_DIR)/dcdbsync-api.service
+	install -p -D -m 644 files/dcagent-api.service $(SYSTEMD_DIR)/dcagent-api.service
 
 	install -p -D -m 644 files/dcorch.conf $(TMP_DIR)/dcorch.conf
 	install -p -D -m 644 files/dcmanager.conf $(TMP_DIR)/dcmanager.conf
+	install -p -D -m 644 files/dcagent.conf $(TMP_DIR)/dcagent.conf
 
 	# install systemd unit files for optional second instance
 	install -p -D -m 644 files/dcdbsync-openstack-api.service $(SYSTEMD_DIR)/dcdbsync-openstack-api.service
@@ -64,6 +66,7 @@ override_dh_install:
 	PYTHONPATH=. oslo-config-generator --config-file=./dcmanager/config-generator.conf
 	PYTHONPATH=. oslo-config-generator --config-file=./dcorch/config-generator.conf
 	PYTHONPATH=. oslo-config-generator --config-file=./dcdbsync/config-generator.conf
+	PYTHONPATH=. oslo-config-generator --config-file=./dcagent/config-generator.conf
 
 	# install default config files
 	oslo-config-generator \
@@ -81,6 +84,11 @@ override_dh_install:
 		--output-file ./dcdbsync/dcdbsync.conf.sample
 	install -p -D -m 640 ./dcdbsync/dcdbsync.conf.sample $(SYS_CONF_DIR)/dcdbsync/dcdbsync.conf
 
+	oslo-config-generator \
+		--config-file ./dcagent/config-generator.conf \
+		--output-file ./dcagent/dcagent.conf.sample
+	install -p -D -m 640 ./dcagent/dcagent.conf.sample $(SYS_CONF_DIR)/dcagent/dcagent.conf
+
 	# install rvmc_install.py script
 	install -d $(ROOT)/usr/local/bin/
 	install -p -D -m 700 scripts/rvmc_install.py $(ROOT)/usr/local/bin
@@ -89,6 +97,7 @@ override_dh_install:
 	rm -rf $(ROOT)/usr/lib/python3/dist-packages/dccommon/tests
 	rm -rf $(ROOT)/usr/lib/python3/dist-packages/dcmanager/tests
 	rm -rf $(ROOT)/usr/lib/python3/dist-packages/dcorch/tests
+	rm -rf $(ROOT)/usr/lib/python3/dist-packages/dcagent/tests
 
 	dh_install
 
@@ -99,7 +108,8 @@ override_dh_fixperms:
 	dh_fixperms \
 		--exclude etc/dcdbsync/dcdbsync.conf \
 		--exclude etc/dcmanager/dcmanager.conf \
-		--exclude etc/dcorch/dcorch.conf
+		--exclude etc/dcorch/dcorch.conf \
+		--exclude etc/dcagent/dcagent.conf
 
 execute_after_dh_fixperms:
 	# forcing 600 for /var/opt/dc/ansible

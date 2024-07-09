@@ -1,0 +1,6 @@
+etc/dcagent/dcagent.conf
+usr/bin/dcagent-api
+usr/lib/ocf/resource.d/openstack/dcagent-*
+usr/lib/python3/dist-packages/dcagent/*
+usr/lib/systemd/system/dcagent-api.service
+usr/lib/tmpfiles.d/dcagent.conf

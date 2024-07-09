@@ -1,0 +1,12 @@
+[Unit]
+Description=DC DCAgent API Service
+After=syslog.target network.target mysqld.service openstack-keystone.service
+
+[Service]
+Type=simple
+User=root
+ExecStart=/usr/bin/dcagent --config-file /etc/dcagent/dcagent.conf
+Restart=on-failure
+
+[Install]
+WantedBy=multi-user.target
