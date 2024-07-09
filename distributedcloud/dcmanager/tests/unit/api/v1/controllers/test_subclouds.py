@@ -2329,6 +2329,8 @@ class TestSubcloudsPatchPrestage(BaseTestSubcloudsPatch):
         self._mock_sysinv_client(cutils)
         self.mock_sysinv_client_cutils = self.mock_sysinv_client
 
+        self._mock_software_client(cutils.software_v1)
+
     def _setup_mock_sysinv_client_prestage(self):
         self.mock_sysinv_client_prestage().get_upgrades.return_value = []
 

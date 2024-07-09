@@ -322,14 +322,14 @@ class SwUpdateManager(manager.Manager):
         stop_on_failure = payload.get('stop-on-failure') in ['true']
         force = payload.get('force') in ['true']
 
-        installed_loads = []
+        installed_releases = []
         software_version = None
         software_major_release = None
         for_sw_deploy = False
         if payload.get(consts.PRESTAGE_REQUEST_RELEASE):
             software_version = payload.get(consts.PRESTAGE_REQUEST_RELEASE)
             software_major_release = utils.get_major_release(software_version)
-            installed_loads = utils.get_systemcontroller_installed_loads()
+            installed_releases = utils.get_systemcontroller_installed_releases()
             # TODO(kmacleod): Hugo: we need to say whether this is a
             # for-install or for-fw-deploy prestaging operation Setting this to
             # a for-install operation for now (since that is the default)
@@ -354,10 +354,10 @@ class SwUpdateManager(manager.Manager):
                 try:
                     prestage.global_prestage_validate(payload)
                     prestage_global_validated = True
-                    installed_loads = utils.get_systemcontroller_installed_loads()
+                    installed_releases = utils.get_systemcontroller_installed_releases()
                     prestage.initial_subcloud_validate(
                         subcloud,
-                        installed_loads,
+                        installed_releases,
                         software_major_release,
                         for_sw_deploy
                     )
@@ -495,7 +495,7 @@ class SwUpdateManager(manager.Manager):
                     try:
                         prestage.initial_subcloud_validate(
                             subcloud,
-                            installed_loads,
+                            installed_releases,
                             software_major_release,
                             for_sw_deploy,
                         )

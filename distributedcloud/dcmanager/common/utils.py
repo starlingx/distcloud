@@ -42,6 +42,7 @@ import yaml
 
 from dccommon import consts as dccommon_consts
 from dccommon.drivers.openstack.sdk_platform import OpenStackDriver
+from dccommon.drivers.openstack import software_v1
 from dccommon.drivers.openstack.sysinv_v1 import SysinvClient
 from dccommon.drivers.openstack import vim
 from dccommon import exceptions as dccommon_exceptions
@@ -527,16 +528,6 @@ def get_loads_for_patching(loads):
     valid_states = [
         consts.ACTIVE_LOAD_STATE,
         consts.IMPORTED_LOAD_STATE
-    ]
-    return [load.software_version for load in loads if load.state in valid_states]
-
-
-def get_loads_for_prestage(loads):
-    """Filter the loads that can be prestaged. Return their software versions"""
-    valid_states = [
-        consts.ACTIVE_LOAD_STATE,
-        consts.IMPORTED_LOAD_STATE,
-        consts.INACTIVE_LOAD_STATE
     ]
     return [load.software_version for load in loads if load.state in valid_states]
 
@@ -1075,24 +1066,31 @@ def is_subcloud_healthy(subcloud_region):
     return False
 
 
-def get_systemcontroller_installed_loads():
+def get_systemcontroller_installed_releases():
+
     try:
         os_client = OpenStackDriver(
-            region_name=dccommon_consts.SYSTEM_CONTROLLER_NAME,
+            region_name=dccommon_consts.DEFAULT_REGION_NAME,
             region_clients=None,
             fetch_subcloud_ips=fetch_subcloud_mgmt_ips,
         )
+        ks_client = os_client.keystone_client
+        software_client = software_v1.SoftwareClient(
+            dccommon_consts.DEFAULT_REGION_NAME, ks_client.session,
+            endpoint=ks_client.endpoint_cache.get_endpoint('usm'))
+        releases = software_client.list()
+
+        return [release['sw_version'] for release in releases
+                if release['state'] == software_v1.DEPLOYED]
+
+    except requests.exceptions.ConnectionError:
+        LOG.exception("Failed to get software list for %s",
+                      dccommon_consts.DEFAULT_REGION_NAME)
+        raise
     except Exception:
         LOG.exception("Failed to get keystone client for %s",
-                      dccommon_consts.SYSTEM_CONTROLLER_NAME)
+                      dccommon_consts.DEFAULT_REGION_NAME)
         raise
-    ks_client = os_client.keystone_client
-    sysinv_client = SysinvClient(
-        dccommon_consts.SYSTEM_CONTROLLER_NAME, ks_client.session,
-        endpoint=ks_client.endpoint_cache.get_endpoint('sysinv'))
-
-    loads = sysinv_client.get_loads()
-    return get_loads_for_prestage(loads)
 
 
 def get_certificate_from_secret(secret_name, secret_ns):

@@ -231,6 +231,13 @@ class DCManagerTestCase(base.BaseTestCase):
         self.mock_sysinv_client = mock_patch_object.start()
         self.addCleanup(mock_patch_object.stop)
 
+    def _mock_software_client(self, target):
+        """Mock the target's SoftwareClient"""
+
+        mock_patch_object = mock.patch.object(target, 'SoftwareClient')
+        self.mock_software_client = mock_patch_object.start()
+        self.addCleanup(mock_patch_object.stop)
+
     def _mock_fm_client(self, target):
         """Mock the target's FmClient"""
 
