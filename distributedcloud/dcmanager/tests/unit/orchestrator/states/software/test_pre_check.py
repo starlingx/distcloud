@@ -49,7 +49,7 @@ class TestPreCheckState(TestSoftwareOrchestrator):
         self.subcloud = self.setup_subcloud()
 
         # Create default strategy with release parameter
-        extra_args = {"release": "starlingx-9.0.1"}
+        extra_args = {"release_id": "starlingx-9.0.1"}
         self.strategy = fake_strategy.create_fake_strategy(
             self.ctx, self.DEFAULT_STRATEGY_TYPE, extra_args=extra_args
         )

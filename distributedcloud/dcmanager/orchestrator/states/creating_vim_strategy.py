@@ -42,8 +42,8 @@ class CreatingVIMStrategyState(BaseState):
         # Get release parameter data for sw-deploy strategy
         if self.strategy_name == vim.STRATEGY_NAME_SW_USM:
             extra_args = utils.get_sw_update_strategy_extra_args(self.context)
-            release_id = extra_args.get(consts.EXTRA_ARGS_RELEASE)
-            opts_dict["release"] = release_id
+            release_id = extra_args.get(consts.EXTRA_ARGS_RELEASE_ID)
+            opts_dict["release_id"] = release_id
 
         # Call the API to build the VIM strategy
         # release will be sent as a **kwargs value for sw-deploy strategy
@@ -54,7 +54,7 @@ class CreatingVIMStrategyState(BaseState):
             opts_dict['max-parallel-workers'],
             opts_dict['default-instance-action'],
             opts_dict['alarm-restriction-type'],
-            release=opts_dict.get('release'),)
+            release=opts_dict.get('release_id'),)
 
         # a successful API call to create MUST set the state be 'building'
         if subcloud_strategy.state != vim.STATE_BUILDING:
