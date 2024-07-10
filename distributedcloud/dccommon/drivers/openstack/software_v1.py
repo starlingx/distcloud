@@ -18,6 +18,7 @@ ABORTING = "aborting"
 AVAILABLE = "available"
 COMMITTED = "committed"
 DEPLOYED = "deployed"
+DEPLOYING = "deploying"
 REMOVING = "removing"
 UNAVAILABLE = "unavailable"
 
@@ -70,6 +71,12 @@ class SoftwareClient(base.DriverBase):
         response = requests.post(url, headers=self.headers, timeout=timeout)
         return self._handle_response(response, operation="Deploy precheck")
 
+    def deploy_delete(self, timeout=REST_DEFAULT_TIMEOUT):
+        """Deploy delete"""
+        url = self.endpoint + "/deploy"
+        response = requests.delete(url, headers=self.headers, timeout=timeout)
+        return self._handle_response(response, operation="Deploy delete")
+
     def commit_patch(self, releases, timeout=REST_DEFAULT_TIMEOUT):
         """Commit patch"""
         release_str = "/".join(releases)
@@ -86,5 +93,5 @@ class SoftwareClient(base.DriverBase):
         if isinstance(data, dict) and data.get("error"):
             message = f"{operation} failed with error: {data.get('error')}"
             LOG.error(message)
-            raise Exception(message)
+            raise exceptions.SoftwareDataException(endpoint=response.url, error=message)
         return data

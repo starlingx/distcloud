@@ -121,6 +121,10 @@ class ApiException(DCCommonException):
     message = _("%(endpoint)s failed with status code: %(rc)d")
 
 
+class SoftwareDataException(DCCommonException):
+    message = _("%(endpoint)s failed with data error: %(error)s")
+
+
 class SystemPeerNotFound(NotFound):
     message = _("System Peer %(system_peer)s not found")
 
