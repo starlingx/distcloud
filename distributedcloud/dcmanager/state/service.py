@@ -121,9 +121,9 @@ class DCManagerStateService(service.Service):
     ):
         # Updates subcloud endpoint sync status
         LOG.info(
-            "Handling update_subcloud_endpoint_status request for "
-            "subcloud: (%s) endpoint: (%s) status:(%s) "
-            % (subcloud_name, endpoint_type, sync_status)
+            "Handling update_subcloud_endpoint_status request for subcloud: "
+            f"({subcloud_name if subcloud_name is not None else subcloud_region}) "
+            f"endpoint: ({endpoint_type}) status: ({sync_status})"
         )
 
         self.subcloud_state_manager.update_subcloud_endpoint_status(

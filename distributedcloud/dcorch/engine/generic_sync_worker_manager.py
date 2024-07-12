@@ -45,7 +45,9 @@ class GenericSyncWorkerManager(object):
             thread_pool_size=100
         )
 
-    def create_sync_objects(self, subcloud_name, capabilities, management_ip):
+    def create_sync_objects(
+        self, subcloud_name, capabilities, management_ip, software_version
+    ):
         """Create sync object objects for the subcloud
 
         The objects handle the syncing of the subcloud's endpoint_types
@@ -56,10 +58,12 @@ class GenericSyncWorkerManager(object):
             for endpoint_type in endpoint_type_list:
                 LOG.debug(
                     f"Engine id:({self.engine_id}) create "
-                    f"{subcloud_name}/{endpoint_type}/{management_ip} sync obj"
+                    f"{subcloud_name}/{endpoint_type}/"
+                    f"{management_ip}/{software_version} "
+                    f"sync obj"
                 )
                 sync_obj = sync_object_class_map[endpoint_type](
-                    subcloud_name, endpoint_type, management_ip
+                    subcloud_name, endpoint_type, management_ip, software_version
                 )
                 sync_objs[endpoint_type] = sync_obj
         return sync_objs
@@ -71,10 +75,15 @@ class GenericSyncWorkerManager(object):
         )
         LOG.debug(f"Engine id:({self.engine_id}) Start to sync {subcloud_sync_list}.")
 
-        for sc_region_name, ept, ip in subcloud_sync_list:
+        for sc_region_name, ept, ip, software_version in subcloud_sync_list:
             try:
                 self.sync_thread_group_manager.start(
-                    self._sync_subcloud, self.context, sc_region_name, ept, ip
+                    self._sync_subcloud,
+                    self.context,
+                    sc_region_name,
+                    ept,
+                    ip,
+                    software_version,
                 )
             except exceptions.SubcloudSyncNotFound:
                 # The endpoint in subcloud_sync has been removed
@@ -95,10 +104,12 @@ class GenericSyncWorkerManager(object):
                     values={"sync_request": dco_consts.SYNC_STATUS_FAILED},
                 )
 
-    def _sync_subcloud(self, context, subcloud_name, endpoint_type, management_ip):
+    def _sync_subcloud(
+        self, context, subcloud_name, endpoint_type, management_ip, software_version
+    ):
         LOG.info(f"Start to sync subcloud {subcloud_name}/{endpoint_type}.")
         sync_obj = sync_object_class_map[endpoint_type](
-            subcloud_name, endpoint_type, management_ip
+            subcloud_name, endpoint_type, management_ip, software_version
         )
         new_state = dco_consts.SYNC_STATUS_COMPLETED
         timeout = eventlet.timeout.Timeout(SYNC_TIMEOUT)
@@ -143,7 +154,7 @@ class GenericSyncWorkerManager(object):
                 values={"subcloud_id": sc.id},
             )
         # Create the sync object for this engine
-        self.create_sync_objects(name, capabilities, management_ip)
+        self.create_sync_objects(name, capabilities, management_ip, version)
 
     def del_subcloud(self, context, subcloud_name):
         # first update the state of the subcloud
@@ -198,7 +209,8 @@ class GenericSyncWorkerManager(object):
             f"updating state for subcloud {subcloud_name} - "
             f"management_state: {management_state} "
             f"availability_status: {availability_status} "
-            f"initial_sync_state: {initial_sync_state}"
+            f"initial_sync_state: {initial_sync_state} "
+            f"subsequent_sync: {subsequent_sync}"
         )
         sc = subcloud.Subcloud.get_by_name(context, subcloud_name)
         if management_state is not None:
@@ -280,7 +292,7 @@ class GenericSyncWorkerManager(object):
                 pass
 
             sync_obj = sync_object_class_map[endpoint_type](
-                subcloud_name, endpoint_type, sc.management_ip
+                subcloud_name, endpoint_type, sc.management_ip, sc.software_version
             )
 
             # create the subcloud_sync !!!
@@ -375,12 +387,14 @@ class GenericSyncWorkerManager(object):
         )
         LOG.debug(f"Engine id:({self.engine_id}) Start to audit {subcloud_sync_list}.")
 
-        for sc_region_name, ept, ip in subcloud_sync_list:
+        for sc_region_name, ept, ip, software_version in subcloud_sync_list:
             LOG.debug(
                 f"Attempt audit_subcloud: {self.engine_id}/{sc_region_name}/{ept}"
             )
             try:
-                sync_obj = sync_object_class_map[ept](sc_region_name, ept, ip)
+                sync_obj = sync_object_class_map[ept](
+                    sc_region_name, ept, ip, software_version
+                )
                 self.audit_thread_group_manager.start(
                     self._audit_subcloud, self.context, sc_region_name, ept, sync_obj
                 )

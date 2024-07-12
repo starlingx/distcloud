@@ -13,6 +13,7 @@
 # implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+from types import SimpleNamespace
 
 import threading
 
@@ -24,10 +25,12 @@ from oslo_serialization import jsonutils
 from oslo_utils import timeutils
 
 from dccommon import consts as dccommon_consts
+from dccommon.drivers.openstack.dcagent_v1 import DcagentClient
 from dccommon.drivers.openstack.sdk_platform import OpenStackDriver
 from dccommon.drivers.openstack.sysinv_v1 import SysinvClient
 from dccommon import exceptions as dccommon_exceptions
 from dccommon.utils import build_subcloud_endpoint
+from dccommon.utils import subcloud_has_dcagent
 from dcorch.common import consts
 from dcorch.common import exceptions
 from dcorch.engine.fernet_key_manager import FERNET_REPO_MASTER_ID
@@ -59,12 +62,18 @@ class SysinvSyncThread(SyncThread):
     SYNC_CERTIFICATES = ["ssl_ca", "openstack_ca"]
 
     def __init__(
-        self, subcloud_name, endpoint_type=None, management_ip=None, engine_id=None
+        self,
+        subcloud_name,
+        endpoint_type=None,
+        management_ip=None,
+        software_version=None,
+        engine_id=None,
     ):
         super(SysinvSyncThread, self).__init__(
             subcloud_name,
             endpoint_type=endpoint_type,
             management_ip=management_ip,
+            software_version=software_version,
             engine_id=engine_id,
         )
         if not self.endpoint_type:
@@ -84,6 +93,9 @@ class SysinvSyncThread(SyncThread):
             consts.RESOURCE_TYPE_SYSINV_USER,
             consts.RESOURCE_TYPE_SYSINV_FERNET_REPO,
         ]
+        # TODO(ecandotti): remove has_dcagent check in the next StarlingX release
+        self.has_dcagent = subcloud_has_dcagent(self.software_version)
+        self.sc_dcagent_client = None
 
         self.sc_sysinv_client = None
 
@@ -97,6 +109,12 @@ class SysinvSyncThread(SyncThread):
             f"Built sc_sysinv_url {sc_sysinv_url} for subcloud {self.subcloud_name}"
         )
 
+        if self.has_dcagent:
+            self.sc_dcagent_client = DcagentClient(
+                self.region_name,
+                self.sc_admin_session,
+                endpoint=build_subcloud_endpoint(self.management_ip, "dcagent"),
+            )
         self.sc_sysinv_client = SysinvClient(
             region=self.subcloud_name,
             session=self.sc_admin_session,
@@ -110,6 +128,11 @@ class SysinvSyncThread(SyncThread):
         if self.sc_sysinv_client is None:
             self.initialize_sc_clients()
         return self.sc_sysinv_client
+
+    def get_sc_dcagent_client(self):
+        if self.sc_dcagent_client is None:
+            self.initialize_sc_clients()
+        return self.sc_dcagent_client
 
     def sync_platform_resource(self, request, rsrc):
         try:
@@ -568,6 +591,9 @@ class SysinvSyncThread(SyncThread):
 
     def get_certificates_resources(self, sysinv_client):
         certificate_list = sysinv_client.get_certificates()
+        return self.filter_cert_list(certificate_list)
+
+    def filter_cert_list(self, certificate_list):
         # Only sync the specified certificates to subclouds
         filtered_list = [
             certificate
@@ -789,3 +815,43 @@ class SysinvSyncThread(SyncThread):
             return super(SysinvSyncThread, self).get_resource_info(
                 resource_type, resource, operation_type
             )
+
+    def get_dcagent_resources(self, resource_types):
+        try:
+            # Initialize the audit_payload with an empty dictionary and "use_cache"
+            # set to False, since we always want to get the latest information
+            audit_payload = {resource_type: "" for resource_type in resource_types}
+            audit_payload["use_cache"] = False
+            resources = self.get_sc_dcagent_client().audit(audit_payload)
+
+            formatted_resources = {}
+            # Process each resource type in the response
+            for resource_type in resource_types:
+                if resource_type == consts.RESOURCE_TYPE_SYSINV_CERTIFICATE:
+                    # Creates a list of namespaces to maintain compatibility
+                    # with existing code that expects attributes instead of dict keys
+                    certificates_ns = [
+                        SimpleNamespace(**cert)
+                        for cert in resources.get(resource_type, [])
+                    ]
+                    formatted_resources[resource_type] = self.filter_cert_list(
+                        certificates_ns
+                    )
+                elif resource_type == consts.RESOURCE_TYPE_SYSINV_USER:
+                    # Return a list containing a single dictionary since the resource
+                    # needs to be iterable
+                    iuser = resources.get(resource_type, {})
+                    formatted_resources[resource_type] = [iuser]
+                elif resource_type == consts.RESOURCE_TYPE_SYSINV_FERNET_REPO:
+                    # Convert the list of dictionaries to a single
+                    # dictionary inside a list
+                    fernet_repo = [
+                        {d["id"]: d["key"] for d in resources.get(resource_type, [])}
+                    ]
+                    formatted_resources[resource_type] = fernet_repo
+            return formatted_resources
+
+        except Exception:
+            failmsg = "Audit failure subcloud: %s, endpoint: %s"
+            LOG.exception(failmsg % (self.subcloud_name, "dcagent"))
+            return None
