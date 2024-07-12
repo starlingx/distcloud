@@ -19,22 +19,13 @@ import uuid
 import mock
 
 from dccommon import consts as dccommon_consts
-from dcmanager.audit import firmware_audit
 from dcmanager.audit import kubernetes_audit
-from dcmanager.audit import patch_audit
 from dcmanager.audit import subcloud_audit_manager
 from dcmanager.audit import subcloud_audit_worker_manager
 from dcmanager.tests import base
-from dcmanager.tests import utils
 
 PREVIOUS_KUBE_VERSION = 'v1.2.3'
 UPGRADED_KUBE_VERSION = 'v1.2.3-a'
-
-
-class FakeDCManagerStateAPI(object):
-    def __init__(self):
-        self.update_subcloud_availability = mock.MagicMock()
-        self.update_subcloud_endpoint_status = mock.MagicMock()
 
 
 class FakeKubeVersion(object):
@@ -61,82 +52,29 @@ class FakeKubeUpgrade(object):
         pass
 
 
-class FakeAuditWorkerAPI(object):
-
-    def __init__(self):
-        self.audit_subclouds = mock.MagicMock()
-
-
-class FakeSysinvClient(object):
-    def __init__(self):
-        self.region = None
-        self.session = None
-        self.get_kube_versions = mock.MagicMock()
-        self.get_kube_upgrades = mock.MagicMock()
-
-
 class TestKubernetesAudit(base.DCManagerTestCase):
     def setUp(self):
-        super(TestKubernetesAudit, self).setUp()
-        self.ctxt = utils.dummy_context()
+        super().setUp()
 
-        # Mock the DCManager subcloud state API
-        self.fake_dcmanager_state_api = FakeDCManagerStateAPI()
-        p = mock.patch('dcmanager.rpc.client.SubcloudStateClient')
-        self.mock_dcmanager_state_api = p.start()
-        self.mock_dcmanager_state_api.return_value = \
-            self.fake_dcmanager_state_api
-        self.addCleanup(p.stop)
+        self._mock_rpc_api_manager_audit_worker_client()
 
-        # Mock the Audit Worker API
-        self.fake_audit_worker_api = FakeAuditWorkerAPI()
-        p = mock.patch('dcmanager.audit.rpcapi.ManagerAuditWorkerClient')
-        self.mock_audit_worker_api = p.start()
-        self.mock_audit_worker_api.return_value = self.fake_audit_worker_api
-        self.addCleanup(p.stop)
+        # For the OpenStackDriver and SysinvClient that are duplicated, since some
+        # of them are not used directly, the variables are overriden by the mock
+        # method
+        self._mock_openstack_driver(kubernetes_audit)
+        self._mock_sysinv_client(kubernetes_audit)
 
-        # Note: mock where an item is used, not where it comes from
-        p = mock.patch.object(patch_audit, 'OpenStackDriver')
-        self.mock_patch_audit_driver = p.start()
-        self.mock_patch_audit_driver.return_value = mock.MagicMock()
-        self.addCleanup(p.stop)
-
-        p = mock.patch.object(patch_audit, 'SysinvClient')
-        self.mock_patch_audit_sys = p.start()
-        self.mock_patch_audit_sys.return_value = mock.MagicMock()
-        self.addCleanup(p.stop)
-
-        p = mock.patch.object(patch_audit, 'PatchingClient')
-        self.mock_patch_audit_pc = p.start()
-        self.mock_patch_audit_pc.return_value = mock.MagicMock()
-        self.addCleanup(p.stop)
-
-        p = mock.patch.object(firmware_audit, 'OpenStackDriver')
-        self.mock_firmware_audit_driver = p.start()
-        self.mock_firmware_audit_driver.return_value = mock.MagicMock()
-        self.addCleanup(p.stop)
-
-        p = mock.patch.object(firmware_audit, 'SysinvClient')
-        self.mock_firmware_audit_sys = p.start()
-        self.mock_firmware_audit_sys .return_value = mock.MagicMock()
-        self.addCleanup(p.stop)
-
-        p = mock.patch.object(kubernetes_audit, 'OpenStackDriver')
-        self.kube_openstack_driver = mock.MagicMock()
-        self.mock_kube_audit_driver = p.start()
-        self.mock_kube_audit_driver.return_value = self.kube_openstack_driver
-        self.addCleanup(p.stop)
-
-        p = mock.patch.object(kubernetes_audit, 'SysinvClient')
-        self.kube_sysinv_client = FakeSysinvClient()
-        self.mock_kube_audit_sys = p.start()
-        self.mock_kube_audit_sys.return_value = self.kube_sysinv_client
-        self.addCleanup(p.stop)
+        self._mock_sysinv_client(kubernetes_audit)
+        self.kube_sysinv_client = self.mock_sysinv_client
 
         self._mock_sysinv_client(subcloud_audit_worker_manager)
 
         # Set the kube upgrade objects as being empty for all regions
-        self.kube_sysinv_client.get_kube_upgrades.return_value = []
+        self.kube_sysinv_client().get_kube_upgrades.return_value = []
+
+        self.audit = kubernetes_audit.KubernetesAudit(self.ctx)
+        self.am = subcloud_audit_manager.SubcloudAuditManager()
+        self.am.kubernetes_audit = self.audit
 
     def _rpc_convert(self, object_list):
         # Convert to dict like what would happen calling via RPC
@@ -145,190 +83,126 @@ class TestKubernetesAudit(base.DCManagerTestCase):
             dict_results.append(result.to_dict())
         return dict_results
 
-    def get_kube_audit_data(self, am):
-        (
-            _,
-            _,
-            kubernetes_audit_data,
-            _,
-            _
-        ) = am._get_audit_data(True, True, True, True, True)
+    def get_kube_audit_data(self):
+        (_, _, kubernetes_audit_data, _, _) = \
+            self.am._get_audit_data(True, True, True, True, True)
         # Convert to dict like what would happen calling via RPC
         kubernetes_audit_data = self._rpc_convert(kubernetes_audit_data)
         return kubernetes_audit_data
 
-    def test_init(self):
-        audit = kubernetes_audit.KubernetesAudit(self.ctxt,
-                                                 self.fake_dcmanager_state_api)
-        self.assertIsNotNone(audit)
-        self.assertEqual(self.ctxt, audit.context)
-        self.assertEqual(self.fake_dcmanager_state_api,
-                         audit.state_rpc_client)
-
     @mock.patch.object(subcloud_audit_manager, 'context')
     def test_no_kubernetes_audit_data_to_sync(self, mock_context):
-        mock_context.get_admin_context.return_value = self.ctxt
-
-        audit = kubernetes_audit.KubernetesAudit(self.ctxt,
-                                                 self.fake_dcmanager_state_api)
-        am = subcloud_audit_manager.SubcloudAuditManager()
-        am.kubernetes_audit = audit
-        kubernetes_audit_data = self.get_kube_audit_data(am)
+        mock_context.get_admin_context.return_value = self.ctx
+        kubernetes_audit_data = self.get_kube_audit_data()
 
         subclouds = {base.SUBCLOUD_1['name']: base.SUBCLOUD_1['region_name'],
                      base.SUBCLOUD_2['name']: base.SUBCLOUD_2['region_name']}
         for name, region in subclouds.items():
-            audit.subcloud_kubernetes_audit(
-                self.mock_sysinv_client(), name, region, kubernetes_audit_data
+            response = self.audit.subcloud_kubernetes_audit(
+                self.mock_sysinv_client(), name, kubernetes_audit_data
             )
-            expected_calls = [
-                mock.call(mock.ANY,
-                          subcloud_name=name,
-                          subcloud_region=region,
-                          endpoint_type=dccommon_consts.ENDPOINT_TYPE_KUBERNETES,
-                          sync_status=dccommon_consts.SYNC_STATUS_IN_SYNC)]
-            self.fake_dcmanager_state_api.update_subcloud_endpoint_status. \
-                assert_has_calls(expected_calls)
+
+            self.assertEqual(response, dccommon_consts.SYNC_STATUS_IN_SYNC)
 
     @mock.patch.object(subcloud_audit_manager, 'context')
     def test_kubernetes_audit_data_out_of_sync_older(self, mock_context):
-        mock_context.get_admin_context.return_value = self.ctxt
-        audit = kubernetes_audit.KubernetesAudit(self.ctxt,
-                                                 self.fake_dcmanager_state_api)
-        am = subcloud_audit_manager.SubcloudAuditManager()
-        am.kubernetes_audit = audit
+        mock_context.get_admin_context.return_value = self.ctx
 
         # Set the region one data as being the upgraded version
-        self.kube_sysinv_client.get_kube_versions.return_value = [
+        self.kube_sysinv_client().get_kube_versions.return_value = [
             FakeKubeVersion(version=UPGRADED_KUBE_VERSION),
         ]
-        kubernetes_audit_data = self.get_kube_audit_data(am)
+        kubernetes_audit_data = self.get_kube_audit_data()
 
         subclouds = {base.SUBCLOUD_1['name']: base.SUBCLOUD_1['region_name'],
                      base.SUBCLOUD_2['name']: base.SUBCLOUD_2['region_name']}
         for name, region in subclouds.items():
             # return different kube versions in the subclouds
-            self.kube_sysinv_client.get_kube_versions.return_value = [
+            self.kube_sysinv_client().get_kube_versions.return_value = [
                 FakeKubeVersion(version=PREVIOUS_KUBE_VERSION),
             ]
-            audit.subcloud_kubernetes_audit(
-                self.mock_sysinv_client(), name, region, kubernetes_audit_data
+            response = self.audit.subcloud_kubernetes_audit(
+                self.mock_sysinv_client(), name, kubernetes_audit_data
             )
-            expected_calls = [
-                mock.call(mock.ANY,
-                          subcloud_name=name,
-                          subcloud_region=region,
-                          endpoint_type=dccommon_consts.ENDPOINT_TYPE_KUBERNETES,
-                          sync_status=dccommon_consts.SYNC_STATUS_OUT_OF_SYNC)]
-            self.fake_dcmanager_state_api.update_subcloud_endpoint_status. \
-                assert_has_calls(expected_calls)
+
+            self.assertEqual(response, dccommon_consts.SYNC_STATUS_OUT_OF_SYNC)
 
     @mock.patch.object(subcloud_audit_manager, 'context')
     def test_kubernetes_audit_data_out_of_sync_newer(self, mock_context):
-        mock_context.get_admin_context.return_value = self.ctxt
-        audit = kubernetes_audit.KubernetesAudit(self.ctxt,
-                                                 self.fake_dcmanager_state_api)
-        am = subcloud_audit_manager.SubcloudAuditManager()
-        am.kubernetes_audit = audit
+        mock_context.get_admin_context.return_value = self.ctx
 
         # Set the region one data as being the previous version
-        self.kube_sysinv_client.get_kube_versions.return_value = [
+        self.kube_sysinv_client().get_kube_versions.return_value = [
             FakeKubeVersion(version=PREVIOUS_KUBE_VERSION),
         ]
-        kubernetes_audit_data = self.get_kube_audit_data(am)
+        kubernetes_audit_data = self.get_kube_audit_data()
 
         subclouds = {base.SUBCLOUD_1['name']: base.SUBCLOUD_1['region_name'],
                      base.SUBCLOUD_2['name']: base.SUBCLOUD_2['region_name']}
         for name, region in subclouds.items():
             # return different kube versions in the subclouds
-            self.kube_sysinv_client.get_kube_versions.return_value = [
+            self.kube_sysinv_client().get_kube_versions.return_value = [
                 FakeKubeVersion(version=UPGRADED_KUBE_VERSION),
             ]
-            audit.subcloud_kubernetes_audit(
-                self.mock_sysinv_client(), name, region, kubernetes_audit_data
+            response = self.audit.subcloud_kubernetes_audit(
+                self.mock_sysinv_client(), name, kubernetes_audit_data
             )
-            expected_calls = [
-                mock.call(mock.ANY,
-                          subcloud_name=name,
-                          subcloud_region=region,
-                          endpoint_type=dccommon_consts.ENDPOINT_TYPE_KUBERNETES,
-                          sync_status=dccommon_consts.SYNC_STATUS_OUT_OF_SYNC)]
-            self.fake_dcmanager_state_api.update_subcloud_endpoint_status. \
-                assert_has_calls(expected_calls)
+
+            self.assertEqual(response, dccommon_consts.SYNC_STATUS_OUT_OF_SYNC)
 
     @mock.patch.object(subcloud_audit_manager, 'context')
     def test_kubernetes_audit_data_in_sync(self,
                                            mock_context):
-        mock_context.get_admin_context.return_value = self.ctxt
-        audit = kubernetes_audit.KubernetesAudit(self.ctxt,
-                                                 self.fake_dcmanager_state_api)
-        am = subcloud_audit_manager.SubcloudAuditManager()
-        am.kubernetes_audit = audit
+        mock_context.get_admin_context.return_value = self.ctx
 
         # Set the region one data as being the upgraded version
-        self.kube_sysinv_client.get_kube_versions.return_value = [
+        self.kube_sysinv_client().get_kube_versions.return_value = [
             FakeKubeVersion(version=UPGRADED_KUBE_VERSION),
         ]
         self.mock_sysinv_client().get_kube_versions.return_value = [
             FakeKubeVersion(version=UPGRADED_KUBE_VERSION)
         ]
-        kubernetes_audit_data = self.get_kube_audit_data(am)
+        kubernetes_audit_data = self.get_kube_audit_data()
 
         subclouds = {base.SUBCLOUD_1['name']: base.SUBCLOUD_1['region_name'],
                      base.SUBCLOUD_2['name']: base.SUBCLOUD_2['region_name']}
         for name, region in subclouds.items():
             # return same kube versions in the subclouds
-            self.kube_sysinv_client.get_kube_versions.return_value = [
+            self.kube_sysinv_client().get_kube_versions.return_value = [
                 FakeKubeVersion(version=UPGRADED_KUBE_VERSION),
             ]
-            audit.subcloud_kubernetes_audit(
-                self.mock_sysinv_client(), name, region, kubernetes_audit_data
+            response = self.audit.subcloud_kubernetes_audit(
+                self.mock_sysinv_client(), name, kubernetes_audit_data
             )
-            expected_calls = [
-                mock.call(mock.ANY,
-                          subcloud_name=name,
-                          subcloud_region=region,
-                          endpoint_type=dccommon_consts.ENDPOINT_TYPE_KUBERNETES,
-                          sync_status=dccommon_consts.SYNC_STATUS_IN_SYNC)]
-            self.fake_dcmanager_state_api.update_subcloud_endpoint_status. \
-                assert_has_calls(expected_calls)
+
+            self.assertEqual(response, dccommon_consts.SYNC_STATUS_IN_SYNC)
 
     @mock.patch.object(subcloud_audit_manager, 'context')
     def test_kubernetes_audit_data_in_sync_but_existing_upgrade(self,
                                                                 mock_context):
         # If a subcloud has an existing upgrade, it is out of sync
         # even if the kube versions match
-        mock_context.get_admin_context.return_value = self.ctxt
-        audit = kubernetes_audit.KubernetesAudit(self.ctxt,
-                                                 self.fake_dcmanager_state_api)
-        am = subcloud_audit_manager.SubcloudAuditManager()
-        am.kubernetes_audit = audit
+        mock_context.get_admin_context.return_value = self.ctx
 
         # mock that there is a kube upgrade (only queried in subclouds)
-        self.kube_sysinv_client.get_kube_upgrades.return_value = [
+        self.kube_sysinv_client().get_kube_upgrades.return_value = [
             FakeKubeUpgrade()
         ]
         # Set the region one data as being the upgraded version
-        self.kube_sysinv_client.get_kube_versions.return_value = [
+        self.kube_sysinv_client().get_kube_versions.return_value = [
             FakeKubeVersion(version=UPGRADED_KUBE_VERSION),
         ]
-        kubernetes_audit_data = self.get_kube_audit_data(am)
+        kubernetes_audit_data = self.get_kube_audit_data()
 
         subclouds = {base.SUBCLOUD_1['name']: base.SUBCLOUD_1['region_name'],
                      base.SUBCLOUD_2['name']: base.SUBCLOUD_2['region_name']}
         for name, region in subclouds.items():
             # return same kube versions in the subclouds
-            self.kube_sysinv_client.get_kube_versions.return_value = [
+            self.kube_sysinv_client().get_kube_versions.return_value = [
                 FakeKubeVersion(version=UPGRADED_KUBE_VERSION),
             ]
-            audit.subcloud_kubernetes_audit(
-                self.mock_sysinv_client(), name, region, kubernetes_audit_data
+            response = self.audit.subcloud_kubernetes_audit(
+                self.mock_sysinv_client(), name, kubernetes_audit_data
             )
-            expected_calls = [
-                mock.call(mock.ANY,
-                          subcloud_name=name,
-                          subcloud_region=region,
-                          endpoint_type=dccommon_consts.ENDPOINT_TYPE_KUBERNETES,
-                          sync_status=dccommon_consts.SYNC_STATUS_OUT_OF_SYNC)]
-            self.fake_dcmanager_state_api.update_subcloud_endpoint_status. \
-                assert_has_calls(expected_calls)
+
+            self.assertEqual(response, dccommon_consts.SYNC_STATUS_OUT_OF_SYNC)

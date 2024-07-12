@@ -39,22 +39,10 @@ class SoftwareAuditData(object):
 class SoftwareAudit(object):
     """Manages tasks related to software audits."""
 
-    def __init__(self, context, dcmanager_state_rpc_client):
+    def __init__(self, context):
         LOG.debug("SoftwareAudit initialization...")
         self.context = context
-        self.state_rpc_client = dcmanager_state_rpc_client
         self.audit_count = 0
-
-    def _update_subcloud_sync_status(
-        self, sc_name, sc_region, sc_endpoint_type, sc_status
-    ):
-        self.state_rpc_client.update_subcloud_endpoint_status(
-            self.context,
-            subcloud_name=sc_name,
-            subcloud_region=sc_region,
-            endpoint_type=sc_endpoint_type,
-            sync_status=sc_status,
-        )
 
     @staticmethod
     def _get_upgrades(sysinv_client):
@@ -133,7 +121,7 @@ class SoftwareAudit(object):
                 f"Endpoint for online subcloud {subcloud_name} not found, skip "
                 "software audit."
             )
-            return
+            return None
 
         # Retrieve all the releases that are present in this subcloud.
         try:
@@ -144,9 +132,9 @@ class SoftwareAudit(object):
                 f"Cannot retrieve releases for subcloud: {subcloud_name}, "
                 "skip software audit."
             )
-            return
+            return None
 
-        out_of_sync = False
+        sync_status = dccommon_consts.SYNC_STATUS_IN_SYNC
 
         # audit_data will be a dict due to passing through RPC so objectify it
         audit_data = SoftwareAuditData.from_dict(audit_data)
@@ -168,7 +156,7 @@ class SoftwareAudit(object):
                             f"Release {release_id} should be committed "
                             f"in {subcloud_name}."
                         )
-                    out_of_sync = True
+                    sync_status = dccommon_consts.SYNC_STATUS_OUT_OF_SYNC
             elif release["state"] == software_v1.COMMITTED:
                 if (
                     release_id not in audit_data.committed_release_ids
@@ -178,12 +166,12 @@ class SoftwareAudit(object):
                         f"Release {release_id} should not be committed "
                         f"in {subcloud_name}."
                     )
-                    out_of_sync = True
+                    sync_status = dccommon_consts.SYNC_STATUS_OUT_OF_SYNC
             else:
                 # In steady state, all releases should either be deployed
                 # or committed in each subcloud. Release in other
                 # states mean a sync is required.
-                out_of_sync = True
+                sync_status = dccommon_consts.SYNC_STATUS_OUT_OF_SYNC
 
         # Check that all deployed or committed releases in RegionOne are
         # present in the subcloud.
@@ -192,26 +180,16 @@ class SoftwareAudit(object):
                 release["release_id"] == release_id for release in subcloud_releases
             ):
                 LOG.debug(f"Release {release_id} missing from {subcloud_name}.")
-                out_of_sync = True
+                sync_status = dccommon_consts.SYNC_STATUS_OUT_OF_SYNC
         for release_id in audit_data.committed_release_ids:
             if not any(
                 release["release_id"] == release_id for release in subcloud_releases
             ):
                 LOG.debug(f"Release {release_id} missing from {subcloud_name}.")
-                out_of_sync = True
+                sync_status = dccommon_consts.SYNC_STATUS_OUT_OF_SYNC
 
-        if out_of_sync:
-            self._update_subcloud_sync_status(
-                subcloud_name,
-                subcloud_region,
-                dccommon_consts.ENDPOINT_TYPE_SOFTWARE,
-                dccommon_consts.SYNC_STATUS_OUT_OF_SYNC,
-            )
-        else:
-            self._update_subcloud_sync_status(
-                subcloud_name,
-                subcloud_region,
-                dccommon_consts.ENDPOINT_TYPE_SOFTWARE,
-                dccommon_consts.SYNC_STATUS_IN_SYNC,
-            )
-        LOG.info(f"Software audit completed for: {subcloud_name}.")
+        LOG.info(
+            f'Software audit completed for: {subcloud_name}, requesting '
+            f'sync_status update to {sync_status}'
+        )
+        return sync_status

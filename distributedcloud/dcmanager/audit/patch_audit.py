@@ -55,20 +55,10 @@ class PatchAuditData(object):
 class PatchAudit(object):
     """Manages tasks related to patch audits."""
 
-    def __init__(self, context, dcmanager_state_rpc_client):
+    def __init__(self, context):
         LOG.debug('PatchAudit initialization...')
         self.context = context
-        self.state_rpc_client = dcmanager_state_rpc_client
         self.audit_count = 0
-
-    def _update_subcloud_sync_status(self, sc_name, sc_region, sc_endpoint_type,
-                                     sc_status):
-        self.state_rpc_client.update_subcloud_endpoint_status(
-            self.context,
-            subcloud_name=sc_name,
-            subcloud_region=sc_region,
-            endpoint_type=sc_endpoint_type,
-            sync_status=sc_status)
 
     @staticmethod
     def _get_upgrades(sysinv_client):
@@ -136,8 +126,8 @@ class PatchAudit(object):
                               committed_patch_ids, regionone_software_version)
 
     def subcloud_patch_audit(
-        self, keystone_client, sysinv_client, subcloud_management_ip, subcloud_name,
-        subcloud_region, audit_data, do_load_audit
+        self, keystone_session, sysinv_client, subcloud_management_ip, subcloud_name,
+        subcloud_region, audit_data
     ):
         LOG.info('Triggered patch audit for: %s.' % subcloud_name)
 
@@ -146,7 +136,7 @@ class PatchAudit(object):
                 subcloud_management_ip, "patching"
             )
             patching_client = PatchingClient(
-                subcloud_region, keystone_client.session, endpoint=patching_endpoint
+                subcloud_region, keystone_session, endpoint=patching_endpoint
             )
         except (keystone_exceptions.EndpointNotFound,
                 keystone_exceptions.ConnectFailure,
@@ -154,7 +144,7 @@ class PatchAudit(object):
                 IndexError):
             LOG.exception("Endpoint for online subcloud %s not found, skip "
                           "patch audit." % subcloud_name)
-            return
+            return None
 
         # Retrieve all the patches that are present in this subcloud.
         try:
@@ -164,7 +154,7 @@ class PatchAudit(object):
         except Exception:
             LOG.warn('Cannot retrieve patches for subcloud: %s, skip patch '
                      'audit' % subcloud_name)
-            return
+            return None
 
         # Determine which loads are present in this subcloud. During an
         # upgrade, there will be more than one load installed.
@@ -173,11 +163,11 @@ class PatchAudit(object):
         except Exception:
             LOG.exception('Cannot retrieve installed loads for subcloud: %s, '
                           'skip patch audit' % subcloud_name)
-            return
+            return None
 
         installed_loads = utils.get_loads_for_patching(loads)
 
-        out_of_sync = False
+        sync_status = dccommon_consts.SYNC_STATUS_IN_SYNC
 
         # audit_data will be a dict due to passing through RPC so objectify it
         audit_data = PatchAuditData.from_dict(audit_data)
@@ -196,19 +186,19 @@ class PatchAudit(object):
                     else:
                         LOG.debug("Patch %s should be committed in %s" %
                                   (patch_id, subcloud_name))
-                    out_of_sync = True
+                    sync_status = dccommon_consts.SYNC_STATUS_OUT_OF_SYNC
             elif subcloud_patches[patch_id]['patchstate'] == \
                     patching_v1.PATCH_STATE_COMMITTED:
                 if (patch_id not in audit_data.committed_patch_ids and
                         patch_id not in audit_data.applied_patch_ids):
                     LOG.warn("Patch %s should not be committed in %s" %
                              (patch_id, subcloud_name))
-                    out_of_sync = True
+                    sync_status = dccommon_consts.SYNC_STATUS_OUT_OF_SYNC
             else:
                 # In steady state, all patches should either be applied
                 # or committed in each subcloud. Patches in other
                 # states mean a sync is required.
-                out_of_sync = True
+                sync_status = dccommon_consts.SYNC_STATUS_OUT_OF_SYNC
 
         # Check that all applied or committed patches in RegionOne are
         # present in the subcloud.
@@ -218,56 +208,51 @@ class PatchAudit(object):
                     subcloud_patches:
                 LOG.debug("Patch %s missing from %s" %
                           (patch_id, subcloud_name))
-                out_of_sync = True
+                sync_status = dccommon_consts.SYNC_STATUS_OUT_OF_SYNC
         for patch_id in audit_data.committed_patch_ids:
             if audit_data.patches[patch_id]['sw_version'] in \
                     installed_loads and patch_id not in \
                     subcloud_patches:
                 LOG.debug("Patch %s missing from %s" %
                           (patch_id, subcloud_name))
-                out_of_sync = True
+                sync_status = dccommon_consts.SYNC_STATUS_OUT_OF_SYNC
 
-        if out_of_sync:
-            self._update_subcloud_sync_status(
-                subcloud_name,
-                subcloud_region, dccommon_consts.ENDPOINT_TYPE_PATCHING,
-                dccommon_consts.SYNC_STATUS_OUT_OF_SYNC)
-        else:
-            self._update_subcloud_sync_status(
-                subcloud_name,
-                subcloud_region, dccommon_consts.ENDPOINT_TYPE_PATCHING,
-                dccommon_consts.SYNC_STATUS_IN_SYNC)
+        LOG.info(
+            f'Patch audit completed for: {subcloud_name}, requesting '
+            f'sync_status update to {sync_status}'
+        )
+        return sync_status
 
+    def subcloud_load_audit(
+        self, sysinv_client, subcloud_name, audit_data
+    ):
         # Check subcloud software version every other audit cycle
-        if do_load_audit:
-            LOG.info('Auditing load of %s' % subcloud_name)
-            try:
-                upgrades = sysinv_client.get_upgrades()
-            except Exception:
-                LOG.warn('Cannot retrieve upgrade info for: %s, skip '
-                         'software version audit' % subcloud_name)
-                return
+        LOG.info('Triggered load audit for: %s.' % subcloud_name)
+        try:
+            upgrades = sysinv_client.get_upgrades()
+        except Exception:
+            LOG.warn('Cannot retrieve upgrade info for: %s, skip '
+                     'software version audit' % subcloud_name)
+            return None
 
-            if not upgrades:
-                # No upgrade in progress
-                subcloud_software_version = \
-                    sysinv_client.get_system().software_version
+        # audit_data will be a dict due to passing through RPC so objectify it
+        audit_data = PatchAuditData.from_dict(audit_data)
+        sync_status = dccommon_consts.SYNC_STATUS_IN_SYNC
 
-                if subcloud_software_version == audit_data.software_version:
-                    self._update_subcloud_sync_status(
-                        subcloud_name,
-                        subcloud_region, dccommon_consts.ENDPOINT_TYPE_LOAD,
-                        dccommon_consts.SYNC_STATUS_IN_SYNC)
-                else:
-                    self._update_subcloud_sync_status(
-                        subcloud_name,
-                        subcloud_region, dccommon_consts.ENDPOINT_TYPE_LOAD,
-                        dccommon_consts.SYNC_STATUS_OUT_OF_SYNC)
-            else:
-                # As upgrade is still in progress, set the subcloud load
-                # status as out-of-sync.
-                self._update_subcloud_sync_status(
-                    subcloud_name,
-                    subcloud_region, dccommon_consts.ENDPOINT_TYPE_LOAD,
-                    dccommon_consts.SYNC_STATUS_OUT_OF_SYNC)
-        LOG.info('Patch audit completed for: %s.' % subcloud_name)
+        if not upgrades:
+            # No upgrade in progress
+            subcloud_software_version = \
+                sysinv_client.get_system().software_version
+
+            if subcloud_software_version != audit_data.software_version:
+                sync_status = dccommon_consts.SYNC_STATUS_OUT_OF_SYNC
+        else:
+            # As upgrade is still in progress, set the subcloud load
+            # status as out-of-sync.
+            sync_status = dccommon_consts.SYNC_STATUS_OUT_OF_SYNC
+
+        LOG.info(
+            f'Load audit completed for: {subcloud_name}, requesting '
+            f'sync_status update to {sync_status}'
+        )
+        return sync_status
