@@ -174,11 +174,9 @@ class SwUpdateStrategyController(object):
                 pecan.abort(400, _(message))
 
             if strategy_type == consts.SW_UPDATE_TYPE_SOFTWARE and not payload.get(
-                "release"
+                "release_id"
             ):
-                message = (
-                    "Release parameter is required for strategy type {strategy_type}."
-                )
+                message = f"Release ID is required for strategy type: {strategy_type}."
                 pecan.abort(400, _(message))
 
             max_parallel_subclouds_str = payload.get("max-parallel-subclouds")
