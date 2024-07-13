@@ -185,6 +185,16 @@ MANDATORY_INSTALL_VALUES = [
     "install_type",
 ] + BMC_INSTALL_VALUES
 
+MANDATORY_ENROLL_INIT_VALUES = [
+    "bootstrap_interface",
+    "external_oam_subnet",
+    "external_oam_gateway_address",
+    "external_oam_floating_address",
+    "admin_password",
+    "system_mode",
+    "software_version",
+] + BMC_INSTALL_VALUES
+
 OPTIONAL_INSTALL_VALUES = [
     "nexthop_gateway",
     "network_address",

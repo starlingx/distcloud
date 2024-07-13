@@ -51,11 +51,68 @@ class SubcloudEnrollmentInit(object):
         self.seed_iso_path = None
         self.https_enabled = None
 
+    @staticmethod
+    def validate_enroll_init_values(payload):
+        install_values = payload["install_values"]
+        missing_keys = []
+
+        for key in consts.MANDATORY_ENROLL_INIT_VALUES:
+            if key not in payload and key not in install_values:
+                missing_keys.append(key)
+
+        if missing_keys:
+            msg = f"Missing required values: {', '.join(missing_keys)}"
+            raise exceptions.EnrollInitExecutionFailed(reason=msg)
+
     def get_https_enabled(self):
         if self.https_enabled is None:
             system = self.sysinv_client.get_system()
             self.https_enabled = system.capabilities.get("https_enabled", False)
         return self.https_enabled
+
+    def _build_seed_network_config(self, path, iso_values):
+        if not os.path.isdir(path):
+            msg = f"No directory exists: {path}"
+            raise exceptions.EnrollInitExecutionFailed(reason=msg)
+
+        subnet_prefix = iso_values["external_oam_subnet"].split("/")[1]
+
+        network_element = {
+            "type": "physical",
+            "name": iso_values["install_values"]["bootstrap_interface"],
+            "subnets": [
+                {
+                    "type": "static",
+                    "address": (
+                        iso_values["external_oam_floating_address"]
+                        + "/"
+                        + subnet_prefix
+                    ),
+                    "gateway": iso_values["external_oam_gateway_address"],
+                }
+            ],
+        }
+
+        vlan_id = iso_values["install_values"].get("bootstrap_vlan", None)
+        if vlan_id:
+            network_element["type"] = "vlan"
+            network_element["name"] = f"vlan{vlan_id}"
+            network_element["vlan_link"] = iso_values["install_values"][
+                "bootstrap_interface"
+            ]
+            network_element["vlan_id"] = vlan_id
+
+        network_cloud_config = []
+        network_cloud_config.append(network_element)
+
+        network_config_file = os.path.join(path, "network-config")
+        with open(network_config_file, "w") as f_out_network_config_file:
+            contents = {"version": 1, "config": network_cloud_config}
+            f_out_network_config_file.write(
+                yaml.dump(contents, default_flow_style=False, sort_keys=False)
+            )
+
+        return True
 
     def _build_seed_meta_data(self, path, iso_values):
         if not os.path.isdir(path):
@@ -102,12 +159,22 @@ class SubcloudEnrollmentInit(object):
         reconfig_script = os.path.join(enroll_utils, "enroll-init-reconfigure")
         cleanup_script = os.path.join(enroll_utils, "enroll-init-cleanup")
 
-        runcmd = [
+        reconfig_command = (
             f"{reconfig_script}"
             f" --oam_subnet {iso_values['external_oam_subnet']}"
             f" --oam_gateway_ip {iso_values['external_oam_gateway_address']}"
             f" --oam_ip {iso_values['external_oam_floating_address']}"
-            f" --new_password '{hashed_password}'",
+            f" --new_password '{hashed_password}'"
+        )
+
+        if iso_values["system_mode"] == dcmanager_consts.SYSTEM_MODE_DUPLEX:
+            reconfig_command += (
+                f" --oam_c0_ip {iso_values['external_oam_node_0_address']}"
+                f" --oam_c1_ip {iso_values['external_oam_node_1_address']}"
+            )
+
+        runcmd = [
+            reconfig_command,
             cleanup_script,
         ]
 
@@ -134,6 +201,7 @@ class SubcloudEnrollmentInit(object):
             # into iso_values. For now, pass in payload.
             try:
                 # Generate seed cloud-config files
+                self._build_seed_network_config(temp_seed_data_dir, payload)
                 self._build_seed_meta_data(temp_seed_data_dir, payload)
                 self._build_seed_user_config(temp_seed_data_dir, payload)
             except Exception as e:
@@ -190,6 +258,8 @@ class SubcloudEnrollmentInit(object):
 
     def prep(self, override_path, payload):
         LOG.info(f"Prepare config for {self.name} enroll init")
+
+        SubcloudEnrollmentInit.validate_enroll_init_values(payload)
 
         software_version = str(payload["software_version"])
         self.www_root = os.path.join(SUBCLOUD_ISO_PATH, software_version)

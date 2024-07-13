@@ -4361,7 +4361,8 @@ class TestSubcloudEnrollment(BaseTestSubcloudManager):
             'network_mask': '255.255.255.0',
             'external_oam_gateway_address': '10.10.10.1',
             'external_oam_subnet': '10.10.10.0/24',
-            'install_values': self.fake_install_values
+            'install_values': self.fake_install_values,
+            'system_mode': 'simplex'
         }
 
         mock_run_patch_patch = mock.patch('eventlet.green.subprocess.run')
