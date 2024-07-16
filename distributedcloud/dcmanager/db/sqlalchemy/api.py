@@ -32,6 +32,7 @@ from oslo_utils import uuidutils
 import sqlalchemy
 from sqlalchemy import bindparam
 from sqlalchemy import desc
+from sqlalchemy import insert
 from sqlalchemy import or_
 from sqlalchemy.orm import exc
 from sqlalchemy.orm import joinedload_all
@@ -405,6 +406,57 @@ def subcloud_get_all_with_status(context):
     ).order_by(models.Subcloud.id).all()
 
     return result
+
+
+@require_context
+def subcloud_get_all_valid_for_strategy_step_creation(
+    context, endpoint_type, group_id=None, subcloud_name=None,
+    availability_status=None, sync_status=None
+):
+    """Queries all the subclouds that are valid for the strategy step to create
+
+    :param context: request context
+    :param endpoint_type: type of endpoint
+    :param group_id: if specified, filter the subclouds by their group id
+    :param subcloud_name: if specified, retrieve only a single subcloud
+    :param availability_status: availability status to filter
+    :param sync_status: list of sync status to filter
+
+    :return: subclouds' object and the associated endpoint's sync status
+    :rtype: list
+    """
+
+    with read_session() as session:
+        query = session.query(
+            models.Subcloud, models.SubcloudStatus.sync_status
+        ).filter(
+            models.Subcloud.deleted == 0,
+            models.Subcloud.management_state == dccommon_consts.MANAGEMENT_MANAGED
+        )
+
+        if group_id:
+            query = query.filter(models.Subcloud.group_id == group_id)
+        elif subcloud_name:
+            query = query.filter(models.Subcloud.name == subcloud_name)
+
+        if availability_status:
+            query = query.filter(
+                models.Subcloud.availability_status == availability_status
+            )
+
+        query = query.join(
+            models.SubcloudStatus,
+            models.Subcloud.id == models.SubcloudStatus.subcloud_id
+        ).filter(
+            models.SubcloudStatus.endpoint_type == endpoint_type,
+        )
+
+        if sync_status:
+            query = query.filter(
+                models.SubcloudStatus.sync_status.in_(sync_status)
+            )
+
+        return query.all()
 
 
 @require_context
@@ -1524,6 +1576,31 @@ def strategy_step_get_all(context):
         all()
 
     return result
+
+
+@require_admin_context
+def strategy_step_bulk_create(context, subcloud_ids, stage, state, details):
+    """Creates the strategy step for a list of subclouds
+
+    :param context: request context
+    :param subcloud_ids: list of subcloud ids
+    :param stage: stretegy's step stage
+    :param state: strategy's step state
+    :param details: additional information for the strategy step
+    """
+
+    strategy_steps = list()
+
+    for subcloud_id in subcloud_ids:
+        strategy_steps.append({
+            "subcloud_id": subcloud_id,
+            "stage": stage,
+            "state": state,
+            "details": details
+        })
+
+    with write_session() as session:
+        return session.execute(insert(models.StrategyStep), strategy_steps)
 
 
 @require_admin_context

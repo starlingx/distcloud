@@ -138,84 +138,6 @@ class SwUpdateManager(manager.Manager):
         self.prestage_orch_thread.stop()
         self.prestage_orch_thread.join()
 
-    def _validate_subcloud_status_sync(self, strategy_type,
-                                       subcloud_status, force,
-                                       subcloud, patch_file):
-        """Check the appropriate subcloud_status fields for the strategy_type
-
-           Returns: True if out of sync.
-        """
-        availability_status = subcloud.availability_status
-        # TODO(nicodemos): Remove the support for patch strategy in stx-11
-        if strategy_type == consts.SW_UPDATE_TYPE_PATCH:
-            # We need to check the software version of the subcloud and
-            # the system controller. If the software versions are the same, we
-            # cannot apply the patch.
-            if subcloud.software_version == SW_VERSION:
-                raise exceptions.BadRequest(
-                    resource="strategy",
-                    msg=(
-                        f"Subcloud {subcloud.name} has the same software version as "
-                        f"the system controller. The {strategy_type} strategy can "
-                        "only be used for subclouds running the previous release."
-                    ),
-                )
-            return (subcloud_status.endpoint_type ==
-                    dccommon_consts.ENDPOINT_TYPE_PATCHING and
-                    subcloud_status.sync_status ==
-                    dccommon_consts.SYNC_STATUS_OUT_OF_SYNC)
-        elif strategy_type == consts.SW_UPDATE_TYPE_SOFTWARE:
-            if force and availability_status != dccommon_consts.AVAILABILITY_ONLINE:
-                return (subcloud_status.endpoint_type ==
-                        dccommon_consts.ENDPOINT_TYPE_SOFTWARE and
-                        subcloud_status.sync_status !=
-                        dccommon_consts.SYNC_STATUS_IN_SYNC)
-            else:
-                return (subcloud_status.endpoint_type ==
-                        dccommon_consts.ENDPOINT_TYPE_SOFTWARE and
-                        subcloud_status.sync_status ==
-                        dccommon_consts.SYNC_STATUS_OUT_OF_SYNC)
-        elif strategy_type == consts.SW_UPDATE_TYPE_FIRMWARE:
-            return (subcloud_status.endpoint_type ==
-                    dccommon_consts.ENDPOINT_TYPE_FIRMWARE and
-                    subcloud_status.sync_status ==
-                    dccommon_consts.SYNC_STATUS_OUT_OF_SYNC)
-        elif strategy_type == consts.SW_UPDATE_TYPE_KUBERNETES:
-            if force:
-                # run for in-sync and out-of-sync (but not unknown)
-                return (subcloud_status.endpoint_type ==
-                        dccommon_consts.ENDPOINT_TYPE_KUBERNETES and
-                        subcloud_status.sync_status !=
-                        dccommon_consts.SYNC_STATUS_UNKNOWN)
-            else:
-                return (subcloud_status.endpoint_type ==
-                        dccommon_consts.ENDPOINT_TYPE_KUBERNETES and
-                        subcloud_status.sync_status ==
-                        dccommon_consts.SYNC_STATUS_OUT_OF_SYNC)
-        elif strategy_type == consts.SW_UPDATE_TYPE_KUBE_ROOTCA_UPDATE:
-            if force:
-                # run for in-sync and out-of-sync (but not unknown)
-                return (subcloud_status.endpoint_type ==
-                        dccommon_consts.ENDPOINT_TYPE_KUBE_ROOTCA and
-                        subcloud_status.sync_status !=
-                        dccommon_consts.SYNC_STATUS_UNKNOWN)
-            else:
-                return (subcloud_status.endpoint_type ==
-                        dccommon_consts.ENDPOINT_TYPE_KUBE_ROOTCA and
-                        subcloud_status.sync_status ==
-                        dccommon_consts.SYNC_STATUS_OUT_OF_SYNC)
-        elif strategy_type == consts.SW_UPDATE_TYPE_PRESTAGE:
-            # For prestage we reuse the ENDPOINT_TYPE_SOFTWARE.
-            # We just need to key off a unique endpoint,
-            # so that the strategy is created only once.
-            return (
-                subcloud_status.endpoint_type == dccommon_consts.ENDPOINT_TYPE_SOFTWARE
-            )
-        # Unimplemented strategy_type status check. Log an error
-        LOG.error("_validate_subcloud_status_sync for %s not implemented" %
-                  strategy_type)
-        return False
-
     # todo(abailey): dc-vault actions are normally done by dcorch-api-proxy
     # However this situation is unique since the strategy drives vault contents
     def _vault_upload(self, vault_dir, src_file):
@@ -273,11 +195,11 @@ class SwUpdateManager(manager.Manager):
                     # update extra_args with the new path (in the vault)
                     extra_args[consts.EXTRA_ARGS_CERT_FILE] = vault_file
 
-    def _process_extra_args_deletion(self, strategy):
-        if strategy.extra_args:
+    def _process_extra_args_deletion(self, strategy_type, extra_args):
+        if extra_args:
             # cert-file extra_arg needs vault handling for kube rootca update
-            if strategy.type == consts.SW_UPDATE_TYPE_KUBE_ROOTCA_UPDATE:
-                cert_file = strategy.extra_args.get(
+            if strategy_type == consts.SW_UPDATE_TYPE_KUBE_ROOTCA_UPDATE:
+                cert_file = extra_args.get(
                     consts.EXTRA_ARGS_CERT_FILE)
                 if cert_file:
                     # remove this cert file from the vault
@@ -298,10 +220,13 @@ class SwUpdateManager(manager.Manager):
         except exceptions.NotFound:
             pass
         else:
-            raise exceptions.BadRequest(
-                resource='strategy',
-                msg=f"Strategy of type: '{strategy.type}' already exists"
+            msg = f"Strategy of type: '{strategy.type}' already exists"
+
+            LOG.error(
+                "Failed creating software update strategy of type "
+                f"{payload['type']}. {msg}"
             )
+            raise exceptions.BadRequest(resource='strategy', msg=msg)
 
         single_group = None
         subcloud_group = payload.get('subcloud_group')
@@ -344,9 +269,12 @@ class SwUpdateManager(manager.Manager):
             try:
                 subcloud = db_api.subcloud_get_by_name(context, cloud_name)
             except exceptions.SubcloudNameNotFound:
-                raise exceptions.BadRequest(
-                    resource='strategy',
-                    msg=f'Subcloud {cloud_name} does not exist')
+                msg = f'Subcloud {cloud_name} does not exist'
+                LOG.error(
+                    "Failed creating software update strategy of type "
+                    f"{payload['type']}. {msg}"
+                )
+                raise exceptions.BadRequest(resource='strategy', msg=msg)
 
             # TODO(rlima): move prestage to its validator
             if strategy_type == consts.SW_UPDATE_TYPE_PRESTAGE:
@@ -441,13 +369,15 @@ class SwUpdateManager(manager.Manager):
                 )
             )
             if count_invalid_subclouds > 0:
-                raise exceptions.BadRequest(
-                    resource="strategy",
-                    msg=(
-                        f"{self.strategy_validators[strategy_type].endpoint_type} "
-                        "sync status is unknown for one or more subclouds"
-                    )
+                msg = (
+                    f"{self.strategy_validators[strategy_type].endpoint_type} "
+                    "sync status is unknown for one or more subclouds"
                 )
+                LOG.error(
+                    "Failed creating software update strategy of type "
+                    f"{payload['type']}. {msg}"
+                )
+                raise exceptions.BadRequest(resource="strategy", msg=msg)
 
         # handle extra_args processing such as staging to the vault
         self._process_extra_args_creation(strategy_type, extra_args)
@@ -460,7 +390,64 @@ class SwUpdateManager(manager.Manager):
                 consts.DEFAULT_SUBCLOUD_GROUP_MAX_PARALLEL_SUBCLOUDS
             )
 
-        strategy_step_created = False
+        valid_subclouds = db_api.subcloud_get_all_valid_for_strategy_step_creation(
+            context,
+            self.strategy_validators[strategy_type].endpoint_type,
+            single_group.id if subcloud_group else None,
+            cloud_name,
+            self.strategy_validators[strategy_type].build_availability_status_filter(
+                force
+            ),
+            self.strategy_validators[strategy_type].build_sync_status_filter(force),
+        )
+
+        # TODO(rlima): move this step to validators
+        if strategy_type == consts.SW_UPDATE_TYPE_PATCH:
+            # TODO(nicodemos): Remove the support for patch strategy in stx-11
+            for subcloud, _ in valid_subclouds:
+                # We need to check the software version of the subcloud and
+                # the system controller. If the software versions are the same, we
+                # cannot apply the patch.
+                if subcloud.software_version == SW_VERSION:
+                    msg = (
+                        f"Subcloud {subcloud.name} has the same software version as "
+                        f"the system controller. The {strategy_type} strategy can "
+                        "only be used for subclouds running the previous release."
+                    )
+                    LOG.error(
+                        "Failed creating software update strategy of type "
+                        f"{payload['type']}. {msg}"
+                    )
+                    raise exceptions.BadRequest(resource="strategy", msg=msg)
+        elif strategy_type == consts.SW_UPDATE_TYPE_SOFTWARE:
+            filtered_valid_subclouds = list()
+
+            for subcloud, sync_status in valid_subclouds:
+                if (
+                    force and
+                    subcloud.availability_status ==
+                    dccommon_consts.AVAILABILITY_OFFLINE
+                ):
+                    if (
+                        sync_status == dccommon_consts.SYNC_STATUS_OUT_OF_SYNC or
+                        sync_status == dccommon_consts.SYNC_STATUS_UNKNOWN
+                    ):
+                        filtered_valid_subclouds.append((subcloud, sync_status))
+                elif sync_status == dccommon_consts.SYNC_STATUS_OUT_OF_SYNC:
+                    filtered_valid_subclouds.append((subcloud, sync_status))
+
+            valid_subclouds = filtered_valid_subclouds
+
+        if not valid_subclouds:
+            # handle extra_args processing such as removing from the vault
+            self._process_extra_args_deletion(strategy_type, extra_args)
+            msg = 'Strategy has no steps to apply'
+            LOG.error(
+                "Failed creating software update strategy of type "
+                f"{payload['type']}. {msg}"
+            )
+            raise exceptions.BadRequest(resource='strategy', msg=msg)
+
         # Create the strategy
         strategy = db_api.sw_update_strategy_create(
             context,
@@ -471,68 +458,19 @@ class SwUpdateManager(manager.Manager):
             consts.SW_UPDATE_STATE_INITIAL,
             extra_args=extra_args,
         )
+        db_api.strategy_step_bulk_create(
+            context,
+            [subcloud.id for subcloud, sync_status in valid_subclouds],
+            stage=consts.STAGE_SUBCLOUD_ORCHESTRATION_CREATED,
+            state=consts.STRATEGY_STATE_INITIAL,
+            details=''
+        )
 
-        # Create a strategy step for each subcloud that is managed, online and
-        # out of sync
-        # special cases:
-        #  - kube rootca update: the 'force' option allows in-sync subclouds
+        LOG.info(
+            f"Finished creating software update strategy of type {payload['type']}."
+        )
 
-        if single_group:
-            subclouds_list = db_api.subcloud_get_for_group(context, single_group.id)
-        else:
-            # Fetch all subclouds
-            subclouds_list = db_api.subcloud_get_all_ordered_by_id(context)
-
-        patch_file = payload.get('patch')
-        for subcloud in subclouds_list:
-            if (cloud_name and subcloud.name != cloud_name or
-                    subcloud.management_state != dccommon_consts.MANAGEMENT_MANAGED):
-                # We are not targeting for update this subcloud
-                continue
-
-            if subcloud.availability_status != dccommon_consts.AVAILABILITY_ONLINE:
-                if strategy_type == consts.SW_UPDATE_TYPE_SOFTWARE:
-                    if not force:
-                        continue
-                else:
-                    continue
-
-            subcloud_status = db_api.subcloud_status_get_all(context, subcloud.id)
-
-            for status in subcloud_status:
-                if self._validate_subcloud_status_sync(strategy_type,
-                                                       status,
-                                                       force,
-                                                       subcloud,
-                                                       patch_file):
-                    LOG.debug("Creating strategy_step for endpoint_type: %s, "
-                              "sync_status: %s, subcloud: %s, id: %s",
-                              status.endpoint_type, status.sync_status,
-                              subcloud.name, subcloud.id)
-
-                    db_api.strategy_step_create(
-                        context,
-                        subcloud.id,
-                        stage=consts.STAGE_SUBCLOUD_ORCHESTRATION_CREATED,
-                        state=consts.STRATEGY_STATE_INITIAL,
-                        details='')
-                    strategy_step_created = True
-        if strategy_step_created:
-            strategy_dict = db_api.sw_update_strategy_db_model_to_dict(
-                strategy)
-            return strategy_dict
-        else:
-            # Set the state to deleting, which will trigger the orchestration
-            # to delete it...
-            strategy = db_api.sw_update_strategy_update(
-                context,
-                state=consts.SW_UPDATE_STATE_DELETING,
-                update_type=strategy_type)
-            # handle extra_args processing such as removing from the vault
-            self._process_extra_args_deletion(strategy)
-            raise exceptions.BadRequest(
-                resource='strategy',
-                msg='Strategy has no steps to apply')
+        return db_api.sw_update_strategy_db_model_to_dict(strategy)
 
     def delete_sw_update_strategy(self, context, update_type=None):
         """Delete software update strategy.
@@ -567,7 +505,9 @@ class SwUpdateManager(manager.Manager):
                 state=consts.SW_UPDATE_STATE_DELETING,
                 update_type=update_type)
             # handle extra_args processing such as removing from the vault
-        self._process_extra_args_deletion(sw_update_strategy)
+        self._process_extra_args_deletion(
+            sw_update_strategy.type, sw_update_strategy.extra_args
+        )
 
         strategy_dict = db_api.sw_update_strategy_db_model_to_dict(
             sw_update_strategy)

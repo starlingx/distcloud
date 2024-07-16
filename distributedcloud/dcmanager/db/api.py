@@ -197,6 +197,17 @@ def subcloud_get_all_with_status(context):
     return IMPL.subcloud_get_all_with_status(context)
 
 
+def subcloud_get_all_valid_for_strategy_step_creation(
+    context, endpoint_type, group_id=None, subcloud_name=None,
+    availability_status=None, sync_status=None
+):
+    """Queries all the subclouds that are valid for the strategy step to create"""
+    return IMPL.subcloud_get_all_valid_for_strategy_step_creation(
+        context, endpoint_type, group_id, subcloud_name, availability_status,
+        sync_status
+    )
+
+
 def subcloud_count_invalid_for_strategy_type(
     context, endpoint_type, group_id=None, subcloud_name=None, force=False
 ):
@@ -724,6 +735,13 @@ def strategy_step_get_by_name(context, name):
 def strategy_step_get_all(context):
     """Retrieve all patch strategy steps."""
     return IMPL.strategy_step_get_all(context)
+
+
+def strategy_step_bulk_create(context, subcloud_ids, stage, state, details):
+    """Creates the strategy step for a list of subclouds"""
+    return IMPL.strategy_step_bulk_create(
+        context, subcloud_ids, stage, state, details
+    )
 
 
 def strategy_step_create(context, subcloud_id, stage, state, details):

@@ -43,12 +43,15 @@ class StrategyValidationBase(object):
         )
 
         if subcloud_status.sync_status == dccommon_consts.SYNC_STATUS_IN_SYNC:
-            raise exceptions.BadRequest(
-                resource='strategy', msg=(
-                    f'Subcloud {subcloud_name} does not require '
-                    f'{self.endpoint_type} update'
-                )
+            msg = (
+                f'Subcloud {subcloud_name} does not require '
+                f'{self.endpoint_type} update'
             )
+            LOG.error(
+                "Failed creating software update strategy of type "
+                f"{self.endpoint_type}. {msg}"
+            )
+            raise exceptions.BadRequest(resource='strategy', msg=msg)
 
     def build_extra_args(self, payload):
         """Builds the extra args for a strategy
@@ -59,3 +62,23 @@ class StrategyValidationBase(object):
         """
 
         return None
+
+    def build_availability_status_filter(self, force):
+        """Builds the availability status filter for valid subclouds
+
+        :param force: if the strategy should be forced to execute
+        :return: availability status to filter
+        :rtype: str
+        """
+
+        return dccommon_consts.AVAILABILITY_ONLINE
+
+    def build_sync_status_filter(self, force):
+        """Builds the sync status filter for valid subclouds
+
+        :param force: if the strategy should be forced to execute
+        :return: sync status to filter
+        :rtype: list
+        """
+
+        return [dccommon_consts.SYNC_STATUS_OUT_OF_SYNC]
