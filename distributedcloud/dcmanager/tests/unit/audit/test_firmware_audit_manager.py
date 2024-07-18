@@ -40,13 +40,21 @@ class PCIDevice(object):
 
 
 class DeviceImage(object):
-    def __init__(self, bitstream_type,
-                 bitstream_id, bmc,
-                 retimer_included,
-                 key_signature,
-                 revoke_key_id, applied,
-                 pci_vendor, pci_device,
-                 applied_labels):
+    def __init__(
+        self,
+        uuid,
+        bitstream_type,
+        bitstream_id,
+        bmc,
+        retimer_included,
+        key_signature,
+        revoke_key_id,
+        applied,
+        pci_vendor,
+        pci_device,
+        applied_labels,
+    ):
+        self.uuid = uuid
         self.bitstream_type = bitstream_type
         self.bitstream_id = bitstream_id
         self.bmc = bmc
@@ -117,40 +125,49 @@ PCI_DEVICE4 = PCIDevice('06789e01-13b6-2347',
                         True)
 
 # Device image has been applied
-DEVICE_IMAGE1 = DeviceImage('functional',
-                            '0x2383a62a010504',
-                            True,
-                            True,
-                            '',
-                            '',
-                            True,
-                            '1111',
-                            '2222',
-                            [{}])
+DEVICE_IMAGE1 = DeviceImage(
+    "7e794693-2060-4e9e-b0bd-b281b059e8e4",
+    "functional",
+    "0x2383a62a010504",
+    True,
+    True,
+    "",
+    "",
+    True,
+    "1111",
+    "2222",
+    [{}],
+)
 
 # Device image has not been applied
-DEVICE_IMAGE2 = DeviceImage('functional',
-                            '0x2383a62a010504',
-                            True,
-                            True,
-                            '',
-                            '',
-                            False,
-                            '1111',
-                            '2222',
-                            [{}])
+DEVICE_IMAGE2 = DeviceImage(
+    "09100124-5ae9-44d8-aefc-a192b8f27360",
+    "functional",
+    "0x2383a62a010504",
+    True,
+    True,
+    "",
+    "",
+    False,
+    "1111",
+    "2222",
+    [{}],
+)
 
 # Device image has been applied
-DEVICE_IMAGE3 = DeviceImage('functional',
-                            '0x2383a62a010504',
-                            True,
-                            True,
-                            '',
-                            '',
-                            True,
-                            '1111',
-                            '2222',
-                            [{"key1": "value1"}])
+DEVICE_IMAGE3 = DeviceImage(
+    "ef4c39b1-81e9-42dd-b850-06fc8833b47c",
+    "functional",
+    "0x2383a62a010504",
+    True,
+    True,
+    "",
+    "",
+    True,
+    "1111",
+    "2222",
+    [{"key1": "value1"}],
+)
 
 DEVICE_LABEL1 = DeviceLabels('06789e01-13b6-2347',
                              'key1',
@@ -183,6 +200,9 @@ class FakeSysinvClientNoEnabledDevices(object):
     def get_host_device_list(self, host_name):
         return self.pci_devices
 
+    def get_all_hosts_device_list(self):
+        return self.pci_devices
+
     def get_device_images(self):
         return self.device_images
 
@@ -196,6 +216,9 @@ class FakeSysinvClientNoAuditData(object):
         self.pci_devices = [PCI_DEVICE1, PCI_DEVICE2]
 
     def get_host_device_list(self, host_name):
+        return self.pci_devices
+
+    def get_all_hosts_device_list(self):
         return self.pci_devices
 
     def get_device_images(self):
@@ -218,6 +241,9 @@ class FakeSysinvClientImageWithoutLabels(object):
         return self.hosts
 
     def get_host_device_list(self, host_name):
+        return self.pci_devices
+
+    def get_all_hosts_device_list(self):
         return self.pci_devices
 
     def get_device_image(self, device_image_uuid):
@@ -252,6 +278,9 @@ class FakeSysinvClientImageNotApplied(object):
     def get_host_device_list(self, host_name):
         return self.pci_devices
 
+    def get_all_hosts_device_list(self):
+        return self.pci_devices
+
     def get_device_images(self):
         return self.device_images
 
@@ -277,6 +306,9 @@ class FakeSysinvClientImageNotWritten(object):
         return self.hosts
 
     def get_host_device_list(self, host_name):
+        return self.pci_devices
+
+    def get_all_hosts_device_list(self):
         return self.pci_devices
 
     def get_device_images(self):
@@ -305,6 +337,9 @@ class FakeSysinvClientImageWithLabels(object):
         return self.hosts
 
     def get_host_device_list(self, host_name):
+        return self.pci_devices
+
+    def get_all_hosts_device_list(self):
         return self.pci_devices
 
     def get_device_image(self, device_image_uuid):
@@ -338,6 +373,9 @@ class FakeSysinvClientNoMatchingDeviceLabel(object):
     def get_host_device_list(self, host_name):
         return self.pci_devices
 
+    def get_all_hosts_device_list(self):
+        return self.pci_devices
+
     def get_device_images(self):
         return self.device_images
 
@@ -365,6 +403,9 @@ class FakeSysinvClientNoMatchingDeviceId(object):
     def get_host_device_list(self, host_name):
         return self.pci_devices
 
+    def get_all_hosts_device_list(self):
+        return self.pci_devices
+
     def get_device_images(self):
         return self.device_images
 
@@ -385,7 +426,7 @@ class TestFirmwareAudit(base.DCManagerTestCase):
         self.mock_subcloud_audit_manager_context.get_admin_context.\
             return_value = self.ctx
 
-        self.fm = firmware_audit.FirmwareAudit(self.ctx)
+        self.fm = firmware_audit.FirmwareAudit()
         self.am = subcloud_audit_manager.SubcloudAuditManager()
         self.am.firmware_audit = self.fm
 

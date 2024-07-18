@@ -3,7 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0
 #
 
-
+from keystoneauth1.session import Session as keystone_session
 from oslo_log import log
 import requests
 
@@ -28,13 +28,19 @@ REST_DEFAULT_TIMEOUT = 900
 class SoftwareClient(base.DriverBase):
     """Software V1 driver."""
 
-    def __init__(self, region, session, endpoint=None):
+    def __init__(
+        self,
+        region: str,
+        session: keystone_session,
+        endpoint: str = None,
+        endpoint_type: str = consts.KS_ENDPOINT_ADMIN,
+    ):
         # Get an endpoint and token.
         if not endpoint:
             self.endpoint = session.get_endpoint(
                 service_type="usm",
                 region_name=region,
-                interface=consts.KS_ENDPOINT_ADMIN,
+                interface=endpoint_type,
             )
         else:
             self.endpoint = endpoint

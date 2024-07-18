@@ -64,7 +64,7 @@ class OpenStackDriver(object):
 
     :param region_name: The name of the region. Defaults to "RegionOne".
     :type region_name: str
-    :param thread_name: The name of the thread. Defaults to "dcorch".
+    :param thread_name: The name of the thread. Defaults to "dc".
     :type thread_name: str
     :param auth_url: The authentication URL.
     :type auth_url: str

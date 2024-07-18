@@ -23,7 +23,6 @@ CERT_MANAGER_CERTIFICATE = "certificates"
 
 
 class KubeOperator(object):
-
     def __init__(self):
         self._kube_client_batch = None
         self._kube_client_core = None

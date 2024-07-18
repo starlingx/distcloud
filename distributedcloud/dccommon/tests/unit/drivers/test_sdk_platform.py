@@ -20,7 +20,6 @@ from dccommon.tests import base
 
 
 class TestOpenStackDriver(base.DCCommonTestCase):
-
     @mock.patch.object(sdk, "KeystoneClient")
     @mock.patch.object(sdk.OpenStackDriver, "_is_token_valid")
     def test_init(self, mock_keystone_client, mock_is_token_valid):

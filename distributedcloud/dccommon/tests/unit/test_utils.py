@@ -13,7 +13,6 @@ FAKE_LOG_FILE = "/dev/null"
 
 
 class TestUtils(base.DCCommonTestCase):
-
     def setUp(self):
         super(TestUtils, self).setUp()
 
