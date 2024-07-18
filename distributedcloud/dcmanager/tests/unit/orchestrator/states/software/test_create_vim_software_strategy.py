@@ -10,8 +10,9 @@ from dccommon.drivers.openstack import vim
 from dcmanager.common import consts
 from dcmanager.tests.unit.common import fake_strategy
 from dcmanager.tests.unit.fakes import FakeVimStrategy
-from dcmanager.tests.unit.orchestrator.states.software.test_base import \
-    TestSoftwareOrchestrator
+from dcmanager.tests.unit.orchestrator.states.software.test_base import (
+    TestSoftwareOrchestrator,
+)
 
 STRATEGY_BUILDING = FakeVimStrategy(state=vim.STATE_BUILDING)
 STRATEGY_DONE_BUILDING = FakeVimStrategy(state=vim.STATE_READY_TO_APPLY)
@@ -66,6 +67,7 @@ class TestCreateVIMSoftwareStrategyState(TestSoftwareOrchestrator):
             "migrate",
             "relaxed",
             release=RELEASE_ID,
+            rollback=False,
         )
 
         # On success, the state should transition to the next state

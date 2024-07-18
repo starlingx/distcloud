@@ -44,9 +44,11 @@ class CreatingVIMStrategyState(BaseState):
             extra_args = utils.get_sw_update_strategy_extra_args(self.context)
             release_id = extra_args.get(consts.EXTRA_ARGS_RELEASE_ID)
             opts_dict["release_id"] = release_id
+            # Create rollback = False since DC orchestration do not support rollback
+            opts_dict["rollback"] = False
 
         # Call the API to build the VIM strategy
-        # release will be sent as a **kwargs value for sw-deploy strategy
+        # release and rollback will be sent as a **kwargs value for sw-deploy strategy
         subcloud_strategy = self.get_vim_client(region).create_strategy(
             self.strategy_name,
             opts_dict['storage-apply-type'],
@@ -54,7 +56,9 @@ class CreatingVIMStrategyState(BaseState):
             opts_dict['max-parallel-workers'],
             opts_dict['default-instance-action'],
             opts_dict['alarm-restriction-type'],
-            release=opts_dict.get('release_id'),)
+            release=opts_dict.get('release_id'),
+            rollback=opts_dict.get('rollback'),
+        )
 
         # a successful API call to create MUST set the state be 'building'
         if subcloud_strategy.state != vim.STATE_BUILDING:

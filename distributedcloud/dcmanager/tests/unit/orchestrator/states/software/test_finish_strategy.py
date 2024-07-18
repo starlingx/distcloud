@@ -17,22 +17,22 @@ from dcmanager.tests.unit.orchestrator.states.software.test_base import \
 REGION_ONE_RELEASES = [
     {
         "release_id": "starlingx-9.0.0",
-        "state": "committed",
+        "state": "deployed",
         "sw_version": "9.0.0",
     },
     {
         "release_id": "starlingx-9.0.1",
-        "state": "committed",
+        "state": "deployed",
         "sw_version": "9.0.1",
     },
     {
         "release_id": "starlingx-9.0.2",
-        "state": "committed",
+        "state": "deployed",
         "sw_version": "9.0.2",
     },
     {
         "release_id": "starlingx-9.0.3",
-        "state": "committed",
+        "state": "deployed",
         "sw_version": "9.0.3",
     },
 ]
@@ -40,12 +40,12 @@ REGION_ONE_RELEASES = [
 SUBCLOUD_RELEASES = [
     {
         "release_id": "starlingx-9.0.0",
-        "state": "committed",
+        "state": "deployed",
         "sw_version": "9.0.0",
     },
     {
         "release_id": "starlingx-9.0.1",
-        "state": "committed",
+        "state": "deployed",
         "sw_version": "9.0.1",
     },
     {
@@ -54,14 +54,14 @@ SUBCLOUD_RELEASES = [
         "sw_version": "9.0.2",
     },
     {
+        "release_id": "starlingx-9.0.2",
+        "state": "deploying",
+        "sw_version": "9.0.3",
+    },
+    {
         "release_id": "starlingx-9.0.4",
         "state": "available",
         "sw_version": "9.0.4",
-    },
-    {
-        "release_id": "starlingx-9.0.5",
-        "state": "deployed",
-        "sw_version": "9.0.5",
     },
 ]
 
@@ -86,6 +86,7 @@ class TestFinishStrategyState(TestSoftwareOrchestrator):
         self.software_client.list = mock.MagicMock()
         self.software_client.delete = mock.MagicMock()
         self.software_client.commit_patch = mock.MagicMock()
+        self.software_client.deploy_delete = mock.MagicMock()
         self._read_from_cache = mock.MagicMock()
 
     def test_finish_strategy_success(self):
@@ -101,9 +102,8 @@ class TestFinishStrategyState(TestSoftwareOrchestrator):
         call_args, _ = self.software_client.delete.call_args_list[0]
         self.assertItemsEqual(["starlingx-9.0.4"], call_args[0])
 
-        self.software_client.commit_patch.assert_called_once_with(
-            ["starlingx-9.0.2"]
-        )
+        self.software_client.commit_patch.assert_not_called()
+        self.software_client.deploy_delete.assert_called_once()
 
         # On success, the state should transition to the next state
         self.assert_step_updated(self.strategy_step.subcloud_id,
@@ -169,8 +169,8 @@ class TestFinishStrategyState(TestSoftwareOrchestrator):
             self.strategy_step.subcloud_id, consts.STRATEGY_STATE_FAILED
         )
 
-    def test_finish_strategy_fails_when_commit_patch_exception(self):
-        """Test finish strategy fails when software client commit_patch
+    def test_finish_strategy_fails_when_deploy_delete_exception(self):
+        """Test finish strategy fails when software client deploy_delete
 
         raises exception
         """
@@ -178,7 +178,7 @@ class TestFinishStrategyState(TestSoftwareOrchestrator):
         self.mock_read_from_cache.return_value = REGION_ONE_RELEASES
 
         self.software_client.list.side_effect = [SUBCLOUD_RELEASES]
-        self.software_client.commit_patch.side_effect = Exception()
+        self.software_client.deploy_delete.side_effect = Exception()
 
         self.worker.perform_state_action(self.strategy_step)
 

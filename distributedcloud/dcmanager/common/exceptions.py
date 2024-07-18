@@ -250,6 +250,26 @@ class PreCheckFailedException(DCManagerException):
     message = _("Subcloud %(subcloud)s upgrade precheck failed: %(details)s")
 
 
+class SoftwarePreCheckFailedException(DCManagerException):
+    message = _("Subcloud %(subcloud)s software deploy precheck failed: %(details)s")
+
+
+class SoftwareListFailedException(DCManagerException):
+    message = _("Subcloud %(subcloud)s software list failed: %(details)s")
+
+
+class SoftwareDeleteFailedException(DCManagerException):
+    message = _("Subcloud %(subcloud)s sofware delete failed: %(details)s")
+
+
+class SoftwareDeployCommitFailedException(DCManagerException):
+    message = _("Subcloud %(subcloud)s sofware deploy commit failed: %(details)s")
+
+
+class SoftwareDeployDeleteFailedException(DCManagerException):
+    message = _("Subcloud %(subcloud)s sofware deploy delete failed: %(details)s")
+
+
 class PrestagePreCheckFailedException(DCManagerException):
     """PrestagePreCheckFailedException
 

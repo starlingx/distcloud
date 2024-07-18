@@ -58,7 +58,7 @@ class PreCheckState(BaseState):
         except Exception:
             details = f"Get current strategy failed on subcloud: {subcloud.name}"
             self.error_log(strategy_step, details)
-            raise exceptions.PreCheckFailedException(
+            raise exceptions.SoftwarePreCheckFailedException(
                 subcloud=subcloud.name,
                 details=details,
             )
@@ -78,7 +78,7 @@ class PreCheckState(BaseState):
                 f"subcloud {subcloud.name}. Aborting."
             )
             self.error_log(strategy_step, details)
-            raise exceptions.PreCheckFailedException(
+            raise exceptions.SoftwarePreCheckFailedException(
                 subcloud=subcloud.name,
                 details=details,
             )
@@ -102,7 +102,10 @@ class PreCheckState(BaseState):
         except Exception as exc:
             message = f"Cannot retrieve release list : {exc}."
             self.exception_log(strategy_step, message)
-            raise Exception(message)
+            raise exceptions.SoftwareListFailedException(
+                subcloud=subcloud.name,
+                details=message,
+            )
 
         self._check_prestaged_data(
             strategy_step,
@@ -129,7 +132,7 @@ class PreCheckState(BaseState):
                     f"subcloud: {subcloud_name}"
                 )
                 self.error_log(strategy_step, details)
-                raise exceptions.PreCheckFailedException(
+                raise exceptions.SoftwarePreCheckFailedException(
                     subcloud=subcloud_name,
                     details=details,
                 )
@@ -140,7 +143,7 @@ class PreCheckState(BaseState):
                 f"{strategy_state}. Aborting."
             )
             self.error_log(strategy_step, details)
-            raise exceptions.PreCheckFailedException(
+            raise exceptions.SoftwarePreCheckFailedException(
                 subcloud=subcloud_name,
                 details=details,
             )
@@ -163,7 +166,7 @@ class PreCheckState(BaseState):
         if not (is_available_in_subcloud and regionone_deployed_release):
             details = f"Release {release_id} is not prestaged. Aborting."
             self.error_log(strategy_step, details)
-            raise exceptions.PreCheckFailedException(
+            raise exceptions.SoftwarePreCheckFailedException(
                 subcloud=subcloud_name,
                 details=details,
             )
