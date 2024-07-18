@@ -38,11 +38,12 @@ OAM_FLOATING_IP = "10.10.10.12"
 CONF = cfg.CONF
 FAKE_ID = "1"
 FAKE_SW_UPDATE_DATA = {
-    "type": consts.SW_UPDATE_TYPE_PATCH,
+    "type": consts.SW_UPDATE_TYPE_SOFTWARE,
     "subcloud-apply-type": consts.SUBCLOUD_APPLY_TYPE_PARALLEL,
     "max-parallel-subclouds": "2",
     "stop-on-failure": "true",
     "force": "false",
+    "release_id": "stx-10.0.0",
     "state": consts.SW_UPDATE_STATE_INITIAL,
 }
 
@@ -61,6 +62,7 @@ FAKE_SW_PATCH_DATA = {
     "max-parallel-subclouds": "2",
     "stop-on-failure": "true",
     "force": "false",
+    "patch": "usm.patch",
     "state": consts.SW_UPDATE_STATE_INITIAL,
 }
 
@@ -105,30 +107,30 @@ class FakeDCManagerAuditAPI(object):
 
 class TestSwUpdateManager(base.DCManagerTestCase):
     @staticmethod
-    def create_subcloud(ctxt, name, group_id, is_managed, is_online):
+    def create_subcloud(
+        ctxt, name, group_id, is_managed, is_online, sw_version="stx-9"
+    ):
         values = {
             "name": name,
             "description": "subcloud1 description",
             "location": "subcloud1 location",
-            "software_version": "18.03",
+            "software_version": sw_version,
             "management_subnet": "192.168.101.0/24",
             "management_gateway_ip": "192.168.101.1",
             "management_start_ip": "192.168.101.3",
             "management_end_ip": "192.168.101.4",
             "systemcontroller_gateway_ip": "192.168.204.101",
-            'deploy_status': "not-deployed",
-            'error_description': 'No errors present',
-            'region_name': uuidutils.generate_uuid().replace("-", ""),
-            'openstack_installed': False,
-            'group_id': group_id,
-            'data_install': 'data from install',
+            "deploy_status": "not-deployed",
+            "error_description": "No errors present",
+            "region_name": uuidutils.generate_uuid().replace("-", ""),
+            "openstack_installed": False,
+            "group_id": group_id,
+            "data_install": "data from install",
         }
         subcloud = db_api.subcloud_create(ctxt, **values)
         if is_managed:
             state = dccommon_consts.MANAGEMENT_MANAGED
-            subcloud = db_api.subcloud_update(
-                ctxt, subcloud.id, management_state=state
-            )
+            subcloud = db_api.subcloud_update(ctxt, subcloud.id, management_state=state)
         if is_online:
             status = dccommon_consts.AVAILABILITY_ONLINE
             subcloud = db_api.subcloud_update(
@@ -151,7 +153,7 @@ class TestSwUpdateManager(base.DCManagerTestCase):
         if endpoint:
             endpoint_type = endpoint
         else:
-            endpoint_type = dccommon_consts.ENDPOINT_TYPE_PATCHING
+            endpoint_type = dccommon_consts.ENDPOINT_TYPE_SOFTWARE
         if status:
             sync_status = status
         else:
@@ -193,20 +195,22 @@ class TestSwUpdateManager(base.DCManagerTestCase):
         self.addCleanup(p.stop)
 
         # Note: mock where an item is used, not where it comes from
+        self.fake_patch_orch_thread = FakeOrchThread()
+        p = mock.patch.object(sw_update_manager, "PatchOrchThread")
+        self.fake_patch_orch_thread = p.start()
+        self.fake_patch_orch_thread.return_value = self.fake_patch_orch_thread
+        self.addCleanup(p.stop)
+
         self.fake_software_orch_thread = FakeOrchThread()
         p = mock.patch.object(sw_update_manager, "SoftwareOrchThread")
         self.fake_software_orch_thread = p.start()
-        self.fake_software_orch_thread.return_value = (
-            self.fake_software_orch_thread
-        )
+        self.fake_software_orch_thread.return_value = self.fake_software_orch_thread
         self.addCleanup(p.stop)
 
         self.fake_fw_update_orch_thread = FakeOrchThread()
         p = mock.patch.object(sw_update_manager, "FwUpdateOrchThread")
         self.mock_fw_update_orch_thread = p.start()
-        self.mock_fw_update_orch_thread.return_value = (
-            self.fake_fw_update_orch_thread
-        )
+        self.mock_fw_update_orch_thread.return_value = self.fake_fw_update_orch_thread
         self.addCleanup(p.stop)
 
         self.fake_kube_upgrade_orch_thread = FakeOrchThread()
@@ -254,15 +258,13 @@ class TestSwUpdateManager(base.DCManagerTestCase):
             self.ctxt, "Group5", consts.SUBCLOUD_APPLY_TYPE_PARALLEL, 2
         )
 
-    @mock.patch.object(sw_update_manager, "PatchOrchThread")
-    def test_init(self, mock_patch_orch_thread):
+    def test_init(self):
         um = sw_update_manager.SwUpdateManager()
         self.assertIsNotNone(um)
         self.assertEqual("sw_update_manager", um.service_name)
         self.assertEqual("localhost", um.host)
 
-    @mock.patch.object(sw_update_manager, "PatchOrchThread")
-    def test_create_sw_update_strategy_no_subclouds(self, mock_patch_orch_thread):
+    def test_create_sw_update_strategy_no_subclouds(self):
         um = sw_update_manager.SwUpdateManager()
         # No strategy will be created, so it should raise:
         # 'Bad strategy request: Strategy has no steps to apply'
@@ -273,10 +275,7 @@ class TestSwUpdateManager(base.DCManagerTestCase):
             payload=FAKE_SW_UPDATE_DATA,
         )
 
-    @mock.patch.object(sw_update_manager, "PatchOrchThread")
-    def test_create_sw_update_strategy_for_a_single_group(
-        self, mock_patch_orch_thread
-    ):
+    def test_create_sw_update_strategy_for_a_single_group(self):
         # Create fake subclouds and respective status
         # Subcloud1 will be patched
         fake_subcloud1 = self.create_subcloud(
@@ -316,10 +315,7 @@ class TestSwUpdateManager(base.DCManagerTestCase):
         self.assertEqual(strategy_steps[0]["details"], "")
         self.assertEqual(strategy_steps[0]["subcloud_id"], 1)
 
-    @mock.patch.object(sw_update_manager, "PatchOrchThread")
-    def test_create_sw_update_strategy_parallel_for_a_single_group(
-        self, mock_patch_orch_thread
-    ):
+    def test_create_sw_update_strategy_parallel_for_a_single_group(self):
         # Create fake subclouds and respective status
         fake_subcloud1 = self.create_subcloud(
             self.ctxt,
@@ -331,7 +327,7 @@ class TestSwUpdateManager(base.DCManagerTestCase):
         self.update_subcloud_status(
             self.ctxt,
             fake_subcloud1.id,
-            endpoint=dccommon_consts.ENDPOINT_TYPE_SOFTWARE
+            endpoint=dccommon_consts.ENDPOINT_TYPE_SOFTWARE,
         )
 
         fake_subcloud2 = self.create_subcloud(
@@ -369,10 +365,8 @@ class TestSwUpdateManager(base.DCManagerTestCase):
     @mock.patch.object(cutils, "get_systemcontroller_installed_loads")
     @mock.patch.object(prestage, "initial_subcloud_validate")
     @mock.patch.object(prestage, "global_prestage_validate")
-    @mock.patch.object(sw_update_manager, "PatchOrchThread")
     def test_create_sw_prestage_strategy_parallel_for_a_single_group(
         self,
-        mock_patch_orch_thread,
         mock_global_prestage_validate,
         mock_initial_subcloud_validate,
         mock_installed_loads,
@@ -388,7 +382,7 @@ class TestSwUpdateManager(base.DCManagerTestCase):
         self.update_subcloud_status(
             self.ctxt,
             fake_subcloud1.id,
-            endpoint=dccommon_consts.ENDPOINT_TYPE_SOFTWARE
+            endpoint=dccommon_consts.ENDPOINT_TYPE_SOFTWARE,
         )
 
         fake_subcloud2 = self.create_subcloud(
@@ -401,17 +395,15 @@ class TestSwUpdateManager(base.DCManagerTestCase):
         self.update_subcloud_status(
             self.ctxt,
             fake_subcloud2.id,
-            endpoint=dccommon_consts.ENDPOINT_TYPE_SOFTWARE
+            endpoint=dccommon_consts.ENDPOINT_TYPE_SOFTWARE,
         )
 
         mock_global_prestage_validate.return_value = None
         mock_initial_subcloud_validate.return_value = None
-        mock_installed_loads.return_value = ['24.09']
+        mock_installed_loads.return_value = ["24.09"]
 
         data = copy.copy(FAKE_SW_PRESTAGE_DATA)
-        fake_password = (base64.b64encode("testpass".encode("utf-8"))).decode(
-            "ascii"
-        )
+        fake_password = (base64.b64encode("testpass".encode("utf-8"))).decode("ascii")
         data["sysadmin_password"] = fake_password
 
         data["subcloud_group"] = str(self.fake_group3.id)
@@ -434,10 +426,8 @@ class TestSwUpdateManager(base.DCManagerTestCase):
     @mock.patch.object(cutils, "get_systemcontroller_installed_loads")
     @mock.patch.object(prestage, "initial_subcloud_validate")
     @mock.patch.object(prestage, "global_prestage_validate")
-    @mock.patch.object(sw_update_manager, "PatchOrchThread")
     def test_create_sw_prestage_strategy_load_insync_out_of_sync_unknown_and_no_load(
         self,
-        mock_patch_orch_thread,
         mock_global_prestage_validate,
         mock_initial_subcloud_validate,
         mock_installed_loads,
@@ -486,12 +476,10 @@ class TestSwUpdateManager(base.DCManagerTestCase):
 
         mock_global_prestage_validate.return_value = None
         mock_initial_subcloud_validate.return_value = None
-        mock_installed_loads.return_value = ['24.09']
+        mock_installed_loads.return_value = ["24.09"]
 
         data = copy.copy(FAKE_SW_PRESTAGE_DATA)
-        fake_password = (base64.b64encode("testpass".encode("utf-8"))).decode(
-            "ascii"
-        )
+        fake_password = (base64.b64encode("testpass".encode("utf-8"))).decode("ascii")
         data["sysadmin_password"] = fake_password
 
         um = sw_update_manager.SwUpdateManager()
@@ -513,10 +501,8 @@ class TestSwUpdateManager(base.DCManagerTestCase):
     @mock.patch.object(cutils, "get_systemcontroller_installed_loads")
     @mock.patch.object(prestage, "initial_subcloud_validate")
     @mock.patch.object(prestage, "_get_system_controller_upgrades")
-    @mock.patch.object(sw_update_manager, "PatchOrchThread")
     def test_create_sw_prestage_strategy_no_password(
         self,
-        mock_patch_orch_thread,
         mock_controller_upgrade,
         mock_initial_subcloud_validate,
         mock_installed_loads,
@@ -550,7 +536,7 @@ class TestSwUpdateManager(base.DCManagerTestCase):
 
         mock_initial_subcloud_validate.return_value = None
         mock_controller_upgrade.return_value = list()
-        mock_installed_loads.return_value = ['24.09']
+        mock_installed_loads.return_value = ["24.09"]
 
         data = copy.copy(FAKE_SW_PRESTAGE_DATA)
         data["sysadmin_password"] = ""
@@ -566,15 +552,13 @@ class TestSwUpdateManager(base.DCManagerTestCase):
 
     @mock.patch.object(cutils, "get_systemcontroller_installed_loads")
     @mock.patch.object(prestage, "_get_system_controller_upgrades")
-    @mock.patch.object(sw_update_manager, "PatchOrchThread")
     def test_create_sw_prestage_strategy_backup_in_progress(
         self,
-        mock_patch_orch_thread,
         mock_controller_upgrade,
         mock_installed_loads,
     ):
         mock_controller_upgrade.return_value = list()
-        mock_installed_loads.return_value = ['24.09']
+        mock_installed_loads.return_value = ["24.09"]
 
         # Create fake subcloud and respective status (managed & online)
         fake_subcloud1 = self.create_subcloud(
@@ -592,9 +576,7 @@ class TestSwUpdateManager(base.DCManagerTestCase):
         )
 
         data = copy.copy(FAKE_SW_PRESTAGE_DATA)
-        fake_password = (base64.b64encode("testpass".encode("utf-8"))).decode(
-            "ascii"
-        )
+        fake_password = (base64.b64encode("testpass".encode("utf-8"))).decode("ascii")
         data["sysadmin_password"] = fake_password
         data["cloud_name"] = "subcloud1"
 
@@ -607,10 +589,7 @@ class TestSwUpdateManager(base.DCManagerTestCase):
             payload=data,
         )
 
-    @mock.patch.object(sw_update_manager, "PatchOrchThread")
-    def test_create_sw_update_strategy_cloud_name_not_exists(
-        self, mock_patch_orch_thread
-    ):
+    def test_create_sw_update_strategy_cloud_name_not_exists(self):
         # Create fake subclouds and respective status
         fake_subcloud1 = self.create_subcloud(
             self.ctxt,
@@ -633,8 +612,7 @@ class TestSwUpdateManager(base.DCManagerTestCase):
             payload=data,
         )
 
-    @mock.patch.object(sw_update_manager, "PatchOrchThread")
-    def test_create_sw_update_strategy_parallel(self, mock_patch_orch_thread):
+    def test_create_sw_update_strategy_parallel(self):
         # Create fake subclouds and respective status
         # Subcloud1 will be patched
         fake_subcloud1 = self.create_subcloud(
@@ -696,10 +674,7 @@ class TestSwUpdateManager(base.DCManagerTestCase):
         for index, strategy_step in enumerate(strategy_step_list):
             self.assertEqual(subcloud_ids[index], strategy_step.subcloud_id)
 
-    @mock.patch.object(sw_update_manager, "PatchOrchThread")
-    def test_create_sw_patching_subcloud_in_sync_out_of_sync(
-        self, mock_patch_orch_thread
-    ):
+    def test_create_sw_patching_subcloud_in_sync_out_of_sync(self):
         # Subcloud 1 will be patched
         fake_subcloud1 = self.create_subcloud(
             self.ctxt,
@@ -765,7 +740,6 @@ class TestSwUpdateManager(base.DCManagerTestCase):
         )
 
         data = copy.copy(FAKE_SW_PATCH_DATA)
-        data["type"] = consts.SW_UPDATE_TYPE_PATCH
         data["subcloud_group"] = str(self.fake_group3.id)
         um = sw_update_manager.SwUpdateManager()
         response = um.create_sw_update_strategy(self.ctxt, payload=data)
@@ -785,22 +759,48 @@ class TestSwUpdateManager(base.DCManagerTestCase):
             subcloud_id_processed.append(strategy_step.subcloud_id)
         self.assertEqual(subcloud_ids, subcloud_id_processed)
 
+    def test_create_sw_patching_subcloud_failed_current_version(self):
+        fake_subcloud1 = self.create_subcloud(
+            self.ctxt,
+            "subcloud1",
+            self.fake_group2.id,
+            is_managed=True,
+            is_online=True,
+            # This is the current version in the test environment
+            sw_version="TEST.SW.VERSION",
+        )
+
+        self.update_subcloud_status(
+            self.ctxt,
+            fake_subcloud1.id,
+            dccommon_consts.ENDPOINT_TYPE_PATCHING,
+            dccommon_consts.SYNC_STATUS_OUT_OF_SYNC,
+        )
+
+        data = copy.copy(FAKE_SW_PATCH_DATA)
+        um = sw_update_manager.SwUpdateManager()
+
+        strategy = data.get("type")
+        expected_message = (
+            f"Bad strategy request: Subcloud {fake_subcloud1.name} has the same "
+            f"software version as the system controller. The {strategy} strategy "
+            "can only be used for subclouds running the previous release."
+        )
+        with self.assertRaisesRegex(exceptions.BadRequest, expected_message):
+            um.create_sw_update_strategy(self.ctxt, payload=data)
+
     @mock.patch.object(cutils, "get_systemcontroller_installed_loads")
     @mock.patch.object(prestage, "initial_subcloud_validate")
     @mock.patch.object(prestage, "_get_system_controller_upgrades")
-    @mock.patch.object(sw_update_manager, "PatchOrchThread")
     def test_create_sw_prestage_strategy_parallel(
         self,
-        mock_patch_orch_thread,
         mock_controller_upgrade,
         mock_initial_subcloud_validate,
         mock_installed_loads,
     ):
         # Create fake subclouds and respective status
         # Subcloud1 will be prestaged
-        self.create_subcloud(
-            self.ctxt, "subcloud1", 1, is_managed=True, is_online=True
-        )
+        self.create_subcloud(self.ctxt, "subcloud1", 1, is_managed=True, is_online=True)
 
         # Subcloud2 will not be prestaged because not managed
         self.create_subcloud(
@@ -808,9 +808,7 @@ class TestSwUpdateManager(base.DCManagerTestCase):
         )
 
         # Subcloud3 will be prestaged
-        self.create_subcloud(
-            self.ctxt, "subcloud3", 1, is_managed=True, is_online=True
-        )
+        self.create_subcloud(self.ctxt, "subcloud3", 1, is_managed=True, is_online=True)
 
         # Subcloud4 will not be prestaged because offline
         self.create_subcloud(
@@ -818,24 +816,16 @@ class TestSwUpdateManager(base.DCManagerTestCase):
         )
 
         # Subcloud5 will be prestaged
-        self.create_subcloud(
-            self.ctxt, "subcloud5", 2, is_managed=True, is_online=True
-        )
+        self.create_subcloud(self.ctxt, "subcloud5", 2, is_managed=True, is_online=True)
 
         # Subcloud6 will be prestaged
-        self.create_subcloud(
-            self.ctxt, "subcloud6", 3, is_managed=True, is_online=True
-        )
+        self.create_subcloud(self.ctxt, "subcloud6", 3, is_managed=True, is_online=True)
 
         # Subcloud7 will be prestaged
-        self.create_subcloud(
-            self.ctxt, "subcloud7", 3, is_managed=True, is_online=True
-        )
+        self.create_subcloud(self.ctxt, "subcloud7", 3, is_managed=True, is_online=True)
 
         data = copy.copy(FAKE_SW_PRESTAGE_DATA)
-        fake_password = (base64.b64encode("testpass".encode("utf-8"))).decode(
-            "ascii"
-        )
+        fake_password = (base64.b64encode("testpass".encode("utf-8"))).decode("ascii")
         data["sysadmin_password"] = fake_password
         fake_release = "21.12"
         data[consts.PRESTAGE_REQUEST_RELEASE] = fake_release
@@ -865,8 +855,7 @@ class TestSwUpdateManager(base.DCManagerTestCase):
             subcloud_id_processed.append(strategy_step.subcloud_id)
         self.assertEqual(subcloud_ids, subcloud_id_processed)
 
-    @mock.patch.object(sw_update_manager, "PatchOrchThread")
-    def test_create_sw_update_strategy_serial(self, mock_patch_orch_thread):
+    def test_create_sw_update_strategy_serial(self):
         # Create fake subclouds and respective status
         # Subcloud1 will be patched
         fake_subcloud1 = self.create_subcloud(
@@ -928,10 +917,7 @@ class TestSwUpdateManager(base.DCManagerTestCase):
         for index, strategy_step in enumerate(strategy_step_list):
             self.assertEqual(subcloud_ids[index], strategy_step.subcloud_id)
 
-    @mock.patch.object(sw_update_manager, "PatchOrchThread")
-    def test_create_sw_update_strategy_using_group_apply_type(
-        self, mock_patch_orch_thread
-    ):
+    def test_create_sw_update_strategy_using_group_apply_type(self):
         # Create fake subclouds and respective status
         # Subcloud1 will be patched
         fake_subcloud1 = self.create_subcloud(
@@ -1031,10 +1017,7 @@ class TestSwUpdateManager(base.DCManagerTestCase):
         for index, strategy_step in enumerate(strategy_step_list):
             self.assertEqual(subcloud_ids[index], strategy_step.subcloud_id)
 
-    @mock.patch.object(sw_update_manager, "PatchOrchThread")
-    def test_create_sw_update_strategy_using_group_max_parallel(
-        self, mock_patch_orch_thread
-    ):
+    def test_create_sw_update_strategy_using_group_max_parallel(self):
         # Create fake subclouds and respective status
         # Subcloud1 will be patched
         fake_subcloud1 = self.create_subcloud(
@@ -1139,10 +1122,7 @@ class TestSwUpdateManager(base.DCManagerTestCase):
         for index, strategy_step in enumerate(strategy_step_list):
             self.assertEqual(subcloud_ids[index], strategy_step.subcloud_id)
 
-    @mock.patch.object(sw_update_manager, "PatchOrchThread")
-    def test_create_sw_update_strategy_using_all_group_values(
-        self, mock_patch_orch_thread
-    ):
+    def test_create_sw_update_strategy_using_all_group_values(self):
         # Create fake subclouds and respective status
         # Subcloud1 will be patched
         fake_subcloud1 = self.create_subcloud(
@@ -1243,10 +1223,7 @@ class TestSwUpdateManager(base.DCManagerTestCase):
         for index, strategy_step in enumerate(strategy_step_list):
             self.assertEqual(subcloud_ids[index], strategy_step.subcloud_id)
 
-    @mock.patch.object(sw_update_manager, "PatchOrchThread")
-    def test_create_sw_update_strategy_unknown_sync_status(
-        self, mock_patch_orch_thread
-    ):
+    def test_create_sw_update_strategy_unknown_sync_status(self):
         # Create fake subclouds and respective status
         # Subcloud1 will be patched
         fake_subcloud1 = self.create_subcloud(
@@ -1284,10 +1261,8 @@ class TestSwUpdateManager(base.DCManagerTestCase):
 
     @mock.patch.object(prestage, "_get_prestage_subcloud_info")
     @mock.patch.object(prestage, "_get_system_controller_upgrades")
-    @mock.patch.object(sw_update_manager, "PatchOrchThread")
     def test_create_sw_prestage_strategy_duplex(
         self,
-        mock_patch_orch_thread,
         mock_controller_upgrade,
         mock_prestage_subcloud_info,
     ):
@@ -1303,14 +1278,10 @@ class TestSwUpdateManager(base.DCManagerTestCase):
         #
         # Therefore, subcloud1 will be included in the strategy but not be
         # prestaged because during the apply we find out it is a duplex
-        self.create_subcloud(
-            self.ctxt, "subcloud1", 1, is_managed=True, is_online=True
-        )
+        self.create_subcloud(self.ctxt, "subcloud1", 1, is_managed=True, is_online=True)
 
         data = copy.copy(FAKE_SW_PRESTAGE_DATA)
-        fake_password = (base64.b64encode("testpass".encode("utf-8"))).decode(
-            "ascii"
-        )
+        fake_password = (base64.b64encode("testpass".encode("utf-8"))).decode("ascii")
         data["sysadmin_password"] = fake_password
 
         mock_controller_upgrade.return_value = list()
@@ -1325,10 +1296,7 @@ class TestSwUpdateManager(base.DCManagerTestCase):
         strategy_step_list = db_api.strategy_step_get_all(self.ctxt)
         self.assertEqual(1, len(strategy_step_list))
 
-    @mock.patch.object(sw_update_manager, "PatchOrchThread")
-    def test_create_sw_update_strategy_offline_subcloud_no_force(
-        self, mock_patch_orch_thread
-    ):
+    def test_create_sw_update_strategy_offline_subcloud_no_force(self):
         # Create fake subclouds and respective status
         # Subcloud1 will not be included in the strategy as it's offline
         fake_subcloud1 = self.create_subcloud(
@@ -1364,7 +1332,7 @@ class TestSwUpdateManager(base.DCManagerTestCase):
         self.assertEqual(
             strategy_dict["subcloud-apply-type"], consts.SUBCLOUD_APPLY_TYPE_PARALLEL
         )
-        self.assertEqual(strategy_dict["type"], consts.SW_UPDATE_TYPE_PATCH)
+        self.assertEqual(strategy_dict["type"], consts.SW_UPDATE_TYPE_SOFTWARE)
 
         # Verify the strategy step list
         subcloud_ids = [2, 3, 4]
@@ -1372,10 +1340,7 @@ class TestSwUpdateManager(base.DCManagerTestCase):
         for index, strategy_step in enumerate(strategy_step_list):
             self.assertEqual(subcloud_ids[index], strategy_step.subcloud_id)
 
-    @mock.patch.object(sw_update_manager, "PatchOrchThread")
-    def test_create_sw_update_strategy_with_force_option(
-        self, mock_patch_orch_thread
-    ):
+    def test_create_sw_update_strategy_with_force_option(self):
         # Subcloud 1 will be upgraded because force is true
         fake_subcloud1 = self.create_subcloud(
             self.ctxt,
@@ -1440,10 +1405,7 @@ class TestSwUpdateManager(base.DCManagerTestCase):
         for index, strategy_step in enumerate(strategy_step_list):
             self.assertEqual(subcloud_ids[index], strategy_step.subcloud_id)
 
-    @mock.patch.object(sw_update_manager, "PatchOrchThread")
-    def test_create_sw_update_strategy_without_force_option(
-        self, mock_patch_orch_thread
-    ):
+    def test_create_sw_update_strategy_without_force_option(self):
         # Subcloud 1 will not be upgraded
         fake_subcloud1 = self.create_subcloud(
             self.ctxt,
@@ -1508,10 +1470,7 @@ class TestSwUpdateManager(base.DCManagerTestCase):
         for index, strategy_step in enumerate(strategy_step_list):
             self.assertEqual(subcloud_ids[index], strategy_step.subcloud_id)
 
-    @mock.patch.object(sw_update_manager, "PatchOrchThread")
-    def test_create_sw_update_strategy_in_sync_offline_subcloud_with_force_deploy(
-        self, mock_patch_orch_thread
-    ):
+    def test_create_sw_update_strategy_in_sync_offline_subcloud_with_force_deploy(self):
         # This test verifies that a bad request exception is raised even
         # though force option is specified in the request because the load sync
         # status of the offline subcloud is in-sync.
@@ -1538,10 +1497,7 @@ class TestSwUpdateManager(base.DCManagerTestCase):
             payload=data,
         )
 
-    @mock.patch.object(sw_update_manager, "PatchOrchThread")
-    def test_create_sw_update_strategy_online_subcloud_with_force_deploy(
-        self, mock_patch_orch_thread
-    ):
+    def test_create_sw_update_strategy_online_subcloud_with_force_deploy(self):
         # This test verifies that the force option has no effect in
         # upgrade creation strategy if the subcloud is online. A bad request
         # exception will be raised if the subcloud load sync status is
@@ -1569,10 +1525,7 @@ class TestSwUpdateManager(base.DCManagerTestCase):
             payload=data,
         )
 
-    @mock.patch.object(sw_update_manager, "PatchOrchThread")
-    def test_create_sw_update_strategy_offline_subcloud_with_force_patching(
-        self, mock_patch_orch_thread
-    ):
+    def test_create_sw_update_strategy_offline_subcloud_with_force_patching(self):
         # This test verifies that the force option has no effect in
         # patching creation strategy even though the subcloud is offline
         fake_subcloud1 = self.create_subcloud(
@@ -1594,33 +1547,30 @@ class TestSwUpdateManager(base.DCManagerTestCase):
             payload=data,
         )
 
-    @mock.patch.object(sw_update_manager, "PatchOrchThread")
-    def test_delete_sw_update_strategy(self, mock_patch_orch_thread):
+    def test_delete_sw_update_strategy(self):
         self.create_strategy(
-            self.ctxt, consts.SW_UPDATE_TYPE_PATCH, consts.SW_UPDATE_STATE_INITIAL
+            self.ctxt, consts.SW_UPDATE_TYPE_SOFTWARE, consts.SW_UPDATE_STATE_INITIAL
         )
         um = sw_update_manager.SwUpdateManager()
         deleted_strategy = um.delete_sw_update_strategy(self.ctxt)
         self.assertEqual(deleted_strategy["state"], consts.SW_UPDATE_STATE_DELETING)
 
-    @mock.patch.object(sw_update_manager, "PatchOrchThread")
-    def test_delete_sw_update_strategy_scoped(self, mock_patch_orch_thread):
+    def test_delete_sw_update_strategy_scoped(self):
         self.create_strategy(
-            self.ctxt, consts.SW_UPDATE_TYPE_PATCH, consts.SW_UPDATE_STATE_INITIAL
+            self.ctxt, consts.SW_UPDATE_TYPE_SOFTWARE, consts.SW_UPDATE_STATE_INITIAL
         )
         um = sw_update_manager.SwUpdateManager()
         deleted_strategy = um.delete_sw_update_strategy(
-            self.ctxt, update_type=consts.SW_UPDATE_TYPE_PATCH
+            self.ctxt, update_type=consts.SW_UPDATE_TYPE_SOFTWARE
         )
         self.assertEqual(deleted_strategy["state"], consts.SW_UPDATE_STATE_DELETING)
 
-    @mock.patch.object(sw_update_manager, "PatchOrchThread")
-    def test_delete_sw_update_strategy_bad_scope(self, mock_patch_orch_thread):
+    def test_delete_sw_update_strategy_bad_scope(self):
         self.create_strategy(
-            self.ctxt, consts.SW_UPDATE_TYPE_PATCH, consts.SW_UPDATE_STATE_INITIAL
+            self.ctxt, consts.SW_UPDATE_TYPE_PRESTAGE, consts.SW_UPDATE_STATE_INITIAL
         )
         um = sw_update_manager.SwUpdateManager()
-        # the strategy is PATCH. The delete for UPGRADE should fail
+        # the strategy is PRESTAGE. The delete for SW-DEPLOY should fail
         self.assertRaises(
             exceptions.NotFound,
             um.delete_sw_update_strategy,
@@ -1628,44 +1578,38 @@ class TestSwUpdateManager(base.DCManagerTestCase):
             update_type=consts.SW_UPDATE_TYPE_SOFTWARE,
         )
 
-    @mock.patch.object(sw_update_manager, "PatchOrchThread")
-    def test_delete_sw_update_strategy_invalid_state(self, mock_patch_orch_thread):
+    def test_delete_sw_update_strategy_invalid_state(self):
         # Create fake strategy
         self.create_strategy(
-            self.ctxt, consts.SW_UPDATE_TYPE_PATCH, consts.SW_UPDATE_STATE_APPLYING
+            self.ctxt, consts.SW_UPDATE_TYPE_SOFTWARE, consts.SW_UPDATE_STATE_APPLYING
         )
         um = sw_update_manager.SwUpdateManager()
         self.assertRaises(
             exceptions.BadRequest, um.delete_sw_update_strategy, self.ctxt
         )
 
-    @mock.patch.object(sw_update_manager, "PatchOrchThread")
-    def test_apply_sw_update_strategy(self, mock_patch_orch_thread):
+    def test_apply_sw_update_strategy(self):
         # Create fake strategy
         self.create_strategy(
-            self.ctxt, consts.SW_UPDATE_TYPE_PATCH, consts.SW_UPDATE_STATE_INITIAL
+            self.ctxt, consts.SW_UPDATE_TYPE_SOFTWARE, consts.SW_UPDATE_STATE_INITIAL
         )
 
         um = sw_update_manager.SwUpdateManager()
         updated_strategy = um.apply_sw_update_strategy(self.ctxt)
         self.assertEqual(updated_strategy["state"], consts.SW_UPDATE_STATE_APPLYING)
 
-    @mock.patch.object(sw_update_manager, "PatchOrchThread")
-    def test_apply_sw_update_strategy_invalid_state(self, mock_patch_orch_thread):
+    def test_apply_sw_update_strategy_invalid_state(self):
         # Create fake strategy
         self.create_strategy(
-            self.ctxt, consts.SW_UPDATE_TYPE_PATCH, consts.SW_UPDATE_STATE_APPLYING
+            self.ctxt, consts.SW_UPDATE_TYPE_SOFTWARE, consts.SW_UPDATE_STATE_APPLYING
         )
         um = sw_update_manager.SwUpdateManager()
-        self.assertRaises(
-            exceptions.BadRequest, um.apply_sw_update_strategy, self.ctxt
-        )
+        self.assertRaises(exceptions.BadRequest, um.apply_sw_update_strategy, self.ctxt)
 
-    @mock.patch.object(sw_update_manager, "PatchOrchThread")
-    def test_abort_sw_update_strategy(self, mock_patch_orch_thread):
+    def test_abort_sw_update_strategy(self):
         # Create fake strategy
         self.create_strategy(
-            self.ctxt, consts.SW_UPDATE_TYPE_PATCH, consts.SW_UPDATE_STATE_APPLYING
+            self.ctxt, consts.SW_UPDATE_TYPE_SOFTWARE, consts.SW_UPDATE_STATE_APPLYING
         )
 
         um = sw_update_manager.SwUpdateManager()
@@ -1674,14 +1618,11 @@ class TestSwUpdateManager(base.DCManagerTestCase):
             aborted_strategy["state"], consts.SW_UPDATE_STATE_ABORT_REQUESTED
         )
 
-    @mock.patch.object(sw_update_manager, "PatchOrchThread")
-    def test_abort_sw_update_strategy_invalid_state(self, mock_patch_orch_thread):
+    def test_abort_sw_update_strategy_invalid_state(self):
         # Create fake strategy
         self.create_strategy(
-            self.ctxt, consts.SW_UPDATE_TYPE_PATCH, consts.SW_UPDATE_STATE_COMPLETE
+            self.ctxt, consts.SW_UPDATE_TYPE_SOFTWARE, consts.SW_UPDATE_STATE_COMPLETE
         )
 
         um = sw_update_manager.SwUpdateManager()
-        self.assertRaises(
-            exceptions.BadRequest, um.apply_sw_update_strategy, self.ctxt
-        )
+        self.assertRaises(exceptions.BadRequest, um.apply_sw_update_strategy, self.ctxt)

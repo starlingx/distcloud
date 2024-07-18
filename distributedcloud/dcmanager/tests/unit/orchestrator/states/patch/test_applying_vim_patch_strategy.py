@@ -15,4 +15,4 @@ class TestApplyingVIMPatchStrategyStage(ApplyingVIMStrategyMixin,
     def setUp(self):
         super(TestApplyingVIMPatchStrategyStage, self).setUp()
         self.set_state(consts.STRATEGY_STATE_APPLYING_VIM_PATCH_STRATEGY,
-                       consts.STRATEGY_STATE_FINISHING_PATCH_STRATEGY)
+                       consts.STRATEGY_STATE_COMPLETE)

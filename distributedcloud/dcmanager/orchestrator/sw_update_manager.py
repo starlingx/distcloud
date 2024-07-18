@@ -146,24 +146,20 @@ class SwUpdateManager(manager.Manager):
            Returns: True if out of sync.
         """
         availability_status = subcloud.availability_status
+        # TODO(nicodemos): Remove the support for patch strategy in stx-11
         if strategy_type == consts.SW_UPDATE_TYPE_PATCH:
-            if patch_file:
-                # If a patch file is specified, we need to check the software version
-                # of the subcloud and the system controller. If the software versions
-                # are the same, we cannot apply the patch.
-                LOG.warning(
-                    f"Patch file: {patch_file} specified for "
-                    f"subcloud {subcloud.name}"
+            # We need to check the software version of the subcloud and
+            # the system controller. If the software versions are the same, we
+            # cannot apply the patch.
+            if subcloud.software_version == SW_VERSION:
+                raise exceptions.BadRequest(
+                    resource="strategy",
+                    msg=(
+                        f"Subcloud {subcloud.name} has the same software version as "
+                        f"the system controller. The {strategy_type} strategy can "
+                        "only be used for subclouds running the previous release."
+                    ),
                 )
-                if subcloud.software_version == SW_VERSION:
-                    raise exceptions.BadRequest(
-                        resource="strategy",
-                        msg=(
-                            f"Subcloud {subcloud.name} has the same software "
-                            "version than the system controller. The --patch "
-                            "option only works with n-1 subclouds."
-                        ),
-                    )
             return (subcloud_status.endpoint_type ==
                     dccommon_consts.ENDPOINT_TYPE_PATCHING and
                     subcloud_status.sync_status ==
@@ -470,8 +466,7 @@ class SwUpdateManager(manager.Manager):
                 ):
                     raise exceptions.BadRequest(
                         resource="strategy",
-                        msg="Patching sync status is unknown for one or more "
-                        "subclouds",
+                        msg="Patching sync status is unknown for one or more subclouds",
                     )
             elif strategy_type == consts.SW_UPDATE_TYPE_FIRMWARE:
                 if (
@@ -581,6 +576,7 @@ class SwUpdateManager(manager.Manager):
                     continue
 
             subcloud_status = db_api.subcloud_status_get_all(context, subcloud.id)
+
             for status in subcloud_status:
                 if self._validate_subcloud_status_sync(strategy_type,
                                                        status,
@@ -591,6 +587,7 @@ class SwUpdateManager(manager.Manager):
                               "sync_status: %s, subcloud: %s, id: %s",
                               status.endpoint_type, status.sync_status,
                               subcloud.name, subcloud.id)
+
                     db_api.strategy_step_create(
                         context,
                         subcloud.id,
@@ -598,7 +595,6 @@ class SwUpdateManager(manager.Manager):
                         state=consts.STRATEGY_STATE_INITIAL,
                         details='')
                     strategy_step_created = True
-
         if strategy_step_created:
             strategy_dict = db_api.sw_update_strategy_db_model_to_dict(
                 strategy)
