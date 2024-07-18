@@ -7,17 +7,20 @@
 Patch strategy validation tests
 """
 
+from dcmanager.common import consts
 from dcmanager.db import api as db_api
 from dcmanager.orchestrator.validators.patch_validator import (
     PatchStrategyValidator
 )
 from dcmanager.tests.base import DCManagerTestCase
 from dcmanager.tests.unit.orchestrator.validators.validators_mixin import (
-    StrategyRequirementsMixin
+    StrategyRequirementsMixin, BuildExtraArgsMixin
 )
 
 
-class TestPatchValidator(DCManagerTestCase, StrategyRequirementsMixin):
+class TestPatchValidator(
+    DCManagerTestCase, StrategyRequirementsMixin, BuildExtraArgsMixin
+):
     """Test class for patch validator"""
 
     def setUp(self):
@@ -32,3 +35,9 @@ class TestPatchValidator(DCManagerTestCase, StrategyRequirementsMixin):
 
     def _get_validator(self):
         return self.validator
+
+    def _get_build_extra_args_payload(self):
+        return {
+            consts.EXTRA_ARGS_UPLOAD_ONLY: True,
+            consts.EXTRA_ARGS_PATCH: None
+        }

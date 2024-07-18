@@ -376,24 +376,8 @@ class SwUpdateManager(manager.Manager):
                 )
 
         extra_args = None
-        # kube rootca update orchestration supports extra creation args
-        if strategy_type == consts.SW_UPDATE_TYPE_KUBE_ROOTCA_UPDATE:
-            # payload fields use "-" rather than "_"
-            # some of these payloads may be 'None'
-            extra_args = {
-                consts.EXTRA_ARGS_EXPIRY_DATE:
-                    payload.get(consts.EXTRA_ARGS_EXPIRY_DATE),
-                consts.EXTRA_ARGS_SUBJECT:
-                    payload.get(consts.EXTRA_ARGS_SUBJECT),
-                consts.EXTRA_ARGS_CERT_FILE:
-                    payload.get(consts.EXTRA_ARGS_CERT_FILE),
-            }
-        elif strategy_type == consts.SW_UPDATE_TYPE_KUBERNETES:
-            extra_args = {
-                consts.EXTRA_ARGS_TO_VERSION:
-                    payload.get(consts.EXTRA_ARGS_TO_VERSION),
-            }
-        elif strategy_type == consts.SW_UPDATE_TYPE_PRESTAGE:
+        # TODO(rlima): move prestage logic to its validator
+        if strategy_type == consts.SW_UPDATE_TYPE_PRESTAGE:
             if not prestage_global_validated:
                 try:
                     prestage.global_prestage_validate(payload)
@@ -409,17 +393,9 @@ class SwUpdateManager(manager.Manager):
                 consts.PRESTAGE_SOFTWARE_VERSION:
                     software_version if software_version else SW_VERSION
             }
-        elif strategy_type == consts.SW_UPDATE_TYPE_PATCH:
-            upload_only_str = payload.get(consts.EXTRA_ARGS_UPLOAD_ONLY)
-            upload_only_bool = True if upload_only_str == 'true' else False
-            extra_args = {
-                consts.EXTRA_ARGS_UPLOAD_ONLY: upload_only_bool,
-                consts.EXTRA_ARGS_PATCH: payload.get(consts.EXTRA_ARGS_PATCH)
-            }
-        elif strategy_type == consts.SW_UPDATE_TYPE_SOFTWARE:
-            extra_args = {
-                consts.EXTRA_ARGS_RELEASE_ID: payload.get(consts.EXTRA_ARGS_RELEASE_ID)
-            }
+        else:
+            extra_args = self.strategy_validators[strategy_type].\
+                build_extra_args(payload)
 
         # Don't create a strategy if any of the subclouds is online and the
         # relevant sync status is unknown. Offline subcloud is skipped unless

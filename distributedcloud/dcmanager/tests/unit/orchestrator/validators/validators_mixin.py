@@ -30,6 +30,15 @@ class BaseMixin(object, metaclass=abc.ABCMeta):
     def _get_validator(self):
         """Returns the validator object"""
 
+    def _get_build_extra_args_payload(self):
+        """Returns the payload for the BuildExtraArgsMixin tests
+
+        By default, None is returned since most strategies don't allow
+        extra arguments.
+        """
+
+        return None
+
 
 class StrategyRequirementsMixin(BaseMixin):
     """Mixin class for validate_strategy_requirements method tests"""
@@ -80,3 +89,20 @@ class StrategyRequirementsMixin(BaseMixin):
         self._get_mock_db_api().assert_called_once_with(
             mock.ANY, self.subcloud.id, self._get_validator().endpoint_type
         )
+
+
+class BuildExtraArgsMixin(BaseMixin):
+    """Mixin class for build_extra_args method tests"""
+
+    def test_build_extra_args_succeeds(self):
+        """Test build_extra_args succeeds"""
+
+        payload = self._get_build_extra_args_payload()
+
+        extra_args = self._get_validator().build_extra_args(payload)
+
+        if payload:
+            for key, value in payload.items():
+                self.assertEqual(extra_args[key], value)
+        else:
+            self.assertIsNone(extra_args)

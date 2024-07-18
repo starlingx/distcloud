@@ -48,3 +48,13 @@ class StrategyValidationBase(object):
                     f'{self.endpoint_type} update'
                 )
             )
+
+    def build_extra_args(self, payload):
+        """Builds the extra args for a strategy
+
+        In case the strategy does not accept extra args, None is returned.
+
+        :param payload: strategy request payload
+        """
+
+        return None

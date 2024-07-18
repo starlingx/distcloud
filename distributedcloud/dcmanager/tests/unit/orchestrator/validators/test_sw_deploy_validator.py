@@ -7,17 +7,20 @@
 Software deploy strategy validation tests
 """
 
+from dcmanager.common import consts
 from dcmanager.db import api as db_api
 from dcmanager.orchestrator.validators.software_deploy_validator import (
     SoftwareDeployStrategyValidator
 )
 from dcmanager.tests.base import DCManagerTestCase
 from dcmanager.tests.unit.orchestrator.validators.validators_mixin import (
-    StrategyRequirementsMixin
+    StrategyRequirementsMixin, BuildExtraArgsMixin
 )
 
 
-class TestSoftwareDeployValidator(DCManagerTestCase, StrategyRequirementsMixin):
+class TestSoftwareDeployValidator(
+    DCManagerTestCase, StrategyRequirementsMixin, BuildExtraArgsMixin
+):
     """Test class for software deploy validator"""
 
     def setUp(self):
@@ -32,3 +35,8 @@ class TestSoftwareDeployValidator(DCManagerTestCase, StrategyRequirementsMixin):
 
     def _get_validator(self):
         return self.validator
+
+    def _get_build_extra_args_payload(self):
+        return {
+            consts.EXTRA_ARGS_RELEASE_ID: "stx-10.0.0",
+        }

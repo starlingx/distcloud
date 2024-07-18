@@ -13,11 +13,13 @@ from dcmanager.orchestrator.validators.firmware_validator import (
 )
 from dcmanager.tests.base import DCManagerTestCase
 from dcmanager.tests.unit.orchestrator.validators.validators_mixin import (
-    StrategyRequirementsMixin
+    StrategyRequirementsMixin, BuildExtraArgsMixin
 )
 
 
-class TestFirmwareValidator(DCManagerTestCase, StrategyRequirementsMixin):
+class TestFirmwareValidator(
+    DCManagerTestCase, StrategyRequirementsMixin, BuildExtraArgsMixin
+):
     """Test class for firmware validator"""
 
     def setUp(self):

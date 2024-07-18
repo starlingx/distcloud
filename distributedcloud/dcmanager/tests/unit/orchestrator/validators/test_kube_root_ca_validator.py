@@ -7,17 +7,20 @@
 Kube root-ca strategy validation tests
 """
 
+from dcmanager.common import consts
 from dcmanager.db import api as db_api
 from dcmanager.orchestrator.validators.kube_root_ca_validator import (
     KubeRootCaStrategyValidator
 )
 from dcmanager.tests.base import DCManagerTestCase
 from dcmanager.tests.unit.orchestrator.validators.validators_mixin import (
-    StrategyRequirementsMixin
+    StrategyRequirementsMixin, BuildExtraArgsMixin
 )
 
 
-class TestKubeRootCaValidator(DCManagerTestCase, StrategyRequirementsMixin):
+class TestKubeRootCaValidator(
+    DCManagerTestCase, StrategyRequirementsMixin, BuildExtraArgsMixin
+):
     """Test class for kube root-ca validator"""
 
     def setUp(self):
@@ -32,3 +35,10 @@ class TestKubeRootCaValidator(DCManagerTestCase, StrategyRequirementsMixin):
 
     def _get_validator(self):
         return self.validator
+
+    def _get_build_extra_args_payload(self):
+        return {
+            consts.EXTRA_ARGS_EXPIRY_DATE: "2024-06-28",
+            consts.EXTRA_ARGS_SUBJECT: None,
+            consts.EXTRA_ARGS_CERT_FILE: None,
+        }
