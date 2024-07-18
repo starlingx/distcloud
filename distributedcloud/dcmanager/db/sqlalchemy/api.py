@@ -30,12 +30,14 @@ from oslo_log import log as logging
 from oslo_utils import strutils
 from oslo_utils import uuidutils
 import sqlalchemy
+from sqlalchemy import bindparam
 from sqlalchemy import desc
 from sqlalchemy import or_
 from sqlalchemy.orm import exc
 from sqlalchemy.orm import joinedload_all
 from sqlalchemy.orm import load_only
 from sqlalchemy.sql.expression import true
+from sqlalchemy import update
 
 from dccommon import consts as dccommon_consts
 from dcmanager.common import consts
@@ -552,6 +554,14 @@ def subcloud_status_get_all(context, subcloud_id):
 
 
 @require_context
+def _subcloud_status_get_by_endpoint_types(context, subcloud_id, endpoint_types):
+    return model_query(context, models.SubcloudStatus). \
+        filter_by(deleted=0). \
+        filter(models.SubcloudStatus.subcloud_id == subcloud_id).\
+        filter(models.SubcloudStatus.endpoint_type.in_(endpoint_types)).all()
+
+
+@require_context
 def subcloud_status_get_all_by_name(context, name):
     return model_query(context, models.SubcloudStatus). \
         filter_by(deleted=0). \
@@ -616,6 +626,46 @@ def subcloud_status_update_endpoints(context, subcloud_id,
     if not result:
         raise exception.SubcloudStatusNotFound(subcloud_id=subcloud_id,
                                                endpoint_type="any")
+
+    return result
+
+
+@require_admin_context
+def subcloud_status_bulk_update_endpoints(context, subcloud_id, endpoint_list):
+    """Update the status of the specified endpoints for a subcloud
+
+    Will raise if subcloud status does not exist.
+    """
+
+    # Retrieves the subcloud status' data for all of the endpoints in endpoint_lst
+    subcloud_statuses = _subcloud_status_get_by_endpoint_types(
+        context, subcloud_id, endpoint_list.keys()
+    )
+
+    # Create a list with the id of each subcloud status that needs to be updated and
+    # its respective sync_status
+    update_list = list()
+    for subcloud_status in subcloud_statuses:
+        update_list.append({
+            "_id": subcloud_status.id,
+            "sync_status": endpoint_list[subcloud_status.endpoint_type]
+        })
+
+    # Bindparam associates keys from update_list to columns in the database
+    # query. This way, for each of the items that needs update, it's possible to
+    # set a specific sync_status, i.e. the query is capable of updating many
+    # endpoints with each of them having one of three values:
+    # in-sync, out-of-sync and unknown.
+    with write_session() as session:
+        statement = update(models.SubcloudStatus).\
+            where(models.SubcloudStatus.id == bindparam("_id")).\
+            values(sync_status=bindparam("sync_status"))
+
+        result = session.execute(statement, update_list)
+    if not result:
+        raise exception.SubcloudStatusNotFound(
+            subcloud_id=subcloud_id, endpoint_type="any"
+        )
 
     return result
 

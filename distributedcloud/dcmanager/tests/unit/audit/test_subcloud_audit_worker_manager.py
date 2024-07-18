@@ -364,32 +364,33 @@ class TestAuditWorkerManager(base.DCManagerTestCase):
         self.mock_sysinv_client().get_applications.return_value = \
             FAKE_APPLICATIONS
 
-        self.batch_state_request_data = {
-            "availability": None,
-            dccommon_consts.ENDPOINT_TYPE_PATCHING: None,
-            dccommon_consts.ENDPOINT_TYPE_LOAD: None,
-            dccommon_consts.ENDPOINT_TYPE_FIRMWARE: None,
-            dccommon_consts.ENDPOINT_TYPE_KUBERNETES: None,
-            dccommon_consts.ENDPOINT_TYPE_KUBE_ROOTCA: None,
-            dccommon_consts.ENDPOINT_TYPE_SOFTWARE: None
-        }
+        self.availability_data = dict()
+        self.endpoint_data = dict()
 
     def _update_availability(
         self, availability_status, update_status_only, audit_fail_count
     ):
-        self.batch_state_request_data.update({
-            "availability": {
-                "availability_status": availability_status,
-                "update_state_only": update_status_only,
-                "audit_fail_count": audit_fail_count
-            }
+        self.availability_data.update({
+            "availability_status": availability_status,
+            "update_state_only": update_status_only,
+            "audit_fail_count": audit_fail_count
         })
 
     def _set_all_audits_in_sync(self):
-        for key in self.batch_state_request_data:
-            if key != "availability":
-                self.batch_state_request_data[key] = \
-                    dccommon_consts.SYNC_STATUS_IN_SYNC
+        self.endpoint_data.update({
+            dccommon_consts.ENDPOINT_TYPE_PATCHING:
+                dccommon_consts.SYNC_STATUS_IN_SYNC,
+            dccommon_consts.ENDPOINT_TYPE_LOAD:
+                dccommon_consts.SYNC_STATUS_IN_SYNC,
+            dccommon_consts.ENDPOINT_TYPE_FIRMWARE:
+                dccommon_consts.SYNC_STATUS_IN_SYNC,
+            dccommon_consts.ENDPOINT_TYPE_KUBERNETES:
+                dccommon_consts.SYNC_STATUS_IN_SYNC,
+            dccommon_consts.ENDPOINT_TYPE_KUBE_ROOTCA:
+                dccommon_consts.SYNC_STATUS_IN_SYNC,
+            dccommon_consts.ENDPOINT_TYPE_SOFTWARE:
+                dccommon_consts.SYNC_STATUS_IN_SYNC
+        })
 
     @staticmethod
     def create_subcloud_static(ctxt, **kwargs):
@@ -477,10 +478,10 @@ class TestAuditWorkerManager(base.DCManagerTestCase):
         self._update_availability(dccommon_consts.AVAILABILITY_ONLINE, False, 0)
         self._set_all_audits_in_sync()
         self.mock_dcmanager_state_api().\
-            batch_update_subcloud_availability_and_endpoint_status.\
+            bulk_update_subcloud_availability_and_endpoint_status.\
             assert_called_once_with(
                 mock.ANY, subcloud.name, subcloud.region_name,
-                self.batch_state_request_data
+                self.availability_data, self.endpoint_data
         )
 
         # Verify the _update_subcloud_audit_fail_count is not called
@@ -576,10 +577,10 @@ class TestAuditWorkerManager(base.DCManagerTestCase):
         # Verify the subcloud was set to online
         self._update_availability(dccommon_consts.AVAILABILITY_ONLINE, False, 0)
         self.mock_dcmanager_state_api().\
-            batch_update_subcloud_availability_and_endpoint_status.\
+            bulk_update_subcloud_availability_and_endpoint_status.\
             assert_called_with(
                 mock.ANY, subcloud.name, subcloud.region_name,
-                self.batch_state_request_data
+                self.availability_data, self.endpoint_data
         )
 
         # Verify the _update_subcloud_audit_fail_count is not called
@@ -652,10 +653,10 @@ class TestAuditWorkerManager(base.DCManagerTestCase):
         # Verify the subcloud was set to online
         self._update_availability(dccommon_consts.AVAILABILITY_ONLINE, False, 0)
         self.mock_dcmanager_state_api().\
-            batch_update_subcloud_availability_and_endpoint_status.\
+            bulk_update_subcloud_availability_and_endpoint_status.\
             assert_called_with(
                 mock.ANY, subcloud.name, subcloud.region_name,
-                self.batch_state_request_data
+                self.availability_data, self.endpoint_data
         )
 
         # Verify the _update_subcloud_audit_fail_count is not called
@@ -712,7 +713,7 @@ class TestAuditWorkerManager(base.DCManagerTestCase):
 
         # Verify the subcloud state was not updated
         self.mock_dcmanager_state_api().\
-            batch_update_subcloud_availability_and_endpoint_status.\
+            bulk_update_subcloud_availability_and_endpoint_status.\
             assert_not_called()
 
         # Verify the _update_subcloud_audit_fail_count is not called
@@ -762,10 +763,10 @@ class TestAuditWorkerManager(base.DCManagerTestCase):
             dccommon_consts.AVAILABILITY_ONLINE, True, None
         )
         self.mock_dcmanager_state_api().\
-            batch_update_subcloud_availability_and_endpoint_status.\
+            bulk_update_subcloud_availability_and_endpoint_status.\
             assert_called_with(
                 mock.ANY, subcloud.name, subcloud.region_name,
-                self.batch_state_request_data
+                self.availability_data, self.endpoint_data
         )
 
         # Verify the _update_subcloud_audit_fail_count is not called
@@ -880,10 +881,10 @@ class TestAuditWorkerManager(base.DCManagerTestCase):
         # Verify the state was called only for the audits
         self._set_all_audits_in_sync()
         self.mock_dcmanager_state_api().\
-            batch_update_subcloud_availability_and_endpoint_status.\
+            bulk_update_subcloud_availability_and_endpoint_status.\
             assert_called_once_with(
                 mock.ANY, subcloud.name, subcloud.region_name,
-                self.batch_state_request_data
+                self.availability_data, self.endpoint_data
         )
 
         # Update the DB like dcmanager would do.
@@ -914,10 +915,10 @@ class TestAuditWorkerManager(base.DCManagerTestCase):
 
         # Verify the subcloud state was not called
         self.mock_dcmanager_state_api().\
-            batch_update_subcloud_availability_and_endpoint_status.\
+            bulk_update_subcloud_availability_and_endpoint_status.\
             assert_called_once_with(
                 mock.ANY, subcloud.name, subcloud.region_name,
-                self.batch_state_request_data
+                self.availability_data, self.endpoint_data
         )
 
         # Verify alarm update is called only once
@@ -989,7 +990,7 @@ class TestAuditWorkerManager(base.DCManagerTestCase):
 
         # Verify the subcloud state was not updated
         self.mock_dcmanager_state_api().\
-            batch_update_subcloud_availability_and_endpoint_status.\
+            bulk_update_subcloud_availability_and_endpoint_status.\
             assert_not_called()
 
         # Verify the _update_subcloud_audit_fail_count is not called
@@ -1108,10 +1109,10 @@ class TestAuditWorkerManager(base.DCManagerTestCase):
         # Verify that the subcloud was updated to offline
         self._update_availability(dccommon_consts.AVAILABILITY_OFFLINE, False, 2)
         self.mock_dcmanager_state_api().\
-            batch_update_subcloud_availability_and_endpoint_status.\
+            bulk_update_subcloud_availability_and_endpoint_status.\
             assert_called_with(
                 mock.ANY, subcloud.name, subcloud.region_name,
-                self.batch_state_request_data
+                self.availability_data, self.endpoint_data
         )
 
     def test_audit_subcloud_offline_update_audit_fail_count_only(self):
@@ -1173,7 +1174,7 @@ class TestAuditWorkerManager(base.DCManagerTestCase):
 
         # Verify the subcloud state was not updated
         self.mock_dcmanager_state_api().\
-            batch_update_subcloud_availability_and_endpoint_status.\
+            bulk_update_subcloud_availability_and_endpoint_status.\
             assert_not_called()
 
         # Verify the openstack endpoints were not updated
@@ -1246,7 +1247,7 @@ class TestAuditWorkerManager(base.DCManagerTestCase):
 
         # Verify the subcloud state was not updated
         self.mock_dcmanager_state_api().\
-            batch_update_subcloud_availability_and_endpoint_status.\
+            bulk_update_subcloud_availability_and_endpoint_status.\
             assert_not_called()
 
         # Verify the _update_subcloud_audit_fail_count is not called
@@ -1314,7 +1315,7 @@ class TestAuditWorkerManager(base.DCManagerTestCase):
 
         # Verify the subcloud state was not updated
         self.mock_dcmanager_state_api().\
-            batch_update_subcloud_availability_and_endpoint_status.\
+            bulk_update_subcloud_availability_and_endpoint_status.\
             assert_not_called()
 
         # Verify the _update_subcloud_audit_fail_count is not called
@@ -1381,7 +1382,7 @@ class TestAuditWorkerManager(base.DCManagerTestCase):
 
         # Verify the subcloud state was not updated
         self.mock_dcmanager_state_api().\
-            batch_update_subcloud_availability_and_endpoint_status.\
+            bulk_update_subcloud_availability_and_endpoint_status.\
             assert_not_called()
 
         # Verify the _update_subcloud_audit_fail_count is not called

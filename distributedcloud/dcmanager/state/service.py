@@ -191,16 +191,17 @@ class DCManagerStateService(service.Service):
             audit_fail_count,
         )
 
-    def batch_update_subcloud_availability_and_endpoint_status(
-        self, context, subcloud_name, subcloud_region, availability_and_endpoint_data
+    def bulk_update_subcloud_availability_and_endpoint_status(
+        self, context, subcloud_name, subcloud_region, availability_data,
+        endpoint_data
     ):
         LOG.info(
-            "Handling batch_update_subcloud_availability_and_endpoint_status request "
+            "Handling bulk_update_subcloud_availability_and_endpoint_status request "
             f"for subcloud: {subcloud_name}"
         )
 
         self.subcloud_state_manager.\
-            batch_update_subcloud_availability_and_endpoint_status(
-                context, subcloud_name, subcloud_region,
-                availability_and_endpoint_data
+            bulk_update_subcloud_availability_and_endpoint_status(
+                context, subcloud_name, subcloud_region, availability_data,
+                endpoint_data
             )

@@ -19,6 +19,7 @@
 
 from fm_api import constants as fm_const
 from fm_api import fm_api
+from oslo_concurrency import lockutils
 from oslo_log import log as logging
 
 from dccommon import consts as dccommon_consts
@@ -34,13 +35,14 @@ from dcorch.rpc import client as dcorch_rpc_client
 
 LOG = logging.getLogger(__name__)
 ALARM_OUT_OF_SYNC = fm_const.FM_ALARM_ID_DC_SUBCLOUD_RESOURCE_OUT_OF_SYNC
+LOCK_NAME = "dc-audit-bulk-update"
 
 
 def sync_update_subcloud_endpoint_status(func):
-    """Synchronized lock decorator for _update_subcloud_endpoint_status. """
+    """Synchronized lock decorator for _update_subcloud_endpoint_status."""
 
     def _get_lock_and_call(*args, **kwargs):
-        """Get a single fair lock per subcloud based on subcloud region. """
+        """Get a single fair lock per subcloud based on subcloud region."""
 
         # subcloud region is the 3rd argument to
         # _update_subcloud_endpoint_status()
@@ -264,6 +266,43 @@ class SubcloudStateManager(manager.Manager):
         else:
             LOG.error("Subcloud not found:%s" % subcloud_id)
 
+    def _should_update_endpoint_status(self, subcloud, endpoint_type, sync_status):
+        """Verifies if the subcloud's endpoint should have its sync status updated"""
+
+        # Rules for updating sync status:
+        #
+        # For secondary subclouds, only update if the new sync_status is
+        # 'unknown'
+        #
+        # For others, always update if not in-sync.
+        #
+        # Otherwise, only update the sync status if managed and online
+        # (unless dc-cert).
+        #
+        # Most endpoints are audited only when the subcloud is managed and
+        # online. An exception is the dc-cert endpoint, which is audited
+        # whenever the subcloud is online (managed or unmanaged).
+        #
+        # This means if a subcloud is going offline or unmanaged, then
+        # the sync status update must be done first.
+        #
+        is_in_sync = sync_status == dccommon_consts.SYNC_STATUS_IN_SYNC
+        is_online = subcloud.availability_status == \
+            dccommon_consts.AVAILABILITY_ONLINE
+        is_managed = subcloud.management_state == \
+            dccommon_consts.MANAGEMENT_MANAGED
+        is_endpoint_type_dc_cert = endpoint_type == \
+            dccommon_consts.ENDPOINT_TYPE_DC_CERT
+        is_secondary = subcloud.deploy_status == consts.DEPLOY_STATE_SECONDARY
+        is_sync_unknown = sync_status == dccommon_consts.SYNC_STATUS_UNKNOWN
+        is_secondary_and_sync_unknown = is_secondary and is_sync_unknown
+
+        return (
+            (not is_in_sync
+             or (is_online and (is_managed or is_endpoint_type_dc_cert)))
+            and not is_secondary
+        ) or is_secondary_and_sync_unknown
+
     @sync_update_subcloud_endpoint_status
     def _update_subcloud_endpoint_status(
             self, context,
@@ -297,47 +336,13 @@ class SubcloudStateManager(manager.Manager):
             LOG.exception(e)
             raise e
 
-        # Rules for updating sync status:
-        #
-        # For secondary subclouds, only update if the new sync_status is
-        # 'unknown'
-        #
-        # For others, always update if not in-sync.
-        #
-        # Otherwise, only update the sync status if managed and online
-        # (unless dc-cert).
-        #
-        # Most endpoints are audited only when the subcloud is managed and
-        # online. An exception is the dc-cert endpoint, which is audited
-        # whenever the subcloud is online (managed or unmanaged).
-        #
-        # This means if a subcloud is going offline or unmanaged, then
-        # the sync status update must be done first.
-        #
-        is_in_sync = sync_status == dccommon_consts.SYNC_STATUS_IN_SYNC
-        is_online = subcloud.availability_status == \
-            dccommon_consts.AVAILABILITY_ONLINE
-        is_managed = subcloud.management_state == \
-            dccommon_consts.MANAGEMENT_MANAGED
-        is_endpoint_type_dc_cert = endpoint_type == \
-            dccommon_consts.ENDPOINT_TYPE_DC_CERT
-        is_secondary = subcloud.deploy_status == consts.DEPLOY_STATE_SECONDARY
-        is_sync_unknown = sync_status == dccommon_consts.SYNC_STATUS_UNKNOWN
-        is_secondary_and_sync_unknown = is_secondary and is_sync_unknown
-
-        if (
-            (not is_in_sync
-             or (is_online and (is_managed or is_endpoint_type_dc_cert)))
-            and not is_secondary
-        ) or is_secondary_and_sync_unknown:
+        if self._should_update_endpoint_status(subcloud, endpoint_type, sync_status):
             # update a single subcloud
             try:
-                self._do_update_subcloud_endpoint_status(context,
-                                                         subcloud.id,
-                                                         endpoint_type,
-                                                         sync_status,
-                                                         alarmable,
-                                                         ignore_endpoints)
+                self._do_update_subcloud_endpoint_status(
+                    context, subcloud.id, endpoint_type, sync_status,
+                    alarmable, ignore_endpoints
+                )
             except Exception as e:
                 LOG.exception(e)
                 raise e
@@ -347,23 +352,134 @@ class SubcloudStateManager(manager.Manager):
                      (subcloud.name, subcloud.availability_status,
                       subcloud.management_state, endpoint_type, sync_status))
 
-    def batch_update_subcloud_availability_and_endpoint_status(
-        self, context, subcloud_name, subcloud_region, availability_and_endpoint_data
+    def bulk_update_subcloud_availability_and_endpoint_status(
+        self, context, subcloud_name, subcloud_region, availability_data,
+        endpoint_data
     ):
-        for key, value in availability_and_endpoint_data.items():
-            # If the value is None, that means nothing should be done for that key
-            if value is None:
-                continue
+        # This bulk update is executed as part of the audit process in dcmanager and
+        # its related endpoints. This method is not used by dcorch and cert-mon.
 
-            if key == "availability":
-                self.update_subcloud_availability(
-                    context, subcloud_region, value["availability_status"],
-                    value["update_state_only"], value["audit_fail_count"]
+        try:
+            subcloud = db_api.subcloud_get_by_region_name(context, subcloud_region)
+        except Exception:
+            LOG.exception(
+                f"Failed to get subcloud by region name {subcloud_region}"
+            )
+            raise
+
+        if availability_data:
+            self.update_subcloud_availability(
+                context, subcloud_region, availability_data["availability_status"],
+                availability_data["update_state_only"],
+                availability_data["audit_fail_count"], subcloud
+            )
+        if endpoint_data:
+            self._bulk_update_subcloud_endpoint_status(
+                context, subcloud, endpoint_data
+            )
+
+    @lockutils.synchronized(LOCK_NAME)
+    def _do_bulk_update_subcloud_endpoint_status(
+        self, context, subcloud, endpoint_list
+    ):
+        """Updates an online and managed subcloud's endpoints sync status
+
+        :param context: request context object
+        :param subcloud: subcloud to update
+        :param endpoint_list: the list of endpoints and its sync status to update
+        """
+
+        # This bulk update is executed as part of the audit process and, because of
+        # that, the logic is similar to _do_update_subcloud_endpoint_status but with
+        # the difference that only the required endpoints will be update and that'll
+        # happen at once.
+        LOG.info(
+            f"Updating endpoints on subcloud: {subcloud.name} "
+            f"endpoints: {', '.join(endpoint_list.keys())}"
+        )
+
+        for endpoint, sync_status in endpoint_list.items():
+            entity_instance_id = f"subcloud={subcloud.name}.resource={endpoint}"
+
+            fault = self.fm_api.get_fault(ALARM_OUT_OF_SYNC, entity_instance_id)
+
+            # TODO(yuxing): batch clear all the out-of-sync alarms of a
+            # given subcloud if fm_api support it. Be careful with the
+            # dc-cert endpoint when adding the above; the endpoint
+            # alarm must remain for offline subclouds.
+            if (sync_status != dccommon_consts.SYNC_STATUS_OUT_OF_SYNC) and fault:
+                try:
+                    self.fm_api.clear_fault(ALARM_OUT_OF_SYNC, entity_instance_id)
+                except Exception as e:
+                    LOG.exception(e)
+
+            elif not fault and \
+                    (sync_status == dccommon_consts.SYNC_STATUS_OUT_OF_SYNC):
+                entity_type_id = fm_const.FM_ENTITY_TYPE_SUBCLOUD
+                try:
+                    fault = fm_api.Fault(
+                        alarm_id=ALARM_OUT_OF_SYNC,
+                        alarm_state=fm_const.FM_ALARM_STATE_SET,
+                        entity_type_id=entity_type_id,
+                        entity_instance_id=entity_instance_id,
+                        severity=fm_const.FM_ALARM_SEVERITY_MAJOR,
+                        reason_text=("%s %s sync_status is "
+                                     "out-of-sync" %
+                                     (subcloud.name, endpoint)),
+                        alarm_type=fm_const.FM_ALARM_TYPE_0,
+                        probable_cause=fm_const.ALARM_PROBABLE_CAUSE_2,
+                        proposed_repair_action="If problem persists "
+                                               "contact next level "
+                                               "of support",
+                        service_affecting=False)
+
+                    self.fm_api.set_fault(fault)
+                except Exception as e:
+                    LOG.exception(e)
+
+        try:
+            db_api.subcloud_status_bulk_update_endpoints(
+                context, subcloud.id, endpoint_list,
+            )
+        except Exception as e:
+            LOG.exception(
+                f"An error occured when updating the subcloud {subcloud.name}'s"
+                f"endpoint status: {e}"
+            )
+
+    def _bulk_update_subcloud_endpoint_status(
+        self, context, subcloud, endpoint_list
+    ):
+        """Update the sync status of a list of subcloud endpoints
+
+        :param context: current context object
+        :param subcloud: subcloud object
+        :param endpoint_list: list of endpoints to update and their sync status
+        """
+
+        endpoints_to_update = dict()
+
+        for endpoint_type, sync_status in endpoint_list.items():
+            if self._should_update_endpoint_status(
+                subcloud, endpoint_type, sync_status
+            ):
+                endpoints_to_update.update({endpoint_type: sync_status})
+
+        # Update all the necessary endpoints for a single subcloud
+        if endpoints_to_update:
+            try:
+                self._do_bulk_update_subcloud_endpoint_status(
+                    context, subcloud, endpoints_to_update
                 )
-                continue
-            self.update_subcloud_endpoint_status(
-                context, subcloud_region=subcloud_region, endpoint_type=key,
-                sync_status=value
+            except Exception as e:
+                LOG.exception(e)
+                raise e
+        else:
+            LOG.info(
+                "Ignoring bulk_update_subcloud_endpoint_status for subcloud: "
+                f"{subcloud.name} availability: {subcloud.availability_status} "
+                f"management: {subcloud.management_state} endpoints: "
+                f"{', '.join(endpoint_list.keys())}"
             )
 
     def update_subcloud_endpoint_status(
@@ -461,14 +577,16 @@ class SubcloudStateManager(manager.Manager):
     def update_subcloud_availability(self, context, subcloud_region,
                                      availability_status,
                                      update_state_only=False,
-                                     audit_fail_count=None):
-        try:
-            subcloud = db_api.subcloud_get_by_region_name(context, subcloud_region)
-        except Exception:
-            LOG.exception(
-                "Failed to get subcloud by region name %s" % subcloud_region
-            )
-            raise
+                                     audit_fail_count=None, subcloud=None):
+        if subcloud is None:
+            try:
+                subcloud = db_api.subcloud_get_by_region_name(context,
+                                                              subcloud_region)
+            except Exception:
+                LOG.exception(
+                    "Failed to get subcloud by region name %s" % subcloud_region
+                )
+                raise
 
         if update_state_only:
             # Ensure that the status alarm is consistent with the
@@ -502,9 +620,14 @@ class SubcloudStateManager(manager.Manager):
             if availability_status == dccommon_consts.AVAILABILITY_OFFLINE:
                 # Subcloud is going offline, set all endpoint statuses to
                 # unknown.
-                self._update_subcloud_endpoint_status(
-                    context, subcloud.region_name, endpoint_type=None,
-                    sync_status=dccommon_consts.SYNC_STATUS_UNKNOWN)
+                endpoint_list = dict()
+
+                for endpoint in dccommon_consts.ENDPOINT_TYPES_LIST:
+                    endpoint_list[endpoint] = dccommon_consts.SYNC_STATUS_UNKNOWN
+
+                self._bulk_update_subcloud_endpoint_status(
+                    context, subcloud, endpoint_list
+                )
 
             try:
                 updated_subcloud = db_api.subcloud_update(

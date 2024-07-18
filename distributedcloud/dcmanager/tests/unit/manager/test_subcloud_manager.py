@@ -2250,6 +2250,104 @@ class TestSubcloudUpdate(BaseTestSubcloudManager):
         self.mock_dcmanager_api().subcloud_online.\
             assert_called_once_with(self.ctx, self.subcloud.region_name)
 
+    def test_bulk_update_subcloud_availability_and_endpoint_status(self):
+        availability_data = {
+            "availability_status": dccommon_consts.AVAILABILITY_OFFLINE,
+            "update_state_only": False,
+            "audit_fail_count": 1
+        }
+        endpoint_data = {
+            dccommon_consts.ENDPOINT_TYPE_LOAD: dccommon_consts.SYNC_STATUS_IN_SYNC,
+            dccommon_consts.ENDPOINT_TYPE_FIRMWARE:
+            dccommon_consts.SYNC_STATUS_OUT_OF_SYNC
+        }
+        endpoints = db_api.subcloud_status_get_all(self.ctx, self.subcloud.id)
+
+        db_api.subcloud_update(
+            self.ctx, self.subcloud.id,
+            availability_status=dccommon_consts.AVAILABILITY_ONLINE,
+            management_state=dccommon_consts.MANAGEMENT_MANAGED
+        )
+
+        ssm = subcloud_state_manager.SubcloudStateManager()
+        ssm.bulk_update_subcloud_availability_and_endpoint_status(
+            self.ctx, self.subcloud.name, self.subcloud.region_name,
+            availability_data, endpoint_data
+        )
+
+        updated_subcloud = db_api.subcloud_get(self.ctx, self.subcloud.id)
+        self.assertEqual(
+            updated_subcloud.availability_status,
+            availability_data["availability_status"]
+        )
+
+        new_endpoints = db_api.subcloud_status_get_all(self.ctx, self.subcloud.id)
+        for index, endpoint in enumerate(endpoints):
+            self.assertEqual(
+                endpoint.endpoint_type, new_endpoints[index].endpoint_type
+            )
+            if endpoint.endpoint_type in endpoint_data:
+                self.assertEqual(
+                    new_endpoints[index].sync_status,
+                    endpoint_data[endpoint.endpoint_type]
+                )
+            else:
+                self.assertEqual(
+                    endpoint.sync_status, new_endpoints[index].sync_status
+                )
+
+    @mock.patch.object(
+        db_api, "subcloud_status_bulk_update_endpoints",
+        wraps=db_api.subcloud_status_bulk_update_endpoints
+    )
+    def test_bulk_update_endpoint_status_when_endpoint_status_is_the_same(
+        self, mock_db
+    ):
+        """Test bulk_update_endpoint_status updates the endpoint with same status
+
+        When the endpoint's status in the database is the same as the one it'll be
+        updated to, ensure that, instead of validating, bulk_update_endpoint_status
+        sets the same value in the database
+        """
+
+        db_api.subcloud_update(
+            self.ctx, self.subcloud.id,
+            availability_status=dccommon_consts.AVAILABILITY_ONLINE,
+            management_state=dccommon_consts.MANAGEMENT_MANAGED
+        )
+
+        endpoint_data = {
+            dccommon_consts.ENDPOINT_TYPE_LOAD: dccommon_consts.SYNC_STATUS_IN_SYNC,
+            dccommon_consts.ENDPOINT_TYPE_FIRMWARE:
+            dccommon_consts.SYNC_STATUS_OUT_OF_SYNC
+        }
+
+        ssm = subcloud_state_manager.SubcloudStateManager()
+        ssm.bulk_update_subcloud_availability_and_endpoint_status(
+            self.ctx, self.subcloud.name, self.subcloud.region_name,
+            None, endpoint_data
+        )
+
+        self.assertEqual(mock_db.call_count, 1)
+
+        # Re-executing the method should result in the same amount of call counts
+        # for the database query since there are no updates
+        ssm.bulk_update_subcloud_availability_and_endpoint_status(
+            self.ctx, self.subcloud.name, self.subcloud.region_name,
+            None, endpoint_data
+        )
+
+        self.assertEqual(mock_db.call_count, 2)
+
+    def test_bulk_update_fails_with_invalid_region(self):
+        ssm = subcloud_state_manager.SubcloudStateManager()
+
+        self.assertRaises(
+            exceptions.SubcloudRegionNameNotFound,
+            ssm.bulk_update_subcloud_availability_and_endpoint_status,
+            self.ctx, self.subcloud.name, "fake", None, None
+        )
+
     @mock.patch.object(subcloud_state_manager.SubcloudStateManager,
                        '_raise_or_clear_subcloud_status_alarm')
     def test_update_state_only(self, mock_update_status_alarm):
@@ -2336,11 +2434,7 @@ class TestSubcloudUpdate(BaseTestSubcloudManager):
         ssm = subcloud_state_manager.SubcloudStateManager()
 
         # create sync statuses for endpoints and set them to in-sync
-        for endpoint in [dccommon_consts.ENDPOINT_TYPE_PLATFORM,
-                         dccommon_consts.ENDPOINT_TYPE_IDENTITY,
-                         dccommon_consts.ENDPOINT_TYPE_PATCHING,
-                         dccommon_consts.ENDPOINT_TYPE_FM,
-                         dccommon_consts.ENDPOINT_TYPE_NFV]:
+        for endpoint in dccommon_consts.ENDPOINT_TYPES_LIST:
             db_api.subcloud_status_create(
                 self.ctx, self.subcloud.id, endpoint)
             ssm.update_subcloud_endpoint_status(
