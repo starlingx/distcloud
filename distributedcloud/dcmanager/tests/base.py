@@ -175,6 +175,13 @@ class DCManagerTestCase(base.BaseTestCase):
         self.mock_pecan_abort = mock_patch_object.start()
         self.addCleanup(mock_patch_object.stop)
 
+    def _mock_db_api(self, target, wraps=None):
+        """Mock db api's method"""
+
+        mock_patch_object = mock.patch.object(db_api, target, wraps=wraps)
+        self.mock_db_api = mock_patch_object.start()
+        self.addCleanup(mock_patch_object.stop)
+
     def _mock_audit_rpc_client(self):
         """Mock rpc's manager audit client"""
 
