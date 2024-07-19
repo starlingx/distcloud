@@ -8,25 +8,27 @@ Kube root-ca strategy validation tests
 """
 
 from dcmanager.common import consts
-from dcmanager.db import api as db_api
+from dcmanager.db.sqlalchemy import api as db_api
 from dcmanager.orchestrator.validators.kube_root_ca_validator import (
     KubeRootCaStrategyValidator
 )
 from dcmanager.tests.base import DCManagerTestCase
 from dcmanager.tests.unit.orchestrator.validators.validators_mixin import (
-    StrategyRequirementsMixin, BuildExtraArgsMixin
+    StrategyRequirementsMixin, BaseMixin, BuildExtraArgsMixin
 )
+from dcmanager.tests.unit.common.fake_subcloud import create_fake_subcloud
 
 
 class TestKubeRootCaValidator(
-    DCManagerTestCase, StrategyRequirementsMixin, BuildExtraArgsMixin
+    DCManagerTestCase, BaseMixin, StrategyRequirementsMixin, BuildExtraArgsMixin
 ):
     """Test class for kube root-ca validator"""
 
     def setUp(self):
         super().setUp()
 
-        self._mock_db_api("subcloud_status_get", db_api.subcloud_status_get)
+        self.subcloud = create_fake_subcloud(self.ctx)
+        self._mock_db_api("subcloud_status_get", wraps=db_api.subcloud_status_get)
 
         self.validator = KubeRootCaStrategyValidator()
 

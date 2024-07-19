@@ -8,25 +8,27 @@ Patch strategy validation tests
 """
 
 from dcmanager.common import consts
-from dcmanager.db import api as db_api
+from dcmanager.db.sqlalchemy import api as db_api
 from dcmanager.orchestrator.validators.patch_validator import (
     PatchStrategyValidator
 )
 from dcmanager.tests.base import DCManagerTestCase
 from dcmanager.tests.unit.orchestrator.validators.validators_mixin import (
-    StrategyRequirementsMixin, BuildExtraArgsMixin
+    StrategyRequirementsMixin, BaseMixin, BuildExtraArgsMixin
 )
+from dcmanager.tests.unit.common.fake_subcloud import create_fake_subcloud
 
 
 class TestPatchValidator(
-    DCManagerTestCase, StrategyRequirementsMixin, BuildExtraArgsMixin
+    DCManagerTestCase, BaseMixin, StrategyRequirementsMixin, BuildExtraArgsMixin
 ):
     """Test class for patch validator"""
 
     def setUp(self):
         super().setUp()
 
-        self._mock_db_api("subcloud_status_get", db_api.subcloud_status_get)
+        self.subcloud = create_fake_subcloud(self.ctx)
+        self._mock_db_api("subcloud_status_get", wraps=db_api.subcloud_status_get)
 
         self.validator = PatchStrategyValidator()
 
@@ -41,3 +43,10 @@ class TestPatchValidator(
             consts.EXTRA_ARGS_UPLOAD_ONLY: True,
             consts.EXTRA_ARGS_PATCH: None
         }
+
+    def _get_expected_extra_args(self):
+
+        extra_args = self._get_build_extra_args_payload()
+        extra_args[consts.EXTRA_ARGS_UPLOAD_ONLY] = False
+
+        return extra_args
