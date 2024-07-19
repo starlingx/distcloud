@@ -217,6 +217,7 @@ DEPLOY_STATE_PRE_INIT_ENROLL_FAILED = "pre-init-enroll-failed"
 DEPLOY_STATE_INITIATING_ENROLL = "initiating-enroll"
 DEPLOY_STATE_INIT_ENROLL_FAILED = "init-enroll-failed"
 DEPLOY_STATE_INIT_ENROLL_COMPLETE = "init-enroll-complete"
+DEPLOY_STATE_SW_DEPLOY_IN_PROGRESS = "sw-deploy-in-progress"
 # If any of the following rehoming or secondary statuses
 # are modified, cert-mon code will need to be updated.
 DEPLOY_STATE_REHOMING = "rehoming"

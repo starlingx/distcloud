@@ -11,8 +11,10 @@
 # License for the specific language governing permissions and limitations
 # under the License.
 #
+
 import uuid
 
+import mock
 from oslo_utils import timeutils
 
 # VIM constants for Strategy
@@ -90,3 +92,29 @@ class SwUpdateStrategy(object):
         self.state = data["state"]
         self.created_at = timeutils.utcnow()
         self.updated_at = timeutils.utcnow()
+
+
+class FakeService(object):
+    def __init__(self, name, type):
+        self.name = name
+        self.type = type
+
+
+class FakeServices(object):
+    def __init__(self, services=None):
+        self.services = services
+
+    def list(self):
+        return self.services
+
+
+class FakeKeystone(object):
+    def __init__(self):
+        self.session = mock.MagicMock()
+        self.tokens = mock.MagicMock()
+        self.keystone_client = FakeKeystoneClient()
+
+
+class FakeKeystoneClient(object):
+    def __init__(self):
+        self.services = FakeServices()

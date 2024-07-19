@@ -41,17 +41,18 @@ class FinishStrategyState(BaseState):
             )
 
         if strategy_step.subcloud.software_version != software_version:
-            # Update the databases with the new software version
-            db_api.subcloud_update(
-                self.context,
-                strategy_step.subcloud_id,
-                software_version=software_version,
-            )
-
             dcorch_rpc = dcorch_rpc_client.EngineWorkerClient()
             dcorch_rpc.update_subcloud_version(
                 self.context, self.region_name, software_version
             )
+
+        # Update the database with the software version and deploy status to complete
+        db_api.subcloud_update(
+            self.context,
+            strategy_step.subcloud_id,
+            software_version=software_version,
+            deploy_status=consts.DEPLOY_STATE_DONE,
+        )
 
         return self.next_state
 

@@ -38,7 +38,6 @@ def get_sysinv_client():
 def get_software_client():
     ks_client = get_keystone_client()
     return SoftwareClient(
-        dccommon_consts.DEFAULT_REGION_NAME,
         ks_client.session,
         endpoint=ks_client.endpoint_cache.get_endpoint("usm"),
     )

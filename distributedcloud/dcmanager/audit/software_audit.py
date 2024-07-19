@@ -4,31 +4,30 @@
 # SPDX-License-Identifier: Apache-2.0
 #
 
-from keystoneauth1 import exceptions as keystone_exceptions
+from keystoneauth1.session import Session as keystone_session
 from oslo_log import log as logging
+from tsconfig.tsconfig import SW_VERSION
 
 from dccommon import consts as dccommon_consts
-from dccommon.drivers.openstack.keystone_v3 import KeystoneClient as ks_client
-from dccommon.drivers.openstack import sdk_platform
+from dccommon.drivers.openstack.sdk_platform import OpenStackDriver
 from dccommon.drivers.openstack import software_v1
-from dccommon.utils import build_subcloud_endpoint
-from dccommon.utils import log_subcloud_msg
+from dccommon.drivers.openstack.software_v1 import SoftwareClient
+from dccommon import utils as dccommon_utils
 from dcmanager.common import utils
+from dcmanager.db.sqlalchemy import models
 
 LOG = logging.getLogger(__name__)
 
 
 class SoftwareAuditData(object):
-    def __init__(self, releases, deployed_release_ids, committed_release_ids):
+    def __init__(self, releases, deployed_release_ids):
         self.releases = releases
         self.deployed_release_ids = deployed_release_ids
-        self.committed_release_ids = committed_release_ids
 
     def to_dict(self):
         return {
             "releases": self.releases,
             "deployed_release_ids": self.deployed_release_ids,
-            "committed_release_ids": self.committed_release_ids,
         }
 
     @classmethod
@@ -45,18 +44,6 @@ class SoftwareAudit(object):
         LOG.debug("SoftwareAudit initialization...")
         self.audit_count = 0
 
-    @staticmethod
-    def _get_upgrades(sysinv_client):
-        upgrades = None
-        try:
-            upgrades = sysinv_client.get_upgrades()
-        except Exception:
-            LOG.exception(
-                "Cannot retrieve upgrade info for "
-                f"subcloud: {sysinv_client.region_name}"
-            )
-        return upgrades
-
     def get_regionone_audit_data(self):
         """Query RegionOne to determine what releases should be deployed
 
@@ -65,15 +52,15 @@ class SoftwareAudit(object):
         :return: A new SoftwareAuditData object
         """
         try:
-            m_os_ks_client = sdk_platform.OpenStackDriver(
+            m_os_ks_client = OpenStackDriver(
                 region_name=dccommon_consts.DEFAULT_REGION_NAME,
                 region_clients=None,
                 fetch_subcloud_ips=utils.fetch_subcloud_mgmt_ips,
             ).keystone_client
             software_endpoint = m_os_ks_client.endpoint_cache.get_endpoint(
-                dccommon_consts.ENDPOINT_TYPE_SOFTWARE
+                dccommon_consts.ENDPOINT_NAME_USM
             )
-            software_client = software_v1.SoftwareClient(
+            software_client = SoftwareClient(
                 dccommon_consts.DEFAULT_REGION_NAME,
                 m_os_ks_client.session,
                 endpoint=software_endpoint,
@@ -88,35 +75,29 @@ class SoftwareAudit(object):
         # Build lists of releases that should be deployed or committed in all
         # subclouds, based on their state in RegionOne.
         deployed_release_ids = list()
-        committed_release_ids = list()
         for release in regionone_releases:
             if release["state"] == software_v1.DEPLOYED:
                 deployed_release_ids.append(release["release_id"])
-            elif release["state"] == software_v1.COMMITTED:
-                committed_release_ids.append(release["release_id"])
         LOG.debug(f"RegionOne deployed_release_ids: {deployed_release_ids}")
-        LOG.debug(f"RegionOne committed_release_ids: {committed_release_ids}")
-        return SoftwareAuditData(
-            regionone_releases, deployed_release_ids, committed_release_ids
-        )
+        return SoftwareAuditData(regionone_releases, deployed_release_ids)
 
     @classmethod
     def get_subcloud_audit_data(
-        cls, software_client: software_v1.SoftwareClient, subcloud_name: str = None
+        cls, software_client: SoftwareClient, subcloud_name: str = None
     ):
         # Retrieve all the releases that are present in this subcloud.
         try:
             subcloud_releases = software_client.list()
         except Exception:
-            msg = "Cannot retrieve releases, skip software audit."
-            log_subcloud_msg(LOG.warn, msg, subcloud_name)
+            msg = "Cannot retrieve subcloud releases, skip software audit."
+            dccommon_utils.log_subcloud_msg(LOG.warn, msg, subcloud_name)
             return dccommon_consts.SKIP_AUDIT
         return subcloud_releases
 
     @classmethod
     def get_subcloud_sync_status(
         cls,
-        software_client: software_v1.SoftwareClient,
+        software_client: SoftwareClient,
         audit_data: SoftwareAuditData,
         subcloud_name: str = None,
     ):
@@ -126,95 +107,62 @@ class SoftwareAudit(object):
             return None
 
         msg = f"Releases: {subcloud_releases}"
-        log_subcloud_msg(LOG.debug, msg, subcloud_name)
+        dccommon_utils.log_subcloud_msg(LOG.debug, msg, subcloud_name)
 
         sync_status = dccommon_consts.SYNC_STATUS_IN_SYNC
 
         # audit_data will be a dict due to passing through RPC so objectify it
         audit_data = SoftwareAuditData.from_dict(audit_data)
 
-        # Check that all releases in this subcloud are in the correct
-        # state, based on the state of the release in RegionOne. For the
-        # subcloud.
-        for release in subcloud_releases:
-            release_id = release.get("release_id")
-            if release["state"] == software_v1.DEPLOYED:
-                if release_id not in audit_data.deployed_release_ids:
-                    if release_id not in audit_data.committed_release_ids:
-                        msg = f"Release {release_id} should not be deployed."
-                        log_subcloud_msg(LOG.debug, msg, subcloud_name)
-                    else:
-                        msg = f"Release {release_id} should be committed."
-                        log_subcloud_msg(LOG.debug, msg, subcloud_name)
-                    sync_status = dccommon_consts.SYNC_STATUS_OUT_OF_SYNC
-            elif release["state"] == software_v1.COMMITTED:
-                if (
-                    release_id not in audit_data.committed_release_ids
-                    and release_id not in audit_data.deployed_release_ids
-                ):
-                    msg = f"Release {release_id} should not be committed."
-                    log_subcloud_msg(LOG.warn, msg, subcloud_name)
-                    sync_status = dccommon_consts.SYNC_STATUS_OUT_OF_SYNC
-            else:
-                # In steady state, all releases should either be deployed
-                # or committed in each subcloud. Release in other
-                # states mean a sync is required.
-                sync_status = dccommon_consts.SYNC_STATUS_OUT_OF_SYNC
-
-        # Check that all deployed or committed releases in RegionOne are
-        # present in the subcloud.
+        # Check that all deployed releases in RegionOne are present in the subcloud.
         for release_id in audit_data.deployed_release_ids:
             if not any(
-                release["release_id"] == release_id for release in subcloud_releases
+                (
+                    release["release_id"] == release_id
+                    and release["state"] == software_v1.DEPLOYED
+                )
+                for release in subcloud_releases
             ):
                 msg = f"Release {release_id} is missing."
-                log_subcloud_msg(LOG.debug, msg, subcloud_name)
+                dccommon_utils.log_subcloud_msg(LOG.debug, msg, subcloud_name)
                 sync_status = dccommon_consts.SYNC_STATUS_OUT_OF_SYNC
-        for release_id in audit_data.committed_release_ids:
-            if not any(
-                release["release_id"] == release_id for release in subcloud_releases
-            ):
-                msg = f"Release {release_id} is missing."
-                log_subcloud_msg(LOG.debug, msg, subcloud_name)
-                sync_status = dccommon_consts.SYNC_STATUS_OUT_OF_SYNC
-
         return sync_status
 
     def subcloud_software_audit(
         self,
-        keystone_client: ks_client,
-        subcloud_management_ip: str,
-        subcloud_name: str,
-        subcloud_region: str,
+        keystone_session: keystone_session,
+        subcloud: models.Subcloud,
         audit_data: SoftwareAuditData,
     ):
-        LOG.info(f"Triggered software audit for: {subcloud_name}.")
-        try:
-            software_endpoint = build_subcloud_endpoint(
-                subcloud_management_ip, dccommon_consts.ENDPOINT_TYPE_SOFTWARE
-            )
-            software_client = software_v1.SoftwareClient(
-                subcloud_region, keystone_client.session, endpoint=software_endpoint
-            )
-        except (
-            keystone_exceptions.EndpointNotFound,
-            keystone_exceptions.ConnectFailure,
-            keystone_exceptions.ConnectTimeout,
-            IndexError,
+        LOG.info(f"Triggered software audit for: {subcloud.name}.")
+        # TODO(nicodemos): Remove this method after all support to patching is removed
+        # NOTE(nicodemos): Software audit not support on 22.12 subcloud without USM
+        if subcloud.software_version != SW_VERSION and not utils.has_usm_service(
+            subcloud.region_name, keystone_session
         ):
+            LOG.info(f"Software audit not supported for {subcloud.name} without USM.")
+            return dccommon_consts.SYNC_STATUS_NOT_AVAILABLE
+
+        try:
+            software_endpoint = dccommon_utils.build_subcloud_endpoint(
+                subcloud.management_start_ip, dccommon_consts.ENDPOINT_NAME_USM
+            )
+            software_client = SoftwareClient(
+                keystone_session, endpoint=software_endpoint
+            )
+        except Exception:
             LOG.exception(
-                f"Endpoint for online subcloud {subcloud_name} not found, skip "
-                "software audit."
+                f"Failed to get Software Client for subcloud: {subcloud.name}"
             )
             return None
 
         sync_status = self.get_subcloud_sync_status(
-            software_client, audit_data, subcloud_name
+            software_client, audit_data, subcloud.name
         )
 
         if sync_status:
             LOG.info(
-                f"Software audit completed for: {subcloud_name}, requesting "
+                f"Software audit completed for: {subcloud.name}, requesting "
                 f"sync_status update to {sync_status}"
             )
             return sync_status

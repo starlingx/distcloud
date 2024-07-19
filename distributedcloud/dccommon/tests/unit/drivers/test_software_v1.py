@@ -9,7 +9,6 @@ import json
 import mock
 import requests
 
-from dccommon import consts as dccommon_consts
 from dccommon.drivers.openstack.software_v1 import SoftwareClient
 from dccommon import exceptions
 from dccommon.tests import base
@@ -109,9 +108,8 @@ class TestSoftwareClient(base.DCCommonTestCase):
         self.ctx = utils.dummy_context()
         self.session = mock.MagicMock()
         self.software_client = SoftwareClient(
-            region=dccommon_consts.DEFAULT_REGION_NAME,
-            endpoint=FAKE_ENDPOINT,
             session=mock.MagicMock(),
+            endpoint=FAKE_ENDPOINT,
         )
 
     @mock.patch("requests.get")

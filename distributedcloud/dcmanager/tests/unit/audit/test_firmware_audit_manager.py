@@ -19,7 +19,6 @@ from oslo_config import cfg
 
 from dccommon import consts as dccommon_consts
 from dcmanager.audit import firmware_audit
-from dcmanager.audit import patch_audit
 from dcmanager.audit import subcloud_audit_manager
 from dcmanager.audit import subcloud_audit_worker_manager
 from dcmanager.tests import base
@@ -428,18 +427,12 @@ class TestFirmwareAudit(base.DCManagerTestCase):
         firmware_audit_data = self._rpc_convert(firmware_audit_data)
         return firmware_audit_data
 
-    @mock.patch.object(patch_audit, "SysinvClient")
-    @mock.patch.object(patch_audit, "PatchingClient")
-    @mock.patch.object(patch_audit, "OpenStackDriver")
     @mock.patch.object(firmware_audit, "SysinvClient")
     @mock.patch.object(firmware_audit, "OpenStackDriver")
     def test_no_firmware_audit_data_to_sync(
         self,
         mock_fw_openstack_driver,
         mock_fw_sysinv_client,
-        mock_openstack_driver,
-        mock_patching_client,
-        mock_sysinv_client,
     ):
 
         mock_fw_sysinv_client.side_effect = FakeSysinvClientNoAuditData
@@ -449,25 +442,19 @@ class TestFirmwareAudit(base.DCManagerTestCase):
             base.SUBCLOUD_1["name"]: base.SUBCLOUD_1["region_name"],
             base.SUBCLOUD_2["name"]: base.SUBCLOUD_2["region_name"],
         }
-        for name, region in subclouds.items():
+        for name, _ in subclouds.items():
             response = self.fm.subcloud_firmware_audit(
                 self.mock_sysinv_client(), name, firmware_audit_data
             )
 
             self.assertEqual(response, dccommon_consts.SYNC_STATUS_IN_SYNC)
 
-    @mock.patch.object(patch_audit, "SysinvClient")
-    @mock.patch.object(patch_audit, "PatchingClient")
-    @mock.patch.object(patch_audit, "OpenStackDriver")
     @mock.patch.object(firmware_audit, "SysinvClient")
     @mock.patch.object(firmware_audit, "OpenStackDriver")
     def test_no_enabled_devices_on_subcloud(
         self,
         mock_fw_openstack_driver,
         mock_fw_sysinv_client,
-        mock_openstack_driver,
-        mock_patching_client,
-        mock_sysinv_client,
     ):
 
         mock_fw_sysinv_client.side_effect = FakeSysinvClientNoEnabledDevices
@@ -477,25 +464,19 @@ class TestFirmwareAudit(base.DCManagerTestCase):
             base.SUBCLOUD_1["name"]: base.SUBCLOUD_1["region_name"],
             base.SUBCLOUD_2["name"]: base.SUBCLOUD_2["region_name"],
         }
-        for name, region in subclouds.items():
+        for name, _ in subclouds.items():
             response = self.fm.subcloud_firmware_audit(
                 self.mock_sysinv_client(), name, firmware_audit_data
             )
 
             self.assertEqual(response, dccommon_consts.SYNC_STATUS_IN_SYNC)
 
-    @mock.patch.object(patch_audit, "SysinvClient")
-    @mock.patch.object(patch_audit, "PatchingClient")
-    @mock.patch.object(patch_audit, "OpenStackDriver")
     @mock.patch.object(firmware_audit, "SysinvClient")
     @mock.patch.object(firmware_audit, "OpenStackDriver")
     def test_apply_image_to_all_devices(
         self,
         mock_fw_openstack_driver,
         mock_fw_sysinv_client,
-        mock_openstack_driver,
-        mock_patching_client,
-        mock_sysinv_client,
     ):
         mock_fw_sysinv_client.side_effect = FakeSysinvClientImageWithoutLabels
         firmware_audit_data = self.get_fw_audit_data()
@@ -504,25 +485,19 @@ class TestFirmwareAudit(base.DCManagerTestCase):
             base.SUBCLOUD_1["name"]: base.SUBCLOUD_1["region_name"],
             base.SUBCLOUD_2["name"]: base.SUBCLOUD_2["region_name"],
         }
-        for name, region in subclouds.items():
+        for name, _ in subclouds.items():
             response = self.fm.subcloud_firmware_audit(
                 self.mock_sysinv_client(), name, firmware_audit_data
             )
 
             self.assertEqual(response, dccommon_consts.SYNC_STATUS_IN_SYNC)
 
-    @mock.patch.object(patch_audit, "SysinvClient")
-    @mock.patch.object(patch_audit, "PatchingClient")
-    @mock.patch.object(patch_audit, "OpenStackDriver")
     @mock.patch.object(firmware_audit, "SysinvClient")
     @mock.patch.object(firmware_audit, "OpenStackDriver")
     def test_image_not_applied(
         self,
         mock_fw_openstack_driver,
         mock_fw_sysinv_client,
-        mock_openstack_driver,
-        mock_patching_client,
-        mock_sysinv_client,
     ):
         mock_fw_sysinv_client.side_effect = FakeSysinvClientImageNotApplied
         self.mock_sysinv_client.side_effect = FakeSysinvClientImageNotApplied
@@ -532,25 +507,19 @@ class TestFirmwareAudit(base.DCManagerTestCase):
             base.SUBCLOUD_1["name"]: base.SUBCLOUD_1["region_name"],
             base.SUBCLOUD_2["name"]: base.SUBCLOUD_2["region_name"],
         }
-        for name, region in subclouds.items():
+        for name, _ in subclouds.items():
             response = self.fm.subcloud_firmware_audit(
                 self.mock_sysinv_client(), name, firmware_audit_data
             )
 
             self.assertEqual(response, dccommon_consts.SYNC_STATUS_OUT_OF_SYNC)
 
-    @mock.patch.object(patch_audit, "SysinvClient")
-    @mock.patch.object(patch_audit, "PatchingClient")
-    @mock.patch.object(patch_audit, "OpenStackDriver")
     @mock.patch.object(firmware_audit, "SysinvClient")
     @mock.patch.object(firmware_audit, "OpenStackDriver")
     def test_image_not_written(
         self,
         mock_fw_openstack_driver,
         mock_fw_sysinv_client,
-        mock_openstack_driver,
-        mock_patching_client,
-        mock_sysinv_client,
     ):
         mock_fw_sysinv_client.side_effect = FakeSysinvClientImageNotWritten
         self.mock_sysinv_client.side_effect = FakeSysinvClientImageNotWritten
@@ -560,25 +529,19 @@ class TestFirmwareAudit(base.DCManagerTestCase):
             base.SUBCLOUD_1["name"]: base.SUBCLOUD_1["region_name"],
             base.SUBCLOUD_2["name"]: base.SUBCLOUD_2["region_name"],
         }
-        for name, region in subclouds.items():
+        for name, _ in subclouds.items():
             response = self.fm.subcloud_firmware_audit(
                 self.mock_sysinv_client(), name, firmware_audit_data
             )
 
             self.assertEqual(response, dccommon_consts.SYNC_STATUS_OUT_OF_SYNC)
 
-    @mock.patch.object(patch_audit, "SysinvClient")
-    @mock.patch.object(patch_audit, "PatchingClient")
-    @mock.patch.object(patch_audit, "OpenStackDriver")
     @mock.patch.object(firmware_audit, "SysinvClient")
     @mock.patch.object(firmware_audit, "OpenStackDriver")
     def test_image_with_labels(
         self,
         mock_fw_openstack_driver,
         mock_fw_sysinv_client,
-        mock_openstack_driver,
-        mock_patching_client,
-        mock_sysinv_client,
     ):
         mock_fw_sysinv_client.side_effect = FakeSysinvClientImageWithLabels
         firmware_audit_data = self.get_fw_audit_data()
@@ -587,25 +550,19 @@ class TestFirmwareAudit(base.DCManagerTestCase):
             base.SUBCLOUD_1["name"]: base.SUBCLOUD_1["region_name"],
             base.SUBCLOUD_2["name"]: base.SUBCLOUD_2["region_name"],
         }
-        for name, region in subclouds.items():
+        for name, _ in subclouds.items():
             response = self.fm.subcloud_firmware_audit(
                 self.mock_sysinv_client(), name, firmware_audit_data
             )
 
             self.assertEqual(response, dccommon_consts.SYNC_STATUS_IN_SYNC)
 
-    @mock.patch.object(patch_audit, "SysinvClient")
-    @mock.patch.object(patch_audit, "PatchingClient")
-    @mock.patch.object(patch_audit, "OpenStackDriver")
     @mock.patch.object(firmware_audit, "SysinvClient")
     @mock.patch.object(firmware_audit, "OpenStackDriver")
     def test_no_matching_label_for_device_on_subcloud(
         self,
         mock_fw_openstack_driver,
         mock_fw_sysinv_client,
-        mock_openstack_driver,
-        mock_patching_client,
-        mock_sysinv_client,
     ):
         mock_fw_sysinv_client.side_effect = FakeSysinvClientNoMatchingDeviceLabel
         firmware_audit_data = self.get_fw_audit_data()
@@ -614,25 +571,19 @@ class TestFirmwareAudit(base.DCManagerTestCase):
             base.SUBCLOUD_1["name"]: base.SUBCLOUD_1["region_name"],
             base.SUBCLOUD_2["name"]: base.SUBCLOUD_2["region_name"],
         }
-        for name, region in subclouds.items():
+        for name, _ in subclouds.items():
             response = self.fm.subcloud_firmware_audit(
                 self.mock_sysinv_client(), name, firmware_audit_data
             )
 
             self.assertEqual(response, dccommon_consts.SYNC_STATUS_IN_SYNC)
 
-    @mock.patch.object(patch_audit, "SysinvClient")
-    @mock.patch.object(patch_audit, "PatchingClient")
-    @mock.patch.object(patch_audit, "OpenStackDriver")
     @mock.patch.object(firmware_audit, "SysinvClient")
     @mock.patch.object(firmware_audit, "OpenStackDriver")
     def test_no_matching_device_id_on_subcloud(
         self,
         mock_fw_openstack_driver,
         mock_fw_sysinv_client,
-        mock_openstack_driver,
-        mock_patching_client,
-        mock_sysinv_client,
     ):
         mock_fw_sysinv_client.side_effect = FakeSysinvClientNoMatchingDeviceId
         firmware_audit_data = self.get_fw_audit_data()
@@ -641,7 +592,7 @@ class TestFirmwareAudit(base.DCManagerTestCase):
             base.SUBCLOUD_1["name"]: base.SUBCLOUD_1["region_name"],
             base.SUBCLOUD_2["name"]: base.SUBCLOUD_2["region_name"],
         }
-        for name, region in subclouds.items():
+        for name, _ in subclouds.items():
             response = self.fm.subcloud_firmware_audit(
                 self.mock_sysinv_client(), name, firmware_audit_data
             )

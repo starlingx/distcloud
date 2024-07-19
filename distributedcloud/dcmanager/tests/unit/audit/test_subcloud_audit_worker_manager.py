@@ -59,7 +59,7 @@ class FakePatchAudit(object):
             return_value=dccommon_consts.SYNC_STATUS_IN_SYNC
         )
         self.subcloud_load_audit = mock.MagicMock(
-            return_value=dccommon_consts.SYNC_STATUS_IN_SYNC
+            return_value=dccommon_consts.SYNC_STATUS_NOT_AVAILABLE
         )
         self.get_regionone_audit_data = mock.MagicMock()
         self.get_software_regionone_audit_data = mock.MagicMock()
@@ -420,7 +420,7 @@ class TestAuditWorkerManager(base.DCManagerTestCase):
         self.endpoint_data.update(
             {
                 PATCHING: dccommon_consts.SYNC_STATUS_IN_SYNC,
-                LOAD: dccommon_consts.SYNC_STATUS_IN_SYNC,
+                LOAD: dccommon_consts.SYNC_STATUS_NOT_AVAILABLE,
                 FIRMWARE: dccommon_consts.SYNC_STATUS_IN_SYNC,
                 KUBERNETES: dccommon_consts.SYNC_STATUS_IN_SYNC,
                 KUBE_ROOTCA: dccommon_consts.SYNC_STATUS_IN_SYNC,
@@ -497,7 +497,7 @@ class TestAuditWorkerManager(base.DCManagerTestCase):
         )
         # Convert to dict like what would happen calling via RPC
         # Note: the other data should also be converted...
-        patch_audit_data = patch_audit_data.to_dict()
+        patch_audit_data = {}
         wm._audit_subcloud(
             subcloud,
             update_subcloud_state,
@@ -546,15 +546,13 @@ class TestAuditWorkerManager(base.DCManagerTestCase):
         # Verify patch audit is called
         self.fake_patch_audit.subcloud_patch_audit.assert_called_with(
             mock.ANY,
-            mock.ANY,
-            subcloud.management_start_ip,
-            subcloud.name,
-            subcloud.region_name,
-            patch_audit_data,
+            subcloud,
         )
 
-        self.fake_patch_audit.subcloud_load_audit.assert_called_with(
-            mock.ANY, subcloud.name, patch_audit_data
+        self.fake_patch_audit.subcloud_load_audit.assert_called_with()
+
+        self.fake_software_audit.subcloud_software_audit.assert_called_with(
+            mock.ANY, subcloud, software_audit_data
         )
 
         # Verify firmware audit is called
@@ -613,7 +611,7 @@ class TestAuditWorkerManager(base.DCManagerTestCase):
         )
         # Convert to dict like what would happen calling via RPC
         # Note: the other data should also be converted...
-        patch_audit_data = patch_audit_data.to_dict()
+        patch_audit_data = {}
         wm._audit_subcloud(
             subcloud,
             update_subcloud_state,
@@ -657,6 +655,9 @@ class TestAuditWorkerManager(base.DCManagerTestCase):
         # Verify patch audit is not called
         self.fake_patch_audit.subcloud_patch_audit.assert_not_called()
         self.fake_patch_audit.subcloud_load_audit.assert_not_called()
+
+        # Verify software audit is not called
+        self.fake_software_audit.subcloud_software_audit.assert_not_called()
 
         # Verify firmware audit is not called
         self.fake_firmware_audit.subcloud_firmware_audit.assert_not_called()
@@ -699,7 +700,7 @@ class TestAuditWorkerManager(base.DCManagerTestCase):
         )
         # Convert to dict like what would happen calling via RPC
         # Note: the other data should also be converted...
-        patch_audit_data = patch_audit_data.to_dict()
+        patch_audit_data = {}
         wm._audit_subcloud(
             subcloud,
             update_subcloud_state,
@@ -743,6 +744,9 @@ class TestAuditWorkerManager(base.DCManagerTestCase):
         # Verify patch audit is not called
         self.fake_patch_audit.subcloud_patch_audit.assert_not_called()
         self.fake_patch_audit.subcloud_load_audit.assert_not_called()
+
+        # Verify software audit is not called
+        self.fake_software_audit.subcloud_software_audit.assert_not_called()
 
         # Verify firmware audit is not called
         self.fake_firmware_audit.subcloud_firmware_audit.assert_not_called()
@@ -805,6 +809,9 @@ class TestAuditWorkerManager(base.DCManagerTestCase):
         self.fake_patch_audit.subcloud_patch_audit.assert_not_called()
         self.fake_patch_audit.subcloud_load_audit.assert_not_called()
 
+        # Verify software audit is not called
+        self.fake_software_audit.subcloud_software_audit.assert_not_called()
+
     def test_audit_subcloud_online_no_change_force_update(self):
 
         subcloud = self.create_subcloud_static(self.ctx, name="subcloud1")
@@ -864,6 +871,9 @@ class TestAuditWorkerManager(base.DCManagerTestCase):
         self.fake_patch_audit.subcloud_patch_audit.assert_not_called()
         self.fake_patch_audit.subcloud_load_audit.assert_not_called()
 
+        # Verify software audit is not called
+        self.fake_software_audit.subcloud_software_audit.assert_not_called()
+
         # Verify firmware audit is not called
         self.fake_firmware_audit.subcloud_firmware_audit.assert_not_called()
 
@@ -916,7 +926,7 @@ class TestAuditWorkerManager(base.DCManagerTestCase):
             do_software_audit,
         )
         # Convert to dict like what would happen calling via RPC
-        patch_audit_data = patch_audit_data.to_dict()
+        patch_audit_data = {}
         wm._audit_subcloud(
             subcloud,
             update_subcloud_state=False,
@@ -945,14 +955,13 @@ class TestAuditWorkerManager(base.DCManagerTestCase):
         # Verify patch audit is called once
         self.fake_patch_audit.subcloud_patch_audit.assert_called_once_with(
             mock.ANY,
-            mock.ANY,
-            subcloud.management_start_ip,
-            subcloud.name,
-            subcloud.region_name,
-            patch_audit_data,
+            subcloud,
         )
-        self.fake_patch_audit.subcloud_load_audit.assert_called_once_with(
-            mock.ANY, subcloud.name, patch_audit_data
+        self.fake_patch_audit.subcloud_load_audit.assert_called_once_with()
+
+        # Verify software audit is called
+        self.fake_software_audit.subcloud_software_audit.assert_called_once_with(
+            mock.ANY, subcloud, software_audit_data
         )
 
         # Verify firmware audit is called once
@@ -1035,6 +1044,9 @@ class TestAuditWorkerManager(base.DCManagerTestCase):
         self.fake_patch_audit.subcloud_patch_audit.assert_called_once()
         self.fake_patch_audit.subcloud_load_audit.assert_called_once()
 
+        # Verify software audit is called once
+        self.fake_software_audit.subcloud_software_audit.assert_called_once()
+
         # Verify firmware audit is only called once
         self.fake_firmware_audit.subcloud_firmware_audit.assert_called_once()
 
@@ -1081,7 +1093,7 @@ class TestAuditWorkerManager(base.DCManagerTestCase):
             do_software_audit,
         )
         # Convert to dict like what would happen calling via RPC
-        patch_audit_data = patch_audit_data.to_dict()
+        patch_audit_data = {}
         wm._audit_subcloud(
             subcloud,
             update_subcloud_state=False,
@@ -1118,6 +1130,9 @@ class TestAuditWorkerManager(base.DCManagerTestCase):
         # Verify patch audit is not called
         self.fake_patch_audit.subcloud_patch_audit.assert_not_called()
         self.fake_patch_audit.subcloud_load_audit.assert_not_called()
+
+        # Verify software audit is not called
+        self.fake_software_audit.subcloud_software_audit.assert_not_called()
 
         # Verify firmware audit is not called
         self.fake_firmware_audit.subcloud_firmware_audit.assert_not_called()
@@ -1208,7 +1223,7 @@ class TestAuditWorkerManager(base.DCManagerTestCase):
             do_software_audit,
         )
         # Convert to dict like what would happen calling via RPC
-        patch_audit_data = patch_audit_data.to_dict()
+        patch_audit_data = {}
         wm._audit_subcloud(
             subcloud,
             update_subcloud_state=False,
@@ -1276,7 +1291,7 @@ class TestAuditWorkerManager(base.DCManagerTestCase):
             do_software_audit,
         )
         # Convert to dict like what would happen calling via RPC
-        patch_audit_data = patch_audit_data.to_dict()
+        patch_audit_data = {}
         wm._audit_subcloud(
             subcloud,
             update_subcloud_state=False,
@@ -1311,6 +1326,9 @@ class TestAuditWorkerManager(base.DCManagerTestCase):
         # Verify patch audit is not called
         self.fake_patch_audit.subcloud_patch_audit.assert_not_called()
         self.fake_patch_audit.subcloud_load_audit.assert_not_called()
+
+        # Verify software audit is not called
+        self.fake_software_audit.subcloud_software_audit.assert_not_called()
 
         # Verify firmware audit is not called
         self.fake_firmware_audit.subcloud_firmware_audit.assert_not_called()
@@ -1402,6 +1420,9 @@ class TestAuditWorkerManager(base.DCManagerTestCase):
         self.fake_patch_audit.subcloud_patch_audit.assert_not_called()
         self.fake_patch_audit.subcloud_load_audit.assert_not_called()
 
+        # Verify software audit is not called
+        self.fake_software_audit.subcloud_software_audit.assert_not_called()
+
         # Verify firmware audit is not called
         self.fake_firmware_audit.subcloud_firmware_audit.assert_not_called()
 
@@ -1477,6 +1498,9 @@ class TestAuditWorkerManager(base.DCManagerTestCase):
         # Verify patch audit is not called
         self.fake_patch_audit.subcloud_patch_audit.assert_not_called()
         self.fake_patch_audit.subcloud_load_audit.assert_not_called()
+
+        # Verify software audit is not called
+        self.fake_software_audit.subcloud_software_audit.assert_not_called()
 
         # Verify firmware audit is not called
         self.fake_firmware_audit.subcloud_firmware_audit.assert_not_called()
@@ -1554,6 +1578,9 @@ class TestAuditWorkerManager(base.DCManagerTestCase):
         self.fake_patch_audit.subcloud_patch_audit.assert_not_called()
         self.fake_patch_audit.subcloud_load_audit.assert_not_called()
 
+        # Verify software audit is not called
+        self.fake_software_audit.subcloud_software_audit.assert_not_called()
+
         # Verify firmware audit is not called
         self.fake_firmware_audit.subcloud_firmware_audit.assert_not_called()
 
@@ -1600,7 +1627,7 @@ class TestAuditWorkerManager(base.DCManagerTestCase):
             do_software_audit,
         )
         # Convert to dict like what would happen calling via RPC
-        patch_audit_data = patch_audit_data.to_dict()
+        patch_audit_data = {}
 
         # Now pretend someone triggered all the subaudits in the DB
         # after the subcloud audit was triggered but before it ran.
@@ -1633,13 +1660,12 @@ class TestAuditWorkerManager(base.DCManagerTestCase):
         # Verify patch audit is called
         self.fake_patch_audit.subcloud_patch_audit.assert_called_once_with(
             mock.ANY,
-            mock.ANY,
-            subcloud.management_start_ip,
-            subcloud.name,
-            subcloud.region_name,
-            patch_audit_data,
+            subcloud,
         )
         self.fake_patch_audit.subcloud_load_audit.assert_not_called()
+
+        # Verify software audit is not called
+        self.fake_software_audit.subcloud_software_audit.assert_not_called()
 
         # Verify the _update_subcloud_audit_fail_count is not called
         with mock.patch.object(

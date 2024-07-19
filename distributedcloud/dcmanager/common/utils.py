@@ -574,12 +574,6 @@ def kube_version_compare(left, right):
     return (l_val > r_val) - (l_val < r_val)
 
 
-def get_loads_for_patching(loads):
-    """Filter the loads that can be patched. Return their software versions"""
-    valid_states = [consts.ACTIVE_LOAD_STATE, consts.IMPORTED_LOAD_STATE]
-    return [load.software_version for load in loads if load.state in valid_states]
-
-
 def system_peer_get_by_ref(context, peer_ref):
     """Handle getting a system peer by either UUID, or ID, or Name
 
@@ -1201,7 +1195,6 @@ def _get_systemcontroller_installed_releases(key: str) -> List[str]:
         )
         ks_client = os_client.keystone_client
         software_client = software_v1.SoftwareClient(
-            dccommon_consts.DEFAULT_REGION_NAME,
             ks_client.session,
             endpoint=ks_client.endpoint_cache.get_endpoint("usm"),
         )
@@ -1972,3 +1965,13 @@ def validate_software_strategy(release_id: str):
     elif release_id not in get_systemcontroller_installed_releases_ids():
         message = f"Release ID: {release_id} not deployed in the SystemController"
         pecan.abort(400, _(message))
+
+
+def has_usm_service(subcloud_region, keystone_session):
+    try:
+        # Try to get the usm endpoint for the subcloud.
+        software_v1.SoftwareClient(keystone_session, region=subcloud_region)
+        return True
+    except keystone_exceptions.EndpointNotFound:
+        LOG.warning("USM service not found for subcloud_region: %s", subcloud_region)
+        return False

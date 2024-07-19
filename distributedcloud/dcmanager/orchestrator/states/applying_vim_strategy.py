@@ -6,6 +6,7 @@
 import time
 
 from dccommon.drivers.openstack import vim
+from dcmanager.common import consts
 from dcmanager.common import exceptions
 from dcmanager.db import api as db_api
 from dcmanager.orchestrator.states.base import BaseState
@@ -55,6 +56,15 @@ class ApplyingVIMStrategyState(BaseState):
         Returns the next state for the state machine if successful.
         """
         region = self.get_region_name(strategy_step)
+
+        if self.strategy_name == vim.STRATEGY_NAME_SW_USM:
+            # Update the subcloud deploy_status to indicate that the sw-deploy
+            # strategy is being applied
+            db_api.subcloud_update(
+                self.context,
+                strategy_step.subcloud_id,
+                deploy_status=consts.DEPLOY_STATE_SW_DEPLOY_IN_PROGRESS,
+            )
 
         # query the vim strategy. Check if it is None
         subcloud_strategy = self.get_vim_client(region).get_strategy(

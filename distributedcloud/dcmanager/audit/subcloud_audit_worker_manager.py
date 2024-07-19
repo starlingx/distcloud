@@ -428,12 +428,11 @@ class SubcloudAuditWorkerManager(manager.Manager):
                     "offline subcloud." % subcloud_name
                 )
                 return audits_done, failures
-            else:
-                # The subcloud will be marked as offline below.
-                LOG.error(
-                    "Identity or Platform endpoint for online subcloud: %s not found."
-                    % subcloud_name
-                )
+            # The subcloud will be marked as offline below.
+            LOG.error(
+                "Identity or Platform endpoint for online subcloud: %s not found."
+                % subcloud_name
+            )
 
         except Exception:
             LOG.exception("Failed to create clients for subcloud: %s" % subcloud_name)
@@ -514,16 +513,13 @@ class SubcloudAuditWorkerManager(manager.Manager):
                 avail_to_set,
                 subcloud.first_identity_sync_complete,
             ):
-                if do_patch_audit and patch_audit_data:
+                # TODO(nicodemos): Remove this when patching is no longer supported
+                if do_patch_audit:
                     try:
                         endpoint_data[dccommon_consts.ENDPOINT_TYPE_PATCHING] = (
                             self.patch_audit.subcloud_patch_audit(
                                 keystone_client.session,
-                                sysinv_client,
-                                subcloud_management_ip,
-                                subcloud_name,
-                                subcloud_region,
-                                patch_audit_data,
+                                subcloud,
                             )
                         )
                         audits_done.append(dccommon_consts.ENDPOINT_TYPE_PATCHING)
@@ -533,12 +529,11 @@ class SubcloudAuditWorkerManager(manager.Manager):
                             % (subcloud.name, dccommon_consts.ENDPOINT_TYPE_PATCHING)
                         )
                         failures.append(dccommon_consts.ENDPOINT_TYPE_PATCHING)
-                if do_load_audit and patch_audit_data:
+                # TODO(nicodemos): Remove this when patching is no longer supported
+                if do_load_audit:
                     try:
                         endpoint_data[dccommon_consts.ENDPOINT_TYPE_LOAD] = (
-                            self.patch_audit.subcloud_load_audit(
-                                sysinv_client, subcloud_name, patch_audit_data
-                            )
+                            self.patch_audit.subcloud_load_audit()
                         )
                         audits_done.append(dccommon_consts.ENDPOINT_TYPE_LOAD)
                     except Exception:
@@ -629,18 +624,13 @@ class SubcloudAuditWorkerManager(manager.Manager):
                 self.alarm_aggr.update_alarm_summary(subcloud_name, alarm_updates)
 
             failmsg = "Audit failure subcloud: %s, endpoint: %s"
-
-            # If we have patch audit data, audit the subcloud
-            if do_patch_audit and patch_audit_data:
+            # TODO(nicodemos): Remove this when patching is no longer supported
+            if do_patch_audit:
                 try:
                     endpoint_data[dccommon_consts.ENDPOINT_TYPE_PATCHING] = (
                         self.patch_audit.subcloud_patch_audit(
                             keystone_client.session,
-                            sysinv_client,
-                            subcloud_management_ip,
-                            subcloud_name,
-                            subcloud_region,
-                            patch_audit_data,
+                            subcloud,
                         )
                     )
                     audits_done.append(dccommon_consts.ENDPOINT_TYPE_PATCHING)
@@ -650,13 +640,11 @@ class SubcloudAuditWorkerManager(manager.Manager):
                         % (subcloud.name, dccommon_consts.ENDPOINT_TYPE_PATCHING)
                     )
                     failures.append(dccommon_consts.ENDPOINT_TYPE_PATCHING)
-            # Perform load audit
-            if do_load_audit and patch_audit_data:
+            # TODO(nicodemos): Remove this when patching is no longer supported
+            if do_load_audit:
                 try:
                     endpoint_data[dccommon_consts.ENDPOINT_TYPE_LOAD] = (
-                        self.patch_audit.subcloud_load_audit(
-                            sysinv_client, subcloud_name, patch_audit_data
-                        )
+                        self.patch_audit.subcloud_load_audit()
                     )
                     audits_done.append(dccommon_consts.ENDPOINT_TYPE_LOAD)
                 except Exception:
@@ -728,10 +716,8 @@ class SubcloudAuditWorkerManager(manager.Manager):
                 try:
                     endpoint_data[dccommon_consts.ENDPOINT_TYPE_SOFTWARE] = (
                         self.software_audit.subcloud_software_audit(
-                            keystone_client,
-                            subcloud_management_ip,
-                            subcloud_name,
-                            subcloud_region,
+                            keystone_client.session,
+                            subcloud,
                             software_audit_data,
                         )
                     )

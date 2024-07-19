@@ -32,15 +32,15 @@ class SoftwareClient(base.DriverBase):
 
     def __init__(
         self,
-        region: str,
         session: keystone_session,
+        region: str = None,
         endpoint: str = None,
         endpoint_type: str = consts.KS_ENDPOINT_ADMIN,
     ):
         # Get an endpoint and token.
         if not endpoint:
             self.endpoint = session.get_endpoint(
-                service_type="usm",
+                service_type=consts.ENDPOINT_TYPE_USM,
                 region_name=region,
                 interface=endpoint_type,
             )

@@ -488,7 +488,11 @@ class SubcloudsController(object):
 
                 # If any of the endpoint sync status is out of sync, then
                 # the subcloud sync status is out of sync
-                if sync_status != subcloud_dict[subcloud_id][consts.SYNC_STATUS]:
+                # NOTE(nicodemos): Until all patch/load audits are fully removed,
+                # we need to skip this step if the sync status is 'not-available'.
+                if sync_status == dccommon_consts.SYNC_STATUS_NOT_AVAILABLE:
+                    continue
+                elif sync_status != subcloud_dict[subcloud_id][consts.SYNC_STATUS]:
                     subcloud_dict[subcloud_id][
                         consts.SYNC_STATUS
                     ] = dccommon_consts.SYNC_STATUS_OUT_OF_SYNC
@@ -594,10 +598,9 @@ class SubcloudsController(object):
                 region_name=dccommon_consts.DEFAULT_REGION_NAME, region_clients=None
             ).keystone_client
             software_endpoint = m_os_ks_client.endpoint_cache.get_endpoint(
-                dccommon_consts.ENDPOINT_TYPE_SOFTWARE
+                dccommon_consts.ENDPOINT_NAME_USM
             )
             software_client = software_v1.SoftwareClient(
-                dccommon_consts.DEFAULT_REGION_NAME,
                 m_os_ks_client.session,
                 endpoint=software_endpoint,
             )

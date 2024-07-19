@@ -225,8 +225,8 @@ class BaseAuditManager(object):
             endpoint_type=dccommon_consts.KS_ENDPOINT_INTERNAL,
         )
         self.software_client = CachedSoftwareClient(
-            region_name,
             auth_session,
+            region=region_name,
             endpoint_type=dccommon_consts.KS_ENDPOINT_INTERNAL,
         )
         self.sysinv_client.use_cache = use_cache

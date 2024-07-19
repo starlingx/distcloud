@@ -60,6 +60,26 @@ KUBERNETES_AUDIT_RATE = 4
 # Every 4 audits triggers a kube rootca update audit
 KUBE_ROOTCA_UPDATE_AUDIT_RATE = 4
 
+# Valid Deploy Status for auditing
+VALID_DEPLOY_STATE = [
+    consts.DEPLOY_STATE_DONE,
+    consts.DEPLOY_STATE_CONFIGURING,
+    consts.DEPLOY_STATE_CONFIG_FAILED,
+    consts.DEPLOY_STATE_CONFIG_ABORTED,
+    consts.DEPLOY_STATE_PRE_CONFIG_FAILED,
+    consts.DEPLOY_STATE_INSTALL_FAILED,
+    consts.DEPLOY_STATE_INSTALL_ABORTED,
+    consts.DEPLOY_STATE_PRE_INSTALL_FAILED,
+    consts.DEPLOY_STATE_INSTALLING,
+    consts.DEPLOY_STATE_DATA_MIGRATION_FAILED,
+    consts.DEPLOY_STATE_UPGRADE_ACTIVATED,
+    consts.DEPLOY_STATE_RESTORING,
+    consts.DEPLOY_STATE_RESTORE_PREP_FAILED,
+    consts.DEPLOY_STATE_RESTORE_FAILED,
+    consts.DEPLOY_STATE_REHOME_PENDING,
+    consts.DEPLOY_STATE_SW_DEPLOY_IN_PROGRESS,
+]
+
 
 class SubcloudAuditManager(manager.Manager):
     """Manages tasks related to audits."""
@@ -479,33 +499,12 @@ class SubcloudAuditManager(manager.Manager):
         ):
             # Include failure deploy status states in the auditable list
             # so that the subcloud can be set as offline
-            if (
+            if deploy_status not in VALID_DEPLOY_STATE or (
                 deploy_status
-                not in [
-                    consts.DEPLOY_STATE_DONE,
-                    consts.DEPLOY_STATE_CONFIGURING,
-                    consts.DEPLOY_STATE_CONFIG_FAILED,
-                    consts.DEPLOY_STATE_CONFIG_ABORTED,
-                    consts.DEPLOY_STATE_PRE_CONFIG_FAILED,
-                    consts.DEPLOY_STATE_INSTALL_FAILED,
-                    consts.DEPLOY_STATE_INSTALL_ABORTED,
-                    consts.DEPLOY_STATE_PRE_INSTALL_FAILED,
+                in [
                     consts.DEPLOY_STATE_INSTALLING,
-                    consts.DEPLOY_STATE_DATA_MIGRATION_FAILED,
-                    consts.DEPLOY_STATE_UPGRADE_ACTIVATED,
-                    consts.DEPLOY_STATE_RESTORING,
-                    consts.DEPLOY_STATE_RESTORE_PREP_FAILED,
-                    consts.DEPLOY_STATE_RESTORE_FAILED,
                     consts.DEPLOY_STATE_REHOME_PENDING,
                 ]
-            ) or (
-                (
-                    deploy_status
-                    in [
-                        consts.DEPLOY_STATE_INSTALLING,
-                        consts.DEPLOY_STATE_REHOME_PENDING,
-                    ]
-                )
                 and availability_status == dccommon_consts.AVAILABILITY_OFFLINE
             ):
                 LOG.debug(
@@ -518,14 +517,13 @@ class SubcloudAuditManager(manager.Manager):
 
         # Set the audit_finished_at timestamp for non qualified subclouds in bulk
         LOG.debug(
-            f"Set end audit timestamp for non-qualified subclouds "
+            "Set end audit timestamp for non-qualified subclouds "
             f"({len(skipped_subcloud_ids)}) in bulk"
         )
         db_api.subcloud_audits_bulk_end_audit(self.context, skipped_subcloud_ids)
 
         LOG.debug(
-            f"Number of subclouds qualified for audit: "
-            f"{len(pruned_subcloud_audits)}"
+            f"Number of subclouds qualified for audit: {len(pruned_subcloud_audits)}"
         )
 
         # Now check whether any of these subclouds need patch audit or firmware
