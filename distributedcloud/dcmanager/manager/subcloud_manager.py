@@ -1535,6 +1535,8 @@ class SubcloudManager(manager.Manager):
             deploy_status=deploy_state,
             rehome_data=rehome_data)
 
+        LOG.info(f"Successfully created subcloud {subcloud.name}")
+
         # The RPC call must return the subcloud as a dictionary, otherwise it
         # should return the DB object for dcmanager internal use (subcloud add)
         if return_as_dict:
