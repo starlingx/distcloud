@@ -120,13 +120,17 @@ class OrchestratorTestCase(base.BaseTestCase):
         self.mock_keystone_client = mock_patch.start()
         self.addCleanup(mock_patch.stop)
 
-    def _mock_endpoint_cache_from_keystone(self):
-        mock_patch = mock.patch("dccommon.drivers.openstack.keystone_v3.EndpointCache")
+    def _mock_keystone_endpoint_cache_get_admin_session(self):
+        mock_patch = mock.patch(
+            "dccommon.drivers.openstack.keystone_v3.EndpointCache.get_admin_session"
+        )
         self.mock_endpoint_cache_from_keystone = mock_patch.start()
         self.addCleanup(mock_patch.stop)
 
-    def _mock_endpoint_cache(self):
-        mock_patch = mock.patch("dccommon.endpoint_cache.EndpointCache")
+    def _mock_endpoint_cache_get_admin_session(self):
+        mock_patch = mock.patch(
+            "dccommon.endpoint_cache.EndpointCache.get_admin_session"
+        )
         self.mock_endpoint_cache = mock_patch.start()
         self.addCleanup(mock_patch.stop)
 
