@@ -65,6 +65,17 @@ class FakeVimStrategy(object):
         self.abort_phase = abort_phase
 
 
+class FakeVimStrategyPhase(object):
+    """Represents a VIM StrategyPhase object defined in:
+
+    starlingx/nfv/nfv-client/nfv_client/openstack/sw_update.py
+    """
+
+    def __init__(self, response=None, reason=None):
+        self.response = response
+        self.reason = reason
+
+
 class SwUpdateStrategy(object):
     def __init__(self, id, data):
         self.id = id

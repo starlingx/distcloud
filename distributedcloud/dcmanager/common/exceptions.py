@@ -262,6 +262,20 @@ class SoftwarePreCheckFailedException(DCManagerException):
     message = _("Subcloud %(subcloud)s software deploy precheck failed: %(details)s")
 
 
+class CreateVIMStrategyFailedException(DCManagerException):
+    message = _(
+        "Subcloud %(subcloud)s create VIM %(name)s strategy "
+        "failed. State: %(state)s Details: %(details)s"
+    )
+
+
+class ApplyVIMStrategyFailedException(DCManagerException):
+    message = _(
+        "Subcloud %(subcloud)s apply VIM %(name)s strategy "
+        "failed. State: %(state)s Details: %(details)s"
+    )
+
+
 class SoftwareListFailedException(DCManagerException):
     message = _("Subcloud %(subcloud)s software list failed: %(details)s")
 

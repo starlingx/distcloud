@@ -462,6 +462,14 @@ class SwUpdateManager(manager.Manager):
             state=consts.STRATEGY_STATE_INITIAL,
             details="",
         )
+        # Clear the error_description field for all subclouds that will
+        # perform orchestration.
+        update_form = {"error_description": consts.ERROR_DESC_EMPTY}
+        db_api.subcloud_bulk_update_by_ids(
+            context,
+            [subcloud.id for subcloud, _ in valid_subclouds],
+            update_form,
+        )
 
         LOG.info(
             f"Finished creating software update strategy of type {payload['type']}."

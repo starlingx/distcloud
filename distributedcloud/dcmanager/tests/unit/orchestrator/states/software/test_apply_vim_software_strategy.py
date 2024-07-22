@@ -8,14 +8,20 @@ import mock
 
 from dccommon.drivers.openstack import vim
 from dcmanager.common import consts
+from dcmanager.common import exceptions
 from dcmanager.tests.unit.common import fake_strategy
-from dcmanager.tests.unit.fakes import FakeVimStrategy
-from dcmanager.tests.unit.orchestrator.states.software.test_base import \
-    TestSoftwareOrchestrator
+from dcmanager.tests.unit import fakes
+from dcmanager.tests.unit.orchestrator.states.software.test_base import (
+    TestSoftwareOrchestrator,
+)
 
-STRATEGY_READY_TO_APPLY = FakeVimStrategy(state=vim.STATE_READY_TO_APPLY)
-STRATEGY_APPLYING = FakeVimStrategy(state=vim.STATE_APPLYING)
-STRATEGY_APPLIED = FakeVimStrategy(state=vim.STATE_APPLIED)
+STRATEGY_READY_TO_APPLY = fakes.FakeVimStrategy(state=vim.STATE_READY_TO_APPLY)
+STRATEGY_APPLYING = fakes.FakeVimStrategy(state=vim.STATE_APPLYING)
+STRATEGY_APPLIED = fakes.FakeVimStrategy(state=vim.STATE_APPLIED)
+APPLY_PHASE_ERROR = fakes.FakeVimStrategyPhase(response="Deploy Start Failed")
+STRATEGY_APPLY_FAILED = fakes.FakeVimStrategy(
+    state=vim.STATE_APPLY_FAILED, apply_phase=APPLY_PHASE_ERROR
+)
 RELEASE_ID = "starlingx-9.0.1"
 
 
@@ -36,7 +42,8 @@ class TestApplyVIMSoftwareStrategyState(TestSoftwareOrchestrator):
 
         # Add the strategy_step state being processed by this unit test
         self.strategy_step = self.setup_strategy_step(
-            self.subcloud.id, consts.STRATEGY_STATE_SW_APPLY_VIM_STRATEGY)
+            self.subcloud.id, consts.STRATEGY_STATE_SW_APPLY_VIM_STRATEGY
+        )
 
         # Mock the API calls made by the state
         self.vim_client.get_strategy = mock.MagicMock()
@@ -52,9 +59,7 @@ class TestApplyVIMSoftwareStrategyState(TestSoftwareOrchestrator):
         "DEFAULT_MAX_WAIT_ATTEMPTS",
         3,
     )
-    @mock.patch(
-        "dcmanager.orchestrator.states.applying_vim_strategy.WAIT_INTERVAL", 1
-    )
+    @mock.patch("dcmanager.orchestrator.states.applying_vim_strategy.WAIT_INTERVAL", 1)
     @mock.patch(
         "dcmanager.orchestrator.states.applying_vim_strategy."
         "ApplyingVIMStrategyState.__init__.__defaults__",
@@ -80,5 +85,44 @@ class TestApplyVIMSoftwareStrategyState(TestSoftwareOrchestrator):
         self.vim_client.apply_strategy.assert_called_with(strategy_name="sw-upgrade")
 
         # On success, the state should transition to the next state
-        self.assert_step_updated(
-            self.strategy_step.subcloud_id, self.on_success_state)
+        self.assert_step_updated(self.strategy_step.subcloud_id, self.on_success_state)
+
+    @mock.patch(
+        "dcmanager.orchestrator.states.applying_vim_strategy."
+        "DEFAULT_MAX_FAILED_QUERIES",
+        3,
+    )
+    @mock.patch(
+        "dcmanager.orchestrator.states.applying_vim_strategy."
+        "DEFAULT_MAX_WAIT_ATTEMPTS",
+        3,
+    )
+    @mock.patch("dcmanager.orchestrator.states.applying_vim_strategy.WAIT_INTERVAL", 1)
+    @mock.patch(
+        "dcmanager.orchestrator.states.applying_vim_strategy."
+        "ApplyingVIMStrategyState.__init__.__defaults__",
+        (3, 1),
+    )
+    @mock.patch.object(exceptions, "ApplyVIMStrategyFailedException")
+    def test_apply_vim_software_strategy_apply_failed(self, mock_exception):
+        """Test apply vim software strategy apply failed"""
+
+        self.vim_client.get_strategy.side_effect = [
+            STRATEGY_READY_TO_APPLY,
+            STRATEGY_APPLYING,
+            STRATEGY_APPLY_FAILED,
+        ]
+
+        # API calls acts as expected
+        self.vim_client.apply_strategy.return_value = STRATEGY_APPLYING
+
+        self.worker.perform_state_action(self.strategy_step)
+
+        # Assert ApplyVIMStrategyFailedException is called with the correct parameters
+        expected_message = f"VIM strategy apply failed: {APPLY_PHASE_ERROR.response}"
+        mock_exception.assert_called_once_with(
+            subcloud=self.subcloud.name,
+            name=vim.STRATEGY_NAME_SW_USM,
+            state=vim.STATE_APPLY_FAILED,
+            details=expected_message,
+        )

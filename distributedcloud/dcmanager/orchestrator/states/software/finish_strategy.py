@@ -7,7 +7,6 @@
 from dccommon.drivers.openstack import software_v1
 from dcmanager.common import consts
 from dcmanager.common import exceptions
-from dcmanager.db import api as db_api
 from dcmanager.orchestrator.states.base import BaseState
 from dcmanager.orchestrator.states.software.cache.cache_specifications import (
     REGION_ONE_RELEASE_USM_CACHE_TYPE,
@@ -28,8 +27,6 @@ class FinishStrategyState(BaseState):
 
         self.info_log(strategy_step, "Finishing software strategy")
 
-        subcloud = db_api.subcloud_get(self.context, strategy_step.subcloud.id)
-
         regionone_deployed_releases = self._read_from_cache(
             REGION_ONE_RELEASE_USM_CACHE_TYPE, state=software_v1.DEPLOYED
         )
@@ -46,7 +43,7 @@ class FinishStrategyState(BaseState):
             message = "Cannot retrieve subcloud releases. Please see logs for details."
             self.exception_log(strategy_step, message)
             raise exceptions.SoftwareListFailedException(
-                subcloud=subcloud.name,
+                subcloud=strategy_step.subcloud.name,
                 details=message,
             )
 
@@ -72,7 +69,7 @@ class FinishStrategyState(BaseState):
 
         if releases_to_delete:
             self._handle_release_delete(
-                strategy_step, software_client, subcloud, releases_to_delete
+                strategy_step, software_client, releases_to_delete
             )
 
         if self.stopped():
@@ -80,14 +77,13 @@ class FinishStrategyState(BaseState):
 
         if releases_to_commit:
             self._handle_deploy_commit(
-                strategy_step, software_client, subcloud, releases_to_commit
+                strategy_step, software_client, releases_to_commit
             )
 
         if releases_to_deploy_delete:
             self._handle_deploy_delete(
                 strategy_step,
                 software_client,
-                subcloud,
                 releases_to_deploy_delete,
                 regionone_deployed_releases,
             )
@@ -95,7 +91,7 @@ class FinishStrategyState(BaseState):
         return self.next_state
 
     def _handle_release_delete(
-        self, strategy_step, software_client, subcloud, releases_to_delete
+        self, strategy_step, software_client, releases_to_delete
     ):
         self.info_log(strategy_step, f"Deleting releases {releases_to_delete}")
         try:
@@ -106,13 +102,11 @@ class FinishStrategyState(BaseState):
             )
             self.exception_log(strategy_step, message)
             raise exceptions.SoftwareDeleteFailedException(
-                subcloud=subcloud.name,
+                subcloud=strategy_step.subcloud.name,
                 details=message,
             )
 
-    def _handle_deploy_commit(
-        self, strategy_step, software_client, subcloud, releases_to_commit
-    ):
+    def _handle_deploy_commit(self, strategy_step, software_client, releases_to_commit):
         raise NotImplementedError()
 
     # If there are releases in deploying state and it's deployed in the regionone,
@@ -121,7 +115,6 @@ class FinishStrategyState(BaseState):
         self,
         strategy_step,
         software_client,
-        subcloud,
         releases_to_deploy_delete,
         regionone_deployed_releases,
     ):
@@ -131,12 +124,12 @@ class FinishStrategyState(BaseState):
             for release_regionone in regionone_deployed_releases
         ):
             message = (
-                f"There is a deploying release on subcloud {subcloud.name} "
-                "that is not deployed in System Controller. Aborting."
+                f"Deploying release found on subcloud {strategy_step.subcloud.name} "
+                "and is not deployed in System Controller. Aborting."
             )
             self.error_log(strategy_step, message)
             raise exceptions.SoftwareDeployDeleteFailedException(
-                subcloud=subcloud.name,
+                subcloud=strategy_step.subcloud.name,
                 details=message,
             )
         self.info_log(
@@ -151,6 +144,6 @@ class FinishStrategyState(BaseState):
             )
             self.exception_log(strategy_step, message)
             raise exceptions.SoftwareDeployDeleteFailedException(
-                subcloud=subcloud.name,
+                subcloud=strategy_step.subcloud.name,
                 details=message,
             )

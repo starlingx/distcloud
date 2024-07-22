@@ -8,14 +8,21 @@ import mock
 
 from dccommon.drivers.openstack import vim
 from dcmanager.common import consts
+from dcmanager.common import exceptions
 from dcmanager.tests.unit.common import fake_strategy
-from dcmanager.tests.unit.fakes import FakeVimStrategy
+from dcmanager.tests.unit import fakes
 from dcmanager.tests.unit.orchestrator.states.software.test_base import (
     TestSoftwareOrchestrator,
 )
 
-STRATEGY_BUILDING = FakeVimStrategy(state=vim.STATE_BUILDING)
-STRATEGY_DONE_BUILDING = FakeVimStrategy(state=vim.STATE_READY_TO_APPLY)
+STRATEGY_BUILDING = fakes.FakeVimStrategy(state=vim.STATE_BUILDING)
+BUILD_PHASE_ERROR = fakes.FakeVimStrategyPhase(
+    response="Installed license is valid: [FAIL]"
+)
+STRATEGY_BUILDING_FAILED = fakes.FakeVimStrategy(
+    state=vim.STATE_BUILD_FAILED, build_phase=BUILD_PHASE_ERROR
+)
+STRATEGY_DONE_BUILDING = fakes.FakeVimStrategy(state=vim.STATE_READY_TO_APPLY)
 RELEASE_ID = "starlingx-9.0.1"
 
 
@@ -72,3 +79,26 @@ class TestCreateVIMSoftwareStrategyState(TestSoftwareOrchestrator):
 
         # On success, the state should transition to the next state
         self.assert_step_updated(self.strategy_step.subcloud_id, self.on_success_state)
+
+    @mock.patch.object(exceptions, "CreateVIMStrategyFailedException")
+    def test_create_vim_software_strategy_build_failed(self, mock_exception):
+        """Test create vim software strategy build failed"""
+
+        self.vim_client.get_strategy.side_effect = [
+            None,
+            STRATEGY_BUILDING_FAILED,
+        ]
+
+        # API calls acts as expected
+        self.vim_client.create_strategy.return_value = STRATEGY_BUILDING
+
+        self.worker.perform_state_action(self.strategy_step)
+
+        # Assert ApplyVIMStrategyFailedException is called with the correct parameters
+        expected_message = f"VIM strategy build failed: {BUILD_PHASE_ERROR.response}"
+        mock_exception.assert_called_once_with(
+            subcloud=self.subcloud.name,
+            name=vim.STRATEGY_NAME_SW_USM,
+            state=vim.STATE_BUILD_FAILED,
+            details=expected_message,
+        )

@@ -8,8 +8,9 @@ import time
 
 from dccommon.drivers.openstack import vim
 from dcmanager.common import consts
-from dcmanager.common.exceptions import StrategyStoppedException
+from dcmanager.common import exceptions
 from dcmanager.common import utils
+from dcmanager.db import api as db_api
 from dcmanager.orchestrator.states.base import BaseState
 
 # Max time: 30 minutes = 180 queries x 10 seconds between
@@ -59,8 +60,12 @@ class CreatingVIMStrategyState(BaseState):
 
         # a successful API call to create MUST set the state be 'building'
         if subcloud_strategy.state != vim.STATE_BUILDING:
-            raise Exception(
-                "Unexpected VIM strategy build state: %s" % subcloud_strategy.state
+            message = "Unexpected VIM strategy build state."
+            raise exceptions.CreateVIMStrategyFailedException(
+                subcloud=strategy_step.subcloud.name,
+                name=self.strategy_name,
+                state=subcloud_strategy.state,
+                details=message,
             )
         return subcloud_strategy
 
@@ -91,9 +96,9 @@ class CreatingVIMStrategyState(BaseState):
                 strategy_step,
                 "VIM strategy exists with state: %s" % subcloud_strategy.state,
             )
-            # if a strategy exists in any type of failed state or aborted
-            # state it should be deleted.
-            # applied state should also be deleted from previous success runs.
+            # if a strategy exists in any type of failed state or aborted state it
+            # should be deleted. Applied state should also be deleted from previous
+            # success runs.
             if subcloud_strategy.state in [
                 vim.STATE_BUILDING,
                 vim.STATE_APPLYING,
@@ -101,12 +106,16 @@ class CreatingVIMStrategyState(BaseState):
             ]:
                 # Can't delete a strategy in these states
                 message = (
-                    "Failed to create a VIM strategy for %s. "
-                    "There already is an existing strategy in %s state"
-                    % (region, subcloud_strategy.state)
+                    "Failed to create a VIM strategy. There already is an existing "
+                    "strategy in this state."
                 )
                 self.warn_log(strategy_step, message)
-                raise Exception(message)
+                raise exceptions.CreateVIMStrategyFailedException(
+                    subcloud=strategy_step.subcloud.name,
+                    name=self.strategy_name,
+                    state=subcloud_strategy.state,
+                    details=message,
+                )
 
             # if strategy exists in any other type of state, delete and create
             self.info_log(strategy_step, "Deleting existing VIM strategy")
@@ -120,12 +129,17 @@ class CreatingVIMStrategyState(BaseState):
         # Loop until the strategy is done building Repeatedly query the API
         counter = 0
         while True:
+            error_message = None
             # If event handler stop has been triggered, fail the state
             if self.stopped():
-                raise StrategyStoppedException()
+                raise exceptions.StrategyStoppedException()
             if counter >= self.max_queries:
-                raise Exception(
-                    "Timeout building vim strategy. state: %s" % subcloud_strategy.state
+                details = "Timeout building VIM strategy."
+                raise exceptions.CreateVIMStrategyFailedException(
+                    subcloud=strategy_step.subcloud.name,
+                    name=self.strategy_name,
+                    state=subcloud_strategy.state,
+                    details=details,
                 )
             counter += 1
             time.sleep(self.sleep_duration)
@@ -151,17 +165,26 @@ class CreatingVIMStrategyState(BaseState):
                 # This is the expected state while creating the strategy
                 pass
             elif subcloud_strategy.state == vim.STATE_BUILD_FAILED:
-                raise Exception(
-                    "VIM strategy build failed: %s. %s."
-                    % (subcloud_strategy.state, subcloud_strategy.build_phase.reason)
-                )
+                error_message = "VIM strategy build failed: "
             elif subcloud_strategy.state == vim.STATE_BUILD_TIMEOUT:
-                raise Exception(
-                    "VIM strategy build timed out: %s." % subcloud_strategy.state
-                )
+                error_message = "VIM strategy build timed out: "
             else:
-                raise Exception(
-                    "VIM strategy unexpected build state: %s" % subcloud_strategy.state
+                error_message = "VIM strategy unexpected build state."
+            if error_message:
+                build_error = subcloud_strategy.build_phase.response
+                # If response is None, use the reason
+                if not build_error:
+                    build_error = subcloud_strategy.build_phase.reason
+                db_api.subcloud_update(
+                    self.context,
+                    strategy_step.subcloud_id,
+                    error_description=build_error,
+                )
+                raise exceptions.CreateVIMStrategyFailedException(
+                    subcloud=strategy_step.subcloud.name,
+                    name=self.strategy_name,
+                    state=subcloud_strategy.state,
+                    details=error_message + build_error,
                 )
 
         # Success, state machine can proceed to the next state

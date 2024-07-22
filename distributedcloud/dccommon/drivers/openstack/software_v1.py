@@ -23,6 +23,8 @@ REMOVING = "removing"
 UNAVAILABLE = "unavailable"
 
 REST_DEFAULT_TIMEOUT = 900
+REST_SHOW_TIMEOUT = 150
+REST_DELETE_TIMEOUT = 300
 
 
 class SoftwareClient(base.DriverBase):
@@ -58,13 +60,13 @@ class SoftwareClient(base.DriverBase):
         response = requests.get(url, headers=self.headers, timeout=timeout)
         return self._handle_response(response, operation="List")
 
-    def show(self, release, timeout=REST_DEFAULT_TIMEOUT):
+    def show(self, release, timeout=REST_SHOW_TIMEOUT):
         """Show release"""
         url = self.endpoint + f"/release/{release}"
         response = requests.get(url, headers=self.headers, timeout=timeout)
         return self._handle_response(response, operation="Show")
 
-    def delete(self, releases, timeout=REST_DEFAULT_TIMEOUT):
+    def delete(self, releases, timeout=REST_DELETE_TIMEOUT):
         """Delete release"""
         release_str = "/".join(releases)
         url = self.endpoint + f"/release/{release_str}"
@@ -77,7 +79,7 @@ class SoftwareClient(base.DriverBase):
         response = requests.post(url, headers=self.headers, timeout=timeout)
         return self._handle_response(response, operation="Deploy precheck")
 
-    def deploy_delete(self, timeout=REST_DEFAULT_TIMEOUT):
+    def deploy_delete(self, timeout=REST_DELETE_TIMEOUT):
         """Deploy delete"""
         url = self.endpoint + "/deploy"
         response = requests.delete(url, headers=self.headers, timeout=timeout)

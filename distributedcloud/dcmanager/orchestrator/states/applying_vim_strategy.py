@@ -6,7 +6,7 @@
 import time
 
 from dccommon.drivers.openstack import vim
-from dcmanager.common.exceptions import StrategyStoppedException
+from dcmanager.common import exceptions
 from dcmanager.db import api as db_api
 from dcmanager.orchestrator.states.base import BaseState
 
@@ -64,7 +64,13 @@ class ApplyingVIMStrategyState(BaseState):
         # Do not raise the default exception if there is no strategy
         # because the default exception is unclear: ie: "Get strategy failed"
         if subcloud_strategy is None:
-            raise Exception("(%s) VIM Strategy not found." % self.strategy_name)
+            message = "VIM Strategy not found."
+            raise exceptions.ApplyVIMStrategyFailedException(
+                subcloud=strategy_step.subcloud.name,
+                name=self.strategy_name,
+                state=subcloud_strategy.state,
+                details=message,
+            )
 
         # We have a VIM strategy, but need to check if it is ready to apply
         elif subcloud_strategy.state == vim.STATE_READY_TO_APPLY:
@@ -87,20 +93,20 @@ class ApplyingVIMStrategyState(BaseState):
                 vim.STATE_APPLY_FAILED,
                 vim.STATE_APPLY_TIMEOUT,
             ]:
-                # Explicit known failure states
-                raise Exception(
-                    "(%s) VIM strategy apply failed. %s. %s"
-                    % (
-                        self.strategy_name,
-                        subcloud_strategy.state,
-                        subcloud_strategy.apply_phase.reason,
-                    )
+                message = "VIM strategy apply failed: "
+                raise exceptions.ApplyVIMStrategyFailedException(
+                    subcloud=strategy_step.subcloud.name,
+                    name=self.strategy_name,
+                    state=subcloud_strategy.state,
+                    details=message + subcloud_strategy.apply_phase.reason,
                 )
             else:
-                # Other states are bad
-                raise Exception(
-                    "(%s) VIM strategy apply failed. Unexpected State: %s."
-                    % (self.strategy_name, subcloud_strategy.state)
+                message = "VIM strategy unexpected apply state."
+                raise exceptions.ApplyVIMStrategyFailedException(
+                    subcloud=strategy_step.subcloud.name,
+                    name=self.strategy_name,
+                    state=subcloud_strategy.state,
+                    details=message,
                 )
 
         # wait for new strategy to apply or the existing strategy to complete.
@@ -117,14 +123,19 @@ class ApplyingVIMStrategyState(BaseState):
             # which would allow the longer 60 second sleep to be broken into
             # multiple smaller sleep calls
 
+            error_message = None
             # If event handler stop has been triggered, fail the state
             if self.stopped():
-                raise StrategyStoppedException()
+                raise exceptions.StrategyStoppedException()
             # break out of the loop if the max number of attempts is reached
             wait_count += 1
             if wait_count >= self.wait_attempts:
-                raise Exception(
-                    "Timeout applying (%s) vim strategy." % self.strategy_name
+                message = "Timeout applying vim strategy."
+                raise exceptions.ApplyVIMStrategyFailedException(
+                    subcloud=strategy_step.subcloud.name,
+                    name=self.strategy_name,
+                    state=subcloud_strategy.state,
+                    details=message,
                 )
             # every loop we wait, even the first one
             time.sleep(self.wait_interval)
@@ -143,9 +154,12 @@ class ApplyingVIMStrategyState(BaseState):
                 get_fail_count += 1
                 if get_fail_count >= self.max_failed_queries:
                     # We have waited too long.
-                    raise Exception(
-                        "Timeout during recovery of apply (%s) Vim strategy."
-                        % self.strategy_name
+                    message = "Timeout during recovery of VIM strategy."
+                    raise exceptions.ApplyVIMStrategyFailedException(
+                        subcloud=strategy_step.subcloud.name,
+                        name=self.strategy_name,
+                        state=subcloud_strategy.state,
+                        details=message,
                     )
                 self.debug_log(
                     strategy_step,
@@ -156,8 +170,12 @@ class ApplyingVIMStrategyState(BaseState):
             # If an external actor has deleted the strategy, the only option
             # is to fail this state.
             if subcloud_strategy is None:
-                raise Exception(
-                    "(%s) VIM Strategy no longer exists." % self.strategy_name
+                message = "VIM Strategy no longer exists."
+                raise exceptions.ApplyVIMStrategyFailedException(
+                    subcloud=strategy_step.subcloud.name,
+                    name=self.strategy_name,
+                    state=subcloud_strategy.state,
+                    details=message,
                 )
 
             elif subcloud_strategy.state == vim.STATE_APPLYING:
@@ -186,22 +204,26 @@ class ApplyingVIMStrategyState(BaseState):
                 vim.STATE_APPLY_FAILED,
                 vim.STATE_APPLY_TIMEOUT,
             ]:
-                # Explicit known failure states
-                raise Exception(
-                    "(%s) Vim strategy apply failed. %s. %s"
-                    % (
-                        self.strategy_name,
-                        subcloud_strategy.state,
-                        subcloud_strategy.apply_phase.reason,
-                    )
-                )
+                error_message = "VIM strategy apply failed: "
             else:
-                # Other states are bad
-                raise Exception(
-                    "(%s) Vim strategy apply failed. Unexpected State: %s."
-                    % (self.strategy_name, subcloud_strategy.state)
+                error_message = "VIM strategy unexpected apply state."
+
+            if error_message:
+                apply_error = subcloud_strategy.apply_phase.response
+                # If response is None, use the reason
+                if not apply_error:
+                    apply_error = subcloud_strategy.apply_phase.reason
+                db_api.subcloud_update(
+                    self.context,
+                    strategy_step.subcloud_id,
+                    error_description=apply_error,
                 )
-            # end of loop
+                raise exceptions.ApplyVIMStrategyFailedException(
+                    subcloud=strategy_step.subcloud.name,
+                    name=self.strategy_name,
+                    state=subcloud_strategy.state,
+                    details=error_message + apply_error,
+                )
 
         # Success, state machine can proceed to the next state
         return self.next_state
