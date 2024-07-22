@@ -218,10 +218,11 @@ class TestSwUpdateStrategyPost(BaseTestSwUpdateStrategyPost):
         super().setUp()
 
         self.params = {
-            "type": consts.SW_UPDATE_TYPE_PATCH,
+            "type": consts.SW_UPDATE_TYPE_SOFTWARE,
             "subcloud-apply-type": consts.SUBCLOUD_APPLY_TYPE_PARALLEL,
             "max-parallel-subclouds": "10",
-            "stop-on-failure": "true"
+            "stop-on-failure": "true",
+            "release_id": "stx-10.0.0"
         }
 
         self.mock_rpc_orchestrator_client().\
@@ -453,7 +454,7 @@ class TestSwUpdateStrategyPost(BaseTestSwUpdateStrategyPost):
 
         self._assert_pecan_and_response(
             response, http.client.UNPROCESSABLE_ENTITY, "Unable to create strategy "
-            f"of type '{consts.SW_UPDATE_TYPE_PATCH}': value"
+            f"of type '{consts.SW_UPDATE_TYPE_SOFTWARE}': value"
         )
         self.mock_rpc_orchestrator_client().create_sw_update_strategy.\
             assert_called_once()

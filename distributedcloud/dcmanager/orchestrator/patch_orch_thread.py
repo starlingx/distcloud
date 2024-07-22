@@ -24,9 +24,6 @@ from dcmanager.orchestrator.states.patch.applying_vim_patch_strategy import \
     ApplyingVIMPatchStrategyState
 from dcmanager.orchestrator.states.patch.creating_vim_patch_strategy import \
     CreatingVIMPatchStrategyState
-from dcmanager.orchestrator.states.patch.finishing_patch_strategy import \
-    FinishingPatchStrategyState
-from dcmanager.orchestrator.states.patch.job_data import PatchJobData
 from dcmanager.orchestrator.states.patch.pre_check import PreCheckState
 from dcmanager.orchestrator.states.patch.updating_patches import UpdatingPatchesState
 
@@ -43,8 +40,6 @@ class PatchOrchThread(OrchThread):
             CreatingVIMPatchStrategyState,
         consts.STRATEGY_STATE_APPLYING_VIM_PATCH_STRATEGY:
             ApplyingVIMPatchStrategyState,
-        consts.STRATEGY_STATE_FINISHING_PATCH_STRATEGY:
-            FinishingPatchStrategyState,
     }
 
     def __init__(self, strategy_lock, audit_rpc_client):
@@ -55,21 +50,8 @@ class PatchOrchThread(OrchThread):
             vim.STRATEGY_NAME_SW_PATCH,
             starting_state=consts.STRATEGY_STATE_PRE_CHECK)
 
-        self.job_data = None
-
-    def pre_apply_setup(self):
-        super(PatchOrchThread, self).pre_apply_setup()
-        self.job_data = PatchJobData(self.context)
-
-    def post_delete_teardown(self):
-        super(PatchOrchThread, self).post_delete_teardown()
-        self.job_data = None
-
     def determine_state_operator(self, strategy_step):
-        state = super(PatchOrchThread, self).determine_state_operator(
-            strategy_step)
-        # Share job data with the next state operator
-        state.set_job_data(self.job_data)
+        state = super(PatchOrchThread, self).determine_state_operator(strategy_step)
         return state
 
     def trigger_audit(self):
