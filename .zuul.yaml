@@ -30,6 +30,7 @@
     nodeset: debian-bullseye
     pre-run:
       - tools/gate/playbooks/install-postgresql.yaml
+      - tools/gate/playbooks/install-stx-custom-deps.yaml
     required-projects:
       - starlingx/fault
       - starlingx/nfv

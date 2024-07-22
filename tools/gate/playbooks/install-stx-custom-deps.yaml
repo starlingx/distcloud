@@ -2,4 +2,4 @@
 - hosts: "{{ target_hosts | default('all') }}"
   gather_facts: false
   roles:
-    - install-postgresql
+    - install-stx-custom-deps
