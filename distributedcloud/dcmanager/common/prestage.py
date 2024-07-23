@@ -111,7 +111,7 @@ def global_prestage_validate(payload):
 
 def initial_subcloud_validate(
     subcloud,
-    installed_loads,
+    installed_releases,
     software_major_release,  # format: YY.MM
     for_sw_deploy,
 ):
@@ -160,11 +160,11 @@ def initial_subcloud_validate(
             % (', '.join(allowed_prestage_states), subcloud.prestage_status))
 
     # The request software version must be either the same as the software version
-    # of the subcloud or any active/inactive/imported load on the system controller
-    # (can be checked with "system load-list" command).
+    # of the subcloud or any available/deployed release on the system controller
+    # (can be checked with "software list" command).
     if not for_sw_deploy and software_major_release and \
             software_major_release != subcloud.software_version and \
-            software_major_release not in installed_loads:
+            software_major_release not in installed_releases:
         raise exceptions.PrestagePreCheckFailedException(
             subcloud=subcloud.name,
             orch_skip=True,
@@ -187,20 +187,20 @@ def validate_prestage(subcloud, payload):
     """
     LOG.debug("Validating subcloud prestage '%s'", subcloud.name)
 
-    installed_loads = []
+    installed_releases = []
     software_version = None
     software_major_release = None
     if payload.get(consts.PRESTAGE_REQUEST_RELEASE):
         software_version = payload.get(consts.PRESTAGE_REQUEST_RELEASE)
         software_major_release = utils.get_major_release(software_version)
-        installed_loads = utils.get_systemcontroller_installed_loads()
+        installed_releases = utils.get_systemcontroller_installed_releases()
 
     for_sw_deploy = is_prestage_for_sw_deploy(payload)
 
     # re-run the initial validation
     initial_subcloud_validate(
         subcloud,
-        installed_loads,
+        installed_releases,
         software_major_release,
         for_sw_deploy,
     )

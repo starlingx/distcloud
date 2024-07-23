@@ -362,7 +362,7 @@ class TestSwUpdateManager(base.DCManagerTestCase):
         for index, strategy_step in enumerate(strategy_step_list):
             self.assertEqual(subcloud_ids[index], strategy_step.subcloud_id)
 
-    @mock.patch.object(cutils, "get_systemcontroller_installed_loads")
+    @mock.patch.object(cutils, "get_systemcontroller_installed_releases")
     @mock.patch.object(prestage, "initial_subcloud_validate")
     @mock.patch.object(prestage, "global_prestage_validate")
     def test_create_sw_prestage_strategy_parallel_for_a_single_group(
@@ -423,7 +423,7 @@ class TestSwUpdateManager(base.DCManagerTestCase):
         for index, strategy_step in enumerate(strategy_step_list):
             self.assertEqual(subcloud_ids[index], strategy_step.subcloud_id)
 
-    @mock.patch.object(cutils, "get_systemcontroller_installed_loads")
+    @mock.patch.object(cutils, "get_systemcontroller_installed_releases")
     @mock.patch.object(prestage, "initial_subcloud_validate")
     @mock.patch.object(prestage, "global_prestage_validate")
     def test_create_sw_prestage_strategy_load_insync_out_of_sync_unknown_and_no_load(
@@ -498,7 +498,7 @@ class TestSwUpdateManager(base.DCManagerTestCase):
         for index, strategy_step in enumerate(strategy_step_list):
             self.assertEqual(subcloud_ids[index], strategy_step.subcloud_id)
 
-    @mock.patch.object(cutils, "get_systemcontroller_installed_loads")
+    @mock.patch.object(cutils, "get_systemcontroller_installed_releases")
     @mock.patch.object(prestage, "initial_subcloud_validate")
     @mock.patch.object(prestage, "_get_system_controller_upgrades")
     def test_create_sw_prestage_strategy_no_password(
@@ -550,7 +550,7 @@ class TestSwUpdateManager(base.DCManagerTestCase):
             payload=data,
         )
 
-    @mock.patch.object(cutils, "get_systemcontroller_installed_loads")
+    @mock.patch.object(cutils, "get_systemcontroller_installed_releases")
     @mock.patch.object(prestage, "_get_system_controller_upgrades")
     def test_create_sw_prestage_strategy_backup_in_progress(
         self,
@@ -789,7 +789,7 @@ class TestSwUpdateManager(base.DCManagerTestCase):
         with self.assertRaisesRegex(exceptions.BadRequest, expected_message):
             um.create_sw_update_strategy(self.ctxt, payload=data)
 
-    @mock.patch.object(cutils, "get_systemcontroller_installed_loads")
+    @mock.patch.object(cutils, "get_systemcontroller_installed_releases")
     @mock.patch.object(prestage, "initial_subcloud_validate")
     @mock.patch.object(prestage, "_get_system_controller_upgrades")
     def test_create_sw_prestage_strategy_parallel(
