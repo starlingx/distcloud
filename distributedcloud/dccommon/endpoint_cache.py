@@ -44,6 +44,7 @@ LOG = logging.getLogger(__name__)
 LOCK_NAME = "dc-keystone-endpoint-cache"
 
 ENDPOINT_URLS = {
+    "dcagent": "https://{}:8326",
     "fm": "https://{}:18003",
     "keystone": "https://{}:5001/v3",
     "patching": "https://{}:5492",
