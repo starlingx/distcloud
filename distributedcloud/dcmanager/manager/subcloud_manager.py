@@ -1607,34 +1607,55 @@ class SubcloudManager(manager.Manager):
 
         if self.subcloud_init_enroll(context, subcloud.id, payload):
             try:
-
-                db_api.subcloud_update(
-                    context,
-                    subcloud_id,
-                    deploy_status=consts.DEPLOY_STATE_PRE_ENROLL
-                )
-
                 endpoint = ("https://" +
                             payload.get("external_oam_floating_address") + ":6385")
                 subcloud_region_name = utils.get_region_name(endpoint)
-                subcloud.region_name = subcloud_region_name
+
+                # The region name in the payload was randomly generated, need to
+                # update to the correct one get from the subcloud
+                payload["region_name"] = subcloud_region_name
+
+                subcloud = db_api.subcloud_update(
+                    context,
+                    subcloud_id,
+                    region_name=subcloud_region_name,
+                    deploy_status=consts.DEPLOY_STATE_PRE_ENROLL,
+                )
 
                 m_ks_client = OpenStackDriver(
-                    region_name=dccommon_consts.DEFAULT_REGION_NAME,
-                    region_clients=None).keystone_client
-
-                self._create_subcloud_endpoints(m_ks_client=m_ks_client,
-                                                payload=payload,
-                                                subcloud=subcloud,
-                                                context=context)
+                    region_name=dccommon_consts.DEFAULT_REGION_NAME, region_clients=None
+                ).keystone_client
+                endpoint = m_ks_client.endpoint_cache.get_endpoint("sysinv")
+                sysinv_client = SysinvClient(
+                    dccommon_consts.DEFAULT_REGION_NAME,
+                    m_ks_client.session,
+                    endpoint=endpoint,
+                )
+                LOG.debug("Getting cached RegionOne data for %s" % subcloud.name)
+                cached_regionone_data = self._get_cached_regionone_data(
+                    m_ks_client, sysinv_client
+                )
+                self._create_subcloud_endpoints(
+                    m_ks_client=m_ks_client,
+                    payload=payload,
+                    subcloud=subcloud,
+                    context=context,
+                )
                 self._create_intermediate_ca_cert(payload=payload)
-
+                self._write_subcloud_ansible_config(cached_regionone_data, payload)
                 log_file = (
                     os.path.join(consts.DC_ANSIBLE_LOG_DIR, subcloud.name)
                     + "_playbook_output.log"
                 )
                 ansible_subcloud_inventory_file = self._get_ansible_filename(
-                    subcloud.name, INVENTORY_FILE_POSTFIX)
+                    subcloud.name, INVENTORY_FILE_POSTFIX
+                )
+                utils.create_subcloud_inventory_with_admin_creds(
+                    subcloud.name,
+                    ansible_subcloud_inventory_file,
+                    payload[consts.BOOTSTRAP_ADDRESS],
+                    ansible_pass=payload['sysadmin_password'],
+                )
 
                 enroll_playbook_command = self.compose_enroll_command(
                     subcloud.name,
