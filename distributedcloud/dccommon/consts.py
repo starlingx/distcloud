@@ -37,6 +37,7 @@ VIRTUAL_MASTER_CLOUD = "SystemController"
 SW_UPDATE_DEFAULT_TITLE = "all clouds default"
 ANSIBLE_OVERRIDES_PATH = "/opt/dc-vault/ansible"
 LOAD_VAULT_DIR = "/opt/dc-vault/loads"
+SOFTWARE_VAULT_DIR = "/opt/dc-vault/software"
 DEPLOY_DIR = "/opt/platform/deploy"
 
 USER_HEADER_VALUE = "distcloud"
@@ -101,6 +102,7 @@ ENDPOINT_TYPE_DC_CERT = "dc-cert"
 ENDPOINT_TYPE_FIRMWARE = "firmware"
 ENDPOINT_TYPE_KUBERNETES = "kubernetes"
 ENDPOINT_TYPE_KUBE_ROOTCA = "kube-rootca"
+ENDPOINT_TYPE_USM = "usm"
 
 # All endpoint types
 ENDPOINT_TYPES_LIST = [

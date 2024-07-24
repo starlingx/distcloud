@@ -107,6 +107,8 @@ def main():
         make_tempdir(constants.ENDPOINT_TYPE_PATCHING_TMPDIR)
     elif CONF.type == consts.ENDPOINT_TYPE_PLATFORM:
         make_tempdir(constants.ENDPOINT_TYPE_PLATFORM_TMPDIR)
+    elif CONF.type == consts.ENDPOINT_TYPE_USM:
+        make_tempdir(constants.ENDPOINT_TYPE_USM_TMPDIR)
 
     service = wsgi.Server(CONF, CONF.prog, application, host, port)
 
