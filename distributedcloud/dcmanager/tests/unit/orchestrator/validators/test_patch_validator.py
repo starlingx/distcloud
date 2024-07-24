@@ -39,7 +39,10 @@ class TestPatchValidator(
         return self.validator
 
     def _get_build_extra_args_payload(self):
-        return {consts.EXTRA_ARGS_UPLOAD_ONLY: True, consts.EXTRA_ARGS_PATCH: None}
+        return {
+            consts.EXTRA_ARGS_UPLOAD_ONLY: True,
+            consts.EXTRA_ARGS_PATCH_ID: "stx-9.1",
+        }
 
     def _get_expected_extra_args(self):
 

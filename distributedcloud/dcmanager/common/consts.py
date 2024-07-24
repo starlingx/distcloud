@@ -343,7 +343,10 @@ EXTRA_ARGS_FORCE = "force"
 
 # extra_args for patching
 EXTRA_ARGS_UPLOAD_ONLY = "upload-only"
-EXTRA_ARGS_PATCH = "patch"
+EXTRA_ARGS_PATCH_ID = "patch_id"
+
+# sw_version supported for patching
+PATCHING_SW_VERSION = "22.12"
 
 # extra_args for software
 EXTRA_ARGS_RELEASE_ID = "release_id"

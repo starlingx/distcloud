@@ -13,14 +13,15 @@
 # under the License.
 #
 
-from oslo_log import log
+import json
 
+from nfv_client.openstack import rest_api
 from nfv_client.openstack import sw_update
+from oslo_log import log
 
 from dccommon import consts
 from dccommon.drivers import base
 from dccommon import exceptions
-
 
 LOG = log.getLogger(__name__)
 
@@ -122,6 +123,20 @@ class VimClient(base.DriverBase):
         """Create orchestration strategy"""
 
         url = self.endpoint
+
+        # TODO(nicodemos): Remove once sw-patch is deprecated
+        # Use the REST Api directly to the subcloud to create the strategy for legacy
+        # patch orchestration
+        if strategy_name == STRATEGY_NAME_SW_PATCH:
+            return self._create_strategy_sw_patch(
+                strategy_name,
+                default_instance_action,
+                storage_apply_type,
+                worker_apply_type,
+                max_parallel_worker_hosts,
+                alarm_restrictions,
+            )
+
         strategy = sw_update.create_strategy(
             self.token,
             url,
@@ -136,13 +151,52 @@ class VimClient(base.DriverBase):
             username=self.username,
             user_domain_name=self.user_domain_name,
             tenant=self.tenant,
-            **kwargs
+            **kwargs,
         )
         if not strategy:
             raise Exception("Strategy:(%s) creation failed" % strategy_name)
 
         LOG.debug("Strategy created: %s" % strategy)
         return strategy
+
+    # TODO(nicodemos): Delete this method once sw-patch is deprecated
+    def _create_strategy_sw_patch(
+        self,
+        strategy_name,
+        default_instance_action,
+        storage_apply_type,
+        worker_apply_type,
+        max_parallel_worker_hosts,
+        alarm_restrictions,
+    ):
+        api_cmd = self.endpoint + "/api/orchestration/%s/strategy" % strategy_name
+
+        api_cmd_headers = dict()
+        api_cmd_headers["Content-Type"] = "application/json"
+        api_cmd_headers["X-User"] = self.username
+        api_cmd_headers["X-Tenant"] = self.tenant
+        api_cmd_headers["X-User-Domain-Name"] = self.user_domain_name
+        api_cmd_headers["X-Auth-Token"] = self.token
+
+        api_cmd_payload = dict()
+        api_cmd_payload["controller-apply-type"] = APPLY_TYPE_SERIAL
+        api_cmd_payload["swift-apply-type"] = APPLY_TYPE_IGNORE
+        api_cmd_payload["default-instance-action"] = default_instance_action
+        api_cmd_payload["storage-apply-type"] = storage_apply_type
+        api_cmd_payload["worker-apply-type"] = worker_apply_type
+        if max_parallel_worker_hosts is not None:
+            api_cmd_payload["max-parallel-worker-hosts"] = max_parallel_worker_hosts
+        api_cmd_payload["alarm-restrictions"] = alarm_restrictions
+
+        response = rest_api.request(
+            self.token, "POST", api_cmd, api_cmd_headers, json.dumps(api_cmd_payload)
+        )
+
+        # Check if the response is valid and update response value
+        if response.get("strategy"):
+            response["strategy"]["build-phase"]["response"] = "success"
+
+        return sw_update._get_strategy_object_from_response(response)
 
     def get_strategy(self, strategy_name, raise_error_if_missing=True):
         """Get the current orchestration strategy"""
