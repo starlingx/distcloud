@@ -21,6 +21,7 @@ class StrategyValidationBase(object):
 
     def __init__(self):
         self.accepts_force = False
+        self.endpoint_type = None
 
     def validate_strategy_requirements(
         self, context, subcloud_id, subcloud_name, force=False
