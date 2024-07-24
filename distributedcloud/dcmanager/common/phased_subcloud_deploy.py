@@ -479,20 +479,28 @@ def validate_group_id(context, group_id):
         pecan.abort(400, _("Invalid group_id"))
 
 
+def get_sysinv_client(region_name=dccommon_consts.DEFAULT_REGION_NAME):
+    ks_client = get_ks_client(region_name)
+    endpoint = ks_client.endpoint_cache.get_endpoint('sysinv')
+    return SysinvClient(region_name, ks_client.session, endpoint=endpoint)
+
+
 def get_network_address_pool(network='management',
                              region_name=dccommon_consts.DEFAULT_REGION_NAME):
     """Get the region network address pool"""
-    ks_client = get_ks_client(region_name)
-    endpoint = ks_client.endpoint_cache.get_endpoint('sysinv')
-    sysinv_client = SysinvClient(region_name,
-                                 ks_client.session,
-                                 endpoint=endpoint)
+    sysinv_client = get_sysinv_client(region_name)
     if network == 'admin':
         return sysinv_client.get_admin_address_pool()
     return sysinv_client.get_management_address_pool()
 
 
-def validate_install_values(payload, subcloud=None):
+def get_oam_addresses(region_name=dccommon_consts.DEFAULT_REGION_NAME):
+    """Get the region OAM addresses"""
+    sysinv_client = get_sysinv_client(region_name)
+    return sysinv_client.get_oam_addresses()
+
+
+def validate_install_values(payload, ip_version=None, subcloud=None):
     """Validate install values if 'install_values' is present in payload.
 
         The image in payload install values is optional, and if not provided,
@@ -604,11 +612,17 @@ def validate_install_values(payload, subcloud=None):
                     install_values['install_type'])
 
     try:
-        ip_version = (netaddr.IPAddress(install_values['bootstrap_address']).
-                      version)
+        bootstrap_address = netaddr.IPAddress(install_values['bootstrap_address'])
     except netaddr.AddrFormatError as e:
         LOG.exception(e)
         pecan.abort(400, _("bootstrap_address invalid: %s") % e)
+
+    if not ip_version:
+        ip_version = get_system_controller_oam_ip_version()
+
+    if bootstrap_address.version != ip_version:
+        pecan.abort(400, _("bootstrap_address in install_values must be the same "
+                           "IP version as the system controller OAM"))
 
     try:
         bmc_address = netaddr.IPAddress(install_values['bmc_address'])
@@ -752,6 +766,20 @@ def format_ip_address(payload):
                 LOG.exception(e)
                 pecan.abort(400, _("%s invalid: %s") % (k, e))
             payload.update({k: address})
+
+
+def get_system_controller_oam_ip_version():
+    oam_addresses = get_oam_addresses()
+    return netaddr.IPAddress(oam_addresses.oam_floating_ip).version
+
+
+def check_bootstrap_ip_version(payload, ip_version):
+    address = payload.get('bootstrap-address', None)
+    if not address:
+        return
+    if netaddr.IPAddress(address).version != ip_version:
+        pecan.abort(400, _("bootstrap-address must be the same IP version "
+                           "as the system controller OAM"))
 
 
 def upload_deploy_config_file(request, payload):
@@ -1028,6 +1056,8 @@ def pre_deploy_create(payload: dict, context: RequestContext,
 
     validate_subcloud_config(context, payload)
 
+    ip_version = get_system_controller_oam_ip_version()
+
     # install_values of secondary subclouds are validated on peer site
     if consts.DEPLOY_STATE_SECONDARY in payload and \
             utils.is_req_from_another_dc(request):
@@ -1035,11 +1065,12 @@ def pre_deploy_create(payload: dict, context: RequestContext,
                   f"{payload['name']}. Subcloud is secondary and "
                   "request is from a peer site.")
     else:
-        validate_install_values(payload)
+        validate_install_values(payload, ip_version)
 
     validate_k8s_version(payload)
 
     format_ip_address(payload)
+    check_bootstrap_ip_version(payload, ip_version)
 
     # Upload the deploy config files if it is included in the request
     # It has a dependency on the subcloud name, and it is called after
@@ -1102,6 +1133,8 @@ def pre_deploy_bootstrap(context: RequestContext, payload: dict,
         validate_subcloud_config(context, payload,
                                  ignore_conflicts_with=subcloud)
         format_ip_address(payload)
+        ip_version = get_system_controller_oam_ip_version()
+        check_bootstrap_ip_version(payload, ip_version)
 
     # Patch status and fresh_install_k8s_version may have been changed
     # between deploy create and deploy bootstrap commands. Validate them
