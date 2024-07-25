@@ -249,18 +249,13 @@ class SwUpdateManager(manager.Manager):
         stop_on_failure = payload.get("stop-on-failure") in ["true"]
         force = payload.get("force") in ["true"]
 
-        installed_releases = []
-        software_version = None
-        software_major_release = None
-        for_sw_deploy = False
-        if payload.get(consts.PRESTAGE_REQUEST_RELEASE):
-            software_version = payload.get(consts.PRESTAGE_REQUEST_RELEASE)
-            software_major_release = utils.get_major_release(software_version)
-            installed_releases = utils.get_systemcontroller_installed_releases()
-            # TODO(kmacleod): Hugo: we need to say whether this is a
-            # for-install or for-fw-deploy prestaging operation Setting this to
-            # a for-install operation for now (since that is the default)
-            for_sw_deploy = False
+        # Validates and returns release prestage params
+        software_version, installed_releases, for_sw_deploy = (
+            prestage.get_validated_release_params(payload)
+        )
+
+        # Set release version and for-sw-deploy
+        payload.update({consts.PRESTAGE_REQUEST_RELEASE: software_version})
 
         # Has the user specified a specific subcloud?
         cloud_name = payload.get("cloud_name")
@@ -284,12 +279,8 @@ class SwUpdateManager(manager.Manager):
                 try:
                     prestage.global_prestage_validate(payload)
                     prestage_global_validated = True
-                    installed_releases = utils.get_systemcontroller_installed_releases()
                     prestage.initial_subcloud_validate(
-                        subcloud,
-                        installed_releases,
-                        software_major_release,
-                        for_sw_deploy,
+                        subcloud, installed_releases, software_version, for_sw_deploy
                     )
                 except exceptions.PrestagePreCheckFailedException as ex:
                     raise exceptions.BadRequest(resource="strategy", msg=str(ex))
@@ -316,6 +307,7 @@ class SwUpdateManager(manager.Manager):
                 consts.PRESTAGE_SOFTWARE_VERSION: (
                     software_version if software_version else SW_VERSION
                 ),
+                consts.PRESTAGE_FOR_SW_DEPLOY: for_sw_deploy,
             }
         else:
             extra_args = self.strategy_validators[strategy_type].build_extra_args(
@@ -348,10 +340,7 @@ class SwUpdateManager(manager.Manager):
                 # Do initial validation for subcloud
                 try:
                     prestage.initial_subcloud_validate(
-                        subcloud,
-                        installed_releases,
-                        software_major_release,
-                        for_sw_deploy,
+                        subcloud, installed_releases, software_version, for_sw_deploy
                     )
                 except exceptions.PrestagePreCheckFailedException:
                     LOG.warn(

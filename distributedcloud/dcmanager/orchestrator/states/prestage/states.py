@@ -146,7 +146,12 @@ class PrestagePackagesState(PrestageState):
                     )
                 }
             )
-        prestage.prestage_packages(self.context, strategy_step.subcloud, payload)
+
+        prestage_reason = prestage.get_prestage_reason(extra_args)
+
+        prestage.prestage_packages(
+            self.context, strategy_step.subcloud, payload, prestage_reason
+        )
         self.info_log(strategy_step, "Packages finished")
 
 
@@ -184,7 +189,13 @@ class PrestageImagesState(PrestageState):
                     )
                 }
             )
-        prestage.prestage_images(self.context, strategy_step.subcloud, payload)
+
+        prestage_reason = prestage.get_prestage_reason(extra_args)
+
+        prestage.prestage_images(
+            self.context, strategy_step.subcloud, payload, prestage_reason
+        )
+
         self.info_log(strategy_step, "Images finished")
         prestage.prestage_complete(
             self.context, strategy_step.subcloud.id, prestage_versions

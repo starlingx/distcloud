@@ -1175,11 +1175,13 @@ def get_systemcontroller_installed_releases():
         )
         releases = software_client.list()
 
-        return [
+        releases = [
             release["sw_version"]
             for release in releases
             if release["state"] == software_v1.DEPLOYED
         ]
+
+        return get_major_releases(releases)
 
     except requests.exceptions.ConnectionError:
         LOG.exception(

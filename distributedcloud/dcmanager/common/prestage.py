@@ -279,11 +279,11 @@ def is_local(subcloud_version, specified_version):
     return subcloud_version == specified_version
 
 
-def is_prestage_for_sw_deploy(payload):
-    # The default is for_install, so we can simply check if the payload is
-    # tagged with for_sw_deploy
-    for_sw_deploy = payload.get(consts.PRESTAGE_FOR_SW_DEPLOY, False)
-    return for_sw_deploy
+def get_prestage_reason(payload):
+    if payload.get(consts.PRESTAGE_FOR_SW_DEPLOY, False):
+        return consts.PRESTAGE_FOR_SW_DEPLOY
+
+    return consts.PRESTAGE_FOR_INSTALL
 
 
 def prestage_subcloud(context, payload):
@@ -301,10 +301,10 @@ def prestage_subcloud(context, payload):
         - run prestage_images.yml ansible playbook
     """
     subcloud_name = payload["subcloud_name"]
-    for_sw_deploy = is_prestage_for_sw_deploy(payload)
+    prestage_reason = get_prestage_reason(payload)
     LOG.info(
         f"Prestaging subcloud: {subcloud_name}, "
-        f"force={payload['force']}, for_sw_deploy={for_sw_deploy}"
+        f"force={payload['force']}, prestage_reason={prestage_reason}"
     )
     try:
         subcloud = db_api.subcloud_get_by_name(context, subcloud_name)
@@ -335,10 +335,8 @@ def prestage_subcloud(context, payload):
 def _prestage_standalone_thread(context, subcloud, payload):
     """Run the prestage operations inside a separate thread"""
     log_file = utils.get_subcloud_ansible_log_file(subcloud.name)
-    if is_prestage_for_sw_deploy(payload):
-        prestage_reason = consts.PRESTAGE_FOR_SW_DEPLOY
-    else:
-        prestage_reason = consts.PRESTAGE_FOR_INSTALL
+
+    prestage_reason = get_prestage_reason(payload)
 
     try:
         prestage_packages(context, subcloud, payload, prestage_reason)
@@ -450,7 +448,7 @@ def _run_ansible(
     LOG.info("Prestage %s successful for subcloud %s", phase, subcloud.name)
 
 
-def prestage_packages(context, subcloud, payload, reason=consts.PRESTAGE_FOR_INSTALL):
+def prestage_packages(context, subcloud, payload, reason):
     """Run the prestage packages ansible script."""
 
     # Ansible inventory filename for the specified subcloud
@@ -484,7 +482,7 @@ def prestage_packages(context, subcloud, payload, reason=consts.PRESTAGE_FOR_INS
     )
 
 
-def prestage_images(context, subcloud, payload, reason=consts.PRESTAGE_FOR_INSTALL):
+def prestage_images(context, subcloud, payload, reason):
     """Run the prestage images ansible script.
 
     If the prestage images file has been uploaded, include the fully
@@ -574,11 +572,13 @@ def get_validated_release_params(payload):
     """
     requested_sw_version = payload.get(consts.PRESTAGE_REQUEST_RELEASE)
     installed_releases = []
-    for_sw_deploy = is_prestage_for_sw_deploy(payload)
+
+    for_sw_deploy = get_prestage_reason(payload) == consts.PRESTAGE_FOR_SW_DEPLOY
     for_install = not for_sw_deploy
 
-    # Subcloud name from payload
-    subcloud_name = payload.get("subcloud_name", "")
+    # Standalone prestage uses 'subcloud_name' to indicate the subcloud name
+    # Orchestrated prestage uses 'cloud_name' to indicate the subcloud name
+    subcloud_name = payload.get("subcloud_name", payload.get("cloud_name", ""))
 
     if requested_sw_version:
         # Ensures the release format is MM.mm
@@ -591,11 +591,10 @@ def get_validated_release_params(payload):
             )
 
         installed_releases = utils.get_systemcontroller_installed_releases()
-        installed_major_releases = utils.get_major_releases(installed_releases)
 
         # Requested release must be in deployed state when --for-sw-deploy
         # is present.
-        if for_sw_deploy and requested_sw_version not in installed_major_releases:
+        if for_sw_deploy and requested_sw_version not in installed_releases:
             raise exceptions.PrestagePreCheckFailedException(
                 subcloud=subcloud_name,
                 orch_skip=False,

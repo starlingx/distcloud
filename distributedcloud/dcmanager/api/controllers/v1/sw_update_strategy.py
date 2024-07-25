@@ -245,10 +245,6 @@ class SwUpdateStrategyController(object):
                 if group is None:
                     pecan.abort(400, _("Invalid group_id"))
 
-            # get_sw_version is used here to validate the
-            # release parameter if specified.
-            utils.get_sw_version(payload.get("release"))
-
             # Not adding validation for extra args. Passing them through.
             try:
                 # Ask dcmanager-manager to create the strategy.

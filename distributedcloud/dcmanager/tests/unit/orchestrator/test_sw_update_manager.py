@@ -243,6 +243,16 @@ class TestSwUpdateManager(base.DCManagerTestCase):
         self.mock_dcmanager_audit_api.return_value = self.fake_dcmanager_audit_api
         self.addCleanup(p.stop)
 
+        # Mock the release params
+        self.installed_releases = []
+        self.params = {}
+        self.versions_supported = ["22.12", "24.09"]
+        self.original_get_validated_release_params = (
+            prestage.get_validated_release_params
+        )
+        self._mock_get_validated_release_params(prestage)
+        self._setup_mock_get_validated_release_params()
+
         # Fake subcloud groups
         # Group 1 exists by default in database with max_parallel 2 and
         # apply_type parallel
@@ -257,6 +267,44 @@ class TestSwUpdateManager(base.DCManagerTestCase):
         )
         self.fake_group5 = self.create_subcloud_group(
             self.ctxt, "Group5", consts.SUBCLOUD_APPLY_TYPE_PARALLEL, 2
+        )
+
+    def _mock_get_validated_release_params(self, target):
+        mock_patch_object = mock.patch.object(target, "get_validated_release_params")
+        self.mock_get_validated_release_params = mock_patch_object.start()
+        self.addCleanup(mock_patch_object.stop)
+
+    def _mock_get_current_supported_upgrade_versions(self, target):
+        mock_patch_object = mock.patch.object(
+            target, "get_current_supported_upgrade_versions"
+        )
+        self.mock_get_current_supported_upgrade_versions = mock_patch_object.start()
+        self.addCleanup(mock_patch_object.stop)
+
+    def _setup_mock_get_validated_release_params(self):
+        for_sw_deploy = False
+
+        if "release" not in self.params:
+            self.params["release"] = "24.09"
+
+        if "for_sw_deploy" in self.params and self.params["for_sw_deploy"] == "true":
+            for_sw_deploy = True
+
+        if "for_install" in self.params and self.params["for_install"] == "true":
+            for_sw_deploy = False
+
+        if not self.installed_releases:
+            self.installed_releases.append(self.params["release"])
+
+        self.mock_get_validated_release_params.return_value = (
+            self.params["release"],
+            self.installed_releases,
+            for_sw_deploy,
+        )
+
+    def _setup_get_current_supported_upgrade_versions(self):
+        self.mock_get_current_supported_upgrade_versions.return_value = (
+            self.versions_supported
         )
 
     def test_init(self):
@@ -828,7 +876,7 @@ class TestSwUpdateManager(base.DCManagerTestCase):
         data = copy.copy(FAKE_SW_PRESTAGE_DATA)
         fake_password = (base64.b64encode("testpass".encode("utf-8"))).decode("ascii")
         data["sysadmin_password"] = fake_password
-        fake_release = "21.12"
+        fake_release = "24.09"
         data[consts.PRESTAGE_REQUEST_RELEASE] = fake_release
         mock_installed_loads.return_value = [fake_release]
 
