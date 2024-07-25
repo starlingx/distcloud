@@ -44,7 +44,6 @@ from dcmanager.tests.unit.api.v1.controllers.mixins import PostMixin
 from dcmanager.tests.unit.common import fake_strategy
 from dcmanager.tests.unit.common import fake_subcloud
 from dcmanager.tests.unit.manager import test_system_peer_manager
-from dcmanager.tests.unit.orchestrator.states.fakes import FakeLoad
 
 FAKE_SUBCLOUD_INSTALL_VALUES = fake_subcloud.FAKE_SUBCLOUD_INSTALL_VALUES
 
@@ -2564,6 +2563,8 @@ class TestSubcloudsPatchPrestage(BaseTestSubcloudsPatch):
         self.url = f"{self.url}/prestage"
         self.method = self.app.patch_json
         self.params = {"sysadmin_password": self._create_password("sysadmin_password")}
+        self.installed_releases = []
+        self.versions_supported = ["22.12", "24.09"]
 
         self._update_subcloud(
             availability_status=dccommon_consts.AVAILABILITY_ONLINE,
@@ -2583,6 +2584,14 @@ class TestSubcloudsPatchPrestage(BaseTestSubcloudsPatch):
 
         self._mock_software_client(cutils.software_v1)
 
+        self.original_get_validated_release_params = (
+            prestage.get_validated_release_params
+        )
+        self._mock_get_validated_release_params(prestage)
+        self._setup_mock_get_validated_release_params()
+        self._mock_get_current_supported_upgrade_versions(cutils)
+        self._setup_get_current_supported_upgrade_versions()
+
     def _setup_mock_sysinv_client_prestage(self):
         self.mock_sysinv_client_prestage().get_upgrades.return_value = []
 
@@ -2599,30 +2608,146 @@ class TestSubcloudsPatchPrestage(BaseTestSubcloudsPatch):
             mock_get_oam_addresses
         )
 
-    def test_patch_prestage_succeeds(self):
-        """Test patch prestage succeeds"""
+    def _mock_get_validated_release_params(self, target):
+        mock_patch_object = mock.patch.object(target, "get_validated_release_params")
+        self.mock_get_validated_release_params = mock_patch_object.start()
+        self.addCleanup(mock_patch_object.stop)
+
+    def _mock_get_current_supported_upgrade_versions(self, target):
+        mock_patch_object = mock.patch.object(
+            target, "get_current_supported_upgrade_versions"
+        )
+        self.mock_get_current_supported_upgrade_versions = mock_patch_object.start()
+        self.addCleanup(mock_patch_object.stop)
+
+    def _setup_mock_get_validated_release_params(self):
+        for_sw_deploy = False
+
+        if "release" not in self.params:
+            self.params["release"] = "24.09"
+
+        if "for_sw_deploy" in self.params and self.params["for_sw_deploy"] == "true":
+            for_sw_deploy = True
+
+        if "for_install" in self.params and self.params["for_install"] == "true":
+            for_sw_deploy = False
+
+        if not self.installed_releases:
+            self.installed_releases.append(self.params["release"])
+
+        self.mock_get_validated_release_params.return_value = (
+            self.params["release"],
+            self.installed_releases,
+            for_sw_deploy,
+        )
+
+    def _setup_get_current_supported_upgrade_versions(self):
+        self.mock_get_current_supported_upgrade_versions.return_value = (
+            self.versions_supported
+        )
+
+    def test_for_sw_deploy_prestage_succeeds(self):
+        """Test for sw deploy prestage succeeds"""
+
+        self.params["release"] = "24.09"
+        self.params["for_sw_deploy"] = "true"
+        self._setup_mock_get_validated_release_params()
 
         response = self._send_request()
 
         self._assert_response(response)
         self.mock_rpc_client().prestage_subcloud.assert_called_once()
 
-    def test_patch_prestage_fails_with_invalid_release(self):
-        """Test patch prestage fails with invalid release"""
+    def test_for_install_prestage_succeeds(self):
+        """Test for install prestage succeeds"""
+
+        self.params["release"] = "24.09"
+        self.params["for_install"] = "true"
+        self._setup_mock_get_validated_release_params()
+
+        response = self._send_request()
+
+        self._assert_response(response)
+        self.mock_rpc_client().prestage_subcloud.assert_called_once()
+
+    def test_for_sw_deploy_prestage_fails_with_invalid_release(self):
+        """Test for sw deploy prestage fails with invalid release format"""
 
         self.params["release"] = "21.12"
-
-        self.mock_sysinv_client().get_loads.return_values = FakeLoad(
-            1, software_version="22.12", state=consts.ACTIVE_LOAD_STATE
+        self.params["for_sw_deploy"] = "true"
+        self.installed_releases = ["24.09"]
+        self.mock_get_validated_release_params.side_effect = (
+            self.original_get_validated_release_params
         )
+        self._setup_mock_get_validated_release_params()
 
         response = self._send_request()
 
         self._assert_pecan_and_response(
             response,
             http.client.BAD_REQUEST,
-            f"Prestage skipped '{self.subcloud.name}': Specified release is not "
-            f"supported. {self.params['release']} version must first be imported",
+            f"Prestage failed '{self.subcloud.name}': The requested software version "
+            "was not installed in the system controller, cannot prestage "
+            "for software deploy",
+        )
+
+    def test_for_install_prestage_fails_with_invalid_release(self):
+        """Test for install prestage fails with invalid release format"""
+
+        release = "21.12"
+        versions_supported = ",".join(self.versions_supported)
+        self.params["release"] = release
+        self.params["for_install"] = "true"
+        self.mock_get_validated_release_params.side_effect = (
+            self.original_get_validated_release_params
+        )
+        self._setup_mock_get_validated_release_params()
+
+        response = self._send_request()
+
+        self._assert_pecan_and_response(
+            response,
+            http.client.BAD_REQUEST,
+            f"Error: invalid release version parameter. {release} is not "
+            f"a supported release version ({versions_supported})",
+        )
+
+    def test_for_sw_deploy_prestage_fails_with_minor_patch_release(self):
+        """Test for sw deploy prestage fails with invalid release format"""
+
+        self.params["release"] = "24.09.1"
+        self.params["for_sw_deploy"] = "true"
+        self.mock_get_validated_release_params.side_effect = (
+            self.original_get_validated_release_params
+        )
+        self._setup_mock_get_validated_release_params()
+
+        response = self._send_request()
+
+        self._assert_pecan_and_response(
+            response,
+            http.client.BAD_REQUEST,
+            f"Prestage failed '{self.subcloud.name}': Specified release format is not "
+            "supported. Version format must be MM.mm",
+        )
+
+    def test_for_install_prestage_fails_with_minor_patch_release(self):
+        """Test for install prestage fails with invalid release format"""
+
+        self.params["release"] = "24.09.1"
+        self.params["for_install"] = "true"
+        self.mock_get_validated_release_params.side_effect = (
+            self.original_get_validated_release_params
+        )
+        self._setup_mock_get_validated_release_params()
+
+        response = self._send_request()
+
+        self._assert_pecan_and_response(
+            response,
+            http.client.BAD_REQUEST,
+            f"Prestage failed '{self.subcloud.name}': Specified release format is not "
+            "supported. Version format must be MM.mm",
         )
 
     def test_patch_prestage_fails_with_unmanaged_subcloud(self):

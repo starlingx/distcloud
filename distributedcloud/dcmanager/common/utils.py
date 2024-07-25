@@ -1480,6 +1480,13 @@ def get_sw_version(release=None, for_install=True):
     Return the sw_version by first validating a set release version.
     If a release is not specified then use the current system controller
     software_version.
+
+    for_install = True (--for-install) then it will validate the
+    requested release against the upgrade support file.
+
+    for_install = False (--for-sw-deploy) then it will return the
+    requested release in format MM.mm previously validated.
+
     """
 
     if release:
@@ -1487,7 +1494,7 @@ def get_sw_version(release=None, for_install=True):
             if for_install:
                 validate_major_release_version_supported(release)
             else:
-                validate_minor_release_version_exists(release)
+                release = get_major_release(release)
             return release
         except exceptions.ValidateFail as e:
             pecan.abort(400, _("Error: invalid release version parameter. %s" % e))
@@ -1532,8 +1539,6 @@ def is_minor_release(version):
     if len(split_version) == 2:
         return False
     if len(split_version) == 3:
-        if split_version[2] == "0":
-            return False
         return True
     LOG.error(f"Unexpected release version found: {version}, assuming major release")
     return False
@@ -1543,15 +1548,6 @@ def get_major_release(version):
     """Returns the YY.MM portion of the given version string"""
     split_version = version.split(".")
     return ".".join(split_version[0:2])
-
-
-def validate_minor_release_version_exists(release_version_to_check):
-    # TODO(kmacleod): For minor releases (for_sw_deploy) we need to
-    # validate the given minor release
-
-    # This should lookup all the minor releases and validate the input version
-    # exists
-    LOG.warn("TODO: validate_minor_release_version_exists")
 
 
 def get_current_supported_upgrade_versions():
@@ -1583,6 +1579,18 @@ def get_current_supported_upgrade_versions():
         supported_versions.append(version.strip())
 
     return supported_versions
+
+
+def get_major_releases(releases):
+    """Returns release list in format MM.mm"""
+    major_releases = []
+
+    for release in releases:
+        major_release = get_major_release(release)
+        if major_release not in major_releases:
+            major_releases.append(major_release)
+
+    return major_releases
 
 
 # Feature: Subcloud Name Reconfiguration
