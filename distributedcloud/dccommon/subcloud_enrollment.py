@@ -180,7 +180,17 @@ class SubcloudEnrollmentInit(object):
 
         user_data_file = os.path.join(path, "user-data")
         with open(user_data_file, "w") as f_out_user_data_file:
-            contents = {"runcmd": runcmd}
+            # Cloud-init module frequency for runcmd and scripts-user
+            # must be set to 'always'. This ensures that the
+            # cloud config is applied on an enroll-init retry, since the
+            # default frequency for these modules is 'per-instance'.
+            # It's necessary to specify both modules, runcmd
+            # generates the script, while scripts-user executes it.
+            contents = {
+                "cloud_config_modules": [["runcmd", "always"]],
+                "cloud_final_modules": [["scripts-user", "always"]],
+                "runcmd": runcmd,
+            }
             f_out_user_data_file.writelines("#cloud-config\n")
             f_out_user_data_file.write(
                 yaml.dump(
