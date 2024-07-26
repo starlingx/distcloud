@@ -3533,9 +3533,11 @@ class TestSubcloudPrestage(BaseTestSubcloudManager):
         prestage._prestage_standalone_thread(self.ctx, self.subcloud, payload=values)
         mock_run_ansible.return_value = None
         mock_prestage_packages.assert_called_once_with(
-            self.ctx, self.subcloud, values
+            self.ctx, self.subcloud, values, consts.PRESTAGE_FOR_INSTALL
         )
-        mock_prestage_images.assert_called_once_with(self.ctx, self.subcloud, values)
+        mock_prestage_images.assert_called_once_with(
+            self.ctx, self.subcloud, values, consts.PRESTAGE_FOR_INSTALL
+        )
         self.mock_delete_subcloud_inventory.return_value = None
 
         # Verify that subcloud has the "prestage-complete" deploy status
