@@ -373,6 +373,16 @@ def subcloud_get_all(context):
         all()
 
 
+@require_context
+def subcloud_get_all_by_group_id(context, group_id):
+    """Retrieve all subclouds that belong to the specified group id"""
+
+    return model_query(context, models.Subcloud). \
+        filter_by(deleted=0). \
+        filter_by(group_id=group_id). \
+        all()
+
+
 def subcloud_get_all_ordered_by_id(context):
     return model_query(context, models.Subcloud). \
         filter_by(deleted=0). \
@@ -386,12 +396,59 @@ def subcloud_get_all_with_status(context):
         context,
         models.Subcloud,
         models.SubcloudStatus.endpoint_type,
-        models.SubcloudStatus.sync_status).join(
-            models.SubcloudStatus,
-            models.Subcloud.id == models.SubcloudStatus.subcloud_id).filter(
-                models.Subcloud.deleted == 0).order_by(models.Subcloud.id).all()
+        models.SubcloudStatus.sync_status
+    ).join(
+        models.SubcloudStatus,
+        models.Subcloud.id == models.SubcloudStatus.subcloud_id
+    ).filter(
+        models.Subcloud.deleted == 0
+    ).order_by(models.Subcloud.id).all()
 
     return result
+
+
+@require_context
+def subcloud_count_invalid_for_strategy_type(
+    context, endpoint_type, group_id=None, subcloud_name=None, force=False
+):
+    """Queries the count of invalid subclouds for a strategy's creation
+
+    :param context: request context
+    :param endpoint_type: type of endpoint
+    :param group_id: if specified, filter the subclouds by their group id
+    :param subcloud_name: if specified, retrieve only a single subcloud
+    :param force: whether all subclouds should be evaluated or only online ones
+
+    :return: number of invalid subclouds for the specified endpoint type
+    :rtype: int
+    """
+
+    with read_session() as session:
+        query = session.query(models.Subcloud).filter(
+            models.Subcloud.deleted == 0,
+            models.Subcloud.management_state == dccommon_consts.MANAGEMENT_MANAGED
+        )
+
+        if group_id:
+            query = query.filter(models.Subcloud.group_id == group_id)
+        elif subcloud_name:
+            query = query.filter(models.Subcloud.name == subcloud_name)
+
+        if not force:
+            query = query.filter(
+                models.Subcloud.availability_status ==
+                dccommon_consts.AVAILABILITY_ONLINE
+            )
+
+        query = query.join(
+            models.SubcloudStatus,
+            models.Subcloud.id == models.SubcloudStatus.subcloud_id
+        ).filter(
+            models.SubcloudStatus.endpoint_type == endpoint_type,
+            models.SubcloudStatus.sync_status == dccommon_consts.SYNC_STATUS_UNKNOWN
+        )
+
+        return query.count()
 
 
 @require_admin_context

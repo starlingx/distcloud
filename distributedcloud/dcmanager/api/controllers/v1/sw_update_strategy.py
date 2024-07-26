@@ -172,7 +172,7 @@ class SwUpdateStrategyController(object):
             if strategy_type == consts.SW_UPDATE_TYPE_PATCH:
                 if not patch_file:
                     message = (
-                        "patch parameter is required for {strategy_type} strategy."
+                        f"patch parameter is required for {strategy_type} strategy."
                     )
                     pecan.abort(400, _(message))
                 elif not os.path.isfile(patch_file):
