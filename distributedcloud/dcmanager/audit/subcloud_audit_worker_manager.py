@@ -35,6 +35,7 @@ from dcmanager.audit import kubernetes_audit
 from dcmanager.audit import patch_audit
 from dcmanager.audit import software_audit
 from dcmanager.audit.subcloud_audit_manager import HELM_APP_OPENSTACK
+from dcmanager.audit import utils as audit_utils
 from dcmanager.common import consts
 from dcmanager.common import context
 from dcmanager.common import exceptions
@@ -741,6 +742,10 @@ class SubcloudAuditWorkerManager(manager.Manager):
                         % (subcloud.name, dccommon_consts.ENDPOINT_TYPE_SOFTWARE)
                     )
                     failures.append(dccommon_consts.ENDPOINT_TYPE_SOFTWARE)
+
+        # Filter the endpoint_data to remove values that did not had any modification
+        # from the available data on subcloud table
+        audit_utils.filter_endpoint_data(self.context, subcloud, endpoint_data)
 
         # Create a new variable to store the update method to avoid line too long error
         bulk_update_subcloud_availability_and_endpoint_status = (
