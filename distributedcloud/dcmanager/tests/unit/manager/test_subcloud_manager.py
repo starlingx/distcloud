@@ -387,7 +387,7 @@ class BaseTestSubcloudManager(base.DCManagerTestCase):
         self.fake_install_values = copy.copy(
             fake_subcloud.FAKE_SUBCLOUD_INSTALL_VALUES)
         self.fake_bootstrap_values = copy.copy(
-            fake_subcloud.FAKE_BOOTSTRAP_FILE_DATA)
+            fake_subcloud.FAKE_SUBCLOUD_BOOTSTRAP_PAYLOAD)
 
         self.fake_payload = {"sysadmin_password": "testpass",
                              "deploy_playbook": "test_playbook.yaml",
