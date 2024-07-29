@@ -28,6 +28,7 @@ from dccommon.drivers.openstack.barbican import BarbicanClient
 from dccommon.drivers.openstack.fm import FmClient
 from dccommon.drivers.openstack.keystone_v3 import KeystoneClient
 from dccommon.drivers.openstack.sysinv_v1 import SysinvClient
+from dccommon.endpoint_cache import EndpointCache
 from dccommon import exceptions
 from dccommon.utils import is_token_expiring_soon
 
@@ -74,6 +75,10 @@ class OpenStackDriver(object):
     :type endpoint_type: str
     :param fetch_subcloud_ips: A function to fetch subcloud management IPs.
     :type fetch_subcloud_ips: Callable
+    :param subcloud_management_ip: The subcloud management IP. If passed and
+    the region_name is associated with a subcloud, updates the cache with the
+    provided IP.
+    :type subcloud_management_ip: str
     """
 
     os_clients_dict = collections.defaultdict(dict)
@@ -81,12 +86,13 @@ class OpenStackDriver(object):
 
     def __init__(
         self,
-        region_name: str = consts.CLOUD_0,
+        region_name: str = consts.DEFAULT_REGION_NAME,
         thread_name: str = "dc",
         auth_url: str = None,
         region_clients: List[str] = SUPPORTED_REGION_CLIENTS,
         endpoint_type: str = consts.KS_ENDPOINT_DEFAULT,
         fetch_subcloud_ips: Callable = None,
+        subcloud_management_ip: str = None,
     ):
         self.region_name = region_name
         self.keystone_client = None
@@ -97,6 +103,17 @@ class OpenStackDriver(object):
         self.barbican_client = None
         self.dbsync_client = None
 
+        # Update the endpoint cache for the subcloud with the specified IP
+        if subcloud_management_ip and region_name != consts.DEFAULT_REGION_NAME:
+            # Check if the IP is different from the one already cached
+            endpoint_map = EndpointCache.master_service_endpoint_map[region_name]
+            if endpoint_map:
+                endpoint = next(iter(endpoint_map.values()))
+                if subcloud_management_ip not in endpoint:
+                    EndpointCache.update_subcloud_endpoint_cache_by_ip(
+                        region_name, subcloud_management_ip
+                    )
+
         self.get_cached_keystone_client(region_name, auth_url, fetch_subcloud_ips)
 
         if self.keystone_client is None:
@@ -106,7 +123,7 @@ class OpenStackDriver(object):
                 region_name, KEYSTONE_CLIENT_NAME, self.keystone_client
             )
             # Clear client object cache
-            if region_name != consts.CLOUD_0:
+            if region_name != consts.DEFAULT_REGION_NAME:
                 OpenStackDriver.os_clients_dict[region_name] = collections.defaultdict(
                     dict
                 )
@@ -230,7 +247,7 @@ class OpenStackDriver(object):
         if keystone_client and self._is_token_valid(region_name):
             self.keystone_client = keystone_client
         # Else if master region, create a new keystone client
-        elif region_name in (consts.CLOUD_0, consts.VIRTUAL_MASTER_CLOUD):
+        elif region_name in (consts.DEFAULT_REGION_NAME, consts.SYSTEM_CONTROLLER_NAME):
             self.initialize_keystone_client(auth_url, fetch_subcloud_ips)
             os_clients_dict[region_name][KEYSTONE_CLIENT_NAME] = self.keystone_client
 

@@ -50,13 +50,16 @@ BOOTSTRAP_VALUES_ADDRESSES = [
 ]
 
 
-def get_ks_client(region_name=dccommon_consts.DEFAULT_REGION_NAME):
+def get_ks_client(
+    region_name=dccommon_consts.DEFAULT_REGION_NAME, management_ip: str = None
+):
     """This will get a new keystone client (and new token)"""
     try:
         os_client = OpenStackDriver(
             region_name=region_name,
             region_clients=None,
             fetch_subcloud_ips=utils.fetch_subcloud_mgmt_ips,
+            subcloud_management_ip=management_ip,
         )
         return os_client.keystone_client
     except Exception:

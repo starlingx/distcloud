@@ -29,6 +29,8 @@ ENDPOINT_TYPE_IDENTITY_OS = "identity_openstack"
 ENDPOINT_TYPES_LIST_OS = [ENDPOINT_TYPE_IDENTITY_OS]
 
 # distributed Cloud constants
+# TODO(gherzmann) Remove the following constants in favor of the
+# SYSTEM_CONTROLLER_NAME and DEFAULT_REGION_NAME constants
 CLOUD_0 = "RegionOne"
 VIRTUAL_MASTER_CLOUD = "SystemController"
 

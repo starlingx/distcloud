@@ -395,6 +395,24 @@ class EndpointCache(object):
             # pylint: disable-next=unsupported-assignment-operation
             EndpointCache.subcloud_endpoints[region_name] = endpoint_values
 
+    @classmethod
+    def update_subcloud_endpoint_cache_by_ip(
+        cls, region_name: str, management_ip: str
+    ) -> dict:
+        """Update subcloud endpoints by the provided management IP
+
+        :param region_name: The subcloud region name
+        :type region_name: str
+        :param management_ip: The subcloud management IP
+        :type management_ip: str
+        :return dict: A dictionary containing service names as keys and formatted
+             endpoint URLs as values.
+        :rtype: dict
+        """
+        endpoint_map = build_subcloud_endpoint_map(management_ip)
+        cls.update_master_service_endpoint_region(region_name, endpoint_map)
+        return endpoint_map
+
     def refresh_subcloud_endpoints(self, region_name: str) -> None:
         """Refresh the subcloud endpoints.
 

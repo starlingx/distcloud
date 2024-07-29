@@ -223,6 +223,7 @@ class SubcloudsController(object):
                 region_name=subcloud.region_name,
                 region_clients=None,
                 fetch_subcloud_ips=utils.fetch_subcloud_mgmt_ips,
+                subcloud_management_ip=subcloud.management_start_ip,
             ).keystone_client
             vim_client = vim.VimClient(subcloud.region_name, keystone_client.session)
             strategy = vim_client.get_strategy(
@@ -562,7 +563,9 @@ class SubcloudsController(object):
 
                     # Get the keystone client that will be used
                     # for _get_deploy_config_sync_status and _get_oam_addresses
-                    sc_ks_client = psd_common.get_ks_client(subcloud_region)
+                    sc_ks_client = psd_common.get_ks_client(
+                        subcloud_region, subcloud.management_start_ip
+                    )
                     oam_addresses = self._get_oam_addresses(
                         context, subcloud_region, sc_ks_client
                     )
@@ -649,7 +652,7 @@ class SubcloudsController(object):
                 400,
                 _(
                     "A local software deployment operation is in progress. "
-                    "Please finish the software deployment opearation before "
+                    "Please finish the software deployment operation before "
                     "(re)installing/updating the subcloud."
                 ),
             )
