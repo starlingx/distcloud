@@ -240,7 +240,7 @@ class EndpointCache(object):
         user_password: str,
         user_project: str,
         user_project_domain: str,
-        timeout: float = None,
+        timeout=None,
     ) -> session.Session:
         """Get the admin session.
 
@@ -256,8 +256,8 @@ class EndpointCache(object):
         :type user_project: str
         :param user_project_domain: The user project domain.
         :type user_project_domain: str
-        :param timeout: The timeout.
-        :type timeout: int
+        :param timeout: The discovery and read timeouts.
+        :type timeout: Any
         :return: The admin session.
         :rtype: session.Session
         """
@@ -271,11 +271,20 @@ class EndpointCache(object):
             project_domain_name=user_project_domain,
             include_catalog=True,
         )
-        timeout = (
-            CONF.endpoint_cache.http_connect_timeout if timeout is None else timeout
-        )
+
+        if isinstance(timeout, tuple):
+            discovery_timeout = float(timeout[0])
+            read_timeout = float(timeout[1])
+        else:
+            discovery_timeout = consts.KEYSTONE_SERVER_DISCOVERY_TIMEOUT
+            read_timeout = (
+                CONF.endpoint_cache.http_connect_timeout if timeout is None else timeout
+            )
+
         return session.Session(
-            auth=user_auth, additional_headers=consts.USER_HEADER, timeout=timeout
+            auth=user_auth,
+            additional_headers=consts.USER_HEADER,
+            timeout=(discovery_timeout, read_timeout),
         )
 
     @staticmethod
@@ -365,7 +374,11 @@ class EndpointCache(object):
         auth = loader.load_from_options(
             auth_url=self.external_auth_url, token=token, project_id=project_id
         )
-        return session.Session(auth=auth)
+
+        discovery_timeout = consts.KEYSTONE_SERVER_DISCOVERY_TIMEOUT
+        read_timeout = CONF.endpoint_cache.http_connect_timeout
+
+        return session.Session(auth=auth, timeout=(discovery_timeout, read_timeout))
 
     @classmethod
     @lockutils.synchronized(LOCK_NAME)

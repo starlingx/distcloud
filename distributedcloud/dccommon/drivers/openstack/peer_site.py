@@ -217,9 +217,18 @@ class PeerKeystoneClient(base.DriverBase):
             project_name=user_project,
             project_domain_name=user_project_domain,
         )
-        timeout = HTTP_CONNECT_TIMEOUT if timeout is None else timeout
+
+        if isinstance(timeout, tuple):
+            discovery_timeout = float(timeout[0])
+            read_timeout = float(timeout[1])
+        else:
+            discovery_timeout = consts.KEYSTONE_SERVER_DISCOVERY_TIMEOUT
+            read_timeout = HTTP_CONNECT_TIMEOUT if timeout is None else read_timeout
+
         return session.Session(
-            auth=user_auth, additional_headers=consts.USER_HEADER, timeout=timeout
+            auth=user_auth,
+            additional_headers=consts.USER_HEADER,
+            timeout=(discovery_timeout, read_timeout),
         )
 
     def _create_keystone_client(self):

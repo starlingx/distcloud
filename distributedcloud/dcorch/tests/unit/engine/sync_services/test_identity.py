@@ -30,8 +30,8 @@ class BaseTestIdentitySyncThread(OrchestratorTestCase, mixins.BaseMixin):
 
         self._mock_openstack_driver()
         self._mock_keystone_client()
-        self._mock_endpoint_cache_from_keystone()
-        self._mock_endpoint_cache()
+        self._mock_keystone_endpoint_cache_get_admin_session()
+        self._mock_endpoint_cache_get_admin_session()
         self._mock_m_dbs_client()
         self._mock_sc_dbs_client()
         self._mock_rpc_client_subcloud_state_client()

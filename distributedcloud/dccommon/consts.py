@@ -254,5 +254,8 @@ ANSIBLE_SUBCLOUD_ENROLL_PLAYBOOK = (
 # Sysinv client default timeout
 SYSINV_CLIENT_REST_DEFAULT_TIMEOUT = 600
 
+# Keystone client connection timeout
+KEYSTONE_SERVER_DISCOVERY_TIMEOUT = 5
+
 SUBCLOUD_ISO_PATH = "/opt/platform/iso"
 SUBCLOUD_FEED_PATH = "/var/www/pages/feed"
