@@ -23,6 +23,8 @@ from oslo_serialization import jsonutils
 from dccommon import consts as dccommon_consts
 from dccommon.drivers.openstack.keystone_v3 import KeystoneClient
 from dccommon.drivers.openstack.sysinv_v1 import SysinvClient
+from dccommon.endpoint_cache import EndpointCache
+from dccommon.utils import build_subcloud_endpoint
 from dcorch.common import consts
 from dcorch.common import context
 from dcorch.common import exceptions
@@ -107,12 +109,12 @@ class FernetKeyManager(manager.Manager):
             exceptions.NotAuthorized,
             exceptions.TimeOut,
         ):
-            LOG.info(
+            LOG.exception(
                 _("Retrieving the fernet keys from %s timeout")
                 % dccommon_consts.CLOUD_0
             )
         except Exception as e:
-            LOG.info(_("Fail to retrieve the master fernet keys: %s") % str(e))
+            LOG.exception(_("Fail to retrieve the master fernet keys: %s") % str(e))
         return keys
 
     def rotate_fernet_keys(self):
@@ -130,28 +132,31 @@ class FernetKeyManager(manager.Manager):
         self._schedule_work(consts.OPERATION_TYPE_PUT)
 
     @staticmethod
-    def distribute_keys(subcloud_name):
+    def distribute_keys(subcloud_name, management_ip):
         keys = FernetKeyManager._get_master_keys()
         if not keys:
             LOG.info(_("No fernet keys returned from %s") % dccommon_consts.CLOUD_0)
             return
         resource_info = FernetKeyManager.to_resource_info(keys)
         key_list = FernetKeyManager.from_resource_info(resource_info)
-        FernetKeyManager.update_fernet_repo(subcloud_name, key_list)
-
-    def reset_keys(self, subcloud_name):
-        self.update_fernet_repo(subcloud_name)
+        FernetKeyManager.update_fernet_repo(subcloud_name, management_ip, key_list)
 
     @staticmethod
-    def update_fernet_repo(subcloud_name, key_list=None):
+    def update_fernet_repo(subcloud_name, management_ip, key_list=None):
         try:
-            # No cached client is required as it is only called during the
-            # initial sync
-            ks_client = KeystoneClient(subcloud_name)
+            keystone_endpoint = build_subcloud_endpoint(management_ip, "keystone")
+            admin_session = EndpointCache.get_admin_session(
+                keystone_endpoint,
+                CONF.endpoint_cache.username,
+                CONF.endpoint_cache.user_domain_name,
+                CONF.endpoint_cache.password,
+                CONF.endpoint_cache.project_name,
+                CONF.endpoint_cache.project_domain_name,
+            )
             sysinv_client = SysinvClient(
-                subcloud_name,
-                ks_client.session,
-                endpoint=ks_client.endpoint_cache.get_endpoint("sysinv"),
+                region=subcloud_name,
+                session=admin_session,
+                endpoint=build_subcloud_endpoint(management_ip, "sysinv"),
             )
             sysinv_client.post_fernet_repo(key_list)
         except (
@@ -159,7 +164,7 @@ class FernetKeyManager(manager.Manager):
             exceptions.NotAuthorized,
             exceptions.TimeOut,
         ):
-            LOG.info(_("Update the fernet repo on %s timeout") % subcloud_name)
+            LOG.exception(_("Update the fernet repo on %s timeout") % subcloud_name)
         except Exception as e:
             error_msg = "subcloud: {}, {}".format(subcloud_name, str(e))
-            LOG.info(_("Fail to update fernet repo %s") % error_msg)
+            LOG.exception(_("Fail to update fernet repo %s") % error_msg)

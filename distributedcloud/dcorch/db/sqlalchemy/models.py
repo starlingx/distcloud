@@ -180,6 +180,7 @@ class Subcloud(BASE, OrchestratorBase):
     initial_sync_state = Column(
         "initial_sync_state", String(64), default=consts.INITIAL_SYNC_STATE_NONE
     )
+    subsequent_sync = Column("subsequent_sync", Boolean, default=False)
     management_ip = Column("management_ip", String(64))
 
 

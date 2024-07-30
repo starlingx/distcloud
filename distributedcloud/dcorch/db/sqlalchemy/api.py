@@ -26,12 +26,10 @@ import threading
 
 from oslo_db import exception as db_exc
 from oslo_db.sqlalchemy import enginefacade
-
 from oslo_log import log as logging
 from oslo_utils import strutils
 from oslo_utils import timeutils
 from oslo_utils import uuidutils
-
 from sqlalchemy import and_
 from sqlalchemy import asc
 from sqlalchemy import desc
@@ -477,10 +475,18 @@ def subcloud_capabilities_get_all(
     initial_sync_state=None,
 ):
     results = subcloud_get_all(
-        context, region_name, management_state, availability_status, initial_sync_state
+        context,
+        region_name,
+        management_state,
+        availability_status,
+        initial_sync_state,
     )
     return {
-        result["region_name"]: (result["capabilities"], result["management_ip"])
+        result["region_name"]: (
+            result["capabilities"],
+            result["management_ip"],
+            result["subsequent_sync"],
+        )
         for result in results
     }
 

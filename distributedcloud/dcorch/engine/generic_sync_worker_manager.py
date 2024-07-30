@@ -192,6 +192,7 @@ class GenericSyncWorkerManager(object):
         management_state=None,
         availability_status=None,
         initial_sync_state=None,
+        subsequent_sync=None,
     ):
         LOG.info(
             f"updating state for subcloud {subcloud_name} - "
@@ -206,6 +207,8 @@ class GenericSyncWorkerManager(object):
             sc.availability_status = availability_status
         if initial_sync_state is not None:
             sc.initial_sync_state = initial_sync_state
+        if subsequent_sync is not None:
+            sc.subsequent_sync = subsequent_sync
         sc.save()
 
     def is_subcloud_managed(self, subcloud_name):
