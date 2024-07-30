@@ -1079,7 +1079,7 @@ def get_matching_iso(software_version=None):
         return None, str(e)
 
 
-def is_subcloud_healthy(subcloud_region):
+def is_subcloud_healthy(subcloud_region, management_ip: str = None):
 
     system_health = ""
     try:
@@ -1087,6 +1087,7 @@ def is_subcloud_healthy(subcloud_region):
             region_name=subcloud_region,
             region_clients=None,
             fetch_subcloud_ips=fetch_subcloud_mgmt_ips,
+            subcloud_management_ip=management_ip,
         )
         keystone_client = os_client.keystone_client
         endpoint = keystone_client.endpoint_cache.get_endpoint("sysinv")

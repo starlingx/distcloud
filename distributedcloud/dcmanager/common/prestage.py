@@ -373,6 +373,7 @@ def _get_prestage_subcloud_info(subcloud):
             region_name=subcloud.region_name,
             region_clients=None,
             fetch_subcloud_ips=utils.fetch_subcloud_mgmt_ips,
+            subcloud_management_ip=subcloud.management_start_ip,
         )
         keystone_client = os_client.keystone_client
         endpoint = keystone_client.endpoint_cache.get_endpoint("sysinv")

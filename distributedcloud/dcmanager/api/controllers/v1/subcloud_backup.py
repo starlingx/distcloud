@@ -168,7 +168,7 @@ class SubcloudBackupController(object):
 
         Create/Delete: The subcloud is managed, online and in complete state.
         Restore: The subcloud is unmanaged, and not in the process of
-        installation, boostrap, deployment or rehoming. It should also have
+        installation, bootstrap, deployment or rehoming. It should also have
         one of the following to obtain the bootstrap_address:
         - Restore values with bootstrap_address information
         - Install values
@@ -215,7 +215,9 @@ class SubcloudBackupController(object):
             ):
                 # Check the system health only if the command was issued
                 # to a single subcloud to avoid huge delays.
-                if not utils.is_subcloud_healthy(subcloud.region_name):
+                if not utils.is_subcloud_healthy(
+                    subcloud.region_name, subcloud.management_start_ip
+                ):
                     msg = _(
                         "Subcloud %s must be in good health for subcloud-backup create."
                         % subcloud.name
