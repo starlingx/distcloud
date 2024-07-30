@@ -25,18 +25,14 @@ STRATEGY_APPLY_FAILED = FakeVimStrategy(state=vim.STATE_APPLY_FAILED)
 # method "ApplyingVIMStrategyState.__init__" don't change. To fix this, we patch
 # these default values in "ApplyingVIMStrategyState.__init__.__defaults__".
 @mock.patch(
-    "dcmanager.orchestrator.states.applying_vim_strategy."
-    "DEFAULT_MAX_FAILED_QUERIES",
+    "dcmanager.orchestrator.states.applying_vim_strategy.DEFAULT_MAX_FAILED_QUERIES",
     3,
 )
 @mock.patch(
-    "dcmanager.orchestrator.states.applying_vim_strategy."
-    "DEFAULT_MAX_WAIT_ATTEMPTS",
+    "dcmanager.orchestrator.states.applying_vim_strategy.DEFAULT_MAX_WAIT_ATTEMPTS",
     3,
 )
-@mock.patch(
-    "dcmanager.orchestrator.states.applying_vim_strategy.WAIT_INTERVAL", 1
-)
+@mock.patch("dcmanager.orchestrator.states.applying_vim_strategy.WAIT_INTERVAL", 1)
 @mock.patch(
     "dcmanager.orchestrator.states.applying_vim_strategy."
     "ApplyingVIMStrategyState.__init__.__defaults__",
@@ -75,9 +71,7 @@ class ApplyingVIMStrategyMixin(object):
         self.worker.perform_state_action(self.strategy_step)
 
         # Successful promotion to next state
-        self.assert_step_updated(
-            self.strategy_step.subcloud_id, self.on_success_state
-        )
+        self.assert_step_updated(self.strategy_step.subcloud_id, self.on_success_state)
 
     def test_applying_vim_strategy_raises_exception(self):
         """Test applying a VIM strategy that raises an exception"""
@@ -182,9 +176,7 @@ class ApplyingVIMStrategyMixin(object):
         self.vim_client.apply_strategy.assert_not_called()
 
         # SUCCESS case
-        self.assert_step_updated(
-            self.strategy_step.subcloud_id, self.on_success_state
-        )
+        self.assert_step_updated(self.strategy_step.subcloud_id, self.on_success_state)
 
     def test_applying_vim_strategy_already_exists_and_is_broken(self):
         """Test applying a VIM strategy while a broken strategy exists"""

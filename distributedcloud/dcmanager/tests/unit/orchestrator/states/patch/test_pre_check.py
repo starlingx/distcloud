@@ -9,8 +9,7 @@ import mock
 from dcmanager.common import consts
 from dcmanager.orchestrator.states.patch.pre_check import IGNORED_ALARMS_IDS
 from dcmanager.tests.unit.orchestrator.states.fakes import FakeAlarm
-from dcmanager.tests.unit.orchestrator.states.patch.test_base import \
-    TestPatchState
+from dcmanager.tests.unit.orchestrator.states.patch.test_base import TestPatchState
 
 
 class TestPatchPreCheckStage(TestPatchState):
@@ -24,7 +23,8 @@ class TestPatchPreCheckStage(TestPatchState):
 
         # Add the strategy_step state being processed by this unit test
         self.strategy_step = self.setup_strategy_step(
-            self.subcloud.id, consts.STRATEGY_STATE_PRE_CHECK)
+            self.subcloud.id, consts.STRATEGY_STATE_PRE_CHECK
+        )
 
         self.fm_client.get_alarms = mock.MagicMock()
 
@@ -43,8 +43,7 @@ class TestPatchPreCheckStage(TestPatchState):
         self.fm_client.get_alarms.assert_called()
 
         # verify the expected next state happened
-        self.assert_step_updated(self.strategy_step.subcloud_id,
-                                 self.success_state)
+        self.assert_step_updated(self.strategy_step.subcloud_id, self.success_state)
 
     def test_no_management_affecting_alarm(self):
         """Test pre check step where there are no management affecting alarms
@@ -61,8 +60,7 @@ class TestPatchPreCheckStage(TestPatchState):
         self.fm_client.get_alarms.assert_called()
 
         # verify the expected next state happened
-        self.assert_step_updated(self.strategy_step.subcloud_id,
-                                 self.success_state)
+        self.assert_step_updated(self.strategy_step.subcloud_id, self.success_state)
 
     def test_management_affected_alarm(self):
         """Test pre check step where there is a management affecting alarm
@@ -70,8 +68,7 @@ class TestPatchPreCheckStage(TestPatchState):
         The pre-check should transition to the failed state
         """
 
-        alarm_list = [FakeAlarm("100.001", "True"),
-                      FakeAlarm("100.002", "True")]
+        alarm_list = [FakeAlarm("100.001", "True"), FakeAlarm("100.002", "True")]
 
         # also add ignored alarms
         for alarm_str in IGNORED_ALARMS_IDS:
@@ -86,8 +83,9 @@ class TestPatchPreCheckStage(TestPatchState):
         self.fm_client.get_alarms.assert_called()
 
         # verify the expected next state happened
-        self.assert_step_updated(self.strategy_step.subcloud_id,
-                                 consts.STRATEGY_STATE_FAILED)
+        self.assert_step_updated(
+            self.strategy_step.subcloud_id, consts.STRATEGY_STATE_FAILED
+        )
 
     def test_ignored_alarm(self):
         """Test pre check step where there is only a ignored alarm
@@ -108,8 +106,7 @@ class TestPatchPreCheckStage(TestPatchState):
         self.fm_client.get_alarms.assert_called()
 
         # verify the expected next state happened
-        self.assert_step_updated(self.strategy_step.subcloud_id,
-                                 self.success_state)
+        self.assert_step_updated(self.strategy_step.subcloud_id, self.success_state)
 
     def test_get_alarms_unexpected_failure(self):
         """Test pre check step where fm-client get_alarms() fails
@@ -118,7 +115,7 @@ class TestPatchPreCheckStage(TestPatchState):
         field should contain the correct message detailing the error
         """
 
-        self.fm_client.get_alarms.side_effect = Exception('Test error message')
+        self.fm_client.get_alarms.side_effect = Exception("Test error message")
 
         # invoke the strategy state operation on the orch thread
         self.worker.perform_state_action(self.strategy_step)
@@ -127,10 +124,13 @@ class TestPatchPreCheckStage(TestPatchState):
         self.fm_client.get_alarms.assert_called()
 
         # verify the expected next state happened
-        self.assert_step_updated(self.strategy_step.subcloud_id,
-                                 consts.STRATEGY_STATE_FAILED)
+        self.assert_step_updated(
+            self.strategy_step.subcloud_id, consts.STRATEGY_STATE_FAILED
+        )
 
-        details = ("pre check: Failed to obtain subcloud alarm report due to:"
-                   " (Test error message). Please see /var/log/dcmanager/orche"
-                   "strator.log for details")
+        details = (
+            "pre check: Failed to obtain subcloud alarm report due to: "
+            "(Test error message). Please see /var/log/dcmanager/orchestrator.log "
+            "for details"
+        )
         self.assert_step_details(self.strategy_step.subcloud_id, details)

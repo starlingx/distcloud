@@ -31,20 +31,20 @@ class DBAPISubcloudAuditsTest(base.DCManagerTestCase):
     @staticmethod
     def create_subcloud(ctxt, name, **kwargs):
         values = {
-            'name': name,
-            'description': "This is a subcloud",
-            'location': "This is the location of the subcloud",
-            'software_version': "10.04",
-            'management_subnet': "192.168.101.0/24",
-            'management_gateway_ip': "192.168.101.1",
-            'management_start_ip': "192.168.101.2",
-            'management_end_ip': "192.168.101.50",
-            'systemcontroller_gateway_ip': "192.168.204.101",
-            'deploy_status': "not-deployed",
-            'error_description': 'No errors present',
-            'region_name': uuidutils.generate_uuid().replace("-", ""),
-            'openstack_installed': False,
-            'group_id': 1,
+            "name": name,
+            "description": "This is a subcloud",
+            "location": "This is the location of the subcloud",
+            "software_version": "10.04",
+            "management_subnet": "192.168.101.0/24",
+            "management_gateway_ip": "192.168.101.1",
+            "management_start_ip": "192.168.101.2",
+            "management_end_ip": "192.168.101.50",
+            "systemcontroller_gateway_ip": "192.168.204.101",
+            "deploy_status": "not-deployed",
+            "error_description": "No errors present",
+            "region_name": uuidutils.generate_uuid().replace("-", ""),
+            "openstack_installed": False,
+            "group_id": 1,
         }
         values.update(kwargs)
         return db_api.subcloud_create(ctxt, **values)
@@ -61,12 +61,8 @@ class DBAPISubcloudAuditsTest(base.DCManagerTestCase):
         # Test the SubcloudAudits created when we created subcloud2 in setup.
         result = db_api.subcloud_audits_get(self.ctx, 2)
         self.assertEqual(result["subcloud_id"], 2)
-        self.assertEqual(
-            result["audit_started_at"], datetime.datetime(1, 1, 1, 0, 0)
-        )
-        self.assertEqual(
-            result["audit_finished_at"], datetime.datetime(1, 1, 1, 0, 0)
-        )
+        self.assertEqual(result["audit_started_at"], datetime.datetime(1, 1, 1, 0, 0))
+        self.assertEqual(result["audit_finished_at"], datetime.datetime(1, 1, 1, 0, 0))
         self.assertEqual(result["patch_audit_requested"], False)
         self.assertEqual(result["load_audit_requested"], False)
         self.assertEqual(result["firmware_audit_requested"], False)
@@ -221,7 +217,10 @@ class DBAPISubcloudAuditsTest(base.DCManagerTestCase):
         subcloud_audits1 = db_api.subcloud_audits_get(self.ctx, 1)
         subcloud_audits2 = db_api.subcloud_audits_get(self.ctx, 2)
         subcloud_audits3 = db_api.subcloud_audits_get(self.ctx, 3)
-        self.assertEqual(subcloud_audits1["audit_finished_at"],
-                         subcloud_audits2["audit_finished_at"])
-        self.assertTrue(subcloud_audits1["audit_finished_at"] >
-                        subcloud_audits3["audit_finished_at"])
+        self.assertEqual(
+            subcloud_audits1["audit_finished_at"], subcloud_audits2["audit_finished_at"]
+        )
+        self.assertTrue(
+            subcloud_audits1["audit_finished_at"]
+            > subcloud_audits3["audit_finished_at"]
+        )

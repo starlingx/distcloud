@@ -96,10 +96,11 @@ class SystemPeerManager(manager.Manager):
                 dc_peer_system_peer = dc_client.get_system_peer(
                     utils.get_local_system().uuid)
                 # Get peer site group association
-                dc_peer_association = dc_client.\
-                    get_peer_group_association_with_peer_id_and_pg_id(
-                        dc_peer_system_peer.get('id'),
-                        remote_pg.get('id'))
+                dc_peer_association = (
+                    dc_client.get_peer_group_association_with_peer_id_and_pg_id(
+                        dc_peer_system_peer.get("id"), remote_pg.get("id")
+                    )
+                )
 
                 # Update peer site association sync_status only if the
                 # sync_status is different from the current sync_status
@@ -669,7 +670,8 @@ class SystemPeerManager(manager.Manager):
         """Get non-primary Association from peer site."""
         try:
             return dc_client.get_peer_group_association_with_peer_id_and_pg_id(
-                dc_peer_system_peer_id, dc_peer_pg_id)
+                dc_peer_system_peer_id, dc_peer_pg_id
+            )
         except dccommon_exceptions.PeerGroupAssociationNotFound:
             LOG.error(f"Peer Group association does not exist on peer site."
                       f"Peer Group ID: {dc_peer_pg_id}, Peer System Peer ID: "

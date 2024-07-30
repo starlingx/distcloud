@@ -32,14 +32,12 @@ class TestFwUpdateState(TestSwUpdate):
             str(uuid.uuid4()),
             pvendor_id=pvendor_id,
             pdevice_id=pdevice_id,
-            enabled=enabled
+            enabled=enabled,
         )
 
     def _create_fake_device_label(self, label_key, label_value, pcidevice_uuid):
         return FakeDeviceLabel(
-            label_key=label_key,
-            label_value=label_value,
-            pcidevice_uuid=pcidevice_uuid
+            label_key=label_key, label_value=label_value, pcidevice_uuid=pcidevice_uuid
         )
 
     def _create_fake_device_image(
@@ -50,12 +48,8 @@ class TestFwUpdateState(TestSwUpdate):
             pci_vendor=pci_vendor,
             pci_device=pci_device,
             applied=applied,
-            applied_labels=applied_labels
+            applied_labels=applied_labels,
         )
 
     def _create_fake_device_image_state(self, pcidevice_uuid, image_uuid, status):
-        return DeviceImageState(
-            pcidevice_uuid,
-            image_uuid,
-            status
-        )
+        return DeviceImageState(pcidevice_uuid, image_uuid, status)

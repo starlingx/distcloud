@@ -32,7 +32,7 @@ from dcmanager.tests.unit.common import consts as test_consts
 from dcmanager.tests import utils
 
 config.register_options()
-OPT_GROUP_NAME = 'keystone_authtoken'
+OPT_GROUP_NAME = "keystone_authtoken"
 cfg.CONF.import_group(OPT_GROUP_NAME, "keystonemiddleware.auth_token")
 
 
@@ -49,11 +49,11 @@ class DCManagerApiTest(DCManagerTestCase):
         self.CONF = self.useFixture(config_fixture).conf
         config_fixture.set_config_dirs([])
 
-        self.CONF.set_override('auth_strategy', 'noauth')
+        self.CONF.set_override("auth_strategy", "noauth")
 
         self.app = self._make_app()
 
-        self.url = '/'
+        self.url = "/"
         # The put method is used as a default value, leading to the generic
         # implementation on controllers in case the method is not specified
         self.method = self.app.put
@@ -61,20 +61,19 @@ class DCManagerApiTest(DCManagerTestCase):
         self.upload_files = None
         self.verb = None
         self.headers = {
-            'X-Tenant-Id': utils.UUID1, 'X_ROLE': 'admin,member,reader',
-            'X-Identity-Status': 'Confirmed', 'X-Project-Name': 'admin'
+            "X-Tenant-Id": utils.UUID1,
+            "X_ROLE": "admin,member,reader",
+            "X-Identity-Status": "Confirmed",
+            "X-Project-Name": "admin",
         }
 
     def _make_app(self, enable_acl=False):
         self.config_fixture = {
-            'app': {
-                'root': 'dcmanager.api.controllers.root.RootController',
-                'modules': ['dcmanager.api'],
-                'enable_acl': enable_acl,
-                'errors': {
-                    400: '/error',
-                    '__force_dict__': True
-                }
+            "app": {
+                "root": "dcmanager.api.controllers.root.RootController",
+                "modules": ["dcmanager.api"],
+                "enable_acl": enable_acl,
+                "errors": {400: "/error", "__force_dict__": True},
             },
         }
 
@@ -86,16 +85,21 @@ class DCManagerApiTest(DCManagerTestCase):
         kwargs = {}
 
         if self.upload_files:
-            kwargs = {'upload_files': self.upload_files}
+            kwargs = {"upload_files": self.upload_files}
 
         return self.method(
-            self.url, headers=self.headers, params=self.params,
-            expect_errors=True, **kwargs
+            self.url,
+            headers=self.headers,
+            params=self.params,
+            expect_errors=True,
+            **kwargs,
         )
 
     def _assert_response(
-        self, response, status_code=http.client.OK,
-        content_type=test_consts.APPLICATION_JSON
+        self,
+        response,
+        status_code=http.client.OK,
+        content_type=test_consts.APPLICATION_JSON,
     ):
         """Assert the response for a request"""
 
@@ -103,8 +107,12 @@ class DCManagerApiTest(DCManagerTestCase):
         self.assertEqual(response.content_type, content_type)
 
     def _assert_pecan_and_response(
-        self, response, http_status, content=None, call_count=1,
-        content_type=test_consts.TEXT_PLAIN
+        self,
+        response,
+        http_status,
+        content=None,
+        call_count=1,
+        content_type=test_consts.TEXT_PLAIN,
     ):
         """Assert the response and pecan abort for a failed request"""
 
@@ -122,7 +130,7 @@ class TestRootController(DCManagerApiTest):
     def setUp(self):
         super(TestRootController, self).setUp()
 
-        self.url = '/'
+        self.url = "/"
         self.method = self.app.get
 
     def _test_method_returns_405(self, method, content_type=test_consts.TEXT_PLAIN):
@@ -141,7 +149,7 @@ class TestRootController(DCManagerApiTest):
 
         self._assert_response(response)
         json_body = jsonutils.loads(response.body)
-        versions = json_body.get('versions')
+        versions = json_body.get("versions")
         self.assertEqual(1, len(versions))
 
     def test_request_id(self):
@@ -150,11 +158,9 @@ class TestRootController(DCManagerApiTest):
         response = self._send_request()
 
         self._assert_response(response)
-        self.assertIn('x-openstack-request-id', response.headers)
-        self.assertTrue(
-            response.headers['x-openstack-request-id'].startswith('req-')
-        )
-        id_part = response.headers['x-openstack-request-id'].split('req-')[1]
+        self.assertIn("x-openstack-request-id", response.headers)
+        self.assertTrue(response.headers["x-openstack-request-id"].startswith("req-"))
+        id_part = response.headers["x-openstack-request-id"].split("req-")[1]
         self.assertTrue(uuidutils.is_uuid_like(id_part))
 
     def test_post(self):
@@ -180,19 +186,17 @@ class TestRootController(DCManagerApiTest):
     def test_head(self):
         """Test head request is not allowed on root"""
 
-        self._test_method_returns_405(
-            self.app.head, content_type=test_consts.TEXT_HTML
-        )
+        self._test_method_returns_405(self.app.head, content_type=test_consts.TEXT_HTML)
 
 
 class TestErrors(DCManagerApiTest):
 
     def setUp(self):
         super(TestErrors, self).setUp()
-        cfg.CONF.set_override('admin_tenant', 'fake_tenant_id', group='cache')
+        cfg.CONF.set_override("admin_tenant", "fake_tenant_id", group="cache")
 
     def test_404(self):
-        self.url = '/assert_called_once'
+        self.url = "/assert_called_once"
         self.method = self.app.get
 
         response = self._send_request()
@@ -201,7 +205,7 @@ class TestErrors(DCManagerApiTest):
         )
 
     def test_version_1_root_controller(self):
-        self.url = f'/v1.0/{uuidutils.generate_uuid()}/bad_method'
+        self.url = f"/v1.0/{uuidutils.generate_uuid()}/bad_method"
         self.method = self.app.patch
 
         response = self._send_request()
@@ -215,7 +219,7 @@ class TestKeystoneAuth(DCManagerApiTest):
     def setUp(self):
         super(TestKeystoneAuth, self).setUp()
 
-        cfg.CONF.set_override('auth_strategy', 'keystone')
+        cfg.CONF.set_override("auth_strategy", "keystone")
 
         self.method = self.app.get
 

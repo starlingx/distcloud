@@ -8,16 +8,17 @@ import mock
 
 from dcmanager.common import consts
 from dcmanager.tests.unit.orchestrator.states.fakes import FakeController
-from dcmanager.tests.unit.orchestrator.states.firmware.test_base \
-    import TestFwUpdateState
+from dcmanager.tests.unit.orchestrator.states.firmware.test_base import (
+    TestFwUpdateState,
+)
 
 VENDOR_1 = "1001"
 VENDOR_2 = "2002"
 VENDOR_3 = "3003"
 
-VENDOR_DEVICE_1 = '9009'
-VENDOR_DEVICE_2 = '9009'
-VENDOR_DEVICE_3 = '9009'
+VENDOR_DEVICE_1 = "9009"
+VENDOR_DEVICE_2 = "9009"
+VENDOR_DEVICE_3 = "9009"
 
 FAKE_SUBCLOUD_CONTROLLER = FakeController()
 FAKE_ALL_LABEL = [{}]
@@ -31,7 +32,7 @@ class TestFwUpdateImportingFirmwareStage(TestFwUpdateState):
         # Sets up the necessary variables for mocking
         self.fake_device = self._create_fake_device(VENDOR_1, VENDOR_DEVICE_1)
         fake_device_label = self._create_fake_device_label(
-            'fake key', 'fake label', self.fake_device.uuid
+            "fake key", "fake label", self.fake_device.uuid
         )
         fake_device_image_from_vendor_1 = self._create_fake_device_image(
             VENDOR_1, VENDOR_DEVICE_1, True, FAKE_ALL_LABEL
@@ -45,14 +46,12 @@ class TestFwUpdateImportingFirmwareStage(TestFwUpdateState):
         self.fake_device_image_list = [
             fake_device_image_from_vendor_1,
             fake_device_image_from_vendor_2,
-            fake_device_image_from_vendor_3
+            fake_device_image_from_vendor_3,
         ]
         self.empty_fake_device_image_list = []
 
         self.fake_device_image = self._create_fake_device_image_state(
-            self.fake_device.uuid,
-            fake_device_image_from_vendor_1.uuid,
-            'completed'
+            self.fake_device.uuid, fake_device_image_from_vendor_1.uuid, "completed"
         )
 
         # set the next state in the chain (when this state is successful)
@@ -91,7 +90,8 @@ class TestFwUpdateImportingFirmwareStage(TestFwUpdateState):
         # first query is system controller
         # second query is subcloud
         self.sysinv_client.get_device_images.side_effect = [
-            self.empty_fake_device_image_list, self.fake_device_image_list
+            self.empty_fake_device_image_list,
+            self.fake_device_image_list,
         ]
 
         # invoke the strategy state operation on the orch thread
@@ -107,9 +107,7 @@ class TestFwUpdateImportingFirmwareStage(TestFwUpdateState):
         self.sysinv_client.apply_device_image.assert_not_called()
 
         # Successful promotion to next state
-        self.assert_step_updated(
-            self.strategy_step.subcloud_id, self.on_success_state
-        )
+        self.assert_step_updated(self.strategy_step.subcloud_id, self.on_success_state)
 
     @mock.patch("os.path.isfile", return_value=True)
     def test_importing_firmware_empty_subcloud(self, _):
@@ -118,7 +116,8 @@ class TestFwUpdateImportingFirmwareStage(TestFwUpdateState):
         # first query is system controller
         # second query is subcloud
         self.sysinv_client.get_device_images.side_effect = [
-            self.fake_device_image_list, self.empty_fake_device_image_list
+            self.fake_device_image_list,
+            self.empty_fake_device_image_list,
         ]
 
         # invoke the strategy state operation on the orch thread
@@ -136,9 +135,7 @@ class TestFwUpdateImportingFirmwareStage(TestFwUpdateState):
         self.assertEqual(1, self.sysinv_client.apply_device_image.call_count)
 
         # Successful promotion to next state
-        self.assert_step_updated(
-            self.strategy_step.subcloud_id, self.on_success_state
-        )
+        self.assert_step_updated(self.strategy_step.subcloud_id, self.on_success_state)
 
     def test_importing_firmware_skips(self):
         """Test importing firmware skips when subcloud matches controller."""
@@ -147,7 +144,8 @@ class TestFwUpdateImportingFirmwareStage(TestFwUpdateState):
         # second query is subcloud
         # Both are the same
         self.sysinv_client.get_device_images.side_effect = [
-            self.fake_device_image_list, self.fake_device_image_list
+            self.fake_device_image_list,
+            self.fake_device_image_list,
         ]
 
         # invoke the strategy state operation on the orch thread
@@ -158,9 +156,7 @@ class TestFwUpdateImportingFirmwareStage(TestFwUpdateState):
         self.sysinv_client.upload_device_image.assert_not_called()
 
         # On success, should have moved to the next state
-        self.assert_step_updated(
-            self.strategy_step.subcloud_id, self.on_success_state
-        )
+        self.assert_step_updated(self.strategy_step.subcloud_id, self.on_success_state)
 
     def test_importing_firmware_succeeds_without_enabled_host_device_list(self):
         """Test importing firmware succeeds without enabled host device list"""
@@ -170,7 +166,8 @@ class TestFwUpdateImportingFirmwareStage(TestFwUpdateState):
         ]
 
         self.sysinv_client.get_device_images.side_effect = [
-            self.empty_fake_device_image_list, self.fake_device_image_list
+            self.empty_fake_device_image_list,
+            self.fake_device_image_list,
         ]
 
         self.worker.perform_state_action(self.strategy_step)
@@ -179,11 +176,9 @@ class TestFwUpdateImportingFirmwareStage(TestFwUpdateState):
         self.sysinv_client.upload_device_image.assert_not_called()
         self.sysinv_client.apply_device_image.assert_not_called()
 
-        self.assert_step_updated(
-            self.strategy_step.subcloud_id, self.on_success_state
-        )
+        self.assert_step_updated(self.strategy_step.subcloud_id, self.on_success_state)
 
-    @mock.patch('os.path.isfile', return_value=False)
+    @mock.patch("os.path.isfile", return_value=False)
     def test_importing_firmware_fails_when_image_file_is_missing(self, _):
         """Test importing firmware fails when image file is missing
 
@@ -191,7 +186,8 @@ class TestFwUpdateImportingFirmwareStage(TestFwUpdateState):
         """
 
         self.sysinv_client.get_device_images.side_effect = [
-            self.fake_device_image_list, self.empty_fake_device_image_list
+            self.fake_device_image_list,
+            self.empty_fake_device_image_list,
         ]
 
         self.worker.perform_state_action(self.strategy_step)
@@ -204,12 +200,13 @@ class TestFwUpdateImportingFirmwareStage(TestFwUpdateState):
             self.strategy_step.subcloud_id, consts.STRATEGY_STATE_FAILED
         )
 
-    @mock.patch('os.path.isfile', return_value=True)
+    @mock.patch("os.path.isfile", return_value=True)
     def test_importing_firmware_succeeds_with_device_image_state_completed(self, _):
         """Test importing firmware success with a device image state completed"""
 
         self.sysinv_client.get_device_images.side_effect = [
-            self.fake_device_image_list, self.empty_fake_device_image_list
+            self.fake_device_image_list,
+            self.empty_fake_device_image_list,
         ]
 
         self.sysinv_client.get_device_image_states.return_value = [
@@ -222,19 +219,18 @@ class TestFwUpdateImportingFirmwareStage(TestFwUpdateState):
         self.sysinv_client.apply_device_image.assert_not_called()
         self.sysinv_client.upload_device_image.assert_called_once()
 
-        self.assert_step_updated(
-            self.strategy_step.subcloud_id, self.on_success_state
-        )
+        self.assert_step_updated(self.strategy_step.subcloud_id, self.on_success_state)
 
-    @mock.patch('os.path.isfile', return_value=True)
+    @mock.patch("os.path.isfile", return_value=True)
     def test_importing_firmware_succeeds_with_device_image_state_pending(self, _):
         """Test importing firmware success with a device image state pending"""
 
         self.sysinv_client.get_device_images.side_effect = [
-            self.fake_device_image_list, self.empty_fake_device_image_list
+            self.fake_device_image_list,
+            self.empty_fake_device_image_list,
         ]
 
-        self.fake_device_image.status = 'pending'
+        self.fake_device_image.status = "pending"
 
         self.sysinv_client.get_device_image_states.return_value = [
             self.fake_device_image
@@ -246,16 +242,14 @@ class TestFwUpdateImportingFirmwareStage(TestFwUpdateState):
         self.sysinv_client.apply_device_image.assert_not_called()
         self.sysinv_client.upload_device_image.assert_called_once()
 
-        self.assert_step_updated(
-            self.strategy_step.subcloud_id, self.on_success_state
-        )
+        self.assert_step_updated(self.strategy_step.subcloud_id, self.on_success_state)
 
-    @mock.patch('os.path.isfile', return_value=True)
+    @mock.patch("os.path.isfile", return_value=True)
     def test_importing_firmware_succeeds_with_applied_subcloud_images(self, _):
         """Test importing firmware success with applied subcloudimages"""
 
         fake_device_image_with_label = self._create_fake_device_image(
-            VENDOR_1, VENDOR_DEVICE_1, True, [{'fake label': 'fake value'}]
+            VENDOR_1, VENDOR_DEVICE_1, True, [{"fake label": "fake value"}]
         )
 
         self.fake_device_image_list.append(fake_device_image_with_label)
@@ -269,19 +263,17 @@ class TestFwUpdateImportingFirmwareStage(TestFwUpdateState):
 
         self.assertEqual(
             self.sysinv_client.remove_device_image.call_count,
-            len(self.fake_device_image_list,)
+            len(
+                self.fake_device_image_list,
+            ),
         )
         self.sysinv_client.apply_device_image.assert_not_called()
         self.sysinv_client.upload_device_image.assert_not_called()
 
-        self.assert_step_updated(
-            self.strategy_step.subcloud_id, self.on_success_state
-        )
+        self.assert_step_updated(self.strategy_step.subcloud_id, self.on_success_state)
 
-    @mock.patch('os.path.isfile', return_value=True)
-    def test_importing_firmware_succeeds_without_subcloud_device_image_states(
-        self, _
-    ):
+    @mock.patch("os.path.isfile", return_value=True)
+    def test_importing_firmware_succeeds_without_subcloud_device_image_states(self, _):
         """Test importing firmware success without subcloud device image states
 
         In this scenario, a device image with applied_labels should have them
@@ -289,12 +281,12 @@ class TestFwUpdateImportingFirmwareStage(TestFwUpdateState):
         """
 
         fake_device_image_with_label = self._create_fake_device_image(
-            VENDOR_1, VENDOR_DEVICE_1, True, [{'fake key': 'fake label'}]
+            VENDOR_1, VENDOR_DEVICE_1, True, [{"fake key": "fake label"}]
         )
 
         self.sysinv_client.get_device_images.side_effect = [
             [fake_device_image_with_label],
-            self.empty_fake_device_image_list
+            self.empty_fake_device_image_list,
         ]
 
         self.worker.perform_state_action(self.strategy_step)
@@ -303,9 +295,7 @@ class TestFwUpdateImportingFirmwareStage(TestFwUpdateState):
         self.sysinv_client.apply_device_image.assert_called_once()
         self.sysinv_client.upload_device_image.assert_called_once()
 
-        self.assert_step_updated(
-            self.strategy_step.subcloud_id, self.on_success_state
-        )
+        self.assert_step_updated(self.strategy_step.subcloud_id, self.on_success_state)
 
     def test_importing_firmware_succeeds_with_device_image_without_label(self):
         """Test importing firmware succeeds with device image without label
@@ -324,7 +314,7 @@ class TestFwUpdateImportingFirmwareStage(TestFwUpdateState):
 
         self.sysinv_client.get_device_images.side_effect = [
             [fake_device_image_with_label],
-            self.empty_fake_device_image_list
+            self.empty_fake_device_image_list,
         ]
 
         self.worker.perform_state_action(self.strategy_step)
@@ -333,9 +323,7 @@ class TestFwUpdateImportingFirmwareStage(TestFwUpdateState):
         self.sysinv_client.upload_device_image.assert_not_called()
         self.sysinv_client.apply_device_image.assert_not_called()
 
-        self.assert_step_updated(
-            self.strategy_step.subcloud_id, self.on_success_state
-        )
+        self.assert_step_updated(self.strategy_step.subcloud_id, self.on_success_state)
 
     def test_importing_firmware_succeeds_with_device_inelegible(self):
         """Test importing firmware succeeds with device image inalegible
@@ -345,12 +333,12 @@ class TestFwUpdateImportingFirmwareStage(TestFwUpdateState):
         """
 
         fake_device_image_with_label = self._create_fake_device_image(
-            VENDOR_1, VENDOR_DEVICE_1, True, [{'fake label': 'fake value'}]
+            VENDOR_1, VENDOR_DEVICE_1, True, [{"fake label": "fake value"}]
         )
 
         self.sysinv_client.get_device_images.side_effect = [
             [fake_device_image_with_label],
-            self.empty_fake_device_image_list
+            self.empty_fake_device_image_list,
         ]
 
         self.worker.perform_state_action(self.strategy_step)
@@ -359,9 +347,7 @@ class TestFwUpdateImportingFirmwareStage(TestFwUpdateState):
         self.sysinv_client.upload_device_image.assert_not_called()
         self.sysinv_client.apply_device_image.assert_not_called()
 
-        self.assert_step_updated(
-            self.strategy_step.subcloud_id, self.on_success_state
-        )
+        self.assert_step_updated(self.strategy_step.subcloud_id, self.on_success_state)
 
     def test_importing_firmware_succeeds_with_device_not_applied(self):
         """Test importing firmware succeeds with device not applied"""
@@ -371,7 +357,7 @@ class TestFwUpdateImportingFirmwareStage(TestFwUpdateState):
         )
         self.sysinv_client.get_device_images.side_effect = [
             [fake_device_image_with_label],
-            self.empty_fake_device_image_list
+            self.empty_fake_device_image_list,
         ]
 
         self.worker.perform_state_action(self.strategy_step)
@@ -380,6 +366,4 @@ class TestFwUpdateImportingFirmwareStage(TestFwUpdateState):
         self.sysinv_client.upload_device_image.assert_not_called()
         self.sysinv_client.apply_device_image.assert_not_called()
 
-        self.assert_step_updated(
-            self.strategy_step.subcloud_id, self.on_success_state
-        )
+        self.assert_step_updated(self.strategy_step.subcloud_id, self.on_success_state)

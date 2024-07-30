@@ -81,8 +81,10 @@ class StrategyRequirementsMixin(object):
         """Test validate_strategy_requirements succeeds with endpoint out of sync"""
 
         db_api.subcloud_status_update(
-            self.ctx, self.subcloud.id, self._get_validator().endpoint_type,
-            dccommon_consts.SYNC_STATUS_OUT_OF_SYNC
+            self.ctx,
+            self.subcloud.id,
+            self._get_validator().endpoint_type,
+            dccommon_consts.SYNC_STATUS_OUT_OF_SYNC,
         )
 
         self._get_validator().validate_strategy_requirements(
@@ -97,14 +99,19 @@ class StrategyRequirementsMixin(object):
         """Test validate_strategy_requirements fails with endpoint in sync"""
 
         db_api.subcloud_status_update(
-            self.ctx, self.subcloud.id, self._get_validator().endpoint_type,
-            dccommon_consts.SYNC_STATUS_IN_SYNC
+            self.ctx,
+            self.subcloud.id,
+            self._get_validator().endpoint_type,
+            dccommon_consts.SYNC_STATUS_IN_SYNC,
         )
 
         self.assertRaises(
             exceptions.BadRequest,
             self._get_validator().validate_strategy_requirements,
-            self.ctx, self.subcloud.id, self.subcloud.name, False
+            self.ctx,
+            self.subcloud.id,
+            self.subcloud.name,
+            False,
         )
 
         self._get_mock_db_api().assert_called_with(

@@ -34,9 +34,7 @@ class TestUtils(base.DCManagerTestCase):
             "admin_subnet": "192.168.205.0/24",
             "management_subnet": "192.168.204.0/24",
         }
-        self.assertEqual(
-            utils.get_management_subnet(payload), payload["admin_subnet"]
-        )
+        self.assertEqual(utils.get_management_subnet(payload), payload["admin_subnet"])
 
     def test_get_management_start_address(self):
         payload = {"management_start_address": "192.168.204.2"}

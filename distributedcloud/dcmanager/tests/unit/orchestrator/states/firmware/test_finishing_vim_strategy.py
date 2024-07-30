@@ -4,7 +4,6 @@
 # SPDX-License-Identifier: Apache-2.0
 #
 
-
 import mock
 
 from dccommon.drivers.openstack import vim
@@ -12,17 +11,24 @@ from dcmanager.common import consts
 from dcmanager.orchestrator.states.base import BaseState
 from dcmanager.orchestrator.states.firmware import finishing_fw_update
 from dcmanager.tests.unit.orchestrator.states.fakes import FakeController
-from dcmanager.tests.unit.orchestrator.states.firmware.test_base \
-    import TestFwUpdateState
+from dcmanager.tests.unit.orchestrator.states.firmware.test_base import (
+    TestFwUpdateState,
+)
 
-VENDOR_ID = '1'
-DEVICE_ID = '2'
+VENDOR_ID = "1"
+DEVICE_ID = "2"
 
 
-@mock.patch("dcmanager.orchestrator.states.firmware."
-            "finishing_fw_update.DEFAULT_MAX_FAILED_QUERIES", 3)
-@mock.patch("dcmanager.orchestrator.states.firmware."
-            "finishing_fw_update.DEFAULT_FAILED_SLEEP", 1)
+@mock.patch(
+    "dcmanager.orchestrator.states.firmware."
+    "finishing_fw_update.DEFAULT_MAX_FAILED_QUERIES",
+    3,
+)
+@mock.patch(
+    "dcmanager.orchestrator.states.firmware."
+    "finishing_fw_update.DEFAULT_FAILED_SLEEP",
+    1,
+)
 class TestFwUpdateFinishingFwUpdateStage(TestFwUpdateState):
 
     def setUp(self):
@@ -59,9 +65,7 @@ class TestFwUpdateFinishingFwUpdateStage(TestFwUpdateState):
         )
 
         self.fake_device_image_state = self._create_fake_device_image_state(
-            self.fake_device.uuid,
-            self.fake_device_image.uuid,
-            'completed'
+            self.fake_device.uuid, self.fake_device_image.uuid, "completed"
         )
 
     def test_finishing_vim_strategy_success(self):
@@ -73,16 +77,15 @@ class TestFwUpdateFinishingFwUpdateStage(TestFwUpdateState):
         # this tests successful steps of:
         # - vim strategy exists on subcloud and can be deleted
         # - no device image states on the subcloud are 'failed'
-        self.vim_client.get_strategy.return_value = \
-            self._create_fake_strategy(vim.STATE_APPLIED)
+        self.vim_client.get_strategy.return_value = self._create_fake_strategy(
+            vim.STATE_APPLIED
+        )
 
         # invoke the strategy state operation on the orch thread
         self.worker.perform_state_action(self.strategy_step)
 
         # Successful promotion to next state
-        self.assert_step_updated(
-            self.strategy_step.subcloud_id, self.on_success_state
-        )
+        self.assert_step_updated(self.strategy_step.subcloud_id, self.on_success_state)
 
     def test_finishing_vim_strategy_success_no_strategy(self):
         """Test finishing the firmware update.
@@ -102,16 +105,13 @@ class TestFwUpdateFinishingFwUpdateStage(TestFwUpdateState):
         self.vim_client.delete_strategy.assert_not_called()
 
         # Successful promotion to next state
-        self.assert_step_updated(
-            self.strategy_step.subcloud_id, self.on_success_state
-        )
+        self.assert_step_updated(self.strategy_step.subcloud_id, self.on_success_state)
 
     def test_finishing_vim_strategy_failure_get_hosts(self):
         """Test finishing firmware update with communication error to subcloud"""
 
         # mock the get_host query fails and raises an exception
-        self.sysinv_client.get_hosts.side_effect = \
-            Exception("HTTP CommunicationError")
+        self.sysinv_client.get_hosts.side_effect = Exception("HTTP CommunicationError")
 
         # invoke the strategy state operation on the orch thread
         self.worker.perform_state_action(self.strategy_step)
@@ -120,17 +120,20 @@ class TestFwUpdateFinishingFwUpdateStage(TestFwUpdateState):
         self.sysinv_client.get_hosts.assert_called()
 
         # verified the query was tried max retries + 1
-        self.assertEqual(finishing_fw_update.DEFAULT_MAX_FAILED_QUERIES + 1,
-                         self.sysinv_client.get_hosts.call_count)
+        self.assertEqual(
+            finishing_fw_update.DEFAULT_MAX_FAILED_QUERIES + 1,
+            self.sysinv_client.get_hosts.call_count,
+        )
 
         # verify the subsequent sysinv command was never attempted
         self.sysinv_client.get_host_device_list.assert_not_called()
 
         # verify that the state moves to the next state
-        self.assert_step_updated(self.strategy_step.subcloud_id,
-                                 consts.STRATEGY_STATE_FAILED)
+        self.assert_step_updated(
+            self.strategy_step.subcloud_id, consts.STRATEGY_STATE_FAILED
+        )
 
-    @mock.patch.object(BaseState, 'stopped', return_value=True)
+    @mock.patch.object(BaseState, "stopped", return_value=True)
     def test_finishing_fw_update_fails_when_strategy_stops(self, _):
         """Test finishing fw update fails when strategy stops before acquiring
 
@@ -160,9 +163,7 @@ class TestFwUpdateFinishingFwUpdateStage(TestFwUpdateState):
         self.sysinv_client.get_device_images.assert_called_once()
         self.sysinv_client.get_device_image_states.assert_called_once()
 
-        self.assert_step_updated(
-            self.strategy_step.subcloud_id, self.on_success_state
-        )
+        self.assert_step_updated(self.strategy_step.subcloud_id, self.on_success_state)
 
     def test_finishing_fw_update_succeeds_with_host_device_disabled(self):
         """Test finishing fw update succeeds with a device disabled"""
@@ -178,11 +179,9 @@ class TestFwUpdateFinishingFwUpdateStage(TestFwUpdateState):
         self.sysinv_client.get_device_images.assert_not_called()
         self.sysinv_client.get_device_image_states.assert_not_called()
 
-        self.assert_step_updated(
-            self.strategy_step.subcloud_id, self.on_success_state
-        )
+        self.assert_step_updated(self.strategy_step.subcloud_id, self.on_success_state)
 
-    @mock.patch.object(BaseState, 'stopped')
+    @mock.patch.object(BaseState, "stopped")
     def test_finishing_fw_update_fails_when_strategy_stops_with_enabled_host_device(
         self, mock_base_state
     ):
@@ -224,13 +223,13 @@ class TestFwUpdateFinishingFwUpdateStage(TestFwUpdateState):
         self.sysinv_client.get_host_device_list.assert_called_once()
         self.assertEqual(
             self.sysinv_client.get_device_images.call_count,
-            finishing_fw_update.DEFAULT_MAX_FAILED_QUERIES + 1
+            finishing_fw_update.DEFAULT_MAX_FAILED_QUERIES + 1,
         )
         # TODO(rlima): update the code to fix the error where the call_count is
         # always greater than the DEFAULT_MAX_FAILED_QUERIES
         self.assertEqual(
             self.sysinv_client.get_device_image_states.call_count,
-            finishing_fw_update.DEFAULT_MAX_FAILED_QUERIES + 1
+            finishing_fw_update.DEFAULT_MAX_FAILED_QUERIES + 1,
         )
 
         self.assert_step_updated(
@@ -247,16 +246,14 @@ class TestFwUpdateFinishingFwUpdateStage(TestFwUpdateState):
         - The third has the same status but rs device is None
         """
 
-        self.fake_device_image_state.status = 'pending'
+        self.fake_device_image_state.status = "pending"
 
-        fake_device_image_state_with_image_none = \
-            self._create_fake_device_image_state(
-                self.fake_device.uuid, None, 'pending'
-            )
-        fake_device_image_state_with_device_none = \
-            self._create_fake_device_image_state(
-                None, self.fake_device_image.uuid, 'pending'
-            )
+        fake_device_image_state_with_image_none = self._create_fake_device_image_state(
+            self.fake_device.uuid, None, "pending"
+        )
+        fake_device_image_state_with_device_none = self._create_fake_device_image_state(
+            None, self.fake_device_image.uuid, "pending"
+        )
 
         self.sysinv_client.get_hosts.return_value = [self.fake_host]
         self.sysinv_client.get_host_device_list.return_value = [self.fake_device]
@@ -264,7 +261,7 @@ class TestFwUpdateFinishingFwUpdateStage(TestFwUpdateState):
         self.sysinv_client.get_device_image_states.return_value = [
             self.fake_device_image_state,
             fake_device_image_state_with_image_none,
-            fake_device_image_state_with_device_none
+            fake_device_image_state_with_device_none,
         ]
 
         self.worker.perform_state_action(self.strategy_step)

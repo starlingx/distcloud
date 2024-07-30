@@ -6,15 +6,16 @@
 
 import mock
 
-from dcmanager.common.consts import \
-    STRATEGY_STATE_CREATING_VIM_KUBE_ROOTCA_UPDATE_STRATEGY
+from dcmanager.common.consts import (
+    STRATEGY_STATE_CREATING_VIM_KUBE_ROOTCA_UPDATE_STRATEGY,
+)
 from dcmanager.common.consts import STRATEGY_STATE_FAILED
-from dcmanager.common.consts import \
-    STRATEGY_STATE_KUBE_ROOTCA_UPDATE_UPLOAD_CERT
+from dcmanager.common.consts import STRATEGY_STATE_KUBE_ROOTCA_UPDATE_UPLOAD_CERT
 from dcmanager.db import api as db_api
 from dcmanager.tests.unit.common import fake_strategy
-from dcmanager.tests.unit.orchestrator.states.kube_rootca.test_base \
-    import TestKubeRootCaUpgradeState
+from dcmanager.tests.unit.orchestrator.states.kube_rootca.test_base import (
+    TestKubeRootCaUpgradeState,
+)
 
 # Only the 'error' field is checked on upload_cert
 ERROR_UPLOADING_CERT = {"error": "File not found"}
@@ -38,9 +39,7 @@ class TestUploadCertStage(TestKubeRootCaUpgradeState):
         self.sysinv_client.kube_rootca_update_upload_cert = mock.MagicMock()
 
         # Mock the strategy with a reference to a cert-file in extra_args
-        extra_args = {
-            "cert-file": FAKE_CERT_FILE
-        }
+        extra_args = {"cert-file": FAKE_CERT_FILE}
         self.strategy = fake_strategy.create_fake_strategy(
             self.ctx, self.DEFAULT_STRATEGY_TYPE, extra_args=extra_args
         )
@@ -51,11 +50,12 @@ class TestUploadCertStage(TestKubeRootCaUpgradeState):
         The state should fail
         """
 
-        self.sysinv_client.kube_rootca_update_upload_cert.return_value = \
+        self.sysinv_client.kube_rootca_update_upload_cert.return_value = (
             ERROR_UPLOADING_CERT
+        )
 
-        mock_open = mock.mock_open(read_data='test')
-        with mock.patch('builtins.open', mock_open):
+        mock_open = mock.mock_open(read_data="test")
+        with mock.patch("builtins.open", mock_open):
             # invoke the strategy state operation on the orch thread
             self.worker.perform_state_action(self.strategy_step)
 
@@ -63,9 +63,7 @@ class TestUploadCertStage(TestKubeRootCaUpgradeState):
         self.sysinv_client.kube_rootca_update_upload_cert.assert_called()
 
         # Verify the strategy failed
-        self.assert_step_updated(
-            self.strategy_step.subcloud_id, STRATEGY_STATE_FAILED
-        )
+        self.assert_step_updated(self.strategy_step.subcloud_id, STRATEGY_STATE_FAILED)
 
     def test_upload_cert_pass(self):
         """Test upload cert passes the sysinv operation
@@ -73,11 +71,12 @@ class TestUploadCertStage(TestKubeRootCaUpgradeState):
         The state should transition to the vim creation state
         """
 
-        self.sysinv_client.kube_rootca_update_upload_cert.return_value = \
+        self.sysinv_client.kube_rootca_update_upload_cert.return_value = (
             SUCCESS_UPLOADING_CERT
+        )
 
-        mock_open = mock.mock_open(read_data='test')
-        with mock.patch('builtins.open', mock_open):
+        mock_open = mock.mock_open(read_data="test")
+        with mock.patch("builtins.open", mock_open):
             # invoke the strategy state operation on the orch thread
             self.worker.perform_state_action(self.strategy_step)
 
@@ -87,7 +86,7 @@ class TestUploadCertStage(TestKubeRootCaUpgradeState):
         # Verify the expected next state happened
         self.assert_step_updated(
             self.strategy_step.subcloud_id,
-            STRATEGY_STATE_CREATING_VIM_KUBE_ROOTCA_UPDATE_STRATEGY
+            STRATEGY_STATE_CREATING_VIM_KUBE_ROOTCA_UPDATE_STRATEGY,
         )
 
     def test_upload_cert_pass_without_extra_args(self):
@@ -101,8 +100,9 @@ class TestUploadCertStage(TestKubeRootCaUpgradeState):
             self.ctx, self.DEFAULT_STRATEGY_TYPE
         )
 
-        self.sysinv_client.kube_rootca_update_upload_cert.return_value = \
+        self.sysinv_client.kube_rootca_update_upload_cert.return_value = (
             SUCCESS_UPLOADING_CERT
+        )
 
         self.worker.perform_state_action(self.strategy_step)
 
@@ -110,5 +110,5 @@ class TestUploadCertStage(TestKubeRootCaUpgradeState):
 
         self.assert_step_updated(
             self.strategy_step.subcloud_id,
-            STRATEGY_STATE_CREATING_VIM_KUBE_ROOTCA_UPDATE_STRATEGY
+            STRATEGY_STATE_CREATING_VIM_KUBE_ROOTCA_UPDATE_STRATEGY,
         )

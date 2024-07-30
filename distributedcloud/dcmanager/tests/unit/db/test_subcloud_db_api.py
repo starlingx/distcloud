@@ -43,20 +43,20 @@ class DBAPISubcloudTest(base.DCManagerTestCase):
     @staticmethod
     def create_subcloud_static(ctxt, **kwargs):
         values = {
-            'name': "subcloud1",
-            'description': "This is a subcloud",
-            'location': "This is the location of the subcloud",
-            'software_version': "10.04",
-            'management_subnet': "192.168.101.0/24",
-            'management_gateway_ip': "192.168.101.1",
-            'management_start_ip': "192.168.101.2",
-            'management_end_ip': "192.168.101.50",
-            'systemcontroller_gateway_ip': "192.168.204.101",
-            'deploy_status': "not-deployed",
-            'error_description': 'No errors present',
-            'region_name': base.SUBCLOUD_1['region_name'],
-            'openstack_installed': False,
-            'group_id': 1,
+            "name": "subcloud1",
+            "description": "This is a subcloud",
+            "location": "This is the location of the subcloud",
+            "software_version": "10.04",
+            "management_subnet": "192.168.101.0/24",
+            "management_gateway_ip": "192.168.101.1",
+            "management_start_ip": "192.168.101.2",
+            "management_end_ip": "192.168.101.50",
+            "systemcontroller_gateway_ip": "192.168.204.101",
+            "deploy_status": "not-deployed",
+            "error_description": "No errors present",
+            "region_name": base.SUBCLOUD_1["region_name"],
+            "openstack_installed": False,
+            "group_id": 1,
         }
         values.update(kwargs)
         return db_api.subcloud_create(ctxt, **values)
@@ -64,21 +64,20 @@ class DBAPISubcloudTest(base.DCManagerTestCase):
     @staticmethod
     def create_subcloud(ctxt, data):
         values = {
-            'name': data['name'],
-            'description': data['description'],
-            'location': data['location'],
-            'software_version': data['software-version'],
-            'management_subnet': data['management_subnet'],
-            'management_gateway_ip': data['management_gateway_address'],
-            'management_start_ip': data['management_start_address'],
-            'management_end_ip': data['management_end_address'],
-            'systemcontroller_gateway_ip': data[
-                'systemcontroller_gateway_address'],
-            'deploy_status': "not-deployed",
-            'error_description': 'No errors present',
-            'region_name': data['region_name'],
-            'openstack_installed': False,
-            'group_id': 1,
+            "name": data["name"],
+            "description": data["description"],
+            "location": data["location"],
+            "software_version": data["software-version"],
+            "management_subnet": data["management_subnet"],
+            "management_gateway_ip": data["management_gateway_address"],
+            "management_start_ip": data["management_start_address"],
+            "management_end_ip": data["management_end_address"],
+            "systemcontroller_gateway_ip": data["systemcontroller_gateway_address"],
+            "deploy_status": "not-deployed",
+            "error_description": "No errors present",
+            "region_name": data["region_name"],
+            "openstack_installed": False,
+            "group_id": 1,
         }
         return db_api.subcloud_create(ctxt, **values)
 
@@ -143,29 +142,33 @@ class DBAPISubcloudTest(base.DCManagerTestCase):
         )
 
     def test_create_multiple_subclouds(self):
-        name1 = 'testname1'
-        region1 = base.SUBCLOUD_1['region_name']
-        name2 = 'testname2'
-        region2 = base.SUBCLOUD_2['region_name']
-        name3 = 'testname3'
-        region3 = base.SUBCLOUD_3['region_name']
-        subcloud = self.create_subcloud_static(self.ctx,
-                                               name=name1,
-                                               region_name=region1)
+        name1 = "testname1"
+        region1 = base.SUBCLOUD_1["region_name"]
+        name2 = "testname2"
+        region2 = base.SUBCLOUD_2["region_name"]
+        name3 = "testname3"
+        region3 = base.SUBCLOUD_3["region_name"]
+        subcloud = self.create_subcloud_static(
+            self.ctx, name=name1, region_name=region1
+        )
         self.assertIsNotNone(subcloud)
 
-        subcloud2 = self.create_subcloud_static(self.ctx,
-                                                name=name2,
-                                                region_name=region2,
-                                                management_start_ip="2.3.4.6",
-                                                management_end_ip="2.3.4.7")
+        subcloud2 = self.create_subcloud_static(
+            self.ctx,
+            name=name2,
+            region_name=region2,
+            management_start_ip="2.3.4.6",
+            management_end_ip="2.3.4.7",
+        )
         self.assertIsNotNone(subcloud2)
 
-        subcloud3 = self.create_subcloud_static(self.ctx,
-                                                name=name3,
-                                                region_name=region3,
-                                                management_start_ip="3.3.4.6",
-                                                management_end_ip="3.3.4.7")
+        subcloud3 = self.create_subcloud_static(
+            self.ctx,
+            name=name3,
+            region_name=region3,
+            management_start_ip="3.3.4.6",
+            management_end_ip="3.3.4.7",
+        )
         self.assertIsNotNone(subcloud3)
 
         new_subclouds = db_api.subcloud_get_all(self.ctx)
@@ -183,13 +186,13 @@ class DBAPISubcloudTest(base.DCManagerTestCase):
         subcloud = self.create_subcloud(self.ctx, fake_subcloud)
         self.assertIsNotNone(subcloud)
 
-        management_state = 'testmanagementstate'
-        availability_status = 'testavailabilitystatus'
-        software_version = 'testversion'
-        admin_subnet = '192.168.102.0/24'
-        admin_start_ip = '192.168.102.5'
-        admin_end_ip = '192.168.102.49'
-        admin_gateway_ip = '192.168.102.1'
+        management_state = "testmanagementstate"
+        availability_status = "testavailabilitystatus"
+        software_version = "testversion"
+        admin_subnet = "192.168.102.0/24"
+        admin_start_ip = "192.168.102.5"
+        admin_end_ip = "192.168.102.49"
+        admin_gateway_ip = "192.168.102.1"
         rehomed = True
         updated = db_api.subcloud_update(
             self.ctx,
@@ -201,7 +204,8 @@ class DBAPISubcloudTest(base.DCManagerTestCase):
             management_start_ip=admin_start_ip,
             management_end_ip=admin_end_ip,
             management_gateway_ip=admin_gateway_ip,
-            rehomed=rehomed)
+            rehomed=rehomed,
+        )
         self.assertIsNotNone(updated)
         self.assertEqual(management_state, updated.management_state)
         self.assertEqual(availability_status, updated.availability_status)
@@ -213,22 +217,14 @@ class DBAPISubcloudTest(base.DCManagerTestCase):
         self.assertEqual(rehomed, updated.rehomed)
 
         updated_subcloud = db_api.subcloud_get(self.ctx, subcloud.id)
-        self.assertEqual(management_state,
-                         updated_subcloud.management_state)
-        self.assertEqual(availability_status,
-                         updated_subcloud.availability_status)
-        self.assertEqual(software_version,
-                         updated_subcloud.software_version)
-        self.assertEqual(admin_subnet,
-                         updated_subcloud.management_subnet)
-        self.assertEqual(admin_start_ip,
-                         updated_subcloud.management_start_ip)
-        self.assertEqual(admin_end_ip,
-                         updated_subcloud.management_end_ip)
-        self.assertEqual(admin_gateway_ip,
-                         updated_subcloud.management_gateway_ip)
-        self.assertEqual(rehomed,
-                         updated_subcloud.rehomed)
+        self.assertEqual(management_state, updated_subcloud.management_state)
+        self.assertEqual(availability_status, updated_subcloud.availability_status)
+        self.assertEqual(software_version, updated_subcloud.software_version)
+        self.assertEqual(admin_subnet, updated_subcloud.management_subnet)
+        self.assertEqual(admin_start_ip, updated_subcloud.management_start_ip)
+        self.assertEqual(admin_end_ip, updated_subcloud.management_end_ip)
+        self.assertEqual(admin_gateway_ip, updated_subcloud.management_gateway_ip)
+        self.assertEqual(rehomed, updated_subcloud.rehomed)
 
     def test_delete_subcloud(self):
         fake_subcloud = utils.create_subcloud_dict(base.SUBCLOUD_SAMPLE_DATA_0)
@@ -313,9 +309,7 @@ class DBAPISubcloudTest(base.DCManagerTestCase):
 
         new_subcloud_statuses = db_api.subcloud_status_get_all(self.ctx, subcloud.id)
         self.assertIsNotNone(new_subcloud_statuses)
-        self.assertEqual(
-            num_default_subcloud_statuses + 3, len(new_subcloud_statuses)
-        )
+        self.assertEqual(num_default_subcloud_statuses + 3, len(new_subcloud_statuses))
         self.assertEqual(
             endpoint_type1,
             new_subcloud_statuses[num_default_subcloud_statuses].endpoint_type,
@@ -521,13 +515,9 @@ class DBAPISubcloudTest(base.DCManagerTestCase):
         )
         self.assertIsNotNone(subcloud_status3)
 
-        new_subcloud_statuses = db_api.subcloud_status_get_all_by_name(
-            self.ctx, name
-        )
+        new_subcloud_statuses = db_api.subcloud_status_get_all_by_name(self.ctx, name)
         self.assertIsNotNone(new_subcloud_statuses)
-        self.assertEqual(
-            num_default_subcloud_statuses + 3, len(new_subcloud_statuses)
-        )
+        self.assertEqual(num_default_subcloud_statuses + 3, len(new_subcloud_statuses))
         self.assertEqual(
             endpoint_type1,
             new_subcloud_statuses[num_default_subcloud_statuses].endpoint_type,
@@ -589,9 +579,7 @@ class DBAPISubcloudTest(base.DCManagerTestCase):
         )
         self.assertEqual(42, new_sw_update_strategy.max_parallel_subclouds)
         self.assertEqual(False, new_sw_update_strategy.stop_on_failure)
-        self.assertEqual(
-            consts.SW_UPDATE_STATE_APPLYING, new_sw_update_strategy.state
-        )
+        self.assertEqual(consts.SW_UPDATE_STATE_APPLYING, new_sw_update_strategy.state)
 
     def test_create_sw_update_strategy_duplicate(self):
         sw_update_strategy = self.create_sw_update_strategy(self.ctx)
@@ -619,9 +607,7 @@ class DBAPISubcloudTest(base.DCManagerTestCase):
 
         db_api.sw_update_strategy_destroy(self.ctx)
 
-        self.assertRaises(
-            exceptions.NotFound, db_api.sw_update_strategy_get, self.ctx
-        )
+        self.assertRaises(exceptions.NotFound, db_api.sw_update_strategy_get, self.ctx)
 
     def test_create_strategy_step(self):
         name = "testname"

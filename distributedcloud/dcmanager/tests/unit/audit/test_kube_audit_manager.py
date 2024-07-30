@@ -22,16 +22,14 @@ from dcmanager.audit import subcloud_audit_manager
 from dcmanager.audit import subcloud_audit_worker_manager
 from dcmanager.tests import base
 
-PREVIOUS_KUBE_VERSION = 'v1.2.3'
-UPGRADED_KUBE_VERSION = 'v1.2.3-a'
+PREVIOUS_KUBE_VERSION = "v1.2.3"
+UPGRADED_KUBE_VERSION = "v1.2.3-a"
 
 
 class FakeKubeVersion(object):
-    def __init__(self,
-                 obj_id=1,
-                 version=UPGRADED_KUBE_VERSION,
-                 target=True,
-                 state='active'):
+    def __init__(
+        self, obj_id=1, version=UPGRADED_KUBE_VERSION, target=True, state="active"
+    ):
         self.id = obj_id
         self.uuid = str(uuid.uuid4())
         self.version = version
@@ -72,15 +70,18 @@ class TestKubernetesAudit(base.DCManagerTestCase):
         self.am.kubernetes_audit = self.audit
 
     def get_kube_audit_data(self):
-        (_, _, kubernetes_audit_data, _, _) = \
-            self.am._get_audit_data(True, True, True, True, True)
+        (_, _, kubernetes_audit_data, _, _) = self.am._get_audit_data(
+            True, True, True, True, True
+        )
         return kubernetes_audit_data
 
     def test_no_kubernetes_audit_data_to_sync(self):
         kubernetes_audit_data = self.get_kube_audit_data()
 
-        subclouds = {base.SUBCLOUD_1['name']: base.SUBCLOUD_1['region_name'],
-                     base.SUBCLOUD_2['name']: base.SUBCLOUD_2['region_name']}
+        subclouds = {
+            base.SUBCLOUD_1["name"]: base.SUBCLOUD_1["region_name"],
+            base.SUBCLOUD_2["name"]: base.SUBCLOUD_2["region_name"],
+        }
         for name, region in subclouds.items():
             response = self.audit.subcloud_kubernetes_audit(
                 self.mock_sysinv_client(), name, kubernetes_audit_data
@@ -96,8 +97,10 @@ class TestKubernetesAudit(base.DCManagerTestCase):
         ]
         kubernetes_audit_data = self.get_kube_audit_data()
 
-        subclouds = {base.SUBCLOUD_1['name']: base.SUBCLOUD_1['region_name'],
-                     base.SUBCLOUD_2['name']: base.SUBCLOUD_2['region_name']}
+        subclouds = {
+            base.SUBCLOUD_1["name"]: base.SUBCLOUD_1["region_name"],
+            base.SUBCLOUD_2["name"]: base.SUBCLOUD_2["region_name"],
+        }
         for name, region in subclouds.items():
             # return different kube versions in the subclouds
             self.kube_sysinv_client().get_kube_versions.return_value = [
@@ -117,8 +120,10 @@ class TestKubernetesAudit(base.DCManagerTestCase):
         ]
         kubernetes_audit_data = self.get_kube_audit_data()
 
-        subclouds = {base.SUBCLOUD_1['name']: base.SUBCLOUD_1['region_name'],
-                     base.SUBCLOUD_2['name']: base.SUBCLOUD_2['region_name']}
+        subclouds = {
+            base.SUBCLOUD_1["name"]: base.SUBCLOUD_1["region_name"],
+            base.SUBCLOUD_2["name"]: base.SUBCLOUD_2["region_name"],
+        }
         for name, region in subclouds.items():
             # return different kube versions in the subclouds
             self.kube_sysinv_client().get_kube_versions.return_value = [
@@ -141,8 +146,10 @@ class TestKubernetesAudit(base.DCManagerTestCase):
         ]
         kubernetes_audit_data = self.get_kube_audit_data()
 
-        subclouds = {base.SUBCLOUD_1['name']: base.SUBCLOUD_1['region_name'],
-                     base.SUBCLOUD_2['name']: base.SUBCLOUD_2['region_name']}
+        subclouds = {
+            base.SUBCLOUD_1["name"]: base.SUBCLOUD_1["region_name"],
+            base.SUBCLOUD_2["name"]: base.SUBCLOUD_2["region_name"],
+        }
         for name, region in subclouds.items():
             # return same kube versions in the subclouds
             self.kube_sysinv_client().get_kube_versions.return_value = [
@@ -159,17 +166,17 @@ class TestKubernetesAudit(base.DCManagerTestCase):
         # even if the kube versions match
 
         # mock that there is a kube upgrade (only queried in subclouds)
-        self.kube_sysinv_client().get_kube_upgrades.return_value = [
-            FakeKubeUpgrade()
-        ]
+        self.kube_sysinv_client().get_kube_upgrades.return_value = [FakeKubeUpgrade()]
         # Set the region one data as being the upgraded version
         self.kube_sysinv_client().get_kube_versions.return_value = [
             FakeKubeVersion(version=UPGRADED_KUBE_VERSION),
         ]
         kubernetes_audit_data = self.get_kube_audit_data()
 
-        subclouds = {base.SUBCLOUD_1['name']: base.SUBCLOUD_1['region_name'],
-                     base.SUBCLOUD_2['name']: base.SUBCLOUD_2['region_name']}
+        subclouds = {
+            base.SUBCLOUD_1["name"]: base.SUBCLOUD_1["region_name"],
+            base.SUBCLOUD_2["name"]: base.SUBCLOUD_2["region_name"],
+        }
         for name, region in subclouds.items():
             # return same kube versions in the subclouds
             self.kube_sysinv_client().get_kube_versions.return_value = [

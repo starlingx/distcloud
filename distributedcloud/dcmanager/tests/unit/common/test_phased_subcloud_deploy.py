@@ -44,50 +44,62 @@ class Subcloud(object):
         self.data_upgrade = ""
 
 
-@mock.patch.object(os, 'listdir')
+@mock.patch.object(os, "listdir")
 def test_check_deploy_files_in_alternate_location_with_all_file_exists(
-        self, mock_os_isdir, mock_os_listdir):
+    self, mock_os_isdir, mock_os_listdir
+):
     payload = {}
     mock_os_isdir.return_value = True
-    mock_os_listdir.return_value = ['deploy-chart-fake-deployment-manager.tgz',
-                                    'deploy-overrides-fake-overrides-subcloud.yaml',
-                                    'deploy-playbook-fake-deployment-manager.yaml']
+    mock_os_listdir.return_value = [
+        "deploy-chart-fake-deployment-manager.tgz",
+        "deploy-overrides-fake-overrides-subcloud.yaml",
+        "deploy-playbook-fake-deployment-manager.yaml",
+    ]
 
     response = self.check_deploy_files_in_alternate_location(payload)
     self.assertEqual(response, True)
 
 
 def test_check_deploy_files_in_alternate_location_with_deploy_chart_not_exists(
-        self, mock_os_isdir, mock_os_listdir):
+    self, mock_os_isdir, mock_os_listdir
+):
     payload = {}
     mock_os_isdir.return_value = True
-    mock_os_listdir.return_value = ['deploy-chart-fake.tgz',
-                                    'deploy-overrides-fake-overrides-subcloud.yaml',
-                                    'deploy-playbook-fake-deployment-manager.yaml']
+    mock_os_listdir.return_value = [
+        "deploy-chart-fake.tgz",
+        "deploy-overrides-fake-overrides-subcloud.yaml",
+        "deploy-playbook-fake-deployment-manager.yaml",
+    ]
 
     response = self.check_deploy_files_in_alternate_location(payload)
     self.assertEqual(response, False)
 
 
 def test_check_deploy_files_in_alternate_location_with_deploy_overrides_not_exists(
-        self, mock_os_isdir, mock_os_listdir):
+    self, mock_os_isdir, mock_os_listdir
+):
     payload = {}
     mock_os_isdir.return_value = True
-    mock_os_listdir.return_value = ['deploy-chart-fake-deployment-manager.tgz',
-                                    'deploy-overrides.yaml',
-                                    'deploy-playbook-fake-deployment-manager.yaml']
+    mock_os_listdir.return_value = [
+        "deploy-chart-fake-deployment-manager.tgz",
+        "deploy-overrides.yaml",
+        "deploy-playbook-fake-deployment-manager.yaml",
+    ]
 
     response = self.check_deploy_files_in_alternate_location(payload)
     self.assertEqual(response, False)
 
 
 def test_check_deploy_files_in_alternate_location_with_deploy_playbook_not_exists(
-        self, mock_os_isdir, mock_os_listdir):
+    self, mock_os_isdir, mock_os_listdir
+):
     payload = {}
     mock_os_isdir.return_value = True
-    mock_os_listdir.return_value = ['deploy-chart-fake-deployment-manager.tgz',
-                                    'deploy-overrides-fake-overrides-subcloud.yaml',
-                                    'deploy-playbook.yaml']
+    mock_os_listdir.return_value = [
+        "deploy-chart-fake-deployment-manager.tgz",
+        "deploy-overrides-fake-overrides-subcloud.yaml",
+        "deploy-playbook.yaml",
+    ]
 
     response = self.check_deploy_files_in_alternate_location(payload)
     self.assertEqual(response, False)
@@ -95,23 +107,19 @@ def test_check_deploy_files_in_alternate_location_with_deploy_playbook_not_exist
 
 def test_get_config_file_path(self):
     bootstrap_file = psd_common.get_config_file_path("subcloud1")
-    install_values = psd_common.get_config_file_path(
-        "subcloud1", "install_values"
-    )
-    deploy_config = psd_common.get_config_file_path(
-        "subcloud1", consts.DEPLOY_CONFIG
-    )
+    install_values = psd_common.get_config_file_path("subcloud1", "install_values")
+    deploy_config = psd_common.get_config_file_path("subcloud1", consts.DEPLOY_CONFIG)
 
     self.assertEqual(
         bootstrap_file, f"{dccommon_consts.ANSIBLE_OVERRIDES_PATH}/subcloud1.yml"
     )
     self.assertEqual(
         install_values,
-        f"{dccommon_consts.ANSIBLE_OVERRIDES_PATH}/subcloud1/install_values.yml"
+        f"{dccommon_consts.ANSIBLE_OVERRIDES_PATH}/subcloud1/install_values.yml",
     )
     self.assertEqual(
         deploy_config,
-        f"{dccommon_consts.ANSIBLE_OVERRIDES_PATH}/subcloud1_deploy_config.yml"
+        f"{dccommon_consts.ANSIBLE_OVERRIDES_PATH}/subcloud1_deploy_config.yml",
     )
 
 
@@ -132,24 +140,22 @@ def test_format_ip_address(self):
 
         fake_payload[consts.INSTALL_VALUES] = {}
         for k, v in good_values.items():
-            fake_payload[consts.INSTALL_VALUES]['bmc_address'] = k
+            fake_payload[consts.INSTALL_VALUES]["bmc_address"] = k
             psd_common.format_ip_address(fake_payload)
-            self.assertEqual(fake_payload[consts.INSTALL_VALUES]['bmc_address'], v)
+            self.assertEqual(fake_payload[consts.INSTALL_VALUES]["bmc_address"], v)
 
-        fake_payload['othervalues1'] = 'othervalues1'
-        fake_payload[consts.INSTALL_VALUES]['othervalues2'] = 'othervalues2'
+        fake_payload["othervalues1"] = "othervalues1"
+        fake_payload[consts.INSTALL_VALUES]["othervalues2"] = "othervalues2"
         psd_common.format_ip_address(fake_payload)
-        self.assertEqual(fake_payload['othervalues1'], 'othervalues1')
+        self.assertEqual(fake_payload["othervalues1"], "othervalues1")
         self.assertEqual(
-            fake_payload[consts.INSTALL_VALUES]['othervalues2'], 'othervalues2'
+            fake_payload[consts.INSTALL_VALUES]["othervalues2"], "othervalues2"
         )
 
 
 def test_get_subcloud_db_install_values(self):
     install_data = copy.copy(fake_subcloud.FAKE_SUBCLOUD_INSTALL_VALUES)
-    encoded_password = base64.b64encode("bmc_password".encode("utf-8")).decode(
-        "utf-8"
-    )
+    encoded_password = base64.b64encode("bmc_password".encode("utf-8")).decode("utf-8")
     install_data["bmc_password"] = encoded_password
     test_subcloud = copy.copy(fake_subcloud.FAKE_SUBCLOUD_DATA)
     subcloud_info = Subcloud(test_subcloud, False)
@@ -158,8 +164,7 @@ def test_get_subcloud_db_install_values(self):
     actual_result = psd_common.get_subcloud_db_install_values(subcloud_info)
 
     self.assertEqual(
-        json.loads(json.dumps(install_data)),
-        json.loads(json.dumps(actual_result))
+        json.loads(json.dumps(install_data)), json.loads(json.dumps(actual_result))
     )
 
 

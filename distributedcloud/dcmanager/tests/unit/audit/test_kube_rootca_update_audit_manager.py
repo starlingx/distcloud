@@ -24,9 +24,9 @@ class FakeAlarm(object):
 
 class FakeSubcloudObj(object):
     def __init__(self, subcloud_dict):
-        self.name = subcloud_dict['name']
-        self.region_name = subcloud_dict['region_name']
-        self.software_version = subcloud_dict['software_version']
+        self.name = subcloud_dict["name"]
+        self.region_name = subcloud_dict["region_name"]
+        self.software_version = subcloud_dict["software_version"]
 
 
 class TestKubeRootcaUpdateAudit(base.DCManagerTestCase):
@@ -43,29 +43,38 @@ class TestKubeRootcaUpdateAudit(base.DCManagerTestCase):
         self._mock_subcloud_audit_manager_context()
 
         # Set the Kubeernetes Root CA cert identifier as cert1 for all regions
-        self.mock_region_one_sysinv_client().get_kube_rootca_cert_id.return_value = \
-            True, FakeKubeRootcaData("cert1", "")
+        self.kube_rootca_cert_id = (
+            self.mock_region_one_sysinv_client().get_kube_rootca_cert_id
+        )
+        self.kube_rootca_cert_id.return_value = (
+            True,
+            FakeKubeRootcaData("cert1", ""),
+        )
 
         # Set get_alarms_by_ids returns none by default
         self.mock_fm_client().get_alarms_by_ids.return_value = None
 
-        self.mock_subcloud_audit_manager_context.\
-            get_admin_context.return_value = self.ctx
+        self.mock_subcloud_audit_manager_context.get_admin_context.return_value = (
+            self.ctx
+        )
 
         self.audit = kube_rootca_update_audit.KubeRootcaUpdateAudit()
         self.am = SubcloudAuditManager()
         self.am.kube_rootca_update_audit = self.audit
 
     def get_rootca_audit_data(self):
-        (_, _, _, kube_rootca_audit_data, _) = \
-            self.am._get_audit_data(True, True, True, True, True)
+        (_, _, _, kube_rootca_audit_data, _) = self.am._get_audit_data(
+            True, True, True, True, True
+        )
 
         return kube_rootca_audit_data
 
     def test_no_kube_rootca_update_audit_data_to_sync(self):
         # Set the region one data
-        self.mock_region_one_sysinv_client().get_kube_rootca_cert_id.return_value = \
-            True, FakeKubeRootcaData("", "error")
+        self.kube_rootca_cert_id.return_value = (
+            True,
+            FakeKubeRootcaData("", "error"),
+        )
         kube_rootca_update_audit_data = self.get_rootca_audit_data()
 
         subclouds = [base.SUBCLOUD_1, base.SUBCLOUD_2]
@@ -76,15 +85,17 @@ class TestKubeRootcaUpdateAudit(base.DCManagerTestCase):
                 self.mock_sysinv_client(),
                 self.mock_fm_client(),
                 subcloud,
-                kube_rootca_update_audit_data
+                kube_rootca_update_audit_data,
             )
 
             self.assertEqual(response, dccommon_consts.SYNC_STATUS_IN_SYNC)
 
     def test_kube_rootca_update_audit_in_sync_cert_based(self):
         # Set the region one data
-        self.mock_region_one_sysinv_client().get_kube_rootca_cert_id.return_value = \
-            True, FakeKubeRootcaData("cert1", "")
+        self.kube_rootca_cert_id.return_value = (
+            True,
+            FakeKubeRootcaData("cert1", ""),
+        )
         kube_rootca_update_audit_data = self.get_rootca_audit_data()
 
         subclouds = [base.SUBCLOUD_1, base.SUBCLOUD_2]
@@ -92,24 +103,29 @@ class TestKubeRootcaUpdateAudit(base.DCManagerTestCase):
             subcloud = FakeSubcloudObj(subcloud_dict)
 
             # return same kube root ca ID in the subclouds
-            self.mock_region_one_sysinv_client().get_kube_rootca_cert_id.\
-                return_value = True, FakeKubeRootcaData("cert1", "")
-            self.mock_sysinv_client().get_kube_rootca_cert_id.return_value = \
-                True, FakeKubeRootcaData("cert1", "")
+            self.kube_rootca_cert_id.return_value = True, FakeKubeRootcaData(
+                "cert1", ""
+            )
+            self.mock_sysinv_client().get_kube_rootca_cert_id.return_value = (
+                True,
+                FakeKubeRootcaData("cert1", ""),
+            )
 
             response = self.audit.subcloud_kube_rootca_audit(
                 self.mock_sysinv_client(),
                 self.mock_fm_client(),
                 subcloud,
-                kube_rootca_update_audit_data
+                kube_rootca_update_audit_data,
             )
 
             self.assertEqual(response, dccommon_consts.SYNC_STATUS_IN_SYNC)
 
     def test_kube_rootca_update_audit_out_of_sync_cert_based(self):
         # Set the region one data
-        self.mock_region_one_sysinv_client().get_kube_rootca_cert_id.return_value = \
-            True, FakeKubeRootcaData("cert1", "")
+        self.kube_rootca_cert_id.return_value = (
+            True,
+            FakeKubeRootcaData("cert1", ""),
+        )
         kube_rootca_update_audit_data = self.get_rootca_audit_data()
 
         subclouds = [base.SUBCLOUD_1, base.SUBCLOUD_2]
@@ -117,23 +133,28 @@ class TestKubeRootcaUpdateAudit(base.DCManagerTestCase):
             subcloud = FakeSubcloudObj(subcloud_dict)
 
             # return different kube root ca ID in the subclouds
-            self.mock_region_one_sysinv_client().get_kube_rootca_cert_id.\
-                return_value = True, FakeKubeRootcaData("cert2", "")
-            self.mock_sysinv_client().get_kube_rootca_cert_id.return_value = \
-                True, FakeKubeRootcaData("cert2", "")
+            self.kube_rootca_cert_id.return_value = True, FakeKubeRootcaData(
+                "cert2", ""
+            )
+            self.mock_sysinv_client().get_kube_rootca_cert_id.return_value = (
+                True,
+                FakeKubeRootcaData("cert2", ""),
+            )
             response = self.audit.subcloud_kube_rootca_audit(
                 self.mock_sysinv_client(),
                 self.mock_fm_client(),
                 subcloud,
-                kube_rootca_update_audit_data
+                kube_rootca_update_audit_data,
             )
 
             self.assertEqual(response, dccommon_consts.SYNC_STATUS_OUT_OF_SYNC)
 
     def test_kube_rootca_update_audit_in_sync_alarm_based(self):
         # Set the region one data
-        self.mock_region_one_sysinv_client().get_kube_rootca_cert_id.return_value = \
-            True, FakeKubeRootcaData("cert1", "")
+        self.kube_rootca_cert_id.return_value = (
+            True,
+            FakeKubeRootcaData("cert1", ""),
+        )
         kube_rootca_update_audit_data = self.get_rootca_audit_data()
 
         subclouds = [base.SUBCLOUD_1, base.SUBCLOUD_2]
@@ -141,25 +162,28 @@ class TestKubeRootcaUpdateAudit(base.DCManagerTestCase):
             subcloud = FakeSubcloudObj(subcloud_dict)
 
             # return API cert ID request failed
-            self.mock_region_one_sysinv_client().get_kube_rootca_cert_id.\
-                return_value = False, None
-            self.mock_sysinv_client().get_kube_rootca_cert_id.return_value = \
-                False, None
+            self.kube_rootca_cert_id.return_value = (
+                False,
+                None,
+            )
+            self.mock_sysinv_client().get_kube_rootca_cert_id.return_value = False, None
             self.mock_fm_client().get_alarms_by_ids.return_value = None
 
             response = self.audit.subcloud_kube_rootca_audit(
                 self.mock_sysinv_client(),
                 self.mock_fm_client(),
                 subcloud,
-                kube_rootca_update_audit_data
+                kube_rootca_update_audit_data,
             )
 
             self.assertEqual(response, dccommon_consts.SYNC_STATUS_IN_SYNC)
 
     def test_kube_rootca_update_audit_out_of_sync_alarm_based(self):
         # Set the region one data
-        self.mock_region_one_sysinv_client().get_kube_rootca_cert_id.return_value = \
-            True, FakeKubeRootcaData("cert1", "")
+        self.kube_rootca_cert_id.return_value = (
+            True,
+            FakeKubeRootcaData("cert1", ""),
+        )
         kube_rootca_update_audit_data = self.get_rootca_audit_data()
 
         subclouds = [base.SUBCLOUD_1, base.SUBCLOUD_2]
@@ -167,26 +191,30 @@ class TestKubeRootcaUpdateAudit(base.DCManagerTestCase):
             subcloud = FakeSubcloudObj(subcloud_dict)
 
             # return API cert ID request failed
-            self.mock_region_one_sysinv_client().get_kube_rootca_cert_id.\
-                return_value = False, None
-            self.mock_sysinv_client().get_kube_rootca_cert_id.return_value = \
-                False, None
-            self.mock_fm_client().get_alarms_by_ids.return_value = \
-                [FakeAlarm('system.certificate.kubernetes-root-ca'), ]
+            self.kube_rootca_cert_id.return_value = (
+                False,
+                None,
+            )
+            self.mock_sysinv_client().get_kube_rootca_cert_id.return_value = False, None
+            self.mock_fm_client().get_alarms_by_ids.return_value = [
+                FakeAlarm("system.certificate.kubernetes-root-ca"),
+            ]
 
             response = self.audit.subcloud_kube_rootca_audit(
                 self.mock_sysinv_client(),
                 self.mock_fm_client(),
                 subcloud,
-                kube_rootca_update_audit_data
+                kube_rootca_update_audit_data,
             )
 
             self.assertEqual(response, dccommon_consts.SYNC_STATUS_OUT_OF_SYNC)
 
     def test_kube_rootca_update_audit_fail_to_get_audit_data(self):
         # Set the region one data
-        self.mock_region_one_sysinv_client().get_kube_rootca_cert_id.return_value = \
-            True, FakeKubeRootcaData("cert1", "")
+        self.kube_rootca_cert_id.return_value = (
+            True,
+            FakeKubeRootcaData("cert1", ""),
+        )
         kube_rootca_update_audit_data = self.get_rootca_audit_data()
 
         subclouds = [base.SUBCLOUD_3, base.SUBCLOUD_4]
@@ -194,14 +222,15 @@ class TestKubeRootcaUpdateAudit(base.DCManagerTestCase):
             subcloud = FakeSubcloudObj(subcloud_dict)
 
             # return API cert ID request failed
-            self.mock_sysinv_client().get_kube_rootca_cert_id.\
-                return_value = base.FakeException("API cert ID request failed")
+            self.mock_sysinv_client().get_kube_rootca_cert_id.return_value = (
+                base.FakeException("API cert ID request failed")
+            )
 
             response = self.audit.subcloud_kube_rootca_audit(
                 self.mock_sysinv_client(),
                 self.mock_fm_client(),
                 subcloud,
-                kube_rootca_update_audit_data
+                kube_rootca_update_audit_data,
             )
 
             self.assertEqual(response, None)

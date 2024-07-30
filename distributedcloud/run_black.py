@@ -29,6 +29,7 @@ formatted_modules = [
     "dcmanager/common",
     "dcmanager/db",
     "dcmanager/orchestrator",
+    "dcmanager/tests",
 ]
 
 

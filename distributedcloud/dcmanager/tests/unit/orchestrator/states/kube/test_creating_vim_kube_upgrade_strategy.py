@@ -13,63 +13,38 @@ from dcmanager.tests.unit.common import fake_strategy
 from dcmanager.tests.unit.fakes import FakeVimStrategy
 from dcmanager.tests.unit.orchestrator.states.fakes import FakeKubeUpgrade
 from dcmanager.tests.unit.orchestrator.states.fakes import FakeKubeVersion
-from dcmanager.tests.unit.orchestrator.states.fakes \
-    import PREVIOUS_KUBE_VERSION
-from dcmanager.tests.unit.orchestrator.states.fakes \
-    import UPGRADED_KUBE_VERSION
-from dcmanager.tests.unit.orchestrator.states.kube.test_base \
-    import TestKubeUpgradeState
-from dcmanager.tests.unit.orchestrator.states.test_creating_vim_strategy \
-    import CreatingVIMStrategyStageMixin
+from dcmanager.tests.unit.orchestrator.states.fakes import PREVIOUS_KUBE_VERSION
+from dcmanager.tests.unit.orchestrator.states.fakes import UPGRADED_KUBE_VERSION
+from dcmanager.tests.unit.orchestrator.states.kube.test_base import TestKubeUpgradeState
+from dcmanager.tests.unit.orchestrator.states.test_creating_vim_strategy import (
+    CreatingVIMStrategyStageMixin,
+)
 
 STRATEGY_BUILDING = FakeVimStrategy(state=vim.STATE_BUILDING)
 STRATEGY_DONE_BUILDING = FakeVimStrategy(state=vim.STATE_READY_TO_APPLY)
 
 KUBE_VERSION_LIST = [
-    FakeKubeVersion(obj_id=1,
-                    version='v1.2.3',
-                    target=True,
-                    state='active'),
-    FakeKubeVersion(obj_id=2,
-                    version='v1.2.4',
-                    target=False,
-                    state='available'),
-    FakeKubeVersion(obj_id=3,
-                    version='v1.2.5',
-                    target=False,
-                    state='available'),
+    FakeKubeVersion(obj_id=1, version="v1.2.3", target=True, state="active"),
+    FakeKubeVersion(obj_id=2, version="v1.2.4", target=False, state="available"),
+    FakeKubeVersion(obj_id=3, version="v1.2.5", target=False, state="available"),
 ]
 
 KUBE_VERSION_LIST_SC = [
-    FakeKubeVersion(obj_id=1,
-                    version='v1.2.5',
-                    target=True,
-                    state='active')
+    FakeKubeVersion(obj_id=1, version="v1.2.5", target=True, state="active")
 ]
 
 KUBE_VERSION_LIST_SC_2 = [
-    FakeKubeVersion(obj_id=1,
-                    version='v1.2.4',
-                    target=True,
-                    state='active')
+    FakeKubeVersion(obj_id=1, version="v1.2.4", target=True, state="active")
 ]
 
 KUBE_UPGRADE_LIST = [
     FakeKubeUpgrade(
-        obj_id=1,
-        to_version='v1.2.5',
-        from_version='v1.2.4',
-        state='active'
+        obj_id=1, to_version="v1.2.5", from_version="v1.2.4", state="active"
     )
 ]
 
 KUBE_VERSION_LIST_WITHOUT_ACTIVE = [
-    FakeKubeVersion(
-        obj_id=1,
-        version='v1.2.3',
-        target=True,
-        state='available'
-    )
+    FakeKubeVersion(obj_id=1, version="v1.2.3", target=True, state="available")
 ]
 
 
@@ -83,7 +58,7 @@ class TestCreatingVIMKubeUpgradeStrategyStage(
 
         self.set_state(
             consts.STRATEGY_STATE_KUBE_CREATING_VIM_KUBE_UPGRADE_STRATEGY,
-            consts.STRATEGY_STATE_KUBE_APPLYING_VIM_KUBE_UPGRADE_STRATEGY
+            consts.STRATEGY_STATE_KUBE_APPLYING_VIM_KUBE_UPGRADE_STRATEGY,
         )
 
         # creating the vim strategy checks if an existing upgrade exists
@@ -93,27 +68,25 @@ class TestCreatingVIMKubeUpgradeStrategyStage(
         # when no vim strategy exists, the available version is used
         self.sysinv_client.get_kube_versions = mock.MagicMock()
         self.sysinv_client.get_kube_versions.return_value = [
-            FakeKubeVersion(obj_id=1,
-                            version=PREVIOUS_KUBE_VERSION,
-                            target=True,
-                            state='active'),
-            FakeKubeVersion(obj_id=2,
-                            version=UPGRADED_KUBE_VERSION,
-                            target=False,
-                            state='available'),
+            FakeKubeVersion(
+                obj_id=1, version=PREVIOUS_KUBE_VERSION, target=True, state="active"
+            ),
+            FakeKubeVersion(
+                obj_id=2, version=UPGRADED_KUBE_VERSION, target=False, state="available"
+            ),
         ]
 
         self._mock_read_from_cache(BaseState)
         self.mock_read_from_cache.return_value = [
-            FakeKubeVersion(obj_id=1,
-                            version=PREVIOUS_KUBE_VERSION,
-                            target=True,
-                            state='active'),
-            FakeKubeVersion(obj_id=2,
-                            version=UPGRADED_KUBE_VERSION,
-                            target=False,
-                            state='available'),
+            FakeKubeVersion(
+                obj_id=1, version=PREVIOUS_KUBE_VERSION, target=True, state="active"
+            ),
+            FakeKubeVersion(
+                obj_id=2, version=UPGRADED_KUBE_VERSION, target=False, state="available"
+            ),
         ]
+        self.vim_client.get_strategy = mock.MagicMock()
+        self.vim_client.create_strategy = mock.MagicMock()
 
     def mock_and_assert_step_update(
         self, is_upgrade=False, kube_version=None, kube_version_list=None
@@ -137,9 +110,8 @@ class TestCreatingVIMKubeUpgradeStrategyStage(
         if kube_version:
             extra_args = {"to-version": kube_version}
             self.strategy = fake_strategy.create_fake_strategy(
-                self.ctx,
-                self.DEFAULT_STRATEGY_TYPE,
-                extra_args=extra_args)
+                self.ctx, self.DEFAULT_STRATEGY_TYPE, extra_args=extra_args
+            )
         else:
             kube_version = kube_version_list[0].version
             # Subcloud query
@@ -154,24 +126,27 @@ class TestCreatingVIMKubeUpgradeStrategyStage(
         self.worker.perform_state_action(self.strategy_step)
 
         self.vim_client.create_strategy.assert_called_with(
-            'kube-upgrade', 'parallel', 'parallel', 10,
-            'migrate', 'relaxed', to_version=kube_version
+            "kube-upgrade",
+            "parallel",
+            "parallel",
+            10,
+            "migrate",
+            "relaxed",
+            to_version=kube_version,
         )
 
         # Successful promotion to next state
-        self.assert_step_updated(
-            self.strategy_step.subcloud_id, self.on_success_state
-        )
+        self.assert_step_updated(self.strategy_step.subcloud_id, self.on_success_state)
 
     def test_strategy_succeeds_with_highest_kube_version(self):
         """Test strategy succeeds when selecting the highest kube version"""
 
-        self.mock_and_assert_step_update(kube_version='v1.2.5')
+        self.mock_and_assert_step_update(kube_version="v1.2.5")
 
     def test_strategy_succeeds_with_lowest_kube_version(self):
         """Test strategy succeeds when selecting the lowest kube version"""
 
-        self.mock_and_assert_step_update(kube_version='v1.2.4')
+        self.mock_and_assert_step_update(kube_version="v1.2.4")
 
     def test_strategy_succeeds_without_kube_version_selected(self):
         """Test strategy succeeds without a selected kube_version"""
@@ -193,14 +168,12 @@ class TestCreatingVIMKubeUpgradeStrategyStage(
     def test_strategy_fails_without_active_version_to_upgrade(self):
         """Test upgrade fails without an active version to upgrade"""
 
-        fake_strategy.create_fake_strategy(
-            self.ctx, self.DEFAULT_STRATEGY_TYPE
-        )
+        fake_strategy.create_fake_strategy(self.ctx, self.DEFAULT_STRATEGY_TYPE)
 
-        self.sysinv_client.get_kube_versions.return_value = \
+        self.sysinv_client.get_kube_versions.return_value = (
             KUBE_VERSION_LIST_WITHOUT_ACTIVE
-        self.mock_read_from_cache.return_value = \
-            KUBE_VERSION_LIST_WITHOUT_ACTIVE
+        )
+        self.mock_read_from_cache.return_value = KUBE_VERSION_LIST_WITHOUT_ACTIVE
 
         self.worker.perform_state_action(self.strategy_step)
 

@@ -28,15 +28,14 @@ class TestDCManagerAuditService(base.DCManagerTestCase):
 
     def setUp(self):
         super(TestDCManagerAuditService, self).setUp()
-        self.tenant_id = 'fake_admin'
+        self.tenant_id = "fake_admin"
         self.thm = scheduler.ThreadGroupManager()
-        self.context = utils.dummy_context(user='test_user',
-                                           tenant=self.tenant_id)
+        self.context = utils.dummy_context(user="test_user", tenant=self.tenant_id)
         self.service_obj = service.DCManagerAuditService()
 
     def test_init(self):
-        self.assertEqual(self.service_obj.host, 'localhost')
-        self.assertEqual(self.service_obj.topic, 'dcmanager-audit')
+        self.assertEqual(self.service_obj.host, "localhost")
+        self.assertEqual(self.service_obj.topic, "dcmanager-audit")
 
     def test_init_tgm(self):
         self.service_obj.init_tgm()

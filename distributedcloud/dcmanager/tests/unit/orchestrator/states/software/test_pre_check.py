@@ -9,8 +9,9 @@ import mock
 from dcmanager.common import consts
 from dcmanager.orchestrator.states.software import pre_check
 from dcmanager.tests.unit.common import fake_strategy
-from dcmanager.tests.unit.orchestrator.states.software.test_base import \
-    TestSoftwareOrchestrator
+from dcmanager.tests.unit.orchestrator.states.software.test_base import (
+    TestSoftwareOrchestrator,
+)
 
 # TODO(nicodemos): Change strategy name after sw-deploy is created
 FAKE_VALID_CURRENT_STRATEGY = {"sw-upgrade": "build-failed"}

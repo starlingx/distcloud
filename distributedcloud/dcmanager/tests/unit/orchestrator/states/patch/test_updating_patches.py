@@ -40,10 +40,12 @@ SUBCLOUD_USM_PATCHES = {
 }
 
 
-@mock.patch("dcmanager.orchestrator.states.patch.updating_patches."
-            "DEFAULT_MAX_QUERIES", 3)
-@mock.patch("dcmanager.orchestrator.states.patch.updating_patches"
-            ".DEFAULT_SLEEP_DURATION", 1)
+@mock.patch(
+    "dcmanager.orchestrator.states.patch.updating_patches.DEFAULT_MAX_QUERIES", 3
+)
+@mock.patch(
+    "dcmanager.orchestrator.states.patch.updating_patches.DEFAULT_SLEEP_DURATION", 1
+)
 class TestUpdatingPatchesStage(TestPatchState):
     def setUp(self):
         super(TestUpdatingPatchesStage, self).setUp()
@@ -55,7 +57,8 @@ class TestUpdatingPatchesStage(TestPatchState):
 
         # Add the strategy_step state being processed by this unit test
         self.strategy_step = self.setup_strategy_step(
-            self.subcloud.id, consts.STRATEGY_STATE_UPDATING_PATCHES)
+            self.subcloud.id, consts.STRATEGY_STATE_UPDATING_PATCHES
+        )
 
         # Add mock API endpoints for patching and sysinv client calls
         # invoked by this state
@@ -67,11 +70,11 @@ class TestUpdatingPatchesStage(TestPatchState):
     def _create_fake_strategy(self, upload_only=False, patch_file=None):
         extra_args = {
             consts.EXTRA_ARGS_UPLOAD_ONLY: upload_only,
-            consts.EXTRA_ARGS_PATCH: patch_file
+            consts.EXTRA_ARGS_PATCH: patch_file,
         }
-        return fake_strategy.create_fake_strategy(self.ctx,
-                                                  self.DEFAULT_STRATEGY_TYPE,
-                                                  extra_args=extra_args)
+        return fake_strategy.create_fake_strategy(
+            self.ctx, self.DEFAULT_STRATEGY_TYPE, extra_args=extra_args
+        )
 
     @mock.patch.object(os_path, "isfile")
     def test_update_subcloud_patches_patch_file_success(self, mock_os_path_isfile):
@@ -118,7 +121,7 @@ class TestUpdatingPatchesStage(TestPatchState):
 
     @mock.patch.object(os_path, "isfile")
     def test_update_subcloud_patches_patch_file_upload_only_success(
-            self, mock_os_path_isfile
+        self, mock_os_path_isfile
     ):
         """Test update_patches where the API call succeeds with patch/upload only."""
 

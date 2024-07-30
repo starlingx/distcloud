@@ -7,15 +7,19 @@ import socket
 
 import mock
 
-from dcmanager.orchestrator.states.software.cache.cache_specifications import \
-    CacheSpecification
-from dcmanager.orchestrator.states.software.cache.cache_specifications import \
-    REGION_ONE_LICENSE_CACHE_SPECIFICATION
-from dcmanager.orchestrator.states.software.cache.cache_specifications import \
-    REGION_ONE_LICENSE_CACHE_TYPE
+from dcmanager.orchestrator.states.software.cache.cache_specifications import (
+    CacheSpecification,
+)
+from dcmanager.orchestrator.states.software.cache.cache_specifications import (
+    REGION_ONE_LICENSE_CACHE_SPECIFICATION,
+)
+from dcmanager.orchestrator.states.software.cache.cache_specifications import (
+    REGION_ONE_LICENSE_CACHE_TYPE,
+)
 from dcmanager.orchestrator.states.software.cache import clients
-from dcmanager.orchestrator.states.software.cache.shared_client_cache import \
-    SharedClientCache
+from dcmanager.orchestrator.states.software.cache.shared_client_cache import (
+    SharedClientCache,
+)
 from dcmanager.tests import base
 
 SOFTWARE_CLIENT_QUERY_RETURN = {
@@ -28,7 +32,7 @@ SOFTWARE_CLIENT_QUERY_RETURN = {
         "sw_version": "23.09.1",
         "state": "available",
         "reboot_required": "N",
-    }
+    },
 }
 
 
@@ -52,19 +56,19 @@ class TestSharedClientCache(base.DCManagerTestCase):
             REGION_ONE_LICENSE_CACHE_TYPE, REGION_ONE_LICENSE_CACHE_SPECIFICATION
         )
 
-        self.mock_sysinv_client().get_license.return_value = 'fake license'
+        self.mock_sysinv_client().get_license.return_value = "fake license"
 
         self.assertIsNone(shared_client_cache._cache)
 
         response = shared_client_cache.read()
 
-        self.assertEqual(response, 'fake license')
+        self.assertEqual(response, "fake license")
         self.mock_sysinv_client().get_license.assert_called_once()
         self.assertIsNotNone(shared_client_cache._cache)
 
         response = shared_client_cache.read()
 
-        self.assertEqual(response, 'fake license')
+        self.assertEqual(response, "fake license")
         self.mock_sysinv_client().get_license.assert_called_once()
 
     def test_read_fails_when_client_lock_is_writer_and_cache_is_not_stored(self):
@@ -81,18 +85,17 @@ class TestSharedClientCache(base.DCManagerTestCase):
         """Test read cache succeeds without retry on exception"""
 
         cache_specification = CacheSpecification(
-            lambda: clients.get_sysinv_client().get_license(),
-            retry_on_exception=False
+            lambda: clients.get_sysinv_client().get_license(), retry_on_exception=False
         )
         self.shared_client_cache = SharedClientCache(
             REGION_ONE_LICENSE_CACHE_TYPE, cache_specification
         )
 
-        self.mock_sysinv_client().get_license.return_value = 'fake license'
+        self.mock_sysinv_client().get_license.return_value = "fake license"
 
         response = self.shared_client_cache.read()
 
-        self.assertEqual(response, 'fake license')
+        self.assertEqual(response, "fake license")
         self.mock_sysinv_client().get_license.assert_called_once()
 
     def test_read_fails_with_retry_on_exception(self):

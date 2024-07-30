@@ -48,48 +48,55 @@ get_engine = api.get_engine
 # Enable foreign key support in sqlite - see:
 # http://docs.sqlalchemy.org/en/latest/dialects/sqlite.html
 
-SUBCLOUD_1 = {'name': 'subcloud1',
-              'region_name': '2ec93dfb654846909efe61d1b39dd2ce',
-              'rehomed': True,
-              'software_version': "22.12"}
-SUBCLOUD_2 = {'name': 'subcloud2',
-              'region_name': 'ca2761ee7aa34cbe8415ec9a3c86854f',
-              'rehomed': True,
-              'software_version': "22.12"}
-SUBCLOUD_3 = {'name': 'subcloud3',
-              'region_name': '659e12e5f7ad411abfcd83f5cedca0bf',
-              'rehomed': True,
-              'software_version': "21.12"}
-SUBCLOUD_4 = {'name': 'subcloud4',
-              'region_name': 'c25f3b0553384104b664789bd93a2ba8',
-              'rehomed': False,
-              'software_version': "21.12"}
-SUBCLOUD_5 = {'name': 'subcloud5',
-              'region_name': '809581dc2d154e008480bac1f43b7aff',
-              'rehomed': False,
-              'software_version': "21.12"}
-SUBCLOUD_6 = {'name': 'subcloud6',
-              'region_name': '8c60b99f3e1245b7bc5a049802ade8d2',
-              'rehomed': False,
-              'software_version': "22.12"}
-SUBCLOUD_7 = {'name': 'subcloud7',
-              'region_name': '9fde6dca22fa422bb1e8cf03bedc18e4'}
-SUBCLOUD_8 = {'name': 'subcloud8',
-              'region_name': 'f3cb0b109c4543fda3ed50ed5783279d'}
-SUBCLOUD_9 = {'name': 'subcloud9',
-              'region_name': '1cfab1df7b444bb3bd562894d684f352'}
-SUBCLOUD_10 = {'name': 'subcloud10',
-               'region_name': '6d0040199b4f4a9fb4a1f2ed4d498159'}
-SUBCLOUD_11 = {'name': 'subcloud11',
-               'region_name': '169e6fc231e94959ad6ff0a66fbcb753'}
+SUBCLOUD_1 = {
+    "name": "subcloud1",
+    "region_name": "2ec93dfb654846909efe61d1b39dd2ce",
+    "rehomed": True,
+    "software_version": "22.12",
+}
+SUBCLOUD_2 = {
+    "name": "subcloud2",
+    "region_name": "ca2761ee7aa34cbe8415ec9a3c86854f",
+    "rehomed": True,
+    "software_version": "22.12",
+}
+SUBCLOUD_3 = {
+    "name": "subcloud3",
+    "region_name": "659e12e5f7ad411abfcd83f5cedca0bf",
+    "rehomed": True,
+    "software_version": "21.12",
+}
+SUBCLOUD_4 = {
+    "name": "subcloud4",
+    "region_name": "c25f3b0553384104b664789bd93a2ba8",
+    "rehomed": False,
+    "software_version": "21.12",
+}
+SUBCLOUD_5 = {
+    "name": "subcloud5",
+    "region_name": "809581dc2d154e008480bac1f43b7aff",
+    "rehomed": False,
+    "software_version": "21.12",
+}
+SUBCLOUD_6 = {
+    "name": "subcloud6",
+    "region_name": "8c60b99f3e1245b7bc5a049802ade8d2",
+    "rehomed": False,
+    "software_version": "22.12",
+}
+SUBCLOUD_7 = {"name": "subcloud7", "region_name": "9fde6dca22fa422bb1e8cf03bedc18e4"}
+SUBCLOUD_8 = {"name": "subcloud8", "region_name": "f3cb0b109c4543fda3ed50ed5783279d"}
+SUBCLOUD_9 = {"name": "subcloud9", "region_name": "1cfab1df7b444bb3bd562894d684f352"}
+SUBCLOUD_10 = {"name": "subcloud10", "region_name": "6d0040199b4f4a9fb4a1f2ed4d498159"}
+SUBCLOUD_11 = {"name": "subcloud11", "region_name": "169e6fc231e94959ad6ff0a66fbcb753"}
 
 SUBCLOUD_SAMPLE_DATA_0 = [
     6,  # id
     "subcloud-4",  # name
-    "demo subcloud",   # description
+    "demo subcloud",  # description
     "Ottawa-Lab-Aisle_3-Rack_C",  # location
     "12.34",  # software-version
-    "managed",   # management-state
+    "managed",  # management-state
     "online",  # availability-status
     "fd01:3::0/64",  # management_subnet
     "fd01:3::1",  # management_gateway_address
@@ -101,7 +108,7 @@ SUBCLOUD_SAMPLE_DATA_0 = [
     "NULL",  # reserved-2
     "2018-05-15 14:45:12.508708",  # created-at
     "2018-05-24 10:48:18.090931",  # updated-at
-    "NULL",   # deleted-at
+    "NULL",  # deleted-at
     0,  # deleted
     "10.10.10.0/24",  # external_oam_subnet
     "10.10.10.1",  # external_oam_gateway_address
@@ -110,8 +117,8 @@ SUBCLOUD_SAMPLE_DATA_0 = [
     1,  # group_id
     consts.DEPLOY_STATE_DONE,  # deploy_status
     consts.ERROR_DESC_EMPTY,  # error_description
-    SUBCLOUD_4['region_name'],  # region_name
-    json.dumps({'data_install': 'test data install values'}),  # data_install
+    SUBCLOUD_4["region_name"],  # region_name
+    json.dumps({"data_install": "test data install values"}),  # data_install
 ]
 
 
@@ -134,8 +141,7 @@ class DCManagerTestCase(base.BaseTestCase):
     """Test case base class for all unit tests."""
 
     def setup_dummy_db(self):
-        options.cfg.set_defaults(options.database_opts,
-                                 sqlite_synchronous=False)
+        options.cfg.set_defaults(options.database_opts, sqlite_synchronous=False)
         options.set_defaults(cfg.CONF, connection="sqlite://")
         engine = get_engine()
         db_api.db_sync(engine)
@@ -147,7 +153,7 @@ class DCManagerTestCase(base.BaseTestCase):
         meta.reflect(bind=engine)
 
         for table in reversed(meta.sorted_tables):
-            if table.name == 'migrate_version':
+            if table.name == "migrate_version":
                 continue
             engine.execute(table.delete())
 
@@ -171,7 +177,7 @@ class DCManagerTestCase(base.BaseTestCase):
     def _mock_pecan(self):
         """Mock pecan's abort"""
 
-        mock_patch_object = mock.patch.object(pecan, 'abort', wraps=pecan.abort)
+        mock_patch_object = mock.patch.object(pecan, "abort", wraps=pecan.abort)
         self.mock_pecan_abort = mock_patch_object.start()
         self.addCleanup(mock_patch_object.stop)
 
@@ -185,103 +191,103 @@ class DCManagerTestCase(base.BaseTestCase):
     def _mock_audit_rpc_client(self):
         """Mock rpc's manager audit client"""
 
-        mock_patch_object = mock.patch.object(rpcapi, 'ManagerAuditClient')
+        mock_patch_object = mock.patch.object(rpcapi, "ManagerAuditClient")
         self.mock_audit_rpc_client = mock_patch_object.start()
         self.addCleanup(mock_patch_object.stop)
 
     def _mock_rpc_client(self):
         """Mock rpc's manager client"""
 
-        mock_patch_object = mock.patch.object(rpc_client, 'ManagerClient')
+        mock_patch_object = mock.patch.object(rpc_client, "ManagerClient")
         self.mock_rpc_client = mock_patch_object.start()
         self.addCleanup(mock_patch_object.stop)
 
     def _mock_rpc_subcloud_state_client(self):
         """Mock rpc's subcloud state client"""
 
-        mock_patch_object = mock.patch.object(rpc_client, 'SubcloudStateClient')
+        mock_patch_object = mock.patch.object(rpc_client, "SubcloudStateClient")
         self.mock_rpc_subcloud_state_client = mock_patch_object.start()
         self.addCleanup(mock_patch_object.stop)
 
     def _mock_rpc_api_manager_audit_worker_client(self):
         """Mock rpc's api manager audit worker client"""
 
-        mock_patch_object = mock.patch.object(rpcapi, 'ManagerAuditWorkerClient')
+        mock_patch_object = mock.patch.object(rpcapi, "ManagerAuditWorkerClient")
         self.mock_rpc_api_manager_audit_worker_client = mock_patch_object.start()
         self.addCleanup(mock_patch_object.stop)
 
     def _mock_subcloud_audit_manager_context(self):
         """Mock subcloud audit manager's context"""
 
-        mock_patch_object = mock.patch.object(subcloud_audit_manager, 'context')
+        mock_patch_object = mock.patch.object(subcloud_audit_manager, "context")
         self.mock_subcloud_audit_manager_context = mock_patch_object.start()
         self.addCleanup(mock_patch_object.stop)
 
     def _mock_openstack_driver(self, target):
         """Mock the target's OpenStackDriver"""
 
-        mock_patch_object = mock.patch.object(target, 'OpenStackDriver')
+        mock_patch_object = mock.patch.object(target, "OpenStackDriver")
         self.mock_openstack_driver = mock_patch_object.start()
         self.addCleanup(mock_patch_object.stop)
 
     def _mock_sysinv_client(self, target):
         """Mock the target's SysinvClient"""
 
-        mock_patch_object = mock.patch.object(target, 'SysinvClient')
+        mock_patch_object = mock.patch.object(target, "SysinvClient")
         self.mock_sysinv_client = mock_patch_object.start()
         self.addCleanup(mock_patch_object.stop)
 
     def _mock_software_client(self, target):
         """Mock the target's SoftwareClient"""
 
-        mock_patch_object = mock.patch.object(target, 'SoftwareClient')
+        mock_patch_object = mock.patch.object(target, "SoftwareClient")
         self.mock_software_client = mock_patch_object.start()
         self.addCleanup(mock_patch_object.stop)
 
     def _mock_fm_client(self, target):
         """Mock the target's FmClient"""
 
-        mock_patch_object = mock.patch.object(target, 'FmClient')
+        mock_patch_object = mock.patch.object(target, "FmClient")
         self.mock_fm_client = mock_patch_object.start()
         self.addCleanup(mock_patch_object.stop)
 
     def _mock_read_from_cache(self, target):
-        mock_patch = mock.patch.object(target, '_read_from_cache')
+        mock_patch = mock.patch.object(target, "_read_from_cache")
         self.mock_read_from_cache = mock_patch.start()
         self.addCleanup(mock_patch.stop)
 
     def _mock_vim_client(self, target):
         """Mock the target's VimClient"""
 
-        mock_patch_object = mock.patch.object(target, 'VimClient')
+        mock_patch_object = mock.patch.object(target, "VimClient")
         self.mock_vim_client = mock_patch_object.start()
         self.addCleanup(mock_patch_object.stop)
 
     def _mock_get_network_address_pool(self):
         """Mock phased subcloud deploy's get_network_address_pool"""
 
-        mock_patch_object = mock.patch.object(psd_common, 'get_network_address_pool')
+        mock_patch_object = mock.patch.object(psd_common, "get_network_address_pool")
         self.mock_get_network_address_pool = mock_patch_object.start()
         self.addCleanup(mock_patch_object.stop)
 
     def _mock_get_oam_addresses(self):
         """Mock phased subcloud deploy's get_oam_addresses"""
 
-        mock_patch_object = mock.patch.object(psd_common, 'get_oam_addresses')
+        mock_patch_object = mock.patch.object(psd_common, "get_oam_addresses")
         self.mock_get_oam_addresses = mock_patch_object.start()
         self.addCleanup(mock_patch_object.stop)
 
     def _mock_get_ks_client(self):
         """Mock phased subcloud deploy's get_ks_client"""
 
-        mock_patch_object = mock.patch.object(psd_common, 'get_ks_client')
+        mock_patch_object = mock.patch.object(psd_common, "get_ks_client")
         self.mock_get_ks_client = mock_patch_object.start()
         self.addCleanup(mock_patch_object.stop)
 
     def _mock_query(self):
         """Mock phased subcloud deploy's query"""
 
-        mock_patch_object = mock.patch.object(psd_common.PatchingClient, 'query')
+        mock_patch_object = mock.patch.object(psd_common.PatchingClient, "query")
         self.mock_query = mock_patch_object.start()
         self.addCleanup(mock_patch_object.stop)
 
@@ -289,7 +295,7 @@ class DCManagerTestCase(base.BaseTestCase):
         """Mock phased subcloud deploy's get_subcloud_db_install_values"""
 
         mock_patch_object = mock.patch.object(
-            psd_common, 'get_subcloud_db_install_values'
+            psd_common, "get_subcloud_db_install_values"
         )
         self.mock_get_subcloud_db_install_values = mock_patch_object.start()
         self.addCleanup(mock_patch_object.stop)
@@ -297,75 +303,75 @@ class DCManagerTestCase(base.BaseTestCase):
     def _mock_validate_k8s_version(self):
         """Mock phased subcloud deploy's validate_k8s_version"""
 
-        mock_patch_object = mock.patch.object(psd_common, 'validate_k8s_version')
+        mock_patch_object = mock.patch.object(psd_common, "validate_k8s_version")
         self.mock_validate_k8s_version = mock_patch_object.start()
         self.addCleanup(mock_patch_object.stop)
 
     def _mock_get_vault_load_files(self):
         """Mock dcmanager util's get_vault_load_files"""
 
-        mock_patch_object = mock.patch.object(dutils, 'get_vault_load_files')
+        mock_patch_object = mock.patch.object(dutils, "get_vault_load_files")
         self.mock_get_vault_load_files = mock_patch_object.start()
         self.addCleanup(mock_patch_object.stop)
 
     def _mock_load_yaml_file(self):
         """Mock dcmanager util's load_yaml_file"""
 
-        mock_patch_object = mock.patch.object(dutils, 'load_yaml_file')
+        mock_patch_object = mock.patch.object(dutils, "load_yaml_file")
         self.mock_load_yaml_file = mock_patch_object.start()
         self.addCleanup(mock_patch_object.stop)
 
     def _mock_get_local_system(self):
         """Mock dcmanager util's get_local_system"""
 
-        mock_patch_object = mock.patch.object(dutils, 'get_local_system')
+        mock_patch_object = mock.patch.object(dutils, "get_local_system")
         self.mock_get_local_system = mock_patch_object.start()
         self.addCleanup(mock_patch_object.stop)
 
     def _mock_os_remove(self):
         """Mock os' remove"""
 
-        mock_patch_object = mock.patch.object(os, 'remove')
+        mock_patch_object = mock.patch.object(os, "remove")
         self.mock_os_remove = mock_patch_object.start()
         self.addCleanup(mock_patch_object.stop)
 
     def _mock_os_mkdir(self):
         """Mock os' mkdir"""
 
-        mock_patch_object = mock.patch.object(os, 'mkdir')
+        mock_patch_object = mock.patch.object(os, "mkdir")
         self.mock_os_mkdir = mock_patch_object.start()
         self.addCleanup(mock_patch_object.stop)
 
     def _mock_os_listdir(self):
         """Mock os' listdir"""
 
-        mock_patch_object = mock.patch.object(os, 'listdir')
+        mock_patch_object = mock.patch.object(os, "listdir")
         self.mock_os_listdir = mock_patch_object.start()
         self.addCleanup(mock_patch_object.stop)
 
     def _mock_os_path_isdir(self):
         """Mock os' path.isdir"""
 
-        mock_patch_object = mock.patch.object(os_path, 'isdir')
+        mock_patch_object = mock.patch.object(os_path, "isdir")
         self.mock_os_path_isdir = mock_patch_object.start()
         self.addCleanup(mock_patch_object.stop)
 
     def _mock_os_path_exists(self):
         """Mock os' path.exists"""
 
-        mock_patch_object = mock.patch.object(os_path, 'exists')
+        mock_patch_object = mock.patch.object(os_path, "exists")
         self.mock_os_path_exists = mock_patch_object.start()
         self.addCleanup(mock_patch_object.stop)
 
     def _mock_builtins_open(self):
         """Mock builtins' open"""
 
-        mock_patch_object = mock.patch.object(builtins, 'open')
+        mock_patch_object = mock.patch.object(builtins, "open")
         self.mock_builtins_open = mock_patch_object.start()
         self.addCleanup(mock_patch_object.stop)
 
     def _mock_log(self, target):
-        mock_patch_object = mock.patch.object(target, 'LOG')
+        mock_patch_object = mock.patch.object(target, "LOG")
         self.mock_log = mock_patch_object.start()
         self.addCleanup(mock_patch_object.stop)
 
@@ -379,7 +385,7 @@ class DCManagerTestCase(base.BaseTestCase):
         else:
             self.mock_pecan_abort.assert_called_with(http_status)
 
-    def _create_password(self, keyword='default'):
+    def _create_password(self, keyword="default"):
         """Create a password with based on the specified keyword"""
 
         return base64.b64encode(keyword.encode("utf-8")).decode("utf-8")
@@ -387,21 +393,21 @@ class DCManagerTestCase(base.BaseTestCase):
     def _mock_subcloud_manager(self, target):
         """Mock the target's SubcloudManager"""
 
-        mock_patch_object = mock.patch.object(target, 'SubcloudManager')
+        mock_patch_object = mock.patch.object(target, "SubcloudManager")
         self.mock_subcloud_manager = mock_patch_object.start()
         self.addCleanup(mock_patch_object.stop)
 
     def _mock_peer_monitor_manager(self, target):
         """Mock the target's PeerMonitorManager"""
 
-        mock_patch_object = mock.patch.object(target, 'PeerMonitorManager')
+        mock_patch_object = mock.patch.object(target, "PeerMonitorManager")
         self.mock_peer_monitor_manager = mock_patch_object.start()
         self.addCleanup(mock_patch_object.stop)
 
     def _mock_ansible_run_playbook(self):
         """Mock AnsiblePlaybook's run_playbook"""
 
-        mock_patch_object = mock.patch.object(AnsiblePlaybook, 'run_playbook')
+        mock_patch_object = mock.patch.object(AnsiblePlaybook, "run_playbook")
         self.mock_ansible_run_playbook = mock_patch_object.start()
         self.addCleanup(mock_patch_object.stop)
 

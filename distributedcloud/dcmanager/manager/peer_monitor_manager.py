@@ -111,7 +111,7 @@ class PeerMonitor(object):
                           self.peer.peer_name)
         return failed, dc_peer_subcloud_peer_group_list
 
-    def _update_sync_status_when_secondary_site_becomes_unreachable(self):
+    def _update_sync_status_secondary_site_becomes_unreachable(self):
         # Get associations by system peer
         associations = SystemPeerManager.get_local_associations(self.context,
                                                                 self.peer)
@@ -139,7 +139,7 @@ class PeerMonitor(object):
                 sync_status=sync_status,
                 sync_message=message)
 
-    def _update_sync_status_when_secondary_site_becomes_reachable(self):
+    def _update_sync_status_secondary_site_becomes_reachable(self):
         # Get associations by system peer
         associations = SystemPeerManager.get_local_associations(self.context,
                                                                 self.peer)
@@ -189,7 +189,7 @@ class PeerMonitor(object):
                             consts.SYSTEM_PEER_AVAILABILITY_STATE_UNAVAILABLE
                         )
                         # pylint: disable=line-too-long
-                        self._update_sync_status_when_secondary_site_becomes_unreachable()  # noqa: E501
+                        self._update_sync_status_secondary_site_becomes_unreachable()
                         failure_count = 0
                         self._set_require_audit_flag_to_associated_peer_groups()
                 else:
@@ -203,7 +203,7 @@ class PeerMonitor(object):
                             consts.SYSTEM_PEER_AVAILABILITY_STATE_AVAILABLE
                         )
                         # pylint: disable=line-too-long
-                        self._update_sync_status_when_secondary_site_becomes_reachable()  # noqa: E501
+                        self._update_sync_status_secondary_site_becomes_reachable()
                         LOG.info("DC %s back online, clear alarm" %
                                  self.peer.peer_name)
                         self._clear_failure()

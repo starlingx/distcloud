@@ -26,8 +26,7 @@ class TestSoftwareOrchestrator(TestSwUpdate):
             return_value=self.software_client,
         )
         self.sysinv_cache_client_mock = mock.patch(
-            f"{CACHE_CLIENT_PATH}.get_sysinv_client",
-            return_value=self.sysinv_client
+            f"{CACHE_CLIENT_PATH}.get_sysinv_client", return_value=self.sysinv_client
         )
         self.software_cache_client_mock.start()
         self.sysinv_cache_client_mock.start()

@@ -29,9 +29,9 @@ from dcmanager.tests.unit.api.test_root_controller import DCManagerApiTest
 from dcmanager.tests.unit.common import fake_subcloud
 
 FAKE_SOFTWARE_VERSION = "22.12"
-FAKE_DEPLOY_PLAYBOOK_FILE = 'deployment-manager.yaml'
-FAKE_DEPLOY_OVERRIDES_FILE = 'deployment-manager-overrides-subcloud.yaml'
-FAKE_DEPLOY_CHART_FILE = 'deployment-manager.tgz'
+FAKE_DEPLOY_PLAYBOOK_FILE = "deployment-manager.yaml"
+FAKE_DEPLOY_OVERRIDES_FILE = "deployment-manager-overrides-subcloud.yaml"
+FAKE_DEPLOY_CHART_FILE = "deployment-manager.tgz"
 FAKE_DEPLOY_FILES = {
     f"{consts.DEPLOY_PLAYBOOK}_": FAKE_DEPLOY_PLAYBOOK_FILE,
     f"{consts.DEPLOY_OVERRIDES}_": FAKE_DEPLOY_OVERRIDES_FILE,
@@ -59,29 +59,28 @@ class BaseTestSubcloudDeployController(DCManagerApiTest):
     def _mock_os_open(self):
         """Mock os' open"""
 
-        mock_patch_object = mock.patch.object(os, 'open')
+        mock_patch_object = mock.patch.object(os, "open")
         self.mock_os_open = mock_patch_object.start()
         self.addCleanup(mock_patch_object.stop)
 
     def _mock_os_write(self):
         """Mock os' write"""
 
-        mock_patch_object = mock.patch.object(os, 'write')
+        mock_patch_object = mock.patch.object(os, "write")
         self.mock_os_write = mock_patch_object.start()
         self.addCleanup(mock_patch_object.stop)
 
     def _mock_get_filename_by_prefix(self):
         """Mock dutils' get_filename_by_prefix"""
 
-        mock_patch_object = mock.patch.object(
-            dutils, "get_filename_by_prefix"
-        )
+        mock_patch_object = mock.patch.object(dutils, "get_filename_by_prefix")
         self.mock_get_filename_by_prefix = mock_patch_object.start()
         self.addCleanup(mock_patch_object.stop)
 
     def _setup_get_filename_by_prefix(self):
-        self.mock_get_filename_by_prefix.side_effect = \
+        self.mock_get_filename_by_prefix.side_effect = (
             self._mock_get_filename_by_prefix_side_effect
+        )
 
     def _mock_get_filename_by_prefix_side_effect(self, _, prefix):
         filename = FAKE_DEPLOY_FILES.get(prefix)
@@ -119,7 +118,7 @@ class TestSubcloudDeployController(BaseTestSubcloudDeployController):
         response = self._send_request()
 
         self._assert_response(response)
-        self.assertEqual(response.text, 'null')
+        self.assertEqual(response.text, "null")
 
 
 class TestSubcloudDeployPost(BaseTestSubcloudDeployController):
@@ -174,15 +173,18 @@ class TestSubcloudDeployPost(BaseTestSubcloudDeployController):
         """Test post fails with missing deploy chart"""
 
         file_options = [
-            consts.DEPLOY_PLAYBOOK, consts.DEPLOY_OVERRIDES, consts.DEPLOY_PRESTAGE
+            consts.DEPLOY_PLAYBOOK,
+            consts.DEPLOY_OVERRIDES,
+            consts.DEPLOY_PRESTAGE,
         ]
         self.upload_files = self._create_fake_fields(file_options, False)
 
         response = self._send_request()
 
         self._assert_pecan_and_response(
-            response, http.client.BAD_REQUEST,
-            f"error: argument --{consts.DEPLOY_CHART} is required"
+            response,
+            http.client.BAD_REQUEST,
+            f"error: argument --{consts.DEPLOY_CHART} is required",
         )
 
     def test_post_fails_with_missing_deploy_chart_and_deploy_prestage(self):
@@ -194,45 +196,54 @@ class TestSubcloudDeployPost(BaseTestSubcloudDeployController):
         response = self._send_request()
 
         self._assert_pecan_and_response(
-            response, http.client.BAD_REQUEST,
-            f"error: argument --{consts.DEPLOY_CHART} is required"
+            response,
+            http.client.BAD_REQUEST,
+            f"error: argument --{consts.DEPLOY_CHART} is required",
         )
 
     def test_post_fails_with_missing_deploy_playbook(self):
         """Test post fails with missing deploy playbook"""
 
         file_options = [
-            consts.DEPLOY_CHART, consts.DEPLOY_OVERRIDES, consts.DEPLOY_PRESTAGE
+            consts.DEPLOY_CHART,
+            consts.DEPLOY_OVERRIDES,
+            consts.DEPLOY_PRESTAGE,
         ]
         self.upload_files = self._create_fake_fields(file_options, False)
 
         response = self._send_request()
 
         self._assert_pecan_and_response(
-            response, http.client.BAD_REQUEST,
-            f"error: argument --{consts.DEPLOY_PLAYBOOK} is required"
+            response,
+            http.client.BAD_REQUEST,
+            f"error: argument --{consts.DEPLOY_PLAYBOOK} is required",
         )
 
     def test_post_fails_with_missing_deploy_overrides(self):
         """Test post fails with missing deploy overrides"""
 
         file_options = [
-            consts.DEPLOY_PLAYBOOK, consts.DEPLOY_CHART, consts.DEPLOY_PRESTAGE
+            consts.DEPLOY_PLAYBOOK,
+            consts.DEPLOY_CHART,
+            consts.DEPLOY_PRESTAGE,
         ]
         self.upload_files = self._create_fake_fields(file_options, False)
 
         response = self._send_request()
 
         self._assert_pecan_and_response(
-            response, http.client.BAD_REQUEST,
-            f"error: argument --{consts.DEPLOY_OVERRIDES} is required"
+            response,
+            http.client.BAD_REQUEST,
+            f"error: argument --{consts.DEPLOY_OVERRIDES} is required",
         )
 
     def test_post_succeeds_with_missing_deploy_prestage(self):
         """Test post succeeds with missing deploy prestage"""
 
         file_options = [
-            consts.DEPLOY_PLAYBOOK, consts.DEPLOY_OVERRIDES, consts.DEPLOY_CHART
+            consts.DEPLOY_PLAYBOOK,
+            consts.DEPLOY_OVERRIDES,
+            consts.DEPLOY_CHART,
         ]
         self.upload_files = self._create_fake_fields(file_options, False)
 
@@ -271,8 +282,9 @@ class TestSubcloudDeployPost(BaseTestSubcloudDeployController):
         response = self._send_request()
 
         self._assert_pecan_and_response(
-            response, http.client.BAD_REQUEST,
-            f"No {consts.DEPLOY_PLAYBOOK} file uploaded"
+            response,
+            http.client.BAD_REQUEST,
+            f"No {consts.DEPLOY_PLAYBOOK} file uploaded",
         )
 
     def test_post_fails_with_internal_server_error(self):
@@ -283,8 +295,9 @@ class TestSubcloudDeployPost(BaseTestSubcloudDeployController):
         response = self._send_request()
 
         self._assert_pecan_and_response(
-            response, http.client.INTERNAL_SERVER_ERROR,
-            f"Failed to upload {consts.DEPLOY_PLAYBOOK} file: fake file name"
+            response,
+            http.client.INTERNAL_SERVER_ERROR,
+            f"Failed to upload {consts.DEPLOY_PLAYBOOK} file: fake file name",
         )
 
 
@@ -311,24 +324,21 @@ class TestSubcloudDeployGet(BaseTestSubcloudDeployController):
 
         self._assert_response(response)
         self.assertEqual(
-            FAKE_SOFTWARE_VERSION,
-            response.json["subcloud_deploy"]["software_version"]
+            FAKE_SOFTWARE_VERSION, response.json["subcloud_deploy"]["software_version"]
         )
         self.assertEqual(
             FAKE_DEPLOY_PLAYBOOK_FILE,
-            response.json["subcloud_deploy"][consts.DEPLOY_PLAYBOOK]
+            response.json["subcloud_deploy"][consts.DEPLOY_PLAYBOOK],
         )
         self.assertEqual(
             FAKE_DEPLOY_OVERRIDES_FILE,
-            response.json["subcloud_deploy"][consts.DEPLOY_OVERRIDES]
+            response.json["subcloud_deploy"][consts.DEPLOY_OVERRIDES],
         )
         self.assertEqual(
             FAKE_DEPLOY_CHART_FILE,
-            response.json["subcloud_deploy"][consts.DEPLOY_CHART]
+            response.json["subcloud_deploy"][consts.DEPLOY_CHART],
         )
-        self.assertEqual(
-            None, response.json["subcloud_deploy"][consts.DEPLOY_PRESTAGE]
-        )
+        self.assertEqual(None, response.json["subcloud_deploy"][consts.DEPLOY_PRESTAGE])
 
     def test_get_succeeds_without_release(self):
         """Test get succeeds without release"""
@@ -339,24 +349,21 @@ class TestSubcloudDeployGet(BaseTestSubcloudDeployController):
 
         self._assert_response(response)
         self.assertEqual(
-            FAKE_SOFTWARE_VERSION,
-            response.json["subcloud_deploy"]["software_version"]
+            FAKE_SOFTWARE_VERSION, response.json["subcloud_deploy"]["software_version"]
         )
         self.assertEqual(
             FAKE_DEPLOY_PLAYBOOK_FILE,
-            response.json["subcloud_deploy"][consts.DEPLOY_PLAYBOOK]
+            response.json["subcloud_deploy"][consts.DEPLOY_PLAYBOOK],
         )
         self.assertEqual(
             FAKE_DEPLOY_OVERRIDES_FILE,
-            response.json["subcloud_deploy"][consts.DEPLOY_OVERRIDES]
+            response.json["subcloud_deploy"][consts.DEPLOY_OVERRIDES],
         )
         self.assertEqual(
             FAKE_DEPLOY_CHART_FILE,
-            response.json["subcloud_deploy"][consts.DEPLOY_CHART]
+            response.json["subcloud_deploy"][consts.DEPLOY_CHART],
         )
-        self.assertEqual(
-            None, response.json["subcloud_deploy"][consts.DEPLOY_PRESTAGE]
-        )
+        self.assertEqual(None, response.json["subcloud_deploy"][consts.DEPLOY_PRESTAGE])
 
 
 class TestSubcloudDeployDelete(BaseTestSubcloudDeployController):
@@ -388,8 +395,9 @@ class TestSubcloudDeployDelete(BaseTestSubcloudDeployController):
     def test_delete_succeeds_with_release(self):
         """Test delete succeeds with release"""
 
-        self.url = f"{self.url}/{self.version}?prestage_images=False"\
-            "&deployment_files=False"
+        self.url = (
+            f"{self.url}/{self.version}?prestage_images=False&deployment_files=False"
+        )
 
         response = self._send_request()
 
@@ -437,8 +445,9 @@ class TestSubcloudDeployDelete(BaseTestSubcloudDeployController):
         response = self._send_request()
 
         self._assert_pecan_and_response(
-            response, http.client.NOT_FOUND,
-            f"Directory not found: {self.sw_version_directory}{version}"
+            response,
+            http.client.NOT_FOUND,
+            f"Directory not found: {self.sw_version_directory}{version}",
         )
 
     def test_delete_fails_with_internal_server_error(self):
@@ -449,6 +458,7 @@ class TestSubcloudDeployDelete(BaseTestSubcloudDeployController):
         response = self._send_request()
 
         self._assert_pecan_and_response(
-            response, http.client.INTERNAL_SERVER_ERROR,
-            "Failed to delete file: fake file name"
+            response,
+            http.client.INTERNAL_SERVER_ERROR,
+            "Failed to delete file: fake file name",
         )

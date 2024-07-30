@@ -1,4 +1,4 @@
-# Copyright (c) 2017-2021 Wind River Systems, Inc.
+# Copyright (c) 2017-2021, 2024 Wind River Systems, Inc.
 # Licensed under the Apache License, Version 2.0 (the "License"); you may
 # not use this file except in compliance with the License. You may obtain
 # a copy of the License at
@@ -16,9 +16,9 @@ import uuid
 from oslo_utils import timeutils
 
 # VIM constants for Strategy
-APPLY_TYPE_SERIAL = 'serial'
-INSTANCE_ACTION_STOP_START = 'stop-start'
-ALARM_RESTRICTIONS_STRICT = 'strict'
+APPLY_TYPE_SERIAL = "serial"
+INSTANCE_ACTION_STOP_START = "stop-start"
+ALARM_RESTRICTIONS_STRICT = "strict"
 
 
 class FakeVimClient(object):
@@ -29,24 +29,26 @@ class FakeVimClient(object):
 class FakeVimStrategy(object):
     """Represents a VIM Strategy object defined in:
 
-       starlingx/nfv/nfv-client/nfv_client/openstack/sw_update.py
+    starlingx/nfv/nfv-client/nfv_client/openstack/sw_update.py
     """
 
-    def __init__(self,
-                 name="VIM Strategy",
-                 controller_apply_type=APPLY_TYPE_SERIAL,
-                 storage_apply_type=APPLY_TYPE_SERIAL,
-                 swift_apply_type=APPLY_TYPE_SERIAL,
-                 worker_apply_type=APPLY_TYPE_SERIAL,
-                 max_parallel_worker_hosts=2,
-                 default_instance_action=INSTANCE_ACTION_STOP_START,
-                 alarm_restrictions=ALARM_RESTRICTIONS_STRICT,
-                 current_phase=None,
-                 current_phase_completion_percentage=0,
-                 state=None,
-                 build_phase=None,
-                 apply_phase=None,
-                 abort_phase=None):
+    def __init__(
+        self,
+        name="VIM Strategy",
+        controller_apply_type=APPLY_TYPE_SERIAL,
+        storage_apply_type=APPLY_TYPE_SERIAL,
+        swift_apply_type=APPLY_TYPE_SERIAL,
+        worker_apply_type=APPLY_TYPE_SERIAL,
+        max_parallel_worker_hosts=2,
+        default_instance_action=INSTANCE_ACTION_STOP_START,
+        alarm_restrictions=ALARM_RESTRICTIONS_STRICT,
+        current_phase=None,
+        current_phase_completion_percentage=0,
+        state=None,
+        build_phase=None,
+        apply_phase=None,
+        abort_phase=None,
+    ):
         self.uuid = str(uuid.uuid4())
         self.name = name
         self.controller_apply_type = controller_apply_type
@@ -57,8 +59,7 @@ class FakeVimStrategy(object):
         self.default_instance_action = default_instance_action
         self.alarm_restrictions = alarm_restrictions
         self.current_phase = current_phase
-        self.current_phase_completion_percentage =\
-            current_phase_completion_percentage
+        self.current_phase_completion_percentage = current_phase_completion_percentage
         self.state = state
         self.build_phase = build_phase
         self.apply_phase = apply_phase
@@ -79,13 +80,13 @@ class FakeVimStrategyPhase(object):
 class SwUpdateStrategy(object):
     def __init__(self, id, data):
         self.id = id
-        self.type = data['type']
-        self.subcloud_apply_type = data['subcloud-apply-type']
-        self.max_parallel_subclouds = int(data['max-parallel-subclouds'])
-        if data['stop-on-failure'] == 'true':
+        self.type = data["type"]
+        self.subcloud_apply_type = data["subcloud-apply-type"]
+        self.max_parallel_subclouds = int(data["max-parallel-subclouds"])
+        if data["stop-on-failure"] == "true":
             self.stop_on_failure = True
         else:
             self.stop_on_failure = False
-        self.state = data['state']
+        self.state = data["state"]
         self.created_at = timeutils.utcnow()
         self.updated_at = timeutils.utcnow()
