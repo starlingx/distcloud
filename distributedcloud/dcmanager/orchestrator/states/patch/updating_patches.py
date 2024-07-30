@@ -4,7 +4,6 @@
 # SPDX-License-Identifier: Apache-2.0
 #
 
-import os
 import time
 
 from dcmanager.common import consts
@@ -34,11 +33,6 @@ class UpdatingPatchesState(BaseState):
     def upload_patch(self, patch_file, strategy_step):
         """Upload a patch file to the subcloud"""
 
-        if not os.path.isfile(patch_file):
-            message = f"Patch file {patch_file} is missing"
-            self.error_log(strategy_step, message)
-            raise Exception(message)
-
         self.info_log(
             strategy_step,
             f"Patch {patch_file} will be uploaded to subcloud",
@@ -51,9 +45,6 @@ class UpdatingPatchesState(BaseState):
     def perform_state_action(self, strategy_step):
         """Update patches in this subcloud"""
         self.info_log(strategy_step, "Updating patches")
-        extra_args = utils.get_sw_update_strategy_extra_args(self.context)
-        upload_only = extra_args.get(consts.EXTRA_ARGS_UPLOAD_ONLY)
-        patch_file = extra_args.get(consts.EXTRA_ARGS_PATCH)
 
         # Retrieve all subcloud patches
         try:
@@ -65,14 +56,20 @@ class UpdatingPatchesState(BaseState):
 
         subcloud_patch_ids = subcloud_patches.keys()
 
-        patch = os.path.basename(patch_file)
-        patch_id = os.path.splitext(patch)[0]
+        extra_args = utils.get_sw_update_strategy_extra_args(self.context)
+        patch_id = extra_args.get(consts.EXTRA_ARGS_PATCH_ID)
+        patch_file = (
+            f"{consts.PATCH_VAULT_DIR}/{consts.PATCHING_SW_VERSION}/"
+            f"{patch_id}.patch"
+        )
 
         if patch_id in subcloud_patch_ids:
             message = f"Patch {patch_id} is already present in the subcloud."
             self.info_log(strategy_step, message)
         else:
             self.upload_patch(patch_file, strategy_step)
+
+        upload_only = extra_args.get(consts.EXTRA_ARGS_UPLOAD_ONLY)
 
         if upload_only:
             self.info_log(
@@ -85,7 +82,7 @@ class UpdatingPatchesState(BaseState):
         # Apply the patch to the subcloud
         self.info_log(
             strategy_step,
-            f"Patch {patch_file} will be applied to subcloud",
+            f"Patch {patch_id} will be applied to subcloud",
         )
         self.get_patching_client(self.region_name).apply([patch_id])
 

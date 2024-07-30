@@ -38,5 +38,5 @@ class PatchStrategyValidator(StrategyValidationBase):
         upload_only_bool = payload.get(consts.EXTRA_ARGS_UPLOAD_ONLY) == "true"
         return {
             consts.EXTRA_ARGS_UPLOAD_ONLY: upload_only_bool,
-            consts.EXTRA_ARGS_PATCH: payload.get(consts.EXTRA_ARGS_PATCH),
+            consts.EXTRA_ARGS_PATCH_ID: payload.get(consts.EXTRA_ARGS_PATCH_ID),
         }

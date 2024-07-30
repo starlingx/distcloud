@@ -168,14 +168,19 @@ class SwUpdateStrategyController(object):
                 ]:
                     pecan.abort(400, _("subcloud-apply-type invalid"))
 
-            patch_file = payload.get("patch")
-            if strategy_type == consts.SW_UPDATE_TYPE_PATCH:
-                if not patch_file:
-                    message = (
-                        f"patch parameter is required for {strategy_type} strategy."
-                    )
-                    pecan.abort(400, _(message))
-                elif not os.path.isfile(patch_file):
+            patch_id = payload.get("patch_id")
+            if strategy_type == consts.SW_UPDATE_TYPE_PATCH and not patch_id:
+                message = (
+                    f"patch_id parameter is required for {strategy_type} strategy."
+                )
+                pecan.abort(400, _(message))
+            elif patch_id:
+                patch_file = (
+                    f"{consts.PATCH_VAULT_DIR}/{consts.PATCHING_SW_VERSION}/"
+                    f"{patch_id}.patch"
+                )
+
+                if not os.path.isfile(patch_file):
                     message = f"Patch file {patch_file} is missing."
                     pecan.abort(400, _(message))
 
