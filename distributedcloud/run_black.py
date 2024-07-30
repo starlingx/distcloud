@@ -9,12 +9,6 @@ modules = [
     "dcdbsync",
     "dcagent",
     "dcorch",
-    "dcmanager/api",
-    "dcmanager/audit",
-    "dcmanager/common",
-    "dcmanager/db",
-    "dcmanager/orchestrator",
-    "dcmanager/tests",
     "dcmanager",
 ]
 
@@ -22,14 +16,9 @@ modules = [
 formatted_modules = [
     "dccommon",
     "dcdbsync",
-    "dcorch",
     "dcagent",
-    "dcmanager/api",
-    "dcmanager/audit",
-    "dcmanager/common",
-    "dcmanager/db",
-    "dcmanager/orchestrator",
-    "dcmanager/tests",
+    "dcorch",
+    "dcmanager",
 ]
 
 

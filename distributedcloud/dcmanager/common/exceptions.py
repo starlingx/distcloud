@@ -183,8 +183,7 @@ class PeerGroupAssociationCombinationNotFound(NotFound):
 
 class PeerGroupAssociationTargetNotMatch(NotFound):
     message = _(
-        "Peer Group Association with peer site controller "
-        "UUID %(uuid)s doesn't match."
+        "Peer Group Association with peer site controller UUID %(uuid)s doesn't match."
     )
 
 
@@ -237,8 +236,7 @@ class CertificateUploadError(DCManagerException):
 
 class LicenseInstallError(DCManagerException):
     message = _(
-        "Error while installing license on subcloud: "
-        "%(subcloud_id)s. %(error_message)s"
+        "Error while installing license on subcloud: %(subcloud_id)s. %(error_message)s"
     )
 
 

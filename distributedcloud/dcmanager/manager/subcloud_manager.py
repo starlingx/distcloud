@@ -77,38 +77,43 @@ CONF = cfg.CONF
 
 # Name of our distributed cloud addn_hosts file for dnsmasq
 # to read.  This file is referenced in dnsmasq.conf
-ADDN_HOSTS_DC = 'dnsmasq.addn_hosts_dc'
+ADDN_HOSTS_DC = "dnsmasq.addn_hosts_dc"
 
 # Subcloud configuration paths
-ANSIBLE_SUBCLOUD_BACKUP_CREATE_PLAYBOOK = \
-    '/usr/share/ansible/stx-ansible/playbooks/create_subcloud_backup.yml'
-ANSIBLE_SUBCLOUD_BACKUP_DELETE_PLAYBOOK = \
-    '/usr/share/ansible/stx-ansible/playbooks/delete_subcloud_backup.yml'
-ANSIBLE_SUBCLOUD_BACKUP_RESTORE_PLAYBOOK = \
-    '/usr/share/ansible/stx-ansible/playbooks/restore_subcloud_backup.yml'
-ANSIBLE_SUBCLOUD_PLAYBOOK = \
-    '/usr/share/ansible/stx-ansible/playbooks/bootstrap.yml'
-ANSIBLE_SUBCLOUD_REHOME_PLAYBOOK = \
-    '/usr/share/ansible/stx-ansible/playbooks/rehome_subcloud.yml'
-ANSIBLE_SUBCLOUD_UPDATE_PLAYBOOK = \
-    '/usr/share/ansible/stx-ansible/playbooks/update_subcloud.yml'
+ANSIBLE_SUBCLOUD_BACKUP_CREATE_PLAYBOOK = (
+    "/usr/share/ansible/stx-ansible/playbooks/create_subcloud_backup.yml"
+)
+ANSIBLE_SUBCLOUD_BACKUP_DELETE_PLAYBOOK = (
+    "/usr/share/ansible/stx-ansible/playbooks/delete_subcloud_backup.yml"
+)
+ANSIBLE_SUBCLOUD_BACKUP_RESTORE_PLAYBOOK = (
+    "/usr/share/ansible/stx-ansible/playbooks/restore_subcloud_backup.yml"
+)
+ANSIBLE_SUBCLOUD_PLAYBOOK = "/usr/share/ansible/stx-ansible/playbooks/bootstrap.yml"
+ANSIBLE_SUBCLOUD_REHOME_PLAYBOOK = (
+    "/usr/share/ansible/stx-ansible/playbooks/rehome_subcloud.yml"
+)
+ANSIBLE_SUBCLOUD_UPDATE_PLAYBOOK = (
+    "/usr/share/ansible/stx-ansible/playbooks/update_subcloud.yml"
+)
 
 # TODO(yuxing) Remove the ANSIBLE_VALIDATE_KEYSTONE_PASSWORD_SCRIPT when end
 # the support of rehoming a subcloud with a software version below 22.12
-ANSIBLE_VALIDATE_KEYSTONE_PASSWORD_SCRIPT = \
-    consts.ANSIBLE_CURRENT_VERSION_BASE_PATH + \
-    '/roles/rehome-subcloud/update-keystone-data/files/' + \
-    'validate_keystone_passwords.sh'
+ANSIBLE_VALIDATE_KEYSTONE_PASSWORD_SCRIPT = (
+    consts.ANSIBLE_CURRENT_VERSION_BASE_PATH
+    + "/roles/rehome-subcloud/update-keystone-data/files/"
+    + "validate_keystone_passwords.sh"
+)
 
 USERS_TO_REPLICATE = [
-    'sysinv',
-    'patching',
-    'usm',
-    'vim',
-    'mtce',
-    'fm',
-    'barbican',
-    'dcmanager'
+    "sysinv",
+    "patching",
+    "usm",
+    "vim",
+    "mtce",
+    "fm",
+    "barbican",
+    "dcmanager",
 ]
 
 # The timeout of the rehome playbook is set to 180 seconds as it takes a
@@ -144,24 +149,24 @@ TRANSITORY_STATES = {
     consts.DEPLOY_STATE_PRE_ENROLL: consts.DEPLOY_STATE_PRE_ENROLL_FAILED,
     consts.DEPLOY_STATE_ENROLLING: consts.DEPLOY_STATE_ENROLL_FAILED,
     consts.DEPLOY_STATE_PRE_INIT_ENROLL: consts.DEPLOY_STATE_PRE_INIT_ENROLL_FAILED,
-    consts.DEPLOY_STATE_INITIATING_ENROLL: consts.DEPLOY_STATE_INIT_ENROLL_FAILED
+    consts.DEPLOY_STATE_INITIATING_ENROLL: consts.DEPLOY_STATE_INIT_ENROLL_FAILED,
 }
 
 TRANSITORY_BACKUP_STATES = {
     consts.BACKUP_STATE_VALIDATING: consts.BACKUP_STATE_VALIDATE_FAILED,
     consts.BACKUP_STATE_PRE_BACKUP: consts.BACKUP_STATE_PREP_FAILED,
-    consts.BACKUP_STATE_IN_PROGRESS: consts.BACKUP_STATE_FAILED
+    consts.BACKUP_STATE_IN_PROGRESS: consts.BACKUP_STATE_FAILED,
 }
 
 TRANSITORY_PRESTAGE_STATES = {
     consts.PRESTAGE_STATE_PACKAGES: consts.PRESTAGE_STATE_FAILED,
-    consts.PRESTAGE_STATE_IMAGES: consts.PRESTAGE_STATE_FAILED
+    consts.PRESTAGE_STATE_IMAGES: consts.PRESTAGE_STATE_FAILED,
 }
 
 MAX_PARALLEL_SUBCLOUD_BACKUP_CREATE = 250
 MAX_PARALLEL_SUBCLOUD_BACKUP_DELETE = 250
 MAX_PARALLEL_SUBCLOUD_BACKUP_RESTORE = 100
-CENTRAL_BACKUP_DIR = '/opt/dc-vault/backups'
+CENTRAL_BACKUP_DIR = "/opt/dc-vault/backups"
 
 ENDPOINT_URLS = {
     dccommon_consts.ENDPOINT_TYPE_PLATFORM: "https://{}:6386/v1",
@@ -181,31 +186,31 @@ MIN_WAIT_BEFORE_RETRY_KUBE_REQUEST = 1
 # subcloud_deploy_create. They should not be deleted from
 # the overrides if it's needed to recreate the file.
 GENERATED_OVERRIDES_VALUES = [
-    'region_config',
-    'distributed_cloud_role',
-    'system_controller_subnet',
-    'system_controller_floating_address',
-    'system_controller_oam_subnet',
-    'system_controller_oam_floating_address',
-    'system_controller_keystone_admin_user_id',
-    'system_controller_keystone_admin_project_id',
-    'system_controller_keystone_services_project_id',
-    'system_controller_keystone_sysinv_user_id',
-    'system_controller_keystone_dcmanager_user_id',
-    'users',
-    'dc_root_ca_cert',
-    'sc_ca_cert',
-    'sc_ca_key'
+    "region_config",
+    "distributed_cloud_role",
+    "system_controller_subnet",
+    "system_controller_floating_address",
+    "system_controller_oam_subnet",
+    "system_controller_oam_floating_address",
+    "system_controller_keystone_admin_user_id",
+    "system_controller_keystone_admin_project_id",
+    "system_controller_keystone_services_project_id",
+    "system_controller_keystone_sysinv_user_id",
+    "system_controller_keystone_dcmanager_user_id",
+    "users",
+    "dc_root_ca_cert",
+    "sc_ca_cert",
+    "sc_ca_key",
 ]
 
 VALUES_TO_DELETE_OVERRIDES = [
-    'deploy_playbook',
-    'deploy_values',
-    'deploy_config',
-    'deploy_chart',
-    'deploy_overrides',
-    'install_values',
-    'sysadmin_password'
+    "deploy_playbook",
+    "deploy_values",
+    "deploy_config",
+    "deploy_chart",
+    "deploy_overrides",
+    "install_values",
+    "sysadmin_password",
 ]
 
 
@@ -215,10 +220,11 @@ class SubcloudManager(manager.Manager):
     regionone_data = collections.defaultdict(dict)
 
     def __init__(self, *args, **kwargs):
-        LOG.debug(_('SubcloudManager initialization...'))
+        LOG.debug(_("SubcloudManager initialization..."))
 
-        super(SubcloudManager, self).__init__(service_name="subcloud_manager",
-                                              *args, **kwargs)
+        super(SubcloudManager, self).__init__(
+            service_name="subcloud_manager", *args, **kwargs
+        )
         self.context = dcmanager_context.get_admin_context()
         self.dcorch_rpc_client = dcorch_rpc_client.EngineWorkerClient()
         self.fm_api = fm_api.FaultAPIs()
@@ -240,25 +246,18 @@ class SubcloudManager(manager.Manager):
     def _create_intermediate_ca_cert(payload):
         subcloud_region = payload["region_name"]
         cert_name = SubcloudManager._get_subcloud_cert_name(subcloud_region)
-        secret_name = SubcloudManager._get_subcloud_cert_secret_name(
-            subcloud_region)
+        secret_name = SubcloudManager._get_subcloud_cert_secret_name(subcloud_region)
 
         cert = {
-            "apiVersion": "%s/%s" % (kubeoperator.CERT_MANAGER_GROUP,
-                                     kubeoperator.CERT_MANAGER_VERSION),
+            "apiVersion": "%s/%s"
+            % (kubeoperator.CERT_MANAGER_GROUP, kubeoperator.CERT_MANAGER_VERSION),
             "kind": "Certificate",
-            "metadata": {
-                "namespace": CERT_NAMESPACE,
-                "name": cert_name
-            },
+            "metadata": {"namespace": CERT_NAMESPACE, "name": cert_name},
             "spec": {
                 "secretName": secret_name,
                 "duration": SC_INTERMEDIATE_CERT_DURATION,
                 "renewBefore": SC_INTERMEDIATE_CERT_RENEW_BEFORE,
-                "issuerRef": {
-                    "kind": "Issuer",
-                    "name": "dc-adminep-root-ca-issuer"
-                },
+                "issuerRef": {"kind": "Issuer", "name": "dc-adminep-root-ca-issuer"},
                 "commonName": cert_name,
                 "isCA": True,
             },
@@ -284,166 +283,241 @@ class SubcloudManager(manager.Manager):
         #    15th retry: 1*2**(14*0.3 + 1) + 1, max wait time ~37.76s.
         for count in range(MAX_ATTEMPTS_TO_GET_INTERMEDIATE_CA_CERT):
             secret = kube.kube_get_secret(secret_name, CERT_NAMESPACE)
-            wait_per_request = \
-                MIN_WAIT_BEFORE_RETRY_KUBE_REQUEST * 2 ** (count * 0.3 + 1) \
-                + random.uniform(0, MIN_WAIT_BEFORE_RETRY_KUBE_REQUEST)
-            if not hasattr(secret, 'data'):
+            wait_per_request = MIN_WAIT_BEFORE_RETRY_KUBE_REQUEST * 2 ** (
+                count * 0.3 + 1
+            ) + random.uniform(0, MIN_WAIT_BEFORE_RETRY_KUBE_REQUEST)
+            if not hasattr(secret, "data"):
                 time.sleep(wait_per_request)
-                LOG.debug('Wait for %s ... %s' % (secret_name, count))
+                LOG.debug("Wait for %s ... %s" % (secret_name, count))
                 continue
 
             data = secret.data
-            if ('ca.crt' not in data or
-                'tls.crt' not in data or 'tls.key' not in data) or \
-                    not (data['ca.crt'] and data['tls.crt'] and data['tls.key']):
+            if (
+                "ca.crt" not in data or "tls.crt" not in data or "tls.key" not in data
+            ) or not (data["ca.crt"] and data["tls.crt"] and data["tls.key"]):
                 # ca cert, certificate and key pair are needed and must exist
                 # for creating an intermediate ca. If not, certificate is not
                 # ready yet.
                 time.sleep(wait_per_request)
-                LOG.debug('Wait for %s ... %s' % (secret_name, count))
+                LOG.debug("Wait for %s ... %s" % (secret_name, count))
                 continue
 
-            payload['dc_root_ca_cert'] = data['ca.crt']
-            payload['sc_ca_cert'] = data['tls.crt']
-            payload['sc_ca_key'] = data['tls.key']
+            payload["dc_root_ca_cert"] = data["ca.crt"]
+            payload["sc_ca_cert"] = data["tls.crt"]
+            payload["sc_ca_key"] = data["tls.key"]
             return
-
         raise Exception("Secret for certificate %s is not ready." % cert_name)
 
     # TODO(kmacleod) switch to using utils.get_ansible_filename
     @staticmethod
-    def _get_ansible_filename(subcloud_name, postfix='.yml'):
+    def _get_ansible_filename(subcloud_name, postfix=".yml"):
         ansible_filename = os.path.join(
-            dccommon_consts.ANSIBLE_OVERRIDES_PATH,
-            subcloud_name + postfix)
+            dccommon_consts.ANSIBLE_OVERRIDES_PATH, subcloud_name + postfix
+        )
         return ansible_filename
 
-    def compose_install_command(self, subcloud_name,
-                                ansible_subcloud_inventory_file,
-                                software_version=None):
+    def compose_install_command(
+        self, subcloud_name, ansible_subcloud_inventory_file, software_version=None
+    ):
         install_command = [
-            "ansible-playbook", dccommon_consts.ANSIBLE_SUBCLOUD_INSTALL_PLAYBOOK,
-            "-i", ansible_subcloud_inventory_file,
-            "--limit", subcloud_name,
-            "-e", "@%s" % dccommon_consts.ANSIBLE_OVERRIDES_PATH + "/" +
-                  subcloud_name + '/' + "install_values.yml",
-            "-e", "install_release_version=%s" %
-                  software_version if software_version else SW_VERSION,
-            "-e", "rvmc_config_file=%s" %
-                  os.path.join(dccommon_consts.ANSIBLE_OVERRIDES_PATH,
-                               subcloud_name,
-                               dccommon_consts.RVMC_CONFIG_FILE_NAME)]
+            "ansible-playbook",
+            dccommon_consts.ANSIBLE_SUBCLOUD_INSTALL_PLAYBOOK,
+            "-i",
+            ansible_subcloud_inventory_file,
+            "--limit",
+            subcloud_name,
+            "-e",
+            "@%s" % dccommon_consts.ANSIBLE_OVERRIDES_PATH
+            + "/"
+            + subcloud_name
+            + "/"
+            + "install_values.yml",
+            "-e",
+            (
+                "install_release_version=%s" % software_version
+                if software_version
+                else SW_VERSION
+            ),
+            "-e",
+            "rvmc_config_file=%s"
+            % os.path.join(
+                dccommon_consts.ANSIBLE_OVERRIDES_PATH,
+                subcloud_name,
+                dccommon_consts.RVMC_CONFIG_FILE_NAME,
+            ),
+        ]
         return install_command
 
     # TODO(glyraper): software_version will be used in the future
-    def compose_enroll_command(self, subcloud_name,
-                               subcloud_region,
-                               ansible_subcloud_inventory_file,
-                               software_version,
-                               state):
+    def compose_enroll_command(
+        self,
+        subcloud_name,
+        subcloud_region,
+        ansible_subcloud_inventory_file,
+        software_version,
+        state,
+    ):
 
         if state == "init":
             enroll_command = [
                 "ansible-playbook",
                 dccommon_consts.ANSIBLE_SUBCLOUD_INSTALL_PLAYBOOK,
-                "-i", ansible_subcloud_inventory_file,
-                "--limit", subcloud_name,
-                "-e", "@%s" % dccommon_consts.ANSIBLE_OVERRIDES_PATH + "/" +
-                subcloud_name + '/' + "enroll_overrides.yml",
-                "-e", "install_release_version=%s" %
-                software_version if software_version else SW_VERSION,
-                "-e", "rvmc_config_file=%s" %
-                os.path.join(dccommon_consts.ANSIBLE_OVERRIDES_PATH,
-                             subcloud_name,
-                             dccommon_consts.RVMC_CONFIG_FILE_NAME)]
+                "-i",
+                ansible_subcloud_inventory_file,
+                "--limit",
+                subcloud_name,
+                "-e",
+                "@%s" % dccommon_consts.ANSIBLE_OVERRIDES_PATH
+                + "/"
+                + subcloud_name
+                + "/"
+                + "enroll_overrides.yml",
+                "-e",
+                (
+                    "install_release_version=%s" % software_version
+                    if software_version
+                    else SW_VERSION
+                ),
+                "-e",
+                "rvmc_config_file=%s"
+                % os.path.join(
+                    dccommon_consts.ANSIBLE_OVERRIDES_PATH,
+                    subcloud_name,
+                    dccommon_consts.RVMC_CONFIG_FILE_NAME,
+                ),
+            ]
 
             return enroll_command
         elif state == "enroll":
             extra_vars = "override_files_dir='%s' region_name=%s" % (
-                dccommon_consts.ANSIBLE_OVERRIDES_PATH, subcloud_region)
+                dccommon_consts.ANSIBLE_OVERRIDES_PATH,
+                subcloud_region,
+            )
 
             enroll_command = [
                 "ansible-playbook",
                 dccommon_consts.ANSIBLE_SUBCLOUD_ENROLL_PLAYBOOK,
-                "-i", ansible_subcloud_inventory_file,
-                "--limit", subcloud_name,
-                "-e", extra_vars]
+                "-i",
+                ansible_subcloud_inventory_file,
+                "--limit",
+                subcloud_name,
+                "-e",
+                extra_vars,
+            ]
 
             return enroll_command
         else:
             raise exceptions.InvalidInputError
 
-    def compose_bootstrap_command(self, subcloud_name,
-                                  subcloud_region,
-                                  ansible_subcloud_inventory_file,
-                                  software_version=None):
+    def compose_bootstrap_command(
+        self,
+        subcloud_name,
+        subcloud_region,
+        ansible_subcloud_inventory_file,
+        software_version=None,
+    ):
         bootstrap_command = [
             "ansible-playbook",
             utils.get_playbook_for_software_version(
-                ANSIBLE_SUBCLOUD_PLAYBOOK, software_version),
-            "-i", ansible_subcloud_inventory_file,
-            "--limit", subcloud_name
+                ANSIBLE_SUBCLOUD_PLAYBOOK, software_version
+            ),
+            "-i",
+            ansible_subcloud_inventory_file,
+            "--limit",
+            subcloud_name,
         ]
         # Add the overrides dir and region_name so the playbook knows
         # which overrides to load
         bootstrap_command += [
-            "-e", str("override_files_dir='%s' region_name=%s") % (
-                dccommon_consts.ANSIBLE_OVERRIDES_PATH, subcloud_region),
-            "-e", "install_release_version=%s" %
-                  software_version if software_version else SW_VERSION]
+            "-e",
+            str("override_files_dir='%s' region_name=%s")
+            % (dccommon_consts.ANSIBLE_OVERRIDES_PATH, subcloud_region),
+            "-e",
+            (
+                "install_release_version=%s" % software_version
+                if software_version
+                else SW_VERSION
+            ),
+        ]
         return bootstrap_command
 
     def compose_config_command(
-            self, subcloud_name, ansible_subcloud_inventory_file, payload):
+        self, subcloud_name, ansible_subcloud_inventory_file, payload
+    ):
         config_command = [
-            "ansible-playbook", payload[consts.DEPLOY_PLAYBOOK],
-            "-e", "@%s" % dccommon_consts.ANSIBLE_OVERRIDES_PATH + "/" +
-                  subcloud_name + '_deploy_values.yml',
-            "-i", ansible_subcloud_inventory_file,
-            "--limit", subcloud_name
+            "ansible-playbook",
+            payload[consts.DEPLOY_PLAYBOOK],
+            "-e",
+            "@%s" % dccommon_consts.ANSIBLE_OVERRIDES_PATH
+            + "/"
+            + subcloud_name
+            + "_deploy_values.yml",
+            "-i",
+            ansible_subcloud_inventory_file,
+            "--limit",
+            subcloud_name,
         ]
         return config_command
 
     def compose_backup_command(self, subcloud_name, ansible_subcloud_inventory_file):
         backup_command = [
-            "ansible-playbook", ANSIBLE_SUBCLOUD_BACKUP_CREATE_PLAYBOOK,
-            "-i", ansible_subcloud_inventory_file,
-            "--limit", subcloud_name,
+            "ansible-playbook",
+            ANSIBLE_SUBCLOUD_BACKUP_CREATE_PLAYBOOK,
+            "-i",
+            ansible_subcloud_inventory_file,
+            "--limit",
+            subcloud_name,
             "-e",
-            "subcloud_bnr_overrides=%s" % (
-                dccommon_consts.ANSIBLE_OVERRIDES_PATH + "/" + subcloud_name +
-                "_backup_create_values.yml"
-            )
+            "subcloud_bnr_overrides=%s"
+            % (
+                dccommon_consts.ANSIBLE_OVERRIDES_PATH
+                + "/"
+                + subcloud_name
+                + "_backup_create_values.yml"
+            ),
         ]
         return backup_command
 
-    def compose_backup_delete_command(self, subcloud_name,
-                                      ansible_subcloud_inventory_file=None):
+    def compose_backup_delete_command(
+        self, subcloud_name, ansible_subcloud_inventory_file=None
+    ):
         backup_command = [
-            "ansible-playbook", ANSIBLE_SUBCLOUD_BACKUP_DELETE_PLAYBOOK,
-            "-e", "subcloud_bnr_overrides=%s" %
-                  dccommon_consts.ANSIBLE_OVERRIDES_PATH + "/" +
-                  subcloud_name + "_backup_delete_values.yml"
+            "ansible-playbook",
+            ANSIBLE_SUBCLOUD_BACKUP_DELETE_PLAYBOOK,
+            "-e",
+            "subcloud_bnr_overrides=%s" % dccommon_consts.ANSIBLE_OVERRIDES_PATH
+            + "/"
+            + subcloud_name
+            + "_backup_delete_values.yml",
         ]
         if ansible_subcloud_inventory_file:
             # Backup stored in subcloud storage
-            backup_command.extend(("-i", ansible_subcloud_inventory_file,
-                                   "--limit", subcloud_name))
+            backup_command.extend(
+                ("-i", ansible_subcloud_inventory_file, "--limit", subcloud_name)
+            )
         else:
             # Backup stored in central storage
             backup_command.extend(("-e", "inventory_hostname=%s" % subcloud_name))
         return backup_command
 
     def compose_backup_restore_command(
-            self, subcloud_name, ansible_subcloud_inventory_file):
+        self, subcloud_name, ansible_subcloud_inventory_file
+    ):
         backup_command = [
-            "ansible-playbook", ANSIBLE_SUBCLOUD_BACKUP_RESTORE_PLAYBOOK,
-            "-i", ansible_subcloud_inventory_file,
-            "--limit", subcloud_name,
-            "-e", "subcloud_bnr_overrides=%s" % (
-                dccommon_consts.ANSIBLE_OVERRIDES_PATH + "/" + subcloud_name +
-                "_backup_restore_values.yml"
-            )
+            "ansible-playbook",
+            ANSIBLE_SUBCLOUD_BACKUP_RESTORE_PLAYBOOK,
+            "-i",
+            ansible_subcloud_inventory_file,
+            "--limit",
+            subcloud_name,
+            "-e",
+            "subcloud_bnr_overrides=%s"
+            % (
+                dccommon_consts.ANSIBLE_OVERRIDES_PATH
+                + "/"
+                + subcloud_name
+                + "_backup_restore_values.yml"
+            ),
         ]
         return backup_command
 
@@ -451,51 +525,79 @@ class SubcloudManager(manager.Manager):
         self, subcloud_name, ansible_subcloud_inventory_file, software_version=None
     ):
         subcloud_update_command = [
-            "ansible-playbook", ANSIBLE_SUBCLOUD_UPDATE_PLAYBOOK,
-            "-i", ansible_subcloud_inventory_file,
-            "--limit", subcloud_name,
-            "--timeout", UPDATE_PLAYBOOK_TIMEOUT,
-            "-e", "install_release_version=%s" %
-                  software_version if software_version else SW_VERSION,
-            "-e", "subcloud_update_overrides=%s" % (
-                dccommon_consts.ANSIBLE_OVERRIDES_PATH + "/" + subcloud_name +
-                "_update_values.yml"
-            )
+            "ansible-playbook",
+            ANSIBLE_SUBCLOUD_UPDATE_PLAYBOOK,
+            "-i",
+            ansible_subcloud_inventory_file,
+            "--limit",
+            subcloud_name,
+            "--timeout",
+            UPDATE_PLAYBOOK_TIMEOUT,
+            "-e",
+            (
+                "install_release_version=%s" % software_version
+                if software_version
+                else SW_VERSION
+            ),
+            "-e",
+            "subcloud_update_overrides=%s"
+            % (
+                dccommon_consts.ANSIBLE_OVERRIDES_PATH
+                + "/"
+                + subcloud_name
+                + "_update_values.yml"
+            ),
         ]
         return subcloud_update_command
 
-    def compose_rehome_command(self, subcloud_name, subcloud_region,
-                               ansible_subcloud_inventory_file,
-                               software_version):
+    def compose_rehome_command(
+        self,
+        subcloud_name,
+        subcloud_region,
+        ansible_subcloud_inventory_file,
+        software_version,
+    ):
         extra_vars = "override_files_dir='%s' region_name=%s" % (
-            dccommon_consts.ANSIBLE_OVERRIDES_PATH, subcloud_region)
+            dccommon_consts.ANSIBLE_OVERRIDES_PATH,
+            subcloud_region,
+        )
 
         # TODO(yuxing) Remove the validate_keystone_passwords_script when end
         # the support of rehoming a subcloud with a software version below 22.12
         if software_version <= LAST_SW_VERSION_IN_CENTOS:
-            extra_vars += (" validate_keystone_passwords_script='%s'" %
-                           ANSIBLE_VALIDATE_KEYSTONE_PASSWORD_SCRIPT)
+            extra_vars += (
+                " validate_keystone_passwords_script='%s'"
+                % ANSIBLE_VALIDATE_KEYSTONE_PASSWORD_SCRIPT
+            )
 
         rehome_command = [
             "ansible-playbook",
             utils.get_playbook_for_software_version(
-                ANSIBLE_SUBCLOUD_REHOME_PLAYBOOK, software_version),
-            "-i", ansible_subcloud_inventory_file,
-            "--limit", subcloud_name,
-            "--timeout", REHOME_PLAYBOOK_TIMEOUT,
-            "-e", extra_vars]
+                ANSIBLE_SUBCLOUD_REHOME_PLAYBOOK, software_version
+            ),
+            "-i",
+            ansible_subcloud_inventory_file,
+            "--limit",
+            subcloud_name,
+            "--timeout",
+            REHOME_PLAYBOOK_TIMEOUT,
+            "-e",
+            extra_vars,
+        ]
         return rehome_command
 
     def _migrate_manage_subcloud(
-            self, context, payload, available_system_peers, subcloud):
+        self, context, payload, available_system_peers, subcloud
+    ):
         success = True
         # Try to unmanage the subcloud on peer system
         if available_system_peers:
-            if self._unmanage_system_peer_subcloud(available_system_peers,
-                                                   subcloud):
+            if self._unmanage_system_peer_subcloud(available_system_peers, subcloud):
                 success = False
-                LOG.warning("Unmanged subcloud: %s error on peer system, "
-                            "exit migration" % subcloud.name)
+                LOG.warning(
+                    "Unmanged subcloud: %s error on peer system, exit migration"
+                    % subcloud.name
+                )
                 return subcloud, success
 
         # migrate and set managed for
@@ -511,28 +613,29 @@ class SubcloudManager(manager.Manager):
             job_done_ts = time.monotonic()
             while True:
                 offline_seconds = time.monotonic() - job_done_ts
-                if subcloud.availability_status == \
-                        dccommon_consts.AVAILABILITY_OFFLINE:
+                if subcloud.availability_status == dccommon_consts.AVAILABILITY_OFFLINE:
                     if offline_seconds >= consts.BATCH_REHOME_MGMT_STATES_TIMEOUT:
-                        LOG.warning("Skip trying to manage subcloud: %s, "
-                                    "wait online timeout [%d]" %
-                                    (subcloud.name, offline_seconds))
+                        LOG.warning(
+                            "Skip trying to manage subcloud: %s, "
+                            "wait online timeout [%d]"
+                            % (subcloud.name, offline_seconds)
+                        )
                         success = False
                         break
                     time.sleep(20)
                 else:
                     try:
                         self.update_subcloud(
-                            context, subcloud.id,
-                            dccommon_consts.MANAGEMENT_MANAGED)
+                            context, subcloud.id, dccommon_consts.MANAGEMENT_MANAGED
+                        )
                     except Exception:
-                        LOG.exception("Unable to manage subcloud %s "
-                                      "after migration operation" %
-                                      subcloud.name)
+                        LOG.exception(
+                            "Unable to manage subcloud %s after migration operation"
+                            % subcloud.name
+                        )
                         success = False
                         return subcloud, success
-                    LOG.info("Set manage of subcloud: %s success"
-                             % subcloud.name)
+                    LOG.info("Set manage of subcloud: %s success" % subcloud.name)
                     break
                 subcloud = db_api.subcloud_get(context, subcloud.id)
 
@@ -542,19 +645,25 @@ class SubcloudManager(manager.Manager):
         system_peers = list()
         # Get associations by peer group
         associations = db_api.peer_group_association_get_by_peer_group_id(
-            self.context, peer_group.id)
+            self.context, peer_group.id
+        )
         if not associations:
-            LOG.info("No association found for peer group %s" %
-                     peer_group.peer_group_name)
+            LOG.info(
+                "No association found for peer group %s" % peer_group.peer_group_name
+            )
             return system_peers
         for association in associations:
             system_peer = db_api.system_peer_get(
-                self.context, association.system_peer_id)
+                self.context, association.system_peer_id
+            )
             # Get 'available' system peer
-            if system_peer.availability_state != \
-                    consts.SYSTEM_PEER_AVAILABILITY_STATE_AVAILABLE:
-                LOG.warning("Peer system %s offline, skip checking" %
-                            system_peer.peer_name)
+            if (
+                system_peer.availability_state
+                != consts.SYSTEM_PEER_AVAILABILITY_STATE_AVAILABLE
+            ):
+                LOG.warning(
+                    "Peer system %s offline, skip checking" % system_peer.peer_name
+                )
                 continue
             else:
                 system_peers.append(system_peer)
@@ -564,48 +673,56 @@ class SubcloudManager(manager.Manager):
     def _unmanage_system_peer_subcloud(self, system_peers, subcloud):
         unmanaged_error = False
         for system_peer in system_peers:
-            LOG.debug("Get subcloud: %s from system_peer: %s" %
-                      (subcloud.name, system_peer.peer_name))
+            LOG.debug(
+                "Get subcloud: %s from system_peer: %s"
+                % (subcloud.name, system_peer.peer_name)
+            )
             for attempt in range(3):
                 try:
-                    dc_client = \
-                        SystemPeerManager.get_peer_dc_client(system_peer)
+                    dc_client = SystemPeerManager.get_peer_dc_client(system_peer)
                     # Get remote subcloud by region_name from system peer
                     remote_subcloud = dc_client.get_subcloud(
-                        subcloud.region_name, is_region_name=True)
-                    is_unmanaged = remote_subcloud.get('management-state') == \
-                        dccommon_consts.MANAGEMENT_UNMANAGED
-                    is_rehome_pending = remote_subcloud.get('deploy-status') == \
-                        consts.DEPLOY_STATE_REHOME_PENDING
+                        subcloud.region_name, is_region_name=True
+                    )
+                    is_unmanaged = (
+                        remote_subcloud.get("management-state")
+                        == dccommon_consts.MANAGEMENT_UNMANAGED
+                    )
+                    is_rehome_pending = (
+                        remote_subcloud.get("deploy-status")
+                        == consts.DEPLOY_STATE_REHOME_PENDING
+                    )
 
                     # Check if it's already in the correct state
                     if is_unmanaged and is_rehome_pending:
                         LOG.info(
-                            f"Remote subcloud {remote_subcloud.get('name')} "
-                            f"from system peer {system_peer.peer_name} is "
-                            "already unmanaged and rehome-pending, "
-                            "skipping unmanage attempt"
+                            f"Remote subcloud {remote_subcloud.get('name')} from "
+                            f"system peer {system_peer.peer_name} is already "
+                            "unmanaged and rehome-pending, skipping unmanage attempt"
                         )
                         break
 
                     try:
+                        UNMANAGED = dccommon_consts.MANAGEMENT_UNMANAGED
                         if not is_unmanaged:
                             # Unmanage and update the deploy-status
                             payload = {
-                                "management-state":
-                                    dccommon_consts.MANAGEMENT_UNMANAGED,
-                                "migrate": "true"}
+                                "management-state": UNMANAGED,
+                                "migrate": "true",
+                            }
                             remote_subcloud = dc_client.update_subcloud(
                                 subcloud.region_name,
                                 files=None,
                                 data=payload,
-                                is_region_name=True)
-                            LOG.info("Successfully updated subcloud: "
-                                     f"{remote_subcloud.get('name')} on peer "
-                                     f"system {system_peer.peer_name} to "
-                                     f"{dccommon_consts.MANAGEMENT_UNMANAGED} "
-                                     f"and {consts.DEPLOY_STATE_REHOME_PENDING}"
-                                     " state.")
+                                is_region_name=True,
+                            )
+                            LOG.info(
+                                "Successfully updated subcloud: "
+                                f"{remote_subcloud.get('name')} on peer "
+                                f"system {system_peer.peer_name} to "
+                                f"{dccommon_consts.MANAGEMENT_UNMANAGED} "
+                                f"and {consts.DEPLOY_STATE_REHOME_PENDING} state."
+                            )
                         else:
                             # Already unmanaged, just update the deploy-status
                             payload = {"migrate": "true"}
@@ -613,53 +730,58 @@ class SubcloudManager(manager.Manager):
                                 subcloud.region_name,
                                 files=None,
                                 data=payload,
-                                is_region_name=True)
-                            LOG.info("Successfully updated subcloud: "
-                                     f"{remote_subcloud.get('name')} on peer "
-                                     f"system {system_peer.peer_name} to "
-                                     f"{consts.DEPLOY_STATE_REHOME_PENDING}"
-                                     " state.")
+                                is_region_name=True,
+                            )
+                            LOG.info(
+                                "Successfully updated subcloud: "
+                                f"{remote_subcloud.get('name')} on peer "
+                                f"system {system_peer.peer_name} to "
+                                f"{consts.DEPLOY_STATE_REHOME_PENDING} state."
+                            )
                         return unmanaged_error
                     except Exception as e:
                         raise exceptions.SubcloudNotUnmanaged() from e
 
                 except SubcloudNotFound:
-                    LOG.info("No identical subcloud: %s found on "
-                             "peer system: %s" %
-                             (subcloud.region_name, system_peer.peer_name))
+                    LOG.info(
+                        "No identical subcloud: %s found on peer system: %s"
+                        % (subcloud.region_name, system_peer.peer_name)
+                    )
                     break
                 except exceptions.SubcloudNotUnmanaged:
-                    LOG.exception("Unmanaged error on subcloud: %s "
-                                  "on system %s" %
-                                  (subcloud.region_name,
-                                   system_peer.peer_name))
+                    LOG.exception(
+                        "Unmanaged error on subcloud: %s on system %s"
+                        % (subcloud.region_name, system_peer.peer_name)
+                    )
                     unmanaged_error = True
                 except Exception:
-                    LOG.exception("Failed to set unmanged for "
-                                  "subcloud: %s on system %s attempt: %d"
-                                  % (subcloud.region_name,
-                                     system_peer.peer_name, attempt))
+                    LOG.exception(
+                        "Failed to set unmanged for subcloud: %s on system %s attempt: "
+                        "%d" % (subcloud.region_name, system_peer.peer_name, attempt)
+                    )
                     time.sleep(1)
         return unmanaged_error
 
     def _clear_alarm_for_peer_group(self, peer_group):
         # Get alarms related to peer group
         faults = self.fm_api.get_faults_by_id(
-            fm_const.FM_ALARM_ID_DC_SUBCLOUD_PEER_GROUP_NOT_MANAGED)
+            fm_const.FM_ALARM_ID_DC_SUBCLOUD_PEER_GROUP_NOT_MANAGED
+        )
         if not faults:
             return
         for fault in faults:
-            entity_instance_id_str = "peer_group=%s,peer=" % \
-                                     (peer_group.peer_group_name)
+            entity_instance_id_str = "peer_group=%s,peer=" % (
+                peer_group.peer_group_name
+            )
             if entity_instance_id_str in fault.entity_instance_id:
-                LOG.info("Clear alarm for peer group %s" %
-                         peer_group.peer_group_name)
+                LOG.info("Clear alarm for peer group %s" % peer_group.peer_group_name)
                 self.fm_api.clear_fault(
                     fm_const.FM_ALARM_ID_DC_SUBCLOUD_PEER_GROUP_NOT_MANAGED,
-                    fault.entity_instance_id)
+                    fault.entity_instance_id,
+                )
 
     def migrate_subcloud(self, context, subcloud_ref, payload):
-        '''migrate_subcloud function is for day-2's rehome purpose.
+        """migrate_subcloud function is for day-2's rehome purpose.
 
         This is called by 'dcmanager subcloud migrate <subcloud>'.
         This function is used to migrate those 'secondary' subcloud.
@@ -667,48 +789,50 @@ class SubcloudManager(manager.Manager):
         :param context: request context object
         :param subcloud_ref: id or name of the subcloud
         :param payload: subcloud configuration
-        '''
+        """
         subcloud = None
         try:
             # subcloud_ref could be int type id.
             subcloud = utils.subcloud_get_by_ref(context, str(subcloud_ref))
             if not subcloud:
-                LOG.error(
-                    "Failed to migrate, non-existent subcloud %s" % subcloud_ref
-                )
+                LOG.error("Failed to migrate, non-existent subcloud %s" % subcloud_ref)
                 return
-            if 'sysadmin_password' not in payload:
-                LOG.error("Failed to migrate subcloud: %s, must provide "
-                          "sysadmin_password" % subcloud.name)
+            if "sysadmin_password" not in payload:
+                LOG.error(
+                    "Failed to migrate subcloud: %s, must provide sysadmin_password"
+                    % subcloud.name
+                )
                 return
 
             if subcloud.deploy_status not in [
-                consts.DEPLOY_STATE_SECONDARY, consts.DEPLOY_STATE_REHOME_FAILED,
-                consts.DEPLOY_STATE_REHOME_PREP_FAILED
+                consts.DEPLOY_STATE_SECONDARY,
+                consts.DEPLOY_STATE_REHOME_FAILED,
+                consts.DEPLOY_STATE_REHOME_PREP_FAILED,
             ]:
-                LOG.error("Failed to migrate subcloud: %s, "
-                          "must be in secondary or rehome failure state" %
-                          subcloud.name)
+                LOG.error(
+                    "Failed to migrate subcloud: %s, "
+                    "must be in secondary or rehome failure state" % subcloud.name
+                )
                 return
 
             db_api.subcloud_update(
-                context, subcloud.id,
-                deploy_status=consts.DEPLOY_STATE_PRE_REHOME)
+                context, subcloud.id, deploy_status=consts.DEPLOY_STATE_PRE_REHOME
+            )
             rehome_data = json.loads(subcloud.rehome_data)
-            saved_payload = rehome_data['saved_payload']
+            saved_payload = rehome_data["saved_payload"]
             # Update sysadmin_password
-            sysadmin_password = \
-                base64.b64decode(payload['sysadmin_password']).decode('utf-8')
-            saved_payload['sysadmin_password'] = sysadmin_password
+            sysadmin_password = base64.b64decode(payload["sysadmin_password"]).decode(
+                "utf-8"
+            )
+            saved_payload["sysadmin_password"] = sysadmin_password
             # Decode admin_password
-            if 'admin_password' in saved_payload:
-                saved_payload['admin_password'] = base64.b64decode(
-                    saved_payload['admin_password']).decode('utf-8')
+            if "admin_password" in saved_payload:
+                saved_payload["admin_password"] = base64.b64decode(
+                    saved_payload["admin_password"]
+                ).decode("utf-8")
 
             # Re-generate ansible config based on latest rehome_data
-            subcloud = self.generate_subcloud_ansible_config(
-                subcloud,
-                saved_payload)
+            subcloud = self.generate_subcloud_ansible_config(subcloud, saved_payload)
             self.rehome_subcloud(context, subcloud)
         except Exception:
             # If we failed to migrate the subcloud, update the
@@ -716,36 +840,38 @@ class SubcloudManager(manager.Manager):
             if subcloud:
                 LOG.exception("Failed to migrate subcloud %s" % subcloud.name)
                 db_api.subcloud_update(
-                    context, subcloud.id,
-                    deploy_status=consts.DEPLOY_STATE_REHOME_PREP_FAILED)
+                    context,
+                    subcloud.id,
+                    deploy_status=consts.DEPLOY_STATE_REHOME_PREP_FAILED,
+                )
             return
 
     def batch_migrate_subcloud(self, context, payload):
-        if 'peer_group' not in payload:
-            LOG.error("Failed to migrate subcloud peer group, "
-                      "missing peer_group")
+        if "peer_group" not in payload:
+            LOG.error("Failed to migrate subcloud peer group, missing peer_group")
             return
-        if 'sysadmin_password' not in payload:
-            LOG.error("Failed to migrate subcloud peer group, "
-                      "missing sysadmin_password")
+        if "sysadmin_password" not in payload:
+            LOG.error(
+                "Failed to migrate subcloud peer group, missing sysadmin_password"
+            )
             return
         if self.batch_rehome_lock.locked():
             LOG.warning("Batch migrate is already running.")
             return
         with self.batch_rehome_lock:
             try:
-                peer_group = \
-                    utils.subcloud_peer_group_get_by_ref(
-                        context,
-                        payload['peer_group'])
+                peer_group = utils.subcloud_peer_group_get_by_ref(
+                    context, payload["peer_group"]
+                )
 
                 self.run_batch_migrate(
-                    context, peer_group,
-                    payload['sysadmin_password'])
+                    context, peer_group, payload["sysadmin_password"]
+                )
             except Exception as e:
-                LOG.exception("Failed to batch migrate subcloud peer "
-                              "group: %s error: %s" %
-                              (payload['peer_group'], e))
+                LOG.exception(
+                    "Failed to batch migrate subcloud peer group: %s error: %s"
+                    % (payload["peer_group"], e)
+                )
 
     def run_batch_migrate(self, context, peer_group, sysadmin_password):
         subclouds = db_api.subcloud_get_for_peer_group(context, peer_group.id)
@@ -755,62 +881,68 @@ class SubcloudManager(manager.Manager):
             # Verify rehome data
             rehome_data_json_str = tmp_subcloud.rehome_data
             if not rehome_data_json_str:
-                LOG.error("Unable to migrate subcloud: %s "
-                          "no rehome data" % tmp_subcloud.name)
+                LOG.error(
+                    "Unable to migrate subcloud: %s no rehome data" % tmp_subcloud.name
+                )
                 db_api.subcloud_update(
-                    context, tmp_subcloud.id,
-                    deploy_status=consts.DEPLOY_STATE_REHOME_PREP_FAILED)
+                    context,
+                    tmp_subcloud.id,
+                    deploy_status=consts.DEPLOY_STATE_REHOME_PREP_FAILED,
+                )
                 continue
             tmp_rehome_data = json.loads(rehome_data_json_str)
             # Verify saved_payload in _rehome_data
-            if 'saved_payload' not in tmp_rehome_data:
-                LOG.error("Unable to migrate subcloud: %s "
-                          "no saved_payload" % tmp_subcloud.name)
+            if "saved_payload" not in tmp_rehome_data:
+                LOG.error(
+                    "Unable to migrate subcloud: %s no saved_payload"
+                    % tmp_subcloud.name
+                )
                 db_api.subcloud_update(
-                    context, tmp_subcloud.id,
-                    deploy_status=consts.DEPLOY_STATE_REHOME_PREP_FAILED)
+                    context,
+                    tmp_subcloud.id,
+                    deploy_status=consts.DEPLOY_STATE_REHOME_PREP_FAILED,
+                )
                 continue
-            if (tmp_subcloud.deploy_status in
-                    [consts.DEPLOY_STATE_SECONDARY,
-                     consts.DEPLOY_STATE_REHOME_FAILED,
-                     consts.DEPLOY_STATE_REHOME_PREP_FAILED]):
+            if tmp_subcloud.deploy_status in [
+                consts.DEPLOY_STATE_SECONDARY,
+                consts.DEPLOY_STATE_REHOME_FAILED,
+                consts.DEPLOY_STATE_REHOME_PREP_FAILED,
+            ]:
                 subclouds_ready_to_migrate.append(tmp_subcloud)
             else:
-                LOG.info("Skipping subcloud %s from batch migration: "
-                         "subcloud deploy_status is not in "
-                         "secondary, rehome-failed or rehome-prep-failed" %
-                         tmp_subcloud.name)
+                LOG.info(
+                    "Skipping subcloud %s from batch migration: subcloud deploy_status "
+                    "is not in secondary, rehome-failed or rehome-prep-failed"
+                    % tmp_subcloud.name
+                )
 
         # If no subcloud need to rehome, exit
         if not subclouds_ready_to_migrate:
-            LOG.info("No subclouds to be migrated in peer group: %s"
-                     " ending migration attempt"
-                     % str(peer_group.peer_group_name))
+            LOG.info(
+                "No subclouds to be migrated in peer group: %s "
+                "ending migration attempt" % str(peer_group.peer_group_name)
+            )
             return
 
         # Set migration_status to migrating
         db_api.subcloud_peer_group_update(
-            self.context,
-            peer_group.id,
-            migration_status=consts.PEER_GROUP_MIGRATING)
+            self.context, peer_group.id, migration_status=consts.PEER_GROUP_MIGRATING
+        )
 
         # Try to get peer system by peer group
         system_peers = self._get_peer_system_list(peer_group)
 
         # Use thread pool to limit number of operations in parallel
-        migrate_pool = greenpool.GreenPool(
-            size=peer_group.max_subcloud_rehoming)
+        migrate_pool = greenpool.GreenPool(size=peer_group.max_subcloud_rehoming)
         # Spawn threads to migrate each applicable subcloud
-        tmp_payload = {'sysadmin_password': sysadmin_password}
-        migrate_function = functools.partial(self._migrate_manage_subcloud,
-                                             context,
-                                             tmp_payload,
-                                             system_peers)
+        tmp_payload = {"sysadmin_password": sysadmin_password}
+        migrate_function = functools.partial(
+            self._migrate_manage_subcloud, context, tmp_payload, system_peers
+        )
 
-        self._run_parallel_group_operation('migrate',
-                                           migrate_function,
-                                           migrate_pool,
-                                           subclouds_ready_to_migrate)
+        self._run_parallel_group_operation(
+            "migrate", migrate_function, migrate_pool, subclouds_ready_to_migrate
+        )
 
         # Set migration_status to complete,
         # Update system leader id and name
@@ -820,14 +952,15 @@ class SubcloudManager(manager.Manager):
             peer_group.id,
             system_leader_id=local_system.uuid,
             system_leader_name=local_system.name,
-            migration_status=consts.PEER_GROUP_MIGRATION_COMPLETE)
+            migration_status=consts.PEER_GROUP_MIGRATION_COMPLETE,
+        )
 
         # Try to send audit request to system peer
-        resp = PeerGroupAuditManager.send_audit_peer_group(
-            system_peers, peer_group)
+        resp = PeerGroupAuditManager.send_audit_peer_group(system_peers, peer_group)
         if resp:
-            LOG.warning("Audit peer group %s response: %s" %
-                        (peer_group.peer_group_name, resp))
+            LOG.warning(
+                "Audit peer group %s response: %s" % (peer_group.peer_group_name, resp)
+            )
 
         # Try to clear existing alarm if we rehomed a '0' priority peer group
         if peer_group.group_priority == 0:
@@ -838,7 +971,8 @@ class SubcloudManager(manager.Manager):
     def rehome_subcloud(self, context, subcloud):
         # Ansible inventory filename for the specified subcloud
         ansible_subcloud_inventory_file = self._get_ansible_filename(
-            subcloud.name, INVENTORY_FILE_POSTFIX)
+            subcloud.name, INVENTORY_FILE_POSTFIX
+        )
 
         log_file = (
             os.path.join(consts.DC_ANSIBLE_LOG_DIR, subcloud.name)
@@ -849,35 +983,40 @@ class SubcloudManager(manager.Manager):
             subcloud.name,
             subcloud.region_name,
             ansible_subcloud_inventory_file,
-            subcloud.software_version)
+            subcloud.software_version,
+        )
 
         # Update the deploy status to rehoming
         db_api.subcloud_update(
-            context, subcloud.id,
-            deploy_status=consts.DEPLOY_STATE_REHOMING)
+            context, subcloud.id, deploy_status=consts.DEPLOY_STATE_REHOMING
+        )
 
         # Run the rehome-subcloud playbook
         try:
             ansible = AnsiblePlaybook(subcloud.name)
             ansible.run_playbook(log_file, rehome_command)
         except PlaybookExecutionFailed:
-            msg = "Failed to run the subcloud rehome playbook" \
-                  f" for subcloud {subcloud.name}, check individual log at " \
-                  f"{log_file} for detailed output."
+            msg = (
+                "Failed to run the subcloud rehome playbook for subcloud "
+                f"{subcloud.name}, check individual log at {log_file} "
+                "for detailed output."
+            )
             LOG.error(msg)
             msg = utils.find_ansible_error_msg(
-                subcloud.name, log_file, consts.DEPLOY_STATE_REHOMING)
+                subcloud.name, log_file, consts.DEPLOY_STATE_REHOMING
+            )
             db_api.subcloud_update(
-                context, subcloud.id,
+                context,
+                subcloud.id,
                 deploy_status=consts.DEPLOY_STATE_REHOME_FAILED,
-                error_description=msg[0:consts.ERROR_DESCRIPTION_LENGTH])
+                error_description=msg[0 : consts.ERROR_DESCRIPTION_LENGTH],
+            )
             return
         # Update the deploy status to complete and rehomed flag to true only
         # after playbook execution succeeded.
         db_api.subcloud_update(
-            context, subcloud.id,
-            deploy_status=consts.DEPLOY_STATE_DONE,
-            rehomed=True)
+            context, subcloud.id, deploy_status=consts.DEPLOY_STATE_DONE, rehomed=True
+        )
         LOG.info("Successfully rehomed subcloud %s" % subcloud.name)
 
     def add_subcloud(self, context, subcloud_id, payload):
@@ -887,20 +1026,25 @@ class SubcloudManager(manager.Manager):
         :param subcloud_id: id of the subcloud
         :param payload: subcloud configuration
         """
-        LOG.info(f"Adding subcloud {payload['name']} with region "
-                 f"{payload['region_name']}.")
+        LOG.info(
+            f"Adding subcloud {payload['name']} with region {payload['region_name']}."
+        )
 
-        rehoming = payload.get('migrate', '').lower() == "true"
-        secondary = (payload.get('secondary', '').lower() == "true")
-        enroll = payload.get('enroll', '').lower() == "true"
+        rehoming = payload.get("migrate", "").lower() == "true"
+        secondary = payload.get("secondary", "").lower() == "true"
+        enroll = payload.get("enroll", "").lower() == "true"
         initial_deployment = True if not (rehoming or enroll) else False
 
         # Create the subcloud
-        subcloud = self.subcloud_deploy_create(context, subcloud_id,
-                                               payload, rehoming,
-                                               initial_deployment,
-                                               return_as_dict=False,
-                                               enroll=enroll)
+        subcloud = self.subcloud_deploy_create(
+            context,
+            subcloud_id,
+            payload,
+            rehoming,
+            initial_deployment,
+            return_as_dict=False,
+            enroll=enroll,
+        )
 
         # return if 'secondary' subcloud
         if secondary:
@@ -934,8 +1078,12 @@ class SubcloudManager(manager.Manager):
 
         # Finish adding the subcloud by running the deploy phases
         succeeded = self.run_deploy_phases(
-            context, subcloud_id, payload, phases_to_run,
-            initial_deployment=initial_deployment)
+            context,
+            subcloud_id,
+            payload,
+            phases_to_run,
+            initial_deployment=initial_deployment,
+        )
 
         if succeeded:
             LOG.info(f"Finished adding subcloud {subcloud['name']}.")
@@ -954,15 +1102,15 @@ class SubcloudManager(manager.Manager):
         LOG.info("Redeploying subcloud %s." % subcloud.name)
 
         # Define which deploy phases to run
-        phases_to_run = [consts.DEPLOY_PHASE_INSTALL,
-                         consts.DEPLOY_PHASE_BOOTSTRAP]
+        phases_to_run = [consts.DEPLOY_PHASE_INSTALL, consts.DEPLOY_PHASE_BOOTSTRAP]
         if consts.DEPLOY_CONFIG in payload:
             phases_to_run.append(consts.DEPLOY_PHASE_CONFIG)
         else:
             phases_to_run.append(consts.DEPLOY_PHASE_COMPLETE)
 
-        succeeded = self.run_deploy_phases(context, subcloud_id, payload,
-                                           phases_to_run, initial_deployment=True)
+        succeeded = self.run_deploy_phases(
+            context, subcloud_id, payload, phases_to_run, initial_deployment=True
+        )
 
         if succeeded:
             LOG.info(f"Finished redeploying subcloud {subcloud['name']}.")
@@ -974,23 +1122,25 @@ class SubcloudManager(manager.Manager):
         :param payload: subcloud backup create detail
         """
 
-        subcloud_id = payload.get('subcloud')
-        group_id = payload.get('group')
+        subcloud_id = payload.get("subcloud")
+        group_id = payload.get("group")
 
         # Retrieve either a single subcloud or all subclouds in a group
-        subclouds = [db_api.subcloud_get(context, subcloud_id)] if subcloud_id \
+        subclouds = (
+            [db_api.subcloud_get(context, subcloud_id)]
+            if subcloud_id
             else db_api.subcloud_get_for_group(context, group_id)
+        )
 
         self._filter_subclouds_with_ongoing_backup(subclouds)
-        self._update_backup_status(context, subclouds,
-                                   consts.BACKUP_STATE_INITIAL)
+        self._update_backup_status(context, subclouds, consts.BACKUP_STATE_INITIAL)
 
         # Validate the subclouds and filter the ones applicable for backup
-        self._update_backup_status(context, subclouds,
-                                   consts.BACKUP_STATE_VALIDATING)
+        self._update_backup_status(context, subclouds, consts.BACKUP_STATE_VALIDATING)
 
-        subclouds_to_backup, invalid_subclouds = \
-            self._validate_subclouds_for_backup(subclouds, 'create')
+        subclouds_to_backup, invalid_subclouds = self._validate_subclouds_for_backup(
+            subclouds, "create"
+        )
 
         self._mark_invalid_subclouds_for_backup(context, invalid_subclouds)
 
@@ -998,13 +1148,11 @@ class SubcloudManager(manager.Manager):
         backup_pool = greenpool.GreenPool(size=MAX_PARALLEL_SUBCLOUD_BACKUP_CREATE)
 
         # Spawn threads to back up each applicable subcloud
-        backup_function = functools.partial(self._backup_subcloud, context,
-                                            payload)
+        backup_function = functools.partial(self._backup_subcloud, context, payload)
 
-        self._run_parallel_group_operation('backup create',
-                                           backup_function,
-                                           backup_pool,
-                                           subclouds_to_backup)
+        self._run_parallel_group_operation(
+            "backup create", backup_function, backup_pool, subclouds_to_backup
+        )
 
         LOG.info("Subcloud backup operation finished")
 
@@ -1016,27 +1164,33 @@ class SubcloudManager(manager.Manager):
         :param payload: subcloud backup delete detail
         """
 
-        local_delete = payload.get('local_only')
+        local_delete = payload.get("local_only")
 
-        subclouds_to_delete_backup, invalid_subclouds = \
+        subclouds_to_delete_backup, invalid_subclouds = (
             self._filter_subclouds_for_backup_delete(context, payload, local_delete)
+        )
 
         # Spawn threads to back up each applicable subcloud
         backup_delete_function = functools.partial(
-            self._delete_subcloud_backup, context, payload, release_version)
+            self._delete_subcloud_backup, context, payload, release_version
+        )
 
         # Use thread pool to limit number of operations in parallel
         max_parallel_operations = MAX_PARALLEL_SUBCLOUD_BACKUP_DELETE
         backup_delete_pool = greenpool.GreenPool(size=max_parallel_operations)
 
         failed_subclouds = self._run_parallel_group_operation(
-            'backup delete', backup_delete_function, backup_delete_pool,
-            subclouds_to_delete_backup)
+            "backup delete",
+            backup_delete_function,
+            backup_delete_pool,
+            subclouds_to_delete_backup,
+        )
 
         LOG.info("Subcloud backup delete operation finished")
 
-        return self._subcloud_operation_notice('delete', subclouds_to_delete_backup,
-                                               failed_subclouds, invalid_subclouds)
+        return self._subcloud_operation_notice(
+            "delete", subclouds_to_delete_backup, failed_subclouds, invalid_subclouds
+        )
 
     def restore_subcloud_backups(self, context, payload):
         """Restore a subcloud or group of subclouds from backup data
@@ -1045,55 +1199,65 @@ class SubcloudManager(manager.Manager):
         :param payload: restore backup subcloud detail
         """
 
-        subcloud_id = payload.get('subcloud')
-        group_id = payload.get('group')
+        subcloud_id = payload.get("subcloud")
+        group_id = payload.get("group")
 
         # Initialize subclouds lists
         restore_subclouds, invalid_subclouds, failed_subclouds = (
-            list(), list(), list())
+            list(),
+            list(),
+            list(),
+        )
 
         # Retrieve either a single subcloud or all subclouds in a group
         subclouds = (
-            [db_api.subcloud_get(context, subcloud_id)] if subcloud_id
+            [db_api.subcloud_get(context, subcloud_id)]
+            if subcloud_id
             else db_api.subcloud_get_for_group(context, group_id)
         )
 
-        bootstrap_address_dict = \
-            payload.get('restore_values', {}).get('bootstrap_address', {})
+        bootstrap_address_dict = payload.get("restore_values", {}).get(
+            "bootstrap_address", {}
+        )
 
-        restore_subclouds, invalid_subclouds = (
-            self._validate_subclouds_for_backup(subclouds,
-                                                'restore',
-                                                bootstrap_address_dict)
+        restore_subclouds, invalid_subclouds = self._validate_subclouds_for_backup(
+            subclouds, "restore", bootstrap_address_dict
         )
 
         if restore_subclouds:
             # Use thread pool to limit number of operations in parallel
             restore_pool = greenpool.GreenPool(
-                size=MAX_PARALLEL_SUBCLOUD_BACKUP_RESTORE)
+                size=MAX_PARALLEL_SUBCLOUD_BACKUP_RESTORE
+            )
 
             # Spawn threads to back up each applicable subcloud
             restore_function = functools.partial(
-                self._restore_subcloud_backup, context, payload)
+                self._restore_subcloud_backup, context, payload
+            )
 
             failed_subclouds = self._run_parallel_group_operation(
-                'backup restore', restore_function,
-                restore_pool, restore_subclouds
+                "backup restore", restore_function, restore_pool, restore_subclouds
             )
 
         restored_subclouds = len(restore_subclouds) - len(failed_subclouds)
-        LOG.info("Subcloud restore backup operation finished.\n"
-                 "Restored subclouds: %s. Invalid subclouds: %s. "
-                 "Failed subclouds: %s." % (restored_subclouds,
-                                            len(invalid_subclouds),
-                                            len(failed_subclouds)))
+        LOG.info(
+            "Subcloud restore backup operation finished.\nRestored subclouds: %s. "
+            "Invalid subclouds: %s. Failed subclouds: %s."
+            % (restored_subclouds, len(invalid_subclouds), len(failed_subclouds))
+        )
 
-        return self._subcloud_operation_notice('restore', restore_subclouds,
-                                               failed_subclouds, invalid_subclouds)
+        return self._subcloud_operation_notice(
+            "restore", restore_subclouds, failed_subclouds, invalid_subclouds
+        )
 
-    def _deploy_bootstrap_prep(self, context, subcloud, payload: dict,
-                               ansible_subcloud_inventory_file,
-                               initial_deployment=False):
+    def _deploy_bootstrap_prep(
+        self,
+        context,
+        subcloud,
+        payload: dict,
+        ansible_subcloud_inventory_file,
+        initial_deployment=False,
+    ):
         """Run the preparation steps needed to run the bootstrap operation
 
         :param context: target request context object
@@ -1105,8 +1269,9 @@ class SubcloudManager(manager.Manager):
         """
         network_reconfig = utils.has_network_reconfig(payload, subcloud)
         if network_reconfig:
-            self._configure_system_controller_network(context, payload, subcloud,
-                                                      update_db=False)
+            self._configure_system_controller_network(
+                context, payload, subcloud, update_db=False
+            )
             # Regenerate the addn_hosts_dc file
             self._create_addn_hosts_dc(context)
 
@@ -1116,20 +1281,18 @@ class SubcloudManager(manager.Manager):
             subcloud.id,
             description=payload.get("description"),
             management_subnet=utils.get_management_subnet(payload),
-            management_gateway_ip=utils.get_management_gateway_address(
-                payload),
-            management_start_ip=utils.get_management_start_address(
-                payload),
+            management_gateway_ip=utils.get_management_gateway_address(payload),
+            management_start_ip=utils.get_management_start_address(payload),
             management_end_ip=utils.get_management_end_address(payload),
-            systemcontroller_gateway_ip=payload.get(
-                "systemcontroller_gateway_address"),
+            systemcontroller_gateway_ip=payload.get("systemcontroller_gateway_address"),
             location=payload.get("location"),
-            deploy_status=consts.DEPLOY_STATE_PRE_BOOTSTRAP)
+            deploy_status=consts.DEPLOY_STATE_PRE_BOOTSTRAP,
+        )
 
         # Populate payload with passwords
-        payload['ansible_become_pass'] = payload['sysadmin_password']
-        payload['ansible_ssh_pass'] = payload['sysadmin_password']
-        payload['admin_password'] = str(keyring.get_password('CGCS', 'admin'))
+        payload["ansible_become_pass"] = payload["sysadmin_password"]
+        payload["ansible_ssh_pass"] = payload["sysadmin_password"]
+        payload["admin_password"] = str(keyring.get_password("CGCS", "admin"))
 
         payload_for_overrides_file = payload.copy()
         for key in VALUES_TO_DELETE_OVERRIDES:
@@ -1137,38 +1300,47 @@ class SubcloudManager(manager.Manager):
                 del payload_for_overrides_file[key]
 
         # Update the ansible overrides file
-        overrides_file = os.path.join(dccommon_consts.ANSIBLE_OVERRIDES_PATH,
-                                      subcloud.name + '.yml')
+        overrides_file = os.path.join(
+            dccommon_consts.ANSIBLE_OVERRIDES_PATH, subcloud.name + ".yml"
+        )
         overrides_file_exists = utils.update_values_on_yaml_file(
-            overrides_file, payload_for_overrides_file,
-            values_to_keep=GENERATED_OVERRIDES_VALUES)
+            overrides_file,
+            payload_for_overrides_file,
+            values_to_keep=GENERATED_OVERRIDES_VALUES,
+        )
 
         if not overrides_file_exists:
             # Overrides file doesn't exist, so we generate a new one
             self.generate_subcloud_ansible_config(
-                subcloud, payload, initial_deployment=initial_deployment)
+                subcloud, payload, initial_deployment=initial_deployment
+            )
         else:
             # Since we generate an inventory already when generating the
             # new Ansible overrides, only create the inventory here when
             # the overrides already existed
-            utils.create_subcloud_inventory(payload,
-                                            ansible_subcloud_inventory_file,
-                                            initial_deployment)
+            utils.create_subcloud_inventory(
+                payload, ansible_subcloud_inventory_file, initial_deployment
+            )
 
-        utils.update_install_values_with_new_bootstrap_address(context,
-                                                               payload,
-                                                               subcloud)
+        utils.update_install_values_with_new_bootstrap_address(
+            context, payload, subcloud
+        )
 
         bootstrap_command = self.compose_bootstrap_command(
             subcloud.name,
             subcloud.region_name,
             ansible_subcloud_inventory_file,
-            subcloud.software_version)
+            subcloud.software_version,
+        )
         return bootstrap_command
 
-    def _deploy_config_prep(self, subcloud, payload: dict,
-                            ansible_subcloud_inventory_file,
-                            initial_deployment=False):
+    def _deploy_config_prep(
+        self,
+        subcloud,
+        payload: dict,
+        ansible_subcloud_inventory_file,
+        initial_deployment=False,
+    ):
         """Run the preparation steps needed to run the config operation
 
         :param subcloud: target subcloud model object
@@ -1181,21 +1353,27 @@ class SubcloudManager(manager.Manager):
 
         # Update the ansible inventory for the subcloud
         bootstrap_address = payload[consts.BOOTSTRAP_ADDRESS]
-        subcloud_params = {'name': subcloud.name,
-                           consts.BOOTSTRAP_ADDRESS: bootstrap_address}
-        utils.create_subcloud_inventory(subcloud_params,
-                                        ansible_subcloud_inventory_file,
-                                        initial_deployment)
+        subcloud_params = {
+            "name": subcloud.name,
+            consts.BOOTSTRAP_ADDRESS: bootstrap_address,
+        }
+        utils.create_subcloud_inventory(
+            subcloud_params, ansible_subcloud_inventory_file, initial_deployment
+        )
 
         config_command = self.compose_config_command(
-            subcloud.name,
-            ansible_subcloud_inventory_file,
-            payload)
+            subcloud.name, ansible_subcloud_inventory_file, payload
+        )
         return config_command
 
-    def _deploy_install_prep(self, subcloud, payload: dict,
-                             ansible_subcloud_inventory_file,
-                             initial_deployment=False, init_enroll=False):
+    def _deploy_install_prep(
+        self,
+        subcloud,
+        payload: dict,
+        ansible_subcloud_inventory_file,
+        initial_deployment=False,
+        init_enroll=False,
+    ):
         """Run preparation steps for install or init enroll operations
 
         :param subcloud: target subcloud model object
@@ -1206,45 +1384,45 @@ class SubcloudManager(manager.Manager):
         :return: ansible command needed to run the install playbook
 
         """
-        payload['install_values']['ansible_ssh_pass'] = \
-            payload['sysadmin_password']
-        payload['install_values']['ansible_become_pass'] = \
-            payload['sysadmin_password']
+        payload["install_values"]["ansible_ssh_pass"] = payload["sysadmin_password"]
+        payload["install_values"]["ansible_become_pass"] = payload["sysadmin_password"]
 
         # If all update_values already exists on override file or are
         # the same as the existing ones, the update won't happen
         # and the file will remain untouched
-        bootstrap_file = psd_common.get_config_file_path(subcloud.name,
-                                                         consts.BOOTSTRAP_VALUES)
-        update_values = {'software_version': payload['software_version'],
-                         'bmc_password': payload['bmc_password'],
-                         'ansible_ssh_pass': payload['sysadmin_password'],
-                         'ansible_become_pass': payload['sysadmin_password']
-                         }
-        utils.update_values_on_yaml_file(bootstrap_file,
-                                         update_values)
+        bootstrap_file = psd_common.get_config_file_path(
+            subcloud.name, consts.BOOTSTRAP_VALUES
+        )
+        update_values = {
+            "software_version": payload["software_version"],
+            "bmc_password": payload["bmc_password"],
+            "ansible_ssh_pass": payload["sysadmin_password"],
+            "ansible_become_pass": payload["sysadmin_password"],
+        }
+        utils.update_values_on_yaml_file(bootstrap_file, update_values)
 
         # Update the ansible inventory for the subcloud
-        bootstrap_address = payload['install_values']['bootstrap_address']
-        subcloud_params = {'name': subcloud.name,
-                           consts.BOOTSTRAP_ADDRESS: bootstrap_address}
-        utils.create_subcloud_inventory(subcloud_params,
-                                        ansible_subcloud_inventory_file,
-                                        initial_deployment)
+        bootstrap_address = payload["install_values"]["bootstrap_address"]
+        subcloud_params = {
+            "name": subcloud.name,
+            consts.BOOTSTRAP_ADDRESS: bootstrap_address,
+        }
+        utils.create_subcloud_inventory(
+            subcloud_params, ansible_subcloud_inventory_file, initial_deployment
+        )
         if init_enroll:
             init_enroll_command = self.compose_enroll_command(
                 subcloud.name,
                 subcloud.region_name,
                 ansible_subcloud_inventory_file,
                 subcloud.software_version,
-                state="init"
+                state="init",
             )
             return init_enroll_command
 
         install_command = self.compose_install_command(
-            subcloud.name,
-            ansible_subcloud_inventory_file,
-            payload['software_version'])
+            subcloud.name, ansible_subcloud_inventory_file, payload["software_version"]
+        )
         return install_command
 
     def subcloud_deploy_abort(self, context, subcloud_id, deploy_status):
@@ -1262,9 +1440,10 @@ class SubcloudManager(manager.Manager):
             ansible = AnsiblePlaybook(subcloud.name)
             aborted = ansible.run_abort()
             if not aborted:
-                LOG.warning("Ansible deploy phase subprocess of %s "
-                            "was terminated before it could be aborted"
-                            % subcloud.name)
+                LOG.warning(
+                    "Ansible deploy phase subprocess of %s "
+                    "was terminated before it could be aborted" % subcloud.name
+                )
                 # let the main phase thread handle the state update
                 return
 
@@ -1272,17 +1451,21 @@ class SubcloudManager(manager.Manager):
                 # Send shutdown signal to subcloud
                 send_subcloud_shutdown_signal(subcloud.name)
         except Exception as ex:
-            LOG.error("Subcloud deploy abort failed for subcloud %s: %s" %
-                      (subcloud.name, str(ex)))
-            utils.update_abort_status(context, subcloud.id, subcloud.deploy_status,
-                                      abort_failed=True)
+            LOG.error(
+                "Subcloud deploy abort failed for subcloud %s: %s"
+                % (subcloud.name, str(ex))
+            )
+            utils.update_abort_status(
+                context, subcloud.id, subcloud.deploy_status, abort_failed=True
+            )
             # exception is logged above
             raise ex
         LOG.info("Successfully aborted deployment of %s" % subcloud.name)
         utils.update_abort_status(context, subcloud.id, subcloud.deploy_status)
 
-    def subcloud_deploy_resume(self, context, subcloud_id, subcloud_name,
-                               payload: dict, deploy_states_to_run):
+    def subcloud_deploy_resume(
+        self, context, subcloud_id, subcloud_name, payload: dict, deploy_states_to_run
+    ):
         """Resume the subcloud deployment
 
         :param context: request context object
@@ -1292,15 +1475,17 @@ class SubcloudManager(manager.Manager):
         :param deploy_states_to_run: deploy phases pending execution
         """
         LOG.info(
-            "Resuming deployment of subcloud %s. Deploy phases to be executed: %s" %
-            (subcloud_name, ', '.join(deploy_states_to_run)))
+            "Resuming deployment of subcloud %s. Deploy phases to be executed: %s"
+            % (subcloud_name, ", ".join(deploy_states_to_run))
+        )
 
-        self.run_deploy_phases(context, subcloud_id, payload,
-                               deploy_states_to_run,
-                               initial_deployment=True)
+        self.run_deploy_phases(
+            context, subcloud_id, payload, deploy_states_to_run, initial_deployment=True
+        )
 
-    def generate_subcloud_ansible_config(self, subcloud, payload,
-                                         initial_deployment=False):
+    def generate_subcloud_ansible_config(
+        self, subcloud, payload, initial_deployment=False
+    ):
         """Generate latest ansible config based on given payload.
 
         :param subcloud: subcloud object
@@ -1309,10 +1494,12 @@ class SubcloudManager(manager.Manager):
         :return: resulting subcloud DB object
         """
         if initial_deployment:
-            LOG.debug(f"Overrides file not found for {payload['name']}. "
-                      "Generating new overrides file.")
+            LOG.debug(
+                f"Overrides file not found for {payload['name']}. "
+                "Generating new overrides file."
+            )
         else:
-            LOG.info("Generate subcloud %s ansible config." % payload['name'])
+            LOG.info("Generate subcloud %s ansible config." % payload["name"])
 
         try:
             # Write ansible based on rehome_data
@@ -1321,41 +1508,48 @@ class SubcloudManager(manager.Manager):
                 region_clients=None,
                 fetch_subcloud_ips=utils.fetch_subcloud_mgmt_ips,
             ).keystone_client
-            endpoint = m_ks_client.endpoint_cache.get_endpoint('sysinv')
-            sysinv_client = SysinvClient(dccommon_consts.DEFAULT_REGION_NAME,
-                                         m_ks_client.session,
-                                         endpoint=endpoint)
+            endpoint = m_ks_client.endpoint_cache.get_endpoint("sysinv")
+            sysinv_client = SysinvClient(
+                dccommon_consts.DEFAULT_REGION_NAME,
+                m_ks_client.session,
+                endpoint=endpoint,
+            )
             LOG.debug("Getting cached regionone data for %s" % subcloud.name)
             cached_regionone_data = self._get_cached_regionone_data(
-                m_ks_client, sysinv_client)
+                m_ks_client, sysinv_client
+            )
 
             self._populate_payload_with_cached_keystone_data(
-                cached_regionone_data, payload, populate_passwords=True)
+                cached_regionone_data, payload, populate_passwords=True
+            )
 
-            payload['users'] = {}
+            payload["users"] = {}
             for user in USERS_TO_REPLICATE:
-                payload['users'][user] = \
-                    str(keyring.get_password(
-                        user, dccommon_consts.SERVICES_USER_NAME))
+                payload["users"][user] = str(
+                    keyring.get_password(user, dccommon_consts.SERVICES_USER_NAME)
+                )
 
             # TODO(Yuxing) remove replicating the smapi user when end the support
             # of rehoming a subcloud with a software version below 22.12
             if subcloud.software_version <= LAST_SW_VERSION_IN_CENTOS:
-                payload['users']['smapi'] = \
-                    str(keyring.get_password(
-                        'smapi', dccommon_consts.SERVICES_USER_NAME))
+                payload["users"]["smapi"] = str(
+                    keyring.get_password("smapi", dccommon_consts.SERVICES_USER_NAME)
+                )
 
-            if 'region_name' not in payload:
-                payload['region_name'] = subcloud.region_name
+            if "region_name" not in payload:
+                payload["region_name"] = subcloud.region_name
 
             # Ansible inventory filename for the specified subcloud
             ansible_subcloud_inventory_file = utils.get_ansible_filename(
-                subcloud.name, INVENTORY_FILE_POSTFIX)
+                subcloud.name, INVENTORY_FILE_POSTFIX
+            )
 
             # Create the ansible inventory for the new subcloud
-            utils.create_subcloud_inventory(payload,
-                                            ansible_subcloud_inventory_file,
-                                            initial_deployment=initial_deployment)
+            utils.create_subcloud_inventory(
+                payload,
+                ansible_subcloud_inventory_file,
+                initial_deployment=initial_deployment,
+            )
 
             # Create subcloud intermediate certificate and pass in keys
             # On initial deployment, this was already created by subcloud
@@ -1373,12 +1567,19 @@ class SubcloudManager(manager.Manager):
             return subcloud
 
         except Exception:
-            LOG.exception("Failed to generate subcloud %s config" % payload['name'])
+            LOG.exception("Failed to generate subcloud %s config" % payload["name"])
             raise
 
-    def subcloud_deploy_create(self, context, subcloud_id, payload,
-                               rehoming=False, initial_deployment=True,
-                               return_as_dict=True, enroll=False):
+    def subcloud_deploy_create(
+        self,
+        context,
+        subcloud_id,
+        payload,
+        rehoming=False,
+        initial_deployment=True,
+        return_as_dict=True,
+        enroll=False,
+    ):
         """Create subcloud and notify orchestrators.
 
         :param context: request context object
@@ -1391,14 +1592,14 @@ class SubcloudManager(manager.Manager):
         returning
         :return: resulting subcloud DB object or dictionary
         """
-        LOG.info("Creating subcloud %s." % payload['name'])
+        LOG.info("Creating subcloud %s." % payload["name"])
 
         # cache original payload data for day-2's rehome usage
         original_payload = copy.deepcopy(payload)
 
         # Check the secondary option from payload
-        secondary_str = payload.get('secondary', '')
-        secondary = (secondary_str.lower() == 'true')
+        secondary_str = payload.get("secondary", "")
+        secondary = secondary_str.lower() == "true"
 
         if rehoming:
             deploy_state = consts.DEPLOY_STATE_PRE_REHOME
@@ -1408,8 +1609,8 @@ class SubcloudManager(manager.Manager):
             deploy_state = consts.DEPLOY_STATE_CREATING
 
         subcloud = db_api.subcloud_update(
-            context, subcloud_id,
-            deploy_status=deploy_state)
+            context, subcloud_id, deploy_status=deploy_state
+        )
 
         rehome_data = None
         try:
@@ -1420,70 +1621,79 @@ class SubcloudManager(manager.Manager):
                 region_clients=None,
                 fetch_subcloud_ips=utils.fetch_subcloud_mgmt_ips,
             ).keystone_client
-            subcloud_subnet = netaddr.IPNetwork(
-                utils.get_management_subnet(payload))
-            endpoint = m_ks_client.endpoint_cache.get_endpoint('sysinv')
-            sysinv_client = SysinvClient(dccommon_consts.DEFAULT_REGION_NAME,
-                                         m_ks_client.session,
-                                         endpoint=endpoint)
+            subcloud_subnet = netaddr.IPNetwork(utils.get_management_subnet(payload))
+            endpoint = m_ks_client.endpoint_cache.get_endpoint("sysinv")
+            sysinv_client = SysinvClient(
+                dccommon_consts.DEFAULT_REGION_NAME,
+                m_ks_client.session,
+                endpoint=endpoint,
+            )
             LOG.debug("Getting cached regionone data for %s" % subcloud.name)
             cached_regionone_data = self._get_cached_regionone_data(
-                m_ks_client, sysinv_client)
-            for mgmt_if_uuid in cached_regionone_data['mgmt_interface_uuids']:
+                m_ks_client, sysinv_client
+            )
+            for mgmt_if_uuid in cached_regionone_data["mgmt_interface_uuids"]:
                 sysinv_client.create_route(
                     mgmt_if_uuid,
                     str(subcloud_subnet.ip),
                     subcloud_subnet.prefixlen,
-                    payload['systemcontroller_gateway_address'],
-                    1)
+                    payload["systemcontroller_gateway_address"],
+                    1,
+                )
 
             if not enroll:
-                self._create_subcloud_endpoints(m_ks_client=m_ks_client,
-                                                payload=payload,
-                                                subcloud=subcloud,
-                                                context=context)
+                self._create_subcloud_endpoints(
+                    m_ks_client=m_ks_client,
+                    payload=payload,
+                    subcloud=subcloud,
+                    context=context,
+                )
 
             # create entry into alarm summary table, will get real values later
-            alarm_updates = {'critical_alarms': -1,
-                             'major_alarms': -1,
-                             'minor_alarms': -1,
-                             'warnings': -1,
-                             'cloud_status': consts.ALARMS_DISABLED}
-            db_api.subcloud_alarms_create(context, subcloud.name,
-                                          alarm_updates)
+            alarm_updates = {
+                "critical_alarms": -1,
+                "major_alarms": -1,
+                "minor_alarms": -1,
+                "warnings": -1,
+                "cloud_status": consts.ALARMS_DISABLED,
+            }
+            db_api.subcloud_alarms_create(context, subcloud.name, alarm_updates)
 
             # Regenerate the addn_hosts_dc file
             self._create_addn_hosts_dc(context)
 
             # Passwords need to be populated when rehoming
             self._populate_payload_with_cached_keystone_data(
-                cached_regionone_data, payload, populate_passwords=rehoming)
+                cached_regionone_data, payload, populate_passwords=rehoming
+            )
 
             if "deploy_playbook" in payload:
-                self._prepare_for_deployment(payload, subcloud.name,
-                                             populate_passwords=False)
+                self._prepare_for_deployment(
+                    payload, subcloud.name, populate_passwords=False
+                )
 
-            payload['users'] = {}
+            payload["users"] = {}
             for user in USERS_TO_REPLICATE:
-                payload['users'][user] = \
-                    str(keyring.get_password(
-                        user, dccommon_consts.SERVICES_USER_NAME))
+                payload["users"][user] = str(
+                    keyring.get_password(user, dccommon_consts.SERVICES_USER_NAME)
+                )
 
             # TODO(Yuxing) remove replicating the smapi user when end the support
             # of rehoming a subcloud with a software version below 22.12
             if rehoming and subcloud.software_version <= LAST_SW_VERSION_IN_CENTOS:
-                payload['users']['smapi'] = \
-                    str(keyring.get_password(
-                        'smapi', dccommon_consts.SERVICES_USER_NAME))
+                payload["users"]["smapi"] = str(
+                    keyring.get_password("smapi", dccommon_consts.SERVICES_USER_NAME)
+                )
 
             # Ansible inventory filename for the specified subcloud
             ansible_subcloud_inventory_file = utils.get_ansible_filename(
-                subcloud.name, INVENTORY_FILE_POSTFIX)
+                subcloud.name, INVENTORY_FILE_POSTFIX
+            )
 
             # Create the ansible inventory for the new subcloud
-            utils.create_subcloud_inventory(payload,
-                                            ansible_subcloud_inventory_file,
-                                            initial_deployment)
+            utils.create_subcloud_inventory(
+                payload, ansible_subcloud_inventory_file, initial_deployment
+            )
 
             if not enroll:
                 # create subcloud intermediate certificate and pass in keys
@@ -1498,21 +1708,21 @@ class SubcloudManager(manager.Manager):
             # for day-2's migrate purpose.
             if secondary:
                 # remove unused parameters
-                if 'secondary' in original_payload:
-                    del original_payload['secondary']
-                if 'ansible_ssh_pass' in original_payload:
-                    del original_payload['ansible_ssh_pass']
-                if 'sysadmin_password' in original_payload:
-                    del original_payload['sysadmin_password']
-                if 'ansible_become_pass' in original_payload:
-                    del original_payload['ansible_become_pass']
-                if 'admin_password' in original_payload:
+                if "secondary" in original_payload:
+                    del original_payload["secondary"]
+                if "ansible_ssh_pass" in original_payload:
+                    del original_payload["ansible_ssh_pass"]
+                if "sysadmin_password" in original_payload:
+                    del original_payload["sysadmin_password"]
+                if "ansible_become_pass" in original_payload:
+                    del original_payload["ansible_become_pass"]
+                if "admin_password" in original_payload:
                     # Encode admin_password
-                    original_payload['admin_password'] = base64.b64encode(
-                        original_payload['admin_password'].encode("utf-8")
-                    ).decode('utf-8')
+                    original_payload["admin_password"] = base64.b64encode(
+                        original_payload["admin_password"].encode("utf-8")
+                    ).decode("utf-8")
                 bootstrap_info = utils.create_subcloud_rehome_data_template()
-                bootstrap_info['saved_payload'] = original_payload
+                bootstrap_info["saved_payload"] = original_payload
                 rehome_data = json.dumps(bootstrap_info)
                 deploy_state = consts.DEPLOY_STATE_SECONDARY
 
@@ -1520,7 +1730,7 @@ class SubcloudManager(manager.Manager):
                 deploy_state = consts.DEPLOY_STATE_CREATED
 
         except Exception:
-            LOG.exception("Failed to create subcloud %s" % payload['name'])
+            LOG.exception("Failed to create subcloud %s" % payload["name"])
             # If we failed to create the subcloud, update the deployment status
 
             if rehoming:
@@ -1531,9 +1741,8 @@ class SubcloudManager(manager.Manager):
                 deploy_state = consts.DEPLOY_STATE_CREATE_FAILED
 
         subcloud = db_api.subcloud_update(
-            context, subcloud.id,
-            deploy_status=deploy_state,
-            rehome_data=rehome_data)
+            context, subcloud.id, deploy_status=deploy_state, rehome_data=rehome_data
+        )
 
         LOG.info(f"Successfully created subcloud {subcloud.name}")
 
@@ -1544,8 +1753,9 @@ class SubcloudManager(manager.Manager):
 
         return subcloud
 
-    def subcloud_deploy_install(self, context, subcloud_id, payload: dict,
-                                initial_deployment=False) -> bool:
+    def subcloud_deploy_install(
+        self, context, subcloud_id, payload: dict, initial_deployment=False
+    ) -> bool:
         """Install subcloud
 
         :param context: request context object
@@ -1559,9 +1769,10 @@ class SubcloudManager(manager.Manager):
         subcloud = db_api.subcloud_update(
             context,
             subcloud_id,
-            software_version=payload['software_version'],
+            software_version=payload["software_version"],
             deploy_status=consts.DEPLOY_STATE_PRE_INSTALL,
-            data_install=json.dumps(payload['install_values']))
+            data_install=json.dumps(payload["install_values"]),
+        )
 
         LOG.info("Installing subcloud %s." % subcloud.name)
 
@@ -1571,19 +1782,22 @@ class SubcloudManager(manager.Manager):
                 + "_playbook_output.log"
             )
             ansible_subcloud_inventory_file = self._get_ansible_filename(
-                subcloud.name, INVENTORY_FILE_POSTFIX)
+                subcloud.name, INVENTORY_FILE_POSTFIX
+            )
 
             install_command = self._deploy_install_prep(
-                subcloud, payload, ansible_subcloud_inventory_file,
-                initial_deployment)
+                subcloud, payload, ansible_subcloud_inventory_file, initial_deployment
+            )
             install_success = self._run_subcloud_install(
-                context, subcloud, install_command,
-                log_file, payload['install_values'])
+                context, subcloud, install_command, log_file, payload["install_values"]
+            )
             if install_success:
                 db_api.subcloud_update(
-                    context, subcloud.id,
+                    context,
+                    subcloud.id,
                     deploy_status=consts.DEPLOY_STATE_INSTALLED,
-                    error_description=consts.ERROR_DESC_EMPTY)
+                    error_description=consts.ERROR_DESC_EMPTY,
+                )
             return install_success
 
         except Exception:
@@ -1591,24 +1805,25 @@ class SubcloudManager(manager.Manager):
             # If we failed to install the subcloud,
             # update the deployment status
             db_api.subcloud_update(
-                context, subcloud_id,
-                deploy_status=consts.DEPLOY_STATE_PRE_INSTALL_FAILED)
+                context,
+                subcloud_id,
+                deploy_status=consts.DEPLOY_STATE_PRE_INSTALL_FAILED,
+            )
             return False
 
     def subcloud_deploy_enroll(self, context, subcloud_id, payload: dict):
 
         db_api.subcloud_update(
-            context,
-            subcloud_id,
-            deploy_status=consts.DEPLOY_STATE_PRE_INIT_ENROLL
+            context, subcloud_id, deploy_status=consts.DEPLOY_STATE_PRE_INIT_ENROLL
         )
 
         subcloud = db_api.subcloud_get(context, subcloud_id)
 
         if self.subcloud_init_enroll(context, subcloud.id, payload):
             try:
-                endpoint = ("https://" +
-                            payload.get("external_oam_floating_address") + ":6385")
+                endpoint = (
+                    "https://" + payload.get("external_oam_floating_address") + ":6385"
+                )
                 subcloud_region_name = utils.get_region_name(endpoint)
 
                 # The region name in the payload was randomly generated, need to
@@ -1654,7 +1869,7 @@ class SubcloudManager(manager.Manager):
                     subcloud.name,
                     ansible_subcloud_inventory_file,
                     payload[consts.BOOTSTRAP_ADDRESS],
-                    ansible_pass=payload['sysadmin_password'],
+                    ansible_pass=payload["sysadmin_password"],
                 )
 
                 enroll_playbook_command = self.compose_enroll_command(
@@ -1662,27 +1877,32 @@ class SubcloudManager(manager.Manager):
                     subcloud.region_name,
                     ansible_subcloud_inventory_file,
                     subcloud.software_version,
-                    state="enroll"
+                    state="enroll",
                 )
-                self._run_subcloud_enroll(context,
-                                          subcloud,
-                                          enroll_playbook_command,
-                                          log_file,
-                                          region_name=subcloud_region_name)
+                self._run_subcloud_enroll(
+                    context,
+                    subcloud,
+                    enroll_playbook_command,
+                    log_file,
+                    region_name=subcloud_region_name,
+                )
 
             except Exception:
-                LOG.exception(f'Failed to enroll subcloud {subcloud.name}')
+                LOG.exception(f"Failed to enroll subcloud {subcloud.name}")
                 db_api.subcloud_update(
-                    context, subcloud_id,
-                    deploy_status=consts.DEPLOY_STATE_PRE_ENROLL_FAILED)
+                    context,
+                    subcloud_id,
+                    deploy_status=consts.DEPLOY_STATE_PRE_ENROLL_FAILED,
+                )
                 return False
         else:
-            LOG.error(f'Initial enrollment failed for subcloud {subcloud.name}')
+            LOG.error(f"Initial enrollment failed for subcloud {subcloud.name}")
 
         return subcloud
 
-    def subcloud_deploy_bootstrap(self, context, subcloud_id, payload,
-                                  initial_deployment=False):
+    def subcloud_deploy_bootstrap(
+        self, context, subcloud_id, payload, initial_deployment=False
+    ):
         """Bootstrap subcloud
 
         :param context: request context object
@@ -1691,7 +1911,7 @@ class SubcloudManager(manager.Manager):
         :param initial_deployment: initial_deployment flag from subcloud inventory
         :return: success status
         """
-        LOG.info("Bootstrapping subcloud %s." % payload['name'])
+        LOG.info("Bootstrapping subcloud %s." % payload["name"])
 
         # Retrieve the subcloud details from the database
         subcloud = db_api.subcloud_get(context, subcloud_id)
@@ -1702,25 +1922,33 @@ class SubcloudManager(manager.Manager):
                 + "_playbook_output.log"
             )
             ansible_subcloud_inventory_file = self._get_ansible_filename(
-                subcloud.name, INVENTORY_FILE_POSTFIX)
+                subcloud.name, INVENTORY_FILE_POSTFIX
+            )
 
             bootstrap_command = self._deploy_bootstrap_prep(
-                context, subcloud, payload,
+                context,
+                subcloud,
+                payload,
                 ansible_subcloud_inventory_file,
-                initial_deployment)
+                initial_deployment,
+            )
             bootstrap_success = self._run_subcloud_bootstrap(
-                context, subcloud, bootstrap_command, log_file)
+                context, subcloud, bootstrap_command, log_file
+            )
             return bootstrap_success
 
         except Exception:
-            LOG.exception("Failed to bootstrap subcloud %s" % payload['name'])
+            LOG.exception("Failed to bootstrap subcloud %s" % payload["name"])
             db_api.subcloud_update(
-                context, subcloud_id,
-                deploy_status=consts.DEPLOY_STATE_PRE_BOOTSTRAP_FAILED)
+                context,
+                subcloud_id,
+                deploy_status=consts.DEPLOY_STATE_PRE_BOOTSTRAP_FAILED,
+            )
             return False
 
-    def subcloud_deploy_config(self, context, subcloud_id, payload: dict,
-                               initial_deployment=False) -> bool:
+    def subcloud_deploy_config(
+        self, context, subcloud_id, payload: dict, initial_deployment=False
+    ) -> bool:
         """Configure subcloud
 
         :param context: request context object
@@ -1732,8 +1960,8 @@ class SubcloudManager(manager.Manager):
         LOG.info("Configuring subcloud %s." % subcloud_id)
 
         subcloud = db_api.subcloud_update(
-            context, subcloud_id,
-            deploy_status=consts.DEPLOY_STATE_PRE_CONFIG)
+            context, subcloud_id, deploy_status=consts.DEPLOY_STATE_PRE_CONFIG
+        )
         try:
             log_file = (
                 os.path.join(consts.DC_ANSIBLE_LOG_DIR, subcloud.name)
@@ -1741,21 +1969,25 @@ class SubcloudManager(manager.Manager):
             )
             # Ansible inventory filename for the specified subcloud
             ansible_subcloud_inventory_file = self._get_ansible_filename(
-                subcloud.name, INVENTORY_FILE_POSTFIX)
+                subcloud.name, INVENTORY_FILE_POSTFIX
+            )
 
             config_command = self._deploy_config_prep(
-                subcloud, payload, ansible_subcloud_inventory_file,
-                initial_deployment)
+                subcloud, payload, ansible_subcloud_inventory_file, initial_deployment
+            )
 
-            config_success = self._run_subcloud_config(subcloud, context,
-                                                       config_command, log_file)
+            config_success = self._run_subcloud_config(
+                subcloud, context, config_command, log_file
+            )
             return config_success
 
         except Exception:
             LOG.exception("Failed to configure %s" % subcloud.name)
             db_api.subcloud_update(
-                context, subcloud_id,
-                deploy_status=consts.DEPLOY_STATE_PRE_CONFIG_FAILED)
+                context,
+                subcloud_id,
+                deploy_status=consts.DEPLOY_STATE_PRE_CONFIG_FAILED,
+            )
             return False
 
     def subcloud_deploy_complete(self, context, subcloud_id):
@@ -1768,19 +2000,23 @@ class SubcloudManager(manager.Manager):
         LOG.info("Completing subcloud %s deployment." % subcloud_id)
 
         # Just update the deploy status
-        subcloud = db_api.subcloud_update(context, subcloud_id,
-                                          deploy_status=consts.DEPLOY_STATE_DONE)
+        subcloud = db_api.subcloud_update(
+            context, subcloud_id, deploy_status=consts.DEPLOY_STATE_DONE
+        )
 
-        LOG.info("Subcloud %s deploy status set to: %s"
-                 % (subcloud_id, consts.DEPLOY_STATE_DONE))
+        LOG.info(
+            "Subcloud %s deploy status set to: %s"
+            % (subcloud_id, consts.DEPLOY_STATE_DONE)
+        )
 
         return db_api.subcloud_db_model_to_dict(subcloud)
 
     def _subcloud_operation_notice(
-            self, operation, restore_subclouds, failed_subclouds,
-            invalid_subclouds):
-        all_failed = ((not set(restore_subclouds) - set(failed_subclouds))
-                      and not invalid_subclouds)
+        self, operation, restore_subclouds, failed_subclouds, invalid_subclouds
+    ):
+        all_failed = (
+            not set(restore_subclouds) - set(failed_subclouds)
+        ) and not invalid_subclouds
         if all_failed:
             LOG.error("Backup %s failed for all applied subclouds" % operation)
             raise exceptions.SubcloudBackupOperationFailed(operation=operation)
@@ -1788,13 +2024,14 @@ class SubcloudManager(manager.Manager):
         if invalid_subclouds:
             self._warn_for_invalid_subclouds_on_backup_operation(invalid_subclouds)
         if failed_subclouds:
-            self._warn_for_failed_subclouds_on_backup_operation(operation,
-                                                                failed_subclouds)
+            self._warn_for_failed_subclouds_on_backup_operation(
+                operation, failed_subclouds
+            )
 
         if invalid_subclouds or failed_subclouds:
-            return self._build_subcloud_operation_notice(operation,
-                                                         failed_subclouds,
-                                                         invalid_subclouds)
+            return self._build_subcloud_operation_notice(
+                operation, failed_subclouds, invalid_subclouds
+            )
         return
 
     def _filter_subclouds_with_ongoing_backup(self, subclouds):
@@ -1802,22 +2039,27 @@ class SubcloudManager(manager.Manager):
         while i < len(subclouds):
             subcloud = subclouds[i]
             if subcloud.backup_status in consts.STATES_FOR_ONGOING_BACKUP:
-                LOG.info(_('Subcloud %s already has a backup operation in '
-                           'progress' % subcloud.name))
+                LOG.info(
+                    _(
+                        "Subcloud %s already has a backup operation in progress"
+                        % subcloud.name
+                    )
+                )
                 subclouds.pop(i)
             else:
                 i += 1
 
-    def _validate_subclouds_for_backup(self, subclouds, operation,
-                                       bootstrap_address_dict=None):
+    def _validate_subclouds_for_backup(
+        self, subclouds, operation, bootstrap_address_dict=None
+    ):
         valid_subclouds = []
         invalid_subclouds = []
         for subcloud in subclouds:
             is_valid = False
             try:
-                if utils.is_valid_for_backup_operation(operation,
-                                                       subcloud,
-                                                       bootstrap_address_dict):
+                if utils.is_valid_for_backup_operation(
+                    operation, subcloud, bootstrap_address_dict
+                ):
                     is_valid = True
 
             except exceptions.ValidateFail:
@@ -1853,7 +2095,8 @@ class SubcloudManager(manager.Manager):
                 context,
                 subcloud_id,
                 deploy_status=consts.DEPLOY_STATE_INITIATING_ENROLL,
-                data_install=json.dumps(payload['install_values']))
+                data_install=json.dumps(payload["install_values"]),
+            )
 
             # TODO(glyraper): log_file to be used in the playbook execution
             # log_file = (
@@ -1861,19 +2104,23 @@ class SubcloudManager(manager.Manager):
             #     + "_playbook_output.log"
             # )
             ansible_subcloud_inventory_file = self._get_ansible_filename(
-                subcloud.name, INVENTORY_FILE_POSTFIX)
+                subcloud.name, INVENTORY_FILE_POSTFIX
+            )
             init_enroll_command = self._deploy_install_prep(
-                subcloud, payload, ansible_subcloud_inventory_file,
-                init_enroll=True)
+                subcloud, payload, ansible_subcloud_inventory_file, init_enroll=True
+            )
             if enrollment.enroll_init(consts.DC_ANSIBLE_LOG_DIR, init_enroll_command):
-                LOG.info('Subcloud enrollment initial phase successful '
-                         f'for subcloud {subcloud.name}')
+                LOG.info(
+                    "Subcloud enrollment initial phase successful "
+                    f"for subcloud {subcloud.name}"
+                )
 
                 db_api.subcloud_update(
                     context,
                     subcloud_id,
                     deploy_status=consts.DEPLOY_STATE_INIT_ENROLL_COMPLETE,
-                    error_description=consts.ERROR_DESC_EMPTY)
+                    error_description=consts.ERROR_DESC_EMPTY,
+                )
                 return True
 
         except Exception:
@@ -1881,8 +2128,10 @@ class SubcloudManager(manager.Manager):
             # If we failed to initiate the subcloud enroll,
             # update the deployment status
             db_api.subcloud_update(
-                context, subcloud_id,
-                deploy_status=consts.DEPLOY_STATE_PRE_INIT_ENROLL_FAILED)
+                context,
+                subcloud_id,
+                deploy_status=consts.DEPLOY_STATE_PRE_INIT_ENROLL_FAILED,
+            )
             return False
 
     @staticmethod
@@ -1893,12 +2142,14 @@ class SubcloudManager(manager.Manager):
 
             if invalid_ids:
                 # Set state on subclouds that failed validation
-                LOG.warn('The following subclouds are not online and/or managed '
-                         'and/or in a valid deploy state, and will not be backed '
-                         'up: %s', ', '.join(list(invalid_names)))
+                LOG.warn(
+                    "The following subclouds are not online and/or managed and/or "
+                    "in a valid deploy state, and will not be backed up: %s",
+                    ", ".join(list(invalid_names)),
+                )
                 SubcloudManager._update_backup_status_by_ids(
-                    context, invalid_ids,
-                    consts.BACKUP_STATE_VALIDATE_FAILED)
+                    context, invalid_ids, consts.BACKUP_STATE_VALIDATE_FAILED
+                )
 
         except DCManagerException as ex:
             LOG.exception("Subcloud backup validation failed")
@@ -1907,31 +2158,33 @@ class SubcloudManager(manager.Manager):
     @staticmethod
     def _warn_for_invalid_subclouds_on_backup_operation(invalid_subclouds):
         invalid_names = {subcloud.name for subcloud in invalid_subclouds}
-        LOG.warn('The following subclouds were not online and/or in a valid '
-                 'deploy/management state, and thus were not be reached '
-                 'for backup operation: %s', ', '.join(list(invalid_names)))
+        LOG.warn(
+            "The following subclouds were not online and/or in a valid "
+            "deploy/management state, and thus were not be reached "
+            "for backup operation: %s",
+            ", ".join(list(invalid_names)),
+        )
 
     @staticmethod
     def _warn_for_failed_subclouds_on_backup_operation(operation, failed_subclouds):
         failed_names = {subcloud.name for subcloud in failed_subclouds}
-        LOG.warn('Backup %s operation failed for some subclouds, '
-                 'check previous logs for details. Failed subclouds: %s' %
-                 (operation, ', '.join(list(failed_names))))
+        LOG.warn(
+            "Backup %s operation failed for some subclouds, "
+            "check previous logs for details. Failed subclouds: %s"
+            % (operation, ", ".join(list(failed_names)))
+        )
 
     @staticmethod
     def _update_backup_status(context, subclouds, backup_status):
         subcloud_ids = [subcloud.id for subcloud in subclouds]
-        return SubcloudManager. \
-            _update_backup_status_by_ids(context, subcloud_ids,
-                                         backup_status)
+        return SubcloudManager._update_backup_status_by_ids(
+            context, subcloud_ids, backup_status
+        )
 
     @staticmethod
     def _update_backup_status_by_ids(context, subcloud_ids, backup_status):
-        validate_state_form = {
-            Subcloud.backup_status.name: backup_status
-        }
-        db_api.subcloud_bulk_update_by_ids(context, subcloud_ids,
-                                           validate_state_form)
+        validate_state_form = {Subcloud.backup_status.name: backup_status}
+        db_api.subcloud_bulk_update_by_ids(context, subcloud_ids, validate_state_form)
 
     @staticmethod
     def _run_parallel_group_operation(op_type, op_function, thread_pool, subclouds):
@@ -1946,9 +2199,11 @@ class SubcloudManager(manager.Manager):
 
             completion = float(processed) / float(len(subclouds)) * 100
             remaining = len(subclouds) - processed
-            LOG.info("Processed subcloud %s for %s (operation %.0f%% "
-                     "complete, %d subcloud(s) remaining)" %
-                     (subcloud.name, op_type, completion, remaining))
+            LOG.info(
+                "Processed subcloud %s for %s (operation %.0f%% "
+                "complete, %d subcloud(s) remaining)"
+                % (subcloud.name, op_type, completion, remaining)
+            )
 
         return failed_subclouds
 
@@ -1977,19 +2232,21 @@ class SubcloudManager(manager.Manager):
 
             # Prepare for backup
             overrides_file = self._create_overrides_for_backup_or_restore(
-                'create', payload, subcloud.name
+                "create", payload, subcloud.name
             )
             backup_command = self.compose_backup_command(
-                subcloud.name, subcloud_inventory_file)
+                subcloud.name, subcloud_inventory_file
+            )
 
             self._clear_subcloud_backup_failure_alarm_if_exists(subcloud)
         except Exception:
             self._fail_subcloud_backup_prep(context, subcloud)
             return subcloud, False
 
-        local_only = payload.get('local_only') or False
+        local_only = payload.get("local_only") or False
         success = self._run_subcloud_backup_create_playbook(
-            subcloud, backup_command, context, local_only)
+            subcloud, backup_command, context, local_only
+        )
 
         if success:
             utils.delete_subcloud_inventory(overrides_file)
@@ -1997,19 +2254,23 @@ class SubcloudManager(manager.Manager):
         return subcloud, success
 
     def _filter_subclouds_for_backup_delete(self, context, payload, local_delete):
-        subcloud_id = payload.get('subcloud')
-        group_id = payload.get('group')
+        subcloud_id = payload.get("subcloud")
+        group_id = payload.get("group")
 
         # Retrieve either a single subcloud or all subclouds in a group
-        subclouds = [db_api.subcloud_get(context, subcloud_id)] if subcloud_id \
+        subclouds = (
+            [db_api.subcloud_get(context, subcloud_id)]
+            if subcloud_id
             else db_api.subcloud_get_for_group(context, group_id)
+        )
         invalid_subclouds = []
 
         # Subcloud state validation only required for local delete
         if local_delete:
             # Use same criteria defined for subcloud backup create
-            subclouds_to_delete_backup, invalid_subclouds = \
-                self._validate_subclouds_for_backup(subclouds, 'delete')
+            subclouds_to_delete_backup, invalid_subclouds = (
+                self._validate_subclouds_for_backup(subclouds, "delete")
+            )
         else:
             # Otherwise, validation is unnecessary, since connection is not required
             subclouds_to_delete_backup = subclouds
@@ -2022,17 +2283,20 @@ class SubcloudManager(manager.Manager):
                 payload, subcloud.name, release_version
             )
             inventory_file = None
-            if payload['override_values']['local']:
+            if payload["override_values"]["local"]:
                 inventory_file = self._create_subcloud_inventory_file(subcloud)
             delete_command = self.compose_backup_delete_command(
-                subcloud.name, inventory_file)
+                subcloud.name, inventory_file
+            )
         except Exception:
-            LOG.exception("Failed to prepare subcloud %s for backup delete"
-                          % subcloud.name)
+            LOG.exception(
+                "Failed to prepare subcloud %s for backup delete" % subcloud.name
+            )
             return subcloud, False
 
-        success = self._run_subcloud_backup_delete_playbook(context, subcloud,
-                                                            delete_command)
+        success = self._run_subcloud_backup_delete_playbook(
+            context, subcloud, delete_command
+        )
 
         if success:
             utils.delete_subcloud_inventory(overrides_file)
@@ -2040,8 +2304,10 @@ class SubcloudManager(manager.Manager):
         return subcloud, success
 
     def _restore_subcloud_backup(self, context, payload, subcloud):
-        log_file = (os.path.join(consts.DC_ANSIBLE_LOG_DIR, subcloud.name) +
-                    '_playbook_output.log')
+        log_file = (
+            os.path.join(consts.DC_ANSIBLE_LOG_DIR, subcloud.name)
+            + "_playbook_output.log"
+        )
 
         # To get the bootstrap_address for the subcloud, we considered
         # the following order:
@@ -2049,63 +2315,75 @@ class SubcloudManager(manager.Manager):
         # 2) Use the value from install_values if present
         # 3) Use the value from the current inventory file if it exist
         # To reach this part of the code, one of the above conditions is True
-        bootstrap_address_dict = \
-            payload.get('restore_values', {}).get('bootstrap_address', {})
+        bootstrap_address_dict = payload.get("restore_values", {}).get(
+            "bootstrap_address", {}
+        )
         if bootstrap_address_dict.get(subcloud.name):
-            LOG.debug('Using bootstrap_address from restore_values for subcloud %s'
-                      % subcloud.name)
+            LOG.debug(
+                "Using bootstrap_address from restore_values for subcloud %s"
+                % subcloud.name
+            )
             bootstrap_address = bootstrap_address_dict.get(subcloud.name)
         elif subcloud.data_install:
-            LOG.debug('Using bootstrap_address from install_values for subcloud %s'
-                      % subcloud.name)
+            LOG.debug(
+                "Using bootstrap_address from install_values for subcloud %s"
+                % subcloud.name
+            )
             data_install = json.loads(subcloud.data_install)
-            bootstrap_address = data_install.get('bootstrap_address')
+            bootstrap_address = data_install.get("bootstrap_address")
         else:
-            LOG.debug('Using bootstrap_address from previous inventory file '
-                      'for subcloud %s' % subcloud.name)
-            bootstrap_address = \
-                utils.get_ansible_host_ip_from_inventory(subcloud.name)
+            LOG.debug(
+                "Using bootstrap_address from previous inventory file for subcloud %s"
+                % subcloud.name
+            )
+            bootstrap_address = utils.get_ansible_host_ip_from_inventory(subcloud.name)
 
         try:
             db_api.subcloud_update(
-                context, subcloud.id,
-                deploy_status=consts.DEPLOY_STATE_PRE_RESTORE
+                context, subcloud.id, deploy_status=consts.DEPLOY_STATE_PRE_RESTORE
             )
             subcloud_inventory_file = self._create_subcloud_inventory_file(
-                subcloud, bootstrap_address=bootstrap_address)
+                subcloud, bootstrap_address=bootstrap_address
+            )
             # Prepare for restore
             overrides_file = self._create_overrides_for_backup_or_restore(
-                'restore', payload, subcloud.name
+                "restore", payload, subcloud.name
             )
             restore_command = self.compose_backup_restore_command(
-                subcloud.name, subcloud_inventory_file)
+                subcloud.name, subcloud_inventory_file
+            )
         except Exception:
             db_api.subcloud_update(
-                context, subcloud.id,
-                deploy_status=consts.DEPLOY_STATE_RESTORE_PREP_FAILED
+                context,
+                subcloud.id,
+                deploy_status=consts.DEPLOY_STATE_RESTORE_PREP_FAILED,
             )
-            LOG.exception("Failed to prepare subcloud %s for backup restore"
-                          % subcloud.name)
+            LOG.exception(
+                "Failed to prepare subcloud %s for backup restore" % subcloud.name
+            )
             return subcloud, False
 
-        if payload.get('with_install'):
+        if payload.get("with_install"):
             data_install = json.loads(subcloud.data_install)
-            software_version = payload.get('software_version')
+            software_version = payload.get("software_version")
             install_command = self.compose_install_command(
-                subcloud.name, subcloud_inventory_file, software_version)
+                subcloud.name, subcloud_inventory_file, software_version
+            )
             # Update data_install with missing data
             matching_iso, _ = utils.get_vault_load_files(software_version)
-            data_install['software_version'] = software_version
-            data_install['image'] = matching_iso
-            data_install['ansible_ssh_pass'] = payload['sysadmin_password']
-            data_install['ansible_become_pass'] = payload['sysadmin_password']
+            data_install["software_version"] = software_version
+            data_install["image"] = matching_iso
+            data_install["ansible_ssh_pass"] = payload["sysadmin_password"]
+            data_install["ansible_become_pass"] = payload["sysadmin_password"]
             install_success = self._run_subcloud_install(
-                context, subcloud, install_command, log_file, data_install)
+                context, subcloud, install_command, log_file, data_install
+            )
             if not install_success:
                 return subcloud, False
 
         success = self._run_subcloud_backup_restore_playbook(
-            subcloud, restore_command, context, log_file)
+            subcloud, restore_command, context, log_file
+        )
 
         if success:
             utils.delete_subcloud_inventory(overrides_file)
@@ -2114,25 +2392,25 @@ class SubcloudManager(manager.Manager):
 
     @staticmethod
     def _build_subcloud_operation_notice(
-            operation, failed_subclouds, invalid_subclouds):
+        operation, failed_subclouds, invalid_subclouds
+    ):
         invalid_subcloud_names = [subcloud.name for subcloud in invalid_subclouds]
         failed_subcloud_names = [subcloud.name for subcloud in failed_subclouds]
 
-        notice = (
-            "Subcloud backup %s operation completed with warnings:\n"
-            % operation)
+        notice = "Subcloud backup %s operation completed with warnings:\n" % operation
         if invalid_subclouds:
-            notice += ("The following subclouds were skipped for local backup "
-                       "%s operation: %s."
-                       % (operation, ' ,'.join(invalid_subcloud_names)))
+            notice += (
+                "The following subclouds were skipped for local backup "
+                "%s operation: %s." % (operation, " ,".join(invalid_subcloud_names))
+            )
         if failed_subclouds:
-            notice += ("The following subclouds failed during backup "
-                       "%s operation: %s."
-                       % (operation, ' ,'.join(failed_subcloud_names)))
+            notice += (
+                "The following subclouds failed during backup "
+                "%s operation: %s." % (operation, " ,".join(failed_subcloud_names))
+            )
         return notice
 
-    def _create_subcloud_endpoints(self, m_ks_client, payload, subcloud,
-                                   context):
+    def _create_subcloud_endpoints(self, m_ks_client, payload, subcloud, context):
 
         # Create endpoints to this subcloud on the
         # management-start-ip of the subcloud which will be allocated
@@ -2147,50 +2425,54 @@ class SubcloudManager(manager.Manager):
         endpoint_config = []
         endpoint_ip = utils.get_management_start_address(payload)
         if netaddr.IPAddress(endpoint_ip).version == 6:
-            endpoint_ip = '[' + endpoint_ip + ']'
+            endpoint_ip = "[" + endpoint_ip + "]"
 
         for service in m_ks_client.services_list:
             admin_endpoint_url = ENDPOINT_URLS.get(service.type, None)
             if admin_endpoint_url:
                 admin_endpoint_url = admin_endpoint_url.format(endpoint_ip)
                 endpoint_config.append(
-                    {"id": service.id,
-                     "admin_endpoint_url": admin_endpoint_url})
+                    {"id": service.id, "admin_endpoint_url": admin_endpoint_url}
+                )
 
         if len(endpoint_config) < len(ENDPOINT_URLS):
             raise exceptions.BadRequest(
-                resource='subcloud',
-                msg='Missing service in SystemController')
+                resource="subcloud", msg="Missing service in SystemController"
+            )
 
         for endpoint in endpoint_config:
             try:
                 m_ks_client.keystone_client.endpoints.create(
                     endpoint["id"],
-                    endpoint['admin_endpoint_url'],
+                    endpoint["admin_endpoint_url"],
                     interface=dccommon_consts.KS_ENDPOINT_ADMIN,
-                    region=subcloud.region_name)
+                    region=subcloud.region_name,
+                )
             except Exception as e:
                 # Keystone service must be temporarily busy, retry
                 LOG.error(str(e))
                 m_ks_client.keystone_client.endpoints.create(
                     endpoint["id"],
-                    endpoint['admin_endpoint_url'],
+                    endpoint["admin_endpoint_url"],
                     interface=dccommon_consts.KS_ENDPOINT_ADMIN,
-                    region=subcloud.region_name)
+                    region=subcloud.region_name,
+                )
 
         # Inform orchestrator that subcloud has been added
         self.dcorch_rpc_client.add_subcloud(
             context,
             subcloud.region_name,
             subcloud.software_version,
-            subcloud.management_start_ip
+            subcloud.management_start_ip,
         )
 
-    def _create_subcloud_inventory_file(self, subcloud, bootstrap_address=None,
-                                        initial_deployment=False):
+    def _create_subcloud_inventory_file(
+        self, subcloud, bootstrap_address=None, initial_deployment=False
+    ):
         # Ansible inventory filename for the specified subcloud
         ansible_subcloud_inventory_file = self._get_ansible_filename(
-            subcloud.name, INVENTORY_FILE_POSTFIX)
+            subcloud.name, INVENTORY_FILE_POSTFIX
+        )
 
         if not bootstrap_address:
             # Use subcloud floating IP for host reachability
@@ -2199,104 +2481,116 @@ class SubcloudManager(manager.Manager):
                 region_clients=None,
                 fetch_subcloud_ips=utils.fetch_subcloud_mgmt_ips,
             ).keystone_client
-            bootstrap_address = utils.get_oam_addresses(subcloud, keystone_client) \
-                .oam_floating_ip
+            bootstrap_address = utils.get_oam_addresses(
+                subcloud, keystone_client
+            ).oam_floating_ip
 
         # Add parameters used to generate inventory
-        subcloud_params = {'name': subcloud.name,
-                           'bootstrap-address': bootstrap_address}
+        subcloud_params = {
+            "name": subcloud.name,
+            "bootstrap-address": bootstrap_address,
+        }
 
-        utils.create_subcloud_inventory(subcloud_params,
-                                        ansible_subcloud_inventory_file,
-                                        initial_deployment)
+        utils.create_subcloud_inventory(
+            subcloud_params, ansible_subcloud_inventory_file, initial_deployment
+        )
         return ansible_subcloud_inventory_file
 
     def _create_overrides_for_backup_or_restore(self, op, payload, subcloud_name):
         # Set override names as expected by the playbook
-        if not payload.get('override_values'):
-            payload['override_values'] = {}
+        if not payload.get("override_values"):
+            payload["override_values"] = {}
 
-        payload['override_values']['local'] = \
-            payload['local_only'] or False
+        payload["override_values"]["local"] = payload["local_only"] or False
 
-        if op == 'create':
-            payload['override_values']['backup_registry_images'] = \
-                payload['registry_images'] or False
-            suffix = 'backup_create_values'
+        if op == "create":
+            payload["override_values"]["backup_registry_images"] = (
+                payload["registry_images"] or False
+            )
+            suffix = "backup_create_values"
         else:
-            payload['override_values']['restore_registry_images'] = \
-                payload['registry_images'] or False
-            suffix = 'backup_restore_values'
+            payload["override_values"]["restore_registry_images"] = (
+                payload["registry_images"] or False
+            )
+            suffix = "backup_restore_values"
 
-        if not payload['local_only']:
-            payload['override_values']['central_backup_dir'] = CENTRAL_BACKUP_DIR
+        if not payload["local_only"]:
+            payload["override_values"]["central_backup_dir"] = CENTRAL_BACKUP_DIR
 
-        payload['override_values']['ansible_ssh_pass'] = \
-            payload['sysadmin_password']
-        payload['override_values']['ansible_become_pass'] = \
-            payload['sysadmin_password']
-        payload['override_values']['admin_password'] = \
-            str(keyring.get_password('CGCS', 'admin'))
+        payload["override_values"]["ansible_ssh_pass"] = payload["sysadmin_password"]
+        payload["override_values"]["ansible_become_pass"] = payload["sysadmin_password"]
+        payload["override_values"]["admin_password"] = str(
+            keyring.get_password("CGCS", "admin")
+        )
 
-        if payload.get('backup_values'):
-            LOG.info('Backup create: Received backup_values for subcloud %s'
-                     % subcloud_name)
-            for key, value in payload.get('backup_values').items():
-                payload['override_values'][key] = value
-        elif payload.get('restore_values'):
-            LOG.info('Backup restore: Received restore_values for subcloud %s'
-                     % subcloud_name)
-            for key, value in payload.get('restore_values').items():
-                payload['override_values'][key] = value
+        if payload.get("backup_values"):
+            LOG.info(
+                "Backup create: Received backup_values for subcloud %s" % subcloud_name
+            )
+            for key, value in payload.get("backup_values").items():
+                payload["override_values"][key] = value
+        elif payload.get("restore_values"):
+            LOG.info(
+                "Backup restore: Received restore_values for subcloud %s"
+                % subcloud_name
+            )
+            for key, value in payload.get("restore_values").items():
+                payload["override_values"][key] = value
 
         return self._create_backup_overrides_file(payload, subcloud_name, suffix)
 
-    def _create_overrides_for_backup_delete(self, payload, subcloud_name,
-                                            release_version):
+    def _create_overrides_for_backup_delete(
+        self, payload, subcloud_name, release_version
+    ):
         # Set override names as expected by the playbook
-        if not payload.get('override_values'):
-            payload['override_values'] = {}
+        if not payload.get("override_values"):
+            payload["override_values"] = {}
 
-        payload['override_values']['software_version'] = release_version
+        payload["override_values"]["software_version"] = release_version
 
-        payload['override_values']['local'] = \
-            payload['local_only'] or False
+        payload["override_values"]["local"] = payload["local_only"] or False
 
-        if not payload['local_only']:
-            payload['override_values']['central_backup_dir'] = CENTRAL_BACKUP_DIR
+        if not payload["local_only"]:
+            payload["override_values"]["central_backup_dir"] = CENTRAL_BACKUP_DIR
         else:
-            payload['override_values']['ansible_ssh_pass'] = \
-                payload['sysadmin_password']
-            payload['override_values']['ansible_become_pass'] = \
-                payload['sysadmin_password']
+            payload["override_values"]["ansible_ssh_pass"] = payload[
+                "sysadmin_password"
+            ]
+            payload["override_values"]["ansible_become_pass"] = payload[
+                "sysadmin_password"
+            ]
 
         return self._create_backup_overrides_file(
-            payload, subcloud_name, 'backup_delete_values'
+            payload, subcloud_name, "backup_delete_values"
         )
 
     def _create_backup_overrides_file(self, payload, subcloud_name, filename_suffix):
         backup_overrides_file = os.path.join(
-            dccommon_consts.ANSIBLE_OVERRIDES_PATH, subcloud_name + '_' +
-            filename_suffix + '.yml')
+            dccommon_consts.ANSIBLE_OVERRIDES_PATH,
+            subcloud_name + "_" + filename_suffix + ".yml",
+        )
 
-        with open(backup_overrides_file, 'w') as f_out:
-            f_out.write(
-                '---\n'
-            )
-            for k, v in payload['override_values'].items():
+        with open(backup_overrides_file, "w") as f_out:
+            f_out.write("---\n")
+            for k, v in payload["override_values"].items():
                 f_out.write("%s: %s\n" % (k, v))
 
         return backup_overrides_file
 
-    def _run_subcloud_backup_create_playbook(self, subcloud, backup_command,
-                                             context, local_only):
-        log_file = os.path.join(consts.DC_ANSIBLE_LOG_DIR, subcloud.name) + \
-            '_playbook_output.log'
+    def _run_subcloud_backup_create_playbook(
+        self, subcloud, backup_command, context, local_only
+    ):
+        log_file = (
+            os.path.join(consts.DC_ANSIBLE_LOG_DIR, subcloud.name)
+            + "_playbook_output.log"
+        )
 
         db_api.subcloud_update(
-            context, subcloud.id,
+            context,
+            subcloud.id,
             backup_status=consts.BACKUP_STATE_IN_PROGRESS,
-            error_description=consts.ERROR_DESC_EMPTY)
+            error_description=consts.ERROR_DESC_EMPTY,
+        )
 
         # Run the subcloud backup playbook
         try:
@@ -2310,9 +2604,11 @@ class SubcloudManager(manager.Manager):
                 backup_status = consts.BACKUP_STATE_COMPLETE_CENTRAL
 
             db_api.subcloud_update(
-                context, subcloud.id,
+                context,
+                subcloud.id,
                 backup_status=backup_status,
-                backup_datetime=datetime.datetime.utcnow())
+                backup_datetime=datetime.datetime.utcnow(),
+            )
 
             LOG.info("Successfully backed up subcloud %s" % subcloud.name)
             return True
@@ -2322,8 +2618,10 @@ class SubcloudManager(manager.Manager):
 
     @staticmethod
     def _run_subcloud_backup_delete_playbook(context, subcloud, delete_command):
-        log_file = os.path.join(consts.DC_ANSIBLE_LOG_DIR, subcloud.name) + \
-            '_playbook_output.log'
+        log_file = (
+            os.path.join(consts.DC_ANSIBLE_LOG_DIR, subcloud.name)
+            + "_playbook_output.log"
+        )
 
         try:
             # Run the subcloud backup delete playbook
@@ -2333,53 +2631,66 @@ class SubcloudManager(manager.Manager):
             # Set backup status to unknown after delete, since most recent backup may
             # have been deleted
             db_api.subcloud_bulk_update_by_ids(
-                context, [subcloud.id],
-                {Subcloud.backup_status.name: consts.BACKUP_STATE_UNKNOWN,
-                 Subcloud.backup_datetime.name: None})
+                context,
+                [subcloud.id],
+                {
+                    Subcloud.backup_status.name: consts.BACKUP_STATE_UNKNOWN,
+                    Subcloud.backup_datetime.name: None,
+                },
+            )
 
             LOG.info("Successfully deleted backup for subcloud %s" % subcloud.name)
             return True
 
         except PlaybookExecutionFailed:
-            LOG.error("Failed to delete backup for subcloud %s, check individual "
-                      "log at %s for detailed output." % (subcloud.name, log_file))
+            LOG.error(
+                "Failed to delete backup for subcloud %s, check individual "
+                "log at %s for detailed output." % (subcloud.name, log_file)
+            )
 
             msg = utils.find_ansible_error_msg(
-                subcloud.name, log_file, consts.BACKUP_STATE_FAILED)
+                subcloud.name, log_file, consts.BACKUP_STATE_FAILED
+            )
             LOG.error(msg)
 
             db_api.subcloud_update(
-                context, subcloud.id,
-                error_description=msg[0:consts.ERROR_DESCRIPTION_LENGTH])
+                context,
+                subcloud.id,
+                error_description=msg[0 : consts.ERROR_DESCRIPTION_LENGTH],
+            )
 
             return False
 
     def _run_subcloud_backup_restore_playbook(
-            self, subcloud, restore_command, context, log_file):
+        self, subcloud, restore_command, context, log_file
+    ):
         db_api.subcloud_update(
-            context, subcloud.id,
+            context,
+            subcloud.id,
             deploy_status=consts.DEPLOY_STATE_RESTORING,
-            error_description=consts.ERROR_DESC_EMPTY
+            error_description=consts.ERROR_DESC_EMPTY,
         )
         # Run the subcloud backup restore playbook
         try:
             ansible = AnsiblePlaybook(subcloud.name)
-            ansible.run_playbook(log_file, restore_command,
-                                 timeout=CONF.playbook_timeout)
+            ansible.run_playbook(
+                log_file, restore_command, timeout=CONF.playbook_timeout
+            )
             LOG.info("Successfully restore subcloud %s" % subcloud.name)
             db_api.subcloud_update(
-                context, subcloud.id,
-                deploy_status=consts.DEPLOY_STATE_DONE
+                context, subcloud.id, deploy_status=consts.DEPLOY_STATE_DONE
             )
             return True
         except PlaybookExecutionFailed:
             msg = utils.find_ansible_error_msg(
-                subcloud.name, log_file, consts.DEPLOY_STATE_RESTORING)
+                subcloud.name, log_file, consts.DEPLOY_STATE_RESTORING
+            )
             LOG.error(msg)
             db_api.subcloud_update(
-                context, subcloud.id,
+                context,
+                subcloud.id,
                 deploy_status=consts.DEPLOY_STATE_RESTORE_FAILED,
-                error_description=msg[0:consts.ERROR_DESCRIPTION_LENGTH]
+                error_description=msg[0 : consts.ERROR_DESCRIPTION_LENGTH],
             )
             return False
 
@@ -2388,18 +2699,21 @@ class SubcloudManager(manager.Manager):
         LOG.exception("Failed to prepare subcloud %s for backup" % subcloud.name)
 
         db_api.subcloud_update(
-            context, subcloud.id,
-            backup_status=consts.BACKUP_STATE_PREP_FAILED)
+            context, subcloud.id, backup_status=consts.BACKUP_STATE_PREP_FAILED
+        )
 
     def _fail_subcloud_backup_operation(self, context, log_file, subcloud):
         msg = utils.find_ansible_error_msg(
-            subcloud.name, log_file, consts.BACKUP_STATE_IN_PROGRESS)
+            subcloud.name, log_file, consts.BACKUP_STATE_IN_PROGRESS
+        )
         LOG.error(msg)
 
         db_api.subcloud_update(
-            context, subcloud.id,
+            context,
+            subcloud.id,
             backup_status=consts.BACKUP_STATE_FAILED,
-            error_description=msg[0:consts.ERROR_DESCRIPTION_LENGTH])
+            error_description=msg[0 : consts.ERROR_DESCRIPTION_LENGTH],
+        )
 
         self._set_subcloud_backup_failure_alarm(subcloud)
 
@@ -2408,12 +2722,13 @@ class SubcloudManager(manager.Manager):
 
         try:
             fault = self.fm_api.get_fault(
-                fm_const.FM_ALARM_ID_DC_SUBCLOUD_BACKUP_FAILED,
-                entity_instance_id)
+                fm_const.FM_ALARM_ID_DC_SUBCLOUD_BACKUP_FAILED, entity_instance_id
+            )
             if fault:
                 self.fm_api.clear_fault(
                     fm_const.FM_ALARM_ID_DC_SUBCLOUD_BACKUP_FAILED,  # noqa
-                    entity_instance_id)
+                    entity_instance_id,
+                )
         except Exception as e:
             LOG.exception(e)
 
@@ -2427,20 +2742,27 @@ class SubcloudManager(manager.Manager):
                 entity_type_id=fm_const.FM_ENTITY_TYPE_SUBCLOUD,
                 entity_instance_id=entity_instance_id,
                 severity=fm_const.FM_ALARM_SEVERITY_MINOR,
-                reason_text=("Subcloud Backup Failure (subcloud=%s)"
-                             % subcloud.name),
+                reason_text=("Subcloud Backup Failure (subcloud=%s)" % subcloud.name),
                 alarm_type=fm_const.FM_ALARM_TYPE_3,
                 probable_cause=fm_const.ALARM_PROBABLE_CAUSE_UNKNOWN,
-                proposed_repair_action="Retry subcloud backup after checking input "
-                                       "file. If problem persists, please contact "
-                                       "next level of support.",
-                service_affecting=False)
+                proposed_repair_action=(
+                    "Retry subcloud backup after checking input file. "
+                    "If problem persists, please contact next level of support."
+                ),
+                service_affecting=False,
+            )
             self.fm_api.set_fault(fault)
         except Exception as e:
             LOG.exception(e)
 
-    def run_deploy_phases(self, context, subcloud_id, payload,
-                          deploy_phases_to_run, initial_deployment=False):
+    def run_deploy_phases(
+        self,
+        context,
+        subcloud_id,
+        payload,
+        deploy_phases_to_run,
+        initial_deployment=False,
+    ):
         """Run one or more deployment phases, ensuring correct order
 
         :param context: request context object
@@ -2453,17 +2775,19 @@ class SubcloudManager(manager.Manager):
             succeeded = True
             if consts.DEPLOY_PHASE_INSTALL in deploy_phases_to_run:
                 succeeded = self.subcloud_deploy_install(
-                    context, subcloud_id, payload, initial_deployment)
+                    context, subcloud_id, payload, initial_deployment
+                )
             if succeeded and consts.DEPLOY_PHASE_ENROLL in deploy_phases_to_run:
-                succeeded = self.subcloud_deploy_enroll(
-                    context, subcloud_id, payload)
+                succeeded = self.subcloud_deploy_enroll(context, subcloud_id, payload)
                 raise NotImplementedError
             if succeeded and consts.DEPLOY_PHASE_BOOTSTRAP in deploy_phases_to_run:
                 succeeded = self.subcloud_deploy_bootstrap(
-                    context, subcloud_id, payload, initial_deployment)
+                    context, subcloud_id, payload, initial_deployment
+                )
             if succeeded and consts.DEPLOY_PHASE_CONFIG in deploy_phases_to_run:
                 succeeded = self.subcloud_deploy_config(
-                    context, subcloud_id, payload, initial_deployment)
+                    context, subcloud_id, payload, initial_deployment
+                )
             if succeeded and consts.DEPLOY_PHASE_COMPLETE in deploy_phases_to_run:
                 self.subcloud_deploy_complete(context, subcloud_id)
             return succeeded
@@ -2472,57 +2796,70 @@ class SubcloudManager(manager.Manager):
             LOG.exception("run_deploy_phases failed")
             raise ex
 
-    def _run_subcloud_config(self, subcloud, context,
-                             config_command, log_file):
+    def _run_subcloud_config(self, subcloud, context, config_command, log_file):
         # Run the custom deploy playbook
         LOG.info("Starting deploy of %s" % subcloud.name)
         db_api.subcloud_update(
-            context, subcloud.id,
+            context,
+            subcloud.id,
             deploy_status=consts.DEPLOY_STATE_CONFIGURING,
-            error_description=consts.ERROR_DESC_EMPTY)
+            error_description=consts.ERROR_DESC_EMPTY,
+        )
 
         try:
             ansible = AnsiblePlaybook(subcloud.name)
-            aborted = ansible.run_playbook(
-                log_file, config_command)
+            aborted = ansible.run_playbook(log_file, config_command)
         except PlaybookExecutionFailed:
             msg = utils.find_ansible_error_msg(
-                subcloud.name, log_file, consts.DEPLOY_STATE_CONFIGURING)
+                subcloud.name, log_file, consts.DEPLOY_STATE_CONFIGURING
+            )
             LOG.error(msg)
             db_api.subcloud_update(
-                context, subcloud.id,
+                context,
+                subcloud.id,
                 deploy_status=consts.DEPLOY_STATE_CONFIG_FAILED,
-                error_description=msg[0:consts.ERROR_DESCRIPTION_LENGTH])
+                error_description=msg[0 : consts.ERROR_DESCRIPTION_LENGTH],
+            )
             return False
         if aborted:
             return False
         LOG.info("Successfully deployed %s" % subcloud.name)
         db_api.subcloud_update(
-            context, subcloud.id,
+            context,
+            subcloud.id,
             deploy_status=consts.DEPLOY_STATE_DONE,
-            error_description=consts.ERROR_DESC_EMPTY)
+            error_description=consts.ERROR_DESC_EMPTY,
+        )
         return True
 
     @staticmethod
-    def _run_subcloud_install(context, subcloud, install_command,
-                              log_file, payload):
-        software_version = str(payload['software_version'])
-        LOG.info("Preparing remote install of %s, version: %s",
-                 subcloud.name, software_version)
-        if (subcloud.deploy_status != consts.DEPLOY_STATE_PRE_INSTALL or
-                subcloud.software_version != software_version):
+    def _run_subcloud_install(context, subcloud, install_command, log_file, payload):
+        software_version = str(payload["software_version"])
+        LOG.info(
+            "Preparing remote install of %s, version: %s",
+            subcloud.name,
+            software_version,
+        )
+        if (
+            subcloud.deploy_status != consts.DEPLOY_STATE_PRE_INSTALL
+            or subcloud.software_version != software_version
+        ):
             db_api.subcloud_update(
-                context, subcloud.id,
+                context,
+                subcloud.id,
                 deploy_status=consts.DEPLOY_STATE_PRE_INSTALL,
-                software_version=software_version)
+                software_version=software_version,
+            )
         try:
             install = SubcloudInstall(subcloud.name)
             install.prep(dccommon_consts.ANSIBLE_OVERRIDES_PATH, payload)
         except Exception as e:
             LOG.exception(e)
             db_api.subcloud_update(
-                context, subcloud.id,
-                deploy_status=consts.DEPLOY_STATE_PRE_INSTALL_FAILED)
+                context,
+                subcloud.id,
+                deploy_status=consts.DEPLOY_STATE_PRE_INSTALL_FAILED,
+            )
             if install:
                 install.cleanup(software_version)
             return False
@@ -2530,21 +2867,25 @@ class SubcloudManager(manager.Manager):
         # Run the remote install playbook
         LOG.info("Starting remote install of %s" % subcloud.name)
         db_api.subcloud_update(
-            context, subcloud.id,
+            context,
+            subcloud.id,
             deploy_status=consts.DEPLOY_STATE_INSTALLING,
-            error_description=consts.ERROR_DESC_EMPTY)
+            error_description=consts.ERROR_DESC_EMPTY,
+        )
         try:
-            aborted = install.install(
-                consts.DC_ANSIBLE_LOG_DIR, install_command)
+            aborted = install.install(consts.DC_ANSIBLE_LOG_DIR, install_command)
         except Exception as e:
             msg = utils.find_ansible_error_msg(
-                subcloud.name, log_file, consts.DEPLOY_STATE_INSTALLING)
+                subcloud.name, log_file, consts.DEPLOY_STATE_INSTALLING
+            )
             LOG.error(str(e))
             LOG.error(msg)
             db_api.subcloud_update(
-                context, subcloud.id,
+                context,
+                subcloud.id,
                 deploy_status=consts.DEPLOY_STATE_INSTALL_FAILED,
-                error_description=msg[0:consts.ERROR_DESCRIPTION_LENGTH])
+                error_description=msg[0 : consts.ERROR_DESCRIPTION_LENGTH],
+            )
             install.cleanup(software_version)
             return False
         install.cleanup(software_version)
@@ -2553,48 +2894,57 @@ class SubcloudManager(manager.Manager):
         LOG.info("Successfully installed %s" % subcloud.name)
         return True
 
-    def _run_subcloud_enroll(self, context, subcloud, enroll_command,
-                             log_file, region_name):
+    def _run_subcloud_enroll(
+        self, context, subcloud, enroll_command, log_file, region_name
+    ):
 
         # Update the subcloud deploy_status to enrolling
         db_api.subcloud_update(
-            context, subcloud.id,
+            context,
+            subcloud.id,
             deploy_status=consts.DEPLOY_STATE_ENROLLING,
-            error_description=consts.ERROR_DESC_EMPTY)
+            error_description=consts.ERROR_DESC_EMPTY,
+        )
 
-        LOG.info(f'Starting enroll of subcloud {subcloud.name}')
+        LOG.info(f"Starting enroll of subcloud {subcloud.name}")
         try:
             ansible = AnsiblePlaybook(subcloud.name)
             ansible.run_playbook(log_file, enroll_command)
         except PlaybookExecutionFailed:
             msg = utils.find_ansible_error_msg(
-                subcloud.name, log_file, consts.DEPLOY_STATE_ENROLLING)
-            LOG.error(f'Enroll failed for subcloud {subcloud.name}: {msg}')
+                subcloud.name, log_file, consts.DEPLOY_STATE_ENROLLING
+            )
+            LOG.error(f"Enroll failed for subcloud {subcloud.name}: {msg}")
             db_api.subcloud_update(
-                context, subcloud.id,
+                context,
+                subcloud.id,
                 deploy_status=consts.DEPLOY_STATE_ENROLL_FAILED,
-                error_description=msg[0:consts.ERROR_DESCRIPTION_LENGTH])
+                error_description=msg[0 : consts.ERROR_DESCRIPTION_LENGTH],
+            )
             return False
 
         # Ensure rehomed=False after bootstrapped from central cloud, it
         # applies on both initial deployment and re-deployment.
         db_api.subcloud_update(
-            context, subcloud.id,
+            context,
+            subcloud.id,
             deploy_status=consts.DEPLOY_STATE_ENROLLED,
             error_description=consts.ERROR_DESC_EMPTY,
             region_name=region_name,
-            rehomed=False)
+            rehomed=False,
+        )
 
-        LOG.info(f'Successfully enrolled {subcloud.name}')
+        LOG.info(f"Successfully enrolled {subcloud.name}")
         return True
 
-    def _run_subcloud_bootstrap(self, context, subcloud,
-                                bootstrap_command, log_file):
+    def _run_subcloud_bootstrap(self, context, subcloud, bootstrap_command, log_file):
         # Update the subcloud deploy_status to bootstrapping
         db_api.subcloud_update(
-            context, subcloud.id,
+            context,
+            subcloud.id,
             deploy_status=consts.DEPLOY_STATE_BOOTSTRAPPING,
-            error_description=consts.ERROR_DESC_EMPTY)
+            error_description=consts.ERROR_DESC_EMPTY,
+        )
 
         # Run the ansible subcloud bootstrap playbook
         LOG.info("Starting bootstrap of %s" % subcloud.name)
@@ -2603,12 +2953,15 @@ class SubcloudManager(manager.Manager):
             aborted = ansible.run_playbook(log_file, bootstrap_command)
         except PlaybookExecutionFailed:
             msg = utils.find_ansible_error_msg(
-                subcloud.name, log_file, consts.DEPLOY_STATE_BOOTSTRAPPING)
+                subcloud.name, log_file, consts.DEPLOY_STATE_BOOTSTRAPPING
+            )
             LOG.error(msg)
             db_api.subcloud_update(
-                context, subcloud.id,
+                context,
+                subcloud.id,
                 deploy_status=consts.DEPLOY_STATE_BOOTSTRAP_FAILED,
-                error_description=msg[0:consts.ERROR_DESCRIPTION_LENGTH])
+                error_description=msg[0 : consts.ERROR_DESCRIPTION_LENGTH],
+            )
             return False
 
         if aborted:
@@ -2617,10 +2970,12 @@ class SubcloudManager(manager.Manager):
         # Ensure rehomed=False after bootstrapped from central cloud, it
         # applies on both initial deployment and re-deployment.
         db_api.subcloud_update(
-            context, subcloud.id,
+            context,
+            subcloud.id,
             deploy_status=consts.DEPLOY_STATE_BOOTSTRAPPED,
             error_description=consts.ERROR_DESC_EMPTY,
-            rehomed=False)
+            rehomed=False,
+        )
 
         LOG.info("Successfully bootstrapped %s" % subcloud.name)
         return True
@@ -2629,19 +2984,18 @@ class SubcloudManager(manager.Manager):
         """Generate the addn_hosts_dc file for hostname/ip translation"""
 
         addn_hosts_dc = os.path.join(CONFIG_PATH, ADDN_HOSTS_DC)
-        addn_hosts_dc_temp = addn_hosts_dc + '.temp'
+        addn_hosts_dc_temp = addn_hosts_dc + ".temp"
 
         subclouds = db_api.subcloud_get_all(context)
-        with open(addn_hosts_dc_temp, 'w') as f_out_addn_dc_temp:
+        with open(addn_hosts_dc_temp, "w") as f_out_addn_dc_temp:
             for subcloud in subclouds:
-                addn_dc_line = subcloud.management_start_ip + ' ' + \
-                    subcloud.name + '\n'
+                addn_dc_line = subcloud.management_start_ip + " " + subcloud.name + "\n"
                 f_out_addn_dc_temp.write(addn_dc_line)
 
             # if no more subclouds, create empty file so dnsmasq does not
             # emit an error log.
             if not subclouds:
-                f_out_addn_dc_temp.write(' ')
+                f_out_addn_dc_temp.write(" ")
 
         if not filecmp.cmp(addn_hosts_dc_temp, addn_hosts_dc):
             os.rename(addn_hosts_dc_temp, addn_hosts_dc)
@@ -2651,27 +3005,32 @@ class SubcloudManager(manager.Manager):
     def _write_subcloud_ansible_config(self, cached_regionone_data, payload):
         """Create the override file for usage with the specified subcloud"""
 
-        overrides_file = os.path.join(dccommon_consts.ANSIBLE_OVERRIDES_PATH,
-                                      payload['name'] + '.yml')
+        overrides_file = os.path.join(
+            dccommon_consts.ANSIBLE_OVERRIDES_PATH, payload["name"] + ".yml"
+        )
 
-        mgmt_pool = cached_regionone_data['mgmt_pool']
+        mgmt_pool = cached_regionone_data["mgmt_pool"]
         mgmt_floating_ip = mgmt_pool.floating_address
         mgmt_subnet = "%s/%d" % (mgmt_pool.network, mgmt_pool.prefix)
 
-        oam_addresses = cached_regionone_data['oam_addresses']
+        oam_addresses = cached_regionone_data["oam_addresses"]
         oam_floating_ip = oam_addresses.oam_floating_ip
         oam_subnet = oam_addresses.oam_subnet
 
-        with open(overrides_file, 'w') as f_out_overrides_file:
+        with open(overrides_file, "w") as f_out_overrides_file:
             f_out_overrides_file.write(
-                '---'
-                '\nregion_config: yes'
-                '\ndistributed_cloud_role: subcloud'
-                '\nsystem_controller_subnet: ' + mgmt_subnet +
-                '\nsystem_controller_floating_address: ' + mgmt_floating_ip +
-                '\nsystem_controller_oam_subnet: ' + oam_subnet +
-                '\nsystem_controller_oam_floating_address: ' + oam_floating_ip
-                + '\n'
+                "---"
+                "\nregion_config: yes"
+                "\ndistributed_cloud_role: subcloud"
+                "\nsystem_controller_subnet: "
+                + mgmt_subnet
+                + "\nsystem_controller_floating_address: "
+                + mgmt_floating_ip
+                + "\nsystem_controller_oam_subnet: "
+                + oam_subnet
+                + "\nsystem_controller_oam_floating_address: "
+                + oam_floating_ip
+                + "\n"
             )
 
             for k, v in payload.items():
@@ -2682,31 +3041,32 @@ class SubcloudManager(manager.Manager):
         """Create the deploy value files for the subcloud"""
 
         deploy_values_file = os.path.join(
-            dccommon_consts.ANSIBLE_OVERRIDES_PATH,
-            subcloud_name + '_deploy_values.yml'
+            dccommon_consts.ANSIBLE_OVERRIDES_PATH, subcloud_name + "_deploy_values.yml"
         )
 
-        with open(deploy_values_file, 'w') as f_out_deploy_values_file:
-            json.dump(payload['deploy_values'], f_out_deploy_values_file)
+        with open(deploy_values_file, "w") as f_out_deploy_values_file:
+            json.dump(payload["deploy_values"], f_out_deploy_values_file)
 
-    def _prepare_for_deployment(self, payload, subcloud_name,
-                                populate_passwords=True):
-        payload['deploy_values'] = dict()
+    def _prepare_for_deployment(self, payload, subcloud_name, populate_passwords=True):
+        payload["deploy_values"] = dict()
         if populate_passwords:
-            payload['deploy_values']['ansible_become_pass'] = \
-                payload['sysadmin_password']
-            payload['deploy_values']['ansible_ssh_pass'] = \
-                payload['sysadmin_password']
-            payload['deploy_values']['admin_password'] = \
-                str(keyring.get_password('CGCS', 'admin'))
-        payload['deploy_values']['deployment_config'] = \
-            payload[consts.DEPLOY_CONFIG]
-        payload['deploy_values']['deployment_manager_chart'] = \
-            payload[consts.DEPLOY_CHART]
-        payload['deploy_values']['deployment_manager_overrides'] = \
-            payload[consts.DEPLOY_OVERRIDES]
-        payload['deploy_values']['user_uploaded_artifacts'] = \
-            payload["user_uploaded_artifacts"]
+            payload["deploy_values"]["ansible_become_pass"] = payload[
+                "sysadmin_password"
+            ]
+            payload["deploy_values"]["ansible_ssh_pass"] = payload["sysadmin_password"]
+            payload["deploy_values"]["admin_password"] = str(
+                keyring.get_password("CGCS", "admin")
+            )
+        payload["deploy_values"]["deployment_config"] = payload[consts.DEPLOY_CONFIG]
+        payload["deploy_values"]["deployment_manager_chart"] = payload[
+            consts.DEPLOY_CHART
+        ]
+        payload["deploy_values"]["deployment_manager_overrides"] = payload[
+            consts.DEPLOY_OVERRIDES
+        ]
+        payload["deploy_values"]["user_uploaded_artifacts"] = payload[
+            "user_uploaded_artifacts"
+        ]
         self._write_deploy_files(payload, subcloud_name)
 
     def _delete_subcloud_routes(self, keystone_client, subcloud):
@@ -2715,28 +3075,28 @@ class SubcloudManager(manager.Manager):
         # Delete the route to this subcloud on the management interface on
         # both controllers.
         management_subnet = netaddr.IPNetwork(subcloud.management_subnet)
-        endpoint = keystone_client.endpoint_cache.get_endpoint('sysinv')
+        endpoint = keystone_client.endpoint_cache.get_endpoint("sysinv")
         sysinv_client = SysinvClient(
             dccommon_consts.DEFAULT_REGION_NAME,
             keystone_client.session,
-            endpoint=endpoint
+            endpoint=endpoint,
         )
         cached_regionone_data = self._get_cached_regionone_data(
-            keystone_client, sysinv_client)
-        for mgmt_if_uuid in cached_regionone_data['mgmt_interface_uuids']:
+            keystone_client, sysinv_client
+        )
+        for mgmt_if_uuid in cached_regionone_data["mgmt_interface_uuids"]:
             sysinv_client.delete_route(
                 mgmt_if_uuid,
                 str(management_subnet.ip),
                 management_subnet.prefixlen,
                 str(netaddr.IPAddress(subcloud.systemcontroller_gateway_ip)),
-                1
+                1,
             )
 
     @staticmethod
     def _delete_subcloud_cert(subcloud_region):
         cert_name = SubcloudManager._get_subcloud_cert_name(subcloud_region)
-        secret_name = SubcloudManager._get_subcloud_cert_secret_name(
-            subcloud_region)
+        secret_name = SubcloudManager._get_subcloud_cert_secret_name(subcloud_region)
 
         kube = kubeoperator.KubeOperator()
         kube.delete_cert_manager_certificate(CERT_NAMESPACE, cert_name)
@@ -2744,9 +3104,9 @@ class SubcloudManager(manager.Manager):
         kube.kube_delete_secret(secret_name, CERT_NAMESPACE)
         LOG.info("cert %s and secret %s are deleted" % (cert_name, secret_name))
 
-    def _remove_subcloud_details(self, context,
-                                 subcloud,
-                                 ansible_subcloud_inventory_file):
+    def _remove_subcloud_details(
+        self, context, subcloud, ansible_subcloud_inventory_file
+    ):
         """Remove subcloud details from database and inform orchestrators"""
         # Inform orchestrators that subcloud has been deleted
         try:
@@ -2805,15 +3165,19 @@ class SubcloudManager(manager.Manager):
         self._cleanup_ansible_files(subcloud.name)
 
     def _cleanup_ansible_files(self, subcloud_name):
-        LOG.info(f"Cleaning up subcloud {subcloud_name} files "
-                 f"from {dccommon_consts.ANSIBLE_OVERRIDES_PATH}")
+        LOG.info(
+            f"Cleaning up subcloud {subcloud_name} files "
+            f"from {dccommon_consts.ANSIBLE_OVERRIDES_PATH}"
+        )
         try:
             self._delete_subcloud_overrides_file(subcloud_name)
             self._delete_subcloud_config_files(subcloud_name)
             self._delete_subcloud_install_files(subcloud_name)
         except Exception:
-            LOG.exception("Unable to cleanup subcloud ansible files"
-                          f" for subcloud: {subcloud_name}")
+            LOG.exception(
+                "Unable to cleanup subcloud ansible files "
+                f"for subcloud: {subcloud_name}"
+            )
 
     @staticmethod
     def _delete_subcloud_overrides_file(subcloud_name):
@@ -2830,8 +3194,9 @@ class SubcloudManager(manager.Manager):
 
     @staticmethod
     def _delete_subcloud_install_files(subcloud_name):
-        install_path = os.path.join(dccommon_consts.ANSIBLE_OVERRIDES_PATH,
-                                    subcloud_name)
+        install_path = os.path.join(
+            dccommon_consts.ANSIBLE_OVERRIDES_PATH, subcloud_name
+        )
         if os.path.exists(install_path):
             shutil.rmtree(install_path)
 
@@ -2844,8 +3209,8 @@ class SubcloudManager(manager.Manager):
         ansible_file_list = os.listdir(ansible_path)
         log_file_list = os.listdir(log_path)
 
-        ansible_file_list = [ansible_path + '/' + x for x in ansible_file_list]
-        log_file_list = [log_path + '/' + x for x in log_file_list]
+        ansible_file_list = [ansible_path + "/" + x for x in ansible_file_list]
+        log_file_list = [log_path + "/" + x for x in log_file_list]
 
         for cur_file in ansible_file_list + log_file_list:
             new_file = cur_file.replace(cur_sc_name, new_sc_name)
@@ -2854,26 +3219,31 @@ class SubcloudManager(manager.Manager):
                 os.rename(cur_file, new_file)
 
         # Gets new ansible inventory file
-        ansible_inv_file = self._get_ansible_filename(new_sc_name,
-                                                      INVENTORY_FILE_POSTFIX)
+        ansible_inv_file = self._get_ansible_filename(
+            new_sc_name, INVENTORY_FILE_POSTFIX
+        )
 
         if os.path.exists(ansible_inv_file):
             # Updates inventory host param with the new subcloud name
-            with open(ansible_inv_file, 'r') as f:
+            with open(ansible_inv_file, "r") as f:
                 data = yaml.safe_load(f)
 
             mkey = list(data.keys())[0]
 
-            if mkey in data and 'hosts' in data[mkey] and \
-                    cur_sc_name in data[mkey]['hosts']:
-                data[mkey]['hosts'][new_sc_name] = \
-                    data[mkey]['hosts'].pop(cur_sc_name)
+            if (
+                mkey in data
+                and "hosts" in data[mkey]
+                and cur_sc_name in data[mkey]["hosts"]
+            ):
+                data[mkey]["hosts"][new_sc_name] = data[mkey]["hosts"].pop(cur_sc_name)
 
-                with open(ansible_inv_file, 'w') as f:
+                with open(ansible_inv_file, "w") as f:
                     yaml.dump(data, f, sort_keys=False)
         else:
-            msg = ("Could not rename inventory file %s because it does not "
-                   "exist." % ansible_inv_file)
+            msg = (
+                "Could not rename inventory file %s because it does not exist."
+                % ansible_inv_file
+            )
             LOG.warn(msg)
 
     @staticmethod
@@ -2897,23 +3267,26 @@ class SubcloudManager(manager.Manager):
         # - subloud resource out of sync
         # - Subcloud Backup Failure
         for alarm_id, entity_instance_id in (
-                (fm_const.FM_ALARM_ID_DC_SUBCLOUD_OFFLINE,
-                 "subcloud=%s" % subcloud.name),
-                (fm_const.FM_ALARM_ID_DC_SUBCLOUD_RESOURCE_OUT_OF_SYNC,
-                 "subcloud=%s.resource=%s" %
-                 (subcloud.name, dccommon_consts.ENDPOINT_TYPE_DC_CERT)),
-                (fm_const.FM_ALARM_ID_DC_SUBCLOUD_BACKUP_FAILED,
-                 "subcloud=%s" % subcloud.name)):
+            (fm_const.FM_ALARM_ID_DC_SUBCLOUD_OFFLINE, "subcloud=%s" % subcloud.name),
+            (
+                fm_const.FM_ALARM_ID_DC_SUBCLOUD_RESOURCE_OUT_OF_SYNC,
+                "subcloud=%s.resource=%s"
+                % (subcloud.name, dccommon_consts.ENDPOINT_TYPE_DC_CERT),
+            ),
+            (
+                fm_const.FM_ALARM_ID_DC_SUBCLOUD_BACKUP_FAILED,
+                "subcloud=%s" % subcloud.name,
+            ),
+        ):
             try:
-                fault = self.fm_api.get_fault(alarm_id,
-                                              entity_instance_id)
+                fault = self.fm_api.get_fault(alarm_id, entity_instance_id)
                 if fault:
-                    self.fm_api.clear_fault(alarm_id,
-                                            entity_instance_id)
+                    self.fm_api.clear_fault(alarm_id, entity_instance_id)
             except Exception as e:
                 LOG.info(
-                    "Problem clearing fault for subcloud %s, alarm_id=%s" %
-                    (subcloud.name, alarm_id))
+                    "Problem clearing fault for subcloud %s, alarm_id=%s"
+                    % (subcloud.name, alarm_id)
+                )
                 LOG.exception(e)
 
     def delete_subcloud(self, context, subcloud_id):
@@ -2931,25 +3304,23 @@ class SubcloudManager(manager.Manager):
         if subcloud.management_state != dccommon_consts.MANAGEMENT_UNMANAGED:
             raise exceptions.SubcloudNotUnmanaged()
 
-        if subcloud.availability_status == \
-                dccommon_consts.AVAILABILITY_ONLINE:
+        if subcloud.availability_status == dccommon_consts.AVAILABILITY_ONLINE:
             raise exceptions.SubcloudNotOffline()
 
         # Ansible inventory filename for the specified subcloud
         ansible_subcloud_inventory_file = self._get_ansible_filename(
-            subcloud.name, INVENTORY_FILE_POSTFIX)
+            subcloud.name, INVENTORY_FILE_POSTFIX
+        )
 
-        self._remove_subcloud_details(context,
-                                      subcloud,
-                                      ansible_subcloud_inventory_file)
+        self._remove_subcloud_details(
+            context, subcloud, ansible_subcloud_inventory_file
+        )
 
         self._clear_subcloud_alarms(subcloud)
 
-    def rename_subcloud(self,
-                        context,
-                        subcloud_id,
-                        curr_subcloud_name,
-                        new_subcloud_name=None):
+    def rename_subcloud(
+        self, context, subcloud_id, curr_subcloud_name, new_subcloud_name=None
+    ):
         """Rename subcloud.
 
         :param context: request context object.
@@ -2958,9 +3329,9 @@ class SubcloudManager(manager.Manager):
         :param new_subcloud_name: new subcloud name
         """
         try:
-            subcloud = db_api. \
-                subcloud_get_by_name_or_region_name(context,
-                                                    new_subcloud_name)
+            subcloud = db_api.subcloud_get_by_name_or_region_name(
+                context, new_subcloud_name
+            )
         except exceptions.SubcloudNameOrRegionNameNotFound:
             pass
         else:
@@ -2970,14 +3341,13 @@ class SubcloudManager(manager.Manager):
             # Therefore it is not allowed to change the name.
             if subcloud_id != subcloud.id:
                 raise exceptions.SubcloudOrRegionNameAlreadyExists(
-                    name=new_subcloud_name)
+                    name=new_subcloud_name
+                )
 
         # updates subcloud name
-        subcloud = db_api.subcloud_update(context, subcloud_id,
-                                          name=new_subcloud_name)
+        subcloud = db_api.subcloud_update(context, subcloud_id, name=new_subcloud_name)
         # updates subcloud names on alarms
-        db_api.subcloud_rename_alarms(context, curr_subcloud_name,
-                                      new_subcloud_name)
+        db_api.subcloud_rename_alarms(context, curr_subcloud_name, new_subcloud_name)
         # Deletes subcloud alarms
         entity_instance_id = "subcloud=%s" % curr_subcloud_name
         self.fm_api.clear_all(entity_instance_id)
@@ -2986,23 +3356,21 @@ class SubcloudManager(manager.Manager):
         self._create_addn_hosts_dc(context)
 
         # Rename related subcloud files
-        self._rename_subcloud_ansible_files(curr_subcloud_name,
-                                            new_subcloud_name)
+        self._rename_subcloud_ansible_files(curr_subcloud_name, new_subcloud_name)
 
         # Update the subcloud rehome_data with the new name
         if subcloud.rehome_data:
             rehome_data_dict = json.loads(subcloud.rehome_data)
-            if 'saved_payload' in rehome_data_dict:
-                rehome_data_dict['saved_payload']['name'] = new_subcloud_name
+            if "saved_payload" in rehome_data_dict:
+                rehome_data_dict["saved_payload"]["name"] = new_subcloud_name
                 rehome_data = json.dumps(rehome_data_dict)
-                subcloud = db_api.subcloud_update(context, subcloud_id,
-                                                  rehome_data=rehome_data)
+                subcloud = db_api.subcloud_update(
+                    context, subcloud_id, rehome_data=rehome_data
+                )
 
         return subcloud
 
-    def get_subcloud_name_by_region_name(self,
-                                         context,
-                                         subcloud_region):
+    def get_subcloud_name_by_region_name(self, context, subcloud_region):
         subcloud_name = None
         if subcloud_region is not None:
             sc = db_api.subcloud_get_by_region_name(context, subcloud_region)
@@ -3010,9 +3378,13 @@ class SubcloudManager(manager.Manager):
 
         return subcloud_name
 
-    def _validate_management_state_update(self, new_management_state: str,
-                                          new_deploy_status: str,
-                                          subcloud: Subcloud, force: bool):
+    def _validate_management_state_update(
+        self,
+        new_management_state: str,
+        new_deploy_status: str,
+        subcloud: Subcloud,
+        force: bool,
+    ):
         if new_management_state == dccommon_consts.MANAGEMENT_UNMANAGED:
             if subcloud.management_state == dccommon_consts.MANAGEMENT_UNMANAGED:
                 msg = f"Subcloud {subcloud.name} already unmanaged"
@@ -3034,17 +3406,21 @@ class SubcloudManager(manager.Manager):
                 and new_deploy_status == consts.DEPLOY_STATE_DONE
             )
 
-            if (subcloud.deploy_status != consts.DEPLOY_STATE_DONE and
-                    not allowed_deploy_transition):
-                msg = (f"Unable to manage {subcloud.name}: its deploy_status "
-                       f"must be either '{consts.DEPLOY_STATE_DONE}' or "
-                       f"'{consts.DEPLOY_STATE_REHOME_PENDING}'")
+            if (
+                subcloud.deploy_status != consts.DEPLOY_STATE_DONE
+                and not allowed_deploy_transition
+            ):
+                msg = (
+                    f"Unable to manage {subcloud.name}: its deploy_status "
+                    f"must be either '{consts.DEPLOY_STATE_DONE}' or "
+                    f"'{consts.DEPLOY_STATE_REHOME_PENDING}'"
+                )
                 LOG.warning(msg)
                 raise exceptions.BadRequest(resource="subcloud", msg=msg)
 
-            if (subcloud.availability_status !=
-                dccommon_consts.AVAILABILITY_ONLINE) and (
-                    subcloud.deploy_status != consts.DEPLOY_STATE_REHOME_PENDING):
+            if (
+                subcloud.availability_status != dccommon_consts.AVAILABILITY_ONLINE
+            ) and (subcloud.deploy_status != consts.DEPLOY_STATE_REHOME_PENDING):
                 LOG.warning(f"Subcloud {subcloud.name} is not online")
                 raise exceptions.SubcloudNotOnline()
 
@@ -3054,8 +3430,9 @@ class SubcloudManager(manager.Manager):
             LOG.error(f"Invalid management_state {new_management_state}")
             raise exceptions.InvalidInputError()
 
-    def _prepare_rehome_data(self, subcloud: Subcloud,
-                             bootstrap_values, bootstrap_address):
+    def _prepare_rehome_data(
+        self, subcloud: Subcloud, bootstrap_values, bootstrap_address
+    ):
         rehome_data_dict = None
         # load the existing data if it exists
         if subcloud.rehome_data:
@@ -3069,65 +3446,68 @@ class SubcloudManager(manager.Manager):
                 # Since bootstrap-address is not original data in bootstrap-values
                 # it's necessary to save it first, then put it back after
                 # after bootstrap_values is updated.
-                if 'bootstrap-address' in rehome_data_dict['saved_payload']:
-                    _bootstrap_address = \
-                        rehome_data_dict['saved_payload']['bootstrap-address']
-            bootstrap_values_dict = yaml.load(
-                bootstrap_values, Loader=yaml.SafeLoader
-            )
+                if "bootstrap-address" in rehome_data_dict["saved_payload"]:
+                    _bootstrap_address = rehome_data_dict["saved_payload"][
+                        "bootstrap-address"
+                    ]
+            bootstrap_values_dict = yaml.load(bootstrap_values, Loader=yaml.SafeLoader)
 
             # remove sysadmin_password,ansible_ssh_pass,ansible_become_pass
             # encode admin_password
-            if 'sysadmin_password' in bootstrap_values_dict:
-                del bootstrap_values_dict['sysadmin_password']
-            if 'ansible_ssh_pass' in bootstrap_values_dict:
-                del bootstrap_values_dict['ansible_ssh_pass']
-            if 'ansible_become_pass' in bootstrap_values_dict:
-                del bootstrap_values_dict['ansible_become_pass']
-            if 'admin_password' in bootstrap_values_dict:
-                bootstrap_values_dict['admin_password'] = base64.b64encode(
-                    bootstrap_values_dict['admin_password'].encode("utf-8")
-                ).decode('utf-8')
-            rehome_data_dict['saved_payload'] = bootstrap_values_dict
+            if "sysadmin_password" in bootstrap_values_dict:
+                del bootstrap_values_dict["sysadmin_password"]
+            if "ansible_ssh_pass" in bootstrap_values_dict:
+                del bootstrap_values_dict["ansible_ssh_pass"]
+            if "ansible_become_pass" in bootstrap_values_dict:
+                del bootstrap_values_dict["ansible_become_pass"]
+            if "admin_password" in bootstrap_values_dict:
+                bootstrap_values_dict["admin_password"] = base64.b64encode(
+                    bootstrap_values_dict["admin_password"].encode("utf-8")
+                ).decode("utf-8")
+            rehome_data_dict["saved_payload"] = bootstrap_values_dict
             # put bootstrap_address back into rehome_data_dict
             if _bootstrap_address:
-                rehome_data_dict['saved_payload'][
-                    'bootstrap-address'] = _bootstrap_address
+                rehome_data_dict["saved_payload"][
+                    "bootstrap-address"
+                ] = _bootstrap_address
 
         # update bootstrap_address
         if bootstrap_address:
             if rehome_data_dict is None:
                 raise exceptions.BadRequest(
-                    resource='subcloud',
-                    msg='Cannot update bootstrap_address into rehome data, '
-                        'need to import bootstrap_values first')
-            rehome_data_dict['saved_payload'][
-                'bootstrap-address'] = bootstrap_address
+                    resource="subcloud",
+                    msg=(
+                        "Cannot update bootstrap_address into rehome data, "
+                        "need to import bootstrap_values first"
+                    ),
+                )
+            rehome_data_dict["saved_payload"]["bootstrap-address"] = bootstrap_address
 
         rehome_data = None
         systemcontroller_gateway_address = None
         if rehome_data_dict:
             rehome_data = json.dumps(rehome_data_dict)
-            systemcontroller_gateway_address = \
-                rehome_data_dict['saved_payload'].get(
-                    "systemcontroller_gateway_address"
-                )
+            systemcontroller_gateway_address = rehome_data_dict["saved_payload"].get(
+                "systemcontroller_gateway_address"
+            )
 
         return rehome_data, systemcontroller_gateway_address
 
-    def update_subcloud(self,
-                        context,
-                        subcloud_id,
-                        management_state=None,
-                        description=None,
-                        location=None,
-                        group_id=None,
-                        data_install=None,
-                        force=None,
-                        deploy_status=None,
-                        peer_group_id=None,
-                        bootstrap_values=None,
-                        bootstrap_address=None):
+    def update_subcloud(
+        self,
+        context,
+        subcloud_id,
+        management_state=None,
+        description=None,
+        location=None,
+        group_id=None,
+        data_install=None,
+        force=None,
+        deploy_status=None,
+        peer_group_id=None,
+        bootstrap_values=None,
+        bootstrap_address=None,
+    ):
         """Update subcloud and notify orchestrators.
 
         :param context: request context object
@@ -3153,14 +3533,17 @@ class SubcloudManager(manager.Manager):
 
         # When trying to manage a 'rehome-pending' subcloud, revert its deploy
         # status back to 'complete' if its not specified
-        if (management_state == dccommon_consts.MANAGEMENT_MANAGED and
-                subcloud.deploy_status == consts.DEPLOY_STATE_REHOME_PENDING and
-                not deploy_status):
+        if (
+            management_state == dccommon_consts.MANAGEMENT_MANAGED
+            and subcloud.deploy_status == consts.DEPLOY_STATE_REHOME_PENDING
+            and not deploy_status
+        ):
             deploy_status = consts.DEPLOY_STATE_DONE
 
         # management_state semantic checking
-        self._validate_management_state_update(management_state, deploy_status,
-                                               subcloud, force)
+        self._validate_management_state_update(
+            management_state, deploy_status, subcloud, force
+        )
 
         # Update bootstrap values into rehome_data
         rehome_data, systemcontroller_gateway_ip = self._prepare_rehome_data(
@@ -3171,23 +3554,30 @@ class SubcloudManager(manager.Manager):
             msg = None
             # Only update deploy_status if subcloud is or will be unmanaged
             if dccommon_consts.MANAGEMENT_UNMANAGED not in (
-                    management_state, subcloud.management_state):
-                msg = ("Unable to update deploy_status of subcloud "
-                       f"{subcloud.name} to {deploy_status}: subcloud "
-                       "must also be unmanaged")
+                management_state,
+                subcloud.management_state,
+            ):
+                msg = (
+                    f"Unable to update deploy_status of subcloud {subcloud.name} "
+                    f"to {deploy_status}: subcloud must also be unmanaged"
+                )
             # Only allow managing if the deploy status is also set to 'complete'
-            if (management_state == dccommon_consts.MANAGEMENT_MANAGED and
-                    deploy_status != consts.DEPLOY_STATE_DONE):
-                msg = (f"Unable to manage {subcloud.name} while also updating "
-                       f"its deploy_status to {deploy_status}: not allowed")
+            if (
+                management_state == dccommon_consts.MANAGEMENT_MANAGED
+                and deploy_status != consts.DEPLOY_STATE_DONE
+            ):
+                msg = (
+                    f"Unable to manage {subcloud.name} while also updating "
+                    f"its deploy_status to {deploy_status}: not allowed"
+                )
             if msg:
                 LOG.warning(msg)
-                raise exceptions.BadRequest(resource='subcloud', msg=msg)
+                raise exceptions.BadRequest(resource="subcloud", msg=msg)
 
         # Update route if the systemcontroller_gateway_ip has been updated
         if (
-                systemcontroller_gateway_ip is not None and
-                systemcontroller_gateway_ip != subcloud.systemcontroller_gateway_ip
+            systemcontroller_gateway_ip is not None
+            and systemcontroller_gateway_ip != subcloud.systemcontroller_gateway_ip
         ):
             m_ks_client = OpenStackDriver(
                 region_name=dccommon_consts.DEFAULT_REGION_NAME,
@@ -3195,8 +3585,9 @@ class SubcloudManager(manager.Manager):
                 fetch_subcloud_ips=utils.fetch_subcloud_mgmt_ips,
             ).keystone_client
             self._create_subcloud_route(
-                {'management_subnet': subcloud.management_subnet},
-                m_ks_client, systemcontroller_gateway_ip
+                {"management_subnet": subcloud.management_subnet},
+                m_ks_client,
+                systemcontroller_gateway_ip,
             )
             # Deletes old routes (subcloud obj holds old gateway ip)
             self._delete_subcloud_routes(m_ks_client, subcloud)
@@ -3212,7 +3603,7 @@ class SubcloudManager(manager.Manager):
             deploy_status=deploy_status,
             peer_group_id=peer_group_id,
             rehome_data=rehome_data,
-            systemcontroller_gateway_ip=systemcontroller_gateway_ip
+            systemcontroller_gateway_ip=systemcontroller_gateway_ip,
         )
 
         # Inform orchestrators that subcloud has been updated
@@ -3223,29 +3614,34 @@ class SubcloudManager(manager.Manager):
                     context,
                     subcloud.region_name,
                     management_state,
-                    subcloud.availability_status)
+                    subcloud.availability_status,
+                )
 
-                LOG.info('Notifying dcorch, subcloud:%s management: %s, '
-                         'availability:%s' % (subcloud.name,
-                                              management_state,
-                                              subcloud.availability_status))
+                LOG.info(
+                    "Notifying dcorch, subcloud:%s management: %s, availability:%s"
+                    % (subcloud.name, management_state, subcloud.availability_status)
+                )
 
             except Exception as e:
                 LOG.exception(e)
-                LOG.warn('Problem informing dcorch of subcloud '
-                         'state change, resume to original state, subcloud: %s'
-                         % subcloud.name)
+                LOG.warn(
+                    "Problem informing dcorch of subcloud "
+                    "state change, resume to original state, subcloud: %s"
+                    % subcloud.name
+                )
                 management_state = original_management_state
                 # Also revert the deploy_status otherwise we could have a
                 # managed subcloud with the 'secondary' or other invalid deploy
                 # status/management state combination.
                 deploy_status = original_deploy_status
-                subcloud = \
-                    db_api.subcloud_update(context, subcloud_id,
-                                           management_state=management_state,
-                                           description=description,
-                                           location=location,
-                                           deploy_status=deploy_status)
+                subcloud = db_api.subcloud_update(
+                    context,
+                    subcloud_id,
+                    management_state=management_state,
+                    description=description,
+                    location=location,
+                    deploy_status=deploy_status,
+                )
 
             if management_state == dccommon_consts.MANAGEMENT_UNMANAGED:
                 # set all endpoint statuses to unknown, except the dc-cert
@@ -3256,8 +3652,8 @@ class SubcloudManager(manager.Manager):
                 # Do not ignore the dc-cert endpoint for secondary or rehome
                 # pending subclouds as cert-mon does not audit them
                 if subcloud.deploy_status in (
-                        consts.DEPLOY_STATE_SECONDARY,
-                        consts.DEPLOY_STATE_REHOME_PENDING
+                    consts.DEPLOY_STATE_SECONDARY,
+                    consts.DEPLOY_STATE_REHOME_PENDING,
                 ):
                     ignore_endpoints = None
 
@@ -3267,11 +3663,12 @@ class SubcloudManager(manager.Manager):
                     subcloud_region=subcloud.region_name,
                     endpoint_type=None,
                     sync_status=dccommon_consts.SYNC_STATUS_UNKNOWN,
-                    ignore_endpoints=ignore_endpoints)
+                    ignore_endpoints=ignore_endpoints,
+                )
             elif management_state == dccommon_consts.MANAGEMENT_MANAGED:
                 # Subcloud is managed
                 # Tell cert-mon to audit endpoint certificate
-                LOG.info('Request certmon audit for %s' % subcloud.name)
+                LOG.info("Request certmon audit for %s" % subcloud.name)
                 dc_notification = dcmanager_rpc_client.DCManagerNotifications()
                 dc_notification.subcloud_managed(context, subcloud.region_name)
 
@@ -3283,7 +3680,8 @@ class SubcloudManager(manager.Manager):
                 context,
                 subcloud.name,
                 subcloud.region_name,
-                dccommon_consts.AVAILABILITY_OFFLINE)
+                dccommon_consts.AVAILABILITY_OFFLINE,
+            )
 
         # Clear existing fault alarm of secondary subcloud
         if subcloud.deploy_status == consts.DEPLOY_STATE_SECONDARY:
@@ -3294,40 +3692,53 @@ class SubcloudManager(manager.Manager):
     def update_subcloud_with_network_reconfig(self, context, subcloud_id, payload):
         subcloud = db_api.subcloud_get(context, subcloud_id)
         subcloud = db_api.subcloud_update(
-            context, subcloud.id,
-            deploy_status=consts.DEPLOY_STATE_RECONFIGURING_NETWORK
+            context,
+            subcloud.id,
+            deploy_status=consts.DEPLOY_STATE_RECONFIGURING_NETWORK,
         )
-        subcloud_name = payload['name']
+        subcloud_name = payload["name"]
         try:
             self._create_intermediate_ca_cert(payload)
             subcloud_inventory_file = self._get_ansible_filename(
-                subcloud_name, INVENTORY_FILE_POSTFIX)
-            subcloud_params = {'name': subcloud_name,
-                               'bootstrap-address': payload.get('bootstrap_address')}
+                subcloud_name, INVENTORY_FILE_POSTFIX
+            )
+            subcloud_params = {
+                "name": subcloud_name,
+                "bootstrap-address": payload.get("bootstrap_address"),
+            }
             utils.create_subcloud_inventory(subcloud_params, subcloud_inventory_file)
             overrides_file = self._create_subcloud_update_overrides_file(
-                payload, subcloud_name, 'update_values')
+                payload, subcloud_name, "update_values"
+            )
             update_command = self.compose_update_command(
-                subcloud_name, subcloud_inventory_file, subcloud.software_version)
+                subcloud_name, subcloud_inventory_file, subcloud.software_version
+            )
         except Exception:
-            LOG.exception(
-                "Failed to prepare subcloud %s for update." % subcloud_name)
+            LOG.exception("Failed to prepare subcloud %s for update." % subcloud_name)
             return
         try:
             apply_thread = threading.Thread(
                 target=self._run_network_reconfiguration,
-                args=(subcloud_name, update_command, overrides_file,
-                      payload, context, subcloud))
+                args=(
+                    subcloud_name,
+                    update_command,
+                    overrides_file,
+                    payload,
+                    context,
+                    subcloud,
+                ),
+            )
             apply_thread.start()
         except Exception:
             LOG.exception("Failed to update subcloud %s" % subcloud_name)
 
     def _run_network_reconfiguration(
-            self, subcloud_name, update_command, overrides_file,
-            payload, context, subcloud
+        self, subcloud_name, update_command, overrides_file, payload, context, subcloud
     ):
-        log_file = (os.path.join(consts.DC_ANSIBLE_LOG_DIR, subcloud_name) +
-                    '_playbook_output.log')
+        log_file = (
+            os.path.join(consts.DC_ANSIBLE_LOG_DIR, subcloud_name)
+            + "_playbook_output.log"
+        )
         subcloud_id = subcloud.id
         try:
             ansible = AnsiblePlaybook(subcloud_name)
@@ -3335,12 +3746,14 @@ class SubcloudManager(manager.Manager):
             utils.delete_subcloud_inventory(overrides_file)
         except PlaybookExecutionFailed:
             msg = utils.find_ansible_error_msg(
-                subcloud_name, log_file, consts.DEPLOY_STATE_RECONFIGURING_NETWORK)
+                subcloud_name, log_file, consts.DEPLOY_STATE_RECONFIGURING_NETWORK
+            )
             LOG.error(msg)
             db_api.subcloud_update(
-                context, subcloud_id,
+                context,
+                subcloud_id,
                 deploy_status=consts.DEPLOY_STATE_RECONFIGURING_NETWORK_FAILED,
-                error_description=msg[0:consts.ERROR_DESCRIPTION_LENGTH]
+                error_description=msg[0 : consts.ERROR_DESCRIPTION_LENGTH],
             )
             return
 
@@ -3353,21 +3766,22 @@ class SubcloudManager(manager.Manager):
         subcloud = db_api.subcloud_update(
             context,
             subcloud_id,
-            description=payload.get('description', subcloud.description),
-            management_subnet=payload.get('management_subnet'),
-            management_gateway_ip=payload.get('management_gateway_ip'),
-            management_start_ip=payload.get('management_start_ip'),
-            management_end_ip=payload.get('management_end_ip'),
-            location=payload.get('location', subcloud.location),
-            group_id=payload.get('group_id', subcloud.group_id),
-            data_install=payload.get('data_install', subcloud.data_install)
+            description=payload.get("description", subcloud.description),
+            management_subnet=payload.get("management_subnet"),
+            management_gateway_ip=payload.get("management_gateway_ip"),
+            management_start_ip=payload.get("management_start_ip"),
+            management_end_ip=payload.get("management_end_ip"),
+            location=payload.get("location", subcloud.location),
+            group_id=payload.get("group_id", subcloud.group_id),
+            data_install=payload.get("data_install", subcloud.data_install),
         )
 
         # Regenerate the addn_hosts_dc file
         self._create_addn_hosts_dc(context)
 
-    def _configure_system_controller_network(self, context, payload, subcloud,
-                                             update_db=True):
+    def _configure_system_controller_network(
+        self, context, payload, subcloud, update_db=True
+    ):
         """Configure system controller network
 
         :param context: request context object
@@ -3378,8 +3792,9 @@ class SubcloudManager(manager.Manager):
         subcloud_name = subcloud.name
         subcloud_region = subcloud.region_name
         subcloud_id = subcloud.id
-        sys_controller_gw_ip = payload.get("systemcontroller_gateway_address",
-                                           subcloud.systemcontroller_gateway_ip)
+        sys_controller_gw_ip = payload.get(
+            "systemcontroller_gateway_address", subcloud.systemcontroller_gateway_ip
+        )
 
         try:
             m_ks_client = OpenStackDriver(
@@ -3387,28 +3802,29 @@ class SubcloudManager(manager.Manager):
                 region_clients=None,
                 fetch_subcloud_ips=utils.fetch_subcloud_mgmt_ips,
             ).keystone_client
-            self._create_subcloud_route(payload, m_ks_client,
-                                        sys_controller_gw_ip)
+            self._create_subcloud_route(payload, m_ks_client, sys_controller_gw_ip)
         except Exception:
-            LOG.exception(
-                "Failed to create route to subcloud %s." % subcloud_name)
+            LOG.exception("Failed to create route to subcloud %s." % subcloud_name)
             if update_db:
                 db_api.subcloud_update(
-                    context, subcloud_id,
+                    context,
+                    subcloud_id,
                     deploy_status=consts.DEPLOY_STATE_RECONFIGURING_NETWORK_FAILED,
-                    error_description=consts.ERROR_DESC_EMPTY
+                    error_description=consts.ERROR_DESC_EMPTY,
                 )
             return
         try:
             self._update_services_endpoint(
-                context, payload, subcloud_region, m_ks_client)
+                context, payload, subcloud_region, m_ks_client
+            )
         except Exception:
             LOG.exception("Failed to update subcloud %s endpoints" % subcloud_name)
             if update_db:
                 db_api.subcloud_update(
-                    context, subcloud_id,
+                    context,
+                    subcloud_id,
                     deploy_status=consts.DEPLOY_STATE_RECONFIGURING_NETWORK_FAILED,
-                    error_description=consts.ERROR_DESC_EMPTY
+                    error_description=consts.ERROR_DESC_EMPTY,
                 )
             return
 
@@ -3416,24 +3832,29 @@ class SubcloudManager(manager.Manager):
         if utils.get_management_subnet(payload) != subcloud.management_subnet:
             self._delete_subcloud_routes(m_ks_client, subcloud)
 
-    def _create_subcloud_route(self, payload, keystone_client,
-                               systemcontroller_gateway_ip):
+    def _create_subcloud_route(
+        self, payload, keystone_client, systemcontroller_gateway_ip
+    ):
         subcloud_subnet = netaddr.IPNetwork(utils.get_management_subnet(payload))
-        endpoint = keystone_client.endpoint_cache.get_endpoint('sysinv')
-        sysinv_client = SysinvClient(dccommon_consts.DEFAULT_REGION_NAME,
-                                     keystone_client.session,
-                                     endpoint=endpoint)
+        endpoint = keystone_client.endpoint_cache.get_endpoint("sysinv")
+        sysinv_client = SysinvClient(
+            dccommon_consts.DEFAULT_REGION_NAME,
+            keystone_client.session,
+            endpoint=endpoint,
+        )
         cached_regionone_data = self._get_cached_regionone_data(
-            keystone_client, sysinv_client)
-        for mgmt_if_uuid in cached_regionone_data['mgmt_interface_uuids']:
-            sysinv_client.create_route(mgmt_if_uuid,
-                                       str(subcloud_subnet.ip),
-                                       subcloud_subnet.prefixlen,
-                                       systemcontroller_gateway_ip,
-                                       1)
+            keystone_client, sysinv_client
+        )
+        for mgmt_if_uuid in cached_regionone_data["mgmt_interface_uuids"]:
+            sysinv_client.create_route(
+                mgmt_if_uuid,
+                str(subcloud_subnet.ip),
+                subcloud_subnet.prefixlen,
+                systemcontroller_gateway_ip,
+                1,
+            )
 
-    def _update_services_endpoint(
-            self, context, payload, subcloud_region, m_ks_client):
+    def _update_services_endpoint(self, context, payload, subcloud_region, m_ks_client):
         ip = utils.get_management_start_address(payload)
         formatted_ip = f"[{ip}]" if netaddr.IPAddress(ip).version == 6 else ip
 
@@ -3447,38 +3868,46 @@ class SubcloudManager(manager.Manager):
         }
 
         for endpoint in m_ks_client.keystone_client.endpoints.list(
-                region=subcloud_region):
+            region=subcloud_region
+        ):
             service_type = m_ks_client.keystone_client.services.get(
-                endpoint.service_id).type
+                endpoint.service_id
+            ).type
             if service_type == dccommon_consts.ENDPOINT_TYPE_PLATFORM:
-                admin_endpoint_url = services_endpoints.get('sysinv')
+                admin_endpoint_url = services_endpoints.get("sysinv")
             elif service_type == dccommon_consts.ENDPOINT_TYPE_IDENTITY:
-                admin_endpoint_url = services_endpoints.get('keystone')
+                admin_endpoint_url = services_endpoints.get("keystone")
             elif service_type == dccommon_consts.ENDPOINT_TYPE_PATCHING:
-                admin_endpoint_url = services_endpoints.get('patching')
+                admin_endpoint_url = services_endpoints.get("patching")
             elif service_type == dccommon_consts.ENDPOINT_TYPE_FM:
-                admin_endpoint_url = services_endpoints.get('fm')
+                admin_endpoint_url = services_endpoints.get("fm")
             elif service_type == dccommon_consts.ENDPOINT_TYPE_NFV:
-                admin_endpoint_url = services_endpoints.get('vim')
+                admin_endpoint_url = services_endpoints.get("vim")
             elif service_type == dccommon_consts.ENDPOINT_TYPE_SOFTWARE:
-                admin_endpoint_url = services_endpoints.get('usm')
+                admin_endpoint_url = services_endpoints.get("usm")
             else:
                 LOG.exception("Endpoint Type Error: %s" % service_type)
             m_ks_client.keystone_client.endpoints.update(
-                endpoint, url=admin_endpoint_url)
+                endpoint, url=admin_endpoint_url
+            )
 
-        LOG.info("Update services endpoint to %s in subcloud region %s" % (
-            formatted_ip, subcloud_region))
+        LOG.info(
+            "Update services endpoint to %s in subcloud region %s"
+            % (formatted_ip, subcloud_region)
+        )
         # Update service URLs in subcloud endpoint cache
         self.audit_rpc_client.trigger_subcloud_endpoints_update(
-            context, subcloud_region, services_endpoints)
+            context, subcloud_region, services_endpoints
+        )
         # Update the management ip inside dcorch database (triggers endpoint update)
         self.dcorch_rpc_client.update_subcloud_management_ip(
-            context, subcloud_region, ip)
+            context, subcloud_region, ip
+        )
         # Update sysinv URL in cert-mon cache
         dc_notification = dcmanager_rpc_client.DCManagerNotifications()
         dc_notification.subcloud_sysinv_endpoint_update(
-            context, subcloud_region, services_endpoints.get("sysinv"))
+            context, subcloud_region, services_endpoints.get("sysinv")
+        )
 
         # Update dcmanager endpoint cache
         EndpointCache.update_master_service_endpoint_region(
@@ -3486,18 +3915,19 @@ class SubcloudManager(manager.Manager):
         )
 
     def _create_subcloud_update_overrides_file(
-            self, payload, subcloud_name, filename_suffix):
+        self, payload, subcloud_name, filename_suffix
+    ):
         update_overrides_file = os.path.join(
             dccommon_consts.ANSIBLE_OVERRIDES_PATH,
-            subcloud_name + '_' + filename_suffix + '.yml'
+            subcloud_name + "_" + filename_suffix + ".yml",
         )
 
         self._update_override_values(payload)
 
-        with open(update_overrides_file, 'w', encoding='UTF-8') as f_out:
-            f_out.write('---\n')
-            for key, value in payload['override_values'].items():
-                if key in ['ansible_ssh_pass', 'ansible_become_pass']:
+        with open(update_overrides_file, "w", encoding="UTF-8") as f_out:
+            f_out.write("---\n")
+            for key, value in payload["override_values"].items():
+                if key in ["ansible_ssh_pass", "ansible_become_pass"]:
                     f_out.write(f"{key}: {value}\n")
                 else:
                     f_out.write(f"{key}: {json.dumps(value)}\n")
@@ -3505,70 +3935,74 @@ class SubcloudManager(manager.Manager):
         return update_overrides_file
 
     def _update_override_values(self, payload):
-        if not payload.get('override_values'):
-            payload['override_values'] = {}
+        if not payload.get("override_values"):
+            payload["override_values"] = {}
 
-        payload['override_values']['ansible_ssh_pass'] = (
-            payload['sysadmin_password'])
-        payload['override_values']['ansible_become_pass'] = (
-            payload['sysadmin_password'])
+        payload["override_values"]["ansible_ssh_pass"] = payload["sysadmin_password"]
+        payload["override_values"]["ansible_become_pass"] = payload["sysadmin_password"]
 
-        payload['override_values']['sc_gateway_address'] = (
-            payload['management_gateway_ip'])
-        payload['override_values']['sc_floating_address'] = (
-            payload['management_start_ip'])
-        payload['override_values']['system_controller_network'] = (
-            payload['system_controller_network'])
-        payload['override_values']['system_controller_network_prefix'] = (
-            payload['system_controller_network_prefix'])
-        payload['override_values']['sc_subnet'] = payload['management_subnet']
+        payload["override_values"]["sc_gateway_address"] = payload[
+            "management_gateway_ip"
+        ]
+        payload["override_values"]["sc_floating_address"] = payload[
+            "management_start_ip"
+        ]
+        payload["override_values"]["system_controller_network"] = payload[
+            "system_controller_network"
+        ]
+        payload["override_values"]["system_controller_network_prefix"] = payload[
+            "system_controller_network_prefix"
+        ]
+        payload["override_values"]["sc_subnet"] = payload["management_subnet"]
 
-        payload['override_values']['dc_root_ca_cert'] = payload['dc_root_ca_cert']
-        payload['override_values']['sc_ca_cert'] = payload['sc_ca_cert']
-        payload['override_values']['sc_ca_key'] = payload['sc_ca_key']
+        payload["override_values"]["dc_root_ca_cert"] = payload["dc_root_ca_cert"]
+        payload["override_values"]["sc_ca_cert"] = payload["sc_ca_cert"]
+        payload["override_values"]["sc_ca_key"] = payload["sc_ca_key"]
 
-    def update_subcloud_sync_endpoint_type(self, context,
-                                           subcloud_region,
-                                           endpoint_type_list,
-                                           openstack_installed):
-        operation = 'add' if openstack_installed else 'remove'
+    def update_subcloud_sync_endpoint_type(
+        self, context, subcloud_region, endpoint_type_list, openstack_installed
+    ):
+        operation = "add" if openstack_installed else "remove"
         func_switcher = {
-            'add': (
+            "add": (
                 self.dcorch_rpc_client.add_subcloud_sync_endpoint_type,
-                db_api.subcloud_status_create
+                db_api.subcloud_status_create,
             ),
-            'remove': (
+            "remove": (
                 self.dcorch_rpc_client.remove_subcloud_sync_endpoint_type,
-                db_api.subcloud_status_delete
-            )
+                db_api.subcloud_status_delete,
+            ),
         }
 
         try:
             subcloud = db_api.subcloud_get_by_region_name(context, subcloud_region)
         except Exception:
-            LOG.exception(
-                "Failed to get subcloud by region name: %s" % subcloud_region
-            )
+            LOG.exception("Failed to get subcloud by region name: %s" % subcloud_region)
             raise
 
         try:
             # Notify dcorch to add/remove sync endpoint type list
-            func_switcher[operation][0](self.context, subcloud_region,
-                                        endpoint_type_list)
-            LOG.info('Notifying dcorch, subcloud: %s new sync endpoint: %s' %
-                     (subcloud.name, endpoint_type_list))
+            func_switcher[operation][0](
+                self.context, subcloud_region, endpoint_type_list
+            )
+            LOG.info(
+                "Notifying dcorch, subcloud: %s new sync endpoint: %s"
+                % (subcloud.name, endpoint_type_list)
+            )
 
             # Update subcloud status table by adding/removing openstack sync
             # endpoint types
             for endpoint_type in endpoint_type_list:
-                func_switcher[operation][1](self.context, subcloud.id,
-                                            endpoint_type)
+                func_switcher[operation][1](self.context, subcloud.id, endpoint_type)
             # Update openstack_installed of subcloud table
-            db_api.subcloud_update(self.context, subcloud.id,
-                                   openstack_installed=openstack_installed)
+            db_api.subcloud_update(
+                self.context, subcloud.id, openstack_installed=openstack_installed
+            )
         except Exception:
-            LOG.exception('Problem informing dcorch of subcloud sync endpoint'
-                          ' type change, subcloud region: %s' % subcloud_region)
+            LOG.exception(
+                "Problem informing dcorch of subcloud sync endpoint "
+                "type change, subcloud region: %s" % subcloud_region
+            )
 
     def handle_subcloud_operations_in_progress(self):
         """Identify subclouds in transitory stages and update subcloud
@@ -3576,7 +4010,7 @@ class SubcloudManager(manager.Manager):
         state to failure.
         """
 
-        LOG.info('Identifying subclouds in transitory stages.')
+        LOG.info("Identifying subclouds in transitory stages.")
 
         subclouds = db_api.subcloud_get_all(self.context)
 
@@ -3585,32 +4019,35 @@ class SubcloudManager(manager.Manager):
             new_deploy_status = TRANSITORY_STATES.get(subcloud.deploy_status)
             new_backup_status = TRANSITORY_BACKUP_STATES.get(subcloud.backup_status)
             new_prestage_status = TRANSITORY_PRESTAGE_STATES.get(
-                subcloud.prestage_status)
+                subcloud.prestage_status
+            )
 
             # update deploy, backup and prestage states to
             # the corresponding failure states
             if new_deploy_status or new_backup_status or new_prestage_status:
                 if new_deploy_status:
-                    LOG.info("Changing subcloud %s deploy status from %s to %s."
-                             % (subcloud.name, subcloud.deploy_status,
-                                new_deploy_status))
+                    LOG.info(
+                        "Changing subcloud %s deploy status from %s to %s."
+                        % (subcloud.name, subcloud.deploy_status, new_deploy_status)
+                    )
                 if new_backup_status:
-                    LOG.info("Changing subcloud %s backup status from %s to %s."
-                             % (subcloud.name, subcloud.backup_status,
-                                new_backup_status))
+                    LOG.info(
+                        "Changing subcloud %s backup status from %s to %s."
+                        % (subcloud.name, subcloud.backup_status, new_backup_status)
+                    )
 
                 if new_prestage_status:
-                    LOG.info("Changing subcloud %s prestage status from %s"
-                             " to %s."
-                             % (subcloud.name, subcloud.prestage_status,
-                                new_prestage_status))
+                    LOG.info(
+                        "Changing subcloud %s prestage status from %s to %s."
+                        % (subcloud.name, subcloud.prestage_status, new_prestage_status)
+                    )
 
                 db_api.subcloud_update(
                     self.context,
                     subcloud.id,
                     deploy_status=new_deploy_status or subcloud.deploy_status,
                     backup_status=new_backup_status or subcloud.backup_status,
-                    prestage_status=new_prestage_status or subcloud.prestage_status
+                    prestage_status=new_prestage_status or subcloud.prestage_status,
                 )
 
     @staticmethod
@@ -3620,86 +4057,98 @@ class SubcloudManager(manager.Manager):
 
     @utils.synchronized("regionone-data-cache", external=False)
     def _get_cached_regionone_data(
-            self, regionone_keystone_client, regionone_sysinv_client=None):
-        if (not SubcloudManager.regionone_data or
-                SubcloudManager.regionone_data['expiry'] <=
-                datetime.datetime.utcnow()):
+        self, regionone_keystone_client, regionone_sysinv_client=None
+    ):
+        if (
+            not SubcloudManager.regionone_data
+            or SubcloudManager.regionone_data["expiry"] <= datetime.datetime.utcnow()
+        ):
             user_list = regionone_keystone_client.get_enabled_users(id_only=False)
             for user in user_list:
                 if user.name == dccommon_consts.ADMIN_USER_NAME:
-                    SubcloudManager.regionone_data['admin_user_id'] = user.id
+                    SubcloudManager.regionone_data["admin_user_id"] = user.id
                 elif user.name == dccommon_consts.SYSINV_USER_NAME:
-                    SubcloudManager.regionone_data['sysinv_user_id'] = user.id
+                    SubcloudManager.regionone_data["sysinv_user_id"] = user.id
                 elif user.name == dccommon_consts.DCMANAGER_USER_NAME:
-                    SubcloudManager.regionone_data['dcmanager_user_id'] = user.id
+                    SubcloudManager.regionone_data["dcmanager_user_id"] = user.id
 
-            project_list = regionone_keystone_client.get_enabled_projects(
-                id_only=False)
+            project_list = regionone_keystone_client.get_enabled_projects(id_only=False)
             for project in project_list:
                 if project.name == dccommon_consts.ADMIN_PROJECT_NAME:
-                    SubcloudManager.regionone_data['admin_project_id'] = project.id
+                    SubcloudManager.regionone_data["admin_project_id"] = project.id
                 elif project.name == dccommon_consts.SERVICES_USER_NAME:
-                    SubcloudManager.regionone_data['services_project_id'] = \
-                        project.id
+                    SubcloudManager.regionone_data["services_project_id"] = project.id
 
             if regionone_sysinv_client is None:
                 endpoint = regionone_keystone_client.endpoint_cache.get_endpoint(
-                    'sysinv')
+                    "sysinv"
+                )
                 regionone_sysinv_client = SysinvClient(
                     dccommon_consts.DEFAULT_REGION_NAME,
                     regionone_keystone_client.session,
-                    endpoint=endpoint)
+                    endpoint=endpoint,
+                )
 
             controllers = regionone_sysinv_client.get_controller_hosts()
             mgmt_interface_uuids = []
             for controller in controllers:
                 mgmt_interface = regionone_sysinv_client.get_management_interface(
-                    controller.hostname)
+                    controller.hostname
+                )
                 if mgmt_interface is not None:
                     mgmt_interface_uuids.append(mgmt_interface.uuid)
-            SubcloudManager.regionone_data['mgmt_interface_uuids'] = \
+            SubcloudManager.regionone_data["mgmt_interface_uuids"] = (
                 mgmt_interface_uuids
-            SubcloudManager.regionone_data['mgmt_pool'] = \
+            )
+            SubcloudManager.regionone_data["mgmt_pool"] = (
                 regionone_sysinv_client.get_management_address_pool()
-            SubcloudManager.regionone_data['oam_addresses'] = \
+            )
+            SubcloudManager.regionone_data["oam_addresses"] = (
                 regionone_sysinv_client.get_oam_addresses()
+            )
 
-            SubcloudManager.regionone_data['expiry'] = \
+            SubcloudManager.regionone_data["expiry"] = (
                 datetime.datetime.utcnow() + datetime.timedelta(hours=1)
+            )
             LOG.info(
-                "RegionOne cached data updated %s" % SubcloudManager.regionone_data)
+                "RegionOne cached data updated %s" % SubcloudManager.regionone_data
+            )
 
         cached_regionone_data = SubcloudManager.regionone_data
         return cached_regionone_data
 
-    def _populate_payload_with_cached_keystone_data(self, cached_data, payload,
-                                                    populate_passwords=True):
-        payload['system_controller_keystone_admin_user_id'] = \
-            cached_data['admin_user_id']
-        payload['system_controller_keystone_admin_project_id'] = \
-            cached_data['admin_project_id']
-        payload['system_controller_keystone_services_project_id'] = \
-            cached_data['services_project_id']
-        payload['system_controller_keystone_sysinv_user_id'] = \
-            cached_data['sysinv_user_id']
-        payload['system_controller_keystone_dcmanager_user_id'] = \
-            cached_data['dcmanager_user_id']
+    def _populate_payload_with_cached_keystone_data(
+        self, cached_data, payload, populate_passwords=True
+    ):
+        payload["system_controller_keystone_admin_user_id"] = cached_data[
+            "admin_user_id"
+        ]
+        payload["system_controller_keystone_admin_project_id"] = cached_data[
+            "admin_project_id"
+        ]
+        payload["system_controller_keystone_services_project_id"] = cached_data[
+            "services_project_id"
+        ]
+        payload["system_controller_keystone_sysinv_user_id"] = cached_data[
+            "sysinv_user_id"
+        ]
+        payload["system_controller_keystone_dcmanager_user_id"] = cached_data[
+            "dcmanager_user_id"
+        ]
 
         if populate_passwords:
             # While at it, add the admin and service user passwords to the
             # payload so they get copied to the overrides file
-            payload['ansible_become_pass'] = payload['sysadmin_password']
-            payload['ansible_ssh_pass'] = payload['sysadmin_password']
-            payload['admin_password'] = str(keyring.get_password('CGCS',
-                                                                 'admin'))
+            payload["ansible_become_pass"] = payload["sysadmin_password"]
+            payload["ansible_ssh_pass"] = payload["sysadmin_password"]
+            payload["admin_password"] = str(keyring.get_password("CGCS", "admin"))
 
     def _populate_payload_with_dc_intermediate_ca_cert(self, payload):
         subcloud_region = payload["region_name"]
-        secret_name = SubcloudManager._get_subcloud_cert_secret_name(
-            subcloud_region)
+        secret_name = SubcloudManager._get_subcloud_cert_secret_name(subcloud_region)
         kube = kubeoperator.KubeOperator()
         secret = kube.kube_get_secret(secret_name, CERT_NAMESPACE)
         data = secret.data
-        payload['dc_root_ca_cert'] = data['ca.crt']
-        payload['sc_ca_cert'] = data['tls.crt']
-        payload['sc_ca_key'] = data['tls.key']
+        payload["dc_root_ca_cert"] = data["ca.crt"]
+        payload["sc_ca_cert"] = data["tls.crt"]
+        payload["sc_ca_key"] = data["tls.key"]

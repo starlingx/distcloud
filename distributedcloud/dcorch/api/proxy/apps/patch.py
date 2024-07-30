@@ -126,9 +126,7 @@ class PatchAPIController(Middleware):
                     os.remove(fn)
                     return
                 except OSError:
-                    msg = (
-                        f"Unable to remove patch file {fn} from the central " "storage."
-                    )
+                    msg = f"Unable to remove patch file {fn} from the central storage."
                     raise webob.exc.HTTPUnprocessableEntity(explanation=msg)
         LOG.info(f"Patch {patch} was not found in {vault}")
 

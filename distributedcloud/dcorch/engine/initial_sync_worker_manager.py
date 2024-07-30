@@ -59,7 +59,7 @@ class InitialSyncWorkerManager(object):
                 )
             except Exception as e:
                 LOG.error(
-                    f"Exception occurred when running initial_sync for "
+                    "Exception occurred when running initial_sync for "
                     f"subcloud {sc_region_name}: {e}"
                 )
 
@@ -82,9 +82,7 @@ class InitialSyncWorkerManager(object):
         )
         if result == 0:
             # Sync is no longer required
-            LOG.debug(
-                f"Initial sync for subcloud {subcloud_name} " f"no longer required"
-            )
+            LOG.debug(f"Initial sync for subcloud {subcloud_name} no longer required")
             return
 
         # sync_objs stores the sync object per endpoint
@@ -131,12 +129,12 @@ class InitialSyncWorkerManager(object):
                 pass
             else:
                 LOG.error(
-                    f"Unexpected new_state {new_state} for " f"subcloud {subcloud_name}"
+                    f"Unexpected new_state {new_state} for subcloud {subcloud_name}"
                 )
         else:
             LOG.debug(
-                f"Initial sync was cancelled for subcloud "
-                f"{subcloud_name} while in progress"
+                f"Initial sync was cancelled for subcloud {subcloud_name} "
+                "while in progress"
             )
 
     def _reattempt_sync(self, subcloud_name):
@@ -159,9 +157,8 @@ class InitialSyncWorkerManager(object):
         LOG.debug(f"enabling subcloud {subcloud_name}")
         for endpoint_type, sync_obj in sync_objs.items():
             LOG.debug(
-                f"Engine id: {self.engine_id} enabling sync thread "
-                f"for subcloud {subcloud_name} and "
-                f"endpoint type {endpoint_type}."
+                f"Engine id: {self.engine_id} enabling sync thread for subcloud "
+                f"{subcloud_name} and endpoint type {endpoint_type}."
             )
             sync_obj.enable()
 

@@ -19,6 +19,7 @@ DC Manager Orchestrator Service.
 """
 
 import eventlet
+
 eventlet.monkey_patch()
 
 # pylint: disable=wrong-import-position
@@ -29,10 +30,11 @@ from oslo_service import service  # noqa: E402
 
 from dcmanager.common import config  # noqa: E402
 from dcmanager.common import messaging  # noqa: E402
+
 # pylint: enable=wrong-import-position
 
 CONF = cfg.CONF
-LOG = logging.getLogger('dcmanager.orchestrator')
+LOG = logging.getLogger("dcmanager.orchestrator")
 
 
 def main():
@@ -40,16 +42,15 @@ def main():
     config.register_options()
     config.register_keystone_options()
     logging.register_options(CONF)
-    CONF(project='dcmanager', prog='dcmanager-orchestrator')
-    logging.setup(CONF, 'dcmanager-orchestrator')
+    CONF(project="dcmanager", prog="dcmanager-orchestrator")
+    logging.setup(CONF, "dcmanager-orchestrator")
     logging.set_defaults()
     messaging.setup()
 
     from dcmanager.orchestrator import service as orchestrator
 
     srv = orchestrator.DCManagerOrchestratorService()
-    launcher = service.launch(CONF,
-                              srv, workers=cfg.CONF.orch_workers)
+    launcher = service.launch(CONF, srv, workers=cfg.CONF.orch_workers)
 
     LOG.info("Starting...")
     LOG.debug("Configuration:")
@@ -58,5 +59,5 @@ def main():
     launcher.wait()
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

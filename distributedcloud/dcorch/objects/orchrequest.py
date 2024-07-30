@@ -54,7 +54,7 @@ class OrchRequest(base.OrchestratorObject, base.VersionedObjectDictCompat):
         except KeyError:
             raise exceptions.ObjectActionError(
                 action="create",
-                reason="cannot create a Subcloud object without a " "orch_job_id set",
+                reason="cannot create a Subcloud object without a orch_job_id set",
             )
 
         updates = self.obj_get_changes()
@@ -63,8 +63,9 @@ class OrchRequest(base.OrchestratorObject, base.VersionedObjectDictCompat):
         except KeyError:
             raise exceptions.ObjectActionError(
                 action="create",
-                reason="cannot create a Subcloud object without a "
-                "target_region_name set",
+                reason=(
+                    "cannot create a Subcloud object without a target_region_name set"
+                ),
             )
 
         db_orch_request = db_api.orch_request_create(

@@ -56,8 +56,7 @@ class GenericSyncWorkerManager(object):
             for endpoint_type in endpoint_type_list:
                 LOG.debug(
                     f"Engine id:({self.engine_id}) create "
-                    f"{subcloud_name}/{endpoint_type}/{management_ip} "
-                    f"sync obj"
+                    f"{subcloud_name}/{endpoint_type}/{management_ip} sync obj"
                 )
                 sync_obj = sync_object_class_map[endpoint_type](
                     subcloud_name, endpoint_type, management_ip
@@ -70,9 +69,7 @@ class GenericSyncWorkerManager(object):
             f"Engine id:({self.engine_id}) Start to sync "
             f"{len(subcloud_sync_list)} (subcloud, endpoint_type) pairs."
         )
-        LOG.debug(
-            f"Engine id:({self.engine_id}) Start to sync " f"{subcloud_sync_list}."
-        )
+        LOG.debug(f"Engine id:({self.engine_id}) Start to sync {subcloud_sync_list}.")
 
         for sc_region_name, ept, ip in subcloud_sync_list:
             try:
@@ -373,13 +370,11 @@ class GenericSyncWorkerManager(object):
             f"Engine id:({self.engine_id}) Start to audit "
             f"{len(subcloud_sync_list)} (subcloud, endpoint_type) pairs."
         )
-        LOG.debug(
-            f"Engine id:({self.engine_id}) Start to audit " f"{subcloud_sync_list}."
-        )
+        LOG.debug(f"Engine id:({self.engine_id}) Start to audit {subcloud_sync_list}.")
 
         for sc_region_name, ept, ip in subcloud_sync_list:
             LOG.debug(
-                f"Attempt audit_subcloud: " f"{self.engine_id}/{sc_region_name}/{ept}"
+                f"Attempt audit_subcloud: {self.engine_id}/{sc_region_name}/{ept}"
             )
             try:
                 sync_obj = sync_object_class_map[ept](sc_region_name, ept, ip)
@@ -391,7 +386,7 @@ class GenericSyncWorkerManager(object):
                 LOG.debug(
                     f"Engine id:({self.engine_id}/{sc_region_name}/{ept}) "
                     f"SubcloudSyncNotFound: The endpoint in subcloud_sync "
-                    f"has been removed"
+                    "has been removed"
                 )
             except Exception as e:
                 LOG.error(

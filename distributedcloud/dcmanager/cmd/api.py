@@ -23,6 +23,7 @@ import logging as std_logging
 import sys
 
 import eventlet
+
 eventlet.monkey_patch(os=False)
 
 # pylint: disable=wrong-import-position
@@ -36,11 +37,12 @@ from dcmanager.api import app  # noqa: E402
 from dcmanager.common import config  # noqa: E402
 from dcmanager.common import messaging  # noqa: E402
 from dcorch.common import messaging as dcorch_messaging  # noqa: E402
+
 # pylint: enable=wrong-import-position
 
 CONF = cfg.CONF
 config.register_options()
-LOG = logging.getLogger('dcmanager.api')
+LOG = logging.getLogger("dcmanager.api")
 
 
 def main():
@@ -56,8 +58,10 @@ def main():
         LOG.warning("Wrong worker number, worker = %(workers)s", workers)
         workers = 1
 
-    LOG.info("Server on http://%(host)s:%(port)s with %(workers)s",
-             {'host': host, 'port': port, 'workers': workers})
+    LOG.info(
+        "Server on http://%(host)s:%(port)s with %(workers)s",
+        {"host": host, "port": port, "workers": workers},
+    )
     messaging.setup()
     dcorch_messaging.setup()
     systemd.notify_once()
@@ -72,5 +76,5 @@ def main():
     app.wait()
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()
