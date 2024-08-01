@@ -10,7 +10,6 @@ from dccommon.drivers.openstack import vim
 from dcmanager.common import consts
 from dcmanager.common import exceptions
 from dcmanager.common import utils
-from dcmanager.db import api as db_api
 from dcmanager.orchestrator.states.base import BaseState
 from dcmanager.orchestrator.states.software.cache import cache_specifications
 
@@ -46,20 +45,20 @@ class PreCheckState(BaseState):
         """Pre check region status"""
 
         self.info_log(strategy_step, "Software Orchestration precheck")
-        subcloud = db_api.subcloud_get(self.context, strategy_step.subcloud.id)
 
         # Get current strategy for the subcloud; check type and state
+        subcloud_name = strategy_step.subcloud.name
         try:
             keystone_client = sdk_platform.OpenStackDriver(
-                region_name=subcloud.region_name, region_clients=None
+                region_name=self.region_name, region_clients=None
             ).keystone_client
-            vim_client = vim.VimClient(subcloud.region_name, keystone_client.session)
+            vim_client = vim.VimClient(self.region_name, keystone_client.session)
             strategy = vim_client.get_current_strategy()
         except Exception:
-            details = f"Get current strategy failed on subcloud: {subcloud.name}"
+            details = f"Get current strategy failed on subcloud: {subcloud_name}"
             self.error_log(strategy_step, details)
             raise exceptions.SoftwarePreCheckFailedException(
-                subcloud=subcloud.name,
+                subcloud=subcloud_name,
                 details=details,
             )
 
@@ -69,17 +68,16 @@ class PreCheckState(BaseState):
             self._handle_sw_deploy_strategy(
                 vim_client,
                 strategy_step,
-                subcloud.name,
                 strategy.get(vim.STRATEGY_NAME_SW_USM),
             )
         elif strategy:
             details = (
                 f"There is an existing strategy {list(strategy.keys())[0]} on "
-                f"subcloud {subcloud.name}. Aborting."
+                f"subcloud {subcloud_name}. Aborting."
             )
             self.error_log(strategy_step, details)
             raise exceptions.SoftwarePreCheckFailedException(
-                subcloud=subcloud.name,
+                subcloud=subcloud_name,
                 details=details,
             )
 
@@ -97,29 +95,38 @@ class PreCheckState(BaseState):
                 release_id=release_id,
                 state=software_v1.DEPLOYED,
             )
+            self.debug_log(
+                strategy_step, f"RegionOne release: {regionone_deployed_release}"
+            )
             software_client = self.get_software_client(self.region_name)
             subcloud_releases = software_client.list()
+            self.debug_log(strategy_step, f"Subcloud releases: {subcloud_releases}")
         except Exception as exc:
             message = f"Cannot retrieve release list : {exc}."
             self.exception_log(strategy_step, message)
             raise exceptions.SoftwareListFailedException(
-                subcloud=subcloud.name,
+                subcloud=subcloud_name,
                 details=message,
+            )
+
+        # Check if the release is deployed in RegionOne
+        if not regionone_deployed_release:
+            details = f"Release {release_id} is not deployed in RegionOne. Aborting."
+            self.error_log(strategy_step, details)
+            raise exceptions.SoftwarePreCheckFailedException(
+                subcloud=subcloud_name,
+                details=details,
             )
 
         self._check_prestaged_data(
             strategy_step,
-            subcloud.name,
             release_id,
-            regionone_deployed_release,
             subcloud_releases,
         )
 
         return self.next_state
 
-    def _handle_sw_deploy_strategy(
-        self, vim_client, strategy_step, subcloud_name, strategy_state
-    ):
+    def _handle_sw_deploy_strategy(self, vim_client, strategy_step, strategy_state):
         if strategy_state in VALID_STRATEGY_STATES:
             # If the strategy is in a valid state, delete it to create a new one
             try:
@@ -129,11 +136,11 @@ class PreCheckState(BaseState):
             except Exception:
                 details = (
                     f"Delete strategy {vim.STRATEGY_NAME_SW_USM} failed on "
-                    f"subcloud: {subcloud_name}"
+                    f"subcloud: {strategy_step.subcloud.name}"
                 )
                 self.error_log(strategy_step, details)
                 raise exceptions.SoftwarePreCheckFailedException(
-                    subcloud=subcloud_name,
+                    subcloud=strategy_step.subcloud.name,
                     details=details,
                 )
         elif strategy_state in INVALID_STRATEGY_STATES:
@@ -144,29 +151,24 @@ class PreCheckState(BaseState):
             )
             self.error_log(strategy_step, details)
             raise exceptions.SoftwarePreCheckFailedException(
-                subcloud=subcloud_name,
+                subcloud=strategy_step.subcloud.name,
                 details=details,
             )
 
     def _check_prestaged_data(
         self,
         strategy_step,
-        subcloud_name,
         release_id,
-        regionone_deployed_release,
         subcloud_releases,
     ):
-        # Check if the release with release_id has state == available in
-        # subcloud_releases
-        is_available_in_subcloud = any(
-            release["state"] == software_v1.AVAILABLE
-            for release in subcloud_releases
-            if release["release_id"] == release_id
+        # Check if the release with release_id is in subcloud_releases
+        is_present_in_subcloud = any(
+            release["release_id"] == release_id for release in subcloud_releases
         )
-        if not (is_available_in_subcloud and regionone_deployed_release):
+        if not is_present_in_subcloud:
             details = f"Release {release_id} is not prestaged. Aborting."
             self.error_log(strategy_step, details)
             raise exceptions.SoftwarePreCheckFailedException(
-                subcloud=subcloud_name,
+                subcloud=strategy_step.subcloud.name,
                 details=details,
             )
