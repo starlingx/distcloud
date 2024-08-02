@@ -3162,6 +3162,20 @@ class SubcloudManager(manager.Manager):
         # Delete the route to this subcloud on the management interface on
         # both controllers.
         management_subnet = netaddr.IPNetwork(subcloud.management_subnet)
+
+        subclouds = db_api.subcloud_get_all(self.context)
+        for s in subclouds:
+            if s.id == subcloud.id:
+                continue
+            s_management_subnet = netaddr.IPNetwork(s.management_subnet)
+            if s_management_subnet == management_subnet:
+                LOG.warning(
+                    "Subcloud %r shares the same subnet as %r, not deleting route",
+                    s.name,
+                    subcloud.name,
+                )
+                return
+
         endpoint = keystone_client.endpoint_cache.get_endpoint("sysinv")
         sysinv_client = SysinvClient(
             keystone_client.region_name,

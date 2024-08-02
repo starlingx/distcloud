@@ -174,8 +174,54 @@ class TestCommonPhasedSubcloudDeploy(DCManagerTestCase):
                 admin_start_address,
                 admin_end_address,
                 admin_gateway_address,
-                existing_networks=None,
-                operation=None,
+            )
+        except Exception:
+            self.fail("validate_admin_network_config raised an exception unexpectedly!")
+
+    def test_validate_admin_config_overlap(self):
+        admin_subnet = "fd02::/64"
+        admin_start_address = "fd02::2"
+        admin_end_address = "fd02::ffff:ffff:ffff:ffff"
+        admin_gateway_address = "fd02::1"
+
+        class fake_subcloud_db(object):
+            name = "subcloud1"
+            management_start_ip = "fd02::2"
+            management_end_ip = "fd02::ffff:ffff:ffff:ffff"
+
+        subcloud1 = fake_subcloud_db()
+        subclouds = [subcloud1]
+        with self.assertRaisesRegex(
+            Exception, "Admin address range overlaps with that of subcloud *"
+        ):
+            psd_common.validate_admin_network_config(
+                admin_subnet,
+                admin_start_address,
+                admin_end_address,
+                admin_gateway_address,
+                existing_subclouds=subclouds,
+            )
+
+    def test_validate_admin_config_no_overlap(self):
+        admin_subnet = "fd02::/64"
+        admin_start_address = "fd02::2"
+        admin_end_address = "fd02::ffff:ffff:ffff:ffff"
+        admin_gateway_address = "fd02::1"
+
+        class fake_subcloud_db(object):
+            name = "subcloud1"
+            management_start_ip = "fd03::2"
+            management_end_ip = "fd03::ffff:ffff:ffff:ffff"
+
+        subcloud1 = fake_subcloud_db()
+        subclouds = [subcloud1]
+        try:
+            psd_common.validate_admin_network_config(
+                admin_subnet,
+                admin_start_address,
+                admin_end_address,
+                admin_gateway_address,
+                existing_subclouds=subclouds,
             )
         except Exception:
             self.fail("validate_admin_network_config raised an exception unexpectedly!")
@@ -192,8 +238,6 @@ class TestCommonPhasedSubcloudDeploy(DCManagerTestCase):
                 admin_start_address,
                 admin_end_address,
                 admin_gateway_address,
-                existing_networks=None,
-                operation=None,
             )
 
     def test_validate_admin_config_start_address_outOfSubnet(self):
@@ -208,8 +252,6 @@ class TestCommonPhasedSubcloudDeploy(DCManagerTestCase):
                 admin_start_address,
                 admin_end_address,
                 admin_gateway_address,
-                existing_networks=None,
-                operation=None,
             )
 
     def test_validate_admin_config_end_address_outOfSubnet(self):
@@ -224,8 +266,6 @@ class TestCommonPhasedSubcloudDeploy(DCManagerTestCase):
                 admin_start_address,
                 admin_end_address,
                 admin_gateway_address,
-                existing_networks=None,
-                operation=None,
             )
 
         admin_end_address = "192.168.205.12"
@@ -237,8 +277,6 @@ class TestCommonPhasedSubcloudDeploy(DCManagerTestCase):
                 admin_start_address,
                 admin_end_address,
                 admin_gateway_address,
-                existing_networks=None,
-                operation=None,
             )
 
     def test_validate_admin_config_end_address_broadcast(self):
@@ -253,6 +291,4 @@ class TestCommonPhasedSubcloudDeploy(DCManagerTestCase):
                 admin_start_address,
                 admin_end_address,
                 admin_gateway_address,
-                existing_networks=None,
-                operation=None,
             )
