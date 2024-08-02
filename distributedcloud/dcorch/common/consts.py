@@ -100,6 +100,7 @@ DBS_ENDPOINT_DEFAULT = DBS_ENDPOINT_INTERNAL
 # create/update/delete and have the sync code know which HTTP
 # operation to use?
 OPERATION_TYPE_CREATE = "create"
+OPERATION_TYPE_UPDATE = "update"
 OPERATION_TYPE_POST = "post"
 OPERATION_TYPE_PATCH = "patch"
 OPERATION_TYPE_PUT = "put"

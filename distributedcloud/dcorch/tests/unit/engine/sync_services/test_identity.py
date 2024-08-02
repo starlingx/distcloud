@@ -64,6 +64,9 @@ class BaseTestIdentitySyncThread(OrchestratorTestCase, mixins.BaseMixin):
         self.rsrc.id = RESOURCE_ID
         self.rsrc.master_id = MASTER_ID
 
+        self.cached_m_rsrc = mock.MagicMock()
+        self.cached_m_rsrc.id = SOURCE_RESOURCE_ID
+
     def _create_subcloud_and_subcloud_resource(self):
         values = {
             "software_version": "10.04",
@@ -148,8 +151,12 @@ class BaseTestIdentitySyncThreadUsers(BaseTestIdentitySyncThread):
             "local_user": {"name": "fake value"},
         }
         self.resource_ref_name = self.resource_ref.get("local_user").get("name")
-        self.dbs_client = self.identity_sync_thread.get_master_dbs_client()
-        self.resource_detail = self.dbs_client.identity_user_manager.user_detail
+
+        self.cached_m_rsrc.resource_name = self.resource_name
+        self.cached_m_rsrc.to_dict = mock.MagicMock(return_value=self.resource_ref)
+        self.identity_sync_thread.get_cached_master_resources = mock.MagicMock(
+            return_value=[self.cached_m_rsrc]
+        )
 
 
 class TestIdentitySyncThreadUsersPost(
@@ -218,8 +225,12 @@ class BaseTestIdentitySyncThreadGroups(BaseTestIdentitySyncThread):
             self.resource_name: {"id": RESOURCE_ID, "name": "fake value"}
         }
         self.resource_ref_name = self.resource_ref.get(self.resource_name).get("name")
-        self.dbs_client = self.identity_sync_thread.get_master_dbs_client()
-        self.resource_detail = self.dbs_client.identity_group_manager.group_detail
+
+        self.cached_m_rsrc.resource_name = self.resource_name
+        self.cached_m_rsrc.to_dict = mock.MagicMock(return_value=self.resource_ref)
+        self.identity_sync_thread.get_cached_master_resources = mock.MagicMock(
+            return_value=[self.cached_m_rsrc]
+        )
 
 
 class TestIdentitySyncThreadGroupsPost(
@@ -288,8 +299,12 @@ class BaseTestIdentitySyncThreadProjects(BaseTestIdentitySyncThread):
             self.resource_name: {"id": RESOURCE_ID, "name": "fake value"}
         }
         self.resource_ref_name = self.resource_ref.get(self.resource_name).get("name")
-        self.dbs_client = self.identity_sync_thread.get_master_dbs_client()
-        self.resource_detail = self.dbs_client.project_manager.project_detail
+
+        self.cached_m_rsrc.resource_name = self.resource_name
+        self.cached_m_rsrc.to_dict = mock.MagicMock(return_value=self.resource_ref)
+        self.identity_sync_thread.get_cached_master_resources = mock.MagicMock(
+            return_value=[self.cached_m_rsrc]
+        )
 
 
 class TestIdentitySyncThreadProjectsPost(
@@ -360,8 +375,10 @@ class BaseTestIdentitySyncThreadRoles(BaseTestIdentitySyncThread):
             self.resource_name: {"id": RESOURCE_ID, "name": "fake value"}
         }
         self.resource_ref_name = self.resource_ref.get(self.resource_name).get("name")
-        self.resource_detail = (
-            self.identity_sync_thread.get_master_dbs_client().role_manager.role_detail
+        self.cached_m_rsrc.resource_name = self.resource_name
+        self.cached_m_rsrc.to_dict = mock.MagicMock(return_value=self.resource_ref)
+        self.identity_sync_thread.get_cached_master_resources = mock.MagicMock(
+            return_value=[self.cached_m_rsrc]
         )
 
 
@@ -711,8 +728,14 @@ class BaseTestIdentitySyncThreadRevokeEvents(BaseTestIdentitySyncThread):
             "revocation_event": {"audit_id": RESOURCE_ID, "name": "fake value"}
         }
         self.resource_ref_name = self.resource_ref.get("revocation_event").get("name")
-        self.dbs_client = self.identity_sync_thread.get_master_dbs_client()
-        self.resource_detail = self.dbs_client.revoke_event_manager.revoke_event_detail
+
+        self.cached_m_rsrc.resource_name = self.resource_name
+        self.cached_m_rsrc.to_dict = mock.MagicMock(return_value=self.resource_ref)
+        self.cached_m_rsrc.audit_id = RESOURCE_ID
+
+        self.identity_sync_thread.get_cached_master_resources = mock.MagicMock(
+            return_value=[self.cached_m_rsrc]
+        )
 
 
 class BaseTestIdentitySyncThreadRevokeEventsPost(
@@ -736,7 +759,6 @@ class BaseTestIdentitySyncThreadRevokeEventsPost(
 
         self._execute()
 
-        self._resource_detail().assert_called_once()
         self._resource_add().assert_called_once()
 
         self._assert_log(
@@ -776,6 +798,9 @@ class BaseTestIdentitySyncThreadRevokeEventsPost(
         """Test post fails without resource records"""
 
         self._resource_detail().return_value = None
+        self.identity_sync_thread.get_cached_master_resources = mock.MagicMock(
+            return_value=None
+        )
 
         self._execute_and_assert_exception(exceptions.SyncRequestFailed)
         self._assert_log(

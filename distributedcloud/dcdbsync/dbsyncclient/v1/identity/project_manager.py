@@ -49,6 +49,18 @@ class Project(base.Resource):
         self.parent_id = parent_id
         self.is_domain = is_domain
 
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "domain_id": self.domain_id,
+            "name": self.name,
+            "extra": self.extra,
+            "description": self.description,
+            "enabled": self.enabled,
+            "parent_id": self.parent_id,
+            "is_domain": self.is_domain,
+        }
+
     def info(self):
         resource_info = dict()
         resource_info.update(

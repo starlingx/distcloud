@@ -59,6 +59,23 @@ class RevokeEvent(base.Resource):
         self.audit_id = audit_id
         self.audit_chain_id = audit_chain_id
 
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "domain_id": self.domain_id,
+            "project_id": self.project_id,
+            "role_id": self.role_id,
+            "user_id": self.user_id,
+            "trust_id": self.trust_id,
+            "consumer_id": self.consumer_id,
+            "access_token_id": self.access_token_id,
+            "issued_before": self.issued_before,
+            "expires_at": self.expires_at,
+            "revoked_at": self.revoked_at,
+            "audit_id": self.audit_id,
+            "audit_chain_id": self.audit_chain_id,
+        }
+
     def info(self):
         resource_info = dict()
         resource_info.update(

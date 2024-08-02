@@ -16,6 +16,7 @@
 
 import base64
 from collections import namedtuple
+import json
 
 from keystoneauth1 import exceptions as keystone_exceptions
 from keystoneclient import client as keystoneclient
@@ -26,6 +27,9 @@ from dccommon import consts as dccommon_consts
 from dccommon.drivers.openstack import sdk_platform as sdk
 from dcdbsync.dbsyncclient.client import Client
 from dcdbsync.dbsyncclient import exceptions as dbsync_exceptions
+from dcdbsync.dbsyncclient.v1.identity.identity_group_manager import Group
+from dcdbsync.dbsyncclient.v1.identity.identity_user_manager import User
+from dcdbsync.dbsyncclient.v1.identity.token_revoke_event_manager import RevokeEvent
 from dcorch.common import consts
 from dcorch.common import exceptions
 from dcorch.engine.sync_thread import get_master_os_client
@@ -130,12 +134,125 @@ class IdentitySyncThread(SyncThread):
             self.initialize_sc_clients()
         return self.sc_dbs_client
 
+    def transform_format(self, obj):
+        """Convert the resource into a JSON format
+
+        Transforms an object from `get_cached_master_resources` to the JSON format
+        needed for the synchronization service REST call.
+
+        Args:
+            obj: The object to be transformed.
+
+        Returns:
+            bytes: The JSON-formatted and UTF-8 encoded object as required by the
+                   synchronization service REST call.
+
+        """
+        obj_dict = obj.to_dict()
+        if isinstance(obj, User):
+            wrapped_record = {
+                "user": obj_dict["user"],
+                "local_user": {
+                    "id": obj_dict["local_user"]["id"],
+                    "user_id": obj_dict["local_user"]["user_id"],
+                    "domain_id": obj_dict["local_user"]["domain_id"],
+                    "name": obj_dict["local_user"]["name"],
+                    "failed_auth_count": obj_dict["local_user"]["failed_auth_count"],
+                    "failed_auth_at": obj_dict["local_user"]["failed_auth_at"],
+                },
+                "password": obj_dict["password"],
+            }
+        elif isinstance(obj, Group):
+            wrapped_record = {
+                "group": {
+                    "id": obj_dict["id"],
+                    "domain_id": obj_dict["domain_id"],
+                    "name": obj_dict["name"],
+                    "description": obj_dict["description"],
+                    "extra": obj_dict["extra"],
+                },
+                "local_user_ids": obj_dict["local_user_ids"],
+            }
+        elif isinstance(obj, RevokeEvent):
+            wrapped_record = {"revocation_event": obj_dict}
+        else:
+            wrapped_record = {obj.resource_name: obj_dict}
+        return json.dumps(wrapped_record).encode("utf-8")
+
+    def get_resource_record(self, resource_type, resource_id, resource_name, operation):
+        """Get a specific resource from master cloud
+
+        Retrieves a resource from the cached master resources, transforms it to the
+        expected format, and handles logging for different operations
+        (e.g., create, update).
+
+        Args:
+            resource_type (str): The type of resource being retrieved.
+            resource_id (str): The unique identifier of the resource.
+            resource_name (str): The name of the resource.
+            operation (str): The operation being performed (e.g., "create", "update").
+
+        Returns:
+            bytes: The transformed resource in the expected JSON format, ready for use
+                   in synchronization service REST calls.
+
+        Raises:
+            SyncRequestFailed: If the resource cannot be retrieved or found in the
+                               cached master resources.
+
+        """
+        if resource_type == consts.RESOURCE_TYPE_IDENTITY_TOKEN_REVOKE_EVENTS:
+            no_data_err_msg = (
+                "No data retrieved from master cloud for token revocation "
+                f"event with audit_id {resource_id} to {operation} "
+                "its equivalent in subcloud."
+            )
+        else:
+            no_data_err_msg = (
+                f"No data retrieved from master cloud for {resource_name} "
+                f"{resource_id} to {operation} its equivalent in subcloud."
+            )
+        master_resources = self.get_cached_master_resources(resource_type)
+        if not master_resources:
+            LOG.error(
+                no_data_err_msg,
+                extra=self.log_extra,
+            )
+            raise exceptions.SyncRequestFailed
+
+        # Searches for the resource based on the provided resource_id.
+        if resource_type == consts.RESOURCE_TYPE_IDENTITY_TOKEN_REVOKE_EVENTS:
+            resource_record = next(
+                (
+                    revoke_events_m
+                    for revoke_events_m in master_resources
+                    if revoke_events_m.audit_id == resource_id
+                ),
+                None,
+            )
+        else:
+            resource_record = next(
+                (res for res in master_resources if res.id == resource_id), None
+            )
+
+        no_data_err_msg = (
+            f"No {resource_name} with id {resource_id} found in cached "
+            "master resources."
+        )
+        if not resource_record:
+            LOG.error(
+                no_data_err_msg,
+                extra=self.log_extra,
+            )
+            raise exceptions.SyncRequestFailed
+
+        return self.transform_format(resource_record)
+
     def _initial_sync_users(self, m_users, sc_users):
         # Particularly sync users with same name but different ID.  admin,
         # sysinv, and dcmanager users are special cases as the id's will match
         # (as this is forced during the subcloud deploy) but the details will
         # not so we still need to sync them here.
-        m_client = self.get_master_dbs_client().identity_user_manager
         sc_client = self.get_sc_dbs_client().identity_user_manager
 
         for m_user in m_users:
@@ -153,7 +270,8 @@ class IdentitySyncThread(SyncThread):
                         ]
                     )
                 ):
-                    user_records = m_client.user_detail(m_user.id)
+                    user_records = self.transform_format(m_user)
+
                     if not user_records:
                         LOG.error(
                             "No data retrieved from master cloud for "
@@ -188,7 +306,6 @@ class IdentitySyncThread(SyncThread):
 
     def _initial_sync_groups(self, m_groups, sc_groups):
         # Particularly sync groups with same name but different ID.
-        m_client = self.get_master_dbs_client().identity_group_manager
         sc_client = self.get_sc_dbs_client().identity_group_manager
 
         for m_group in m_groups:
@@ -198,7 +315,7 @@ class IdentitySyncThread(SyncThread):
                     and m_group.domain_id == sc_group.domain_id
                     and m_group.id != sc_group.id
                 ):
-                    group_records = m_client.group_detail(m_group.id)
+                    group_records = self.transform_format(m_group)
                     if not group_records:
                         LOG.error(
                             "No data retrieved from master cloud for group {} to "
@@ -231,7 +348,6 @@ class IdentitySyncThread(SyncThread):
 
     def _initial_sync_projects(self, m_projects, sc_projects):
         # Particularly sync projects with same name but different ID.
-        m_client = self.get_master_dbs_client().project_manager
         sc_client = self.get_sc_dbs_client().project_manager
 
         for m_project in m_projects:
@@ -241,7 +357,8 @@ class IdentitySyncThread(SyncThread):
                     and m_project.domain_id == sc_project.domain_id
                     and m_project.id != sc_project.id
                 ):
-                    project_records = m_client.project_detail(m_project.id)
+                    project_records = self.transform_format(m_project)
+
                     if not project_records:
                         LOG.error(
                             "No data retrieved from master cloud for project {} to "
@@ -278,7 +395,6 @@ class IdentitySyncThread(SyncThread):
 
     def _initial_sync_roles(self, m_roles, sc_roles):
         # Particularly sync roles with same name but different ID
-        m_client = self.get_master_dbs_client().role_manager
         sc_client = self.get_sc_dbs_client().role_manager
 
         for m_role in m_roles:
@@ -288,7 +404,7 @@ class IdentitySyncThread(SyncThread):
                     and m_role.domain_id == sc_role.domain_id
                     and m_role.id != sc_role.id
                 ):
-                    role_record = m_client.role_detail(m_role.id)
+                    role_record = self.transform_format(m_role)
                     if not role_record:
                         LOG.error(
                             "No data retrieved from master cloud for role {} to update "
@@ -482,7 +598,7 @@ class IdentitySyncThread(SyncThread):
     def post_users(self, request, rsrc):
         # Create this user on this subcloud
         # The DB level resource creation process is, retrieve the resource
-        # records from master cloud by its ID, send the records in its original
+        # records from master cloud cache, send the records in its original
         # JSON format by REST call to the DB synchronization service on this
         # subcloud, which then inserts the resource records into DB tables.
         user_id = request.orch_job.source_resource_id
@@ -494,21 +610,12 @@ class IdentitySyncThread(SyncThread):
             )
             raise exceptions.SyncRequestFailed
 
-        # Retrieve DB records of the user just created. The records is in JSON
-        # format
-        try:
-            user_records = (
-                self.get_master_dbs_client().identity_user_manager.user_detail(user_id)
-            )
-        except dbsync_exceptions.Unauthorized:
-            raise dbsync_exceptions.UnauthorizedMaster
-        if not user_records:
-            LOG.error(
-                "No data retrieved from master cloud for user {} to "
-                "create its equivalent in subcloud.".format(user_id),
-                extra=self.log_extra,
-            )
-            raise exceptions.SyncRequestFailed
+        user_records = self.get_resource_record(
+            consts.RESOURCE_TYPE_IDENTITY_USERS,
+            user_id,
+            "user",
+            consts.OPERATION_TYPE_CREATE,
+        )
 
         # Create the user on subcloud by pushing the DB records to subcloud
         user_ref = self.get_sc_dbs_client().identity_user_manager.add_user(user_records)
@@ -535,7 +642,7 @@ class IdentitySyncThread(SyncThread):
     def put_users(self, request, rsrc):
         # Update this user on this subcloud
         # The DB level resource update process is, retrieve the resource
-        # records from master cloud by its ID, send the records in its original
+        # records from master cloud cache, send the records in its original
         # JSON format by REST call to the DB synchronization service on this
         # subcloud, which then updates the resource records in its DB tables.
         user_id = request.orch_job.source_resource_id
@@ -558,21 +665,12 @@ class IdentitySyncThread(SyncThread):
             )
             raise exceptions.SyncRequestFailed
 
-        # Retrieve DB records of the user. The records is in JSON
-        # format
-        try:
-            user_records = (
-                self.get_master_dbs_client().identity_user_manager.user_detail(user_id)
-            )
-        except dbsync_exceptions.Unauthorized:
-            raise dbsync_exceptions.UnauthorizedMaster
-        if not user_records:
-            LOG.error(
-                "No data retrieved from master cloud for user {} to "
-                "update its equivalent in subcloud.".format(user_id),
-                extra=self.log_extra,
-            )
-            raise exceptions.SyncRequestFailed
+        user_records = self.get_resource_record(
+            consts.RESOURCE_TYPE_IDENTITY_USERS,
+            user_id,
+            "user",
+            consts.OPERATION_TYPE_UPDATE,
+        )
 
         # Update the corresponding user on subcloud by pushing the DB records
         # to subcloud
@@ -697,7 +795,7 @@ class IdentitySyncThread(SyncThread):
     def post_groups(self, request, rsrc):
         # Create this group on this subcloud
         # The DB level resource creation process is, retrieve the resource
-        # records from master cloud by its ID, send the records in its original
+        # records from master cloud cache, send the records in its original
         # JSON format by REST call to the DB synchronization service on this
         # subcloud, which then inserts the resource records into DB tables.
         group_id = request.orch_job.source_resource_id
@@ -709,23 +807,12 @@ class IdentitySyncThread(SyncThread):
             )
             raise exceptions.SyncRequestFailed
 
-        # Retrieve DB records of the group just created. The records is in JSON
-        # format
-        try:
-            group_records = (
-                self.get_master_dbs_client().identity_group_manager.group_detail(
-                    group_id
-                )
-            )
-        except dbsync_exceptions.Unauthorized:
-            raise dbsync_exceptions.UnauthorizedMaster
-        if not group_records:
-            LOG.error(
-                "No data retrieved from master cloud for group {} to "
-                "create its equivalent in subcloud.".format(group_id),
-                extra=self.log_extra,
-            )
-            raise exceptions.SyncRequestFailed
+        group_records = self.get_resource_record(
+            consts.RESOURCE_TYPE_IDENTITY_GROUPS,
+            group_id,
+            "group",
+            consts.OPERATION_TYPE_CREATE,
+        )
 
         # Create the group on subcloud by pushing the DB records to subcloud
         group_ref = self.get_sc_dbs_client().identity_group_manager.add_group(
@@ -754,7 +841,7 @@ class IdentitySyncThread(SyncThread):
     def put_groups(self, request, rsrc):
         # Update this group on this subcloud
         # The DB level resource update process is, retrieve the resource
-        # records from master cloud by its ID, send the records in its original
+        # records from master cloud cache, send the records in its original
         # JSON format by REST call to the DB synchronization service on this
         # subcloud, which then updates the resource records in its DB tables.
         group_id = request.orch_job.source_resource_id
@@ -777,23 +864,12 @@ class IdentitySyncThread(SyncThread):
             )
             raise exceptions.SyncRequestFailed
 
-        # Retrieve DB records of the group. The records is in JSON
-        # format
-        try:
-            group_records = (
-                self.get_master_dbs_client().identity_group_manager.group_detail(
-                    group_id
-                )
-            )
-        except dbsync_exceptions.Unauthorized:
-            raise dbsync_exceptions.UnauthorizedMaster
-        if not group_records:
-            LOG.error(
-                "No data retrieved from master cloud for group {} to "
-                "update its equivalent in subcloud.".format(group_id),
-                extra=self.log_extra,
-            )
-            raise exceptions.SyncRequestFailed
+        group_records = self.get_resource_record(
+            consts.RESOURCE_TYPE_IDENTITY_GROUPS,
+            group_id,
+            "group",
+            consts.OPERATION_TYPE_UPDATE,
+        )
 
         # Update the corresponding group on subcloud by pushing the DB records
         # to subcloud
@@ -916,7 +992,7 @@ class IdentitySyncThread(SyncThread):
     def post_projects(self, request, rsrc):
         # Create this project on this subcloud
         # The DB level resource creation process is, retrieve the resource
-        # records from master cloud by its ID, send the records in its original
+        # records from master cloud cache, send the records in its original
         # JSON format by REST call to the DB synchronization service on this
         # subcloud, which then inserts the resource records into DB tables.
         project_id = request.orch_job.source_resource_id
@@ -927,22 +1003,12 @@ class IdentitySyncThread(SyncThread):
                 extra=self.log_extra,
             )
             raise exceptions.SyncRequestFailed
-
-        # Retrieve DB records of the project just created.
-        # The records is in JSON format.
-        try:
-            project_records = (
-                self.get_master_dbs_client().project_manager.project_detail(project_id)
-            )
-        except dbsync_exceptions.Unauthorized:
-            raise dbsync_exceptions.UnauthorizedMaster
-        if not project_records:
-            LOG.error(
-                "No data retrieved from master cloud for project {} to "
-                "create its equivalent in subcloud.".format(project_id),
-                extra=self.log_extra,
-            )
-            raise exceptions.SyncRequestFailed
+        project_records = self.get_resource_record(
+            consts.RESOURCE_TYPE_IDENTITY_PROJECTS,
+            project_id,
+            "project",
+            consts.OPERATION_TYPE_CREATE,
+        )
 
         # Create the project on subcloud by pushing the DB records to subcloud
         project_ref = self.get_sc_dbs_client().project_manager.add_project(
@@ -971,7 +1037,7 @@ class IdentitySyncThread(SyncThread):
     def put_projects(self, request, rsrc):
         # Update this project on this subcloud
         # The DB level resource update process is, retrieve the resource
-        # records from master cloud by its ID, send the records in its original
+        # records from master cloud cache, send the records in its original
         # JSON format by REST call to the DB synchronization service on this
         # subcloud, which then updates the resource records in its DB tables.
         project_id = request.orch_job.source_resource_id
@@ -994,21 +1060,12 @@ class IdentitySyncThread(SyncThread):
             )
             raise exceptions.SyncRequestFailed
 
-        # Retrieve DB records of the project. The records is in JSON
-        # format
-        try:
-            project_records = (
-                self.get_master_dbs_client().project_manager.project_detail(project_id)
-            )
-        except dbsync_exceptions.Unauthorized:
-            raise dbsync_exceptions.UnauthorizedMaster
-        if not project_records:
-            LOG.error(
-                "No data retrieved from master cloud for project {} to "
-                "update its equivalent in subcloud.".format(project_id),
-                extra=self.log_extra,
-            )
-            raise exceptions.SyncRequestFailed
+        project_records = self.get_resource_record(
+            consts.RESOURCE_TYPE_IDENTITY_PROJECTS,
+            project_id,
+            "project",
+            consts.OPERATION_TYPE_UPDATE,
+        )
 
         # Update the corresponding project on subcloud by pushing the DB
         # records to subcloud
@@ -1131,7 +1188,7 @@ class IdentitySyncThread(SyncThread):
     def post_roles(self, request, rsrc):
         # Create this role on this subcloud
         # The DB level resource creation process is, retrieve the resource
-        # records from master cloud by its ID, send the records in its original
+        # records from master cloud cache, send the records in its original
         # JSON format by REST call to the DB synchronization service on this
         # subcloud, which then inserts the resource records into DB tables.
         role_id = request.orch_job.source_resource_id
@@ -1143,21 +1200,12 @@ class IdentitySyncThread(SyncThread):
             )
             raise exceptions.SyncRequestFailed
 
-        # Retrieve DB records of the role just created. The records is in JSON
-        # format.
-        try:
-            role_records = self.get_master_dbs_client().role_manager.role_detail(
-                role_id
-            )
-        except dbsync_exceptions.Unauthorized:
-            raise dbsync_exceptions.UnauthorizedMaster
-        if not role_records:
-            LOG.error(
-                "No data retrieved from master cloud for role {} to "
-                "create its equivalent in subcloud.".format(role_id),
-                extra=self.log_extra,
-            )
-            raise exceptions.SyncRequestFailed
+        role_records = self.get_resource_record(
+            consts.RESOURCE_TYPE_IDENTITY_ROLES,
+            role_id,
+            "role",
+            consts.OPERATION_TYPE_CREATE,
+        )
 
         # Create the role on subcloud by pushing the DB records to subcloud
         role_ref = self.get_sc_dbs_client().role_manager.add_role(role_records)
@@ -1184,7 +1232,7 @@ class IdentitySyncThread(SyncThread):
     def put_roles(self, request, rsrc):
         # Update this role on this subcloud
         # The DB level resource update process is, retrieve the resource
-        # records from master cloud by its ID, send the records in its original
+        # records from master cloud cache, send the records in its original
         # JSON format by REST call to the DB synchronization service on this
         # subcloud, which then updates the resource records in its DB tables.
         role_id = request.orch_job.source_resource_id
@@ -1207,21 +1255,12 @@ class IdentitySyncThread(SyncThread):
             )
             raise exceptions.SyncRequestFailed
 
-        # Retrieve DB records of the role. The records is in JSON
-        # format
-        try:
-            role_records = self.get_master_dbs_client().role_manager.role_detail(
-                role_id
-            )
-        except dbsync_exceptions.Unauthorized:
-            raise dbsync_exceptions.UnauthorizedMaster
-        if not role_records:
-            LOG.error(
-                "No data retrieved from master cloud for role {} to "
-                "update its equivalent in subcloud.".format(role_id),
-                extra=self.log_extra,
-            )
-            raise exceptions.SyncRequestFailed
+        role_records = self.get_resource_record(
+            consts.RESOURCE_TYPE_IDENTITY_ROLES,
+            role_id,
+            "role",
+            consts.OPERATION_TYPE_UPDATE,
+        )
 
         # Update the corresponding role on subcloud by pushing the DB records
         # to subcloud
@@ -1545,7 +1584,7 @@ class IdentitySyncThread(SyncThread):
     def post_revoke_events(self, request, rsrc):
         # Create token revoke event on this subcloud
         # The DB level resource creation process is, retrieve the resource
-        # records from master cloud by its ID, send the records in its original
+        # records from master cloud cache, send the records in its original
         # JSON format by REST call to the DB synchronization service on this
         # subcloud, which then inserts the resource records into DB tables.
         revoke_event_dict = jsonutils.loads(request.orch_job.resource_info)
@@ -1561,23 +1600,12 @@ class IdentitySyncThread(SyncThread):
             )
             raise exceptions.SyncRequestFailed
 
-        # Retrieve DB records of the revoke event just created. The records
-        # is in JSON format.
-        try:
-            revoke_event_records = (
-                self.get_master_dbs_client().revoke_event_manager.revoke_event_detail(
-                    audit_id=audit_id
-                )
-            )
-        except dbsync_exceptions.Unauthorized:
-            raise dbsync_exceptions.UnauthorizedMaster
-        if not revoke_event_records:
-            LOG.error(
-                "No data retrieved from master cloud for token revocation event with "
-                "audit_id {} to create its equivalent in subcloud.".format(audit_id),
-                extra=self.log_extra,
-            )
-            raise exceptions.SyncRequestFailed
+        revoke_event_records = self.get_resource_record(
+            consts.RESOURCE_TYPE_IDENTITY_TOKEN_REVOKE_EVENTS,
+            audit_id,
+            "token revocation event",
+            consts.OPERATION_TYPE_CREATE,
+        )
 
         # Create the revoke event on subcloud by pushing the DB records to
         # subcloud

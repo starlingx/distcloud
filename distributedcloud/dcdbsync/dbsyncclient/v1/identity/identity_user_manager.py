@@ -50,6 +50,18 @@ class Password(base.Resource):
         self.expires_at = expires_at
         self.expires_at_int = expires_at_int
 
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "local_user_id": self.local_user_id,
+            "self_service": self.self_service,
+            "password_hash": self.password_hash,
+            "created_at": self.created_at,
+            "created_at_int": self.created_at_int,
+            "expires_at": self.expires_at,
+            "expires_at_int": self.expires_at_int,
+        }
+
 
 class LocalUser(base.Resource):
     resource_name = "localUser"
@@ -73,6 +85,17 @@ class LocalUser(base.Resource):
         self.failed_auth_count = failed_auth_count
         self.failed_auth_at = failed_auth_at
         self.passwords = passwords
+
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "domain_id": self.domain_id,
+            "name": self.name,
+            "user_id": self.user_id,
+            "failed_auth_count": self.failed_auth_count,
+            "failed_auth_at": self.failed_auth_at,
+            "passwords": [p.to_dict() for p in self.passwords],
+        }
 
 
 class User(base.Resource):
@@ -99,6 +122,21 @@ class User(base.Resource):
         self.last_active_at = last_active_at
         self.extra = extra
         self.local_user = local_user
+
+    def to_dict(self):
+        return {
+            "user": {
+                "id": self.id,
+                "extra": self.extra,
+                "enabled": self.enabled,
+                "default_project_id": self.default_project_id,
+                "created_at": self.created_at,
+                "last_active_at": self.last_active_at,
+                "domain_id": self.domain_id,
+            },
+            "local_user": self.local_user.to_dict(),
+            "password": [p.to_dict() for p in self.local_user.passwords],
+        }
 
     def info(self):
         resource_info = dict()

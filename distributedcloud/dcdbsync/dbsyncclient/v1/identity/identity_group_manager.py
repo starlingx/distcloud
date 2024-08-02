@@ -38,6 +38,16 @@ class Group(base.Resource):
         self.local_user_ids = local_user_ids
         self.extra = extra
 
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "domain_id": self.domain_id,
+            "name": self.name,
+            "extra": self.extra,
+            "local_user_ids": self.local_user_ids,
+            "description": self.description,
+        }
+
     def info(self):
         resource_info = dict()
         resource_info.update(
