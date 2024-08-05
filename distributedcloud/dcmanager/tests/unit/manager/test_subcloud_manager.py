@@ -103,19 +103,36 @@ FAKE_PROJECTS = [
 
 
 class FakeService(object):
-    def __init__(self, type, id):
+    def __init__(self, name, type, id):
+        self.name = name
         self.type = type
         self.id = id
 
 
 FAKE_SERVICES = [
-    FakeService(dccommon_consts.ENDPOINT_TYPE_PLATFORM, 1),
-    FakeService(dccommon_consts.ENDPOINT_TYPE_IDENTITY, 2),
-    FakeService(dccommon_consts.ENDPOINT_TYPE_PATCHING, 3),
-    FakeService(dccommon_consts.ENDPOINT_TYPE_FM, 4),
-    FakeService(dccommon_consts.ENDPOINT_TYPE_NFV, 5),
-    FakeService(dccommon_consts.ENDPOINT_TYPE_DC_CERT, 6),
-    FakeService(dccommon_consts.ENDPOINT_TYPE_SOFTWARE, 7),
+    FakeService(
+        dccommon_consts.ENDPOINT_NAME_SYSINV, dccommon_consts.ENDPOINT_TYPE_PLATFORM, 1
+    ),
+    FakeService(
+        dccommon_consts.ENDPOINT_NAME_KEYSTONE,
+        dccommon_consts.ENDPOINT_TYPE_IDENTITY,
+        2,
+    ),
+    FakeService(
+        dccommon_consts.ENDPOINT_TYPE_PATCHING,
+        dccommon_consts.ENDPOINT_TYPE_PATCHING,
+        3,
+    ),
+    FakeService(dccommon_consts.ENDPOINT_NAME_FM, dccommon_consts.ENDPOINT_TYPE_FM, 4),
+    FakeService(
+        dccommon_consts.ENDPOINT_NAME_VIM, dccommon_consts.ENDPOINT_TYPE_NFV, 5
+    ),
+    FakeService(
+        dccommon_consts.ENDPOINT_TYPE_DC_CERT, dccommon_consts.ENDPOINT_TYPE_DC_CERT, 6
+    ),
+    FakeService(
+        dccommon_consts.ENDPOINT_NAME_USM, dccommon_consts.ENDPOINT_TYPE_SOFTWARE, 7
+    ),
 ]
 
 

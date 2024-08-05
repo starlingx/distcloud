@@ -24,8 +24,8 @@ from oslo_utils import timeutils
 
 from dccommon import consts as dccommon_consts
 from dccommon.drivers.openstack import sdk_platform as sdk
-from dccommon.endpoint_cache import build_subcloud_endpoint
 from dccommon.endpoint_cache import EndpointCache
+from dccommon.utils import build_subcloud_endpoint
 from dcdbsync.dbsyncclient import client as dbsyncclient
 from dcmanager.rpc import client as dcmanager_rpc_client
 from dcorch.common import consts

@@ -10,6 +10,7 @@ It defines methods used in dcmanager orchestrator's to handle the strategy
 by its type.
 """
 
+# TODO(nicodemos): Remove this file after all support to patching is removed
 from oslo_log import log as logging
 
 from dccommon import consts as dccommon_consts

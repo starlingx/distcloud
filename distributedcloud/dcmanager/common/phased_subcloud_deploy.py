@@ -145,6 +145,7 @@ def validate_bootstrap_values(payload: dict):
         pecan.abort(400, _("external_oam_floating_address required"))
 
 
+# TODO(nicodemos): Change to verify the releases instead of patching
 def validate_system_controller_patch_status(operation: str):
     ks_client = get_ks_client()
     patching_client = PatchingClient(

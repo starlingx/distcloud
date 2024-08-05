@@ -13,6 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+# TODO(nicodemos): Remove this file after all support to patching is removed
 
 import glob
 import json
@@ -35,7 +36,6 @@ from dcorch.api.proxy.common import constants as proxy_consts
 from dcorch.api.proxy.common.service import Middleware
 from dcorch.api.proxy.common import utils as proxy_utils
 from dcorch.common import context
-
 
 LOG = logging.getLogger(__name__)
 

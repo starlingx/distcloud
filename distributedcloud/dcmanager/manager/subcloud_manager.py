@@ -45,15 +45,13 @@ import yaml
 from dccommon import consts as dccommon_consts
 from dccommon.drivers.openstack.sdk_platform import OpenStackDriver
 from dccommon.drivers.openstack.sysinv_v1 import SysinvClient
-from dccommon.endpoint_cache import EndpointCache
+from dccommon import endpoint_cache
 from dccommon.exceptions import PlaybookExecutionFailed
 from dccommon.exceptions import SubcloudNotFound
 from dccommon import kubeoperator
 from dccommon.subcloud_enrollment import SubcloudEnrollmentInit
 from dccommon.subcloud_install import SubcloudInstall
-from dccommon.utils import AnsiblePlaybook
-from dccommon.utils import LAST_SW_VERSION_IN_CENTOS
-from dccommon.utils import send_subcloud_shutdown_signal
+from dccommon import utils as dccommon_utils
 from dcmanager.audit import rpcapi as dcmanager_audit_rpc_client
 from dcmanager.common import consts
 from dcmanager.common.consts import INVENTORY_FILE_POSTFIX
@@ -107,7 +105,7 @@ ANSIBLE_VALIDATE_KEYSTONE_PASSWORD_SCRIPT = (
 
 USERS_TO_REPLICATE = [
     "sysinv",
-    "patching",
+    "patching",  # TODO(nicodemos): Remove after patching is removed
     "usm",
     "vim",
     "mtce",
@@ -167,15 +165,6 @@ MAX_PARALLEL_SUBCLOUD_BACKUP_CREATE = 250
 MAX_PARALLEL_SUBCLOUD_BACKUP_DELETE = 250
 MAX_PARALLEL_SUBCLOUD_BACKUP_RESTORE = 100
 CENTRAL_BACKUP_DIR = "/opt/dc-vault/backups"
-
-ENDPOINT_URLS = {
-    dccommon_consts.ENDPOINT_TYPE_PLATFORM: "https://{}:6386/v1",
-    dccommon_consts.ENDPOINT_TYPE_IDENTITY: "https://{}:5001/v3",
-    dccommon_consts.ENDPOINT_TYPE_PATCHING: "https://{}:5492",
-    dccommon_consts.ENDPOINT_TYPE_FM: "https://{}:18003",
-    dccommon_consts.ENDPOINT_TYPE_NFV: "https://{}:4546",
-    dccommon_consts.ENDPOINT_TYPE_SOFTWARE: "https://{}:5498",
-}
 
 # Values for the exponential backoff retry to get subcloud's
 # certificate secret.
@@ -564,7 +553,7 @@ class SubcloudManager(manager.Manager):
 
         # TODO(yuxing) Remove the validate_keystone_passwords_script when end
         # the support of rehoming a subcloud with a software version below 22.12
-        if software_version <= LAST_SW_VERSION_IN_CENTOS:
+        if software_version <= dccommon_utils.LAST_SW_VERSION_IN_CENTOS:
             extra_vars += (
                 " validate_keystone_passwords_script='%s'"
                 % ANSIBLE_VALIDATE_KEYSTONE_PASSWORD_SCRIPT
@@ -999,7 +988,7 @@ class SubcloudManager(manager.Manager):
 
         # Run the rehome-subcloud playbook
         try:
-            ansible = AnsiblePlaybook(subcloud.name)
+            ansible = dccommon_utils.AnsiblePlaybook(subcloud.name)
             ansible.run_playbook(log_file, rehome_command)
         except PlaybookExecutionFailed:
             msg = (
@@ -1443,7 +1432,7 @@ class SubcloudManager(manager.Manager):
         subcloud = utils.update_abort_status(context, subcloud_id, deploy_status)
 
         try:
-            ansible = AnsiblePlaybook(subcloud.name)
+            ansible = dccommon_utils.AnsiblePlaybook(subcloud.name)
             aborted = ansible.run_abort()
             if not aborted:
                 LOG.warning(
@@ -1455,7 +1444,7 @@ class SubcloudManager(manager.Manager):
 
             if subcloud.deploy_status == consts.DEPLOY_STATE_ABORTING_INSTALL:
                 # Send shutdown signal to subcloud
-                send_subcloud_shutdown_signal(subcloud.name)
+                dccommon_utils.send_subcloud_shutdown_signal(subcloud.name)
         except Exception as ex:
             LOG.error(
                 "Subcloud deploy abort failed for subcloud %s: %s"
@@ -1537,7 +1526,7 @@ class SubcloudManager(manager.Manager):
 
             # TODO(Yuxing) remove replicating the smapi user when end the support
             # of rehoming a subcloud with a software version below 22.12
-            if subcloud.software_version <= LAST_SW_VERSION_IN_CENTOS:
+            if subcloud.software_version <= dccommon_utils.LAST_SW_VERSION_IN_CENTOS:
                 payload["users"]["smapi"] = str(
                     keyring.get_password("smapi", dccommon_consts.SERVICES_USER_NAME)
                 )
@@ -1693,7 +1682,9 @@ class SubcloudManager(manager.Manager):
 
             # TODO(Yuxing) remove replicating the smapi user when end the support
             # of rehoming a subcloud with a software version below 22.12
-            if rehoming and subcloud.software_version <= LAST_SW_VERSION_IN_CENTOS:
+            if rehoming and (
+                subcloud.software_version <= dccommon_utils.LAST_SW_VERSION_IN_CENTOS
+            ):
                 payload["users"]["smapi"] = str(
                     keyring.get_password("smapi", dccommon_consts.SERVICES_USER_NAME)
                 )
@@ -2579,7 +2570,7 @@ class SubcloudManager(manager.Manager):
 
         # Run the subcloud backup playbook
         try:
-            ansible = AnsiblePlaybook(subcloud.name)
+            ansible = dccommon_utils.AnsiblePlaybook(subcloud.name)
             ansible.run_playbook(log_file, backup_command)
 
             # Decide between complete-local or complete-central
@@ -2610,7 +2601,7 @@ class SubcloudManager(manager.Manager):
 
         try:
             # Run the subcloud backup delete playbook
-            ansible = AnsiblePlaybook(subcloud.name)
+            ansible = dccommon_utils.AnsiblePlaybook(subcloud.name)
             ansible.run_playbook(log_file, delete_command)
 
             # Set backup status to unknown after delete, since most recent backup may
@@ -2657,7 +2648,7 @@ class SubcloudManager(manager.Manager):
         )
         # Run the subcloud backup restore playbook
         try:
-            ansible = AnsiblePlaybook(subcloud.name)
+            ansible = dccommon_utils.AnsiblePlaybook(subcloud.name)
             ansible.run_playbook(
                 log_file, restore_command, timeout=CONF.playbook_timeout
             )
@@ -2792,7 +2783,7 @@ class SubcloudManager(manager.Manager):
         )
 
         try:
-            ansible = AnsiblePlaybook(subcloud.name)
+            ansible = dccommon_utils.AnsiblePlaybook(subcloud.name)
             aborted = ansible.run_playbook(log_file, config_command)
         except PlaybookExecutionFailed:
             msg = utils.find_ansible_error_msg(
@@ -2900,7 +2891,7 @@ class SubcloudManager(manager.Manager):
 
         LOG.info(f"Starting enroll of subcloud {subcloud.name}")
         try:
-            ansible = AnsiblePlaybook(subcloud.name)
+            ansible = dccommon_utils.AnsiblePlaybook(subcloud.name)
             ansible.run_playbook(log_file, enroll_command)
         except PlaybookExecutionFailed:
             msg = utils.find_ansible_error_msg(
@@ -2941,7 +2932,7 @@ class SubcloudManager(manager.Manager):
         # Run the ansible subcloud bootstrap playbook
         LOG.info("Starting bootstrap of %s" % subcloud.name)
         try:
-            ansible = AnsiblePlaybook(subcloud.name)
+            ansible = dccommon_utils.AnsiblePlaybook(subcloud.name)
             aborted = ansible.run_playbook(log_file, bootstrap_command)
         except PlaybookExecutionFailed:
             msg = utils.find_ansible_error_msg(
@@ -3776,7 +3767,7 @@ class SubcloudManager(manager.Manager):
         )
         subcloud_id = subcloud.id
         try:
-            ansible = AnsiblePlaybook(subcloud_name)
+            ansible = dccommon_utils.AnsiblePlaybook(subcloud_name)
             ansible.run_playbook(log_file, update_command)
             utils.delete_subcloud_inventory(overrides_file)
         except PlaybookExecutionFailed:
@@ -3895,20 +3886,11 @@ class SubcloudManager(manager.Manager):
 
     def _update_services_endpoint(self, context, payload, subcloud_region, m_ks_client):
         ip = utils.get_primary_management_start_address(payload)
-        formatted_ip = f"[{ip}]" if netaddr.IPAddress(ip).version == 6 else ip
-
-        services_endpoints = {
-            "keystone": "https://{}:5001/v3".format(formatted_ip),
-            "sysinv": "https://{}:6386/v1".format(formatted_ip),
-            "fm": "https://{}:18003".format(formatted_ip),
-            "patching": "https://{}:5492".format(formatted_ip),
-            "vim": "https://{}:4546".format(formatted_ip),
-            "usm": "https://{}:5498".format(formatted_ip),
-        }
+        services_endpoints = dccommon_utils.build_subcloud_endpoint_map(ip)
 
         LOG.info(
             "Update services endpoint to %s in subcloud region %s"
-            % (formatted_ip, subcloud_region)
+            % (ip, subcloud_region)
         )
         # Update service URLs in subcloud endpoint cache
         self.audit_rpc_client.trigger_subcloud_endpoints_update(
@@ -3925,7 +3907,7 @@ class SubcloudManager(manager.Manager):
         )
 
         # Update dcmanager endpoint cache
-        EndpointCache.update_master_service_endpoint_region(
+        endpoint_cache.EndpointCache.update_master_service_endpoint_region(
             subcloud_region, services_endpoints
         )
 

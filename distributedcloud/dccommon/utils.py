@@ -24,6 +24,7 @@ import time
 from typing import Callable
 
 from eventlet.green import subprocess
+import netaddr
 from oslo_log import log as logging
 from oslo_utils import timeutils
 
@@ -412,3 +413,52 @@ def log_subcloud_msg(
     if avail_status:
         prefix += f"Availability: {avail_status}. "
     log_func(f"{prefix}{msg}")
+
+
+def build_subcloud_endpoint_map(ip: str) -> dict:
+    """Builds a mapping of service endpoints for a given IP address.
+
+    :param ip: The IP address for which service endpoints need to be mapped.
+    :type ip: str
+    :return: A dictionary containing service names as keys and formatted
+             endpoint URLs as values.
+    :rtype: dict
+    """
+    endpoint_map = {}
+    for service, endpoint in consts.ENDPOINT_URLS.items():
+        formatted_ip = f"[{ip}]" if netaddr.IPAddress(ip).version == 6 else ip
+        endpoint_map[service] = endpoint.format(formatted_ip)
+    return endpoint_map
+
+
+def build_subcloud_endpoints(subcloud_mgmt_ips: dict) -> dict:
+    """Builds a dictionary of service endpoints for multiple subcloud management IPs.
+
+    :param subcloud_mgmt_ips: A dictionary containing subcloud regions as keys
+                              and the corresponding management IP as value.
+    :type subcloud_mgmt_ips: dict
+    :return: A dictionary with subcloud regions as keys and their respective
+        service endpoints as values.
+    :rtype: dict
+    """
+    subcloud_endpoints = {}
+    for region, ip in subcloud_mgmt_ips.items():
+        subcloud_endpoints[region] = build_subcloud_endpoint_map(ip)
+    return subcloud_endpoints
+
+
+def build_subcloud_endpoint(ip: str, service: str) -> str:
+    """Builds a service endpoint for a given IP address.
+
+    :param ip: The IP address for constructing the service endpoint.
+    :type ip: str
+    :param service: The service of the endpoint
+    :type service: str
+    :return: The service endpoint URL.
+    :type: str
+    """
+    endpoint = consts.ENDPOINT_URLS.get(service, None)
+    if endpoint:
+        formatted_ip = f"[{ip}]" if netaddr.IPAddress(ip).version == 6 else ip
+        endpoint = endpoint.format(formatted_ip)
+    return endpoint

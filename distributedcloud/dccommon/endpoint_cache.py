@@ -16,7 +16,6 @@
 #
 
 import collections
-
 from typing import Callable
 from typing import List
 from typing import Tuple
@@ -25,82 +24,17 @@ from typing import Union
 from keystoneauth1.identity import v3
 from keystoneauth1 import loading
 from keystoneauth1 import session
-import netaddr
-
 from keystoneclient.v3 import client as ks_client
-
 from oslo_concurrency import lockutils
 from oslo_config import cfg
 from oslo_log import log as logging
 
 from dccommon import consts
-from dccommon.utils import is_token_expiring_soon
-
+from dccommon import utils
 
 CONF = cfg.CONF
-
 LOG = logging.getLogger(__name__)
-
 LOCK_NAME = "dc-keystone-endpoint-cache"
-
-ENDPOINT_URLS = {
-    "dcagent": "https://{}:8326",
-    "fm": "https://{}:18003",
-    "keystone": "https://{}:5001/v3",
-    "patching": "https://{}:5492",
-    "sysinv": "https://{}:6386/v1",
-    "usm": "https://{}:5498",
-    "vim": "https://{}:4546",
-}
-
-
-def build_subcloud_endpoint_map(ip: str) -> dict:
-    """Builds a mapping of service endpoints for a given IP address.
-
-    :param ip: The IP address for which service endpoints need to be mapped.
-    :type ip: str
-    :return: A dictionary containing service names as keys and formatted
-             endpoint URLs as values.
-    :rtype: dict
-    """
-    endpoint_map = {}
-    for service, endpoint in ENDPOINT_URLS.items():
-        formatted_ip = f"[{ip}]" if netaddr.IPAddress(ip).version == 6 else ip
-        endpoint_map[service] = endpoint.format(formatted_ip)
-    return endpoint_map
-
-
-def build_subcloud_endpoints(subcloud_mgmt_ips: dict) -> dict:
-    """Builds a dictionary of service endpoints for multiple subcloud management IPs.
-
-    :param subcloud_mgmt_ips: A dictionary containing subcloud regions as keys
-                              and the corresponding management IP as value.
-    :type subcloud_mgmt_ips: dict
-    :return: A dictionary with subcloud regions as keys and their respective
-        service endpoints as values.
-    :rtype: dict
-    """
-    subcloud_endpoints = {}
-    for region, ip in subcloud_mgmt_ips.items():
-        subcloud_endpoints[region] = build_subcloud_endpoint_map(ip)
-    return subcloud_endpoints
-
-
-def build_subcloud_endpoint(ip: str, service: str) -> str:
-    """Builds a service endpoint for a given IP address.
-
-    :param ip: The IP address for constructing the service endpoint.
-    :type ip: str
-    :param service: The service of the endpoint
-    :type service: str
-    :return: The service endpoint URL.
-    :type: str
-    """
-    endpoint = ENDPOINT_URLS.get(service, None)
-    if endpoint:
-        formatted_ip = f"[{ip}]" if netaddr.IPAddress(ip).version == 6 else ip
-        endpoint = endpoint.format(formatted_ip)
-    return endpoint
 
 
 class EndpointCache(object):
@@ -161,7 +95,7 @@ class EndpointCache(object):
         ):
             LOG.info("Initializing and caching subcloud endpoints")
             # pylint: disable=not-callable
-            EndpointCache.subcloud_endpoints = build_subcloud_endpoints(
+            EndpointCache.subcloud_endpoints = utils.build_subcloud_endpoints(
                 EndpointCache.fetch_subcloud_ips()
             )
             LOG.info("Finished initializing and caching subcloud endpoints")
@@ -423,7 +357,7 @@ class EndpointCache(object):
              endpoint URLs as values.
         :rtype: dict
         """
-        endpoint_map = build_subcloud_endpoint_map(management_ip)
+        endpoint_map = utils.build_subcloud_endpoint_map(management_ip)
         cls.update_master_service_endpoint_region(region_name, endpoint_map)
         return endpoint_map
 
@@ -441,7 +375,7 @@ class EndpointCache(object):
             )
         # pylint: disable-next=not-callable
         subcloud_ip = EndpointCache.fetch_subcloud_ips(region_name)
-        endpoint_map = build_subcloud_endpoint_map(subcloud_ip)
+        endpoint_map = utils.build_subcloud_endpoint_map(subcloud_ip)
         # pylint: disable-next=unsupported-assignment-operation
         EndpointCache.subcloud_endpoints[region_name] = endpoint_map
 
@@ -460,7 +394,7 @@ class EndpointCache(object):
         # token is expiring soon
         token_expiring_soon = False
         if EndpointCache.master_keystone_client is None or (
-            token_expiring_soon := is_token_expiring_soon(
+            token_expiring_soon := utils.is_token_expiring_soon(
                 token=EndpointCache.master_token
             )
         ):

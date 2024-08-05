@@ -91,20 +91,32 @@ NEUTRON_QUOTA_FIELDS = (
     "security_group_rule",
 )
 
-ENDPOINT_TYPE_PLATFORM = "platform"
-ENDPOINT_TYPE_PATCHING = "patching"
-ENDPOINT_TYPE_IDENTITY = "identity"
-ENDPOINT_TYPE_FM = "faultmanagement"
-ENDPOINT_TYPE_NFV = "nfv"
-ENDPOINT_TYPE_SOFTWARE = "usm"
-ENDPOINT_TYPE_LOAD = "load"
+# Endpoint services names
+ENDPOINT_NAME_DCAGENT = "dcagent"
+ENDPOINT_NAME_FM = "fm"
+ENDPOINT_NAME_KEYSTONE = "keystone"
+ENDPOINT_NAME_SYSINV = "sysinv"
+ENDPOINT_NAME_USM = "usm"
+ENDPOINT_NAME_VIM = "vim"
+
+# Endpoint services types
+ENDPOINT_TYPE_DCAGENT = "dcagent"
 ENDPOINT_TYPE_DC_CERT = "dc-cert"
 ENDPOINT_TYPE_FIRMWARE = "firmware"
+ENDPOINT_TYPE_IDENTITY = "identity"
 ENDPOINT_TYPE_KUBERNETES = "kubernetes"
 ENDPOINT_TYPE_KUBE_ROOTCA = "kube-rootca"
 ENDPOINT_TYPE_USM = "usm"
+ENDPOINT_TYPE_PLATFORM = "platform"
+ENDPOINT_TYPE_SOFTWARE = "usm"
+ENDPOINT_TYPE_FM = "faultmanagement"
+ENDPOINT_TYPE_NFV = "nfv"
+# TODO(nicodemos): Remove patching/load after patching is no longer supported
+ENDPOINT_TYPE_LOAD = "load"
+ENDPOINT_TYPE_PATCHING = "patching"
 
 # All endpoint types
+# TODO(nicodemos): Remove patching/load after is no longer supported
 ENDPOINT_TYPES_LIST = [
     ENDPOINT_TYPE_PLATFORM,
     ENDPOINT_TYPE_PATCHING,
@@ -118,6 +130,7 @@ ENDPOINT_TYPES_LIST = [
 ]
 
 # All endpoint audit requests
+# TODO(nicodemos): Remove patching/load after is no longer supported
 # TODO(nicodemos): The ENDPOINT_TYPE_SOFTWARE will use the 'spare_audit_requested'
 # temporarily until the USM feature is fully complete. Afterward, the software audit
 # will replace the patch audit.
@@ -128,6 +141,17 @@ ENDPOINT_AUDIT_REQUESTS = {
     ENDPOINT_TYPE_LOAD: "load_audit_requested",
     ENDPOINT_TYPE_PATCHING: "patch_audit_requested",
     ENDPOINT_TYPE_SOFTWARE: "spare_audit_requested",
+}
+
+# TODO(nicodemos): Remove patching/load after is no longer supported
+ENDPOINT_URLS = {
+    ENDPOINT_NAME_DCAGENT: "https://{}:8326",
+    ENDPOINT_NAME_FM: "https://{}:18003",
+    ENDPOINT_NAME_KEYSTONE: "https://{}:5001/v3",
+    ENDPOINT_TYPE_PATCHING: "https://{}:5492",
+    ENDPOINT_NAME_SYSINV: "https://{}:6386/v1",
+    ENDPOINT_NAME_USM: "https://{}:5498",
+    ENDPOINT_NAME_VIM: "https://{}:4546",
 }
 
 BASE_AUDIT = "base_audit"

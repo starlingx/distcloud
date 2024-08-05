@@ -26,11 +26,10 @@ from oslo_utils import timeutils
 from dccommon import consts as dccommon_consts
 from dccommon.drivers.openstack.sdk_platform import OpenStackDriver
 from dccommon.drivers.openstack.sysinv_v1 import SysinvClient
-from dccommon.endpoint_cache import build_subcloud_endpoint
 from dccommon import exceptions as dccommon_exceptions
+from dccommon.utils import build_subcloud_endpoint
 from dcorch.common import consts
 from dcorch.common import exceptions
-
 from dcorch.engine.fernet_key_manager import FERNET_REPO_MASTER_ID
 from dcorch.engine.fernet_key_manager import FernetKeyManager
 from dcorch.engine.sync_thread import AUDIT_RESOURCE_EXTRA

@@ -341,11 +341,13 @@ EXTRA_ARGS_SUBJECT = "subject"
 EXTRA_ARGS_SYSADMIN_PASSWORD = "sysadmin_password"
 EXTRA_ARGS_FORCE = "force"
 
+# TODO(nicodemos): Remove after patching is no longer supported
 # extra_args for patching
 EXTRA_ARGS_UPLOAD_ONLY = "upload-only"
 EXTRA_ARGS_PATCH_ID = "patch_id"
 
-# sw_version supported for patching
+# TODO(nicodemos): Remove after patching is no longer supported
+# sw_version supported for patching legacy
 PATCHING_SW_VERSION = "22.12"
 
 # extra_args for software

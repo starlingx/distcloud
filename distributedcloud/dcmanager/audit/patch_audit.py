@@ -14,6 +14,7 @@
 #    under the License.
 #
 
+# TODO(nicodemos): Remove this file after all support to patching is removed
 from keystoneauth1 import exceptions as keystone_exceptions
 from oslo_log import log as logging
 
@@ -22,7 +23,7 @@ from dccommon.drivers.openstack import patching_v1
 from dccommon.drivers.openstack.patching_v1 import PatchingClient
 from dccommon.drivers.openstack.sdk_platform import OpenStackDriver
 from dccommon.drivers.openstack.sysinv_v1 import SysinvClient
-from dccommon.endpoint_cache import build_subcloud_endpoint
+from dccommon.utils import build_subcloud_endpoint
 from dcmanager.common import utils
 
 LOG = logging.getLogger(__name__)

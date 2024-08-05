@@ -26,8 +26,7 @@ from dccommon.drivers.openstack.fm import FmClient
 from dccommon.drivers.openstack.sdk_platform import OpenStackDriver
 from dccommon.drivers.openstack.sysinv_v1 import SysinvClient
 from dccommon import endpoint_cache
-from dccommon.utils import log_subcloud_msg
-from dccommon.utils import subcloud_has_dcagent
+from dccommon import utils as dccommon_utils
 from dcmanager.audit import alarm_aggregation
 from dcmanager.audit import base_audit
 from dcmanager.audit import firmware_audit
@@ -347,7 +346,7 @@ class SubcloudAuditWorkerManager(manager.Manager):
         failures = list()
         availability_data = dict()
         endpoint_data = dict()
-        has_dcagent = subcloud_has_dcagent(subcloud.software_version)
+        has_dcagent = dccommon_utils.subcloud_has_dcagent(subcloud.software_version)
 
         # Set defaults to None and disabled so we will still set disabled
         # status if we encounter an error.
@@ -369,7 +368,7 @@ class SubcloudAuditWorkerManager(manager.Manager):
                 dcagent_client = DcagentClient(
                     subcloud_region,
                     admin_session,
-                    endpoint=endpoint_cache.build_subcloud_endpoint(
+                    endpoint=dccommon_utils.build_subcloud_endpoint(
                         subcloud_management_ip, "dcagent"
                     ),
                 )
@@ -495,7 +494,9 @@ class SubcloudAuditWorkerManager(manager.Manager):
                     if avail_to_set == dccommon_consts.AVAILABILITY_OFFLINE:
                         inactive_sg = audit_value.get("inactive_sg")
                         msg = f"Inactive service groups: {inactive_sg}"
-                        log_subcloud_msg(LOG.debug, msg, subcloud_name, avail_to_set)
+                        dccommon_utils.log_subcloud_msg(
+                            LOG.debug, msg, subcloud_name, avail_to_set
+                        )
                     alarms = audit_value.get("alarms")
                     if alarms:
                         self.alarm_aggr.update_alarm_summary(subcloud_name, alarms)

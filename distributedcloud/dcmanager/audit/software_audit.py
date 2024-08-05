@@ -11,7 +11,7 @@ from dccommon import consts as dccommon_consts
 from dccommon.drivers.openstack.keystone_v3 import KeystoneClient as ks_client
 from dccommon.drivers.openstack import sdk_platform
 from dccommon.drivers.openstack import software_v1
-from dccommon.endpoint_cache import build_subcloud_endpoint
+from dccommon.utils import build_subcloud_endpoint
 from dccommon.utils import log_subcloud_msg
 from dcmanager.common import utils
 

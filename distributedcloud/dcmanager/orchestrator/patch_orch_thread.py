@@ -15,6 +15,8 @@
 #    under the License.
 #
 
+# TODO(nicodemos): Remove this file and all patch states after all support
+# to patching is removed
 from oslo_log import log as logging
 
 from dccommon.drivers.openstack import vim

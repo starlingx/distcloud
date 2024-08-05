@@ -26,6 +26,7 @@ from oslo_config import cfg
 
 from dccommon import endpoint_cache
 from dccommon.tests import base
+from dccommon import utils
 
 FAKE_REGIONONE_SYSINV_ENDPOINT = "http://[2620:10a:a001:a114::d00]:6385/v1"
 FAKE_REGIONONE_KEYSTONE_ENDPOINT = "http://[2620:10a:a001:a114::d00]:5000/v3"
@@ -90,14 +91,7 @@ class EndpointCacheTest(base.DCCommonTestCase):
         ]
         cfg.CONF.register_opts(auth_uri_opts, "endpoint_cache")
 
-        # Mock the token validator (which is confusing so here is the info)
-        # endpoint_cache.py has an import:
-        #    from dccommon.utils import is_token_expiring_soon
-        # so to patch where that function is called we use this syntax:
-        #    patch.object(endpoint_cache, 'is_token_expiring_soon')
-        # instead of:
-        #    patch.object(dccommon.utils, 'is_token_expiring_soon')
-        p = mock.patch.object(endpoint_cache, "is_token_expiring_soon")
+        p = mock.patch.object(utils, "is_token_expiring_soon")
         self.mock_is_token_expiring_soon = p.start()
         self.mock_is_token_expiring_soon.return_value = True
         self.addCleanup(p.stop)
@@ -198,7 +192,7 @@ class EndpointCacheTest(base.DCCommonTestCase):
         ips = ("192.168.1.1", "2620:10a:a001:ac09::7ce0")
         for ip in ips:
             expected = self._get_expected_endpoints(ip)
-            result = endpoint_cache.build_subcloud_endpoint_map(ip)
+            result = utils.build_subcloud_endpoint_map(ip)
             self.assertEqual(expected, result)
 
     def test_build_subcloud_endpoint_map_fails(self):
@@ -213,7 +207,7 @@ class EndpointCacheTest(base.DCCommonTestCase):
         for ip in ips:
             self.assertRaises(
                 netaddr.AddrFormatError,
-                endpoint_cache.build_subcloud_endpoint_map,
+                utils.build_subcloud_endpoint_map,
                 ip,
             )
 
@@ -229,11 +223,11 @@ class EndpointCacheTest(base.DCCommonTestCase):
             }
             self.assertEqual(
                 expected_result,
-                endpoint_cache.build_subcloud_endpoints(subcloud_mgmt_ips),
+                utils.build_subcloud_endpoints(subcloud_mgmt_ips),
             )
 
     def test_empty_ip_dict_succeeds(self):
         empty_ips = {}
         expected_endpoints = {}
-        actual_endpoints = endpoint_cache.build_subcloud_endpoints(empty_ips)
+        actual_endpoints = utils.build_subcloud_endpoints(empty_ips)
         self.assertEqual(expected_endpoints, actual_endpoints)
