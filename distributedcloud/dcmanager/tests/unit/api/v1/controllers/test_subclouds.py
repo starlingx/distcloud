@@ -120,23 +120,6 @@ class FakeOAMAddressPool(object):
         self.floating_address = floating_ip
 
 
-FAKE_IPV4_OAM_POOL = FakeOAMAddressPool(
-    "10.10.10.0",
-    24,
-    "10.10.10.1",
-    "10.10.10.254",
-    "10.10.10.4",
-    "10.10.10.3",
-    "10.10.10.1",
-    "10.10.10.2",
-)
-
-
-FAKE_IPV6_OAM_POOL = FakeOAMAddressPool(
-    "fe00::", 64, "fe00::1", "fe00::ffff", "fe00::4", "fe00::3", "fe00::1", "fe00::2"
-)
-
-
 class SubcloudAPIMixin(APIMixin):
     API_PREFIX = "/v1.0/subclouds"
     RESULT_KEY = "subclouds"
@@ -274,8 +257,6 @@ class BaseTestSubcloudsController(DCManagerApiTest, SubcloudAPIMixin):
         self._mock_get_ks_client()
         self._mock_query()
         self._mock_valid_software_deploy_state()
-        self._mock_get_oam_address_pools()
-        self.mock_get_oam_address_pools.return_value = [FAKE_IPV4_OAM_POOL]
 
     def _update_subcloud(self, **kwargs):
         self.subcloud = sql_api.subcloud_update(self.ctx, self.subcloud.id, **kwargs)
@@ -482,6 +463,16 @@ class BaseTestSubcloudsPost(BaseTestSubcloudsController):
             FakeAddressPool("192.168.204.0", 24, "192.168.204.2", "192.168.204.100")
         ]
 
+    def set_oam_params_ipv4(self):
+        self.params["external_oam_subnet"] = "10.10.10.0/24"
+        self.params["external_oam_gateway_address"] = "10.10.10.1"
+        self.params["external_oam_floating_address"] = "10.10.10.12"
+
+    def set_oam_params_ipv6(self):
+        self.params["external_oam_subnet"] = "fd02:4::/64"
+        self.params["external_oam_gateway_address"] = "fd02:4::1"
+        self.params["external_oam_floating_address"] = "fd02:4::12"
+
 
 class TestSubcloudsPost(BaseTestSubcloudsPost, PostMixin):
     """Test class for post requests"""
@@ -592,27 +583,6 @@ class TestSubcloudsPost(BaseTestSubcloudsPost, PostMixin):
                 f"failed to detect a valid IP address from '{invalid_value}'",
                 index,
             )
-
-    def _test_post_fails_bootstrap_address_with_wrong_ip_version(self, address):
-        """Test post fails with bootstrap address version different from OAM primary"""
-
-        self.params["bootstrap-address"] = address
-
-        response = self._send_request()
-
-        self._assert_pecan_and_response(
-            response,
-            http.client.BAD_REQUEST,
-            "bootstrap-address must be the same IP "
-            "version as the system controller OAM",
-        )
-
-    def test_post_fails_bootstrap_address_with_wrong_ip_version_ipv4(self):
-        self._test_post_fails_bootstrap_address_with_wrong_ip_version("fd01::77")
-
-    def test_post_fails_bootstrap_address_with_wrong_ip_version_ipv6(self):
-        self.mock_get_oam_address_pools.return_value = [FAKE_IPV6_OAM_POOL]
-        self._test_post_fails_bootstrap_address_with_wrong_ip_version("10.10.10.100")
 
     def test_post_fails_with_invalid_systemcontroller_gateway_address(self):
         """Test post fails with invalid system controller gateway address
@@ -1336,27 +1306,6 @@ class TestSubcloudsPostInstallData(BaseTestSubcloudsPost):
             "bootstrap_address", ["192.168.1.256", "192.168.206.wut", None]
         )
 
-    def _test_post_fails_invalid_bootstrap_ip_version_in_install_values(self, address):
-        """Test post fails when bootstrap IP version differs from OAM's"""
-
-        self._validate_invalid_property(
-            "bootstrap_address",
-            [address],
-            "bootstrap_address in install_values "
-            "must be the same IP version as the system controller OAM",
-        )
-
-    def test_post_fails_invalid_bootstrap_address_version_in_install_values_ipv4(self):
-        self._test_post_fails_invalid_bootstrap_ip_version_in_install_values(
-            "fd01:6::7"
-        )
-
-    def test_post_fails_invalid_bootstrap_address_version_in_install_values_ipv6(self):
-        self.mock_get_oam_address_pools.return_value = [FAKE_IPV6_OAM_POOL]
-        self._test_post_fails_invalid_bootstrap_ip_version_in_install_values(
-            "10.10.10.100"
-        )
-
     def test_post_fails_with_invalid_bmc_address_in_install_values(self):
         """Test post fails with invalid bmc address in install values
 
@@ -1374,11 +1323,19 @@ class TestSubcloudsPostInstallData(BaseTestSubcloudsPost):
         """
 
         kwargs = {"bootstrap_address": "192.168.1.2"}
-
         self._validate_invalid_property(
             "bmc_address",
             ["fd01:6::7"],
             "bmc_address and bootstrap_address must be the same IP version",
+            **kwargs,
+        )
+        self.mock_pecan_abort.reset_mock()
+
+        kwargs = {"bootstrap_address": "fd02:3::4"}
+        self._validate_invalid_property(
+            "bmc_address",
+            ["fd01:6::7"],
+            "bmc_address and primary OAM network must be the same IP version",
             **kwargs,
         )
         self.mock_pecan_abort.reset_mock()
@@ -1392,10 +1349,7 @@ class TestSubcloudsPostInstallData(BaseTestSubcloudsPost):
         defaults to IPv4.
         """
 
-        self.mock_get_oam_address_pools.return_value = [FAKE_IPV6_OAM_POOL]
-
         kwargs = {"bootstrap_address": "fd01:6::7"}
-
         self._validate_invalid_property(
             "bmc_address",
             ["192.168.1.7"],
@@ -1404,7 +1358,15 @@ class TestSubcloudsPostInstallData(BaseTestSubcloudsPost):
         )
         self.mock_pecan_abort.reset_mock()
 
-        self.mock_get_oam_address_pools.return_value = [FAKE_IPV4_OAM_POOL]
+        kwargs = {"bootstrap_address": "192.168.1.2"}
+        self.set_oam_params_ipv6()
+        self._validate_invalid_property(
+            "bmc_address",
+            ["192.168.1.7"],
+            "bmc_address and primary OAM network must be the same IP version",
+            **kwargs,
+        )
+        self.mock_pecan_abort.reset_mock()
 
         self._validate_invalid_ip_address("bmc_address", ["fd01:6:-1", None])
 
@@ -1454,10 +1416,9 @@ class TestSubcloudsPostInstallData(BaseTestSubcloudsPost):
         All of the required IP addresses must be in the same IP version.
         """
 
-        self.mock_get_oam_address_pools.return_value = [FAKE_IPV6_OAM_POOL]
-
         kwargs = {"bootstrap_address": "fd01:6::6", "bmc_address": "fd01:6::7"}
 
+        self.set_oam_params_ipv6()
         self._validate_invalid_property(
             "nexthop_gateway",
             ["192.168.1.7"],
@@ -1466,8 +1427,7 @@ class TestSubcloudsPostInstallData(BaseTestSubcloudsPost):
         )
         self.mock_pecan_abort.reset_mock()
 
-        self.mock_get_oam_address_pools.return_value = [FAKE_IPV4_OAM_POOL]
-
+        self.set_oam_params_ipv4()
         self._validate_invalid_ip_address("nexthop_gateway", ["fd01:6:-1", None])
 
     def test_post_fails_with_invalid_network_address_in_install_values(self):

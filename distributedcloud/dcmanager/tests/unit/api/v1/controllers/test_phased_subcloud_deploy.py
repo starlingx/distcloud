@@ -20,7 +20,6 @@ from dcmanager.common import phased_subcloud_deploy as psd_common
 from dcmanager.common import utils as dutils
 from dcmanager.db import api as db_api
 from dcmanager.tests.unit.api.test_root_controller import DCManagerApiTest
-from dcmanager.tests.unit.api.v1.controllers.test_subclouds import FAKE_IPV4_OAM_POOL
 from dcmanager.tests.unit.api.v1.controllers.test_subclouds import FakeAddressPool
 from dcmanager.tests.unit.api.v1.controllers.test_subclouds import SubcloudAPIMixin
 from dcmanager.tests.unit.common import fake_subcloud
@@ -41,8 +40,6 @@ class BaseTestPhasedSubcloudDeployController(DCManagerApiTest):
         self._mock_rpc_client()
         self._mock_get_ks_client()
         self._mock_query()
-        self._mock_get_oam_address_pools()
-        self.mock_get_oam_address_pools.return_value = [FAKE_IPV4_OAM_POOL]
 
     def _mock_populate_payload(self):
         mock_patch_object = mock.patch.object(
