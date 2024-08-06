@@ -869,14 +869,14 @@ def find_ansible_error_msg(subcloud_name, log_file, stage=None):
     failed_task = ""
 
     cmd_1 = "awk"
-    # awk command to get the information iside the last match found
+    # awk command to get the information inside the last match found
     # starting with 'fatal: [' and ending with 'PLAY RECAP'.
-    cmd_2 = r"""BEGIN {f=""}                # initialize f
-        /fatal: \[/ {f=""}                  # reset f on first match
-        /fatal: \[/,/PLAY RECAP/ {          # capture text between two delimiters
-            if ($0 ~ /PLAY RECAP/) next     # exclude last delimiter
-            if ($0 == "") next              # exclude blank line
-            f = f ? (f "\n" $0) : $0}       # assign or append to f
+    cmd_2 = r"""BEGIN {f=""}                  # initialize f
+        /fatal: \[|ERROR/,/PLAY RECAP/ {      # capture text between two delimiters
+            if ($0 ~ /fatal: \[|ERROR/) f=""  # reset f on a new match
+            if ($0 ~ /PLAY RECAP/) next       # exclude last delimiter
+            if ($0 == "") next                # exclude blank line
+            f = f ? (f "\n" $0) : $0}         # assign or append to f
             END {print f}
             """
     try:
