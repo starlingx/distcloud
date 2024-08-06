@@ -201,7 +201,6 @@ def validate_prestage(subcloud, payload):
 
     Prestage conditions validation
       - Subcloud exists
-      - Subcloud is an AIO-SX
       - Subcloud is online
       - Subcloud is managed
       - Subcloud backup operation is not in progress
@@ -227,15 +226,23 @@ def validate_prestage(subcloud, payload):
         for_sw_deploy,
     )
 
-    subcloud_type, system_health, oam_floating_ip = _get_prestage_subcloud_info(
-        subcloud
+    subcloud_type, system_health, oam_floating_ip, controller_0_is_active = (
+        _get_prestage_subcloud_info(subcloud)
     )
+    prestage_reason = get_prestage_reason(payload)
 
-    if subcloud_type != consts.SYSTEM_MODE_SIMPLEX:
+    if (
+        subcloud_type == consts.SYSTEM_MODE_DUPLEX
+        and prestage_reason == consts.PRESTAGE_FOR_INSTALL
+        and not controller_0_is_active
+    ):
         raise exceptions.PrestagePreCheckFailedException(
             subcloud=subcloud.name,
             orch_skip=True,
-            details="Prestage operation is only accepted for a simplex subcloud.",
+            details=(
+                "Prestage for install on duplex subclouds "
+                "is only allowed when controller-0 is active."
+            ),
         )
 
     if not payload["force"] and not utils.pre_check_management_affected_alarm(
@@ -293,7 +300,7 @@ def prestage_subcloud(context, payload):
 
     3 phases:
     1. Prestage validation (already done by this point)
-        - Subcloud exists, is online, is managed, is AIO-SX
+        - Subcloud exists, is online, is managed
         - Subcloud has no management-affecting alarms (unless force is given)
     2. Packages prestaging
         - run prestage_packages.yml ansible playbook
@@ -380,7 +387,13 @@ def _get_prestage_subcloud_info(subcloud):
         health = sysinv_client.get_system_health()
         # Interested only in primary OAM address of subcloud
         oam_floating_ip = sysinv_client.get_oam_address_pools()[0].floating_address
-        return mode, health, oam_floating_ip
+        controller_active_info = sysinv_client.get_host("controller-0")
+        controller_0_is_active = (
+            controller_active_info.capabilities["Personality"]
+            == consts.PERSONALITY_CONTROLLER_ACTIVE
+        )
+
+        return mode, health, oam_floating_ip, controller_0_is_active
 
     except Exception as e:
         LOG.exception(e)

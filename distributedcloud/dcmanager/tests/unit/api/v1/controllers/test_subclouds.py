@@ -2889,6 +2889,11 @@ class TestSubcloudsPatchPrestage(BaseTestSubcloudsPatch):
             self.versions_supported
         )
 
+    def _setup_mock_sysinv_client_prestage_get_host(self, personality):
+        mock_get_host = mock.MagicMock()
+        mock_get_host.capabilities = {"Personality": personality}
+        self.mock_sysinv_client_prestage().get_host.return_value = mock_get_host
+
     def test_for_sw_deploy_prestage_succeeds(self):
         """Test for sw deploy prestage succeeds"""
 
@@ -3053,15 +3058,47 @@ class TestSubcloudsPatchPrestage(BaseTestSubcloudsPatch):
         mock_get_system = mock.MagicMock()
         mock_get_system.system_mode = consts.SYSTEM_MODE_DUPLEX
         self.mock_sysinv_client_prestage().get_system.return_value = mock_get_system
+        self.params["for_install"] = "true"
+        self._setup_mock_sysinv_client_prestage_get_host("Controller-Standby")
 
         response = self._send_request()
 
         self._assert_pecan_and_response(
             response,
             http.client.BAD_REQUEST,
-            f"Prestage skipped '{self.subcloud.name}': Prestage operation is "
-            "only accepted for a simplex subcloud.",
+            f"Prestage skipped '{self.subcloud.name}': Prestage for install on "
+            "duplex subclouds is only allowed when controller-0 is active.",
         )
+
+    def test_prestage_for_sw_deploy_with_duplex_subcloud(self):
+        """Test patch prestage success for-sw-deploy with duplex subcloud"""
+
+        mock_get_system = mock.MagicMock()
+        mock_get_system.system_mode = consts.SYSTEM_MODE_DUPLEX
+        self.mock_sysinv_client_prestage().get_system.return_value = mock_get_system
+
+        self.params["for_sw_deploy"] = "true"
+        self._setup_mock_sysinv_client_prestage_get_host("Controller-Active")
+
+        response = self._send_request()
+
+        self._assert_response(response)
+        self.mock_rpc_client().prestage_subcloud.assert_called_once()
+
+    def test_prestage_for_install_with_duplex_subcloud(self):
+        """Test patch prestage success for-install with duplex subcloud"""
+
+        mock_get_system = mock.MagicMock()
+        mock_get_system.system_mode = consts.SYSTEM_MODE_DUPLEX
+        self.mock_sysinv_client_prestage().get_system.return_value = mock_get_system
+
+        self._setup_mock_sysinv_client_prestage_get_host("Controller-Active")
+        self.params["for_install"] = "true"
+
+        response = self._send_request()
+
+        self._assert_response(response)
+        self.mock_rpc_client().prestage_subcloud.assert_called_once()
 
     def test_patch_prestage_succeds_without_mgmt_alarm(self):
         """Test patch prestage succeeds without management alarm"""
