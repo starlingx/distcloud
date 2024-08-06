@@ -118,43 +118,48 @@ class VimClient(base.DriverBase):
         max_parallel_worker_hosts,
         default_instance_action,
         alarm_restrictions,
-        **kwargs
+        **kwargs,
     ):
-        """Create orchestration strategy"""
+        """Create VIM orchestration strategy"""
 
         url = self.endpoint
 
-        # TODO(nicodemos): Remove once sw-patch is deprecated
-        # Use the REST Api directly to the subcloud to create the strategy for legacy
-        # patch orchestration
-        if strategy_name == STRATEGY_NAME_SW_PATCH:
-            return self._create_strategy_sw_patch(
-                strategy_name,
-                default_instance_action,
-                storage_apply_type,
-                worker_apply_type,
-                max_parallel_worker_hosts,
-                alarm_restrictions,
-            )
+        try:
+            # TODO(nicodemos): Remove once sw-patch is deprecated
+            # Use the REST Api directly to the subcloud to create the strategy for
+            # legacy patch orchestration
+            if strategy_name == STRATEGY_NAME_SW_PATCH:
+                return self._create_strategy_sw_patch(
+                    strategy_name,
+                    default_instance_action,
+                    storage_apply_type,
+                    worker_apply_type,
+                    max_parallel_worker_hosts,
+                    alarm_restrictions,
+                )
 
-        strategy = sw_update.create_strategy(
-            self.token,
-            url,
-            strategy_name=strategy_name,
-            controller_apply_type=APPLY_TYPE_SERIAL,
-            storage_apply_type=storage_apply_type,
-            swift_apply_type=APPLY_TYPE_IGNORE,
-            worker_apply_type=worker_apply_type,
-            max_parallel_worker_hosts=max_parallel_worker_hosts,
-            default_instance_action=default_instance_action,
-            alarm_restrictions=alarm_restrictions,
-            username=self.username,
-            user_domain_name=self.user_domain_name,
-            tenant=self.tenant,
-            **kwargs,
-        )
+            strategy = sw_update.create_strategy(
+                self.token,
+                url,
+                strategy_name=strategy_name,
+                controller_apply_type=APPLY_TYPE_SERIAL,
+                storage_apply_type=storage_apply_type,
+                swift_apply_type=APPLY_TYPE_IGNORE,
+                worker_apply_type=worker_apply_type,
+                max_parallel_worker_hosts=max_parallel_worker_hosts,
+                default_instance_action=default_instance_action,
+                alarm_restrictions=alarm_restrictions,
+                username=self.username,
+                user_domain_name=self.user_domain_name,
+                tenant=self.tenant,
+                **kwargs,
+            )
+        except Exception as e:
+            raise exceptions.VIMClientException(e)
         if not strategy:
-            raise Exception("Strategy:(%s) creation failed" % strategy_name)
+            raise exceptions.VIMClientException(
+                f"Strategy: {strategy_name} creation failed."
+            )
 
         LOG.debug("Strategy created: %s" % strategy)
         return strategy
@@ -199,47 +204,60 @@ class VimClient(base.DriverBase):
         return sw_update._get_strategy_object_from_response(response)
 
     def get_strategy(self, strategy_name, raise_error_if_missing=True):
-        """Get the current orchestration strategy"""
+        """Get VIM orchestration strategy"""
 
         url = self.endpoint
-        strategy = sw_update.get_strategies(
-            self.token,
-            url,
-            strategy_name=strategy_name,
-            username=self.username,
-            user_domain_name=self.user_domain_name,
-            tenant=self.tenant,
-        )
+        try:
+            strategy = sw_update.get_strategies(
+                self.token,
+                url,
+                strategy_name=strategy_name,
+                username=self.username,
+                user_domain_name=self.user_domain_name,
+                tenant=self.tenant,
+            )
+        except Exception as e:
+            raise exceptions.VIMClientException(e)
         if not strategy:
             if raise_error_if_missing:
-                raise Exception("Get strategy failed")
+                raise exceptions.VIMClientException(
+                    f"Get strategy: {strategy_name} failed."
+                )
 
         LOG.debug("Strategy: %s" % strategy)
         return strategy
 
     def get_current_strategy(self):
-        """Get the current active strategy type and state"""
+        """Get the current active VIM orchestration strategy"""
 
         url = self.endpoint
-        strategy = sw_update.get_current_strategy(self.token, url)
+        try:
+            strategy = sw_update.get_current_strategy(self.token, url)
+        except Exception as e:
+            raise exceptions.VIMClientException(e)
 
         LOG.debug("Strategy: %s" % strategy)
         return strategy
 
     def delete_strategy(self, strategy_name):
-        """Delete the current orchestration strategy"""
+        """Delete the current VIM orchestration strategy"""
 
         url = self.endpoint
-        success = sw_update.delete_strategy(
-            self.token,
-            url,
-            strategy_name=strategy_name,
-            username=self.username,
-            user_domain_name=self.user_domain_name,
-            tenant=self.tenant,
-        )
+        try:
+            success = sw_update.delete_strategy(
+                self.token,
+                url,
+                strategy_name=strategy_name,
+                username=self.username,
+                user_domain_name=self.user_domain_name,
+                tenant=self.tenant,
+            )
+        except Exception as e:
+            raise exceptions.VIMClientException(e)
         if not success:
-            raise Exception("Delete strategy failed")
+            raise exceptions.VIMClientException(
+                f"Delete strategy: {strategy_name} failed."
+            )
 
         LOG.debug("Strategy deleted")
 
@@ -247,16 +265,21 @@ class VimClient(base.DriverBase):
         """Apply the current orchestration strategy"""
 
         url = self.endpoint
-        strategy = sw_update.apply_strategy(
-            self.token,
-            url,
-            strategy_name=strategy_name,
-            username=self.username,
-            user_domain_name=self.user_domain_name,
-            tenant=self.tenant,
-        )
+        try:
+            strategy = sw_update.apply_strategy(
+                self.token,
+                url,
+                strategy_name=strategy_name,
+                username=self.username,
+                user_domain_name=self.user_domain_name,
+                tenant=self.tenant,
+            )
+        except Exception as e:
+            raise exceptions.VIMClientException(e)
         if not strategy:
-            raise Exception("Strategy apply failed")
+            raise exceptions.VIMClientException(
+                f"Strategy: {strategy_name} apply failed."
+            )
 
         LOG.debug("Strategy applied: %s" % strategy)
         return strategy

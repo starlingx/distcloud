@@ -159,3 +159,7 @@ class RvmcExit(DCCommonException):
 
 class EnrollInitExecutionFailed(DCCommonException):
     message = _("Subcloud enroll init failed. %(reason)s")
+
+
+class VIMClientException(Exception):
+    message = _("An error occurred in the VIM client.")

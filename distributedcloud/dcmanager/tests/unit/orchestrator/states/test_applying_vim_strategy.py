@@ -148,9 +148,8 @@ class ApplyingVIMStrategyMixin(object):
         # invoke the strategy state operation on the orch thread
         self.worker.perform_state_action(self.strategy_step)
 
-        # verify the max number of queries was attempted (plus 1 before loop)
         self.assertEqual(
-            applying_vim_strategy.DEFAULT_MAX_WAIT_ATTEMPTS + 1,
+            applying_vim_strategy.DEFAULT_MAX_WAIT_ATTEMPTS,
             self.vim_client.get_strategy.call_count,
         )
 
