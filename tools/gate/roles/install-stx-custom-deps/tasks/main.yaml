@@ -1,0 +1,13 @@
+---
+- name: Add STX master repo
+  apt_repository:
+    filename: "{{ stx_master_tag }}"
+    repo: "deb [trusted=yes] {{ stx_master_repo }} /"
+  become: true
+
+- name: Install dependencies from STX master package repo
+  package:
+    name: "{{ item }}"
+    state: present
+  become: true
+  with_items: "{{ stx_master_deps }}"

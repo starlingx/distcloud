@@ -1,0 +1,7 @@
+---
+stx_master_repo: "https://mirror.starlingx.windriver.com/mirror/starlingx/master/debian/monolithic/latest_build/outputs/std/packages"
+
+stx_master_tag: stxmaster
+
+stx_master_deps:
+ - python3-keystoneauth1
