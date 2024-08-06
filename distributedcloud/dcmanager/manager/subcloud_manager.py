@@ -3833,14 +3833,16 @@ class SubcloudManager(manager.Manager):
             context, subcloud_id, deploy_status=consts.DEPLOY_STATE_DONE
         )
 
+        # We are interested only in primary of dual-stack, as system controller
+        # and subcloud communication is based upon subcloud's primary.
         subcloud = db_api.subcloud_update(
             context,
             subcloud_id,
             description=payload.get("description", subcloud.description),
-            management_subnet=payload.get("management_subnet"),
+            management_subnet=payload.get("management_subnet").split(",")[0],
             management_gateway_ip=payload.get("management_gateway_ip"),
-            management_start_ip=payload.get("management_start_ip"),
-            management_end_ip=payload.get("management_end_ip"),
+            management_start_ip=payload.get("management_start_ip").split(",")[0],
+            management_end_ip=payload.get("management_end_ip").split(",")[0],
             location=payload.get("location", subcloud.location),
             group_id=payload.get("group_id", subcloud.group_id),
             data_install=payload.get("data_install", subcloud.data_install),
