@@ -1370,14 +1370,6 @@ class SubcloudsController(object):
                 LOG.exception("validate_prestage failed")
                 pecan.abort(400, _(str(exc)))
 
-            for_install = True
-            if consts.PRESTAGE_FOR_SW_DEPLOY in payload:
-                for_install = False
-
-            prestage_software_version = utils.get_sw_version(
-                payload.get(consts.PRESTAGE_REQUEST_RELEASE), for_install
-            )
-
             try:
                 self.dcmanager_rpc_client.prestage_subcloud(context, payload)
                 # local update to prestage_status - this is just for CLI response:
@@ -1385,7 +1377,11 @@ class SubcloudsController(object):
 
                 subcloud_dict = db_api.subcloud_db_model_to_dict(subcloud)
                 subcloud_dict.update(
-                    {consts.PRESTAGE_SOFTWARE_VERSION: prestage_software_version}
+                    {
+                        consts.PRESTAGE_SOFTWARE_VERSION: payload.get(
+                            consts.PRESTAGE_REQUEST_RELEASE
+                        )
+                    }
                 )
                 return subcloud_dict
             except RemoteError as e:

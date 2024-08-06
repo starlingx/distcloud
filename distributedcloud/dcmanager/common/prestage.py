@@ -125,7 +125,7 @@ def global_prestage_validate(payload):
 def initial_subcloud_validate(
     subcloud,
     installed_releases,
-    software_major_release,  # format: YY.MM
+    software_version,
     for_sw_deploy,
 ):
     """Basic validation a subcloud prestage operation.
@@ -182,15 +182,15 @@ def initial_subcloud_validate(
     # (can be checked with "software list" command).
     if (
         not for_sw_deploy
-        and software_major_release
-        and software_major_release != subcloud.software_version
-        and software_major_release not in installed_releases
+        and software_version
+        and software_version != subcloud.software_version
+        and software_version not in installed_releases
     ):
         raise exceptions.PrestagePreCheckFailedException(
             subcloud=subcloud.name,
             orch_skip=True,
             details=(
-                f"Specified release is not supported. {software_major_release} "
+                f"Specified release is not supported. {software_version} "
                 "version must first be imported"
             ),
         )
@@ -211,21 +211,19 @@ def validate_prestage(subcloud, payload):
     """
     LOG.debug("Validating subcloud prestage '%s'", subcloud.name)
 
-    installed_releases = []
-    software_version = None
-    software_major_release = None
-    if payload.get(consts.PRESTAGE_REQUEST_RELEASE):
-        software_version = payload.get(consts.PRESTAGE_REQUEST_RELEASE)
-        software_major_release = utils.get_major_release(software_version)
-        installed_releases = utils.get_systemcontroller_installed_releases()
+    # Validates and returns release prestage params
+    software_version, installed_releases, for_sw_deploy = get_validated_release_params(
+        payload
+    )
 
-    for_sw_deploy = is_prestage_for_sw_deploy(payload)
+    # Set release version
+    payload.update({consts.PRESTAGE_REQUEST_RELEASE: software_version})
 
     # re-run the initial validation
     initial_subcloud_validate(
         subcloud,
         installed_releases,
-        software_major_release,
+        software_version,
         for_sw_deploy,
     )
 
@@ -460,13 +458,11 @@ def prestage_packages(context, subcloud, payload, reason=consts.PRESTAGE_FOR_INS
         subcloud.name, ANSIBLE_PRESTAGE_INVENTORY_SUFFIX
     )
 
-    prestage_software_version = payload.get(consts.PRESTAGE_REQUEST_RELEASE, SW_VERSION)
-    prestage_major_release = utils.get_major_release(prestage_software_version)
-    extra_vars_str = f"software_version={prestage_software_version} "
-    extra_vars_str += f"software_major_release={prestage_major_release} "
+    software_version = payload.get(consts.PRESTAGE_REQUEST_RELEASE, SW_VERSION)
+    extra_vars_str = f"software_version={software_version} "
     extra_vars_str += f"prestage_reason={reason}"
 
-    ostree_mount.validate_ostree_iso_mount(prestage_major_release)
+    ostree_mount.validate_ostree_iso_mount(software_version)
 
     _run_ansible(
         context,
@@ -483,7 +479,7 @@ def prestage_packages(context, subcloud, payload, reason=consts.PRESTAGE_FOR_INS
         consts.PRESTAGE_STATE_PACKAGES,
         payload["sysadmin_password"],
         payload["oam_floating_ip"],
-        prestage_software_version,
+        software_version,
         ansible_subcloud_inventory_file,
     )
 
@@ -502,12 +498,12 @@ def prestage_images(context, subcloud, payload, reason=consts.PRESTAGE_FOR_INSTA
     regardless of whether prestage_images.yml playbook is executed or skipped.
 
     """
-    prestage_software_version = payload.get(consts.PRESTAGE_REQUEST_RELEASE, SW_VERSION)
-    extra_vars_str = f"software_version={prestage_software_version} "
+    software_version = payload.get(consts.PRESTAGE_REQUEST_RELEASE, SW_VERSION)
+    extra_vars_str = f"software_version={software_version} "
     extra_vars_str += f"prestage_reason={reason}"
 
     image_list_filename = None
-    deploy_dir = os.path.join(DEPLOY_BASE_DIR, prestage_software_version)
+    deploy_dir = os.path.join(DEPLOY_BASE_DIR, software_version)
     if os.path.isdir(deploy_dir):
         image_list_filename = utils.get_filename_by_prefix(
             deploy_dir, "prestage_images"
@@ -522,18 +518,18 @@ def prestage_images(context, subcloud, payload, reason=consts.PRESTAGE_FOR_INSTA
         if reason == consts.PRESTAGE_FOR_SW_DEPLOY:
             LOG.info(
                 f"Images prestage is skipped for {subcloud.name} as "
-                f"the prestage images list for release {prestage_software_version} "
+                f"the prestage images list for release {software_version} "
                 f"has not been uploaded for {reason}."
             )
             return
-        elif prestage_software_version != subcloud.software_version:
+        elif software_version != subcloud.software_version:
             # Prestage source is remote but there is no images list file for
             # for-install scenario so skip the images prestage.
             LOG.info(
                 f"Images prestage is skipped for {subcloud.name}. The prestage "
-                f"images list for release {prestage_software_version} has not "
+                f"images list for release {software_version} has not "
                 f"been uploaded for {reason} and the subcloud is "
-                f"running a different load than {prestage_software_version}."
+                f"running a different load than {software_version}."
             )
             return
 
@@ -556,7 +552,56 @@ def prestage_images(context, subcloud, payload, reason=consts.PRESTAGE_FOR_INSTA
         consts.PRESTAGE_STATE_IMAGES,
         payload["sysadmin_password"],
         payload["oam_floating_ip"],
-        prestage_software_version,
+        software_version,
         ansible_subcloud_inventory_file,
         timeout_seconds=CONF.playbook_timeout * 2,
     )
+
+
+def get_validated_release_params(payload):
+    """Validates the release param from payload.
+
+    It returns three values in tuple unpacking style if release
+    param if present:
+
+    1- Validated release
+    2- List of releases deployed in the system controller
+    3- Flag that indicates whether it is for sw deploy.
+
+    Otherwise it returns the default release, since it is assumed
+    that it is already deployed on system controller.
+
+    """
+    requested_sw_version = payload.get(consts.PRESTAGE_REQUEST_RELEASE)
+    installed_releases = []
+    for_sw_deploy = is_prestage_for_sw_deploy(payload)
+    for_install = not for_sw_deploy
+
+    # Subcloud name from payload
+    subcloud_name = payload.get("subcloud_name", "")
+
+    if requested_sw_version:
+        # Ensures the release format is MM.mm
+        if utils.is_minor_release(requested_sw_version):
+            raise exceptions.PrestagePreCheckFailedException(
+                subcloud=subcloud_name,
+                orch_skip=False,
+                details="Specified release format is not supported. "
+                "Version format must be MM.mm",
+            )
+
+        installed_releases = utils.get_systemcontroller_installed_releases()
+        installed_major_releases = utils.get_major_releases(installed_releases)
+
+        # Requested release must be in deployed state when --for-sw-deploy
+        # is present.
+        if for_sw_deploy and requested_sw_version not in installed_major_releases:
+            raise exceptions.PrestagePreCheckFailedException(
+                subcloud=subcloud_name,
+                orch_skip=False,
+                details="The requested software version was not installed in the "
+                "system controller, cannot prestage for software deploy",
+            )
+    # Release software_version format is MM.mm
+    software_version = utils.get_sw_version(requested_sw_version, for_install)
+    return software_version, installed_releases, for_sw_deploy
