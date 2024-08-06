@@ -25,6 +25,7 @@ import re
 import resource as sys_resource
 import string
 import subprocess
+from typing import List
 from typing import Union
 import uuid
 import xml.etree.ElementTree as ElementTree
@@ -1166,8 +1167,32 @@ def is_subcloud_healthy(subcloud_region, management_ip: str = None):
     return False
 
 
-def get_systemcontroller_installed_releases():
+def get_systemcontroller_installed_releases() -> List[str]:
+    return get_major_releases(_get_systemcontroller_installed_releases("sw_version"))
 
+
+def get_systemcontroller_installed_releases_ids() -> List[str]:
+    return _get_systemcontroller_installed_releases("release_id")
+
+
+def _get_systemcontroller_installed_releases(key: str) -> List[str]:
+    """Get a list of installed software releases on the SystemController using the key.
+
+    This function is used to get the installed software releases on the SystemController
+    using the key provided. For example, the key can be "sw_version" or "release_id",
+    this will return ["10.0.0", "10.0.2", ...] or ["stx-10.0.0", "stx-10.0.1", ...]
+    respectively. Other keys can be used as well, like "state", "description", etc.
+
+    Args:
+        key (str): The key to extract information from each deployed release.
+
+    Returns:
+        List[str]: Values of the given key from all deployed software releases.
+
+    Raises:
+        requests.exceptions.ConnectionError: On failure to connect to the USM.
+        Exception: On other failures with OpenStack or Keystone client interactions.
+    """
     try:
         os_client = OpenStackDriver(
             region_name=dccommon_consts.DEFAULT_REGION_NAME,
@@ -1182,14 +1207,11 @@ def get_systemcontroller_installed_releases():
         )
         releases = software_client.list()
 
-        releases = [
-            release["sw_version"]
+        return [
+            release[key]
             for release in releases
             if release["state"] == software_v1.DEPLOYED
         ]
-
-        return get_major_releases(releases)
-
     except requests.exceptions.ConnectionError:
         LOG.exception(
             "Failed to get software list for %s", dccommon_consts.DEFAULT_REGION_NAME
@@ -1922,3 +1944,31 @@ def format_address(ip_address: str) -> str:
     except netaddr.AddrFormatError as e:
         LOG.error(f"Failed to format the IP address: {ip_address}. Error: {e}")
         raise
+
+
+def validate_patch_strategy(patch_id: str):
+    if not patch_id:
+        message = (
+            "patch_id parameter is required for "
+            f"{consts.SW_UPDATE_TYPE_PATCH} strategy."
+        )
+        pecan.abort(400, _(message))
+
+    patch_file = (
+        f"{consts.PATCH_VAULT_DIR}/{consts.PATCHING_SW_VERSION}/{patch_id}.patch"
+    )
+    if not os.path.isfile(patch_file):
+        message = f"Patch file {patch_file} is missing in DC Vault patches."
+        pecan.abort(400, _(message))
+
+
+def validate_software_strategy(release_id: str):
+    if not release_id:
+        message = (
+            "Release ID is required for strategy type: "
+            f"{consts.SW_UPDATE_TYPE_SOFTWARE}."
+        )
+        pecan.abort(400, _(message))
+    elif release_id not in get_systemcontroller_installed_releases_ids():
+        message = f"Release ID: {release_id} not deployed in the SystemController"
+        pecan.abort(400, _(message))

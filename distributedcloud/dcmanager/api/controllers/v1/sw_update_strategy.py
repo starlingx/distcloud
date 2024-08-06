@@ -15,8 +15,6 @@
 #    under the License.
 #
 
-import os
-
 from oslo_config import cfg
 from oslo_log import log as logging
 from oslo_messaging import RemoteError
@@ -168,27 +166,11 @@ class SwUpdateStrategyController(object):
                 ]:
                     pecan.abort(400, _("subcloud-apply-type invalid"))
 
-            patch_id = payload.get("patch_id")
-            if strategy_type == consts.SW_UPDATE_TYPE_PATCH and not patch_id:
-                message = (
-                    f"patch_id parameter is required for {strategy_type} strategy."
-                )
-                pecan.abort(400, _(message))
-            elif patch_id:
-                patch_file = (
-                    f"{consts.PATCH_VAULT_DIR}/{consts.PATCHING_SW_VERSION}/"
-                    f"{patch_id}.patch"
-                )
-
-                if not os.path.isfile(patch_file):
-                    message = f"Patch file {patch_file} is missing."
-                    pecan.abort(400, _(message))
-
-            if strategy_type == consts.SW_UPDATE_TYPE_SOFTWARE and not payload.get(
-                "release_id"
-            ):
-                message = f"Release ID is required for strategy type: {strategy_type}."
-                pecan.abort(400, _(message))
+            # TODO(nicodemos): Remove once sw-patch is deprecated
+            if strategy_type == consts.SW_UPDATE_TYPE_PATCH:
+                utils.validate_patch_strategy(payload.get("patch_id"))
+            elif strategy_type == consts.SW_UPDATE_TYPE_SOFTWARE:
+                utils.validate_software_strategy(payload.get("release_id"))
 
             max_parallel_subclouds_str = payload.get("max-parallel-subclouds")
             if max_parallel_subclouds_str is not None:

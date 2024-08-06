@@ -22,6 +22,7 @@ from oslo_messaging import RemoteError
 
 from dccommon import consts as dccommon_consts
 from dcmanager.common import consts
+from dcmanager.common import utils
 from dcmanager.db.sqlalchemy import api as db_api
 from dcmanager.orchestrator import rpcapi as rpc_client
 from dcmanager.tests.unit.api.test_root_controller import DCManagerApiTest
@@ -232,6 +233,12 @@ class TestSwUpdateStrategyPost(BaseTestSwUpdateStrategyPost):
         self.create_update_strategy = (
             self.mock_rpc_orchestrator_client().create_sw_update_strategy
         )
+        self.get_releases_patcher = mock.patch.object(
+            utils, "get_systemcontroller_installed_releases_ids"
+        )
+        self.mock_get_releases = self.get_releases_patcher.start()
+        self.mock_get_releases.return_value = ["stx-10.0.0"]
+        self.addCleanup(self.get_releases_patcher.stop)
 
     def test_post_succeeds(self):
         """Test post succeeds"""
