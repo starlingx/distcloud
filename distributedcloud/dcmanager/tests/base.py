@@ -270,13 +270,6 @@ class DCManagerTestCase(base.BaseTestCase):
         self.mock_get_network_address_pools = mock_patch_object.start()
         self.addCleanup(mock_patch_object.stop)
 
-    def _mock_get_oam_address_pools(self):
-        """Mock phased subcloud deploy's get_oam_address_pools"""
-
-        mock_patch_object = mock.patch.object(psd_common, "get_oam_address_pools")
-        self.mock_get_oam_address_pools = mock_patch_object.start()
-        self.addCleanup(mock_patch_object.stop)
-
     def _mock_get_ks_client(self):
         """Mock phased subcloud deploy's get_ks_client"""
 

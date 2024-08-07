@@ -1175,7 +1175,7 @@ class SubcloudsController(object):
                         "request is from a peer site."
                     )
                 else:
-                    psd_common.validate_install_values(payload, subcloud=subcloud)
+                    psd_common.validate_install_values(payload, subcloud)
                 payload["data_install"] = json.dumps(payload[consts.INSTALL_VALUES])
 
             try:
