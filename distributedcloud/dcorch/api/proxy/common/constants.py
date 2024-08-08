@@ -78,6 +78,8 @@ USER_PATHS = ["/v1/iuser/{uuid}"]
 
 LOAD_PATHS = ["/v1/loads/import_load", "/v1/loads/{id}"]
 
+RELEASE_PATHS = ["//v1/release", "//v1/release/{rel_id}"]
+
 DEVICE_IMAGE_PATHS = ["/v1/device_images", "/v1/device_images/{uuid}"]
 
 SYSINV_PATH_MAP = {
@@ -85,6 +87,10 @@ SYSINV_PATH_MAP = {
     consts.RESOURCE_TYPE_SYSINV_USER: USER_PATHS,
     consts.RESOURCE_TYPE_SYSINV_LOAD: LOAD_PATHS,
     consts.RESOURCE_TYPE_SYSINV_DEVICE_IMAGE: DEVICE_IMAGE_PATHS,
+}
+
+USM_PATH_MAP = {
+    consts.RESOURCE_TYPE_USM_RELEASE: RELEASE_PATHS,
 }
 
 LOAD_FILES_STAGING_DIR = "/scratch/tmp_load"
@@ -359,9 +365,13 @@ ROUTE_METHOD_MAP = {
         consts.RESOURCE_TYPE_IDENTITY_PROJECT_ROLE_ASSIGNMENTS: ["PUT", "DELETE"],
         consts.RESOURCE_TYPE_IDENTITY_TOKEN_REVOKE_EVENTS: ["DELETE"],
     },
+    dccommon_consts.ENDPOINT_TYPE_SOFTWARE: {
+        consts.RESOURCE_TYPE_USM_RELEASE: ["PUT", "POST", "DELETE"],
+    },
 }
 
 LOAD_VAULT_DIR = "/opt/dc-vault/loads"
 LOAD_VAULT_TMP_DIR = "/opt/dc-vault/loads/load_tmpdir"
 ENDPOINT_TYPE_PATCHING_TMPDIR = "/scratch/patch-api-proxy-tmpdir"
 ENDPOINT_TYPE_PLATFORM_TMPDIR = "/scratch/platform-api-proxy-tmpdir"
+ENDPOINT_TYPE_USM_TMPDIR = "/scratch/software-upload-tmpdir"

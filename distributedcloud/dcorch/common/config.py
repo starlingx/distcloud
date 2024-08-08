@@ -256,24 +256,6 @@ fernet_opts = [
     )
 ]
 
-usm_proxy_opts = [
-    cfg.StrOpt(
-        "bind_host",
-        default="0.0.0.0",
-        help="IP address for API proxy to listen for incoming connections",
-    ),
-    cfg.IntOpt("bind_port", default=25497, help="listen port for API proxy"),
-    cfg.StrOpt(
-        "remote_host",
-        default="0.0.0.0",
-        help="The remote host address used for outgoing API proxy connection",
-    ),
-    cfg.IntOpt(
-        "remote_port",
-        default=5497,
-        help="The remote port used for outgoing API proxy connection",
-    ),
-]
 
 scheduler_opt_group = cfg.OptGroup(
     "scheduler", title="Scheduler options for periodic job"
@@ -284,8 +266,6 @@ default_quota_group = cfg.OptGroup(
 )
 # The group stores the pecan configurations.
 pecan_group = cfg.OptGroup(name="pecan", title="Pecan options")
-
-usm_group = cfg.OptGroup(name="usm", title="USM proxy options")
 
 cache_opt_group = cfg.OptGroup(name="cache", title="OpenStack Admin Credentials")
 
@@ -310,7 +290,6 @@ def list_opts():
     yield scheduler_opt_group.name, scheduler_opts
     yield pecan_group.name, pecan_opts
     yield fernet_opt_group.name, fernet_opts
-    yield usm_group.name, usm_proxy_opts
     yield None, global_opts
     yield None, common_opts
 

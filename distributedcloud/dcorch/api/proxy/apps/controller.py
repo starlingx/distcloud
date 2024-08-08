@@ -16,8 +16,11 @@
 import grp
 import json
 import os
+import pathlib
 import pwd
 import shutil
+import tempfile
+import threading
 
 from eventlet.green import subprocess
 from oslo_config import cfg
@@ -28,6 +31,7 @@ import psutil
 import tsconfig.tsconfig as tsc
 import webob.dec
 import webob.exc
+from webob import Response
 
 from dccommon import consts as dccommon_consts
 from dccommon.drivers.openstack.sdk_platform import OpenStackDriver
@@ -42,8 +46,10 @@ from dcorch.api.proxy.common import utils as proxy_utils
 from dcorch.common import consts
 from dcorch.common import context as k_context
 from dcorch.common import exceptions as exception
+from dcorch.common import usm_util
 from dcorch.common import utils
 from dcorch.rpc import client as rpc_client
+
 
 LOG = logging.getLogger(__name__)
 
@@ -888,6 +894,240 @@ class SysinvAPIController(APIController):
                 )
             except exception.ResourceNotFound as e:
                 raise webob.exc.HTTPNotFound(explanation=str(e))
+
+
+class InsufficientDiskspace(Exception):
+    pass
+
+
+class LocalStorage(object):
+    def __init__(self):
+        self._storage = threading.local()
+
+    def get_value(self, key):
+        if hasattr(self._storage, key):
+            return getattr(self._storage, key)
+        else:
+            return None
+
+    def set_value(self, key, value):
+        setattr(self._storage, key, value)
+
+    def void_value(self, key):
+        if hasattr(self._storage, key):
+            delattr(self._storage, key)
+
+
+class USMAPIController(APIController):
+    ENDPOINT_TYPE = dccommon_consts.ENDPOINT_TYPE_SOFTWARE
+    OK_STATUS_CODE = [
+        webob.exc.HTTPOk.code,
+        webob.exc.HTTPAccepted.code,
+        webob.exc.HTTPNoContent.code,
+    ]
+
+    @property
+    def tmp_dir(self):
+        return self._local_storage.get_value("tmp_dir")
+
+    @tmp_dir.setter
+    def tmp_dir(self, value):
+        self._local_storage.set_value("tmp_dir", value)
+
+    @property
+    def my_copy(self):
+        return self._local_storage.get_value("my_copy")
+
+    @my_copy.setter
+    def my_copy(self, value):
+        self._local_storage.set_value("my_copy", value)
+
+    @property
+    def upload_files(self):
+        return self._local_storage.get_value("upload_files")
+
+    @upload_files.setter
+    def upload_files(self, value):
+        self._local_storage.set_value("upload_files", value)
+
+    def __init__(self, app, conf):
+        super(USMAPIController, self).__init__(app, conf)
+        self.response_hander_map = {self.ENDPOINT_TYPE: self._process_response}
+        self._local_storage = LocalStorage()
+        self.upload_files = []
+        self.my_copy = False
+        self.tmp_dir = None
+        self.software_vault = dccommon_consts.SOFTWARE_VAULT_DIR
+
+    @webob.dec.wsgify(RequestClass=Request)
+    def __call__(self, req):
+        if CONF.show_request:
+            self.print_request(req)
+        environ = req.environ
+
+        self.upload_files = []
+        content_type = req.content_type
+        new_request = req
+        new_request.body = req.body
+
+        if content_type == "text/plain":
+            # --local
+            self.upload_files = list(json.loads(req.body))
+            self.my_copy = False
+        else:
+            LOG.info("save uploaded files to local storage")
+            # upload. save files to scratch then perform a --local
+            request_data = list(req.POST.items())
+            uploaded_files = sorted(set(request_data))
+            self._create_temp_storage()
+
+            # Save all uploaded files to tmp_dir
+            for file_item in uploaded_files:
+                try:
+                    filename = self._save_upload_file(file_item[1])
+                except InsufficientDiskspace as e:
+                    self._cleanup_temp_storage()
+                    ret = {"info": "", "warning": "", "error": str(e)}
+                    response = Response(body=json.dumps(ret), status=500)
+                    return response
+
+                self.upload_files.append(filename)
+
+            new_request.content_type = "text/plain"
+            new_request.body = json.dumps(self.upload_files).encode(new_request.charset)
+            self.my_copy = True
+
+        application = self.process_request(new_request)
+        response = req.get_response(application)
+        resp = self.process_response(environ, new_request, response)
+        self._cleanup_temp_storage()
+        return resp
+
+    def _cleanup_temp_storage(self):
+        if self.tmp_dir:
+            shutil.rmtree(self.tmp_dir, ignore_errors=True)
+            self.tmp_dir = None
+
+    def _save_upload_file(self, file_item):
+        file_name = file_item.filename
+
+        target_dir = self.tmp_dir
+        file_item.file.seek(0, os.SEEK_END)
+        file_size = file_item.file.tell()
+        avail_space = shutil.disk_usage(target_dir).free
+        if file_size > avail_space:
+            LOG.error(
+                "Not enough space to save file %s in %s \n "
+                + "Available %s bytes. File size %s",
+                file_name,
+                target_dir,
+                avail_space,
+                file_size,
+            )
+
+            raise InsufficientDiskspace(f"Insufficient disk space in {self.tmp_dir}")
+
+        target_file = os.path.join(target_dir, os.path.basename(file_name))
+        with open(target_file, "wb") as destination_file:
+            destination_file.write(file_item.value)
+        return target_file
+
+    def _process_response(self, environ, request, response):
+        def is_usm_software(fn):
+            return os.path.splitext(fn)[-1] in [".iso", ".patch"]
+
+        try:
+            resource_type = self._get_resource_type_from_environ(environ)
+            operation_type = proxy_utils.get_operation_type(environ)
+            if self.get_status_code(response) in self.OK_STATUS_CODE:
+                LOG.info("resource type %s" % resource_type)
+                if resource_type == consts.RESOURCE_TYPE_USM_RELEASE:
+                    if operation_type == consts.OPERATION_TYPE_POST:
+                        body = response.body
+                        if isinstance(body, bytes):
+                            body = body.decode()
+
+                        files = usm_util.parse_upload(body)
+                        releases = [f for f in files if is_usm_software(f["filename"])]
+                        for release in releases:
+                            sw_version = usm_util.get_major_release_version(
+                                release["sw_release"]
+                            )
+                            self._save_load_to_vault(sw_version)
+
+            sw_versions = self._get_major_releases(environ, request)
+            LOG.info("current available software versions %s" % sw_versions)
+            if sw_versions:
+                dcvault_versions = self._get_version_from_dcvault()
+                LOG.info("software in dcvault %s" % dcvault_versions)
+                self._audit_dcvault(sw_versions, dcvault_versions)
+            return response
+        finally:
+            proxy_utils.cleanup(environ)
+
+    def _get_major_releases(self, environ, request):
+        new_request = request
+        new_request.body = None
+        new_environ = environ
+        new_environ["REQUEST_METHOD"] = "GET"
+        new_environ["PATH_INFO"] = "/v1/release/"
+
+        new_request = Request(new_environ)
+        application = self.process_request(new_request)
+        resp = new_request.get_response(application)
+        if self.get_status_code(resp) not in self.OK_STATUS_CODE:
+            # can't retrieve software list at the moment
+            return None
+
+        data = json.loads(resp.body)
+        sw_versions = []
+        for d in data:
+            sw_version = usm_util.get_component_and_versions(d["release_id"])[2]
+            if sw_version and sw_version not in sw_versions:
+                sw_versions.append(sw_version)
+        return sw_versions
+
+    def _get_version_from_dcvault(self):
+        if os.path.exists(self.software_vault):
+            dirs = os.listdir(self.software_vault)
+            return dirs
+        return []
+
+    def _audit_dcvault(self, sw_versions, dcvalut_versions):
+        for dcvault_ver in dcvalut_versions:
+            if dcvault_ver not in sw_versions:
+                self._remove_load_from_vault(dcvault_ver)
+
+    def _create_temp_storage(self):
+        self.tmp_dir = tempfile.mkdtemp(prefix="upload", dir="/scratch")
+        LOG.info("created %s" % self.tmp_dir)
+        return self.tmp_dir
+
+    def _save_load_to_vault(self, sw_version):
+        versioned_vault = os.path.join(self.software_vault, sw_version)
+        pathlib.Path(versioned_vault).mkdir(parents=True, exist_ok=True)
+        if not self.my_copy:
+            self._create_temp_storage()
+            for upload_file in self.upload_files:
+                base_name = os.path.basename(upload_file)
+                target_file = os.path.join(self.tmp_dir, base_name)
+                shutil.copy(upload_file, target_file)
+
+        # Move the files to the final location
+        for upload_file in self.upload_files:
+            base_name = os.path.basename(upload_file)
+            target_file = os.path.join(versioned_vault, base_name)
+            src_file = os.path.join(self.tmp_dir, base_name)
+            shutil.move(src_file, target_file)
+
+        LOG.info("Release %s (%s) saved to vault." % (self.upload_files, sw_version))
+
+    def _remove_load_from_vault(self, sw_version):
+        versioned_vault = os.path.join(self.software_vault, sw_version)
+
+        if os.path.isdir(versioned_vault):
+            shutil.rmtree(versioned_vault)
+            LOG.info("Load (%s) removed from vault." % sw_version)
 
 
 class IdentityAPIController(APIController):

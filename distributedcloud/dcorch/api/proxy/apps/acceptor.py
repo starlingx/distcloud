@@ -24,6 +24,7 @@ from dcorch.api.proxy.apps.controller import IdentityAPIController
 from dcorch.api.proxy.apps.controller import NeutronAPIController
 from dcorch.api.proxy.apps.controller import OrchAPIController
 from dcorch.api.proxy.apps.controller import SysinvAPIController
+from dcorch.api.proxy.apps.controller import USMAPIController
 from dcorch.api.proxy.apps.controller import VersionController
 from dcorch.api.proxy.apps.dispatcher import APIDispatcher
 from dcorch.api.proxy.apps.patch import PatchAPIController
@@ -45,6 +46,7 @@ class Acceptor(Router):
             consts.ENDPOINT_TYPE_VOLUME: self._default_dispatcher,
             consts.ENDPOINT_TYPE_NETWORK: self._default_dispatcher,
             dccommon_consts.ENDPOINT_TYPE_IDENTITY: self._default_dispatcher,
+            dccommon_consts.ENDPOINT_TYPE_SOFTWARE: self._default_dispatcher,
         }
         if CONF.type in self.forwarder_map:
             forwarder = self.forwarder_map[CONF.type]
@@ -58,6 +60,7 @@ class Acceptor(Router):
             consts.ENDPOINT_TYPE_NETWORK: self.add_network_routes,
             dccommon_consts.ENDPOINT_TYPE_PATCHING: self.add_patch_routes,
             dccommon_consts.ENDPOINT_TYPE_IDENTITY: self.add_identity_routes,
+            dccommon_consts.ENDPOINT_TYPE_SOFTWARE: self.add_usm_routes,
         }
         self._conf = conf
         mapper = routes.Mapper()
@@ -125,6 +128,12 @@ class Acceptor(Router):
         api_controller = IdentityAPIController(app, conf)
 
         for key, value in proxy_consts.IDENTITY_PATH_MAP.items():
+            self._add_resource(mapper, api_controller, value, key, CONF.type)
+
+    def add_usm_routes(self, app, conf, mapper):
+        api_controller = USMAPIController(app, conf)
+
+        for key, value in proxy_consts.USM_PATH_MAP.items():
             self._add_resource(mapper, api_controller, value, key, CONF.type)
 
 
