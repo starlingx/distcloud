@@ -17,6 +17,7 @@
 import datetime
 
 from oslo_db import exception as db_exception
+from oslo_utils import timeutils
 from oslo_utils import uuidutils
 
 from dcmanager.common import exceptions as exception
@@ -128,7 +129,7 @@ class DBAPISubcloudAuditsTest(base.DCManagerTestCase):
             self.assertEqual(audit["load_audit_requested"], True)
 
     def test_subcloud_audits_get_all_need_audit(self):
-        current_time = datetime.datetime.utcnow()
+        current_time = timeutils.utcnow()
         last_audit_threshold = current_time - datetime.timedelta(seconds=1000)
         audits = db_api.subcloud_audits_get_all_need_audit(
             self.ctx, last_audit_threshold
@@ -155,12 +156,12 @@ class DBAPISubcloudAuditsTest(base.DCManagerTestCase):
     def test_subcloud_audits_start_and_end(self):
         audit = db_api.subcloud_audits_get_and_start_audit(self.ctx, 3)
         self.assertTrue(
-            (datetime.datetime.utcnow() - audit.audit_started_at)
+            (timeutils.utcnow() - audit.audit_started_at)
             < datetime.timedelta(seconds=1)
         )
         audit = db_api.subcloud_audits_end_audit(self.ctx, 3, [])
         self.assertTrue(
-            (datetime.datetime.utcnow() - audit.audit_finished_at)
+            (timeutils.utcnow() - audit.audit_finished_at)
             < datetime.timedelta(seconds=1)
         )
         self.assertFalse(audit.state_update_requested)
@@ -175,9 +176,7 @@ class DBAPISubcloudAuditsTest(base.DCManagerTestCase):
         # but with the 'finished' timestamp recent.
         db_api.subcloud_audits_end_audit(self.ctx, 2, [])
         db_api.subcloud_audits_get_and_start_audit(self.ctx, 2)
-        last_audit_threshold = datetime.datetime.utcnow() - datetime.timedelta(
-            seconds=100
-        )
+        last_audit_threshold = timeutils.utcnow() - datetime.timedelta(seconds=100)
         count = db_api.subcloud_audits_fix_expired_audits(
             self.ctx, last_audit_threshold
         )
@@ -190,9 +189,7 @@ class DBAPISubcloudAuditsTest(base.DCManagerTestCase):
         # Set the 'start' timestamp later than the 'finished' timestamp
         # but with the 'finished' timestamp long ago.
         db_api.subcloud_audits_get_and_start_audit(self.ctx, 1)
-        last_audit_threshold = datetime.datetime.utcnow() - datetime.timedelta(
-            seconds=100
-        )
+        last_audit_threshold = timeutils.utcnow() - datetime.timedelta(seconds=100)
         # Fix up expired audits and trigger subaudits.
         count = db_api.subcloud_audits_fix_expired_audits(
             self.ctx, last_audit_threshold, trigger_audits=True

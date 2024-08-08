@@ -250,7 +250,7 @@ FAKE_CACHED_REGIONONE_DATA = {
     "admin_project_id": FAKE_PROJECTS[0].id,
     "services_project_id": FAKE_PROJECTS[1].id,
     "mgmt_interface_uuids": FAKE_MGMT_IF_UUIDS,
-    "expiry": datetime.datetime.utcnow() + datetime.timedelta(seconds=3600),
+    "expiry": timeutils.utcnow() + datetime.timedelta(seconds=3600),
     "mgmt_pools": FAKE_MGMT_POOLS,
     "oam_pools": FAKE_OAM_POOLS,
 }
@@ -3952,7 +3952,7 @@ class TestSubcloudPrestage(BaseTestSubcloudManager):
         # 59m55s from now.
         self.assertGreater(
             cached_regionone_data["expiry"],
-            datetime.datetime.utcnow() + datetime.timedelta(seconds=3595),
+            timeutils.utcnow() + datetime.timedelta(seconds=3595),
         )
         cached_regionone_data = self.sm._get_cached_regionone_data(
             mock_keystone_client, mock_sysinv_client
