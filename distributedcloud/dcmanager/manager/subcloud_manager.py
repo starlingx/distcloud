@@ -1828,7 +1828,9 @@ class SubcloudManager(manager.Manager):
                 # based upon primary IP of oam dual-stack
                 endpoint = (
                     "https://"
-                    + payload.get("external_oam_floating_address").split(",")[0]
+                    + utils.format_address(
+                        payload.get("external_oam_floating_address").split(",")[0]
+                    )
                     + ":6385"
                 )
                 subcloud_region_name = utils.get_region_name(endpoint)

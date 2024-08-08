@@ -70,3 +70,17 @@ class TestUtils(base.DCManagerTestCase):
         }
         result = utils.has_network_reconfig(payload, subcloud)
         self.assertTrue(result)
+
+    def test_format_ipv4_address(self):
+        # Test a valid IPv4 address
+        ipv4_address = "192.168.1.1"
+        expected = "192.168.1.1"
+        result = utils.format_address(ipv4_address)
+        self.assertEqual(result, expected)
+
+    def test_format_ipv6_address(self):
+        # Test a valid IPv6 address
+        ipv6_address = "2620:10a:a001:aa0c::128"
+        expected = "[2620:10a:a001:aa0c::128]"
+        result = utils.format_address(ipv6_address)
+        self.assertEqual(result, expected)

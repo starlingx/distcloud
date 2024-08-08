@@ -37,6 +37,7 @@ from oslo_log import log as logging
 from oslo_serialization import base64
 import pecan
 import requests
+from retrying import retry
 import tsconfig.tsconfig as tsc
 import yaml
 
@@ -829,6 +830,12 @@ def get_region_from_subcloud_address(payload):
     return (subcloud_region, err_cause)
 
 
+@retry(
+    retry_on_exception=lambda x: isinstance(x, exceptions.ServiceUnavailable),
+    wait_exponential_multiplier=1000,  # Start with 1 second
+    wait_exponential_max=10000,  # Cap at 10 seconds
+    stop_max_attempt_number=60,  # Stop after 60 attempts
+)
 def get_region_name(
     endpoint, timeout=dccommon_consts.SYSINV_CLIENT_REST_DEFAULT_TIMEOUT
 ):
@@ -1900,3 +1907,18 @@ def fetch_subcloud_mgmt_ips(region_name: str = None) -> Union[dict, str]:
     for subcloud in subclouds:
         ip_map[subcloud.region_name] = subcloud.management_start_ip
     return ip_map
+
+
+def format_address(ip_address: str) -> str:
+    """Formats an IP address for use in a URL.
+
+    IPv6 addresses are enclosed in square brackets.
+    """
+    try:
+        address = netaddr.IPAddress(ip_address)
+        if address.version == 6:
+            return f"[{address}]"
+        return str(address)
+    except netaddr.AddrFormatError as e:
+        LOG.error(f"Failed to format the IP address: {ip_address}. Error: {e}")
+        raise
