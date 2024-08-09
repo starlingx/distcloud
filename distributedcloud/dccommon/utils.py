@@ -400,10 +400,7 @@ def send_subcloud_shutdown_signal(subcloud_name):
 
 
 def subcloud_has_dcagent(software_version: str):
-    # TODO(vgluzrom): remove "False" condition and uncomment code
-    # when dcagent service is enabled by default
-    return False
-    # return software_version >= consts.MIN_VERSION_FOR_DCAGENT
+    return software_version >= consts.MIN_VERSION_FOR_DCAGENT
 
 
 def log_subcloud_msg(

@@ -1,3 +1,4 @@
+d /var/log/dcagent 0755 root root - -
 d /var/log/dcdbsync 0755 root root - -
 d /var/log/dcmanager 0755 root root - -
 d /var/log/dcorch 0755 root root - -
