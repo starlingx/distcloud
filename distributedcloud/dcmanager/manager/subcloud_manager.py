@@ -816,7 +816,10 @@ class SubcloudManager(manager.Manager):
                 return
 
             db_api.subcloud_update(
-                context, subcloud.id, deploy_status=consts.DEPLOY_STATE_PRE_REHOME
+                context,
+                subcloud.id,
+                deploy_status=consts.DEPLOY_STATE_PRE_REHOME,
+                error_description=consts.ERROR_DESC_EMPTY,
             )
             rehome_data = json.loads(subcloud.rehome_data)
             saved_payload = rehome_data["saved_payload"]
@@ -988,7 +991,10 @@ class SubcloudManager(manager.Manager):
 
         # Update the deploy status to rehoming
         db_api.subcloud_update(
-            context, subcloud.id, deploy_status=consts.DEPLOY_STATE_REHOMING
+            context,
+            subcloud.id,
+            deploy_status=consts.DEPLOY_STATE_REHOMING,
+            error_description=consts.ERROR_DESC_EMPTY,
         )
 
         # Run the rehome-subcloud playbook
@@ -1609,7 +1615,10 @@ class SubcloudManager(manager.Manager):
             deploy_state = consts.DEPLOY_STATE_CREATING
 
         subcloud = db_api.subcloud_update(
-            context, subcloud_id, deploy_status=deploy_state
+            context,
+            subcloud_id,
+            deploy_status=deploy_state,
+            error_description=consts.ERROR_DESC_EMPTY,
         )
 
         rehome_data = None
@@ -1776,6 +1785,7 @@ class SubcloudManager(manager.Manager):
             software_version=payload["software_version"],
             deploy_status=consts.DEPLOY_STATE_PRE_INSTALL,
             data_install=json.dumps(payload["install_values"]),
+            error_description=consts.ERROR_DESC_EMPTY,
         )
 
         LOG.info("Installing subcloud %s." % subcloud.name)
@@ -1952,6 +1962,7 @@ class SubcloudManager(manager.Manager):
                 context,
                 subcloud_id,
                 deploy_status=consts.DEPLOY_STATE_PRE_BOOTSTRAP_FAILED,
+                error_description=consts.ERROR_DESC_EMPTY,
             )
             return False
 
@@ -1969,7 +1980,10 @@ class SubcloudManager(manager.Manager):
         LOG.info("Configuring subcloud %s." % subcloud_id)
 
         subcloud = db_api.subcloud_update(
-            context, subcloud_id, deploy_status=consts.DEPLOY_STATE_PRE_CONFIG
+            context,
+            subcloud_id,
+            deploy_status=consts.DEPLOY_STATE_PRE_CONFIG,
+            error_description=consts.ERROR_DESC_EMPTY,
         )
         try:
             log_file = (
@@ -2010,7 +2024,10 @@ class SubcloudManager(manager.Manager):
 
         # Just update the deploy status
         subcloud = db_api.subcloud_update(
-            context, subcloud_id, deploy_status=consts.DEPLOY_STATE_DONE
+            context,
+            subcloud_id,
+            deploy_status=consts.DEPLOY_STATE_DONE,
+            error_description=consts.ERROR_DESC_EMPTY,
         )
 
         LOG.info(
@@ -2242,6 +2259,7 @@ class SubcloudManager(manager.Manager):
                 context,
                 subcloud.id,
                 backup_status=consts.BACKUP_STATE_PRE_BACKUP,
+                error_description=consts.ERROR_DESC_EMPTY,
             )
 
             subcloud_inventory_file = self._create_subcloud_inventory_file(subcloud)
@@ -2356,7 +2374,10 @@ class SubcloudManager(manager.Manager):
 
         try:
             db_api.subcloud_update(
-                context, subcloud.id, deploy_status=consts.DEPLOY_STATE_PRE_RESTORE
+                context,
+                subcloud.id,
+                deploy_status=consts.DEPLOY_STATE_PRE_RESTORE,
+                error_description=consts.ERROR_DESC_EMPTY,
             )
             subcloud_inventory_file = self._create_subcloud_inventory_file(
                 subcloud, bootstrap_address=bootstrap_address
@@ -3767,6 +3788,7 @@ class SubcloudManager(manager.Manager):
             context,
             subcloud.id,
             deploy_status=consts.DEPLOY_STATE_RECONFIGURING_NETWORK,
+            error_description=consts.ERROR_DESC_EMPTY,
         )
         subcloud_name = payload["name"]
         try:

@@ -4317,7 +4317,10 @@ class TestSubcloudMigrate(BaseTestSubcloudManager):
         )
         mock_rehome_subcloud.assert_called_once_with(mock.ANY, mock.ANY)
         mock_db_api.subcloud_update.assert_called_once_with(
-            mock.ANY, mock.ANY, deploy_status=consts.DEPLOY_STATE_PRE_REHOME
+            mock.ANY,
+            mock.ANY,
+            deploy_status=consts.DEPLOY_STATE_PRE_REHOME,
+            error_description=consts.ERROR_DESC_EMPTY,
         )
 
     @mock.patch.object(
