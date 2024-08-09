@@ -75,7 +75,12 @@ VALID_STATES_FOR_DEPLOY_CONFIG = (
     consts.DEPLOY_STATE_PRE_CONFIG_FAILED,
     consts.DEPLOY_STATE_CONFIG_FAILED,
     consts.DEPLOY_STATE_BOOTSTRAPPED,
+    consts.DEPLOY_STATE_ENROLLED,
     consts.DEPLOY_STATE_CONFIG_ABORTED,
+)
+VALID_STATES_FOR_DEPLOY_COMPLETE = (
+    consts.DEPLOY_STATE_BOOTSTRAPPED,
+    consts.DEPLOY_STATE_ENROLLED,
 )
 VALID_STATES_FOR_DEPLOY_ABORT = (
     consts.DEPLOY_STATE_INSTALLING,
@@ -85,8 +90,8 @@ VALID_STATES_FOR_DEPLOY_ABORT = (
 VALID_STATES_FOR_DEPLOY_ENROLL = (
     consts.DEPLOY_STATE_CREATED,
     consts.DEPLOY_STATE_ENROLL_FAILED,
-    consts.DEPLOY_STATE_ENROLLED,
-    consts.DEPLOY_STATE_PRE_ENROLL,
+    consts.DEPLOY_STATE_PRE_ENROLL_FAILED,
+    consts.DEPLOY_STATE_PRE_INIT_ENROLL_FAILED,
     consts.DEPLOY_STATE_INIT_ENROLL_FAILED,
 )
 
@@ -370,16 +375,17 @@ class PhasedSubcloudDeployController(object):
     def _deploy_complete(self, context: RequestContext, subcloud):
 
         # The deployment should be able to be completed when the deploy state
-        # is consts.DEPLOY_STATE_BOOTSTRAPPED because the user could have
+        # is VALID_STATES_FOR_DEPLOY_COMPLETE because the user could have
         # configured the subcloud manually
-        if subcloud.deploy_status != consts.DEPLOY_STATE_BOOTSTRAPPED:
+        if subcloud.deploy_status not in VALID_STATES_FOR_DEPLOY_COMPLETE:
+            allowed_states_str = ", ".join(VALID_STATES_FOR_DEPLOY_COMPLETE)
             pecan.abort(
                 400,
                 _(
                     "Subcloud deploy can only be completed when "
                     "its deploy status is: %s"
                 )
-                % consts.DEPLOY_STATE_BOOTSTRAPPED,
+                % allowed_states_str,
             )
 
         try:
@@ -622,13 +628,9 @@ class PhasedSubcloudDeployController(object):
         )
 
         self.dcmanager_rpc_client.subcloud_deploy_enroll(context, subcloud.id, payload)
+        subcloud_dict = db_api.subcloud_db_model_to_dict(subcloud)
 
-        pecan.abort(400, "subcloud deploy enrollment is not available yet")
-
-        return ""
-        # TODO(glyraper): The return is necessary to avoid
-        #  the E1111 while the implementation is not complete
-        # TODO(glyraper): Enroll function in development
+        return subcloud_dict
 
     @pecan.expose(generic=True, template="json")
     def index(self):

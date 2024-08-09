@@ -845,7 +845,7 @@ class TestPhasedSubcloudDeployPatchComplete(BaseTestPhasedSubcloudDeployPatch):
             response,
             http.client.BAD_REQUEST,
             "Subcloud deploy can only be completed when its deploy status is: "
-            f"{consts.DEPLOY_STATE_BOOTSTRAPPED}",
+            f"{', '.join(psd_api.VALID_STATES_FOR_DEPLOY_COMPLETE)}",
         )
         self.mock_rpc_client().subcloud_deploy_complete.assert_not_called()
 
@@ -1242,17 +1242,6 @@ class TestPhasedSubcloudDeployPatchEnroll(BaseTestPhasedSubcloudDeployPatch):
             ("bootstrap_values", "bootstrap_fake_filename", fake_content),
             ("install_values", "install_values_fake_filename", install_fake_content),
         ]
-
-    def test_patch_enroll_fails(self):
-        """Test patch enroll fails"""
-
-        response = self._send_request()
-
-        self._assert_pecan_and_response(
-            response,
-            http.client.BAD_REQUEST,
-            "subcloud deploy enrollment is not available yet",
-        )
 
     def test_patch_enroll_fails_invalid_deploy_status(self):
         """Test patch enroll fails with invalid deploy status"""
