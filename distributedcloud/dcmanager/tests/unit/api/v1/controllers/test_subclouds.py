@@ -1744,7 +1744,6 @@ class TestSubcloudsPatch(BaseTestSubcloudsPatch):
             "management_start_ip": "192.168.102.5",
             "management_end_ip": "192.168.102.49",
             "management_gateway_ip": "192.168.102.1",
-            "management_gateway_address": "192.168.102.1",
             "systemcontroller_gateway_address": "192.168.204.101",
         }
 
@@ -1978,7 +1977,6 @@ class TestSubcloudsPatchWithNetworkReconfiguration(BaseTestSubcloudsPatch):
             "management_start_ip": "192.168.102.5",
             "management_end_ip": "192.168.102.49",
             "management_gateway_ip": "192.168.102.1",
-            "management_gateway_address": "192.168.102.1",
             "systemcontroller_gateway_address": "192.168.204.101",
         }
         self.upload_files = [("fake", "fake_name", "fake content".encode("utf-8"))]
@@ -2095,13 +2093,23 @@ class TestSubcloudsPatchWithNetworkReconfiguration(BaseTestSubcloudsPatch):
 
             response = self._send_request()
 
-            self._assert_pecan_and_response(
-                response,
-                http.client.UNPROCESSABLE_ENTITY,
-                "The following parameters are necessary for subcloud network "
-                f"reconfiguration: {required_parameters}",
-                index,
-            )
+            if parameter == "management_gateway_ip":
+                self._assert_pecan_and_response(
+                    response,
+                    http.client.BAD_REQUEST,
+                    "subcloud management gateway IP's IP family does not exist on "
+                    "system controller managements: Invalid address - not a valid "
+                    "IP address: failed to detect a valid IP address from None",
+                    index,
+                )
+            else:
+                self._assert_pecan_and_response(
+                    response,
+                    http.client.UNPROCESSABLE_ENTITY,
+                    "The following parameters are necessary for subcloud network "
+                    f"reconfiguration: {required_parameters}",
+                    index,
+                )
 
     def test_patch_with_network_reconfig_fails_with_value_in_use(self):
         """Test patch with network reconfig fails with value in use"""

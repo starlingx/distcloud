@@ -1039,8 +1039,15 @@ class SubcloudsController(object):
                             % subcloud.deploy_status
                         ),
                     )
+                # reconfigure network update provides management_gateway_ip instead of
+                # management_gateway_address on payload.
+                # Needed for get_management_gateway_address_ip_family
+                payload["management_gateway_address"] = payload.get(
+                    "management_gateway_ip", None
+                )
+
                 system_controller_mgmt_pools = psd_common.get_network_address_pools()
-                # Subcloud will use single-stack admin/management_gateway_address to
+                # Subcloud will use single-stack management_gateway_address to
                 # access one of dual-stack systemcontroller admin/mgmt subnets, based
                 # upon IP family of gateway address.
                 try:
@@ -1050,7 +1057,7 @@ class SubcloudsController(object):
                     )
                 except Exception as e:
                     error_msg = (
-                        "subcloud management gateway address IP family does "
+                        "subcloud management gateway IP's IP family does "
                         "not exist on system controller managements"
                     )
                     LOG.exception(error_msg)
