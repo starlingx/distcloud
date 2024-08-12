@@ -1434,11 +1434,7 @@ class TestSubcloudDeploy(BaseTestSubcloudManager):
         )
 
     @mock.patch.object(subcloud_enrollment.SubcloudEnrollmentInit, "prep")
-    @mock.patch.object(subcloud_manager.SubcloudManager, "_create_subcloud_endpoints")
-    def test_subcloud_deploy_enroll_failed(
-        self, mock_create_subcloud_endpoints, mock_subcloud_enrollment_prep
-    ):
-        mock_create_subcloud_endpoints.side_effect = base.FakeException("boom")
+    def test_subcloud_deploy_enroll_failed(self, mock_subcloud_enrollment_prep):
 
         subcloud = fake_subcloud.create_fake_subcloud(
             self.ctx,
