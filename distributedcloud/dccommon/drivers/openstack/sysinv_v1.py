@@ -271,6 +271,15 @@ class SysinvClient(base.DriverBase):
             pools.append(self.sysinv_client.address_pool.get(secondary_pool_uuid))
         return pools
 
+    def get_oam_addresses(self):
+        """Get the oam address pool for a host."""
+        iextoam_object = self.sysinv_client.iextoam.list()
+        if iextoam_object is not None and len(iextoam_object) != 0:
+            return iextoam_object[0]
+        else:
+            LOG.error("OAM address not found")
+            raise exceptions.OAMAddressesNotFound()
+
     def get_management_address_pools(self):
         """Get the management address pools for a host."""
         # both primary and secondary pools when present
