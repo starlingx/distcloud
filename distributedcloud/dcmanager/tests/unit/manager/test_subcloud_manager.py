@@ -775,7 +775,7 @@ class TestSubcloudManager(BaseTestSubcloudManager):
         )
         expected_calls = [
             mock.call.mock_subcloud_deploy_install(
-                self.ctx, self.subcloud.id, values, False
+                self.ctx, self.subcloud.id, values, False, None
             ),
             mock.call.mock_subcloud_deploy_bootstrap(
                 self.ctx, self.subcloud.id, values, False
@@ -3183,7 +3183,7 @@ class TestSubcloudRedeploy(BaseTestSubcloudManager):
             **self.fake_payload,
         }
 
-        self.sm.redeploy_subcloud(self.ctx, self.subcloud.id, fake_payload)
+        self.sm.redeploy_subcloud(self.ctx, self.subcloud.id, fake_payload, "22.12")
 
         # Verify subcloud was updated with correct values
         updated_subcloud = db_api.subcloud_get_by_name(self.ctx, self.subcloud.name)
@@ -3216,7 +3216,7 @@ class TestSubcloudRedeploy(BaseTestSubcloudManager):
         fake_payload_bootstrap["sysadmin_password"] = "testpass"
         fake_payload = {**self.fake_payload_install, **fake_payload_bootstrap}
 
-        self.sm.redeploy_subcloud(self.ctx, self.subcloud.id, fake_payload)
+        self.sm.redeploy_subcloud(self.ctx, self.subcloud.id, fake_payload, "22.12")
 
         # Verify subcloud was updated with correct values
         updated_subcloud = db_api.subcloud_get_by_name(self.ctx, self.subcloud.name)
@@ -4904,7 +4904,7 @@ class TestSubcloudEnrollment(BaseTestSubcloudManager):
             self.mock_run.assert_called_once()
             # Temp seed data dir must be created
             self.mock_TemporaryDirectory.assert_called_once_with(prefix="seed_")
-            # Seed files must be generted in temp seed dir
+            # Seed files must be generated in temp seed dir
             self.mock_builtins_open.assert_any_call(
                 f"{self.seed_data_dir}/meta-data", "w"
             )

@@ -225,11 +225,12 @@ class PhasedSubcloudDeployController(object):
         psd_common.pre_deploy_install(payload, subcloud)
 
         try:
-            # Align the software version of the subcloud with install
-            # version. Update the deploy status as pre-install.
-
             self.dcmanager_rpc_client.subcloud_deploy_install(
-                context, subcloud.id, payload, initial_deployment=True
+                context,
+                subcloud.id,
+                payload,
+                initial_deployment=True,
+                previous_version=subcloud.software_version,
             )
             subcloud_dict = db_api.subcloud_db_model_to_dict(subcloud)
             subcloud_dict["deploy-status"] = consts.DEPLOY_STATE_PRE_INSTALL
@@ -542,7 +543,12 @@ class PhasedSubcloudDeployController(object):
 
         try:
             self.dcmanager_rpc_client.subcloud_deploy_resume(
-                context, subcloud.id, subcloud.name, payload, deploy_states_to_run
+                context,
+                subcloud.id,
+                subcloud.name,
+                payload,
+                deploy_states_to_run,
+                subcloud.software_version,
             )
 
             # Change the response to correctly display the values

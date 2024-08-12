@@ -48,6 +48,12 @@ KUBE_VERSION_LIST_WITHOUT_ACTIVE = [
 ]
 
 
+@mock.patch(
+    "dcmanager.orchestrator.states.creating_vim_strategy.DEFAULT_MAX_QUERIES", 3
+)
+@mock.patch(
+    "dcmanager.orchestrator.states.creating_vim_strategy.DEFAULT_SLEEP_DURATION", 1
+)
 class TestCreatingVIMKubeUpgradeStrategyStage(
     CreatingVIMStrategyStageMixin, TestKubeUpgradeState
 ):

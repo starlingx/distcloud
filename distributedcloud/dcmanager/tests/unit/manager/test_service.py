@@ -170,9 +170,11 @@ class TestSubcloudManager(BaseTestDCManagerService):
     def test_redeploy_subcloud(self):
         payload = {"DEPLOY_PHASE_CONFIG": "configure"}
         self.service_obj.init_managers()
-        self.service_obj.redeploy_subcloud(self.ctx, subcloud_id=1, payload=payload)
+        self.service_obj.redeploy_subcloud(
+            self.ctx, subcloud_id=1, payload=payload, previous_version="22.12"
+        )
         self.mock_subcloud_manager().redeploy_subcloud.assert_called_once_with(
-            self.ctx, 1, payload
+            self.ctx, 1, payload, "22.12"
         )
 
     def test_backup_subclouds(self):
@@ -258,10 +260,14 @@ class TestSubcloudManager(BaseTestDCManagerService):
         payload = {"name": "testname"}
         self.service_obj.init_managers()
         self.service_obj.subcloud_deploy_install(
-            self.ctx, subcloud_id=1, payload=payload, initial_deployment=True
+            self.ctx,
+            subcloud_id=1,
+            payload=payload,
+            initial_deployment=True,
+            previous_version="22.12",
         )
         self.mock_subcloud_manager().subcloud_deploy_install.assert_called_once_with(
-            self.ctx, 1, payload, True
+            self.ctx, 1, payload, True, "22.12"
         )
 
     def test_subcloud_deploy_complete(self):
@@ -301,9 +307,10 @@ class TestSubcloudManager(BaseTestDCManagerService):
             subcloud_name="testname",
             payload=fake_payload,
             deploy_states_to_run=deploy_states_to_run,
+            previous_version="22.12",
         )
         self.mock_subcloud_manager().subcloud_deploy_resume.assert_called_once_with(
-            self.ctx, 1, "testname", fake_payload, deploy_states_to_run
+            self.ctx, 1, "testname", fake_payload, deploy_states_to_run, "22.12"
         )
 
     def test_batch_migrate_subcloud(self):

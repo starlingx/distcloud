@@ -26,6 +26,12 @@ STRATEGY_DONE_BUILDING = fakes.FakeVimStrategy(state=vim.STATE_READY_TO_APPLY)
 RELEASE_ID = "starlingx-9.0.1"
 
 
+@mock.patch(
+    "dcmanager.orchestrator.states.creating_vim_strategy.DEFAULT_MAX_QUERIES", 3
+)
+@mock.patch(
+    "dcmanager.orchestrator.states.creating_vim_strategy.DEFAULT_SLEEP_DURATION", 1
+)
 class TestCreateVIMSoftwareStrategyState(TestSoftwareOrchestrator):
     def setUp(self):
         super().setUp()

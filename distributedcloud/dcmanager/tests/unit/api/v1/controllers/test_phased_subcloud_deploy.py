@@ -655,7 +655,11 @@ class TestPhasedSubcloudDeployPatchInstall(BaseTestPhasedSubcloudDeployPatch):
         self._assert_response(response)
         self._assert_response_payload(response)
         self.mock_rpc_client().subcloud_deploy_install.assert_called_once_with(
-            mock.ANY, self.subcloud.id, self.params, initial_deployment=True
+            mock.ANY,
+            self.subcloud.id,
+            self.params,
+            initial_deployment=True,
+            previous_version=self.subcloud.software_version,
         )
 
     def test_patch_install_succeeds_with_release_parameter(self):
@@ -676,7 +680,11 @@ class TestPhasedSubcloudDeployPatchInstall(BaseTestPhasedSubcloudDeployPatch):
         self._assert_response(response)
         self._assert_response_payload(response, FAKE_SOFTWARE_VERSION)
         self.mock_rpc_client().subcloud_deploy_install.assert_called_once_with(
-            mock.ANY, self.subcloud.id, self.params, initial_deployment=True
+            mock.ANY,
+            self.subcloud.id,
+            self.params,
+            initial_deployment=True,
+            previous_version=self.subcloud.software_version,
         )
 
     def test_patch_install_fails_when_not_in_initial_deployment(self):
@@ -718,7 +726,11 @@ class TestPhasedSubcloudDeployPatchInstall(BaseTestPhasedSubcloudDeployPatch):
         self._assert_response(response)
         self._assert_response_payload(response)
         self.mock_rpc_client().subcloud_deploy_install.assert_called_once_with(
-            mock.ANY, self.subcloud.id, self.params, initial_deployment=True
+            mock.ANY,
+            self.subcloud.id,
+            self.params,
+            initial_deployment=True,
+            previous_version=self.subcloud.software_version,
         )
 
     def test_patch_install_fails_without_install_values_and_load_image(self):
@@ -768,7 +780,11 @@ class TestPhasedSubcloudDeployPatchInstall(BaseTestPhasedSubcloudDeployPatch):
             response, http.client.UNPROCESSABLE_ENTITY, "value"
         )
         self.mock_rpc_client().subcloud_deploy_install.assert_called_once_with(
-            mock.ANY, self.subcloud.id, self.params, initial_deployment=True
+            mock.ANY,
+            self.subcloud.id,
+            self.params,
+            initial_deployment=True,
+            previous_version=self.subcloud.software_version,
         )
 
     def test_patch_install_fails_with_rpc_client_generic_exception(self):
@@ -782,7 +798,11 @@ class TestPhasedSubcloudDeployPatchInstall(BaseTestPhasedSubcloudDeployPatch):
             response, http.client.INTERNAL_SERVER_ERROR, "Unable to install subcloud"
         )
         self.mock_rpc_client().subcloud_deploy_install.assert_called_once_with(
-            mock.ANY, self.subcloud.id, self.params, initial_deployment=True
+            mock.ANY,
+            self.subcloud.id,
+            self.params,
+            initial_deployment=True,
+            previous_version=self.subcloud.software_version,
         )
 
 

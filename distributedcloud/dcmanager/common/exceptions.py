@@ -279,15 +279,19 @@ class SoftwareListFailedException(DCManagerException):
 
 
 class SoftwareDeleteFailedException(DCManagerException):
-    message = _("Subcloud %(subcloud)s sofware delete failed: %(details)s")
+    message = _("Subcloud %(subcloud)s software delete failed: %(details)s")
 
 
 class SoftwareDeployCommitFailedException(DCManagerException):
-    message = _("Subcloud %(subcloud)s sofware deploy commit failed: %(details)s")
+    message = _("Subcloud %(subcloud)s software deploy commit failed: %(details)s")
 
 
 class SoftwareDeployDeleteFailedException(DCManagerException):
-    message = _("Subcloud %(subcloud)s sofware deploy delete failed: %(details)s")
+    message = _("Subcloud %(subcloud)s software deploy delete failed: %(details)s")
+
+
+class MissingDeployedRelease(DCManagerException):
+    message = _("Subcloud %(subcloud)s is missing a deployed release: %(details)s")
 
 
 class PrestagePreCheckFailedException(DCManagerException):

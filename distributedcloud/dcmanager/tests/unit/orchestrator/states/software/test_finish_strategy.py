@@ -71,6 +71,7 @@ class TestFinishStrategyState(TestSoftwareOrchestrator):
         super().setUp()
 
         self._mock_read_from_cache(FinishStrategyState)
+        self._mock_dcorch_engine_rpc_client()
 
         self.on_success_state = consts.STRATEGY_STATE_COMPLETE
 

@@ -30,6 +30,7 @@ from oslo_service import service  # noqa: E402
 
 from dcmanager.common import config  # noqa: E402
 from dcmanager.common import messaging  # noqa: E402
+from dcorch.common import messaging as dcorch_messaging  # noqa: E402
 
 # pylint: enable=wrong-import-position
 
@@ -46,6 +47,7 @@ def main():
     logging.setup(CONF, "dcmanager-orchestrator")
     logging.set_defaults()
     messaging.setup()
+    dcorch_messaging.setup()
 
     from dcmanager.orchestrator import service as orchestrator
 
