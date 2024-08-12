@@ -1742,6 +1742,8 @@ class SubcloudManager(manager.Manager):
             if not rehoming and not secondary:
                 deploy_state = consts.DEPLOY_STATE_CREATED
 
+            LOG.info(f"Successfully created subcloud {payload['name']}")
+
         except Exception:
             LOG.exception("Failed to create subcloud %s" % payload["name"])
             # If we failed to create the subcloud, update the deployment status
@@ -1756,8 +1758,6 @@ class SubcloudManager(manager.Manager):
         subcloud = db_api.subcloud_update(
             context, subcloud.id, deploy_status=deploy_state, rehome_data=rehome_data
         )
-
-        LOG.info(f"Successfully created subcloud {subcloud.name}")
 
         # The RPC call must return the subcloud as a dictionary, otherwise it
         # should return the DB object for dcmanager internal use (subcloud add)
