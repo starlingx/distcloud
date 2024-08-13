@@ -171,6 +171,13 @@ class SwUpdateStrategyController(object):
                 utils.validate_patch_strategy(payload.get("patch_id"))
             elif strategy_type == consts.SW_UPDATE_TYPE_SOFTWARE:
                 utils.validate_software_strategy(payload.get("release_id"))
+            elif strategy_type == consts.SW_UPDATE_TYPE_PRESTAGE:
+                prestaged_sw_version, message = (
+                    utils.get_validated_sw_version_for_prestage(payload)
+                )
+                if not prestaged_sw_version:
+                    pecan.abort(400, _(message))
+                payload.update({consts.PRESTAGE_REQUEST_RELEASE: prestaged_sw_version})
 
             max_parallel_subclouds_str = payload.get("max-parallel-subclouds")
             if max_parallel_subclouds_str is not None:

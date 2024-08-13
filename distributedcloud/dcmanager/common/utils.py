@@ -1167,35 +1167,28 @@ def is_subcloud_healthy(subcloud_region, management_ip: str = None):
     return False
 
 
-def get_systemcontroller_installed_releases() -> List[str]:
-    return get_major_releases(_get_systemcontroller_installed_releases("sw_version"))
+def get_system_controller_software_list(
+    region_name=dccommon_consts.DEFAULT_REGION_NAME,
+):
+    """Get software list from USM API
 
+    This function is responsible for querying the USM API for the list of releases
+    present on the node through the USM endpoint.
 
-def get_systemcontroller_installed_releases_ids() -> List[str]:
-    return _get_systemcontroller_installed_releases("release_id")
-
-
-def _get_systemcontroller_installed_releases(key: str) -> List[str]:
-    """Get a list of installed software releases on the SystemController using the key.
-
-    This function is used to get the installed software releases on the SystemController
-    using the key provided. For example, the key can be "sw_version" or "release_id",
-    this will return ["10.0.0", "10.0.2", ...] or ["stx-10.0.0", "stx-10.0.1", ...]
-    respectively. Other keys can be used as well, like "state", "description", etc.
+    The node is determined from the parameter region_name, whose default value
+    represents the region one.
 
     Args:
-        key (str): The key to extract information from each deployed release.
+        region_name (str): The name of the region to be consulted. Default is
+        RegionOne.
 
     Returns:
-        List[str]: Values of the given key from all deployed software releases.
-
-    Raises:
-        requests.exceptions.ConnectionError: On failure to connect to the USM.
-        Exception: On other failures with OpenStack or Keystone client interactions.
+        list of dict: each dict item contains the parameters that identify
+        the release from API response
     """
     try:
         os_client = OpenStackDriver(
-            region_name=dccommon_consts.DEFAULT_REGION_NAME,
+            region_name=region_name,
             region_clients=None,
             fetch_subcloud_ips=fetch_subcloud_mgmt_ips,
         )
@@ -1204,23 +1197,225 @@ def _get_systemcontroller_installed_releases(key: str) -> List[str]:
             ks_client.session,
             endpoint=ks_client.endpoint_cache.get_endpoint("usm"),
         )
-        releases = software_client.list()
+        return software_client.list()
 
-        return [
-            release[key]
-            for release in releases
-            if release["state"] == software_v1.DEPLOYED
-        ]
     except requests.exceptions.ConnectionError:
-        LOG.exception(
-            "Failed to get software list for %s", dccommon_consts.DEFAULT_REGION_NAME
-        )
+        LOG.exception("Failed to get software list for %s", region_name)
         raise
     except Exception:
-        LOG.exception(
-            "Failed to get keystone client for %s", dccommon_consts.DEFAULT_REGION_NAME
-        )
+        LOG.exception("Failed to get keystone client for %s", region_name)
         raise
+
+
+def get_systemcontroller_deployed_releases(
+    software_list: List[dict], key: str = "sw_version"
+) -> List[str]:
+    """Get a list of deployed software releases on the SystemController using the key.
+
+    This function is used to get the deployed software releases on the SystemController
+    using the key provided. For example, the key can be "sw_version" or "release_id",
+    this will return ["10.0.0", "10.0.2", ...] or ["stx-10.0.0", "stx-10.0.1", ...]
+    respectively. Other keys can be used as well, like "state", "description", etc.
+
+    Args:
+        software_list (list): The software list provided by USM API
+        key (str): (default 'sw_version') The key to extract information from each
+        deployed release.
+
+    Returns:
+        List[str]: Values of the given key from all deployed software releases.
+
+    """
+    deployed_releases = [
+        release[key]
+        for release in software_list
+        if release["state"] == software_v1.DEPLOYED
+    ]
+
+    return deployed_releases
+
+
+def get_systemcontroller_installed_releases_ids() -> List[str]:
+    software_list = get_system_controller_software_list()
+    return get_systemcontroller_deployed_releases(software_list, key="release_id")
+
+
+def is_software_ready_to_be_prestaged_for_deploy(software_list):
+    """Check if software is ready to be prestaged for software deploy
+
+    Searches the software list for the status of all releases, whose value
+    should be deployed.
+
+    If at the time of the query any release is in a state other than deployed,
+    it is considered that the release is not ready to be deployed, regardless of
+    the specific release.
+
+    Args:
+        software_list (list[dict]): The software list from USM API
+
+    Returns:
+        bool: `True` if all releases are in deployed state, otherwise `False`
+
+    """
+    return all(release["state"] == software_v1.DEPLOYED for release in software_list)
+
+
+# TODO(cmondo) - validate the appropriate mechanism for N-1 scenario
+def is_software_ready_to_be_prestaged_for_install(software_list, software_version):
+    """Check if software is ready to be prestaged for install
+
+    This function checks if a given release version is ready to be deployed.
+    The criteria to consult is valid when a prestage is performed from the
+    for_install parameter, since for for_sw_deploy this is not required.
+
+    To determine if the release is valid for install, it is initially compared
+    to the release of the system controller. If matches, it is assumed that the
+    release is already deployed and it is not required to check the
+    software list. Otherwise, the query will be made in the list of software
+    for the available status, since those releases that have not yet been
+    deployed must be considered.
+
+    Args:
+        software_list (list[dict]): The software list from USM API
+        software_version (str): The requested software version
+
+    Returns:
+        bool: `True` if software version matches, otherwise `False`
+
+    """
+
+    # It is assumed that if the requested release matches the release deployed
+    # on the system controller, checking against the software list is not required.
+    if software_version == tsc.SW_VERSION:
+        return True
+
+    # It is necessary to query the list for the requested release,
+    # whose status must be available or deployed to be able to install it
+    return any(
+        is_base_release(release["sw_version"])
+        and get_major_release(release["sw_version"]) == software_version
+        and release["state"] in (software_v1.AVAILABLE, software_v1.DEPLOYED)
+        for release in software_list
+    )
+
+
+def get_prestage_reason(payload):
+    """Get the prestage reason from payload
+
+    This function is used to get the prestage reason from payload checking the
+    for_sw_deploy param.
+
+    Args:
+        payload (dict): payload from request
+
+    Returns:
+        str: for_sw_deploy if param is present on payload
+        str: for_install if param is absent (default)
+
+    """
+    if payload.get(consts.PRESTAGE_FOR_SW_DEPLOY):
+        return consts.PRESTAGE_FOR_SW_DEPLOY
+
+    return consts.PRESTAGE_FOR_INSTALL
+
+
+def get_validated_sw_version_for_prestage(payload, subcloud=None):
+    """Get the validated software version from payload
+
+    This function is used to get the software version previously being validated
+    to determine if the value is correct, that is, if it meets the requirements
+    to be considered a valid release.
+
+    It is validated if the release format meets the expected format (MM.mm).
+
+        Where MM is the high part of the release, for example: 24.
+        Where mm is the lower part of the release, for example: 09.
+
+    Any value that does not respect the format is considered an invalid release,
+    including formats such as: 24.09.1, 24.09.1.1, alphabetical characters and
+    symbols.
+
+    It is expected to receive only numbers that represent a valid release separated
+    by "."; i.e: 22.12, 24.09.
+
+    Args:
+        payload (dict): payload from request
+        subcloud (dict): subcloud params if present
+
+    Returns:
+        tuple: The release validation result:
+            - str: The first item represents the validated release, that is, the
+            value of the release that was requested. If a validation error occurs,
+            the value will be None.
+            - str: The second element represents a message in case of error.
+
+    """
+    for_sw_deploy = get_prestage_reason(payload) == consts.PRESTAGE_FOR_SW_DEPLOY
+    for_install = not for_sw_deploy
+    software_version = payload.get(consts.PRESTAGE_REQUEST_RELEASE)
+    subcloud = {} if subcloud is None else subcloud
+    subcloud_sw_version = subcloud.get("software_version")
+
+    # If the release parameter is present in the payload, it validates if
+    # the format is MM.mm. Otherwise it will return error.
+    if software_version and not is_major_release(software_version):
+        return None, (
+            "Specified release format is not supported. Version format "
+            "must be MM.mm."
+        )
+
+    # Gets the release in validated MM.mm format.
+    software_version = get_sw_version(software_version, for_install)
+
+    # Query to the USM API to get the software list
+    software_list = get_system_controller_software_list()
+
+    # Gets only the list of deployed major releases.
+    deployed_releases = get_major_releases(
+        get_systemcontroller_deployed_releases(software_list)
+    )
+
+    # Check for deploy release param
+    if for_sw_deploy:
+        # Ensures that the requested release version exists within the
+        # list of deployed releases
+        if software_version not in deployed_releases:
+            return None, (
+                "The requested software version was not installed in the "
+                "system controller, cannot prestage for software deploy."
+            )
+
+        # If there is only one deployed release, it implies that it corresponds
+        # to the base release. Therefore, prestage is not required.
+        if len(software_list) == 1:
+            return None, (
+                "Only base release is deployed, cannot prestage for software deploy."
+            )
+
+        # Ensures that the deploy is not in transition.
+        # All releases must be in deployed state.
+        if not is_software_ready_to_be_prestaged_for_deploy(software_list):
+            return None, (
+                "All releases must first be deployed, cannot prestage for software "
+                "deploy."
+            )
+
+        # Ensures that system controller and subcloud have the same
+        # software version to apply the sw deploy
+        if subcloud and subcloud_sw_version and subcloud_sw_version != software_version:
+            return None, (
+                "The subcloud release version is different than that of the "
+                "system controller, cannot prestage for software deploy."
+            )
+    else:
+        # TODO(cmondo) - validate the appropriate mechanism for N-1 scenario
+        # Check for install release param
+        if not is_software_ready_to_be_prestaged_for_install(
+            software_list, software_version
+        ):
+            return None, ("The requested release is not ready to be installed.")
+
+    return software_version, ""
 
 
 def get_certificate_from_secret(secret_name, secret_ns):
@@ -1665,17 +1860,88 @@ def validate_major_release_version_supported(release_version_to_check):
 
 
 def is_major_release(version):
-    return not is_minor_release(version)
+    """Check if a given version is a valid major release
+
+    This function is useful for determining whether a given version
+    represents a major release.
+
+    Both the MM part and the mm part must have two digits.
+
+    Args:
+        version (str): The requested version value
+
+    Returns:
+        bool: `True` if the version value meets the expected format.
+        `False` if the version format is not valid.
+
+    """
+    pattern = r"^\d{2}\.\d{2}$"
+    if not re.match(pattern, version):
+        return False
+
+    MM, mm = version.split(".")
+    MM = int(MM)
+    mm = int(mm)
+    return 0 <= MM <= 99 and 0 <= mm <= 99
 
 
 def is_minor_release(version):
-    split_version = version.split(".")
-    if len(split_version) == 2:
+    """Check if a given version is a valid minor release
+
+    The third value in a release format representation,
+    for example MM.mm.pp, is considered a minor release.
+
+    Both the MM part and the mm part must have two digits.
+    The pp part can have one digit or two.
+
+    The third part of the format starting from 1 is considered a minor
+    release, since 0 represents the major release.
+
+    Args:
+        version (str): The requested version value
+
+    Returns:
+        bool: `True` if the version value meets the expected format.
+        `False` if the version format is not valid.
+
+    """
+    pattern = r"^\d{2}\.\d{2}\.\d{1,2}$"
+    if not re.match(pattern, version):
         return False
-    if len(split_version) == 3:
-        return True
-    LOG.error(f"Unexpected release version found: {version}, assuming major release")
-    return False
+
+    MM, mm, pp = version.split(".")
+    MM = int(MM)
+    mm = int(mm)
+    pp = int(pp)
+    return 0 <= MM <= 99 and 0 <= mm <= 99 and 1 <= pp <= 99
+
+
+def is_base_release(version):
+    """Check if a given version is a valid base release
+
+    The third value in a release format representation,
+    for example MM.mm.p, is considered a base release.
+
+    Both the MM part and the mm part must have two digits.
+    The p part represents the base release digit, which is always 0.
+
+    Args:
+        version (str): The requested version value
+
+    Returns:
+        bool: `True` if the version value is a valid base release.
+        `False` if the version is a not valid base release.
+
+    """
+    pattern = r"^\d{2}\.\d{2}\.\d{1}$"
+    if not re.match(pattern, version):
+        return False
+
+    MM, mm, p = version.split(".")
+    MM = int(MM)
+    mm = int(mm)
+    p = int(p)
+    return 0 <= MM <= 99 and 0 <= mm <= 99 and 0 == p
 
 
 def get_major_release(version):

@@ -26,7 +26,6 @@ from dcmanager.common import consts
 from dcmanager.common import context
 from dcmanager.common import exceptions
 from dcmanager.common import prestage
-from dcmanager.common import utils as cutils
 from dcmanager.db.sqlalchemy import api as db_api
 from dcmanager.orchestrator import sw_update_manager
 
@@ -243,15 +242,8 @@ class TestSwUpdateManager(base.DCManagerTestCase):
         self.mock_dcmanager_audit_api.return_value = self.fake_dcmanager_audit_api
         self.addCleanup(p.stop)
 
-        # Mock the release params
-        self.installed_releases = []
-        self.params = {}
-        self.versions_supported = ["22.12", "24.09"]
-        self.original_get_validated_release_params = (
-            prestage.get_validated_release_params
-        )
-        self._mock_get_validated_release_params(prestage)
-        self._setup_mock_get_validated_release_params()
+        # Mock for logs
+        self._mock_log(sw_update_manager)
 
         # Fake subcloud groups
         # Group 1 exists by default in database with max_parallel 2 and
@@ -267,44 +259,6 @@ class TestSwUpdateManager(base.DCManagerTestCase):
         )
         self.fake_group5 = self.create_subcloud_group(
             self.ctxt, "Group5", consts.SUBCLOUD_APPLY_TYPE_PARALLEL, 2
-        )
-
-    def _mock_get_validated_release_params(self, target):
-        mock_patch_object = mock.patch.object(target, "get_validated_release_params")
-        self.mock_get_validated_release_params = mock_patch_object.start()
-        self.addCleanup(mock_patch_object.stop)
-
-    def _mock_get_current_supported_upgrade_versions(self, target):
-        mock_patch_object = mock.patch.object(
-            target, "get_current_supported_upgrade_versions"
-        )
-        self.mock_get_current_supported_upgrade_versions = mock_patch_object.start()
-        self.addCleanup(mock_patch_object.stop)
-
-    def _setup_mock_get_validated_release_params(self):
-        for_sw_deploy = False
-
-        if "release" not in self.params:
-            self.params["release"] = "24.09"
-
-        if "for_sw_deploy" in self.params and self.params["for_sw_deploy"] == "true":
-            for_sw_deploy = True
-
-        if "for_install" in self.params and self.params["for_install"] == "true":
-            for_sw_deploy = False
-
-        if not self.installed_releases:
-            self.installed_releases.append(self.params["release"])
-
-        self.mock_get_validated_release_params.return_value = (
-            self.params["release"],
-            self.installed_releases,
-            for_sw_deploy,
-        )
-
-    def _setup_get_current_supported_upgrade_versions(self):
-        self.mock_get_current_supported_upgrade_versions.return_value = (
-            self.versions_supported
         )
 
     def test_init(self):
@@ -364,6 +318,80 @@ class TestSwUpdateManager(base.DCManagerTestCase):
         self.assertEqual(strategy_steps[0]["details"], "")
         self.assertEqual(strategy_steps[0]["subcloud_id"], 1)
 
+    @mock.patch.object(prestage, "global_prestage_validate")
+    def test_create_prestage_strategy_sw_deploy_with_invalid_release_with_cloud_name(
+        self,
+        mock_global_prestage_validate,
+    ):
+        fake_subcloud1 = self.create_subcloud(
+            self.ctxt,
+            "subcloud1",
+            self.fake_group2.id,
+            is_managed=True,
+            is_online=True,
+        )
+        self.update_subcloud_status(self.ctxt, fake_subcloud1.id)
+
+        data = copy.copy(FAKE_SW_PRESTAGE_DATA)
+        data["max-parallel-subclouds"] = "1"
+        data["for_sw_deploy"] = "true"
+        data["release"] = "24.09"
+        data["cloud_name"] = fake_subcloud1.name
+
+        mock_subcloud = mock.MagicMock()
+        mock_subcloud.get.return_value = "22.12"
+        mock_global_prestage_validate.return_value = None
+
+        um = sw_update_manager.SwUpdateManager()
+        # Handle the exception to validate expected message
+        try:
+            um.create_sw_update_strategy(self.ctxt, payload=data)
+        except exceptions.BadRequest as e:
+            expected_msg = (
+                "Bad strategy request: The subcloud release version is different than "
+                "that of the system controller, cannot prestage for software deploy."
+            )
+            self.assertEqual(str(e), expected_msg)
+
+    @mock.patch.object(prestage, "global_prestage_validate")
+    def test_create_prestage_strategy_sw_deploy_with_invalid_subcloud_release(
+        self,
+        mock_global_prestage_validate,
+    ):
+        fake_subcloud1 = self.create_subcloud(
+            self.ctxt,
+            "subcloud1",
+            self.fake_group2.id,
+            is_managed=True,
+            is_online=True,
+        )
+        self.update_subcloud_status(self.ctxt, fake_subcloud1.id)
+
+        data = copy.copy(FAKE_SW_PRESTAGE_DATA)
+        data["max-parallel-subclouds"] = "1"
+        data["for_sw_deploy"] = "true"
+        data["release"] = "24.09"
+
+        mock_subcloud = mock.MagicMock()
+        mock_subcloud.get.return_value = "22.12"
+        mock_global_prestage_validate.return_value = None
+
+        um = sw_update_manager.SwUpdateManager()
+
+        # Handle the exception to validate expected LOG.warn message
+        try:
+            um.create_sw_update_strategy(self.ctxt, payload=data)
+        except exceptions.BadRequest as e:
+            self.assertEqual(
+                str(e), "Bad strategy request: Strategy has no steps to apply"
+            )
+
+            self.mock_log.warn.assert_called_once_with(
+                f"Excluding subcloud from prestage strategy: {fake_subcloud1.name} "
+                "due to: The subcloud release version is different than that of the "
+                "system controller, cannot prestage for software deploy."
+            )
+
     def test_create_sw_update_strategy_parallel_for_a_single_group(self):
         # Create fake subclouds and respective status
         fake_subcloud1 = self.create_subcloud(
@@ -411,14 +439,12 @@ class TestSwUpdateManager(base.DCManagerTestCase):
         for index, strategy_step in enumerate(strategy_step_list):
             self.assertEqual(subcloud_ids[index], strategy_step.subcloud_id)
 
-    @mock.patch.object(cutils, "get_systemcontroller_installed_releases")
     @mock.patch.object(prestage, "initial_subcloud_validate")
     @mock.patch.object(prestage, "global_prestage_validate")
     def test_create_sw_prestage_strategy_parallel_for_a_single_group(
         self,
         mock_global_prestage_validate,
         mock_initial_subcloud_validate,
-        mock_installed_loads,
     ):
         # Create fake subclouds and respective status
         fake_subcloud1 = self.create_subcloud(
@@ -449,7 +475,6 @@ class TestSwUpdateManager(base.DCManagerTestCase):
 
         mock_global_prestage_validate.return_value = None
         mock_initial_subcloud_validate.return_value = None
-        mock_installed_loads.return_value = ["24.09"]
 
         data = copy.copy(FAKE_SW_PRESTAGE_DATA)
         fake_password = (base64.b64encode("testpass".encode("utf-8"))).decode("ascii")
@@ -472,14 +497,12 @@ class TestSwUpdateManager(base.DCManagerTestCase):
         for index, strategy_step in enumerate(strategy_step_list):
             self.assertEqual(subcloud_ids[index], strategy_step.subcloud_id)
 
-    @mock.patch.object(cutils, "get_systemcontroller_installed_releases")
     @mock.patch.object(prestage, "initial_subcloud_validate")
     @mock.patch.object(prestage, "global_prestage_validate")
     def test_create_sw_prestage_strategy_load_insync_out_of_sync_unknown_and_no_load(
         self,
         mock_global_prestage_validate,
         mock_initial_subcloud_validate,
-        mock_installed_loads,
     ):
         # Create fake subclouds and respective status
         # Subcloud1 will be prestaged load in sync
@@ -525,7 +548,6 @@ class TestSwUpdateManager(base.DCManagerTestCase):
 
         mock_global_prestage_validate.return_value = None
         mock_initial_subcloud_validate.return_value = None
-        mock_installed_loads.return_value = ["24.09"]
 
         data = copy.copy(FAKE_SW_PRESTAGE_DATA)
         fake_password = (base64.b64encode("testpass".encode("utf-8"))).decode("ascii")
@@ -547,14 +569,12 @@ class TestSwUpdateManager(base.DCManagerTestCase):
         for index, strategy_step in enumerate(strategy_step_list):
             self.assertEqual(subcloud_ids[index], strategy_step.subcloud_id)
 
-    @mock.patch.object(cutils, "get_systemcontroller_installed_releases")
     @mock.patch.object(prestage, "initial_subcloud_validate")
     @mock.patch.object(prestage, "_get_system_controller_upgrades")
     def test_create_sw_prestage_strategy_no_password(
         self,
         mock_controller_upgrade,
         mock_initial_subcloud_validate,
-        mock_installed_loads,
     ):
         # Create fake subclouds and respective status
         fake_subcloud1 = self.create_subcloud(
@@ -585,7 +605,6 @@ class TestSwUpdateManager(base.DCManagerTestCase):
 
         mock_initial_subcloud_validate.return_value = None
         mock_controller_upgrade.return_value = list()
-        mock_installed_loads.return_value = ["24.09"]
 
         data = copy.copy(FAKE_SW_PRESTAGE_DATA)
         data["sysadmin_password"] = ""
@@ -599,15 +618,12 @@ class TestSwUpdateManager(base.DCManagerTestCase):
             payload=data,
         )
 
-    @mock.patch.object(cutils, "get_systemcontroller_installed_releases")
     @mock.patch.object(prestage, "_get_system_controller_upgrades")
     def test_create_sw_prestage_strategy_backup_in_progress(
         self,
         mock_controller_upgrade,
-        mock_installed_loads,
     ):
         mock_controller_upgrade.return_value = list()
-        mock_installed_loads.return_value = ["24.09"]
 
         # Create fake subcloud and respective status (managed & online)
         fake_subcloud1 = self.create_subcloud(
@@ -838,14 +854,12 @@ class TestSwUpdateManager(base.DCManagerTestCase):
         with self.assertRaisesRegex(exceptions.BadRequest, expected_message):
             um.create_sw_update_strategy(self.ctxt, payload=data)
 
-    @mock.patch.object(cutils, "get_systemcontroller_installed_releases")
     @mock.patch.object(prestage, "initial_subcloud_validate")
     @mock.patch.object(prestage, "_get_system_controller_upgrades")
     def test_create_sw_prestage_strategy_parallel(
         self,
         mock_controller_upgrade,
         mock_initial_subcloud_validate,
-        mock_installed_loads,
     ):
         # Create fake subclouds and respective status
         # Subcloud1 will be prestaged
@@ -878,7 +892,6 @@ class TestSwUpdateManager(base.DCManagerTestCase):
         data["sysadmin_password"] = fake_password
         fake_release = "24.09"
         data[consts.PRESTAGE_REQUEST_RELEASE] = fake_release
-        mock_installed_loads.return_value = [fake_release]
 
         um = sw_update_manager.SwUpdateManager()
         strategy_dict = um.create_sw_update_strategy(self.ctxt, payload=data)
@@ -1341,9 +1354,12 @@ class TestSwUpdateManager(base.DCManagerTestCase):
         )
 
         um = sw_update_manager.SwUpdateManager()
-        um.create_sw_update_strategy(self.ctxt, payload=data)
-        strategy_step_list = db_api.strategy_step_get_all(self.ctxt)
-        self.assertEqual(1, len(strategy_step_list))
+        self.assertRaises(
+            exceptions.BadRequest,
+            um.create_sw_update_strategy,
+            self.ctxt,
+            payload=data,
+        )
 
     def test_create_sw_update_strategy_offline_subcloud_no_force(self):
         # Create fake subclouds and respective status

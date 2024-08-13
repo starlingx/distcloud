@@ -262,3 +262,64 @@ class TestCommonUtils(DCManagerTestCase):
                 payload,
             )
             self.assertEqual(err.args[0], errors[index])
+
+    def test_is_major_release_with_valid_format(self):
+        self.assertTrue(utils.is_major_release("23.09"))
+        self.assertTrue(utils.is_major_release("24.09"))
+        self.assertTrue(utils.is_major_release("25.03"))
+
+    def test_is_major_release_with_invalid_format(self):
+        self.assertFalse(utils.is_major_release("1.2"))
+        self.assertFalse(utils.is_major_release("123.45"))
+        self.assertFalse(utils.is_major_release("01.234"))
+        self.assertFalse(utils.is_major_release("1.234"))
+        self.assertFalse(utils.is_major_release("10.2"))
+        self.assertFalse(utils.is_major_release("a1.02"))
+        self.assertFalse(utils.is_major_release("01.b2"))
+        self.assertFalse(utils.is_major_release("01-02"))
+        self.assertFalse(utils.is_major_release("10"))
+        self.assertFalse(utils.is_major_release("01. 02"))
+        self.assertFalse(utils.is_major_release("20."))
+        self.assertFalse(utils.is_major_release("24.09.1"))
+
+    def test_is_major_release_with_out_of_range_format(self):
+        self.assertFalse(utils.is_major_release("100.01"))
+        self.assertFalse(utils.is_major_release("01.100"))
+        self.assertFalse(utils.is_major_release("100.100"))
+        self.assertFalse(utils.is_major_release("20.01.1"))
+
+    def test_is_minor_release_with_valid_format(self):
+        self.assertTrue(utils.is_minor_release("23.09.1"))
+        self.assertTrue(utils.is_minor_release("24.09.2"))
+        self.assertTrue(utils.is_minor_release("24.03.99"))
+        self.assertTrue(utils.is_minor_release("25.03.3"))
+
+    def test_is_minor_release_with_invalid_format(self):
+        self.assertFalse(utils.is_minor_release("1.2.1"))
+        self.assertFalse(utils.is_minor_release("123.45.0"))
+        self.assertFalse(utils.is_minor_release("01.234.3"))
+        self.assertFalse(utils.is_minor_release("24.09.0.0"))
+        self.assertFalse(utils.is_minor_release("1.234.2"))
+        self.assertFalse(utils.is_minor_release("10.2.9"))
+        self.assertFalse(utils.is_minor_release("a1.02.a"))
+        self.assertFalse(utils.is_minor_release("01.b2.8"))
+        self.assertFalse(utils.is_minor_release("01-02.10"))
+        self.assertFalse(utils.is_minor_release("01. 02.1"))
+        self.assertFalse(utils.is_minor_release("24.09"))
+
+    def test_is_minor_release_with_out_of_range_format(self):
+        self.assertFalse(utils.is_minor_release("100.09.1"))
+        self.assertFalse(utils.is_minor_release("01.100.1"))
+        self.assertFalse(utils.is_minor_release("100.100.100"))
+        self.assertFalse(utils.is_minor_release("24.09.100"))
+        self.assertFalse(utils.is_minor_release("24.09.0"))
+
+    def test_is_base_release_with_valid_format(self):
+        self.assertTrue(utils.is_base_release("23.09.0"))
+        self.assertTrue(utils.is_base_release("24.09.0"))
+        self.assertTrue(utils.is_base_release("25.03.0"))
+
+    def test_is_base_release_with_invalid_format(self):
+        self.assertFalse(utils.is_base_release("23.09.1"))
+        self.assertFalse(utils.is_base_release("24.09"))
+        self.assertFalse(utils.is_base_release("25"))
