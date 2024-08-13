@@ -1655,13 +1655,13 @@ class SubcloudManager(manager.Manager):
                 )
 
             if not enroll:
-                self._create_subcloud_endpoints(
-                    m_ks_client=m_ks_client,
-                    payload=payload,
-                    subcloud=subcloud,
-                    context=context,
+                # Inform orchestrator that subcloud has been added
+                self.dcorch_rpc_client.add_subcloud(
+                    context,
+                    subcloud.region_name,
+                    subcloud.software_version,
+                    subcloud.management_start_ip,
                 )
-
             # create entry into alarm summary table, will get real values later
             alarm_updates = {
                 "critical_alarms": -1,
@@ -1869,12 +1869,15 @@ class SubcloudManager(manager.Manager):
                 cached_regionone_data = self._get_cached_regionone_data(
                     m_ks_client, sysinv_client
                 )
-                self._create_subcloud_endpoints(
-                    m_ks_client=m_ks_client,
-                    payload=payload,
-                    subcloud=subcloud,
-                    context=context,
+
+                # Inform orchestrator that subcloud has been added
+                self.dcorch_rpc_client.add_subcloud(
+                    context,
+                    subcloud.region_name,
+                    subcloud.software_version,
+                    subcloud.management_start_ip,
                 )
+
                 self._create_intermediate_ca_cert(payload=payload)
                 self._write_subcloud_ansible_config(cached_regionone_data, payload)
                 log_file = (
@@ -2446,64 +2449,6 @@ class SubcloudManager(manager.Manager):
                 "%s operation: %s." % (operation, " ,".join(failed_subcloud_names))
             )
         return notice
-
-    def _create_subcloud_endpoints(self, m_ks_client, payload, subcloud, context):
-
-        # Create endpoints to this subcloud on the
-        # management-start-ip of the subcloud which will be allocated
-        # as the floating Management IP of the Subcloud if the
-        # Address Pool is not shared. In case the endpoint entries
-        # are incorrect, or the management IP of the subcloud is changed
-        # in the future, it will not go managed or will show up as
-        # out of sync. To fix this use Openstack endpoint commands
-        # on the SystemController to change the subcloud endpoints.
-        # The non-identity endpoints are added to facilitate horizon access
-        # from the System Controller to the subcloud.
-        endpoint_config = []
-        # system-controller and subcloud communication is through
-        # single-stack/primary
-        endpoint_ip = utils.get_primary_management_start_address(payload)
-        if netaddr.IPAddress(endpoint_ip).version == 6:
-            endpoint_ip = "[" + endpoint_ip + "]"
-
-        for service in m_ks_client.services_list:
-            admin_endpoint_url = ENDPOINT_URLS.get(service.type, None)
-            if admin_endpoint_url:
-                admin_endpoint_url = admin_endpoint_url.format(endpoint_ip)
-                endpoint_config.append(
-                    {"id": service.id, "admin_endpoint_url": admin_endpoint_url}
-                )
-
-        if len(endpoint_config) < len(ENDPOINT_URLS):
-            raise exceptions.BadRequest(
-                resource="subcloud", msg="Missing service in SystemController"
-            )
-
-        for endpoint in endpoint_config:
-            try:
-                m_ks_client.keystone_client.endpoints.create(
-                    endpoint["id"],
-                    endpoint["admin_endpoint_url"],
-                    interface=dccommon_consts.KS_ENDPOINT_ADMIN,
-                    region=subcloud.region_name,
-                )
-            except Exception as e:
-                # Keystone service must be temporarily busy, retry
-                LOG.error(str(e))
-                m_ks_client.keystone_client.endpoints.create(
-                    endpoint["id"],
-                    endpoint["admin_endpoint_url"],
-                    interface=dccommon_consts.KS_ENDPOINT_ADMIN,
-                    region=subcloud.region_name,
-                )
-
-        # Inform orchestrator that subcloud has been added
-        self.dcorch_rpc_client.add_subcloud(
-            context,
-            subcloud.region_name,
-            subcloud.software_version,
-            subcloud.management_start_ip,
-        )
 
     def _create_subcloud_inventory_file(
         self, subcloud, bootstrap_address=None, initial_deployment=False
@@ -3227,10 +3172,6 @@ class SubcloudManager(manager.Manager):
             region_clients=None,
             fetch_subcloud_ips=utils.fetch_subcloud_mgmt_ips,
         ).keystone_client
-
-        # Delete keystone endpoints for subcloud
-        keystone_client.delete_endpoints(subcloud.region_name)
-        keystone_client.delete_region(subcloud.region_name)
 
         # Delete the routes to this subcloud
         self._delete_subcloud_routes(keystone_client, subcloud)
@@ -3964,30 +3905,6 @@ class SubcloudManager(manager.Manager):
             "vim": "https://{}:4546".format(formatted_ip),
             "usm": "https://{}:5498".format(formatted_ip),
         }
-
-        for endpoint in m_ks_client.keystone_client.endpoints.list(
-            region=subcloud_region
-        ):
-            service_type = m_ks_client.keystone_client.services.get(
-                endpoint.service_id
-            ).type
-            if service_type == dccommon_consts.ENDPOINT_TYPE_PLATFORM:
-                admin_endpoint_url = services_endpoints.get("sysinv")
-            elif service_type == dccommon_consts.ENDPOINT_TYPE_IDENTITY:
-                admin_endpoint_url = services_endpoints.get("keystone")
-            elif service_type == dccommon_consts.ENDPOINT_TYPE_PATCHING:
-                admin_endpoint_url = services_endpoints.get("patching")
-            elif service_type == dccommon_consts.ENDPOINT_TYPE_FM:
-                admin_endpoint_url = services_endpoints.get("fm")
-            elif service_type == dccommon_consts.ENDPOINT_TYPE_NFV:
-                admin_endpoint_url = services_endpoints.get("vim")
-            elif service_type == dccommon_consts.ENDPOINT_TYPE_SOFTWARE:
-                admin_endpoint_url = services_endpoints.get("usm")
-            else:
-                LOG.exception("Endpoint Type Error: %s" % service_type)
-            m_ks_client.keystone_client.endpoints.update(
-                endpoint, url=admin_endpoint_url
-            )
 
         LOG.info(
             "Update services endpoint to %s in subcloud region %s"
