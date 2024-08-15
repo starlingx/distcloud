@@ -1145,10 +1145,10 @@ class TestAuditWorkerManager(base.DCManagerTestCase):
 
     @mock.patch.object(scheduler.ThreadGroupManager, "start")
     @mock.patch.object(
-        subcloud_audit_worker_manager.db_api, "subcloud_audits_end_audit"
+        subcloud_audit_worker_manager.db_api, "subcloud_audits_bulk_end_audit"
     )
     def test_online_subcloud_audit_not_skipping_while_installing(
-        self, mock_subcloud_audits_end_audit, mock_thread_start
+        self, mock_subcloud_audits_bulk_end_audit, mock_thread_start
     ):
 
         subcloud = self.create_subcloud_static(self.ctx, name="subcloud1")
@@ -1178,8 +1178,10 @@ class TestAuditWorkerManager(base.DCManagerTestCase):
         )
 
         # Verify if audit was not skipped
-        mock_subcloud_audits_end_audit.assert_not_called()
-        mock_thread_start.assert_called_once()
+        mock_subcloud_audits_bulk_end_audit.assert_not_called()
+        # The thread start should be called two times: one for the
+        # _update_subclouds_end_audit and another for _do_audit_subcloud
+        self.assertEqual(mock_thread_start.call_count, 2)
 
     def test_audit_subcloud_going_offline_while_installing(self):
         subcloud = self.create_subcloud_static(self.ctx, name="subcloud1")
@@ -1681,6 +1683,15 @@ class TestAuditWorkerManager(base.DCManagerTestCase):
 
         # Verify kube rootca update audit is not called
         self.subcloud_kube_rootca_audit.assert_not_called()
+
+        # Request the end audit to be performed
+        # Because the thread runs infinitely, the time.sleep is mocked to raise an
+        # exception, quitting the process after the first call
+        try:
+            wm._update_subclouds_end_audit()
+        except Exception:
+            # Do something
+            wm.audits_finished = dict()
 
         # Ensure the subaudits that didn't run are still requested
         audits = db_api.subcloud_audits_get(self.ctx, subcloud.id)

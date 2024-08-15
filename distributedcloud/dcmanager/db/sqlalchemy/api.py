@@ -163,8 +163,20 @@ def subcloud_audits_get(context, subcloud_id):
 
 
 @require_context
-def subcloud_audits_get_all(context):
-    return model_query(context, models.SubcloudAudits).filter_by(deleted=0).all()
+def subcloud_audits_get_all(context, subcloud_ids=None):
+    """Get subcloud_audits info for subclouds
+
+    :param context: request context object
+    :param subcloud_ids: if specified, return only the subclouds with specified ids
+    """
+
+    with read_session() as session:
+        query = session.query(models.SubcloudAudits).filter_by(deleted=0)
+
+        if subcloud_ids:
+            query = query.filter(models.SubcloudAudits.subcloud_id.in_(subcloud_ids))
+
+        return query.all()
 
 
 @require_context
@@ -240,31 +252,42 @@ def subcloud_audits_get_and_start_audit(context, subcloud_id):
 
 
 @require_context
-def subcloud_audits_end_audit(context, subcloud_id, audits_done):
+def subcloud_audits_bulk_end_audit(context, audits_finished):
+    """Update the subcloud's audit end status in a bulk request
+
+    :param context: request context object
+    :param audits_finished: audits finished dict object that contains the subcloud's
+    id as the key and its timestamp and audits finished as values
+    """
+
+    # audits_finished structure:
+    # "subcloud's id": {
+    #   "timestamp": "2024-08-15 17:56:00",
+    #   "audits_finished": ["patching", "firmware"]
+    # }
+
+    update_list = list()
+    subcloud_audits = subcloud_audits_get_all(context, audits_finished.keys())
+
+    for subcloud_audit in subcloud_audits:
+        audit_finished = audits_finished[subcloud_audit.subcloud_id]
+        entry = {
+            "id": subcloud_audit.subcloud_id,
+            "audit_finished_at": audit_finished["timestamp"],
+            "state_update_requested": False,
+            **{
+                dccommon_consts.ENDPOINT_AUDIT_REQUESTS[endpoint]: False
+                for endpoint in audit_finished["audits_finished"]
+            },
+        }
+        update_list.append(entry)
+
     with write_session() as session:
-        subcloud_audits_ref = subcloud_audits_get(context, subcloud_id)
-        subcloud_audits_ref.audit_finished_at = timeutils.utcnow()
-        subcloud_audits_ref.state_update_requested = False
-        # todo(abailey): define new constants for these audit strings
-        # and update subcloud_audit_worker_manager to use them as well
-        if dccommon_consts.ENDPOINT_TYPE_PATCHING in audits_done:
-            subcloud_audits_ref.patch_audit_requested = False
-        if dccommon_consts.ENDPOINT_TYPE_FIRMWARE in audits_done:
-            subcloud_audits_ref.firmware_audit_requested = False
-        if dccommon_consts.ENDPOINT_TYPE_LOAD in audits_done:
-            subcloud_audits_ref.load_audit_requested = False
-        if dccommon_consts.ENDPOINT_TYPE_KUBE_ROOTCA in audits_done:
-            subcloud_audits_ref.kube_rootca_update_audit_requested = False
-        if dccommon_consts.ENDPOINT_TYPE_KUBERNETES in audits_done:
-            subcloud_audits_ref.kubernetes_audit_requested = False
-        if dccommon_consts.ENDPOINT_TYPE_SOFTWARE in audits_done:
-            subcloud_audits_ref.spare_audit_requested = False
-        subcloud_audits_ref.save(session)
-        return subcloud_audits_ref
+        return session.bulk_update_mappings(models.SubcloudAudits, update_list)
 
 
 @require_context
-def subcloud_audits_bulk_end_audit(context, subcloud_ids):
+def subcloud_audits_bulk_update_audit_finished_at(context, subcloud_ids):
     values = {"audit_finished_at": timeutils.utcnow()}
     with write_session():
         model_query(context, models.SubcloudAudits).filter_by(deleted=0).filter(

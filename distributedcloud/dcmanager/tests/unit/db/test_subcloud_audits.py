@@ -52,12 +52,20 @@ class DBAPISubcloudAuditsTest(base.DCManagerTestCase):
         return db_api.subcloud_create(ctxt, **values)
 
     def setUp(self):
-        super(DBAPISubcloudAuditsTest, self).setUp()
+        super().setUp()
         # calling setUp for the superclass sets up the DB and context
 
         self.create_subcloud(self.ctx, "subcloud1")
         self.create_subcloud(self.ctx, "subcloud2")
         self.create_subcloud(self.ctx, "subcloud3")
+
+    def _create_audits_finished(self, subcloud_id, audits_finished):
+        return {
+            subcloud_id: {
+                "timestamp": timeutils.utcnow(),
+                "audits_finished": audits_finished,
+            }
+        }
 
     def test_subcloud_audits_get(self):
         # Test the SubcloudAudits created when we created subcloud2 in setup.
@@ -138,7 +146,9 @@ class DBAPISubcloudAuditsTest(base.DCManagerTestCase):
         self.assertEqual(len(audits), 3)
         # Update subcloud1 to show it's been audited recently and
         # check it doesn't come back as needing an audit.
-        db_api.subcloud_audits_end_audit(self.ctx, 1, [])
+        db_api.subcloud_audits_bulk_end_audit(
+            self.ctx, self._create_audits_finished(1, [])
+        )
         audits = db_api.subcloud_audits_get_all_need_audit(
             self.ctx, last_audit_threshold
         )
@@ -159,7 +169,10 @@ class DBAPISubcloudAuditsTest(base.DCManagerTestCase):
             (timeutils.utcnow() - audit.audit_started_at)
             < datetime.timedelta(seconds=1)
         )
-        audit = db_api.subcloud_audits_end_audit(self.ctx, 3, [])
+        db_api.subcloud_audits_bulk_end_audit(
+            self.ctx, self._create_audits_finished(3, [])
+        )
+        audit = db_api.subcloud_audits_get(self.ctx, 3)
         self.assertTrue(
             (timeutils.utcnow() - audit.audit_finished_at)
             < datetime.timedelta(seconds=1)
@@ -168,13 +181,17 @@ class DBAPISubcloudAuditsTest(base.DCManagerTestCase):
 
     def test_subcloud_audits_fix_expired(self):
         # Set the 'finished' timestamp later than the 'start' timestamp.
-        db_api.subcloud_audits_end_audit(self.ctx, 3, [])
+        db_api.subcloud_audits_bulk_end_audit(
+            self.ctx, self._create_audits_finished(3, [])
+        )
         # Set the 'start' timestamp later than the 'finished' timestamp
         # but with the 'finished' timestamp long ago.
         db_api.subcloud_audits_get_and_start_audit(self.ctx, 1)
         # Set the 'start' timestamp later than the 'finished' timestamp
         # but with the 'finished' timestamp recent.
-        db_api.subcloud_audits_end_audit(self.ctx, 2, [])
+        db_api.subcloud_audits_bulk_end_audit(
+            self.ctx, self._create_audits_finished(2, [])
+        )
         db_api.subcloud_audits_get_and_start_audit(self.ctx, 2)
         last_audit_threshold = timeutils.utcnow() - datetime.timedelta(seconds=100)
         count = db_api.subcloud_audits_fix_expired_audits(
@@ -210,8 +227,8 @@ class DBAPISubcloudAuditsTest(base.DCManagerTestCase):
         self.assertEqual(result["kubernetes_audit_requested"], False)
         self.assertEqual(result["kube_rootca_update_audit_requested"], False)
 
-    def test_subcloud_audits_bulk_end_audit(self):
-        db_api.subcloud_audits_bulk_end_audit(self.ctx, [1, 2])
+    def test_subcloud_audits_bulk_update_audit_finished_at(self):
+        db_api.subcloud_audits_bulk_update_audit_finished_at(self.ctx, [1, 2])
         subcloud_audits1 = db_api.subcloud_audits_get(self.ctx, 1)
         subcloud_audits2 = db_api.subcloud_audits_get(self.ctx, 2)
         subcloud_audits3 = db_api.subcloud_audits_get(self.ctx, 3)

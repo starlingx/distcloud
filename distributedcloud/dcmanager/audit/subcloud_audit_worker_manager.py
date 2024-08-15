@@ -14,11 +14,15 @@
 #    under the License.
 #
 
+import copy
 import os
+import threading
+import time
 
 from keystoneauth1 import exceptions as keystone_exceptions
 from oslo_config import cfg
 from oslo_log import log as logging
+from oslo_utils import timeutils
 
 from dccommon import consts as dccommon_consts
 from dccommon.drivers.openstack.dcagent_v1 import DcagentClient
@@ -66,11 +70,14 @@ class SubcloudAuditWorkerManager(manager.Manager):
         super(SubcloudAuditWorkerManager, self).__init__(
             service_name="subcloud_audit_worker_manager"
         )
+        self.audit_lock = threading.Lock()
+        self.audits_finished = dict()
         self.context = context.get_admin_context()
         self.dcmanager_rpc_client = dcmanager_rpc_client.ManagerClient()
         self.state_rpc_client = dcmanager_rpc_client.SubcloudStateClient()
         # Keeps track of greenthreads we create to do work.
         self.thread_group_manager = scheduler.ThreadGroupManager(thread_pool_size=150)
+        self.thread_group_manager.start(self._update_subclouds_end_audit)
         # Track workers created for each subcloud.
         self.subcloud_workers = dict()
         self.alarm_aggr = alarm_aggregation.AlarmAggregation(self.context)
@@ -81,6 +88,30 @@ class SubcloudAuditWorkerManager(manager.Manager):
         self.kube_rootca_update_audit = kube_rootca_update_audit.KubeRootcaUpdateAudit()
         self.software_audit = software_audit.SoftwareAudit()
         self.pid = os.getpid()
+
+    def _update_subclouds_end_audit(self):
+        while True:
+            audits_to_set_finished = None
+
+            with self.audit_lock:
+                if len(self.audits_finished) > 0:
+                    audits_to_set_finished = copy.deepcopy(self.audits_finished)
+                    self.audits_finished = dict()
+
+            if audits_to_set_finished:
+                # Update the audit completion timestamp so it doesn't get
+                # audited again for a while.
+                try:
+                    db_api.subcloud_audits_bulk_end_audit(
+                        self.context, audits_to_set_finished
+                    )
+                except Exception as e:
+                    LOG.error(f"An error occurred when updating end audit: {e}")
+
+                    with self.audit_lock:
+                        self.audits_finished.update(audits_to_set_finished)
+
+            time.sleep(2)
 
     def audit_subclouds(
         self,
@@ -270,9 +301,12 @@ class SubcloudAuditWorkerManager(manager.Manager):
                 ", ".join(sorted(failures)),
             )
 
-        # Update the audit completion timestamp so it doesn't get
-        # audited again for a while.
-        db_api.subcloud_audits_end_audit(self.context, subcloud.id, audits_done)
+        with self.audit_lock:
+            self.audits_finished[subcloud.id] = {
+                "timestamp": timeutils.utcnow(),
+                "audits_finished": audits_done,
+            }
+
         # Remove the worker for this subcloud
         self.subcloud_workers.pop(subcloud.region_name, None)
         LOG.debug("PID: %s, done auditing subcloud: %s." % (self.pid, subcloud.name))
