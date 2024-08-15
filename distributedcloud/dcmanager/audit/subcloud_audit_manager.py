@@ -21,6 +21,7 @@ import time
 import eventlet
 from oslo_config import cfg
 from oslo_log import log as logging
+from oslo_utils import timeutils
 from tsconfig.tsconfig import CONFIG_PATH
 
 from dccommon import consts as dccommon_consts
@@ -237,7 +238,9 @@ class SubcloudAuditManager(manager.Manager):
         # audit them and request all sub-audits.
         # (This is for swact and process restart.)
         db_api.subcloud_audits_fix_expired_audits(
-            self.context, datetime.datetime.utcnow(), trigger_audits=True
+            self.context,
+            timeutils.utcnow(),
+            trigger_audits=True,
         )
         # Blanket catch all exceptions in the audit so that the audit
         # does not die.
@@ -433,7 +436,7 @@ class SubcloudAuditManager(manager.Manager):
         #        do_openstack_audit = True
         #        break
 
-        current_time = datetime.datetime.utcnow()
+        current_time = timeutils.utcnow()
         last_audit_threshold = current_time - datetime.timedelta(
             seconds=CONF.scheduler.subcloud_audit_interval
         )
@@ -449,11 +452,11 @@ class SubcloudAuditManager(manager.Manager):
 
         # Fix up any stale audit timestamps for subclouds that started an
         # audit but never finished it.
-        start = datetime.datetime.utcnow()
+        start = timeutils.utcnow()
         num_fixed = db_api.subcloud_audits_fix_expired_audits(
             self.context, last_audit_fixup_threshold
         )
-        end = datetime.datetime.utcnow()
+        end = timeutils.utcnow()
         if num_fixed > 0:
             LOG.info("Fixed up subcloud audit timestamp for %s subclouds." % num_fixed)
             LOG.info("Fixup took %s seconds" % (end - start))

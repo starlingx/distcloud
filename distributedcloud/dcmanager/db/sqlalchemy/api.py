@@ -19,7 +19,6 @@
 Implementation of SQLAlchemy backend.
 """
 
-import datetime
 import sys
 import threading
 
@@ -28,6 +27,7 @@ from oslo_db.exception import DBDuplicateEntry
 from oslo_db.sqlalchemy import enginefacade
 from oslo_log import log as logging
 from oslo_utils import strutils
+from oslo_utils import timeutils
 from oslo_utils import uuidutils
 import sqlalchemy
 from sqlalchemy import bindparam
@@ -234,7 +234,7 @@ def subcloud_audits_get_all_need_audit(context, last_audit_threshold):
 def subcloud_audits_get_and_start_audit(context, subcloud_id):
     with write_session() as session:
         subcloud_audits_ref = subcloud_audits_get(context, subcloud_id)
-        subcloud_audits_ref.audit_started_at = datetime.datetime.utcnow()
+        subcloud_audits_ref.audit_started_at = timeutils.utcnow()
         subcloud_audits_ref.save(session)
         return subcloud_audits_ref
 
@@ -243,7 +243,7 @@ def subcloud_audits_get_and_start_audit(context, subcloud_id):
 def subcloud_audits_end_audit(context, subcloud_id, audits_done):
     with write_session() as session:
         subcloud_audits_ref = subcloud_audits_get(context, subcloud_id)
-        subcloud_audits_ref.audit_finished_at = datetime.datetime.utcnow()
+        subcloud_audits_ref.audit_finished_at = timeutils.utcnow()
         subcloud_audits_ref.state_update_requested = False
         # todo(abailey): define new constants for these audit strings
         # and update subcloud_audit_worker_manager to use them as well
@@ -265,7 +265,7 @@ def subcloud_audits_end_audit(context, subcloud_id, audits_done):
 
 @require_context
 def subcloud_audits_bulk_end_audit(context, subcloud_ids):
-    values = {"audit_finished_at": datetime.datetime.utcnow()}
+    values = {"audit_finished_at": timeutils.utcnow()}
     with write_session():
         model_query(context, models.SubcloudAudits).filter_by(deleted=0).filter(
             models.SubcloudAudits.subcloud_id.in_(subcloud_ids)

@@ -38,6 +38,7 @@ import netaddr
 from oslo_config import cfg
 from oslo_log import log as logging
 from oslo_messaging import RemoteError
+from oslo_utils import timeutils
 from tsconfig.tsconfig import CONFIG_PATH
 from tsconfig.tsconfig import SW_VERSION
 import yaml
@@ -2583,7 +2584,7 @@ class SubcloudManager(manager.Manager):
                 context,
                 subcloud.id,
                 backup_status=backup_status,
-                backup_datetime=datetime.datetime.utcnow(),
+                backup_datetime=timeutils.utcnow(),
             )
 
             LOG.info("Successfully backed up subcloud %s" % subcloud.name)
@@ -4058,7 +4059,7 @@ class SubcloudManager(manager.Manager):
     ):
         if (
             not SubcloudManager.regionone_data
-            or SubcloudManager.regionone_data["expiry"] <= datetime.datetime.utcnow()
+            or SubcloudManager.regionone_data["expiry"] <= timeutils.utcnow()
         ):
             user_list = regionone_keystone_client.get_enabled_users(id_only=False)
             for user in user_list:
@@ -4105,7 +4106,7 @@ class SubcloudManager(manager.Manager):
             )
 
             SubcloudManager.regionone_data["expiry"] = (
-                datetime.datetime.utcnow() + datetime.timedelta(hours=1)
+                timeutils.utcnow() + datetime.timedelta(hours=1)
             )
             LOG.info(
                 "RegionOne cached data updated %s" % SubcloudManager.regionone_data
