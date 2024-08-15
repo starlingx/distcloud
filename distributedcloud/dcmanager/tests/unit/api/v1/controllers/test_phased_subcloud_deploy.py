@@ -746,9 +746,8 @@ class TestPhasedSubcloudDeployPatchInstall(BaseTestPhasedSubcloudDeployPatch):
         self._assert_pecan_and_response(
             response,
             http.client.BAD_REQUEST,
-            f"Failed to get {SW_VERSION} load image. "
-            "Provide active/inactive load image via 'system --os-region-name "
-            "SystemController load-import --active/--inactive'",
+            f"Failed to get {SW_VERSION} load image. Provide active/inactive "
+            "load image via 'software --os-region-name SystemController upload'",
         )
         self.mock_rpc_client().subcloud_deploy_install.assert_not_called()
 

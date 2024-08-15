@@ -469,7 +469,7 @@ def get_vault_load_files(target_version):
     in 'iso' or 'sig'.
     : param target_version: The software version to search under the vault
     """
-    vault_dir = "{}/{}/".format(consts.LOADS_VAULT_DIR, target_version)
+    vault_dir = "{}/{}/".format(dccommon_consts.SOFTWARE_VAULT_DIR, target_version)
 
     matching_iso = None
     matching_sig = None
@@ -1111,9 +1111,8 @@ def get_matching_iso(software_version=None):
         matching_iso, _ = get_vault_load_files(software_version)
         if not matching_iso:
             error_msg = (
-                "Failed to get %s load image. Provide active/inactive load image via "
-                "'system --os-region-name SystemController load-import "
-                "--active/--inactive'" % software_version
+                f"Failed to get {software_version} load image. Provide active/inactive "
+                "load image via 'software --os-region-name SystemController upload'"
             )
             LOG.exception(error_msg)
             return None, error_msg

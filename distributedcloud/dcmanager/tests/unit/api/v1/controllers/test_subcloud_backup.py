@@ -1134,7 +1134,8 @@ class TestSubcloudBackupPatchRestoreSubcloud(BaseTestSubcloudBackupPatchRestore)
         self._assert_pecan_and_response(
             response,
             http.client.BAD_REQUEST,
-            "No matching: .iso found in vault: /opt/dc-vault/loads/TEST.SW.VERSION/",
+            "No matching: .iso found in vault: "
+            f"{dccommon_consts.SOFTWARE_VAULT_DIR}/TEST.SW.VERSION/",
         )
 
     def test_patch_restore_subcloud_fails_with_install_without_matching_sig(self):
@@ -1151,7 +1152,8 @@ class TestSubcloudBackupPatchRestoreSubcloud(BaseTestSubcloudBackupPatchRestore)
         self._assert_pecan_and_response(
             response,
             http.client.BAD_REQUEST,
-            "No matching: .sig found in vault: /opt/dc-vault/loads/TEST.SW.VERSION/",
+            "No matching: .sig found in vault: "
+            f"{dccommon_consts.SOFTWARE_VAULT_DIR}/TEST.SW.VERSION/",
         )
 
     @mock.patch("dcmanager.common.utils.get_matching_iso")

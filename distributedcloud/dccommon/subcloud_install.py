@@ -45,7 +45,6 @@ CONF = cfg.CONF
 BOOT_MENU_TIMEOUT = "5"
 
 SUBCLOUD_ISO_DOWNLOAD_PATH = "/var/www/pages/iso"
-DCVAULT_BOOTIMAGE_PATH = "/opt/dc-vault/loads/"
 PACKAGE_LIST_PATH = "/usr/local/share/pkg-list"
 GEN_ISO_COMMAND = "/usr/local/bin/gen-bootloader-iso.sh"
 GEN_ISO_COMMAND_CENTOS = "/usr/local/bin/gen-bootloader-iso-centos.sh"
@@ -272,7 +271,9 @@ class SubcloudInstall(object):
                 url = parse.urljoin("file:", request.pathname2url(path))
             filename = os.path.join(override_path, "bootimage.iso")
 
-            if path and path.startswith(consts.LOAD_VAULT_DIR + "/" + software_version):
+            if path and path.startswith(
+                consts.SOFTWARE_VAULT_DIR + "/" + software_version
+            ):
                 if os.path.exists(path):
                     # Reference known load in vault
                     LOG.info("Setting input_iso to load vault path %s" % path)
@@ -418,7 +419,7 @@ class SubcloudInstall(object):
         # Do not remove the input_iso if it is in the Load Vault
         if (
             self.input_iso is not None
-            and not self.input_iso.startswith(consts.LOAD_VAULT_DIR)
+            and not self.input_iso.startswith(consts.SOFTWARE_VAULT_DIR)
             and os.path.exists(self.input_iso)
         ):
             os.remove(self.input_iso)
@@ -476,7 +477,7 @@ class SubcloudInstall(object):
 
         temp_bootimage_mnt_dir = tempfile.mkdtemp()
         bootimage_path = os.path.join(
-            DCVAULT_BOOTIMAGE_PATH, software_version, "bootimage.iso"
+            consts.SOFTWARE_VAULT_DIR, software_version, "bootimage.iso"
         )
 
         with open(os.devnull, "w") as fnull:

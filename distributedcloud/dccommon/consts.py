@@ -36,7 +36,6 @@ VIRTUAL_MASTER_CLOUD = "SystemController"
 
 SW_UPDATE_DEFAULT_TITLE = "all clouds default"
 ANSIBLE_OVERRIDES_PATH = "/opt/dc-vault/ansible"
-LOAD_VAULT_DIR = "/opt/dc-vault/loads"
 SOFTWARE_VAULT_DIR = "/opt/dc-vault/software"
 DEPLOY_DIR = "/opt/platform/deploy"
 
