@@ -101,22 +101,21 @@ class FakeAddressPool(object):
 class FakeOAMAddressPool(object):
     def __init__(
         self,
-        pool_network,
-        pool_prefix,
-        pool_start,
-        pool_end,
-        c1_ip,
-        c0_ip,
-        gateway_ip,
-        floating_ip,
+        oam_subnet,
+        oam_start_ip,
+        oam_end_ip,
+        oam_c1_ip,
+        oam_c0_ip,
+        oam_gateway_ip,
+        oam_floating_ip,
     ):
-        self.network = pool_network
-        self.prefix = pool_prefix
-        self.ranges = [[pool_start, pool_end]]
-        self.controller1_address = c1_ip
-        self.controller0_address = c0_ip
-        self.gateway_address = gateway_ip
-        self.floating_address = floating_ip
+        self.oam_start_ip = oam_start_ip
+        self.oam_end_ip = oam_end_ip
+        self.oam_c1_ip = oam_c1_ip
+        self.oam_c0_ip = oam_c0_ip
+        self.oam_subnet = oam_subnet
+        self.oam_gateway_ip = oam_gateway_ip
+        self.oam_floating_ip = oam_floating_ip
 
 
 class SubcloudAPIMixin(APIMixin):
@@ -371,21 +370,18 @@ class TestSubcloudsGetDetail(BaseTestSubcloudsGet):
 
         self.url = f"{self.url}/detail"
 
-        self._mock_sysinv_client(subclouds)
+        self._mock_sysinv_client(cutils)
         self._mock_fm_client(subclouds)
 
-        self.mock_sysinv_client().get_oam_address_pools.return_value = [
-            FakeOAMAddressPool(
-                "10.10.10.254",
-                24,
-                "10.10.10.1",
-                "10.10.10.254",
-                "10.10.10.4",
-                "10.10.10.3",
-                "10.10.10.1",
-                "10.10.10.2",
-            )
-        ]
+        self.mock_sysinv_client().get_oam_addresses.return_value = FakeOAMAddressPool(
+            "10.10.10.254",
+            "10.10.10.1",
+            "10.10.10.254",
+            "10.10.10.4",
+            "10.10.10.3",
+            "10.10.10.1",
+            "10.10.10.2",
+        )
 
     def _assert_response_payload(
         self,
@@ -427,7 +423,7 @@ class TestSubcloudsGetDetail(BaseTestSubcloudsGet):
     def test_get_detail_succeeds_with_sysinv_client_endpoint_not_found(self):
         """Test get detail succeeds with sysinv client endpoint not found"""
 
-        self.mock_sysinv_client().get_oam_address_pools.side_effect = EndpointNotFound()
+        self.mock_sysinv_client().get_oam_addresses.side_effect = EndpointNotFound()
 
         response = self._send_request()
 
@@ -437,9 +433,7 @@ class TestSubcloudsGetDetail(BaseTestSubcloudsGet):
     def test_get_detail_succeeds_with_sysinv_client_oam_addresses_not_found(self):
         """Test get detail succeeds with sysinv client oam addresses not found"""
 
-        self.mock_sysinv_client().get_oam_address_pools.side_effect = (
-            OAMAddressesNotFound()
-        )
+        self.mock_sysinv_client().get_oam_addresses.side_effect = OAMAddressesNotFound()
 
         response = self._send_request()
 
@@ -2853,11 +2847,11 @@ class TestSubcloudsPatchPrestage(BaseTestSubcloudsPatch):
             health_report_no_alarm
         )
 
-        mock_get_oam_address_pool = mock.MagicMock()
-        mock_get_oam_address_pool.floating_address = "10.10.10.12"
-        self.mock_sysinv_client_prestage().get_oam_address_pools.return_value = [
-            mock_get_oam_address_pool
-        ]
+        mock_get_oam_addresses = mock.MagicMock()
+        mock_get_oam_addresses.oam_floating_ip = "10.10.10.12"
+        self.mock_sysinv_client_prestage().get_oam_addresses.return_value = (
+            mock_get_oam_addresses
+        )
 
     def _mock_get_validated_release_params(self, target):
         mock_patch_object = mock.patch.object(target, "get_validated_release_params")

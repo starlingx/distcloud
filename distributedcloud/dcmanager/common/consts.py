@@ -480,5 +480,3 @@ ASSOCIATION_SYNC_STATUS_UNKNOWN = "unknown"
 
 # Peer monitor heartbeat policy
 HEARTBEAT_FAILURE_POLICY_ALARM = "alarm"
-
-SOFTWARE_VERSION_24_09 = "24.09"

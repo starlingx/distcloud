@@ -227,7 +227,7 @@ def validate_prestage(subcloud, payload):
     )
 
     subcloud_type, system_health, oam_floating_ip, controller_0_is_active = (
-        _get_prestage_subcloud_info(subcloud, software_version)
+        _get_prestage_subcloud_info(subcloud)
     )
     prestage_reason = get_prestage_reason(payload)
 
@@ -365,7 +365,7 @@ def _prestage_standalone_thread(context, subcloud, payload):
         raise
 
 
-def _get_prestage_subcloud_info(subcloud, software_version):
+def _get_prestage_subcloud_info(subcloud):
     """Retrieve prestage data from the subcloud.
 
     Pull all required data here in order to minimize keystone/sysinv client
@@ -386,10 +386,7 @@ def _get_prestage_subcloud_info(subcloud, software_version):
         mode = sysinv_client.get_system().system_mode
         health = sysinv_client.get_system_health()
         # Interested only in primary OAM address of subcloud
-        if software_version < consts.SOFTWARE_VERSION_24_09:
-            oam_floating_ip = sysinv_client.get_oam_addresses().oam_floating_ip
-        else:
-            oam_floating_ip = sysinv_client.get_oam_address_pools()[0].floating_address
+        oam_floating_ip = utils.get_oam_floating_ip_primary(subcloud, keystone_client)
         controller_active_info = sysinv_client.get_host("controller-0")
         controller_0_is_active = (
             controller_active_info.capabilities["Personality"]

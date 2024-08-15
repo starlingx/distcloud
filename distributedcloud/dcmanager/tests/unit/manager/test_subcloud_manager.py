@@ -1519,7 +1519,7 @@ class TestSubcloudAdd(BaseTestSubcloudManager):
         self._mock_subcloud_manager_get_cached_regionone_data()
         self.mock_get_cached_regionone_data.return_value = FAKE_CACHED_REGIONONE_DATA
 
-    @mock.patch.object(cutils, "get_oam_address_pools")
+    @mock.patch.object(cutils, "get_oam_floating_ip_primary")
     @mock.patch.object(subcloud_install.SubcloudInstall, "prep")
     @mock.patch.object(subcloud_manager.SubcloudManager, "_write_deploy_files")
     @mock.patch.object(cutils, "update_values_on_yaml_file")
@@ -3172,7 +3172,7 @@ class TestSubcloudRedeploy(BaseTestSubcloudManager):
     def setUp(self):
         super().setUp()
 
-    @mock.patch.object(cutils, "get_oam_address_pools")
+    @mock.patch.object(cutils, "get_oam_floating_ip_primary")
     @mock.patch.object(subcloud_manager.SubcloudManager, "_prepare_for_deployment")
     @mock.patch.object(cutils, "update_values_on_yaml_file")
     def test_subcloud_redeploy(
@@ -3206,7 +3206,7 @@ class TestSubcloudRedeploy(BaseTestSubcloudManager):
 
     @mock.patch.object(subcloud_manager.SubcloudManager, "subcloud_deploy_config")
     @mock.patch.object(subcloud_install.SubcloudInstall, "prep")
-    @mock.patch.object(cutils, "get_oam_address_pools")
+    @mock.patch.object(cutils, "get_oam_floating_ip_primary")
     @mock.patch.object(cutils, "update_values_on_yaml_file")
     @mock.patch.object(subprocess, "check_call")
     def test_subcloud_redeploy_skip_deploy_config(
@@ -3410,10 +3410,10 @@ class TestSubcloudBackup(BaseTestSubcloudManager):
         ]
         self.mock_log.assert_has_calls(Calls)
 
-    @mock.patch.object(cutils, "get_oam_address_pools")
+    @mock.patch.object(cutils, "get_oam_floating_ip_primary")
     @mock.patch.object(cutils, "is_subcloud_healthy", return_value=True)
     def backup_create_managed_online_local_only(
-        self, mock_is_healthy, mock_get_oam_address_pools
+        self, mock_is_healthy, mock_get_oam_floating_ip_primary
     ):
         self.sm.create_subcloud_backups(self.ctx, payload=self.backup_values)
 
@@ -3538,7 +3538,7 @@ class TestSubcloudBackup(BaseTestSubcloudManager):
     @mock.patch.object(
         subcloud_manager.SubcloudManager, "_create_backup_overrides_file"
     )
-    @mock.patch.object(cutils, "get_oam_address_pools")
+    @mock.patch.object(cutils, "get_oam_floating_ip_primary")
     @mock.patch.object(
         subcloud_manager.SubcloudManager,
         "_clear_subcloud_backup_failure_alarm_if_exists",
@@ -3600,7 +3600,7 @@ class TestSubcloudBackup(BaseTestSubcloudManager):
             consts.BACKUP_STATE_PREP_FAILED, updated_subcloud.backup_status
         )
 
-    @mock.patch.object(cutils, "get_oam_address_pools")
+    @mock.patch.object(cutils, "get_oam_floating_ip_primary")
     @mock.patch.object(
         subcloud_manager.SubcloudManager, "compose_backup_delete_command"
     )
@@ -3641,7 +3641,7 @@ class TestSubcloudBackup(BaseTestSubcloudManager):
         updated_subcloud = db_api.subcloud_get_by_name(self.ctx, self.subcloud.name)
         self.assertEqual(consts.BACKUP_STATE_UNKNOWN, updated_subcloud.backup_status)
 
-    @mock.patch.object(cutils, "get_oam_address_pools")
+    @mock.patch.object(cutils, "get_oam_floating_ip_primary")
     @mock.patch.object(
         subcloud_manager.SubcloudManager, "compose_backup_delete_command"
     )
