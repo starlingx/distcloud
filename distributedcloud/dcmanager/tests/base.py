@@ -40,8 +40,8 @@ from dcmanager.common import utils as dutils
 from dcmanager.db import api
 from dcmanager.db.sqlalchemy import api as db_api
 from dcmanager.rpc import client as rpc_client
-
 from dcmanager.tests import utils
+from dcorch.rpc import client as dcorch_rpc_client
 
 get_engine = api.get_engine
 
@@ -200,6 +200,13 @@ class DCManagerTestCase(base.BaseTestCase):
 
         mock_patch_object = mock.patch.object(rpc_client, "ManagerClient")
         self.mock_rpc_client = mock_patch_object.start()
+        self.addCleanup(mock_patch_object.stop)
+
+    def _mock_dcorch_engine_rpc_client(self):
+        """Mock rpc's manager client"""
+
+        mock_patch_object = mock.patch.object(dcorch_rpc_client, "EngineWorkerClient")
+        self.mock_dcorch_engine_rpc_client = mock_patch_object.start()
         self.addCleanup(mock_patch_object.stop)
 
     def _mock_rpc_subcloud_state_client(self):

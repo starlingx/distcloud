@@ -1310,6 +1310,7 @@ class SubcloudsController(object):
                 # Align the software version of the subcloud with redeploy
                 # version. Update description, location and group id if offered,
                 # update the deploy status as pre-install.
+                previous_version = subcloud.software_version
                 subcloud = db_api.subcloud_update(
                     context,
                     subcloud_id,
@@ -1322,7 +1323,7 @@ class SubcloudsController(object):
                 )
 
                 self.dcmanager_rpc_client.redeploy_subcloud(
-                    context, subcloud_id, payload
+                    context, subcloud_id, payload, previous_version
                 )
 
                 return db_api.subcloud_db_model_to_dict(subcloud)

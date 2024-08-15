@@ -215,10 +215,12 @@ class DCManagerService(service.Service):
 
     @run_in_thread
     @request_context
-    def redeploy_subcloud(self, context, subcloud_id, payload):
+    def redeploy_subcloud(self, context, subcloud_id, payload, previous_version):
         # Redeploy a subcloud
         LOG.info("Handling redeploy_subcloud request for: %s" % subcloud_id)
-        return self.subcloud_manager.redeploy_subcloud(context, subcloud_id, payload)
+        return self.subcloud_manager.redeploy_subcloud(
+            context, subcloud_id, payload, previous_version
+        )
 
     @request_context
     def backup_subclouds(self, context, payload):
@@ -305,12 +307,12 @@ class DCManagerService(service.Service):
     @run_in_thread
     @request_context
     def subcloud_deploy_install(
-        self, context, subcloud_id, payload, initial_deployment
+        self, context, subcloud_id, payload, initial_deployment, previous_version
     ):
         # Install a subcloud
         LOG.info("Handling subcloud_deploy_install request for: %s" % subcloud_id)
         return self.subcloud_manager.subcloud_deploy_install(
-            context, subcloud_id, payload, initial_deployment
+            context, subcloud_id, payload, initial_deployment, previous_version
         )
 
     @run_in_thread
@@ -340,12 +342,23 @@ class DCManagerService(service.Service):
     @run_in_thread
     @request_context
     def subcloud_deploy_resume(
-        self, context, subcloud_id, subcloud_name, payload, deploy_states_to_run
+        self,
+        context,
+        subcloud_id,
+        subcloud_name,
+        payload,
+        deploy_states_to_run,
+        previous_version,
     ):
         # Adds a subcloud
         LOG.info("Handling subcloud_deploy_resume request for: %s" % subcloud_name)
         return self.subcloud_manager.subcloud_deploy_resume(
-            context, subcloud_id, subcloud_name, payload, deploy_states_to_run
+            context,
+            subcloud_id,
+            subcloud_name,
+            payload,
+            deploy_states_to_run,
+            previous_version,
         )
 
     @request_context

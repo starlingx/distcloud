@@ -1084,18 +1084,16 @@ class SubcloudManager(manager.Manager):
         if succeeded:
             LOG.info(f"Finished adding subcloud {subcloud['name']}.")
 
-    def redeploy_subcloud(self, context, subcloud_id, payload):
+    def redeploy_subcloud(self, context, subcloud_id, payload, previous_version):
         """Redeploy subcloud
 
         :param context: request context object
         :param subcloud_id: subcloud id from db
-        :param payload: subcloud redeploy
+        :param payload: subcloud redeploy parameters
+        :param previous_version: the previous subcloud software version
         """
 
-        # Retrieve the subcloud details from the database
-        subcloud = db_api.subcloud_get(context, subcloud_id)
-
-        LOG.info("Redeploying subcloud %s." % subcloud.name)
+        LOG.info(f"Redeploying subcloud {payload['name']}.")
 
         # Define which deploy phases to run
         phases_to_run = [consts.DEPLOY_PHASE_INSTALL, consts.DEPLOY_PHASE_BOOTSTRAP]
@@ -1105,11 +1103,16 @@ class SubcloudManager(manager.Manager):
             phases_to_run.append(consts.DEPLOY_PHASE_COMPLETE)
 
         succeeded = self.run_deploy_phases(
-            context, subcloud_id, payload, phases_to_run, initial_deployment=True
+            context,
+            subcloud_id,
+            payload,
+            phases_to_run,
+            initial_deployment=True,
+            previous_version=previous_version,
         )
 
         if succeeded:
-            LOG.info(f"Finished redeploying subcloud {subcloud['name']}.")
+            LOG.info(f"Finished redeploying subcloud {payload['name']}.")
 
     def create_subcloud_backups(self, context, payload):
         """Backup subcloud or group of subclouds
@@ -1460,7 +1463,13 @@ class SubcloudManager(manager.Manager):
         utils.update_abort_status(context, subcloud.id, subcloud.deploy_status)
 
     def subcloud_deploy_resume(
-        self, context, subcloud_id, subcloud_name, payload: dict, deploy_states_to_run
+        self,
+        context,
+        subcloud_id,
+        subcloud_name,
+        payload: dict,
+        deploy_states_to_run,
+        previous_version=None,
     ):
         """Resume the subcloud deployment
 
@@ -1469,6 +1478,7 @@ class SubcloudManager(manager.Manager):
         :param subcloud_name: name of the subcloud
         :param payload: subcloud resume payload
         :param deploy_states_to_run: deploy phases pending execution
+        :param previous_version: the previous subcloud software version
         """
         LOG.info(
             "Resuming deployment of subcloud %s. Deploy phases to be executed: %s"
@@ -1476,7 +1486,12 @@ class SubcloudManager(manager.Manager):
         )
 
         self.run_deploy_phases(
-            context, subcloud_id, payload, deploy_states_to_run, initial_deployment=True
+            context,
+            subcloud_id,
+            payload,
+            deploy_states_to_run,
+            initial_deployment=True,
+            previous_version=previous_version,
         )
 
     def generate_subcloud_ansible_config(
@@ -1759,7 +1774,12 @@ class SubcloudManager(manager.Manager):
         return subcloud
 
     def subcloud_deploy_install(
-        self, context, subcloud_id, payload: dict, initial_deployment=False
+        self,
+        context,
+        subcloud_id,
+        payload: dict,
+        initial_deployment=False,
+        previous_version=None,
     ) -> bool:
         """Install subcloud
 
@@ -1767,20 +1787,28 @@ class SubcloudManager(manager.Manager):
         :param subcloud_id: subcloud id from db
         :param payload: subcloud Install
         :param initial_deployment: initial_deployment flag from subcloud inventory
+        :param previous_version: previous subcloud software version
         :return: success status
         """
 
         # Retrieve the subcloud details from the database
+        software_version = payload["software_version"]
         subcloud = db_api.subcloud_update(
             context,
             subcloud_id,
-            software_version=payload["software_version"],
+            software_version=software_version,
             deploy_status=consts.DEPLOY_STATE_PRE_INSTALL,
             data_install=json.dumps(payload["install_values"]),
             error_description=consts.ERROR_DESC_EMPTY,
         )
 
-        LOG.info("Installing subcloud %s." % subcloud.name)
+        # Notify dcorch of the software version update
+        if previous_version and previous_version != software_version:
+            self.dcorch_rpc_client.update_subcloud_version(
+                self.context, subcloud.region_name, software_version
+            )
+
+        LOG.info(f"Installing subcloud {subcloud.name}.")
 
         try:
             log_file = (
@@ -1807,7 +1835,7 @@ class SubcloudManager(manager.Manager):
             return install_success
 
         except Exception:
-            LOG.exception("Failed to install subcloud %s" % subcloud.name)
+            LOG.exception(f"Failed to install subcloud {subcloud.name}")
             # If we failed to install the subcloud,
             # update the deployment status
             db_api.subcloud_update(
@@ -2739,6 +2767,7 @@ class SubcloudManager(manager.Manager):
         payload,
         deploy_phases_to_run,
         initial_deployment=False,
+        previous_version=None,
     ):
         """Run one or more deployment phases, ensuring correct order
 
@@ -2747,12 +2776,13 @@ class SubcloudManager(manager.Manager):
         :param payload: deploy phases payload
         :param deploy_phases_to_run: deploy phases that should run
         :param initial_deployment: initial_deployment flag from subcloud inventory
+        :param previous_version: previous subcloud software version
         """
         try:
             succeeded = True
             if consts.DEPLOY_PHASE_INSTALL in deploy_phases_to_run:
                 succeeded = self.subcloud_deploy_install(
-                    context, subcloud_id, payload, initial_deployment
+                    context, subcloud_id, payload, initial_deployment, previous_version
                 )
             if succeeded and consts.DEPLOY_PHASE_ENROLL in deploy_phases_to_run:
                 succeeded = self.subcloud_deploy_enroll(context, subcloud_id, payload)

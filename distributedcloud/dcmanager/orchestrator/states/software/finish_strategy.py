@@ -7,10 +7,13 @@
 from dccommon.drivers.openstack import software_v1
 from dcmanager.common import consts
 from dcmanager.common import exceptions
+from dcmanager.common import utils
+from dcmanager.db import api as db_api
 from dcmanager.orchestrator.states.base import BaseState
 from dcmanager.orchestrator.states.software.cache.cache_specifications import (
     REGION_ONE_RELEASE_USM_CACHE_TYPE,
 )
+from dcorch.rpc import client as dcorch_rpc_client
 
 
 class FinishStrategyState(BaseState):
@@ -21,6 +24,36 @@ class FinishStrategyState(BaseState):
             next_state=consts.STRATEGY_STATE_COMPLETE,
             region_name=region_name,
         )
+
+    @staticmethod
+    def _get_software_version(subcloud_releases: list):
+        for release in subcloud_releases:
+            if release["state"] == "deployed":
+                return utils.get_major_release(release["sw_version"])
+
+    def _finalize_upgrade(self, strategy_step, subcloud_releases: list):
+        software_version = self._get_software_version(subcloud_releases)
+
+        if not software_version:
+            raise exceptions.MissingDeployedRelease(
+                subcloud=strategy_step.subcloud.name,
+                details="Unable to find a deployed release after deployment",
+            )
+
+        if strategy_step.subcloud.software_version != software_version:
+            # Update the databases with the new software version
+            db_api.subcloud_update(
+                self.context,
+                strategy_step.subcloud_id,
+                software_version=software_version,
+            )
+
+            dcorch_rpc = dcorch_rpc_client.EngineWorkerClient()
+            dcorch_rpc.update_subcloud_version(
+                self.context, self.region_name, software_version
+            )
+
+        return self.next_state
 
     def perform_state_action(self, strategy_step):
         """Finish Software Strategy"""
@@ -88,7 +121,7 @@ class FinishStrategyState(BaseState):
                 regionone_deployed_releases,
             )
 
-        return self.next_state
+        return self._finalize_upgrade(strategy_step, subcloud_releases)
 
     def _handle_release_delete(
         self, strategy_step, software_client, releases_to_delete

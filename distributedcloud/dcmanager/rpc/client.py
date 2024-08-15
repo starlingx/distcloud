@@ -245,11 +245,14 @@ class ManagerClient(RPCClient):
             ),
         )
 
-    def redeploy_subcloud(self, ctxt, subcloud_id, payload):
+    def redeploy_subcloud(self, ctxt, subcloud_id, payload, previous_version):
         return self.cast(
             ctxt,
             self.make_msg(
-                "redeploy_subcloud", subcloud_id=subcloud_id, payload=payload
+                "redeploy_subcloud",
+                subcloud_id=subcloud_id,
+                payload=payload,
+                previous_version=previous_version,
             ),
         )
 
@@ -295,7 +298,9 @@ class ManagerClient(RPCClient):
             ),
         )
 
-    def subcloud_deploy_install(self, ctxt, subcloud_id, payload, initial_deployment):
+    def subcloud_deploy_install(
+        self, ctxt, subcloud_id, payload, initial_deployment, previous_version
+    ):
         return self.cast(
             ctxt,
             self.make_msg(
@@ -303,6 +308,7 @@ class ManagerClient(RPCClient):
                 subcloud_id=subcloud_id,
                 payload=payload,
                 initial_deployment=initial_deployment,
+                previous_version=previous_version,
             ),
         )
 
@@ -352,7 +358,13 @@ class ManagerClient(RPCClient):
         )
 
     def subcloud_deploy_resume(
-        self, ctxt, subcloud_id, subcloud_name, payload, deploy_states_to_run
+        self,
+        ctxt,
+        subcloud_id,
+        subcloud_name,
+        payload,
+        deploy_states_to_run,
+        previous_version,
     ):
         return self.cast(
             ctxt,
@@ -362,6 +374,7 @@ class ManagerClient(RPCClient):
                 subcloud_name=subcloud_name,
                 payload=payload,
                 deploy_states_to_run=deploy_states_to_run,
+                previous_version=previous_version,
             ),
         )
 
