@@ -17,7 +17,12 @@
 # of this software may be licensed only pursuant to the terms
 # of an applicable Wind River license agreement.
 
+from oslo_log import log as logging
+
 from dcmanager.db import api as db_api
+
+
+LOG = logging.getLogger(__name__)
 
 
 def request_subcloud_audits(
@@ -46,3 +51,21 @@ def request_subcloud_audits(
     if audit_software:
         values["spare_audit_requested"] = True
     db_api.subcloud_audits_update_all(context, values)
+
+
+def filter_endpoint_data(context, subcloud, endpoint_data):
+    if endpoint_data:
+        LOG.debug(
+            f"Endpoint status before filtering for {subcloud.name}: {endpoint_data}"
+        )
+        subcloud_statuses = db_api.subcloud_status_get_all(context, subcloud.id)
+        for subcloud_status in subcloud_statuses:
+            endpoint_type = subcloud_status.endpoint_type
+            if (
+                endpoint_type in endpoint_data
+                and endpoint_data[endpoint_type] == subcloud_status.sync_status
+            ):
+                del endpoint_data[endpoint_type]
+        LOG.debug(
+            f"Endpoint status after filtering for {subcloud.name}: {endpoint_data}"
+        )
