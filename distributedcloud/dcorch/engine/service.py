@@ -256,27 +256,29 @@ class EngineWorkerService(service.Service):
             LOG.debug("Ignoring unchanged state update for %s" % subcloud_name)
             return
 
+        initial_sync_state = consts.INITIAL_SYNC_STATE_NONE
+        subsequent_sync = None
+
         # Check if the subcloud is ready to sync.
-        if (management_state == dccommon_consts.MANAGEMENT_MANAGED) and (
-            availability_status == dccommon_consts.AVAILABILITY_ONLINE
-        ):
-            # Update the subcloud state and schedule an initial sync
-            self.gswm.update_subcloud_state(
-                ctxt,
-                subcloud_name,
-                management_state=management_state,
-                availability_status=availability_status,
-                initial_sync_state=consts.INITIAL_SYNC_STATE_REQUESTED,
-            )
+        if management_state == dccommon_consts.MANAGEMENT_MANAGED:
+            if availability_status == dccommon_consts.AVAILABILITY_ONLINE:
+                # Update the subcloud state and schedule an initial sync
+                initial_sync_state = consts.INITIAL_SYNC_STATE_REQUESTED
         else:
-            # Update the subcloud state and cancel the initial sync
-            self.gswm.update_subcloud_state(
-                ctxt,
-                subcloud_name,
-                management_state=management_state,
-                availability_status=availability_status,
-                initial_sync_state=consts.INITIAL_SYNC_STATE_NONE,
-            )
+            # If the subcloud is unmanaged, reset the subsequent_sync, because it
+            # needs to run the initial sync when it becomes managed again.
+            # If only its availability changed, then subsequent_sync should remain
+            # the same
+            subsequent_sync = False
+
+        self.gswm.update_subcloud_state(
+            ctxt,
+            subcloud_name,
+            management_state=management_state,
+            availability_status=availability_status,
+            initial_sync_state=initial_sync_state,
+            subsequent_sync=subsequent_sync,
+        )
 
     @request_context
     def update_subcloud_state(

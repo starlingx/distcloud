@@ -42,6 +42,7 @@ class Subcloud(base.OrchestratorObject, base.VersionedObjectDictCompat):
         "availability_status": ovo_fields.StringField(),
         "capabilities": ovo_fields.DictOfListOfStringsField(),
         "initial_sync_state": ovo_fields.StringField(),
+        "subsequent_sync": ovo_fields.BooleanField(),
         "management_ip": ovo_fields.StringField(),
     }
 

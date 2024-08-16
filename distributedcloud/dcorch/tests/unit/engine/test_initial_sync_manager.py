@@ -115,6 +115,7 @@ class TestInitialSyncManager(base.OrchestratorTestCase):
             chunks[chunk_num][subcloud.region_name] = (
                 base.CAPABILITES,
                 subcloud.management_ip,
+                False,
             )
 
         ism = initial_sync_manager.InitialSyncManager()

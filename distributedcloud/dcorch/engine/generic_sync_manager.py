@@ -84,8 +84,6 @@ class GenericSyncManager(object):
         LOG.debug(f"Done sending {rpc_method.__name__} request messages.")
 
     def sync_subclouds(self):
-        LOG.info("Start sync_subclouds")
-
         # get a list of eligible subclouds (region_name, endpoint_type),
         # and mark them as in-progress.
         subcloud_sync_list = db_api.subcloud_sync_update_all_to_in_progress(
@@ -100,9 +98,11 @@ class GenericSyncManager(object):
         )
 
         if subcloud_sync_list:
+            LOG.info("Start sync_subclouds")
             self._process_subclouds(
                 self.engine_worker_rpc_client.sync_subclouds, subcloud_sync_list
             )
+            LOG.info("End sync_subclouds")
         else:
             LOG.debug("No eligible subclouds for sync.")
 

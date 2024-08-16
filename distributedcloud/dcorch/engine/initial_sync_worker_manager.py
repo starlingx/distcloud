@@ -44,7 +44,10 @@ class InitialSyncWorkerManager(object):
             f"subclouds {list(subcloud_capabilities.keys())}."
         )
 
-        for sc_region_name, sc_capabilities_and_ip in subcloud_capabilities.items():
+        for (
+            sc_region_name,
+            sc_capabilities_and_ip,
+        ) in subcloud_capabilities.items():
             # Create a new greenthread for each subcloud to allow the
             # initial syncs to be done in parallel. If there are not enough
             # greenthreads in the pool, this will block until one becomes
@@ -54,8 +57,9 @@ class InitialSyncWorkerManager(object):
                     self._initial_sync_subcloud,
                     self.context,
                     sc_region_name,
-                    sc_capabilities_and_ip[0],
-                    sc_capabilities_and_ip[1],
+                    sc_capabilities_and_ip[0],  # Capabilities
+                    sc_capabilities_and_ip[1],  # Management IP
+                    sc_capabilities_and_ip[2],  # Is subsequent sync?
                 )
             except Exception as e:
                 LOG.error(
@@ -64,7 +68,12 @@ class InitialSyncWorkerManager(object):
                 )
 
     def _initial_sync_subcloud(
-        self, context, subcloud_name, subcloud_capabilities, management_ip
+        self,
+        context,
+        subcloud_name,
+        subcloud_capabilities,
+        management_ip,
+        subsequent_sync,
     ):
         """Perform initial sync for a subcloud.
 
@@ -99,8 +108,12 @@ class InitialSyncWorkerManager(object):
         # issued before these IDs change, until these tokens expires.
         new_state = consts.INITIAL_SYNC_STATE_COMPLETED
         try:
-            self.initial_sync(subcloud_name, sync_objs)
-            FernetKeyManager.distribute_keys(subcloud_name)
+            if not subsequent_sync:
+                self.initial_sync(subcloud_name, sync_objs)
+                self.gswm.update_subcloud_state(
+                    context, subcloud_name, subsequent_sync=True
+                )
+            FernetKeyManager.distribute_keys(subcloud_name, management_ip)
             self.init_subcloud_sync_audit(subcloud_name)
             LOG.info(f"End of initial sync for subcloud {subcloud_name}")
         except Exception as e:
@@ -126,7 +139,6 @@ class InitialSyncWorkerManager(object):
                 eventlet.greenthread.spawn_after(
                     SYNC_FAIL_HOLD_OFF, self._reattempt_sync, subcloud_name
                 )
-                pass
             else:
                 LOG.error(
                     f"Unexpected new_state {new_state} for subcloud {subcloud_name}"
