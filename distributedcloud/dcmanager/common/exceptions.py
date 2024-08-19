@@ -37,14 +37,17 @@ class DCManagerException(Exception):
 
     def __init__(self, **kwargs):
         try:
-            super(DCManagerException, self).__init__(self.message % kwargs)
-            self.msg = self.message % kwargs  # pylint: disable=W1645
+            self.msg = self.format_message(**kwargs)
+            super().__init__(self.msg)
         except Exception:
             with excutils.save_and_reraise_exception() as ctxt:
                 if not self.use_fatal_exceptions():
                     ctxt.reraise = False
                     # at least get the core message out if something happened
-                    super(DCManagerException, self).__init__(self.message)
+                    super().__init__(self.message)
+
+    def format_message(self, **kwargs):
+        return self.message % kwargs
 
     def use_fatal_exceptions(self):
         return False
@@ -260,18 +263,28 @@ class SoftwarePreCheckFailedException(DCManagerException):
     message = _("Subcloud %(subcloud)s software deploy precheck failed: %(details)s")
 
 
-class CreateVIMStrategyFailedException(DCManagerException):
-    message = _(
-        "Subcloud %(subcloud)s create VIM %(name)s strategy "
-        "failed. State: %(state)s Details: %(details)s"
-    )
+class VIMStrategyFailedException(DCManagerException):
+    """Base Exception for VIM Strategy Failures."""
+
+    def __init__(self, base_message, **kwargs):
+        if "state" in kwargs:
+            base_message += " State: %(state)s"
+        if "details" in kwargs:
+            base_message += " Details: %(details)s"
+        self.message = base_message
+        super().__init__(**kwargs)
 
 
-class ApplyVIMStrategyFailedException(DCManagerException):
-    message = _(
-        "Subcloud %(subcloud)s apply VIM %(name)s strategy "
-        "failed. State: %(state)s Details: %(details)s"
-    )
+class CreateVIMStrategyFailedException(VIMStrategyFailedException):
+    def __init__(self, **kwargs):
+        base_message = _("Subcloud %(subcloud)s create VIM %(name)s strategy failed.")
+        super().__init__(base_message, **kwargs)
+
+
+class ApplyVIMStrategyFailedException(VIMStrategyFailedException):
+    def __init__(self, **kwargs):
+        base_message = _("Subcloud %(subcloud)s apply VIM %(name)s strategy failed.")
+        super().__init__(base_message, **kwargs)
 
 
 class SoftwareListFailedException(DCManagerException):

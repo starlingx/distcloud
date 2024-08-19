@@ -4,9 +4,9 @@
 # SPDX-License-Identifier: Apache-2.0
 #
 
-from dccommon.drivers.openstack import sdk_platform
 from dccommon.drivers.openstack import software_v1
 from dccommon.drivers.openstack import vim
+from dccommon import exceptions as vim_exc
 from dcmanager.common import consts
 from dcmanager.common import exceptions
 from dcmanager.common import utils
@@ -49,13 +49,19 @@ class PreCheckState(BaseState):
         # Get current strategy for the subcloud; check type and state
         subcloud_name = strategy_step.subcloud.name
         try:
-            keystone_client = sdk_platform.OpenStackDriver(
-                region_name=self.region_name, region_clients=None
-            ).keystone_client
-            vim_client = vim.VimClient(self.region_name, keystone_client.session)
+            vim_client = self.get_vim_client(self.region_name)
+        except Exception as e:
+            raise exceptions.SoftwarePreCheckFailedException(
+                subcloud=subcloud_name,
+                details=f"Failed to get VIM client: {str(e)}",
+            )
+        try:
             strategy = vim_client.get_current_strategy()
-        except Exception:
-            details = f"Get current strategy failed on subcloud: {subcloud_name}"
+        except vim_exc.VIMClientException as e:
+            details = (
+                f"Get current strategy failed on subcloud: {subcloud_name}. "
+                f"Details: {str(e)}"
+            )
             self.error_log(strategy_step, details)
             raise exceptions.SoftwarePreCheckFailedException(
                 subcloud=subcloud_name,

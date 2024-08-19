@@ -61,19 +61,18 @@ class TestPreCheckState(TestSoftwareOrchestrator):
         )
 
         self._mock_read_from_cache(pre_check.PreCheckState)
-        self._mock_openstack_driver(pre_check.sdk_platform)
-        self._mock_vim_client(pre_check.vim)
         self.software_client.list = mock.MagicMock(return_value=FAKE_SUBCLOUD_RELEASES)
         self.mock_read_from_cache.return_value = FAKE_REGION_ONE_RELEASE_PRESTAGED
-        self.mock_vim_client().get_current_strategy = mock.MagicMock(return_value={})
+        self.vim_client.get_current_strategy = mock.MagicMock(return_value={})
+        self.vim_client.delete_strategy = mock.MagicMock()
 
     def test_pre_check_success(self):
         """Test pre-check when the API call succeeds."""
 
         self.worker.perform_state_action(self.strategy_step)
 
-        self.mock_vim_client().get_current_strategy.assert_called_once()
-        self.mock_vim_client().delete_strategy.assert_not_called()
+        self.vim_client.get_current_strategy.assert_called_once()
+        self.vim_client.delete_strategy.assert_not_called()
         self.software_client.list.assert_called()
 
         # On success, the state should transition to the next state
@@ -82,14 +81,12 @@ class TestPreCheckState(TestSoftwareOrchestrator):
     def test_pre_check_success_valid_software_strategy(self):
         """Test pre-check when the API call succeeds with a valid VIM strategy."""
 
-        self.mock_vim_client().get_current_strategy.return_value = (
-            FAKE_VALID_CURRENT_STRATEGY
-        )
+        self.vim_client.get_current_strategy.return_value = FAKE_VALID_CURRENT_STRATEGY
 
         self.worker.perform_state_action(self.strategy_step)
 
-        self.mock_vim_client().get_current_strategy.assert_called_once()
-        self.mock_vim_client().delete_strategy.assert_called_once_with("sw-upgrade")
+        self.vim_client.get_current_strategy.assert_called_once()
+        self.vim_client.delete_strategy.assert_called_once_with("sw-upgrade")
         self.software_client.list.assert_called()
 
         # On success, the state should transition to the next state
@@ -98,14 +95,14 @@ class TestPreCheckState(TestSoftwareOrchestrator):
     def test_pre_check_failed_invalid_software_strategy(self):
         """Test pre-check when the API call fails with an invalid VIM strategy."""
 
-        self.mock_vim_client().get_current_strategy.return_value = (
+        self.vim_client.get_current_strategy.return_value = (
             FAKE_INVALID_CURRENT_STRATEGY
         )
 
         self.worker.perform_state_action(self.strategy_step)
 
-        self.mock_vim_client().get_current_strategy.assert_called_once()
-        self.mock_vim_client().delete_strategy.assert_not_called()
+        self.vim_client.get_current_strategy.assert_called_once()
+        self.vim_client.delete_strategy.assert_not_called()
         self.software_client.list.assert_not_called()
 
         # On failed, the state should transition to 'failed' state
@@ -116,14 +113,14 @@ class TestPreCheckState(TestSoftwareOrchestrator):
     def test_pre_check_failed_existing_strategy(self):
         """Test pre-check when the API call fails with an existing VIM strategy."""
 
-        self.mock_vim_client().get_current_strategy.return_value = (
+        self.vim_client.get_current_strategy.return_value = (
             FAKE_EXISTING_CURRENT_STRATEGY
         )
 
         self.worker.perform_state_action(self.strategy_step)
 
-        self.mock_vim_client().get_current_strategy.assert_called_once()
-        self.mock_vim_client().delete_strategy.assert_not_called()
+        self.vim_client.get_current_strategy.assert_called_once()
+        self.vim_client.delete_strategy.assert_not_called()
         self.software_client.list.assert_not_called()
 
         # On failed, the state should transition to 'failed' state
@@ -139,8 +136,8 @@ class TestPreCheckState(TestSoftwareOrchestrator):
 
         self.worker.perform_state_action(self.strategy_step)
 
-        self.mock_vim_client().get_current_strategy.assert_called_once()
-        self.mock_vim_client().delete_strategy.assert_not_called()
+        self.vim_client.get_current_strategy.assert_called_once()
+        self.vim_client.delete_strategy.assert_not_called()
         self.software_client.list.assert_called_once()
 
         # On failed, the state should transition to 'failed' state

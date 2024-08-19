@@ -125,13 +125,13 @@ class BaseState(object, metaclass=abc.ABCMeta):
         try:
             os_client = OpenStackDriver(
                 region_name=region_name,
-                region_clients=["sysinv"],
+                region_clients=None,
                 fetch_subcloud_ips=utils.fetch_subcloud_mgmt_ips,
             )
             return os_client.keystone_client
         except Exception:
             LOG.warning(
-                "Failure initializing KeystoneClient for region: %s" % region_name
+                f"Failure initializing KeystoneClient for region: {region_name}"
             )
             raise
 

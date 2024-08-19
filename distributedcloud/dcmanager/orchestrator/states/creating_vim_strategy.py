@@ -7,6 +7,7 @@
 import time
 
 from dccommon.drivers.openstack import vim
+from dccommon import exceptions as vim_exc
 from dcmanager.common import consts
 from dcmanager.common import exceptions
 from dcmanager.common import utils
@@ -45,29 +46,110 @@ class CreatingVIMStrategyState(BaseState):
             # Create rollback = False since DC orchestration do not support rollback
             opts_dict["rollback"] = False
 
-        # Call the API to build the VIM strategy
-        # release and rollback will be sent as a **kwargs value for sw-deploy strategy
-        subcloud_strategy = self.get_vim_client(region).create_strategy(
-            self.strategy_name,
-            opts_dict["storage-apply-type"],
-            opts_dict["worker-apply-type"],
-            opts_dict["max-parallel-workers"],
-            opts_dict["default-instance-action"],
-            opts_dict["alarm-restriction-type"],
-            release=opts_dict.get("release_id"),
-            rollback=opts_dict.get("rollback"),
-        )
+        try:
+            # Call the API to build the VIM strategy
+            # release and rollback will be sent as a **kwargs value for sw-deploy
+            subcloud_strategy = self.get_vim_client(region).create_strategy(
+                self.strategy_name,
+                opts_dict["storage-apply-type"],
+                opts_dict["worker-apply-type"],
+                opts_dict["max-parallel-workers"],
+                opts_dict["default-instance-action"],
+                opts_dict["alarm-restriction-type"],
+                release=opts_dict.get("release_id"),
+                rollback=opts_dict.get("rollback"),
+            )
+        except vim_exc.VIMClientException as e:
+            raise exceptions.CreateVIMStrategyFailedException(
+                subcloud=strategy_step.subcloud.name,
+                name=self.strategy_name,
+                details=f"VIM create strategy failed: {str(e)}",
+            )
 
         # a successful API call to create MUST set the state be 'building'
         if subcloud_strategy.state != vim.STATE_BUILDING:
-            message = "Unexpected VIM strategy build state."
             raise exceptions.CreateVIMStrategyFailedException(
                 subcloud=strategy_step.subcloud.name,
                 name=self.strategy_name,
                 state=subcloud_strategy.state,
-                details=message,
+                details="Unexpected VIM strategy build state.",
             )
         return subcloud_strategy
+
+    def _delete_existing_strategy(self, vim_client, strategy_step):
+        self.info_log(strategy_step, "Deleting existing VIM strategy")
+        try:
+            vim_client.delete_strategy(strategy_name=self.strategy_name)
+        except vim_exc.VIMClientException as e:
+            raise exceptions.CreateVIMStrategyFailedException(
+                subcloud=strategy_step.subcloud.name,
+                name=self.strategy_name,
+                details=f"Failed to delete existing VIM strategy: {str(e)}",
+            )
+
+    def _wait_for_strategy_build(self, vim_client, strategy_step):
+        counter = 0
+        while True:
+            # If event handler stop has been triggered, fail the state
+            if self.stopped():
+                raise exceptions.StrategyStoppedException()
+            if counter >= self.max_queries:
+                raise exceptions.CreateVIMStrategyFailedException(
+                    subcloud=strategy_step.subcloud.name,
+                    name=self.strategy_name,
+                    details="Timeout building VIM strategy.",
+                )
+            counter += 1
+            time.sleep(self.sleep_duration)
+
+            try:
+                # query the vim strategy to see if it is in the new state
+                subcloud_strategy = vim_client.get_strategy(
+                    strategy_name=self.strategy_name, raise_error_if_missing=True
+                )
+            except vim_exc.VIMClientException as e:
+                raise exceptions.CreateVIMStrategyFailedException(
+                    subcloud=strategy_step.subcloud.name,
+                    name=self.strategy_name,
+                    details=f"Failed to get VIM strategy: {str(e)}",
+                )
+
+            # Check for skip criteria where a failed 'build' might be expected
+            # pylint: disable-next=assignment-from-none
+            skip_state = self.skip_check(strategy_step, subcloud_strategy)
+            if skip_state is not None:
+                self.info_log(strategy_step, f"Skip forward to state: {skip_state}")
+                self.override_next_state(skip_state)
+                # break out of loop. Let overridden 'next_state' take over
+                break
+
+            if subcloud_strategy.state == vim.STATE_READY_TO_APPLY:
+                self.info_log(strategy_step, "VIM strategy has been built")
+                break
+            elif subcloud_strategy.state in [vim.STATE_BUILDING]:
+                # This is the expected state while creating the strategy
+                continue
+            else:
+                error_message = {
+                    vim.STATE_BUILD_FAILED: "VIM strategy build failed: ",
+                    vim.STATE_BUILD_TIMEOUT: "VIM strategy build timed out: ",
+                }.get(subcloud_strategy.state, "VIM strategy unexpected build state.")
+
+                build_error = (
+                    subcloud_strategy.build_phase.response
+                    or subcloud_strategy.build_phase.reason
+                )
+                db_api.subcloud_update(
+                    self.context,
+                    strategy_step.subcloud_id,
+                    error_description=build_error,
+                )
+                raise exceptions.CreateVIMStrategyFailedException(
+                    subcloud=strategy_step.subcloud.name,
+                    name=self.strategy_name,
+                    state=subcloud_strategy.state,
+                    details=error_message + build_error,
+                )
 
     def skip_check(self, strategy_step, subcloud_strategy):
         """Subclasses can override this to allow this state to skip ahead"""
@@ -84,17 +166,33 @@ class CreatingVIMStrategyState(BaseState):
         """
         region = self.get_region_name(strategy_step)
 
-        # Get the existing VIM strategy, which may be None
-        subcloud_strategy = self.get_vim_client(region).get_strategy(
-            strategy_name=self.strategy_name, raise_error_if_missing=False
-        )
+        try:
+            vim_client = self.get_vim_client(region)
+        except Exception as e:
+            raise exceptions.CreateVIMStrategyFailedException(
+                subcloud=strategy_step.subcloud.name,
+                name=self.strategy_name,
+                details=f"Failed to get VIM client: {str(e)}",
+            )
+
+        try:
+            # Get the existing VIM strategy, which may be None
+            subcloud_strategy = vim_client.get_strategy(
+                strategy_name=self.strategy_name, raise_error_if_missing=False
+            )
+        except vim_exc.VIMClientException as e:
+            raise exceptions.CreateVIMStrategyFailedException(
+                subcloud=strategy_step.subcloud.name,
+                name=self.strategy_name,
+                details=f"Failed to get VIM strategy: {str(e)}",
+            )
 
         if subcloud_strategy is None:
             subcloud_strategy = self._create_vim_strategy(strategy_step, region)
         else:
             self.info_log(
                 strategy_step,
-                "VIM strategy exists with state: %s" % subcloud_strategy.state,
+                f"VIM strategy exists with state: {subcloud_strategy.state}",
             )
             # if a strategy exists in any type of failed state or aborted state it
             # should be deleted. Applied state should also be deleted from previous
@@ -106,8 +204,8 @@ class CreatingVIMStrategyState(BaseState):
             ]:
                 # Can't delete a strategy in these states
                 message = (
-                    "Failed to create a VIM strategy. There already is an existing "
-                    "strategy in this state."
+                    "Failed to create a VIM strategy. There already is an "
+                    "existing strategy in this state."
                 )
                 self.warn_log(strategy_step, message)
                 raise exceptions.CreateVIMStrategyFailedException(
@@ -118,74 +216,11 @@ class CreatingVIMStrategyState(BaseState):
                 )
 
             # if strategy exists in any other type of state, delete and create
-            self.info_log(strategy_step, "Deleting existing VIM strategy")
-            self.get_vim_client(region).delete_strategy(
-                strategy_name=self.strategy_name
-            )
+            self._delete_existing_strategy(vim_client, strategy_step)
             # re-create it
             subcloud_strategy = self._create_vim_strategy(strategy_step, region)
 
-        # A strategy already exists, or is being built
+        # A strategy already exists, or is being built.
         # Loop until the strategy is done building Repeatedly query the API
-        counter = 0
-        while True:
-            error_message = None
-            # If event handler stop has been triggered, fail the state
-            if self.stopped():
-                raise exceptions.StrategyStoppedException()
-            if counter >= self.max_queries:
-                details = "Timeout building VIM strategy."
-                raise exceptions.CreateVIMStrategyFailedException(
-                    subcloud=strategy_step.subcloud.name,
-                    name=self.strategy_name,
-                    state=subcloud_strategy.state,
-                    details=details,
-                )
-            counter += 1
-            time.sleep(self.sleep_duration)
-
-            # query the vim strategy to see if it is in the new state
-            subcloud_strategy = self.get_vim_client(region).get_strategy(
-                strategy_name=self.strategy_name, raise_error_if_missing=True
-            )
-
-            # Check for skip criteria where a failed 'build' might be expected
-            # pylint: disable-next=assignment-from-none
-            skip_state = self.skip_check(strategy_step, subcloud_strategy)
-            if skip_state is not None:
-                self.info_log(strategy_step, "Skip forward to state:(%s)" % skip_state)
-                self.override_next_state(skip_state)
-                # break out of loop. Let overridden 'next_state' take over
-                break
-
-            if subcloud_strategy.state == vim.STATE_READY_TO_APPLY:
-                self.info_log(strategy_step, "VIM strategy has been built")
-                break
-            elif subcloud_strategy.state == vim.STATE_BUILDING:
-                # This is the expected state while creating the strategy
-                pass
-            elif subcloud_strategy.state == vim.STATE_BUILD_FAILED:
-                error_message = "VIM strategy build failed: "
-            elif subcloud_strategy.state == vim.STATE_BUILD_TIMEOUT:
-                error_message = "VIM strategy build timed out: "
-            else:
-                error_message = "VIM strategy unexpected build state."
-            if error_message:
-                build_error = subcloud_strategy.build_phase.response
-                # If response is None, use the reason
-                if not build_error:
-                    build_error = subcloud_strategy.build_phase.reason
-                db_api.subcloud_update(
-                    self.context,
-                    strategy_step.subcloud_id,
-                    error_description=build_error,
-                )
-                raise exceptions.CreateVIMStrategyFailedException(
-                    subcloud=strategy_step.subcloud.name,
-                    name=self.strategy_name,
-                    state=subcloud_strategy.state,
-                    details=error_message + build_error,
-                )
-
-        # Success, state machine can proceed to the next state
+        self._wait_for_strategy_build(vim_client, strategy_step)
         return self.next_state
