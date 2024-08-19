@@ -38,6 +38,7 @@ import netaddr
 from oslo_config import cfg
 from oslo_log import log as logging
 from oslo_messaging import RemoteError
+from oslo_messaging import rpc as oslo_message_rpc
 from oslo_utils import timeutils
 from tsconfig.tsconfig import CONFIG_PATH
 from tsconfig.tsconfig import SW_VERSION
@@ -1890,13 +1891,23 @@ class SubcloudManager(manager.Manager):
                     m_ks_client, sysinv_client
                 )
 
-                # Inform orchestrator that subcloud has been added
-                self.dcorch_rpc_client.add_subcloud(
-                    context,
-                    subcloud.region_name,
-                    subcloud.software_version,
-                    subcloud.management_start_ip,
-                )
+                # TODO(glyraper): Use the RPC Transport allow_remote_exmods
+                #  parameter to re-raise serialized remote exceptions.
+                # Subcloud may already be created in dcorch db
+                # in a previous process, if so, we should ignore
+                # the creation.
+                try:
+                    # Inform orchestrator that subcloud has been added
+                    self.dcorch_rpc_client.add_subcloud(
+                        context,
+                        subcloud.region_name,
+                        subcloud.software_version,
+                        subcloud.management_start_ip,
+                    )
+
+                except oslo_message_rpc.client.RemoteError as ex:
+                    if "duplicate key value violates unique constraint" in str(ex):
+                        pass
 
                 self._create_intermediate_ca_cert(payload=payload)
                 self._write_subcloud_ansible_config(cached_regionone_data, payload)
@@ -2786,7 +2797,6 @@ class SubcloudManager(manager.Manager):
                 )
             if succeeded and consts.DEPLOY_PHASE_ENROLL in deploy_phases_to_run:
                 succeeded = self.subcloud_deploy_enroll(context, subcloud_id, payload)
-                raise NotImplementedError
             if succeeded and consts.DEPLOY_PHASE_BOOTSTRAP in deploy_phases_to_run:
                 succeeded = self.subcloud_deploy_bootstrap(
                     context, subcloud_id, payload, initial_deployment
