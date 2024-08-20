@@ -106,7 +106,7 @@ class OpenStackDriver(object):
         # Update the endpoint cache for the subcloud with the specified IP
         if subcloud_management_ip and region_name != consts.DEFAULT_REGION_NAME:
             # Check if the IP is different from the one already cached
-            endpoint_map = EndpointCache.master_service_endpoint_map[region_name]
+            endpoint_map = EndpointCache.master_service_endpoint_map.get(region_name)
             if endpoint_map:
                 endpoint = next(iter(endpoint_map.values()))
                 if subcloud_management_ip not in endpoint:
