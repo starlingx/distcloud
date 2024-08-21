@@ -413,7 +413,7 @@ class EndpointCache(object):
             self._create_master_cached_data()
 
         # Check if the cached master service endpoint map needs to be refreshed
-        elif region_name not in self.master_service_endpoint_map:
+        if not self.master_service_endpoint_map.get(region_name):
             previous_size = len(EndpointCache.master_service_endpoint_map)
 
             if not self._is_central_cloud(region_name):
