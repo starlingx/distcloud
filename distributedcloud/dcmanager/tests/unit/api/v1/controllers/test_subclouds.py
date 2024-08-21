@@ -819,272 +819,309 @@ class TestSubcloudsPost(BaseTestSubcloudsPost, PostMixin):
 class TestSubcloudsPostDualStack(BaseTestSubcloudsPost, PostMixin):
     """Test class for post requests dual-stack"""
 
+    management_ipv4 = {
+        "management_subnet": "192.168.1.0/24",
+        "management_start_address": "192.168.1.2",
+        "management_end_address": "192.168.1.50",
+    }
+    management_ipv6 = {
+        "management_subnet": "fd10::/64",
+        "management_start_address": "fd10::2",
+        "management_end_address": "fd10::100",
+    }
+    management_dual_primary_ipv4 = {
+        "management_subnet": "192.168.1.0/24,fd10::/64",
+        "management_start_address": "192.168.1.2,fd10::2",
+        "management_end_address": "192.168.1.50,fd10::100",
+    }
+    management_dual_primary_ipv6 = {
+        "management_subnet": "fd10::/64,192.168.1.0/24",
+        "management_start_address": "fd10::2,192.168.1.2",
+        "management_end_address": "fd10::100,192.168.1.50",
+    }
+
+    admin_ipv4 = {
+        "admin_subnet": "192.168.2.0/24",
+        "admin_start_address": "192.168.2.2",
+        "admin_end_address": "192.168.2.50",
+    }
+    admin_ipv6 = {
+        "admin_subnet": "fd20::/64",
+        "admin_start_address": "fd20::2",
+        "admin_end_address": "fd20::50",
+    }
+    admin_dual_primary_ipv4 = {
+        "admin_subnet": "192.168.2.0/24,fd20::/64",
+        "admin_start_address": "192.168.2.2,fd20::2",
+        "admin_end_address": "192.168.2.50,fd20::50",
+    }
+    admin_dual_primary_ipv6 = {
+        "admin_subnet": "fd20::/64,192.168.2.0/24",
+        "admin_start_address": "fd20::2,192.168.2.2",
+        "admin_end_address": "fd20::50,192.168.2.50",
+    }
+
+    management_gateway_address_ipv4 = "192.168.1.1"
+    management_gateway_address_ipv6 = "fd10::1"
+
+    admin_gateway_address_ipv4 = "192.168.2.1"
+    admin_gateway_address_ipv6 = "fd20::1"
+
+    systemcontroller_gateway_address_ipv4 = "192.168.204.1"
+    systemcontroller_gateway_address_ipv6 = "fd30::1"
+    systemcontroller_gateway_address_dual_primary_ipv4 = "192.168.204.1,fd30::1"
+    systemcontroller_gateway_address_dual_primary_ipv6 = "fd30::1,192.168.204.1"
+
+    systemcontroller_pools_ipv4 = [
+        FakeAddressPool("192.168.204.0", 24, "192.168.204.2", "192.168.204.100")
+    ]
+    systemcontroller_pools_ipv6 = [
+        FakeAddressPool("fd30::", 64, "fd30::2", "fd30::100")
+    ]
+    systemcontroller_pools_dual_primary_ipv4 = [
+        FakeAddressPool("192.168.204.0", 24, "192.168.204.2", "192.168.204.100"),
+        FakeAddressPool("fd30::", 64, "fd30::2", "fd30::100"),
+    ]
+    systemcontroller_pools_dual_primary_ipv6 = [
+        FakeAddressPool("fd30::", 64, "fd30::2", "fd30::100"),
+        FakeAddressPool("192.168.204.0", 24, "192.168.204.2", "192.168.204.100"),
+    ]
+
     def setUp(self):
         super().setUp()
 
-    def test_dual_stack_post_fails_with_invalid_systemcontroller_gateway_address(self):
+    def _test_fails_with_invalid_systemcontroller_gateway_address(
+        self, invalid_value, index
+    ):
+        self.params["systemcontroller_gateway_address"] = invalid_value[
+            "systemcontroller_gateway_address"
+        ]
+        if "management" in invalid_value:
+            self.bootstrap_data["management_subnet"] = invalid_value["management"][
+                "management_subnet"
+            ]
+            self.bootstrap_data["management_start_address"] = invalid_value[
+                "management"
+            ]["management_start_address"]
+            self.bootstrap_data["management_end_address"] = invalid_value["management"][
+                "management_end_address"
+            ]
+        else:
+            if "management_subnet" in self.bootstrap_data:
+                del self.bootstrap_data["management_subnet"]
+            if "management_start_address" in self.bootstrap_data:
+                del self.bootstrap_data["management_start_address"]
+            if "management_end_address" in self.bootstrap_data:
+                del self.bootstrap_data["management_end_address"]
+
+        if "management_gateway_address" in invalid_value:
+            self.bootstrap_data["management_gateway_address"] = invalid_value[
+                "management_gateway_address"
+            ]
+        else:
+            if "management_gateway_address" in self.bootstrap_data:
+                del self.bootstrap_data["management_gateway_address"]
+
+        if "admin" in invalid_value:
+            self.bootstrap_data["admin_subnet"] = invalid_value["admin"]["admin_subnet"]
+            self.bootstrap_data["admin_start_address"] = invalid_value["admin"][
+                "admin_start_address"
+            ]
+            self.bootstrap_data["admin_end_address"] = invalid_value["admin"][
+                "admin_end_address"
+            ]
+        else:
+            if "admin_subnet" in self.bootstrap_data:
+                del self.bootstrap_data["admin_subnet"]
+            if "admin_start_address" in self.bootstrap_data:
+                del self.bootstrap_data["admin_start_address"]
+            if "admin_end_address" in self.bootstrap_data:
+                del self.bootstrap_data["admin_end_address"]
+
+        if "admin_gateway_address" in invalid_value:
+            self.bootstrap_data["admin_gateway_address"] = invalid_value[
+                "admin_gateway_address"
+            ]
+        else:
+            if "admin_gateway_address" in self.bootstrap_data:
+                del self.bootstrap_data["admin_gateway_address"]
+
+        self.mock_get_network_address_pools.return_value = invalid_value[
+            "systemcontroller_pools"
+        ]
+
+        self.upload_files = self.get_post_upload_files()
+        response = self._send_request()
+
+        self._assert_pecan_and_response(
+            response, http.client.BAD_REQUEST, invalid_value["error_message"], index
+        )
+
+    def test_post_with_admin_fails_with_invalid_systemcontroller_gateway_address(self):
         """Test post fails with invalid system controller gateway address
 
-        This tests for dual-stack admin/management.
-        The gateway address must be of same IP family as primary admin/management
+        This tests for single/dual-stack admin/management.
+        The gateway address must be of same IP family as primary admin
+        (admin subnet has preference over managemnet subnet, if present)
         subnet of subcloud and it must be present on systemcontroller pools too.
+
+        Here we are testing against presence of admin subnet.
+        """
+        error_message = "systemcontroller_gateway_address invalid:"
+        error_message_1 = (
+            f"{error_message} failed to detect a valid IP address from '%s'"
+        )
+        error_message_2 = (
+            "systemcontroller_gateway_address IP family is not aligned "
+            "with system controller management: {} pool not found in "
+            "pools {}"
+        )
+        tests = [
+            (
+                self.systemcontroller_gateway_address_dual_primary_ipv4,
+                self.admin_dual_primary_ipv4,
+                self.admin_gateway_address_ipv4,
+                self.management_dual_primary_ipv4,
+                self.systemcontroller_pools_dual_primary_ipv4,
+                error_message_1
+                % format(self.systemcontroller_gateway_address_dual_primary_ipv4),
+            ),
+            (
+                self.systemcontroller_gateway_address_dual_primary_ipv6,
+                self.admin_dual_primary_ipv6,
+                self.admin_gateway_address_ipv6,
+                self.management_dual_primary_ipv6,
+                self.systemcontroller_pools_dual_primary_ipv6,
+                error_message_1
+                % format(self.systemcontroller_gateway_address_dual_primary_ipv6),
+            ),
+            (
+                self.systemcontroller_gateway_address_ipv4,
+                self.admin_dual_primary_ipv6,
+                self.admin_gateway_address_ipv6,
+                self.management_dual_primary_ipv4,
+                self.systemcontroller_pools_dual_primary_ipv4,
+                f"{error_message} Expected IPv6",
+            ),
+            (
+                self.systemcontroller_gateway_address_ipv6,
+                self.admin_dual_primary_ipv4,
+                self.admin_gateway_address_ipv4,
+                self.management_dual_primary_ipv6,
+                self.systemcontroller_pools_dual_primary_ipv6,
+                f"{error_message} Expected IPv4",
+            ),
+            (
+                self.systemcontroller_gateway_address_ipv4,
+                self.admin_ipv4,
+                self.admin_gateway_address_ipv4,
+                self.management_dual_primary_ipv4,
+                self.systemcontroller_pools_ipv6,
+                error_message_2.format("IPv4", self.systemcontroller_pools_ipv6),
+            ),
+            (
+                self.systemcontroller_gateway_address_ipv6,
+                self.admin_ipv6,
+                self.admin_gateway_address_ipv6,
+                self.management_dual_primary_ipv6,
+                self.systemcontroller_pools_ipv4,
+                error_message_2.format("IPv6", self.systemcontroller_pools_ipv4),
+            ),
+        ]
+
+        for index, test in enumerate(tests, start=1):
+            invalid_value = {
+                "systemcontroller_gateway_address": (test[0]),
+                "admin": test[1],
+                "admin_gateway_address": test[2],
+                "management": test[3],
+                "systemcontroller_pools": test[4],
+                "error_message": test[5],
+            }
+            self._test_fails_with_invalid_systemcontroller_gateway_address(
+                invalid_value, index
+            )
+
+    def test_post_without_admin_fails_with_invalid_systemcontroller_gateway_address(
+        self,
+    ):
+        """Test post fails with invalid system controller gateway address
+
+        This tests for single/dual-stack management.
+        The gateway address must be of same IP family as primary admin/management
+        (admin subnet has preference over managemnet subnet, if present)
+        subnet of subcloud and it must be present on systemcontroller pools too.
+
+        Here we are testing against absence of admin subnet.
         """
 
-        management_ipv4 = {
-            "management_subnet": "192.168.1.0/24",
-            "management_start_address": "192.168.1.2",
-            "management_end_address": "192.168.1.50",
-        }
-        management_ipv6 = {
-            "management_subnet": "fd10::/64",
-            "management_start_address": "fd10::2",
-            "management_end_address": "fd10::100",
-        }
-        management_dual_primary_ipv4 = {
-            "management_subnet": "192.168.1.0/24,fd10::/64",
-            "management_start_address": "192.168.1.2,fd10::2",
-            "management_end_address": "192.168.1.50,fd10::100",
-        }
-        management_dual_primary_ipv6 = {
-            "management_subnet": "fd10::/64,192.168.1.0/24",
-            "management_start_address": "fd10::2,192.168.1.2",
-            "management_end_address": "fd10::100,192.168.1.50",
-        }
-
-        admin_ipv4 = {
-            "admin_subnet": "192.168.2.0/24",
-            "admin_start_address": "192.168.2.2",
-            "admin_end_address": "192.168.2.50",
-        }
-        admin_ipv6 = {
-            "admin_subnet": "fd20::/64",
-            "admin_start_address": "fd20::2",
-            "admin_end_address": "fd20::50",
-        }
-        admin_dual_primary_ipv4 = {
-            "admin_subnet": "192.168.2.0/24,fd20::/64",
-            "admin_start_address": "192.168.2.2,fd20::2",
-            "admin_end_address": "192.168.2.50,fd20::50",
-        }
-        admin_dual_primary_ipv6 = {
-            "admin_subnet": "fd20::/64,192.168.2.0/24",
-            "admin_start_address": "fd20::2,192.168.2.2",
-            "admin_end_address": "fd20::50,192.168.2.50",
-        }
-
-        management_gateway_address_ipv4 = "192.168.1.1"
-        management_gateway_address_ipv6 = "fd10::1"
-
-        admin_gateway_address_ipv4 = "192.168.2.1"
-        admin_gateway_address_ipv6 = "fd20::1"
-
-        systemcontroller_gateway_address_ipv4 = "192.168.204.1"
-        systemcontroller_gateway_address_ipv6 = "fd30::1"
-        systemcontroller_gateway_address_dual_primary_ipv4 = "192.168.204.1,fd30::1"
-        systemcontroller_gateway_address_dual_primary_ipv6 = "fd30::1,192.168.204.1"
-
-        systemcontroller_pools_ipv4 = [
-            FakeAddressPool("192.168.204.0", 24, "192.168.204.2", "192.168.204.100")
-        ]
-        systemcontroller_pools_ipv6 = [
-            FakeAddressPool("fd30::", 64, "fd30::2", "fd30::100")
-        ]
-        systemcontroller_pools_dual_primary_ipv4 = [
-            FakeAddressPool("192.168.204.0", 24, "192.168.204.2", "192.168.204.100"),
-            FakeAddressPool("fd30::", 64, "fd30::2", "fd30::100"),
-        ]
-        systemcontroller_pools_dual_primary_ipv6 = [
-            FakeAddressPool("fd30::", 64, "fd30::2", "fd30::100"),
-            FakeAddressPool("192.168.204.0", 24, "192.168.204.2", "192.168.204.100"),
-        ]
-
         error_message = "systemcontroller_gateway_address invalid:"
-        invalid_values = [
-            {
-                "systemcontroller_gateway_address": (
-                    systemcontroller_gateway_address_dual_primary_ipv4
-                ),
-                "admin": admin_dual_primary_ipv4,
-                "admin_gateway_address": admin_gateway_address_ipv4,
-                "management": management_dual_primary_ipv4,
-                "systemcontroller_pools": systemcontroller_pools_dual_primary_ipv4,
-                "error_message": (
-                    f"{error_message} failed to detect a valid IP address"
-                    f" from '{systemcontroller_gateway_address_dual_primary_ipv4}'"
-                ),
-            },
-            {
-                "systemcontroller_gateway_address": (
-                    systemcontroller_gateway_address_dual_primary_ipv6
-                ),
-                "admin": admin_dual_primary_ipv6,
-                "admin_gateway_address": admin_gateway_address_ipv6,
-                "management": management_dual_primary_ipv6,
-                "systemcontroller_pools": systemcontroller_pools_dual_primary_ipv6,
-                "error_message": (
-                    f"{error_message} failed to detect a valid IP address from "
-                    f"'{systemcontroller_gateway_address_dual_primary_ipv6}'"
-                ),
-            },
-            {
-                "systemcontroller_gateway_address": (
-                    systemcontroller_gateway_address_ipv4
-                ),
-                "admin": admin_dual_primary_ipv6,
-                "admin_gateway_address": admin_gateway_address_ipv6,
-                "management": management_dual_primary_ipv4,
-                "systemcontroller_pools": systemcontroller_pools_dual_primary_ipv4,
-                "error_message": f"{error_message} Expected IPv6",
-            },
-            {
-                "systemcontroller_gateway_address": (
-                    systemcontroller_gateway_address_ipv6
-                ),
-                "admin": admin_dual_primary_ipv4,
-                "admin_gateway_address": admin_gateway_address_ipv4,
-                "management": management_dual_primary_ipv6,
-                "systemcontroller_pools": systemcontroller_pools_dual_primary_ipv6,
-                "error_message": f"{error_message} Expected IPv4",
-            },
-            {
-                "systemcontroller_gateway_address": (
-                    systemcontroller_gateway_address_ipv4
-                ),
-                "admin": admin_ipv4,
-                "admin_gateway_address": admin_gateway_address_ipv4,
-                "management": management_dual_primary_ipv4,
-                "systemcontroller_pools": systemcontroller_pools_ipv6,
-                "error_message": (
-                    f"systemcontroller_gateway_address IP family is not aligned "
-                    f"with system controller management: IPv4 pool not found in "
-                    f"pools {systemcontroller_pools_ipv6}"
-                ),
-            },
-            {
-                "systemcontroller_gateway_address": (
-                    systemcontroller_gateway_address_ipv6
-                ),
-                "admin": admin_ipv6,
-                "admin_gateway_address": admin_gateway_address_ipv6,
-                "management": management_dual_primary_ipv6,
-                "systemcontroller_pools": systemcontroller_pools_ipv4,
-                "error_message": (
-                    f"systemcontroller_gateway_address IP family is not aligned "
-                    f"with system controller management: IPv6 pool not found in pools "
-                    f"{systemcontroller_pools_ipv4}"
-                ),
-            },
-            {
-                "systemcontroller_gateway_address": (
-                    systemcontroller_gateway_address_ipv4
-                ),
-                "management": management_dual_primary_ipv6,
-                "management_gateway_address": management_gateway_address_ipv6,
-                "systemcontroller_pools": systemcontroller_pools_dual_primary_ipv4,
-                "error_message": f"{error_message} Expected IPv6",
-            },
-            {
-                "systemcontroller_gateway_address": (
-                    systemcontroller_gateway_address_ipv6
-                ),
-                "management": management_dual_primary_ipv4,
-                "management_gateway_address": management_gateway_address_ipv4,
-                "systemcontroller_pools": systemcontroller_pools_dual_primary_ipv6,
-                "error_message": f"{error_message} Expected IPv4",
-            },
-            {
-                "systemcontroller_gateway_address": (
-                    systemcontroller_gateway_address_ipv4
-                ),
-                "management": management_ipv4,
-                "management_gateway_address": management_gateway_address_ipv4,
-                "systemcontroller_pools": systemcontroller_pools_ipv6,
-                "error_message": (
-                    f"systemcontroller_gateway_address IP family is not aligned "
-                    f"with system controller management: IPv4 pool not found in pools "
-                    f"{systemcontroller_pools_ipv6}"
-                ),
-            },
-            {
-                "systemcontroller_gateway_address": (
-                    systemcontroller_gateway_address_ipv6
-                ),
-                "management": management_ipv6,
-                "management_gateway_address": management_gateway_address_ipv6,
-                "systemcontroller_pools": systemcontroller_pools_ipv4,
-                "error_message": (
-                    f"systemcontroller_gateway_address IP family is not aligned "
-                    f"with system controller management: IPv6 pool not found in pools "
-                    f"{systemcontroller_pools_ipv4}"
-                ),
-            },
+        error_message_1 = (
+            f"{error_message} failed to detect a valid IP address from '%s'"
+        )
+        error_message_2 = (
+            "systemcontroller_gateway_address IP family is not aligned "
+            "with system controller management: {} pool not found in "
+            "pools {}"
+        )
+
+        tests = [
+            (
+                self.systemcontroller_gateway_address_dual_primary_ipv4,
+                self.management_dual_primary_ipv4,
+                self.management_gateway_address_ipv4,
+                self.systemcontroller_pools_dual_primary_ipv4,
+                error_message_1
+                % format(self.systemcontroller_gateway_address_dual_primary_ipv4),
+            ),
+            (
+                self.systemcontroller_gateway_address_dual_primary_ipv6,
+                self.management_dual_primary_ipv6,
+                self.management_gateway_address_ipv6,
+                self.systemcontroller_pools_dual_primary_ipv6,
+                error_message_1
+                % format(self.systemcontroller_gateway_address_dual_primary_ipv6),
+            ),
+            (
+                self.systemcontroller_gateway_address_ipv4,
+                self.management_dual_primary_ipv6,
+                self.management_gateway_address_ipv6,
+                self.systemcontroller_pools_dual_primary_ipv4,
+                f"{error_message} Expected IPv6",
+            ),
+            (
+                self.systemcontroller_gateway_address_ipv6,
+                self.management_dual_primary_ipv4,
+                self.management_gateway_address_ipv4,
+                self.systemcontroller_pools_dual_primary_ipv6,
+                f"{error_message} Expected IPv4",
+            ),
+            (
+                self.systemcontroller_gateway_address_ipv4,
+                self.management_ipv4,
+                self.management_gateway_address_ipv4,
+                self.systemcontroller_pools_ipv6,
+                error_message_2.format("IPv4", self.systemcontroller_pools_ipv6),
+            ),
+            (
+                self.systemcontroller_gateway_address_ipv6,
+                self.management_ipv6,
+                self.management_gateway_address_ipv6,
+                self.systemcontroller_pools_ipv4,
+                error_message_2.format("IPv6", self.systemcontroller_pools_ipv4),
+            ),
         ]
 
-        for index, invalid_value in enumerate(invalid_values, start=1):
-            self.params["systemcontroller_gateway_address"] = invalid_value[
-                "systemcontroller_gateway_address"
-            ]
-            if "management" in invalid_value:
-                self.bootstrap_data["management_subnet"] = invalid_value["management"][
-                    "management_subnet"
-                ]
-                self.bootstrap_data["management_start_address"] = invalid_value[
-                    "management"
-                ]["management_start_address"]
-                self.bootstrap_data["management_end_address"] = invalid_value[
-                    "management"
-                ]["management_end_address"]
-            else:
-                if "management_subnet" in self.bootstrap_data:
-                    del self.bootstrap_data["management_subnet"]
-                if "management_start_address" in self.bootstrap_data:
-                    del self.bootstrap_data["management_start_address"]
-                if "management_end_address" in self.bootstrap_data:
-                    del self.bootstrap_data["management_end_address"]
-
-            if "management_gateway_address" in invalid_value:
-                self.bootstrap_data["management_gateway_address"] = invalid_value[
-                    "management_gateway_address"
-                ]
-            else:
-                if "management_gateway_address" in self.bootstrap_data:
-                    del self.bootstrap_data["management_gateway_address"]
-
-            if "admin" in invalid_value:
-                self.bootstrap_data["admin_subnet"] = invalid_value["admin"][
-                    "admin_subnet"
-                ]
-                self.bootstrap_data["admin_start_address"] = invalid_value["admin"][
-                    "admin_start_address"
-                ]
-                self.bootstrap_data["admin_end_address"] = invalid_value["admin"][
-                    "admin_end_address"
-                ]
-            else:
-                if "admin_subnet" in self.bootstrap_data:
-                    del self.bootstrap_data["admin_subnet"]
-                if "admin_start_address" in self.bootstrap_data:
-                    del self.bootstrap_data["admin_start_address"]
-                if "admin_end_address" in self.bootstrap_data:
-                    del self.bootstrap_data["admin_end_address"]
-
-            if "admin_gateway_address" in invalid_value:
-                self.bootstrap_data["admin_gateway_address"] = invalid_value[
-                    "admin_gateway_address"
-                ]
-            else:
-                if "admin_gateway_address" in self.bootstrap_data:
-                    del self.bootstrap_data["admin_gateway_address"]
-
-            self.mock_get_network_address_pools.return_value = invalid_value[
-                "systemcontroller_pools"
-            ]
-
-            self.upload_files = self.get_post_upload_files()
-            response = self._send_request()
-
-            self._assert_pecan_and_response(
-                response, http.client.BAD_REQUEST, invalid_value["error_message"], index
+        for index, test in enumerate(tests, start=1):
+            invalid_value = {
+                "systemcontroller_gateway_address": (test[0]),
+                "management": test[1],
+                "management_gateway_address": test[2],
+                "systemcontroller_pools": test[3],
+                "error_message": test[4],
+            }
+            self._test_fails_with_invalid_systemcontroller_gateway_address(
+                invalid_value, index
             )
 
 

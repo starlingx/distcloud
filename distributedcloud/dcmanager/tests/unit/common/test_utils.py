@@ -7,12 +7,11 @@
 """
 Tests for the generic utils.
 """
-import unittest
-
 import netaddr
 
 from dcmanager.common import exceptions
 from dcmanager.common import utils
+from dcmanager.tests.base import DCManagerTestCase
 
 
 class FakeAddressPool(object):
@@ -23,7 +22,7 @@ class FakeAddressPool(object):
         self.family = netaddr.IPAddress(network).version
 
 
-class TestCommonUtils(unittest.TestCase):
+class TestCommonUtils(DCManagerTestCase):
     def test_fail_validate_network_str(self):
         invalids = [
             {
@@ -49,9 +48,13 @@ class TestCommonUtils(unittest.TestCase):
         ]
 
         for invalid in invalids:
-            with self.assertRaises(exceptions.ValidateFail) as context:
-                utils.validate_network_str(invalid["network_str"], 32)
-            self.assertEqual(context.exception.msg, invalid["error"])
+            err = self.assertRaises(
+                exceptions.ValidateFail,
+                utils.validate_network_str,
+                invalid["network_str"],
+                32,
+            )
+            self.assertEqual(err.args[0], invalid["error"])
 
     def test_pass_validate_network_str(self):
         network_str = "192.168.0.0/24,fd00::/64"
@@ -111,9 +114,13 @@ class TestCommonUtils(unittest.TestCase):
 
         for invalid in invalids:
             networks = utils.validate_network_str(invalid["network_str"], 32)
-            with self.assertRaises(exceptions.ValidateFail) as context:
-                utils.validate_address_str(invalid["address_str"], networks)
-            self.assertEqual(context.exception.msg, invalid["error"])
+            err = self.assertRaises(
+                exceptions.ValidateFail,
+                utils.validate_address_str,
+                invalid["address_str"],
+                networks,
+            )
+            self.assertEqual(err.args[0], invalid["error"])
 
     def test_pass_validate_address_str(self):
         network_str = "192.168.0.0/24,fd00::/64"
@@ -140,10 +147,14 @@ class TestCommonUtils(unittest.TestCase):
             FakeAddressPool("192.168.0.1", "192.168.0.0", 24),
         ]
         ip_family = 6
-        with self.assertRaises(exceptions.ValidateFail) as context:
-            utils.get_pool_by_ip_family(POOLS_IPV4, ip_family)
+        err = self.assertRaises(
+            exceptions.ValidateFail,
+            utils.get_pool_by_ip_family,
+            POOLS_IPV4,
+            ip_family,
+        )
         self.assertEqual(
-            context.exception.msg,
+            err.args[0],
             f"IPv{ip_family} pool not found in pools {POOLS_IPV4}",
         )
 
@@ -165,51 +176,89 @@ class TestCommonUtils(unittest.TestCase):
         payload = {
             "management_gateway_address": invalid_ip,
         }
-        with self.assertRaises(exceptions.ValidateFail) as context:
-            utils.get_management_gateway_address_ip_family(payload)
+
+        err = self.assertRaises(
+            exceptions.ValidateFail,
+            utils.get_management_gateway_address_ip_family,
+            payload,
+        )
         self.assertEqual(
-            context.exception.msg,
+            err.args[0],
             f"Invalid address - not a valid IP address: failed to detect a valid IP "
             f"address from '{invalid_ip}'",
         )
 
-    def test_get_primary_oam_address_ip_family(self):
-        payload = {
-            "external_oam_subnet_ip_family": 4,
-        }
-        ip_family = utils.get_primary_oam_address_ip_family(payload)
-        self.assertEqual(ip_family, 4)
+    def test_get_primary_oam_address_ip_family_with_valid_address_family(self):
+        addresses_family = [4, 6]
+        for address_family in addresses_family:
+            payload = {
+                "external_oam_subnet_ip_family": address_family,
+            }
+            ip_family = utils.get_primary_oam_address_ip_family(payload)
+            self.assertEqual(ip_family, address_family)
 
-        invalid_family = "inv"
-        payload = {
-            "external_oam_subnet_ip_family": invalid_family,
-        }
-        with self.assertRaises(exceptions.ValidateFail) as context:
-            utils.get_primary_oam_address_ip_family(payload)
-        self.assertEqual(
-            context.exception.msg,
-            f"Invalid external_oam_subnet_ip_family: "
-            f"invalid literal for int() with base 10: '{invalid_family}'",
-        )
+    def test_get_primary_oam_address_ip_family_with_invalid_address_family(self):
+        addresses_family = ["inv", 7]
+        errors = [
+            (
+                f"Invalid external_oam_subnet_ip_family: "
+                f"invalid literal for int() with base 10: '{addresses_family[0]}'"
+            ),
+            (
+                f"Invalid external_oam_subnet_ip_family: "
+                f"Invalid external_oam_subnet_ip_family: {addresses_family[1]}"
+            ),
+        ]
 
-        payload = {"external_oam_subnet": "192.168.0.1/24,fd00::/64"}
-        ip_family = utils.get_primary_oam_address_ip_family(payload)
-        self.assertEqual(ip_family, 4)
+        for index, address_family in enumerate(addresses_family):
+            payload = {
+                "external_oam_subnet_ip_family": address_family,
+            }
+            err = self.assertRaises(
+                exceptions.ValidateFail,
+                utils.get_primary_oam_address_ip_family,
+                payload,
+            )
+            self.assertEqual(err.args[0], errors[index])
 
-        payload = {"external_oam_subnet": "fd00::/64,192.168.0.1/24"}
-        ip_family = utils.get_primary_oam_address_ip_family(payload)
-        self.assertEqual(ip_family, 6)
+    def test_get_primary_oam_address_ip_family_with_valid_address(self):
+        addresses = [
+            "192.168.0.1/24,fd00::/64",
+            "192.168.0.1/24",
+            "fd00::/64",
+            "fd00::/64,192.168.0.1/24",
+        ]
+        addresses_family = [4, 4, 6, 6]
 
-        payload = {"external_oam_subnet": "fd00::/64"}
-        ip_family = utils.get_primary_oam_address_ip_family(payload)
-        self.assertEqual(ip_family, 6)
+        for index, address in enumerate(addresses):
+            payload = {
+                "external_oam_subnet": address,
+            }
+            ip_family = utils.get_primary_oam_address_ip_family(payload)
+            self.assertEqual(ip_family, addresses_family[index])
 
-        invalid_subnet = "fd00:/64"
-        payload = {"external_oam_subnet": invalid_subnet}
-        with self.assertRaises(exceptions.ValidateFail) as context:
-            utils.get_primary_oam_address_ip_family(payload)
-        self.assertEqual(
-            context.exception.msg,
-            f"Invalid OAM network - not a valid IP Network: "
-            f"invalid IPNetwork {invalid_subnet}",
-        )
+    def test_get_primary_oam_address_ip_family_with_invalid_address(self):
+        addresses = [
+            "fd00:/64",
+            "192.168.0.257/24",
+            "192.168.0.1.1/24",
+            "fd01::6::16/64",
+        ]
+        error = "Invalid OAM network - not a valid IP Network: invalid IPNetwork %s"
+        errors = [
+            error % format(addresses[0]),
+            error % format(addresses[1]),
+            error % format(addresses[2]),
+            error % format(addresses[3]),
+        ]
+
+        for index, address in enumerate(addresses):
+            payload = {
+                "external_oam_subnet": address,
+            }
+            err = self.assertRaises(
+                exceptions.ValidateFail,
+                utils.get_primary_oam_address_ip_family,
+                payload,
+            )
+            self.assertEqual(err.args[0], errors[index])
