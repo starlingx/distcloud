@@ -152,7 +152,7 @@ class BaseState(object, metaclass=abc.ABCMeta):
 
     def get_software_client(self, region_name=dccommon_consts.DEFAULT_REGION_NAME):
         keystone_client = self.get_keystone_client(region_name)
-        return SoftwareClient(region_name, keystone_client.session)
+        return SoftwareClient(keystone_client.session, region_name)
 
     @property
     def local_sysinv(self):
