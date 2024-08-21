@@ -60,7 +60,7 @@ class InitialSyncWorkerManager(object):
                     sc_capabilities_and_ip[0],  # Capabilities
                     sc_capabilities_and_ip[1],  # Management IP
                     sc_capabilities_and_ip[2],  # Software Version
-                    sc_capabilities_and_ip[3],  # Is subsequent sync?
+                    sc_capabilities_and_ip[3],  # Subsequent sync
                 )
             except Exception as e:
                 LOG.error(
@@ -132,7 +132,20 @@ class InitialSyncWorkerManager(object):
             if new_state == consts.INITIAL_SYNC_STATE_COMPLETED:
                 # The initial sync was completed and we have updated the
                 # subcloud state. Now we can enable syncing for the subcloud.
-                self.enable_subcloud(subcloud_name, sync_objs)
+                try:
+                    self.enable_subcloud(subcloud_name, sync_objs)
+                except Exception as e:
+                    LOG.error(
+                        "An error occurred when enabling the subcloud "
+                        f"{subcloud_name}: {e}"
+                    )
+
+                # The last_audit_at timestamp was set to None during
+                # enable_subcloud() call above so that the subcloud would not be
+                # considered for audit during the enabling step. Setting the
+                # timestamp here so the subcloud can be considered in the next
+                # dcorch audit run.
+                db_api.subcloud_audit_update_last_audit_time(context, subcloud_name)
             elif new_state == consts.INITIAL_SYNC_STATE_FAILED:
                 # Start a "timer" to wait a bit before re-attempting the sync.
                 # This thread is not taken from the thread pool, because we

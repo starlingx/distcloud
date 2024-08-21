@@ -31,6 +31,7 @@ from dcorch.common import exceptions
 from dcorch.common.i18n import _
 from dcorch.common import manager
 from dcorch.common import utils
+from dcorch.rpc import client
 
 
 FERNET_REPO_MASTER_ID = "keys"
@@ -44,13 +45,13 @@ LOG = logging.getLogger(__name__)
 class FernetKeyManager(manager.Manager):
     """Manages tasks related to fernet key management"""
 
-    def __init__(self, gsm, *args, **kwargs):
+    def __init__(self, *args, **kwargs):
         LOG.debug(_("FernetKeyManager initialization..."))
 
         super(FernetKeyManager, self).__init__(
             service_name="fernet_manager", *args, **kwargs
         )
-        self.gsm = gsm
+        self.rpc_client = client.EngineWorkerClient()
         self.context = context.get_admin_context()
         self.endpoint_type = dccommon_consts.ENDPOINT_TYPE_PLATFORM
         self.resource_type = consts.RESOURCE_TYPE_SYSINV_FERNET_REPO
@@ -85,8 +86,8 @@ class FernetKeyManager(manager.Manager):
                 subcloud=subcloud,
             )
             # wake up sync thread
-            if self.gsm:
-                self.gsm.sync_request(self.context, self.endpoint_type)
+            if self.rpc_client:
+                self.rpc_client.sync_request(self.context, self.endpoint_type)
         except Exception as e:
             LOG.error(_("Exception in schedule_work: %s") % str(e))
 

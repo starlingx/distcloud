@@ -697,20 +697,17 @@ class SyncThread(object):
             # todo: if we had an "unable to sync this
             # subcloud/endpoint" alarm raised, then clear it
             pass
-        else:
-            # set sync_request for this subcloud/endpoint
-            db_api.subcloud_sync_update(
-                self.ctxt,
-                self.subcloud_name,
-                self.endpoint_type,
-                values={"sync_request": consts.SYNC_STATUS_REQUESTED},
-            )
 
+        db_api.subcloud_sync_update(
+            self.ctxt,
+            self.subcloud_name,
+            self.endpoint_type,
+            values={"sync_request": consts.SYNC_STATUS_REQUESTED},
+        )
         LOG.debug(
             "{}: done sync audit".format(threading.currentThread().getName()),
             extra=self.log_extra,
         )
-        SyncThread.set_sync_request(self.ctxt, self.subcloud_name, self.endpoint_type)
         self.post_audit()
 
     def post_audit(self):
@@ -1091,12 +1088,3 @@ class SyncThread(object):
     # exists in subcloud resources.
     def resource_exists_in_subcloud(self, subcloud_rsrc, sc_resources):
         return True
-
-    @classmethod
-    def set_sync_request(cls, ctxt, subcloud_name, endpoint_type):
-        db_api.subcloud_sync_update(
-            ctxt,
-            subcloud_name,
-            endpoint_type,
-            values={"sync_request": consts.SYNC_STATUS_REQUESTED},
-        )

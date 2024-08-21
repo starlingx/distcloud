@@ -535,6 +535,16 @@ def subcloud_sync_update_all_to_in_progress(
 
 
 @require_context
+def subcloud_audit_update_last_audit_time(context, subcloud_name):
+    """Updates the last audit time for all rows of a subcloud"""
+
+    with write_session() as session:
+        session.query(models.SubcloudSync).filter(
+            models.SubcloudSync.subcloud_name == subcloud_name
+        ).update({models.SubcloudSync.last_audit_time: timeutils.utcnow()})
+
+
+@require_context
 def subcloud_audit_update_all_to_in_progress(
     context, management_state, availability_status, initial_sync_state, audit_interval
 ):
@@ -556,6 +566,7 @@ def subcloud_audit_update_all_to_in_progress(
                 models.Subcloud.management_state == management_state,
                 models.Subcloud.availability_status == availability_status,
                 models.Subcloud.initial_sync_state == initial_sync_state,
+                models.SubcloudSync.last_audit_time is not None,
                 or_(
                     # Search those with conditional audit status
                     # (completed/in-progress) and the last audit time is equal
@@ -1203,13 +1214,16 @@ def subcloud_sync_update(context, subcloud_name, endpoint_type, values):
         return result
 
 
-def subcloud_sync_update_all(context, management_state, endpoint_type, values):
+def subcloud_sync_update_all_except_in_progress(
+    context, management_state, endpoint_type, values
+):
     with write_session() as session:
         subquery = (
             select([models.SubcloudSync.id])
             .where(models.SubcloudSync.subcloud_name == models.Subcloud.region_name)
             .where(models.Subcloud.management_state == management_state)
             .where(models.SubcloudSync.endpoint_type == endpoint_type)
+            .where(models.SubcloudSync.sync_request != consts.SYNC_STATUS_IN_PROGRESS)
             .where(models.SubcloudSync.deleted == 0)
             .correlate(models.SubcloudSync)
         )

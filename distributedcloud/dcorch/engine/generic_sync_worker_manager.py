@@ -420,9 +420,13 @@ class GenericSyncWorkerManager(object):
     def sync_request(self, ctxt, endpoint_type):
         # Someone has enqueued a sync job. set the endpoint sync_request to
         # requested
-        db_api.subcloud_sync_update_all(
+        db_api.subcloud_sync_update_all_except_in_progress(
             ctxt,
             dccommon_consts.MANAGEMENT_MANAGED,
             endpoint_type,
             values={"sync_request": dco_consts.SYNC_STATUS_REQUESTED},
+        )
+        LOG.debug(
+            f"Updated all managed subclouds ({endpoint_type}) sync status to "
+            f"requested except those in_progress."
         )
