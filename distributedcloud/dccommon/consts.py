@@ -107,7 +107,7 @@ ENDPOINT_TYPE_KUBERNETES = "kubernetes"
 ENDPOINT_TYPE_KUBE_ROOTCA = "kube-rootca"
 ENDPOINT_TYPE_USM = "usm"
 ENDPOINT_TYPE_PLATFORM = "platform"
-ENDPOINT_TYPE_SOFTWARE = "software"
+ENDPOINT_TYPE_SOFTWARE = "usm"
 ENDPOINT_TYPE_FM = "faultmanagement"
 ENDPOINT_TYPE_NFV = "nfv"
 # TODO(nicodemos): Remove patching/load after patching is no longer supported

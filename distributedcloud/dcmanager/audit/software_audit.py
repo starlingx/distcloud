@@ -61,8 +61,8 @@ class SoftwareAudit(object):
                 dccommon_consts.ENDPOINT_NAME_USM
             )
             software_client = SoftwareClient(
-                dccommon_consts.DEFAULT_REGION_NAME,
                 m_os_ks_client.session,
+                dccommon_consts.DEFAULT_REGION_NAME,
                 endpoint=software_endpoint,
             )
         except Exception:
