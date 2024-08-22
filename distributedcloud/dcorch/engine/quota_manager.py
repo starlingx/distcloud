@@ -24,7 +24,6 @@ from oslo_config import cfg
 from oslo_log import log as logging
 
 from dccommon import consts as dccommon_consts
-from dccommon import endpoint_cache
 from dcorch.common import consts
 from dcorch.common import context
 from dcorch.common import exceptions
@@ -73,7 +72,6 @@ class QuotaManager(manager.Manager):
             service_name="quota_manager", *args, **kwargs
         )
         self.context = context.get_admin_context()
-        self.endpoints = endpoint_cache.EndpointCache()
 
     @classmethod
     def calculate_subcloud_project_quotas(
@@ -163,7 +161,7 @@ class QuotaManager(manager.Manager):
 
         # Iterate through project list and call sync project for each project
         # using threads
-        # Divide list of projects into batches and perfrom quota sync
+        # Divide list of projects into batches and perform quota sync
         # for one batch at a time.
         for current_batch_projects_users in utils.get_batch_projects(
             cfg.CONF.batch.batch_size, project_user_list
