@@ -397,6 +397,9 @@ class OrchThread(threading.Thread):
                 LOG.debug("(%s) Intermediate step is complete" % self.update_type)
                 self._delete_subcloud_worker(region, strategy_step.subcloud_id)
                 continue
+            elif strategy_step.state == consts.STRATEGY_STATE_ABORTED:
+                LOG.debug("(%s) Intermediate step is aborted" % self.update_type)
+                self._delete_subcloud_worker(region, strategy_step.subcloud_id)
             elif strategy_step.state == consts.STRATEGY_STATE_INITIAL:
                 if (
                     sw_update_strategy.max_parallel_subclouds
