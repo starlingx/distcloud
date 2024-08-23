@@ -9,27 +9,37 @@ from eventlet.greenpool import GreenPool
 from oslo_config import cfg
 from oslo_log import log as logging
 
-from dcagent.common.exceptions import UnsupportedAudit
-from dcagent.common.utils import BaseAuditManager
+from dcagent.common import exceptions
+from dcagent.common import utils
 from dccommon import consts as dccommon_consts
+from dccommon import utils as dccommon_utils
 from dcmanager.audit.base_audit import get_subcloud_base_audit
 from dcmanager.audit.firmware_audit import FirmwareAudit
 from dcmanager.audit.kube_rootca_update_audit import KubeRootcaUpdateAudit
 from dcmanager.audit.kubernetes_audit import KubernetesAudit
 from dcmanager.audit.software_audit import SoftwareAudit
-from dcorch.common import consts as dcorch_consts
+from dcorch.common.consts import RESOURCE_TYPE_SYSINV_CERTIFICATE
+from dcorch.common.consts import RESOURCE_TYPE_SYSINV_FERNET_REPO
+from dcorch.common.consts import RESOURCE_TYPE_SYSINV_USER
+from dcorch.engine.sync_services.sysinv import SysinvSyncThread
 
 CONF = cfg.CONF
 LOG = logging.getLogger(__name__)
 
 SYSINV_REQUEST_MAP = {
-    dcorch_consts.RESOURCE_TYPE_SYSINV_CERTIFICATE: "get_certificates",
-    dcorch_consts.RESOURCE_TYPE_SYSINV_USER: "get_user",
-    dcorch_consts.RESOURCE_TYPE_SYSINV_FERNET_REPO: "get_fernet_keys",
+    RESOURCE_TYPE_SYSINV_CERTIFICATE: "get_certificates",
+    RESOURCE_TYPE_SYSINV_USER: "get_user",
+    RESOURCE_TYPE_SYSINV_FERNET_REPO: "get_fernet_keys",
+}
+
+COMPARE_PLATFORM_RESOURCES = {
+    RESOURCE_TYPE_SYSINV_CERTIFICATE: SysinvSyncThread.compare_certificate,
+    RESOURCE_TYPE_SYSINV_USER: SysinvSyncThread.compare_user,
+    RESOURCE_TYPE_SYSINV_FERNET_REPO: SysinvSyncThread.compare_fernet_key,
 }
 
 
-class PeriodicAudit(BaseAuditManager):
+class PeriodicAudit(utils.BaseAuditManager):
     def __init__(self):
         super().__init__()
         self.periodic_audit_loop()
@@ -37,7 +47,7 @@ class PeriodicAudit(BaseAuditManager):
     def periodic_audit_loop(self):
         while True:
             try:
-                self.initialize_clients(use_cache=False)
+                self.initialize_clients(use_cache=False, restart_keystone_cache=True)
                 self._run_periodic_audit_loop()
                 eventlet.greenthread.sleep(CONF.scheduler.dcagent_audit_interval)
             except eventlet.greenlet.GreenletExit:
@@ -59,8 +69,13 @@ class PeriodicAudit(BaseAuditManager):
         )
         SoftwareAudit.get_subcloud_audit_data(self.software_client)
 
+        # Dcorch resources
+        SysinvSyncThread.get_certificates_resources(self.sysinv_client)
+        SysinvSyncThread.get_user_resource(self.sysinv_client)
+        SysinvSyncThread.get_fernet_resources(self.sysinv_client)
 
-class RequestedAudit(BaseAuditManager):
+
+class RequestedAudit(utils.BaseAuditManager):
     def __init__(self, use_cache: bool = True):
         super().__init__()
         self.use_cache = use_cache
@@ -97,15 +112,11 @@ class RequestedAudit(BaseAuditManager):
                 software_client, regionone_audit_data
             )
         elif audit_type in SYSINV_REQUEST_MAP:
-            resp = getattr(sysinv_client, SYSINV_REQUEST_MAP[audit_type])()
+            resp = self.get_sysinv_sync_status(
+                sysinv_client, audit_type, regionone_audit_data
+            )
         else:
-            raise UnsupportedAudit(audit=audit_type)
-        # If the response is an object or a list of object, convert it
-        # to a dictionary before returning
-        if "to_dict" in dir(resp):
-            resp = resp.to_dict()
-        elif isinstance(resp, list):
-            resp = [r.to_dict() for r in resp if "to_dict" in dir(r)]
+            raise exceptions.UnsupportedAudit(audit=audit_type)
         return audit_type, resp
 
     def get_sync_status(self, payload):
@@ -120,4 +131,65 @@ class RequestedAudit(BaseAuditManager):
             audit_type, resp = job.wait()
             sync_resp[audit_type] = resp
 
+        LOG.debug(f"Audit response: {sync_resp}")
+
         return sync_resp
+
+    @staticmethod
+    def get_sysinv_sync_status(sysinv_client, audit_type, regionone_audit_data):
+        if not regionone_audit_data:
+            raise exceptions.MissingRegionOneData(audit=audit_type)
+        resp = getattr(sysinv_client, SYSINV_REQUEST_MAP[audit_type])()
+        # Filter the certificate list to only include the desired ones
+        # This need to be done before converting the object to a dictionary
+        if audit_type == RESOURCE_TYPE_SYSINV_CERTIFICATE:
+            resp = SysinvSyncThread.filter_cert_list(resp)
+        resp = dccommon_utils.convert_resource_to_dict(resp)
+        if not isinstance(resp, list):
+            resp = [resp]
+        if not isinstance(regionone_audit_data, list):
+            regionone_audit_data = [regionone_audit_data]
+        if audit_type == RESOURCE_TYPE_SYSINV_FERNET_REPO:
+            # Combine the list of dictionaries into a list with a
+            # single dictionary to match RegionOne response
+            resp = [{str(d["id"]): d["key"] for d in resp}]
+        LOG.debug(
+            f"Auditing {audit_type}: sc_resources: {resp}; "
+            f"master_resources: {regionone_audit_data}"
+        )
+
+        sync_status = dccommon_consts.SYNC_STATUS_OUT_OF_SYNC
+        if audit_type != RESOURCE_TYPE_SYSINV_CERTIFICATE:
+            # If the resource is not a certificate, the response will be
+            # just "in-sync" or "out-of-sync"
+            for m_resource in regionone_audit_data:
+                for sc_resource in resp:
+                    if COMPARE_PLATFORM_RESOURCES[audit_type](m_resource, sc_resource):
+                        sync_status = dccommon_consts.SYNC_STATUS_IN_SYNC
+                        break
+                # If a master resource is out-of-sync after checking all subcloud
+                # resources, flag the audit as out-of-sync
+                if sync_status == dccommon_consts.SYNC_STATUS_OUT_OF_SYNC:
+                    return sync_status
+
+            # Return in-sync as no audit was flag as out-of-sync above
+            return dccommon_consts.SYNC_STATUS_IN_SYNC
+
+        # If the resource is a certificate, the response will be a dictionary
+        # with the certificate signature as the key and the sync status as the value
+        sync_status_dict = {}
+        for m_resource in regionone_audit_data:
+            cert_signature = m_resource["signature"]
+            for sc_resource in resp:
+                if COMPARE_PLATFORM_RESOURCES[audit_type](m_resource, sc_resource):
+                    sync_status_dict[cert_signature] = (
+                        dccommon_consts.SYNC_STATUS_IN_SYNC
+                    )
+                    break
+            else:
+                # If a master resource is out-of-sync after checking all subcloud
+                # resources, flag the audit as out-of-sync
+                sync_status_dict[cert_signature] = (
+                    dccommon_consts.SYNC_STATUS_OUT_OF_SYNC
+                )
+        return sync_status_dict

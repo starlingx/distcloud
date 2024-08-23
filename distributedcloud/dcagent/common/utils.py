@@ -5,6 +5,7 @@
 #
 
 import threading
+from types import SimpleNamespace
 
 from keystoneauth1.identity import v3
 from keystoneauth1 import session
@@ -18,6 +19,8 @@ from dccommon.drivers.openstack.fm import FmClient
 from dccommon.drivers.openstack.software_v1 import SoftwareClient
 from dccommon.drivers.openstack.sysinv_v1 import SysinvClient
 from dccommon.utils import is_token_expiring_soon
+from dcorch.common import consts as dcorch_consts
+from dcorch.engine.sync_services.sysinv import SysinvSyncThread
 
 
 CONF = cfg.CONF
@@ -89,11 +92,12 @@ class KeystoneCache(object):
     subcloud_keystone_client: ks_client = None
     subcloud_token = {}
 
-    def __init__(self):
-        if not KeystoneCache.subcloud_keystone_client:
-            self.initialize_keystone_client()
-
-        if is_token_expiring_soon(KeystoneCache.subcloud_token):
+    def __init__(self, restart_cache: bool = False):
+        if (
+            not KeystoneCache.subcloud_keystone_client
+            or restart_cache
+            or is_token_expiring_soon(KeystoneCache.subcloud_token)
+        ):
             self.clear_subcloud_keystone_data()
             self.initialize_keystone_client()
 
@@ -209,9 +213,13 @@ class BaseAuditManager(object):
         self.fm_client = None
         self.software_client = None
 
-    def initialize_clients(self, use_cache: bool = True):
+    def initialize_clients(
+        self, use_cache: bool = True, restart_keystone_cache: bool = False
+    ):
         region_name = tsc.region_1_name
-        self.keystone_client = KeystoneCache().subcloud_keystone_client
+        self.keystone_client = KeystoneCache(
+            restart_keystone_cache
+        ).subcloud_keystone_client
         auth_session = self.keystone_client.session
 
         self.sysinv_client = CachedSysinvClient(
@@ -233,3 +241,29 @@ class BaseAuditManager(object):
         self.fm_client.use_cache = use_cache
         self.software_client.use_cache = use_cache
         return self.sysinv_client, self.fm_client, self.software_client
+
+
+def format_platform_resource(resource):
+    formatted_resource = {}
+    # Process each resource type in the response
+    for resource_type in resource:
+        if resource_type == dcorch_consts.RESOURCE_TYPE_SYSINV_CERTIFICATE:
+            # Creates a list of namespaces to maintain compatibility
+            # with existing code that expects attributes instead of dict keys
+            certificates_ns = [
+                SimpleNamespace(**cert) for cert in resource.get(resource_type, [])
+            ]
+            formatted_resource[resource_type] = SysinvSyncThread.filter_cert_list(
+                certificates_ns
+            )
+        elif resource_type == dcorch_consts.RESOURCE_TYPE_SYSINV_USER:
+            # Return a list containing a single dictionary since the resource
+            # needs to be iterable
+            iuser = resource.get(resource_type, {})
+            formatted_resource[resource_type] = [iuser]
+        elif resource_type == dcorch_consts.RESOURCE_TYPE_SYSINV_FERNET_REPO:
+            # Convert the list of dictionaries to a single
+            # dictionary inside a list
+            fernet_repo = [{d["id"]: d["key"] for d in resource.get(resource_type, [])}]
+            formatted_resource[resource_type] = fernet_repo
+    return formatted_resource

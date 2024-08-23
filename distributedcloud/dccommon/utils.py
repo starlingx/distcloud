@@ -404,6 +404,22 @@ def subcloud_has_dcagent(software_version: str):
     return software_version >= consts.MIN_VERSION_FOR_DCAGENT
 
 
+def convert_resource_to_dict(resource):
+    if isinstance(resource, dict) or (
+        isinstance(resource, list) and all(isinstance(item, dict) for item in resource)
+    ):
+        # Return the resource if already in the desired format
+        return resource
+    if hasattr(resource, "to_dict"):
+        return resource.to_dict()
+    elif isinstance(resource, list):
+        return [r.to_dict() for r in resource if hasattr(r, "to_dict")]
+    raise TypeError(
+        "Resource must be a dictionary, a list of dictionaries, "
+        "or an object/list of objects with a 'to_dict' method."
+    )
+
+
 def log_subcloud_msg(
     log_func: Callable, msg: str, subcloud_name: str = None, avail_status: str = None
 ):

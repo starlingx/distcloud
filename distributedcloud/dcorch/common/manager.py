@@ -42,10 +42,8 @@ from oslo_config import cfg
 from oslo_log import log as logging
 from oslo_service import periodic_task
 
-from dcorch.common import config
 
 CONF = cfg.CONF
-config.register_options()
 LOG = logging.getLogger(__name__)
 
 

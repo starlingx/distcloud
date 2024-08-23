@@ -589,7 +589,14 @@ class SyncThread(object):
         if self.endpoint_type == dccommon_consts.ENDPOINT_TYPE_PLATFORM and (
             self.has_dcagent
         ):
-            platform_resources = self.get_dcagent_resources(self.audit_resources)
+            all_master_resources = dict()
+            for resource_type in self.audit_resources:
+                all_master_resources[resource_type] = self.get_cached_master_resources(
+                    resource_type
+                )
+            platform_resources = self.get_dcagent_resources(
+                self.audit_resources, all_master_resources
+            )
             if platform_resources is None:
                 # If subcloud is not reachable, abort audit.
                 return
@@ -779,21 +786,29 @@ class SyncThread(object):
                         )
                         continue
                     sc_rsrc_present = False
-                    for sc_r in sc_resources:
-                        sc_id = self.get_resource_id(resource_type, sc_r)
-                        if sc_id == db_sc_resource.subcloud_resource_id:
-                            if self.same_resource(resource_type, m_r_updated, sc_r):
-                                LOG.debug(
-                                    "Resource type {} {} is in-sync".format(
-                                        resource_type, master_id
-                                    ),
-                                    extra=self.log_extra,
-                                )
-                                num_of_audit_jobs += self.audit_dependants(
-                                    resource_type, m_r, sc_r
-                                )
-                                sc_rsrc_present = True
-                                break
+                    # The subcloud resource will only have "in-sync" or "out-of-sync"
+                    # if returned by dcagent. For platform resources, audit_dependants
+                    # will always return 0.
+                    if self.is_dcagent_managed_resource(resource_type):
+                        sc_rsrc_present = self.is_resource_present_in_subcloud(
+                            resource_type, master_id, sc_resources
+                        )
+                    else:
+                        for sc_r in sc_resources:
+                            sc_id = self.get_resource_id(resource_type, sc_r)
+                            if sc_id == db_sc_resource.subcloud_resource_id:
+                                if self.same_resource(resource_type, m_r_updated, sc_r):
+                                    LOG.debug(
+                                        "Resource type {} {} is in-sync".format(
+                                            resource_type, master_id
+                                        ),
+                                        extra=self.log_extra,
+                                    )
+                                    num_of_audit_jobs += self.audit_dependants(
+                                        resource_type, m_r, sc_r
+                                    )
+                                    sc_rsrc_present = True
+                                    break
                     if not sc_rsrc_present:
                         LOG.info(
                             "Subcloud resource {} found in master cloud & DB, "
@@ -983,7 +998,7 @@ class SyncThread(object):
         db_resources = None
         sc_resources = None
         # Get resources from dcdbsync if the endpoint is not platform or it is
-        # but the subcloud doens't support dcagent. In case it has dcagent,
+        # but the subcloud doesn't support dcagent. In case it has dcagent,
         # the subcloud resources have already been retrieved for all platform
         # resources previously
         if self.endpoint_type != dccommon_consts.ENDPOINT_TYPE_PLATFORM or not (
@@ -1020,6 +1035,12 @@ class SyncThread(object):
         return True
 
     def has_same_ids(self, resource_type, m_resource, sc_resource):
+        return False
+
+    def is_dcagent_managed_resource(self, resource_type):
+        return False
+
+    def is_resource_present_in_subcloud(self, resource_type, master_id, sc_resources):
         return False
 
     def map_subcloud_resource(self, resource_type, m_r, m_rsrc_db, sc_resources):
