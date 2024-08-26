@@ -134,6 +134,7 @@ class TestGenericSyncManager(base.OrchestratorTestCase):
                     subcloud.region_name,
                     dccommon_consts.ENDPOINT_TYPE_IDENTITY,
                     subcloud.management_ip,
+                    subcloud.software_version,
                 )
             )
             utils.create_subcloud_sync_static(
@@ -147,6 +148,7 @@ class TestGenericSyncManager(base.OrchestratorTestCase):
                     subcloud.region_name,
                     dccommon_consts.ENDPOINT_TYPE_PLATFORM,
                     subcloud.management_ip,
+                    subcloud.software_version,
                 )
             )
 
@@ -239,6 +241,7 @@ class TestGenericSyncManager(base.OrchestratorTestCase):
                     subcloud.region_name,
                     dccommon_consts.ENDPOINT_TYPE_IDENTITY,
                     subcloud.management_ip,
+                    subcloud.software_version,
                 )
             )
             utils.create_subcloud_sync_static(
@@ -253,6 +256,7 @@ class TestGenericSyncManager(base.OrchestratorTestCase):
                     subcloud.region_name,
                     dccommon_consts.ENDPOINT_TYPE_PLATFORM,
                     subcloud.management_ip,
+                    subcloud.software_version,
                 )
             )
 

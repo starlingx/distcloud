@@ -59,7 +59,8 @@ class InitialSyncWorkerManager(object):
                     sc_region_name,
                     sc_capabilities_and_ip[0],  # Capabilities
                     sc_capabilities_and_ip[1],  # Management IP
-                    sc_capabilities_and_ip[2],  # Is subsequent sync?
+                    sc_capabilities_and_ip[2],  # Software Version
+                    sc_capabilities_and_ip[3],  # Is subsequent sync?
                 )
             except Exception as e:
                 LOG.error(
@@ -73,6 +74,7 @@ class InitialSyncWorkerManager(object):
         subcloud_name,
         subcloud_capabilities,
         management_ip,
+        software_version,
         subsequent_sync,
     ):
         """Perform initial sync for a subcloud.
@@ -96,7 +98,7 @@ class InitialSyncWorkerManager(object):
 
         # sync_objs stores the sync object per endpoint
         sync_objs = self.gswm.create_sync_objects(
-            subcloud_name, subcloud_capabilities, management_ip
+            subcloud_name, subcloud_capabilities, management_ip, software_version
         )
 
         # Initial sync. It's synchronous so that identity

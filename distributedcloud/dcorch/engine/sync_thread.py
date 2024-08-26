@@ -95,11 +95,17 @@ class SyncThread(object):
     master_resources_dict = collections.defaultdict(dict)
 
     def __init__(
-        self, subcloud_name, endpoint_type=None, management_ip=None, engine_id=None
+        self,
+        subcloud_name,
+        endpoint_type=None,
+        management_ip=None,
+        software_version=None,
+        engine_id=None,
     ):
         self.endpoint_type = endpoint_type  # endpoint type
         self.subcloud_name = subcloud_name  # subcloud name
         self.management_ip = management_ip
+        self.software_version = software_version
         self.engine_id = engine_id
         self.ctxt = context.get_admin_context()
         self.sync_handler_map = {}
@@ -336,44 +342,23 @@ class SyncThread(object):
             extra=self.log_extra,
         )
 
-        try:
-            # This block is required to get the real subcloud name
-            # dcorch uses the subcloud name as the region name.
-            # The region name cannot be changed, so at this point it
-            # is necessary to query the subcloud name as it is required
-            # for logging purposes.
+        self.dcmanager_state_rpc_client.update_subcloud_endpoint_status(
+            self.ctxt,
+            subcloud_region=self.subcloud_name,
+            endpoint_type=self.endpoint_type,
+            sync_status=sync_status,
+            alarmable=alarmable,
+        )
 
-            # Save current subcloud name (region name from dcorch DB)
-            dcorch_subcloud_region = self.subcloud_name
-
-            # Get the subcloud name from dcmanager database supplying
-            # the dcorch region name
-            subcloud_name = self.dcmanager_rpc_client.get_subcloud_name_by_region_name(
-                self.ctxt, dcorch_subcloud_region
-            )
-
-            # Updates the endpoint status supplying the subcloud name and
-            # the region name
-            self.dcmanager_state_rpc_client.update_subcloud_endpoint_status(
-                self.ctxt,
-                subcloud_name,
-                dcorch_subcloud_region,
-                self.endpoint_type,
-                sync_status,
-                alarmable=alarmable,
-            )
-
-            db_api.subcloud_sync_update(
-                self.ctxt,
-                dcorch_subcloud_region,
-                self.endpoint_type,
-                values={
-                    "sync_status_reported": sync_status,
-                    "sync_status_report_time": timeutils.utcnow(),
-                },
-            )
-        except Exception:
-            raise
+        db_api.subcloud_sync_update(
+            self.ctxt,
+            self.subcloud_name,
+            self.endpoint_type,
+            values={
+                "sync_status_reported": sync_status,
+                "sync_status_report_time": timeutils.utcnow(),
+            },
+        )
 
     def sync(self, engine_id):
         LOG.debug(
@@ -595,6 +580,20 @@ class SyncThread(object):
             LOG.debug("There are no failed requests.")
 
         total_num_of_audit_jobs = 0
+
+        # TODO(ecandotti): move this behavior to SysinvSyncThread class
+
+        # If the endpoint is of type Platform and the subcloud has dcagent,
+        # retrieve all platform resources with a single dcagent call to avoid
+        # making separate get_dcagent_resources calls for each resource type.
+        if self.endpoint_type == dccommon_consts.ENDPOINT_TYPE_PLATFORM and (
+            self.has_dcagent
+        ):
+            platform_resources = self.get_dcagent_resources(self.audit_resources)
+            if platform_resources is None:
+                # If subcloud is not reachable, abort audit.
+                return
+
         for resource_type in self.audit_resources:
             if not self.is_subcloud_enabled() or self.should_exit():
                 LOG.info(
@@ -633,6 +632,11 @@ class SyncThread(object):
                 m_resources, db_resources, sc_resources = self.get_all_resources(
                     resource_type
                 )
+
+                if self.endpoint_type == dccommon_consts.ENDPOINT_TYPE_PLATFORM and (
+                    self.has_dcagent
+                ):
+                    sc_resources = platform_resources[resource_type]
 
                 # todo: delete entries in db_resources with no corresponding
                 # entry in m_resources?
@@ -980,10 +984,18 @@ class SyncThread(object):
     def get_all_resources(self, resource_type):
         m_resources = None
         db_resources = None
-        # Query subcloud first. If not reachable, abort audit.
-        sc_resources = self.get_subcloud_resources(resource_type)
-        if sc_resources is None:
-            return m_resources, db_resources, sc_resources
+        sc_resources = None
+        # Get resources from dcdbsync if the endpoint is not platform or it is
+        # but the subcloud doens't support dcagent. In case it has dcagent,
+        # the subcloud resources have already been retrieved for all platform
+        # resources previously
+        if self.endpoint_type != dccommon_consts.ENDPOINT_TYPE_PLATFORM or not (
+            self.has_dcagent
+        ):
+            sc_resources = self.get_subcloud_resources(resource_type)
+            # If subcloud is not reachable, abort audit.
+            if sc_resources is None:
+                return m_resources, db_resources, sc_resources
         db_resources = self.get_db_master_resources(resource_type)
         m_resources = self.get_cached_master_resources(resource_type)
         return m_resources, db_resources, sc_resources

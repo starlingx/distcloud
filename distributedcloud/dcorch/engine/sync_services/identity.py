@@ -39,12 +39,18 @@ class IdentitySyncThread(SyncThread):
     """Manages tasks related to resource management for keystone."""
 
     def __init__(
-        self, subcloud_name, endpoint_type=None, management_ip=None, engine_id=None
+        self,
+        subcloud_name,
+        endpoint_type=None,
+        management_ip=None,
+        software_version=None,
+        engine_id=None,
     ):
         super(IdentitySyncThread, self).__init__(
             subcloud_name,
             endpoint_type=endpoint_type,
             management_ip=management_ip,
+            software_version=software_version,
             engine_id=engine_id,
         )
         self.region_name = subcloud_name

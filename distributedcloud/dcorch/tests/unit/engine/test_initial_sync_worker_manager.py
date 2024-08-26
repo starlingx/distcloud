@@ -40,7 +40,13 @@ class FakeGSWM(object):
 
         db_api.subcloud_update(ctx, subcloud_name, values=values)
 
-    def create_sync_objects(self, subcloud_name, capabilities, management_ip):
+    def create_sync_objects(
+        self,
+        subcloud_name,
+        capabilities,
+        management_ip,
+        software_version,
+    ):
         sync_objs = {}
         endpoint_type_list = capabilities.get("endpoint_types", None)
         if endpoint_type_list:
@@ -132,6 +138,7 @@ class TestInitialSyncWorkerManager(base.OrchestratorTestCase):
             subcloud.region_name,
             base.CAPABILITES,
             subcloud.management_ip,
+            subcloud.software_version,
             False,
         )
 
@@ -163,6 +170,7 @@ class TestInitialSyncWorkerManager(base.OrchestratorTestCase):
             subcloud.region_name,
             base.CAPABILITES,
             subcloud.management_ip,
+            subcloud.software_version,
             False,
         )
 
@@ -192,6 +200,7 @@ class TestInitialSyncWorkerManager(base.OrchestratorTestCase):
             subcloud.region_name,
             base.CAPABILITES,
             subcloud.management_ip,
+            subcloud.software_version,
             True,
         )
 
@@ -226,6 +235,7 @@ class TestInitialSyncWorkerManager(base.OrchestratorTestCase):
             subcloud.region_name,
             base.CAPABILITES,
             subcloud.management_ip,
+            subcloud.software_version,
             False,
         )
 
@@ -283,8 +293,18 @@ class TestInitialSyncWorkerManager(base.OrchestratorTestCase):
             management_ip="192.168.1.12",
         )
         subcloud_capabilities = {
-            subcloud1.region_name: (base.CAPABILITES, subcloud1.management_ip, False),
-            subcloud2.region_name: (base.CAPABILITES, subcloud2.management_ip, False),
+            subcloud1.region_name: (
+                base.CAPABILITES,
+                subcloud1.management_ip,
+                subcloud1.software_version,
+                False,
+            ),
+            subcloud2.region_name: (
+                base.CAPABILITES,
+                subcloud2.management_ip,
+                subcloud2.software_version,
+                False,
+            ),
         }
 
         self.iswm.initial_sync_subclouds(self.ctx, subcloud_capabilities)
@@ -296,6 +316,7 @@ class TestInitialSyncWorkerManager(base.OrchestratorTestCase):
             subcloud1.region_name,
             base.CAPABILITES,
             subcloud1.management_ip,
+            subcloud1.software_version,
             False,
         )
         self.mock_thread_start.assert_called_with(
@@ -304,5 +325,6 @@ class TestInitialSyncWorkerManager(base.OrchestratorTestCase):
             subcloud2.region_name,
             base.CAPABILITES,
             subcloud2.management_ip,
+            subcloud2.software_version,
             False,
         )
