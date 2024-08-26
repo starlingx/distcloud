@@ -24,7 +24,6 @@ import re
 
 from fm_api.constants import FM_ALARM_ID_UNSYNCHRONIZED_RESOURCE
 import keyring
-from keystoneauth1 import exceptions as keystone_exceptions
 from netaddr import IPNetwork
 from oslo_config import cfg
 from oslo_log import log as logging
@@ -39,9 +38,7 @@ from dccommon import consts as dccommon_consts
 from dccommon.drivers.openstack.fm import FmClient
 from dccommon.drivers.openstack.sdk_platform import OpenStackDriver
 from dccommon.drivers.openstack import software_v1
-from dccommon.drivers.openstack.sysinv_v1 import SysinvClient
 from dccommon.drivers.openstack import vim
-from dccommon import exceptions as dccommon_exceptions
 from dcmanager.api.controllers import restcomm
 from dcmanager.api.policies import subclouds as subclouds_policy
 from dcmanager.api import policy
@@ -344,28 +341,6 @@ class SubcloudsController(object):
 
         return user_list
 
-    # TODO(gsilvatr): refactor to use implementation from common/utils and test
-    def _get_oam_address_pools(self, context, subcloud_name, sc_ks_client):
-        """Get the subclouds oam address pools"""
-
-        # First need to retrieve the Subcloud's Keystone session
-        try:
-            endpoint = sc_ks_client.endpoint_cache.get_endpoint("sysinv")
-            sysinv_client = SysinvClient(
-                subcloud_name, sc_ks_client.session, endpoint=endpoint
-            )
-            return sysinv_client.get_oam_address_pools()
-        except (keystone_exceptions.EndpointNotFound, IndexError) as e:
-            message = "Identity endpoint for subcloud: %s not found. %s" % (
-                subcloud_name,
-                e,
-            )
-            LOG.error(message)
-        except dccommon_exceptions.OAMAddressesNotFound:
-            message = "OAM address pools for subcloud: %s not found." % (subcloud_name)
-            LOG.error(message)
-        return None
-
     def _get_deploy_config_sync_status(self, context, subcloud_name, keystone_client):
         """Get the deploy configuration insync status of the subcloud"""
         detected_alarms = None
@@ -566,16 +541,17 @@ class SubcloudsController(object):
                 if subcloud.availability_status == dccommon_consts.AVAILABILITY_ONLINE:
 
                     # Get the keystone client that will be used
-                    # for _get_deploy_config_sync_status and _get_oam_address_pools
+                    # for _get_deploy_config_sync_status and
+                    # utils.get_oam_floating_ip_primary
                     sc_ks_client = psd_common.get_ks_client(
                         subcloud_region, subcloud.management_start_ip
                     )
-                    oam_pools = self._get_oam_address_pools(
-                        context, subcloud_region, sc_ks_client
+                    # Only interested in subcloud's primary OAM pool's address
+                    oam_floating_ip_primary = utils.get_oam_floating_ip_primary(
+                        subcloud, sc_ks_client
                     )
-                    if oam_pools is not None:
-                        # Only interested in subcloud's primary OAM pool's address
-                        oam_floating_ip = oam_pools[0].floating_address
+                    if oam_floating_ip_primary is not None:
+                        oam_floating_ip = oam_floating_ip_primary
 
                     deploy_config_state = self._get_deploy_config_sync_status(
                         context, subcloud_region, sc_ks_client

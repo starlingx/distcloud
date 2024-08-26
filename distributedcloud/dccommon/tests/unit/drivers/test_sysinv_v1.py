@@ -16,6 +16,7 @@ import mock
 
 from dccommon import consts as dccommon_consts
 from dccommon.drivers.openstack import sysinv_v1
+from dccommon import exceptions
 from dccommon.tests import base
 from dccommon.tests import utils
 
@@ -80,6 +81,36 @@ class TestSysinvClient(base.DCCommonTestCase):
         self.assertEqual(controller_list, controllers)
 
     @mock.patch.object(sysinv_v1.SysinvClient, "__init__")
+    def test_get_address_pools(self, mock_sysinvclient_init):
+        pool_list = [FakeAddressPool("pool-uuid")]
+        mock_sysinvclient_init.return_value = None
+        sysinv_client = sysinv_v1.SysinvClient(
+            dccommon_consts.DEFAULT_REGION_NAME, None
+        )
+        sysinv_client.sysinv_client = mock.MagicMock()
+        sysinv_client.sysinv_client.address_pool.list_by_network_type = mock.MagicMock()
+        sysinv_client.sysinv_client.address_pool.list_by_network_type.return_value = (
+            pool_list
+        )
+        pools = sysinv_client.get_address_pools("xyz")
+        self.assertEqual(pool_list, pools)
+
+    @mock.patch.object(sysinv_v1.SysinvClient, "__init__")
+    def test_get_address_pools_exception(self, mock_sysinvclient_init):
+        mock_sysinvclient_init.return_value = None
+        sysinv_client = sysinv_v1.SysinvClient(
+            dccommon_consts.DEFAULT_REGION_NAME, None
+        )
+        sysinv_client.sysinv_client = mock.MagicMock()
+        sysinv_client.sysinv_client.address_pool.list_by_network_type = mock.MagicMock()
+        sysinv_client.sysinv_client.address_pool.list_by_network_type.side_effect = (
+            exceptions.InternalError()
+        )
+        self.assertRaises(
+            exceptions.InternalError, sysinv_client.get_address_pools, "xyz"
+        )
+
+    @mock.patch.object(sysinv_v1.SysinvClient, "__init__")
     def test_get_management_interface(self, mock_sysinvclient_init):
         interface = FakeInterface("interface", "uuid")
         interface_network = FakeInterfaceNetwork("mgmt", "interface")
@@ -98,77 +129,53 @@ class TestSysinvClient(base.DCCommonTestCase):
 
     @mock.patch.object(sysinv_v1.SysinvClient, "__init__")
     def test_get_management_address_pools(self, mock_sysinvclient_init):
-        network = FakeNetwork("network-uuid", "mgmt", "pool-uuid")
         pool = FakeAddressPool("pool-uuid")
-        network_addrpool = FakeNetworkAddrPool("network-uuid", "pool-uuid")
         mock_sysinvclient_init.return_value = None
         sysinv_client = sysinv_v1.SysinvClient(
             dccommon_consts.DEFAULT_REGION_NAME, None
         )
         sysinv_client.sysinv_client = mock.MagicMock()
-        sysinv_client.sysinv_client.network.list = mock.MagicMock()
-        sysinv_client.sysinv_client.network.list.return_value = [network]
-        sysinv_client.sysinv_client.network_addrpool.list = mock.MagicMock()
-        sysinv_client.sysinv_client.network_addrpool.list.return_value = [
-            network_addrpool
+        sysinv_client.sysinv_client.address_pool.list_by_network_type = mock.MagicMock()
+        sysinv_client.sysinv_client.address_pool.list_by_network_type.return_value = [
+            pool
         ]
-        sysinv_client.sysinv_client.address_pool.get = mock.MagicMock()
-        sysinv_client.sysinv_client.address_pool.get.return_value = pool
+
         management_pools = sysinv_client.get_management_address_pools()
         self.assertEqual([pool], management_pools)
 
-    def _get_address_pool(self, pool_uuid):
-        return self.addr_pools[pool_uuid]
-
     @mock.patch.object(sysinv_v1.SysinvClient, "__init__")
     def test_dual_stack_get_management_address_pools(self, mock_sysinvclient_init):
-        network = FakeNetwork("network-uuid", "mgmt", "pool-uuid-1")
         pool_1 = FakeAddressPool("pool-uuid-1")
-        network_addrpool_1 = FakeNetworkAddrPool("network-uuid", "pool-uuid-1")
         pool_2 = FakeAddressPool("pool-uuid-2")
-        network_addrpool_2 = FakeNetworkAddrPool("network-uuid", "pool-uuid-2")
+        pool_list = [pool_1, pool_2]
         mock_sysinvclient_init.return_value = None
         sysinv_client = sysinv_v1.SysinvClient(
             dccommon_consts.DEFAULT_REGION_NAME, None
         )
         sysinv_client.sysinv_client = mock.MagicMock()
-        sysinv_client.sysinv_client.network.list = mock.MagicMock()
-        sysinv_client.sysinv_client.network.list.return_value = [network]
-        sysinv_client.sysinv_client.network_addrpool.list = mock.MagicMock()
-        sysinv_client.sysinv_client.network_addrpool.list.return_value = [
-            network_addrpool_1,
-            network_addrpool_2,
-        ]
-        self.addr_pools = {"pool-uuid-1": pool_1, "pool-uuid-2": pool_2}
-        sysinv_client.sysinv_client.address_pool.get.side_effect = (
-            self._get_address_pool
+        sysinv_client.sysinv_client.address_pool.list_by_network_type = mock.MagicMock()
+        sysinv_client.sysinv_client.address_pool.list_by_network_type.return_value = (
+            pool_list
         )
+
         management_pools = sysinv_client.get_management_address_pools()
         self.assertEqual([pool_1, pool_2], management_pools)
 
     @mock.patch.object(sysinv_v1.SysinvClient, "__init__")
     def test_dual_stack_get_oam_address_pools(self, mock_sysinvclient_init):
-        network = FakeNetwork("network-uuid", "oam", "pool-uuid-1")
         pool_1 = FakeAddressPool("pool-uuid-1")
-        network_addrpool_1 = FakeNetworkAddrPool("network-uuid", "pool-uuid-1")
         pool_2 = FakeAddressPool("pool-uuid-2")
-        network_addrpool_2 = FakeNetworkAddrPool("network-uuid", "pool-uuid-2")
+        pool_list = [pool_1, pool_2]
         mock_sysinvclient_init.return_value = None
         sysinv_client = sysinv_v1.SysinvClient(
             dccommon_consts.DEFAULT_REGION_NAME, None
         )
         sysinv_client.sysinv_client = mock.MagicMock()
-        sysinv_client.sysinv_client.network.list = mock.MagicMock()
-        sysinv_client.sysinv_client.network.list.return_value = [network]
-        sysinv_client.sysinv_client.network_addrpool.list = mock.MagicMock()
-        sysinv_client.sysinv_client.network_addrpool.list.return_value = [
-            network_addrpool_1,
-            network_addrpool_2,
-        ]
-        self.addr_pools = {"pool-uuid-1": pool_1, "pool-uuid-2": pool_2}
-        sysinv_client.sysinv_client.address_pool.get.side_effect = (
-            self._get_address_pool
+        sysinv_client.sysinv_client.address_pool.list_by_network_type = mock.MagicMock()
+        sysinv_client.sysinv_client.address_pool.list_by_network_type.return_value = (
+            pool_list
         )
+
         oam_pools = sysinv_client.get_oam_address_pools()
         self.assertEqual([pool_1, pool_2], oam_pools)
 
@@ -191,22 +198,17 @@ class TestSysinvClient(base.DCCommonTestCase):
 
     @mock.patch.object(sysinv_v1.SysinvClient, "__init__")
     def test_get_admin_address_pools(self, mock_sysinvclient_init):
-        network = FakeNetwork("network-uuid", "admin", "pool-uuid")
         pool = FakeAddressPool("pool-uuid")
-        network_addrpool = FakeNetworkAddrPool("network-uuid", "pool-uuid")
         mock_sysinvclient_init.return_value = None
         sysinv_client = sysinv_v1.SysinvClient(
             dccommon_consts.DEFAULT_REGION_NAME, None
         )
         sysinv_client.sysinv_client = mock.MagicMock()
-        sysinv_client.sysinv_client.network.list = mock.MagicMock()
-        sysinv_client.sysinv_client.network.list.return_value = [network]
-        sysinv_client.sysinv_client.network_addrpool.list = mock.MagicMock()
-        sysinv_client.sysinv_client.network_addrpool.list.return_value = [
-            network_addrpool
+        sysinv_client.sysinv_client.address_pool.list_by_network_type = mock.MagicMock()
+        sysinv_client.sysinv_client.address_pool.list_by_network_type.return_value = [
+            pool
         ]
-        sysinv_client.sysinv_client.address_pool.get = mock.MagicMock()
-        sysinv_client.sysinv_client.address_pool.get.return_value = pool
+
         admin_pools = sysinv_client.get_admin_address_pools()
         self.assertEqual([pool], admin_pools)
 

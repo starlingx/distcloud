@@ -663,8 +663,8 @@ def subcloud_db_list_to_dict(subclouds):
     }
 
 
-def get_oam_address_pools(subcloud, sc_ks_client):
-    """Get the subcloud's oam address pools"""
+def get_oam_floating_ip_primary(subcloud, sc_ks_client):
+    """Get the subcloud's oam primary floating ip"""
 
     # First need to retrieve the Subcloud's Keystone session
     try:
@@ -672,7 +672,14 @@ def get_oam_address_pools(subcloud, sc_ks_client):
         sysinv_client = SysinvClient(
             subcloud.region_name, sc_ks_client.session, endpoint=endpoint
         )
-        return sysinv_client.get_oam_address_pools()
+        # We don't want to call sysinv_client.get_oam_address_pools()
+        # here, as the subcloud's software version could be < 24.09.
+        # As we are interested only on primary IP-stack, get_oam_addresses
+        # supports this in any software_version.
+        oam_addresses = sysinv_client.get_oam_addresses()
+        if oam_addresses is not None:
+            return oam_addresses.oam_floating_ip
+        return None
     except (keystone_exceptions.EndpointNotFound, IndexError) as e:
         message = "Identity endpoint for subcloud: %s not found. %s" % (
             subcloud.name,
@@ -680,7 +687,7 @@ def get_oam_address_pools(subcloud, sc_ks_client):
         )
         LOG.error(message)
     except dccommon_exceptions.OAMAddressesNotFound:
-        message = "OAM address pools for subcloud: %s not found." % subcloud.name
+        message = "OAM addresses for subcloud: %s not found." % subcloud.name
         LOG.error(message)
     return None
 

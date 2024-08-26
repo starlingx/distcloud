@@ -231,48 +231,39 @@ class SysinvClient(base.DriverBase):
         LOG.warning("Management interface on host %s not found" % hostname)
         return None
 
-    def get_secondary_pool_uuid(self, network_uuid, primary_pool_uuid):
-        network_addrpools = self.sysinv_client.network_addrpool.list()
-        for network_addrpool in network_addrpools:
-            if (
-                network_addrpool.network_uuid == network_uuid
-                and network_addrpool.address_pool_uuid != primary_pool_uuid
-            ):
-                return network_addrpool.address_pool_uuid
-        return None
-
     def get_address_pools(self, network_type):
         """Get the network-type address pools for a host."""
         # both primary and secondary pools when present
         # first value is always primary
-        networks = self.sysinv_client.network.list()
-        for network in networks:
-            if network.type == network_type:
-                primary_pool_uuid = network.pool_uuid
-                break
-        else:
-            if network_type == NETWORK_TYPE_MGMT:
-                LOG.error("Management address pool not found")
-            elif network_type == NETWORK_TYPE_ADMIN:
-                LOG.error("Admin address pool not found")
-            elif network_type == NETWORK_TYPE_OAM:
-                LOG.error("OAM address pool not found")
-                return exceptions.OAMAddressesNotFound()
-            else:
-                LOG.error(f"{network_type} address pool not found")
-
+        try:
+            # This is supported only on software_version >= 24.09
+            pools = self.sysinv_client.address_pool.list_by_network_type(network_type)
+        except Exception as e:
+            LOG.error(
+                f"Failed to get address pools by network type {network_type}: {e}"
+            )
             raise exceptions.InternalError()
 
-        pools = [self.sysinv_client.address_pool.get(primary_pool_uuid)]
-        secondary_pool_uuid = self.get_secondary_pool_uuid(
-            network.uuid, primary_pool_uuid
-        )
-        if secondary_pool_uuid:
-            pools.append(self.sysinv_client.address_pool.get(secondary_pool_uuid))
-        return pools
+        if pools:
+            return pools
+
+        if network_type == NETWORK_TYPE_MGMT:
+            LOG.error("Management address pool not found")
+        elif network_type == NETWORK_TYPE_ADMIN:
+            LOG.error("Admin address pool not found")
+        elif network_type == NETWORK_TYPE_OAM:
+            LOG.error("OAM address pool not found")
+            return exceptions.OAMAddressesNotFound()
+        else:
+            LOG.error(f"{network_type} address pool not found")
+
+        raise exceptions.InternalError()
 
     def get_oam_addresses(self):
-        """Get the oam address pool for a host."""
+        """Get the oam addresses for a host."""
+        # This is kept for backward compatibility (software_version < 24.09 ), this does
+        # not support dual-stack address pools, and thus compatible with single-stack or
+        # primary in case of dual-stack implementation.
         iextoam_object = self.sysinv_client.iextoam.list()
         if iextoam_object is not None and len(iextoam_object) != 0:
             return iextoam_object[0]

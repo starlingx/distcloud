@@ -2497,9 +2497,9 @@ class SubcloudManager(manager.Manager):
                 fetch_subcloud_ips=utils.fetch_subcloud_mgmt_ips,
             ).keystone_client
             # interested in subcloud's primary OAM address only
-            bootstrap_address = utils.get_oam_address_pools(subcloud, keystone_client)[
-                0
-            ].floating_address
+            bootstrap_address = utils.get_oam_floating_ip_primary(
+                subcloud, keystone_client
+            )
 
         # Add parameters used to generate inventory
         subcloud_params = {
