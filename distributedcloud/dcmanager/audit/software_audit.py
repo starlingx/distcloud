@@ -113,19 +113,33 @@ class SoftwareAudit(object):
 
         # audit_data will be a dict due to passing through RPC so objectify it
         audit_data = SoftwareAuditData.from_dict(audit_data)
+        expected_releases = set(audit_data.deployed_release_ids)
+        deployed_releases = {
+            release["release_id"]
+            for release in subcloud_releases
+            if release["state"] == software_v1.DEPLOYED
+        }
 
-        # Check that all deployed releases in RegionOne are present in the subcloud.
-        for release_id in audit_data.deployed_release_ids:
-            if not any(
-                (
-                    release["release_id"] == release_id
-                    and release["state"] == software_v1.DEPLOYED
+        # Releases in state DEPLOYED found in the SystemController and not
+        # in the subcloud
+        missing_releases = expected_releases - deployed_releases
+
+        # Releases in state DEPLOYED found in the Subcloud and not
+        # in the SystemController
+        extra_releases = deployed_releases - expected_releases
+
+        if missing_releases or extra_releases:
+            sync_status = dccommon_consts.SYNC_STATUS_OUT_OF_SYNC
+
+            if missing_releases:
+                msg = (
+                    f"Releases: {missing_releases} are missing or not deployed "
+                    "on the subcloud."
                 )
-                for release in subcloud_releases
-            ):
-                msg = f"Release {release_id} is missing."
                 dccommon_utils.log_subcloud_msg(LOG.debug, msg, subcloud_name)
-                sync_status = dccommon_consts.SYNC_STATUS_OUT_OF_SYNC
+            if extra_releases:
+                msg = f"Extra deployed releases found in the subcloud: {extra_releases}"
+                dccommon_utils.log_subcloud_msg(LOG.debug, msg, subcloud_name)
         return sync_status
 
     def subcloud_software_audit(

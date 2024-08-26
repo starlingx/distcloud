@@ -24,9 +24,19 @@ FAKE_REGIONONE_RELEASES = [
         "state": "deployed",
         "sw_version": "9.0.1",
     },
+    {
+        "release_id": "starlingx-9.0.2",
+        "state": "available",
+        "sw_version": "9.0.2",
+    },
 ]
 
 FAKE_SUBCLOUD_RELEASES_IN_SYNC = [
+    {
+        "release_id": "starlingx-8.0.3",
+        "state": "unavailable",
+        "sw_version": "9.0.2",
+    },
     {
         "release_id": "starlingx-9.0.0",
         "state": "deployed",
@@ -37,9 +47,14 @@ FAKE_SUBCLOUD_RELEASES_IN_SYNC = [
         "state": "deployed",
         "sw_version": "9.0.1",
     },
+    {
+        "release_id": "starlingx-9.0.2",
+        "state": "available",
+        "sw_version": "9.0.2",
+    },
 ]
 
-FAKE_SUBCLOUD_RELEASES_OUT_OF_SYNC = [
+FAKE_SUBCLOUD_RELEASES_MISSING_OUT_OF_SYNC = [
     {
         "release_id": "starlingx-9.0.0",
         "state": "deployed",
@@ -49,6 +64,24 @@ FAKE_SUBCLOUD_RELEASES_OUT_OF_SYNC = [
         "release_id": "starlingx-9.0.1",
         "state": "available",
         "sw_version": "9.0.1",
+    },
+]
+
+FAKE_SUBCLOUD_RELEASES_EXTRA_OUT_OF_SYNC = [
+    {
+        "release_id": "starlingx-9.0.0",
+        "state": "deployed",
+        "sw_version": "9.0.0",
+    },
+    {
+        "release_id": "starlingx-9.0.2",
+        "state": "deployed",
+        "sw_version": "9.0.2",
+    },
+    {
+        "release_id": "starlingx-9.0.3",
+        "state": "deployed",
+        "sw_version": "9.0.3",
     },
 ]
 
@@ -100,7 +133,9 @@ class TestSoftwareAudit(base.DCManagerTestCase):
         self.keystone_session.get_endpoint.return_value = "http://fake_endpoint"
 
         sc_software_client = self.mock_software_client(subcloud.region_name)
-        sc_software_client.list.return_value = FAKE_SUBCLOUD_RELEASES_OUT_OF_SYNC
+        sc_software_client.list.return_value = (
+            FAKE_SUBCLOUD_RELEASES_MISSING_OUT_OF_SYNC
+        )
         software_response = self.software_audit.subcloud_software_audit(
             self.keystone_session,
             subcloud,
@@ -125,12 +160,29 @@ class TestSoftwareAudit(base.DCManagerTestCase):
         expected_software_response = dccommon_consts.SYNC_STATUS_IN_SYNC
         self.assertEqual(software_response, expected_software_response)
 
-    def test_software_audit_out_of_sync(self):
+    def test_software_audit_missing_release_out_of_sync(self):
         software_audit_data = self.get_software_audit_data()
         subcloud = create_fake_subcloud(self.ctx, software_version="TEST.SW.VERSION")
 
         sc_software_client = self.mock_software_client(subcloud.region_name)
-        sc_software_client.list.return_value = FAKE_SUBCLOUD_RELEASES_OUT_OF_SYNC
+        sc_software_client.list.return_value = (
+            FAKE_SUBCLOUD_RELEASES_MISSING_OUT_OF_SYNC
+        )
+        software_response = self.software_audit.subcloud_software_audit(
+            self.keystone_session,
+            subcloud,
+            software_audit_data,
+        )
+
+        expected_software_response = dccommon_consts.SYNC_STATUS_OUT_OF_SYNC
+        self.assertEqual(software_response, expected_software_response)
+
+    def test_software_audit_extra_release_out_of_sync(self):
+        software_audit_data = self.get_software_audit_data()
+        subcloud = create_fake_subcloud(self.ctx, software_version="TEST.SW.VERSION")
+
+        sc_software_client = self.mock_software_client(subcloud.region_name)
+        sc_software_client.list.return_value = FAKE_SUBCLOUD_RELEASES_EXTRA_OUT_OF_SYNC
         software_response = self.software_audit.subcloud_software_audit(
             self.keystone_session,
             subcloud,
