@@ -31,7 +31,7 @@
       "endpoint_type": "dc-cert"
     },
     {
-      "sync_status": "in-sync",
+      "sync_status": "not-available",
        "endpoint_type": "load"
     },
     {
@@ -55,8 +55,12 @@
       "endpoint_type": "identity"
     },
     {
-      "sync_status": "out-of-sync",
+      "sync_status": "not-available",
       "endpoint_type": "patching"
+    },
+    {
+      "sync_status": "out-of-sync",
+      "endpoint_type": "usm"
     }
   ],
 }

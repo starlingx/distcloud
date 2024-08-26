@@ -25,7 +25,7 @@ from dcorch.common.i18n import _
 
 
 class DCCommonException(Exception):
-    """Base Commond Driver Exception.
+    """Base Common Driver Exception.
 
     To correctly use this class, inherit from it and define
     a 'message' property. That message will get printf'd
@@ -87,16 +87,8 @@ class CertificateNotFound(NotFound):
     )
 
 
-class LoadNotFound(NotFound):
-    message = _("Load in region=%(region_name)s with id %(load_id)s not found")
-
-
 class LoadNotInVault(NotFound):
     message = _("Load at path %(path)s not found")
-
-
-class LoadMaxReached(Conflict):
-    message = _("Load in region=%(region_name)s at maximum number of loads")
 
 
 class PlaybookExecutionFailed(DCCommonException):

@@ -2653,7 +2653,7 @@ class TestSubcloudsPatchRedeploy(BaseTestSubcloudsPatch):
         ]
 
     def test_patch_redeploy_succeeds_without_release_version(self):
-        """Test patch redeploy succeeds withou release version"""
+        """Test patch redeploy succeeds without release version"""
 
         response = self._send_request()
 
@@ -2884,6 +2884,7 @@ class TestSubcloudsPatchPrestage(BaseTestSubcloudsPatch):
         self.mock_sysinv_client_cutils = self.mock_sysinv_client
 
         self._mock_software_client(cutils.software_v1)
+        self.mock_software_client().show_deploy.return_value = None
         self.original_get_validated_sw_version_for_prestage = (
             cutils.get_validated_sw_version_for_prestage
         )
@@ -2895,8 +2896,6 @@ class TestSubcloudsPatchPrestage(BaseTestSubcloudsPatch):
         self._setup_mock_get_system_controller_software_list()
 
     def _setup_mock_sysinv_client_prestage(self):
-        self.mock_sysinv_client_prestage().get_upgrades.return_value = []
-
         mock_get_system = mock.MagicMock()
         mock_get_system.system_mode = consts.SYSTEM_MODE_SIMPLEX
         self.mock_sysinv_client_prestage().get_system.return_value = mock_get_system
@@ -3013,26 +3012,6 @@ class TestSubcloudsPatchPrestage(BaseTestSubcloudsPatch):
             http.client.BAD_REQUEST,
             f"Prestage failed '{self.subcloud.name}': Only base release is deployed, "
             "cannot prestage for software deploy.",
-        )
-
-    def test_prestage_for_sw_deploy_fails_with_software_not_ready_to_be_deployed(self):
-        """Test prestage for sw deploy fails with software not ready to be deployed"""
-
-        self.params["for_sw_deploy"] = "true"
-        self.mock_get_validated_sw_version_for_prestage.side_effect = (
-            self.original_get_validated_sw_version_for_prestage
-        )
-
-        self.software_list = self.FAKE_SOFTWARE_LIST_ONE_DEPLOYED_ONE_AVAILABLE_RELEASE
-        self._setup_mock_get_system_controller_software_list()
-
-        response = self._send_request()
-
-        self._assert_pecan_and_response(
-            response,
-            http.client.BAD_REQUEST,
-            f"Prestage failed '{self.subcloud.name}': All releases must first be "
-            "deployed, cannot prestage for software deploy.",
         )
 
     def test_prestage_for_sw_deploy_fails_with_invalid_release(self):
@@ -3260,10 +3239,12 @@ class TestSubcloudsPatchPrestage(BaseTestSubcloudsPatch):
             f"Invalid value for force option: {self.params['force']}",
         )
 
-    def test_patch_prestage_fails_with_system_controller_upgrade(self):
-        """Test patch prestage fails with system controller upgrade"""
+    def test_patch_prestage_fails_with_system_controller_software_deploy(self):
+        """Test patch prestage fails when system controller has a deploy in-progress"""
 
-        self.mock_sysinv_client_prestage().get_upgrades.return_value = ["upgrade"]
+        self.mock_software_client().show_deploy.return_value = [
+            {"to_release": "24.09.0"}
+        ]
 
         response = self._send_request()
 
@@ -3271,7 +3252,7 @@ class TestSubcloudsPatchPrestage(BaseTestSubcloudsPatch):
             response,
             http.client.BAD_REQUEST,
             "Prestage failed 'SystemController': Prestage operations are not "
-            "allowed while system controller upgrade is in progress.",
+            "allowed while system controller has a software deployment in progress.",
         )
 
     def test_patch_prestage_fails_without_payload(self):

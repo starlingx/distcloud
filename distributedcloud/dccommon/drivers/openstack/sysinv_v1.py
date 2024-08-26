@@ -16,6 +16,7 @@
 import hashlib
 import os
 
+from cgtsclient import client
 from cgtsclient.exc import HTTPBadRequest
 from cgtsclient.exc import HTTPConflict
 from cgtsclient.exc import HTTPNotFound
@@ -129,26 +130,21 @@ class SysinvClient(base.DriverBase):
         endpoint_type: str = consts.KS_ENDPOINT_ADMIN,
         endpoint: str = None,
     ):
-        try:
-            # TOX cannot import cgts_client and all the dependencies therefore
-            # the client is being lazy loaded since TOX doesn't actually
-            # require the cgtsclient module.
-            from cgtsclient import client
+        self.region_name = region
 
-            # The sysinv client doesn't support a session, so we need to
-            # get an endpoint and token.
-            if endpoint is None:
-                endpoint = session.get_endpoint(
-                    service_type="platform", region_name=region, interface=endpoint_type
-                )
-
-            token = session.get_token()
-            self.sysinv_client = client.Client(
-                API_VERSION, endpoint=endpoint, token=token, timeout=timeout
+        # The sysinv client doesn't support a session, so we need to
+        # get an endpoint and token.
+        if not endpoint:
+            endpoint = session.get_endpoint(
+                service_type=consts.ENDPOINT_TYPE_PLATFORM,
+                region_name=region,
+                interface=endpoint_type,
             )
-            self.region_name = region
-        except exceptions.ServiceUnavailable:
-            raise
+
+        token = session.get_token()
+        self.sysinv_client = client.Client(
+            API_VERSION, endpoint=endpoint, token=token, timeout=timeout
+        )
 
     def get_host(self, hostname_or_id):
         """Get a host by its hostname or id."""
@@ -200,10 +196,6 @@ class SysinvClient(base.DriverBase):
             {"op": "replace", "path": "/bm_type", "value": bm_type},
         ]
         return self.sysinv_client.ihost.update(host_id, patch)
-
-    def upgrade_host(self, host_id, force=False):
-        """Invoke the API for 'system host-upgrade'"""
-        return self.sysinv_client.ihost.upgrade(host_id, force)
 
     def power_on_host(self, host_id):
         """Power on a host"""
@@ -367,57 +359,9 @@ class SysinvClient(base.DriverBase):
         """Install a license."""
         return self.sysinv_client.license.install_license(license_file)
 
-    def get_loads(self):
-        """Get a list of loads."""
-        return self.sysinv_client.load.list()
-
-    def get_load(self, load_id):
-        """Get a particular load."""
-        return self.sysinv_client.load.get(load_id)
-
-    def delete_load(self, load_id):
-        """Delete a load with the given id
-
-        :param: load id
-        """
-        try:
-            LOG.info(
-                "delete_load region {} load_id: {}".format(self.region_name, load_id)
-            )
-            self.sysinv_client.load.delete(load_id)
-        except HTTPNotFound:
-            LOG.info(
-                "delete_load NotFound {} for region: {}".format(
-                    load_id, self.region_name
-                )
-            )
-            raise exceptions.LoadNotFound(region_name=self.region_name, load_id=load_id)
-        except Exception as e:
-            LOG.error("delete_load exception={}".format(e))
-            raise e
-
-    def import_load(self, path_to_iso, path_to_sig):
-        """Import the particular software load."""
-        try:
-            return self.sysinv_client.load.import_load(
-                path_to_iso=path_to_iso, path_to_sig=path_to_sig
-            )
-        except HTTPBadRequest as e:
-            if "Max number of loads" in str(e):
-                raise exceptions.LoadMaxReached(region_name=self.region_name)
-            raise
-
-    def import_load_metadata(self, load):
-        """Import the software load metadata."""
-        return self.sysinv_client.load.import_load_metadata(load=load)
-
     def get_system_health(self):
         """Get system health."""
         return self.sysinv_client.health.get()
-
-    def get_system_health_upgrade(self):
-        """Get platform upgrade health."""
-        return self.sysinv_client.health.get_upgrade()
 
     def get_kube_upgrade_health(self):
         """Get system health for kube upgrade."""
@@ -426,29 +370,6 @@ class SysinvClient(base.DriverBase):
     def get_hosts(self):
         """Get a list of hosts."""
         return self.sysinv_client.ihost.list()
-
-    def get_upgrades(self):
-        """Get a list of upgrades."""
-        return self.sysinv_client.upgrade.list()
-
-    def get_error_msg(self):
-        """Get the upgrade message."""
-        return self.sysinv_client.upgrade.get_upgrade_msg()
-
-    def upgrade_activate(self):
-        """Invoke the API for 'system upgrade-activate', which is an update"""
-        patch = [
-            {"op": "replace", "path": "/state", "value": "activation-requested"},
-        ]
-        return self.sysinv_client.upgrade.update(patch)
-
-    def upgrade_complete(self):
-        """Invoke the API for 'system upgrade-complete', which is a delete"""
-        return self.sysinv_client.upgrade.delete()
-
-    def upgrade_start(self, force=False):
-        """Invoke the API for 'system upgrade-start', which is a create"""
-        return self.sysinv_client.upgrade.create(force)
 
     def get_applications(self):
         """Get a list of containerized applications"""

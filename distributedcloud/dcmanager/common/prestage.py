@@ -57,42 +57,15 @@ PRINT_PRESTAGE_VERSIONS_TASK = r"prestage\/prestage-versions : Print prestage ve
 PRESTAGE_VERSIONS_KEY_STR = "prestage_versions:"
 
 
-def _get_system_controller_upgrades():
-    # get a cached keystone client (and token)
-    try:
-        os_client = OpenStackDriver(
-            region_name=dccommon_consts.SYSTEM_CONTROLLER_NAME, region_clients=None
-        )
-    except Exception:
-        LOG.exception(
-            "Failed to get keystone client for %s",
-            dccommon_consts.SYSTEM_CONTROLLER_NAME,
-        )
-        raise
-
-    ks_client = os_client.keystone_client
-    sysinv_client = SysinvClient(
-        dccommon_consts.SYSTEM_CONTROLLER_NAME,
-        ks_client.session,
-        endpoint=ks_client.endpoint_cache.get_endpoint("sysinv"),
-    )
-
-    return sysinv_client.get_upgrades()
-
-
-def is_system_controller_upgrading():
-    return len(_get_system_controller_upgrades()) != 0
-
-
 def global_prestage_validate(payload):
     """Global prestage validation (not subcloud-specific)"""
 
-    if is_system_controller_upgrading():
+    if utils.is_system_controller_deploying():
         raise exceptions.PrestagePreCheckFailedException(
             subcloud=dccommon_consts.SYSTEM_CONTROLLER_NAME,
             details=(
                 "Prestage operations are not allowed while system "
-                "controller upgrade is in progress."
+                "controller has a software deployment in progress."
             ),
         )
 

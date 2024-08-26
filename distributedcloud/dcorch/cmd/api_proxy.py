@@ -100,12 +100,10 @@ def main():
     )
     systemd.notify_once()
 
-    # For patching and platorm, create a temp directory under /scratch
+    # For platorm and usm, create a temp directory under /scratch
     # and set TMPDIR environment variable to this directory, so that
     # the file created using tempfile will not use the default directory.
-    if CONF.type == consts.ENDPOINT_TYPE_PATCHING:
-        make_tempdir(constants.ENDPOINT_TYPE_PATCHING_TMPDIR)
-    elif CONF.type == consts.ENDPOINT_TYPE_PLATFORM:
+    if CONF.type == consts.ENDPOINT_TYPE_PLATFORM:
         make_tempdir(constants.ENDPOINT_TYPE_PLATFORM_TMPDIR)
     elif CONF.type == consts.ENDPOINT_TYPE_USM:
         make_tempdir(constants.ENDPOINT_TYPE_USM_TMPDIR)

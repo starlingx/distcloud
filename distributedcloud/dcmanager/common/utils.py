@@ -26,6 +26,7 @@ import resource as sys_resource
 import string
 import subprocess
 from typing import List
+from typing import Optional
 from typing import Union
 import uuid
 import xml.etree.ElementTree as ElementTree
@@ -1240,26 +1241,6 @@ def get_systemcontroller_installed_releases_ids() -> List[str]:
     return get_systemcontroller_deployed_releases(software_list, key="release_id")
 
 
-def is_software_ready_to_be_prestaged_for_deploy(software_list):
-    """Check if software is ready to be prestaged for software deploy
-
-    Searches the software list for the status of all releases, whose value
-    should be deployed.
-
-    If at the time of the query any release is in a state other than deployed,
-    it is considered that the release is not ready to be deployed, regardless of
-    the specific release.
-
-    Args:
-        software_list (list[dict]): The software list from USM API
-
-    Returns:
-        bool: `True` if all releases are in deployed state, otherwise `False`
-
-    """
-    return all(release["state"] == software_v1.DEPLOYED for release in software_list)
-
-
 # TODO(cmondo) - validate the appropriate mechanism for N-1 scenario
 def is_software_ready_to_be_prestaged_for_install(software_list, software_version):
     """Check if software is ready to be prestaged for install
@@ -1397,14 +1378,6 @@ def get_validated_sw_version_for_prestage(payload, subcloud=None):
         if len(software_list) == 1:
             return None, (
                 "Only base release is deployed, cannot prestage for software deploy."
-            )
-
-        # Ensures that the deploy is not in transition.
-        # All releases must be in deployed state.
-        if not is_software_ready_to_be_prestaged_for_deploy(software_list):
-            return None, (
-                "All releases must first be deployed, cannot prestage for software "
-                "deploy."
             )
 
         # Ensures that system controller and subcloud have the same
@@ -1756,25 +1729,6 @@ def decode_and_normalize_passwd(input_passwd):
         passwd = "'" + passwd + "'"
 
     return passwd
-
-
-def get_failure_msg(subcloud_region):
-    try:
-        os_client = OpenStackDriver(
-            region_name=subcloud_region,
-            region_clients=None,
-            fetch_subcloud_ips=fetch_subcloud_mgmt_ips,
-        )
-        keystone_client = os_client.keystone_client
-        endpoint = keystone_client.endpoint_cache.get_endpoint("sysinv")
-        sysinv_client = SysinvClient(
-            subcloud_region, keystone_client.session, endpoint=endpoint
-        )
-        msg = sysinv_client.get_error_msg()
-        return msg
-    except Exception as e:
-        LOG.exception("{}: {}".format(subcloud_region, e))
-        return consts.ERROR_DESC_FAILED
 
 
 def update_abort_status(context, subcloud_id, deploy_status, abort_failed=False):
@@ -2254,3 +2208,34 @@ def has_usm_service(subcloud_region, keystone_session):
     except keystone_exceptions.EndpointNotFound:
         LOG.warning("USM service not found for subcloud_region: %s", subcloud_region)
         return False
+
+
+def get_system_controller_deploy() -> Optional[dict]:
+    # get a cached keystone client (and token)
+    try:
+        os_client = OpenStackDriver(
+            region_name=dccommon_consts.SYSTEM_CONTROLLER_NAME, region_clients=None
+        )
+    except Exception:
+        LOG.exception(
+            "Failed to get keystone client for %s",
+            dccommon_consts.SYSTEM_CONTROLLER_NAME,
+        )
+        raise
+
+    ks_client = os_client.keystone_client
+    software_client = software_v1.SoftwareClient(
+        ks_client.session,
+        dccommon_consts.SYSTEM_CONTROLLER_NAME,
+        endpoint=ks_client.endpoint_cache.get_endpoint(
+            dccommon_consts.ENDPOINT_NAME_USM
+        ),
+    )
+    # Show deploy always returns either an empty list when there's no deploy
+    # or a list with a single element when there's a deploy
+    deploy_list = software_client.show_deploy()
+    return deploy_list[0] if deploy_list else None
+
+
+def is_system_controller_deploying() -> bool:
+    return get_system_controller_deploy() is not None

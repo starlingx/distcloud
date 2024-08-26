@@ -27,6 +27,8 @@ REST_SHOW_TIMEOUT = 150
 REST_DELETE_TIMEOUT = 300
 
 
+# TODO(gherzman): Use the software_client instead of using the requests module
+# https://opendev.org/starlingx/update/src/branch/master/software-client
 class SoftwareClient(base.DriverBase):
     """Software V1 driver."""
 
@@ -84,6 +86,12 @@ class SoftwareClient(base.DriverBase):
         url = self.endpoint + "/deploy"
         response = requests.delete(url, headers=self.headers, timeout=timeout)
         return self._handle_response(response, operation="Deploy delete")
+
+    def show_deploy(self, timeout=REST_DEFAULT_TIMEOUT):
+        """Show deploy"""
+        url = self.endpoint + "/deploy"
+        response = requests.get(url, headers=self.headers, timeout=timeout)
+        return self._handle_response(response, operation="Show deploy")
 
     def commit_patch(self, releases, timeout=REST_DEFAULT_TIMEOUT):
         """Commit patch"""

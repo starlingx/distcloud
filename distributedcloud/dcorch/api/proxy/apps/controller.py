@@ -28,14 +28,11 @@ from oslo_log import log as logging
 from oslo_service.wsgi import Request
 from oslo_utils._i18n import _
 import psutil
-import tsconfig.tsconfig as tsc
 import webob.dec
 import webob.exc
 from webob import Response
 
 from dccommon import consts as dccommon_consts
-from dccommon.drivers.openstack.sdk_platform import OpenStackDriver
-from dccommon.drivers.openstack.sysinv_v1 import SysinvClient
 from dcmanager.rpc import client as dcmanager_rpc_client
 from dcorch.api.proxy.apps.dispatcher import APIDispatcher
 from dcorch.api.proxy.apps.proxy import Proxy
@@ -432,32 +429,6 @@ class SysinvAPIController(APIController):
         request = req
         request.body = req.body
 
-        # load-import is stored in dc-vault and on /scratch temporary
-        # folder to be processed by sysinv
-        if self._is_load_import(request.path):
-            req_body = self._store_load_to_vault(req)
-            params_dict = request.POST
-            try:
-                # If load import is done with --local, the params active
-                # and inactive comes from the request body.
-                # If not done with --local, the params comes from request.POST
-                # in this case, the decode below will raise an exception
-                # and params_dict will continue point to request.POST
-                params_dict = json.loads(request.body.decode("utf-8"))
-            except UnicodeDecodeError:
-                pass
-
-            if "active" in params_dict:
-                req_body["active"] = params_dict["active"]
-
-            if "inactive" in params_dict:
-                req_body["inactive"] = params_dict["inactive"]
-
-            # sysinv will handle a simple application/json request
-            # with the file location
-            req.content_type = "application/json"
-            req.body = json.dumps(req_body).encode("utf8")
-
         application = self.process_request(req)
         response = req.get_response(application)
         return self.process_response(environ, request, response)
@@ -486,14 +457,7 @@ class SysinvAPIController(APIController):
             resource_type = self._get_resource_type_from_environ(environ)
             operation_type = proxy_utils.get_operation_type(environ)
             if self.get_status_code(response) in self.OK_STATUS_CODE:
-                if resource_type == consts.RESOURCE_TYPE_SYSINV_LOAD:
-                    if operation_type == consts.OPERATION_TYPE_POST:
-                        new_load = json.loads(response.body)
-                        self._save_load_to_vault(new_load["software_version"])
-                    else:
-                        sw_version = json.loads(response.body)["software_version"]
-                        self._remove_load_from_vault(sw_version)
-                elif resource_type == consts.RESOURCE_TYPE_SYSINV_DEVICE_IMAGE:
+                if resource_type == consts.RESOURCE_TYPE_SYSINV_DEVICE_IMAGE:
                     notify = True
                     if operation_type == consts.OPERATION_TYPE_POST:
                         resp = json.loads(response.body)
@@ -513,113 +477,10 @@ class SysinvAPIController(APIController):
                 else:
                     self._enqueue_work(environ, request, response)
                     self.notify(environ, self.ENDPOINT_TYPE)
-            else:
-                if (
-                    resource_type == consts.RESOURCE_TYPE_SYSINV_LOAD
-                    and operation_type == consts.OPERATION_TYPE_POST
-                ):
-                    self._check_load_in_vault()
 
             return response
         finally:
             proxy_utils.cleanup(environ)
-
-    def _is_load_import(self, path):
-        return path in proxy_consts.LOAD_PATHS
-
-    def _is_active_load(self, sw_version):
-        if sw_version == tsc.SW_VERSION:
-            return True
-        return False
-
-    def _save_load_to_vault(self, sw_version):
-        versioned_vault = os.path.join(proxy_consts.LOAD_VAULT_DIR, sw_version)
-
-        try:
-            # Remove any existing loads in the vault. At this point sysinv has
-            # validated/added the load so we must match the DC vault to that.
-            LOG.info("_save_load_to_vault remove prior %s" % sw_version)
-            self._remove_load_from_vault(sw_version)
-
-            if not os.path.isdir(versioned_vault):
-                # Check if the temporary folder exists
-                if not os.path.isdir(proxy_consts.LOAD_VAULT_TMP_DIR):
-                    msg = _(
-                        "Failed to store load in vault. Please check "
-                        "dcorch log for details."
-                    )
-                    LOG.error(
-                        "_save_load_to_vault failed: %s does not exist."
-                        % proxy_consts.LOAD_VAULT_TMP_DIR
-                    )
-                    raise webob.exc.HTTPInternalServerError(explanation=msg)
-
-                # Check the number of files in the temp folder
-                load_path = proxy_consts.LOAD_VAULT_TMP_DIR
-                load_files = [
-                    f
-                    for f in os.listdir(load_path)
-                    if os.path.isfile(os.path.join(load_path, f))
-                ]
-                if len(load_files) != len(proxy_consts.IMPORT_LOAD_FILES):
-                    msg = _(
-                        "Failed to store load in vault. Please check "
-                        "dcorch log for details."
-                    )
-                    LOG.error("_save_load_to_vault failed to store load in vault")
-                    raise webob.exc.HTTPInsufficientStorage(explanation=msg)
-
-                # Move the folder to the final location
-                shutil.move(proxy_consts.LOAD_VAULT_TMP_DIR, versioned_vault)
-
-            LOG.info("Load (%s) saved to vault." % sw_version)
-        except Exception:
-            msg = _(
-                "Failed to store load in vault. Please check dcorch log for details."
-            )
-            raise webob.exc.HTTPInsufficientStorage(explanation=msg)
-
-    def _remove_load_from_vault(self, sw_version):
-        versioned_vault = os.path.join(proxy_consts.LOAD_VAULT_DIR, sw_version)
-
-        if os.path.isdir(versioned_vault):
-            shutil.rmtree(versioned_vault)
-            LOG.info("Load (%s) removed from vault." % sw_version)
-
-    def _check_load_in_vault(self):
-        if not os.path.exists(proxy_consts.LOAD_VAULT_DIR):
-            # The vault directory has not even been created. This must
-            # be the very first load-import request which failed.
-            return
-        elif len(os.listdir(proxy_consts.LOAD_VAULT_DIR)) == 0:
-            try:
-                ks_client = OpenStackDriver(
-                    region_name=dccommon_consts.DEFAULT_REGION_NAME, region_clients=None
-                ).keystone_client
-                sysinv_client = SysinvClient(
-                    dccommon_consts.DEFAULT_REGION_NAME,
-                    ks_client.session,
-                    endpoint=ks_client.endpoint_cache.get_endpoint("sysinv"),
-                )
-                loads = sysinv_client.get_loads()
-            except Exception:
-                # Shouldn't be here
-                LOG.exception("Failed to get list of loads.")
-                return
-            else:
-                if len(loads) > proxy_consts.IMPORTED_LOAD_MAX_COUNT:
-                    # The previous load regardless of its current state
-                    # was mistakenly imported without the proxy.
-                    msg = _(
-                        "Previous load was not imported in the right "
-                        "region. Please remove the previous load and "
-                        "re-import it using 'SystemController' region."
-                    )
-                    raise webob.exc.HTTPUnprocessableEntity(explanation=msg)
-        else:
-            # Remove temp load dir
-            if os.path.exists(proxy_consts.LOAD_VAULT_TMP_DIR):
-                shutil.rmtree(proxy_consts.LOAD_VAULT_TMP_DIR)
 
     def _copy_device_image_to_vault(self, src_filepath, dst_filename):
         try:
@@ -636,24 +497,6 @@ class SysinvAPIController(APIController):
                 "dcorch log for details."
             )
             raise webob.exc.HTTPInsufficientStorage(explanation=msg)
-
-    def _copy_load_to_vault_for_validation(self, src_filepath):
-        try:
-            validation_vault_dir = proxy_consts.LOAD_VAULT_TMP_DIR
-            if not os.path.isdir(validation_vault_dir):
-                os.makedirs(validation_vault_dir)
-            load_file_path = os.path.join(
-                validation_vault_dir, os.path.basename(src_filepath)
-            )
-            shutil.copyfile(src_filepath, load_file_path)
-            LOG.info("copied %s to %s" % (src_filepath, load_file_path))
-        except Exception as e:
-            msg = _(
-                "Failed to store load in vault. Please check "
-                "dcorch log for more details: %s" % e
-            )
-            raise webob.exc.HTTPInsufficientStorage(explanation=msg)
-        return load_file_path
 
     def _upload_file(self, file_item):
         try:
@@ -673,7 +516,7 @@ class SysinvAPIController(APIController):
 
             if source_file is None:
                 LOG.error(
-                    "Failed to upload load file %s, invalid file object" % staging_file
+                    "Failed to upload file %s, invalid file object" % staging_file
                 )
                 return None
 
@@ -693,7 +536,7 @@ class SysinvAPIController(APIController):
                 avail_space = psutil.disk_usage("/scratch").free
                 if avail_space < file_size:
                     LOG.error(
-                        "Failed to upload load file %s, not enough space on /scratch"
+                        "Failed to upload file %s, not enough space on /scratch"
                         " partition: %d bytes available " % (staging_file, avail_space)
                     )
                     return None
@@ -710,7 +553,7 @@ class SysinvAPIController(APIController):
 
         except subprocess.CalledProcessError as e:
             LOG.error(
-                "Failed to upload load file %s, /usr/bin/fallocate error: %s"
+                "Failed to upload file %s, /usr/bin/fallocate error: %s"
                 % (staging_file, e.output)
             )
             if os.path.isfile(staging_file):
@@ -719,83 +562,10 @@ class SysinvAPIController(APIController):
         except Exception:
             if os.path.isfile(staging_file):
                 os.remove(staging_file)
-            LOG.exception("Failed to upload load file %s" % file_item.filename)
+            LOG.exception("Failed to upload file %s" % file_item.filename)
             return None
 
         return staging_file
-
-    def _store_load_to_vault(self, request):
-        class LocalLoadFile(object):
-            def __init__(self, filename):
-                self._filename = filename
-                self._file = open(filename, "rb")
-
-            def __del__(self):
-                self._file.close()
-
-            @property
-            def filename(self):
-                return self._filename
-
-            @property
-            def file(self):
-                return self._file
-
-        load_files = dict()
-
-        # Flag to cleanup staging files in case of errors
-        error = True
-        try:
-            for file in proxy_consts.IMPORT_LOAD_FILES:
-                if request.content_type == "application/json":
-                    request_body = dict(json.loads(request.body))
-
-                    if file not in request_body:
-                        msg = _("Missing required file for %s" % file)
-                        raise webob.exc.HTTPInternalServerError(explanation=msg)
-
-                    if not os.path.exists(request_body[file]):
-                        msg = _(
-                            "File %s does not exist on the active controller"
-                            % request_body[file]
-                        )
-                        raise webob.exc.HTTPInternalServerError(explanation=msg)
-
-                    file_item = LocalLoadFile(request_body[file])
-                else:
-                    if file not in request.POST:
-                        msg = _("Missing required file for %s" % file)
-                        raise webob.exc.HTTPInternalServerError(explanation=msg)
-
-                    file_item = request.POST[file]
-                    if not file_item.filename:
-                        msg = _("No %s file uploaded" % file)
-                        raise webob.exc.HTTPInternalServerError(explanation=msg)
-
-                staging_file = self._upload_file(file_item)
-                if file in request.POST:
-                    request.POST[file] = staging_file
-                if staging_file:
-                    self._copy_load_to_vault_for_validation(staging_file)
-                    load_files.update({file: staging_file})
-                else:
-                    msg = _(
-                        "Failed to save file %s to disk. Please check dcorch "
-                        "logs for details." % file_item.filename
-                    )
-                    raise webob.exc.HTTPInternalServerError(explanation=msg)
-
-            LOG.info("Load files: %s saved to disk." % load_files)
-            error = False
-        except webob.exc.HTTPInternalServerError:
-            raise
-        except Exception as e:
-            msg = _("Unexpected error copying load to vault: %s" % e)
-            raise webob.exc.HTTPInternalServerError(explanation=msg)
-        finally:
-            if error and os.path.exists(proxy_consts.LOAD_FILES_STAGING_DIR):
-                shutil.rmtree(proxy_consts.LOAD_FILES_STAGING_DIR)
-        return load_files
 
     def _store_image_file(self, file_item, dst_filename):
         # First, upload file to a temporary location
@@ -866,10 +636,6 @@ class SysinvAPIController(APIController):
                     resource_ids = [str(res.get("signature")) for res in resource]
                 else:
                     resource_ids = [resource.get("signature")]
-        elif resource_type == consts.RESOURCE_TYPE_SYSINV_LOAD:
-            if operation_type == consts.OPERATION_TYPE_DELETE:
-                resource_id = json.loads(response.body)["software_version"]
-                resource_ids = [resource_id]
         else:
             resource_id = self.get_resource_id_from_link(request_header)
             resource_ids = [resource_id]

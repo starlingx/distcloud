@@ -199,10 +199,6 @@ DEPLOY_STATE_CONFIG_ABORTED = "config-aborted"
 DEPLOY_STATE_ENROLLED = "enroll-complete"
 DEPLOY_STATE_ENROLLING = "enrolling"
 DEPLOY_STATE_ENROLL_FAILED = "enroll-failed"
-DEPLOY_STATE_MIGRATING_DATA = "migrating-data"
-DEPLOY_STATE_DATA_MIGRATION_FAILED = "data-migration-failed"
-DEPLOY_STATE_MIGRATED = "migrated"
-DEPLOY_STATE_UPGRADE_ACTIVATED = "upgrade-activated"
 DEPLOY_STATE_PRE_RESTORE = "pre-restore"
 DEPLOY_STATE_RESTORE_PREP_FAILED = "restore-prep-failed"
 DEPLOY_STATE_RESTORING = "restoring"
@@ -312,25 +308,10 @@ DC_LOG_DIR = "/var/log/dcmanager/"
 DC_ANSIBLE_LOG_DIR = DC_LOG_DIR + "ansible"
 INVENTORY_FILE_POSTFIX = "_inventory.yml"
 
-# The following password is just a temporary and internal password that is used
-# after a remote install as part of the upgrade. The real sysadmin password
-# will be restored af the subcloud is re-managed at the end of the upgrade.
-TEMP_SYSADMIN_PASSWORD = "St8rlingXCloud*"
-
 # System mode
 SYSTEM_MODE_DUPLEX = "duplex"
 SYSTEM_MODE_SIMPLEX = "simplex"
 SYSTEM_MODE_DUPLEX_DIRECT = "duplex-direct"
-
-# Load states
-ACTIVE_LOAD_STATE = "active"
-INACTIVE_LOAD_STATE = "inactive"
-IMPORTING_LOAD_STATE = "importing"
-IMPORTED_LOAD_STATE = "imported"
-IMPORTED_METADATA_LOAD_STATE = "imported-metadata"
-ERROR_LOAD_STATE = "error"
-DELETING_LOAD_STATE = "deleting"
-IMPORTED_LOAD_STATES = [IMPORTED_LOAD_STATE, IMPORTED_METADATA_LOAD_STATE]
 
 # extra_args for kube upgrade
 EXTRA_ARGS_TO_VERSION = "to-version"
@@ -403,8 +384,6 @@ INVALID_DEPLOY_STATES_FOR_DELETE = [
     DEPLOY_STATE_ABORTING_INSTALL,
     DEPLOY_STATE_ABORTING_BOOTSTRAP,
     DEPLOY_STATE_ABORTING_CONFIG,
-    DEPLOY_STATE_MIGRATING_DATA,
-    DEPLOY_STATE_UPGRADE_ACTIVATED,
     DEPLOY_STATE_PRE_RESTORE,
     DEPLOY_STATE_RESTORING,
     DEPLOY_STATE_PRE_REHOME,

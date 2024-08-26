@@ -26,6 +26,7 @@ from dcmanager.common import consts
 from dcmanager.common import context
 from dcmanager.common import exceptions
 from dcmanager.common import prestage
+from dcmanager.common import utils as cutils
 from dcmanager.db.sqlalchemy import api as db_api
 from dcmanager.orchestrator import sw_update_manager
 
@@ -570,7 +571,7 @@ class TestSwUpdateManager(base.DCManagerTestCase):
             self.assertEqual(subcloud_ids[index], strategy_step.subcloud_id)
 
     @mock.patch.object(prestage, "initial_subcloud_validate")
-    @mock.patch.object(prestage, "_get_system_controller_upgrades")
+    @mock.patch.object(cutils, "get_system_controller_deploy", return_value=None)
     def test_create_sw_prestage_strategy_no_password(
         self,
         mock_controller_upgrade,
@@ -618,7 +619,7 @@ class TestSwUpdateManager(base.DCManagerTestCase):
             payload=data,
         )
 
-    @mock.patch.object(prestage, "_get_system_controller_upgrades")
+    @mock.patch.object(cutils, "get_system_controller_deploy", return_value=None)
     def test_create_sw_prestage_strategy_backup_in_progress(
         self,
         mock_controller_upgrade,
@@ -855,7 +856,7 @@ class TestSwUpdateManager(base.DCManagerTestCase):
             um.create_sw_update_strategy(self.ctxt, payload=data)
 
     @mock.patch.object(prestage, "initial_subcloud_validate")
-    @mock.patch.object(prestage, "_get_system_controller_upgrades")
+    @mock.patch.object(cutils, "get_system_controller_deploy", return_value=None)
     def test_create_sw_prestage_strategy_parallel(
         self,
         mock_controller_upgrade,
@@ -1322,7 +1323,7 @@ class TestSwUpdateManager(base.DCManagerTestCase):
         )
 
     @mock.patch.object(prestage, "_get_prestage_subcloud_info")
-    @mock.patch.object(prestage, "_get_system_controller_upgrades")
+    @mock.patch.object(cutils, "get_system_controller_deploy", return_value=None)
     def test_create_sw_prestage_strategy_duplex(
         self,
         mock_controller_upgrade,

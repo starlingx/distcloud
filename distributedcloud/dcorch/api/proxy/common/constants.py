@@ -76,8 +76,6 @@ CERTIFICATE_PATHS = ["/v1/certificate/certificate_install", "/v1/certificate/{uu
 
 USER_PATHS = ["/v1/iuser/{uuid}"]
 
-LOAD_PATHS = ["/v1/loads/import_load", "/v1/loads/{id}"]
-
 RELEASE_PATHS = ["//v1/release", "//v1/release/{rel_id}"]
 
 DEVICE_IMAGE_PATHS = ["/v1/device_images", "/v1/device_images/{uuid}"]
@@ -85,7 +83,6 @@ DEVICE_IMAGE_PATHS = ["/v1/device_images", "/v1/device_images/{uuid}"]
 SYSINV_PATH_MAP = {
     consts.RESOURCE_TYPE_SYSINV_CERTIFICATE: CERTIFICATE_PATHS,
     consts.RESOURCE_TYPE_SYSINV_USER: USER_PATHS,
-    consts.RESOURCE_TYPE_SYSINV_LOAD: LOAD_PATHS,
     consts.RESOURCE_TYPE_SYSINV_DEVICE_IMAGE: DEVICE_IMAGE_PATHS,
 }
 
@@ -94,8 +91,6 @@ USM_PATH_MAP = {
 }
 
 LOAD_FILES_STAGING_DIR = "/scratch/tmp_load"
-IMPORT_LOAD_FILES = ["path_to_iso", "path_to_sig"]
-IMPORTED_LOAD_MAX_COUNT = 1
 
 DEVICE_IMAGE_VAULT_DIR = "/opt/dc-vault/device_images"
 
@@ -330,7 +325,6 @@ ROUTE_METHOD_MAP = {
     dccommon_consts.ENDPOINT_TYPE_PLATFORM: {
         consts.RESOURCE_TYPE_SYSINV_CERTIFICATE: ["POST", "DELETE"],
         consts.RESOURCE_TYPE_SYSINV_USER: ["PATCH", "PUT"],
-        consts.RESOURCE_TYPE_SYSINV_LOAD: ["POST", "DELETE"],
         consts.RESOURCE_TYPE_SYSINV_DEVICE_IMAGE: ["POST", "PATCH", "DELETE"],
     },
     consts.ENDPOINT_TYPE_NETWORK: {
@@ -370,8 +364,5 @@ ROUTE_METHOD_MAP = {
     },
 }
 
-LOAD_VAULT_DIR = "/opt/dc-vault/loads"
-LOAD_VAULT_TMP_DIR = "/opt/dc-vault/loads/load_tmpdir"
-ENDPOINT_TYPE_PATCHING_TMPDIR = "/scratch/patch-api-proxy-tmpdir"
 ENDPOINT_TYPE_PLATFORM_TMPDIR = "/scratch/platform-api-proxy-tmpdir"
 ENDPOINT_TYPE_USM_TMPDIR = "/scratch/software-upload-tmpdir"
