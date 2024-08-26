@@ -186,6 +186,11 @@ def subcloud_sync_update_all_to_in_progress(
     )
 
 
+def subcloud_audit_update_last_audit_time(context, subcloud_name):
+    """Updates the last audit time for all rows of a subcloud"""
+    return IMPL.subcloud_audit_update_last_audit_time(context, subcloud_name)
+
+
 def subcloud_audit_update_all_to_in_progress(
     context, management_state, availability_status, initial_sync_state, audit_interval
 ):
@@ -380,8 +385,10 @@ def subcloud_sync_update(context, subcloud_name, endpoint_type, values):
     return IMPL.subcloud_sync_update(context, subcloud_name, endpoint_type, values)
 
 
-def subcloud_sync_update_all(context, management_state, endpoint_type, values):
-    return IMPL.subcloud_sync_update_all(
+def subcloud_sync_update_all_except_in_progress(
+    context, management_state, endpoint_type, values
+):
+    return IMPL.subcloud_sync_update_all_except_in_progress(
         context, management_state, endpoint_type, values
     )
 

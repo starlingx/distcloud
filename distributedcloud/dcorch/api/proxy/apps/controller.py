@@ -97,6 +97,7 @@ class APIController(Middleware):
         return construct_url(environ)
 
     def notify(self, environ, endpoint_type):
+        LOG.info(f"{endpoint_type}: Notifying dcorch sync_request.")
         self.rpc_worker_client.sync_request(self.ctxt, endpoint_type)
 
     def process_request(self, req):

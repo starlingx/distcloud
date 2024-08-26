@@ -112,7 +112,7 @@ class EngineService(service.Service):
         self.TG.start(self.gsm.sync_audit_thread)
 
     def init_fkm(self):
-        self.fkm = FernetKeyManager(self.gsm)
+        self.fkm = FernetKeyManager()
 
     def init_ism(self):
         self.ism = InitialSyncManager()
