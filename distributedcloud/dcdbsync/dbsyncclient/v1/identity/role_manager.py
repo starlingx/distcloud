@@ -34,6 +34,15 @@ class Role(base.Resource):
         self.extra = extra
         self.description = description
 
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "domain_id": self.domain_id,
+            "name": self.name,
+            "extra": self.extra,
+            "description": self.description,
+        }
+
     def info(self):
         resource_info = dict()
         resource_info.update(

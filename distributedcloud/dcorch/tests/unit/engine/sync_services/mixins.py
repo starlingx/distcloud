@@ -11,8 +11,6 @@ from oslo_serialization import jsonutils
 
 import dcorch.common.exceptions as exceptions
 
-from dcdbsync.dbsyncclient import exceptions as dbsync_exceptions
-
 
 class BaseMixin(object):
     """Base mixin class to declare common methods for generic resource requests"""
@@ -108,7 +106,6 @@ class PostResourceMixin(BaseMixin):
 
         self._execute()
 
-        self._resource_detail().assert_called_once()
         self._resource_add().assert_called_once()
 
         self._assert_log(
@@ -131,16 +128,6 @@ class PostResourceMixin(BaseMixin):
             "without required 'source_resource_id' field",
         )
 
-    def test_post_fails_with_dbsync_unauthorized_exception(self):
-        """Test post fails with dbsync unauthorized exception"""
-
-        self._resource_detail().side_effect = dbsync_exceptions.Unauthorized()
-
-        self._execute_and_assert_exception(dbsync_exceptions.UnauthorizedMaster)
-
-        self._resource_detail().assert_called_once()
-        self._resource_add().assert_not_called()
-
     def test_post_fails_with_empty_resource_ref(self):
         """Test post fails with empty resource ref"""
 
@@ -158,7 +145,9 @@ class PostResourceMixin(BaseMixin):
         """Test post fails without resource records"""
 
         self._resource_detail().return_value = None
-
+        self.identity_sync_thread.get_cached_master_resources = mock.MagicMock(
+            return_value=None
+        )
         self._execute_and_assert_exception(exceptions.SyncRequestFailed)
         self._assert_log(
             "error",
@@ -179,7 +168,6 @@ class PutResourceMixin(BaseMixin):
 
         self._execute()
 
-        self._resource_detail().assert_called_once()
         self._resource_update().assert_called_once()
         self._assert_log(
             "info",
@@ -215,21 +203,13 @@ class PutResourceMixin(BaseMixin):
             "without required subcloud resource id",
         )
 
-    def test_put_fails_with_dbsync_unauthorized_exception(self):
-        """Test put fails with dbsync unauthorized exception"""
-
-        self._resource_detail().side_effect = dbsync_exceptions.Unauthorized
-
-        self._execute_and_assert_exception(dbsync_exceptions.UnauthorizedMaster)
-
-        self._resource_detail().assert_called_once()
-        self._resource_update().assert_not_called()
-
     def test_put_fails_without_resource_records(self):
         """Test put fails without resource records"""
 
         self._resource_detail().return_value = None
-
+        self.identity_sync_thread.get_cached_master_resources = mock.MagicMock(
+            return_value=None
+        )
         self._execute_and_assert_exception(exceptions.SyncRequestFailed)
         self._assert_log(
             "error",
