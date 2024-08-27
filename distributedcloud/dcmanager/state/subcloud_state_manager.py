@@ -17,6 +17,8 @@
 # of an applicable Wind River license agreement.
 #
 
+import copy
+
 from fm_api import constants as fm_const
 from fm_api import fm_api
 from oslo_concurrency import lockutils
@@ -390,6 +392,29 @@ class SubcloudStateManager(manager.Manager):
                 )
             )
 
+    def _create_fault(self, subcloud_name, endpoint):
+        """Creates a fault for an endpoint out-of-sync
+
+        :param subcloud_name: subcloud's name
+        :param endpoint: the endpoint that is out-of-sync
+
+        :return: an FM fault object
+        :rtype: Fault
+        """
+
+        return fm_api.Fault(
+            alarm_id=ALARM_OUT_OF_SYNC,
+            alarm_state=fm_const.FM_ALARM_STATE_SET,
+            entity_type_id=fm_const.FM_ENTITY_TYPE_SUBCLOUD,
+            entity_instance_id=f"subcloud={subcloud_name}.resource={endpoint}",
+            severity=fm_const.FM_ALARM_SEVERITY_MAJOR,
+            reason_text=f"{subcloud_name} {endpoint} sync_status is out-of-sync",
+            alarm_type=fm_const.FM_ALARM_TYPE_0,
+            probable_cause=fm_const.ALARM_PROBABLE_CAUSE_2,
+            proposed_repair_action="If problem persists contact next level of support",
+            service_affecting=False,
+        )
+
     def bulk_update_subcloud_availability_and_endpoint_status(
         self, context, subcloud_name, subcloud_region, availability_data, endpoint_data
     ):
@@ -416,13 +441,14 @@ class SubcloudStateManager(manager.Manager):
 
     @lockutils.synchronized(LOCK_NAME)
     def _do_bulk_update_subcloud_endpoint_status(
-        self, context, subcloud, endpoint_list
+        self, context, subcloud, endpoint_data
     ):
         """Updates an online and managed subcloud's endpoints sync status
 
         :param context: request context object
         :param subcloud: subcloud to update
-        :param endpoint_list: the list of endpoints and its sync status to update
+        :param endpoint_data: a dict containing the endpoint as key and its sync
+        status as value
         """
 
         # This bulk update is executed as part of the audit process and, because of
@@ -431,54 +457,54 @@ class SubcloudStateManager(manager.Manager):
         # happen at once.
         LOG.info(
             f"Updating endpoints on subcloud: {subcloud.name} "
-            f"endpoints: {', '.join(endpoint_list.keys())}"
+            f"endpoints: {', '.join(endpoint_data.keys())}"
         )
 
-        for endpoint, sync_status in endpoint_list.items():
-            entity_instance_id = f"subcloud={subcloud.name}.resource={endpoint}"
+        # For each endpoint in endpoint_data, decide whether an alarm should be set
+        # or not and create it in case it's necessary.
+        faults_to_set = dict()
+        entity_instance_id = f"subcloud={subcloud.name}"
 
-            fault = self.fm_api.get_fault(ALARM_OUT_OF_SYNC, entity_instance_id)
+        # Acquire all existing alarms with the specified alarm_id for a subcloud.
+        faults = self.fm_api.get_faults_by_id_n_eid(
+            ALARM_OUT_OF_SYNC, entity_instance_id
+        )
 
-            # TODO(yuxing): batch clear all the out-of-sync alarms of a
-            # given subcloud if fm_api support it. Be careful with the
-            # dc-cert endpoint when adding the above; the endpoint
-            # alarm must remain for offline subclouds.
-            if (sync_status != dccommon_consts.SYNC_STATUS_OUT_OF_SYNC) and fault:
+        if faults:
+            for fault in faults:
+                # The entity_instance_id is made out of
+                # subcloud={subcloud.name}.resource={endpoint}
+                endpoint = fault.entity_instance_id.split("resource=")[1]
+
+                # The uuid reset is necessary to avoid warnings in postgres.log
+                # related to adding an element with an existing uuid
+                fault.uuid = None
+                faults_to_set[endpoint] = fault
+
+        endpoints_with_faults = copy.deepcopy(list(faults_to_set.keys()))
+        for endpoint, sync_status in endpoint_data.items():
+            has_fault = True if endpoint in endpoints_with_faults else False
+
+            if sync_status == dccommon_consts.SYNC_STATUS_OUT_OF_SYNC and not has_fault:
+                faults_to_set[endpoint] = self._create_fault(subcloud.name, endpoint)
+            elif sync_status != dccommon_consts.SYNC_STATUS_OUT_OF_SYNC and has_fault:
+                del faults_to_set[endpoint]
+
+            if set(endpoints_with_faults) != set(list(faults_to_set.keys())):
                 try:
                     self.fm_api.clear_fault(ALARM_OUT_OF_SYNC, entity_instance_id)
+                    self.fm_api.set_faults(faults_to_set.values())
                 except Exception as e:
-                    LOG.exception(e)
-
-            elif not fault and (sync_status == dccommon_consts.SYNC_STATUS_OUT_OF_SYNC):
-                entity_type_id = fm_const.FM_ENTITY_TYPE_SUBCLOUD
-                try:
-                    fault = fm_api.Fault(
-                        alarm_id=ALARM_OUT_OF_SYNC,
-                        alarm_state=fm_const.FM_ALARM_STATE_SET,
-                        entity_type_id=entity_type_id,
-                        entity_instance_id=entity_instance_id,
-                        severity=fm_const.FM_ALARM_SEVERITY_MAJOR,
-                        reason_text=(
-                            "%s %s sync_status is "
-                            "out-of-sync" % (subcloud.name, endpoint)
-                        ),
-                        alarm_type=fm_const.FM_ALARM_TYPE_0,
-                        probable_cause=fm_const.ALARM_PROBABLE_CAUSE_2,
-                        proposed_repair_action="If problem persists "
-                        "contact next level "
-                        "of support",
-                        service_affecting=False,
+                    LOG.exception(
+                        f"An error occurred when updating subcloud {subcloud.name} "
+                        f"alarms: {e}"
                     )
-
-                    self.fm_api.set_fault(fault)
-                except Exception as e:
-                    LOG.exception(e)
 
         try:
             db_api.subcloud_status_bulk_update_endpoints(
                 context,
                 subcloud.id,
-                endpoint_list,
+                endpoint_data,
             )
         except Exception as e:
             LOG.exception(
@@ -486,17 +512,18 @@ class SubcloudStateManager(manager.Manager):
                 f"endpoint status: {e}"
             )
 
-    def _bulk_update_subcloud_endpoint_status(self, context, subcloud, endpoint_list):
+    def _bulk_update_subcloud_endpoint_status(self, context, subcloud, endpoint_data):
         """Update the sync status of a list of subcloud endpoints
 
         :param context: current context object
         :param subcloud: subcloud object
-        :param endpoint_list: list of endpoints to update and their sync status
+        :param endpoint_data: a dict containing the endpoint as key and its sync
+        status as value
         """
 
         endpoints_to_update = dict()
 
-        for endpoint_type, sync_status in endpoint_list.items():
+        for endpoint_type, sync_status in endpoint_data.items():
             if self._should_update_endpoint_status(
                 subcloud, endpoint_type, sync_status
             ):
@@ -516,7 +543,7 @@ class SubcloudStateManager(manager.Manager):
                 "Ignoring bulk_update_subcloud_endpoint_status for subcloud: "
                 f"{subcloud.name} availability: {subcloud.availability_status} "
                 f"management: {subcloud.management_state} endpoints: "
-                f"{', '.join(endpoint_list.keys())}"
+                f"{', '.join(endpoint_data.keys())}"
             )
 
     def update_subcloud_endpoint_status(
@@ -692,13 +719,13 @@ class SubcloudStateManager(manager.Manager):
             if availability_status == dccommon_consts.AVAILABILITY_OFFLINE:
                 # Subcloud is going offline, set all endpoint statuses to
                 # unknown.
-                endpoint_list = dict()
+                endpoint_data = dict()
 
                 for endpoint in dccommon_consts.ENDPOINT_TYPES_LIST:
-                    endpoint_list[endpoint] = dccommon_consts.SYNC_STATUS_UNKNOWN
+                    endpoint_data[endpoint] = dccommon_consts.SYNC_STATUS_UNKNOWN
 
                 self._bulk_update_subcloud_endpoint_status(
-                    context, subcloud, endpoint_list
+                    context, subcloud, endpoint_data
                 )
 
             try:
