@@ -249,18 +249,17 @@ class SwUpdateManager(manager.Manager):
         stop_on_failure = payload.get("stop-on-failure") in ["true"]
         force = payload.get("force") in ["true"]
 
-        # Validates and returns release prestage params
-        software_version, installed_releases, for_sw_deploy = (
-            prestage.get_validated_release_params(payload)
-        )
-
-        # Set release version and for-sw-deploy
-        payload.update({consts.PRESTAGE_REQUEST_RELEASE: software_version})
-
         # Has the user specified a specific subcloud?
         cloud_name = payload.get("cloud_name")
         strategy_type = payload.get("type")
         prestage_global_validated = False
+
+        # Has the user specified for_sw_deploy flag for prestage strategy?
+        if strategy_type == consts.SW_UPDATE_TYPE_PRESTAGE:
+            for_sw_deploy = (
+                utils.get_prestage_reason(payload) == consts.PRESTAGE_FOR_SW_DEPLOY
+            )
+
         if cloud_name:
             # Make sure subcloud exists
             try:
@@ -275,78 +274,42 @@ class SwUpdateManager(manager.Manager):
 
             # TODO(rlima): move prestage to its validator
             if strategy_type == consts.SW_UPDATE_TYPE_PRESTAGE:
+                # For sw deploy, the system controller and subcloud SW version
+                # should be the same
+                if (
+                    for_sw_deploy
+                    and payload.get(consts.PRESTAGE_REQUEST_RELEASE)
+                    != subcloud.software_version
+                ):
+                    msg = (
+                        "The subcloud release version is different than that of the "
+                        "system controller, cannot prestage for software deploy."
+                    )
+                    raise exceptions.BadRequest(resource="strategy", msg=str(msg))
+
                 # Do initial validation for subcloud
                 try:
                     prestage.global_prestage_validate(payload)
                     prestage_global_validated = True
-                    prestage.initial_subcloud_validate(
-                        subcloud, installed_releases, software_version, for_sw_deploy
-                    )
+                    prestage.initial_subcloud_validate(subcloud)
                 except exceptions.PrestagePreCheckFailedException as ex:
                     raise exceptions.BadRequest(resource="strategy", msg=str(ex))
-
             else:
                 self.strategy_validators[strategy_type].validate_strategy_requirements(
                     context, subcloud.id, subcloud.name, force
                 )
 
         extra_args = None
-        # TODO(rlima): move prestage logic to its validator
-        if strategy_type == consts.SW_UPDATE_TYPE_PRESTAGE:
-            if not prestage_global_validated:
-                try:
-                    prestage.global_prestage_validate(payload)
-                except exceptions.PrestagePreCheckFailedException as ex:
-                    raise exceptions.BadRequest(resource="strategy", msg=str(ex))
-
-            extra_args = {
-                consts.EXTRA_ARGS_SYSADMIN_PASSWORD: payload.get(
-                    consts.EXTRA_ARGS_SYSADMIN_PASSWORD
-                ),
-                consts.EXTRA_ARGS_FORCE: force,
-                consts.PRESTAGE_SOFTWARE_VERSION: (
-                    software_version if software_version else SW_VERSION
-                ),
-                consts.PRESTAGE_FOR_SW_DEPLOY: for_sw_deploy,
-            }
-        else:
+        if strategy_type != consts.SW_UPDATE_TYPE_PRESTAGE:
             extra_args = self.strategy_validators[strategy_type].build_extra_args(
                 payload
             )
-
-        # Don't create a strategy if any of the subclouds is online and the
-        # relevant sync status is unknown. Offline subcloud is skipped unless
-        # --force option is specified and strategy type is sw-deploy.
-
-        # When the count is greater than 0, that means there are invalid subclouds
-        # and the execution should abort.
-        # Force is only sent when it's true and the strategy is sw-deploy.
-        if strategy_type == consts.SW_UPDATE_TYPE_PRESTAGE:
-            subclouds = list()
-
-            # If a subcloud is specified with cloud_name and its name is not the
-            # same as the system controller's, the subcloud variable is filled with
-            # its object.
-            if cloud_name:
-                subclouds.append(subcloud)
-            elif subcloud_group:
-                subclouds = db_api.subcloud_get_all_by_group_id(
-                    context, single_group.id
-                )
-            else:
-                subclouds = db_api.subcloud_get_all(context)
-
-            for subcloud in subclouds:
-                # Do initial validation for subcloud
-                try:
-                    prestage.initial_subcloud_validate(
-                        subcloud, installed_releases, software_version, for_sw_deploy
-                    )
-                except exceptions.PrestagePreCheckFailedException:
-                    LOG.warn(
-                        f"Excluding subcloud from prestage strategy: {subcloud.name}"
-                    )
-        else:
+            # Don't create a strategy if any of the subclouds is online and the
+            # relevant sync status is unknown. Offline subcloud is skipped unless
+            # --force option is specified and strategy type is sw-deploy.
+            # When the count is greater than 0, that means there are invalid subclouds
+            # and the execution should abort.
+            # Force is only sent when it's true and the strategy is sw-deploy.
             count_invalid_subclouds = db_api.subcloud_count_invalid_for_strategy_type(
                 context,
                 self.strategy_validators[strategy_type].endpoint_type,
@@ -422,6 +385,47 @@ class SwUpdateManager(manager.Manager):
                 elif sync_status == dccommon_consts.SYNC_STATUS_OUT_OF_SYNC:
                     filtered_valid_subclouds.append((subcloud, sync_status))
 
+            valid_subclouds = filtered_valid_subclouds
+        elif strategy_type == consts.SW_UPDATE_TYPE_PRESTAGE:
+            if not prestage_global_validated:
+                try:
+                    prestage.global_prestage_validate(payload)
+                except exceptions.PrestagePreCheckFailedException as ex:
+                    raise exceptions.BadRequest(resource="strategy", msg=str(ex))
+
+            extra_args = {
+                consts.EXTRA_ARGS_SYSADMIN_PASSWORD: payload.get(
+                    consts.EXTRA_ARGS_SYSADMIN_PASSWORD
+                ),
+                consts.EXTRA_ARGS_FORCE: force,
+                consts.PRESTAGE_SOFTWARE_VERSION: (
+                    payload.get(consts.PRESTAGE_REQUEST_RELEASE)
+                ),
+                consts.PRESTAGE_FOR_SW_DEPLOY: for_sw_deploy,
+            }
+
+            filtered_valid_subclouds = []
+            for subcloud, sync_status in valid_subclouds:
+                warn_msg = f"Excluding subcloud from prestage strategy: {subcloud.name}"
+                # For sw deploy, the system controller and subcloud SW version
+                # should be the same
+                if (
+                    for_sw_deploy
+                    and payload.get(consts.PRESTAGE_REQUEST_RELEASE)
+                    != subcloud.software_version
+                ):
+                    msg = (
+                        "The subcloud release version is different than that of the "
+                        "system controller, cannot prestage for software deploy."
+                    )
+                    LOG.warn(f"{warn_msg} due to: {msg}")
+                else:
+                    # Do initial validation for subcloud
+                    try:
+                        prestage.initial_subcloud_validate(subcloud)
+                        filtered_valid_subclouds.append((subcloud, sync_status))
+                    except exceptions.PrestagePreCheckFailedException:
+                        LOG.warn(warn_msg)
             valid_subclouds = filtered_valid_subclouds
 
         if not valid_subclouds:

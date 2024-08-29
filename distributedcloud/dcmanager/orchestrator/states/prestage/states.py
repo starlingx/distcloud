@@ -100,6 +100,17 @@ class PrestagePreCheckState(PrestageState):
                     )
                 }
             )
+        # Taking the for_sw_deploy parameter if it was specified when the
+        # strategy was created
+        if extra_args.get(consts.PRESTAGE_FOR_SW_DEPLOY):
+            payload.update(
+                {
+                    consts.PRESTAGE_FOR_SW_DEPLOY: extra_args.get(
+                        consts.PRESTAGE_FOR_SW_DEPLOY
+                    )
+                }
+            )
+
         try:
             oam_floating_ip = prestage.validate_prestage(
                 strategy_step.subcloud, payload
@@ -147,7 +158,7 @@ class PrestagePackagesState(PrestageState):
                 }
             )
 
-        prestage_reason = prestage.get_prestage_reason(extra_args)
+        prestage_reason = utils.get_prestage_reason(extra_args)
 
         prestage.prestage_packages(
             self.context, strategy_step.subcloud, payload, prestage_reason
@@ -190,7 +201,7 @@ class PrestageImagesState(PrestageState):
                 }
             )
 
-        prestage_reason = prestage.get_prestage_reason(extra_args)
+        prestage_reason = utils.get_prestage_reason(extra_args)
 
         prestage.prestage_images(
             self.context, strategy_step.subcloud, payload, prestage_reason

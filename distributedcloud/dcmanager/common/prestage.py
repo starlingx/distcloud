@@ -122,12 +122,7 @@ def global_prestage_validate(payload):
         )
 
 
-def initial_subcloud_validate(
-    subcloud,
-    installed_releases,
-    software_version,
-    for_sw_deploy,
-):
+def initial_subcloud_validate(subcloud):
     """Basic validation a subcloud prestage operation.
 
     Raises a PrestageCheckFailedException on failure.
@@ -177,24 +172,6 @@ def initial_subcloud_validate(
             % (", ".join(allowed_prestage_states), subcloud.prestage_status),
         )
 
-    # The request software version must be either the same as the software version
-    # of the subcloud or any available/deployed release on the system controller
-    # (can be checked with "software list" command).
-    if (
-        not for_sw_deploy
-        and software_version
-        and software_version != subcloud.software_version
-        and software_version not in installed_releases
-    ):
-        raise exceptions.PrestagePreCheckFailedException(
-            subcloud=subcloud.name,
-            orch_skip=True,
-            details=(
-                f"Specified release is not supported. {software_version} "
-                "version must first be imported"
-            ),
-        )
-
 
 def validate_prestage(subcloud, payload):
     """Validate a subcloud prestage operation.
@@ -210,26 +187,27 @@ def validate_prestage(subcloud, payload):
     """
     LOG.debug("Validating subcloud prestage '%s'", subcloud.name)
 
-    # Validates and returns release prestage params
-    software_version, installed_releases, for_sw_deploy = get_validated_release_params(
-        payload
+    # Do software version validation. If the version is not validated correctly,
+    # it implies that there is an error. Therefore the prestage cannot be continued.
+    software_version, message = utils.get_validated_sw_version_for_prestage(
+        payload, subcloud
     )
-
-    # Set release version
+    if not software_version:
+        raise exceptions.PrestagePreCheckFailedException(
+            subcloud=subcloud.name,
+            orch_skip=False,
+            details=message,
+        )
+    # Configure the release parameter to the appropriate software version
     payload.update({consts.PRESTAGE_REQUEST_RELEASE: software_version})
 
     # re-run the initial validation
-    initial_subcloud_validate(
-        subcloud,
-        installed_releases,
-        software_version,
-        for_sw_deploy,
-    )
+    initial_subcloud_validate(subcloud)
 
     subcloud_type, system_health, oam_floating_ip, controller_0_is_active = (
         _get_prestage_subcloud_info(subcloud)
     )
-    prestage_reason = get_prestage_reason(payload)
+    prestage_reason = utils.get_prestage_reason(payload)
 
     if (
         subcloud_type == consts.SYSTEM_MODE_DUPLEX
@@ -286,13 +264,6 @@ def is_local(subcloud_version, specified_version):
     return subcloud_version == specified_version
 
 
-def get_prestage_reason(payload):
-    if payload.get(consts.PRESTAGE_FOR_SW_DEPLOY, False):
-        return consts.PRESTAGE_FOR_SW_DEPLOY
-
-    return consts.PRESTAGE_FOR_INSTALL
-
-
 def prestage_subcloud(context, payload):
     """Subcloud prestaging
 
@@ -308,7 +279,7 @@ def prestage_subcloud(context, payload):
         - run prestage_images.yml ansible playbook
     """
     subcloud_name = payload["subcloud_name"]
-    prestage_reason = get_prestage_reason(payload)
+    prestage_reason = utils.get_prestage_reason(payload)
     LOG.info(
         f"Prestaging subcloud: {subcloud_name}, "
         f"force={payload['force']}, prestage_reason={prestage_reason}"
@@ -343,7 +314,7 @@ def _prestage_standalone_thread(context, subcloud, payload):
     """Run the prestage operations inside a separate thread"""
     log_file = utils.get_subcloud_ansible_log_file(subcloud.name)
 
-    prestage_reason = get_prestage_reason(payload)
+    prestage_reason = utils.get_prestage_reason(payload)
 
     try:
         prestage_packages(context, subcloud, payload, prestage_reason)
@@ -567,53 +538,3 @@ def prestage_images(context, subcloud, payload, reason):
         ansible_subcloud_inventory_file,
         timeout_seconds=CONF.playbook_timeout * 2,
     )
-
-
-def get_validated_release_params(payload):
-    """Validates the release param from payload.
-
-    It returns three values in tuple unpacking style if release
-    param if present:
-
-    1- Validated release
-    2- List of releases deployed in the system controller
-    3- Flag that indicates whether it is for sw deploy.
-
-    Otherwise it returns the default release, since it is assumed
-    that it is already deployed on system controller.
-
-    """
-    requested_sw_version = payload.get(consts.PRESTAGE_REQUEST_RELEASE)
-    installed_releases = []
-
-    for_sw_deploy = get_prestage_reason(payload) == consts.PRESTAGE_FOR_SW_DEPLOY
-    for_install = not for_sw_deploy
-
-    # Standalone prestage uses 'subcloud_name' to indicate the subcloud name
-    # Orchestrated prestage uses 'cloud_name' to indicate the subcloud name
-    subcloud_name = payload.get("subcloud_name", payload.get("cloud_name", ""))
-
-    if requested_sw_version:
-        # Ensures the release format is MM.mm
-        if utils.is_minor_release(requested_sw_version):
-            raise exceptions.PrestagePreCheckFailedException(
-                subcloud=subcloud_name,
-                orch_skip=False,
-                details="Specified release format is not supported. "
-                "Version format must be MM.mm",
-            )
-
-        installed_releases = utils.get_systemcontroller_installed_releases()
-
-        # Requested release must be in deployed state when --for-sw-deploy
-        # is present.
-        if for_sw_deploy and requested_sw_version not in installed_releases:
-            raise exceptions.PrestagePreCheckFailedException(
-                subcloud=subcloud_name,
-                orch_skip=False,
-                details="The requested software version was not installed in the "
-                "system controller, cannot prestage for software deploy",
-            )
-    # Release software_version format is MM.mm
-    software_version = utils.get_sw_version(requested_sw_version, for_install)
-    return software_version, installed_releases, for_sw_deploy
