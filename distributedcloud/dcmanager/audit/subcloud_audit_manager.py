@@ -520,7 +520,9 @@ class SubcloudAuditManager(manager.Manager):
             "Set end audit timestamp for non-qualified subclouds "
             f"({len(skipped_subcloud_ids)}) in bulk"
         )
-        db_api.subcloud_audits_bulk_end_audit(self.context, skipped_subcloud_ids)
+        db_api.subcloud_audits_bulk_update_audit_finished_at(
+            self.context, skipped_subcloud_ids
+        )
 
         LOG.debug(
             f"Number of subclouds qualified for audit: {len(pruned_subcloud_audits)}"

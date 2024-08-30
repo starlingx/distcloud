@@ -327,8 +327,12 @@ class TestAuditManager(base.DCManagerTestCase):
         am = subcloud_audit_manager.SubcloudAuditManager()
         am._periodic_subcloud_audit_loop()
 
-    @mock.patch.object(subcloud_audit_manager.db_api, "subcloud_audits_bulk_end_audit")
-    def test_skip_subcloud_audit(self, mock_subcloud_audits_bulk_end_audit):
+    @mock.patch.object(
+        subcloud_audit_manager.db_api, "subcloud_audits_bulk_update_audit_finished_at"
+    )
+    def test_skip_subcloud_audit(
+        self, mock_subcloud_audits_bulk_update_audit_finished_at
+    ):
         subcloud = self.create_subcloud_static(self.ctx)
         am = subcloud_audit_manager.SubcloudAuditManager()
         subcloud = db_api.subcloud_update(
@@ -340,7 +344,7 @@ class TestAuditManager(base.DCManagerTestCase):
         )
         am._periodic_subcloud_audit_loop()
         # Verify that the audit is skipped
-        mock_subcloud_audits_bulk_end_audit.assert_called_once()
+        mock_subcloud_audits_bulk_update_audit_finished_at.assert_called_once()
 
     def test_audit_one_subcloud(self):
         subcloud = self.create_subcloud_static(self.ctx)

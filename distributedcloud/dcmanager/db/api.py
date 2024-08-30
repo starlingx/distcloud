@@ -52,9 +52,9 @@ def subcloud_audits_get(context, subcloud_id):
     return IMPL.subcloud_audits_get(context, subcloud_id)
 
 
-def subcloud_audits_get_all(context):
-    """Get subcloud_audits info for all subclouds."""
-    return IMPL.subcloud_audits_get_all(context)
+def subcloud_audits_get_all(context, subcloud_ids=None):
+    """Get subcloud_audits info for  subclouds."""
+    return IMPL.subcloud_audits_get_all(context, subcloud_ids)
 
 
 def subcloud_audits_update_all(context, values):
@@ -86,14 +86,14 @@ def subcloud_audits_get_and_start_audit(context, subcloud_id):
     return IMPL.subcloud_audits_get_and_start_audit(context, subcloud_id)
 
 
-def subcloud_audits_end_audit(context, subcloud_id, audits_done):
-    """Set the 'audit finished' timestamp for the main audit."""
-    return IMPL.subcloud_audits_end_audit(context, subcloud_id, audits_done)
+def subcloud_audits_bulk_end_audit(context, audits_finished):
+    """Update the subcloud's audit end status in a bulk request"""
+    return IMPL.subcloud_audits_bulk_end_audit(context, audits_finished)
 
 
-def subcloud_audits_bulk_end_audit(context, subcloud_ids):
+def subcloud_audits_bulk_update_audit_finished_at(context, subcloud_ids):
     """Set the 'audit finished' timestamp for the main audit in bulk."""
-    return IMPL.subcloud_audits_bulk_end_audit(context, subcloud_ids)
+    return IMPL.subcloud_audits_bulk_update_audit_finished_at(context, subcloud_ids)
 
 
 def subcloud_audits_fix_expired_audits(

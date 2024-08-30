@@ -470,6 +470,7 @@ class SubcloudStateManager(manager.Manager):
             ALARM_OUT_OF_SYNC, entity_instance_id
         )
 
+        # Create a dictionary with the endpoint as key and fault as value
         if faults:
             for fault in faults:
                 # The entity_instance_id is made out of
@@ -481,6 +482,8 @@ class SubcloudStateManager(manager.Manager):
                 fault.uuid = None
                 faults_to_set[endpoint] = fault
 
+        # Copy the original dictionary created and, for each endpoint to be updated,
+        # verify if it either needs to set or clear an alarm
         endpoints_with_faults = copy.deepcopy(list(faults_to_set.keys()))
         for endpoint, sync_status in endpoint_data.items():
             has_fault = True if endpoint in endpoints_with_faults else False
@@ -490,15 +493,18 @@ class SubcloudStateManager(manager.Manager):
             elif sync_status != dccommon_consts.SYNC_STATUS_OUT_OF_SYNC and has_fault:
                 del faults_to_set[endpoint]
 
-            if set(endpoints_with_faults) != set(list(faults_to_set.keys())):
-                try:
-                    self.fm_api.clear_fault(ALARM_OUT_OF_SYNC, entity_instance_id)
-                    self.fm_api.set_faults(faults_to_set.values())
-                except Exception as e:
-                    LOG.exception(
-                        f"An error occurred when updating subcloud {subcloud.name} "
-                        f"alarms: {e}"
-                    )
+        # If the original dictionary created and the updated one are different, i.e.
+        # if an endpoint is removed or added to it, clear all faults for the subcloud
+        # and set the updated dictionary.
+        if set(endpoints_with_faults) != set(list(faults_to_set.keys())):
+            try:
+                self.fm_api.clear_fault(ALARM_OUT_OF_SYNC, entity_instance_id)
+                self.fm_api.set_faults(faults_to_set.values())
+            except Exception as e:
+                LOG.exception(
+                    f"An error occurred when updating subcloud {subcloud.name} "
+                    f"alarms: {e}"
+                )
 
         try:
             db_api.subcloud_status_bulk_update_endpoints(

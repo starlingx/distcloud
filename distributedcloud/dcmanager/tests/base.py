@@ -34,6 +34,7 @@ from dccommon.utils import AnsiblePlaybook
 from dcmanager.api.controllers.v1.subclouds import SubcloudsController
 from dcmanager.audit import rpcapi
 from dcmanager.audit import subcloud_audit_manager
+from dcmanager.audit import subcloud_audit_worker_manager
 from dcmanager.common import consts
 from dcmanager.common import phased_subcloud_deploy as psd_common
 from dcmanager.common import utils as dutils
@@ -165,6 +166,7 @@ class DCManagerTestCase(base.BaseTestCase):
         self.setup_dummy_db()
         self.ctx = utils.dummy_context()
         self._mock_pecan()
+        self._mock_subcloud_audit_worker_manager_time()
 
     # TODO(rlima): update the mock creation in the methods below
     def _mock_object(self, target, attribute, name, wraps=None):
@@ -179,6 +181,18 @@ class DCManagerTestCase(base.BaseTestCase):
 
         mock_patch_object = mock.patch.object(pecan, "abort", wraps=pecan.abort)
         self.mock_pecan_abort = mock_patch_object.start()
+        self.addCleanup(mock_patch_object.stop)
+
+    def _mock_subcloud_audit_worker_manager_time(self):
+        """Mock subcloud's audit worker manager time
+
+        This is required to avoid tests timing out because of the infinite thread
+        that runs in the worker process
+        """
+
+        mock_patch_object = mock.patch.object(subcloud_audit_worker_manager, "time")
+        self.mock_subcloud_audit_worker_manager_time = mock_patch_object.start()
+        self.mock_subcloud_audit_worker_manager_time.sleep.side_effect = Exception()
         self.addCleanup(mock_patch_object.stop)
 
     def _mock_db_api(self, target, wraps=None):
