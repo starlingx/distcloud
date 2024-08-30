@@ -2852,6 +2852,11 @@ class TestSubcloudsPatchPrestage(BaseTestSubcloudsPatch):
         {"sw_version": "24.09.1", "state": "available"},
     ]
 
+    FAKE_SOFTWARE_LIST_ONE_DEPLOYED_ONE_22_12_AVAILABLE_RELEASE = [
+        {"sw_version": "24.09.0", "state": "deployed"},
+        {"sw_version": "22.12.0", "state": "available"},
+    ]
+
     def setUp(self):
         super().setUp()
 
@@ -3033,7 +3038,7 @@ class TestSubcloudsPatchPrestage(BaseTestSubcloudsPatch):
     def test_prestage_for_sw_deploy_fails_with_invalid_release(self):
         """Test prestage for sw deploy fails with invalid release"""
 
-        self.params["release"] = "21.12"
+        self.params["release"] = "25.03"
         self.params["for_sw_deploy"] = "true"
 
         self.mock_get_validated_sw_version_for_prestage.side_effect = (
@@ -3071,6 +3076,30 @@ class TestSubcloudsPatchPrestage(BaseTestSubcloudsPatch):
             f"Prestage failed '{self.subcloud.name}': The subcloud release version "
             "is different than that of the system controller, cannot prestage for "
             "software deploy.",
+        )
+
+    def test_prestage_for_sw_deploy_fails_with_22_12_release(self):
+        """Test prestage for sw deploy fails with 22.12 release"""
+
+        self.params["release"] = "22.12"
+        self.params["for_sw_deploy"] = "true"
+
+        self.mock_get_validated_sw_version_for_prestage.side_effect = (
+            self.original_get_validated_sw_version_for_prestage
+        )
+
+        self.software_list = (
+            self.FAKE_SOFTWARE_LIST_ONE_DEPLOYED_ONE_22_12_AVAILABLE_RELEASE
+        )
+        self._setup_mock_get_system_controller_software_list()
+
+        response = self._send_request()
+
+        self._assert_pecan_and_response(
+            response,
+            http.client.BAD_REQUEST,
+            f"Prestage failed '{self.subcloud.name}': The requested software version "
+            "is not supported, cannot prestage for software deploy.",
         )
 
     def test_patch_prestage_fails_with_unmanaged_subcloud(self):

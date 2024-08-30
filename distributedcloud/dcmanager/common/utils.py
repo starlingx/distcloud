@@ -1377,6 +1377,13 @@ def get_validated_sw_version_for_prestage(payload, subcloud=None):
 
     # Check for deploy release param
     if for_sw_deploy:
+        # 22.12 version is not supported for software deploy
+        if software_version < consts.SOFTWARE_VERSION_24_09:
+            return None, (
+                "The requested software version is not supported, "
+                "cannot prestage for software deploy."
+            )
+
         # Ensures that the requested release version exists within the
         # list of deployed releases
         if software_version not in deployed_releases:
