@@ -69,6 +69,7 @@ class ManagerRpcAuditAPITestCase(base.DCManagerTestCase):
             True,
             False,
             False,
+            True,
         )
 
         exp_msg2 = {
@@ -81,6 +82,7 @@ class ManagerRpcAuditAPITestCase(base.DCManagerTestCase):
                 "do_openstack_audit": True,
                 "kube_rootca_update_audit_data": False,
                 "software_audit_data": False,
+                "use_cache": True,
             },
             "version": "1.0",
         }

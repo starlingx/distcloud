@@ -147,9 +147,9 @@ scheduler_opts = [
         help="Num days remaining for a kube rootca to be out-of-sync",
     ),
     cfg.IntOpt(
-        "patch_audit_interval",
+        "software_audit_interval",
         default=900,
-        help="default time interval for patch audit",
+        help="default time interval for software audit",
     ),
 ]
 

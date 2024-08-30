@@ -150,6 +150,7 @@ class ManagerAuditWorkerClient(object):
         do_openstack_audit=False,
         kube_rootca_update_data=None,
         software_audit_data=None,
+        use_cache=True,
     ):
         """Tell audit-worker to perform audit on the subclouds with these
 
@@ -166,6 +167,7 @@ class ManagerAuditWorkerClient(object):
                 do_openstack_audit=do_openstack_audit,
                 kube_rootca_update_audit_data=kube_rootca_update_data,
                 software_audit_data=software_audit_data,
+                use_cache=use_cache,
             ),
         )
 

@@ -47,18 +47,11 @@ SUBCLOUD_STATE_UPDATE_ITERATIONS = (
     dccommon_consts.SECONDS_IN_HOUR // CONF.scheduler.subcloud_audit_interval
 )
 
-# Patch audit normally happens every CONF.scheduler.patch_audit_interval
-# seconds, but can be forced to happen on the next audit interval by calling
-# trigger_patch_audit.
-
 # Name of starlingx openstack helm application
 HELM_APP_OPENSTACK = "openstack"
 
-# Every 4 audits triggers a kubernetes audit
-KUBERNETES_AUDIT_RATE = 4
-
-# Every 4 audits triggers a kube rootca update audit
-KUBE_ROOTCA_UPDATE_AUDIT_RATE = 4
+# Every 4 software audits triggers
+ONE_HOUR_AUDIT_RATE = 4
 
 # Valid Deploy Status for auditing
 VALID_DEPLOY_STATE = [
@@ -111,14 +104,14 @@ class SubcloudAuditManager(manager.Manager):
         # Number of audits since last subcloud state update
         self.audit_count = SUBCLOUD_STATE_UPDATE_ITERATIONS - 2
         self.patch_audit = patch_audit.PatchAudit(self.context)
-        # Number of patch audits
-        self.patch_audit_count = 0
-        # trigger a patch audit on startup
-        self.patch_audit_time = 0
         self.firmware_audit = firmware_audit.FirmwareAudit()
         self.kubernetes_audit = kubernetes_audit.KubernetesAudit()
         self.kube_rootca_update_audit = kube_rootca_update_audit.KubeRootcaUpdateAudit()
         self.software_audit = software_audit.SoftwareAudit()
+        # Number of software audits
+        self.software_audit_count = 0
+        # trigger a software audit on startup
+        self.software_audit_time = 0
 
     def _add_missing_endpoints(self):
         # Update this flag file based on the most recent new endpoint
@@ -209,7 +202,7 @@ class SubcloudAuditManager(manager.Manager):
         cls.force_software_audit = True
 
     @classmethod
-    def reset_software_audit(cls):
+    def reset_force_software_audit(cls):
         cls.force_software_audit = False
 
     def trigger_subcloud_audits(self, context, subcloud_id, exclude_endpoints):
@@ -273,6 +266,19 @@ class SubcloudAuditManager(manager.Manager):
             except Exception:
                 LOG.exception("Error in periodic subcloud audit loop")
 
+    def _should_use_cache(self):
+        # If we are forcing an audit, don't use the cache, get fresh data
+        return not any(
+            [
+                SubcloudAuditManager.force_patch_audit,
+                SubcloudAuditManager.force_firmware_audit,
+                SubcloudAuditManager.force_kubernetes_audit,
+                SubcloudAuditManager.force_kube_rootca_update_audit,
+                SubcloudAuditManager.force_software_audit,
+            ]
+        )
+
+    # TODO(nicodemos): Remove patch/load when no longer supported
     def _get_audits_needed(self):
         """Returns which (if any) extra audits are needed."""
         audit_patch = False
@@ -283,44 +289,47 @@ class SubcloudAuditManager(manager.Manager):
         audit_software = False
         current_time = time.time()
 
-        # Determine whether to trigger a patch audit of each subcloud
-        if SubcloudAuditManager.force_patch_audit or (
-            current_time - self.patch_audit_time >= CONF.scheduler.patch_audit_interval
+        # Determine whether to trigger a software audit of each subcloud
+        if (
+            current_time - self.software_audit_time
+            >= CONF.scheduler.software_audit_interval
         ):
+            LOG.info("Trigger software audit")
+            audit_software = True
+
             LOG.info("Trigger patch audit")
             audit_patch = True
-            self.patch_audit_time = current_time
-            self.patch_audit_count += 1
-            # Check subcloud software version every other patch audit cycle
-            if (
-                self.patch_audit_count % 2 != 0
-                or SubcloudAuditManager.force_patch_audit
-            ):
+
+            self.software_audit_time = current_time
+            self.software_audit_count += 1
+
+            # Every other audit will trigger at a 1-hour rate.
+            if self.software_audit_time % ONE_HOUR_AUDIT_RATE == 1:
+                # Triggers following audits (load, firmware, kubernetes, and root CA)
+                # by setting audit variables to True, then resets the "force_audit"
+                # flags to disable forced execution after the audit runs.
                 LOG.info("Trigger load audit")
                 audit_load = True
-            if self.patch_audit_count % 2 != 0:
-                LOG.info("Trigger software audit")
-                audit_software = True
-                # Reset force_software_audit only when software audit has been
-                SubcloudAuditManager.reset_software_audit()
-            if self.patch_audit_count % 4 == 1:
+                SubcloudAuditManager.reset_force_patch_audit()
+
                 LOG.info("Trigger firmware audit")
                 audit_firmware = True
-                # Reset force_firmware_audit only when firmware audit has been fired
                 SubcloudAuditManager.reset_force_firmware_audit()
-            if self.patch_audit_count % KUBERNETES_AUDIT_RATE == 1:
+
                 LOG.info("Trigger kubernetes audit")
                 audit_kubernetes = True
-                # Reset force_kubernetes_audit only when kubernetes audit has been
-                # fired
                 SubcloudAuditManager.reset_force_kubernetes_audit()
-            if self.patch_audit_count % KUBE_ROOTCA_UPDATE_AUDIT_RATE == 1:
+
                 LOG.info("Trigger kube rootca update audit")
                 audit_kube_rootca_updates = True
-                # Reset force_kube_rootca_update_audit only if audit is fired
                 SubcloudAuditManager.reset_force_kube_rootca_update_audit()
-            # the force_patch_audit flag is also used to evaluate audit_load
-            # so reset it here, even if it is not set
+            SubcloudAuditManager.reset_force_software_audit()
+
+        # Trigger a patch/load audit as it is changed through proxy
+        if SubcloudAuditManager.force_patch_audit:
+            LOG.info("Trigger patch/load audit")
+            audit_load = True
+            audit_patch = True
             SubcloudAuditManager.reset_force_patch_audit()
 
         # Trigger a firmware audit as it is changed through proxy
@@ -345,7 +354,7 @@ class SubcloudAuditManager(manager.Manager):
         if SubcloudAuditManager.force_software_audit:
             LOG.info("Trigger software audit")
             audit_software = True
-            SubcloudAuditManager.reset_software_audit()
+            SubcloudAuditManager.reset_force_software_audit()
 
         return (
             audit_patch,
@@ -414,6 +423,9 @@ class SubcloudAuditManager(manager.Manager):
             self.audit_count = 0
         else:
             update_subcloud_state = False
+
+        # Determine whether we want to use DCAgent cache for audits
+        use_cache = self._should_use_cache()
 
         # Determine whether we want to trigger specialty audits.
         (
@@ -617,6 +629,7 @@ class SubcloudAuditManager(manager.Manager):
                     do_openstack_audit,
                     kube_rootca_update_audit_data,
                     software_audit_data,
+                    use_cache,
                 )
                 LOG.debug(
                     "Sent subcloud audit request message for subclouds: %s"
@@ -634,6 +647,7 @@ class SubcloudAuditManager(manager.Manager):
                 do_openstack_audit,
                 kube_rootca_update_audit_data,
                 software_audit_data,
+                use_cache,
             )
             LOG.debug(
                 "Sent final subcloud audit request message for subclouds: %s"
