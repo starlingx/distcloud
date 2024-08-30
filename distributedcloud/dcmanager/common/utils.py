@@ -1507,23 +1507,33 @@ def get_primary_management_end_address(payload):
     return get_management_end_address(payload).split(",")[0]
 
 
-def get_management_gateway_address(payload):
-    """Get management gateway address.
+def get_primary_management_gateway_address(payload):
+    """Get primary management gateway address.
 
     Given a payload dict, prefer an admin
     gateway address over a management gateway address
     if it is present.
 
-    Returns the management gateway address.
+    Returns the primary management gateway address.
     """
     if payload.get("admin_gateway_address", None):
-        return payload.get("admin_gateway_address")
-    return payload.get("management_gateway_address", "")
+        return payload.get("admin_gateway_address").split(",")[0]
+    return payload.get("management_gateway_address", "").split(",")[0]
 
 
-def get_management_gateway_address_ip_family(payload):
-    """Get management gateway address family"""
-    address_value = get_management_gateway_address(payload)
+def get_primary_systemcontroller_gateway_address(payload):
+    """Get primary systemcontroller gateway address.
+
+    Returns the primary systemcontroller gateway address.
+    """
+    if payload.get("systemcontroller_gateway_address", None):
+        return payload.get("systemcontroller_gateway_address").split(",")[0]
+    return None
+
+
+def get_primary_management_gateway_address_ip_family(payload):
+    """Get primary management gateway address family"""
+    address_value = get_primary_management_gateway_address(payload)
     try:
         ip_address = netaddr.IPAddress(address_value)
     except Exception as e:
@@ -1568,8 +1578,8 @@ def has_network_reconfig(payload, subcloud):
     management_subnet = get_primary_management_subnet(payload)
     start_address = get_primary_management_start_address(payload)
     end_address = get_primary_management_end_address(payload)
-    gateway_address = get_management_gateway_address(payload)
-    sys_controller_gw_ip = payload.get("systemcontroller_gateway_address")
+    gateway_address = get_primary_management_gateway_address(payload)
+    sys_controller_gw_ip = get_primary_systemcontroller_gateway_address(payload)
 
     has_network_reconfig = any(
         [

@@ -301,7 +301,7 @@ class PhasedSubcloudDeployController(object):
                 payload
             )
             subcloud_dict["management-gateway-ip"] = (
-                utils.get_management_gateway_address(payload)
+                utils.get_primary_management_gateway_address(payload)
             )
             subcloud_dict["management-start-ip"] = (
                 utils.get_primary_management_start_address(payload)
@@ -309,8 +309,13 @@ class PhasedSubcloudDeployController(object):
             subcloud_dict["management-end-ip"] = (
                 utils.get_primary_management_end_address(payload)
             )
-            subcloud_dict["systemcontroller-gateway-ip"] = payload.get(
-                "systemcontroller_gateway_address", subcloud.systemcontroller_gateway_ip
+            systemcontroller_primary_gw = (
+                utils.get_primary_systemcontroller_gateway_address(payload)
+            )
+            subcloud_dict["systemcontroller-gateway-ip"] = (
+                systemcontroller_primary_gw
+                if systemcontroller_primary_gw
+                else subcloud.systemcontroller_gateway_ip
             )
             return subcloud_dict
 
@@ -572,7 +577,7 @@ class PhasedSubcloudDeployController(object):
                 payload
             )
             subcloud_dict["management-gateway-ip"] = (
-                utils.get_management_gateway_address(payload)
+                utils.get_primary_management_gateway_address(payload)
             )
             subcloud_dict["management-start-ip"] = (
                 utils.get_primary_management_start_address(payload)
@@ -580,8 +585,13 @@ class PhasedSubcloudDeployController(object):
             subcloud_dict["management-end-ip"] = (
                 utils.get_primary_management_end_address(payload)
             )
-            subcloud_dict["systemcontroller-gateway-ip"] = payload.get(
-                "systemcontroller_gateway_address", subcloud.systemcontroller_gateway_ip
+            systemcontroller_primary_gw = (
+                utils.get_primary_systemcontroller_gateway_address(payload)
+            )
+            subcloud_dict["systemcontroller-gateway-ip"] = (
+                systemcontroller_primary_gw
+                if systemcontroller_primary_gw
+                else subcloud.systemcontroller_gateway_ip
             )
             return subcloud_dict
         except RemoteError as e:

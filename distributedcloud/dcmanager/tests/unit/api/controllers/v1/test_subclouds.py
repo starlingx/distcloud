@@ -900,14 +900,18 @@ class TestSubcloudsPostDualStack(BaseTestSubcloudsPost, PostMixin):
 
     management_gateway_address_ipv4 = "192.168.1.1"
     management_gateway_address_ipv6 = "fd10::1"
+    management_gateway_address_dual_primary_ipv4 = "192.168.1.1,fd10::1"
+    management_gateway_address_dual_primary_ipv6 = "fd10::1,192.168.1.1"
 
     admin_gateway_address_ipv4 = "192.168.2.1"
     admin_gateway_address_ipv6 = "fd20::1"
+    admin_gateway_address_dual_primary_ipv4 = "192.168.2.1,fd20::1"
+    admin_gateway_address_dual_primary_ipv6 = "fd20::1,192.168.2.1"
 
     systemcontroller_gateway_address_ipv4 = "192.168.204.1"
     systemcontroller_gateway_address_ipv6 = "fd30::1"
-    systemcontroller_gateway_address_dual_primary_ipv4 = "192.168.204.1,fd30::1"
-    systemcontroller_gateway_address_dual_primary_ipv6 = "fd30::1,192.168.204.1"
+    sys_gw_addr_dual_primary_ipv4_invalid = "192.168.204.1.b,fd30::1"
+    sys_gw_addr_dual_primary_ipv6_invalid = "fd30::1.x,192.168.204.1"
 
     systemcontroller_pools_ipv4 = [
         FakeAddressPool("192.168.204.0", 24, "192.168.204.2", "192.168.204.100")
@@ -998,8 +1002,8 @@ class TestSubcloudsPostDualStack(BaseTestSubcloudsPost, PostMixin):
         """Test post fails with invalid system controller gateway address
 
         This tests for single/dual-stack admin/management.
-        The gateway address must be of same IP family as primary admin
-        (admin subnet has preference over managemnet subnet, if present)
+        The primary gateway address must be of same IP family as primary admin
+        (admin subnet has preference over management subnet, if present)
         subnet of subcloud and it must be present on systemcontroller pools too.
 
         Here we are testing against presence of admin subnet.
@@ -1015,27 +1019,31 @@ class TestSubcloudsPostDualStack(BaseTestSubcloudsPost, PostMixin):
         )
         tests = [
             (
-                self.systemcontroller_gateway_address_dual_primary_ipv4,
+                self.sys_gw_addr_dual_primary_ipv4_invalid,
                 self.admin_dual_primary_ipv4,
-                self.admin_gateway_address_ipv4,
+                self.admin_gateway_address_dual_primary_ipv4,
                 self.management_dual_primary_ipv4,
                 self.systemcontroller_pools_dual_primary_ipv4,
                 error_message_1
-                % format(self.systemcontroller_gateway_address_dual_primary_ipv4),
+                % format(
+                    self.sys_gw_addr_dual_primary_ipv4_invalid.split(",", maxsplit=1)[0]
+                ),
             ),
             (
-                self.systemcontroller_gateway_address_dual_primary_ipv6,
+                self.sys_gw_addr_dual_primary_ipv6_invalid,
                 self.admin_dual_primary_ipv6,
-                self.admin_gateway_address_ipv6,
+                self.admin_gateway_address_dual_primary_ipv6,
                 self.management_dual_primary_ipv6,
                 self.systemcontroller_pools_dual_primary_ipv6,
                 error_message_1
-                % format(self.systemcontroller_gateway_address_dual_primary_ipv6),
+                % format(
+                    self.sys_gw_addr_dual_primary_ipv6_invalid.split(",", maxsplit=1)[0]
+                ),
             ),
             (
                 self.systemcontroller_gateway_address_ipv4,
                 self.admin_dual_primary_ipv6,
-                self.admin_gateway_address_ipv6,
+                self.admin_gateway_address_dual_primary_ipv6,
                 self.management_dual_primary_ipv4,
                 self.systemcontroller_pools_dual_primary_ipv4,
                 f"{error_message} Expected IPv6",
@@ -1043,7 +1051,7 @@ class TestSubcloudsPostDualStack(BaseTestSubcloudsPost, PostMixin):
             (
                 self.systemcontroller_gateway_address_ipv6,
                 self.admin_dual_primary_ipv4,
-                self.admin_gateway_address_ipv4,
+                self.admin_gateway_address_dual_primary_ipv4,
                 self.management_dual_primary_ipv6,
                 self.systemcontroller_pools_dual_primary_ipv6,
                 f"{error_message} Expected IPv4",
@@ -1085,8 +1093,8 @@ class TestSubcloudsPostDualStack(BaseTestSubcloudsPost, PostMixin):
         """Test post fails with invalid system controller gateway address
 
         This tests for single/dual-stack management.
-        The gateway address must be of same IP family as primary admin/management
-        (admin subnet has preference over managemnet subnet, if present)
+        The primary gateway address must be of same IP family as primary admin/
+        management (admin subnet has preference over management subnet, if present)
         subnet of subcloud and it must be present on systemcontroller pools too.
 
         Here we are testing against absence of admin subnet.
@@ -1104,32 +1112,36 @@ class TestSubcloudsPostDualStack(BaseTestSubcloudsPost, PostMixin):
 
         tests = [
             (
-                self.systemcontroller_gateway_address_dual_primary_ipv4,
+                self.sys_gw_addr_dual_primary_ipv4_invalid,
                 self.management_dual_primary_ipv4,
-                self.management_gateway_address_ipv4,
+                self.management_gateway_address_dual_primary_ipv4,
                 self.systemcontroller_pools_dual_primary_ipv4,
                 error_message_1
-                % format(self.systemcontroller_gateway_address_dual_primary_ipv4),
+                % format(
+                    self.sys_gw_addr_dual_primary_ipv4_invalid.split(",", maxsplit=1)[0]
+                ),
             ),
             (
-                self.systemcontroller_gateway_address_dual_primary_ipv6,
+                self.sys_gw_addr_dual_primary_ipv6_invalid,
                 self.management_dual_primary_ipv6,
-                self.management_gateway_address_ipv6,
+                self.management_gateway_address_dual_primary_ipv6,
                 self.systemcontroller_pools_dual_primary_ipv6,
                 error_message_1
-                % format(self.systemcontroller_gateway_address_dual_primary_ipv6),
+                % format(
+                    self.sys_gw_addr_dual_primary_ipv6_invalid.split(",", maxsplit=1)[0]
+                ),
             ),
             (
                 self.systemcontroller_gateway_address_ipv4,
                 self.management_dual_primary_ipv6,
-                self.management_gateway_address_ipv6,
+                self.management_gateway_address_dual_primary_ipv6,
                 self.systemcontroller_pools_dual_primary_ipv4,
                 f"{error_message} Expected IPv6",
             ),
             (
                 self.systemcontroller_gateway_address_ipv6,
                 self.management_dual_primary_ipv4,
-                self.management_gateway_address_ipv4,
+                self.management_gateway_address_dual_primary_ipv4,
                 self.systemcontroller_pools_dual_primary_ipv6,
                 f"{error_message} Expected IPv4",
             ),
@@ -2160,23 +2172,13 @@ class TestSubcloudsPatchWithNetworkReconfiguration(BaseTestSubcloudsPatch):
 
             response = self._send_request()
 
-            if parameter == "management_gateway_ip":
-                self._assert_pecan_and_response(
-                    response,
-                    http.client.BAD_REQUEST,
-                    "subcloud management gateway IP's IP family does not exist on "
-                    "system controller managements: Invalid address - not a valid "
-                    "IP address: failed to detect a valid IP address from None",
-                    index,
-                )
-            else:
-                self._assert_pecan_and_response(
-                    response,
-                    http.client.UNPROCESSABLE_ENTITY,
-                    "The following parameters are necessary for subcloud network "
-                    f"reconfiguration: {required_parameters}",
-                    index,
-                )
+            self._assert_pecan_and_response(
+                response,
+                http.client.UNPROCESSABLE_ENTITY,
+                "The following parameters are necessary for subcloud network "
+                f"reconfiguration: {required_parameters}",
+                index,
+            )
 
     def test_patch_with_network_reconfig_fails_with_value_in_use(self):
         """Test patch with network reconfig fails with value in use"""

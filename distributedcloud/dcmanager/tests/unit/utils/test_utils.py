@@ -69,19 +69,19 @@ class TestUtils(base.DCManagerTestCase):
             utils.get_management_end_address(payload), payload["admin_end_address"]
         )
 
-    def test_get_management_gateway_address(self):
+    def test_get_primary_management_gateway_address(self):
         payload = {"management_gateway_address": "192.168.204.1"}
         self.assertEqual(
-            utils.get_management_gateway_address(payload),
+            utils.get_primary_management_gateway_address(payload),
             payload["management_gateway_address"],
         )
 
-    def test_get_management_gateway_address_return_admin(self):
+    def test_get_primary_management_gateway_address_return_admin(self):
         payload = {
             "admin_gateway_address": "192.168.205.1",
             "management_gateway_address": "192.168.204.1",
         }
         self.assertEqual(
-            utils.get_management_gateway_address(payload),
+            utils.get_primary_management_gateway_address(payload),
             payload["admin_gateway_address"],
         )
