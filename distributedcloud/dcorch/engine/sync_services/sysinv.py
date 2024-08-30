@@ -13,7 +13,6 @@
 # implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from types import SimpleNamespace
 
 import threading
 
@@ -29,8 +28,7 @@ from dccommon.drivers.openstack.dcagent_v1 import DcagentClient
 from dccommon.drivers.openstack.sdk_platform import OpenStackDriver
 from dccommon.drivers.openstack.sysinv_v1 import SysinvClient
 from dccommon import exceptions as dccommon_exceptions
-from dccommon.utils import build_subcloud_endpoint
-from dccommon.utils import subcloud_has_dcagent
+from dccommon import utils as dccommon_utils
 from dcorch.common import consts
 from dcorch.common import exceptions
 from dcorch.engine.fernet_key_manager import FERNET_REPO_MASTER_ID
@@ -41,6 +39,9 @@ from dcorch.engine.sync_thread import get_master_os_client
 from dcorch.engine.sync_thread import SyncThread
 
 LOG = logging.getLogger(__name__)
+
+SYNC_CERTIFICATES = ["ssl_ca", "openstack_ca"]
+CERTIFICATE_SIG_NULL = "NoCertificate"
 
 
 class SysinvSyncThread(SyncThread):
@@ -56,10 +57,7 @@ class SysinvSyncThread(SyncThread):
         consts.RESOURCE_TYPE_SYSINV_FERNET_REPO,
     ]
 
-    CERTIFICATE_SIG_NULL = "NoCertificate"
     RESOURCE_UUID_NULL = "NoResourceUUID"
-
-    SYNC_CERTIFICATES = ["ssl_ca", "openstack_ca"]
 
     def __init__(
         self,
@@ -94,7 +92,7 @@ class SysinvSyncThread(SyncThread):
             consts.RESOURCE_TYPE_SYSINV_FERNET_REPO,
         ]
         # TODO(ecandotti): remove has_dcagent check in the next StarlingX release
-        self.has_dcagent = subcloud_has_dcagent(self.software_version)
+        self.has_dcagent = dccommon_utils.subcloud_has_dcagent(self.software_version)
         self.sc_dcagent_client = None
 
         self.sc_sysinv_client = None
@@ -104,7 +102,9 @@ class SysinvSyncThread(SyncThread):
     def initialize_sc_clients(self):
         super().initialize_sc_clients()
 
-        sc_sysinv_url = build_subcloud_endpoint(self.management_ip, "sysinv")
+        sc_sysinv_url = dccommon_utils.build_subcloud_endpoint(
+            self.management_ip, "sysinv"
+        )
         LOG.debug(
             f"Built sc_sysinv_url {sc_sysinv_url} for subcloud {self.subcloud_name}"
         )
@@ -113,7 +113,9 @@ class SysinvSyncThread(SyncThread):
             self.sc_dcagent_client = DcagentClient(
                 self.region_name,
                 self.sc_admin_session,
-                endpoint=build_subcloud_endpoint(self.management_ip, "dcagent"),
+                endpoint=dccommon_utils.build_subcloud_endpoint(
+                    self.management_ip, "dcagent"
+                ),
             )
         self.sc_sysinv_client = SysinvClient(
             region=self.subcloud_name,
@@ -260,19 +262,19 @@ class SysinvSyncThread(SyncThread):
         certificate, metadata = self._decode_certificate_payload(certificate_dict)
 
         if isinstance(payload, dict):
-            if payload.get("certtype") not in self.SYNC_CERTIFICATES:
+            if payload.get("certtype") not in SYNC_CERTIFICATES:
                 return
             signature = payload.get("signature")
             LOG.info("signature from dict={}".format(signature))
         else:
-            if metadata.get("mode") not in self.SYNC_CERTIFICATES:
+            if metadata.get("mode") not in SYNC_CERTIFICATES:
                 return
             signature = rsrc.master_id
             LOG.info("signature from master_id={}".format(signature))
 
         icertificate = None
         signature = rsrc.master_id
-        if signature and signature != self.CERTIFICATE_SIG_NULL:
+        if signature and signature != CERTIFICATE_SIG_NULL:
             icertificate = self.update_certificate(
                 sysinv_client, signature, certificate=certificate, data=metadata
             )
@@ -589,23 +591,27 @@ class SysinvSyncThread(SyncThread):
             dccommon_consts.CLOUD_0, "audit"
         )
 
-    def get_certificates_resources(self, sysinv_client):
+    @classmethod
+    def get_certificates_resources(cls, sysinv_client: SysinvClient):
         certificate_list = sysinv_client.get_certificates()
-        return self.filter_cert_list(certificate_list)
+        return cls.filter_cert_list(certificate_list)
 
-    def filter_cert_list(self, certificate_list):
+    @staticmethod
+    def filter_cert_list(certificate_list):
         # Only sync the specified certificates to subclouds
         filtered_list = [
             certificate
             for certificate in certificate_list
-            if certificate.certtype in self.SYNC_CERTIFICATES
+            if certificate.certtype in SYNC_CERTIFICATES
         ]
         return filtered_list
 
-    def get_user_resource(self, sysinv_client):
+    @staticmethod
+    def get_user_resource(sysinv_client: SysinvClient):
         return sysinv_client.get_user()
 
-    def get_fernet_resources(self, sysinv_client):
+    @staticmethod
+    def get_fernet_resources(sysinv_client: SysinvClient):
         keys = sysinv_client.get_fernet_keys()
         return FernetKeyManager.to_resource_info(keys)
 
@@ -614,7 +620,7 @@ class SysinvSyncThread(SyncThread):
             if hasattr(resource, "signature"):
                 LOG.debug("get_resource_id signature={}".format(resource.signature))
                 if resource.signature is None:
-                    return self.CERTIFICATE_SIG_NULL
+                    return CERTIFICATE_SIG_NULL
                 return resource.signature
             elif hasattr(resource, "master_id"):
                 LOG.debug(
@@ -622,63 +628,114 @@ class SysinvSyncThread(SyncThread):
                 )
                 if resource.master_id is None:
                     # master_id cannot be None
-                    return self.CERTIFICATE_SIG_NULL
+                    return CERTIFICATE_SIG_NULL
                 return resource.master_id
             else:
                 LOG.error("no get_resource_id for certificate")
-                return self.CERTIFICATE_SIG_NULL
+                return CERTIFICATE_SIG_NULL
         elif resource_type == consts.RESOURCE_TYPE_SYSINV_FERNET_REPO:
             LOG.debug("get_resource_id {} resource={}".format(resource_type, resource))
             return FERNET_REPO_MASTER_ID
         else:
-            if hasattr(resource, "uuid"):
-                LOG.debug(
-                    "get_resource_id {} uuid={}".format(resource_type, resource.uuid)
-                )
-                return resource.uuid
+            resource_uuid = self.RESOURCE_UUID_NULL
+            if isinstance(resource, dict):
+                # master_id cannot be None
+                resource_uuid = resource.get("uuid", self.RESOURCE_UUID_NULL)
+            elif hasattr(resource, "uuid"):
+                resource_uuid = resource.uuid
+            if resource_uuid != self.RESOURCE_UUID_NULL:
+                LOG.debug(f"get_resource_id {resource_type} uuid={resource_uuid}")
             else:
-                LOG.debug(
-                    "get_resource_id NO uuid resource_type={}".format(resource_type)
-                )
-                return self.RESOURCE_UUID_NULL  # master_id cannot be None
+                LOG.debug(f"get_resource_id NO uuid resource_type={resource_type}")
+            return resource_uuid
+
+    @staticmethod
+    def filter_certificate_resource(certs):
+        return [
+            {
+                "uuid": cert.uuid,
+                "signature": cert.signature,
+                "expiry_date": cert.expiry_date,
+                "start_date": cert.start_date,
+            }
+            for cert in certs
+        ]
+
+    @staticmethod
+    def compare_certificate(i1, i2):
+        i1 = dccommon_utils.convert_resource_to_dict(i1)
+        i2 = dccommon_utils.convert_resource_to_dict(i2)
+        if i1.get("signature") and (i1.get("signature") != i2.get("signature")):
+            if i1.get("signature") == CERTIFICATE_SIG_NULL:
+                return True
+            return False
+        if (
+            i1.get("expiry_date") and i1.get("expiry_date") != i2.get("expiry_date")
+        ) or (i1.get("start_date") and i1.get("start_date") != i2.get("start_date")):
+            return False
+        return True
 
     def same_certificate(self, i1, i2):
         LOG.debug("same_certificate i1={}, i2={}".format(i1, i2), extra=self.log_extra)
-        same = True
-        if i1.signature and (i1.signature != i2.signature):
-            if i1.signature == self.CERTIFICATE_SIG_NULL:
-                return True
-            same = False
-        if (i1.expiry_date and i1.expiry_date != i2.expiry_date) or (
-            i1.start_date and i1.start_date != i2.start_date
-        ):
-            same = False
-
+        same = self.compare_certificate(i1, i2)
         if not same:
             LOG.info(
                 "same_certificate differs i1={}, i2={}".format(i1, i2),
                 extra=self.log_extra,
             )
-
         return same
+
+    @staticmethod
+    def filter_user_resource(user):
+        # The user is inside a list to be iterable, so we get
+        # the first and only element
+        return (
+            {
+                "uuid": user[0].uuid,
+                "passwd_hash": user[0].passwd_hash,
+                "passwd_expiry_days": user[0].passwd_expiry_days,
+            }
+            if user
+            else {}
+        )
+
+    @staticmethod
+    def compare_user(i1, i2):
+        i1 = dccommon_utils.convert_resource_to_dict(i1)
+        i2 = dccommon_utils.convert_resource_to_dict(i2)
+        if i1.get("passwd_hash") != i2.get("passwd_hash") or i1.get(
+            "passwd_expiry_days"
+        ) != i2.get("passwd_expiry_days"):
+            return False
+        return True
 
     def same_user(self, i1, i2):
         LOG.debug("same_user i1={}, i2={}".format(i1, i2), extra=self.log_extra)
-        same_user = True
-        if (
-            i1.passwd_hash != i2.passwd_hash
-            or i1.passwd_expiry_days != i2.passwd_expiry_days
-        ):
-            same_user = False
+        same_user = self.compare_user(i1, i2)
+        if not same_user:
+            LOG.debug(
+                "same_user differs i1={}, i2={}".format(i1, i2), extra=self.log_extra
+            )
         return same_user
 
-    def same_fernet_key(self, i1, i2):
-        LOG.debug("same_fernet_repo i1={}, i2={}".format(i1, i2), extra=self.log_extra)
-        same_fernet = True
+    @staticmethod
+    def compare_fernet_key(i1, i2):
+        i1 = dccommon_utils.convert_resource_to_dict(i1)
+        i2 = dccommon_utils.convert_resource_to_dict(i2)
         if FernetKeyManager.get_resource_hash(i1) != FernetKeyManager.get_resource_hash(
             i2
         ):
-            same_fernet = False
+            return False
+        return True
+
+    def same_fernet_key(self, i1, i2):
+        LOG.debug("same_fernet_repo i1={}, i2={}".format(i1, i2), extra=self.log_extra)
+        same_fernet = self.compare_fernet_key(i1, i2)
+        if not same_fernet:
+            LOG.debug(
+                "same_fernet_repo differs i1={}, i2={}".format(i1, i2),
+                extra=self.log_extra,
+            )
         return same_fernet
 
     def same_resource(self, resource_type, m_resource, sc_resource):
@@ -748,7 +805,7 @@ class SysinvSyncThread(SyncThread):
             # resource can be either from dcorch DB or
             # fetched by OpenStack query
             resource_id = self.get_resource_id(resource_type, resource)
-            if resource_id == self.CERTIFICATE_SIG_NULL:
+            if resource_id == CERTIFICATE_SIG_NULL:
                 LOG.info("No certificate resource to sync")
                 return num_of_audit_jobs
             elif resource_id == self.RESOURCE_UUID_NULL:
@@ -816,42 +873,53 @@ class SysinvSyncThread(SyncThread):
                 resource_type, resource, operation_type
             )
 
-    def get_dcagent_resources(self, resource_types):
+    def get_dcagent_resources(self, resource_types: list, master_resources: dict):
         try:
-            # Initialize the audit_payload with an empty dictionary and "use_cache"
-            # set to False, since we always want to get the latest information
-            audit_payload = {resource_type: "" for resource_type in resource_types}
-            audit_payload["use_cache"] = False
-            resources = self.get_sc_dcagent_client().audit(audit_payload)
-
-            formatted_resources = {}
-            # Process each resource type in the response
+            audit_payload = dict()
             for resource_type in resource_types:
                 if resource_type == consts.RESOURCE_TYPE_SYSINV_CERTIFICATE:
-                    # Creates a list of namespaces to maintain compatibility
-                    # with existing code that expects attributes instead of dict keys
-                    certificates_ns = [
-                        SimpleNamespace(**cert)
-                        for cert in resources.get(resource_type, [])
-                    ]
-                    formatted_resources[resource_type] = self.filter_cert_list(
-                        certificates_ns
+                    audit_payload[resource_type] = self.filter_certificate_resource(
+                        master_resources.get(resource_type, [])
                     )
                 elif resource_type == consts.RESOURCE_TYPE_SYSINV_USER:
-                    # Return a list containing a single dictionary since the resource
-                    # needs to be iterable
-                    iuser = resources.get(resource_type, {})
-                    formatted_resources[resource_type] = [iuser]
+                    audit_payload[resource_type] = self.filter_user_resource(
+                        master_resources.get(resource_type, "")
+                    )
                 elif resource_type == consts.RESOURCE_TYPE_SYSINV_FERNET_REPO:
-                    # Convert the list of dictionaries to a single
-                    # dictionary inside a list
-                    fernet_repo = [
-                        {d["id"]: d["key"] for d in resources.get(resource_type, [])}
-                    ]
-                    formatted_resources[resource_type] = fernet_repo
-            return formatted_resources
+                    audit_payload[resource_type] = master_resources.get(
+                        resource_type, ""
+                    )
+            # audit_payload["use_cache"] = False
+            resources = self.get_sc_dcagent_client().audit(audit_payload)
+            LOG.debug(
+                f"dcagent response: {resources=}",
+                extra=self.log_extra,
+            )
+            return resources
 
         except Exception:
             failmsg = "Audit failure subcloud: %s, endpoint: %s"
             LOG.exception(failmsg % (self.subcloud_name, "dcagent"))
             return None
+
+    def is_dcagent_managed_resource(self, resource_type):
+        return True
+
+    def is_resource_present_in_subcloud(self, resource_type, master_id, sc_resources):
+        if sc_resources == dccommon_consts.SYNC_STATUS_IN_SYNC:
+            LOG.debug(
+                "Resource type {} {} is in-sync".format(resource_type, master_id),
+                extra=self.log_extra,
+            )
+            return True
+        elif sc_resources == dccommon_consts.SYNC_STATUS_OUT_OF_SYNC:
+            # The information will be logged in the sync_thread
+            return False
+        elif isinstance(sc_resources, dict):
+            # The returned value for certificates is a dictionary with the
+            # signature as key and the sync status as value.
+            # We want to check if the specific cert is in-sync
+            return sc_resources.get(master_id) == dccommon_consts.SYNC_STATUS_IN_SYNC
+        # If the response is not what we expected, we considered to not be present
+        LOG.warn(f"Unnexpected subcloud resource for {resource_type}: {sc_resources}")
+        return False

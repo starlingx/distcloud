@@ -40,3 +40,7 @@ class DcagentException(Exception):
 
 class UnsupportedAudit(DcagentException):
     message = _("Requested audit %(audit)s is not supported.")
+
+
+class MissingRegionOneData(DcagentException):
+    message = _("Audit request does not have RegionOne data for %(audit)s.")
