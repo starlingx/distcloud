@@ -15,9 +15,9 @@ from dcmanager.api.controllers.v1 import subcloud_peer_group
 from dcmanager.common import consts
 from dcmanager.db.sqlalchemy import api as db_api
 from dcmanager.tests.base import FakeException
+from dcmanager.tests.unit.api.controllers.v1.mixins import APIMixin
+from dcmanager.tests.unit.api.controllers.v1.mixins import PostJSONMixin
 from dcmanager.tests.unit.api.test_root_controller import DCManagerApiTest
-from dcmanager.tests.unit.api.v1.controllers.mixins import APIMixin
-from dcmanager.tests.unit.api.v1.controllers.mixins import PostJSONMixin
 from dcmanager.tests.unit.common import fake_subcloud
 
 SAMPLE_SUBCLOUD_PEER_GROUP_NAME = "GroupX"

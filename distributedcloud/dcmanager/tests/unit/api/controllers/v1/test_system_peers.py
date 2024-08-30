@@ -13,12 +13,12 @@ from oslo_messaging import RemoteError
 from dcmanager.api.controllers.v1 import system_peers
 from dcmanager.common import consts
 from dcmanager.db.sqlalchemy import api as db_api
+from dcmanager.tests.unit.api.controllers.v1.mixins import APIMixin
+from dcmanager.tests.unit.api.controllers.v1.mixins import DeleteMixin
+from dcmanager.tests.unit.api.controllers.v1.mixins import GetMixin
+from dcmanager.tests.unit.api.controllers.v1.mixins import PostJSONMixin
+from dcmanager.tests.unit.api.controllers.v1.mixins import UpdateMixin
 from dcmanager.tests.unit.api.test_root_controller import DCManagerApiTest
-from dcmanager.tests.unit.api.v1.controllers.mixins import APIMixin
-from dcmanager.tests.unit.api.v1.controllers.mixins import DeleteMixin
-from dcmanager.tests.unit.api.v1.controllers.mixins import GetMixin
-from dcmanager.tests.unit.api.v1.controllers.mixins import PostJSONMixin
-from dcmanager.tests.unit.api.v1.controllers.mixins import UpdateMixin
 from dcmanager.tests.unit.common import fake_subcloud
 
 SAMPLE_SYSTEM_PEER_UUID = str(uuid.uuid4())

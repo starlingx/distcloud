@@ -15,9 +15,9 @@ from dcmanager.api.controllers.v1 import peer_group_association
 from dcmanager.common import consts
 from dcmanager.common import phased_subcloud_deploy as psd_common
 from dcmanager.db.sqlalchemy import api as db_api
+from dcmanager.tests.unit.api.controllers.v1.mixins import APIMixin
+from dcmanager.tests.unit.api.controllers.v1.mixins import GetMixin
 from dcmanager.tests.unit.api.test_root_controller import DCManagerApiTest
-from dcmanager.tests.unit.api.v1.controllers.mixins import APIMixin
-from dcmanager.tests.unit.api.v1.controllers.mixins import GetMixin
 
 # SAMPLE SYSTEM PEER DATA
 SAMPLE_SYSTEM_PEER_UUID = str(uuid.uuid4())
