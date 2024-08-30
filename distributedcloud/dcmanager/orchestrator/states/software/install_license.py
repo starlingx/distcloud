@@ -64,18 +64,37 @@ class InstallLicenseState(BaseState):
                     strategy_step.subcloud_id,
                     error_description=message[0 : consts.ERROR_DESCRIPTION_LENGTH],
                 )
-                raise exceptions.LicenseInstallError(
-                    subcloud_id=dccommon_consts.SYSTEM_CONTROLLER_NAME,
-                    error_message=target_error,
+                raise exceptions.SoftwareInstallLicenseFailedException(
+                    subcloud=dccommon_consts.SYSTEM_CONTROLLER_NAME,
+                    details=target_error,
                 )
 
-        # retrieve the keystone session for the subcloud and query its license
-        subcloud_sysinv_client = self.get_sysinv_client(
-            strategy_step.subcloud.region_name
-        )
-        subcloud_license_response = subcloud_sysinv_client.get_license()
-        subcloud_license = subcloud_license_response.get("content")
-        subcloud_error = subcloud_license_response.get("error")
+        try:
+            # retrieve the keystone session for the subcloud and query its license
+            subcloud_sysinv_client = self.get_sysinv_client(
+                strategy_step.subcloud.region_name
+            )
+        except Exception as exc:
+            details = "Get sysinv client failed."
+            self.handle_exception(
+                strategy_step,
+                details,
+                exceptions.SoftwareInstallLicenseFailedException,
+                exc=exc,
+            )
+
+        try:
+            subcloud_license_response = subcloud_sysinv_client.get_license()
+            subcloud_license = subcloud_license_response.get("content")
+            subcloud_error = subcloud_license_response.get("error")
+        except Exception as exc:
+            details = "Get license failed."
+            self.handle_exception(
+                strategy_step,
+                details,
+                exceptions.SoftwareInstallLicenseFailedException,
+                exc=exc,
+            )
 
         # Skip license install if the license is already up to date
         # If there was not an error, there might be a license
@@ -88,8 +107,18 @@ class InstallLicenseState(BaseState):
         else:
             self.debug_log(strategy_step, "License missing. Installing.")
 
-        # Install the license
-        install_rc = subcloud_sysinv_client.install_license(target_license)
+        try:
+            # Install the license
+            install_rc = subcloud_sysinv_client.install_license(target_license)
+        except Exception as exc:
+            details = f"Install license {target_license} failed."
+            self.handle_exception(
+                strategy_step,
+                details,
+                exceptions.SoftwareInstallLicenseFailedException,
+                exc=exc,
+            )
+
         install_error = install_rc.get("error")
         if len(install_error) != 0:
             # Save error response from sysinv into subcloud error description.
@@ -103,8 +132,8 @@ class InstallLicenseState(BaseState):
                 strategy_step.subcloud_id,
                 error_description=message[0 : consts.ERROR_DESCRIPTION_LENGTH],
             )
-            raise exceptions.LicenseInstallError(
-                subcloud_id=strategy_step.subcloud_id, error_message=install_error
+            raise exceptions.SoftwareInstallLicenseFailedException(
+                subcloud=strategy_step.subcloud_id, details=install_error
             )
 
         # The license has been successfully installed. Move to the next stage

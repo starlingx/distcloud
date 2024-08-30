@@ -122,7 +122,7 @@ class TestApplyVIMSoftwareStrategyState(TestSoftwareOrchestrator):
         expected_message = f"VIM strategy apply failed: {APPLY_PHASE_ERROR.response}"
         mock_exception.assert_called_once_with(
             subcloud=self.subcloud.name,
-            name=vim.STRATEGY_NAME_SW_USM,
-            state=vim.STATE_APPLY_FAILED,
             details=expected_message,
+            strategy_name=vim.STRATEGY_NAME_SW_USM,
+            state=vim.STATE_APPLY_FAILED,
         )

@@ -5,6 +5,8 @@
 #
 
 import abc
+from typing import Optional
+from typing import Type
 
 from oslo_log import log as logging
 
@@ -16,9 +18,11 @@ from dccommon.drivers.openstack.sdk_platform import OpenStackDriver
 from dccommon.drivers.openstack.software_v1 import SoftwareClient
 from dccommon.drivers.openstack.sysinv_v1 import SysinvClient
 from dccommon.drivers.openstack.vim import VimClient
+from dcmanager.common import consts
 from dcmanager.common import context
-from dcmanager.common.exceptions import InvalidParameterValue
+from dcmanager.common import exceptions
 from dcmanager.common import utils
+from dcmanager.db import api as db_api
 
 LOG = logging.getLogger(__name__)
 
@@ -102,6 +106,47 @@ class BaseState(object, metaclass=abc.ABCMeta):
             )
         )
 
+    def handle_exception(
+        self,
+        strategy_step,
+        details: str,
+        raise_exception: Type[exceptions.DCOrchestrationFailedException],
+        exc: Optional[Exception] = None,
+        state: Optional[str] = None,
+        strategy_name: Optional[str] = None,
+    ) -> None:
+        """Handle exception for DC Orchestration strategies.
+
+        Helper function to log an error, raise a DCOrchestrationFailedException, update
+        the subcloud's deploy state and error description.
+
+        :param strategy_step: The current strategy step.
+        :param details: The exception details used in the new exception.
+        :param raise_exception: The exception class to be raised.
+        :param exc: The original exception that was caught (optional).
+        :param state: State of the VIM strategy used in the the exception (optional).
+        :param strategy_name: The name of the strategy to be passed to the exception
+                              (optional).
+        """
+
+        # TODO(nicodemos): Change all orchestration exceptions to use handle_exception
+        # and remove the logging from orch_thread to avoid duplicate logging.
+        if exc:
+            log_msg = f"{details} Error: {str(exc)}"
+            self.exception_log(strategy_step, log_msg)
+        db_api.subcloud_update(
+            self.context,
+            strategy_step.subcloud_id,
+            deploy_status=consts.DEPLOY_STATE_APPLY_STRATEGY_FAILED,
+            error_description=details,
+        )
+        raise raise_exception(
+            subcloud=strategy_step.subcloud.name,
+            details=details,
+            strategy_name=strategy_name,
+            state=state,
+        )
+
     @staticmethod
     def get_region_name(strategy_step):
         """Get the region name for a strategy step"""
@@ -181,7 +226,7 @@ class BaseState(object, metaclass=abc.ABCMeta):
         if self._shared_caches is not None:
             return self._shared_caches.read(cache_type, **filter_params)
         else:
-            InvalidParameterValue(
+            raise exceptions.InvalidParameterValue(
                 err="Specified cache type '%s' not present" % cache_type
             )
 
