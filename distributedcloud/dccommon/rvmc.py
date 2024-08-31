@@ -27,10 +27,9 @@ import sys
 import time
 import yaml
 
-# Import Redfish Python Library
-# Module: https://pypi.org/project/redfish/
 import redfish
 from redfish.rest.v1 import InvalidCredentialsError
+import requests
 
 from dccommon import exceptions
 
@@ -46,6 +45,8 @@ SUPPORTED_VIRTUAL_MEDIA_DEVICES = ["CD", "DVD"]  # Maybe add USB to list
 # headers for each request type
 HDR_CONTENT_TYPE = "'Content-Type': 'application/json'"
 HDR_ACCEPT = "'Accept': 'application/json'"
+
+CONTENT_TYPE = "Content-Type"
 
 # they all happen to be the same right now
 GET_HEADERS = {HDR_CONTENT_TYPE, HDR_ACCEPT}
@@ -638,6 +639,31 @@ class VmcObject(object):
             % (operation, function, self.response.status, seconds)
         )
         return True
+
+    def check_image_url(self, url):
+        """Send a HEAD request to check if the URI is accessible.
+
+        :param url: image URL
+        :type url: str
+        :returns True if it's accessible, otherwise, False.
+        """
+        try:
+            response = requests.head(url, timeout=10, verify=False)
+            if response.status_code in [200, 202, 204]:
+                content_type = response.headers.get(CONTENT_TYPE, "")
+                self.logging_util.ilog(
+                    f"Image URL is accessible: {url} "
+                    f"({CONTENT_TYPE}={content_type} {response.status_code})"
+                )
+                return True
+            else:
+                self.logging_util.elog(
+                    f"Checking image failed: HTTP Status {response.status_code}"
+                )
+                return False
+        except requests.exceptions.RequestException as e:
+            self.logging_util.elog(f"Checking image failed: {e}")
+            return False
 
     def _exit(self, code):
         """Exit the tool but not before closing an open Redfish
@@ -1482,6 +1508,12 @@ class VmcObject(object):
             )
             self._exit(1)
 
+        if not self.check_image_url(self.img):
+            self.logging_util.elog(
+                f"Failed to insert image due to image url check: {self.img}"
+            )
+            self._exit(1)
+
         payload = {"Image": self.img, "Inserted": True, "WriteProtected": True}
         if (
             self.make_request(operation=POST, payload=payload, path=vm_insert_url)
@@ -1502,7 +1534,9 @@ class VmcObject(object):
                 )
                 self._exit(1)
 
-            if self.get_key_value("Image") == self.img:
+            if self.get_key_value("Image") == self.img and self.get_key_value(
+                "Inserted"
+            ):
                 self.logging_util.ilog(
                     "Image Insertion (took %i seconds)"
                     % (poll_count * RETRY_DELAY_SECS)
@@ -1516,19 +1550,16 @@ class VmcObject(object):
                     % (poll_count * RETRY_DELAY_SECS, poll_count, MAX_POLL_COUNT)
                 )
 
-        if ImageInserting is True:
+        if ImageInserting:
             self.logging_util.elog("Image insertion timeout")
+            self.logging_util.ilog(f"Expected Image: {self.img}")
+            self.logging_util.ilog(f"Detected Image: {self.get_key_value('Image')}")
+            self.logging_util.ilog(f"Inserted      : {self.get_key_value('Inserted')}")
             self._exit(1)
         else:
             self.logging_util.ilog(
                 "%s verified (took %i seconds)" % (stage, poll_count * RETRY_DELAY_SECS)
             )
-
-        if self.get_key_value("Image") != self.img:
-            self.logging_util.elog("Insertion verification failed.")
-            self.logging_util.ilog("Expected Image: %s" % self.img)
-            self.logging_util.ilog("Detected Image: %s" % self.get_key_value("Image"))
-            self._exit(1)
 
         # Verify Insertion
         #
@@ -1576,10 +1607,10 @@ class VmcObject(object):
 
             # Look for Reset Actions Dictionary
             self.boot_control_dict = self.get_key_value("Boot")
-            if self.boot_control_dict is None:
-                continue
+            if self.boot_control_dict:
+                break
 
-        if self.boot_control_dict is None:
+        if not self.boot_control_dict:
             self.logging_util.elog(
                 "Unable to get %s from %s" % (info, self.systems_member_url)
             )
