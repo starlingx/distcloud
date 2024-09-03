@@ -295,14 +295,14 @@ class TestSubcloudsGet(BaseTestSubcloudsGet):
     def setUp(self):
         super().setUp()
 
+        self.url = self.API_PREFIX
+
     def test_get_succeeds(self):
         """Test get succeeds
 
         When the request is made without a subcloud_ref, a list of subclouds is
         returned.
         """
-
-        self.url = self.API_PREFIX
 
         response = self._send_request()
 
@@ -317,6 +317,8 @@ class TestSubcloudsGet(BaseTestSubcloudsGet):
         returned.
         """
 
+        self.url = f"{self.API_PREFIX}/{self.subcloud.id}"
+
         response = self._send_request()
 
         self._assert_response(response)
@@ -330,7 +332,7 @@ class TestSubcloudsGet(BaseTestSubcloudsGet):
         returned.
         """
 
-        self.url = f"{self.API_PREFIX}/{self.subcloud.name}"
+        self.url = f"{self.url}/{self.subcloud.name}"
 
         response = self._send_request()
 
@@ -340,7 +342,7 @@ class TestSubcloudsGet(BaseTestSubcloudsGet):
     def test_get_fails_with_inexistent_subcloud_id(self):
         """Test get fails with inexistent subcloud id"""
 
-        self.url = f"{self.API_PREFIX}/999"
+        self.url = f"{self.url}/999"
 
         response = self._send_request()
 
@@ -351,13 +353,48 @@ class TestSubcloudsGet(BaseTestSubcloudsGet):
     def test_get_fails_with_inexistent_subcloud_name(self):
         """Test get fails with inexistent subcloud name"""
 
-        self.url = f"{self.API_PREFIX}/fake"
+        self.url = f"{self.url}/fake"
 
         response = self._send_request()
 
         self._assert_pecan_and_response(
             response, http.client.NOT_FOUND, "Subcloud not found"
         )
+
+    @mock.patch.object(db_api, "subcloud_get_all_with_status")
+    def test_get_succeeds_returning_correct_sync_status(self, mock_db_api):
+        """Test get succeeds, returning the correct sync status
+
+        Previously, there was a bug that, when the patch and load endpoints were
+        returned as the first items in the db_api.subcloud_get_all_with_status
+        request, the resulting sync status for the subcloud would be out-of-sync,
+        even though all endpoints were in-sync.
+
+        In this test, the first subcloud returns the endpoints in the order that
+        caused the issue.
+        """
+
+        mock_db_api.return_value = [
+            (self.subcloud, "patching", "not-available"),
+            (self.subcloud, "platform", "in-sync"),
+            (self.subcloud, "identity", "in-sync"),
+            (self.subcloud, "load", "not-available"),
+            (self.subcloud, "dc-cert", "in-sync"),
+            (self.subcloud, "firmware", "in-sync"),
+            (self.subcloud, "kubernetes", "in-sync"),
+            (self.subcloud, "kube-rootca", "in-sync"),
+            (self.subcloud, "usm", "in-sync"),
+        ]
+
+        response = self._send_request()
+
+        self._assert_response(response)
+
+        subclouds = response.json["subclouds"]
+        for subcloud in subclouds:
+            self.assertEqual(
+                subcloud["sync_status"], dccommon_consts.SYNC_STATUS_IN_SYNC
+            )
 
 
 class TestSubcloudsGetDetail(BaseTestSubcloudsGet):
