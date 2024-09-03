@@ -23,12 +23,12 @@ from oslo_messaging import RemoteError
 from dcmanager.api.controllers.v1 import subcloud_group
 from dcmanager.common import consts
 from dcmanager.db.sqlalchemy import api as db_api
+from dcmanager.tests.unit.api.controllers.v1.mixins import APIMixin
+from dcmanager.tests.unit.api.controllers.v1.mixins import DeleteMixin
+from dcmanager.tests.unit.api.controllers.v1.mixins import GetMixin
+from dcmanager.tests.unit.api.controllers.v1.mixins import PostJSONMixin
+from dcmanager.tests.unit.api.controllers.v1.mixins import UpdateMixin
 from dcmanager.tests.unit.api.test_root_controller import DCManagerApiTest
-from dcmanager.tests.unit.api.v1.controllers.mixins import APIMixin
-from dcmanager.tests.unit.api.v1.controllers.mixins import DeleteMixin
-from dcmanager.tests.unit.api.v1.controllers.mixins import GetMixin
-from dcmanager.tests.unit.api.v1.controllers.mixins import PostJSONMixin
-from dcmanager.tests.unit.api.v1.controllers.mixins import UpdateMixin
 from dcmanager.tests.unit.common import fake_subcloud
 
 SAMPLE_SUBCLOUD_GROUP_NAME = "GroupX"

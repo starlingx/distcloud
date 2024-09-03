@@ -19,9 +19,9 @@ from dcmanager.common import consts
 from dcmanager.common import phased_subcloud_deploy as psd_common
 from dcmanager.common import utils as dutils
 from dcmanager.db import api as db_api
+from dcmanager.tests.unit.api.controllers.v1.test_subclouds import FakeAddressPool
+from dcmanager.tests.unit.api.controllers.v1.test_subclouds import SubcloudAPIMixin
 from dcmanager.tests.unit.api.test_root_controller import DCManagerApiTest
-from dcmanager.tests.unit.api.v1.controllers.test_subclouds import FakeAddressPool
-from dcmanager.tests.unit.api.v1.controllers.test_subclouds import SubcloudAPIMixin
 from dcmanager.tests.unit.common import fake_subcloud
 from dcmanager.tests.unit.manager.test_system_peer_manager import TestSystemPeerManager
 

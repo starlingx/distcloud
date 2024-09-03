@@ -40,9 +40,9 @@ from dcmanager.common import prestage
 from dcmanager.common import utils as cutils
 from dcmanager.db import api as db_api
 from dcmanager.db.sqlalchemy import api as sql_api
+from dcmanager.tests.unit.api.controllers.v1.mixins import APIMixin
+from dcmanager.tests.unit.api.controllers.v1.mixins import PostMixin
 from dcmanager.tests.unit.api.test_root_controller import DCManagerApiTest
-from dcmanager.tests.unit.api.v1.controllers.mixins import APIMixin
-from dcmanager.tests.unit.api.v1.controllers.mixins import PostMixin
 from dcmanager.tests.unit.common import fake_strategy
 from dcmanager.tests.unit.common import fake_subcloud
 from dcmanager.tests.unit.manager import test_system_peer_manager
