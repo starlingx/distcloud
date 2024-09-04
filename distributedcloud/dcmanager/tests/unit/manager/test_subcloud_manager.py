@@ -555,6 +555,22 @@ class BaseTestSubcloudManager(base.DCManagerTestCase):
         self.mock_compose_enroll_command = mock_patch.start()
         self.addCleanup(mock_patch.stop)
 
+    def _mock_subcloud_manager_init_enroll(self):
+        """Mock subcloud manager init_enroll process"""
+
+        mock_patch = mock.patch.object(
+            subcloud_manager.SubcloudManager, "subcloud_init_enroll"
+        )
+        self.mock_subcloud_init_enroll = mock_patch.start()
+        self.addCleanup(mock_patch.stop)
+
+    def _mock_subcloud_get_region_name(self):
+        """Mock region name"""
+
+        mock_patch = mock.patch.object(cutils, "get_region_name")
+        self.mock_get_region_name = mock_patch.start()
+        self.addCleanup(mock_patch.stop)
+
     def _mock_netaddr_ipaddress(self):
         """Mock netaddr's IPAddress"""
 
@@ -1518,6 +1534,11 @@ class TestSubcloudAdd(BaseTestSubcloudManager):
         self.mock_openstack_driver().keystone_client = FakeKeystoneClient()
         self._mock_subcloud_manager_get_cached_regionone_data()
         self.mock_get_cached_regionone_data.return_value = FAKE_CACHED_REGIONONE_DATA
+        self._mock_subcloud_manager_init_enroll()
+        self._mock_subcloud_get_region_name()
+        self._mock_subcloud_manager_run_subcloud_enroll()
+        self.fake_install_values = copy.copy(fake_subcloud.FAKE_SUBCLOUD_INSTALL_VALUES)
+        self.fake_install_values["software_version"] = SW_VERSION
 
     @mock.patch.object(cutils, "get_oam_floating_ip_primary")
     @mock.patch.object(subcloud_install.SubcloudInstall, "prep")
@@ -1659,6 +1680,35 @@ class TestSubcloudAdd(BaseTestSubcloudManager):
         # Verify subcloud was updated with correct values
         subcloud = db_api.subcloud_get_by_name(self.ctx, values["name"])
         self.assertEqual(consts.DEPLOY_STATE_REHOME_PREP_FAILED, subcloud.deploy_status)
+
+    def test_add_subcloud_with_enroll_option(self):
+        values = utils.create_subcloud_dict(base.SUBCLOUD_SAMPLE_DATA_0)
+        values["deploy_status"] = consts.DEPLOY_STATE_NONE
+        values["enroll"] = "true"
+        values["install_values"] = self.fake_install_values
+        values["deploy_config"] = self.fake_payload
+        sysadmin_password = values["sysadmin_password"]
+
+        subcloud = self.create_subcloud_static(
+            self.ctx, name=values["name"], region_name=values["region_name"]
+        )
+
+        self.mock_keyring.get_password.return_value = sysadmin_password
+        self.mock_subcloud_init_enroll.return_value = True
+        self.mock_get_region_name.return_value = values["region_name"]
+        self.mock_run_subcloud_enroll.return_value = True
+
+        self.sm.add_subcloud(self.ctx, subcloud.id, payload=values)
+
+        self.mock_subcloud_init_enroll.assert_called_once()
+        self.mock_get_region_name.assert_called_once()
+        self.mock_get_cached_regionone_data.assert_called()
+        self.mock_sysinv_client().create_route.assert_called()
+        self.mock_dcorch_api().add_subcloud.assert_called_once()
+        self.mock_create_addn_hosts.assert_called_once()
+        self.mock_create_subcloud_inventory.assert_called_once()
+        self.mock_write_subcloud_ansible_config.assert_called()
+        self.mock_create_intermediate_ca_cert.assert_called_once()
 
 
 class TestSubcloudDelete(BaseTestSubcloudManager):
