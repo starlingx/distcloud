@@ -451,7 +451,17 @@ class SubcloudsController(object):
                         subcloud
                     )
                     self._append_static_err_content(subcloud_dict[subcloud_id])
-                    subcloud_dict[subcloud_id].update({consts.SYNC_STATUS: sync_status})
+
+                    # NOTE Until all patch/load audits are fully removed,
+                    # we need to set the sync status as 'in-sync'
+                    if sync_status == dccommon_consts.SYNC_STATUS_NOT_AVAILABLE:
+                        subcloud_dict[subcloud_id].update(
+                            {consts.SYNC_STATUS: dccommon_consts.SYNC_STATUS_IN_SYNC}
+                        )
+                    else:
+                        subcloud_dict[subcloud_id].update(
+                            {consts.SYNC_STATUS: sync_status}
+                        )
                     subcloud_dict[subcloud_id][consts.ENDPOINT_SYNC_STATUS] = []
 
                 subcloud_dict[subcloud_id][consts.ENDPOINT_SYNC_STATUS].append(
